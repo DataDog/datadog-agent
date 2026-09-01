@@ -36,7 +36,9 @@ datadog:
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestSpanReceiverV2TestSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+		provkindvm.Provisioner(provkindvm.WithRunOptions(
+			scenkindvm.WithInternetAccess(),
+			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
 	)
 }
 

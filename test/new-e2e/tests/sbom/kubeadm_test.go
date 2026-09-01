@@ -112,6 +112,7 @@ const sbomHostRetentionPeriod = "1h"
 func TestSBOMKubeadmSuite(t *testing.T) {
 	prov := provkubeadm.Provisioner(
 		provkubeadm.WithRunOptions(
+			scenkubeadm.WithInternetAccess(),
 			scenkubeadm.WithVMOptions(
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),
@@ -135,6 +136,7 @@ func TestSBOMKubeadmSuite(t *testing.T) {
 func TestSBOMKubeadmCrioSuite(t *testing.T) {
 	prov := provkubeadm.Provisioner(
 		provkubeadm.WithRunOptions(
+			scenkubeadm.WithInternetAccess(),
 			scenkubeadm.WithVMOptions(
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),

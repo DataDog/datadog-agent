@@ -74,6 +74,7 @@ agents:
 	e2e.Run(t, &v3SeriesTestSuite{},
 		e2e.WithProvisioner(provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
+				scenkindvm.WithInternetAccess(),
 				scenkindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(values),
 					kubernetesagentparams.WithOTelAgent(),

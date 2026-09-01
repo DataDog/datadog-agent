@@ -85,6 +85,7 @@ func testCiliumLBConntracker(t *testing.T, ciliumVersion string) {
 		e2e.WithProvisioner(
 			provkindvm.Provisioner(
 				provkindvm.WithRunOptions(
+					scenkindvm.WithInternetAccess(),
 					scenkindvm.WithName(name),
 					scenkindvm.WithCiliumOptions(cilium.WithHelmValues(ciliumHelmValues), cilium.WithVersion(ciliumVersion)),
 					scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),

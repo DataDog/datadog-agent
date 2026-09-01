@@ -88,7 +88,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			}
 
 			// 2. Provision EC2 VM
-			host, err := ec2.NewVM(awsEnv, name)
+			host, err := ec2.NewVM(awsEnv, name, ec2.WithInternetAccess())
 			if err != nil {
 				return fmt.Errorf("ec2.NewVM: %w", err)
 			}

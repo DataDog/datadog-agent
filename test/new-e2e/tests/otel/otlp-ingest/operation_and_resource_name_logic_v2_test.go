@@ -37,7 +37,9 @@ datadog:
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestOpNameV2RecvrV1TestSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+		provkindvm.Provisioner(provkindvm.WithRunOptions(
+			scenkindvm.WithInternetAccess(),
+			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
 	)
 }
 
@@ -73,7 +75,9 @@ datadog:
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestOpNameV2RecvrV2TestSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+		provkindvm.Provisioner(provkindvm.WithRunOptions(
+			scenkindvm.WithInternetAccess(),
+			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
 	)
 }
 
@@ -115,7 +119,9 @@ agents:
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestOpNameV2SpanAsResNameTestSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+		provkindvm.Provisioner(provkindvm.WithRunOptions(
+			scenkindvm.WithInternetAccess(),
+			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
 	)
 }
 
@@ -158,7 +164,9 @@ agents:
 	t.Parallel()
 	ts := &otlpIngestOpNameV2RemappingTestSuite{}
 	e2e.Run(t, ts, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+		provkindvm.Provisioner(provkindvm.WithRunOptions(
+			scenkindvm.WithInternetAccess(),
+			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
 	)
 }
 

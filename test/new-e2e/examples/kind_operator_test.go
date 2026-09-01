@@ -41,6 +41,7 @@ spec:
 
 	e2e.Run(t, &kindOperatorSuite{}, e2e.WithProvisioner(provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			scenariokindvm.WithInternetAccess(),
 			scenariokindvm.WithDeployOperator(),
 			scenariokindvm.WithOperatorDDAOptions([]agentwithoperatorparams.Option{
 				agentwithoperatorparams.WithDDAConfig(customDDA),

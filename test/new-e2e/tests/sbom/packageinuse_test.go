@@ -185,6 +185,7 @@ type packageInUseSuite struct {
 func TestSBOMPackageInUseKubeadmSuite(t *testing.T) {
 	prov := provkubeadm.Provisioner(
 		provkubeadm.WithRunOptions(
+			scenkubeadm.WithInternetAccess(),
 			scenkubeadm.WithVMOptions(
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),

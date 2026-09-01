@@ -34,6 +34,7 @@ func TestMyKindSuite(t *testing.T) {
 		e2e.WithProvisioner(
 			awskindvm.Provisioner(
 				awskindvm.WithRunOptions(
+					scenariokindvm.WithInternetAccess(),
 					scenariokindvm.WithoutFakeIntake(),
 					scenariokindvm.WithAgentOptions(kubernetesagentparams.WithClusterName(pulumi.String("kind-test"))),
 					scenariokindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {

@@ -49,7 +49,9 @@ agents:
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestLogsTagsAsDDTagsTestSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+		provkindvm.Provisioner(provkindvm.WithRunOptions(
+			scenkindvm.WithInternetAccess(),
+			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
 	)
 }
 
