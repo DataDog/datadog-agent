@@ -653,6 +653,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "process.aws_security_credentials.access_key_id",
+          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "process.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.aws_security_credentials.type",
+          "definition": "the security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "process.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -2801,6 +2816,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "exec.aws_security_credentials.access_key_id",
+          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "exec.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exec.aws_security_credentials.type",
+          "definition": "the security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "exec.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -3415,6 +3445,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "exit.aws_security_credentials.access_key_id",
+          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "exit.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exit.aws_security_credentials.type",
+          "definition": "the security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "exit.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -3966,12 +4011,12 @@
         {
           "name": "imds.aws.security_credentials.access_key_id",
           "definition": "the access key ID of the security credentials in the IMDS answer",
-          "property_doc_link": "imds-aws-security_credentials-access_key_id-doc"
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
         },
         {
           "name": "imds.aws.security_credentials.type",
           "definition": "the security credentials type",
-          "property_doc_link": "imds-aws-security_credentials-type-doc"
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "imds.cloud_provider",
@@ -6001,6 +6046,21 @@
           "name": "ptrace.tracee.auid",
           "definition": "Login UID of the process",
           "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.access_key_id",
+          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.type",
+          "definition": "the security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "ptrace.tracee.cap_effective",
@@ -8392,6 +8452,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "setrlimit.target.aws_security_credentials.access_key_id",
+          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "setrlimit.target.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.aws_security_credentials.type",
+          "definition": "the security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "setrlimit.target.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -10358,6 +10433,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "signal.target.aws_security_credentials.access_key_id",
+          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "signal.target.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.aws_security_credentials.type",
+          "definition": "the security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "signal.target.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -12031,6 +12121,24 @@
   ],
   "properties_doc": [
     {
+      "name": "*.access_key_id",
+      "link": "common-awssecuritycredentials-access_key_id-doc",
+      "type": "string",
+      "definition": "the access key ID of the security credentials in the IMDS answer",
+      "prefixes": [
+        "exec.aws_security_credentials",
+        "exit.aws_security_credentials",
+        "imds.aws.security_credentials",
+        "process.aws_security_credentials",
+        "ptrace.tracee.aws_security_credentials",
+        "setrlimit.target.aws_security_credentials",
+        "signal.target.aws_security_credentials"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.args",
       "link": "common-process-args-doc",
       "type": "string",
@@ -13635,10 +13743,12 @@
         "chown.file.path",
         "connect.addr.hostname",
         "dns.question.name",
+        "exec.aws_security_credentials",
         "exec.file.name",
         "exec.file.path",
         "exec.interpreter.file.name",
         "exec.interpreter.file.path",
+        "exit.aws_security_credentials",
         "exit.file.name",
         "exit.file.path",
         "exit.interpreter.file.name",
@@ -13661,6 +13771,7 @@
         "process.ancestors.file.path",
         "process.ancestors.interpreter.file.name",
         "process.ancestors.interpreter.file.path",
+        "process.aws_security_credentials",
         "process.file.name",
         "process.file.path",
         "process.interpreter.file.name",
@@ -13674,6 +13785,7 @@
         "ptrace.tracee.ancestors.file.path",
         "ptrace.tracee.ancestors.interpreter.file.name",
         "ptrace.tracee.ancestors.interpreter.file.path",
+        "ptrace.tracee.aws_security_credentials",
         "ptrace.tracee.file.name",
         "ptrace.tracee.file.path",
         "ptrace.tracee.interpreter.file.name",
@@ -13695,6 +13807,7 @@
         "setrlimit.target.ancestors.file.path",
         "setrlimit.target.ancestors.interpreter.file.name",
         "setrlimit.target.ancestors.interpreter.file.path",
+        "setrlimit.target.aws_security_credentials",
         "setrlimit.target.file.name",
         "setrlimit.target.file.path",
         "setrlimit.target.interpreter.file.name",
@@ -13710,6 +13823,7 @@
         "signal.target.ancestors.file.path",
         "signal.target.ancestors.interpreter.file.name",
         "signal.target.ancestors.interpreter.file.path",
+        "signal.target.aws_security_credentials",
         "signal.target.file.name",
         "signal.target.file.path",
         "signal.target.interpreter.file.name",
@@ -15090,6 +15204,24 @@
     },
     {
       "name": "*.type",
+      "link": "common-awssecuritycredentials-type-doc",
+      "type": "string",
+      "definition": "the security credentials type",
+      "prefixes": [
+        "exec.aws_security_credentials",
+        "exit.aws_security_credentials",
+        "imds.aws.security_credentials",
+        "process.aws_security_credentials",
+        "ptrace.tracee.aws_security_credentials",
+        "setrlimit.target.aws_security_credentials",
+        "signal.target.aws_security_credentials"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.type",
       "link": "common-networkcontext-type-doc",
       "type": "int",
       "definition": "Type of the network packet",
@@ -16034,30 +16166,6 @@
       "definition": "a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions",
       "prefixes": [
         "imds.aws"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "imds.aws.security_credentials.access_key_id",
-      "link": "imds-aws-security_credentials-access_key_id-doc",
-      "type": "string",
-      "definition": "the access key ID of the security credentials in the IMDS answer",
-      "prefixes": [
-        "imds.aws.security_credentials"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "imds.aws.security_credentials.type",
-      "link": "imds-aws-security_credentials-type-doc",
-      "type": "string",
-      "definition": "the security credentials type",
-      "prefixes": [
-        "imds.aws.security_credentials"
       ],
       "constants": "",
       "constants_link": "",

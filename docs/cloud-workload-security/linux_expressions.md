@@ -310,6 +310,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`process.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`process.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`process.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`process.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`process.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
 | [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -806,6 +809,9 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`exec.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`exec.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`exec.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`exec.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`exec.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
 | [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exec.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -934,6 +940,9 @@ A process was terminated
 | [`exit.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`exit.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`exit.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`exit.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`exit.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`exit.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
 | [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exit.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -1049,8 +1058,8 @@ An IMDS event was captured
 | Property | Definition |
 | -------- | ------------- |
 | [`imds.aws.is_imds_v2`](#imds-aws-is_imds_v2-doc) | a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions |
-| [`imds.aws.security_credentials.access_key_id`](#imds-aws-security_credentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
-| [`imds.aws.security_credentials.type`](#imds-aws-security_credentials-type-doc) | the security credentials type |
+| [`imds.aws.security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`imds.aws.security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
 | [`imds.cloud_provider`](#imds-cloud_provider-doc) | the intended cloud provider of the IMDS event |
 | [`imds.host`](#imds-host-doc) | the host of the HTTP protocol |
 | [`imds.server`](#imds-server-doc) | the server header of a response |
@@ -1516,6 +1525,9 @@ A ptrace command was executed
 | [`ptrace.tracee.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`ptrace.tracee.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`ptrace.tracee.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`ptrace.tracee.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`ptrace.tracee.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`ptrace.tracee.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
 | [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -2025,6 +2037,9 @@ A setrlimit command was executed
 | [`setrlimit.target.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`setrlimit.target.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`setrlimit.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`setrlimit.target.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`setrlimit.target.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`setrlimit.target.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
 | [`setrlimit.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -2439,6 +2454,9 @@ A signal was sent
 | [`signal.target.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`signal.target.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`signal.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`signal.target.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`signal.target.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`signal.target.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
 | [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -2807,6 +2825,15 @@ Change file access/modification times
 
 
 ## Attributes documentation
+
+
+### `*.access_key_id` {#common-awssecuritycredentials-access_key_id-doc}
+Type: string
+
+Definition: the access key ID of the security credentials in the IMDS answer
+
+`*.access_key_id` has 7 possible prefixes:
+`exec.aws_security_credentials` `exit.aws_security_credentials` `imds.aws.security_credentials` `process.aws_security_credentials` `ptrace.tracee.aws_security_credentials` `setrlimit.target.aws_security_credentials` `signal.target.aws_security_credentials`
 
 
 ### `*.args` {#common-process-args-doc}
@@ -3371,8 +3398,8 @@ Type: int
 
 Definition: Length of the corresponding element
 
-`*.length` has 100 possible prefixes:
-`accept.addr.hostname` `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `connect.addr.hostname` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+`*.length` has 106 possible prefixes:
+`accept.addr.hostname` `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `connect.addr.hostname` `dns.question.name` `exec.aws_security_credentials` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.aws_security_credentials` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.aws_security_credentials` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.aws_security_credentials` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.aws_security_credentials` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.aws_security_credentials` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
 ### `*.mntns` {#common-pidcontext-mntns-doc}
@@ -3738,6 +3765,15 @@ Definition: Name of the TTY associated with the process
 
 `*.tty_name` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.type` {#common-awssecuritycredentials-type-doc}
+Type: string
+
+Definition: the security credentials type
+
+`*.type` has 7 possible prefixes:
+`exec.aws_security_credentials` `exit.aws_security_credentials` `imds.aws.security_credentials` `process.aws_security_credentials` `ptrace.tracee.aws_security_credentials` `setrlimit.target.aws_security_credentials` `signal.target.aws_security_credentials`
 
 
 ### `*.type` {#common-networkcontext-type-doc}
@@ -4291,20 +4327,6 @@ Definition: Exit code of the process or number of the signal that caused the pro
 Type: bool
 
 Definition: a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions
-
-
-
-### `imds.aws.security_credentials.access_key_id` {#imds-aws-security_credentials-access_key_id-doc}
-Type: string
-
-Definition: the access key ID of the security credentials in the IMDS answer
-
-
-
-### `imds.aws.security_credentials.type` {#imds-aws-security_credentials-type-doc}
-Type: string
-
-Definition: the security credentials type
 
 
 
