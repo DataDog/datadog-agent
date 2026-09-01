@@ -1,0 +1,7 @@
+---
+aix_unit_tests:
+  stage: source_test
+  extends: .aix_remote
+  script:
+    - 'echo "=== AIX: running unit tests (run-tests.sh) ==="'
+    - ssh -tt -p $AIX_PORT $AIX_USER@$AIX_HOST "sh $AIX_AGENT_SRC/packaging/aix/ci/run-tests.sh"

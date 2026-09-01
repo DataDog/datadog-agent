@@ -1,17 +1,16 @@
 ---
-# AIX/ppc64 jobs run on a remote AIX LPAR over SSH, driven by a Linux GitLab
-# runner (RFC: AIX/ppc64 datadog-agent CI, Phase 1).
+# Shared template for AIX/ppc64 jobs running on a remote AIX LPAR over SSH,
+# driven by a Linux GitLab runner.
 #
-# Neither GitHub Actions nor AWS/GitLab offer AIX/ppc64 runners, so a standard
-# Linux runner orchestrates the job: it fetches the AIX host's SSH private key
-# from Vault, ensures the agent source is cloned on the host at the commit
-# under test, then runs job-specific scripts over SSH. The AIX host does all
-# the actual work.
-#
+# This template ensures the Linux runner can connect to the AIX host, that the code
+# is available at the correct ref, and that the host has necessary tools and setup.
 # A resource_group per VM ensures only one AIX job uses the host at a time.
+#
+# The SSH key is added to the ssh-agent in before_script, so script steps can
+# connect with plain `ssh -p $AIX_PORT $AIX_USER@$AIX_HOST <cmd>`.
+# The repository is cloned in $AIX_AGENT_SRC.
 
 .aix_remote:
-  stage: source_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   needs: []
@@ -22,7 +21,6 @@
     - !reference [.except_mergequeue]
     - !reference [.manual]
   variables:
-    # SSH connection details for the AIX LPAR (fetched from Vault below).
     # Where the agent source is cloned on the AIX host.
     AIX_AGENT_SRC: "/opt/dd-build/datadog-agent"
     AIX_GIT_REMOTE: "https://github.com/DataDog/datadog-agent.git"
@@ -32,19 +30,24 @@
     - export AIX_HOST="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER hostname)"
     - export AIX_PORT="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER port)"
     - export AIX_USER="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER user)"
+
+    # Setup to be able to connect to the host
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - touch ~/.ssh/aix_ci_key && chmod 600 ~/.ssh/aix_ci_key
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER key > ~/.ssh/aix_ci_key || exit $?
     - chmod 600 ~/.ssh/aix_ci_key
-    # Trust the host key
     - ssh-keyscan -p $AIX_PORT $AIX_HOST >> ~/.ssh/known_hosts 2>/dev/null
+    # Add the key to the ssh-agent so script steps don't need -i.
+    - eval $(ssh-agent -s)
+    - ssh-add ~/.ssh/aix_ci_key
+
     # Ensure the agent source is cloned on the AIX host at the commit under
     # test. Reuses any existing clone (fetch + checkout) to avoid cloning from
     # scratch each run. The clone includes packaging/aix/ci/*.sh, so the host
     # has the scripts the job later runs.
     - 'echo "=== AIX: cloning agent source at $CI_COMMIT_SHA ==="'
     - |
-      ssh -T -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST bash -s <<EOF
+      ssh -T -p $AIX_PORT $AIX_USER@$AIX_HOST bash -s <<EOF
       set -eu
       export PATH=/opt/freeware/bin:/usr/bin:\$PATH
       if [ ! -d "$AIX_AGENT_SRC/.git" ]; then
@@ -59,18 +62,8 @@
       git fetch --progress origin "$CI_COMMIT_REF_NAME" || true
       git checkout "$CI_COMMIT_SHA"
       EOF
-  script:
-    # Setup the host (idempotent) then run the unit tests.
-    # setup-host.sh is shared with devs (packaging/aix/), run-tests.sh is the
-    # unit-test job's script (packaging/aix/ci/).
-    # Invoke via `sh` so the job works even if the executable bit isn't set on
-    # the checked-out file, and quote the remote command so $AIX_AGENT_SRC is
-    # expanded on the runner (not split by the remote shell). -tt forces a PTY
-    # so the remote script's stdout/stderr stream live to the job log.
+    
+    # Host setup (tools, etc)
+    # -tt forces a PTY so the remote script's stdout/stderr stream live to the job log.
     - 'echo "=== AIX: provisioning host (setup-host.sh) ==="'
-    - ssh -tt -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST "sh $AIX_AGENT_SRC/packaging/aix/setup-host.sh"
-    - 'echo "=== AIX: running unit tests (run-tests.sh) ==="'
-    - ssh -tt -i ~/.ssh/aix_ci_key -p $AIX_PORT $AIX_USER@$AIX_HOST "sh $AIX_AGENT_SRC/packaging/aix/ci/run-tests.sh"
-
-aix_unit_tests:
-  extends: .aix_remote
+    - ssh -tt -p $AIX_PORT $AIX_USER@$AIX_HOST "sh $AIX_AGENT_SRC/packaging/aix/setup-host.sh"
