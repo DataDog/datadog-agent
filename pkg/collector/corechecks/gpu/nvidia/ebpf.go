@@ -109,9 +109,9 @@ func (c *ebpfCollector) Name() CollectorName {
 	return ebpf
 }
 
-// DeviceUUID returns the UUID of the device this collector monitors.
-func (c *ebpfCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *ebpfCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 // Collect returns system-probe process metrics for this device with high priority.

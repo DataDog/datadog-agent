@@ -35,7 +35,10 @@ if defined XDG_CACHE_HOME (
   set extra_args="--disk_cache=!bazel_home!\disk-cache"
   :: https://github.com/bazelbuild/bazel/issues/26384
   for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" set "extra_args=!extra_args! --repo_contents_cache="
-  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci --config=cache:frontend"
+  if defined CI if not defined GITHUB_ACTIONS (
+    if not defined BUILDBARN_ID_TOKEN goto :error_buildbarn_id_token_must_be_set
+    set "extra_args=!extra_args! --config=ci --config=cache:frontend"
+  )
 ) else (
   :: Without XDG_CACHE_HOME, fall back Go caches to official defaults so Go repo rules work under strict repo_env
   if not defined GOCACHE set "GOCACHE=%LOCALAPPDATA%\go-build"
@@ -77,6 +80,10 @@ set "args=%*"
 if defined args if defined extra_args call :insert_extra_args
 "%BAZEL_REAL%" !startup_options! !args!
 exit /b !errorlevel!
+
+:error_buildbarn_id_token_must_be_set
+>&2 echo 🔴 BUILDBARN_ID_TOKEN must be populated in CI
+exit /b 2
 
 :error_xdg_cache_home_must_exist
 >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote a directory in CI

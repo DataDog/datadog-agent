@@ -53,18 +53,24 @@ func NewCommand(ctx context.Context, pkg *Package, session *Session, parameters 
 	cmd := exec.CommandContext(ctx, pkg.Command[0], pkg.Command[1:]...)
 	cmd.Dir = session.WorkDirectory
 	cmd.Env = environment
-	configureCommand(cmd)
 	return cmd, nil
 }
 
 func configureCommand(cmd *exec.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Setpgid = true
+	cmd.SysProcAttr.Pgid = 0
 	cmd.WaitDelay = processWaitDelay
+	if cmd.Cancel == nil {
+		return
+	}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return os.ErrProcessDone
 		}
-		if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
+		if err := killProcessGroup(cmd.Process.Pid); err != nil {
 			if errors.Is(err, syscall.ESRCH) {
 				return os.ErrProcessDone
 			}
@@ -72,4 +78,33 @@ func configureCommand(cmd *exec.Cmd) {
 		}
 		return nil
 	}
+}
+
+func killProcessGroup(pid int) error {
+	return syscall.Kill(-pid, syscall.SIGKILL)
+}
+
+func cancelCommand(cmd *exec.Cmd) error {
+	if cmd.Process == nil {
+		return nil
+	}
+	if err := killProcessGroup(cmd.Process.Pid); err != nil {
+		if errors.Is(err, syscall.ESRCH) {
+			return nil
+		}
+		if killErr := cmd.Process.Kill(); killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
+			return errors.Join(err, killErr)
+		}
+	}
+	return nil
+}
+
+func terminateCommand(cmd *exec.Cmd) error {
+	if cmd.Process == nil {
+		return nil
+	}
+	if err := killProcessGroup(cmd.Process.Pid); err != nil && !errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+	return nil
 }
