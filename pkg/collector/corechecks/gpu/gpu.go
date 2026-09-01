@@ -572,7 +572,7 @@ func (c *Check) emitSample(sample nvidia.Sample, snd sender.Sender, currentExecu
 
 	err := sample.Emit(gpuMetricsNs, snd, currentExecutionTime)
 	if err != nil {
-		multiErr = append(multiErr, fmt.Errorf("error emitting metric: %w", err))
+		multiErr = append(multiErr, fmt.Errorf("error emitting sample: %w", err))
 	}
 
 	return errors.Join(multiErr...)
