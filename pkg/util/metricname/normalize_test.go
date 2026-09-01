@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// normalize is the string-returning form of normalizeAppend, for tests that
+// normalize is the string-returning form of NormalizeAppend, for tests that
 // assert on the normalized name. Production code normalizes into a stack buffer
-// via normalizeAppend instead, so this deliberately exists only in tests -- see
+// via NormalizeAppend instead, so this deliberately exists only in tests -- see
 // Matcher.Test.
 func normalize(name string) (string, bool) {
-	got, ok := normalizeAppend(make([]byte, 0, maxLength), name)
+	got, ok := normalizeAppend(make([]byte, 0, MaxLength), name)
 	if !ok {
 		return name, false
 	}
@@ -85,7 +85,7 @@ var unstorableNames = []string{
 	"...",
 	"123",
 	"🍣",
-	strings.Repeat("a", maxLength+1),
+	strings.Repeat("a", MaxLength+1),
 }
 
 func TestNormalize(t *testing.T) {
@@ -121,8 +121,8 @@ func TestNormalizeUnstorableNames(t *testing.T) {
 }
 
 func TestNormalizeMaxLength(t *testing.T) {
-	// A name of exactly maxLength bytes is accepted.
-	atLimit := strings.Repeat("a", maxLength)
+	// A name of exactly MaxLength bytes is accepted.
+	atLimit := strings.Repeat("a", MaxLength)
 	actual, ok := normalize(atLimit)
 	require.True(t, ok)
 	assert.Equal(t, atLimit, actual)
@@ -135,7 +135,7 @@ func TestNormalizeMaxLength(t *testing.T) {
 
 	// A name that would fit only after normalization is still rejected, because
 	// the intake checks the length of the raw name.
-	shrinks := strings.Repeat("a-", maxLength)
+	shrinks := strings.Repeat("a-", MaxLength)
 	_, ok = normalize(shrinks)
 	assert.False(t, ok)
 }
@@ -227,7 +227,7 @@ func BenchmarkNormalizeNeedsRewrite(b *testing.B) {
 // Keep it a transcription. If it is ever "simplified" to call the production code
 // it stops being an oracle.
 func referenceNormalize(name string) (string, bool) {
-	if len(name) == 0 || len(name) > maxLength {
+	if len(name) == 0 || len(name) > MaxLength {
 		return name, false
 	}
 	start := -1

@@ -84,7 +84,7 @@ func (m *Matcher) Test(name string) bool {
 		return m.search(name)
 	}
 
-	var buf [maxLength]byte
+	var buf [MaxLength]byte
 	key, ok := normalizeAppend(buf[:0], name)
 	if !ok {
 		return false

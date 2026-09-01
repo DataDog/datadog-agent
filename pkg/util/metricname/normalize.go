@@ -11,25 +11,19 @@
 // example matching a metric filter list) must therefore compare normalized
 // names rather than the raw names seen on the wire.
 //
-// Matcher is the only entry point. The normalization itself is deliberately not
-// exported: the sole production caller is Matcher.Test, and it wants to
-// normalize into a stack buffer rather than pay for a returned string. Export an
-// append-style helper if another package ever needs it, rather than one that
-// allocates.
-//
 // This is a faithful port of `NormMetricNameParse` / `ValidateMetricName` in
 // dd-go (`model/metric.go`). Keep the two in sync: a divergence here silently
 // changes which metrics get filtered.
 package metricname
 
-// maxLength is the maximum allowed length of a metric name in bytes.
+// MaxLength is the maximum allowed length of a metric name in bytes.
 //
 // Names longer than this are rejected outright by the intake (they are not
 // truncated). Mirrors `model.MaxMetricLen` in dd-go.
 //
 // Note that the public documentation states a 200 character limit; 350 is what
 // the intake actually enforces, so it is what we mirror here.
-const maxLength = 350
+const MaxLength = 350
 
 // isAlpha reports whether b is an ASCII letter.
 //
@@ -45,10 +39,10 @@ func isAlphaNum(b byte) bool {
 }
 
 // firstAlpha returns the index of the first ASCII letter in name, reporting
-// false if name is empty, longer than maxLength, or contains no ASCII letter.
+// false if name is empty, longer than MaxLength, or contains no ASCII letter.
 // Such names are dropped by the intake.
 func firstAlpha(name string) (int, bool) {
-	if len(name) == 0 || len(name) > maxLength {
+	if len(name) == 0 || len(name) > MaxLength {
 		return 0, false
 	}
 
@@ -72,7 +66,7 @@ func firstAlpha(name string) (int, bool) {
 // yields s unchanged. TestIsNormalizedMatchesNormalize and the fuzz target
 // beside it assert that equivalence.
 func isNormalized(name string) bool {
-	if len(name) == 0 || len(name) > maxLength {
+	if len(name) == 0 || len(name) > MaxLength {
 		return false
 	}
 
@@ -109,7 +103,7 @@ func isNormalized(name string) bool {
 // dst, and returns the extended slice.
 //
 // The bool is false when the intake would reject the name outright rather than
-// rewrite it, which happens when the name is empty, longer than maxLength bytes,
+// rewrite it, which happens when the name is empty, longer than MaxLength bytes,
 // or contains no ASCII letter. In that case dst is returned unmodified and
 // callers should treat the name as unstorable.
 //
@@ -129,10 +123,14 @@ func isNormalized(name string) bool {
 // Normalizing is idempotent: the output always satisfies isNormalized.
 //
 // A normalized name is never longer than its input, and firstAlpha rejects
-// anything longer than maxLength, so a dst with maxLength spare capacity is
+// anything longer than MaxLength, so a dst with MaxLength spare capacity is
 // enough for append never to reallocate. That is what lets Matcher.Test
 // normalize into a stack buffer, and is why this appends rather than returning a
-// string: there is no production caller that wants the allocation.
+// string: no caller is forced to pay for the rewrite allocation.
+func NormalizeAppend(dst []byte, name string) ([]byte, bool) {
+	return normalizeAppend(dst, name)
+}
+
 func normalizeAppend(dst []byte, name string) ([]byte, bool) {
 	start, ok := firstAlpha(name)
 	if !ok {

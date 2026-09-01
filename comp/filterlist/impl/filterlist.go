@@ -76,6 +76,7 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 		filterlist = config.GetStringSlice("statsd_metric_blocklist")
 		filterlistPrefix = config.GetBool("statsd_metric_blocklist_match_prefix")
 	}
+	filterlist = normalizeMetricNames(filterlist, log)
 
 	// Load tag filter list from config
 	var tagFilterListEntries []MetricTagListEntry
@@ -248,6 +249,24 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 	for _, update := range fl.tagFilterListUpdate {
 		update(fl.tagFilterList)
 	}
+}
+
+// normalizeMetricNames normalizes each entry so it matches the name space the
+// matcher compares in (see metricname.Matcher). Entries the intake would reject
+// outright (empty, too long, or containing no ASCII letter) are dropped.
+func normalizeMetricNames(names []string, log log.Component) []string {
+	normalized := make([]string, 0, len(names))
+	// Reuse this stack buffer for normalizing each metric.
+	var buf [metricname.MaxLength]byte
+	for _, name := range names {
+		key, ok := metricname.NormalizeAppend(buf[:0], name)
+		if !ok {
+			log.Warnf("metric_filterlist: dropping entry %q that is not a storable metric name", name)
+			continue
+		}
+		normalized = append(normalized, string(key))
+	}
+	return normalized
 }
 
 // SetMetricFilterList updates the metric names filter on all running worker.
