@@ -285,19 +285,19 @@ class CompilerImage:
         self.exec("mkdir ~/.cargo && touch ~/.cargo/env", user=self.compiler_user)
         self.exec(f"install -d -m 0777 -o {self.host_uid} -g {self.host_gid} /go", user="root")
         self.exec(
-            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-unknown-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-unknown-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-unknown-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-unknown-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
             user=self.compiler_user,
         )
 

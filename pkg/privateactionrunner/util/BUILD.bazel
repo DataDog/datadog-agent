@@ -10,6 +10,7 @@ go_library(
         "http_retry.go",
         "jwt.go",
         "keys.go",
+        "limitedwriter.go",
         "response_parser.go",
         "stringops.go",
         "urn.go",
@@ -30,6 +31,7 @@ dd_agent_go_test(
     srcs = [
         "http_retry_test.go",
         "keys_test.go",
+        "limitedwriter_test.go",
         "stringops_test.go",
     ],
     embed = [":util"],
