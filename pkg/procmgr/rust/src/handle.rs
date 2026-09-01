@@ -78,61 +78,6 @@ impl ProcessWaitControl {
         }))
     }
 
-    pub(crate) fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::Acquire)
-    }
-
-    fn wait_handle(&self) -> HANDLE {
-        self.wait_handle.get()
-    }
-}
-
-#[cfg(windows)]
-fn duplicate_process_handle(source: HANDLE) -> Result<HANDLE> {
-    let mut duplicate: HANDLE = std::ptr::null_mut();
-    let ok = unsafe {
-        DuplicateHandle(
-            GetCurrentProcess(),
-            source,
-            GetCurrentProcess(),
-            &mut duplicate,
-            0,
-            0,
-            DUPLICATE_SAME_ACCESS,
-        )
-    };
-    if ok == 0 {
-        return Err(std::io::Error::last_os_error().into());
-    }
-    Ok(duplicate)
-}
-
-#[cfg(windows)]
-pub(crate) struct ProcessWaitControl {
-    wait_handle: OwnedProcessHandle,
-    cancelled: AtomicBool,
-}
-
-#[cfg(windows)]
-impl ProcessWaitControl {
-    fn new(process_handle: HANDLE) -> Result<Arc<Self>> {
-        let wait_handle = match duplicate_process_handle(process_handle) {
-            Ok(handle) => handle,
-            Err(e) => {
-                unsafe {
-                    CloseHandle(process_handle);
-                }
-                return Err(e);
-            }
-        };
-        Ok(Arc::new(Self {
-            wait_handle: OwnedProcessHandle {
-                handle: wait_handle,
-            },
-            cancelled: AtomicBool::new(false),
-        }))
-    }
-
     pub(crate) fn cancel(&self) {
         self.cancelled.store(true, Ordering::Release);
     }
@@ -195,6 +140,11 @@ impl ProcessHandle {
             },
             wait_control,
         })
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn wait_control(&self) -> Arc<ProcessWaitControl> {
+        Arc::clone(&self.wait_control)
     }
 
     pub fn id(&self) -> Option<u32> {
