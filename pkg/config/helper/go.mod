@@ -3,25 +3,25 @@ module github.com/DataDog/datadog-agent/pkg/config/helper
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.83.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.83.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.83.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.83.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/log v0.83.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/system v0.83.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/config/model v0.83.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.83.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.83.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.83.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/log v0.83.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/system v0.83.0-rc.9
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.83.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.83.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.83.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.83.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.83.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.83.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.83.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.83.0-rc.8 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.83.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.83.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.83.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.83.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.83.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.83.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.83.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.83.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.83.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.83.0-rc.9 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
