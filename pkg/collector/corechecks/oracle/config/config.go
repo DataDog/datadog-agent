@@ -78,6 +78,20 @@ type TablespacesConfig struct {
 	CollectionInterval int64 `yaml:"collection_interval"`
 }
 
+// SchemasConfig configures table and column metadata collection.
+type SchemasConfig struct {
+	Enabled            bool  `yaml:"enabled"`
+	CollectionInterval int64 `yaml:"collection_interval"`
+	PayloadChunkSize   int   `yaml:"payload_chunk_size"`
+	CollectViews       *bool `yaml:"collect_views"`
+	MaxViews           int   `yaml:"max_views"`
+}
+
+// ViewsEnabled reports whether view collection is on. It defaults to true.
+func (c SchemasConfig) ViewsEnabled() bool {
+	return c.CollectViews == nil || *c.CollectViews
+}
+
 //nolint:revive // TODO(DBM) Fix revive linter
 type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
@@ -190,6 +204,7 @@ type InstanceConfig struct {
 	Asm                                asmConfig                `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig    `yaml:"resource_manager"`
 	Locks                              locksConfig              `yaml:"locks"`
+	Schemas                            SchemasConfig            `yaml:"schemas"`
 	OnlyCustomQueries                  bool                     `yaml:"only_custom_queries"`
 	Service                            string                   `yaml:"service"`
 	Loader                             string                   `yaml:"loader"`
@@ -279,6 +294,10 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.DatabaseInstanceCollectionInterval = 300
 
 	instance.Tablespaces.CollectionInterval = 600
+
+	instance.Schemas.CollectionInterval = 600
+	instance.Schemas.PayloadChunkSize = 1000
+	instance.Schemas.MaxViews = 1000
 
 	instance.Loader = defaultLoader
 	initCfg.Loader = defaultLoader
