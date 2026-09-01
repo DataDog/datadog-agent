@@ -122,6 +122,8 @@ type nstatSource struct {
 	tcpStateObserved         bool
 	tcpEstablished           bool
 	tcpEstablishedAfterStart bool
+	connectSuccessesObserved bool
+	afterEnumeration         bool
 	closed                   bool
 	connectAttempts          uint32
 	connectSuccesses         uint32
@@ -152,6 +154,7 @@ type nstatTracer struct {
 	subscriptionReady    chan struct{}
 	subscriptionErrors   chan error
 	subscriptionOnce     sync.Once
+	enumerationComplete  bool
 
 	closeCallback func(*network.ConnectionStats)
 	cookieHasher  *cookieHasher
@@ -255,7 +258,7 @@ func (t *nstatTracer) subscribe() error {
 	}
 	t.subscribed = true
 	if len(t.subscriptionContexts) == 0 {
-		t.subscriptionOnce.Do(func() { close(t.subscriptionReady) })
+		t.markEnumerationCompleteLocked()
 	}
 	return nil
 }
@@ -411,7 +414,7 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 		if _, subscribed := t.subscriptionContexts[event.Context]; subscribed {
 			delete(t.subscriptionContexts, event.Context)
 			if len(t.subscriptionContexts) == 0 {
-				t.subscriptionOnce.Do(func() { close(t.subscriptionReady) })
+				t.markEnumerationCompleteLocked()
 			}
 		}
 	case nstat.EventAdded:
@@ -550,10 +553,17 @@ func (t *nstatTracer) getSource(sourceRef uint64) *nstatSource {
 			return nil
 		}
 	}
-	source := &nstatSource{createdAt: t.now()}
+	source := &nstatSource{createdAt: t.now(), afterEnumeration: t.enumerationComplete}
 	t.sources[sourceRef] = source
 	nstatTracerTelemetry.activeSources.Set(float64(len(t.sources)))
 	return source
+}
+
+// markEnumerationCompleteLocked records that the subscribe dump finished so
+// later sources are treated as post-start connections.
+func (t *nstatTracer) markEnumerationCompleteLocked() {
+	t.enumerationComplete = true
+	t.subscriptionOnce.Do(func() { close(t.subscriptionReady) })
 }
 
 func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event nstat.Event) {
@@ -571,7 +581,11 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 	if event.Counts != nil {
 		source.counts = *event.Counts
 		source.connectAttempts = max(source.connectAttempts, event.Counts.ConnectAttempts)
+		previousSuccesses := source.connectSuccesses
 		source.connectSuccesses = max(source.connectSuccesses, event.Counts.ConnectSuccesses)
+		if nstat.IsTCPProvider(source.provider) {
+			source.observeConnectSuccesses(previousSuccesses, source.connectSuccesses)
+		}
 	}
 	if source.flow == nil || (!nstat.IsTCPProvider(source.provider) && !nstat.IsUDPProvider(source.provider)) {
 		return
@@ -597,17 +611,41 @@ func (source *nstatSource) observeTCPState(state uint32) (network.ConnectionDire
 		direction = network.INCOMING
 	}
 	if !source.tcpStateObserved {
-		// NStat subscriptions enumerate pre-existing sources, so the first
-		// observed state is a baseline rather than a transition.
+		// Sources seen during subscribe enumeration are a baseline, not a
+		// transition. Sources created after subscription readiness count a
+		// first ESTABLISHED as a post-start success.
 		source.tcpStateObserved = true
 		source.tcpEstablished = state >= tcpStateEstablished
+		if source.afterEnumeration && source.tcpEstablished {
+			source.tcpEstablishedAfterStart = true
+		}
 		return direction, directionEvidenceTCPState
 	}
 	if !source.tcpEstablished && state >= tcpStateEstablished {
-		source.tcpEstablished = true
-		source.tcpEstablishedAfterStart = true
+		source.markTCPEstablishedAfterStart()
 	}
 	return direction, directionEvidenceTCPState
+}
+
+// observeConnectSuccesses treats a first post-enumeration success, or a later
+// increase, as a TCP establishment that happened after system-probe start.
+func (source *nstatSource) observeConnectSuccesses(previous, current uint32) {
+	if !source.connectSuccessesObserved {
+		source.connectSuccessesObserved = true
+		if source.afterEnumeration && current > 0 {
+			source.markTCPEstablishedAfterStart()
+		}
+		return
+	}
+	if current > previous {
+		source.markTCPEstablishedAfterStart()
+	}
+}
+
+// markTCPEstablishedAfterStart records that this source established after start.
+func (source *nstatSource) markTCPEstablishedAfterStart() {
+	source.tcpEstablished = true
+	source.tcpEstablishedAfterStart = true
 }
 
 func nstatProviderEnabled(cfg *config.Config, provider uint32) bool {

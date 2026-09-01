@@ -119,6 +119,77 @@ func TestNStatTracerDoesNotCountPreexistingTCPConnectionAsEstablished(t *testing
 	require.Equal(t, directionEvidenceNone, tracer.sources[17].directionEvidence)
 }
 
+// TestNStatTracerCountsPostEnumerationEstablishedSource reports TCPEstablished
+// when a source is first described as ESTABLISHED after subscribe readiness.
+func TestNStatTracerCountsPostEnumerationEstablishedSource(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.enumerationComplete = true
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventAdded,
+		SourceRef: 21,
+		Provider:  nstat.ProviderTCPKernel,
+	})
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 21,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(1234, tcpStateEstablished),
+	})
+
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 1)
+	require.Equal(t, uint16(1), buffer.Connections()[0].Monotonic.TCPEstablished)
+}
+
+// TestNStatTracerCountsPostEnumerationConnectSuccesses reports TCPEstablished
+// when ConnectSuccesses rises after a post-enumeration SYN_SENT baseline.
+func TestNStatTracerCountsPostEnumerationConnectSuccesses(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.enumerationComplete = true
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 22,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(1234, tcpStateSynSent),
+		Counts:    &nstat.Counts{},
+	})
+
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 1)
+	require.Zero(t, buffer.Connections()[0].Monotonic.TCPEstablished)
+
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventUpdate,
+		SourceRef: 22,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(1234, tcpStateSynSent),
+		Counts:    &nstat.Counts{ConnectSuccesses: 1},
+	})
+	buffer.Reset()
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Equal(t, uint16(1), buffer.Connections()[0].Monotonic.TCPEstablished)
+}
+
+// TestNStatTracerDoesNotCountPreexistingConnectSuccesses keeps TCPEstablished
+// at zero when the first sample already includes ConnectSuccesses.
+func TestNStatTracerDoesNotCountPreexistingConnectSuccesses(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 23,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(1234, tcpStateEstablished),
+		Counts:    &nstat.Counts{ConnectSuccesses: 1},
+	})
+
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 1)
+	require.Zero(t, buffer.Connections()[0].Monotonic.TCPEstablished)
+}
+
 func TestNStatTracerInfersIncomingFromSynReceived(t *testing.T) {
 	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
 	tracer.processEvent(nstat.Event{

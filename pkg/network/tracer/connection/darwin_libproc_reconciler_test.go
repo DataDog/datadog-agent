@@ -335,6 +335,37 @@ func TestDarwinLibprocReconcilerCompletesRemovedPartialSourceOnce(t *testing.T) 
 	require.Len(t, closed, 1)
 }
 
+// TestDarwinLibprocIndexSelectsLocalPortBucket matches one local-port bucket
+// among many unrelated observations instead of scanning the full snapshot.
+func TestDarwinLibprocIndexSelectsLocalPortBucket(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 1,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(0, tcpStateEstablished),
+	})
+
+	observations := make([]libproc.Observation, 0, 201)
+	for port := uint16(1); port <= 200; port++ {
+		observation := testDarwinLibprocObservation(1000+uint32(port), 1)
+		observation.Tuple.SPort = port
+		observations = append(observations, observation)
+	}
+	observations = append(observations, testDarwinLibprocObservation(1234, 1))
+
+	index := indexDarwinLibprocObservations(observations)
+	require.Len(t, index.candidates(tupleFromNStatFlow(tracer.sources[1])), 1)
+
+	resolved, ambiguous, reuseRejected := tracer.reconcileLibprocSnapshot(libproc.Snapshot{Observations: observations})
+	require.Equal(t, 1, resolved)
+	require.Zero(t, ambiguous)
+	require.Zero(t, reuseRejected)
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Equal(t, uint32(1234), buffer.Connections()[0].Pid)
+}
+
 func testDarwinLibprocObservation(pid uint32, start uint64) libproc.Observation {
 	return libproc.Observation{
 		Tuple: network.ConnectionTuple{
