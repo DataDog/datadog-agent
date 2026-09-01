@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The ``kubernetes_state.pod.terminating`` metric is now emitted even for
+    pods that transition to Terminating and are fully deleted within a single
+    scrape interval. Previously, such pods disappeared from the informer cache
+    between two scrapes, resulting in zero ``pod.terminating`` points. The KSM
+    check now retains the metrics of recently deleted terminating pods for one
+    scrape cycle and emits a final ``pod.terminating`` point with full tag
+    enrichment (node, kube_deployment, Argo rollout, standard labels, etc.).

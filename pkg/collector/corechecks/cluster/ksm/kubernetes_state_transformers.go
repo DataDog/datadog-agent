@@ -95,7 +95,7 @@ func resourceDDName(resource string, allowedResources map[string]struct{}) (ddna
 func defaultMetricTransformers(k *KSMCheck) map[string]metricTransformerFunc {
 	transformers := map[string]metricTransformerFunc{
 		"kube_pod_created":                                podCreationTransformer,
-		"kube_pod_deletion_timestamp":                     podTerminatingTransformer,
+		kubePodDeletionTimestampMetric:                    podTerminatingTransformer,
 		"kube_pod_start_time":                             podStartTimeTransformer,
 		"kube_pod_status_phase":                           podPhaseTransformer,
 		"kube_pod_container_status_waiting_reason":        containerWaitingReasonTransformer,

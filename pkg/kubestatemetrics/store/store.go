@@ -34,6 +34,15 @@ type MetricsStore struct {
 	// metrics is a map indexed by Kubernetes object id, containing a slice of
 	// metric families, containing a slice of metrics.
 	metrics map[types.UID][]DDMetricsFam
+	// deletionMarkerFamily, when set, names the metric family whose presence
+	// marks an object as being deleted. Objects carrying it are retained in
+	// recentlyDeleted when they leave the store. Empty disables retention.
+	deletionMarkerFamily string
+	// recentlyDeleted retains the metric families of the objects that carried
+	// deletionMarkerFamily when they left the store, so that a consumer can
+	// emit a final point for an object that appeared and disappeared between
+	// two scrapes. Emptied by DrainRecentlyDeleted or ClearRecentlyDeleted.
+	recentlyDeleted map[types.UID][]DDMetricsFam
 	// generateMetricsFunc generates metrics based on a given Kubernetes object
 	// and returns them grouped by metric family.
 	generateMetricsFunc func(interface{}) []metric.FamilyInterface
@@ -70,6 +79,15 @@ func NewMetricsStore(generateFunc func(interface{}) []metric.FamilyInterface, mt
 func (s *MetricsStore) EnableCallbacks(notifier EventNotifier) {
 	s.enableCallbacks = true
 	s.eventNotifier = notifier
+}
+
+// EnableDeletionRetention makes the store retain the metric families of an
+// object that carries the markerFamily metric family when that object leaves
+// the store. The retained families are read back with DrainRecentlyDeleted.
+// The store itself holds no policy: the caller names the family that marks an
+// object as being deleted.
+func (s *MetricsStore) EnableDeletionRetention(markerFamily string) {
+	s.deletionMarkerFamily = markerFamily
 }
 
 func (d *DDMetricsFam) extract(f metric.Family) {
@@ -158,9 +176,30 @@ func (s *MetricsStore) Delete(obj interface{}) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	delete(s.metrics, o.GetUID())
+	uid := o.GetUID()
+	s.retainIfMarkedDeleted(uid, s.metrics[uid])
+	delete(s.metrics, uid)
 
 	return nil
+}
+
+// retainIfMarkedDeleted moves the metric families of one object to
+// recentlyDeleted if they contain the configured deletion marker family.
+// It must be called with s.mutex held for writing.
+func (s *MetricsStore) retainIfMarkedDeleted(uid types.UID, families []DDMetricsFam) {
+	if s.deletionMarkerFamily == "" {
+		return
+	}
+
+	for _, fam := range families {
+		if fam.Name == s.deletionMarkerFamily && len(fam.ListMetrics) > 0 {
+			if s.recentlyDeleted == nil {
+				s.recentlyDeleted = make(map[types.UID][]DDMetricsFam)
+			}
+			s.recentlyDeleted[uid] = families
+			return
+		}
+	}
 }
 
 // List implements the List method of the store interface.
@@ -186,7 +225,30 @@ func (s *MetricsStore) GetByKey(_ string) (item interface{}, exists bool, err er
 // Replace will delete the contents of the store, using instead the
 // given list.
 func (s *MetricsStore) Replace(list []interface{}, _ string) error {
+	// Objects that leave the store during a relist (e.g. deleted while the
+	// watch was disconnected) get no Delete event, so retention has to happen
+	// here too. Build the UID set before taking the lock: list is owned by the
+	// caller, and for a large store this loop would otherwise block every
+	// informer handler.
+	var listUIDs map[types.UID]struct{}
+	if s.deletionMarkerFamily != "" {
+		listUIDs = make(map[types.UID]struct{}, len(list))
+		for _, o := range list {
+			if acc, err := meta.Accessor(o); err == nil {
+				listUIDs[acc.GetUID()] = struct{}{}
+			}
+		}
+	}
+
 	s.mutex.Lock()
+
+	for uid, metrics := range s.metrics {
+		if _, ok := listUIDs[uid]; ok {
+			continue
+		}
+		s.retainIfMarkedDeleted(uid, metrics)
+	}
+
 	s.metrics = map[types.UID][]DDMetricsFam{}
 	s.mutex.Unlock()
 
@@ -226,39 +288,86 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 	defer s.mutex.RUnlock()
 
 	mRes := make(map[string][]DDMetricsFam)
-
-	// Iterate through all metrics with filters
-	// Preallocate metric slices to avoid growth reallocations
-	for _, metricFamList := range s.metrics {
-		for _, metricFam := range metricFamList {
-			if !familyFilter(metricFam) {
-				continue
-			}
-
-			// Skip families with no metrics - nothing to process
-			if len(metricFam.ListMetrics) == 0 {
-				continue
-			}
-
-			// Preallocate with full capacity to avoid slice growth reallocations
-			resMetric := make([]DDMetric, 0, len(metricFam.ListMetrics))
-
-			for _, metric := range metricFam.ListMetrics {
-				if !metricFilter(metric) {
-					continue
-				}
-				resMetric = append(resMetric, metric)
-			}
-
-			if len(resMetric) > 0 {
-				mRes[metricFam.Name] = append(mRes[metricFam.Name], DDMetricsFam{
-					ListMetrics: resMetric,
-					Type:        metricFam.Type,
-					Name:        metricFam.Name,
-				})
-			}
-		}
+	for _, families := range s.metrics {
+		appendFilteredFamilies(mRes, families, familyFilter, metricFilter)
 	}
 
 	return mRes
+}
+
+// FilterFamilies applies the same filtering as Push to the metric families of a
+// single object, as returned by DrainRecentlyDeleted, and returns them grouped
+// by metric family name.
+func FilterFamilies(families []DDMetricsFam, familyFilter FamilyAllow, metricFilter MetricAllow) map[string][]DDMetricsFam {
+	mRes := make(map[string][]DDMetricsFam)
+	appendFilteredFamilies(mRes, families, familyFilter, metricFilter)
+
+	return mRes
+}
+
+// appendFilteredFamilies adds the families of one object that pass both filters
+// to dst, grouped by metric family name.
+func appendFilteredFamilies(dst map[string][]DDMetricsFam, families []DDMetricsFam, familyFilter FamilyAllow, metricFilter MetricAllow) {
+	for _, metricFam := range families {
+		if !familyFilter(metricFam) {
+			continue
+		}
+
+		// Skip families with no metrics - nothing to process
+		if len(metricFam.ListMetrics) == 0 {
+			continue
+		}
+
+		// Preallocate with full capacity to avoid slice growth reallocations
+		resMetric := make([]DDMetric, 0, len(metricFam.ListMetrics))
+
+		for _, metric := range metricFam.ListMetrics {
+			if !metricFilter(metric) {
+				continue
+			}
+			resMetric = append(resMetric, metric)
+		}
+
+		if len(resMetric) > 0 {
+			dst[metricFam.Name] = append(dst[metricFam.Name], DDMetricsFam{
+				ListMetrics: resMetric,
+				Type:        metricFam.Type,
+				Name:        metricFam.Name,
+			})
+		}
+	}
+}
+
+// DrainRecentlyDeleted returns the metric families of every object retained by
+// EnableDeletionRetention since the last drain, and empties the retention map
+// in the same critical section. The swap has to be atomic: with a separate read
+// and clear, an object deleted in between would be dropped.
+//
+// The object UID is not exposed: the caller only needs the families of each
+// object, grouped per object.
+func (s *MetricsStore) DrainRecentlyDeleted() [][]DDMetricsFam {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if len(s.recentlyDeleted) == 0 {
+		return nil
+	}
+
+	drained := make([][]DDMetricsFam, 0, len(s.recentlyDeleted))
+	for _, families := range s.recentlyDeleted {
+		drained = append(drained, families)
+	}
+	s.recentlyDeleted = nil
+
+	return drained
+}
+
+// ClearRecentlyDeleted discards the retained metric families without returning
+// them. Used when the consumer is not going to emit them (e.g. a standby
+// cluster-agent whose informers keep producing Delete events) to bound memory.
+func (s *MetricsStore) ClearRecentlyDeleted() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.recentlyDeleted = nil
 }

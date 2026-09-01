@@ -62,6 +62,11 @@ const (
 	CheckName               = "kubernetes_state_core"
 	maximumWaitForAPIServer = 10 * time.Second
 
+	// kubePodDeletionTimestampMetric is the KSM metric family that carries the
+	// deletion timestamp of a pod. Its presence marks a pod as terminating, and
+	// it is the family the check turns into pod.terminating.
+	kubePodDeletionTimestampMetric = "kube_pod_deletion_timestamp"
+
 	// createdByKindKey represents the KSM label key created_by_kind
 	createdByKindKey = "created_by_kind"
 	// createdByNameKey represents the KSM label key created_by_name
@@ -546,6 +551,11 @@ func (k *KSMCheck) buildStores() error {
 	// Configure builder to enable callbacks for specific resource types
 	builder.WithCallbacksForResources(callbackResourceTypes)
 
+	// Retain the metrics of terminating pods that leave a store, so that a pod
+	// created, terminated and deleted between two scrapes still gets a final
+	// pod.terminating point. See processDeletedPodMetrics.
+	builder.WithDeletionMarkerFamily(kubePodDeletionTimestampMetric)
+
 	// Start the collection process
 	k.allStores = builder.BuildStores()
 
@@ -736,6 +746,17 @@ func (k *KSMCheck) shouldDropForMetadata(name string) bool {
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
+	// Retained deleted-pod metrics are only worth keeping if this run emits
+	// them. Drop them on every path that returns early (not leader, leader
+	// election disabled, sender error, ...) so that a standby instance, whose
+	// informers keep producing Delete events, does not grow unbounded.
+	emitting := false
+	defer func() {
+		if !emitting {
+			k.clearAllRecentlyDeleted()
+		}
+	}()
+
 	if err := k.initRetry.TriggerRetry(); err != nil {
 		return err.LastTryError
 	}
@@ -807,41 +828,51 @@ func (k *KSMCheck) Run() error {
 	}
 
 	defer sender.Commit()
+	emitting = true
+
+	stores := k.metricsStores()
 
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
-	for _, stores := range k.allStores {
-		for _, store := range stores {
-			var metricsStore *ksmstore.MetricsStore
-			if ms, ok := store.(*ksmstore.MetricsStore); ok {
-				metricsStore = ms
-			}
-
-			if metricsStore != nil {
-				metrics := metricsStore.Push(k.familyFilter, k.metricFilter)
-				labelJoiner.insertFamilies(metrics)
-			}
-		}
+	var deletedPods [][]ksmstore.DDMetricsFam
+	for _, store := range stores {
+		labelJoiner.insertFamilies(store.Push(k.familyFilter, k.metricFilter))
+		deletedPods = append(deletedPods, store.DrainRecentlyDeleted()...)
 	}
 
 	currentTime := time.Now()
-	for _, stores := range k.allStores {
-		for _, store := range stores {
-			var metricsStore *ksmstore.MetricsStore
-			if ms, ok := store.(*ksmstore.MetricsStore); ok {
-				metricsStore = ms
-			}
-
-			if metricsStore != nil {
-				metrics := metricsStore.Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
-				k.processMetrics(sender, metrics, labelJoiner, currentTime)
-				k.processTelemetry(metrics)
-			}
-		}
+	for _, store := range stores {
+		metrics := store.Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
+		k.processMetrics(sender, metrics, labelJoiner, currentTime)
+		k.processTelemetry(metrics)
 	}
+
+	k.processDeletedPodMetrics(sender, deletedPods, currentTime)
 
 	k.sendTelemetry(sender)
 
 	return nil
+}
+
+// metricsStores returns every metrics store held by the check, flattened.
+func (k *KSMCheck) metricsStores() []*ksmstore.MetricsStore {
+	var stores []*ksmstore.MetricsStore
+	for _, storeList := range k.allStores {
+		for _, store := range storeList {
+			if ms, ok := store.(*ksmstore.MetricsStore); ok {
+				stores = append(stores, ms)
+			}
+		}
+	}
+
+	return stores
+}
+
+// clearAllRecentlyDeleted discards the metrics retained for deleted pods on
+// every store, for the runs that do not emit them.
+func (k *KSMCheck) clearAllRecentlyDeleted() {
+	for _, store := range k.metricsStores() {
+		store.ClearRecentlyDeleted()
+	}
 }
 
 // Cancel is called when the check is unscheduled, it stops the informers used by the metrics store
@@ -939,6 +970,44 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 	}
 	for _, aggregator := range k.metricAggregators {
 		aggregator.flush(sender, k, labelJoiner)
+	}
+}
+
+// processDeletedPodMetrics emits a final pod.terminating point for the pods
+// that were deleted since the last scrape, one entry of deletedPods per pod.
+// Only kubePodDeletionTimestampMetric is emitted; the other retained families
+// are there to enrich it through label joins. It mirrors the transformer branch
+// of processMetrics — keep the two in step.
+func (k *KSMCheck) processDeletedPodMetrics(sender sender.Sender, deletedPods [][]ksmstore.DDMetricsFam, now time.Time) {
+	// In cluster_aggregates_only mode, per-pod metrics are suppressed (same
+	// guard as processMetrics).
+	if len(deletedPods) == 0 || k.instance.PodCollectionMode == clusterAggregatesOnlyPodCollection {
+		return
+	}
+
+	transform, found := k.metricTransformers[kubePodDeletionTimestampMetric]
+	if !found {
+		return
+	}
+	lMapperOverride := labelsMapperOverride(kubePodDeletionTimestampMetric)
+
+	for _, families := range deletedPods {
+		// One label joiner per pod. Label joins are keyed by namespace+pod name,
+		// not by UID, so two generations of the same StatefulSet pod deleted
+		// within one scrape would share a join node in a shared joiner and get
+		// duplicate or nondeterministic node and owner tags.
+		labelJoiner := newLabelJoiner(k.instance.labelJoins)
+		labelJoiner.insertFamilies(ksmstore.FilterFamilies(families, k.familyFilter, k.metricFilter))
+
+		for _, metricFamily := range families {
+			if metricFamily.Name != kubePodDeletionTimestampMetric {
+				continue
+			}
+			for _, m := range metricFamily.ListMetrics {
+				hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+				transform(sender, metricFamily.Name, m, hostname, tagList, now)
+			}
+		}
 	}
 }
 

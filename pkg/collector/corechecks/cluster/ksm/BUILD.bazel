@@ -59,6 +59,7 @@ dd_agent_go_test(
     name = "ksm_test",
     srcs = [
         "kubernetes_state_aggregators_test.go",
+        "kubernetes_state_deleted_pods_test.go",
         "kubernetes_state_label_joins_test.go",
         "kubernetes_state_telemetry_test.go",
         "kubernetes_state_test.go",

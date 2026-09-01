@@ -65,6 +65,7 @@ type Builder struct {
 	workloadmetaStore         workloadmeta.Component
 
 	callbackEnabledResources map[string]bool // resource types that should have callbacks enabled
+	deletionMarkerFamily     string          // metric family that marks an object as being deleted, empty to disable retention
 
 	eventCallbacks map[string]map[store.StoreEventType]store.StoreEventCallback
 	eventMutex     sync.RWMutex
@@ -90,6 +91,13 @@ func (b *Builder) WithNamespaces(nss options.NamespaceList) {
 func (b *Builder) WithFamilyGeneratorFilter(l generator.FamilyGeneratorFilter) {
 	b.allowDenyList = l
 	b.ksmBuilder.WithFamilyGeneratorFilter(l)
+}
+
+// WithDeletionMarkerFamily makes every store built by this Builder retain the
+// metrics of an object that carries the given metric family when that object
+// leaves the store. See (*store.MetricsStore).EnableDeletionRetention.
+func (b *Builder) WithDeletionMarkerFamily(family string) {
+	b.deletionMarkerFamily = family
 }
 
 // WithCallbacksForResources configures which resource types should have event callbacks enabled
@@ -546,6 +554,10 @@ func (b *Builder) createStoreForType(composedMetricGenFuncs func(interface{}) []
 	// Enable callbacks if this resource type is configured for them
 	if b.callbackEnabledResources[typeName] {
 		metricsStore.EnableCallbacks(b)
+	}
+
+	if b.deletionMarkerFamily != "" {
+		metricsStore.EnableDeletionRetention(b.deletionMarkerFamily)
 	}
 
 	return metricsStore
