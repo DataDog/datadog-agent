@@ -85,6 +85,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 
 		m.persistProfile(p)
 
+		assert.False(t, p.HasAlreadyBeenSent(), "persisting a disabled profile must not open the send-gated learning window")
 		filePath := filepath.Join(dir, "disabled."+config.Profile.String())
 		_, err := os.Stat(filePath)
 		require.NoError(t, err, "a disabled profile must be persisted so its state survives a restart")
@@ -110,6 +111,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 		require.True(t, ok, "the persisted enabled profile should be found on disk")
 		assert.True(t, reloaded.IsEnabled(), "an enabled profile must reload as enabled")
 		assert.False(t, reloaded.ActivityTree.IsEmpty(), "an enabled profile keeps its tree")
+		assert.True(t, p.HasAlreadyBeenSent(), "persisting an enabled profile ends the send-gated learning window")
 	})
 }
 
@@ -147,4 +149,34 @@ func TestManagerV2_evictUnusedNodes_skipsDisabledProfile(t *testing.T) {
 	m.evictUnusedNodes()
 
 	assert.False(t, p.IsEnabled(), "eviction must not re-enable a disabled profile")
+}
+
+func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
+	t.Run("default withholds until the profile has been persisted", func(t *testing.T) {
+		p := profile.New()
+		m := &ManagerV2{config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{}}}
+		assert.False(t, m.shouldSendAnomalyDetection(p, p.StartedAt()))
+		p.SetHasAlreadyBeenSent()
+		assert.True(t, m.shouldSendAnomalyDetection(p, p.StartedAt()))
+	})
+
+	t.Run("time-based with a zero period sends as soon as the profile starts", func(t *testing.T) {
+		p := profile.New()
+		m := &ManagerV2{config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileV2UseTimeBasedAnomalyStabilization: true,
+		}}}
+		assert.True(t, m.shouldSendAnomalyDetection(p, p.StartedAt()))
+		assert.False(t, p.HasAlreadyBeenSent(), "time-based stabilization does not depend on persistence")
+	})
+
+	t.Run("time-based waits for the configured period after the profile starts", func(t *testing.T) {
+		p := profile.New()
+		m := &ManagerV2{config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileV2UseTimeBasedAnomalyStabilization: true,
+			SecurityProfileV2AnomalyStabilizationPeriod:       time.Hour,
+		}}}
+		assert.False(t, m.shouldSendAnomalyDetection(p, p.StartedAt()))
+		assert.False(t, m.shouldSendAnomalyDetection(p, p.StartedAt().Add(time.Hour-time.Nanosecond)))
+		assert.True(t, m.shouldSendAnomalyDetection(p, p.StartedAt().Add(time.Hour)))
+	})
 }
