@@ -36,8 +36,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-const ConfigPathEnv = "DD_PAR_CONTROL_CONFIG_PATH"
-
 // Identity is the runner identity par-control signs OPMS requests with.
 type Identity struct {
 	URN        string `json:"urn"`
@@ -86,8 +84,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "bootstrap-par-control",
 		Short: "Resolve the Private Action Runner split-mode control-plane configuration",
 		Long: `Loads the canonical Agent configuration, ensures that the runner has a valid
-identity, and writes the resolved par-control configuration to the file named
-by DD_PAR_CONTROL_CONFIG_PATH.
+identity, and writes the resolved par-control configuration to stdout.
 
 When split mode is disabled the command succeeds without enrolling and reports
 only the launch gate and log level.`,
@@ -95,7 +92,7 @@ only the launch gate and log level.`,
 			return fxutil.OneShot(run,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				core.Bundle(core.WithSecrets()),
 				hostnameimpl.Module(),
@@ -106,16 +103,7 @@ only the launch gate and log level.`,
 }
 
 func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
-	path := os.Getenv(ConfigPathEnv)
-	if path == "" {
-		return fmt.Errorf("%s is not set", ConfigPathEnv)
-	}
-	out, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0)
-	if err != nil {
-		return errors.New("failed to open the par-control configuration file")
-	}
-	defer out.Close()
-	return bootstrap(context.Background(), logger, cfg, hostnameComp, enrollAndPersist, out)
+	return bootstrap(context.Background(), logger, cfg, hostnameComp, enrollAndPersist, os.Stdout)
 }
 
 func bootstrap(ctx context.Context, logger log.Component, cfg config.Component, hostnameComp hostname.Component, enrollAndPersist enrollAndPersistFunc, out io.Writer) error {
