@@ -122,7 +122,7 @@ def auto_cancel_previous_pipelines(ctx):
     ]
 
     for pipeline in older_pipelines:
-        print(f'Gracefully canceling jobs that are not canceled on pipeline {pipeline.id} ({pipeline.web_url})')
+        print(f'Canceling eligible jobs on older pipeline {pipeline.id} ({pipeline.web_url})')
         gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=force_cancel_stages)
 
 
