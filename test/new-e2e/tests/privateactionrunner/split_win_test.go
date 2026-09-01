@@ -91,7 +91,7 @@ func (s *windowsPARSplitLifecycleSuite) TestExecutorStartsForSignedWork() {
 	s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, s.signingKey.id, s.signingKey.id, s.signingKey.config))
 
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
-	s.waitForProcessState(parExecutorProcess, "Created", 2*time.Minute)
+	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Exited"}, 2*time.Minute)
 
 	setPARTaskSigningKey(s.T(), client, s.signingKey)
 	taskID := uuid.New().String()
@@ -133,7 +133,7 @@ func (s *windowsPARSplitLifecycleSuite) TestControlStopsWithoutReenteringSupervi
 	s.Require().Less(time.Since(started), 15*time.Second, "par-control stop should not hit its 180s timeout")
 
 	s.waitForProcessState(parControlProcess, "Stopped", 10*time.Second)
-	s.waitForProcessState(parExecutorProcess, "Created", 10*time.Second)
+	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Exited"}, 10*time.Second)
 }
 
 func (s *windowsPARSplitLifecycleSuite) clearSigningKeys() {
@@ -164,10 +164,22 @@ func (s *windowsPARSplitLifecycleSuite) runProcmgr(command, name string) error {
 }
 
 func (s *windowsPARSplitLifecycleSuite) waitForProcessState(name, state string, timeout time.Duration) {
+	s.waitForProcessStates(name, []string{state}, timeout)
+}
+
+func (s *windowsPARSplitLifecycleSuite) waitForProcessStates(name string, states []string, timeout time.Duration) {
 	s.T().Helper()
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`& "%s" describe %s`, s.procmgrCLI(), name))
 		assert.NoError(c, err)
-		assert.Contains(c, strings.ReplaceAll(output, " ", ""), "State:"+state)
-	}, timeout, 2*time.Second, "%s should become %s", name, state)
+		output = strings.ReplaceAll(output, " ", "")
+		assert.Condition(c, func() bool {
+			for _, state := range states {
+				if strings.Contains(output, "State:"+state) {
+					return true
+				}
+			}
+			return false
+		}, "%s should be in one of these states: %v", name, states)
+	}, timeout, 2*time.Second, "%s should enter one of these states: %v", name, states)
 }

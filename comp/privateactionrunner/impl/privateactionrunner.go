@@ -43,7 +43,7 @@ import (
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
-"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
@@ -63,8 +63,11 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
-func splitDeploymentSupported(goos string, containerized, fipsEnabled bool) bool {
-	return goos == "linux" && !containerized && !fipsEnabled
+func splitDeploymentSupported(goos string, containerized, fipsEnabled, processManagerEnabled bool) bool {
+	if containerized || fipsEnabled {
+		return false
+	}
+	return goos == "linux" || (goos == "windows" && processManagerEnabled)
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -135,7 +138,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		if buildFIPSEnabled, err := fips.Enabled(); err == nil {
 			fipsEnabled = fipsEnabled || buildFIPSEnabled
 		}
-		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized(), fipsEnabled) {
+		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized(), fipsEnabled, reqs.Config.GetBool("process_manager.enabled")) {
 			reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
 			reqs.Log.Flush()
 			return Provides{}, privateactionrunner.ErrSplitDeployment
