@@ -141,9 +141,17 @@ find_macos_pkgbuild(
     exec_compatible_with = ["@platforms//os:macos"],
 )
 
+find_selinux_tools = use_repo_rule("//bazel/toolchains/selinux_tools:configure.bzl", "find_selinux_tools")
+
+find_selinux_tools(
+    name = "selinux_tools",
+    exec_compatible_with = ["@platforms//os:linux"],
+)
+
 register_toolchains(
     "@macos_codesign//:all",
     "@macos_pkgbuild//:all",
+    "@selinux_tools//:all",
     dev_dependency = True,
 )
 

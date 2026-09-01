@@ -1,0 +1,11 @@
+"""SELinux policy compilation rules."""
+
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+package(default_visibility = ["//visibility:private"])
+
+py_binary(
+    name = "compile_selinux_policy",
+    srcs = ["compile_selinux_policy.py"],
+    visibility = ["//visibility:public"],
+)
