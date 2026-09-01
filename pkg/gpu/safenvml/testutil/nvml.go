@@ -19,6 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
+// SetupMockNVML constructs and installs a mock NVML library for a test. This should be
+// the main entry point for mocking NVML in tests.
+// Placed in this package to avoid import loops.
+func SetupMockNVML(t testing.TB, options ...testutil.NvmlMockOption) *testutil.MockNVML {
+	t.Helper()
+	mock := testutil.NewMockNVML(options...)
+	ddnvml.WithMockNVML(t, mock)
+	return mock
+}
+
 // ToDDNVMLDevices converts a slice of nvml.Device to a slice of ddnvml.Device
 func ToDDNVMLDevices(t testing.TB, devices []nvml.Device) []ddnvml.Device {
 	ddnvmlDevices := make([]ddnvml.Device, len(devices))
@@ -30,22 +40,23 @@ func ToDDNVMLDevices(t testing.TB, devices []nvml.Device) []ddnvml.Device {
 	return ddnvmlDevices
 }
 
-// GetDDNVMLMocksWithIndexes returns a slice of ddnvml.Device mocks with the given indexes
-func GetDDNVMLMocksWithIndexes(t testing.TB, indexes ...int) []ddnvml.Device {
-	devices := make([]ddnvml.Device, len(indexes))
-	for i, idx := range indexes {
-		devices[i] = GetDDNVMLMockWithIndex(t, idx)
-	}
-	return devices
-}
-
-// GetDDNVMLMockWithIndex returns a ddnvml.Device mock with the given index, based on the data
-// present in mocks.go
-func GetDDNVMLMockWithIndex(t testing.TB, index int) ddnvml.Device {
-	dev := testutil.GetDeviceMock(index)
+// PhysicalDevice returns the SafeNVML wrapper for a canonical mock device.
+func PhysicalDevice(t testing.TB, owner *testutil.MockNVML, index int) *ddnvml.PhysicalDevice {
+	t.Helper()
+	dev := owner.Device(index)
+	require.NotNil(t, dev, "no NVML mock device at index %d", index)
 	dddev, err := ddnvml.NewPhysicalDevice(dev)
 	require.NoError(t, err, "error converting nvml.Device to ddnvml.Device")
 	return dddev
+}
+
+// PhysicalDevices returns SafeNVML wrappers for canonical mock devices.
+func PhysicalDevices(t testing.TB, owner *testutil.MockNVML, indexes ...int) []ddnvml.Device {
+	devices := make([]ddnvml.Device, len(indexes))
+	for i, idx := range indexes {
+		devices[i] = PhysicalDevice(t, owner, idx)
+	}
+	return devices
 }
 
 // RequireDevicesEqual checks that the two devices are equal by comparing their UUIDs, which gives a better

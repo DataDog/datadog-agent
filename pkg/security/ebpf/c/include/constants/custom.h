@@ -103,6 +103,12 @@ enum TC_RAWPACKET_KEYS {
 #define SYSCALL_MONITOR_TYPE_DUMP 1
 #define SYSCALL_MONITOR_TYPE_DRIFT 2
 
+// reasons for sending a syscall monitor event, mirrored by model.SyscallDriftEventReason
+#define SYSCALL_MONITOR_REASON_NONE 0
+#define SYSCALL_MONITOR_REASON_PERIOD 1
+#define SYSCALL_MONITOR_REASON_EXIT 2
+#define SYSCALL_MONITOR_REASON_EXECVE 3
+
 #define SELINUX_WRITE_BUFFER_LEN 64
 #define SELINUX_ENFORCE_STATUS_DISABLE_KEY 0
 #define SELINUX_ENFORCE_STATUS_ENFORCE_KEY 1
@@ -140,6 +146,8 @@ enum TC_RAWPACKET_KEYS {
 #define GO_LABELS_CTX_VAL_SIZE 64
 #define GO_LABELS_CTX_MAX_PAIRS 10
 #define GO_LABELS_CTX_MAX_ENTRIES 4096
+
+#define OTEL_SPAN_ATTRS_MAX_ENTRIES 4096
 
 __attribute__((always_inline)) u64 is_cgroup_activity_dumps_enabled() {
     u64 cgroup_activity_dumps_enabled;

@@ -18,6 +18,7 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -281,7 +282,7 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 			archSpec := specs.Architectures.Architectures[config.Architecture]
 			opts := BuildMockOptionsForConfig(t, config, specs.Architectures, archSpec)
 
-			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
+			nvmltestutil.SetupMockNVML(t, opts...)
 
 			lib, err := ddnvml.GetSafeNvmlLib()
 			require.NoError(t, err, "should be able to get NVML lib")
@@ -362,7 +363,7 @@ func TestBuildMockOptionsCreatesCorrectDevices(t *testing.T) {
 			capabilities := arch.EffectiveCapabilities(mode)
 			config := GPUConfig{Architecture: archName, DeviceMode: mode, Capabilities: capabilities}
 			opts := BuildMockOptionsForConfig(t, config, archSpec, arch)
-			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
+			nvmltestutil.SetupMockNVML(t, opts...)
 
 			lib, err := ddnvml.GetSafeNvmlLib()
 			require.NoError(t, err, "should be able to get NVML lib")

@@ -104,6 +104,11 @@ func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
 }
 
+// IsCapabilitiesMonitoringEnabled returns whether capabilities monitoring is enabled
+func (p *Probe) IsCapabilitiesMonitoringEnabled() bool {
+	return p.Config.Probe.CapabilitiesMonitoringEnabled
+}
+
 // IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
