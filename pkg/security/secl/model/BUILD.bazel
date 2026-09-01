@@ -278,16 +278,15 @@ go_library(
         "@rules_go//go/platform:ios": [
             "@com_github_google_gopacket//:gopacket",
         ],
-        # keep: gazelle can't see the imports in oo_packet_filter_unix.go
-        # (its `unix && pcap && cgo` build tag isn't gazelle-resolvable, see
-        # the "keep" note on that file in srcs above), so gopacket/pcap and
-        # gopacket/layers must be added by hand. Scoped to linux only since
-        # "pcap" is a LINUX_ONLY_TAGS entry in tasks/build_tags.bzl — it's
-        # never active on the other unix platform keys below.
         "@rules_go//go/platform:linux": [
             "@com_github_google_gopacket//:gopacket",
-            "@com_github_google_gopacket//layers",
-            "@com_github_google_gopacket//pcap",
+            # keep: gazelle can't see the imports in oo_packet_filter_unix.go
+            # (its `unix && pcap && cgo` build tag isn't gazelle-resolvable,
+            # see the "keep" note on that file in srcs above). Scoped to
+            # linux only since "pcap" is a LINUX_ONLY_TAGS entry in
+            # tasks/build_tags.bzl.
+            "@com_github_google_gopacket//layers",  # keep
+            "@com_github_google_gopacket//pcap",  # keep
             "@com_github_hashicorp_golang_lru_v2//:golang-lru",
         ],
         "@rules_go//go/platform:netbsd": [
