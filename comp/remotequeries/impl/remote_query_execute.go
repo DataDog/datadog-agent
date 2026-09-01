@@ -40,11 +40,20 @@ const (
 	remoteQueryFixtureTableProofQuery   = "SELECT city, country FROM cities ORDER BY city"
 	remoteQueryMatrixIdentityProofQuery = "SELECT current_database() AS current_db, expected_agent_hostname, expected_postgres_host, expected_postgres_port, expected_dbname, marker FROM remote_query_identity"
 
+	// ClickHouse proof queries, mirroring the integrations-core executor's allowlist.
+	// The fixture-dependent Postgres proofs stay Postgres-only: they need harness-
+	// created tables (cities, remote_query_identity); hostName()/currentUser()/
+	// version() prove the matched server without any fixture.
+	remoteQueryClickHouseIdentityProofQuery      = "SELECT hostName() AS host, currentUser() AS user, version() AS version"
+	remoteQueryClickHouseBinaryPayloadProofQuery = "SELECT unhex('00ff80') AS payload"
+
 	statusExecutorUnavailable = "executor_unavailable"
 )
 
 const remoteQueryBinaryPayloadProofQuery = "SELECT decode('00ff80', 'hex') AS payload"
 
+// Dialect-neutral large-payload proof queries shared by the Postgres and ClickHouse
+// proof sets; the value documents the payload size.
 var remoteQueryLargePayloadProofQueries = map[string]int{
 	"SELECT repeat('x', 1048576) AS payload":  1 << 20,  // 1 MiB.
 	"SELECT repeat('x', 2097152) AS payload":  2 << 20,  // 2 MiB.
@@ -52,6 +61,48 @@ var remoteQueryLargePayloadProofQueries = map[string]int{
 	"SELECT repeat('x', 8388608) AS payload":  8 << 20,  // 8 MiB.
 	"SELECT repeat('x', 16777216) AS payload": 16 << 20, // 16 MiB.
 	"SELECT repeat('x', 33554432) AS payload": 32 << 20, // 32 MiB.
+}
+
+// remoteQueryProofQueries is the integration-specific proof-query allowlist. Each
+// supported integration's set mirrors its integration-side executor's allowlist
+// exactly, and dialect-specific proof queries never cross integrations: the Agent
+// accepts no proof query the matched executor would reject and rejects none it
+// accepts. The fixture-dependent Postgres proofs (cities, remote_query_identity,
+// decode) can never reach a ClickHouse executor even though the generic bridge
+// import would attempt them, and the ClickHouse identity/binary proofs never reach
+// a Postgres executor.
+var remoteQueryProofQueries = map[string]map[string]struct{}{
+	postgresIntegration:   postgresProofQueries(),
+	clickhouseIntegration: clickHouseProofQueries(),
+}
+
+func postgresProofQueries() map[string]struct{} {
+	queries := map[string]struct{}{
+		remoteQueryProofSeedQuery:           {},
+		remoteQueryFixtureTableProofQuery:   {},
+		remoteQueryMatrixIdentityProofQuery: {},
+		remoteQueryBinaryPayloadProofQuery:  {},
+	}
+	for query := range remoteQueryLargePayloadProofQueries {
+		queries[query] = struct{}{}
+	}
+	return queries
+}
+
+// clickHouseProofQueries mirrors the integrations-core ClickHouse executor's proof
+// allowlist exactly: the dialect-neutral seed, the fixture-free identity proof, the
+// binary payload proof via unhex, and the shared large-payload repeat queries. The
+// future multi-row 100 MiB proof stays deferred; the Agent does not invent one.
+func clickHouseProofQueries() map[string]struct{} {
+	queries := map[string]struct{}{
+		remoteQueryProofSeedQuery:                    {},
+		remoteQueryClickHouseIdentityProofQuery:      {},
+		remoteQueryClickHouseBinaryPayloadProofQuery: {},
+	}
+	for query := range remoteQueryLargePayloadProofQueries {
+		queries[query] = struct{}{}
+	}
+	return queries
 }
 
 // Hard forwarding caps for the backend-injected upload instructions. The backend owns the
@@ -92,14 +143,13 @@ func RemoteQueriesQueryAllowlistEnabled(cfg interface {
 	return cfg.GetBool(RemoteQueriesEnableQueryAllowlistConfig)
 }
 
-func isRemoteQueryAllowedProofQuery(query string) bool {
-	switch query {
-	case remoteQueryProofSeedQuery, remoteQueryFixtureTableProofQuery, remoteQueryMatrixIdentityProofQuery, remoteQueryBinaryPayloadProofQuery:
-		return true
-	default:
-		_, ok := remoteQueryLargePayloadProofQueries[query]
-		return ok
+func isRemoteQueryAllowedProofQuery(integration string, query string) bool {
+	queries, ok := remoteQueryProofQueries[integration]
+	if !ok {
+		return false
 	}
+	_, ok = queries[query]
+	return ok
 }
 
 type remoteQueryCheckUnwrapper interface {
@@ -624,7 +674,7 @@ func (s *RemoteQueryExecuteService) ExecuteStream(_ctx context.Context, req Remo
 	if req.ResultDelivery == nil {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "result_delivery is required")
 	}
-	if s.queryAllowlistEnabled && !isRemoteQueryAllowedProofQuery(req.Query) {
+	if s.queryAllowlistEnabled && !isRemoteQueryAllowedProofQuery(req.Integration, req.Query) {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "query is not allowed")
 	}
 

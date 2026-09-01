@@ -993,7 +993,9 @@ type fakeStreamRunnerCheck struct {
 }
 
 func (f *fakeStreamRunnerCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error {
-	if integration != "postgres" {
+	// The runner only accepts its own check's integration name, mirroring the bridge
+	// dispatching to the matched check.
+	if integration != f.name {
 		return assert.AnError
 	}
 	if f.err != nil {
