@@ -67,7 +67,12 @@ func splitDeploymentSupported(goos string, containerized bool) bool {
 		return false
 	}
 
-	return goos == "linux"
+	switch goos {
+	case "linux", "windows":
+		return true
+	default:
+		return false
+	}
 }
 
 // Requires defines the dependencies for the privateactionrunner component
