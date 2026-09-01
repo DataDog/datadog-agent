@@ -180,14 +180,12 @@ dd_agent_go_test(
     name = "process_test",
     srcs = [
         "go_labels_test.go",
-        "otel_tls_test.go",
         "resolver_test.go",
     ],
     embed = [":process"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/probe/config",
-            "//pkg/security/probe/procfs",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/path",
             "//pkg/security/resolvers/usergroup",
@@ -197,12 +195,10 @@ dd_agent_go_test(
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-            "@io_opentelemetry_go_ebpf_profiler//libpf",
             "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/probe/config",
-            "//pkg/security/probe/procfs",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/path",
             "//pkg/security/resolvers/usergroup",
@@ -212,7 +208,6 @@ dd_agent_go_test(
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
-            "@io_opentelemetry_go_ebpf_profiler//libpf",
             "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
         ],
         "//conditions:default": [],
