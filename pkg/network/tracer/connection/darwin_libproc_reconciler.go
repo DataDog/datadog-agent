@@ -121,13 +121,14 @@ type darwinLibprocCandidateIdentity struct {
 }
 
 func (t *nstatTracer) reconcileLibprocSnapshot(snapshot libproc.Snapshot) (resolved, ambiguous, reuseRejected int) {
+	index := indexDarwinLibprocObservations(snapshot.Observations)
 	var closed []*network.ConnectionStats
 	t.mu.Lock()
 	for sourceRef, source := range t.sources {
 		if !sourceNeedsLibprocReconciliation(source) {
 			continue
 		}
-		candidate, status := matchDarwinLibprocSource(source, snapshot.Observations)
+		candidate, status := matchDarwinLibprocSource(source, index.candidates(tupleFromNStatFlow(source)))
 		switch status {
 		case darwinLibprocAmbiguous:
 			ambiguous++
@@ -248,6 +249,68 @@ const (
 	darwinLibprocMatched
 	darwinLibprocAmbiguous
 )
+
+type darwinLibprocPortKey struct {
+	family network.ConnectionFamily
+	typ    network.ConnectionType
+	port   uint16
+}
+
+type darwinLibprocFamilyKey struct {
+	family network.ConnectionFamily
+	typ    network.ConnectionType
+}
+
+type darwinLibprocIndex struct {
+	byLocalPort    map[darwinLibprocPortKey][]libproc.Observation
+	byRemotePort   map[darwinLibprocPortKey][]libproc.Observation
+	remotePortZero map[darwinLibprocFamilyKey][]libproc.Observation
+	byFamilyType   map[darwinLibprocFamilyKey][]libproc.Observation
+}
+
+// indexDarwinLibprocObservations buckets a snapshot by family, type, and port
+// so each source can be matched without scanning every observation.
+func indexDarwinLibprocObservations(observations []libproc.Observation) darwinLibprocIndex {
+	index := darwinLibprocIndex{
+		byLocalPort:    make(map[darwinLibprocPortKey][]libproc.Observation, len(observations)),
+		byRemotePort:   make(map[darwinLibprocPortKey][]libproc.Observation, len(observations)),
+		remotePortZero: make(map[darwinLibprocFamilyKey][]libproc.Observation),
+		byFamilyType:   make(map[darwinLibprocFamilyKey][]libproc.Observation),
+	}
+	for _, observation := range observations {
+		familyKey := darwinLibprocFamilyKey{family: observation.Tuple.Family, typ: observation.Tuple.Type}
+		index.byFamilyType[familyKey] = append(index.byFamilyType[familyKey], observation)
+		if observation.Tuple.SPort != 0 {
+			localKey := darwinLibprocPortKey{family: observation.Tuple.Family, typ: observation.Tuple.Type, port: observation.Tuple.SPort}
+			index.byLocalPort[localKey] = append(index.byLocalPort[localKey], observation)
+		}
+		if observation.Tuple.DPort != 0 {
+			remoteKey := darwinLibprocPortKey{family: observation.Tuple.Family, typ: observation.Tuple.Type, port: observation.Tuple.DPort}
+			index.byRemotePort[remoteKey] = append(index.byRemotePort[remoteKey], observation)
+			continue
+		}
+		index.remotePortZero[familyKey] = append(index.remotePortZero[familyKey], observation)
+	}
+	return index
+}
+
+// candidates returns the observations that can forward-match target, using the
+// tightest port bucket that still covers the scorer's wildcard-remote cases.
+func (index darwinLibprocIndex) candidates(target network.ConnectionTuple) []libproc.Observation {
+	if target.SPort != 0 {
+		return index.byLocalPort[darwinLibprocPortKey{family: target.Family, typ: target.Type, port: target.SPort}]
+	}
+	familyKey := darwinLibprocFamilyKey{family: target.Family, typ: target.Type}
+	if target.DPort != 0 {
+		matched := index.byRemotePort[darwinLibprocPortKey{family: target.Family, typ: target.Type, port: target.DPort}]
+		if zero := index.remotePortZero[familyKey]; len(zero) > 0 {
+			combined := make([]libproc.Observation, 0, len(matched)+len(zero))
+			return append(append(combined, matched...), zero...)
+		}
+		return matched
+	}
+	return index.byFamilyType[familyKey]
+}
 
 func matchDarwinLibprocSource(source *nstatSource, observations []libproc.Observation) (libproc.Observation, darwinLibprocMatchStatus) {
 	target := tupleFromNStatFlow(source)

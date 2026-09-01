@@ -57,6 +57,7 @@ type darwinPacketFlowState struct {
 	incomingPrefix darwinPrefixAssembler
 	protocolStack  protocols.Stack
 	tlsTags        tlstags.Tags
+	classifyCount  int
 }
 
 // darwinPacketAnalyzer derives only packet-owned fields. It intentionally has
@@ -102,11 +103,12 @@ func (a *darwinPacketAnalyzer) process(cookie uint64, outgoing bool, captureTrun
 		state.established = true
 	}
 
+	accepted := false
 	if outgoing {
 		state.observeOutgoingSequence(tcp)
-		state.outgoingPrefix.add(tcp.Seq, tcp.Payload)
+		accepted = state.outgoingPrefix.add(tcp.Seq, tcp.Payload)
 	} else {
-		state.incomingPrefix.add(tcp.Seq, tcp.Payload)
+		accepted = state.incomingPrefix.add(tcp.Seq, tcp.Payload)
 	}
 
 	var failureErrno uint16
@@ -121,7 +123,9 @@ func (a *darwinPacketAnalyzer) process(cookie uint64, outgoing bool, captureTrun
 		}
 	}
 
-	state.classify()
+	if accepted {
+		state.classify()
+	}
 	return darwinPacketAnalysis{
 		direction:      state.direction,
 		retransmits:    state.retransmits,
@@ -156,6 +160,7 @@ func (s *darwinPacketFlowState) observeOutgoingSequence(tcp *layers.TCP) {
 }
 
 func (s *darwinPacketFlowState) classify() {
+	s.classifyCount++
 	for _, prefix := range [][]byte{s.outgoingPrefix.bytes(), s.incomingPrefix.bytes()} {
 		stack, tags := classifyDarwinPrefix(prefix)
 		s.protocolStack.MergeWith(stack)
@@ -177,21 +182,22 @@ type darwinPrefixAssembler struct {
 	truncated bool
 }
 
-func (a *darwinPrefixAssembler) add(seq uint32, payload []byte) {
+func (a *darwinPrefixAssembler) add(seq uint32, payload []byte) bool {
 	if len(payload) == 0 || a.truncated {
-		return
+		return false
 	}
 	for index := range a.segments {
 		if a.segments[index].seq == seq {
 			if len(payload) > len(a.segments[index].data) {
 				a.segments[index].data = append(a.segments[index].data[:0], payload...)
+				return true
 			}
-			return
+			return false
 		}
 	}
 	if len(a.segments) >= darwinSegmentLimit {
 		a.truncated = true
-		return
+		return false
 	}
 	total := len(payload)
 	for _, segment := range a.segments {
@@ -201,7 +207,7 @@ func (a *darwinPrefixAssembler) add(seq uint32, payload []byte) {
 		remaining := darwinPrefixLimit - (total - len(payload))
 		if remaining <= 0 {
 			a.truncated = true
-			return
+			return false
 		}
 		payload = payload[:remaining]
 		a.truncated = true
@@ -210,6 +216,7 @@ func (a *darwinPrefixAssembler) add(seq uint32, payload []byte) {
 		seq:  seq,
 		data: append([]byte(nil), payload...),
 	})
+	return true
 }
 
 func (a *darwinPrefixAssembler) bytes() []byte {

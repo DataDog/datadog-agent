@@ -62,6 +62,33 @@ func TestDarwinPrefixAssemblerReordersAndMergesOverlap(t *testing.T) {
 	require.Equal(t, "hello world!", string(assembler.bytes()))
 }
 
+// TestDarwinPacketAnalyzerClassifiesOnlyWhenPrefixGrows skips classify on ACKs
+// after the HTTP prefix has already been accepted.
+func TestDarwinPacketAnalyzerClassifiesOnlyWhenPrefixGrows(t *testing.T) {
+	analyzer := newDarwinPacketAnalyzer(10)
+	request := []byte("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
+	analysis := analyzer.process(3, true, false, &layers.TCP{
+		Seq:       100,
+		ACK:       true,
+		BaseLayer: layers.BaseLayer{Payload: request},
+	})
+	require.Equal(t, protocols.HTTP, analysis.protocolStack.Application)
+
+	analyzer.mu.Lock()
+	classified := analyzer.flows[3].classifyCount
+	analyzer.mu.Unlock()
+	require.Equal(t, 1, classified)
+
+	for i := 0; i < 8; i++ {
+		analysis = analyzer.process(3, true, false, &layers.TCP{Seq: 100 + uint32(len(request)), ACK: true})
+		require.Equal(t, protocols.HTTP, analysis.protocolStack.Application)
+	}
+
+	analyzer.mu.Lock()
+	require.Equal(t, classified, analyzer.flows[3].classifyCount)
+	analyzer.mu.Unlock()
+}
+
 func TestClassifyDarwinHTTPPrefixes(t *testing.T) {
 	stack, _ := classifyDarwinPrefix([]byte("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n"))
 	require.Equal(t, protocols.HTTP, stack.Application)
