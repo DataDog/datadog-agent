@@ -166,11 +166,8 @@ rust_test(
 
 rust_test(
     name = "e2e_test",
-    srcs = [
-        "tests/e2e.rs",
-        "tests/helpers/mod.rs",
-    ],
-    crate_root = "tests/e2e.rs",
+    srcs = glob(["tests/e2e/**/*.rs"]) + ["tests/helpers/mod.rs"],
+    crate_root = "tests/e2e/main.rs",
     data = [
         ":dd-procmgr",
         ":dd-procmgrd",
