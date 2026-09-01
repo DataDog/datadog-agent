@@ -96,6 +96,7 @@ go_tools_deps:
   extends: .cache
   tags: ["arch:amd64", "specific:true"]
   script:
+    # ⚠ When adjusting the script's logic, please bump the `cache:key:prefix` value below to invalidate the cache!
     - if [ -f go_tools_bin.tar.zst ] && [ -f modcache_tools.tar.zst ]; then exit 0; fi
     - dda inv -- -e install-tools
     # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
@@ -116,7 +117,7 @@ go_tools_deps:
         files:
           - ./**/go.mod
           - tasks/install_tasks.py  # TOOL_LIST
-        prefix: "go_tools_deps_modcache_zstd"
+        prefix: go_tools_deps_v2
       paths:
         - go_tools_bin.tar.zst
         - modcache_tools.tar.zst
@@ -125,6 +126,7 @@ go_tools_deps_arm64:
   extends: .cache
   tags: ["arch:arm64", "specific:true"]
   script:
+    # ⚠ When adjusting the script's logic, please bump the `cache:key:prefix` value below to invalidate the cache!
     - if [ -f go_tools_bin_arm64.tar.zst ] && [ -f modcache_tools_arm64.tar.zst ]; then exit 0; fi
     - dda inv -- -e install-tools
     # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
@@ -145,7 +147,7 @@ go_tools_deps_arm64:
         files:
           - ./**/go.mod
           - tasks/install_tasks.py  # TOOL_LIST
-        prefix: "go_tools_deps_modcache_arm64_zstd"
+        prefix: go_tools_deps_arm64_v2
       paths:
         - go_tools_bin_arm64.tar.zst
         - modcache_tools_arm64.tar.zst
