@@ -126,11 +126,6 @@ func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Comp
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
 func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component, statsd statsd.ClientInterface) (_ *Tracer, reterr error) {
-	// tests pass a nil telemetry component, default to the global registry
-	if telemetryComponent == nil {
-		telemetryComponent = telemetryimpl.GetCompatComponent()
-	}
-
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
