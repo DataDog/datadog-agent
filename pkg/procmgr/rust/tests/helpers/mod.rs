@@ -1412,14 +1412,6 @@ impl TestEnv {
         }
     }
 
-    pub fn assert_process_state(&self, name: &str, expected: ProcessExpect) {
-        self.require_list().assert_process_state(name, expected);
-    }
-
-    pub fn assert_process_last_exit_code(&self, name: &str, code: i32) {
-        self.require_list().assert_last_exit_code(name, code);
-    }
-
     pub fn wait_for_restart_count_at_least(
         &self,
         name: &str,
