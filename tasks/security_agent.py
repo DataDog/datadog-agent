@@ -208,19 +208,28 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
 
 def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
-    syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
     arch = Arch.from_str(arch)
     _, _, env = get_build_flags(ctx, arch=arch)
 
-    go_build(
-        ctx,
-        f"{syscall_tester_go_dir}/syscall_go_tester.go",
-        build_tags=["syscalltesters", "osusergo", "netgo"],
-        ldflags="-extldflags=-static",
-        bin_path=syscall_tester_exe_file,
-        env=env,
-    )
-    return syscall_tester_exe_file
+    testers = {
+        "syscall_go_tester": f"{syscall_tester_go_dir}/syscall_go_tester.go",
+        "span_go_tester": f"{syscall_tester_go_dir}/span/span_go_tester.go",
+    }
+
+    exe_files = []
+    for name, source in testers.items():
+        exe_file = os.path.join(build_dir, name)
+        go_build(
+            ctx,
+            source,
+            build_tags=["syscalltesters", "osusergo", "netgo"],
+            ldflags="-extldflags=-static",
+            bin_path=exe_file,
+            env=env,
+        )
+        exe_files.append(exe_file)
+
+    return exe_files
 
 
 def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang'):
@@ -262,6 +271,41 @@ def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
     )
 
 
+OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifacts"
+
+
+# The OTel TLS testers go through Bazel rather than the ninja rules above so
+# they link against the hermetic crosstool-NG sysroot: glibc 2.23, of which only
+# 2.17 symbols end up referenced. The host toolchain would link them against the
+# build image's glibc instead, which is newer than every KMT host and than the
+# ubuntu:20.04 image RunMultiMode's docker leg uses, and every dynamically
+# linked variant would then be skipped outside the newest legs.
+#
+# musl is covered by TestResolveOTelTLSMuslDTV in
+# pkg/security/resolvers/process/otel_tls_test.go instead: the only thing musl
+# changes is the DTV layout its libc reports, which is resolved entirely in
+# user space and needs neither eBPF nor a VM.
+def build_otel_tls_artifacts(build_dir, arch: Arch):
+    if arch.is_cross_compiling():
+        # Both crosstool-NG toolchains are exec_compatible_with their own CPU,
+        # so there is no toolchain that targets the other architecture.
+        print("Skipping the OTel TLS glibc testers while cross-compiling")
+        return
+
+    bazel("build", OTEL_TLS_BAZEL_TARGET)
+
+    # The filegroup is the one list of artifacts; asking Bazel for its files
+    # keeps this from drifting from the BUILD file.
+    execroot = bazel("info", "execution_root", capture_output=True).strip()
+    artifacts = bazel("cquery", "--output=files", OTEL_TLS_BAZEL_TARGET, capture_output=True).split()
+
+    for artifact in artifacts:
+        src = os.path.join(execroot, artifact)
+        dst = os.path.join(build_dir, os.path.basename(artifact))
+        shutil.copy2(src, dst)
+        os.chmod(dst, 0o755)
+
+
 def create_dir_if_needed(dir):
     try:
         os.makedirs(dir)
@@ -290,6 +334,7 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
+    build_otel_tls_artifacts(build_dir, arch)
     build_go_syscall_tester(ctx, build_dir, arch=arch)
 
 
@@ -357,7 +402,7 @@ def build_functional_tests(
         results, _ = run_golangci_lint(ctx, base_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
-            if result.exited != 0:
+            if result.returncode != 0:
                 raise Exit(code=1)
         print("golangci-lint found no issues")
 

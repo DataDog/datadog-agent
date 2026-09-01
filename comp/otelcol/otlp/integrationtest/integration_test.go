@@ -5,7 +5,7 @@
 // resolves to real compresor. Without them the selector links its noop
 // variant and metrics ship uncompressed ("identity") instead of zstd.
 // TODO(OASIS-79): fix data race then remove !race
-//go:build otlp && zlib && zstd && test && !race
+//go:build otlp && zlib && zstd && test && !race && !aix
 
 package integrationtest
 

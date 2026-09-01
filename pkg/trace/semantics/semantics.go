@@ -58,6 +58,7 @@ const (
 	ConceptHTTPStatusCode Concept = "http.status_code"
 	ConceptHTTPMethod     Concept = "http.method"
 	ConceptHTTPRoute      Concept = "http.route"
+	ConceptURLTemplate    Concept = "url.template"
 	ConceptGRPCStatusCode Concept = "rpc.grpc.status_code"
 	ConceptSpanKind       Concept = "span.kind"
 	ConceptDDBaseService  Concept = "_dd.base_service"

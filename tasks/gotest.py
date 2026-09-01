@@ -27,7 +27,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.collector import OTEL_CONTRIB_VERSION
-from tasks.coverage import PROFILE_COV, CodecovWorkaround
+from tasks.coverage import PROFILE_COV, GotestsumCoverageWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import bazel
@@ -78,8 +78,10 @@ TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/bu
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
 BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"
 DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS = 4
+# TODO(OTAGENT-1305): point back to a tagged release once one ships with the go.mod
+# bump upstream currently only has on main.
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OTEL_CONTRIB_VERSION}/go.mod"
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
 )
 
 
@@ -469,15 +471,31 @@ def test_flavor(
     res = None
     for batch in batches:
         batch_packages = ' '.join(batch)
-        with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
-            res = bazel(
-                "run",
-                "//internal/tools:gotestsum",
-                "--",
-                *shlex.split(cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)),
-                env=env,  # contains secrets, so passing each variable through `--run_env=` would print their values
-                ignore_errors=True,
-            )
+        with GotestsumCoverageWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
+            formatted_cmd = cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)
+            if sys.platform == "aix":
+                # AIX has no Bazel yet. ctx.run goes through a shell, so build the
+                # exact argv (the same shlex.split list the bazel path passes) and
+                # re-quote it with shlex.join — otherwise shell metacharacters in
+                # the command (e.g. `|` in a `-run TestA|TestB` regex) would be
+                # interpreted by the shell instead of passed literally to go test.
+                gotestsum_argv = ["gotestsum", *shlex.split(formatted_cmd)]
+                run_res = ctx.run(shlex.join(gotestsum_argv), env=env, warn=True, hide=False)
+                res = subprocess.CompletedProcess(
+                    args=gotestsum_argv,
+                    returncode=run_res.return_code,
+                    stdout=run_res.stdout,
+                    stderr=run_res.stderr,
+                )
+            else:
+                res = bazel(
+                    "run",
+                    "//internal/tools:gotestsum",
+                    "--",
+                    *shlex.split(formatted_cmd),
+                    env=env,  # contains secrets, so passing each variable through `--run_env=` would print their values
+                    ignore_errors=True,
+                )
             # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
             if res is not None and res.returncode in (130, -signal.SIGINT):
                 raise KeyboardInterrupt()
@@ -1493,6 +1511,11 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
+    print(
+        f"Checking against opentelemetry-collector-contrib main instead of the latest "
+        f"tagged release (v{OTEL_CONTRIB_VERSION}) — see OTAGENT-1305"
+    )
+
     # Get Go version from upstream (e.g., "1.24" or "1.24.0")
     upstream_pattern = r"^go (1(?:\.\d+){1,2})[\r]?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
@@ -1523,7 +1546,14 @@ def check_otel_module_versions(ctx, fix=False):
                     continue
 
                 actual_local_version = local_matches[0]
-                if actual_local_version != expected_local_version:
+                # A local module's go directive can legitimately be higher than the version derived
+                # from the contrib repo root's go.mod: contrib is a multi-module repo, and MVS can
+                # force a higher version when one of our actual dependencies (e.g. pkg/datadog) declares
+                # a newer `go` directive than the repo root does. Only flag/fix versions that are lower
+                # than expected, since those would fail to build against such a dependency.
+                actual_tuple = tuple(int(part) for part in actual_local_version.split('.'))
+                expected_tuple = tuple(int(part) for part in expected_local_version.split('.'))
+                if actual_tuple < expected_tuple:
                     if fix:
                         update_file(
                             True,
@@ -1533,7 +1563,7 @@ def check_otel_module_versions(ctx, fix=False):
                         )
                     else:
                         version_errors.append(
-                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
+                            f"{mod_file} version {actual_local_version} is lower than expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
                         )
 
     # Report all errors at once if any were found
