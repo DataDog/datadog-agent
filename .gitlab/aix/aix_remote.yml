@@ -36,7 +36,7 @@
     - touch ~/.ssh/aix_ci_key && chmod 600 ~/.ssh/aix_ci_key
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER key > ~/.ssh/aix_ci_key || exit $?
     - chmod 600 ~/.ssh/aix_ci_key
-    - ssh-keyscan -p $AIX_PORT $AIX_HOST >> ~/.ssh/known_hosts 2>/dev/null
+    - ssh-keyscan -p $AIX_PORT $AIX_HOST >> ~/.ssh/known_hosts
     # Add the key to the ssh-agent so script steps don't need -i.
     - eval $(ssh-agent -s)
     - ssh-add ~/.ssh/aix_ci_key
