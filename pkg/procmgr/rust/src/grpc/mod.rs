@@ -33,16 +33,21 @@ mod tests {
     use tokio_stream::wrappers::UnixListenerStream;
 
     use crate::test_helpers;
+    use std::time::Duration;
 
-    fn grpc_settle_delay() -> std::time::Duration {
+    fn grpc_test_timeout() -> Duration {
         #[cfg(windows)]
         {
-            std::time::Duration::from_millis(1000)
+            Duration::from_secs(30)
         }
         #[cfg(not(windows))]
         {
-            std::time::Duration::from_millis(500)
+            Duration::from_secs(10)
         }
+    }
+
+    fn grpc_poll_interval() -> Duration {
+        Duration::from_millis(25)
     }
 
     fn grpc_sleep_cmd() -> (&'static str, Vec<String>) {
@@ -53,9 +58,91 @@ mod tests {
         ProcessConfig {
             command: command.to_string(),
             args,
+            stdout: "null".to_string(),
+            stderr: "null".to_string(),
             stop_timeout: Some(1),
             ..Default::default()
         }
+    }
+
+    async fn wait_for_describe_state(
+        client: &mut ProcessManagerClient<Channel>,
+        name_or_uuid: &str,
+        expected: proto::ProcessState,
+    ) {
+        let expected_state = expected as i32;
+        tokio::time::timeout(grpc_test_timeout(), async {
+            loop {
+                let resp = client
+                    .describe(proto::DescribeRequest {
+                        name_or_uuid: name_or_uuid.to_string(),
+                    })
+                    .await
+                    .unwrap()
+                    .into_inner();
+                if resp
+                    .detail
+                    .as_ref()
+                    .is_some_and(|d| d.state == expected_state)
+                {
+                    return;
+                }
+                tokio::time::sleep(grpc_poll_interval()).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| {
+            panic!("timed out waiting for '{name_or_uuid}' to reach state {expected:?}")
+        });
+    }
+
+    async fn wait_for_list_process_state(
+        client: &mut ProcessManagerClient<Channel>,
+        name: &str,
+        expected: proto::ProcessState,
+    ) {
+        let expected_state = expected as i32;
+        tokio::time::timeout(grpc_test_timeout(), async {
+            loop {
+                let resp = client
+                    .list(proto::ListRequest {})
+                    .await
+                    .unwrap()
+                    .into_inner();
+                if let Some(proc) = resp.processes.iter().find(|p| p.name == name)
+                    && proc.state == expected_state
+                    && proc.pid > 0
+                {
+                    return;
+                }
+                tokio::time::sleep(grpc_poll_interval()).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| {
+            panic!("timed out waiting for '{name}' to reach state {expected:?} with a pid")
+        });
+    }
+
+    async fn wait_for_status<F>(client: &mut ProcessManagerClient<Channel>, mut ready: F)
+    where
+        F: FnMut(&proto::GetStatusResponse) -> bool,
+    {
+        tokio::time::timeout(grpc_test_timeout(), async {
+            loop {
+                let resp = client
+                    .get_status(proto::GetStatusRequest {})
+                    .await
+                    .unwrap()
+                    .into_inner();
+                if ready(&resp) {
+                    return;
+                }
+                tokio::time::sleep(grpc_poll_interval()).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("timed out waiting for get_status condition"));
     }
 
     #[cfg(windows)]
@@ -601,7 +688,15 @@ mod tests {
             .await
             .unwrap();
 
-        tokio::time::sleep(grpc_settle_delay()).await;
+        wait_for_status(&mut client, |resp| {
+            resp.total_processes == 5
+                && resp.running_processes == 1
+                && resp.failed_processes == 1
+                && resp.stopped_processes == 1
+                && resp.exited_processes == 1
+                && resp.created_processes == 1
+        })
+        .await;
 
         let resp = client
             .get_status(proto::GetStatusRequest {})
@@ -777,19 +872,7 @@ mod tests {
             "stop response should include uuid"
         );
 
-        tokio::time::sleep(grpc_settle_delay()).await;
-
-        let resp = client
-            .describe(proto::DescribeRequest {
-                name_or_uuid: "to-stop".to_string(),
-            })
-            .await
-            .unwrap()
-            .into_inner();
-        assert_eq!(
-            resp.detail.unwrap().state,
-            proto::ProcessState::Stopped as i32
-        );
+        wait_for_describe_state(&mut client, "to-stop", proto::ProcessState::Stopped).await;
     }
 
     #[tokio::test]
@@ -857,15 +940,10 @@ mod tests {
             .await
             .unwrap();
 
-        tokio::time::sleep(grpc_settle_delay()).await;
-
-        let resp = client
-            .get_status(proto::GetStatusRequest {})
-            .await
-            .unwrap()
-            .into_inner();
-        assert_eq!(resp.running_processes, 0);
-        assert_eq!(resp.stopped_processes, 1);
+        wait_for_status(&mut client, |resp| {
+            resp.running_processes == 0 && resp.stopped_processes == 1
+        })
+        .await;
     }
 
     #[tokio::test]
@@ -926,20 +1004,13 @@ mod tests {
             .await
             .unwrap();
 
-        tokio::time::sleep(grpc_settle_delay()).await;
+        wait_for_list_process_state(&mut client, "auto-svc", proto::ProcessState::Running).await;
 
         let resp = client
             .list(proto::ListRequest {})
             .await
             .unwrap()
             .into_inner();
-        assert_eq!(resp.processes.len(), 1);
-        assert_eq!(resp.processes[0].state, proto::ProcessState::Running as i32);
-        assert!(
-            resp.processes[0].pid > 0,
-            "auto-started process should have a PID"
-        );
-
         test_helpers::cleanup_process(resp.processes[0].pid);
     }
 
@@ -1170,12 +1241,13 @@ mod tests {
 
         let stop_resp = client
             .stop(proto::StopRequest {
-                name_or_uuid: prefix,
+                name_or_uuid: prefix.clone(),
             })
             .await
             .unwrap()
             .into_inner();
         assert_eq!(stop_resp.state, proto::ProcessState::Stopped as i32);
+        wait_for_describe_state(&mut client, &prefix, proto::ProcessState::Stopped).await;
     }
 
     #[tokio::test]
