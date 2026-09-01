@@ -57,7 +57,6 @@ rust_library(
         "@crates//:saluki-tls",
         "@crates//:serde",
         "@crates//:serde_json",
-        "@crates//:tempfile",
         "@crates//:tokio",
         "@crates//:tokio-rustls",
         "@crates//:tokio-stream",
@@ -90,6 +89,7 @@ rust_test(
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
+        "@crates//:tempfile",
         "@crates//:tokio",
         "@crates//:tokio-stream",
     ],

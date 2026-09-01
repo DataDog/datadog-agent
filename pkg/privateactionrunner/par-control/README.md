@@ -10,9 +10,10 @@ See this [RFC](https://docs.google.com/document/d/1VS1aI_rKRSfx9qx-bZaHJKRq8_oZd
 ## Configuration
 
 Go owns configuration and enrollment. At startup, `par-control` runs the command
-passed to `--bootstrap-command` and reads its resolved JSON from a private
-temporary file. Stdout and stderr remain logs. The payload may contain credentials,
-so it is never logged or included in errors.
+passed to `--bootstrap-command` and parses its stdout as JSON. The bootstrap
+command disables normal logging, while errors and panics still use stderr. Since
+the payload may contain credentials, stdout is never forwarded or included in
+errors.
 
 ## Build and test
 

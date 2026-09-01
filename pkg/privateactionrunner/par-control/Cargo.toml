@@ -32,7 +32,6 @@ rustls-pki-types.workspace = true
 saluki-tls.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-tempfile.workspace = true
 tokio = { workspace = true, features = [
   "macros",
   "net",
@@ -52,6 +51,9 @@ rustls.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 rustls.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [build-dependencies]
 tonic-prost-build.workspace = true

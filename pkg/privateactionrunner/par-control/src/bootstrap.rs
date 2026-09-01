@@ -8,8 +8,6 @@ use anyhow::{Context, Result, bail};
 use std::path::Path;
 use std::process::{Command, Output};
 
-const CONFIG_PATH_ENV: &str = "DD_PAR_CONTROL_CONFIG_PATH";
-
 pub fn run_bootstrap(argv: &[String]) -> Result<BootstrapConfig> {
     let Some((program, args)) = argv.split_first() else {
         bail!("no bootstrap command is configured; set --bootstrap-command");
@@ -20,23 +18,17 @@ pub fn run_bootstrap(argv: &[String]) -> Result<BootstrapConfig> {
         .unwrap_or(program);
     log::info!("running bootstrap command: {name}");
 
-    let config_file = tempfile::NamedTempFile::new()
-        .context("failed to create the bootstrap configuration file")?;
     let output = Command::new(program)
         .args(args)
-        .env(CONFIG_PATH_ENV, config_file.path())
         .output()
         .with_context(|| format!("failed to run bootstrap command {name}"))?;
-
-    parse_output(name, &output, config_file.path())
+    parse_output(name, &output)
 }
 
-fn parse_output(program: &str, output: &Output, config_path: &Path) -> Result<BootstrapConfig> {
-    for bytes in [&output.stdout, &output.stderr] {
-        for line in String::from_utf8_lossy(bytes).lines() {
-            if !line.trim().is_empty() {
-                log::info!("bootstrap: {line}");
-            }
+fn parse_output(program: &str, output: &Output) -> Result<BootstrapConfig> {
+    for line in String::from_utf8_lossy(&output.stderr).lines() {
+        if !line.trim().is_empty() {
+            log::info!("bootstrap: {line}");
         }
     }
 
@@ -46,13 +38,11 @@ fn parse_output(program: &str, output: &Output, config_path: &Path) -> Result<Bo
             output.status
         );
     }
-
-    let payload = std::fs::read(config_path)
-        .map_err(|_| anyhow::anyhow!("bootstrap command {program} returned no configuration"))?;
-    if payload.is_empty() {
+    if output.stdout.is_empty() {
         bail!("bootstrap command {program} returned no configuration");
     }
-    serde_json::from_slice(&payload).map_err(|_| {
+
+    serde_json::from_slice(&output.stdout).map_err(|_| {
         anyhow::anyhow!("bootstrap command {program} returned malformed configuration")
     })
 }
@@ -75,20 +65,21 @@ mod tests {
         ExitStatus::from_raw(raw)
     }
 
-    fn output(success: bool) -> Output {
+    fn output(success: bool, stdout: &str) -> Output {
         Output {
             status: status(success),
-            stdout: Vec::new(),
+            stdout: stdout.as_bytes().to_vec(),
             stderr: Vec::new(),
         }
     }
 
     #[test]
     fn parses_config() {
-        let file = tempfile::NamedTempFile::new().unwrap();
-        std::fs::write(file.path(), r#"{"split_mode":false,"log_level":"debug"}"#).unwrap();
-
-        let config = parse_output("bootstrap", &output(true), file.path()).unwrap();
+        let config = parse_output(
+            "bootstrap",
+            &output(true, r#"{"split_mode":false,"log_level":"debug"}"#),
+        )
+        .unwrap();
 
         assert!(!config.split_mode);
         assert_eq!(config.log_level(), log::LevelFilter::Debug);
@@ -96,20 +87,17 @@ mod tests {
 
     #[test]
     fn reports_command_failure() {
-        let file = tempfile::NamedTempFile::new().unwrap();
-        let error = parse_output("bootstrap", &output(false), file.path())
+        let error = parse_output("bootstrap", &output(false, "secret"))
             .unwrap_err()
             .to_string();
 
         assert!(error.contains("exited with status"));
+        assert!(!error.contains("secret"));
     }
 
     #[test]
     fn malformed_config_is_not_exposed() {
-        let file = tempfile::NamedTempFile::new().unwrap();
-        std::fs::write(file.path(), r#"{"private_key":"secret""#).unwrap();
-
-        let error = parse_output("bootstrap", &output(true), file.path())
+        let error = parse_output("bootstrap", &output(true, r#"{"private_key":"secret""#))
             .unwrap_err()
             .to_string();
 
