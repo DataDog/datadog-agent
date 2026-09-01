@@ -183,18 +183,18 @@ func TestEmitNvmlMetrics(t *testing.T) {
 		check.collectors = append(check.collectors, &mockCollector{
 			name:       "device",
 			deviceUUID: deviceUUID,
-			metrics: []*nvidia.Metric{
-				{Name: "metric1", Value: float64(metricValueBase + 1), Type: ddmetrics.GaugeType, Priority: 0},
-				{Name: "metric2", Value: float64(metricValueBase + 2), Type: ddmetrics.GaugeType, Priority: 0},
+			samples: []nvidia.Sample{
+				nvidia.NewMetric("metric1", float64(metricValueBase+1), ddmetrics.GaugeType, 0, nil, nil),
+				nvidia.NewMetric("metric2", float64(metricValueBase+2), ddmetrics.GaugeType, 0, nil, nil),
 			},
 		})
 
 		check.collectors = append(check.collectors, &mockCollector{
 			name:       "fields",
 			deviceUUID: deviceUUID,
-			metrics: []*nvidia.Metric{
-				{Name: "metric2", Value: float64(metricValueBase + 2), Type: ddmetrics.GaugeType, Priority: 1},
-				{Name: "metric3", Value: float64(metricValueBase + 3), Type: ddmetrics.GaugeType, Priority: 1},
+			samples: []nvidia.Sample{
+				nvidia.NewMetric("metric2", float64(metricValueBase+2), ddmetrics.GaugeType, 1, nil, nil),
+				nvidia.NewMetric("metric3", float64(metricValueBase+3), ddmetrics.GaugeType, 1, nil, nil),
 			},
 		})
 	}
@@ -512,7 +512,7 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 		check.collectors = append(check.collectors, &mockCollector{
 			name:       collectorName,
 			deviceUUID: deviceUUID,
-			collectFunc: func() ([]*nvidia.Metric, error) {
+			collectFunc: func() ([]nvidia.Sample, error) {
 				if started.Add(1) == collectorCount {
 					close(allStarted)
 				}
@@ -523,8 +523,8 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 					return nil, fmt.Errorf("collector %s timed out waiting for other collectors", collectorName)
 				}
 
-				return []*nvidia.Metric{
-					{Name: metricName, Value: metricValue, Type: ddmetrics.GaugeType},
+				return []nvidia.Sample{
+					&nvidia.Metric{Name: metricName, Value: metricValue, Type: ddmetrics.GaugeType},
 				}, nil
 			},
 		})
@@ -535,11 +535,11 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 	require.Equal(t, int32(collectorCount), started.Load())
 }
 
-func TestCollectMetricsDoesNotCrashWhenCollectorPanics(t *testing.T) {
-	results := collectMetrics([]nvidia.Collector{
+func TestCollectSamplesDoesNotCrashWhenCollectorPanics(t *testing.T) {
+	results := collectSamples([]nvidia.Collector{
 		&mockCollector{
 			name: "panicking-collector",
-			collectFunc: func() ([]*nvidia.Metric, error) {
+			collectFunc: func() ([]nvidia.Sample, error) {
 				panic("boom")
 			},
 		},
@@ -579,25 +579,25 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 		&mockCollector{
 			name:       "serial-0",
 			deviceUUID: deviceUUID,
-			collectFunc: func() ([]*nvidia.Metric, error) {
+			collectFunc: func() ([]nvidia.Sample, error) {
 				close(started)
 				select {
 				case <-releaseFirstCollector:
 				case <-time.After(time.Second):
 					return nil, errors.New("collector timed out waiting for release")
 				}
-				return []*nvidia.Metric{
-					{Name: "serial.metric0", Value: 0, Type: ddmetrics.GaugeType},
+				return []nvidia.Sample{
+					&nvidia.Metric{Name: "serial.metric0", Value: 0, Type: ddmetrics.GaugeType},
 				}, nil
 			},
 		},
 		&mockCollector{
 			name:       "serial-1",
 			deviceUUID: deviceUUID,
-			collectFunc: func() ([]*nvidia.Metric, error) {
+			collectFunc: func() ([]nvidia.Sample, error) {
 				close(secondStarted)
-				return []*nvidia.Metric{
-					{Name: "serial.metric1", Value: 1, Type: ddmetrics.GaugeType},
+				return []nvidia.Sample{
+					&nvidia.Metric{Name: "serial.metric1", Value: 1, Type: ddmetrics.GaugeType},
 				}, nil
 			},
 		},
@@ -642,15 +642,16 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 type mockCollector struct {
 	name        nvidia.CollectorName
 	deviceUUID  string
-	metrics     []*nvidia.Metric
-	collectFunc func() ([]*nvidia.Metric, error)
+	samples     []nvidia.Sample
+	collectFunc func() ([]nvidia.Sample, error)
 }
 
-func (m *mockCollector) Collect() ([]*nvidia.Metric, error) {
+func (m *mockCollector) Collect() ([]nvidia.Sample, error) {
 	if m.collectFunc != nil {
 		return m.collectFunc()
 	}
-	return m.metrics, nil
+
+	return m.samples, nil
 }
 
 func (m *mockCollector) Name() nvidia.CollectorName {
@@ -672,7 +673,7 @@ func mockMatchesTags(expectedTags []string) interface{} {
 	})
 }
 
-func TestEmitSingleMetricDoesNotAliasDeviceTags(t *testing.T) {
+func TestEmitSampleDoesNotAliasDeviceTags(t *testing.T) {
 	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
@@ -680,22 +681,12 @@ func TestEmitSingleMetricDoesNotAliasDeviceTags(t *testing.T) {
 	deviceTags := make([]string, 1, 4)
 	deviceTags[0] = "gpu_uuid:gpu-1"
 
-	firstMetric := &nvidia.Metric{
-		Name:  "utilization",
-		Value: 1,
-		Type:  ddmetrics.GaugeType,
-		Tags:  []string{"source:first"},
-	}
-	secondMetric := &nvidia.Metric{
-		Name:  "utilization",
-		Value: 2,
-		Type:  ddmetrics.GaugeType,
-		Tags:  []string{"source:second"},
-	}
+	firstMetric := nvidia.NewMetric("utilization", 1, ddmetrics.GaugeType, 0, []string{"source:first"}, nil)
+	secondMetric := nvidia.NewMetric("utilization", 2, ddmetrics.GaugeType, 0, []string{"source:second"}, nil)
 
 	now := time.Now()
-	require.NoError(t, check.emitSingleMetric(firstMetric, mockSender, now, nil, deviceTags))
-	require.NoError(t, check.emitSingleMetric(secondMetric, mockSender, now, nil, deviceTags))
+	require.NoError(t, check.emitSample(firstMetric, mockSender, now, nil, deviceTags))
+	require.NoError(t, check.emitSample(secondMetric, mockSender, now, nil, deviceTags))
 
 	require.Len(t, mockSender.Mock.Calls, 2)
 
@@ -704,12 +695,12 @@ func TestEmitSingleMetricDoesNotAliasDeviceTags(t *testing.T) {
 	secondTags, ok := mockSender.Mock.Calls[1].Arguments.Get(3).([]string)
 	require.True(t, ok)
 
-	require.Equal(t, []string{"gpu_uuid:gpu-1", "source:first"}, firstTags)
-	require.Equal(t, []string{"gpu_uuid:gpu-1", "source:second"}, secondTags)
+	require.ElementsMatch(t, []string{"gpu_uuid:gpu-1", "source:first"}, firstTags)
+	require.ElementsMatch(t, []string{"gpu_uuid:gpu-1", "source:second"}, secondTags)
 	require.Equal(t, []string{"gpu_uuid:gpu-1"}, deviceTags)
 }
 
-func TestEmitSingleMetricHistogramBucket(t *testing.T) {
+func TestEmitSampleHistogramBucket(t *testing.T) {
 	mockSender := mocksender.NewMockSender(t, "gpu")
 
 	value := float64(7)
@@ -720,20 +711,10 @@ func TestEmitSingleMetricHistogramBucket(t *testing.T) {
 	gpuTag := "gpu_uuid:gpu-1"
 
 	check := &Check{}
-	metric := &nvidia.Metric{
-		Name:  metricName,
-		Type:  ddmetrics.HistogramType,
-		Value: value,
-		Tags:  []string{portTag},
-		HistogramBucket: &nvidia.Bucket{
-			Bounds:          [2]float64{lowerBound, upperBound},
-			Monotonic:       true,
-			FlushFirstValue: false,
-		},
-	}
-	mockSender.On("HistogramBucket", "gpu."+metricName, int64(value), lowerBound, upperBound, true, "", []string{gpuTag, portTag}, false).Return()
+	sample := nvidia.NewHistogramSample(metricName, int64(value), [2]float64{lowerBound, upperBound}, true, false, 0, []string{portTag}, nil)
+	mockSender.On("HistogramBucket", "gpu."+metricName, int64(value), lowerBound, upperBound, true, "", mockMatchesTags([]string{gpuTag, portTag}), false).Return()
 
-	err := check.emitSingleMetric(metric, mockSender, time.Now(), nil, []string{gpuTag})
+	err := check.emitSample(sample, mockSender, time.Now(), nil, []string{gpuTag})
 	require.NoError(t, err)
 
 	mockSender.AssertExpectations(t)
@@ -754,8 +735,8 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	check.collectors = []nvidia.Collector{&mockCollector{
 		name:       "device",
 		deviceUUID: deviceUUID,
-		metrics: []*nvidia.Metric{
-			{Name: "test_metric", Value: 42.0, Type: ddmetrics.GaugeType, Priority: 0},
+		samples: []nvidia.Sample{
+			nvidia.NewMetric("test_metric", 42.0, ddmetrics.GaugeType, 0, nil, nil),
 		},
 	}}
 
@@ -850,7 +831,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, layout.deviceUUID), "foo", deviceTags, nil, nil, nil)
 		wmetaMock.Set(device)
 
-		var metricsToSend []*nvidia.Metric
+		var samplesToSend []nvidia.Sample
 		for i := 0; i < layout.numContainers; i++ {
 			container := &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
@@ -891,7 +872,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 			wmetaMock.Set(container)
 
 			callCount++
-			metricsToSend = append(metricsToSend, &nvidia.Metric{Name: "workload_metric", Value: float64(callCount), Type: ddmetrics.GaugeType, Priority: 0, AssociatedWorkloads: []workloadmeta.EntityID{process.EntityID}})
+			samplesToSend = append(samplesToSend, nvidia.NewMetric("workload_metric", float64(callCount), ddmetrics.GaugeType, 0, nil, []workloadmeta.EntityID{process.EntityID}))
 
 			expectedTags := append(deviceTags, processTags...)
 			expectedTags = append(expectedTags, containerTags...)
@@ -899,13 +880,13 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 		}
 
 		callCount++
-		metricsToSend = append(metricsToSend, &nvidia.Metric{Name: "no_workload_metric", Value: float64(callCount), Type: ddmetrics.GaugeType, Priority: 0})
+		samplesToSend = append(samplesToSend, nvidia.NewMetric("no_workload_metric", float64(callCount), ddmetrics.GaugeType, 0, nil, nil))
 		noWorkloadTags := append(deviceTags, allContainerTags...)
 		mockSender.On("GaugeWithTimestamp", "gpu.no_workload_metric", float64(callCount), "", mockMatchesTags(noWorkloadTags), mock.Anything).Return()
 
 		callCount++
 		// Use a Count metric just to make it easier to distinguish mock calls
-		metricsToSend = append(metricsToSend, &nvidia.Metric{Name: "all_workload_metric", Value: float64(callCount), Type: ddmetrics.CountType, Priority: 0, AssociatedWorkloads: allProcessEntityIDs})
+		samplesToSend = append(samplesToSend, nvidia.NewMetric("all_workload_metric", float64(callCount), ddmetrics.CountType, 0, nil, allProcessEntityIDs))
 		allWorkloadTags := append(deviceTags, allContainerTags...)
 		allWorkloadTags = append(allWorkloadTags, allProcessTags...)
 		mockSender.On("CountWithTimestamp", "gpu.all_workload_metric", float64(callCount), "", mockMatchesTags(allWorkloadTags), mock.Anything).Return()
@@ -913,7 +894,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 		check.collectors = append(check.collectors, &mockCollector{
 			name:       "mockCollector",
 			deviceUUID: layout.deviceUUID,
-			metrics:    metricsToSend,
+			samples:    samplesToSend,
 		})
 	}
 
@@ -928,7 +909,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 // when the GPU is idle (no running processes), the stateless collector downgrades
 // memory.limit to Low priority (because allWorkloadIDs is empty). The eBPF
 // collector also emits memory.limit at Low priority but may still carry cached
-// inactive PIDs as AssociatedWorkloads. Because RemoveDuplicateMetrics resolves
+// inactive PIDs as AssociatedWorkloads. Because RemoveDuplicateSamples resolves
 // same-priority ties by map iteration order, the winner—and therefore the tag
 // set on gpu.memory.limit—flips between PID-scoped and device-wide tagging
 // across runs, creating unstable timeseries cardinality.
@@ -986,18 +967,20 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 		procInfo = slices.Clone(procData)
 
 		// Collect from the real collectors and group by collector name.
-		collectorMetrics := make(map[nvidia.CollectorName][]*nvidia.Metric)
+		collectorSamples := make(map[nvidia.CollectorName][]nvidia.Sample)
 		for _, c := range collectors {
-			m, _ := c.Collect() // errors expected from unsupported APIs, ignore
-			collectorMetrics[c.Name()] = m
+			samples, _ := c.Collect() // errors expected from unsupported APIs, ignore
+			collectorSamples[c.Name()] = samples
 		}
 
 		// Part 1 (deterministic): the two collectors must NOT emit memory.limit
 		// at the same priority. Equal priorities let map-iteration order decide
 		// the dedup winner, which is non-deterministic.
 		memLimitMetrics := make(map[nvidia.CollectorName][]*nvidia.Metric)
-		for name, metrics := range collectorMetrics {
-			for _, m := range metrics {
+		for name, samples := range collectorSamples {
+			for _, sample := range samples {
+				m, ok := sample.(*nvidia.Metric)
+				require.True(t, ok)
 				if m.Name == "memory.limit" {
 					memLimitMetrics[name] = append(memLimitMetrics[name], m)
 				}
@@ -1013,10 +996,10 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 		require.Contains(t, memLimitMetrics, ebpfCollector)
 		require.Len(t, memLimitMetrics[statelessCollector], 2) // memory.limit comes from two APIs in stateless collector
 		require.Len(t, memLimitMetrics[ebpfCollector], 1)      // memory.limit comes from one API in ebpf collector
-		require.NotEmpty(t, memLimitMetrics[ebpfCollector][0].AssociatedWorkloads, "memory.limit must be emitted when deduplication happens")
+		require.NotEmpty(t, memLimitMetrics[ebpfCollector][0].AssociatedWorkloads(), "memory.limit must be emitted when deduplication happens")
 
 		for _, m := range memLimitMetrics[statelessCollector] {
-			require.Greater(t, m.Priority, memLimitMetrics[ebpfCollector][0].Priority, "memory.limit must always have higher priority in stateless collector than in ebpf collector")
+			require.Greater(t, m.Priority(), memLimitMetrics[ebpfCollector][0].Priority(), "memory.limit must always have higher priority in stateless collector than in ebpf collector")
 		}
 	}
 }
