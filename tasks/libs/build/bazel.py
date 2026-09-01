@@ -240,6 +240,18 @@ def bazel(
     return completed.stdout if capture_output else ""
 
 
+def _bazel_output_path(target: str, args: list[str]) -> str:
+    # We need cquery to find the output path that has the configuration hash in it.
+    output = bazel("cquery", "--output=files", target, *args, capture_output=True).strip()
+    outputs = [line for line in output.splitlines() if line]
+    if len(outputs) != 1:
+        raise SystemExit(f"Expected exactly one output file for Bazel target {target!r}, got: {outputs!r}")
+    # Resolved against the execution root rather than the `bazel-out` convenience symlink,
+    # which CI disables (--symlink_prefix=/dev/null) and would otherwise leave unresolvable.
+    execroot = bazel("info", "execution_root", capture_output=True).strip()
+    return os.path.join(execroot, outputs[0])
+
+
 def build_binary_with_bazel(
     target: str, args: list[str] | None = None, bin_path: str = None, embedded_path: str | None = None
 ) -> None:
@@ -256,12 +268,7 @@ def build_binary_with_bazel(
     """
     args = args or []
     bazel("build", target, *args)
-    # We need cquery to find the output path that has the configuration hash in it.
-    output = bazel("cquery", "--output=files", target, *args, capture_output=True).strip()
-    outputs = [line for line in output.splitlines() if line]
-    if len(outputs) != 1:
-        raise SystemExit(f"Expected exactly one output file for Bazel target {target!r}, got: {outputs!r}")
-    src = os.path.join(get_repo_root(), outputs[0])
+    src = _bazel_output_path(target, args)
 
     if bin_path:
         os.makedirs(os.path.dirname(bin_path), exist_ok=True)
