@@ -11,13 +11,17 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	logutil "github.com/DataDog/datadog-agent/pkg/util/log"
 	ddos "github.com/DataDog/datadog-agent/pkg/util/os"
 )
+
+var cwdLogLimiter = logutil.NewLogLimit(20, 10*time.Minute)
 
 type directSenderConsumer struct {
 	log       log.Component

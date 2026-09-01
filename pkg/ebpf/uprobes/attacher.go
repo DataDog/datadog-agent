@@ -55,7 +55,7 @@ var (
 	// ErrNoMatchingRule is returned when no rule matches the shared library path.
 	ErrNoMatchingRule = errors.New("no matching rule")
 	// regex that defines internal DataDog processes
-	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace|otel)-agent|system-probe|agent)")
+	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace|otel)-agent|host-profiler|system-probe|agent)")
 )
 
 // AttachTarget defines the target to which we should attach the probes, libraries or executables
@@ -703,6 +703,29 @@ func (ua *UprobeAttacher) buildRegisterCallbacks(matchingRules []*AttachRule, pr
 	return registerCB, unregisterCB
 }
 
+func resolveExecutable(procInfo *ProcInfo) (string, error) {
+	binPath, err := procInfo.Exe()
+	if err == nil || errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
+		return binPath, err
+	}
+	return "", utils.NewUnknownAttachmentError(err)
+}
+
+func (ua *UprobeAttacher) rejectInternalProcess(procInfo *ProcInfo) error {
+	if (ua.config.ExcludeTargets & ExcludeInternal) == 0 {
+		return nil
+	}
+
+	binPath, err := resolveExecutable(procInfo)
+	if err != nil {
+		return err
+	}
+	if internalProcessRegex.MatchString(binPath) {
+		return ErrInternalDDogProcessRejected
+	}
+	return nil
+}
+
 // AttachLibrary attaches the probes to the given library, opened by a given PID
 func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) (err error) {
 	defer func() {
@@ -722,7 +745,12 @@ func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) (err error) {
 		return ErrNoMatchingRule
 	}
 
-	registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, NewProcInfo(ua.config.ProcRoot, pid))
+	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
+	if err := ua.rejectInternalProcess(procInfo); err != nil {
+		return err
+	}
+
+	registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, procInfo)
 
 	return ua.fileRegistry.Register(path, pid, registerCB, unregisterCB, utils.IgnoreCB)
 }
@@ -751,15 +779,6 @@ func (ua *UprobeAttacher) getRulesForExecutable(path string, procInfo *ProcInfo)
 	return matchedRules
 }
 
-// getExecutablePath resolves the executable of the given PID looking in procfs.
-// Will return an error if the path cannot be resolved
-func (ua *UprobeAttacher) getExecutablePath(pid uint32) (string, error) {
-	pidAsStr := strconv.FormatUint(uint64(pid), 10)
-	exePath := filepath.Join(ua.config.ProcRoot, pidAsStr, "exe")
-
-	return os.Readlink(exePath)
-}
-
 const optionAttachToLibs = true
 
 // AttachPID attaches the corresponding probes to a given pid
@@ -781,28 +800,17 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) (e
 	}
 
 	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
+	if err := ua.rejectInternalProcess(procInfo); err != nil {
+		return err
+	}
 
-	// Only compute the binary path if we are going to need it. It's better to do these two checks
-	// (which are cheap, the handlesExecutables function is cached) than to do the syscall
-	// every time
 	var binPath string
-	if ua.handlesExecutables() || (ua.config.ExcludeTargets&ExcludeInternal) != 0 {
-		binPath, err = procInfo.Exe()
+	if ua.handlesExecutables() {
+		binPath, err = resolveExecutable(procInfo)
 		if err != nil {
-			// procfs can return ESRCH if the process exits while the kernel is
-			// resolving /proc/<pid>/exe, even after path lookup has found it.
-			if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ESRCH) {
-				return utils.NewUnknownAttachmentError(err)
-			}
 			return err
 		}
-	}
 
-	if (ua.config.ExcludeTargets&ExcludeInternal) != 0 && internalProcessRegex.MatchString(binPath) {
-		return ErrInternalDDogProcessRejected
-	}
-
-	if ua.handlesExecutables() {
 		matchingRules := ua.getRulesForExecutable(binPath, procInfo)
 		if len(matchingRules) != 0 {
 			registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, procInfo)

@@ -433,7 +433,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 		require.Eventually(func() bool {
 			return len(demux.statsd.workers[0].samplesChan) == 0
 		}, time.Second, time.Millisecond)
-		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true)
+		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true, false)
 
 		metric := slices.IndexFunc(s.sketches, func(serie metrics.Distribution) bool {
 			return serie.GetName() == "dist.metric"
@@ -561,7 +561,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 		require.Eventually(func() bool {
 			return len(demux.aggregator.checkItems) == 0
 		}, time.Second, time.Millisecond)
-		demux.ForceFlushToSerializer(time.Now(), true)
+		demux.ForceFlushToSerializer(time.Now(), true, false)
 	}
 
 	// First send: tag1 and tag2 are excluded. This is a cache miss so the
@@ -642,7 +642,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 		require.Eventually(func() bool {
 			return len(demux.statsd.workers[0].samplesChan) == 0
 		}, time.Second, time.Millisecond)
-		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true)
+		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true, false)
 
 		// We should always contain the average of the histogram.
 		require.Equal(blockCount, slices.ContainsFunc(s.series, func(serie *metrics.Serie) bool {
