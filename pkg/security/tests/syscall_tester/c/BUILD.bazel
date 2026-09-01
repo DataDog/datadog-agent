@@ -24,6 +24,7 @@ cc_binary(
         "otel_tls_lib.c",
         ":otel_tls_headers",
     ],
+    copts = ["-pthread"],
     linkopts = [
         "-Wl,--export-dynamic",
         "-pthread",
