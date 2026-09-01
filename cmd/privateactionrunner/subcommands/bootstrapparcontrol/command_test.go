@@ -15,6 +15,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -56,6 +57,44 @@ func splitConfig(t *testing.T, overrides map[string]interface{}) coreconfig.Comp
 		values[key] = value
 	}
 	return coreconfig.NewMockWithOverrides(t, values)
+}
+
+func TestControlPlaneConfigMatchesGoldenFixture(t *testing.T) {
+	got, err := json.Marshal(&ControlPlaneConfig{
+		SplitMode: true,
+		LogLevel:  "debug",
+		Identity: &Identity{
+			URN:        "urn:dd:apps:on-prem-runner:us1:42:runner-1",
+			PrivateKey: "encoded-jwk",
+			OrgID:      42,
+			RunnerID:   "runner-1",
+		},
+		OPMSBaseURL:      "https://api.datadoghq.com",
+		OPMSProxyURL:     "http://secure-proxy.example:8443",
+		AgentVersion:     "7.83.0",
+		Modes:            []string{"pull"},
+		TaskConcurrency:  5,
+		ExecutorSocket:   "/opt/datadog-agent/run/par-executor.sock",
+		IPCCertFilePath:  "/etc/datadog-agent/ipc_cert.pem",
+		OPMSExtraHeaders: map[string]string{"X-Test-Routing": "canary"},
+		TLS: &TLS{
+			SkipSSLValidation: true,
+			MinTLSVersion:     "tlsv1.3",
+		},
+		LoopIntervalMilliseconds:       1_000,
+		HeartbeatIntervalMilliseconds:  20_000,
+		HealthCheckIntervalMillisecond: 30_000,
+		OPMSRequestTimeoutMilliseconds: 30_000,
+		MinBackoffMilliseconds:         1_000,
+		MaxBackoffMilliseconds:         180_000,
+		WaitBeforeRetryMilliseconds:    300_000,
+		MaxAttempts:                    20,
+	})
+	require.NoError(t, err)
+	want, err := os.ReadFile("testdata/bootstrap_config.json")
+	require.NoError(t, err)
+
+	assert.Equal(t, string(want), string(got)+"\n")
 }
 
 func TestBootstrapSplitModeDisabled(t *testing.T) {

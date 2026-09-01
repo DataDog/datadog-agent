@@ -55,6 +55,7 @@ pub struct Config {
 /// Field names and duration units are a contract with
 /// `cmd/privateactionrunner/subcommands/bootstrapparcontrol`.
 #[derive(serde::Deserialize, Debug, Default, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct BootstrapConfig {
     /// Gates the control plane. False means the monolithic runner owns OPMS
     /// polling and par-control should exit successfully.
@@ -105,6 +106,7 @@ pub struct BootstrapConfig {
 }
 
 #[derive(serde::Deserialize, Debug, Default, Clone)]
+#[serde(deny_unknown_fields)]
 struct BootstrapIdentity {
     #[serde(default)]
     urn: String,
@@ -117,6 +119,7 @@ struct BootstrapIdentity {
 }
 
 #[derive(serde::Deserialize, Debug, Default, Clone)]
+#[serde(deny_unknown_fields)]
 struct BootstrapTls {
     #[serde(default)]
     skip_ssl_validation: bool,
@@ -236,35 +239,12 @@ fn non_empty(value: String) -> Option<String> {
 mod tests {
     use super::*;
 
-    /// A complete payload, matching what bootstrap-par-control emits.
+    /// The same fixture is marshaled by the Go bootstrap test.
     fn full_json() -> String {
-        serde_json::json!({
-            "split_mode": true,
-            "log_level": "debug",
-            "identity": {
-                "urn": "urn:dd:apps:on-prem-runner:us1:42:runner-1",
-                "private_key": "encoded-jwk",
-                "org_id": 42,
-                "runner_id": "runner-1",
-            },
-            "opms_base_url": "https://api.datadoghq.com",
-            "opms_proxy_url": "http://secure-proxy.example:8443",
-            "agent_version": "7.83.0",
-            "modes": ["pull"],
-            "task_concurrency": 5,
-            "executor_socket": "/opt/datadog-agent/run/par-executor.sock",
-            "ipc_cert_file_path": "/etc/datadog-agent/ipc_cert.pem",
-            "opms_extra_headers": {"X-Test-Routing": "canary"},
-            "tls": {"skip_ssl_validation": true, "min_tls_version": "tlsv1.3"},
-            "loop_interval_milliseconds": 1000,
-            "heartbeat_interval_milliseconds": 20000,
-            "health_check_interval_milliseconds": 30000,
-            "opms_request_timeout_milliseconds": 30000,
-            "min_backoff_milliseconds": 1000,
-            "max_backoff_milliseconds": 180000,
-            "wait_before_retry_milliseconds": 300000,
-            "max_attempts": 20,
-        })
+        include_str!(
+            "../../../../cmd/privateactionrunner/subcommands/bootstrapparcontrol/testdata/bootstrap_config.json"
+        )
+        .trim()
         .to_string()
     }
 
@@ -280,6 +260,23 @@ mod tests {
         match parse(json) {
             Ok(_) => panic!("expected a rejection"),
             Err(error) => format!("{error:#}"),
+        }
+    }
+
+    #[test]
+    fn rejects_unknown_bootstrap_fields() {
+        for section in [None, Some("identity"), Some("tls")] {
+            let mut value: serde_json::Value = serde_json::from_str(&full_json()).unwrap();
+            let object = match section {
+                Some(section) => value[section].as_object_mut().unwrap(),
+                None => value.as_object_mut().unwrap(),
+            };
+            object.insert("future_field".to_string(), serde_json::json!(true));
+
+            assert!(
+                serde_json::from_value::<BootstrapConfig>(value).is_err(),
+                "unknown field in {section:?} should be rejected"
+            );
         }
     }
 

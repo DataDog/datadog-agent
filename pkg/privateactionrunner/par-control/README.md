@@ -14,18 +14,19 @@ it runs the command given by `--bootstrap-command`, which is
 `privateactionrunner bootstrap-par-control --cfgpath <datadog.yaml>`. That command
 loads the canonical Agent configuration — local YAML, environment, Fleet policy,
 secrets, endpoint and path resolution — ensures the runner is enrolled, and
-returns the resolved control-plane configuration as a single
-`PAR_CONTROL_CONFIG=` prefixed JSON line on stdout.
+returns the resolved control-plane configuration through a private temporary
+file created by `par-control`. Stdout and stderr carry logs only.
 
-`par-control` parses that line, validates it at the trust boundary, and exits
+`par-control` parses that file, validates it at the trust boundary, and exits
 successfully when `split_mode` is false. It does not load YAML, read Fleet policy,
 decode environment variables, or resolve Agent file paths; adding any of that back
 would reintroduce the Go/Rust divergence this split was built to remove. The JSON
 field names and their `_milliseconds` duration units are a contract with
 `cmd/privateactionrunner/subcommands/bootstrapparcontrol`.
 
-The configuration line carries the runner private key and may carry proxy
-credentials, so it is never logged and never included in an error.
+The configuration carries the runner private key and may carry proxy
+credentials, so the temporary file is user-only and the payload is never logged
+or included in an error.
 
 ## Build and test
 

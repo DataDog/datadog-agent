@@ -6,79 +6,71 @@
 //! Configuration bootstrap. Before doing anything else, par-control runs
 //! `privateactionrunner bootstrap-par-control`, which loads the canonical Agent
 //! configuration, ensures the runner is enrolled, and returns the resolved
-//! control-plane configuration.
-//!
-//! The configuration line carries the runner private key and may carry proxy
-//! credentials, so it is never logged and never included in an error. Ordinary
-//! stdout and stderr lines are forwarded as bootstrap logs.
+//! control-plane configuration through a private temporary file.
 
 use crate::config::BootstrapConfig;
 use anyhow::{Context, Result, bail};
 use std::ffi::OsStr;
+use std::path::Path;
 use std::process::{Command, Output};
 
-/// Prefixes the single stdout line carrying the configuration. Must match
-/// `ConfigPrefix` in `cmd/privateactionrunner/subcommands/bootstrapparcontrol`.
-const CONFIG_PREFIX: &str = "PAR_CONTROL_CONFIG=";
+/// Must match `ConfigPathEnv` in
+/// `cmd/privateactionrunner/subcommands/bootstrapparcontrol`.
+const CONFIG_PATH_ENV: &str = "DD_PAR_CONTROL_CONFIG_PATH";
 
 /// Run the bootstrap command and parse the configuration it returns.
 pub fn run_bootstrap(argv: &[String]) -> Result<BootstrapConfig> {
     let Some((program, args)) = argv.split_first() else {
         bail!("no bootstrap command is configured; set --bootstrap-command");
     };
+    let program_name = program_name(argv);
 
-    // Only the executable is named. The argv may carry operator-supplied
-    // arguments, which should not be echoed into logs or errors.
-    log::info!("running the par-control bootstrap command: {program}");
+    log::info!("running the par-control bootstrap command: {program_name}");
 
+    // NamedTempFile creates the file with permissions restricted to this user.
+    let config_file = tempfile::NamedTempFile::new()
+        .context("failed to create the bootstrap configuration file")?;
     let output = Command::new(program)
         .args(args)
+        .env(CONFIG_PATH_ENV, config_file.path())
         .output()
-        .with_context(|| format!("failed to run the bootstrap command {program}"))?;
+        .with_context(|| format!("failed to run the bootstrap command {program_name}"))?;
 
-    parse_bootstrap_output(program, &output)
+    parse_bootstrap_output(program_name, &output, config_file.path())
 }
 
-fn parse_bootstrap_output(program: &str, output: &Output) -> Result<BootstrapConfig> {
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    // Forwarded even on failure: these lines explain why bootstrap failed.
-    forward_logs(&stdout, &stderr);
+fn parse_bootstrap_output(
+    program: &str,
+    output: &Output,
+    config_path: &Path,
+) -> Result<BootstrapConfig> {
+    forward_logs(&output.stdout, &output.stderr);
 
     if !output.status.success() {
-        // Deliberately carries no captured output: stdout may contain the
-        // configuration line.
         bail!(
             "the bootstrap command {program} exited with status {}",
             output.status
         );
     }
 
-    let mut payloads = stdout
-        .lines()
-        .filter_map(|line| line.trim_end_matches('\r').strip_prefix(CONFIG_PREFIX));
-    let payload = payloads
-        .next()
-        .with_context(|| format!("the bootstrap command {program} returned no configuration"))?;
-    if payloads.next().is_some() {
-        bail!("the bootstrap command {program} returned more than one configuration");
+    let payload = std::fs::read(config_path).map_err(|_| {
+        anyhow::anyhow!("the bootstrap command {program} returned no configuration")
+    })?;
+    if payload.is_empty() {
+        bail!("the bootstrap command {program} returned no configuration");
     }
 
-    // The parse error would quote the offending input, which is the payload.
-    serde_json::from_str::<BootstrapConfig>(payload).map_err(|_| {
+    // Serde errors can quote the input, which carries secrets.
+    serde_json::from_slice::<BootstrapConfig>(&payload).map_err(|_| {
         anyhow::anyhow!("the bootstrap command {program} returned malformed configuration")
     })
 }
 
-/// Forward bootstrap output, dropping the configuration line.
-fn forward_logs(stdout: &str, stderr: &str) {
-    for line in stdout.lines() {
-        if !line.trim_end_matches('\r').starts_with(CONFIG_PREFIX) {
-            log_line(line);
-        }
+fn forward_logs(stdout: &[u8], stderr: &[u8]) {
+    for line in String::from_utf8_lossy(stdout).lines() {
+        log_line(line);
     }
-    for line in stderr.lines() {
+    for line in String::from_utf8_lossy(stderr).lines() {
         log_line(line);
     }
 }
@@ -93,7 +85,7 @@ fn log_line(line: &str) {
 pub fn program_name(argv: &[String]) -> &str {
     argv.first()
         .map(|program| {
-            std::path::Path::new(program)
+            Path::new(program)
                 .file_name()
                 .and_then(OsStr::to_str)
                 .unwrap_or(program.as_str())
@@ -128,13 +120,23 @@ mod tests {
         }
     }
 
-    const CONFIG_LINE: &str = r#"PAR_CONTROL_CONFIG={"split_mode":true,"log_level":"debug","identity":{"urn":"urn:dd:apps:on-prem-runner:us1:42:r","private_key":"super-secret-key","org_id":42,"runner_id":"r"}}"#;
+    const CONFIG: &str = r#"{"split_mode":true,"log_level":"debug","identity":{"urn":"urn:dd:apps:on-prem-runner:us1:42:r","private_key":"super-secret-key","org_id":42,"runner_id":"r"}}"#;
+
+    fn config_file(contents: &str) -> tempfile::NamedTempFile {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), contents).unwrap();
+        file
+    }
 
     #[test]
-    fn parses_the_configuration_line() {
-        let out = output(true, &format!("starting up\n{CONFIG_LINE}\ndone\n"), "");
-
-        let cfg = parse_bootstrap_output("privateactionrunner", &out).unwrap();
+    fn parses_the_configuration_file() {
+        let file = config_file(CONFIG);
+        let cfg = parse_bootstrap_output(
+            "privateactionrunner",
+            &output(true, "starting up\ndone\n", ""),
+            file.path(),
+        )
+        .unwrap();
 
         assert!(cfg.split_mode);
         assert_eq!(cfg.log_level(), log::LevelFilter::Debug);
@@ -142,90 +144,74 @@ mod tests {
 
     #[test]
     fn parses_a_disabled_split_mode_gate() {
-        let out = output(
-            true,
-            r#"PAR_CONTROL_CONFIG={"split_mode":false,"log_level":"info"}"#,
-            "",
-        );
-
-        let cfg = parse_bootstrap_output("privateactionrunner", &out).unwrap();
+        let file = config_file(r#"{"split_mode":false,"log_level":"info"}"#);
+        let cfg = parse_bootstrap_output("privateactionrunner", &output(true, "", ""), file.path())
+            .unwrap();
 
         assert!(!cfg.split_mode);
     }
 
-    /// Windows-style line endings must not defeat prefix matching.
-    #[test]
-    fn tolerates_carriage_returns() {
-        let out = output(true, &format!("log line\r\n{CONFIG_LINE}\r\n"), "");
-
-        assert!(
-            parse_bootstrap_output("privateactionrunner", &out)
-                .unwrap()
-                .split_mode
-        );
-    }
-
     #[test]
     fn rejects_a_nonzero_exit_status() {
-        let out = output(false, "", "enrollment failed\n");
-
-        let error = parse_bootstrap_output("privateactionrunner", &out)
-            .unwrap_err()
-            .to_string();
+        let file = config_file(CONFIG);
+        let error = parse_bootstrap_output(
+            "privateactionrunner",
+            &output(false, "", "enrollment failed\n"),
+            file.path(),
+        )
+        .unwrap_err()
+        .to_string();
 
         assert!(error.contains("exited with status"), "{error}");
     }
 
     #[test]
     fn rejects_missing_configuration() {
-        let out = output(true, "started\nfinished\n", "");
-
-        let error = parse_bootstrap_output("privateactionrunner", &out)
-            .unwrap_err()
-            .to_string();
+        let dir = tempfile::tempdir().unwrap();
+        let error = parse_bootstrap_output(
+            "privateactionrunner",
+            &output(true, "started\nfinished\n", ""),
+            &dir.path().join("missing.json"),
+        )
+        .unwrap_err()
+        .to_string();
 
         assert!(error.contains("no configuration"), "{error}");
     }
 
     #[test]
-    fn rejects_duplicate_configuration() {
-        let out = output(true, &format!("{CONFIG_LINE}\n{CONFIG_LINE}\n"), "");
+    fn rejects_empty_configuration() {
+        let file = config_file("");
+        let error =
+            parse_bootstrap_output("privateactionrunner", &output(true, "", ""), file.path())
+                .unwrap_err()
+                .to_string();
 
-        let error = parse_bootstrap_output("privateactionrunner", &out)
-            .unwrap_err()
-            .to_string();
-
-        assert!(error.contains("more than one configuration"), "{error}");
+        assert!(error.contains("no configuration"), "{error}");
     }
 
     #[test]
-    fn rejects_malformed_configuration() {
-        let out = output(true, "PAR_CONTROL_CONFIG={\"split_mode\":\n", "");
-
-        let error = parse_bootstrap_output("privateactionrunner", &out)
-            .unwrap_err()
-            .to_string();
+    fn rejects_malformed_configuration_without_exposing_it() {
+        let file = config_file(r#"{"identity":{"private_key":"super-secret-key""#);
+        let error = format!(
+            "{:#}",
+            parse_bootstrap_output("privateactionrunner", &output(true, "", ""), file.path(),)
+                .unwrap_err()
+        );
 
         assert!(error.contains("malformed configuration"), "{error}");
+        assert!(!error.contains("super-secret-key"), "{error}");
     }
 
-    /// The payload holds the private key, so no error may quote it — including
-    /// the malformed-input case, where a serde error would.
+    #[cfg(unix)]
     #[test]
-    fn errors_never_carry_the_configuration_payload() {
-        let malformed = r#"PAR_CONTROL_CONFIG={"identity":{"private_key":"super-secret-key"#;
-        for out in [
-            output(true, &format!("{CONFIG_LINE}\n{CONFIG_LINE}\n"), ""),
-            output(false, &format!("{CONFIG_LINE}\n"), "failed\n"),
-            output(true, malformed, ""),
-        ] {
-            let error = format!(
-                "{:#}",
-                parse_bootstrap_output("privateactionrunner", &out).unwrap_err()
-            );
-            assert!(!error.contains("super-secret-key"), "{error}");
-            assert!(!error.contains(CONFIG_PREFIX), "{error}");
-        }
+    fn temporary_configuration_file_is_private() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mode = file.as_file().metadata().unwrap().permissions().mode();
+
+        assert_eq!(mode & 0o077, 0);
     }
 
     #[test]
