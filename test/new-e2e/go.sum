@@ -600,8 +600,10 @@ github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 h1:vkHw5I/plNdTr435
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231/go.mod h1:murToZ2N9hNJzewjHBgfFdXhZKjY3z5cYC1VXk+lbFE=
 github.com/pulumi/pulumi-aws/sdk/v7 v7.37.0 h1:J3IHODWosQ+1v4reLsZscPjy2MCMh1mRV3OzfR3RJ08=
 github.com/pulumi/pulumi-aws/sdk/v7 v7.37.0/go.mod h1:5cYRNmFkGUHW0OCUWKH3yinOnOcOJAnBvqAiAsxcV9M=
-github.com/pulumi/pulumi-awsx/sdk/v3 v3.8.0 h1:7C6VZV3yBxxn39wsFDtA0D78Ayg9tDmnl80mxfed7EA=
-github.com/pulumi/pulumi-awsx/sdk/v3 v3.8.0/go.mod h1:5IRij9mHJMZBjecVckf+xYMRMlyxBP4+OH0FpX3wUy0=
+github.com/pulumi/pulumi-aws/sdk/v7 v7.43.0 h1:Z5+wr3Po7dlgIH1EX8JdYpTSuwHuq9lQl611kgyk8Ow=
+github.com/pulumi/pulumi-aws/sdk/v7 v7.43.0/go.mod h1:wImO2X5EeAVjuNtyJF/W/N96Q73tEO9t1Ne9Uqa50Ps=
+github.com/pulumi/pulumi-awsx/sdk/v3 v3.7.0 h1:rcBTxjaqkrKg5JQs0A6QP+tMHxle9fnrmO20mpEdgzU=
+github.com/pulumi/pulumi-awsx/sdk/v3 v3.7.0/go.mod h1:5IRij9mHJMZBjecVckf+xYMRMlyxBP4+OH0FpX3wUy0=
 github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 h1:CNyoETY53sPooJbyymlVnPhYG34yr0iK8OezkJZnydQ=
 github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3/go.mod h1:Z9QC26ocUAXUK3fjEAL3RtklbaxQOqlfQFC9IaNfxIQ=
 github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3 h1:3/syHYdOXXXFQhUfvqxxtUO1SobQqaZ5U7UmcGMgkIQ=
