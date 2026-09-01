@@ -47,8 +47,7 @@ def build(
         if install_path is not None:
             raise NotImplementedError("--enable-bazel does not support --install-path.")
 
-        agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
-        build_binary_with_bazel(BAZEL_TARGET, bin_path=agent_bin)
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=BIN_PATH)
         return
 
     # TODO: remove once Bazel is used to build the Agent

@@ -246,10 +246,8 @@ def build_binary_with_bazel(target: str, args: list[str] | None = None, bin_path
     Args:
         target: Bazel target
         args: extra arguments passed to both the build and cquery invocations
-        bin_path: where to copy the build output(s), None for no copy. If the
-            target produces a single output, this is the destination file path;
-            if it produces several (e.g. a filegroup), it is the destination
-            directory and each output is copied there under its own basename.
+        bin_path: directory to copy the build output(s) to, each under its own
+            basename. None for no copy.
     """
     args = args or []
     bazel("build", target, *args)
@@ -262,12 +260,12 @@ def build_binary_with_bazel(target: str, args: list[str] | None = None, bin_path
     if not bin_path:
         return
 
+    os.makedirs(bin_path, exist_ok=True)
     uid = os.environ.get("HOST_UID", "-1")
     gid = os.environ.get("HOST_GID", "-1")
     for output in outputs:
         src = os.path.join(get_repo_root(), output)
-        dst = bin_path if len(outputs) == 1 else os.path.join(bin_path, os.path.basename(output))
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        dst = os.path.join(bin_path, os.path.basename(output))
         shutil.copy2(src, dst)
         os.chmod(dst, 0o755)
         if uid != "-1" and gid != "-1":

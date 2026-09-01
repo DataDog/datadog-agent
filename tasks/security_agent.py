@@ -292,7 +292,7 @@ def build_otel_tls_artifacts(build_dir, arch: Arch):
         print("Skipping the OTel TLS glibc testers while cross-compiling")
         return
 
-    # OTEL_TLS_BAZEL_TARGET is a filegroup, so build_binary_with_bazel copies
+    # OTEL_TLS_BAZEL_TARGET is a filegroup; build_binary_with_bazel copies
     # every artifact into build_dir under its own basename.
     build_binary_with_bazel(OTEL_TLS_BAZEL_TARGET, bin_path=build_dir)
 
