@@ -745,8 +745,8 @@ type AWSIMDSEvent struct {
 // AWSSecurityCredentials is used to parse the fields that are none to be free of credentials or secrets
 type AWSSecurityCredentials struct {
 	Code        string    `field:"-" json:"Code"`
-	Type        string    `field:"type" json:"Type"` // SECLDoc[type] Definition:`the security credentials type`
-	AccessKeyID string    `field:"-" json:"AccessKeyId"`
+	Type        string    `field:"type" json:"Type"`                 // SECLDoc[type] Definition:`the security credentials type`
+	AccessKeyID string    `field:"access_key_id" json:"AccessKeyId"` // SECLDoc[access_key_id] Definition:`the access key ID of the security credentials in the IMDS answer`
 	LastUpdated string    `field:"-" json:"LastUpdated"`
 	Expiration  time.Time `field:"-"`
 

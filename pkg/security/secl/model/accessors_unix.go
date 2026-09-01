@@ -5053,6 +5053,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "imds.aws.security_credentials.access_key_id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.IMDS.AWS.SecurityCredentials.AccessKeyID
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "imds.aws.security_credentials.type":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -37634,6 +37645,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.user_session.ssh_public_key",
 		"exit.user_session.ssh_session_id",
 		"imds.aws.is_imds_v2",
+		"imds.aws.security_credentials.access_key_id",
 		"imds.aws.security_credentials.type",
 		"imds.cloud_provider",
 		"imds.host",
@@ -40383,6 +40395,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Int, "int", false, nil
 	case "imds.aws.is_imds_v2":
 		return "imds", reflect.Bool, "bool", false, nil
+	case "imds.aws.security_credentials.access_key_id":
+		return "imds", reflect.String, "string", false, nil
 	case "imds.aws.security_credentials.type":
 		return "imds", reflect.String, "string", false, nil
 	case "imds.cloud_provider":
@@ -45300,6 +45314,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("exit.user_session.ssh_session_id", &ev.Exit.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "imds.aws.is_imds_v2":
 		return ev.setBoolFieldValue("imds.aws.is_imds_v2", &ev.IMDS.AWS.IsIMDSv2, value)
+	case "imds.aws.security_credentials.access_key_id":
+		return ev.setStringFieldValue("imds.aws.security_credentials.access_key_id", &ev.IMDS.AWS.SecurityCredentials.AccessKeyID, value)
 	case "imds.aws.security_credentials.type":
 		return ev.setStringFieldValue("imds.aws.security_credentials.type", &ev.IMDS.AWS.SecurityCredentials.Type, value)
 	case "imds.cloud_provider":

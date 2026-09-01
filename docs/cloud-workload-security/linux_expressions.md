@@ -1049,6 +1049,7 @@ An IMDS event was captured
 | Property | Definition |
 | -------- | ------------- |
 | [`imds.aws.is_imds_v2`](#imds-aws-is_imds_v2-doc) | a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions |
+| [`imds.aws.security_credentials.access_key_id`](#imds-aws-security_credentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
 | [`imds.aws.security_credentials.type`](#imds-aws-security_credentials-type-doc) | the security credentials type |
 | [`imds.cloud_provider`](#imds-cloud_provider-doc) | the intended cloud provider of the IMDS event |
 | [`imds.host`](#imds-host-doc) | the host of the HTTP protocol |
@@ -4290,6 +4291,13 @@ Definition: Exit code of the process or number of the signal that caused the pro
 Type: bool
 
 Definition: a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions
+
+
+
+### `imds.aws.security_credentials.access_key_id` {#imds-aws-security_credentials-access_key_id-doc}
+Type: string
+
+Definition: the access key ID of the security credentials in the IMDS answer
 
 
 

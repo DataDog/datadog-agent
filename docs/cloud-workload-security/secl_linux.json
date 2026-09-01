@@ -3964,6 +3964,11 @@
           "property_doc_link": "imds-aws-is_imds_v2-doc"
         },
         {
+          "name": "imds.aws.security_credentials.access_key_id",
+          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "imds-aws-security_credentials-access_key_id-doc"
+        },
+        {
           "name": "imds.aws.security_credentials.type",
           "definition": "the security credentials type",
           "property_doc_link": "imds-aws-security_credentials-type-doc"
@@ -16029,6 +16034,18 @@
       "definition": "a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions",
       "prefixes": [
         "imds.aws"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.aws.security_credentials.access_key_id",
+      "link": "imds-aws-security_credentials-access_key_id-doc",
+      "type": "string",
+      "definition": "the access key ID of the security credentials in the IMDS answer",
+      "prefixes": [
+        "imds.aws.security_credentials"
       ],
       "constants": "",
       "constants_link": "",
