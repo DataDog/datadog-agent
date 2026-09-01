@@ -109,6 +109,7 @@ type uprobeAttacherTelemetry struct {
 	probeAttachErrorsAttachExisting telemetryComponent.SimpleCounter
 	probeAttachErrorsAddHook        telemetryComponent.SimpleCounter
 	probeAttachErrorsValidate       telemetryComponent.SimpleCounter
+	probeAttachErrorsMultiAttach    telemetryComponent.SimpleCounter
 
 	createdProbes  telemetryComponent.SimpleCounter
 	attachedProbes telemetryComponent.SimpleCounter
@@ -144,6 +145,7 @@ func newUprobeAttacherTelemetry(tm telemetryComponent.Component, attacherName st
 		probeAttachErrorsAttachExisting: definitions.probeAttachErrors.WithValues(attacherName, "attach_existing"),
 		probeAttachErrorsAddHook:        definitions.probeAttachErrors.WithValues(attacherName, "add_hook"),
 		probeAttachErrorsValidate:       definitions.probeAttachErrors.WithValues(attacherName, "validate"),
+		probeAttachErrorsMultiAttach:    definitions.probeAttachErrors.WithValues(attacherName, "multi_attach"),
 
 		createdProbes:  definitions.createdProbes.WithValues(attacherName),
 		attachedProbes: definitions.attachedProbes.WithValues(attacherName),

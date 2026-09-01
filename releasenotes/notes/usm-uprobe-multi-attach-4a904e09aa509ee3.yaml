@@ -11,4 +11,5 @@ enhancements:
     attachments onto a single link per program makes shutdown time largely
     independent of how many binaries are traced. Hosts on kernels older than
     6.10, or without ``uprobe_multi`` support, keep the existing per-probe attach
-    behavior.
+    behavior. Set ``DD_USM_ENABLE_UPROBE_MULTI`` to a false value to force the
+    per-probe attach path back on without downgrading the agent.

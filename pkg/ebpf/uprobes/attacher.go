@@ -350,12 +350,21 @@ var multiAttachMinKernel = kernel.VersionCode(6, 10, 0)
 // (perf_event_detach_bpf_prog -> synchronize_rcu_tasks_trace), paid serially, so teardown
 // time scales linearly with attachment count. One link pays that cost once.
 var canUseMultiAttach = sync.OnceValue(func() bool {
+	// DD_USM_ENABLE_UPROBE_MULTI (default true) is the rollback switch: set it to a false value
+	// to force USM back onto the per-probe attach path without downgrading the agent -- e.g. if a
+	// host advertises uprobe_multi support but the attach or PROG_ARRAY insert is rejected at
+	// runtime. It gates every uprobe_multi decision because all of them consult CanUseMultiAttach.
+	if !uprobeMultiBoolEnv("DD_USM_ENABLE_UPROBE_MULTI", true) {
+		log.Infof("uprobe_multi disabled via DD_USM_ENABLE_UPROBE_MULTI, using per-probe attach")
+		return false
+	}
+
 	// DD_USM_FORCE_UPROBE_MULTI bypasses the 6.10 floor for testing on kernels that support
 	// BPF_LINK_TYPE_UPROBE_MULTI but are excluded by it (e.g. Ubuntu 24.04's 6.8). Safe for
 	// USM specifically: the pre-6.10 bug is in the multi-uprobe PID filter, and USM never
 	// sets one -- nothing in the agent sets manager.Probe.PerfEventPID, so uprobes attach
 	// host-wide on the inode. Mirrors WithForceMultiAttach in pkg/dyninst/loader.
-	forced := os.Getenv("DD_USM_FORCE_UPROBE_MULTI") == "true"
+	forced := uprobeMultiBoolEnv("DD_USM_FORCE_UPROBE_MULTI", false)
 
 	if err := features.HaveBPFLinkUprobeMulti(); err != nil {
 		log.Debugf("uprobe_multi unavailable, falling back to per-probe attach: %v", err)
@@ -372,6 +381,22 @@ var canUseMultiAttach = sync.OnceValue(func() bool {
 	}
 	return v >= multiAttachMinKernel
 })
+
+// uprobeMultiBoolEnv reads a boolean environment variable, returning def when it is unset or
+// cannot be parsed. It accepts the same forms as strconv.ParseBool (1/t/T/TRUE/true, 0/f/F/FALSE/
+// false, and so on) rather than an exact "true", so the switches behave the way operators expect.
+func uprobeMultiBoolEnv(name string, def bool) bool {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return def
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		log.Warnf("invalid boolean for %s=%q, using default %v: %v", name, raw, def, err)
+		return def
+	}
+	return v
+}
 
 // FileRegistry is an interface that defines the methods that a FileRegistry implements, so that we can replace it in tests for a mock object
 type FileRegistry interface {
@@ -1078,7 +1103,7 @@ func (ua *UprobeAttacher) attachMulti(probeID manager.ProbeIdentificationPair, l
 		l, err = ex.UprobeMulti(nil, progs[0], opts)
 	}
 	if err != nil {
-		ua.telemetry.probeAttachErrorsAddHook.Inc()
+		ua.telemetry.probeAttachErrorsMultiAttach.Inc()
 		return fmt.Errorf("cannot multi-attach %s to %s: %w", probeID.EBPFFuncName, fpath.HostPath, err)
 	}
 
@@ -1087,8 +1112,15 @@ func (ua *UprobeAttacher) attachMulti(probeID manager.ProbeIdentificationPair, l
 	}
 	ua.fileIDToMultiLinks[fpath.ID][probeID.EBPFFuncName] = l
 
-	ua.telemetry.createdProbes.Inc()
-	ua.telemetry.attachedProbes.Inc()
+	// Count one created/attached probe per location, matching the per-probe path (which increments
+	// once per location it attaches). The link count differs between the paths, but these counters
+	// track probe points so their meaning stays the same across the switch.
+	ua.telemetry.createdProbes.Add(float64(len(locations)))
+	ua.telemetry.attachedProbes.Add(float64(len(locations)))
+
+	// onAttachCallback and ebpf.AddProgramNameMapping are intentionally not invoked here: both are
+	// keyed on a manager.Probe, which the multi path does not create (it holds a link.Link
+	// instead). Every production caller passes NopOnAttachCallback or nil, so nothing is lost.
 
 	if ua.config.EnableDetailedLogging {
 		log.Debugf("Multi-attached %s to %s (PID %d), covering %d locations in one link",
@@ -1130,6 +1162,16 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 		}
 
 		if ua.useMultiAttach {
+			if len(locationsToAttach) == 0 {
+				// The per-probe path below would add no probe and then fail selector
+				// validation; mirror that so a mandatory rule that resolved the symbol but
+				// found no attach locations is not silently recorded as a successful attach.
+				// Best-effort rules tolerate a missing attachment, as they do per-probe.
+				if isBestEffort {
+					continue
+				}
+				return fmt.Errorf("no attach locations for %s (%s) in %s", probeOpts.Symbol, probeID.EBPFFuncName, fpath.HostPath)
+			}
 			if err := ua.attachMulti(probeID, locationsToAttach, fpath); err != nil {
 				return err
 			}
@@ -1228,16 +1270,20 @@ func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) (map[int]
 }
 
 func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
+	// Accumulate errors instead of returning on the first one: a failed detach/close must not
+	// leave the remaining probes and links attached (and their bookkeeping un-deleted). That
+	// stranded state is exactly the fd/link retention this attacher exists to avoid, and a retry
+	// would re-close already-closed handles and fail again.
+	var errs error
 	for _, probeID := range ua.fileIDToAttachedProbes[fpath.ID] {
-		err := ua.manager.DetachHook(probeID)
-		if err != nil {
-			return fmt.Errorf("error detaching probe %+v: %w", probeID, err)
+		if err := ua.manager.DetachHook(probeID); err != nil {
+			errs = errors.Join(errs, fmt.Errorf("error detaching probe %+v: %w", probeID, err))
 		}
 	}
 
 	for funcName, l := range ua.fileIDToMultiLinks[fpath.ID] {
 		if err := l.Close(); err != nil {
-			return fmt.Errorf("error closing multi link for %s on %s: %w", funcName, fpath.HostPath, err)
+			errs = errors.Join(errs, fmt.Errorf("error closing multi link for %s on %s: %w", funcName, fpath.HostPath, err))
 		}
 	}
 
@@ -1245,7 +1291,7 @@ func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
 	delete(ua.fileIDToAttachedProbes, fpath.ID)
 	ua.inspector.Cleanup(fpath)
 
-	return nil
+	return errs
 }
 
 func (ua *UprobeAttacher) getLibrariesFromMapsFile(pid int) ([]string, error) {
