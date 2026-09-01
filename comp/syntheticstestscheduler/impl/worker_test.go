@@ -575,7 +575,7 @@ func TestNetworkPathToTestResult_UsesRequestResultIDAndMapsCIRunType(t *testing.
 		{name: "scheduled", runType: common.RunTypeScheduled, expected: payload.TestRunTypeScheduled},
 		{name: "triggered", runType: common.RunTypeTriggered, expected: payload.TestRunTypeTriggered},
 		{name: "fast", runType: common.RunTypeFast, expected: payload.TestRunType(common.RunTypeFast)},
-		{name: "CI", runType: common.RunTypeCI, expected: payload.TestRunTypeTriggered},
+		{name: "ci", runType: common.RunTypeCI, expected: payload.TestRunTypeTriggered},
 	}
 
 	for _, tt := range testCases {
