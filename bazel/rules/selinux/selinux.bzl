@@ -12,25 +12,28 @@ def _compile_selinux_policy_impl(ctx):
     if not checkmodule.valid or not semodule_package.valid:
         fail("No SELinux policy tools (checkmodule/semodule_package) available on this machine.")
 
+    mod_file = ctx.actions.declare_file(ctx.label.name + ".mod")
     output = ctx.outputs.out
-
-    args = ctx.actions.args()
-    args.add("--checkmodule", checkmodule.path)
-    args.add("--semodule-package", semodule_package.path)
-    args.add("--policy-version", ctx.attr.policy_version)
-    args.add("--te-file", ctx.file.src)
-    args.add("--output", output)
 
     # checkmodule.path/semodule_package.path are plain strings pointing at
     # system binaries found via `which` (see
     # bazel/toolchains/selinux_tools/configure.bzl) -- they aren't
     # Bazel-tracked Files, so they must not be added to `inputs`.
     ctx.actions.run(
-        mnemonic = "SelinuxCompilePolicy",
-        progress_message = "Compiling SELinux policy %s" % ctx.label,
-        executable = ctx.executable._wrapper,
-        arguments = [args],
+        mnemonic = "SelinuxCheckModule",
+        progress_message = "Compiling SELinux policy module %s" % ctx.label,
+        executable = checkmodule.path,
+        arguments = ["-M", "-m", "-c", ctx.attr.policy_version, "-o", mod_file.path, ctx.file.src.path],
         inputs = [ctx.file.src],
+        outputs = [mod_file],
+    )
+
+    ctx.actions.run(
+        mnemonic = "SelinuxPackageModule",
+        progress_message = "Packaging SELinux policy module %s" % ctx.label,
+        executable = semodule_package.path,
+        arguments = ["-o", output.path, "-m", mod_file.path],
+        inputs = [mod_file],
         outputs = [output],
     )
 
@@ -45,11 +48,6 @@ compile_selinux_policy = rule(
             doc = "checkmodule -c modular policy version to target.",
         ),
         "out": attr.output(mandatory = True, doc = "Output packaged .pp module filename."),
-        "_wrapper": attr.label(
-            default = Label("//bazel/rules/selinux:compile_selinux_policy"),
-            executable = True,
-            cfg = "exec",
-        ),
     },
     toolchains = ["@selinux_tools//:selinux_tools_toolchain_type"],
 )
