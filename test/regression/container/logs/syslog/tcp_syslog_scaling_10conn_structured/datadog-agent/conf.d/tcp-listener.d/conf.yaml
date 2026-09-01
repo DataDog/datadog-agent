@@ -1,0 +1,28 @@
+logs:
+  - type: tcp
+    port: 10000
+    format: syslog
+    service: "my-service"
+    source: "my-client-app"
+    log_processing_rules:
+      - type: remap_source
+        name: siem_source_remap
+        matching:
+          - attribute: "siem.device_vendor"
+            value: "ArcSight"
+            new_source: "arcsight"
+          - attribute: "siem.device_product"
+            value: "Firewall"
+            new_source: "pan_firewall"
+          - attribute: "siem.format"
+            value: "LEEF"
+            new_source: "leef_generic"
+          - attribute: "siem.event_id"
+            value: "IDS-42"
+            new_source: "ids_alerts"
+          - attribute: "syslog.appname"
+            value: "nginx"
+            new_source: "nginx_access"
+          - attribute: "syslog.hostname"
+            value: "db-primary"
+            new_source: "database"
