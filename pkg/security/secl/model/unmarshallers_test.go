@@ -14,7 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const syscallsEventByteCount = 64
+const (
+	syscallsEventByteCount     = 64
+	// syscallsEventWireBytes is the total tail size of syscall_monitor_event_t on the wire:
+	// event_reason (8) + syscalls bitmap (64) + syscall_id (4) + sample_cookie (4).
+	syscallsEventWireBytes = 8 + syscallsEventByteCount + 8
+)
 
 func syscallListEqual(t *testing.T, a, b []Syscall) bool {
 mainLoop:
@@ -33,7 +38,7 @@ mainLoop:
 func allSyscallsTest() syscallsEventTest {
 	all := syscallsEventTest{
 		name: "all_syscalls",
-		args: make([]byte, syscallsEventByteCount+8),
+		args: make([]byte, syscallsEventWireBytes),
 	}
 
 	for i := 0; i < syscallsEventByteCount*8; i++ {
@@ -51,7 +56,7 @@ func allSyscallsTest() syscallsEventTest {
 func oneSyscallTest(s Syscall) syscallsEventTest {
 	one := syscallsEventTest{
 		name: s.String(),
-		args: make([]byte, syscallsEventByteCount+8),
+		args: make([]byte, syscallsEventWireBytes),
 	}
 
 	// should be tested in eBPF ...
@@ -78,7 +83,7 @@ func TestSyscallsEvent_UnmarshalBinary(t *testing.T) {
 		},
 		{
 			name: "no_syscall",
-			args: make([]byte, 72),
+			args: make([]byte, syscallsEventWireBytes),
 		},
 		allSyscallsTest(),
 	}

@@ -3,6 +3,7 @@
 
 #include "structs/security_profile.h"
 #include "helpers/activity_dump.h"
+#include "helpers/process.h"
 #include "helpers/raw_syscalls.h"
 #include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
@@ -67,6 +68,35 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
             // send an event if need be
             event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
             send_or_skip_syscall_monitor_event(args, event, entry, &zero, SYSCALL_MONITOR_TYPE_DUMP);
+        }
+    }
+
+    // are we feeding the user space workload profile manager ?
+    //
+    // Sample first-hit rides on EVENT_SYSCALLS itself, mirroring how bind/open/connect tag
+    // their regular event with a sample_cookie: process/cgroup/span context is already filled
+    // above, we just reset the drain-form fields and set the sample-form ones. Refresh stays a
+    // cookie-only heartbeat. Dedup is keyed on (exec_cookie, syscall_id); no container gate
+    // here — userspace filters on cgroup context.
+    if (!event->process.is_kworker) {
+        struct pid_cache_t *pid_entry = get_pid_cache(pid);
+        if (pid_entry != NULL) {
+            u32 sample_cookie = 0;
+            u32 refresh_needed = 0;
+            enum SYSCALL_STATE state = approve_syscall_sample(pid_entry->cookie, args->id, &sample_cookie, &refresh_needed);
+            if (state == SAMPLED) {
+                event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+                event->event_reason = SYSCALL_DRIFT_REASON_SAMPLE;
+                __builtin_memset(event->syscalls, 0, sizeof(event->syscalls));
+                event->syscall_id = args->id;
+                event->sample_cookie = sample_cookie;
+                fill_span_context(&event->span, &event->go_labels);
+                send_event_ptr(args, EVENT_SYSCALLS, event);
+            } else if (refresh_needed) {
+                struct sample_refresh_event_t ev = {};
+                ev.cookie = sample_cookie;
+                send_event(args, EVENT_SAMPLE_REFRESH, ev);
+            }
         }
     }
 

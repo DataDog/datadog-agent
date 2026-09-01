@@ -107,17 +107,17 @@ type Event struct {
 	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
-	Exec              ExecEvent          `field:"exec" event:"exec"`                 // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
-	SetUID            SetuidEvent        `field:"setuid" event:"setuid"`             // [7.27] [Process] A process changed its effective uid
-	SetGID            SetgidEvent        `field:"setgid" event:"setgid"`             // [7.27] [Process] A process changed its effective gid
-	Capset            CapsetEvent        `field:"capset" event:"capset"`             // [7.27] [Process] A process changed its capacity set
-	Signal            SignalEvent        `field:"signal" event:"signal"`             // [7.35] [Process] A signal was sent
-	Exit              ExitEvent          `field:"exit" event:"exit"`                 // [7.38] [Process] A process was terminated
-	Setrlimit         SetrlimitEvent     `field:"setrlimit" event:"setrlimit"`       // [7.68] [Process] A setrlimit command was executed
+	Exec              ExecEvent           `field:"exec" event:"exec"`                 // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
+	SetUID            SetuidEvent         `field:"setuid" event:"setuid"`             // [7.27] [Process] A process changed its effective uid
+	SetGID            SetgidEvent         `field:"setgid" event:"setgid"`             // [7.27] [Process] A process changed its effective gid
+	Capset            CapsetEvent         `field:"capset" event:"capset"`             // [7.27] [Process] A process changed its capacity set
+	Signal            SignalEvent         `field:"signal" event:"signal"`             // [7.35] [Process] A signal was sent
+	Exit              ExitEvent           `field:"exit" event:"exit"`                 // [7.38] [Process] A process was terminated
+	Setrlimit         SetrlimitEvent      `field:"setrlimit" event:"setrlimit"`       // [7.68] [Process] A setrlimit command was executed
 	CapabilitiesUsage CapabilitiesEvent  `field:"capabilities" event:"capabilities"` // [7.70] [Process] [Experimental] A process used some capabilities
 	Syscalls          SyscallsEvent      `field:"-"`
 	LoginUIDWrite     LoginUIDWriteEvent `field:"-"`
-	PrCtl             PrCtlEvent         `field:"prctl" event:"prctl"` // [7.71] [Process] A prctl command was executed
+	PrCtl             PrCtlEvent          `field:"prctl" event:"prctl"` // [7.71] [Process] A prctl command was executed
 
 	// network syscalls
 	Bind       BindEvent       `field:"bind" event:"bind"`             // [7.37] [Network] A bind was executed
@@ -950,10 +950,16 @@ type VethPairEvent struct {
 	PeerDevice NetDevice
 }
 
-// SyscallsEvent represents a syscalls event
+// SyscallsEvent represents a syscalls event. It carries either a drain-form bitmap
+// (EventReason in {SyscallMonitorPeriodReason, ExitReason, ExecveReason}, Syscalls populated)
+// or a workload-profiles-v2 sample first-hit (EventReason == SampleReason, SyscallID and
+// SampleCookie populated). Subsequent hits of the same (exec_cookie, syscall_id) tuple only
+// produce SampleRefreshEvent heartbeats keyed by SampleCookie.
 type SyscallsEvent struct {
-	EventReason SyscallDriftEventReason
-	Syscalls    []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+	EventReason  SyscallDriftEventReason
+	Syscalls     []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+	SyscallID    uint32    // single syscall id when EventReason == SampleReason; 0 otherwise
+	SampleCookie uint32    // sample cookie when EventReason == SampleReason; 0 otherwise
 }
 
 // PathKey identifies an entry in the dentry cache

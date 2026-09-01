@@ -347,6 +347,33 @@ func (pi *ProcessInfo) matches(pathnameStr, argv0 string, argv []string, matchAr
 	return true
 }
 
+// InsertSyscallSample inserts a single syscall observation coming from the workload profiles v2
+// sampler. The event is EVENT_SYSCALLS with EventReason == SampleReason, carrying SyscallID +
+// SampleCookie. Returns whether a new SyscallNode was created and the NodeBase of the (existing
+// or new) SyscallNode so the caller can register it under a sample cookie.
+func (pn *ProcessNode) InsertSyscallSample(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) (bool, *NodeBase) {
+	syscallID := int(e.Syscalls.SyscallID)
+	at := e.ResolveEventTime()
+
+	for _, existing := range pn.Syscalls {
+		if existing.Syscall == syscallID {
+			existing.AppendImageTagID(imageTagID, at)
+			return false, &existing.NodeBase
+		}
+	}
+
+	if dryRun {
+		return true, nil
+	}
+
+	sn := NewSyscallNode(syscallID, at, imageTagID, Runtime)
+	pn.Syscalls = append(pn.Syscalls, sn)
+	syscallMask[syscallID] = syscallID
+	stats.SyscallNodes++
+	stats.SizeBytes += sn.size()
+	return true, &sn.NodeBase
+}
+
 // InsertSyscalls inserts the syscall of the process in the dump
 func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) bool {
 	var hasNewSyscalls bool
@@ -774,16 +801,9 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 		return totalEvicted, removedBytes
 	}
 
-	// Evict unused syscall nodes
-	for i := len(pn.Syscalls) - 1; i >= 0; i-- {
-		syscallNode := pn.Syscalls[i]
-		if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if syscallNode.SeenIsEmpty() {
-				removedBytes += syscallNode.size()
-				pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
-			}
-		}
-	}
+	// Syscall and capability nodes are deliberately not evicted: the kernel stops refreshing their
+	// "last seen" once a process discovers nothing new, so evicting them would make the next re-learn
+	// look like drift. Their count is bounded, and EvictImageTag still removes them.
 
 	// Evict unused file nodes
 	for path, fileNode := range pn.Files {
@@ -824,17 +844,6 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 			if socketNode.SeenIsEmpty() {
 				removedBytes += socketNode.size()
 				pn.Sockets = append(pn.Sockets[:i], pn.Sockets[i+1:]...)
-			}
-		}
-	}
-
-	// Evict unused capability nodes
-	for i := len(pn.Capabilities) - 1; i >= 0; i-- {
-		capabilityNode := pn.Capabilities[i]
-		if capabilityNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
-			if capabilityNode.SeenIsEmpty() {
-				removedBytes += capabilityNode.size()
-				pn.Capabilities = append(pn.Capabilities[:i], pn.Capabilities[i+1:]...)
 			}
 		}
 	}

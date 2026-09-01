@@ -979,6 +979,9 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 			sampleCookie = event.Bind.SampleCookie
 		case model.ConnectEventType:
 			sampleCookie = event.Connect.SampleCookie
+		case model.SyscallsEventType:
+			// Only sample first-hit events carry a cookie; drain events have SampleCookie == 0.
+			sampleCookie = event.Syscalls.SampleCookie
 		}
 		if sampleCookie != 0 {
 			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
@@ -1127,6 +1130,7 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
+		profile.WithObservedRollups(),
 	)
 
 	// Try to load from local storage
@@ -1174,6 +1178,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
+		profile.WithObservedRollups(),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 

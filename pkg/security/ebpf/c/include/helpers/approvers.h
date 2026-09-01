@@ -214,6 +214,87 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 
     return SAMPLED;
 }
 
+// approve_syscall_sample dedups (exec_cookie, syscall_id) tuples through an LRU map so that the
+// first hit per tuple is delivered as a syscall_monitor_event_t sample first-hit (EVENT_SYSCALLS
+// with event_reason=SYSCALL_DRIFT_REASON_SAMPLE) and later hits only emit a sample_refresh_event_t
+// heartbeat (bounded by sample_refresh_period_ns). Mirrors approve_bind_sample: the LRU bounds
+// *distinct* tuples we remember, and sampling_admission_check bounds delivery *rate* so a burst
+// of first-time syscalls on new execs cannot drown the ringbuffer.
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_sample(u64 exec_cookie, u32 syscall_id, u32 *out_cookie, u32 *out_refresh_needed) {
+    u64 event_sampling_syscalls_enabled = 0;
+    LOAD_CONSTANT("event_sampling_syscalls_enabled", event_sampling_syscalls_enabled);
+    u64 event_sampling_syscalls_rate = 0;
+    LOAD_CONSTANT("event_sampling_syscalls_rate", event_sampling_syscalls_rate);
+    u64 event_sampling_syscalls_threshold = 60;
+    LOAD_CONSTANT("event_sampling_syscalls_threshold", event_sampling_syscalls_threshold);
+    u64 sample_refresh_period_ns = 0;
+    LOAD_CONSTANT("sample_refresh_period_ns", sample_refresh_period_ns);
+
+    if (!event_sampling_syscalls_enabled) {
+        return DISCARDED;
+    }
+
+    // No exec cookie means we cannot correlate the syscall to a workload in userspace.
+    if (exec_cookie == 0) {
+        return DISCARDED;
+    }
+
+    monitor_event_sample_total(EVENT_SYSCALLS);
+
+    struct syscall_sample_key_t key = {
+        .exec_cookie = exec_cookie,
+        .syscall_id = syscall_id,
+    };
+
+    u64 now = bpf_ktime_get_ns();
+    struct sample_entry_t new_entry;
+    __builtin_memset(&new_entry, 0, sizeof(new_entry));
+    new_entry.cookie = bpf_get_prandom_u32() | 1;
+    new_entry.last_refresh_ns = now;
+
+    if (bpf_map_update_elem(&syscall_samples, &key, &new_entry, BPF_NOEXIST) < 0) {
+        if (sample_refresh_period_ns > 0 && out_cookie != NULL && out_refresh_needed != NULL) {
+            struct sample_entry_t *existing = bpf_map_lookup_elem(&syscall_samples, &key);
+            if (existing != NULL) {
+                if (existing->cookie == 0) {
+                    // Never delivered (rate-limited on first attempt). Retry.
+                    if (!sampling_admission_check(SYSCALLS_SAMPLE_LIMITER, event_sampling_syscalls_rate, (u8)event_sampling_syscalls_threshold)) {
+                        return DISCARDED;
+                    }
+                    existing->cookie = bpf_get_prandom_u32() | 1;
+                    existing->last_refresh_ns = now;
+                    *out_cookie = existing->cookie;
+                    monitor_event_sample_sampled(EVENT_SYSCALLS);
+                    return SAMPLED;
+                }
+                // Already delivered: send a refresh if the period has elapsed
+                if ((now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
+                    existing->last_refresh_ns = now;
+                    *out_cookie = existing->cookie;
+                    *out_refresh_needed = 1;
+                }
+            }
+        }
+        return DISCARDED;
+    }
+
+    if (!sampling_admission_check(SYSCALLS_SAMPLE_LIMITER, event_sampling_syscalls_rate, (u8)event_sampling_syscalls_threshold)) {
+        // Keep entry but mark as not yet delivered so we can retry later
+        struct sample_entry_t *entry = bpf_map_lookup_elem(&syscall_samples, &key);
+        if (entry != NULL) {
+            entry->cookie = 0;
+        }
+        return DISCARDED;
+    }
+
+    if (out_cookie != NULL) {
+        *out_cookie = new_entry.cookie;
+    }
+
+    monitor_event_sample_sampled(EVENT_SYSCALLS);
+    return SAMPLED;
+}
+
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(struct bind_connect_sample_key_t *key, struct syscall_cache_t *syscall) {
     u64 event_sampling_connect_enabled = 0;
     LOAD_CONSTANT("event_sampling_connect_enabled", event_sampling_connect_enabled);

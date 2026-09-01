@@ -43,7 +43,7 @@ BPF_ARRAY_MAP(syscall_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
 BPF_ARRAY_MAP(go_labels_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(go_labels_ctx, struct go_labels_ctx_entry_t, GO_LABELS_CTX_MAX_ENTRIES)
-BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 6)
+BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 7)
 BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
 
@@ -109,6 +109,7 @@ BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, struct sample_entry_t
 BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(syscall_samples, struct syscall_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
 BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
 

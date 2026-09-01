@@ -426,6 +426,22 @@ properties:
             node_type: setting
             type: integer
             default: 80
+      syscalls:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          rate:
+            node_type: setting
+            type: integer
+            default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 60
   event_server:
     node_type: section
     type: object
@@ -740,6 +756,9 @@ properties:
             - open
             - dns
             - bind
+            - connect
+            - syscalls
+            - capabilities
             items:
               type: string
           excluded_images:

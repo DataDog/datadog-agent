@@ -2,6 +2,7 @@
 #define _HELPERS_RAW_SYSCALLS_H_
 
 #include "maps.h"
+#include "approvers.h"
 
 __attribute__((always_inline)) u8 is_syscall(struct syscall_table_key_t *key) {
     u8 *ok = bpf_map_lookup_elem(&syscall_table, key);
