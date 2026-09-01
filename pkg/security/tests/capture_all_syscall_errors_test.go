@@ -37,6 +37,10 @@ var (
 // runtime_security_config.syscalls.capture_all_errors.enabled set to true,
 // chmod() and open() syscalls failing with ENOENT (normally filtered by
 // IS_UNHANDLED_ERROR) still produce events in userspace.
+var _ = declare(TestCaptureAllSyscallErrors, testOpts{
+	captureAllSyscallErrorsEnabled: true,
+})
+
 func TestCaptureAllSyscallErrors(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -45,9 +49,7 @@ func TestCaptureAllSyscallErrors(t *testing.T) {
 		openEnoentRule,
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
-		captureAllSyscallErrorsEnabled: true,
-	}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,6 +9,7 @@ require (
 )
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.43.7 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.38 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.37 // indirect

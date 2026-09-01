@@ -19,7 +19,7 @@ rust-version = "1.94"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
-aws-lc-rs = { version = ">=1, <1.18", default-features = false, features = ["non-fips"] }
+aws-lc-rs = { version = ">=1, <1.19", default-features = false, features = ["non-fips"] }
 base64 = "0.22"
 cap-std = "4.0"
 # Keep only the `dd-sds` feature and disable default features so we pull in just
@@ -45,7 +45,7 @@ lru = { version = "0.18.0", default-features = false }
 memchr = "2.7.6"
 nom = "8.0"
 normalize-path = "0.2"
-p256 = { version = "0.13", default-features = false }
+p256 = { version = "0.14", default-features = false }
 phf = { version = "0.14", features = ["macros"] }
 rawzip = "0.5.0"
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots-no-provider"] }
