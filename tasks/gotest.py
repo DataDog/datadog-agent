@@ -1546,7 +1546,14 @@ def check_otel_module_versions(ctx, fix=False):
                     continue
 
                 actual_local_version = local_matches[0]
-                if actual_local_version != expected_local_version:
+                # A local module's go directive can legitimately be higher than the version derived
+                # from the contrib repo root's go.mod: contrib is a multi-module repo, and MVS can
+                # force a higher version when one of our actual dependencies (e.g. pkg/datadog) declares
+                # a newer `go` directive than the repo root does. Only flag/fix versions that are lower
+                # than expected, since those would fail to build against such a dependency.
+                actual_tuple = tuple(int(part) for part in actual_local_version.split('.'))
+                expected_tuple = tuple(int(part) for part in expected_local_version.split('.'))
+                if actual_tuple < expected_tuple:
                     if fix:
                         update_file(
                             True,
@@ -1556,7 +1563,7 @@ def check_otel_module_versions(ctx, fix=False):
                         )
                     else:
                         version_errors.append(
-                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
+                            f"{mod_file} version {actual_local_version} is lower than expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
                         )
 
     # Report all errors at once if any were found

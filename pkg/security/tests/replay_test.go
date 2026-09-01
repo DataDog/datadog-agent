@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+var _ = declareInlineConfig(TestReplay)
+
 func TestReplay(t *testing.T) {
 	SkipIfNotAvailable(t)
 
