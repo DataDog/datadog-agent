@@ -267,6 +267,9 @@ fn list_shows_running_and_created_mix() {
         .with_process("sleeper_idle");
     let procmgr = env.start();
     procmgr.require_status().assert_ready();
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
     let list = procmgr.require_list();
     list.assert_len(2);
     list.assert_process_state("sleeper", ProcessExpect::Running);
@@ -312,6 +315,9 @@ fn reload_adds_fixture_to_catalog() {
         added: Some(vec!["sleeper".into()]),
         ..Default::default()
     });
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
     let list = procmgr.require_list();
     list.assert_len(1);
     list.assert_process_state("sleeper", ProcessExpect::Running);
@@ -323,6 +329,9 @@ fn reload_removes_deleted_yaml_from_catalog() {
         .with_process("sleeper")
         .with_process("sleeper_idle")
         .start();
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
     let list = procmgr.require_list();
     list.assert_len(2);
     list.assert_process_state("sleeper", ProcessExpect::Running);
