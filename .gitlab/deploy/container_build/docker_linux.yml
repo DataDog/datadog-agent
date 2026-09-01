@@ -560,6 +560,7 @@ docker_build_secret_generic_connector_arm64:
   before_script:
     - !reference [.docker_build_secret_generic_connector, before_script]
     - go tool nm $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector.${ARCH} | grep '_Cfunc__goboringcrypto_'
+    - go tool nm $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector.${ARCH} | grep 'crypto/tls/fipsonly'
 
 docker_build_secret_generic_connector_fips_amd64:
   extends: [.docker_build_secret_generic_connector_fips, .docker_build_amd64]

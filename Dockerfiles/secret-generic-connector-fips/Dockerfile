@@ -18,3 +18,4 @@ LABEL org.opencontainers.image.base.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 ARG TARGETARCH
 COPY --chmod=0755 ./secret-generic-connector.$TARGETARCH /secret-generic-connector
 USER 1000
+RUN ["/secret-generic-connector", "--version"]

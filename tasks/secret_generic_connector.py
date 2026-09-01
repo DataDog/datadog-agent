@@ -62,7 +62,7 @@ def build(
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
     gcflags = "all=-l"
 
-    # FIPS mode requires CGO for OpenSSL bindings
+    # FIPS mode requires CGO for BoringCrypto bindings
     # Non-FIPS builds use CGO_ENABLED=0 for static binary
     env = {
         "GO111MODULE": "on",
