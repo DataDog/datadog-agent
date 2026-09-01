@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -23,23 +24,18 @@ import (
 // customization. The mock exposes exactly one MIG-disabled physical device.
 func setupMockDevice(t *testing.T, extraMockOpts ...testutil.NvmlMockOption) ddnvml.Device {
 	t.Helper()
-
 	opts := append([]testutil.NvmlMockOption{
-		testutil.WithMIGDisabled(),
 		testutil.WithDeviceCount(1),
 	}, extraMockOpts...)
-	devices := setupMockDevices(t, opts...)
-	require.NotEmpty(t, devices)
-	return devices[0]
+	mock := nvmltestutil.SetupMockNVML(t, opts...)
+	return nvmltestutil.PhysicalDevice(t, mock, 0)
 }
 
 // setupMockDevices installs a mock NVML interface (configured via the given options)
 // and returns all physical devices exposed by the resulting device cache.
 func setupMockDevices(t *testing.T, mockOpts ...testutil.NvmlMockOption) []ddnvml.Device {
 	t.Helper()
-
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(mockOpts...)
-	ddnvml.WithMockNVML(t, nvmlMock)
+	nvmltestutil.SetupMockNVML(t, mockOpts...)
 	deviceCache := ddnvml.NewDeviceCache()
 	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
@@ -114,7 +110,7 @@ func TestNewBaseCollector(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, collector)
-				require.Equal(t, testutil.GPUUUIDs[0], collector.DeviceUUID())
+				require.Equal(t, testutil.GPUUUIDs[0], collector.Device().GetDeviceInfo().UUID)
 				require.Equal(t, CollectorName("test"), collector.Name())
 			}
 		})

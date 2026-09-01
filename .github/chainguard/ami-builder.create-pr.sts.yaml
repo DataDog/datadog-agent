@@ -1,12 +1,12 @@
 ---
-# This is used to create bump PRs from project 93 to this repo
+# This is used to create bump PRs from ami-builder to this repo
 
 issuer: https://gitlab.ddbuild.io
 
 subject_pattern: "project_path:DataDog/.*"
 
 claim_pattern:
-  project_id: "93"
+  project_id: "13287"
 
 permissions:
   contents: write

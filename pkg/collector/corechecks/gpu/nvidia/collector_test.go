@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -21,6 +20,7 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -38,11 +38,79 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 		return nil, errors.New("failure")
 	}
 
-	devices := setupMockDevices(t, testutil.WithMIGDisabled())
+	devices := setupMockDevices(t)
 	deps := &CollectorDependencies{}
 	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}, nil)
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
+}
+
+func TestCollectorTelemetryTags(t *testing.T) {
+	deviceInfo := ddnvml.DeviceInfo{
+		Name:               "NVIDIA A100-SXM4-80GB",
+		Architecture:       nvml.DEVICE_ARCH_AMPERE,
+		VirtualizationMode: nvml.GPU_VIRTUALIZATION_MODE_VGPU,
+		NVLinkLinkCount:    4,
+		NVLinkVersion:      "4",
+	}
+	migParent := &ddnvml.PhysicalDevice{
+		DeviceInfo: deviceInfo,
+		MIGChildren: []*ddnvml.MIGDevice{
+			{},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		device   ddnvml.Device
+		expected []string
+	}{
+		{
+			name:   "physical device",
+			device: &ddnvml.PhysicalDevice{DeviceInfo: deviceInfo},
+			expected: []string{
+				"test",
+				"nvidia_a100-sxm4-80gb",
+				"vgpu",
+				"ampere",
+				"none",
+				"true",
+				"4",
+				driverVersionForTelemetry(),
+			},
+		},
+		{
+			name:   "MIG parent",
+			device: migParent,
+			expected: []string{
+				"test",
+				"nvidia_a100-sxm4-80gb",
+				"vgpu",
+				"ampere",
+				"mig-parent",
+				"true",
+				"4",
+				driverVersionForTelemetry(),
+			},
+		},
+		{
+			name:     "MIG device",
+			device:   &ddnvml.MIGDevice{DeviceInfo: deviceInfo, Parent: migParent},
+			expected: []string{"test", "nvidia_a100-sxm4-80gb", "vgpu", "ampere", "mig", "true", "4", driverVersionForTelemetry()},
+		},
+	}
+
+	require.Len(t, collectorCreationTelemetryTagNames, len(collectorTelemetryTagNames)+1)
+	require.Equal(t, "status", collectorCreationTelemetryTagNames[0])
+	require.Equal(t, collectorTelemetryTagNames, collectorCreationTelemetryTagNames[1:])
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tags := collectorTelemetryTags("test", tt.device)
+			require.Len(t, tags, len(collectorTelemetryTagNames))
+			require.Equal(t, tt.expected, tags)
+		})
+	}
 }
 
 func TestGetDeviceTagsMapping(t *testing.T) {
@@ -85,13 +153,11 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 			name: "Only one device successfully retrieved",
 			mockOpts: []testutil.NvmlMockOption{
 				testutil.WithDeviceCount(2),
-				testutil.WithCustomLibHook(func(lib *nvmlmock.Interface) {
-					lib.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-						if index == 0 {
-							return testutil.GetDeviceMock(index), nvml.SUCCESS
-						}
-						return nil, nvml.ERROR_INVALID_ARGUMENT
+				testutil.WithDeviceHandleByIndexCallback(func(index int, device nvml.Device) (nvml.Device, nvml.Return) {
+					if index == 0 {
+						return device, nvml.SUCCESS
 					}
+					return nil, nvml.ERROR_INVALID_ARGUMENT
 				}),
 			},
 			setupTagger: func(fakeTagger taggermock.Mock) {
@@ -106,9 +172,7 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup
-			mockOpts := append(tc.mockOpts, testutil.WithMIGDisabled())
-			nvmlMock := testutil.GetBasicNvmlMockWithOptions(mockOpts...)
-			ddnvml.WithMockNVML(t, nvmlMock)
+			nvmltestutil.SetupMockNVML(t, tc.mockOpts...)
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			if tc.setupTagger != nil {
 				tc.setupTagger(fakeTagger)
@@ -129,7 +193,6 @@ func TestAllCollectorsWork(t *testing.T) {
 	// the basic mock, and we don't have any panics or anything.
 
 	devices := setupMockDevices(t,
-		testutil.WithMIGDisabled(),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithMockAllFunctions(),
 		testutil.WithArchitecture("blackwell")) // Ensure all functions are marked as supported
@@ -239,7 +302,6 @@ func TestDisabledCollectors(t *testing.T) {
 			// Setup NVML mock
 			devices := setupMockDevices(t,
 				testutil.WithDeviceCount(1),
-				testutil.WithMIGDisabled(),
 				testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 				testutil.WithMockAllFunctions(),
 				testutil.WithArchitecture("blackwell"),
@@ -287,7 +349,7 @@ func TestDisabledCollectors(t *testing.T) {
 
 func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 	// Setup NVML mock
-	devices := setupMockDevices(t, testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
+	devices := setupMockDevices(t, testutil.WithMockAllFunctions())
 
 	// Setup dependencies with system-probe cache
 	eventsGatherer := NewDeviceEventsGatherer()
@@ -373,7 +435,6 @@ func collectMetricNames(t *testing.T, spCache *SystemProbeCache) map[string]stru
 	// their values, and every extra mock device costs an event-set wait per Collect.
 	devices := setupMockDevices(t,
 		testutil.WithDeviceCount(1),
-		testutil.WithMIGDisabled(),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithMockAllFunctions(),
 		testutil.WithArchitecture("blackwell"),
@@ -614,7 +675,7 @@ func TestConfiguredMetricPriority(t *testing.T) {
 		testutil.WithProcessData([]testutil.MockProcessData{{Pid: pid, SmUtil: 50}}, nvml.SUCCESS),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true}),
 		testutil.WithMockAllFunctions(),
-		testutil.WithCustomHook(func(device *nvmlmock.Device) {
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
 			device.GetSamplesFunc = func(_ nvml.SamplingType, lastTimestamp uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
 				return nvml.VALUE_TYPE_UNSIGNED_INT, []nvml.Sample{
 					{TimeStamp: lastTimestamp + 100, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
