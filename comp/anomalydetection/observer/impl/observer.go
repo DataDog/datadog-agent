@@ -1138,10 +1138,9 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 	)
 }
 
-func prepareMetricHandoff(source string, sample metricHandoff, filter *metricsFilterRules) metricIngestDecision {
+func prepareMetricHandoff(normalizedSource string, sample metricHandoff, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.name
 	host := sample.host
-	normalizedSource := normalizeMetricSource(name, source)
 	precheck := filter.precheck(name, normalizedSource, host)
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
