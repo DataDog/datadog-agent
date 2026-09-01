@@ -5,6 +5,10 @@ compile_selinux_policy(
     name = "system_probe_policy",
     src = "system_probe_policy.te",
     out = "system_probe_policy.pp",
+    # Compile the module targeting modular policy version 19, the highest version
+    # supported by libsepol on RHEL 7 (range 4-19). Newer distributions remain
+    # backward-compatible, so a v19 module loads on all supported RHEL releases.
+    policy_version = 19,
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
