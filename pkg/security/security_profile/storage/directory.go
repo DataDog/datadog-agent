@@ -67,6 +67,70 @@ func fileHasProfileExtension(path string) bool {
 	return err == nil && format == config.Profile
 }
 
+func fileHasStorageExtension(path string) bool {
+	name := strings.TrimSuffix(filepath.Base(path), ".gz")
+	_, err := config.ParseStorageFormat(filepath.Ext(name))
+	return err == nil
+}
+
+// LocalProfilesResetCookieFileName is the marker written after a one-time local-profile wipe.
+const LocalProfilesResetCookieFileName = "delete_local_profiles.cookie"
+
+// ResetLocalProfilesIfCookieChanged deletes locally stored security profiles when cookie is
+// non-empty and does not match the cookie last written in directoryPath. An empty cookie is a
+// no-op. After a successful wipe the cookie is stored so the same value does not wipe again.
+func ResetLocalProfilesIfCookieChanged(directoryPath, cookie string) error {
+	if cookie == "" {
+		return nil
+	}
+
+	cookiePath := filepath.Join(directoryPath, LocalProfilesResetCookieFileName)
+	existing, err := os.ReadFile(cookiePath)
+	if err == nil && string(existing) == cookie {
+		return nil
+	}
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("couldn't read local profiles reset cookie [%s]: %w", cookiePath, err)
+	}
+
+	entries, err := os.ReadDir(directoryPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("couldn't list files in [%s]: %w", directoryPath, err)
+		}
+		if err := createDir(directoryPath); err != nil {
+			return err
+		}
+		return writeLocalProfilesResetCookie(cookiePath, cookie)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || entry.Name() == LocalProfilesResetCookieFileName {
+			continue
+		}
+		if !fileHasStorageExtension(entry.Name()) {
+			continue
+		}
+		path := filepath.Join(directoryPath, entry.Name())
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("couldn't delete local security profile [%s]: %w", path, err)
+		}
+		seclog.Infof("deleted local security profile [%s] (reset cookie changed)", path)
+	}
+
+	return writeLocalProfilesResetCookie(cookiePath, cookie)
+}
+
+func writeLocalProfilesResetCookie(cookiePath, cookie string) error {
+	if err := os.Remove(cookiePath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("couldn't replace local profiles reset cookie [%s]: %w", cookiePath, err)
+	}
+	if err := os.WriteFile(cookiePath, []byte(cookie), 0600); err != nil {
+		return fmt.Errorf("couldn't write local profiles reset cookie [%s]: %w", cookiePath, err)
+	}
+	return nil
+}
+
 // profileNameFromFile returns the profile name encoded in a storage filename. Persist writes
 // files as "<name>.<format>" (with an optional ".gz" suffix), so the name is the filename with
 // those extensions stripped. Used to attribute an on-disk file back to its profile selector.

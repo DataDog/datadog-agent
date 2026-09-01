@@ -143,3 +143,82 @@ func TestDirectory(t *testing.T) {
 		}
 	})
 }
+
+func TestResetLocalProfilesIfCookieChanged(t *testing.T) {
+	write := func(t *testing.T, dir, name, contents string) string {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(path, []byte(contents), 0600))
+		return path
+	}
+
+	cookiePath := func(dir string) string {
+		return filepath.Join(dir, LocalProfilesResetCookieFileName)
+	}
+
+	t.Run("empty cookie does not delete files or write a marker", func(t *testing.T) {
+		dir := t.TempDir()
+		profilePath := write(t, dir, "keep.profile", "profile")
+		require.NoError(t, ResetLocalProfilesIfCookieChanged(dir, ""))
+		_, err := os.Stat(profilePath)
+		require.NoError(t, err)
+		_, err = os.Stat(cookiePath(dir))
+		assert.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("configured cookie deletes stored profiles once and writes the marker", func(t *testing.T) {
+		dir := t.TempDir()
+		profilePath := write(t, dir, "old.profile", "profile")
+		gzPath := write(t, dir, "old.profile.gz", "gz")
+		jsonPath := write(t, dir, "old.json", "json")
+		notesPath := write(t, dir, "notes.txt", "keep me")
+
+		require.NoError(t, ResetLocalProfilesIfCookieChanged(dir, "1"))
+
+		_, err := os.Stat(profilePath)
+		assert.ErrorIs(t, err, os.ErrNotExist)
+		_, err = os.Stat(gzPath)
+		assert.ErrorIs(t, err, os.ErrNotExist)
+		_, err = os.Stat(jsonPath)
+		assert.ErrorIs(t, err, os.ErrNotExist)
+		_, err = os.Stat(notesPath)
+		require.NoError(t, err, "unrelated files must not be deleted")
+
+		got, err := os.ReadFile(cookiePath(dir))
+		require.NoError(t, err)
+		assert.Equal(t, "1", string(got))
+	})
+
+	t.Run("matching cookie leaves existing profiles in place", func(t *testing.T) {
+		dir := t.TempDir()
+		profilePath := write(t, dir, "keep.profile", "profile")
+		require.NoError(t, os.WriteFile(cookiePath(dir), []byte("1"), 0600))
+
+		require.NoError(t, ResetLocalProfilesIfCookieChanged(dir, "1"))
+
+		_, err := os.Stat(profilePath)
+		require.NoError(t, err)
+	})
+
+	t.Run("a new cookie deletes profiles again and replaces the marker", func(t *testing.T) {
+		dir := t.TempDir()
+		profilePath := write(t, dir, "old.profile", "profile")
+		require.NoError(t, os.WriteFile(cookiePath(dir), []byte("1"), 0600))
+
+		require.NoError(t, ResetLocalProfilesIfCookieChanged(dir, "2"))
+
+		_, err := os.Stat(profilePath)
+		assert.ErrorIs(t, err, os.ErrNotExist)
+		got, err := os.ReadFile(cookiePath(dir))
+		require.NoError(t, err)
+		assert.Equal(t, "2", string(got))
+	})
+
+	t.Run("missing directory is created and the cookie is written", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "profiles")
+		require.NoError(t, ResetLocalProfilesIfCookieChanged(dir, "1"))
+		got, err := os.ReadFile(cookiePath(dir))
+		require.NoError(t, err)
+		assert.Equal(t, "1", string(got))
+	})
+}

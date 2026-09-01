@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    CWS : Security Profile v2 anomaly detection remains gated on the first
+    profile persistence by default. A time-based learning window can be enabled
+    with ``runtime_security_config.security_profile.v2.anomaly_stabilization.use_time_based``.
+    Locally stored profiles are reset once on upgrade so workloads re-learn
+    after this change; set
+    ``runtime_security_config.security_profile.v2.delete_local_profiles_cookie``
+    to a new value to force another reset, or leave it empty to skip deletion.
