@@ -55,10 +55,12 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name, enable_bazel=False):
     if os.path.exists(bin_path):
         os.remove(bin_path)
 
+    flavor = AgentFlavor[flavor]
+
     if enable_bazel:
-        build_binary_with_bazel("//cmd/otel-agent:otel-agent", bin_path=bin_path)
+        bazel_args = [f"--//packages/agent:flavor={flavor.name}"]
+        build_binary_with_bazel("//cmd/otel-agent:otel-agent", args=bazel_args, bin_path=bin_path)
     else:
-        flavor = AgentFlavor[flavor]
         env = {"GO111MODULE": "on"}
         build_tags = get_default_build_tags(build="otel-agent", flavor=flavor)
         ldflags = get_version_ldflags(ctx)
