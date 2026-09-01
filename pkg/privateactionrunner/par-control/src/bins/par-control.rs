@@ -59,7 +59,7 @@ async fn run() -> Result<()> {
         return Ok(());
     }
 
-    let config = bootstrapped.into_config();
+    let config = bootstrapped.into_config()?;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,

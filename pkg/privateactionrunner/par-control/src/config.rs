@@ -4,6 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::opms::TlsConfig;
+use anyhow::{Result, ensure};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -97,12 +98,66 @@ impl BootstrapConfig {
         }
     }
 
-    pub fn into_config(self) -> Config {
-        Config {
+    pub fn into_config(self) -> Result<Config> {
+        ensure!(
+            self.split_mode,
+            "bootstrap configuration has split mode disabled"
+        );
+
+        for (name, value) in [
+            ("log_level", self.log_level.as_str()),
+            ("identity.urn", self.identity.urn.as_str()),
+            ("identity.private_key", self.identity.private_key.as_str()),
+            ("identity.runner_id", self.identity.runner_id.as_str()),
+            ("opms_base_url", self.opms_base_url.as_str()),
+            ("agent_version", self.agent_version.as_str()),
+            ("executor_socket", self.executor_socket.as_str()),
+            ("ipc_cert_file_path", self.ipc_cert_file_path.as_str()),
+            ("tls.min_tls_version", self.tls.min_tls_version.as_str()),
+        ] {
+            ensure!(
+                !value.is_empty(),
+                "bootstrap configuration is missing {name}"
+            );
+        }
+        ensure!(
+            self.identity.org_id > 0,
+            "bootstrap configuration is missing identity.org_id"
+        );
+        for (name, value) in [
+            ("task_concurrency", self.task_concurrency as u64),
+            (
+                "loop_interval_milliseconds",
+                self.loop_interval_milliseconds,
+            ),
+            (
+                "heartbeat_interval_milliseconds",
+                self.heartbeat_interval_milliseconds,
+            ),
+            (
+                "health_check_interval_milliseconds",
+                self.health_check_interval_milliseconds,
+            ),
+            (
+                "opms_request_timeout_milliseconds",
+                self.opms_request_timeout_milliseconds,
+            ),
+            ("min_backoff_milliseconds", self.min_backoff_milliseconds),
+            ("max_backoff_milliseconds", self.max_backoff_milliseconds),
+            (
+                "wait_before_retry_milliseconds",
+                self.wait_before_retry_milliseconds,
+            ),
+            ("max_attempts", self.max_attempts as u64),
+        ] {
+            ensure!(value > 0, "bootstrap configuration is missing {name}");
+        }
+
+        Ok(Config {
             opms_base_url: self.opms_base_url,
             task_concurrency: self.task_concurrency,
             executor_socket: self.executor_socket.into(),
-            procmgr_socket: dd_procmgr_client::default_ipc_path(),
+            procmgr_socket: dd_procmgr_client::ipc_path(),
             executor_process_name: EXECUTOR_PROCESS_NAME.to_string(),
             loop_interval: Duration::from_millis(self.loop_interval_milliseconds),
             heartbeat_interval: Duration::from_millis(self.heartbeat_interval_milliseconds),
@@ -132,7 +187,7 @@ impl BootstrapConfig {
                 org_id: self.identity.org_id,
                 runner_id: self.identity.runner_id,
             },
-        }
+        })
     }
 }
 
@@ -145,7 +200,11 @@ mod tests {
         "log_level": "debug",
         "identity": {"urn":"urn","private_key":"key","org_id":42,"runner_id":"runner"},
         "opms_base_url":"https://api.datadoghq.com",
+        "agent_version":"7.76.0",
         "task_concurrency":5,
+        "executor_socket":"/var/run/datadog/par-executor.sock",
+        "ipc_cert_file_path":"/etc/datadog-agent/auth/cert.pem",
+        "tls":{"skip_ssl_validation":false,"min_tls_version":"tlsv1.2"},
         "loop_interval_milliseconds":1000,
         "heartbeat_interval_milliseconds":20000,
         "health_check_interval_milliseconds":30000,
@@ -162,7 +221,7 @@ mod tests {
         assert!(bootstrap.split_mode);
         assert_eq!(bootstrap.log_level(), log::LevelFilter::Debug);
 
-        let config = bootstrap.into_config();
+        let config = bootstrap.into_config().unwrap();
         assert_eq!(config.task_concurrency, 5);
         assert_eq!(config.loop_interval, Duration::from_secs(1));
         assert_eq!(config.identity.org_id, 42);
@@ -172,5 +231,14 @@ mod tests {
     fn rejects_unknown_fields() {
         let json = JSON.replace("\"split_mode\": true", "\"unknown\": true");
         assert!(serde_json::from_str::<BootstrapConfig>(&json).is_err());
+    }
+
+    #[test]
+    fn rejects_incomplete_enabled_config() {
+        let json = JSON.replace("\"task_concurrency\":5,", "");
+        let bootstrap: BootstrapConfig = serde_json::from_str(&json).unwrap();
+        let error = bootstrap.into_config().err().unwrap().to_string();
+
+        assert!(error.contains("task_concurrency"));
     }
 }
