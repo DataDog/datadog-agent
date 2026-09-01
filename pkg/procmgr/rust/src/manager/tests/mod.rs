@@ -5,6 +5,7 @@
 
 use super::lifecycle::Lifecycle;
 use super::runtime::RuntimeReceivers;
+#[cfg(not(windows))]
 use super::startup;
 use super::*;
 use crate::config::ProcessConfig;
@@ -29,12 +30,14 @@ pub fn test_runtime_context() -> (RuntimeContext, RuntimeReceivers) {
     RuntimeContext::new(lifecycle)
 }
 
+#[cfg(not(windows))]
 pub fn startup_runtime_context() -> (Lifecycle, RuntimeContext, RuntimeReceivers) {
     let lifecycle = Lifecycle::new();
     let (ctx, rx) = RuntimeContext::new(lifecycle.clone());
     (lifecycle, ctx, rx)
 }
 
+#[cfg(not(windows))]
 pub async fn auto_start_for_test(mgr: &ProcessManager, ctx: &RuntimeContext) {
     let _guard = test_manager_lock().await;
     crate::platform::reset_shutdown_state_for_test();
@@ -43,6 +46,7 @@ pub async fn auto_start_for_test(mgr: &ProcessManager, ctx: &RuntimeContext) {
     startup::run(mgr, ctx, pending.as_mut()).await;
 }
 
+#[cfg(not(windows))]
 pub async fn test_manager_lock() -> tokio::sync::MutexGuard<'static, ()> {
     let guard = crate::platform::test_shutdown_lock().await;
     #[cfg(unix)]
@@ -50,6 +54,7 @@ pub async fn test_manager_lock() -> tokio::sync::MutexGuard<'static, ()> {
     guard
 }
 
+#[cfg(not(windows))]
 pub fn current_pending_restart(proc: &ManagedProcess) -> PendingRestart {
     PendingRestart {
         uuid: proc.uuid().to_owned(),
@@ -102,6 +107,7 @@ fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
     }
 }
 
+#[cfg(not(windows))]
 pub fn true_def(name: &str) -> ProcessDefinition {
     let (cmd, args) = test_helpers::true_cmd();
     ProcessDefinition {
