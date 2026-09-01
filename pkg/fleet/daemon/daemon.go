@@ -96,9 +96,11 @@ type daemonImpl struct {
 	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
 	gate            methodGate
+	supervisor      experimentSupervisor
 	clientID        string
 	refreshInterval time.Duration
 	gcInterval      time.Duration
+	supervisorTick  time.Duration
 	ctx             context.Context
 	cancel          context.CancelFunc
 
@@ -185,6 +187,7 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		taskDB:          taskDB,
 		gate:            newMethodGate(),
 		refreshInterval: refreshInterval,
+		supervisorTick:  supervisorTickInterval,
 		gcInterval:      gcInterval,
 		secretsPubKey:   secretsPubKey,
 		secretsPrivKey:  secretsPrivKey,
@@ -338,15 +341,40 @@ func (d *daemonImpl) Start(_ context.Context) error {
 		return nil
 	}
 
+	// The supervisor is built here rather than in newDaemon so that a daemon which never runs
+	// -- a test, or a host with remote updates off -- does not open a kqueue it will not use.
+	if d.supervisor == nil {
+		d.supervisor = newExperimentSupervisor(d)
+	}
+
+	// Reconcile before the ticker exists, because what it reckons with is the past: an
+	// experiment whose deadline passed while nothing was running to notice. Waiting a tick
+	// would leave such a host on the experiment for no reason. It runs in its own goroutine
+	// because d.m is held here and a reconcile that reverts has to take it.
+	if d.supervisor != nil {
+		go func() {
+			if err := d.supervisor.Reconcile(d.ctx); err != nil {
+				log.Errorf("Daemon: could not reconcile the experiment state: %v", err)
+			}
+		}()
+	}
+
 	go func() {
 		gcTicker := time.NewTicker(d.gcInterval)
 		defer gcTicker.Stop()
 		refreshStateTicker := time.NewTicker(d.refreshInterval)
 		defer refreshStateTicker.Stop()
+		supervisorTicker := time.NewTicker(d.supervisorTick)
+		defer supervisorTicker.Stop()
 		for {
 			select {
 			case <-d.ctx.Done():
 				return
+			case <-supervisorTicker.C:
+				// Deliberately outside d.m: a tick that decides to revert calls
+				// StopExperiment, which takes the mutex the ordinary way. Holding it
+				// here would deadlock the only path that ends a failed experiment.
+				d.tickSupervisor(d.ctx)
 			case <-gcTicker.C:
 				d.m.Lock()
 				err := d.installer(d.env).GarbageCollect(d.ctx)
@@ -857,4 +885,25 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		Packages:           packages,
 		AvailableDiskSpace: availableSpace,
 	})
+}
+
+// supervisorTickInterval is how often the experiment supervisor is asked to look at the host.
+//
+// It is short relative to the shortest deadline the supervisor will accept, so the deadline is
+// honoured to within a tick, and it is the same interval that bounds how long a failed experiment
+// keeps the host off stable. A tick costs one deadline file read plus a drain of a channel when
+// nothing is happening, which is the overwhelmingly common case.
+const supervisorTickInterval = 10 * time.Second
+
+// tickSupervisor advances the experiment supervisor, if the platform has one.
+//
+// It must be called without d.m held: a tick that reverts goes through StopExperiment, which takes
+// that mutex.
+func (d *daemonImpl) tickSupervisor(ctx context.Context) {
+	if d.supervisor == nil {
+		return
+	}
+	if err := d.supervisor.Tick(ctx); err != nil {
+		log.Errorf("Daemon: experiment supervisor: %v", err)
+	}
 }

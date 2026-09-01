@@ -168,6 +168,12 @@ const (
 	PackageTypeRPM PackageType = "rpm"
 	// PackageTypeMSI is the type for MSI packages.
 	PackageTypeMSI PackageType = "msi"
+	// PackageTypeDMG is the type for macOS packages installed from a .dmg.
+	//
+	// It exists so the .dmg's post-install script and Fleet can run the identical hook: the
+	// mode has to travel in argv because environment variables cannot reach a macOS package
+	// script at all, and Linux already passes the package type positionally.
+	PackageTypeDMG PackageType = "dmg"
 )
 
 // HookContext is the context passed to hooks during install/upgrade/uninstall.
@@ -196,8 +202,14 @@ func (c HookContext) StartSpan(operationName string) (*telemetry.Span, HookConte
 
 func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) string {
 	switch pkgType {
-	case PackageTypeOCI, PackageTypeMSI:
+	case PackageTypeOCI, PackageTypeMSI, PackageTypeDMG:
 		// MSI-installed agent uses the same OCI packages directory for extensions.
+		//
+		// A .dmg-installed agent resolves here too, and for the same reason rather than by
+		// coincidence: on macOS the code root is the versioned pool, addressed through the
+		// stable and experiment links, and the state root is the separate fixed
+		// /opt/datadog-agent. A hook is handed the code root; the hooks that need state
+		// name /opt/datadog-agent themselves.
 		switch experiment {
 		case false:
 			return h.packages.Get(pkg).StablePath()

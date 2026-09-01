@@ -22,6 +22,7 @@ go_library(
         "packages_default.go",
         "packages_linux.go",
         "packages_windows.go",
+        "version_experiment_darwin.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages",
     visibility = ["//visibility:public"],
@@ -54,18 +55,22 @@ go_library(
             "//pkg/fleet/installer/packages/user",
         ],
         "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/experiment",
             "//pkg/fleet/installer/installinfo",
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/packages/file",
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/packages/user",
+            "//pkg/fleet/installer/symlink",
         ],
         "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/experiment",
             "//pkg/fleet/installer/installinfo",
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/packages/file",
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/packages/user",
+            "//pkg/fleet/installer/symlink",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/installinfo",
@@ -112,6 +117,7 @@ dd_agent_go_test(
         "datadog_agent_extensions_test.go",
         "datadog_agent_windows_test.go",
         "otel_config_common_test.go",
+        "version_experiment_darwin_test.go",
     ],
     embed = [":packages"],
     deps = [
@@ -121,9 +127,11 @@ dd_agent_go_test(
         "@in_gopkg_yaml_v3//:yaml_v3",
     ] + select({
         "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/experiment",
             "//pkg/fleet/installer/packages/launchd",
         ],
         "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/experiment",
             "//pkg/fleet/installer/packages/launchd",
         ],
         "@rules_go//go/platform:windows": [

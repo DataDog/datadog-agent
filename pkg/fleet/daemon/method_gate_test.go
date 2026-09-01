@@ -17,23 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-// TestPlatformMethodGate pins the per-platform supported set. macOS executes the three
-// configuration methods and declines the three version ones, which nothing on macOS can carry out
-// yet; Linux and Windows implement all eight methods and must keep doing so.
+// TestPlatformMethodGate pins the supported set. Every platform, macOS included since Part 3,
+// implements all eight methods and must keep doing so: a method the platform declines is one the
+// backend is told it cannot have, so a regression here is silent feature loss rather than a
+// failure.
 func TestPlatformMethodGate(t *testing.T) {
-	darwinSupported := map[string]bool{
-		methodStartConfigExperiment:   true,
-		methodStopConfigExperiment:    true,
-		methodPromoteConfigExperiment: true,
-	}
-
 	gate := newMethodGate()
 	for _, method := range allMethods {
-		if runtime.GOOS == "darwin" {
-			assert.Equal(t, darwinSupported[method], gate.Supported(method), "unexpected gate decision for %s on darwin", method)
-		} else {
-			assert.True(t, gate.Supported(method), "%s must stay supported on %s", method, runtime.GOOS)
-		}
+		assert.True(t, gate.Supported(method), "%s must stay supported on %s", method, runtime.GOOS)
 	}
 }
 

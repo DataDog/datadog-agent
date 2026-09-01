@@ -1,0 +1,61 @@
+"""The per-version macOS Fleet package.
+
+This is the artifact a version experiment installs: one .pkg per Agent version,
+whose payload lands at /opt/datadog-packages/datadog-agent/<version>.
+
+It is not the package inside the .dmg. That one installs to /opt/datadog-agent
+and carries the first-install scripts; this one installs into the versioned pool
+and carries no scripts at all. The two are separate artifacts because
+installer(8)'s -target names a volume rather than a directory, so a package's
+destination is fixed when it is built and there is no way to redirect one.
+
+What is here is the part of the package that Bazel can own: the component
+property list and the distribution file. What is not here is pkgbuild,
+productbuild, signing and notarization, which live in build_fleet_pkg.sh -- see
+the header of that script for why an action that reaches a keychain and Apple's
+notary service does not belong in a build graph.
+"""
+
+load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "build_fleet_pkg.sh",
+    "component.plist.in",
+    "distribution.xml.in",
+])
+
+# The component property list has no substitutions: what it says -- that the
+# payload is neither relocatable nor version-checked -- is true of every version.
+# It is expanded rather than used directly so that it arrives alongside the
+# distribution file as a build output, and so a future per-flavor difference has
+# somewhere to go.
+dd_agent_expand_template(
+    name = "component_plist",
+    out = "component.plist",
+    template = "component.plist.in",
+)
+
+# The distribution file keeps the placeholders that only the build host can fill
+# -- the architecture it is running on, and the name of the component package
+# staged next to it -- so build_fleet_pkg.sh finishes the substitution. Version
+# and identifier are settled here, where they are known.
+dd_agent_expand_template(
+    name = "distribution_xml",
+    out = "distribution.xml",
+    substitutions = {
+        "{identifier}": "com.datadoghq.agent.fleet",
+        "{friendly_name}": "Datadog Agent",
+        "{min_os_version}": "11.0",
+    },
+    template = "distribution.xml.in",
+)
+
+filegroup(
+    name = "templates",
+    srcs = [
+        ":component_plist",
+        ":distribution_xml",
+    ],
+)

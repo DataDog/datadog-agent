@@ -6,6 +6,8 @@ go_library(
     srcs = [
         "default_packages.go",
         "installer.go",
+        "installer_darwin.go",
+        "installer_ocipkg.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer",
     visibility = ["//visibility:public"],
@@ -22,13 +24,23 @@ go_library(
         "//pkg/fleet/installer/telemetry",
         "//pkg/util/log",
         "//pkg/version",
-    ],
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/macpkg",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/macpkg",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
     name = "installer_test",
     srcs = [
         "default_packages_test.go",
+        "installer_darwin_test.go",
+        "installer_ocipkg_test.go",
         "installer_test.go",
     ],
     embed = [":installer"],
@@ -43,5 +55,15 @@ dd_agent_go_test(
         "//pkg/fleet/installer/repository",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
-    ],
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/macpkg",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/macpkg",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

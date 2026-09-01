@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Component property list for the per-version Fleet package.
+
+    pkgbuild(8) discovers every bundle in the payload and, without this file,
+    decides for itself what to do with each one. Both defaults it picks are
+    wrong for a package whose whole purpose is to land at one exact path.
+
+    BundleIsRelocatable defaults to true, which tells the installer to look for
+    an existing copy of the bundle anywhere on the volume, by identifier, via
+    Launch Services, and to install over that instead of over the install
+    location the package names. A host that has ever had a Datadog Agent
+    installed therefore gets the new payload written on top of the old bundle,
+    outside the pool, and the version directory this package exists to create is
+    left empty. The completeness check would then correctly refuse to name that
+    version, so the experiment fails; but the previous version's bundle has
+    already been overwritten, which is worse than a failed experiment.
+    installer(8)'s target names a volume, not a directory, so the install
+    location baked into the package is the only statement of where the payload
+    goes, and relocation is precisely the mechanism that overrides it.
+
+    BundleIsVersionChecked defaults to true, which tells the installer to skip
+    the bundle if what is already on disk has a newer CFBundleVersion. That is
+    right for an application a user might have upgraded by hand, and wrong here
+    twice over: a Fleet downgrade is a normal, deliberate operation, since it is
+    what a revert to an older stable version is; and the decision of which
+    version a host should run belongs to the backend, not to a version-string
+    comparison made by the installer. A silently skipped payload also leaves
+    pkgbuild reporting success over an empty version directory.
+
+    Both keys are therefore stated explicitly and false. Every bundle in the
+    payload needs an entry: pkgbuild only honours the settings for bundles this
+    file names, and falls back to the defaults for the rest.
+-->
+<plist version="1.0">
+<array>
+    <dict>
+        <key>BundleHasStrictIdentifier</key>
+        <false/>
+        <key>BundleIsRelocatable</key>
+        <false/>
+        <key>BundleIsVersionChecked</key>
+        <false/>
+        <key>BundleOverwriteAction</key>
+        <string>upgrade</string>
+        <!-- Relative to the payload root, which is the version directory. -->
+        <key>RootRelativeBundlePath</key>
+        <string>Datadog Agent.app</string>
+    </dict>
+</array>
+</plist>

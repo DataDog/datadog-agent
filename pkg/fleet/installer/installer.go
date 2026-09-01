@@ -373,72 +373,16 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 }
 
 // InstallExperiment installs an experiment on top of an existing package.
+//
+// The work itself is platform-specific and lives in installExperiment. Everywhere but macOS the
+// payload is an OCI package the installer extracts itself; on macOS it is a .pkg only the system
+// installer may unpack, into a destination baked in at build time. The two flows have no useful
+// middle, so they are separate functions rather than one function with a branch -- and the lock,
+// which is the same on both, is taken here so neither can forget it.
 func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	pkg, err := i.downloader.Download(ctx, url)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrDownloadFailed,
-			fmt.Errorf("could not download package: %w", err),
-		)
-	}
-	err = checkAvailableDiskSpace(i.packages, pkg)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrNotEnoughDiskSpace,
-			fmt.Errorf("not enough disk space: %w", err),
-		)
-	}
-	tmpDir, err := i.packages.MkdirTemp()
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could create temporary directory: %w", err),
-		)
-	}
-	defer os.RemoveAll(tmpDir)
-	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
-	err = pkg.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrDownloadFailed,
-			fmt.Errorf("could not extract package layer: %w", err),
-		)
-	}
-	err = pkg.ExtractLayers(ctx, oci.DatadogPackageConfigLayerMediaType, configDir)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrDownloadFailed,
-			fmt.Errorf("could not extract package config layer: %w", err),
-		)
-	}
-
-	err = i.hooks.PreStartExperiment(ctx, pkg.Name)
-	if err != nil {
-		return fmt.Errorf("could not install experiment: %w", err)
-	}
-	repository := i.packages.Get(pkg.Name)
-	err = repository.SetExperiment(ctx, pkg.Version, tmpDir)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not set experiment: %w", err),
-		)
-	}
-	err = i.config.RemoveExperiment(ctx)
-	if err != nil {
-		return fmt.Errorf("could not remove config experiment: %w", err)
-	}
-	// HACK: close so package can be updated as watchdog runs
-	if pkg.Name == packageDatadogAgent && runtime.GOOS == "windows" {
-		i.db.Close()
-	}
-	err = i.hooks.PostStartExperiment(ctx, pkg.Name)
-	if err != nil {
-		return fmt.Errorf("could not install experiment: %w", err)
-	}
-	return nil
+	return i.installExperiment(ctx, url)
 }
 
 // RemoveExperiment removes an experiment.

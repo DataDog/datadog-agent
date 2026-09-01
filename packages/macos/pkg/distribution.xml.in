@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Distribution file for the per-version Fleet package.
+
+    This is deliberately not the distribution omnibus generates for the .dmg's
+    package. That one is an interactive installer: it has a welcome pane, a
+    license pane, a background image and a choice outline, because a person is
+    double-clicking it. This package is never double-clicked. It is unpacked by
+    `installer -pkg <path> -target /` from a root daemon, so every pane would be
+    a pane nobody sees, and the choice outline would be an offer nobody takes.
+
+    What is left is the small part that still matters when there is no user:
+
+    - `<options customize="never" require-scripts="false"/>`: nothing to
+      customize, and an explicit statement that the package carries no scripts.
+      The payload is inert on purpose — a version's directory is written and
+      nothing else happens — because every side effect belongs to the
+      installer's hooks, which run at a moment the package cannot know about.
+      A version is installed long before, and sometimes never, becomes the one
+      the host runs.
+
+    - `<domains enable_localSystem="true"/>` and nothing else: the payload is
+      under /opt, so a user-domain or per-volume install has nowhere to go.
+
+    - The host requirements. They are asserted here rather than trusted to the
+      caller because this is the last point at which a wrong-architecture or
+      too-old host produces a clean refusal instead of a version directory that
+      passes the completeness check and then will not run.
+-->
+<installer-gui-script minSpecVersion="2">
+    <title>{friendly_name}</title>
+    <options customize="never" require-scripts="false" hostArchitectures="{host_architecture}"/>
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="{min_os_version}"/>
+        </allowed-os-versions>
+    </volume-check>
+    <choices-outline>
+        <line choice="default">
+            <line choice="{identifier}"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="{identifier}" visible="false">
+        <pkg-ref id="{identifier}"/>
+    </choice>
+    <pkg-ref id="{identifier}" version="{build_version}" onConclusion="none">{component_pkg}</pkg-ref>
+</installer-gui-script>

@@ -5,12 +5,13 @@ go_library(
     name = "daemon",
     srcs = [
         "daemon.go",
+        "experiment_supervisor.go",
+        "experiment_supervisor_darwin.go",
+        "experiment_supervisor_other.go",
         "local_api.go",
         "local_api_unix.go",
         "local_api_windows.go",
         "method_gate.go",
-        "method_gate_darwin.go",
-        "method_gate_nondarwin.go",
         "remote_config.go",
         "task_db.go",
     ],
@@ -40,6 +41,14 @@ go_library(
         "@io_etcd_go_bbolt//:bbolt",
         "@org_golang_x_crypto//nacl/box",
     ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/experiment",
+            "//pkg/fleet/installer/packages/embedded",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/experiment",
+            "//pkg/fleet/installer/packages/embedded",
+        ],
         "@rules_go//go/platform:windows": [
             "@com_github_microsoft_go_winio//:go-winio",
         ],

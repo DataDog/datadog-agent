@@ -54,3 +54,18 @@ var allMethods = []string{
 	methodStopConfigExperiment,
 	methodPromoteConfigExperiment,
 }
+
+// newMethodGate returns the set of task methods the daemon executes.
+//
+// Every platform now implements all eight, so the gate never declines. It is kept rather than
+// deleted because it is the mechanism, not the policy: it is what stands between an unimplemented
+// method and an acknowledgement, and the next platform or method to arrive incomplete needs it to
+// already be here. Until Part 3 macOS declined the three version methods from a
+// method_gate_darwin.go; that file is gone because macOS carries them out now.
+func newMethodGate() methodGate {
+	gate := make(supportedMethods, len(allMethods))
+	for _, method := range allMethods {
+		gate[method] = true
+	}
+	return gate
+}

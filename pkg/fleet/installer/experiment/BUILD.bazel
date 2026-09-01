@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "experiment",
+    srcs = [
+        "deadline.go",
+        "proc_watcher_darwin.go",
+        "supervisor.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/experiment",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/paths",
+        "//pkg/util/log",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/packages/launchd",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/packages/launchd",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "experiment_test",
+    srcs = ["supervisor_test.go"],
+    embed = [":experiment"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

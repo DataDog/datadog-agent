@@ -9,8 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/spf13/cobra"
 )
 
@@ -50,7 +53,7 @@ func hooksCommand() *cobra.Command {
 func postinstCommand() *cobra.Command {
 	return &cobra.Command{
 		Hidden:  true,
-		Use:     "postinst <package> <type:deb|rpm>",
+		Use:     "postinst <package> <type:deb|rpm|dmg>",
 		Short:   "Run post-install scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.MinimumNArgs(2),
@@ -63,11 +66,15 @@ func postinstCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			packagePath, err := postinstPackagePath(packageType)
+			if err != nil {
+				return err
+			}
 			hookContext := packages.HookContext{
 				Context:     i.ctx,
 				Hook:        "postInstall",
 				Package:     pkg,
-				PackagePath: "/opt/datadog-agent",
+				PackagePath: packagePath,
 				PackageType: packageType,
 				Upgrade:     false,
 				WindowsArgs: nil,
@@ -81,7 +88,7 @@ func prermCommand() *cobra.Command {
 	upgrade := false
 	c := &cobra.Command{
 		Hidden:  true,
-		Use:     "prerm <package> <type:deb|rpm>",
+		Use:     "prerm <package> <type:deb|rpm|dmg>",
 		Short:   "Run pre-remove scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.MinimumNArgs(2),
@@ -94,11 +101,15 @@ func prermCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			packagePath, err := postinstPackagePath(packageType)
+			if err != nil {
+				return err
+			}
 			hookContext := packages.HookContext{
 				Context:     i.ctx,
 				Hook:        "preRemove",
 				Package:     pkg,
-				PackagePath: "/opt/datadog-agent",
+				PackagePath: packagePath,
 				PackageType: packageType,
 				Upgrade:     upgrade,
 				WindowsArgs: nil,
@@ -118,7 +129,36 @@ func parsePackageType(rawPackageType string) (packages.PackageType, error) {
 		return packages.PackageTypeDEB, nil
 	case string(packages.PackageTypeRPM):
 		return packages.PackageTypeRPM, nil
+	case string(packages.PackageTypeDMG):
+		return packages.PackageTypeDMG, nil
 	default:
 		return "", fmt.Errorf("unknown package type: %s", rawPackageType)
 	}
+}
+
+// postinstPackagePath returns the PackagePath the postinst and prerm hooks run against.
+//
+// For deb and rpm the Agent lives at one fixed path. For a .dmg the payload is in the versioned
+// pool and nothing has named it yet -- the stable link is created by the very hook this call is
+// about to run -- so the version directory is recovered from the running binary's own path. The
+// .dmg's post-install script execs
+// /opt/datadog-packages/datadog-agent/<version>/embedded/bin/installer, so walking three
+// directories up from the executable lands on the version directory. Deriving it rather than
+// passing it as an argument means the script cannot name a version whose payload is not the one
+// running.
+func postinstPackagePath(packageType packages.PackageType) (string, error) {
+	if packageType != packages.PackageTypeDMG {
+		return "/opt/datadog-agent", nil
+	}
+	executable, err := exec.GetExecutable()
+	if err != nil {
+		return "", fmt.Errorf("could not locate the running installer: %w", err)
+	}
+	// <version>/embedded/bin/installer -> <version>
+	versionDir := filepath.Dir(filepath.Dir(filepath.Dir(executable)))
+	expectedParent := filepath.Join(paths.PackagesPath, "datadog-agent")
+	if filepath.Dir(versionDir) != expectedParent {
+		return "", fmt.Errorf("the dmg package type expects the installer to run from %s/<version>/embedded/bin, but it is running from %s", expectedParent, executable)
+	}
+	return versionDir, nil
 }

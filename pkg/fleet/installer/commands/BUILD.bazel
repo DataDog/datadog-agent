@@ -45,14 +45,17 @@ dd_agent_go_test(
         "command_setup_nix_test.go",
         "command_setup_windows_test.go",
         "command_test.go",
+        "hooks_test.go",
     ],
     embed = [":commands"],
     deps = [
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/exec",
+        "//pkg/fleet/installer/packages",
         "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/repository",
         "@com_github_spf13_cobra//:cobra",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

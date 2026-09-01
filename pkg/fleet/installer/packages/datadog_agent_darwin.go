@@ -27,6 +27,13 @@ var datadogAgentPackage = hooks{
 	postInstall: postInstallDatadogAgent,
 	preRemove:   preRemoveDatadogAgent,
 
+	preStartExperiment:    preStartExperimentDatadogAgent,
+	postStartExperiment:   postStartExperimentDatadogAgent,
+	preStopExperiment:     preStopExperimentDatadogAgent,
+	postStopExperiment:    postStopExperimentDatadogAgent,
+	prePromoteExperiment:  prePromoteExperimentDatadogAgent,
+	postPromoteExperiment: postPromoteExperimentDatadogAgent,
+
 	postStartConfigExperiment:   postStartConfigExperimentDatadogAgent,
 	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
 	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
@@ -298,7 +305,15 @@ func preInstallDatadogAgent(ctx HookContext) error {
 	return nil
 }
 
-// postInstallDatadogAgent creates the state root and loads the stable job set.
+// postInstallDatadogAgent creates the state root, loads the stable job set and puts the version's
+// /Applications bundle in place.
+//
+// The bundle is swapped here for the same reason it is swapped at promote and nowhere else: an
+// install is the version becoming stable. There is nothing version-specific to install for
+// launchd -- the job definitions are generated from the installer's own embedded copies, by
+// installStableJobs, on both install paths, so a host installed from the .dmg and a host installed
+// by Fleet have byte-identical definitions and there is no second on-disk source to drift from
+// them.
 func postInstallDatadogAgent(ctx HookContext) error {
 	if err := installFilesystem(ctx, defaultAgentLayout); err != nil {
 		return err
@@ -306,7 +321,15 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	if err := installinfo.WriteInstallInfo(ctx, string(ctx.PackageType)); err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
-	return installStableJobs(ctx)
+	if err := installStableJobs(ctx); err != nil {
+		return err
+	}
+	if err := defaultAppBundle.Swap(ctx, ctx.PackagePath); err != nil {
+		// The Agent is running either way; the bundle is a convenience for the person at the
+		// machine and is not worth failing an install over.
+		log.Warnf("Could not install the /Applications bundle: %v", err)
+	}
+	return nil
 }
 
 // preRemoveDatadogAgent stops and removes both job sets.

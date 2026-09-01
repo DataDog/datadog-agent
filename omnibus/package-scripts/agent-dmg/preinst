@@ -216,6 +216,31 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     cp -vfR $CONF_DIR/checks.d/* "$SAVED_CONF_DIR/checks.d" 2>/dev/null || true
 fi
 
+# Collapse any configuration experiment back onto stable.
+#
+# etc-exp is a sibling of etc and rests as a symlink to it; a real directory
+# there means a config experiment was running when this package arrived. That
+# experiment's provenance -- which deployment produced it, and the deadline that
+# would have ended it -- does not survive a package install, so the only honest
+# state to leave behind is "no experiment". This is a collapse, not a capture:
+# etc-exp is never saved and never restored. Restoring it would resurrect an
+# experiment nothing is watching, over configuration files that a new Agent
+# version may no longer understand.
+#
+# The configuration layer is etc-exp's sole owner, and this is the one place
+# outside it that touches the path, because it is the one moment the layer
+# cannot speak for itself.
+CONF_EXP_DIR="$INSTALL_DIR/etc-exp"
+if [ -e "$CONF_EXP_DIR" ] || [ -L "$CONF_EXP_DIR" ]; then
+    if [ -d "$CONF_EXP_DIR" ] && [ ! -L "$CONF_EXP_DIR" ]; then
+        echo "# Collapsing config experiment at $CONF_EXP_DIR back onto $CONF_DIR"
+    fi
+    rm -rf "$CONF_EXP_DIR"
+fi
+if [ -d "$CONF_DIR" ]; then
+    ln -s "$CONF_DIR" "$CONF_EXP_DIR"
+fi
+
 echo '# Deleting old datadog-agent link'
 rm -vf /usr/local/bin/datadog-agent
 
