@@ -262,9 +262,9 @@ dd_agent_go_test(
     ],
     embed = [":modules"],
     gotags_sets = [
-        ["linux_bpf"],
+        ["bpf"],
         [
-            "linux_bpf",
+            "bpf",
             "nvml",
         ],
     ],

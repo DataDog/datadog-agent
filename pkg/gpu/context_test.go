@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf && nvml
+//go:build linux && bpf && nvml
 
 package gpu
 
@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
@@ -38,7 +37,7 @@ func getTestSystemContext(tb testing.TB, extraOpts ...systemContextOption) *syst
 }
 
 func TestFilterDevicesForContainer(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	sysCtx := getTestSystemContext(t, withWorkloadMeta(wmetaMock))
 
@@ -179,7 +178,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	})
 
 	// MIG makes the device selection more complex, so we disable it for these tests
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	sysCtx := getTestSystemContext(t, withProcRoot(procFs), withWorkloadMeta(wmetaMock))
 

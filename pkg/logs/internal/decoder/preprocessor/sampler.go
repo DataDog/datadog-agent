@@ -58,6 +58,9 @@ var tlmAdaptiveSamplerBytesDropped = telemetryimpl.GetCompatComponent().NewCount
 var tlmAdaptiveSamplerKept = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "kept",
 	[]string{"log_source"}, "Number of log messages emitted by the adaptive sampler")
 
+var tlmAdaptiveSamplerOutcomes = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "outcomes",
+	[]string{"severity", "outcome"}, "Adaptive sampler keep/drop decisions while an anomaly severity profile is applied")
+
 var tlmAdaptiveSamplerNewPatterns = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "new_patterns",
 	[]string{"log_source"}, "Number of new log patterns added to the adaptive sampler pattern table")
 
@@ -299,6 +302,17 @@ func (s *AdaptiveSampler) applyProfileIfChanged() {
 	s.appliedLevelInitialized = true
 }
 
+// recordSmartSeverityOutcome records a decision made under the severity profile
+// that is currently applied to this sampler. Until the severity provider has
+// supplied a level, the sampler is using its base settings rather than an AAD
+// profile, so no collaboration telemetry is emitted.
+func (s *AdaptiveSampler) recordSmartSeverityOutcome(outcome string) {
+	if !s.config.SmartSeverityProfilesEnabled || !s.appliedLevelInitialized {
+		return
+	}
+	tlmAdaptiveSamplerOutcomes.Inc(s.appliedLevel.String(), outcome)
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens BorrowedTokens) *message.Message {
@@ -380,8 +394,10 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 
 	if allow {
 		tlmAdaptiveSamplerKept.Inc(sourceTag)
+		s.recordSmartSeverityOutcome("kept")
 		return msg
 	}
+	s.recordSmartSeverityOutcome("dropped")
 	return s.recordDrop(msg, tb, sourceTag, detectionOnly)
 }
 
@@ -403,6 +419,7 @@ func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens BorrowedT
 		sampled:    0,
 	})
 	tlmAdaptiveSamplerKept.Inc(sourceTag)
+	s.recordSmartSeverityOutcome("kept")
 	return msg
 }
 

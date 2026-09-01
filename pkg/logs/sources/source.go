@@ -121,6 +121,15 @@ func (s *LogSource) GetTailingMode() string {
 	return s.Config.TailingMode
 }
 
+// PublicJSON returns the public JSON representation of the source's logs config.
+// The lock is held because Config.TailingMode can be mutated at runtime by
+// SetTailingMode on another goroutine.
+func (s *LogSource) PublicJSON() ([]byte, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.Config.PublicJSON()
+}
+
 // SetTailingMode sets the tailing mode configured for this source. This is mutated after
 // creation when a tailing mode is inferred at launch time, so it must go through the lock.
 func (s *LogSource) SetTailingMode(mode string) {

@@ -14,45 +14,44 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-func TestGPMCollectorSupportDetection(t *testing.T) {
-	// Device does not support GPM metrics
-	mockLib := &mockGpmNvml{}
-	mockDevice := &mockGpmDevice{
-		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 0},
-		uuid:       "test-uuid-1",
+func allocTestGPMSamples(t *testing.T, mock *testutil.MockNVML) [sampleBufferSize]nvml.GpmSample {
+	t.Helper()
+	var samples [sampleBufferSize]nvml.GpmSample
+	for i := range samples {
+		sample, ret := mock.GpmSampleAlloc()
+		require.Equal(t, nvml.SUCCESS, ret)
+		samples[i] = sample
 	}
+	return samples
+}
 
-	mocklib := testutil.GetBasicNvmlMock()
-	safenvml.WithMockNVML(t, mocklib)
+func TestGPMCollectorSupportDetection(t *testing.T) {
+	mockLib := nvmltestutil.SetupMockNVML(t, testutil.WithGpmSupport(false))
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
 	collector, err := newGPMCollector(mockDevice, nil)
 	assert.Nil(t, collector)
 	assert.ErrorIs(t, err, errUnsupportedDevice)
-	assert.Equal(t, 0, mockLib.freedSamples, "all allocated samples should be freed (none allocated in this case)")
+	assert.Equal(t, 2, mockLib.GpmSampleFreeCount(), "all allocated samples should be freed")
 }
 
 func TestGPMCollectorSampleAllocFailure(t *testing.T) {
-	mockLib := &mockGpmNvml{
-		enableAllocFailure: true,
-		failOnAlloc:        1, // fail on the second allocation
-	}
-	mockDevice := &mockGpmDevice{
-		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
-		uuid:       "test-uuid-2",
-	}
-
-	safenvml.WithMockNVML(t, mockLib)
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSampleAllocFailure(2),
+		testutil.WithGpmSupport(true),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
 	collector, err := newGPMCollector(mockDevice, nil)
 	assert.Nil(t, collector)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to allocate GPM sample")
-	assert.Equal(t, 1, mockLib.freedSamples, "allocated sample should be freed on error")
+	assert.Equal(t, 1, mockLib.GpmSampleFreeCount(), "allocated sample should be freed on error")
 }
 
 func TestGPMCollectorAllMetricsUnsupported(t *testing.T) {
@@ -64,21 +63,14 @@ func TestGPMCollectorAllMetricsUnsupported(t *testing.T) {
 	}
 	t.Cleanup(func() { allGpmMetrics = oldAllGpmMetrics })
 
-	mockLib := &mockGpmNvml{
-		metricsGetFunc: func(metrics *nvml.GpmMetricsGetType) nvml.Return {
-			// Mark all as unsupported
-			for i := range metrics.Metrics[:metrics.NumMetrics] {
-				metrics.Metrics[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
-			}
-			return nvml.SUCCESS
-		},
-	}
-	mockDevice := &mockGpmDevice{
-		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
-		uuid:       "test-uuid-3",
-	}
-
-	safenvml.WithMockNVML(t, mockLib)
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			1: {Return: nvml.ERROR_NOT_SUPPORTED},
+			2: {Return: nvml.ERROR_NOT_SUPPORTED},
+		}),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 	collector, err := newGPMCollector(mockDevice, nil)
 	assert.Nil(t, collector)
 	assert.ErrorIs(t, err, errUnsupportedDevice)
@@ -93,24 +85,14 @@ func TestGPMCollectorSomeMetricsUnsupported(t *testing.T) {
 	}
 	t.Cleanup(func() { allGpmMetrics = oldAllGpmMetrics })
 
-	mockLib := &mockGpmNvml{
-		metricsGetFunc: func(metrics *nvml.GpmMetricsGetType) nvml.Return {
-			for i := 0; i < int(metrics.NumMetrics); i++ {
-				if metrics.Metrics[i].MetricId == 2 {
-					metrics.Metrics[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
-				} else {
-					metrics.Metrics[i].NvmlReturn = uint32(nvml.SUCCESS)
-				}
-			}
-			return nvml.SUCCESS
-		},
-	}
-	mockDevice := &mockGpmDevice{
-		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
-		uuid:       "test-uuid-4",
-	}
-
-	safenvml.WithMockNVML(t, mockLib)
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			1: {Return: nvml.SUCCESS},
+			2: {Return: nvml.ERROR_NOT_SUPPORTED},
+		}),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
 	collector, err := newGPMCollector(mockDevice, nil)
 	assert.NoError(t, err)
@@ -122,15 +104,17 @@ func TestGPMCollectorSomeMetricsUnsupported(t *testing.T) {
 
 func TestGPMCollectorCollectSample(t *testing.T) {
 	calls := 0
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmSampleGetCallback(func(_ *testutil.MockGpmSample) nvml.Return {
+			calls++
+			return nvml.SUCCESS
+		}),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 	collector := &gpmCollector{
-		device: &mockGpmDevice{
-			gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
-			GpmSampleGetFunc: func(_ nvml.GpmSample) error {
-				calls++
-				return nil
-			},
-		},
-		samples:             [sampleBufferSize]nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}},
+		device:              mockDevice,
+		samples:             allocTestGPMSamples(t, mockLib),
 		nextSampleToCollect: 0,
 	}
 
@@ -146,18 +130,20 @@ func TestGPMCollectorCollectSample(t *testing.T) {
 }
 
 func TestGPMCollectorGetLastTwoSamples(t *testing.T) {
+	mockLib := testutil.NewMockNVML()
+	samples := allocTestGPMSamples(t, mockLib)
 	collector := &gpmCollector{
-		samples:             [sampleBufferSize]nvml.GpmSample{&gpmSample{id: 1}, &gpmSample{id: 2}},
+		samples:             samples,
 		nextSampleToCollect: 0, // about to overwrite samples[0] next
 	}
 	last, secondLast := collector.getLastTwoSamples()
-	assert.Equal(t, &gpmSample{id: 2}, last)
-	assert.Equal(t, &gpmSample{id: 1}, secondLast)
+	assert.Same(t, samples[1], last)
+	assert.Same(t, samples[0], secondLast)
 
 	collector.nextSampleToCollect = 1
 	last, secondLast = collector.getLastTwoSamples()
-	assert.Equal(t, &gpmSample{id: 1}, last)
-	assert.Equal(t, &gpmSample{id: 2}, secondLast)
+	assert.Same(t, samples[0], last)
+	assert.Same(t, samples[1], secondLast)
 }
 
 func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
@@ -169,13 +155,14 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	}
 	t.Cleanup(func() { allGpmMetrics = oldAllGpmMetrics })
 
-	mockLib := &mockGpmNvml{
-		metricsGetFunc: func(metrics *nvml.GpmMetricsGetType) nvml.Return {
+	getIndex := 0
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmMetricsGetCallback(func(metrics *nvml.GpmMetricsGetType) nvml.Return {
 			// Check that we got metrics passed in the correct order.
 			// Sample 1 needs to be the older sample, and sample 2 the newer one.
-			sample1 := metrics.Sample1.(*gpmSample)
-			sample2 := metrics.Sample2.(*gpmSample)
-			assert.Greater(t, sample2.getIndex, sample1.getIndex)
+			sample1 := metrics.Sample1.(*testutil.MockGpmSample)
+			sample2 := metrics.Sample2.(*testutil.MockGpmSample)
+			assert.Greater(t, sample2.GetIndex, sample1.GetIndex)
 
 			for i := range metrics.Metrics[:metrics.NumMetrics] {
 				if metrics.Metrics[i].MetricId == 2 {
@@ -186,21 +173,15 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 				}
 			}
 			return nvml.SUCCESS
-		},
-	}
-
-	getIndex := 0
-	mockDevice := &mockGpmDevice{
-		gpmSupport: nvml.GpmSupport{IsSupportedDevice: 1},
-		GpmSampleGetFunc: func(sample nvml.GpmSample) error {
-			sample.(*gpmSample).getIndex = getIndex
+		}),
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmSampleGetCallback(func(sample *testutil.MockGpmSample) nvml.Return {
+			sample.GetIndex = getIndex
 			getIndex++
-			return nil
-		},
-		uuid: "test-uuid-5",
-	}
-
-	safenvml.WithMockNVML(t, mockLib)
+			return nvml.SUCCESS
+		}),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
 	collector, err := newGPMCollector(mockDevice, nil)
 	require.NoError(t, err)
@@ -226,69 +207,5 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 
 	assert.True(t, foundMetrics["metric1"])
 	assert.True(t, foundMetrics["metric3"])
-}
-
-// mockGpmNvml mocks the SafeNVML interface with specific methods to test the GPMCollector
-type mockGpmNvml struct {
-	nvml.Interface
-
-	freedSamples       int
-	allocCount         int
-	enableAllocFailure bool
-	failOnAlloc        int
-	metricsGetFunc     func(metrics *nvml.GpmMetricsGetType) nvml.Return
-}
-
-func (m *mockGpmNvml) GpmSampleAlloc() (nvml.GpmSample, nvml.Return) {
-	if m.enableAllocFailure && m.allocCount == m.failOnAlloc {
-		return nil, nvml.ERROR_UNKNOWN
-	}
-	m.allocCount++
-	return &gpmSample{id: m.allocCount}, nvml.SUCCESS
-}
-
-func (m *mockGpmNvml) GpmSampleFree(_ nvml.GpmSample) nvml.Return {
-	m.freedSamples++
-	return nvml.SUCCESS
-}
-
-func (m *mockGpmNvml) GpmMetricsGet(metrics *nvml.GpmMetricsGetType) nvml.Return {
-	if m.metricsGetFunc != nil {
-		return m.metricsGetFunc(metrics)
-	}
-	return nvml.SUCCESS
-}
-
-type gpmSample struct {
-	nvml.GpmSample
-	id       int
-	getIndex int
-}
-
-type mockGpmDevice struct {
-	safenvml.SafeDevice
-
-	gpmSupport       nvml.GpmSupport
-	GpmSampleGetFunc func(sample nvml.GpmSample) error
-	uuid             string
-}
-
-// GetDeviceInfo implements safenvml.Device interface
-func (m *mockGpmDevice) GetDeviceInfo() *safenvml.DeviceInfo {
-	return &safenvml.DeviceInfo{UUID: m.uuid}
-}
-
-func (m *mockGpmDevice) GpmQueryDeviceSupport() (nvml.GpmSupport, error) {
-	return m.gpmSupport, nil
-}
-
-func (m *mockGpmDevice) GpmSampleGet(sample nvml.GpmSample) error {
-	if m.gpmSupport.IsSupportedDevice == 0 {
-		return safenvml.NewNvmlAPIErrorOrNil("GpmSampleGet", nvml.ERROR_NOT_SUPPORTED)
-	}
-
-	if m.GpmSampleGetFunc != nil {
-		return m.GpmSampleGetFunc(sample)
-	}
-	return nil
+	assert.Equal(t, 2, mockLib.GpmSampleAllocCount())
 }

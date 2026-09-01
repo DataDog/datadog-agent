@@ -20,6 +20,9 @@ func NewSystemdServiceManager() *SystemdServiceManager {
 // InstallerPath returns "" on non-Linux platforms.
 func (s *SystemdServiceManager) InstallerPath() string { return "" }
 
+// TmpfsCompatible always returns false on non-Linux platforms.
+func (s *SystemdServiceManager) TmpfsCompatible() bool { return false }
+
 // Setup is a no-op on non-Linux platforms.
 func (s *SystemdServiceManager) Setup(_ context.Context) error { return nil }
 

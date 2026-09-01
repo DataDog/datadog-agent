@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
@@ -36,17 +38,126 @@ type ProcessNodeParent interface {
 	AppendImageTagID(imageTagID uint64, timestamp time.Time)
 }
 
+// ProcessInfo is a slim, profile-local subset of model.Process.
+type ProcessInfo struct {
+	Pid    uint32
+	Tid    uint32
+	PPid   uint32
+	Cookie uint64
+
+	IsThread   bool
+	IsExecExec bool
+
+	FileEvent model.FileEvent
+
+	CGroup model.CGroupContext
+
+	TTYName string
+	Comm    string
+
+	ForkTime time.Time
+	ExitTime time.Time
+	ExecTime time.Time
+
+	model.Credentials
+
+	Argv0         string
+	Argv          []string
+	ArgsTruncated bool
+
+	Envs          []string
+	EnvsTruncated bool
+}
+
+// newProcessInfo builds the slim ProcessInfo from a model.Process. Args and envs are
+// scrubbed/resolved eagerly here so the raw ArgsEntry/EnvsEntry can be dropped from the
+// node. The cache entries are deep-copied onto the local copy first: pc := *p is only a
+// shallow copy, so pc.ArgsEntry/EnvsEntry alias the live event's entries, and scrubbing
+// (which rewrites ArgsEntry.Values in place) would otherwise redact the arguments still
+// referenced by the event — e.g. a rule evaluating raw process.args after the V2 profile
+// insert (which happens before rule evaluation) would see the scrubbed values.
+func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessInfo {
+	pc := *p
+	if pc.ArgsEntry != nil {
+		pc.ArgsEntry = &model.ArgsEntry{
+			Values:           slices.Clone(pc.ArgsEntry.Values),
+			Truncated:        pc.ArgsEntry.Truncated,
+			ScrubbedResolved: pc.ArgsEntry.ScrubbedResolved,
+		}
+	}
+	if pc.EnvsEntry != nil {
+		pc.EnvsEntry = &model.EnvsEntry{
+			Values:    slices.Clone(pc.EnvsEntry.Values),
+			Truncated: pc.EnvsEntry.Truncated,
+		}
+	}
+	if resolver != nil {
+		resolver.GetProcessArgvScrubbed(&pc)
+		resolver.GetProcessEnvs(&pc)
+	} else {
+		sprocess.GetProcessArgv(&pc)
+	}
+	sprocess.GetProcessArgv0(&pc)
+
+	return ProcessInfo{
+		Pid:           pc.Pid,
+		Tid:           pc.Tid,
+		PPid:          pc.PPid,
+		Cookie:        pc.Cookie,
+		IsThread:      pc.IsThread,
+		IsExecExec:    pc.IsExecExec,
+		FileEvent:     pc.FileEvent,
+		CGroup:        pc.CGroup,
+		TTYName:       pc.TTYName,
+		Comm:          pc.Comm,
+		ForkTime:      pc.ForkTime,
+		ExitTime:      pc.ExitTime,
+		ExecTime:      pc.ExecTime,
+		Credentials:   pc.Credentials,
+		Argv0:         pc.Argv0,
+		Argv:          pc.Argv,
+		ArgsTruncated: pc.ArgsTruncated,
+		Envs:          pc.Envs,
+		EnvsTruncated: pc.EnvsTruncated,
+	}
+}
+
+// ToModelProcess rebuilds a model.Process from the slim ProcessInfo.
+func (pi *ProcessInfo) ToModelProcess(containerID containerutils.ContainerID) model.Process {
+	return model.Process{
+		PIDContext:       model.PIDContext{Pid: pi.Pid, Tid: pi.Tid},
+		PPid:             pi.PPid,
+		Cookie:           pi.Cookie,
+		IsThread:         pi.IsThread,
+		IsExecExec:       pi.IsExecExec,
+		FileEvent:        pi.FileEvent,
+		CGroup:           pi.CGroup,
+		ContainerContext: model.ContainerContext{ContainerID: containerID},
+		TTYName:          pi.TTYName,
+		Comm:             pi.Comm,
+		ForkTime:         pi.ForkTime,
+		ExitTime:         pi.ExitTime,
+		ExecTime:         pi.ExecTime,
+		Credentials:      pi.Credentials,
+		Argv0:            pi.Argv0,
+		Argv:             pi.Argv,
+		ArgsTruncated:    pi.ArgsTruncated,
+		Envs:             pi.Envs,
+		EnvsTruncated:    pi.EnvsTruncated,
+	}
+}
+
 // ProcessNode holds the activity of a process
 type ProcessNode struct {
 	NodeBase
-	Process        model.Process
+	Process        ProcessInfo
 	Parent         ProcessNodeParent
 	GenerationType NodeGenerationType
 	MatchedRules   []*model.MatchedRule
 
 	Files          map[string]*FileNode
 	DNSNames       map[string]*DNSNode
-	IMDSEvents     map[model.IMDSEvent]*IMDSNode
+	IMDSEvents     map[IMDSInfo]*IMDSNode
 	NetworkDevices map[model.NetworkDeviceContext]*NetworkDeviceNode
 
 	Sockets      []*SocketNode
@@ -82,14 +193,16 @@ func (pn *ProcessNode) size() int64 {
 // NewProcessNode returns a new ProcessNode instance
 func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) *ProcessNode {
 	// call the callback to resolve additional fields before copying them
+	var processResolver *sprocess.EBPFResolver
 	if resolvers != nil {
 		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent, 0)
 		if entry.ProcessContext.HasInterpreter() {
 			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent, 0)
 		}
+		processResolver = resolvers.ProcessResolver
 	}
 	node := &ProcessNode{
-		Process:        entry.Process,
+		Process:        newProcessInfo(&entry.Process, processResolver),
 		GenerationType: generationType,
 	}
 	node.NodeBase = NewNodeBase()
@@ -128,7 +241,7 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 	builder.WriteString("<TR><TD>Command</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">")
 	var cmd string
 	if sprocess.IsBusybox(pn.Process.FileEvent.PathnameStr) {
-		arg0, _ := sprocess.GetProcessArgv0(&pn.Process)
+		arg0 := pn.Process.Argv0
 		cmd = fmt.Sprintf("%s %s", arg0, args)
 	} else {
 		cmd = fmt.Sprintf("%s %s", pn.Process.FileEvent.PathnameStr, args)
@@ -192,50 +305,44 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 	}
 }
 
-// scrubAndReleaseArgsEnvs scrubs the process args and envs, and then releases them
-func (pn *ProcessNode) scrubAndReleaseArgsEnvs(resolver *sprocess.EBPFResolver) {
-	if pn.Process.ArgsEntry != nil {
-		resolver.GetProcessArgvScrubbed(&pn.Process)
-		sprocess.GetProcessArgv0(&pn.Process)
-		pn.Process.ArgsEntry = nil
-
-	}
-	if pn.Process.EnvsEntry != nil {
-		resolver.GetProcessEnvs(&pn.Process)
-		pn.Process.EnvsEntry = nil
-	}
-}
-
 // Matches return true if the process fields used to generate the dump are identical with the provided model.Process
 func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize bool) bool {
+	var entryArg0 string
+	if sprocess.IsBusybox(entry.FileEvent.PathnameStr) {
+		entryArg0, _ = sprocess.GetProcessArgv0(entry)
+	}
+	var entryArgs []string
+	if matchArgs {
+		entryArgs, _ = sprocess.GetProcessArgv(entry)
+	}
+	return pn.Process.matches(entry.FileEvent.PathnameStr, entryArg0, entryArgs, matchArgs, normalize)
+}
+
+// MatchesProcessInfo returns true if the process fields used to generate the dump are identical with the provided ProcessInfo.
+func (pn *ProcessNode) MatchesProcessInfo(entry *ProcessInfo, matchArgs bool, normalize bool) bool {
+	return pn.Process.Matches(entry, matchArgs, normalize)
+}
+
+// Matches returns true if the process fields used to generate the dump are identical with the provided ProcessInfo.
+func (pi *ProcessInfo) Matches(other *ProcessInfo, matchArgs bool, normalize bool) bool {
+	return pi.matches(other.FileEvent.PathnameStr, other.Argv0, other.Argv, matchArgs, normalize)
+}
+
+func (pi *ProcessInfo) matches(pathnameStr, argv0 string, argv []string, matchArgs, normalize bool) bool {
 	if normalize {
-		match := pathutils.PathPatternMatch(pn.Process.FileEvent.PathnameStr, entry.FileEvent.PathnameStr, pathutils.PathPatternMatchOpts{WildcardLimit: 3, PrefixNodeRequired: 1, SuffixNodeRequired: 1, NodeSizeLimit: 8})
+		match := pathutils.PathPatternMatch(pi.FileEvent.PathnameStr, pathnameStr, pathutils.PathPatternMatchOpts{WildcardLimit: 3, PrefixNodeRequired: 1, SuffixNodeRequired: 1, NodeSizeLimit: 8})
 		if !match {
 			return false
 		}
-	} else if pn.Process.FileEvent.PathnameStr != entry.FileEvent.PathnameStr {
+	} else if pi.FileEvent.PathnameStr != pathnameStr {
 		return false
 	}
 
-	if sprocess.IsBusybox(entry.FileEvent.PathnameStr) {
-		panArg0, _ := sprocess.GetProcessArgv0(&pn.Process)
-		entryArg0, _ := sprocess.GetProcessArgv0(entry)
-		if panArg0 != entryArg0 {
-			return false
-		}
+	if sprocess.IsBusybox(pathnameStr) && pi.Argv0 != argv0 {
+		return false
 	}
 	if matchArgs {
-		panArgs, _ := sprocess.GetProcessArgv(&pn.Process)
-		entryArgs, _ := sprocess.GetProcessArgv(entry)
-		if len(panArgs) != len(entryArgs) {
-			return false
-		}
-		for i, arg := range panArgs {
-			if arg != entryArgs[i] {
-				return false
-			}
-		}
-		return true
+		return slices.Equal(pi.Argv, argv)
 	}
 	return true
 }
@@ -350,7 +457,7 @@ func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType
 	for name, dnsNode := range pn.DNSNames {
 		if dnsFilterSubdomains(name, DNSMatchMaxDepth) == toSearch {
 			for _, req := range dnsNode.Requests {
-				if req.Question.Type == DNSType {
+				if req.Type == DNSType {
 					return true
 				}
 			}
@@ -376,13 +483,13 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
-			if req.Question.Type == evt.DNS.Question.Type {
+			if req.Type == evt.DNS.Question.Type {
 				return false
 			}
 		}
 
 		sizeBefore := dnsNode.size()
-		dnsNode.Requests = append(dnsNode.Requests, evt.DNS)
+		dnsNode.Requests = append(dnsNode.Requests, evt.DNS.Question)
 		stats.SizeBytes += dnsNode.size() - sizeBefore
 		return true
 	}
@@ -399,7 +506,8 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 
 // InsertIMDSEvent inserts an IMDS event in a process node
 func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool) bool {
-	imdsNode, ok := pn.IMDSEvents[evt.IMDS]
+	key := newIMDSInfo(&evt.IMDS)
+	imdsNode, ok := pn.IMDSEvents[key]
 	if ok {
 		imdsNode.MatchedRules = model.AppendMatchedRule(imdsNode.MatchedRules, evt.Rules)
 		imdsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
@@ -410,9 +518,9 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTagID uint64, gene
 		// create new node
 		imdsNode := NewIMDSNode(&evt.IMDS, evt, evt.Rules, generationType, imageTagID)
 		if pn.IMDSEvents == nil {
-			pn.IMDSEvents = make(map[model.IMDSEvent]*IMDSNode)
+			pn.IMDSEvents = make(map[IMDSInfo]*IMDSNode)
 		}
-		pn.IMDSEvents[evt.IMDS] = imdsNode
+		pn.IMDSEvents[key] = imdsNode
 		stats.IMDSNodes++
 		stats.SizeBytes += imdsNode.size()
 	}

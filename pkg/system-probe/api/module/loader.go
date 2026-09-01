@@ -115,17 +115,22 @@ func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*F
 		return fmt.Errorf("error in post-register hook: %w", err)
 	}
 
+	l.Lock()
 	l.cfg = cfg
 	if len(l.modules) == 0 {
+		l.Unlock()
 		return errors.New("no module could be loaded")
 	}
+	l.Unlock()
 
 	l.configureTelemetry(deps.Telemetry)
 
+	l.Lock()
 	l.stats = make(map[string]any)
 	l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
 		go updateModuleStats(name, mod)
 	})
+	l.Unlock()
 	go updateGlobalStats()
 
 	return nil

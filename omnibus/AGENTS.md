@@ -57,11 +57,9 @@ Each `.rb` file fetches and builds one component. Key recipes and their Bazel eq
 | Software recipe | Bazel equivalent |
 |---|---|
 | `datadog-agent.rb` | `//packages/agent/product:all_files` |
-| `datadog-agent-dependencies.rb` | `//packages/agent/dependencies:all_files` |
 | `datadog-agent-finalize.rb` | `//packages/agent/linux:all_files` (cleanup/symlink logic) |
 | `datadog-agent-installer-symlinks.rb` | `//packages/agent/linux:datadog_agent_installer_symlinks` |
 | `python3.rb` | `//packages/install_dir/embedded:all_files` (via `@cpython`) |
-| `systemd.rb` | `@systemd//:all_files` |
 | `installer.rb` | *(pending)* |
 | `datadog-dogstatsd.rb` | *(pending — part of `//packages/dogstatsd`)* |
 | `datadog-iot-agent.rb` | *(pending — part of `//packages/iot`)* |

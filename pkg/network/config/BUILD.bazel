@@ -46,7 +46,8 @@ dd_agent_go_test(
         "usm_config_test.go",
     ],
     embed = [":config"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
+    tags = ["requires_ebpf"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/config/mock",

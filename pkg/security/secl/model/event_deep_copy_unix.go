@@ -40,6 +40,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Exec = deepCopyExecEvent(e.Exec)
 	copied.Exit = deepCopyExitEvent(e.Exit)
 	copied.FailedDNS = deepCopyFailedDNSEvent(e.FailedDNS)
+	copied.GoLabels = deepCopyGoLabelsContext(e.GoLabels)
 	copied.IMDS = deepCopyIMDSEvent(e.IMDS)
 	copied.InvalidateDentry = deepCopyInvalidateDentryEvent(e.InvalidateDentry)
 	copied.Link = deepCopyLinkEvent(e.Link)
@@ -792,6 +793,12 @@ func deepCopybyteArr(fieldToCopy []byte) []byte {
 	for i := range fieldToCopy {
 		copied[i] = fieldToCopy[i]
 	}
+	return copied
+}
+func deepCopyGoLabelsContext(fieldToCopy GoLabelsContext) GoLabelsContext {
+	copied := GoLabelsContext{}
+	copied.ID = fieldToCopy.ID
+	copied.Resolved = fieldToCopy.Resolved
 	return copied
 }
 func deepCopyIMDSEvent(fieldToCopy IMDSEvent) IMDSEvent {

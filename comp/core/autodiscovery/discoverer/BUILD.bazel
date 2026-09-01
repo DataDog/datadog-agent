@@ -11,7 +11,6 @@ go_library(
         "worker.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer",
-    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
@@ -32,7 +31,6 @@ dd_agent_go_test(
         "worker_test.go",
     ],
     embed = [":discoverer"],
-    tags = ["manual"],  # keep
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/telemetry",

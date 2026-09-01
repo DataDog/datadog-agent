@@ -23,8 +23,6 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/mock/gomock"
 
-	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -43,6 +41,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
@@ -172,24 +171,10 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	device2UUID := "gpu-uuid-2"
 
 	// create mock library returning just the 2 test devices
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
-	device1 := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions(), func(d *nvmlmock.Device) {
-		d.GetUUIDFunc = func() (string, nvml.Return) { return device1UUID, nvml.SUCCESS }
-	})
-	device2 := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions(), func(d *nvmlmock.Device) {
-		d.GetUUIDFunc = func() (string, nvml.Return) { return device2UUID, nvml.SUCCESS }
-	})
-	ddnvml.WithMockNVML(t, nvmlMock)
-	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-		switch index {
-		case 0:
-			return device1, nvml.SUCCESS
-		case 1:
-			return device2, nvml.SUCCESS
-		default:
-			return nil, nvml.ERROR_INVALID_ARGUMENT
-		}
-	}
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithPhysicalDeviceUUIDs([]string{device1UUID, device2UUID}),
+		testutil.WithMockAllFunctions(),
+	)
 
 	// Create mock collectors
 	for i, deviceUUID := range []string{device1UUID, device2UUID} {
@@ -285,11 +270,9 @@ func TestRunDoesNotError(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	ddnvml.WithMockNVML(t,
-		testutil.GetBasicNvmlMockWithOptions(
-			testutil.WithMockAllFunctions(),
-			testutil.WithProcessData(nil, nvml.SUCCESS),
-		),
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithProcessData(nil, nvml.SUCCESS),
 	)
 	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 
@@ -349,17 +332,15 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	// mock up device count so that we can check when check collectors are created/destroyed
 	curDeviceCount := atomic.Int32{}
 	curDeviceCount.Store(int32(len(testutil.GPUUUIDs)) - 2)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithMockAllFunctions(),
 		testutil.WithProcessData(nil, nvml.SUCCESS),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
-		testutil.WithMIGDisabled(),
 		testutil.WithArchitecture("blackwell"),
 		testutil.WithDeviceCountFunc(func() int {
 			return int(curDeviceCount.Load())
 		}),
 	)
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	// assert function to be used below, checking that the created collectors map to the current devices
 	assertCollectors := func(collectors []nvidia.Collector) {
@@ -373,7 +354,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 		actualUUIDs := map[string]int{}
 		for _, c := range collectors {
-			actualUUIDs[c.DeviceUUID()]++
+			actualUUIDs[c.Device().GetDeviceInfo().UUID]++
 		}
 
 		assert.Equal(t, expectedUUIDs, actualUUIDs)
@@ -409,45 +390,51 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// PLR is not supported by this mock, so it is filtered out during collector creation.
-	numSupportedCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr, which is not supported by MIG
+	parentCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr
+	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
+	migCollectorTypes := parentCollectorTypes - 3
 
-	// Track the number of MIG children dynamically
-	migChildrenUUIDs := make(map[int]map[int]string)
+	// Track the number of visible MIG children dynamically.
+	migDeviceCount := 0
 	migChildren := make(map[int]string)
-	migChildrenUUIDs[0] = migChildren
 
 	// Setup NVML mock with single parent device
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithMockAllFunctions(),
 		testutil.WithProcessData(nil, nvml.SUCCESS),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithArchitecture("blackwell"),
-		testutil.WithMIGChildUUIDs(migChildrenUUIDs),
+		testutil.WithDeviceOptions(0,
+			testutil.WithMIGEnabled(),
+			testutil.WithMIGChildUUIDs(map[int]string{
+				0: testutil.MIGUUIDs[0], 1: testutil.MIGUUIDs[1],
+			}),
+		),
+		testutil.WithMIGDeviceCountCallback(func(int) int { return migDeviceCount }),
 		testutil.WithDeviceCount(1),
 	)
-	ddnvml.WithMockNVML(t, nvmlMock)
 	parentUUID := testutil.GPUUUIDs[0] // First device is used as the parent
 
 	// Assert function to check collectors match current device state
 	assertCollectors := func(collectors []nvidia.Collector) {
 		migCount := len(migChildren)
-		expectedCollectorCount := numSupportedCollectorTypes + (migCount * numSupportedCollectorTypes)
+		expectedCollectorCount := parentCollectorTypes + (migCount * migCollectorTypes)
 		assert.Len(t, collectors, expectedCollectorCount,
 			"Expected %d collectors (1 parent*%d + %d mig*%d), got %d",
-			expectedCollectorCount, numSupportedCollectorTypes, migCount, numSupportedCollectorTypes, len(collectors))
+			expectedCollectorCount, parentCollectorTypes, migCount, migCollectorTypes, len(collectors))
 
 		// Count collectors by UUID
 		actualUUIDs := map[string]int{}
 		for _, c := range collectors {
-			actualUUIDs[c.DeviceUUID()]++
+			actualUUIDs[c.Device().GetDeviceInfo().UUID]++
 		}
 
 		// Build expected UUIDs
 		expectedUUIDs := map[string]int{
-			parentUUID: numSupportedCollectorTypes,
+			parentUUID: parentCollectorTypes,
 		}
 		for _, migUUID := range migChildren {
-			expectedUUIDs[migUUID] = numSupportedCollectorTypes
+			expectedUUIDs[migUUID] = migCollectorTypes
 		}
 
 		assert.Equal(t, expectedUUIDs, actualUUIDs)
@@ -471,21 +458,25 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	assertCollectors(check.collectors)
 
 	// Enable MIG with 1 child
+	migDeviceCount = 1
 	migChildren[0] = testutil.MIGUUIDs[0]
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 
-	// Increase MIG children count to 2 (max for device index 5)
+	// Increase MIG children count to 2 (max for the configured parent)
+	migDeviceCount = 2
 	migChildren[1] = testutil.MIGUUIDs[1]
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 
 	// Decrease MIG children count back to 1
+	migDeviceCount = 1
 	delete(migChildren, 1)
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 
 	// Disable MIG completely
+	migDeviceCount = 0
 	delete(migChildren, 0)
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
@@ -504,12 +495,10 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 	)
 	check.parallelCollectors = true
 
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(1),
-		testutil.WithMIGDisabled(),
 	)
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	const collectorCount = 3
 	deviceUUID := testutil.GPUUUIDs[0]
@@ -577,12 +566,10 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 	t.Cleanup(func() { check.Cancel() })
 
 	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", true)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(1),
-		testutil.WithMIGDisabled(),
 	)
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	started := make(chan struct{})
 	secondStarted := make(chan struct{})
@@ -670,8 +657,10 @@ func (m *mockCollector) Name() nvidia.CollectorName {
 	return m.name
 }
 
-func (m *mockCollector) DeviceUUID() string {
-	return m.deviceUUID
+func (m *mockCollector) Device() ddnvml.Device {
+	return &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{UUID: m.deviceUUID},
+	}
 }
 
 func mockMatchesTags(expectedTags []string) interface{} {
@@ -758,8 +747,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	check := newConfiguredGPUCheck(t, fakeTagger, testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1), testutil.WithMIGDisabled())
-	ddnvml.WithMockNVML(t, nvmlMock)
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1))
 
 	// Create mock collector
 	deviceUUID := testutil.GPUUUIDs[0]
@@ -812,8 +800,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2), testutil.WithMIGDisabled())
-	ddnvml.WithMockNVML(t, nvmlMock)
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
 
 	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil)
 	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
@@ -951,15 +938,13 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 	var procInfo testutil.MockProcessInfoList
 
 	// Mock NVML: single device, no running processes (idle GPU).
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
-		testutil.WithMIGDisabled(),
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithDeviceCount(1),
 		testutil.WithMockAllFunctions(),
 		testutil.WithProcessDataCallback(func(_ string) (testutil.MockProcessInfoList, nvml.Return) {
 			return procInfo, nvml.SUCCESS
 		}),
 	)
-	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache := ddnvml.NewDeviceCache()
 	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
@@ -1104,12 +1089,10 @@ func TestExcludedDevicesConfiguration(t *testing.T) {
 	})
 
 	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(2),
-		testutil.WithMIGDisabled(),
 	)
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	var createdCollectorUUIDs []string
 	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.CollectorBuilder{
@@ -1124,7 +1107,7 @@ func TestExcludedDevicesConfiguration(t *testing.T) {
 
 	assert.Equal(t, []string{includedDeviceUUID}, createdCollectorUUIDs)
 	require.Len(t, check.collectors, 1)
-	assert.Equal(t, includedDeviceUUID, check.collectors[0].DeviceUUID())
+	assert.Equal(t, includedDeviceUUID, check.collectors[0].Device().GetDeviceInfo().UUID)
 }
 
 func TestMetricsFollowSpec(t *testing.T) {
@@ -1200,7 +1183,7 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
+	nvmltestutil.SetupMockNVML(t, opts...)
 
 	wmeta := testutil.GetWorkloadMetaMock(t)
 	SetupWorkloadmetaGPUs(t, wmeta, fakeTagger, config.DeviceMode, false)

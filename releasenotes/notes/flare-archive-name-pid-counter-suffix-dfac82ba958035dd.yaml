@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Flare archive filenames now include a process ID and counter suffix
+    (``datadog-agent-<timestamp>-<pid>-<counter>-<loglevel>.zip``), preventing
+    two archives created by the same Agent process at the same second from
+    overwriting each other.

@@ -437,6 +437,9 @@ type RuntimeSecurityConfig struct {
 	EnforcementEnabled bool
 	// EnforcementRawSyscallEnabled defines if the enforcement should be performed using the sys_enter tracepoint
 	EnforcementRawSyscallEnabled bool
+	// EnforcementCgroupKillEnabled defines if a kill action scoped to a container or a cgroup may
+	// kill the whole cgroup at once, instead of signalling each of its processes
+	EnforcementCgroupKillEnabled bool
 	EnforcementBinaryExcluded    []string
 	EnforcementRuleSourceAllowed []string
 	// EnforcementDisarmerContainerEnabled defines if an enforcement rule should be disarmed when hitting too many different containers
@@ -705,6 +708,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EnforcementEnabled:                      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.enabled"),
 		EnforcementBinaryExcluded:               pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.enforcement.exclude_binaries"),
 		EnforcementRawSyscallEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.raw_syscall.enabled"),
+		EnforcementCgroupKillEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.cgroup_kill.enabled"),
 		EnforcementRuleSourceAllowed:            pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.enforcement.rule_source_allowed"),
 		EnforcementDisarmerContainerEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.disarmer.container.enabled"),
 		EnforcementDisarmerContainerMaxAllowed:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.enforcement.disarmer.container.max_allowed"),

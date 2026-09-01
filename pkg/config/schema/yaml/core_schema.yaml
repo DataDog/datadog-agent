@@ -597,7 +597,6 @@ properties:
       is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
       whichever is lower.
     tags:
-    - golang_type:float64
     - template_section:Common
     comment: Do not store transactions on disk when the disk usage exceeds 80% of
       the disk capacity. Use 80% as some applications do not behave well when the
@@ -641,7 +640,7 @@ properties:
     - template_section:Common
   forwarder_backoff_base:
     node_type: setting
-    type: integer
+    type: number
     default: 2
     visibility: public
     description: |-
@@ -650,9 +649,10 @@ properties:
       higher rate of exponential growth.
     tags:
     - template_section:Common
+    - golang_type:float64
   forwarder_backoff_max:
     node_type: setting
-    type: integer
+    type: number
     default: 64
     visibility: public
     description: |-
@@ -661,6 +661,7 @@ properties:
       higher maximum backoff time.
     tags:
     - template_section:Common
+    - golang_type:float64
   cloud_provider_metadata:
     node_type: setting
     type: array
@@ -1723,6 +1724,14 @@ properties:
             description: Enables Network Path Dynamic Test for monitoring network
               connections via Network Path.
             example: 'true'
+          basic_tests_enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: Enables basic Network Path Dynamic Tests for a representative subset of
+              eligible Cloud Network Monitoring paths. Requires Cloud Network Monitoring and
+              system-probe traceroute. Standard connection-monitoring Dynamic Tests take precedence
+              when both options are enabled.
       collector:
         node_type: section
         type: object
@@ -1945,8 +1954,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -1985,20 +1992,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -2099,8 +2100,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -2139,20 +2138,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -2604,8 +2597,6 @@ properties:
               The monitor computes a window range as the maximum retained point value minus the minimum
               retained point value in each completed evaluation window, or in each configured tag partition.
               Egress forwards retained ranges after that window range is greater than this epsilon.
-            tags:
-            - golang_type:float64
           partition_tags:
             node_type: setting
             type: array
@@ -2763,7 +2754,6 @@ properties:
       to containers with a total memory limit greater than ~250mb. If
       jmx_use_container_support is disabled this option has no effect.
     tags:
-    - golang_type:float64
     - template_section:CoreAgent
     - full-agent-only:true
   jmx_log_file:
@@ -4738,8 +4728,6 @@ properties:
                   Percentage of traces to ingest (0 100]. Invalid values (<= 0 || > 100) are disconsidered and the default is used.
                   If incoming spans have a sampling.priority set by the user, it will be followed and the sampling percentage will
                   be overridden.
-                tags:
-                - golang_type:float64
           infra_attributes:
             node_type: section
             type: object
@@ -4983,8 +4971,6 @@ properties:
             node_type: setting
             type: number
             default: 0.014
-            tags:
-            - golang_type:float64
           dry_run:
             node_type: section
             type: object
@@ -4997,20 +4983,14 @@ properties:
             node_type: setting
             type: number
             default: 0.4
-            tags:
-            - golang_type:float64
           low_threshold:
             node_type: setting
             type: number
             default: 0.15
-            tags:
-            - golang_type:float64
           margin_pct:
             node_type: setting
             type: number
             default: 0.2
-            tags:
-            - golang_type:float64
           output:
             node_type: section
             type: object
@@ -5046,8 +5026,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           window:
             node_type: setting
             type: string
@@ -5105,23 +5083,15 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
+              warmup_points:
+                node_type: setting
+                type: integer
+                default: 60
+              max_run_length:
+                node_type: setting
+                type: integer
+                default: 120
           connection_error_extractor:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
-          cross_signal:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
-          cusum:
             node_type: section
             type: object
             properties:
@@ -5137,6 +5107,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              warmup_points:
+                node_type: setting
+                type: integer
+                default: 24
+              residual_window:
+                node_type: setting
+                type: integer
+                default: 60
           log_metrics_extractor:
             node_type: section
             type: object
@@ -5154,14 +5132,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-          passthrough:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
           rrcf:
             node_type: section
             type: object
@@ -5178,6 +5148,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              min_points:
+                node_type: setting
+                type: integer
+                default: 30
+              max_points:
+                node_type: setting
+                type: integer
+                default: 120
           scanwelch:
             node_type: section
             type: object
@@ -5186,6 +5164,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              min_points:
+                node_type: setting
+                type: integer
+                default: 30
+              max_points:
+                node_type: setting
+                type: integer
+                default: 120
           time_cluster:
             node_type: section
             type: object
@@ -5206,6 +5192,14 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+              min_points:
+                node_type: setting
+                type: integer
+                default: 80
+              window_size:
+                node_type: setting
+                type: integer
+                default: 80
       logs:
         node_type: section
         type: object
@@ -5222,21 +5216,15 @@ properties:
                 node_type: setting
                 type: number
                 default: -1
-                tags:
-                - golang_type:float64
                 comment: unlimited
               max_rate_low_priority:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
               max_rate_medium_priority:
                 node_type: setting
                 type: number
                 default: 100
-                tags:
-                - golang_type:float64
               min_severity:
                 node_type: setting
                 type: string
@@ -5267,21 +5255,15 @@ properties:
                 node_type: setting
                 type: number
                 default: -1
-                tags:
-                - golang_type:float64
                 comment: unlimited
               max_rate_low_priority:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
               max_rate_medium_priority:
                 node_type: setting
                 type: number
                 default: 100
-                tags:
-                - golang_type:float64
               min_severity:
                 node_type: setting
                 type: string
@@ -5298,21 +5280,15 @@ properties:
                 node_type: setting
                 type: number
                 default: -1
-                tags:
-                - golang_type:float64
                 comment: unlimited
               max_rate_low_priority:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
               max_rate_medium_priority:
                 node_type: setting
                 type: number
                 default: 100
-                tags:
-                - golang_type:float64
               min_severity:
                 node_type: setting
                 type: string
@@ -5422,7 +5398,7 @@ properties:
                 default: true
                 comment: |-
                   Stdout reporting verbosity.
-                  stdout.enabled: set to false to silence all [observer] stdout log lines.
+                  stdout.enabled: set to false to silence all [anomalydetection] reporter stdout log lines.
                   stdout.verbose: set to true to print individual anomaly series after the title line.
                   Default: title-only (stdout.enabled=true, stdout.verbose=false).
               verbose:
@@ -5437,8 +5413,20 @@ properties:
             node_type: setting
             type: number
             default: 0.5
+          inactive_series_check_interval:
+            node_type: setting
+            type: string
+            default: 5m0s
+            format: duration
             tags:
-            - golang_type:float64
+            - golang_type:duration
+          inactive_series_ttl:
+            node_type: setting
+            type: string
+            default: 5m0s
+            format: duration
+            tags:
+            - golang_type:duration
           max_series:
             node_type: setting
             type: integer
@@ -5447,8 +5435,9 @@ properties:
           point_retention:
             node_type: setting
             type: string
-            default: 2m0s
+            default: 0s
             format: duration
+            comment: 0s derives retention from the maximum point window of enabled detectors.
             tags:
             - golang_type:duration
     tags:
@@ -5470,6 +5459,25 @@ properties:
             type: boolean
             default: false
             comment: Appsec Proxy Config Injection (Experimental)
+          gke:
+            node_type: section
+            type: object
+            properties:
+              gateway_classes:
+                node_type: setting
+                type: array
+                default:
+                - gke-l7-global-external-managed
+                - gke-l7-regional-external-managed
+                items:
+                  type: string
+                comment: |-
+                  The default is the set of external-managed single-cluster GatewayClasses Datadog
+                  has tested, not the full set GKE supports: gke-l7-rilb also supports
+                  GCPTrafficExtension callouts, whereas classic gke-l7-gxlb does not.
+                  Multi-cluster classes (names ending in -mc) are always skipped, even when added
+                  here, because they require a net.gke.io ServiceImport backendRef which this
+                  reconciler does not emit. Override via this key to widen the tested set.
           processor:
             node_type: section
             type: object
@@ -5667,8 +5675,6 @@ properties:
     node_type: setting
     type: number
     default: 0.95
-    tags:
-    - golang_type:float64
   check_runner_utilization_warning_cooldown:
     node_type: setting
     type: string
@@ -5912,8 +5918,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -5952,20 +5956,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6118,8 +6116,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -6158,20 +6154,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6291,6 +6281,19 @@ properties:
           UDS or named pipe under run_path, and only runs when data_plane.enabled has not been set at all.
 
           See comp/dataplane/preflightmode for more details.
+      preflight_mode_duration:
+        node_type: setting
+        type: string
+        default: 90s
+        format: duration
+        comment: |-
+          How long the preflight process is left running. Clamped to a minimum of 90s, which is the window the
+          pre-flight was sized for: anything shorter stops ADP while startup is still in progress and turns a
+          healthy host into a finding.
+
+          The knob exists for benchmarking harnesses that need ADP resident for the whole of a fixed-length run
+          -- see test/regression/cases/quality_gate_* -- rather than for tuning on real hosts, where the only
+          knob that matters is data_plane.preflight_mode.
       remote_agent_enabled:
         node_type: setting
         type: boolean
@@ -6370,8 +6373,6 @@ properties:
             node_type: setting
             type: number
             default: 0.1
-            tags:
-            - golang_type:float64
             comment: 100ms for low-latency forwarding
           compression_kind:
             node_type: setting
@@ -6411,20 +6412,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6475,8 +6470,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -6515,20 +6508,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6649,8 +6636,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -6689,20 +6674,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6749,8 +6728,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -6789,20 +6766,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -6916,6 +6887,34 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      max_concurrent_requests:
+        node_type: setting
+        type: integer
+        default: 8
+        comment: |-
+          Maximum number of requests the dogstatsd http server handles at once,
+          across every endpoint. Requests arriving with no slot free are
+          rejected immediately with 503 and are expected to be retried by the
+          client. Set to 0 to disable the limit.
+      max_payload_size:
+        node_type: setting
+        type: integer
+        default: 262144
+        comment: |-
+          Maximum size, in bytes, of a request body the dogstatsd http server
+          will buffer. Defaults to 256KiB. Set to 0 to disable the limit.
+        tags:
+        - golang_type:int64
+      read_timeout:
+        node_type: setting
+        type: string
+        default: 1s
+        format: duration
+        comment: |-
+          Maximum time the dogstatsd http server will spend reading a request,
+          headers and body together. Set to 0 to disable the limit.
+        tags:
+        - golang_type:duration
       listen_address:
         node_type: setting
         type: string
@@ -6962,14 +6961,10 @@ properties:
         node_type: setting
         type: number
         default: 0.8
-        tags:
-        - golang_type:float64
       low_soft_limit:
         node_type: setting
         type: number
         default: 0.7
-        tags:
-        - golang_type:float64
       memory_ballast:
         node_type: setting
         type: integer
@@ -6992,8 +6987,6 @@ properties:
             node_type: setting
             type: number
             default: 0.01
-            tags:
-            - golang_type:float64
       soft_limit_freeos_check:
         node_type: section
         type: object
@@ -7002,20 +6995,14 @@ properties:
             node_type: setting
             type: number
             default: 1.5
-            tags:
-            - golang_type:float64
           max:
             node_type: setting
             type: number
             default: 0.1
-            tags:
-            - golang_type:float64
           min:
             node_type: setting
             type: number
             default: 0.01
-            tags:
-            - golang_type:float64
   dogstatsd_origin_optout_enabled:
     node_type: setting
     type: boolean
@@ -7236,8 +7223,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -7276,20 +7261,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -7475,8 +7454,10 @@ properties:
     comment: in minutes
   forwarder_backoff_factor:
     node_type: setting
-    type: integer
+    type: number
     default: 2
+    tags:
+      - golang_type:float64
   forwarder_connection_reset_interval:
     node_type: setting
     type: integer
@@ -7486,8 +7467,6 @@ properties:
     node_type: setting
     type: number
     default: 0.5
-    tags:
-    - golang_type:float64
   forwarder_recovery_interval:
     node_type: setting
     type: integer
@@ -7546,8 +7525,6 @@ properties:
         node_type: setting
         type: number
         default: 5
-        tags:
-        - golang_type:float64
       compression_kind:
         node_type: setting
         type: string
@@ -7586,20 +7563,14 @@ properties:
         node_type: setting
         type: number
         default: 1
-        tags:
-        - golang_type:float64
       sender_backoff_factor:
         node_type: setting
         type: number
         default: 2
-        tags:
-        - golang_type:float64
       sender_backoff_max:
         node_type: setting
         type: number
         default: 120
-        tags:
-        - golang_type:float64
       sender_recovery_interval:
         node_type: setting
         type: integer
@@ -8164,8 +8135,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -8204,20 +8173,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -8766,8 +8729,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -8806,20 +8767,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -8997,9 +8952,7 @@ properties:
           shadow_sample_rate:
             node_type: setting
             type: number
-            default: 0
-            tags:
-            - golang_type:float64
+            default: 0.001
           shadow_sites:
             node_type: setting
             type: array
@@ -9097,8 +9050,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -9137,20 +9088,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer
@@ -9221,8 +9166,6 @@ properties:
             node_type: setting
             type: number
             default: 5
-            tags:
-            - golang_type:float64
           compression_kind:
             node_type: setting
             type: string
@@ -9261,20 +9204,14 @@ properties:
             node_type: setting
             type: number
             default: 1
-            tags:
-            - golang_type:float64
           sender_backoff_factor:
             node_type: setting
             type: number
             default: 2
-            tags:
-            - golang_type:float64
           sender_backoff_max:
             node_type: setting
             type: number
             default: 120
-            tags:
-            - golang_type:float64
           sender_recovery_interval:
             node_type: setting
             type: integer

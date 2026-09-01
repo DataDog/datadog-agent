@@ -120,7 +120,7 @@ dd_agent_go_binary(
     embed = [":loader_lib"],
     # LOADER_TAGS is actually empty. We're including it to keep a consistent style.
     exact_gotags = list(LOADER_TAGS) + select({
-        "@platforms//os:linux": ["linux_bpf"],
+        "@platforms//os:linux": ["bpf"],
         "//conditions:default": [],
     }),
     target_compatible_with = select({

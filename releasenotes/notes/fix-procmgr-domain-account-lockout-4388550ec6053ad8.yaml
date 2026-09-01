@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    On Windows, fixed an issue where upgrading the Agent without providing
+    ``DDAGENTUSER_PASSWORD`` could lock out a domain Agent user account. The installer now
+    leaves ``dd-procmgr-service``, and the components it supervises, disabled until the
+    Agent user password is provided again.

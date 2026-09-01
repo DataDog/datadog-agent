@@ -56,39 +56,34 @@ tests_linux-x64-py3:
     - .linux_x64
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
+    - !reference [.upload_coverage_datadog]
+  variables:
+    CONDA_ENV: ddpy3
+
+.linux_flavor_tests:
+  extends:
+    - .linux_tests
+    - .linux_x64
+  after_script:
+    - !reference [.upload_junit_source]
     - !reference [.upload_coverage_datadog]
   variables:
     CONDA_ENV: ddpy3
 
 tests_flavor_iot_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
+  extends: .linux_flavor_tests
   variables:
-    CONDA_ENV: ddpy3
     FLAVORS: '--flavor iot'
 
 tests_flavor_dogstatsd_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
+  extends: .linux_flavor_tests
   variables:
-    CONDA_ENV: ddpy3
     FLAVORS: '--flavor dogstatsd'
 
 tests_flavor_heroku_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
+  extends: .linux_flavor_tests
   variables:
-    CONDA_ENV: ddpy3
     FLAVORS: '--flavor heroku'
 
 tests_linux-arm64-py3:
@@ -100,7 +95,7 @@ tests_linux-arm64-py3:
     - !reference [.retrieve_linux_go_tools_deps_arm64]
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
     - !reference [.upload_coverage_datadog]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
@@ -214,11 +209,9 @@ tests_gpu:
     - !reference [.retrieve_linux_go_tools_deps]
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
     - !reference [.upload_coverage_datadog]
   variables:
     FLAVORS: ''
     EXTRA_OPTS: '--targets=./pkg/gpu/integrationtests,./pkg/collector/corechecks/gpu/integrationtests'
     KUBERNETES_CPU_REQUEST: 4
-    KUBERNETES_MEMORY_REQUEST: 8Gi
-    KUBERNETES_MEMORY_LIMIT: 8Gi

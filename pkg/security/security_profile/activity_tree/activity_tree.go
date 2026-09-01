@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
@@ -363,19 +364,6 @@ func (at *ActivityTree) IsEmpty() bool {
 func (at *ActivityTree) Debug(w io.Writer) {
 	for _, root := range at.ProcessNodes {
 		root.debug(w, "")
-	}
-}
-
-// ScrubProcessArgsEnvs scrubs and retains process args and envs
-func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.EBPFResolver) {
-	// iterate through all the process nodes
-	openList := make([]*ProcessNode, len(at.ProcessNodes))
-	copy(openList, at.ProcessNodes)
-
-	for len(openList) != 0 {
-		current := openList[len(openList)-1]
-		current.scrubAndReleaseArgsEnvs(resolver)
-		openList = append(openList[:len(openList)-1], current.Children...)
 	}
 }
 
@@ -990,10 +978,11 @@ func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 	return res
 }
 
-// Snapshot uses procfs to snapshot the nodes of the tree
-func (at *ActivityTree) Snapshot(newEvent func() *model.Event) {
+// Snapshot uses procfs to snapshot the nodes of the tree. The container ID is a
+// workload-level property shared by every node, threaded in from the owning profile.
+func (at *ActivityTree) Snapshot(newEvent func() *model.Event, containerID containerutils.ContainerID) {
 	for _, pn := range at.ProcessNodes {
-		pn.snapshot(at.validator, at.Stats, newEvent, at.pathsReducer)
+		pn.snapshot(at.validator, at.Stats, newEvent, at.pathsReducer, containerID)
 	}
 }
 

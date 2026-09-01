@@ -24,6 +24,7 @@ dd_agent_go_test(
     srcs = [
         "all_packages_test.go",
         "package_agent_test.go",
+        "package_apm_inject_multilib_test.go",
         "package_apm_inject_reboot_test.go",
         "package_apm_inject_test.go",
         "package_ddot_test.go",
@@ -37,7 +38,6 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/utils/e2e/client",
-        "//test/new-e2e/tests/ddot",
         "//test/new-e2e/tests/installer/host",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

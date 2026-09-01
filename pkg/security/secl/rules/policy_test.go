@@ -19,6 +19,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -341,177 +342,183 @@ func TestActionSetVariable(t *testing.T) {
 }
 
 func TestActionSetVariableTTL(t *testing.T) {
-	testPolicy := &PolicyDef{
-		Rules: []*RuleDefinition{{
-			ID:         "test_rule",
-			Expression: `open.file.path == "/tmp/test"`,
-			Actions: []*ActionDefinition{
-				{
-					Set: &SetDefinition{
-						Name:   "var1",
-						Append: true,
-						Value:  "foo",
-						TTL: &HumanReadableDuration{
-							Duration: 1 * time.Second,
+	synctest.Test(t, func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:   "var1",
+							Append: true,
+							Value:  "foo",
+							TTL: &HumanReadableDuration{
+								Duration: 1 * time.Second,
+							},
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:   "var2",
+							Append: true,
+							Value:  123,
+							TTL: &HumanReadableDuration{
+								Duration: 1 * time.Second,
+							},
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:   "scopedvar1",
+							Append: true,
+							Value:  []string{"bar"},
+							Scope:  "process",
+							TTL: &HumanReadableDuration{
+								Duration: 1 * time.Second,
+							},
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:   "scopedvar2",
+							Append: true,
+							Value:  []int{123},
+							Scope:  "process",
+							TTL: &HumanReadableDuration{
+								Duration: 1 * time.Second,
+							},
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:  "simplevarwithttl",
+							Value: 456,
+							Scope: "container",
+							TTL: &HumanReadableDuration{
+								Duration: 1 * time.Second,
+							},
 						},
 					},
 				},
-				{
-					Set: &SetDefinition{
-						Name:   "var2",
-						Append: true,
-						Value:  123,
-						TTL: &HumanReadableDuration{
-							Duration: 1 * time.Second,
-						},
-					},
-				},
-				{
-					Set: &SetDefinition{
-						Name:   "scopedvar1",
-						Append: true,
-						Value:  []string{"bar"},
-						Scope:  "process",
-						TTL: &HumanReadableDuration{
-							Duration: 1 * time.Second,
-						},
-					},
-				},
-				{
-					Set: &SetDefinition{
-						Name:   "scopedvar2",
-						Append: true,
-						Value:  []int{123},
-						Scope:  "process",
-						TTL: &HumanReadableDuration{
-							Duration: 1 * time.Second,
-						},
-					},
-				},
-				{
-					Set: &SetDefinition{
-						Name:  "simplevarwithttl",
-						Value: 456,
-						Scope: "container",
-						TTL: &HumanReadableDuration{
-							Duration: 1 * time.Second,
-						},
-					},
+			}},
+		}
+
+		tmpDir := t.TempDir()
+
+		if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+			t.Fatal(err)
+		}
+
+		provider, err := NewPoliciesDirProvider(tmpDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		loader := NewPolicyLoader(provider)
+		defer func() {
+			loader.Close()
+			synctest.Wait()
+		}()
+
+		rs := newRuleSet()
+		if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+			t.Error(err)
+		}
+
+		event := model.NewFakeEvent()
+		event.Type = uint32(model.FileOpenEventType)
+		processCacheEntry := &model.ProcessCacheEntry{}
+		event.ProcessContext = &model.ProcessContext{
+			Process: model.Process{
+				ContainerContext: model.ContainerContext{
+					Releasable:  &model.Releasable{},
+					ContainerID: "0123456789abcdef",
 				},
 			},
-		}},
-	}
+		}
+		event.ProcessCacheEntry = processCacheEntry
+		event.SetFieldValue("open.file.path", "/tmp/test")
 
-	tmpDir := t.TempDir()
+		if !rs.Evaluate(event) {
+			t.Errorf("Expected event to match rule")
+		}
 
-	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
-		t.Fatal(err)
-	}
+		opts := rs.evalOpts
 
-	provider, err := NewPoliciesDirProvider(tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	loader := NewPolicyLoader(provider)
+		existingVariable := opts.VariableStore.Get("var1")
+		assert.NotNil(t, existingVariable)
+		stringArrayVar, ok := existingVariable.(eval.Variable)
+		assert.NotNil(t, stringArrayVar)
+		assert.True(t, ok)
+		strValue, _ := stringArrayVar.GetValue()
+		assert.NotNil(t, strValue)
+		assert.Contains(t, strValue, "foo")
+		assert.IsType(t, strValue, []string{})
 
-	rs := newRuleSet()
-	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
-		t.Error(err)
-	}
+		existingVariable = opts.VariableStore.Get("var2")
+		assert.NotNil(t, existingVariable)
+		intArrayVar, ok := existingVariable.(eval.Variable)
+		assert.NotNil(t, intArrayVar)
+		assert.True(t, ok)
+		value, _ := intArrayVar.GetValue()
+		assert.NotNil(t, value)
+		assert.Contains(t, value, 123)
+		assert.IsType(t, value, []int{})
 
-	event := model.NewFakeEvent()
-	event.Type = uint32(model.FileOpenEventType)
-	processCacheEntry := &model.ProcessCacheEntry{}
-	event.ProcessContext = &model.ProcessContext{
-		Process: model.Process{
-			ContainerContext: model.ContainerContext{
-				Releasable:  &model.Releasable{},
-				ContainerID: "0123456789abcdef",
-			},
-		},
-	}
-	event.ProcessCacheEntry = processCacheEntry
-	event.SetFieldValue("open.file.path", "/tmp/test")
+		ctx := eval.NewContext(event)
+		existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
+		assert.NotNil(t, existingScopedVariable)
+		stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+		assert.NotNil(t, stringArrayScopedVar)
+		assert.True(t, ok)
+		value, _ = stringArrayScopedVar.GetValue(ctx, false)
+		assert.NotNil(t, value)
+		assert.Contains(t, value, "bar")
+		assert.IsType(t, value, []string{})
 
-	if !rs.Evaluate(event) {
-		t.Errorf("Expected event to match rule")
-	}
+		existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
+		assert.NotNil(t, existingScopedVariable)
+		intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+		assert.NotNil(t, intArrayScopedVar)
+		assert.True(t, ok)
+		value, _ = intArrayScopedVar.GetValue(ctx, false)
+		assert.NotNil(t, value)
+		assert.Contains(t, value, 123)
+		assert.IsType(t, value, []int{})
 
-	opts := rs.evalOpts
+		existingContainerScopedVariable := opts.VariableStore.Get("container.simplevarwithttl")
+		assert.NotNil(t, existingContainerScopedVariable)
+		intVarScopedVar, ok := existingContainerScopedVariable.(eval.ScopedVariable)
+		assert.NotNil(t, intVarScopedVar)
+		assert.True(t, ok)
+		value, isSet := intVarScopedVar.GetValue(ctx, false)
+		assert.True(t, isSet)
+		assert.NotNil(t, value)
+		assert.Equal(t, 456, value)
+		assert.IsType(t, int(0), value)
 
-	existingVariable := opts.VariableStore.Get("var1")
-	assert.NotNil(t, existingVariable)
-	stringArrayVar, ok := existingVariable.(eval.Variable)
-	assert.NotNil(t, stringArrayVar)
-	assert.True(t, ok)
-	strValue, _ := stringArrayVar.GetValue()
-	assert.NotNil(t, strValue)
-	assert.Contains(t, strValue, "foo")
-	assert.IsType(t, strValue, []string{})
+		time.Sleep(time.Second + 100*time.Millisecond)
 
-	existingVariable = opts.VariableStore.Get("var2")
-	assert.NotNil(t, existingVariable)
-	intArrayVar, ok := existingVariable.(eval.Variable)
-	assert.NotNil(t, intArrayVar)
-	assert.True(t, ok)
-	value, _ := intArrayVar.GetValue()
-	assert.NotNil(t, value)
-	assert.Contains(t, value, 123)
-	assert.IsType(t, value, []int{})
+		value, _ = stringArrayVar.GetValue()
+		assert.NotContains(t, value, "foo")
+		assert.Len(t, value, 0)
 
-	ctx := eval.NewContext(event)
-	existingScopedVariable := opts.VariableStore.Get("process.scopedvar1")
-	assert.NotNil(t, existingScopedVariable)
-	stringArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	assert.NotNil(t, stringArrayScopedVar)
-	assert.True(t, ok)
-	value, _ = stringArrayScopedVar.GetValue(ctx, false)
-	assert.NotNil(t, value)
-	assert.Contains(t, value, "bar")
-	assert.IsType(t, value, []string{})
+		value, _ = intArrayVar.GetValue()
+		assert.NotContains(t, value, 123)
+		assert.Len(t, value, 0)
 
-	existingScopedVariable = opts.VariableStore.Get("process.scopedvar2")
-	assert.NotNil(t, existingScopedVariable)
-	intArrayScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
-	assert.NotNil(t, intArrayScopedVar)
-	assert.True(t, ok)
-	value, _ = intArrayScopedVar.GetValue(ctx, false)
-	assert.NotNil(t, value)
-	assert.Contains(t, value, 123)
-	assert.IsType(t, value, []int{})
+		value, _ = stringArrayScopedVar.GetValue(ctx, false)
+		assert.NotContains(t, value, "foo")
+		assert.Len(t, value, 0)
 
-	existingContainerScopedVariable := opts.VariableStore.Get("container.simplevarwithttl")
-	assert.NotNil(t, existingContainerScopedVariable)
-	intVarScopedVar, ok := existingContainerScopedVariable.(eval.ScopedVariable)
-	assert.NotNil(t, intVarScopedVar)
-	assert.True(t, ok)
-	value, isSet := intVarScopedVar.GetValue(ctx, false)
-	assert.True(t, isSet)
-	assert.NotNil(t, value)
-	assert.Equal(t, 456, value)
-	assert.IsType(t, int(0), value)
+		value, _ = intArrayScopedVar.GetValue(ctx, false)
+		assert.NotContains(t, value, 123)
+		assert.Len(t, value, 0)
 
-	time.Sleep(time.Second + 100*time.Millisecond)
-
-	value, _ = stringArrayVar.GetValue()
-	assert.NotContains(t, value, "foo")
-	assert.Len(t, value, 0)
-
-	value, _ = intArrayVar.GetValue()
-	assert.NotContains(t, value, 123)
-	assert.Len(t, value, 0)
-
-	value, _ = stringArrayScopedVar.GetValue(ctx, false)
-	assert.NotContains(t, value, "foo")
-	assert.Len(t, value, 0)
-
-	value, _ = intArrayScopedVar.GetValue(ctx, false)
-	assert.NotContains(t, value, 123)
-	assert.Len(t, value, 0)
-
-	value, isSet = intVarScopedVar.GetValue(ctx, false)
-	assert.False(t, isSet)
-	assert.Equal(t, 0, value)
+		value, isSet = intVarScopedVar.GetValue(ctx, false)
+		assert.False(t, isSet)
+		assert.Equal(t, 0, value)
+	})
 }
 
 func TestActionSetVariableSize(t *testing.T) {

@@ -6,15 +6,21 @@ FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS nosys-seccomp
 ARG CI
 ENV DEBIAN_FRONTEND=noninteractive
 RUN if [ "$CI" = "true" ]; then \
-    echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
-    echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
-    for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do \
-      if [ -f "$f" ]; then \
-        sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-               -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-               -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; \
-      fi; \
-    done; \
+    printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' > /etc/apt/apt.conf.d/99datadog-mirror-resilience && \
+    printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\nhttp://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' > /etc/apt/mirrorlist.main && \
+    printf 'http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\nhttp://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' > /etc/apt/mirrorlist.ports && \
+    if [ -f /etc/apt/sources.list ]; then \
+      sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
+    fi && \
+    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+      sed -i -E \
+        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-east-1.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+        -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-east-1.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports http://ports.ubuntu.com/ubuntu-ports http://mirror.leaseweb.net/ubuntu-ports#' \
+        /etc/apt/sources.list.d/ubuntu.sources; \
+    fi; \
     fi
 RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
@@ -34,27 +40,48 @@ LABEL org.opencontainers.image.source="https://github.com/DataDog/datadog-agent"
 LABEL org.opencontainers.image.vendor="Datadog, Inc."
 
 ARG CI
-# NOTE about APT mirrorlists:
-# It seems that this feature could use some improvement. If you just get mirrorlist
-# from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
-# cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
-# indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
-# should be reliable enough in combination and also well maintained.
+# APT mirror resilience in CI:
+# Ubuntu EC2 AMIs point apt at a single regional mirror (us-east-1) with no real
+# failover. When that mirror is slow-but-reachable, apt would stall until the CI
+# job timeout: the `mirror` method only falls back on a fully-unreachable mirror,
+# and Acquire::Retries retries the SAME URI. The base image version is
+# configurable (BASE_IMAGE_UBUNTU_VERSION), so we handle both source formats:
+#   - deb822 ubuntu.sources (>= 24.04): rewrite the URIs: fields to an ordered
+#     multi-URI list so apt fails over to the next mirror on error.
+#   - legacy one-line sources.list (< 24.04): the format can't list multiple URIs
+#     per entry, so use mirror+file with a peer mirrorlist (fallback on an
+#     unreachable mirror).
+# In both cases us-east-1 is kept first (our infra's region) with global mirrors
+# (archive/ports.ubuntu.com, mirror.leaseweb.net) as fallbacks, and a short Acquire
+# timeout + Retries 1 turns a slow mirror into a fast error. Related:
+# test/new-e2e/tests/installer/host/host.go (ConfigureAptMirrors).
 RUN if [ "$CI" = "true" ]; then \
-    echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
-    echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
-    for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do \
-      if [ -f "$f" ]; then \
-        sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-               -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-               -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; \
-      fi; \
-    done; \
+    printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' > /etc/apt/apt.conf.d/99datadog-mirror-resilience && \
+    printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\nhttp://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' > /etc/apt/mirrorlist.main && \
+    printf 'http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\nhttp://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' > /etc/apt/mirrorlist.ports && \
+    if [ -f /etc/apt/sources.list ]; then \
+      sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
+             -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
+    fi && \
+    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+      sed -i -E \
+        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-east-1.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+        -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-east-1.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
+        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports http://ports.ubuntu.com/ubuntu-ports http://mirror.leaseweb.net/ubuntu-ports#' \
+        /etc/apt/sources.list.d/ubuntu.sources; \
+    fi; \
     fi
 
 ENV PATH="/opt/datadog-agent/bin/:$PATH" \
     DOCKER_DD_AGENT="true"
 
+# Install key tools
+#  Some are needed for Agent install and operation, others are for TSE support.  Those have to be
+#  available in the image so we can mount it readonly.  We install them both categories at the
+#  same time for speed.
+# For agent install and operation: ca-certificates, tzdata, adduser
+# For TSE operations: curl
 RUN apt-get update \
     && apt full-upgrade -y \
     && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\

@@ -9,10 +9,19 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/ir",
-        "//pkg/dyninst/output",
-        "//pkg/util/log",
-        "@com_github_cilium_ebpf//ringbuf",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/ir",
+            "//pkg/dyninst/output",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//ringbuf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/ir",
+            "//pkg/dyninst/output",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//ringbuf",
+        ],
+        "//conditions:default": [],
+    }),
 )

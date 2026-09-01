@@ -18,32 +18,32 @@
           {
             "function": "main.stackC",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go",
-            "lineNumber": 25
+            "lineNumber": 30
           },
           {
             "function": "main.stackB",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go",
-            "lineNumber": 19
+            "lineNumber": 24
           },
           {
             "function": "main.stackA",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go",
-            "lineNumber": 13
+            "lineNumber": 18
           },
           {
             "function": "main.executeStack",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go",
-            "lineNumber": 30
+            "lineNumber": 38
           },
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 60
+            "lineNumber": 61
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 39
+            "lineNumber": 40
           },
           {
             "function": "runtime.main",

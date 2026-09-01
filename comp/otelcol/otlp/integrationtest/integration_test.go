@@ -1,8 +1,11 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Include zlib && zstd tags so the config-driven metrics compressor
+// resolves to real compresor. Without them the selector links its noop
+// variant and metrics ship uncompressed ("identity") instead of zstd.
 // TODO(OASIS-79): fix data race then remove !race
-//go:build otlp && test && !race
+//go:build otlp && zlib && zstd && test && !race
 
 package integrationtest
 

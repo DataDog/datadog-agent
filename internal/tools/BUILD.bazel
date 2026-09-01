@@ -1,9 +1,14 @@
 load("@bazel_lib//lib:transitions.bzl", "platform_transition_filegroup")
-load("@rules_multitool//multitool:cwd.bzl", "cwd")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("//bazel/rules/go_shim:defs.bzl", "go_shim")
 
-cwd(
+go_shim(
+    name = "golangci-lint",
+    tool = "@com_github_golangci_golangci_lint_v2//cmd/golangci-lint",
+)
+
+go_shim(
     name = "gotestsum",
     tool = "@tools_gotest_gotestsum//:gotestsum",
 )

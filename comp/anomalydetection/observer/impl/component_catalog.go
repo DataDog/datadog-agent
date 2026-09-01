@@ -32,7 +32,7 @@ type componentEntry struct {
 	name           string
 	displayName    string
 	kind           componentKind
-	defaultConfig  any           // typed config value (e.g. CUSUMConfig, RRCFConfig)
+	defaultConfig  any           // typed config value (e.g. BOCPDConfig, RRCFConfig)
 	factory        func(any) any // accepts the config, returns the component
 	defaultEnabled bool
 
@@ -190,21 +190,6 @@ func defaultCatalog() *componentCatalog {
 			},
 			// ---- Detectors ----
 			{
-				name:           "cusum",
-				displayName:    "CUSUM",
-				kind:           componentDetector,
-				defaultConfig:  DefaultCUSUMConfig(),
-				factory:        func(cfg any) any { return NewCUSUMDetector(cfg.(CUSUMConfig)) },
-				defaultEnabled: false,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(CUSUMConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, fmt.Errorf("cusum: failed to parse JSON config: %w", err)
-					}
-					return cfg, nil
-				},
-			},
-			{
 				name:           "bocpd",
 				displayName:    "BOCPD",
 				kind:           componentDetector,
@@ -215,6 +200,9 @@ func defaultCatalog() *componentCatalog {
 					cfg := DefaultBOCPDConfig()
 					if key := prefix + "warmup_points"; reader.IsConfigured(key) {
 						cfg.WarmupPoints = reader.GetInt(key)
+					}
+					if key := prefix + "max_run_length"; reader.IsConfigured(key) {
+						cfg.MaxRunLength = reader.GetInt(key)
 					}
 					return cfg
 				},
@@ -242,18 +230,66 @@ func defaultCatalog() *componentCatalog {
 				},
 			},
 			{
-				name:           "scanmw",
-				displayName:    "ScanMW",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewScanMWDetector() },
+				name:        "scanmw",
+				displayName: "ScanMW",
+				kind:        componentDetector,
+				factory: func(cfg any) any {
+					c := cfg.(*ScanMWDetector)
+					d := NewScanMWDetector()
+					d.MinPoints = c.MinPoints
+					d.MaxPoints = c.MaxPoints
+					return d
+				},
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := *defaults.(*ScanMWDetector)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("scanmw: failed to parse JSON config: %w", err)
+					}
+					return &cfg, nil
+				},
 				defaultEnabled: false,
+				defaultConfig:  NewScanMWDetector(),
+				readConfig: func(reader ConfigReader, prefix string) any {
+					d := NewScanMWDetector()
+					if k := prefix + "min_points"; reader.IsConfigured(k) {
+						d.MinPoints = reader.GetInt(k)
+					}
+					if k := prefix + "max_points"; reader.IsConfigured(k) {
+						d.MaxPoints = reader.GetInt(k)
+					}
+					return d
+				},
 			},
 			{
-				name:           "scanwelch",
-				displayName:    "ScanWelch",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewScanWelchDetector() },
+				name:        "scanwelch",
+				displayName: "ScanWelch",
+				kind:        componentDetector,
+				factory: func(cfg any) any {
+					c := cfg.(*ScanWelchDetector)
+					d := NewScanWelchDetector()
+					d.MinPoints = c.MinPoints
+					d.MaxPoints = c.MaxPoints
+					return d
+				},
 				defaultEnabled: false,
+				defaultConfig:  NewScanWelchDetector(),
+				readConfig: func(reader ConfigReader, prefix string) any {
+					d := NewScanWelchDetector()
+					if k := prefix + "min_points"; reader.IsConfigured(k) {
+						d.MinPoints = reader.GetInt(k)
+					}
+					if k := prefix + "max_points"; reader.IsConfigured(k) {
+						d.MaxPoints = reader.GetInt(k)
+					}
+					return d
+				},
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := *defaults.(*ScanWelchDetector)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("scanwelch: failed to parse JSON config: %w", err)
+					}
+					return &cfg, nil
+				},
 			},
 			{
 				name:           "holt_residual",
@@ -262,6 +298,16 @@ func defaultCatalog() *componentCatalog {
 				defaultConfig:  DefaultHoltResidualConfig(),
 				factory:        func(cfg any) any { return NewHoltResidualDetectorWithConfig(cfg.(HoltResidualConfig)) },
 				defaultEnabled: false,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultHoltResidualConfig()
+					if key := prefix + "warmup_points"; reader.IsConfigured(key) {
+						cfg.WarmupPoints = reader.GetInt(key)
+					}
+					if key := prefix + "residual_window"; reader.IsConfigured(key) {
+						cfg.ResidualWindow = reader.GetInt(key)
+					}
+					return cfg
+				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(HoltResidualConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
@@ -277,6 +323,16 @@ func defaultCatalog() *componentCatalog {
 				defaultConfig:  DefaultTukeyBiweightConfig(),
 				factory:        func(cfg any) any { return NewTukeyBiweightDetectorWithConfig(cfg.(TukeyBiweightConfig)) },
 				defaultEnabled: false,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultTukeyBiweightConfig()
+					if key := prefix + "min_points"; reader.IsConfigured(key) {
+						cfg.MinPoints = reader.GetInt(key)
+					}
+					if key := prefix + "window_size"; reader.IsConfigured(key) {
+						cfg.WindowSize = reader.GetInt(key)
+					}
+					return cfg
+				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(TukeyBiweightConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
@@ -286,21 +342,6 @@ func defaultCatalog() *componentCatalog {
 				},
 			},
 			// ---- Correlators ----
-			{
-				name:           "cross_signal",
-				displayName:    "CrossSignal",
-				kind:           componentCorrelator,
-				defaultConfig:  DefaultCorrelatorConfig(),
-				factory:        func(cfg any) any { return NewCorrelator(cfg.(CorrelatorConfig)) },
-				defaultEnabled: false,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(CorrelatorConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, fmt.Errorf("cross_signal: failed to parse JSON config: %w", err)
-					}
-					return cfg, nil
-				},
-			},
 			{
 				name:           "time_cluster",
 				displayName:    "TimeCluster",
@@ -316,13 +357,6 @@ func defaultCatalog() *componentCatalog {
 					}
 					return cfg, nil
 				},
-			},
-			{
-				name:           "passthrough",
-				displayName:    "Passthrough",
-				kind:           componentCorrelator,
-				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
-				defaultEnabled: false,
 			},
 			// ---- Anomaly Scorer (treated as a Correlator by the engine) ----
 			{
@@ -422,10 +456,15 @@ type CatalogEntry struct {
 	DefaultEnabled bool
 }
 
+// TestbenchPassthroughComponentName is the testbench-only adapter that converts
+// each raw anomaly into an evaluation period. It is deliberately absent from
+// the production component catalog.
+const TestbenchPassthroughComponentName = "passthrough"
+
 // ParseSettingsFromJSON builds ComponentSettings from a map of JSON-encoded
-// per-component overrides (e.g. from a --config params file). Each value may
-// contain an optional "enabled" bool plus component-specific hyperparameters.
-// Unknown component names are rejected.
+// per-component overrides (e.g. from a testbench --config params file). Each
+// value may contain an optional "enabled" bool plus component-specific
+// hyperparameters. Unknown component names are rejected.
 func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSettings, error) {
 	cat := defaultCatalog()
 	settings := ComponentSettings{
@@ -433,6 +472,19 @@ func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSetti
 		configs: make(map[string]any),
 	}
 	for name, raw := range overrides {
+		var wrapper struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := json.Unmarshal(raw, &wrapper); err != nil {
+			return ComponentSettings{}, fmt.Errorf("parsing enabled for %q: %w", name, err)
+		}
+		if name == TestbenchPassthroughComponentName {
+			if wrapper.Enabled != nil {
+				settings.Enabled[name] = *wrapper.Enabled
+			}
+			continue
+		}
+
 		var entry *componentEntry
 		for i := range cat.entries {
 			if cat.entries[i].name == name {
@@ -442,12 +494,6 @@ func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSetti
 		}
 		if entry == nil {
 			return ComponentSettings{}, fmt.Errorf("unknown component %q in params file", name)
-		}
-		var wrapper struct {
-			Enabled *bool `json:"enabled"`
-		}
-		if err := json.Unmarshal(raw, &wrapper); err != nil {
-			return ComponentSettings{}, fmt.Errorf("parsing enabled for %q: %w", name, err)
 		}
 		if wrapper.Enabled != nil {
 			settings.Enabled[name] = *wrapper.Enabled
@@ -467,15 +513,21 @@ func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSetti
 // Used by the CLI to implement --only without hardcoding component lists.
 func TestbenchCatalogEntries() []CatalogEntry {
 	cat := defaultCatalog()
-	result := make([]CatalogEntry, len(cat.entries))
-	for i, e := range cat.entries {
-		result[i] = CatalogEntry{
+	result := make([]CatalogEntry, 0, len(cat.entries)+1)
+	for _, e := range cat.entries {
+		result = append(result, CatalogEntry{
 			Name:           e.name,
 			DisplayName:    e.displayName,
 			Kind:           kindString(e.kind),
 			DefaultEnabled: e.defaultEnabled,
-		}
+		})
 	}
+	result = append(result, CatalogEntry{
+		Name:           TestbenchPassthroughComponentName,
+		DisplayName:    "Passthrough",
+		Kind:           kindString(componentCorrelator),
+		DefaultEnabled: false,
+	})
 	return result
 }
 

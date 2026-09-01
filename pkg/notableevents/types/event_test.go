@@ -56,6 +56,38 @@ func TestValidateEventRejectsSemanticCorruption(t *testing.T) {
 	}
 }
 
+func TestIsEventIDAcceptsEveryKnownPrefix(t *testing.T) {
+	hexTail := strings.Repeat("a", sha256HexLength)
+
+	for _, prefix := range []string{"macos-crash-v1:", "macos-shutdown-v1:"} {
+		assert.True(t, IsEventID(prefix+hexTail), "%s should be accepted", prefix)
+	}
+
+	for _, id := range []string{
+		"macos-thermal-v1:" + hexTail,
+		"macos-crash-v2:" + hexTail,
+		hexTail,
+		"",
+		"macos-crash-v1:",
+		"macos-shutdown-v1:" + strings.Repeat("a", sha256HexLength-1),
+		"macos-shutdown-v1:" + strings.Repeat("a", sha256HexLength+1),
+		"macos-shutdown-v1:" + strings.Repeat("A", sha256HexLength),
+		"macos-shutdown-v1:" + strings.Repeat("z", sha256HexLength),
+	} {
+		assert.False(t, IsEventID(id), "%q should be rejected", id)
+	}
+}
+
+func TestValidateEventAcceptsShutdownID(t *testing.T) {
+	event := validEvent()
+	event.ID = "macos-shutdown-v1:" + strings.Repeat("b", sha256HexLength)
+	event.EventType = "System shutdown fault"
+	event.Title = "macOS overheated shutdown"
+	event.Message = "The previous shutdown was caused by a thermal fault"
+
+	require.NoError(t, ValidateEvent(event))
+}
+
 func TestValidateCustomValueNumbers(t *testing.T) {
 	for _, value := range []interface{}{
 		json.Number("9007199254740993"),

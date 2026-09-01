@@ -6,11 +6,21 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/uprobe",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/loader",
-        "//pkg/dyninst/process",
-        "//pkg/util/kernel",
-        "//pkg/util/safeelf",
-        "@com_github_cilium_ebpf//link",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/loader",
+            "//pkg/dyninst/process",
+            "//pkg/util/kernel",
+            "//pkg/util/safeelf",
+            "@com_github_cilium_ebpf//link",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/loader",
+            "//pkg/dyninst/process",
+            "//pkg/util/kernel",
+            "//pkg/util/safeelf",
+            "@com_github_cilium_ebpf//link",
+        ],
+        "//conditions:default": [],
+    }),
 )

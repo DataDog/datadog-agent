@@ -17,8 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
+
+const keyStatsComputed = "_dd.stats_computed"
 
 // chunkKey is used to group TraceChunks
 type chunkKey struct {
@@ -55,6 +58,12 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	primaryTagKeys []string,
 	obfuscator *obfuscate.Obfuscator,
 ) []stats.Input {
+	resourceSpans := traces.ResourceSpans()
+	clientComputedResources := resourcesWithClientComputedStats(resourceSpans)
+	if resourceSpans.Len() > 0 && len(clientComputedResources) == resourceSpans.Len() {
+		return nil
+	}
+
 	spanByID, resByID, scopeByID := transform.IndexOTelSpans(traces)
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	topLevelSpans := transform.GetTopLevelOTelSpans(spanByID, resByID, topLevelByKind)
@@ -66,6 +75,9 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	containerTagsByID := make(map[string][]string)
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
+		if _, ok := clientComputedResources[otelres]; ok {
+			continue
+		}
 		var resourceName string
 		if transform.OperationAndResourceNameV2Enabled(conf) {
 			resourceName = transform.GetOTelResourceV2(otelspan, otelres)
@@ -141,6 +153,46 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		})
 	}
 	return inputs
+}
+
+// resourcesWithClientComputedStats returns the resources whose stats were computed by the client.
+func resourcesWithClientComputedStats(resourceSpans ptrace.ResourceSpansSlice) map[pcommon.Resource]struct{} {
+	var resources map[pcommon.Resource]struct{}
+	for i := 0; i < resourceSpans.Len(); i++ {
+		resourceSpan := resourceSpans.At(i)
+		if resourceSpansHasClientComputedStats(resourceSpan) {
+			if resources == nil {
+				resources = make(map[pcommon.Resource]struct{})
+			}
+			resources[resourceSpan.Resource()] = struct{}{}
+		}
+	}
+	return resources
+}
+
+// resourceSpansHasClientComputedStats reports whether a resource or any of its spans has client-computed stats.
+func resourceSpansHasClientComputedStats(resourceSpans ptrace.ResourceSpans) bool {
+	if hasClientComputedStats(resourceSpans.Resource().Attributes()) {
+		return true
+	}
+	for i := 0; i < resourceSpans.ScopeSpans().Len(); i++ {
+		spans := resourceSpans.ScopeSpans().At(i).Spans()
+		for j := 0; j < spans.Len(); j++ {
+			if hasClientComputedStats(spans.At(j).Attributes()) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasClientComputedStats reports whether attributes contain a truthy client-computed stats marker.
+func hasClientComputedStats(attrs pcommon.Map) bool {
+	if _, ok := attrs.Get(keyStatsComputed); !ok {
+		return false
+	}
+	value := transform.GetOTelAttrVal(attrs, true, keyStatsComputed)
+	return value != "" && value != "false"
 }
 
 func obfuscateSpanForConcentrator(o *obfuscate.Obfuscator, span *pb.Span, conf *config.AgentConfig) {

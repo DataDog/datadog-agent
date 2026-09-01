@@ -13,7 +13,9 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	"github.com/stretchr/testify/assert"
 )
 
 type scorerConfigReader struct {
@@ -158,6 +160,14 @@ func TestAnomalyLevel(t *testing.T) {
 	}
 }
 
+func TestAnomalySeverityLabel(t *testing.T) {
+	assert.Equal(t, "xlow", anomalySeverityLabel(0))
+	assert.Equal(t, "low", anomalySeverityLabel(1))
+	assert.Equal(t, "medium", anomalySeverityLabel(2))
+	assert.Equal(t, "high", anomalySeverityLabel(3))
+	assert.Equal(t, "xhigh", anomalySeverityLabel(4))
+}
+
 func TestContributorWeight_IsContinuousAndBounded(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
 
@@ -257,12 +267,12 @@ func TestTopAnomalyBuffer_ContributorsAggregateSharesAndLimitResults(t *testing.
 	buffer := newTopAnomalyBuffer(10)
 	average := observer.QueryHandle{Ref: 10, Aggregate: observer.AggregateAverage}
 	count := observer.QueryHandle{Ref: 20, Aggregate: observer.AggregateCount}
-	maximum := observer.QueryHandle{Ref: 30, Aggregate: observer.AggregateMax}
+	total := observer.QueryHandle{Ref: 30, Aggregate: observer.AggregateSum}
 	buffer.entries = []topAnomaly{
 		{handle: average, weight: 3},
 		{handle: average, weight: 2},
 		{handle: count, weight: 3},
-		{handle: maximum, weight: 2},
+		{handle: total, weight: 2},
 	}
 
 	contributors := buffer.contributors(2)
@@ -941,9 +951,9 @@ func TestSubscribeSeverityEventsCreatesIndependentDispatchers(t *testing.T) {
 // telemetry gauges so that the internal watcher is active.
 func newScorerWithTelemetry(cfg AnomalyScorerConfig) *anomalyScorer {
 	tel := noopsimpl.GetCompatComponent()
-	stateGauge := tel.NewGauge("test", "scorer_state", nil, "")
+	severityGauge := tel.NewGauge("test", "scorer_severity", nil, "")
 	ewmaGauge := tel.NewGauge("test", "scorer_ewma", nil, "")
-	return newAnomalyScorerWithTelemetry(cfg, stateGauge, ewmaGauge)
+	return newAnomalyScorerWithTelemetry(cfg, severityGauge, ewmaGauge)
 }
 
 // episodeTestCfg returns a scorer config tuned for fast episode tests:
@@ -1173,17 +1183,26 @@ func TestMaxEpisodeAnomalies(t *testing.T) {
 }
 
 // TestScorerWithTelemetry_GaugesAndLogs verifies that newAnomalyScorerWithTelemetry
-// wires the internal watcher self-subscription and does not panic on transitions.
-func TestScorerWithTelemetry_GaugesAndLogs(_ *testing.T) {
+// wires the internal watcher self-subscription, updates the current severity
+// gauge, and does not panic on transitions.
+func TestScorerWithTelemetry_GaugesAndLogs(t *testing.T) {
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+	tel := newObserverTelemetry(telComp)
+
 	cfg := episodeTestCfg()
 	cfg.Logs = true
 	cfg.CorrelationEvents = false
-	s := newScorerWithTelemetry(cfg)
+	s := newAnomalyScorerWithTelemetry(cfg, tel.scorerSeverity, tel.scorerEwma)
 
-	// Drive EWMA past High threshold — must not panic even with Logs=true.
+	// Drive EWMA past High threshold — must not panic even with Logs=true,
+	// and must expose the current level instead of a transition direction.
 	spikeSec := seedAndCrossHighThreshold(s, 1000)
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
 	// De-escalate — must not panic.
 	triggerDeescalation(s, spikeSec)
+	assert.Equal(t, 0.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
 }
 
 // TestActiveCorrelationsEngineAccumulationOrdering verifies the engine's

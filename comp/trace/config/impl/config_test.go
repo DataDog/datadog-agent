@@ -20,11 +20,13 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
 	"time"
 
+	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -284,7 +286,7 @@ func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetInTest("cmd_port", "-1")
+		coreConfig.SetInTest("cmd_port", -1)
 
 		fallbackHostnameFunc = func() (string, error) {
 			return "", errors.New("could not get hostname")
@@ -327,7 +329,7 @@ func TestConfigHostname(t *testing.T) {
 
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetInTest("cmd_port", "-1")
+		coreConfig.SetInTest("cmd_port", -1)
 		config := buildComponent(t, false, coreConfig)
 
 		cfg := config.Object()
@@ -382,6 +384,25 @@ func TestConfigHostname(t *testing.T) {
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(t *testing.T, response string, code int) string {
+			if loc := os.Getenv("HOSTNAME_HELPER"); loc != "" {
+				t.Setenv("DD_TEST_HOSTNAME_RESPONSE", response)
+				t.Setenv("DD_TEST_HOSTNAME_EXIT", strconv.Itoa(code))
+				src, err := runfiles.Rlocation(loc)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Copy out of runfiles: Windows file junctions cannot be exec'd, and
+				// callers os.Remove the returned path.
+				dst := filepath.Join(t.TempDir(), filepath.Base(src))
+				data, err := os.ReadFile(src)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(dst, data, 0700); err != nil {
+					t.Fatal(err)
+				}
+				return dst
+			}
 			f, err := os.CreateTemp("", "trace-test-hostname.*.go")
 			if err != nil {
 				t.Fatal(err)
@@ -518,6 +539,55 @@ func TestSite(t *testing.T) {
 
 			require.NotNil(t, cfg)
 			assert.Equal(t, tt.url, cfg.Endpoints[0].Host)
+		})
+	}
+}
+
+func TestProfilingURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://intake.profile.datadoghq.com./api/v2/profile",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://intake.profile.datadoghq.eu./api/v2/profile",
+		},
+		{
+			name: "FQDN conversion disabled",
+			settings: map[string]interface{}{
+				"site":                         "datadoghq.eu",
+				"convert_dd_site_fqdn.enabled": false,
+			},
+			expected: "https://intake.profile.datadoghq.eu/api/v2/profile",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://intake.profile.example.com/api/v2/profile",
+		},
+		{
+			name: "explicit profiling URL",
+			settings: map[string]interface{}{
+				"site":                        "datadoghq.eu",
+				"apm_config.profiling_dd_url": "https://profiles.example.com/custom/path",
+			},
+			expected: "https://profiles.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.ProfilingProxy.DDURL)
 		})
 	}
 }
