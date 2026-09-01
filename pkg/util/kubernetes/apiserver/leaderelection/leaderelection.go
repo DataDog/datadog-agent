@@ -58,6 +58,7 @@ type LeaderEngine struct {
 	running bool
 	m       sync.Mutex
 	once    sync.Once
+	runWG   sync.WaitGroup
 
 	subscribers         []chan struct{}
 	HolderIdentity      string
@@ -196,9 +197,20 @@ func (le *LeaderEngine) init() error {
 func (le *LeaderEngine) StartLeaderElectionRun() {
 	le.once.Do(
 		func() {
-			go le.runLeaderElection()
+			le.runWG.Add(1)
+			go func() {
+				defer le.runWG.Done()
+				le.runLeaderElection()
+			}()
 		},
 	)
+}
+
+// WaitForLeaderElection blocks until the leader election process has stopped.
+// It returns immediately and prevents a future start if leader election was never started.
+func (le *LeaderEngine) WaitForLeaderElection() {
+	le.once.Do(func() {})
+	le.runWG.Wait()
 }
 
 // EnsureLeaderElectionRuns start the Leader election process if not already running,

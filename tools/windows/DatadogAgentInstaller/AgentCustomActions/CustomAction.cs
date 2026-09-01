@@ -210,6 +210,18 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult EnsureSecureConfigRoot(Session session)
+        {
+            return Datadog.CustomActions.PrerequisitesCustomActions.EnsureSecureConfigRoot(session);
+        }
+
+        [CustomAction]
+        public static ActionResult EnsureSecureConfigRootUI(Session session)
+        {
+            return Datadog.CustomActions.PrerequisitesCustomActions.EnsureSecureConfigRootUI(session);
+        }
+
+        [CustomAction]
         public static ActionResult DoRollback(Session session)
         {
             return Datadog.CustomActions.Rollback.RestoreDaclRollbackCustomAction.DoRollback(session);
