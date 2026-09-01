@@ -515,6 +515,31 @@ func captureStatuses() (map[string]state.ApplyStatus, func(string, state.ApplySt
 	return got, cb
 }
 
+func registryPayloadWithMappings(t *testing.T, r semantics.Registry, version, contentHash string) []byte {
+	t.Helper()
+	concepts := make(map[string]semantics.ConceptMapping)
+	for concept, fallbacks := range r.GetAllEquivalences() {
+		concepts[string(concept)] = semantics.ConceptMapping{
+			Canonical: string(concept),
+			Fallbacks: fallbacks,
+		}
+	}
+	payload, err := json.Marshal(map[string]any{
+		"version":  version,
+		"metadata": map[string]string{"content_hash": contentHash},
+		"concepts": concepts,
+	})
+	require.NoError(t, err)
+	return payload
+}
+
+type registryWithSource struct {
+	semantics.Registry
+	source string
+}
+
+func (r *registryWithSource) Source() string { return r.source }
+
 func TestOnSemanticCoreUpdate_ValidConfig(t *testing.T) {
 	restoreEmbeddedRegistry(t)
 	h := newSemanticTestHandler(t)
@@ -526,6 +551,44 @@ func TestOnSemanticCoreUpdate_ValidConfig(t *testing.T) {
 
 	assert.Equal(t, "test-1.0", semantics.DefaultRegistry().Version())
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["datadog/2/APM_SEMANTIC_CORE_DD/cfgA/config"].State)
+}
+
+func TestOnSemanticCoreUpdate_ByteIdenticalPayloadKeepsLiveRegistryAndSource(t *testing.T) {
+	restoreEmbeddedRegistry(t)
+	h := newSemanticTestHandler(t)
+
+	payload := []byte(semanticTestJSON)
+	live, err := semantics.NewRegistryFromJSON(payload)
+	require.NoError(t, err)
+	semantics.UpdateRegistry(live)
+	require.Equal(t, semantics.SourceRemoteConfig, live.Source())
+
+	statuses, cb := captureStatuses()
+	const cfgPath = "datadog/2/APM_SEMANTIC_CORE_DD/cfg/config"
+	h.onSemanticCoreUpdate(map[string]state.RawConfig{
+		cfgPath: {Config: payload},
+	}, cb)
+
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses[cfgPath].State)
+	assert.Same(t, live, semantics.DefaultRegistry(), "a byte-identical refresh must not replace the live registry")
+	assert.Equal(t, semantics.SourceRemoteConfig, semantics.DefaultRegistry().Source(), "source is not part of registry identity")
+}
+
+func TestOnSemanticCoreUpdate_UntargetingIdenticalEmbeddedPayloadKeepsLiveRegistryAndSource(t *testing.T) {
+	restoreEmbeddedRegistry(t)
+	h := newSemanticTestHandler(t)
+
+	embedded, err := semantics.NewEmbeddedRegistry()
+	require.NoError(t, err)
+	live := &registryWithSource{Registry: embedded, source: semantics.SourceRemoteConfig}
+	semantics.UpdateRegistry(live)
+
+	called := 0
+	h.onSemanticCoreUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) { called++ })
+
+	assert.Same(t, live, semantics.DefaultRegistry(), "untargeting must not replace a registry built from the embedded payload bytes")
+	assert.Equal(t, semantics.SourceRemoteConfig, semantics.DefaultRegistry().Source(), "source is not part of registry identity")
+	assert.Equal(t, 0, called)
 }
 
 func TestOnSemanticCoreUpdate_MalformedJSON(t *testing.T) {
@@ -638,10 +701,10 @@ func TestOnSemanticCoreUpdate_SameHashChangedMappingsApplied(t *testing.T) {
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses["datadog/2/APM_SEMANTIC_CORE_DD/cfg/config"].State)
 }
 
-// TestOnSemanticCoreUpdate_DifferentMetadataSameMappingsNoOp verifies the
+// TestOnSemanticCoreUpdate_DifferentMetadataSameMappingsPublished verifies the
 // converse of TestOnSemanticCoreUpdate_SameHashChangedMappingsApplied: changed
-// producer metadata cannot force a swap when the parsed mappings are identical.
-func TestOnSemanticCoreUpdate_DifferentMetadataSameMappingsNoOp(t *testing.T) {
+// producer metadata is published even when the parsed mappings are identical.
+func TestOnSemanticCoreUpdate_DifferentMetadataSameMappingsPublished(t *testing.T) {
 	restoreEmbeddedRegistry(t)
 	h := newSemanticTestHandler(t)
 
@@ -657,8 +720,61 @@ func TestOnSemanticCoreUpdate_DifferentMetadataSameMappingsNoOp(t *testing.T) {
 		cfgPath: {Config: []byte(differentMetadataSameMappings)},
 	}, cb)
 
-	assert.Same(t, liveRegistry, semantics.DefaultRegistry(), "identical parsed mappings must not replace the live registry")
+	live := semantics.DefaultRegistry()
+	assert.Equal(t, "sentinel-2.0", live.Version())
+	assert.Equal(t, "hash-new", live.ContentHash())
+	assert.Equal(t, semantics.SourceRemoteConfig, live.Source())
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses[cfgPath].State)
+}
+
+// TestOnSemanticCoreUpdate_EmbeddedMappingsPublishedFromRemoteConfig protects
+// the embedded-to-remote-config provenance transition when mappings are equal.
+func TestOnSemanticCoreUpdate_EmbeddedMappingsPublishedFromRemoteConfig(t *testing.T) {
+	restoreEmbeddedRegistry(t)
+	h := newSemanticTestHandler(t)
+	embedded, err := semantics.NewEmbeddedRegistry()
+	require.NoError(t, err)
+	semantics.UpdateRegistry(embedded)
+
+	const cfgPath = "datadog/2/APM_SEMANTIC_CORE_DD/cfg/config"
+	statuses, cb := captureStatuses()
+	h.onSemanticCoreUpdate(map[string]state.RawConfig{
+		cfgPath: {Config: registryPayloadWithMappings(t, embedded, "remote-embedded", "remote-embedded-hash")},
+	}, cb)
+
+	live := semantics.DefaultRegistry()
+	assert.NotEqual(t, embedded.Fingerprint(), live.Fingerprint(), "the remote payload carries a different version and therefore different bytes")
+	assert.Equal(t, "remote-embedded", live.Version())
+	assert.Equal(t, "remote-embedded-hash", live.ContentHash())
+	assert.Equal(t, semantics.SourceRemoteConfig, live.Source())
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses[cfgPath].State)
+}
+
+// TestOnSemanticCoreUpdate_EmbeddedMappingsRevertSourceAfterUntargeting protects
+// the remote-config-to-embedded provenance transition when mappings are equal.
+func TestOnSemanticCoreUpdate_EmbeddedMappingsRevertSourceAfterUntargeting(t *testing.T) {
+	restoreEmbeddedRegistry(t)
+	h := newSemanticTestHandler(t)
+	embedded, err := semantics.NewEmbeddedRegistry()
+	require.NoError(t, err)
+	semantics.UpdateRegistry(embedded)
+
+	const cfgPath = "datadog/2/APM_SEMANTIC_CORE_DD/cfg/config"
+	_, cb := captureStatuses()
+	h.onSemanticCoreUpdate(map[string]state.RawConfig{
+		cfgPath: {Config: registryPayloadWithMappings(t, embedded, "remote-embedded", "remote-embedded-hash")},
+	}, cb)
+	require.Equal(t, semantics.SourceRemoteConfig, semantics.DefaultRegistry().Source())
+
+	called := 0
+	h.onSemanticCoreUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) { called++ })
+
+	live := semantics.DefaultRegistry()
+	assert.True(t, semantics.RegistryEqual(embedded, live))
+	assert.Equal(t, semantics.SourceEmbedded, live.Source())
+	assert.Equal(t, embedded.Version(), live.Version())
+	assert.Equal(t, embedded.ContentHash(), live.ContentHash())
+	assert.Equal(t, 0, called)
 }
 
 // TestOnSemanticCoreUpdate_EmptyUpdatesWhileEmbedded verifies that an empty

@@ -167,9 +167,11 @@ type Registry interface {
 	// It is not an integrity check or a key for invalidating derived state.
 	ContentHash() string
 
-	// Fingerprint returns a locally-computed identity for the registry's parsed
-	// concept mappings. Unlike ContentHash, it carries no cross-version or
-	// cross-process meaning and is the correct key for invalidating derived state.
+	// Fingerprint returns the locally computed identity of the payload this
+	// registry was built from. It is the correct key for deciding registry
+	// publication and invalidating registry-derived state. It is never published,
+	// persisted, or compared against a producer-supplied hash, and carries no
+	// cross-process or cross-version meaning.
 	Fingerprint() string
 
 	// Source reports where the registry came from (SourceEmbedded or SourceRemoteConfig).

@@ -8,15 +8,10 @@ package semantics
 import (
 	"crypto/sha256"
 	_ "embed" //nolint:revive
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash"
-	"io"
-	"sort"
-	"strconv"
 	"sync/atomic"
 )
 
@@ -110,65 +105,13 @@ func (r *EmbeddedRegistry) loadFromJSON(data []byte) error {
 	r.hash = rd.Metadata.ContentHash
 	r.mappings = make(map[Concept][]TagInfo, len(rd.Concepts))
 	for conceptName, mapping := range rd.Concepts {
-		// Canonical is deliberately dropped and excluded from the fingerprint
-		// because it does not currently affect registry behaviour.
+		// Canonical is deliberately dropped because it does not currently affect
+		// registry lookups. It remains covered by the raw-payload fingerprint.
 		r.mappings[Concept(conceptName)] = mapping.Fallbacks
 	}
-	r.fingerprint = fingerprint(r.mappings)
+	sum := sha256.Sum256(data)
+	r.fingerprint = hex.EncodeToString(sum[:])
 	return nil
-}
-
-func writeField(h hash.Hash, s string) {
-	var n [8]byte
-	binary.LittleEndian.PutUint64(n[:], uint64(len(s)))
-	_, _ = h.Write(n[:])
-	_, _ = io.WriteString(h, s)
-}
-
-// fingerprint returns a content-derived identity for the parsed mappings.
-// It is compared only against other fingerprints computed by this binary, so
-// the encoding needs to be deterministic within a process and nothing more:
-// it is deliberately not a stable wire format and must never be published,
-// persisted, or compared against a producer-supplied hash. It covers only the
-// agent's current behavioural input and must be extended if a currently-dropped
-// field starts affecting behaviour.
-func fingerprint(m map[Concept][]TagInfo) string {
-	concepts := make([]string, 0, len(m))
-	for concept := range m {
-		concepts = append(concepts, string(concept))
-	}
-	sort.Strings(concepts)
-
-	h := sha256.New()
-	writeField(h, strconv.Itoa(len(concepts)))
-	for _, concept := range concepts {
-		writeField(h, concept)
-		tags := m[Concept(concept)]
-		writeField(h, strconv.Itoa(len(tags)))
-		for _, tag := range tags {
-			writeField(h, tag.Name)
-			writeField(h, string(tag.Provider))
-			writeField(h, tag.Version)
-			writeField(h, string(tag.Type))
-			writeField(h, strconv.Itoa(len(tag.When)))
-			for _, condition := range tag.When {
-				writeField(h, condition.Attribute)
-				if condition.Present == nil {
-					writeField(h, "nil")
-				} else {
-					writeField(h, "set")
-					writeField(h, strconv.FormatBool(*condition.Present))
-				}
-				if condition.Eq == nil {
-					writeField(h, "nil")
-				} else {
-					writeField(h, "set")
-					writeField(h, *condition.Eq)
-				}
-			}
-		}
-	}
-	return hex.EncodeToString(h.Sum(nil))
 }
 
 // GetAttributePrecedence returns the ordered attribute keys for a concept.
@@ -197,7 +140,11 @@ func (r *EmbeddedRegistry) ContentHash() string {
 	return r.hash
 }
 
-// Fingerprint returns the locally-computed identity of the parsed concept mappings.
+// Fingerprint returns the locally computed identity of the payload this registry
+// was built from. It is the correct key for deciding registry publication and
+// invalidating registry-derived state. It is never published, persisted, or
+// compared against a producer-supplied hash, and carries no cross-process or
+// cross-version meaning.
 func (r *EmbeddedRegistry) Fingerprint() string {
 	return r.fingerprint
 }
@@ -207,7 +154,11 @@ func (r *EmbeddedRegistry) Source() string {
 	return r.source
 }
 
-// RegistryEqual reports whether two registries have the same parsed concept mappings.
+// RegistryEqual reports whether two registries were built from identical
+// payload bytes. It is the key for both publishing a registry and invalidating
+// registry-derived state. It is presentation-sensitive, so cosmetically
+// reformatted payloads compare unequal; this is accepted because
+// over-invalidating is cheap while under-invalidating is the bug.
 func RegistryEqual(a, b Registry) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil

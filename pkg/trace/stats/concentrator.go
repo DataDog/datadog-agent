@@ -95,9 +95,11 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 
 // getPeerTagKeys returns the cached peer-tag key set, rebuilding it via
 // AgentConfig.PeerTagsCache when the live semantic registry has been replaced
-// (its Fingerprint() differs from the cached snapshot's Fingerprint). Two
-// concurrent callers that observe staleness may both rebuild and Store; the
-// result is identical so last-Store-wins is benign.
+// by one built from different payload bytes (its Fingerprint() differs from the
+// cached snapshot's Fingerprint). Concurrent callers that observe staleness may
+// rebuild from different live registries if a swap happens between their loads.
+// An older snapshot winning the last Store is benign: the next call detects the
+// fingerprint mismatch and repairs the cache, making it eventually consistent.
 func (c *Concentrator) getPeerTagKeys() []string {
 	snap := c.peerTagsCache.Load()
 	if snap == nil || snap.Fingerprint != semantics.DefaultRegistry().Fingerprint() {
