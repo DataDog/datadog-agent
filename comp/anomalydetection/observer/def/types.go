@@ -33,20 +33,14 @@ type HandleFunc func(name string) Handle
 
 // MetricView provides read-only access to a metric sample.
 //
-// The MetricView and values returned by its methods are caller-owned and may be
-// reused immediately after ObserveMetric returns. ObserveMetric implementations
-// must therefore not retain the MetricView and must copy every value they need
-// before returning, with one exception: the CompositeTags returned by GetTags.
-// Its lifetime and immutability requirements are documented on GetTags.
+// The underlying metric data may be reused immediately after ObserveMetric
+// returns, so implementations must not retain the MetricView itself. Values
+// returned by methods other than GetTags must be copied synchronously.
 type MetricView interface {
 	GetName() string
 	GetValue() float64
 	// GetTags returns the final tags used by the metrics pipeline for this sample.
-	// ObserveMetric may retain this CompositeTags value and read it from another
-	// goroutine after ObserveMetric returns. Implementations must therefore ensure
-	// that its backing slices remain valid and are never mutated or reused after
-	// publication. ObserveMetric treats the returned tags as read-only and copies
-	// them before sorting or otherwise modifying them.
+	// Its backing slices must remain immutable and valid after ObserveMetric returns.
 	GetTags() tagset.CompositeTags
 	// GetHost returns the host dimension carried separately from metric tags.
 	GetHost() string
