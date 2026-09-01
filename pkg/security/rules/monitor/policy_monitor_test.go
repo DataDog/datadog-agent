@@ -37,6 +37,7 @@ type testCase struct {
 	policies             []*testPolicy
 	expectedPolicyStates []*PolicyState
 	model                *model.Model
+	eventTypeEnabled     map[eval.EventType]bool
 }
 
 func TestPolicyMonitorPolicyState(t *testing.T) {
@@ -1648,6 +1649,55 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 	if runtime.GOOS == "linux" {
 		testCases = append(testCases, []*testCase{
 			{
+				name: "rule targeting an event type disabled by its feature flag",
+				eventTypeEnabled: map[eval.EventType]bool{
+					model.ExecEventType.String():         true,
+					model.CapabilitiesEventType.String(): false,
+				},
+				policies: []*testPolicy{
+					{
+						info: rules.PolicyInfo{
+							Name:   "Policy A",
+							Source: "test",
+						},
+						def: rules.PolicyDef{
+							Rules: []*rules.RuleDefinition{
+								{
+									ID:         "rule_a",
+									Expression: `exec.file.path == "/etc/foo/bar"`,
+								},
+								{
+									ID:         "rule_b",
+									Expression: `capabilities.used > 0`,
+								},
+							},
+						},
+					},
+				},
+				expectedPolicyStates: []*PolicyState{
+					{
+						PolicyMetadata: PolicyMetadata{
+							Name:   "Policy A",
+							Source: "test",
+						},
+						Status: PolicyStatusPartiallyLoaded,
+						Rules: []*RuleState{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Status:     "loaded",
+							},
+							{
+								ID:         "rule_b",
+								Expression: `capabilities.used > 0`,
+								Status:     string(rules.EventTypeNotEnabledErrType),
+								Message:    rules.ErrEventTypeNotEnabled.Error(),
+							},
+						},
+					},
+				},
+			},
+			{
 				name: "policy with os filters",
 				policies: []*testPolicy{
 					{
@@ -1783,7 +1833,6 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 	eventCtor := func() eval.Event {
 		return &model.Event{}
 	}
-	ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1791,6 +1840,11 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 			if m == nil {
 				m = &model.Model{}
 			}
+			eventTypeEnabled := tc.eventTypeEnabled
+			if eventTypeEnabled == nil {
+				eventTypeEnabled = map[eval.EventType]bool{"*": true}
+			}
+			ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
 			rs := rules.NewRuleSet(m, eventCtor, ruleOpts, evalOpts)
 			loader := rules.NewPolicyLoader(newTestPolicyProvider(tc.policies...))
 			filteredRules, errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{MacroFilters: macroFilters, RuleFilters: ruleFilters})
