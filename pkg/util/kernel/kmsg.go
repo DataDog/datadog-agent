@@ -42,15 +42,26 @@ type KmsgFilter func(KmsgRecord) bool
 // KmsgReader reads records from /dev/kmsg in a background goroutine.
 type KmsgReader struct {
 	source kmsgSource
-	filter KmsgFilter
 
-	records chan KmsgRecord
-	errors  chan error
-	stop    chan struct{}
-	done    chan struct{}
+	subscribersMutex sync.RWMutex
+	subscribers      map[string]*kmsgSubscriber
+	channelSize      int
+	stopped          bool
+
+	errors chan error
+	stop   chan struct{}
+	done   chan struct{}
 
 	stopOnce  sync.Once
 	telemetry *kmsgTelemetry
+}
+
+type kmsgSubscriber struct {
+	name      string
+	filter    KmsgFilter
+	records   chan KmsgRecord
+	delivered telemetry.SimpleCounter
+	losses    telemetry.SimpleCounter
 }
 
 type kmsgSource interface {
@@ -59,11 +70,12 @@ type kmsgSource interface {
 }
 
 type kmsgTelemetry struct {
-	once      sync.Once
-	read      telemetry.Counter
-	delivered telemetry.Counter
-	errors    telemetry.Counter
-	losses    telemetry.Counter
+	once             sync.Once
+	read             telemetry.Counter
+	delivered        telemetry.Counter
+	errors           telemetry.Counter
+	losses           telemetry.Counter
+	ringBufferLosses telemetry.Counter
 }
 
 var kmsgTelemetryDefinitions kmsgTelemetry
@@ -73,14 +85,15 @@ func (t *kmsgTelemetry) init(component telemetry.Component) {
 
 	t.once.Do(func() {
 		t.read = component.NewCounter(subsystem, "records_read", nil, "Number of records read from /dev/kmsg")
-		t.delivered = component.NewCounter(subsystem, "records_delivered", nil, "Number of /dev/kmsg records delivered to subscribers")
+		t.delivered = component.NewCounter(subsystem, "records_delivered", []string{"subscriber"}, "Number of /dev/kmsg records delivered to a subscriber")
 		t.errors = component.NewCounter(subsystem, "errors", nil, "Number of /dev/kmsg reader errors")
-		t.losses = component.NewCounter(subsystem, "losses", nil, "Number of /dev/kmsg records lost because the ring buffer or output channel was full")
+		t.losses = component.NewCounter(subsystem, "losses", []string{"subscriber"}, "Number of /dev/kmsg records lost because a subscriber channel was full")
+		t.ringBufferLosses = component.NewCounter(subsystem, "ring_buffer_losses", nil, "Number of /dev/kmsg records lost because the ring buffer was full")
 	})
 }
 
-// NewKmsgReader opens /dev/kmsg, seeks to the end of its current buffer, and starts delivering future records.
-func NewKmsgReader(component telemetry.Component, filter KmsgFilter) (*KmsgReader, error) {
+// NewKmsgReader opens /dev/kmsg, seeks to the end of its current buffer, and starts reading future records.
+func NewKmsgReader(component telemetry.Component) (*KmsgReader, error) {
 	if component == nil {
 		return nil, errors.New("kmsg telemetry component is nil")
 	}
@@ -91,7 +104,7 @@ func NewKmsgReader(component telemetry.Component, filter KmsgFilter) (*KmsgReade
 	}
 
 	kmsgTelemetryDefinitions.init(component)
-	reader, err := newKmsgReader(source, &kmsgTelemetryDefinitions, filter, defaultKmsgChannelSize)
+	reader, err := newKmsgReader(source, &kmsgTelemetryDefinitions, defaultKmsgChannelSize)
 	if err != nil {
 		_ = source.Close()
 		return nil, err
@@ -100,7 +113,7 @@ func NewKmsgReader(component telemetry.Component, filter KmsgFilter) (*KmsgReade
 }
 
 // newKmsgReader creates a reader around a source. Tests use it to substitute /dev/kmsg with a fake source.
-func newKmsgReader(source kmsgSource, telemetry *kmsgTelemetry, filter KmsgFilter, channelSize int) (*KmsgReader, error) {
+func newKmsgReader(source kmsgSource, telemetry *kmsgTelemetry, channelSize int) (*KmsgReader, error) {
 	if source == nil {
 		return nil, errors.New("kmsg source is nil")
 	}
@@ -115,21 +128,62 @@ func newKmsgReader(source kmsgSource, telemetry *kmsgTelemetry, filter KmsgFilte
 	}
 
 	reader := &KmsgReader{
-		source:    source,
-		filter:    filter,
-		records:   make(chan KmsgRecord, channelSize),
-		errors:    make(chan error, 1),
-		stop:      make(chan struct{}),
-		done:      make(chan struct{}),
-		telemetry: telemetry,
+		source:      source,
+		subscribers: make(map[string]*kmsgSubscriber),
+		channelSize: channelSize,
+		errors:      make(chan error, 1),
+		stop:        make(chan struct{}),
+		done:        make(chan struct{}),
+		telemetry:   telemetry,
 	}
 	go reader.run()
 	return reader, nil
 }
 
-// Records returns a channel of records that passed the configured filter.
-func (r *KmsgReader) Records() <-chan KmsgRecord {
-	return r.records
+// Subscribe returns a channel that receives future records accepted by filter and a function that unsubscribes it.
+// The name identifies the subscriber in telemetry and should be a stable value.
+// A nil filter accepts every record.
+func (r *KmsgReader) Subscribe(name string, filter KmsgFilter) (<-chan KmsgRecord, func(), error) {
+	if name == "" {
+		return nil, nil, errors.New("kmsg subscriber name is empty")
+	}
+
+	r.subscribersMutex.Lock()
+	defer r.subscribersMutex.Unlock()
+
+	if r.stopped {
+		return nil, nil, errors.New("kmsg reader is stopped")
+	}
+	if _, exists := r.subscribers[name]; exists {
+		return nil, nil, fmt.Errorf("kmsg subscriber %q already exists", name)
+	}
+
+	records := make(chan KmsgRecord, r.channelSize)
+	subscriber := &kmsgSubscriber{
+		name:      name,
+		filter:    filter,
+		records:   records,
+		delivered: r.telemetry.delivered.WithTags(map[string]string{"subscriber": name}),
+		losses:    r.telemetry.losses.WithTags(map[string]string{"subscriber": name}),
+	}
+	r.subscribers[name] = subscriber
+	return records, func() { r.unsubscribe(subscriber) }, nil
+}
+
+func (r *KmsgReader) unsubscribe(subscriber *kmsgSubscriber) {
+	r.subscribersMutex.Lock()
+	defer r.subscribersMutex.Unlock()
+
+	r.unsubscribeLocked(subscriber)
+}
+
+func (r *KmsgReader) unsubscribeLocked(subscriber *kmsgSubscriber) {
+	current, exists := r.subscribers[subscriber.name]
+	if !exists || current != subscriber {
+		return
+	}
+	delete(r.subscribers, subscriber.name)
+	close(subscriber.records)
 }
 
 // Errors returns a channel that receives at most one terminal reader error.
@@ -147,9 +201,17 @@ func (r *KmsgReader) Stop() {
 }
 
 func (r *KmsgReader) run() {
-	defer close(r.done)
-	defer close(r.records)
-	defer close(r.errors)
+	defer func() {
+		r.subscribersMutex.Lock()
+		r.stopped = true
+		for _, subscriber := range r.subscribers {
+			r.unsubscribeLocked(subscriber)
+		}
+		r.subscribersMutex.Unlock()
+
+		close(r.errors)
+		close(r.done)
+	}()
 
 	buffer := make([]byte, maxKmsgRecordSize)
 
@@ -160,7 +222,7 @@ func (r *KmsgReader) run() {
 				return
 			}
 			if errors.Is(err, unix.EPIPE) {
-				r.telemetry.losses.Inc()
+				r.telemetry.ringBufferLosses.Inc()
 				// EPIPE means that /dev/kmsg's ring buffer discarded unread records.
 				continue
 			}
@@ -181,17 +243,20 @@ func (r *KmsgReader) run() {
 			continue
 		}
 
-		if r.filter != nil && !r.filter(record) {
-			continue
-		}
+		r.subscribersMutex.RLock()
+		for _, subscriber := range r.subscribers {
+			if subscriber.filter != nil && !subscriber.filter(record) {
+				continue
+			}
 
-		select {
-		case r.records <- record:
-			r.telemetry.delivered.Inc()
-		default:
-			r.telemetry.losses.Inc()
-			continue
+			select {
+			case subscriber.records <- record:
+				subscriber.delivered.Inc()
+			default:
+				subscriber.losses.Inc()
+			}
 		}
+		r.subscribersMutex.RUnlock()
 	}
 }
 

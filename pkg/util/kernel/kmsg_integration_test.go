@@ -25,16 +25,20 @@ func TestKmsgReaderIntegration(t *testing.T) {
 	postStartMarker := fmt.Sprintf("datadog-kmsg-reader-post-start-%d", time.Now().UnixNano())
 	require.NoError(t, writeKmsgMarker(preStartMarker))
 
-	reader, err := NewKmsgReader(telemetrymock.New(t), func(record KmsgRecord) bool {
+	reader, err := NewKmsgReader(telemetrymock.New(t))
+	require.NoError(t, err)
+	t.Cleanup(reader.Stop)
+
+	records, unsubscribe, err := reader.Subscribe("integration-test", func(record KmsgRecord) bool {
 		return strings.Contains(record.Message, preStartMarker) || strings.Contains(record.Message, postStartMarker)
 	})
 	require.NoError(t, err)
-	t.Cleanup(reader.Stop)
+	t.Cleanup(unsubscribe)
 
 	require.NoError(t, writeKmsgMarker(postStartMarker))
 
 	select {
-	case record := <-reader.Records():
+	case record := <-records:
 		require.Contains(t, record.Message, postStartMarker)
 		require.NotContains(t, record.Message, preStartMarker)
 		require.NotZero(t, record.Sequence)
@@ -47,7 +51,7 @@ func TestKmsgReaderIntegration(t *testing.T) {
 }
 
 func TestKmsgReaderStopCancelsIdleReadIntegration(t *testing.T) {
-	reader, err := NewKmsgReader(telemetrymock.New(t), nil)
+	reader, err := NewKmsgReader(telemetrymock.New(t))
 	require.NoError(t, err)
 
 	stopped := make(chan struct{})
