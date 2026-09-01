@@ -33,8 +33,12 @@ func TestCanUseMultiAttach(t *testing.T) {
 	v, err := kernel.HostVersion()
 	require.NoError(t, err)
 	featureSupported := features.HaveBPFLinkUprobeMulti() == nil
-	forced := os.Getenv("DD_USM_FORCE_UPROBE_MULTI") == "true"
-	want := featureSupported && (forced || v >= multiAttachMinKernel)
+	// Mirror canUseMultiAttach exactly: DD_USM_ENABLE_UPROBE_MULTI gates everything, and both
+	// switches are parsed with strconv.ParseBool semantics (via uprobeMultiBoolEnv), not an exact
+	// "true", so the expectation stays correct whatever value operators set.
+	enabled := uprobeMultiBoolEnv("DD_USM_ENABLE_UPROBE_MULTI", true)
+	forced := uprobeMultiBoolEnv("DD_USM_FORCE_UPROBE_MULTI", false)
+	want := enabled && featureSupported && (forced || v >= multiAttachMinKernel)
 	require.Equal(t, want, CanUseMultiAttach())
 }
 
@@ -121,7 +125,7 @@ func TestAttachToBinaryWithMultiAttach(t *testing.T) {
 // TestAttachUretprobeWithMultiAttach exercises the UretprobeMulti branch of the multi-attach path,
 // which every real uretprobe (uretprobe__SSL_*, nodejs_uretprobe__*, istio_uretprobe__*) takes.
 // The plain-uprobe branch is covered by TestAttachToBinaryWithMultiAttach; a return probe is routed
-// differently (isReturnProbeName -> ex.UretprobeMulti), so it needs its own coverage.
+// differently (its uretprobe/ section -> ex.UretprobeMulti), so it needs its own coverage.
 func TestAttachUretprobeWithMultiAttach(t *testing.T) {
 	if !CanUseMultiAttach() {
 		t.Skip("uprobe_multi not supported on this kernel")

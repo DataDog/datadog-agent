@@ -145,9 +145,7 @@ int uprobe__kafka_tls_termination(struct pt_regs *ctx) {
     return __kafka_tls_termination(ctx);
 }
 
-// Kprobe-typed copy of the program above, reached from kprobe__tcp_close through
-// tls_termination_progs. The two arrays exist because a PROG_ARRAY locks onto its
-// members' expected_attach_type; see tls_finish_from_kprobe in protocols/tls/https.h.
+// Kprobe-typed copy of the program above; see tls_finish_from_kprobe in protocols/tls/https.h.
 SEC("kprobe/kafka_tls_termination")
 int kprobe__kafka_tls_termination(struct pt_regs *ctx) {
     return __kafka_tls_termination(ctx);

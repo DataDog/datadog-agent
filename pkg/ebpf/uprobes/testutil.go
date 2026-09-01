@@ -58,6 +58,13 @@ func (m *MockManager) GetProgram(probeID manager.ProbeIdentificationPair) ([]*ci
 	return progs, args.Bool(1), args.Error(2)
 }
 
+// GetProgramSpec mocks the retrieval of loaded program specs.
+func (m *MockManager) GetProgramSpec(probeID manager.ProbeIdentificationPair) ([]*ciliumebpf.ProgramSpec, bool, error) {
+	args := m.Called(probeID)
+	specs, _ := args.Get(0).([]*ciliumebpf.ProgramSpec)
+	return specs, args.Bool(1), args.Error(2)
+}
+
 // MockFileRegistry is a mock implementation of the FileRegistry interface.
 type MockFileRegistry struct {
 	mock.Mock

@@ -404,9 +404,11 @@ func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protoc
 // tail-call arrays -- and every uprobe that tail-calls into them -- has to carry it
 // together, or the array insert fails with -EINVAL.
 //
-// Selecting by section rather than by name is deliberate: every USM uprobe/uretprobe is on
-// the TLS path (the plaintext path uses socket filters, SEC("socket/...")), so this is
-// exactly the set that must move together, and it stays correct as probes are added.
+// Selecting by section rather than by name is deliberate: today every USM uprobe/uretprobe is
+// an attacher-managed TLS probe (the plaintext path uses socket filters, SEC("socket/...")),
+// so this is exactly the set that must move together. Should a uprobe ever be attached the
+// classic way instead -- activated on the manager and attached via perf_event -- it is skipped
+// below and keeps its default attach type, which is what that attach path needs.
 //
 // kprobe__tcp_close and the kprobe-typed termination programs it tail-calls are excluded
 // by the same rule: they keep the default attach type and dispatch through their own
@@ -417,10 +419,28 @@ func setMultiAttachType(m *manager.Manager) error {
 	if err != nil {
 		return fmt.Errorf("cannot read program specs to set the multi-attach type: %w", err)
 	}
-	for _, spec := range specs {
-		if strings.HasPrefix(spec.SectionName, "uprobe/") || strings.HasPrefix(spec.SectionName, "uretprobe/") {
-			spec.AttachType = ebpf.AttachTraceUprobeMulti
+
+	// A program the manager attaches itself -- one in the activated set, attached via
+	// perf_event -- must keep its default attach type; stamping BPF_TRACE_UPROBE_MULTI would
+	// break that attach. Skipping rather than failing leaves such a program on the working
+	// per-probe path (a correct outcome, just off the uprobe_multi fast path); the warning
+	// surfaces that it was skipped. No uprobe/uretprobe program is activated today.
+	activated := make(map[string]struct{}, len(m.Probes))
+	for _, p := range m.Probes {
+		if p.Enabled {
+			activated[p.EBPFFuncName] = struct{}{}
 		}
+	}
+
+	for name, spec := range specs {
+		if !strings.HasPrefix(spec.SectionName, "uprobe/") && !strings.HasPrefix(spec.SectionName, "uretprobe/") {
+			continue
+		}
+		if _, isActivated := activated[name]; isActivated {
+			log.Warnf("not setting uprobe_multi attach type on activated program %s", name)
+			continue
+		}
+		spec.AttachType = ebpf.AttachTraceUprobeMulti
 	}
 	return nil
 }

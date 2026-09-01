@@ -215,7 +215,9 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
 
 // tls_finish_prepare picks the termination program for a connection and stages the
 // tail-call arguments. It returns false -- leaving *out_prog untouched -- when there is
-// nothing to terminate.
+// nothing to terminate: the common case is a connection whose classified protocol has no
+// termination program (the switch default), so callers correctly just return. The one
+// abnormal case, a failed per-CPU args lookup, logs before it returns false.
 //
 // Split out of tls_finish so the same logic can dispatch through either termination
 // array; see tls_finish_from_kprobe below for why there are two.
@@ -283,8 +285,8 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-// tls_finish_from_kprobe is tls_finish for the one caller that is a kprobe rather than a
-// uprobe: kprobe__tcp_close.
+// tls_finish_from_kprobe is the kprobe-typed counterpart of tls_finish, for callers attached
+// as kprobes rather than uprobes (currently kprobe__tcp_close).
 //
 // USM's uprobes are loaded with expected_attach_type BPF_TRACE_UPROBE_MULTI so they can
 // share uprobe_multi links instead of holding one perf_event fd per attachment. A

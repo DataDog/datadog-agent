@@ -333,6 +333,11 @@ type ProbeManager interface {
 	// multi-uprobe attach path, which attaches the program directly instead of going through
 	// AddHook, so that many probe points share a single bpf_link.
 	GetProgram(manager.ProbeIdentificationPair) ([]*ciliumebpf.Program, bool, error)
+
+	// GetProgramSpec returns the loaded program specs matching the given ID pair. attachMulti
+	// uses the spec's ELF SectionName to decide between a uprobe and uretprobe link, the same
+	// signal setMultiAttachType keys off, so the two stay consistent by construction.
+	GetProgramSpec(manager.ProbeIdentificationPair) ([]*ciliumebpf.ProgramSpec, bool, error)
 }
 
 // multiAttachMinKernel is the minimum kernel version we allow uprobe_multi on.
@@ -1047,14 +1052,21 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 // AttachTraceUprobeMulti, since that is a load-time property.
 func CanUseMultiAttach() bool { return canUseMultiAttach() }
 
-// isReturnProbeName reports whether an eBPF program name denotes a real uretprobe
-// (uretprobe__SSL_read, nodejs_uretprobe__SSL_read, istio_uretprobe__SSL_read) as opposed
-// to a manual-return uprobe (uprobe__crypto_tls_Conn_Read__return), which is a plain
-// uprobe placed at a RET offset. The distinction matters because the two need different
-// multi-link constructors.
-func isReturnProbeName(ebpfFuncName string) bool {
-	probeType, _, _ := strings.Cut(ebpfFuncName, "__")
-	return strings.HasSuffix(probeType, "uretprobe")
+// isReturnProbe reports whether a loaded program is a real uretprobe, decided from its ELF
+// section (SEC("uretprobe/...")) rather than its Go function name. Keying off the section is
+// what keeps this consistent with setMultiAttachType, which selects the programs to mark by
+// section too, so the attach-type decision and the constructor choice cannot drift apart. A
+// manual-return uprobe (a plain uprobe placed at a function's RET offsets, SEC("uprobe/..."))
+// is not a uretprobe and uses UprobeMulti.
+func (ua *UprobeAttacher) isReturnProbe(ebpfFuncName string) (bool, error) {
+	specs, found, err := ua.manager.GetProgramSpec(manager.ProbeIdentificationPair{EBPFFuncName: ebpfFuncName})
+	if err != nil {
+		return false, fmt.Errorf("cannot look up program spec %s: %w", ebpfFuncName, err)
+	}
+	if !found || len(specs) == 0 || specs[0] == nil {
+		return false, fmt.Errorf("program spec %s is not loaded", ebpfFuncName)
+	}
+	return strings.HasPrefix(specs[0].SectionName, "uretprobe/"), nil
 }
 
 // attachMulti attaches every probe point of a single eBPF program to a binary using one
@@ -1080,14 +1092,23 @@ func (ua *UprobeAttacher) attachMulti(probeID manager.ProbeIdentificationPair, l
 
 	progs, found, err := ua.manager.GetProgram(manager.ProbeIdentificationPair{EBPFFuncName: probeID.EBPFFuncName})
 	if err != nil {
+		ua.telemetry.probeAttachErrorsMultiAttach.Inc()
 		return fmt.Errorf("cannot look up program %s: %w", probeID.EBPFFuncName, err)
 	}
 	if !found || len(progs) == 0 {
+		ua.telemetry.probeAttachErrorsMultiAttach.Inc()
 		return fmt.Errorf("program %s is not loaded", probeID.EBPFFuncName)
+	}
+
+	isReturn, err := ua.isReturnProbe(probeID.EBPFFuncName)
+	if err != nil {
+		ua.telemetry.probeAttachErrorsMultiAttach.Inc()
+		return err
 	}
 
 	ex, err := link.OpenExecutable(fpath.HostPath)
 	if err != nil {
+		ua.telemetry.probeAttachErrorsMultiAttach.Inc()
 		return fmt.Errorf("cannot open %s: %w", fpath.HostPath, err)
 	}
 
@@ -1097,7 +1118,7 @@ func (ua *UprobeAttacher) attachMulti(probeID manager.ProbeIdentificationPair, l
 	opts := &link.UprobeMultiOptions{Addresses: locations}
 
 	var l link.Link
-	if isReturnProbeName(probeID.EBPFFuncName) {
+	if isReturn {
 		l, err = ex.UretprobeMulti(nil, progs[0], opts)
 	} else {
 		l, err = ex.UprobeMulti(nil, progs[0], opts)
