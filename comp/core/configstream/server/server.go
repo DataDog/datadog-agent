@@ -72,8 +72,7 @@ func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream pb.Agent
 
 	interval := s.cfg.GetDuration("remote_agent.configstream.sleep_interval")
 
-	// Keep the session alive in the Remote Agent Registry for as long as the stream is open: an
-	// open stream is invisible to the RAR reaper, so a mid-stream client would otherwise be evicted.
+	// Keep the connection alive by refreshing the Remote Agent Registry over time
 	keepalive := time.NewTicker(s.cfg.GetDuration("remote_agent.registry.recommended_refresh_interval"))
 	defer keepalive.Stop()
 
