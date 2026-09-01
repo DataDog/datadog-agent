@@ -103,15 +103,13 @@ func (t *telemetryImpl) Handler() http.Handler {
 }
 
 func (t *telemetryImpl) Reset() {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+	mutex.Lock()
+	defer mutex.Unlock()
 	registry = newRegistry()
 	t.registry = registry
 	t.metricHelpMutex.Lock()
 	defer t.metricHelpMutex.Unlock()
-	for name := range t.metricHelp {
-		delete(t.metricHelp, name)
-	}
+	clear(t.metricHelp)
 }
 
 // CanonicalMetricHelp returns the HELP text for a metric family created in the normal telemetry registry.
