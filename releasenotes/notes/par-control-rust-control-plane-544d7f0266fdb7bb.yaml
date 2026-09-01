@@ -1,0 +1,9 @@
+---
+other:
+  - |
+    Add an internal Rust control-plane process (``par-control``) for Private
+    Action Runner Linux host packages. The split deployment model
+    is opt-in behind ``private_action_runner.split_enabled`` (default
+    ``false``): when enabled, ``par-control`` polls the management service and
+    starts the Go runner on demand as an executor, while the monolithic runner
+    stands down.
