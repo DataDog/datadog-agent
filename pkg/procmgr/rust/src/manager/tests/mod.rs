@@ -92,7 +92,14 @@ pub async fn wait_until_running(mgr: &ProcessManager, name: &str) {
 }
 
 pub fn sleep_def(name: &str) -> ProcessDefinition {
-    sleep_def_secs(name, 60)
+    #[cfg(windows)]
+    {
+        sleep_def_secs(name, 2)
+    }
+    #[cfg(not(windows))]
+    {
+        sleep_def_secs(name, 60)
+    }
 }
 
 fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
@@ -102,6 +109,8 @@ fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
         config: ProcessConfig {
             command: cmd.to_string(),
             args,
+            stdout: "null".to_string(),
+            stderr: "null".to_string(),
             ..Default::default()
         },
     }
@@ -123,7 +132,6 @@ pub fn true_def(name: &str) -> ProcessDefinition {
 #[cfg(not(windows))]
 mod boot;
 mod create;
-#[cfg(not(windows))]
 mod resolve;
 #[cfg(not(windows))]
 mod restart;
