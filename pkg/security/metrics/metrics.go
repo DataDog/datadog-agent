@@ -182,6 +182,18 @@ var (
 	// MetricEventStreamDispatcherQueueBytes is the number of bytes currently held in the user space dispatcher queue
 	// Tags: -
 	MetricEventStreamDispatcherQueueBytes = newRuntimeMetric(".event_stream.dispatcher_queue.bytes")
+	// MetricEventStreamDispatcherQueuePeak is the high-water mark of queued events since the previous flush
+	// Tags: -
+	MetricEventStreamDispatcherQueuePeak = newRuntimeMetric(".event_stream.dispatcher_queue.peak")
+	// MetricEventStreamDispatcherQueueEnqueued is the number of events pushed onto the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueEnqueued = newRuntimeMetric(".event_stream.dispatcher_queue.enqueued")
+	// MetricEventStreamDispatcherQueueProcessed is the number of events taken off the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueProcessed = newRuntimeMetric(".event_stream.dispatcher_queue.processed")
+	// MetricEventStreamDispatcherQueueDropped is the number of events discarded without processing (shutdown)
+	// Tags: -
+	MetricEventStreamDispatcherQueueDropped = newRuntimeMetric(".event_stream.dispatcher_queue.dropped")
 
 	// Process Resolver metrics
 

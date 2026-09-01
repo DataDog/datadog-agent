@@ -1,0 +1,11 @@
+---
+enhancements:
+  - |
+    CWS: the eBPF ring-buffer read loop can optionally enqueue events in a
+    user-space dispatcher queue so a slow handler does not stall kernel
+    draining. The queue is **off by default**
+    (``runtime_security_config.event_stream.dispatcher_queue_enabled`` /
+    ``event_monitoring_config.event_stream.dispatcher_queue_enabled``).
+    When enabled, queue depth, capacity, bytes, peak occupancy, and
+    enqueued/processed/dropped counts are exported as
+    ``datadog.runtime_security.event_stream.dispatcher_queue.*`` metrics.

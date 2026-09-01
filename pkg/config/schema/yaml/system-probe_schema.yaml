@@ -1121,15 +1121,19 @@ properties:
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_BUFFER_SIZE
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_BUFFER_SIZE
+          dispatcher_queue_enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Enable the user-space ring-buffer dispatcher queue. Off by default.
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_ENABLED
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_ENABLED
           dispatcher_queue_size:
             node_type: setting
             type: integer
             default: 16384
-            comment: |-
-              Size of the user space dispatcher queue that decouples reading the
-              kernel ring buffer from event processing. Acts as a cushion to absorb
-              bursts of events. When dispatcher_queue_size_per_core is true, this
-              value is multiplied by the number of CPUs on the system.
+            comment: Dispatcher queue capacity. Multiplied by CPU count when size_per_core is true.
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE
@@ -1137,10 +1141,7 @@ properties:
             node_type: setting
             type: boolean
             default: true
-            comment: |-
-              When true, dispatcher_queue_size is interpreted as a per-CPU value and
-              multiplied by the number of CPUs on the system to compute the final
-              user space dispatcher queue size.
+            comment: Multiply dispatcher_queue_size by the number of CPUs.
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
@@ -1148,12 +1149,7 @@ properties:
             node_type: setting
             type: integer
             default: 65535
-            comment: |-
-              Minimum size of the user space dispatcher queue, regardless of the
-              number of CPUs. It acts as a global floor: after applying
-              dispatcher_queue_size (and the per-core multiplication when
-              dispatcher_queue_size_per_core is true), the final queue size is
-              raised to this value if it would otherwise be smaller.
+            comment: Floor applied after size and optional per-core scaling.
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_MIN
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_MIN

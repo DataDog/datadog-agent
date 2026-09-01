@@ -29,9 +29,7 @@ import (
 )
 
 const (
-	// defaultDispatcherQueueSize is used when the configured dispatcher queue size is not usable.
-	defaultDispatcherQueueSize = 16384
-	// defaultStatsPollingInterval is used when the configured stats polling interval is not usable.
+	defaultDispatcherQueueSize  = 16384
 	defaultStatsPollingInterval = 5 * time.Second
 )
 
@@ -42,14 +40,14 @@ type RingBuffer struct {
 	handler    func(int, []byte)
 	recordPool *ddsync.TypedPool[ringbuf.Record]
 
-	// ctx is owned by the probe and cancelled on shutdown to stop the dispatcher.
-	ctx context.Context
-	// queue decouples reading the kernel ring buffer from event processing. It
-	// acts as a user space cushion to absorb bursts of events.
-	queue chan *ringbuf.Record
-	// queueBytes tracks the number of bytes currently held in the queue. It is
-	// incremented by the producer (read loop) and decremented by the dispatcher.
+	ctx        context.Context
+	queue      chan *ringbuf.Record // nil when the dispatcher is disabled
 	queueBytes atomic.Int64
+	occupancy  atomic.Int64
+	enqueued   atomic.Uint64
+	processed  atomic.Uint64
+	dropped    atomic.Uint64
+	peak       atomic.Int64
 
 	statsdClient         statsd.ClientInterface
 	statsPollingInterval time.Duration
@@ -70,9 +68,11 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 		TelemetryEnabled: config.InternalTelemetryEnabled,
 	}
 
-	queueSize := dispatcherQueueSize(config)
-	rb.queue = make(chan *ringbuf.Record, queueSize)
-	seclog.Debugf("ring buffer dispatcher queue size set to %d", queueSize)
+	if config.EventStreamDispatcherQueueEnabled {
+		queueSize := dispatcherQueueSize(config)
+		rb.queue = make(chan *ringbuf.Record, queueSize)
+		seclog.Infof("ring buffer dispatcher queue enabled, size=%d", queueSize)
+	}
 
 	rb.statsPollingInterval = config.StatsPollingInterval
 	if rb.statsPollingInterval <= 0 {
@@ -83,27 +83,23 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 	return nil
 }
 
-// dispatcherQueueSize computes the user space dispatcher queue size from the
-// configuration, optionally scaling it by the number of CPUs on the system.
 func dispatcherQueueSize(cfg *config.Config) int {
+	return dispatcherQueueSizeWithCPU(cfg, runtime.NumCPU())
+}
+
+func dispatcherQueueSizeWithCPU(cfg *config.Config, numCPU int) int {
 	size := cfg.EventStreamDispatcherQueueSize
 	if size <= 0 {
 		size = defaultDispatcherQueueSize
 	}
 
 	if cfg.EventStreamDispatcherQueueSizePerCore {
-		// runtime.NumCPU reports the number of logical CPUs usable by the process
-		// (honoring the CPU affinity mask). Unlike utils.NumCPU it does not
-		// over-count, which matters here since we multiply the queue size by it.
-		numCPU := runtime.NumCPU()
 		if numCPU <= 0 {
 			numCPU = 1
 		}
 		size *= numCPU
 	}
 
-	// Apply the global minimum floor, regardless of the number of CPUs, so the
-	// queue never ends up too small on low-core-count machines.
 	if cfg.EventStreamDispatcherQueueSizeMin > size {
 		size = cfg.EventStreamDispatcherQueueSizeMin
 	}
@@ -111,19 +107,12 @@ func dispatcherQueueSize(cfg *config.Config) int {
 	return size
 }
 
-// dispatch drains the queue and forwards events to the handler on a dedicated
-// goroutine, decoupling event processing from the kernel ring buffer read loop.
-// It exits when the probe context is cancelled, after draining any events that
-// were already read from the kernel but not yet processed.
 func (rb *RingBuffer) dispatch(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
 		select {
 		case <-rb.ctx.Done():
-			// The probe stops the readers before cancelling the context, so no
-			// new records can be enqueued at this point. Drain what remains to
-			// avoid silently dropping already-read events on shutdown.
 			rb.drain()
 			return
 		case record := <-rb.queue:
@@ -132,8 +121,6 @@ func (rb *RingBuffer) dispatch(wg *sync.WaitGroup) {
 	}
 }
 
-// drain processes every record left in the queue without blocking. It must only
-// be called once producers have stopped enqueuing.
 func (rb *RingBuffer) drain() {
 	for {
 		select {
@@ -146,13 +133,41 @@ func (rb *RingBuffer) drain() {
 }
 
 func (rb *RingBuffer) handleRecord(record *ringbuf.Record) {
+	rb.occupancy.Add(-1)
 	rb.queueBytes.Add(-int64(len(record.RawSample)))
+	rb.processed.Add(1)
 	rb.handler(0, record.RawSample)
 	rb.recordPool.Put(record)
 }
 
-// monitor periodically reports the user space dispatcher queue usage (in events
-// and bytes) and its capacity. It exits when the probe context is cancelled.
+func (rb *RingBuffer) observeDepth(n int) {
+	v := int64(n)
+	for {
+		old := rb.peak.Load()
+		if v <= old {
+			return
+		}
+		if rb.peak.CompareAndSwap(old, v) {
+			return
+		}
+	}
+}
+
+func (rb *RingBuffer) sendStats() {
+	if rb.statsdClient == nil || rb.queue == nil {
+		return
+	}
+
+	_ = rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueUsage, float64(rb.occupancy.Load()), nil, 1.0)
+	_ = rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueCapacity, float64(cap(rb.queue)), nil, 1.0)
+	_ = rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueBytes, float64(rb.queueBytes.Load()), nil, 1.0)
+	_ = rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueuePeak, float64(rb.peak.Swap(0)), nil, 1.0)
+
+	_ = rb.statsdClient.Count(metrics.MetricEventStreamDispatcherQueueEnqueued, int64(rb.enqueued.Swap(0)), nil, 1.0)
+	_ = rb.statsdClient.Count(metrics.MetricEventStreamDispatcherQueueProcessed, int64(rb.processed.Swap(0)), nil, 1.0)
+	_ = rb.statsdClient.Count(metrics.MetricEventStreamDispatcherQueueDropped, int64(rb.dropped.Swap(0)), nil, 1.0)
+}
+
 func (rb *RingBuffer) monitor(wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -164,15 +179,21 @@ func (rb *RingBuffer) monitor(wg *sync.WaitGroup) {
 		case <-rb.ctx.Done():
 			return
 		case <-ticker.C:
-			_ = rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueUsage, float64(len(rb.queue)), nil, 1.0)
-			_ = rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueCapacity, float64(cap(rb.queue)), nil, 1.0)
-			_ = rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueBytes, float64(rb.queueBytes.Load()), nil, 1.0)
+			rb.sendStats()
 		}
 	}
 }
 
 // Start the event stream.
 func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
+	if err := rb.ringBuffer.Start(); err != nil {
+		return err
+	}
+
+	if rb.queue == nil {
+		return nil
+	}
+
 	wg.Add(1)
 	go rb.dispatch(wg)
 
@@ -181,22 +202,29 @@ func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
 		go rb.monitor(wg)
 	}
 
-	return rb.ringBuffer.Start()
+	return nil
 }
 
 // SetMonitor set the monitor
 func (rb *RingBuffer) SetMonitor(_ eventstream.LostEventCounter) {}
 
 func (rb *RingBuffer) handleEvent(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
-	// Hand the record over to the dispatcher instead of processing it inline, so
-	// the kernel ring buffer read loop is never blocked by event processing. The
-	// record is returned to the pool by the dispatcher once it has been handled.
+	if rb.queue == nil {
+		rb.handler(0, record.RawSample)
+		rb.recordPool.Put(record)
+		return
+	}
+
 	size := int64(len(record.RawSample))
 	rb.queueBytes.Add(size)
+	rb.observeDepth(int(rb.occupancy.Add(1)))
 	select {
 	case rb.queue <- record:
+		rb.enqueued.Add(1)
 	case <-rb.ctx.Done():
+		rb.occupancy.Add(-1)
 		rb.queueBytes.Add(-size)
+		rb.dropped.Add(1)
 		rb.recordPool.Put(record)
 	}
 }

@@ -91,18 +91,16 @@ type Config struct {
 	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
 	EventStreamBufferSize int
 
-	// EventStreamDispatcherQueueSize specifies the size of the user space dispatcher queue that decouples
-	// reading the kernel ring buffer from event processing. It acts as a cushion to absorb bursts of events.
-	// When EventStreamDispatcherQueueSizePerCore is true, this value is multiplied by the number of CPUs.
+	// EventStreamDispatcherQueueEnabled enables the user-space dispatcher queue (off by default)
+	EventStreamDispatcherQueueEnabled bool
+
+	// EventStreamDispatcherQueueSize is the dispatcher queue capacity, multiplied by CPU count when PerCore is set
 	EventStreamDispatcherQueueSize int
 
-	// EventStreamDispatcherQueueSizePerCore specifies whether EventStreamDispatcherQueueSize should be
-	// multiplied by the number of CPUs on the system to compute the final dispatcher queue size.
+	// EventStreamDispatcherQueueSizePerCore multiplies EventStreamDispatcherQueueSize by the number of CPUs
 	EventStreamDispatcherQueueSizePerCore bool
 
-	// EventStreamDispatcherQueueSizeMin specifies the minimum size of the user space dispatcher queue,
-	// regardless of the number of CPUs. It acts as a global floor applied after EventStreamDispatcherQueueSize
-	// and the optional per-core multiplication.
+	// EventStreamDispatcherQueueSizeMin is a floor applied after size and optional per-core scaling
 	EventStreamDispatcherQueueSizeMin int
 
 	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
@@ -227,6 +225,7 @@ func NewConfig() (*Config, error) {
 		NetworkFlowMonitorSKStorageEnabled:    getBool("network.flow_monitor.sk_storage.enabled"),
 		EventStreamUseRingBuffer:              getBool("event_stream.use_ring_buffer"),
 		EventStreamBufferSize:                 getInt("event_stream.buffer_size"),
+		EventStreamDispatcherQueueEnabled:     getBool("event_stream.dispatcher_queue_enabled"),
 		EventStreamDispatcherQueueSize:        getInt("event_stream.dispatcher_queue_size"),
 		EventStreamDispatcherQueueSizePerCore: getBool("event_stream.dispatcher_queue_size_per_core"),
 		EventStreamDispatcherQueueSizeMin:     getInt("event_stream.dispatcher_queue_size_min"),
