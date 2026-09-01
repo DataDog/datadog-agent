@@ -1,5 +1,7 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load(":otel_tls.bzl", "otel_nodejs_dso", "otel_tls_dsos")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load(":otel_tls.bzl", "TLS_DIALECT", "otel_tls_dsos")
 
 # The OTel thread context testers: the native ones, one per access model a
 # tracer can publish otel_thread_ctx_v1 through, and the Node.js one, which
@@ -72,16 +74,39 @@ cc_binary(
     visibility = ["//visibility:public"],
 )
 
-# The dlopen driver for the Node.js tester: same shape as the native one above,
-# minus the startup-link and fully-static variants, which a Node addon has no
-# equivalent of.
+# The Node.js tester's shared object: only the TLSDESC/general-dynamic dialect,
+# and only out of a shared object -- that is how a Node addon publishes the
+# discovery thread-local, and the native testers above already cover the other
+# access models.
+cc_library(
+    name = "otel_nodejs_glibc_srcs",
+    srcs = [
+        "otel_nodejs_lib.c",
+        ":otel_nodejs_headers",
+    ],
+    copts = [
+        "-fPIC",
+        "-pthread",
+    ] + TLS_DIALECT,
+    linkopts = ["-pthread"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_shared_library(
+    name = "otel_nodejs_glibc",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [":otel_nodejs_glibc_srcs"],
+)
+
+# The dlopen driver for the Node.js tester: dlopen is the only access path that
+# matters, since that is how a Node addon is loaded.
 cc_binary(
     name = "otel_nodejs_dlopen_glibc",
     srcs = [
         "otel_nodejs_driver.c",
         ":otel_nodejs_headers",
     ],
-    defines = ["USE_DLOPEN"],
     linkopts = ["-ldl"],
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
@@ -89,13 +114,11 @@ cc_binary(
 
 otel_tls_dsos(name = "otel_tls_dso_artifacts")
 
-otel_nodejs_dso(name = "otel_nodejs_dso_artifacts")
-
 filegroup(
     name = "otel_tls_artifacts",
     srcs = [
         ":otel_nodejs_dlopen_glibc",
-        ":otel_nodejs_dso_artifacts",
+        ":otel_nodejs_glibc",
         ":otel_tls_dlopen_glibc",
         ":otel_tls_dso_artifacts",
         ":otel_tls_exe_glibc",

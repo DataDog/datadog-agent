@@ -3,50 +3,34 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Runs an otel-node-span-* command out of otel_nodejs_lib.c. Built twice: linked
-// against the library at startup, and, with USE_DLOPEN, loading it once the
-// process is already running, which is how a Node addon is loaded and therefore
-// the access model that matters most here.
+// Runs an otel-node-span-* command out of otel_nodejs_lib.c, dlopen'd once the
+// process is already running -- how a Node addon is loaded, and therefore the
+// only access path worth driving here. Which underlying TLS access model that
+// lands on is the native tester's business (see otel_tls_driver.c).
 
 #define _GNU_SOURCE
 
+#include <dlfcn.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef USE_DLOPEN
-#include <dlfcn.h>
-#else
-#include "otel_nodejs_lib.h"
-#endif
-
-typedef int (*otel_command_fn)(int argc, char **argv);
-
 struct command_entry {
     const char *name;
     const char *symbol;
-#ifndef USE_DLOPEN
-    otel_command_fn fn;
-#endif
 };
 
-#ifdef USE_DLOPEN
-#define OTEL_COMMAND(name, symbol) {name, #symbol}
-#else
-#define OTEL_COMMAND(name, symbol) {name, #symbol, symbol}
-#endif
-
 static const struct command_entry commands[] = {
-    OTEL_COMMAND("otel-node-span-open", otel_node_span_open),
-    OTEL_COMMAND("otel-node-span-open-chained", otel_node_span_open_chained),
-    OTEL_COMMAND("otel-node-span-open-deep", otel_node_span_open_deep),
-    OTEL_COMMAND("otel-node-span-exec", otel_node_span_exec),
-    OTEL_COMMAND("otel-node-span-fork-exec", otel_node_span_fork_exec),
-    OTEL_COMMAND("otel-node-span-open-invalid", otel_node_span_open_invalid),
-    OTEL_COMMAND("otel-node-span-open-no-context", otel_node_span_open_no_context),
-    OTEL_COMMAND("otel-node-span-open-als-absent", otel_node_span_open_als_absent),
-    OTEL_COMMAND("otel-node-span-open-no-writer", otel_node_span_open_no_writer),
+    {"otel-node-span-open", "otel_node_span_open"},
+    {"otel-node-span-open-chained", "otel_node_span_open_chained"},
+    {"otel-node-span-open-deep", "otel_node_span_open_deep"},
+    {"otel-node-span-exec", "otel_node_span_exec"},
+    {"otel-node-span-fork-exec", "otel_node_span_fork_exec"},
+    {"otel-node-span-open-invalid", "otel_node_span_open_invalid"},
+    {"otel-node-span-open-no-context", "otel_node_span_open_no_context"},
+    {"otel-node-span-open-als-absent", "otel_node_span_open_als_absent"},
+    {"otel-node-span-open-no-writer", "otel_node_span_open_no_writer"},
 };
 
 static const struct command_entry *lookup_command(const char *name) {
@@ -59,7 +43,7 @@ static const struct command_entry *lookup_command(const char *name) {
     return NULL;
 }
 
-#ifdef USE_DLOPEN
+typedef int (*otel_command_fn)(int argc, char **argv);
 
 // The fixture is dlopen'd even for `check`: the driver itself references only
 // the libc symbols it uses, so it can start where the fixture cannot load, and
@@ -113,31 +97,3 @@ int main(int argc, char **argv) {
     }
     return exit_code;
 }
-
-#else
-
-int main(int argc, char **argv) {
-    if (argc <= 1) {
-        fprintf(stderr, "Please pass a command\n");
-        return EXIT_FAILURE;
-    }
-
-    // Reaching main is proof enough: a startup link against a fixture the
-    // runtime cannot load never gets here.
-    if (strcmp(argv[1], "check") == 0) {
-        return EXIT_SUCCESS;
-    }
-
-    const struct command_entry *command = lookup_command(argv[1]);
-    if (command == NULL) {
-        return EXIT_FAILURE;
-    }
-
-    int exit_code = command->fn(argc - 1, argv + 1);
-    if (exit_code != EXIT_SUCCESS) {
-        fprintf(stderr, "Command `%s` failed: %d (errno: %s)\n", argv[1], exit_code, strerror(errno));
-    }
-    return exit_code;
-}
-
-#endif

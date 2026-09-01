@@ -1501,71 +1501,38 @@ func TestNodeSpan(t *testing.T) {
 	}
 	defer test.Close()
 
-	type nodeTesterVariant struct {
-		name       string
-		binary     string
-		prefixArgs []string
+	// dlopen is the only access path worth driving here: it is how a Node addon
+	// is loaded. Which underlying TLS access model that lands on is the native
+	// tester's business (TestOTelSpan already covers it, dlopen'd and linked at
+	// startup, across every dialect); otel_tls_var_addr is the same function
+	// either way, whatever runtime asks it to resolve a thread-local.
+	nodeBinary, err := loadSyscallTesterArtifact(test, "otel_nodejs_dlopen_glibc")
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Fatal(err)
+		}
+		// Producing neither artifact means the build was cross-compiling and
+		// never tried; see build_otel_tls_artifacts.
+		t.Skip("otel_nodejs_dlopen_glibc not embedded; skipping the Node.js span test")
+	}
+	nodeFixture, err := loadSyscallTesterArtifact(test, "libotel_nodejs_glibc.so")
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Fatal(err)
+		}
+		t.Skip("libotel_nodejs_glibc.so not embedded; skipping the Node.js span test")
 	}
 
-	nodeArgs := func(variant nodeTesterVariant, args ...string) []string {
-		return append(append([]string{}, variant.prefixArgs...), args...)
+	nodeArgs := func(args ...string) []string {
+		return append([]string{nodeFixture}, args...)
 	}
 
-	requireNodeTesterRuns := func(t *testing.T, variant nodeTesterVariant, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	requireNodeTesterRuns := func(t *testing.T, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		t.Helper()
-		if out, err := cmdFunc(variant.binary, nodeArgs(variant, "check"), nil).CombinedOutput(); err != nil {
-			t.Skipf("%s cannot run here: %v (output: %s)", variant.name, err, bytes.TrimSpace(out))
+		if out, err := cmdFunc(nodeBinary, nodeArgs("check"), nil).CombinedOutput(); err != nil {
+			t.Skipf("Node.js span tester cannot run here: %v (output: %s)", err, bytes.TrimSpace(out))
 		}
 	}
-
-	// dlopen is how a Node addon is loaded, and therefore the variant that
-	// matters; the startup link is there to catch a resolver that only handles the
-	// other one. Which access model each lands on is the native tester's business.
-	nodeTesterSpecs := []struct {
-		name    string
-		binary  string
-		fixture string
-		dlopen  bool
-	}{
-		{name: "dlopen-glibc", binary: "otel_nodejs_dlopen_glibc", fixture: "libotel_nodejs_glibc.so", dlopen: true},
-		{name: "linked-glibc", binary: "otel_nodejs_linked_glibc", fixture: "libotel_nodejs_glibc.so"},
-	}
-
-	var nodeTesterVariants []nodeTesterVariant
-	for _, spec := range nodeTesterSpecs {
-		binary, err := loadSyscallTesterArtifact(test, spec.binary)
-		if err != nil {
-			if !errors.Is(err, fs.ErrNotExist) {
-				t.Fatal(err)
-			}
-			t.Logf("%s not embedded; skipping the %s Node.js variant", spec.binary, spec.name)
-			continue
-		}
-
-		fixture, err := loadSyscallTesterArtifact(test, spec.fixture)
-		if err != nil {
-			if !errors.Is(err, fs.ErrNotExist) {
-				t.Fatal(err)
-			}
-			t.Logf("%s not embedded; skipping the %s Node.js variant", spec.fixture, spec.name)
-			continue
-		}
-
-		variant := nodeTesterVariant{name: spec.name, binary: binary}
-		if spec.dlopen {
-			variant.prefixArgs = []string{fixture}
-		}
-		nodeTesterVariants = append(nodeTesterVariants, variant)
-	}
-
-	if len(nodeTesterVariants) == 0 {
-		// Producing none of them means the build was cross-compiling and never
-		// tried; see build_otel_tls_glibc_artifacts.
-		t.Skip("no Node.js span tester embedded")
-	}
-	// Every negative case is about what the walk finds, not about how the
-	// discovery struct was reached, so one tester covers them all.
-	negativeTester := nodeTesterVariants[0]
 
 	fakeTraceID128b := "136272290892501783905308705057321818530"
 
@@ -1597,12 +1564,12 @@ func TestNodeSpan(t *testing.T) {
 		return []string{touchPath, "--reference", "/etc/passwd", testFile}
 	}
 
-	runOpen := func(t *testing.T, variant nodeTesterVariant, command, fileName, ruleID string,
+	runOpen := func(t *testing.T, command, fileName, ruleID string,
 		check func(t *testing.T, event *model.Event)) {
 		t.Helper()
 
 		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			requireNodeTesterRuns(t, variant, cmdFunc)
+			requireNodeTesterRuns(t, cmdFunc)
 
 			testFile, _, err := test.Path(fileName)
 			if err != nil {
@@ -1610,10 +1577,10 @@ func TestNodeSpan(t *testing.T) {
 			}
 			defer os.Remove(testFile)
 
-			args := nodeArgs(variant, command, fakeTraceID128b, "204", testFile)
+			args := nodeArgs(command, fakeTraceID128b, "204", testFile)
 
 			test.WaitSignalFromRule(t, func() error {
-				if out, err := cmdFunc(variant.binary, args, []string{}).CombinedOutput(); err != nil {
+				if out, err := cmdFunc(nodeBinary, args, []string{}).CombinedOutput(); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
 				return nil
@@ -1625,83 +1592,75 @@ func TestNodeSpan(t *testing.T) {
 	}
 
 	t.Run("valid_record", func(t *testing.T) {
-		for _, variant := range nodeTesterVariants {
-			t.Run(variant.name, func(t *testing.T) {
-				runOpen(t, variant, "otel-node-span-open", "test-node-span", "test_node_span_rule_open", assertNodeOpenSpan)
-			})
-		}
+		runOpen(t, "otel-node-span-open", "test-node-span", "test_node_span_rule_open", assertNodeOpenSpan)
 	})
 
 	// The entry the reader is after is not the first of its bucket, another key
 	// having hashed to the same one. It must walk past it rather than give up.
 	t.Run("bucket_collision", func(t *testing.T) {
-		runOpen(t, negativeTester, "otel-node-span-open-chained", "test-node-span",
+		runOpen(t, "otel-node-span-open-chained", "test-node-span",
 			"test_node_span_rule_open", assertNodeOpenSpan)
 	})
 
 	// A bucket whose chain runs deeper than the reader follows. Dropping the
 	// context is the answer; walking on unbounded is not an option in eBPF.
 	t.Run("chain_overflow", func(t *testing.T) {
-		runOpen(t, negativeTester, "otel-node-span-open-deep", "test-node-span-no-span",
+		runOpen(t, "otel-node-span-open-deep", "test-node-span-no-span",
 			"test_node_span_rule_open_no_span", assertNoSpan)
 	})
 
 	// The record of a span that has ended: still reachable from every
 	// asynchronous context that inherited it, and cleared for good.
 	t.Run("invalidated_record", func(t *testing.T) {
-		runOpen(t, negativeTester, "otel-node-span-open-invalid", "test-node-span-no-span",
+		runOpen(t, "otel-node-span-open-invalid", "test-node-span-no-span",
 			"test_node_span_rule_open_no_span", assertNoSpan)
 	})
 
 	// An asynchronous context holding undefined, which is what the writer leaves
 	// when it detaches a context and nothing takes its place.
 	t.Run("no_context", func(t *testing.T) {
-		runOpen(t, negativeTester, "otel-node-span-open-no-context", "test-node-span-no-span",
+		runOpen(t, "otel-node-span-open-no-context", "test-node-span-no-span",
 			"test_node_span_rule_open_no_span", assertNoSpan)
 	})
 
 	// A frame holding other AsyncLocalStorage instances, but not the writer's.
 	t.Run("als_absent", func(t *testing.T) {
-		runOpen(t, negativeTester, "otel-node-span-open-als-absent", "test-node-span-no-span",
+		runOpen(t, "otel-node-span-open-als-absent", "test-node-span-no-span",
 			"test_node_span_rule_open_no_span", assertNoSpan)
 	})
 
 	// A thread the writer never ran on, leaving the discovery struct zeroed --
 	// what every thread of a Node process that never enters JS looks like.
 	t.Run("no_writer", func(t *testing.T) {
-		runOpen(t, negativeTester, "otel-node-span-open-no-writer", "test-node-span-no-span",
+		runOpen(t, "otel-node-span-open-no-writer", "test-node-span-no-span",
 			"test_node_span_rule_open_no_span", assertNoSpan)
 	})
 
 	t.Run("valid_record_exec", func(t *testing.T) {
-		for _, variant := range nodeTesterVariants {
-			t.Run(variant.name, func(t *testing.T) {
-				test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-					requireNodeTesterRuns(t, variant, cmdFunc)
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			requireNodeTesterRuns(t, cmdFunc)
 
-					testFile, _, err := test.Path("test-node-span-exec")
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer os.Remove(testFile)
+			testFile, _, err := test.Path("test-node-span-exec")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
 
-					args := nodeArgs(variant, append([]string{"otel-node-span-exec", fakeTraceID128b, "204"}, nodeExecArgs(kind, testFile)...)...)
+			args := nodeArgs(append([]string{"otel-node-span-exec", fakeTraceID128b, "204"}, nodeExecArgs(kind, testFile)...)...)
 
-					test.WaitSignalFromRule(t, func() error {
-						if out, err := cmdFunc(variant.binary, args, []string{}).CombinedOutput(); err != nil {
-							return fmt.Errorf("%s: %w", out, err)
-						}
-						return nil
-					}, func(event *model.Event, rule *rules.Rule) {
-						assertTriggeredRule(t, rule, "test_node_span_rule_exec")
-						test.validateSpanSchema(t, event)
+			test.WaitSignalFromRule(t, func() error {
+				if out, err := cmdFunc(nodeBinary, args, []string{}).CombinedOutput(); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_node_span_rule_exec")
+				test.validateSpanSchema(t, event)
 
-						assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
-						assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
-					}, "test_node_span_rule_exec")
-				})
-			})
-		}
+				assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
+				assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+			}, "test_node_span_rule_exec")
+		})
 	})
 
 	t.Run("fork_exec_propagates_via_ancestor", func(t *testing.T) {
@@ -1709,8 +1668,7 @@ func TestNodeSpan(t *testing.T) {
 		// context, so the span lands on the child's ancestry rather than on the
 		// exec'd program, which has no tracer of its own.
 		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			variant := negativeTester
-			requireNodeTesterRuns(t, variant, cmdFunc)
+			requireNodeTesterRuns(t, cmdFunc)
 
 			testFile, _, err := test.Path("test-node-span-fork-exec")
 			if err != nil {
@@ -1718,10 +1676,10 @@ func TestNodeSpan(t *testing.T) {
 			}
 			defer os.Remove(testFile)
 
-			args := nodeArgs(variant, append([]string{"otel-node-span-fork-exec", fakeTraceID128b, "204"}, nodeExecArgs(kind, testFile)...)...)
+			args := nodeArgs(append([]string{"otel-node-span-fork-exec", fakeTraceID128b, "204"}, nodeExecArgs(kind, testFile)...)...)
 
 			test.WaitSignalFromRule(t, func() error {
-				if out, err := cmdFunc(variant.binary, args, []string{}).CombinedOutput(); err != nil {
+				if out, err := cmdFunc(nodeBinary, args, []string{}).CombinedOutput(); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
 				return nil
