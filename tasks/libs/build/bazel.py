@@ -11,8 +11,6 @@ import sys
 from pathlib import Path
 from typing import IO, NamedTuple
 
-from invoke.exceptions import Exit
-
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import get_repo_root, join_command
 
@@ -242,13 +240,19 @@ def bazel(
     return completed.stdout if capture_output else ""
 
 
-def build_binary_with_bazel(target: str, args: list[str] | None = None, bin_path: str = None) -> None:
+def build_binary_with_bazel(
+    target: str, args: list[str] | None = None, bin_path: str = None, embedded_path: str | None = None
+) -> None:
     """Build a Bazel target and copy its output to bin_path.
 
     Args:
         target: Bazel target
         args: extra arguments passed to both the build and cquery invocations
         bin_path: directory to copy the binary to. None for no copy.
+        embedded_path: directory holding shared libraries the binary links
+        against.
+        When set, rewrites the copied binary's RPATH to point there instead of
+        Bazel's sandbox paths.
     """
     args = args or []
     bazel("build", target, *args)
@@ -267,6 +271,11 @@ def build_binary_with_bazel(target: str, args: list[str] | None = None, bin_path
         gid = os.environ.get("HOST_GID", "-1")
         if uid != "-1" and gid != "-1":
             os.chown(bin_path, int(uid), int(gid))
+
+        if embedded_path:
+            # `bazel run` executes with the execution root as cwd, not the caller's cwd,
+            # so bin_path must be absolute for the tool to find it.
+            bazel("run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded_path, os.path.abspath(bin_path))
 
 
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
@@ -289,42 +298,3 @@ def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     # insert flags right after the bazel command, preserving startup options before it and subcommand arguments after it
     index = next((i for i, a in enumerate(args, 1) if not a.startswith("-")), len(args))
     return (*args[:index], *flags, *args[index:])
-
-
-def bazel_build_binary(bin_path: str | Path, embedded_path: str) -> None:
-    """
-    Compile a dd_agent_go_binary Bazel target (e.g. "//cmd/agent") via
-    `bazel build` and copy the resulting binary to bin_path, for local
-    developer-desktop use.
-
-    embedded_path is the rtloader "embedded" install directory (see
-    tasks/rtloader.py's install_with_bazel), used to rewrite the binary's
-    RPATH.
-    """
-    target = "//cmd/agent"
-    bazel("build", target)
-
-    built_rel = bazel("cquery", "--output=files", target, capture_output=True).strip()
-    execroot = bazel("info", "execution_root", capture_output=True).strip()
-    built_bin = os.path.join(execroot, built_rel)
-
-    if not os.path.exists(built_bin):
-        raise Exit(f"bazel build succeeded but expected output {built_bin} is missing", code=1)
-
-    os.makedirs(os.path.dirname(os.path.abspath(str(bin_path))) or ".", exist_ok=True)
-    if os.path.exists(bin_path):
-        os.chmod(bin_path, 0o755)  # allow overwrite of a prior read-only copy
-    shutil.copy2(built_bin, bin_path)
-    os.chmod(bin_path, 0o755)  # bazel-out outputs are typically read-only (mode 0o555)
-
-    # Same tool tasks/rtloader.py's install_with_bazel uses to patch the rtloader
-    # .so files themselves, applied here to the agent binary that links against them.
-    # `bazel run` executes with the execution root as cwd, not the caller's cwd, so
-    # bin_path must be absolute for the tool to find it.
-    bazel("run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded_path, os.path.abspath(str(bin_path)))
-
-    # Mirrors what go_build() does after `go build`
-    uid = os.environ.get("HOST_UID", "-1")
-    gid = os.environ.get("HOST_GID", "-1")
-    if uid != "-1" and gid != "-1":
-        os.chown(bin_path, int(uid), int(gid))

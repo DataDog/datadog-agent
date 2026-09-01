@@ -26,7 +26,7 @@ from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
-from tasks.libs.build.bazel import bazel, bazel_build_binary
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -199,7 +199,7 @@ def build(
 
     with gitlab_section("Build agent", collapsed=True):
         if enable_bazel:
-            bazel_build_binary(bin_path=agent_bin, embedded_path=embedded_path)
+            build_binary_with_bazel(f"//cmd/{flavor_cmd}", bin_path=agent_bin, embedded_path=embedded_path)
         else:
             go_build(
                 ctx,
