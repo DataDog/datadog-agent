@@ -8,6 +8,9 @@ package remotequeriesimpl
 import (
 	"context"
 	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,10 +34,10 @@ import (
 //  3. renders the database_instance identifier the check itself emits — the default
 //     template $server:$port:$db over the raw configured server and the effective
 //     port and database — instead of guessing;
-//  4. mirrors the integrations-core ClickHouse executor's proof-query allowlist
-//     exactly — the Agent accepts no proof query the executor would reject and
-//     rejects none it accepts — while fixture-dependent Postgres proof SQL can never
-//     reach a ClickHouse executor and the generic bridge import
+//  4. mirrors the integrations-core ClickHouse executor's corrected proof-query
+//     allowlist exactly — the Agent accepts no proof query the executor would reject
+//     and rejects none it accepts — while fixture-dependent Postgres proof SQL can
+//     never reach a ClickHouse executor and the generic bridge import
 //     datadog_checks.<integration>.remote_query stays untouched.
 
 func TestClickHouseTupleTargetMatching(t *testing.T) {
@@ -392,14 +395,32 @@ func TestProofQueryAllowlistIsIntegrationSpecific(t *testing.T) {
 		assert.True(t, isRemoteQueryAllowedProofQuery("postgres", query), query)
 	}
 
-	// ClickHouse mirrors the executor's allowlist exactly: the dialect-neutral seed,
-	// the fixture-free identity proof, the unhex binary payload, and the shared
-	// large-payload repeat queries.
+	// ClickHouse mirrors the corrected executor's allowlist exactly: the
+	// dialect-neutral seed, the fixture-free identity proof, the valid-UTF-8 unhex
+	// binary payload, and the six deterministic bounded-repeat payload queries.
 	assert.True(t, isRemoteQueryAllowedProofQuery("clickhouse", remoteQueryProofSeedQuery))
 	assert.True(t, isRemoteQueryAllowedProofQuery("clickhouse", remoteQueryClickHouseIdentityProofQuery))
 	assert.True(t, isRemoteQueryAllowedProofQuery("clickhouse", remoteQueryClickHouseBinaryPayloadProofQuery))
-	for query := range remoteQueryLargePayloadProofQueries {
+	for _, sizeBytes := range remoteQueryClickHouseProofPayloadSizesBytes {
+		query, err := remoteQueryClickHouseProofPayloadQuery(sizeBytes)
+		require.NoError(t, err)
 		assert.True(t, isRemoteQueryAllowedProofQuery("clickhouse", query), query)
+	}
+
+	// The ClickHouse payload queries are dialect-specific: Postgres keeps its
+	// direct repeat('x', N) form and rejects the concat form.
+	for _, sizeBytes := range remoteQueryClickHouseProofPayloadSizesBytes {
+		query, err := remoteQueryClickHouseProofPayloadQuery(sizeBytes)
+		require.NoError(t, err)
+		assert.False(t, isRemoteQueryAllowedProofQuery("postgres", query), query)
+	}
+
+	// The legacy ClickHouse proof queries the executor corrected are rejected here
+	// too: the non-UTF-8 binary payload and every direct repeat('x', N) payload whose
+	// count sits at or above the ClickHouse repeat cap.
+	assert.False(t, isRemoteQueryAllowedProofQuery("clickhouse", "SELECT unhex('00ff80') AS payload"))
+	for query := range remoteQueryLargePayloadProofQueries {
+		assert.False(t, isRemoteQueryAllowedProofQuery("clickhouse", query), query)
 	}
 
 	// Fixture-dependent Postgres proofs never reach a ClickHouse executor.
@@ -411,33 +432,153 @@ func TestProofQueryAllowlistIsIntegrationSpecific(t *testing.T) {
 	assert.False(t, isRemoteQueryAllowedProofQuery("postgres", remoteQueryClickHouseIdentityProofQuery))
 	assert.False(t, isRemoteQueryAllowedProofQuery("postgres", remoteQueryClickHouseBinaryPayloadProofQuery))
 
+	// Nearby executable-but-non-allowlisted ClickHouse queries are rejected: a
+	// within-cap repeat count the executor never pinned, and the same 1 MiB total
+	// built with a different part split — the allowlist matches exact query strings,
+	// not payload sizes.
+	assert.False(t, isRemoteQueryAllowedProofQuery("clickhouse", "SELECT repeat('x', 1000000) AS payload"))
+	assert.False(t, isRemoteQueryAllowedProofQuery("clickhouse", "SELECT concat(repeat('x', 500000), repeat('x', 548576)) AS payload"))
+
 	// Arbitrary SQL, near-misses, and unknown integrations are rejected everywhere.
 	assert.False(t, isRemoteQueryAllowedProofQuery("clickhouse", "SELECT * FROM arbitrary_table"))
 	assert.False(t, isRemoteQueryAllowedProofQuery("postgres", "SELECT * FROM arbitrary_table"))
 	assert.False(t, isRemoteQueryAllowedProofQuery("clickhouse", "SELECT currentDatabase() AS current_db FROM remote_query_identity"))
 	assert.False(t, isRemoteQueryAllowedProofQuery("clickhouse", "SELECT hostname() AS host, currentUser() AS user, version() AS version"))
-	assert.False(t, isRemoteQueryAllowedProofQuery("clickhouse", "SELECT unhex('00ff80') AS payload_"))
+	assert.False(t, isRemoteQueryAllowedProofQuery("clickhouse", "SELECT unhex('006162') AS payload_"))
 	assert.False(t, isRemoteQueryAllowedProofQuery("mysql", remoteQueryProofSeedQuery))
 	assert.False(t, isRemoteQueryAllowedProofQuery("", remoteQueryProofSeedQuery))
 }
 
-// clickHouseExecutorProofQueries returns the exact proof-query set the
-// integrations-core ClickHouse executor allowlists, so the dispatch test tracks the
-// cross-repo contract rather than restating the Agent-side map.
-func clickHouseExecutorProofQueries() []string {
+// TestClickHouseProofQueriesMirrorTheCorrectedExecutorAllowlist proves the
+// Agent-side ClickHouse proof set is exactly the corrected integrations-core executor
+// allowlist: nine queries — the dialect-neutral seed, the identity proof, the binary
+// payload proof, and the six deterministic payload queries — and nothing else. The
+// count and the three fixed queries are cross-repo contract mirrored one for one,
+// not local convenience.
+func TestClickHouseProofQueriesMirrorTheCorrectedExecutorAllowlist(t *testing.T) {
+	expected := make(map[string]struct{}, 9)
+	for _, query := range []string{
+		remoteQueryProofSeedQuery,
+		remoteQueryClickHouseIdentityProofQuery,
+		remoteQueryClickHouseBinaryPayloadProofQuery,
+	} {
+		expected[query] = struct{}{}
+	}
+	for _, sizeBytes := range remoteQueryClickHouseProofPayloadSizesBytes {
+		query, err := remoteQueryClickHouseProofPayloadQuery(sizeBytes)
+		require.NoError(t, err)
+		expected[query] = struct{}{}
+	}
+
+	registered := clickHouseProofQueries()
+	assert.Len(t, registered, 9)
+	assert.Equal(t, expected, registered)
+}
+
+// TestClickHouseProofPayloadQueriesAreDeterministicBoundedAndExact proves the
+// construction the corrected executor pins: every proof payload query is a pure
+// function of its size, every repeat() count stays within the ClickHouse repeat cap
+// real servers enforce, and the concatenated parts sum to exactly the intended
+// payload byte count.
+func TestClickHouseProofPayloadQueriesAreDeterministicBoundedAndExact(t *testing.T) {
+	// The intended sizes are the pinned power-of-two byte counts, 1 MiB through 32 MiB.
+	assert.Equal(t, []int{1 << 20, 2 << 20, 4 << 20, 8 << 20, 16 << 20, 32 << 20}, remoteQueryClickHouseProofPayloadSizesBytes)
+
+	for _, sizeBytes := range remoteQueryClickHouseProofPayloadSizesBytes {
+		query, err := remoteQueryClickHouseProofPayloadQuery(sizeBytes)
+		require.NoError(t, err)
+
+		// Deterministic construction: one size builds one stable SQL string, and the
+		// registered allowlist carries exactly that string.
+		again, err := remoteQueryClickHouseProofPayloadQuery(sizeBytes)
+		require.NoError(t, err)
+		assert.Equal(t, again, query)
+		assert.True(t, isRemoteQueryAllowedProofQuery("clickhouse", query))
+
+		repeatArguments := clickHouseRepeatArguments(t, query)
+		require.NotEmpty(t, repeatArguments)
+
+		// Real servers reject repeat() counts above the hard cap (Code 131), and the
+		// parts must sum to exactly the intended payload byte count.
+		total := 0
+		for _, argument := range repeatArguments {
+			assert.LessOrEqual(t, argument, remoteQueryClickHouseRepeatCap)
+			total += argument
+		}
+		assert.Equal(t, sizeBytes, total)
+	}
+}
+
+var clickHouseRepeatArgumentPattern = regexp.MustCompile(`repeat\('x', (\d+)\)`)
+
+// clickHouseRepeatArguments extracts the repeat('x', N) counts of a proof payload
+// query in order.
+func clickHouseRepeatArguments(t *testing.T, query string) []int {
+	t.Helper()
+	matches := clickHouseRepeatArgumentPattern.FindAllStringSubmatch(query, -1)
+	arguments := make([]int, 0, len(matches))
+	for _, match := range matches {
+		argument, err := strconv.Atoi(match[1])
+		require.NoError(t, err)
+		arguments = append(arguments, argument)
+	}
+	return arguments
+}
+
+// TestClickHouseProofPayloadQueriesMatchTheExecutorStrings byte-for-byte pins the
+// helper's output to the corrected executor's strings: the smallest sizes as
+// literals, and 32 MiB through an expectation assembled independently of the helper
+// under test — thirty-three million-byte parts plus the 554,432-byte remainder.
+func TestClickHouseProofPayloadQueriesMatchTheExecutorStrings(t *testing.T) {
+	// 1 MiB: one full-cap part plus the 48,576-byte remainder.
+	query, err := remoteQueryClickHouseProofPayloadQuery(1048576)
+	require.NoError(t, err)
+	assert.Equal(t, "SELECT concat(repeat('x', 1000000), repeat('x', 48576)) AS payload", query)
+
+	// 2 MiB: two full-cap parts plus the 97,152-byte remainder.
+	query, err = remoteQueryClickHouseProofPayloadQuery(2097152)
+	require.NoError(t, err)
+	assert.Equal(t, "SELECT concat(repeat('x', 1000000), repeat('x', 1000000), repeat('x', 97152)) AS payload", query)
+
+	// 32 MiB: thirty-three full-cap parts plus the 554,432-byte remainder.
+	query, err = remoteQueryClickHouseProofPayloadQuery(33554432)
+	require.NoError(t, err)
+	expected := "SELECT concat(" +
+		strings.TrimSuffix(strings.Repeat("repeat('x', 1000000), ", 33), ", ") +
+		", repeat('x', 554432)) AS payload"
+	assert.Equal(t, expected, query)
+}
+
+// TestClickHouseProofPayloadQueryRejectsNonPositiveSizes mirrors the executor's
+// constructor guard: a non-positive size is an error, never a degenerate query.
+func TestClickHouseProofPayloadQueryRejectsNonPositiveSizes(t *testing.T) {
+	for _, sizeBytes := range []int{0, -1, -1048576} {
+		query, err := remoteQueryClickHouseProofPayloadQuery(sizeBytes)
+		require.Error(t, err)
+		assert.Empty(t, query)
+	}
+}
+
+// clickHouseExecutorProofQueries returns the exact proof-query set the integrations-
+// core ClickHouse executor allowlists, so the dispatch test tracks the cross-repo
+// contract rather than restating the Agent-side map.
+func clickHouseExecutorProofQueries(t *testing.T) []string {
+	t.Helper()
 	queries := []string{
 		remoteQueryProofSeedQuery,
 		remoteQueryClickHouseIdentityProofQuery,
 		remoteQueryClickHouseBinaryPayloadProofQuery,
 	}
-	for query := range remoteQueryLargePayloadProofQueries {
+	for _, sizeBytes := range remoteQueryClickHouseProofPayloadSizesBytes {
+		query, err := remoteQueryClickHouseProofPayloadQuery(sizeBytes)
+		require.NoError(t, err)
 		queries = append(queries, query)
 	}
 	return queries
 }
 
 func TestRemoteQueryExecuteServiceClickHouseDispatchesExecutorProofQueries(t *testing.T) {
-	for _, query := range clickHouseExecutorProofQueries() {
+	for _, query := range clickHouseExecutorProofQueries(t) {
 		t.Run(query, func(t *testing.T) {
 			runner := newClickHouseStreamRunner([]check.RemoteQueryStreamEvent{
 				{Type: "metadata", MetadataJSON: `{"status":"STARTED","operation":"produce_json_pages"}`},
@@ -488,6 +629,18 @@ func TestRemoteQueryExecuteServiceClickHouseRejectsNonAllowlistedQueries(t *test
 		remoteQueryBinaryPayloadProofQuery,
 		"SELECT currentDatabase() AS current_db FROM remote_query_identity",
 		"SELECT hostname() AS host, currentUser() AS user, version() AS version",
+		// The legacy binary proof the executor corrected: a non-UTF-8 payload the
+		// executor's JSON value contract fails closed on.
+		"SELECT unhex('00ff80') AS payload",
+		// The legacy direct large-payload form the executor corrected: the count
+		// sits at or above the ClickHouse repeat cap, so real servers reject it.
+		"SELECT repeat('x', 1048576) AS payload",
+		"SELECT repeat('x', 33554432) AS payload",
+		// Within the repeat cap and executable on a real server, but never pinned.
+		"SELECT repeat('x', 1000000) AS payload",
+		// The same 1 MiB total as an allowlisted query but split differently: the
+		// allowlist matches exact query strings, not payload sizes.
+		"SELECT concat(repeat('x', 500000), repeat('x', 548576)) AS payload",
 	}
 
 	for _, query := range rejected {
