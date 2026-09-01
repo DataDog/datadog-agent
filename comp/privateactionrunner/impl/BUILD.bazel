@@ -21,6 +21,7 @@ go_library(
         "//comp/networkpath/traceroute/def",
         "//comp/privateactionrunner/def",
         "//comp/remote-config/rcclient/def",
+        "//pkg/config/env",
         "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/fleet/installer/telemetry",
