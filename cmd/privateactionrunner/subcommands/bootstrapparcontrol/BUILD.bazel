@@ -21,6 +21,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/fips",
         "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/privateactionrunner/autoconnections",
         "//pkg/privateactionrunner/enrollment",
