@@ -189,6 +189,26 @@ var (
 	getRoutesFunc = system.ParseProcessRoutes
 )
 
+// routesForContainer returns the routes of the container network namespace, trying each of its
+// PIDs until one is readable.
+//
+// All the processes of a container share the same network namespace, so they all (normally) yield
+// the same routes. Picking a single PID is not enough: `entry.pids` is a snapshot that may be
+// several seconds old, and its order is not guaranteed to put the container main process first.
+// In particular, once the kernel PID counter has wrapped around, the lowest PID of a container is
+// the youngest process, hence the most likely to be gone already.
+func routesForContainer(procPath string, entry *containerNetworkEntry) (routes []system.NetworkRoute, err error) {
+	for _, pid := range entry.pids {
+		if routes, err = getRoutesFunc(procPath, pid); err == nil {
+			return routes, nil
+		}
+
+		log.Tracef("Cannot list routes for container id %s through pid %d: %s, trying next pid", entry.containerID, pid, err)
+	}
+
+	return routes, err
+}
+
 func findDockerNetworks(procPath string, entry *containerNetworkEntry, container container.Summary) {
 	netMode := container.HostConfig.NetworkMode
 	// Check the known network modes that require specific handling.
@@ -219,7 +239,6 @@ func findDockerNetworks(procPath string, entry *containerNetworkEntry, container
 		return
 	}
 
-	var err error
 	interfaces := make(map[string]uint64)
 	for netName, netConf := range netSettings.Networks {
 		if netName == "host" {
@@ -238,9 +257,9 @@ func findDockerNetworks(procPath string, entry *containerNetworkEntry, container
 		interfaces[netName] = uint64(binary.LittleEndian.Uint32(ip.To4()))
 	}
 
-	destinations, err := getRoutesFunc(procPath, entry.pids[0])
+	destinations, err := routesForContainer(procPath, entry)
 	if err != nil {
-		log.Warnf("Cannot list routes for container id %s: %s, skipping", entry.containerID, err)
+		log.Debugf("Cannot list routes for container id %s: %s, falling back to raw interface names for the docker_network tag", entry.containerID, err)
 		return
 	}
 
