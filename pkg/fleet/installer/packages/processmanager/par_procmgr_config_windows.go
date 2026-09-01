@@ -30,6 +30,22 @@ func RemovePARProcmgrConfig(installRootResolved string) error {
 	return removeInstallRootProcmgrConfig(installRootResolved, parInstallRootProcmgrSpec)
 }
 
+var parControlInstallRootProcmgrSpec = installRootProcmgrSpec{
+	logLabel:          "PAR control plane",
+	binaryRelPath:     "bin/agent/par-control.exe",
+	configFileName:    "datadog-agent-par-control.yaml",
+	embeddedConfig:    embedded.PARControlWindowsProcmgrConfig,
+	placeholderPrefix: "PAR",
+}
+
+func WritePARControlProcmgrConfig(installRootResolved string) error {
+	return writeInstallRootProcmgrConfig(installRootResolved, parControlInstallRootProcmgrSpec)
+}
+
+func RemovePARControlProcmgrConfig(installRootResolved string) error {
+	return removeInstallRootProcmgrConfig(installRootResolved, parControlInstallRootProcmgrSpec)
+}
+
 var parExecutorInstallRootProcmgrSpec = installRootProcmgrSpec{
 	logLabel:          "PAR executor",
 	binaryRelPath:     "bin/agent/privateactionrunner.exe",
