@@ -24,8 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -40,7 +38,7 @@ func runBootstrap(t *testing.T, cfg coreconfig.Component, enroll enrollAndPersis
 	t.Helper()
 	hostnameComp, _ := hostnamemock.NewMock("test-host")
 	var out bytes.Buffer
-	if err := bootstrap(context.Background(), logmock.New(t), cfg, hostnameComp, enroll, &out); err != nil {
+	if err := bootstrap(context.Background(), cfg, hostnameComp, enroll, &out); err != nil {
 		return nil, err
 	}
 	var resolved ControlPlaneConfig
@@ -109,7 +107,7 @@ func TestBootstrapSelfEnrolls(t *testing.T) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
-	resolved, err := runBootstrap(t, cfg, func(ctx context.Context, _ log.Component, cfg coreconfig.Component, _ *enrollment.AgentIdentifier) (*enrollment.Result, error) {
+	resolved, err := runBootstrap(t, cfg, func(ctx context.Context, cfg coreconfig.Component, _ *enrollment.AgentIdentifier) (*enrollment.Result, error) {
 		result := &enrollment.Result{URN: validURN(), PrivateKey: privateKey, Hostname: "test-host"}
 		return result, enrollment.PersistIdentity(ctx, cfg, result)
 	})
@@ -191,7 +189,7 @@ func validPrivateKey(t *testing.T) string {
 }
 
 func failIfEnrolled(t *testing.T) enrollAndPersistFunc {
-	return func(context.Context, log.Component, coreconfig.Component, *enrollment.AgentIdentifier) (*enrollment.Result, error) {
+	return func(context.Context, coreconfig.Component, *enrollment.AgentIdentifier) (*enrollment.Result, error) {
 		t.Fatal("unexpected enrollment")
 		return nil, nil
 	}

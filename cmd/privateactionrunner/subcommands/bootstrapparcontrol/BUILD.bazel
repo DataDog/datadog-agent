@@ -41,8 +41,6 @@ dd_agent_go_test(
         "//cmd/privateactionrunner/command",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",
-        "//comp/core/log/def",
-        "//comp/core/log/mock",
         "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/enrollment",
         "//pkg/privateactionrunner/util",

@@ -102,19 +102,19 @@ only the launch gate and log level.`,
 	return []*cobra.Command{cmd}
 }
 
-func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
-	return bootstrap(context.Background(), logger, cfg, hostnameComp, enrollAndPersist, os.Stdout)
+func run(cfg config.Component, hostnameComp hostname.Component) error {
+	return bootstrap(context.Background(), cfg, hostnameComp, enrollAndPersist, os.Stdout)
 }
 
-func bootstrap(ctx context.Context, logger log.Component, cfg config.Component, hostnameComp hostname.Component, enrollAndPersist enrollAndPersistFunc, out io.Writer) error {
-	resolved, err := resolveConfig(ctx, logger, cfg, hostnameComp, enrollAndPersist)
+func bootstrap(ctx context.Context, cfg config.Component, hostnameComp hostname.Component, enrollAndPersist enrollAndPersistFunc, out io.Writer) error {
+	resolved, err := resolveConfig(ctx, cfg, hostnameComp, enrollAndPersist)
 	if err != nil {
 		return err
 	}
 	return emitConfig(out, resolved)
 }
 
-func resolveConfig(ctx context.Context, logger log.Component, cfg config.Component, hostnameComp hostname.Component, enrollAndPersist enrollAndPersistFunc) (*ControlPlaneConfig, error) {
+func resolveConfig(ctx context.Context, cfg config.Component, hostnameComp hostname.Component, enrollAndPersist enrollAndPersistFunc) (*ControlPlaneConfig, error) {
 	logLevel := cfg.GetString("log_level")
 	splitMode := cfg.GetBool(par.PAREnabled) && cfg.GetBool(par.PARSplitEnabled)
 
@@ -126,7 +126,7 @@ func resolveConfig(ctx context.Context, logger log.Component, cfg config.Compone
 		return nil, err
 	}
 
-	if err := ensureEnrollment(ctx, logger, cfg, hostnameComp, enrollAndPersist); err != nil {
+	if err := ensureEnrollment(ctx, cfg, hostnameComp, enrollAndPersist); err != nil {
 		return nil, err
 	}
 

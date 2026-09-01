@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -21,9 +20,9 @@ import (
 	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
-type enrollAndPersistFunc func(context.Context, log.Component, config.Component, *enrollment.AgentIdentifier) (*enrollment.Result, error)
+type enrollAndPersistFunc func(context.Context, config.Component, *enrollment.AgentIdentifier) (*enrollment.Result, error)
 
-func ensureEnrollment(ctx context.Context, logger log.Component, cfg config.Component, hostnameComp hostname.Component, enroll enrollAndPersistFunc) error {
+func ensureEnrollment(ctx context.Context, cfg config.Component, hostnameComp hostname.Component, enroll enrollAndPersistFunc) error {
 	agentID, err := enrollment.GetAgentIdentifier(ctx, hostnameComp)
 	if err != nil {
 		return err
@@ -45,7 +44,7 @@ func ensureEnrollment(ctx context.Context, logger log.Component, cfg config.Comp
 		return errors.New("no Private Action Runner identity is configured and self-enrollment is disabled")
 	}
 
-	if _, err := enroll(ctx, logger, cfg, agentID); err != nil {
+	if _, err := enroll(ctx, cfg, agentID); err != nil {
 		return err
 	}
 	identity, err = enrollment.GetIdentityFromPreviousEnrollment(ctx, cfg)
@@ -64,7 +63,7 @@ func applyIdentity(cfg config.Component, identity *enrollment.PersistedIdentity)
 	cfg.Set(par.PARPrivateKey, identity.PrivateKey, model.SourceAgentRuntime)
 }
 
-func enrollAndPersist(ctx context.Context, logger log.Component, cfg config.Component, agentID *enrollment.AgentIdentifier) (*enrollment.Result, error) {
+func enrollAndPersist(ctx context.Context, cfg config.Component, agentID *enrollment.AgentIdentifier) (*enrollment.Result, error) {
 	result, err := enrollment.Enroll(ctx, cfg, agentID)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment failed: %w", err)
