@@ -11,5 +11,6 @@ fixes:
     Single Step Instrumentation no longer instruments every eligible pod while
     the Cluster Agent is still waiting for the first Remote Config workload
     selection snapshot. Pods created in that window are left unchanged until
-    remote policies arrive, or until an empty snapshot confirms that the
-    organization has no remote policies.
+    remote policies arrive, an empty snapshot confirms that the organization
+    has no remote policies, or one minute elapses without an answer (in which
+    case instrumentation proceeds and a warning is logged).
