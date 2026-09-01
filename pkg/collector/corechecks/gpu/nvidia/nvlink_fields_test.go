@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -20,7 +19,7 @@ import (
 
 func TestNVLinkFieldsCollectorQueriesAllConfiguredPorts(t *testing.T) {
 	var requests [][]nvml.FieldValue
-	device := setupMockDevice(t, testutil.WithCustomHook(func(d *mock.Device) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			require.NotEmpty(t, fv)
 			for i := range fv {
@@ -70,7 +69,7 @@ func TestNVLinkFieldsCollectorQueriesAllConfiguredPorts(t *testing.T) {
 
 func TestNVLinkFieldsCollectorQueriesForcedScopeForEachPort(t *testing.T) {
 	var requests [][]nvml.FieldValue
-	device := setupMockDevice(t, testutil.WithCustomHook(func(d *mock.Device) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			for i := range fv {
 				if fv[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
@@ -212,7 +211,7 @@ func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
 
 func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 	var requestedFieldsByScope = make(map[uint32][]uint32)
-	device := setupMockDevice(t, testutil.WithCustomHook(func(d *mock.Device) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			for i := range fv {
 				requestedFieldsByScope[fv[i].ScopeId] = append(requestedFieldsByScope[fv[i].ScopeId], fv[i].FieldId)
@@ -259,7 +258,7 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 
 func TestNVLinkFieldsCollectorReturnsErrorsForUnsupportedCollectedFields(t *testing.T) {
 	collecting := false
-	device := setupMockDevice(t, testutil.WithCustomHook(func(d *mock.Device) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			if len(fv) == 0 {
 				panic("GetFieldValues called with empty fields")
