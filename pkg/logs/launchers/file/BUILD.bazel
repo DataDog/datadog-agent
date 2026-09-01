@@ -53,7 +53,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:aix": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -70,7 +69,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:android": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -88,7 +86,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:darwin": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -105,7 +102,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:dragonfly": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -122,7 +118,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:freebsd": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -139,7 +134,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:illumos": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -156,7 +150,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:ios": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -173,7 +166,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:js": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -190,7 +182,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -208,7 +199,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:netbsd": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -225,7 +215,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:openbsd": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -242,7 +231,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:osx": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -259,7 +247,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:plan9": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -276,7 +263,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:qnx": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
@@ -293,7 +279,6 @@ dd_agent_go_test(
         "@rules_go//go/platform:solaris": [
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/mock",
-            "//comp/logs-library/metrics",
             "//comp/logs-library/pipeline",
             "//comp/logs-library/pipeline/mock",
             "//comp/logs/agent/flare",
