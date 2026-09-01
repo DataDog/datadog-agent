@@ -3,9 +3,5 @@
 Type: @selinux_tools//:selinux_tools_toolchain_type
 
 Toolchains:
-- @selinux_tools//:selinux_tools_toolchain: provides checkmodule and
-  semodule_package (see bazel/toolchains/selinux_tools/defs.bzl.tpl)
-- @selinux_tools//:selinux_tools_missing_toolchain: provides a fallback
-  toolchain for exec platforms where these tools might not be available (e.g.
-  anything but Linux).
+- @selinux_tools//:selinux_tools_toolchain: provides checkmodule and semodule_package.
 """

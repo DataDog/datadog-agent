@@ -25,16 +25,3 @@ selinux_tools_toolchain = rule(
         "semodule_package_path": attr.string(doc = "The path to the semodule_package executable."),
     },
 )
-
-# Expose the availability of the tools as a flag, so we can create a
-# config_setting from it.
-def _is_selinux_tools_available_impl(ctx):
-    return [config_common.FeatureFlagInfo(
-        value = ("1" if ctx.build_setting_value else "0"),
-    )]
-
-is_selinux_tools_available = rule(
-    implementation = _is_selinux_tools_available_impl,
-    attrs = {},
-    build_setting = config.bool(flag = False),
-)
