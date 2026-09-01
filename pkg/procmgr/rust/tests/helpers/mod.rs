@@ -1466,9 +1466,68 @@ impl TestEnv {
     }
 
     /// Run a CLI command against this environment's daemon.
+    ///
+    /// Prefer the typed `cli_*` helpers below for standard subcommands in contract
+    /// tests. Use this for `create` and other multi-flag invocations.
     pub fn cli(&self, args: &[&str]) -> CliOutput {
         let runner = CliRunner::new(&self.socket_path);
         runner.run(args)
+    }
+
+    pub fn cli_config(&self) -> CliOutput {
+        self.cli(&["config"])
+    }
+
+    pub fn cli_config_json(&self) -> CliOutput {
+        self.cli(&["config", "--json"])
+    }
+
+    pub fn cli_status(&self) -> CliOutput {
+        self.cli(&["status"])
+    }
+
+    pub fn cli_status_json(&self) -> CliOutput {
+        self.cli(&["status", "--json"])
+    }
+
+    pub fn cli_list(&self) -> CliOutput {
+        self.cli(&["list"])
+    }
+
+    pub fn cli_list_json(&self) -> CliOutput {
+        self.cli(&["list", "--json"])
+    }
+
+    pub fn cli_describe(&self, name: &str) -> CliOutput {
+        self.cli(&["describe", name])
+    }
+
+    pub fn cli_describe_json(&self, name: &str) -> CliOutput {
+        self.cli(&["describe", "--json", name])
+    }
+
+    pub fn cli_start(&self, name: &str) -> CliOutput {
+        self.cli(&["start", name])
+    }
+
+    pub fn cli_start_json(&self, name: &str) -> CliOutput {
+        self.cli(&["start", "--json", name])
+    }
+
+    pub fn cli_stop(&self, name: &str) -> CliOutput {
+        self.cli(&["stop", name])
+    }
+
+    pub fn cli_stop_json(&self, name: &str) -> CliOutput {
+        self.cli(&["stop", "--json", name])
+    }
+
+    pub fn cli_reload(&self) -> CliOutput {
+        self.cli(&["reload"])
+    }
+
+    pub fn cli_reload_json(&self) -> CliOutput {
+        self.cli(&["reload", "--json"])
     }
 
     /// Access the daemon handle for log inspection, PID checks, etc.
