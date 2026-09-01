@@ -92,6 +92,12 @@ go_library(
 
 dd_agent_go_binary(
     name = "system-probe",
+    # FIPS requires cgo; Windows cgo is provided by dd_agent_go_binary default.
+    cgo = select({
+        "//packages/agent:fips_flavor": True,
+        "@platforms//os:windows": True,
+        "//conditions:default": False,
+    }),
     embed = [":system-probe_lib"],
     gotags = SYSTEM_PROBE_TAGS,
     visibility = ["//visibility:public"],

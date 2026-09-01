@@ -261,8 +261,6 @@ def build_sysprobe_binary(
             raise NotImplementedError("--enable-bazel does not support --no-glibc.")
         if arch_obj.is_cross_compiling():
             raise NotImplementedError("--enable-bazel does not support cross-compilation.")
-        if sys.platform != 'linux':
-            raise NotImplementedError("--enable-bazel is only supported on Linux.")
 
         bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
         build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=binary)
