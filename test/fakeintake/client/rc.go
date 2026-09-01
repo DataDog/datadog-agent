@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
@@ -40,6 +41,24 @@ func (c *Client) RCAddConfig(orgID, product, configID, configName string, data [
 	if resp.StatusCode != http.StatusCreated {
 		errBody, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("rc add: status %d: %s", resp.StatusCode, errBody)
+	}
+	return nil
+}
+
+// RCSetExpiration changes the expiry of generated non-root TUF metadata.
+func (c *Client) RCSetExpiration(expiresAt time.Time) error {
+	body, err := json.Marshal(api.RCSetExpirationRequest{ExpiresAt: expiresAt})
+	if err != nil {
+		return err
+	}
+	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/rc/expiration", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		errBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("rc expiration: status %d: %s", resp.StatusCode, errBody)
 	}
 	return nil
 }

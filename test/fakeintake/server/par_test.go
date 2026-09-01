@@ -23,6 +23,54 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+func TestPARStatsTrackRunnerRequestsAndFlush(t *testing.T) {
+	fi := NewServer()
+
+	for range 2 {
+		fi.handlePARDequeue(
+			httptest.NewRecorder(),
+			httptest.NewRequest(http.MethodPost, "/api/v2/on-prem-management-service/workflow-tasks/dequeue", nil),
+		)
+	}
+	for range 3 {
+		fi.handlePARHealthCheck(
+			httptest.NewRecorder(),
+			httptest.NewRequest(http.MethodGet, "/api/v2/on-prem-management-service/runner/health-check", nil),
+		)
+	}
+
+	enrollment := httptest.NewRecorder()
+	fi.handlePAREnroll(enrollment, httptest.NewRequest(
+		http.MethodPost,
+		"/api/unstable/on_prem_runners",
+		bytes.NewBufferString(`{"data":{"attributes":{"agent_hostname":"par-host","agent_flavor":"private_action_runner"}}}`),
+	))
+	require.Equal(t, http.StatusOK, enrollment.Code)
+	assert.Contains(t, enrollment.Body.String(), `"runner_id":"fake-runner-1"`)
+	assert.Contains(t, enrollment.Body.String(), `"agent_hostname":"par-host"`)
+
+	assertPARStats(t, fi, 2, 3, 1)
+	fi.handlePARFlush(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/fakeintake/par/flush", nil))
+	assertPARStats(t, fi, 0, 0, 0)
+}
+
+func assertPARStats(t *testing.T, fi *Server, wantDequeues, wantHealthChecks, wantEnrollments int) {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	fi.handlePARStats(recorder, httptest.NewRequest(http.MethodGet, "/fakeintake/par/stats", nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var stats struct {
+		DequeueCalls     int `json:"dequeue_calls"`
+		HealthCheckCalls int `json:"health_check_calls"`
+		EnrollmentCalls  int `json:"enrollment_calls"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &stats))
+	assert.Equal(t, wantDequeues, stats.DequeueCalls)
+	assert.Equal(t, wantHealthChecks, stats.HealthCheckCalls)
+	assert.Equal(t, wantEnrollments, stats.EnrollmentCalls)
+}
+
 func TestPARDequeueSurfacesRshellPolicyInSignedEnvelope(t *testing.T) {
 	fi := NewServer()
 	fi.par.queue = []parQueuedTask{{

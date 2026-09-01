@@ -32,12 +32,13 @@ const (
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
 	// Restricted Shell
-	PARRestrictedShellAllowedPaths          = "private_action_runner.restricted_shell.allowed_paths"
-	PARRestrictedShellAllowedCommands       = "private_action_runner.restricted_shell.allowed_commands"
-	PARRestrictedShellAllowedSystemServices = "private_action_runner.restricted_shell.allowed_system_services"
-	RShellPathAllowAll                      = "/"
-	RShellPathAllowMapContainerizedKey      = "containerized"
-	RShellPathAllowMapDefaultKey            = "default"
+	PARRestrictedShellAllowedPaths             = "private_action_runner.restricted_shell.allowed_paths"
+	PARRestrictedShellAllowedCommands          = "private_action_runner.restricted_shell.allowed_commands"
+	PARRestrictedShellAllowedSystemServices    = "private_action_runner.restricted_shell.allowed_system_services"
+	PARRestrictedShellDisableDetailedTelemetry = "private_action_runner.restricted_shell.disable_detailed_telemetry"
+	RShellPathAllowAll                         = "/"
+	RShellPathAllowMapContainerizedKey         = "containerized"
+	RShellPathAllowMapDefaultKey               = "default"
 
 	// Meant for internal usage
 	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"

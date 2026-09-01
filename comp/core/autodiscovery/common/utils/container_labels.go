@@ -24,5 +24,6 @@ func ExtractCheckNamesFromContainerLabels(labels map[string]string) ([]string, e
 // in a map of labels and returns them if found. In order of priority, it
 // prefers annotations v2, and then v1.
 func ExtractTemplatesFromContainerLabels(entityName string, labels map[string]string) ([]integration.Config, []error) {
-	return extractTemplatesFromMapWithV2(entityName, labels, containerAnnotationPrefix, "")
+	// Container labels do not support the hybrid ignore_autodiscovery_tags overlay.
+	return extractTemplatesFromMapWithV2(entityName, labels, containerAnnotationPrefix, "", false)
 }

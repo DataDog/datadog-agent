@@ -1160,19 +1160,26 @@ def cleanup_remote_stacks(ctx, stack_regex):
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
         destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
         res = pool.map(destroy_func, to_delete_stacks)
-        destroyed_stack = set()
+        successful_stack = set()
         failed_stack = set()
         for exit_code, stdout, stderr, stack in res:
             if exit_code != 0:
                 failed_stack.add(stack)
             else:
-                destroyed_stack.add(stack)
-            print(f"Stack {stack}: {stdout} {stderr}")
+                successful_stack.add(stack)
+            if stdout or stderr:
+                print(f"Stack {stack}: {stdout} {stderr}".rstrip())
 
-    for stack in destroyed_stack:
-        print(f"Stack {stack} destroyed successfully")
+    for stack in successful_stack:
+        if remote_stack_cleaning:
+            print(f"Stack {stack} cleanup request submitted successfully")
+        else:
+            print(f"Stack {stack} destroyed successfully")
     for stack in failed_stack:
-        print(f"Failed to destroy stack {stack}")
+        if remote_stack_cleaning:
+            print(f"Failed to submit cleanup request for stack {stack}")
+        else:
+            print(f"Failed to destroy stack {stack}")
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:

@@ -126,8 +126,9 @@ func newNVLinkFieldsCollectorWithMetrics(device ddnvml.Device, metrics map[uint3
 	return c, nil
 }
 
-func (c *nvlinkFieldsCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *nvlinkFieldsCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *nvlinkFieldsCollector) Name() CollectorName {

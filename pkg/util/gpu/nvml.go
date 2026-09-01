@@ -40,3 +40,21 @@ func ArchToString(arch nvml.DeviceArchitecture) string {
 		return "invalid"
 	}
 }
+
+// VirtualizationModeToString converts an NVML GPU virtualization mode to a tag value.
+func VirtualizationModeToString(mode nvml.GpuVirtualizationMode) string {
+	switch mode {
+	case nvml.GPU_VIRTUALIZATION_MODE_NONE:
+		return "none"
+	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU:
+		return "host_vgpu"
+	case nvml.GPU_VIRTUALIZATION_MODE_PASSTHROUGH:
+		return "passthrough"
+	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VSGA:
+		return "host_vsga"
+	case nvml.GPU_VIRTUALIZATION_MODE_VGPU:
+		return "vgpu"
+	default:
+		return "unknown"
+	}
+}

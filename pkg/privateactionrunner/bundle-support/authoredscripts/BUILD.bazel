@@ -7,6 +7,7 @@ go_library(
         "catalog.go",
         "command.go",
         "environment.go",
+        "execution.go",
         "local_store.go",
         "manifest.go",
         "package.go",
@@ -114,6 +115,7 @@ dd_agent_go_test(
     srcs = [
         "command_test.go",
         "environment_test.go",
+        "execution_test.go",
         "manifest_test.go",
         "package_test.go",
     ],

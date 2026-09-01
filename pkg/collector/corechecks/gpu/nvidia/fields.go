@@ -40,8 +40,9 @@ func newFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (Collect
 	return c, nil
 }
 
-func (c *fieldsCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *fieldsCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *fieldsCollector) removeUnsupportedMetrics() {
@@ -49,7 +50,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 	if err != nil {
 		// If the entire field values API is unsupported, remove all metrics
 		if ddnvml.IsAPIUnsupportedOnDevice(err, c.device) {
-			log.Debugf("GPU fields collector removing all field metrics for device %s because GetFieldValues is unsupported", c.DeviceUUID())
+			log.Debugf("GPU fields collector removing all field metrics for device %s because GetFieldValues is unsupported", c.Device().GetDeviceInfo().UUID)
 			c.fieldMetrics = nil
 		}
 		// Otherwise, do nothing and keep all metrics
@@ -65,7 +66,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 			if fieldValueIdx == -1 {
 				log.Warnf("Unexpected field ID %d returned for device %s (scope_id=%d): return value is %s",
 					val.FieldId,
-					c.DeviceUUID(),
+					c.Device().GetDeviceInfo().UUID,
 					val.ScopeId,
 					nvml.ErrorString(nvml.Return(val.NvmlReturn)),
 				)
@@ -79,7 +80,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 
 			log.Debugf("GPU fields collector removing unsupported metric %s for device %s (field_id=%d scope_id=%d)",
 				fieldMetric.name,
-				c.DeviceUUID(),
+				c.Device().GetDeviceInfo().UUID,
 				fieldMetric.fieldValueID,
 				fieldMetric.scopeID,
 			)

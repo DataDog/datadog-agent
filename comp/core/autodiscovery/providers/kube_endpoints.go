@@ -293,7 +293,8 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 		endpointsID := apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
 		setEndpointIDs[endpointsID] = struct{}{}
 
-		endptConf, errors := utils.ExtractTemplatesFromAnnotations(endpointsID, svc.GetAnnotations(), kubeEndpointID)
+		hybridIgnoreADTags := cfg.GetBool("cluster_checks.support_hybrid_ignore_ad_tags")
+		endptConf, errors := utils.ExtractTemplatesFromAnnotations(endpointsID, svc.GetAnnotations(), kubeEndpointID, hybridIgnoreADTags)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}

@@ -944,3 +944,30 @@ func TestLegacyTraceIDShortIsZeroPadded(t *testing.T) {
 		})
 	}
 }
+
+// TestTraceIDHighShortIsZeroPadded verifies that TraceIDHigh does not panic on a TraceID
+// shorter than 16 bytes, and that any high-order bytes actually supplied (for TraceIDs
+// between 9 and 15 bytes) are reflected in the result rather than being treated as zero.
+func TestTraceIDHighShortIsZeroPadded(t *testing.T) {
+	cases := []struct {
+		name string
+		tid  []byte
+		want uint64
+	}{
+		{"empty", []byte{}, 0},
+		{"4 bytes", []byte{1, 2, 3, 4}, 0},
+		{"8 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8}, 0},
+		// 15 bytes: 7 bytes spill into the high 8 bytes once right-aligned (buf[0]=0, buf[1:8]=1..7).
+		{"15 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, 0x0001020304050607},
+		// Full 16-byte trace ID: high 8 bytes only.
+		{"16 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8, 99, 99, 99, 99, 99, 99, 99, 99}, 0x0102030405060708},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &InternalTraceChunk{TraceID: tc.tid}
+			assert.NotPanics(t, func() {
+				assert.Equal(t, tc.want, c.TraceIDHigh())
+			})
+		})
+	}
+}

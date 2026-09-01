@@ -11,11 +11,15 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 )
 
 // Test that TracerPayloadModifier implements agent.TracerPayloadModifier interface
 var _ agent.TracerPayloadModifier = (*TracerPayloadModifier)(nil)
+
+// Test that TracerPayloadModifier implements agent.TracerPayloadModifierV1 interface
+var _ agent.TracerPayloadModifierV1 = (*TracerPayloadModifier)(nil)
 
 func TestTracerPayloadModifier_Modify(t *testing.T) {
 	tests := []struct {
@@ -126,6 +130,67 @@ func TestTracerPayloadModifier_Modify(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.expectedTags, payload.Tags)
+		})
+	}
+}
+
+func TestTracerPayloadModifier_ModifyV1(t *testing.T) {
+	tests := []struct {
+		name                   string
+		functionTags           string
+		existingFunctionTags   string
+		hasExistingFunctionTag bool
+		shouldHaveFunctionTags bool
+	}{
+		{
+			name:                   "empty function tags",
+			functionTags:           "",
+			shouldHaveFunctionTags: false,
+		},
+		{
+			name:                   "valid function tags",
+			functionTags:           "env:production,service:my-service,version:1.0",
+			shouldHaveFunctionTags: true,
+		},
+		{
+			name:                   "replaces existing function tags",
+			functionTags:           "env:staging,service:new-service",
+			existingFunctionTags:   "env:production,service:old-service",
+			hasExistingFunctionTag: true,
+			shouldHaveFunctionTags: true,
+		},
+		{
+			name:                   "identical function tags - idempotent",
+			functionTags:           "env:production,service:same-service",
+			existingFunctionTags:   "env:production,service:same-service",
+			hasExistingFunctionTag: true,
+			shouldHaveFunctionTags: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			modifier := NewTracerPayloadModifier(tt.functionTags)
+
+			payload := &idx.InternalTracerPayload{
+				Strings: idx.NewStringTable(),
+			}
+			if tt.hasExistingFunctionTag {
+				payload.SetStringAttribute(tagFunctionTags, tt.existingFunctionTags)
+			}
+
+			modifier.ModifyV1(payload)
+
+			got, ok := payload.GetAttributeAsString(tagFunctionTags)
+			if tt.shouldHaveFunctionTags {
+				assert.True(t, ok, "expected function tags attribute to be set")
+				assert.Equal(t, tt.functionTags, got)
+			} else if tt.hasExistingFunctionTag {
+				// no change expected
+				assert.Equal(t, tt.existingFunctionTags, got)
+			} else {
+				assert.False(t, ok, "did not expect function tags attribute to be set")
+			}
 		})
 	}
 }

@@ -61,8 +61,9 @@ func newNVLinkPLRCollector(device ddnvml.Device, deps *CollectorDependencies) (C
 	return c, nil
 }
 
-func (c *nvlinkPLRCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *nvlinkPLRCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *nvlinkPLRCollector) Name() CollectorName {
@@ -94,7 +95,7 @@ func (c *nvlinkPLRCollector) Collect() ([]*Metric, error) {
 func (c *nvlinkPLRCollector) getPortMetrics(port int) ([]*Metric, error) {
 	var allMetrics []*Metric
 
-	counters, err := c.prmCache.GetCounters(c.DeviceUUID(), port)
+	counters, err := c.prmCache.GetCounters(c.Device().GetDeviceInfo().UUID, port)
 	if err != nil {
 		return nil, fmt.Errorf("get port metrics for port %d: %w", port, err)
 	}

@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Private Action Runner: the ``api_key_only_enrollment`` setting now defaults to ``true``.
+    Runners now enroll using only an API key by default, without requiring an application key.
+    Your API key need to have "Private Action Runner" scoped enabled.

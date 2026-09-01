@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    Private Action Runner: add the
+    ``private_action_runner.restricted_shell.disable_detailed_telemetry``
+    setting. When set to ``true``, it suppresses the raw command text and
+    effective sandbox configuration that rshell attaches to its "run"
+    telemetry span for each ``runCommand``/``runRemediationCommand``
+    invocation. The setting defaults to ``false``; other rshell telemetry
+    (exit code, timing, command counts) is unaffected.

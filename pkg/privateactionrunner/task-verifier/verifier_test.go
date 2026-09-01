@@ -8,10 +8,10 @@ package taskverifier
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
@@ -51,46 +51,11 @@ func TestMapPbTaskToStructEmptyRemoteActionPolicyFields(t *testing.T) {
 	assert.Nil(t, got.Data.Attributes.SystemInputs)
 }
 
-func TestNoOpTaskVerifierUnwrapsSignedEnvelopeData(t *testing.T) {
-	inputs, err := structpb.NewStruct(map[string]interface{}{"command": "cat /tmp/file"})
-	require.NoError(t, err)
-	pbTask := &privateactionspb.PrivateActionTask{
-		ActionName: "runCommand",
-		BundleId:   "com.datadoghq.remoteaction.rshell",
-		TaskId:     "task-id",
-		Inputs:     inputs,
-		SystemInputs: &privateactionspb.SystemInputs{
-			Input: &privateactionspb.SystemInputs_RemoteAction{
-				RemoteAction: &privateactionspb.RemoteAction{
-					AllowedCommands: []string{"rshell:cat"},
-					AllowedPaths:    []string{"/tmp:ro"},
-					SystemServices: map[string]*structpb.ListValue{
-						"nginx.service": {
-							Values: []*structpb.Value{structpb.NewStringValue("read")},
-						},
-					},
-				},
-			},
-		},
-	}
-	signedTaskData, err := proto.Marshal(pbTask)
-	require.NoError(t, err)
-
+func TestTaskVerifierRejectsUnsignedTask(t *testing.T) {
 	task := &types.Task{}
-	task.Data.Attributes = &types.Attributes{
-		SignedEnvelope: &privateactionspb.RemoteConfigSignatureEnvelope{
-			Data: signedTaskData,
-		},
-	}
+	task.Data.Attributes = &types.Attributes{}
 
-	got, err := (&noOpTaskVerifier{}).UnwrapTask(task)
+	_, err := NewTaskVerifier(nil, &config.Config{}).UnwrapTask(task)
 
-	require.NoError(t, err)
-	assert.Equal(t, "task-id", got.Data.ID)
-	remoteAction := got.Data.Attributes.SystemInputs.GetRemoteAction()
-	require.NotNil(t, remoteAction)
-	assert.Equal(t, []string{"rshell:cat"}, remoteAction.AllowedCommands)
-	assert.Equal(t, []string{"/tmp:ro"}, remoteAction.AllowedPaths)
-	require.Contains(t, remoteAction.SystemServices, "nginx.service")
-	assert.Equal(t, []interface{}{"read"}, remoteAction.SystemServices["nginx.service"].AsSlice())
+	require.ErrorContains(t, err, "task is missing signed envelope")
 }
