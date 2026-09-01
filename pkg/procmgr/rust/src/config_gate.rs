@@ -760,14 +760,41 @@ pub fn condition_config_summary(conditions: &[ConditionConfigFile]) -> String {
 
 #[cfg(test)]
 pub(crate) mod test_env {
-    use std::sync::Mutex;
+    use std::sync::{Mutex, OnceLock};
+    use tokio::sync::Mutex as AsyncMutex;
 
     static LOCK: Mutex<()> = Mutex::new(());
+    static ASYNC_LOCK: OnceLock<AsyncMutex<()>> = OnceLock::new();
 
     /// Serialize tests that mutate process environment (config gates + secret backend).
     pub(crate) fn with_lock<F: FnOnce()>(test: F) {
         let _guard = LOCK.lock().unwrap_or_else(|err| err.into_inner());
         test();
+    }
+
+    /// Serialize async integration tests that depend on an isolated gate env.
+    pub(crate) async fn with_async_lock<F, Fut, T>(test: F) -> T
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = T>,
+    {
+        let _guard = ASYNC_LOCK
+            .get_or_init(|| AsyncMutex::new(()))
+            .lock()
+            .await;
+        clear_gated_env_vars();
+        test().await
+    }
+
+    /// Clear env overrides that can change gated key resolution in tests.
+    pub(crate) fn clear_gated_env_vars() {
+        // SAFETY: callers must hold the test env lock.
+        unsafe { std::env::remove_var("DD_FLEET_POLICIES_DIR") };
+        clear_secret_backend_env_vars();
+        for env_name in super::env_bindings::all_bound_env_var_names() {
+            // SAFETY: callers must hold the test env lock.
+            unsafe { std::env::remove_var(env_name) };
+        }
     }
 
     /// Clear `DD_SECRET_BACKEND_*` overrides so parallel tests cannot hijack backend resolution.
@@ -880,19 +907,9 @@ process_config:
 
     fn with_env_lock<F: FnOnce()>(test: F) {
         test_env::with_lock(|| {
-            test_env::clear_secret_backend_env_vars();
+            test_env::clear_gated_env_vars();
             test();
         });
-    }
-
-    fn clear_gated_env_vars() {
-        // SAFETY: callers must hold the test env lock.
-        unsafe { std::env::remove_var("DD_FLEET_POLICIES_DIR") };
-        test_env::clear_secret_backend_env_vars();
-        for env_name in super::env_bindings::all_bound_env_var_names() {
-            // SAFETY: callers must hold the test env lock.
-            unsafe { std::env::remove_var(env_name) };
-        }
     }
 
     struct EnvGuard {
@@ -926,7 +943,7 @@ process_config:
     #[test]
     fn any_matching_key_enables_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1001,7 +1018,7 @@ process_config:
     #[test]
     fn flattened_yaml_key_enables_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1016,7 +1033,7 @@ process_config:
     #[test]
     fn duplicate_yaml_key_last_value_wins_for_config_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1031,7 +1048,7 @@ process_config:
     #[test]
     fn mixed_case_yaml_key_enables_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1046,7 +1063,7 @@ process_config:
     #[test]
     fn stock_config_uses_agent_defaults() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", "# api_key: placeholder\n");
@@ -1057,7 +1074,7 @@ process_config:
     #[test]
     fn all_false_keys_block_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1072,7 +1089,7 @@ process_config:
     #[test]
     fn legacy_enabled_false_enables_container_collection() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1087,7 +1104,7 @@ process_config:
     #[test]
     fn legacy_enabled_true_enables_process_collection() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1102,7 +1119,7 @@ process_config:
     #[test]
     fn legacy_enabled_numeric_one_does_not_override_explicit_collection() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1120,7 +1137,7 @@ process_config:
     #[test]
     fn legacy_enabled_numeric_zero_enables_container_collection() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1135,7 +1152,7 @@ process_config:
     #[test]
     fn legacy_enabled_negative_prefixed_hex_enables_container_collection() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1153,7 +1170,7 @@ process_config:
     #[test]
     fn multi_document_yaml_uses_first_document_for_gates() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1169,7 +1186,7 @@ process_config:
     #[test]
     fn explicit_container_collection_wins_over_legacy_enabled() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "false");
             let _container =
                 EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
@@ -1185,7 +1202,7 @@ process_config:
     #[test]
     fn explicit_process_collection_wins_over_legacy_enabled() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "true");
             let _process = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "false");
 
@@ -1200,7 +1217,7 @@ process_config:
     #[test]
     fn explicit_collection_settings_win_over_legacy_disabled() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "disabled");
             let _container =
                 EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "true");
@@ -1217,7 +1234,7 @@ process_config:
     #[test]
     fn legacy_enabled_still_fills_unset_collection_key() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "false");
             let _process = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true");
 
@@ -1232,7 +1249,7 @@ process_config:
     #[test]
     fn fleet_cannot_restore_normalized_legacy_enabled() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1260,7 +1277,7 @@ process_config:
     #[test]
     fn end_user_device_enables_process_collection_when_unset() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1276,7 +1293,7 @@ process_config:
     #[test]
     fn explicit_process_collection_wins_over_end_user_device() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1292,7 +1309,7 @@ process_config:
     #[test]
     fn fleet_end_user_device_does_not_enable_process_collection() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1319,7 +1336,7 @@ process_config:
     #[test]
     fn end_user_device_env_enables_process_collection_when_unset() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _mode = EnvGuard::set("DD_INFRASTRUCTURE_MODE", "end_user_device");
             let _container =
                 EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
@@ -1335,7 +1352,7 @@ process_config:
     #[test]
     fn legacy_transform_overrides_end_user_device_process_collection() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1351,7 +1368,7 @@ process_config:
     #[test]
     fn env_override_can_disable_default_enabled_keys() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _collection =
                 EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
             let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "false");
@@ -1365,7 +1382,7 @@ process_config:
     #[test]
     fn env_override_can_enable_when_yaml_keys_missing() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _collection =
                 EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
             let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "true");
@@ -1379,7 +1396,7 @@ process_config:
     #[test]
     fn env_bool_and_configured_ignore_empty_values() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _empty = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "");
 
             assert_eq!(
@@ -1399,7 +1416,7 @@ process_config:
     #[test]
     fn env_bool_falls_through_empty_to_next_bound_var() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _empty = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "");
             let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_DISCOVERY_ENABLED", "true");
 
@@ -1433,7 +1450,7 @@ process_config:
         use std::collections::HashMap;
 
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             crate::platform::set_test_core_agent_scm_env(Some(HashMap::from([
                 (
                     "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED".to_string(),
@@ -1458,7 +1475,7 @@ process_config:
         use std::collections::HashMap;
 
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             crate::platform::set_test_core_agent_scm_env(Some(HashMap::from([(
                 "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED".to_string(),
                 "false".to_string(),
@@ -1483,7 +1500,7 @@ process_config:
         use std::collections::HashMap;
 
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             crate::platform::set_test_core_agent_scm_env(Some(HashMap::from([
                 (
                     "DD_PROCESS_CONFIG_ENABLED".to_string(),
@@ -1509,7 +1526,7 @@ process_config:
     #[test]
     fn legacy_enabled_env_ignores_empty_values() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _empty = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "");
 
             let dir = tempfile::tempdir().unwrap();
@@ -1525,7 +1542,7 @@ process_config:
     #[test]
     fn legacy_enabled_env_falls_through_empty_to_next_bound_var() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _empty = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "");
             let _agent = EnvGuard::set("DD_PROCESS_AGENT_ENABLED", "disabled");
 
@@ -1545,7 +1562,7 @@ process_config:
         use std::collections::HashMap;
 
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1573,7 +1590,7 @@ process_config:
     #[test]
     fn fleet_policy_disables_default_enabled_keys() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1595,7 +1612,7 @@ process_config:
     #[test]
     fn fleet_policy_enables_when_base_config_is_all_false() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1621,7 +1638,7 @@ process_config:
     #[test]
     fn fleet_policies_dir_from_agent_yaml_enables_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1646,7 +1663,7 @@ process_config:
     #[test]
     fn fleet_policies_dir_from_system_probe_yaml_enables_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1676,7 +1693,7 @@ process_config:
     #[test]
     fn fleet_policies_dir_in_datadog_yaml_ignored_for_system_probe_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1720,7 +1737,7 @@ process_config:
     #[test]
     fn fleet_policies_dir_only_in_datadog_yaml_ignored_for_system_probe_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1752,7 +1769,7 @@ process_config:
     #[test]
     fn fleet_system_probe_policy_enables_when_local_file_missing() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1792,7 +1809,7 @@ process_config:
     #[test]
     fn fleet_system_probe_config_policy_enables_when_local_file_missing() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1832,7 +1849,7 @@ process_config:
     #[test]
     fn fleet_legacy_enabled_does_not_transform_collection_keys() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1873,7 +1890,7 @@ process_config:
     #[test]
     fn fleet_policy_beats_local_system_probe_config() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -1917,7 +1934,7 @@ process_config:
     #[test]
     fn legacy_env_false_enables_container_collection() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", "false");
 
             let dir = tempfile::tempdir().unwrap();
@@ -1933,7 +1950,7 @@ process_config:
     #[test]
     fn legacy_env_whitespace_padded_disabled_enables_container_collection() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _legacy = EnvGuard::set("DD_PROCESS_CONFIG_ENABLED", " disabled ");
 
             let dir = tempfile::tempdir().unwrap();
@@ -1949,7 +1966,7 @@ process_config:
     #[test]
     fn legacy_yaml_whitespace_padded_disabled_enables_container_collection() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -1964,7 +1981,7 @@ process_config:
     #[test]
     fn missing_system_probe_without_fleet_blocks_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             // Linux schema default would otherwise enable discovery with no YAML file.
             let _discovery = EnvGuard::set("DD_DISCOVERY_ENABLED", "false");
 
@@ -1998,7 +2015,7 @@ process_config:
     #[test]
     fn local_system_probe_config_enables_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2031,7 +2048,7 @@ process_config:
     #[test]
     fn env_override_enables_system_probe_network() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _network = EnvGuard::set("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true");
 
             let dir = tempfile::tempdir().unwrap();
@@ -2061,7 +2078,7 @@ process_config:
     #[test]
     fn fleet_policy_beats_env_override() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -2088,7 +2105,7 @@ process_config:
     #[test]
     fn env_legacy_transform_not_overridden_by_fleet_enabled() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -2147,7 +2164,7 @@ process_config:
     #[test]
     fn invalid_base_yaml_uses_default_enabled_keys() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", "{\n");
@@ -2161,7 +2178,7 @@ process_config:
     #[test]
     fn invalid_base_yaml_keeps_default_disabled_keys_off() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", "{\n");
@@ -2176,7 +2193,7 @@ process_config:
     #[test]
     fn env_override_applies_when_base_yaml_is_invalid() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _collection = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true");
             let _container =
                 EnvGuard::set("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", "false");
@@ -2224,7 +2241,7 @@ process_config:
         use std::collections::HashMap;
 
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             crate::platform::set_test_core_agent_scm_env(Some(HashMap::from([(
                 "DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED".to_string(),
                 " true ".to_string(),
@@ -2240,7 +2257,7 @@ process_config:
     #[test]
     fn env_whitespace_padded_bool_does_not_enable_process_gates() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", " true ");
 
             let dir = tempfile::tempdir().unwrap();
@@ -2293,7 +2310,7 @@ process_config:
     #[test]
     fn condition_config_any_accepts_yaml_11_bool_spellings() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2312,7 +2329,7 @@ process_config:
     #[test]
     fn tagged_str_yaml_yes_does_not_enable_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2331,7 +2348,7 @@ process_config:
     #[test]
     fn quoted_yaml_yes_does_not_enable_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2350,7 +2367,7 @@ process_config:
     #[test]
     fn plain_yaml_float_one_enables_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2369,7 +2386,7 @@ process_config:
     #[test]
     fn plain_yaml_dot_inf_enables_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2388,7 +2405,7 @@ process_config:
     #[test]
     fn plain_yaml_u64_max_enables_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2407,7 +2424,7 @@ process_config:
     #[test]
     fn quoted_yaml_float_does_not_enable_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2426,7 +2443,7 @@ process_config:
     #[test]
     fn plain_yaml_hex_one_enables_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2445,7 +2462,7 @@ process_config:
     #[test]
     fn quoted_yaml_hex_does_not_enable_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2464,7 +2481,7 @@ process_config:
     #[test]
     fn env_yes_does_not_enable_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _discovery = EnvGuard::set("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", "yes");
 
             let dir = tempfile::tempdir().unwrap();
@@ -2483,7 +2500,7 @@ process_config:
     #[test]
     fn invalid_bool_value_blocks_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2502,7 +2519,7 @@ process_config:
     #[test]
     fn malformed_system_probe_bool_does_not_abort_module_derivation() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let sysprobe = write_config(
@@ -2521,7 +2538,7 @@ process_config:
     #[test]
     fn fleet_infra_mode_change_retains_eud_agent_module_overrides() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -2558,7 +2575,7 @@ process_config:
     #[test]
     fn fleet_can_disable_eud_software_inventory_override() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -2604,7 +2621,7 @@ process_config:
     #[test]
     fn derived_notable_events_matches_go_os_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2634,7 +2651,7 @@ process_config:
     #[test]
     fn derived_logon_duration_matches_go_os_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2664,7 +2681,7 @@ process_config:
     #[test]
     fn derived_logon_duration_in_system_probe_yaml_does_not_enable() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2687,7 +2704,7 @@ process_config:
     #[test]
     fn derived_tcp_queue_length_enables_system_probe_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2709,7 +2726,7 @@ process_config:
     #[test]
     fn derived_module_beats_explicit_system_probe_disabled() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2731,7 +2748,7 @@ process_config:
     #[test]
     fn derived_npm_env_disable_blocks_back_compat_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _network = EnvGuard::set("DD_SYSTEM_PROBE_NETWORK_ENABLED", "false");
 
             let dir = tempfile::tempdir().unwrap();
@@ -2750,7 +2767,7 @@ process_config:
     #[test]
     fn derived_npm_fleet_disable_blocks_back_compat_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -2779,7 +2796,7 @@ process_config:
     #[test]
     fn derived_npm_back_compat_with_usm_explicitly_disabled() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2801,7 +2818,7 @@ process_config:
     #[test]
     fn derived_npm_back_compat_ignores_valueless_network_config_enabled() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(
@@ -2823,7 +2840,7 @@ process_config:
     #[test]
     fn derived_sk_tracer_disables_usm_for_system_probe_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
@@ -2841,7 +2858,7 @@ process_config:
     #[test]
     fn derived_sk_tracer_co_re_env_disables_sk_tracer_gating() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _co_re = EnvGuard::set("DD_ENABLE_CO_RE", "false");
 
             let dir = tempfile::tempdir().unwrap();
@@ -2860,7 +2877,7 @@ process_config:
     #[test]
     fn derived_discovery_service_map_disabled_when_ebpfless() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
@@ -2878,7 +2895,7 @@ process_config:
     #[test]
     fn derived_discovery_service_map_disabled_when_sk_tracer() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
@@ -2898,7 +2915,7 @@ process_config:
     #[test]
     fn derived_discovery_linux_default_enables_system_probe_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
@@ -2914,7 +2931,7 @@ process_config:
     #[test]
     fn derived_discovery_fargate_default_disables_system_probe_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _fargate = EnvGuard::set("AWS_EXECUTION_ENV", "AWS_ECS_FARGATE");
 
             let dir = tempfile::tempdir().unwrap();
@@ -2931,7 +2948,7 @@ process_config:
     #[test]
     fn derived_discovery_explicit_false_disables_on_linux() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let agent = write_config(dir.path(), "datadog.yaml", ALL_PROCESS_GATES_OFF);
@@ -2951,7 +2968,7 @@ process_config:
     #[test]
     fn derived_discovery_env_disable_on_linux() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _discovery = EnvGuard::set("DD_DISCOVERY_ENABLED", "false");
 
             let dir = tempfile::tempdir().unwrap();
@@ -2966,7 +2983,7 @@ process_config:
     #[test]
     fn derived_usm_env_enables_system_probe_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _usm = EnvGuard::set("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true");
 
             let dir = tempfile::tempdir().unwrap();
@@ -2989,7 +3006,7 @@ process_config:
     #[test]
     fn derived_fleet_beats_env_for_module_toggle() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let fleet_dir = dir.path().join("fleet");
@@ -3019,7 +3036,7 @@ process_config:
     #[test]
     fn condition_config_any_expands_dd_conf_dir_in_path() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
 
             let dir = tempfile::tempdir().unwrap();
             let conf_dir = dir.path().join("agent-conf");
@@ -3062,7 +3079,7 @@ process_config:
     #[test]
     fn fleet_policies_dir_resolves_secret_backed_env_path() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             secrets::clear_caches();
 
             let dir = test_env::tempdir_for_secret_backend();
@@ -3118,7 +3135,7 @@ process_config:
     #[test]
     fn secret_resolved_value_beats_fleet_policy() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             secrets::clear_caches();
 
             let dir = test_env::tempdir_for_secret_backend();
@@ -3170,7 +3187,7 @@ process_config:
     #[test]
     fn fleet_policy_enc_is_not_resolved() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             secrets::clear_caches();
 
             let dir = test_env::tempdir_for_secret_backend();
@@ -3226,7 +3243,7 @@ process_config:
     #[test]
     fn env_bool_unresolved_secret_errors_instead_of_falling_through() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _enc = EnvGuard::set(
                 "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
                 "ENC[missing_backend]",
@@ -3245,7 +3262,7 @@ process_config:
     #[test]
     fn unresolved_env_secret_blocks_gate_despite_yaml_true() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             let _enc = EnvGuard::set(
                 "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED",
                 "ENC[missing_backend]",
@@ -3268,7 +3285,7 @@ process_config:
     #[test]
     fn env_bool_resolves_secret_backed_gate_values() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             secrets::clear_caches();
             let dir = test_env::tempdir_for_secret_backend();
             #[cfg(unix)]
@@ -3314,7 +3331,7 @@ process_config:
     #[test]
     fn derived_secret_infrastructure_mode_enables_system_probe_gate() {
         with_env_lock(|| {
-            clear_gated_env_vars();
+            test_env::clear_gated_env_vars();
             secrets::clear_caches();
             let dir = test_env::tempdir_for_secret_backend();
             #[cfg(unix)]
