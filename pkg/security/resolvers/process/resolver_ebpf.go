@@ -85,6 +85,8 @@ type EBPFResolver struct {
 	pidCacheMap         ebpf.Map
 	pathIDMap           ebpf.Map
 	kernelThreadPidsMap ebpf.Map
+	goLabelsMap         ebpf.Map
+	otelTLSMap          ebpf.Map
 	opts                ResolverOpts
 
 	// stats
@@ -309,7 +311,6 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGroupContext, newEntryCb func(*model.ProcessCacheEntry, error)) error {
 	p.ApplyBootTime(event.ProcessCacheEntry)
-	event.ProcessCacheEntry.SetSpanContext(event.SpanContext)
 
 	if event.ProcessCacheEntry.Pid == 0 {
 		return errors.New("no pid")
@@ -328,14 +329,6 @@ func (p *EBPFResolver) AddForkEntry(event *model.Event, cgroupContext model.CGro
 func (p *EBPFResolver) AddExecEntry(event *model.Event, cgroupContext model.CGroupContext) error {
 	p.Lock()
 	defer p.Unlock()
-
-	// Mirror AddForkEntry: if fill_span_context captured a span at
-	// prepare_binprm (e.g. the parent had a legacy or Go tracer active when
-	// it execve'd), persist it on the new PCE so the process serializer can
-	// surface it as process.span_context. This is a no-op for the fork+exec
-	// case where the child's tgid has no correlation entry — event.SpanContext
-	// is zero there and ancestor lineage still carries the parent's span.
-	event.ProcessCacheEntry.SetSpanContext(event.SpanContext)
 
 	var err error
 	if err := p.resolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
@@ -466,7 +459,10 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	// fetch login_uid
 	entry.Credentials.AUID, err = utils.GetLoginUID(uint32(proc.Pid))
 	if err != nil {
-		return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
+		}
+		entry.Credentials.AUID = sharedconsts.AuditUIDUnset
 	}
 
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(uint32(proc.Pid))
@@ -1209,13 +1205,9 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	return nil
 }
 
-// SnapshotTracer detects whether a pre-existing process (one that started
-// before the agent) is running a Datadog tracer and, if so, populates the
-// user-space tracer metadata the same way the runtime tracer_memfd_seal
-// event handler does.
-//
-// Called from the startup snapshot for every pid; processes without a tracer
-// memfd return cheaply via the GetTracerMetadata error path.
+// SnapshotTracer detects whether a process that started before the agent is
+// running a Datadog tracer and, if so, applies its metadata the same way the
+// runtime tracer_memfd_seal event handler does.
 func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 	// Only do the (mildly expensive) /proc/<pid>/fd scan for pids that
 	// SyncCache actually entered into the cache — anything else can't be
@@ -1236,13 +1228,42 @@ func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 	p.applyTracerMetadata(pid, tmeta)
 }
 
-// applyTracerMetadata stores tracer metadata on the process cache entry.
+// applyTracerMetadata stores tracer metadata on the process cache entry and, when
+// span tracking is enabled, resolves the thread-context reader for the process:
+// the pprof label offsets for Go, the OTel TLS layout for every language. Must be
+// called WITHOUT the resolver lock held, since ELF I/O happens outside the lock.
 func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
 		entry.Tracer.Metadata = tmeta
 	}
 	p.Unlock()
+
+	if !p.config.SpanTrackingEnabled {
+		return
+	}
+
+	if tmeta.TracerLanguage == "go" {
+		if err := p.resolveGoLabels(pid); err != nil {
+			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
+		}
+	}
+
+	if p.otelTLSMap != nil {
+		if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
+			seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+		}
+	}
+}
+
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, tracerLanguage string) error {
+	res, err := resolveOTelTLS(pid, tracerLanguage)
+	if err != nil {
+		return err
+	}
+
+	value := serializeOTelTLSValue(res)
+	return p.otelTLSMap.Put(pid, value)
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
@@ -1309,6 +1330,15 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 	}
 
 	if p.kernelThreadPidsMap, err = managerhelper.Map(p.manager, "kernel_thread_pids"); err != nil {
+		return err
+	}
+
+	if p.goLabelsMap, err = managerhelper.Map(p.manager, "go_labels_procs"); err != nil {
+		return err
+	}
+
+	// optional map: without it, OTel span context is simply never resolved
+	if p.otelTLSMap, err = managerhelper.Map(p.manager, "otel_tls"); err != nil {
 		return err
 	}
 

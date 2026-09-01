@@ -7,19 +7,25 @@ package profile
 
 import (
 	"expvar"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConfigMap, bool, error) {
+// loadInitConfigProfiles returns the profiles declared in the check init config, resolved
+// against the on-disk profiles, along with the sorted names of the profiles using the
+// legacy Python syntax.
+func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConfigMap, []string, error) {
 	initConfigProfiles := make(ProfileConfigMap, len(rawInitConfigProfiles))
 
-	var haveLegacyInitConfigProfile bool
+	var legacyProfiles []string
 	for name, profConfig := range rawInitConfigProfiles {
 		if profConfig.DefinitionFile != "" {
 			profDefinition, isLegacyInitConfigProfile, err := readProfileDefinition(profConfig.DefinitionFile)
-			haveLegacyInitConfigProfile = haveLegacyInitConfigProfile || isLegacyInitConfigProfile
+			if isLegacyInitConfigProfile {
+				legacyProfiles = append(legacyProfiles, name)
+			}
 			if err != nil {
 				log.Warnf("unable to load profile %q: %s", name, err)
 				errMsg := err.Error()
@@ -29,9 +35,8 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 				continue
 			}
 			profConfig.Definition = *profDefinition
-		} else {
-			isLegacyMetrics := profiledefinition.IsLegacyMetrics(profConfig.Definition.Metrics)
-			haveLegacyInitConfigProfile = haveLegacyInitConfigProfile || isLegacyMetrics
+		} else if profiledefinition.IsLegacyMetrics(profConfig.Definition.Metrics) {
+			legacyProfiles = append(legacyProfiles, name)
 		}
 		if profConfig.Definition.Name == "" {
 			profConfig.Definition.Name = name
@@ -39,7 +44,8 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 		initConfigProfiles[name] = profConfig
 	}
 
-	userProfiles, haveLegacyUserProfile := getYamlUserProfiles()
+	userProfiles, legacyUserProfiles := getYamlUserProfiles()
+	legacyProfiles = append(legacyProfiles, legacyUserProfiles...)
 	userProfiles = mergeProfiles(userProfiles, initConfigProfiles)
 
 	defaultProfiles := getYamlDefaultProfiles()
@@ -55,5 +61,6 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 		filteredResolvedProfiles[key] = val
 	}
 
-	return filteredResolvedProfiles, haveLegacyInitConfigProfile || haveLegacyUserProfile, nil
+	slices.Sort(legacyProfiles)
+	return filteredResolvedProfiles, slices.Compact(legacyProfiles), nil
 }

@@ -47,6 +47,9 @@ test/fakeintake/
 | `/api/v0.1/configurations` | (TUF-signed RC) | `RCStats()` (poll counter) |
 | `/api/v0.1/org` | (Remote Config) | — |
 | `/api/v0.1/status` | (Remote Config) | — |
+| `/api/unstable/on_prem_runners` | PAR enrollment | `GetPAREnrollmentCount()` |
+| `/api/v2/on-prem-management-service/workflow-tasks/dequeue` | PAR task queue | `EnqueuePARTask()` |
+| `/api/v2/on-prem-management-service/workflow-tasks/publish-task-update` | PAR task results | `GetPARTaskResult()` |
 
 ## Client usage
 
@@ -79,6 +82,36 @@ fakeintake.FlushServerAndResetAggregators()
 names, _ := fakeintake.GetMetricNames()
 ```
 
+## Private Action Runner
+
+Fakeintake simulates the OPMS endpoints used by the Private Action Runner and
+provides control endpoints for tests:
+
+| Route | Purpose |
+|-------|---------|
+| `POST /api/unstable/on_prem_runners` | PAR self-enrolls and receives a runner ID |
+| `POST /api/unstable/on_prem_runners/api_key_only` | PAR self-enrolls with only an API key |
+| `POST /api/v2/on-prem-management-service/workflow-tasks/dequeue` | PAR dequeues a task |
+| `POST /api/v2/on-prem-management-service/workflow-tasks/publish-task-update` | PAR publishes a result |
+| `POST /api/v2/on-prem-management-service/workflow-tasks/heartbeat` | PAR sends a task heartbeat |
+| `GET /api/v2/on-prem-management-service/runner/health-check` | PAR checks OPMS health |
+| `POST /fakeintake/par/enqueue` | Enqueue a task from a test |
+| `GET /fakeintake/par/result` | Read a task result |
+| `POST /fakeintake/par/signing-key` | Register the signing identity used for dequeued tasks |
+| `POST /fakeintake/par/flush` | Clear queued tasks and results |
+| `GET /fakeintake/par/stats` | Read the dequeue, health-check, and enrollment counts |
+
+By default, dequeued tasks have unsigned envelopes. To exercise real task
+verification, first push the matching public key through the `AP_RUNNER_KEYS`
+Remote Config product, then register the private key with fakeintake:
+
+```go
+err := fakeintake.SetPARSigningKey(keyID, privateKey, orgID, runnerID, connectionID)
+```
+
+The key ID and private key must match the public key delivered to PAR. Calls to
+`EnqueuePARTask` after registration return signed envelopes that PAR can verify.
+
 ## Remote Config
 
 Fakeintake can stand in for the Datadog Remote Config backend so the agent
@@ -101,6 +134,7 @@ Routes added when enabled:
 | `GET  /api/v0.1/org` | Returns org UUID |
 | `GET  /api/v0.1/status` | Reports RC enabled/authorized |
 | `POST /fakeintake/rc/config` | Push/replace a config (control) |
+| `POST /fakeintake/rc/expiration` | Change non-root TUF expiry for expiration tests |
 | `GET  /fakeintake/rc/configs` | List stored configs (control) |
 | `DELETE /fakeintake/rc/config/<key>` | Delete a config (control) |
 | `GET  /fakeintake/rc/stats` | Poll counter, version, signing key info |
@@ -113,6 +147,11 @@ Push configs from a test:
 ```go
 err := fakeintake.RCAddConfig("42", "METRIC_CONTROL", "abc", "filterlist",
     []byte(`{"blocked_metrics":{"by_name":{"values":[{"metric_name":"foo"}]}}}`))
+
+// Publish a short-lived authoritative snapshot, then restore a fresh horizon
+// after the Agent has accepted it and observed its expiration.
+err = fakeintake.RCSetExpiration(time.Now().Add(30 * time.Second))
+err = fakeintake.RCSetExpiration(time.Now().Add(24 * time.Hour))
 ```
 
 Or via CLI:

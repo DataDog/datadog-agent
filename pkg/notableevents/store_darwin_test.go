@@ -408,6 +408,137 @@ func TestSecureDarwinBookmarkStoreRejectsOtherSchemaVersions(t *testing.T) {
 	assert.ErrorIs(t, err, errDarwinBookmarkCorrupt)
 }
 
+// TestSecureDarwinBookmarkStoreLoadsBookmarkWithoutShutdownCause proves the
+// shutdown-cause field needs no schema bump: a bookmark written before it
+// existed still loads, with a nil record.
+func TestSecureDarwinBookmarkStoreLoadsBookmarkWithoutShutdownCause(t *testing.T) {
+	base := realTempDir(t)
+	stateDirectory := filepath.Join(base, "notable-events")
+	require.NoError(t, os.Mkdir(stateDirectory, 0o700))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(stateDirectory, darwinBookmarkFilename),
+		[]byte(`{"version":1,"directories":{},"acknowledged":{},"pending":{}}`),
+		0o600,
+	))
+
+	store := newTestDarwinBookmarkStore(base, uint32(os.Getuid()))
+	loaded, err := store.Load()
+	require.NoError(t, err)
+	assert.Nil(t, loaded.ShutdownCause)
+	assert.Equal(t, darwinBookmarkSchemaVersion, loaded.Version)
+}
+
+func TestSecureDarwinBookmarkStoreRoundTripsShutdownCause(t *testing.T) {
+	base := realTempDir(t)
+	store := newTestDarwinBookmarkStore(base, uint32(os.Getuid()))
+	state := newDarwinBookmarkState()
+	state.ShutdownCause = &shutdownCauseBookmark{
+		BootUUID: testBootUUID,
+		EventID:  shutdownEventID("shutdown:identity"),
+		Checked:  time.Date(2026, time.August, 13, 8, 0, 0, 0, time.UTC).Unix(),
+	}
+
+	require.NoError(t, store.Save(state))
+	loaded, err := store.Load()
+	require.NoError(t, err)
+	assert.Equal(t, state.ShutdownCause, loaded.ShutdownCause)
+}
+
+func TestValidateDarwinBookmarkStateRejectsCorruptShutdownCause(t *testing.T) {
+	validEventID := shutdownEventID("shutdown:identity")
+	tests := []struct {
+		name  string
+		cause *shutdownCauseBookmark
+	}{
+		{name: "missing boot uuid", cause: &shutdownCauseBookmark{Checked: 1, EventID: validEventID}},
+		{
+			name:  "oversized boot uuid",
+			cause: &shutdownCauseBookmark{BootUUID: strings.Repeat("a", maxDarwinShutdownBootUUIDBytes+1), Checked: 1},
+		},
+		{
+			name:  "invalid utf8 boot uuid",
+			cause: &shutdownCauseBookmark{BootUUID: string([]byte{0xff, 0xfe}), Checked: 1},
+		},
+		{name: "missing timestamp", cause: &shutdownCauseBookmark{BootUUID: testBootUUID}},
+		{name: "negative timestamp", cause: &shutdownCauseBookmark{BootUUID: testBootUUID, Checked: -1}},
+		{
+			name:  "foreign event id",
+			cause: &shutdownCauseBookmark{BootUUID: testBootUUID, Checked: 1, EventID: "macos-thermal-v1:" + hashString("x")},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			state := newDarwinBookmarkState()
+			state.ShutdownCause = test.cause
+			err := validateDarwinBookmarkState(state)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, errDarwinBookmarkCorrupt)
+		})
+	}
+
+	t.Run("accepts a record without an event id", func(t *testing.T) {
+		state := newDarwinBookmarkState()
+		state.ShutdownCause = &shutdownCauseBookmark{BootUUID: testBootUUID, Checked: 1}
+		assert.NoError(t, validateDarwinBookmarkState(state))
+	})
+}
+
+// TestNormalizeDarwinBookmarkStateRepairsShutdownCause mirrors how the function
+// repairs LastSeen: a clamped timestamp, and a record with no dedup key dropped.
+func TestNormalizeDarwinBookmarkStateRepairsShutdownCause(t *testing.T) {
+	now := time.Date(2026, time.August, 13, 8, 0, 0, 0, time.UTC)
+
+	t.Run("clamps missing timestamp", func(t *testing.T) {
+		state := newDarwinBookmarkState()
+		state.ShutdownCause = &shutdownCauseBookmark{BootUUID: testBootUUID}
+		assert.True(t, normalizeDarwinBookmarkState(state, now))
+		require.NotNil(t, state.ShutdownCause)
+		assert.Equal(t, now.Unix(), state.ShutdownCause.Checked)
+		assert.NoError(t, validateDarwinBookmarkState(state))
+	})
+
+	t.Run("drops a record without a boot uuid", func(t *testing.T) {
+		state := newDarwinBookmarkState()
+		state.ShutdownCause = &shutdownCauseBookmark{Checked: now.Unix()}
+		assert.True(t, normalizeDarwinBookmarkState(state, now))
+		assert.Nil(t, state.ShutdownCause)
+	})
+
+	t.Run("leaves a healthy record alone", func(t *testing.T) {
+		state := newDarwinBookmarkState()
+		state.ShutdownCause = &shutdownCauseBookmark{BootUUID: testBootUUID, Checked: now.Unix() - 60}
+		assert.False(t, normalizeDarwinBookmarkState(state, now))
+		assert.Equal(t, now.Unix()-60, state.ShutdownCause.Checked)
+	})
+}
+
+// TestCloneDarwinBookmarkStateIsolatesShutdownCause covers the aliasing hazard:
+// both clones must copy the pointer target so an unpublished candidate can never
+// mutate live state.
+func TestCloneDarwinBookmarkStateIsolatesShutdownCause(t *testing.T) {
+	clones := map[string]func(*darwinBookmarkState) *darwinBookmarkState{
+		"scan": cloneDarwinBookmarkState,
+		"ack":  cloneDarwinBookmarkStateForAck,
+	}
+
+	for name, clone := range clones {
+		t.Run(name, func(t *testing.T) {
+			state := newDarwinBookmarkState()
+			state.ShutdownCause = &shutdownCauseBookmark{BootUUID: testBootUUID, Checked: 1}
+
+			cloned := clone(state)
+			require.NotNil(t, cloned.ShutdownCause)
+			assert.NotSame(t, state.ShutdownCause, cloned.ShutdownCause)
+			cloned.ShutdownCause.BootUUID = "mutated"
+			assert.Equal(t, testBootUUID, state.ShutdownCause.BootUUID)
+
+			state.ShutdownCause = nil
+			assert.Nil(t, clone(state).ShutdownCause)
+		})
+	}
+}
+
 func TestSecureDarwinBookmarkStoreSynchronizesExistingManagedParentsOnce(t *testing.T) {
 	base := realTempDir(t)
 	require.NoError(t, os.MkdirAll(filepath.Join(base, "agent", "notable-events"), 0o700))
