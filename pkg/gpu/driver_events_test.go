@@ -352,6 +352,7 @@ func TestDriverEventSubscriberStop(t *testing.T) {
 	subscriber, _ := newTestDriverEventSubscriber(t)
 	reader := newFakeDriverEventReader()
 	subscriber.reader = reader
+	subscriber.records = reader.records
 	subscriber.done = make(chan struct{})
 	go subscriber.run()
 	queuedEvent := model.DriverEvent{DeviceUUID: "GPU-queued"}
@@ -369,6 +370,7 @@ func TestDriverEventSubscriberStopsAfterReaderError(t *testing.T) {
 	subscriber, _ := newTestDriverEventSubscriber(t)
 	reader := newFakeDriverEventReader()
 	subscriber.reader = reader
+	subscriber.records = reader.records
 	subscriber.done = make(chan struct{})
 	go subscriber.run()
 
@@ -381,10 +383,7 @@ func TestDriverEventSubscriberStopsAfterReaderError(t *testing.T) {
 }
 
 func newTestDriverEventSubscriber(t *testing.T) (*DriverEventSubscriber, telemetry.Mock) {
-	ddnvml.WithMockNVML(t, gputestutil.GetBasicNvmlMockWithOptions(
-		gputestutil.WithMIGDisabled(),
-		gputestutil.WithDeviceCount(1),
-	))
+	ddnvml.WithMockNVML(t, gputestutil.NewMockNVML(gputestutil.WithDeviceCount(1)))
 
 	deviceCache := ddnvml.NewDeviceCache()
 	require.NoError(t, deviceCache.Refresh())
