@@ -16,7 +16,7 @@
   - mkdir -p $GOPATH/pkg/mod/cache && zstd -dc modcache.tar.zst | tar xf - -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.zst
 
-.retrieve_linux_go_tools_deps: 
+.retrieve_linux_go_tools_deps:
   - |
     go_bin="$(go env GOBIN)"
     if [ -z "$go_bin" ]; then
@@ -115,7 +115,7 @@ go_tools_deps:
     - key:
         files:
           - ./**/go.mod
-          - .gitlab/.pre/deps_fetch/deps_fetch.yml
+          - tasks/install_tasks.py  # TOOL_LIST
         prefix: "go_tools_deps_modcache_zstd"
       paths:
         - go_tools_bin.tar.zst
@@ -144,7 +144,7 @@ go_tools_deps_arm64:
     - key:
         files:
           - ./**/go.mod
-          - .gitlab/.pre/deps_fetch/deps_fetch.yml
+          - tasks/install_tasks.py  # TOOL_LIST
         prefix: "go_tools_deps_modcache_arm64_zstd"
       paths:
         - go_tools_bin_arm64.tar.zst
