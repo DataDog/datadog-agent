@@ -30,161 +30,14 @@
 #include <sys/resource.h>
 #include <stdatomic.h>
 
-#define RPC_CMD 0xdeadc001
-#define REGISTER_SPAN_TLS_OP 6
-
-#ifndef SYS_gettid
-#error "SYS_gettid unavailable on this system"
+#ifndef CLONE_INTO_CGROUP
+#define CLONE_INTO_CGROUP 0x200000000ULL
 #endif
 
 // DD_TRACER_MEMFD_SEALS mirrors the seal set libdatadog applies
 #ifndef DD_TRACER_MEMFD_SEALS
 #define DD_TRACER_MEMFD_SEALS (F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL)
 #endif
-
-
-pid_t gettid(void) {
-    pid_t tid = syscall(SYS_gettid);
-    return tid;
-}
-
-struct span_tls_t {
-    uint64_t format;
-    uint64_t max_threads;
-    void *base;
-};
-
-struct thread_opts {
-    struct span_tls_t *tls;
-    char **argv;
-};
-
-void *register_tls() {
-    uint64_t max_threads = 100;
-    uint64_t len = max_threads * (sizeof(uint64_t) + sizeof(__int128));
-
-    void *base = (void *)malloc(len);
-    if (base == NULL)
-        return NULL;
-    bzero(base, len);
-
-    struct span_tls_t *tls = (struct span_tls_t *)malloc(sizeof(struct span_tls_t));
-    if (tls == NULL)
-        return NULL;
-    tls->max_threads = max_threads;
-    tls->base = base;
-    tls->format = 0; // format is not needed
-
-    uint8_t request[257];
-    bzero(request, sizeof(request));
-
-    request[0] = REGISTER_SPAN_TLS_OP;
-    memcpy(&request[1], tls, sizeof(struct span_tls_t));
-    ioctl(0, RPC_CMD, &request);
-
-    return tls;
-}
-
-void register_span(struct span_tls_t *tls, __int128 trace_id, unsigned long span_id) {
-    int offset = (gettid() % tls->max_threads) * 24; // sizeof uint64 + sizeof int128
-
-    *(uint64_t*)(tls->base + offset) = span_id;
-    *(__int128*)(tls->base + offset + 8) = trace_id;
-}
-
-__int128 atouint128(char *s) {
-    if (s == NULL)
-        return (0);
-
-    __int128_t val = 0;
-    for (; *s != 0 && *s >= '0' && *s <= '9'; s++) {
-        val = (10 * val) + (*s - '0');
-    }
-    return val;
-}
-
-static void *thread_span_exec(void *data) {
-    struct thread_opts *opts = (struct thread_opts *)data;
-
-    __int128_t trace_id = atouint128(opts->argv[1]);
-    unsigned span_id = atoi(opts->argv[2]);
-
-    register_span(opts->tls, trace_id, span_id);
-
-    execv(opts->argv[3], opts->argv + 3);
-    return NULL;
-}
-
-int span_exec(int argc, char **argv) {
-    if (argc < 4) {
-        fprintf(stderr, "Please pass a span Id and a trace Id to exec_span and a command\n");
-        return EXIT_FAILURE;
-    }
-
-    struct span_tls_t *tls = register_tls();
-    if (!tls) {
-        fprintf(stderr, "Failed to register TLS\n");
-        return EXIT_FAILURE;
-    }
-
-    struct thread_opts opts = {
-        .argv = argv,
-        .tls = tls,
-    };
-
-    pthread_t thread;
-    if (pthread_create(&thread, NULL, thread_span_exec, &opts) < 0) {
-        return EXIT_FAILURE;
-    }
-    pthread_join(thread, NULL);
-
-    return EXIT_SUCCESS;
-}
-
-static void *thread_open(void *data) {
-    struct thread_opts *opts = (struct thread_opts *)data;
-
-    __int128_t trace_id = atouint128(opts->argv[1]);
-    unsigned span_id = atoi(opts->argv[2]);
-
-    register_span(opts->tls, trace_id, span_id);
-
-    int fd = open(opts->argv[3], O_CREAT);
-    if (fd < 0) {
-        fprintf(stderr, "Unable to create file `%s`\n", opts->argv[3]);
-        return NULL;
-    }
-    close(fd);
-    unlink(opts->argv[3]);
-
-    return NULL;
-}
-
-int span_open(int argc, char **argv) {
-    if (argc < 4) {
-        fprintf(stderr, "Please pass a span Id, a trace Id and a file path to span-open\n");
-        return EXIT_FAILURE;
-    }
-
-    struct span_tls_t *tls = register_tls();
-    if (!tls) {
-        fprintf(stderr, "Failed to register TLS\n");
-        return EXIT_FAILURE;
-    }
-
-    struct thread_opts opts = {
-        .argv = argv,
-        .tls = tls,
-    };
-
-    pthread_t thread;
-    if (pthread_create(&thread, NULL, thread_open, &opts) < 0) {
-        return EXIT_FAILURE;
-    }
-    pthread_join(thread, NULL);
-
-    return EXIT_SUCCESS;
-}
 
 int ptrace_traceme() {
     int child = fork();
@@ -1296,6 +1149,48 @@ int test_tracer_memfd(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_tracer_memfd_with_keys(int argc, char **argv) {
+    // TracerMetadata with threadlocal_attribute_keys=["http.method", "http.target", "http.user"]
+    const char tracer_data[] =
+        "\x89"                                    // fixmap with 9 entries
+        "\xae" "schema_version" "\x02"            // "schema_version": 2
+        "\xaf" "tracer_language" "\xa3" "cpp"     // "tracer_language": "cpp"
+        "\xae" "tracer_version" "\xa5" "0.0.1"   // "tracer_version": "0.0.1"
+        "\xa8" "hostname" "\xa4" "test"           // "hostname": "test"
+        "\xac" "service_name"
+        "\xac" "test-service"
+        "\xab" "service_env"
+        "\xa8" "test-env"
+        "\xaf" "service_version"
+        "\xa5" "1.0.0"
+        "\xac" "process_tags"
+        "\xb0" "custom.tag:value"
+        "\xba" "threadlocal_attribute_keys"       // key (26 chars)
+        "\x93"                                    // fixarray with 3 elements
+        "\xab" "http.method"                      // str (11 chars)
+        "\xab" "http.target"                      // str (11 chars)
+        "\xa9" "http.user";                       // str (9 chars)
+
+    int fd = memfd_create("datadog-tracer-info-keytest0", MFD_ALLOW_SEALING);
+    if (fd < 0) {
+        err(1, "%s failed", "memfd_create");
+    }
+
+    ssize_t written = write(fd, tracer_data, sizeof(tracer_data) - 1);
+    if (written != (ssize_t)(sizeof(tracer_data) - 1)) {
+        err(1, "%s failed: wrote %zd bytes, expected %lu", "write", written, sizeof(tracer_data) - 1);
+    }
+
+    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
+        err(1, "%s failed", "fcntl F_ADD_SEALS");
+    }
+
+    sleep(3);
+
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
 int test_new_netns_exec(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Please specify at least an executable path\n");
@@ -2010,9 +1905,23 @@ int test_dnsloop(int argc, char **argv) {
 }
 
 /* clone3 is not wrapped by glibc, call it directly. */
-static pid_t sys_clone3(struct clone_args *args, size_t size) {
+static pid_t sys_clone3(void *args, size_t size) {
     return (pid_t)syscall(__NR_clone3, args, size);
 }
+
+struct clone_args_with_cgroup {
+    uint64_t flags;
+    uint64_t pidfd;
+    uint64_t child_tid;
+    uint64_t parent_tid;
+    uint64_t exit_signal;
+    uint64_t stack;
+    uint64_t stack_size;
+    uint64_t tls;
+    uint64_t set_tid;
+    uint64_t set_tid_size;
+    uint64_t cgroup;
+};
 
 // test_clone_into_cgroup forks a child directly into the given cgroup v2
 // directory using clone3 + CLONE_INTO_CGROUP, then has the child open the
@@ -2033,7 +1942,7 @@ int test_clone_into_cgroup(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    struct clone_args args = {
+    struct clone_args_with_cgroup args = {
         .flags = CLONE_INTO_CGROUP,
         .exit_signal = SIGCHLD,
         .cgroup = (uint64_t)cgroup_fd,
@@ -2095,8 +2004,6 @@ int main(int argc, char **argv) {
 
         if (strcmp(cmd, "check") == 0) {
             exit_code = EXIT_SUCCESS;
-        } else if (strcmp(cmd, "span-exec") == 0) {
-            exit_code = span_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "ptrace-traceme") == 0) {
             exit_code = ptrace_traceme();
         } else if (strcmp(cmd, "ptrace-attach") == 0) {
@@ -2109,8 +2016,6 @@ int main(int argc, char **argv) {
             exit_code = prlimit64_stack();
         } else if (strcmp(cmd, "setrlimit-core") == 0) {
             exit_code = setrlimit_core();
-        } else if (strcmp(cmd, "span-open") == 0) {
-            exit_code = span_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pipe-chown") == 0) {
             exit_code = test_pipe_chown();
         } else if (strcmp(cmd, "signal") == 0) {
@@ -2157,6 +2062,8 @@ int main(int argc, char **argv) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
         } else if (strcmp(cmd, "tracer-memfd") == 0) {
             exit_code = test_tracer_memfd(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "tracer-memfd-with-keys") == 0) {
+            exit_code = test_tracer_memfd_with_keys(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {

@@ -29,4 +29,8 @@ const (
 	PARUrn                    = "private_action_runner.urn"
 	PARActionsAllowlist       = "private_action_runner.actions_allowlist"
 	PARDefaultActionsEnabled  = "private_action_runner.default_actions_enabled"
+	PARIdleTimeoutSeconds     = "private_action_runner.idle_timeout_seconds"
+
+	PARExecutorSocketPath = "private_action_runner.executor.socket_path"
+	PARSplitEnabled       = "private_action_runner.split_enabled"
 )

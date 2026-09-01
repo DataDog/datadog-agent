@@ -315,7 +315,7 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 
 	if s.Resource() == "" {
 		ts.SpansMalformed.ResourceEmpty.Inc()
-		log.Debugf("Fixing malformed trace. Resource is empty (reason:resource_empty), setting span.resource=%s: %s", s.Name, s)
+		log.Debugf("Fixing malformed trace. Resource is empty (reason:resource_empty), setting span.resource=%s: SpanID: %d, Service: %s", s.Name(), s.SpanID(), s.Service())
 		s.SetResource(s.Name())
 	}
 
@@ -374,6 +374,11 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 		for _, span := range chunk.Spans {
 			// First span wins
 			if dm, ok := span.Meta[tagDecisionMaker]; ok {
+				// A v0.7 payload that omits the "tags" key decodes with a nil
+				// map; allocate before writing to avoid panicking on it.
+				if chunk.Tags == nil {
+					chunk.Tags = make(map[string]string, 1)
+				}
 				chunk.Tags[tagDecisionMaker] = dm
 				break
 			}
@@ -452,21 +457,13 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 	}
 
 	spanIDs := make(map[uint64]struct{})
-	firstSpan := t.Spans[0]
-
 	for _, span := range t.Spans {
-		if span == nil {
-			continue
-		}
-		if firstSpan == nil {
-			firstSpan = span
-		}
 		if err := a.normalizeV1(ts, span); err != nil {
 			return err
 		}
 		if _, ok := spanIDs[span.SpanID()]; ok {
 			ts.SpansMalformed.DuplicateSpanID.Inc()
-			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
+			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): SpanID: %d, Service: %s, Name: %s, Resource: %s", span.SpanID(), span.Service(), span.Name(), span.Resource())
 		}
 		spanIDs[span.SpanID()] = struct{}{}
 	}

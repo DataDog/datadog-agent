@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/private_action_runner.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/private_action_runner.yaml
 node_type: section
 title: Private Action Runner Configuration
 type: object
@@ -10,6 +10,7 @@ description: |-
   See https://docs.datadoghq.com/actions/private_actions/ for more information.
 tags:
 - template_section:PrivateActionRunner
+- full-agent-only:true
 properties:
   enabled:
     node_type: setting
@@ -93,7 +94,17 @@ properties:
   api_key_only_enrollment:
     node_type: setting
     type: boolean
-    default: false
+    default: true
+  executor:
+    node_type: section
+    type: object
+    properties:
+      socket_path:
+        node_type: setting
+        type: string
+        platform_default:
+          windows: \\.\pipe\dd-par-executor
+          other: ${run_path}/par-executor.sock
   identity_file_path:
     node_type: setting
     type: string
@@ -106,6 +117,14 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  idle_timeout_seconds:
+    node_type: setting
+    type: integer
+    default: 60
+    description: |-
+      Sets the split-mode executor's idle timeout in seconds. The executor
+      self-terminates after this much time without activity; values of zero or
+      less disable the watchdog.
   log_file:
     node_type: setting
     type: string
@@ -131,6 +150,7 @@ properties:
         - rshell:*
         items:
           type: string
+        env_parser: json_list_or_comma_separated
       allowed_paths:
         node_type: setting
         type: array
@@ -138,6 +158,49 @@ properties:
         - /
         items:
           type: string
+        env_parser: json_list_or_comma_separated
+        comment: |-
+          Restricted shell allow-lists are opt-in restrictions layered on top of
+          the backend-injected lists. By default, they act as a no-op, allowing
+          everything: the backend is the only filter.
+
+          To allow no paths or commands, use an explicit empty list.
+          Env vars support both CSV and JSON-array forms; the JSON form gives
+          env/YAML parity, including the explicit kill-switch via "[]".
+
+          - allowed_paths defaults to ["/"].
+          - allowed_commands defaults to ["rshell:*"]. The wildcard token is
+          handled as a special case in the operator-side intersection: when
+          it appears in the operator list, every backend command in the
+          "rshell:" namespace is admitted.
+      allowed_system_services:
+        node_type: setting
+        type: object
+        default: {}
+        env_parser: json
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        comment: |-
+          Optional local restriction on backend system-service grants. When
+          unset, backend grants pass through; an explicit empty map denies all.
+          The "*" action admits every backend-granted action for an exact service.
+          The environment variable accepts a JSON object only.
+      disable_detailed_telemetry:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          When true, suppresses the raw command text and effective sandbox
+          configuration (allowed paths, commands, system services, mode, and
+          related settings) that rshell would otherwise attach to its "run"
+          telemetry span for each runCommand/runRemediationCommand
+          invocation. Other rshell telemetry (exit code, timing, command
+           counts) is unaffected. Set this to true if the commands executed
+           through the Private Action Runner's restricted shell are too
+           sensitive to forward to Datadog telemetry.
       privileged:
         node_type: section
         type: object
@@ -154,6 +217,11 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  split_enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    comment: Enables split runner mode.
   urn:
     node_type: setting
     type: string

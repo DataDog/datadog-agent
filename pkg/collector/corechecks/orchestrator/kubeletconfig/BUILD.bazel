@@ -37,10 +37,14 @@ dd_agent_go_test(
     name = "kubeletconfig_test",
     srcs = ["kubeletconfig_test.go"],
     embed = [":kubeletconfig"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core",
         "//comp/core/tagger/fx-mock",
@@ -58,7 +62,6 @@ dd_agent_go_test(
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes/kubelet",
         "@com_github_datadog_agent_payload_v5//process",
-        "@com_github_json_iterator_go//:go",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
         "@org_uber_go_fx//:fx",

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -149,10 +148,19 @@ func (c *Credentials) Equals(o *Credentials) bool {
 		c.CapPermitted == o.CapPermitted
 }
 
-// SetSpan sets the span
-func (p *Process) SetSpan(spanID uint64, traceID utils.TraceID) {
-	p.SpanID = spanID
-	p.TraceID = traceID
+// SetSpanContext attaches the captured APM correlation span context to the
+// process. Used by ResolveSpanContext to persist the span a fork or an exec
+// captured onto the process it created.
+// Carries SpanID, TraceID, ExtraAttrsID and any extra Attributes.
+func (p *Process) SetSpanContext(sc SpanContext) {
+	p.Tracer.Trace = sc
+}
+
+// SetSpanContextAttributes updates only the Attributes field of the process's
+// SpanContext: the OTel attributes are resolved after the fork or the exec that
+// stamped the rest of it.
+func (p *Process) SetSpanContextAttributes(attrs map[string]string) {
+	p.Tracer.Trace.Attributes = attrs
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
@@ -404,6 +412,9 @@ func (dfh *FakeFieldHandlers) ResolveAWSSecurityCredentials(_ *Event, _ *Process
 // ResolveSyscallCtxArgs resolves syscall context
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgs(_ *Event, _ *SyscallContext) {}
 
+// ResolveSpanContext resolves the span context of the event
+func (dfh *FakeFieldHandlers) ResolveSpanContext(ev *Event) *SpanContext { return &ev.SpanContext }
+
 // SELinuxEventKind represents the event kind for SELinux events
 type SELinuxEventKind uint32
 
@@ -423,4 +434,5 @@ type ExtraFieldHandlers interface {
 	ResolveK8SUserSessionContext(event *Event, evtCtx *K8SSessionContext)
 	ResolveAWSSecurityCredentials(event *Event, process *Process) []AWSSecurityCredentials
 	ResolveSyscallCtxArgs(ev *Event, e *SyscallContext)
+	ResolveSpanContext(ev *Event) *SpanContext
 }

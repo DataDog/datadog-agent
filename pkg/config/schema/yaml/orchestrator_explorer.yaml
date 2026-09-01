@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/orchestrator_explorer.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/orchestrator_explorer.yaml
 node_type: section
 type: object
 properties:
@@ -66,7 +66,6 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    comment: Orchestrator Explorer DCA and core agent
   extra_tags:
     node_type: setting
     type: array

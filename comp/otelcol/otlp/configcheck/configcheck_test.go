@@ -205,7 +205,6 @@ otlp_config:
 
 			// Create mock config
 			cfg := configmock.New(t)
-			pkgconfigsetup.OTLP(cfg)
 
 			// Create temporary file and read config from it
 			if tt.yaml != "" {
@@ -291,7 +290,6 @@ otlp_config:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			pkgconfigsetup.OTLP(cfg)
 
 			tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
 			require.NoError(t, err, "Failed to create temp file")
@@ -346,7 +344,6 @@ otlp_config:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			pkgconfigsetup.OTLP(cfg)
 
 			tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
 			require.NoError(t, err, "Failed to create temp file")
@@ -373,7 +370,6 @@ otlp_config:
 
 func TestReadConfigSection(t *testing.T) {
 	cfg := configmock.New(t)
-	pkgconfigsetup.OTLP(cfg)
 
 	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
 	require.NoError(t, err, "Failed to create temp file")
@@ -414,7 +410,6 @@ otlp_config:
 
 func TestReadConfigEmptySection(t *testing.T) {
 	cfg := configmock.New(t)
-	pkgconfigsetup.OTLP(cfg)
 
 	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
 	require.NoError(t, err, "Failed to create temp file")
@@ -452,7 +447,6 @@ func TestReadConfigSectionEnvVars(t *testing.T) {
 	t.Setenv("TEST_OTLP_CONFIG_DEBUG_VERBOSITY", "normal")
 
 	cfg := configmock.New(t)
-	pkgconfigsetup.OTLP(cfg)
 
 	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
 	require.NoError(t, err, "Failed to create temp file")
@@ -489,7 +483,6 @@ func TestReadConfigSectionDDEnvVars(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_DEBUG_VERBOSITY", "normal")
 
 	cfg := configmock.New(t)
-	pkgconfigsetup.OTLP(cfg)
 
 	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
 	require.NoError(t, err, "Failed to create temp file")
@@ -524,7 +517,6 @@ otlp_config:
 
 func TestReadConfigSectionNoUserConfig(t *testing.T) {
 	cfg := configmock.New(t)
-	pkgconfigsetup.OTLP(cfg)
 
 	configSection := readConfigSection(cfg, "otlp_config")
 
@@ -533,7 +525,6 @@ func TestReadConfigSectionNoUserConfig(t *testing.T) {
 
 func TestReadConfigSectionSingleOverride(t *testing.T) {
 	cfg := configmock.New(t)
-	pkgconfigsetup.OTLP(cfg)
 
 	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
 	require.NoError(t, err, "Failed to create temp file")
@@ -564,7 +555,6 @@ otlp_config:
 
 func TestReadConfigSectionCORSArrays(t *testing.T) {
 	cfg := configmock.New(t)
-	pkgconfigsetup.OTLP(cfg)
 
 	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
 	require.NoError(t, err, "Failed to create temp file")
@@ -597,7 +587,6 @@ otlp_config:
 
 func TestReadConfigSectionEmptyProtocolDeclaration(t *testing.T) {
 	cfg := configmock.New(t)
-	pkgconfigsetup.OTLP(cfg)
 
 	tmpFile, err := os.CreateTemp("", "test-config-*.yaml")
 	require.NoError(t, err, "Failed to create temp file")

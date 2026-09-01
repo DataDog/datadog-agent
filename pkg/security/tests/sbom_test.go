@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
+
+var _ = declare(TestSBOM, testOpts{enableSBOM: true, enableHostSBOM: true})
 
 func TestSBOM(t *testing.T) {
 	t.Skip("this test is currently flaky, needs to be stabilized before re-enabling")
@@ -64,7 +66,7 @@ func TestSBOM(t *testing.T) {
 				`&& process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 	}
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true, enableHostSBOM: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

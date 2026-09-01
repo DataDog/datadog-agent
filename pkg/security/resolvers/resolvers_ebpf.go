@@ -27,9 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/file"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/golabelsctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/otelattrs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
@@ -62,6 +64,8 @@ type EBPFResolvers struct {
 	HashResolver         *hash.Resolver
 	UserSessionsResolver *usersessions.Resolver
 	SyscallCtxResolver   *syscallctx.Resolver
+	GoLabelsCtxResolver  *golabelsctx.Resolver
+	OTelAttrsResolver    *otelattrs.Resolver
 	DNSResolver          *dns.Resolver
 	FileMetadataResolver *file.Resolver
 	SignatureResolver    *sign.Resolver
@@ -115,7 +119,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	tagsResolver := tags.NewResolver(opts.Tagger, cgroupsResolver, versionResolver)
+	tagsResolver := tags.NewResolver(config.RuntimeSecurity.TagsResolverQueueSize, opts.Tagger, cgroupsResolver, versionResolver)
 
 	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
 	if err != nil {
@@ -214,6 +218,8 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		HashResolver:           hashResolver,
 		UserSessionsResolver:   userSessionsResolver,
 		SyscallCtxResolver:     syscallctx.NewResolver(),
+		GoLabelsCtxResolver:    golabelsctx.NewResolver(),
+		OTelAttrsResolver:      otelattrs.NewResolver(),
 		DNSResolver:            dnsResolver,
 		FileMetadataResolver:   fileMetadataResolver,
 		SnapshotUsingListmount: config.Probe.SnapshotUsingListmount,
@@ -238,6 +244,14 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 	}
 
 	if err := r.SyscallCtxResolver.Start(r.manager); err != nil {
+		return err
+	}
+
+	if err := r.GoLabelsCtxResolver.Start(r.manager); err != nil {
+		return err
+	}
+
+	if err := r.OTelAttrsResolver.Start(r.manager); err != nil {
 		return err
 	}
 
@@ -317,6 +331,11 @@ func (r *EBPFResolvers) snapshot() error {
 	for _, proc := range processes {
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
+		// If the process is running a Datadog tracer, populate the user-space
+		// metadata and the kernel-side go_labels_procs / otel_tls maps: the
+		// runtime tracer_memfd_seal event that normally does it has already
+		// fired and been missed for processes that started before the agent.
+		r.ProcessResolver.SnapshotTracer(uint32(proc.Pid))
 	}
 
 	return nil

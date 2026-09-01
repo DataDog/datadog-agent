@@ -33,19 +33,42 @@ class TestCodeownerLinter(unittest.TestCase):
         os.chdir(self.backup_cwd)
 
     def test_all_pkg_have_codeowner(self):
-        codeowner = CodeOwners("\n".join("/pkg/" + pkg for pkg in self.fake_pkgs))
+        codeowner = CodeOwners("\n".join("/pkg/" + pkg + " @owner" for pkg in self.fake_pkgs))
         self.assertFalse(directory_has_packages_without_owner(codeowner))
         self.assertFalse(codeowner_has_orphans(codeowner))
 
     def test_pkg_is_missing_codeowner(self):
-        codeowner = CodeOwners("\n".join(os.path.join("/pkg/", pkg) for pkg in self.fake_pkgs[:-1]))
+        codeowner = CodeOwners("\n".join(os.path.join("/pkg/", pkg) + " @owner" for pkg in self.fake_pkgs[:-1]))
         self.assertTrue(directory_has_packages_without_owner(codeowner))
         self.assertFalse(codeowner_has_orphans(codeowner))
 
     def test_codeowner_rule_is_outdated(self):
-        codeowner = CodeOwners("\n".join(os.path.join("/pkg/", pkg) for pkg in [*self.fake_pkgs, "old_deleted_pkg"]))
+        codeowner = CodeOwners(
+            "\n".join(os.path.join("/pkg/", pkg) + " @owner" for pkg in [*self.fake_pkgs, "old_deleted_pkg"])
+        )
         self.assertFalse(directory_has_packages_without_owner(codeowner))
         self.assertTrue(codeowner_has_orphans(codeowner))
+
+    def test_pkg_not_owned_by_blanket_folder_rule(self):
+        # A generic /pkg/ rule covers every path under pkg recursively, but it must not be
+        # treated as evidence that a specific package has its own dedicated owner.
+        codeowner = CodeOwners(
+            "\n".join(["/pkg/ @DataDog/agent-runtimes", *("/pkg/" + pkg + " @owner" for pkg in self.fake_pkgs[:-1])])
+        )
+        self.assertTrue(directory_has_packages_without_owner(codeowner))
+
+    def test_pkg_not_owned_by_noowner_glob_rule(self):
+        # A glob rule with no owners (e.g. a "do not notify anyone" suppression) still matches
+        # a package's path structurally, but must not count as ownership.
+        codeowner = CodeOwners("\n".join(["/**/fake_a", *("/pkg/" + pkg + " @owner" for pkg in self.fake_pkgs[1:])]))
+        self.assertTrue(directory_has_packages_without_owner(codeowner))
+
+    def test_root_file_is_ignored(self):
+        # A single file directly under `pkg` (e.g. BUILD.bazel) isn't a package, so it doesn't
+        # need a dedicated CODEOWNERS entry even when otherwise unowned.
+        open(os.path.join(self.pkg_dir, "BUILD.bazel"), "w").close()
+        codeowner = CodeOwners("\n".join("/pkg/" + pkg + " @owner" for pkg in self.fake_pkgs))
+        self.assertFalse(directory_has_packages_without_owner(codeowner))
 
 
 class TestAIArtefactsHaveOwner(unittest.TestCase):

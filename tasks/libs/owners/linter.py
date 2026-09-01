@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 
 from tasks.libs.common.color import color_message
 
@@ -8,15 +9,27 @@ def directory_has_packages_without_owner(owners, folder="pkg"):
     """Check every package in `pkg` has an owner"""
 
     error = False
+    folder_path = "/" + folder
 
-    for x in os.listdir(folder):
-        # Use forward slash concatenation instead of os.path.join to ensure consistent
-        # path separators for CODEOWNERS comparison. CODEOWNERS files always use forward
-        # slashes regardless of platform, so we need to generate paths with forward slashes
-        # to match against the CODEOWNERS rules. os.path.join would use backslashes on
-        # Windows, causing the comparison to fail.
-        path = "/" + folder + "/" + x
-        if all(owner[1].rstrip('/') != path for owner in owners.paths):
+    for entry in os.scandir(folder):
+        if not entry.is_dir():
+            # Single files directly under `folder` (e.g. /pkg/BUILD.bazel) aren't
+            # standalone packages, so they don't need a dedicated CODEOWNERS entry.
+            continue
+        subdir_name = entry.name
+        # CODEOWNERS files always use forward slashes regardless of platform, so we use
+        # PurePosixPath-style formatting (as_posix()) to ensure consistent path separators
+        # for comparison, even on Windows where Path would otherwise use backslashes.
+        path = "/" + (Path(folder) / subdir_name).as_posix()
+        # codeowners represents directories with a trailing slash without
+        # it, a directory-only rule like `/pkg/api/` won't match.
+        stripped = path.lstrip('/') + '/'
+        rule_owners, _, rule_path, _ = owners.matching_line(stripped)
+        # A match against the folder's own blanket rule (e.g. `/pkg/`) doesn't count as a
+        # dedicated owner for this specific package — it covers everything under `folder`
+        # indiscriminately. A match with no owners (e.g. a "do not notify anyone" rule) doesn't
+        # count either.
+        if not rule_owners or (rule_path is not None and rule_path.rstrip('/') == folder_path):
             if not error:
                 print(
                     color_message("The following packages don't have owner in CODEOWNER file", "red"), file=sys.stderr

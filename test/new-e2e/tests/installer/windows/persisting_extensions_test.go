@@ -14,12 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/ddot"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -104,7 +103,7 @@ func (s *testExtensionsSuite) verifyDDOTRunningSCM(expectedVersion string) {
 func (s *testExtensionsSuite) verifyDDOTRunningProcmgr(expectedVersion string) {
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	ddot.AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
 	if expectedVersion == "" {
 		return
 	}
@@ -112,7 +111,7 @@ func (s *testExtensionsSuite) verifyDDOTRunningProcmgr(expectedVersion string) {
 	s.Require().NoError(err)
 	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
 	assert.Eventually(s.T(), func() bool {
-		cmdLine, err := ddot.WindowsDescribeDDOTCommandLine(s.Env().RemoteHost, cli)
+		cmdLine, err := WindowsDescribeDDOTCommandLine(s.Env().RemoteHost, cli)
 		if err != nil || cmdLine == "" {
 			return false
 		}

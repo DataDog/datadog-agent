@@ -17,18 +17,37 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
+func newTestCollector(t *testing.T, store workloadmeta.Component) *collector {
+	t.Helper()
+
+	config := config.NewMock(t)
+	config.SetInTest("gpu.enabled", true)
+
+	return newCollector(store, config)
+}
+
+func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
+	env.SetFeatures(t, env.NVML)
+
+	c := newCollector(nil, config.NewMock(t))
+	err := c.Start(context.Background(), nil)
+
+	require.Equal(t, dderrors.NewDisabled(componentName, "GPU monitoring is disabled"), err)
+}
+
 func TestPull(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMock()
+	nvmltestutil.SetupMockNVML(t, testutil.WithDefaultMIGDevices())
 
-	c := newCollector(wmetaMock, nil)
-
-	ddnvml.WithMockNVML(t, nvmlMock)
+	c := newTestCollector(t, wmetaMock)
 
 	c.Pull(context.Background())
 
@@ -64,6 +83,7 @@ func TestPull(t *testing.T) {
 		require.ElementsMatch(t, expectedGPUActivePIDs, gpu.ActivePIDs)
 		require.Equal(t, "none", gpu.VirtualizationMode)
 		require.Equal(t, "0000:00:1e.0", gpu.PCIBusID)
+		require.Empty(t, gpu.FabricClusterUUID)
 	}
 
 	for _, uuid := range testutil.GPUUUIDs {
@@ -75,6 +95,104 @@ func TestPull(t *testing.T) {
 			require.True(t, foundIDs[migChildUUID], "MIG child GPU %s not found", migChildUUID)
 		}
 	}
+}
+
+func TestPullNVLinkVersion(t *testing.T) {
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 1, NvLinkLinkCount: 1}),
+	)
+	c := newTestCollector(t, wmetaMock)
+
+	c.Pull(context.Background())
+
+	for _, gpu := range wmetaMock.ListGPUs() {
+		expectedVersion := "1.0"
+		if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
+			// MIG devices do not have NVLink ports, even when their parent does.
+			expectedVersion = "not_nvlink_capable"
+		}
+		require.Equalf(t, expectedVersion, gpu.NVLinkVersion, "unexpected NVLink version for GPU %s", gpu.ID)
+	}
+}
+
+func TestPullWithoutNVLink(t *testing.T) {
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithNVLinkLinkCount(0),
+	)
+	c := newTestCollector(t, wmetaMock)
+
+	c.Pull(context.Background())
+
+	for _, gpu := range wmetaMock.ListGPUs() {
+		require.Equalf(t, "not_nvlink_capable", gpu.NVLinkVersion, "unexpected NVLink version for GPU %s", gpu.ID)
+	}
+}
+
+func TestFabricInfoToTags(t *testing.T) {
+	clusterUUID := [16]uint8{0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
+	tests := []struct {
+		name              string
+		fabricInfo        nvml.GpuFabricInfo_v2
+		expectedClusterID string
+		expectedCliqueID  uint32
+		expectedAvailable bool
+	}{
+		{
+			name: "completed fabric with cluster UUID",
+			fabricInfo: nvml.GpuFabricInfo_v2{
+				State:       nvml.GPU_FABRIC_STATE_COMPLETED,
+				Status:      uint32(nvml.SUCCESS),
+				CliqueId:    42,
+				ClusterUuid: clusterUUID,
+			},
+			expectedClusterID: "00112233-4455-6677-8899-aabbccddeeff",
+			expectedCliqueID:  42,
+			expectedAvailable: true,
+		},
+		{
+			name: "fabric initialization incomplete",
+			fabricInfo: nvml.GpuFabricInfo_v2{
+				State:       nvml.GPU_FABRIC_STATE_IN_PROGRESS,
+				Status:      uint32(nvml.SUCCESS),
+				CliqueId:    42,
+				ClusterUuid: clusterUUID,
+			},
+		},
+		{
+			name: "fabric status failed",
+			fabricInfo: nvml.GpuFabricInfo_v2{
+				State:       nvml.GPU_FABRIC_STATE_COMPLETED,
+				Status:      uint32(nvml.ERROR_UNKNOWN),
+				CliqueId:    42,
+				ClusterUuid: clusterUUID,
+			},
+		},
+		{
+			name: "cluster UUID is unavailable",
+			fabricInfo: nvml.GpuFabricInfo_v2{
+				State:    nvml.GPU_FABRIC_STATE_COMPLETED,
+				Status:   uint32(nvml.SUCCESS),
+				CliqueId: 42,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clusterID, cliqueID, available := fabricInfoToTags(tt.fabricInfo)
+			require.Equal(t, tt.expectedClusterID, clusterID)
+			require.Equal(t, tt.expectedCliqueID, cliqueID)
+			require.Equal(t, tt.expectedAvailable, available)
+		})
+	}
+}
+
+func TestFabricClusterUUIDFromNVMLInfo(t *testing.T) {
+	clusterUUID := [16]uint8{0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
+
+	require.Equal(t, "00112233-4455-6677-8899-aabbccddeeff", fabricClusterUUIDFromNVMLInfo(clusterUUID))
 }
 
 func TestPCIBusIDFromNVMLInfo(t *testing.T) {
@@ -117,15 +235,14 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	expectedActivePIDs := testutil.DefaultActivePIDs()
 
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithDefaultMIGDevices(),
 		testutil.WithProcessDataCallback(func(_ string) (testutil.MockProcessInfoList, nvml.Return) {
 			return processInfo, nvml.SUCCESS
 		}),
 	)
 
-	c := newCollector(wmetaMock, nil)
-
-	ddnvml.WithMockNVML(t, nvmlMock)
+	c := newTestCollector(t, wmetaMock)
 
 	// First pull to populate the store with initial PIDs
 	c.Pull(context.Background())
@@ -158,14 +275,12 @@ func TestProcessEntities(t *testing.T) {
 	processInfo := make(map[string]testutil.MockProcessInfoList)
 
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithProcessDataCallback(func(uuid string) (testutil.MockProcessInfoList, nvml.Return) {
+	nvmltestutil.SetupMockNVML(t, testutil.WithProcessDataCallback(func(uuid string) (testutil.MockProcessInfoList, nvml.Return) {
 		return processInfo[uuid], nvml.SUCCESS
 	}))
 
-	c := newCollector(wmetaMock, nil)
+	c := newTestCollector(t, wmetaMock)
 	c.integrateWithWorkloadmetaProcesses = true
-
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	// Pull first, we have no process info so we should have no Process entities
 	c.Pull(context.Background())
@@ -245,16 +360,14 @@ func TestProcessEntityMerging(t *testing.T) {
 	procinfo := testutil.MockProcessInfoList{
 		{Pid: uint32(pid), UsedGpuMemory: 100},
 	}
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithDeviceCount(1),
 		testutil.WithProcessDataCallback(func(_ string) (testutil.MockProcessInfoList, nvml.Return) {
 			return procinfo, nvml.SUCCESS
 		}),
 	)
-	c := newCollector(wmetaMock, nil)
+	c := newTestCollector(t, wmetaMock)
 	c.integrateWithWorkloadmetaProcesses = true
-
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	// First, create Process entity from GPU collector
 	c.Pull(context.Background())
@@ -332,11 +445,9 @@ func TestProcessEntityMerging(t *testing.T) {
 
 func TestPullWithMIGDevices(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	nvmlMock := testutil.GetBasicNvmlMock()
+	nvmltestutil.SetupMockNVML(t, testutil.WithDefaultMIGDevices())
 
-	c := newCollector(wmetaMock, nil)
-
-	ddnvml.WithMockNVML(t, nvmlMock)
+	c := newTestCollector(t, wmetaMock)
 
 	c.Pull(context.Background())
 

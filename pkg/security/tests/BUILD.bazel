@@ -1,4 +1,7 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:go_canonical_test_tag_set functionaltests bpf
 
 go_library(
     name = "tests",
@@ -17,9 +20,11 @@ go_library(
         "syscall_tester.go",
         "syscalls_amd64.go",
         "syscalls_arm64.go",
+        "testdecl.go",
         "testdrive.go",
         "testmount.go",
         "testopts.go",
+        "testruns.go",
         "trace_pipe.go",
     ],
     # keep
@@ -62,6 +67,7 @@ go_library(
             "//comp/core/tagger/types",
             "//comp/serializer/logscompression/impl",
             "//pkg/config/setup/constants",
+            "//pkg/ebpf/ebpftest",
             "//pkg/ebpf/telemetry",
             "//pkg/eventmonitor",
             "//pkg/security/ebpf/kernel",
@@ -79,7 +85,7 @@ go_library(
             "//pkg/security/tests/statsdclient",
             "//pkg/security/utils/grpc",
             "//pkg/util/kernel",
-            "@com_github_cenkalti_backoff_v6//:backoff",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_datadog_ebpf_manager//tracefs",
             "@com_github_davecgh_go_spew//spew",
             "@com_github_freddierice_go_losetup//:go-losetup",
@@ -96,6 +102,7 @@ go_library(
             "//comp/core/tagger/types",
             "//comp/serializer/logscompression/impl",
             "//pkg/config/setup/constants",
+            "//pkg/ebpf/ebpftest",
             "//pkg/ebpf/telemetry",
             "//pkg/eventmonitor",
             "//pkg/security/ebpf/kernel",
@@ -113,7 +120,7 @@ go_library(
             "//pkg/security/tests/statsdclient",
             "//pkg/security/utils/grpc",
             "//pkg/util/kernel",
-            "@com_github_cenkalti_backoff_v6//:backoff",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_datadog_ebpf_manager//tracefs",
             "@com_github_davecgh_go_spew//spew",
             "@com_github_freddierice_go_losetup//:go-losetup",
@@ -141,7 +148,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "tests_test",
     srcs = [
         "accept_test.go",
@@ -152,6 +159,7 @@ go_test(
         "bpf_test.go",
         "capabilities_test.go",
         "capture_all_syscall_errors_test.go",
+        "capture_test.go",
         "cgroup_test.go",
         "chdir_test.go",
         "chmod_test.go",
@@ -241,12 +249,12 @@ go_test(
         ],
         "//conditions:default": [],
     }),
-    gotags = [
-        "test",
+    gotags_sets = [[
+        "bpf",
         "functionaltests",
-        "linux_bpf",
-    ],  # keep
-    tags = ["manual"],  # keep
+    ]],
+    include_default = False,
+    tags = ["manual"],
     deps = [
         "//pkg/security/secl/rules",
         "//pkg/util/log",
@@ -272,6 +280,7 @@ go_test(
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
+            "//pkg/security/secl/model/utils",
             "//pkg/security/security_profile",
             "//pkg/security/security_profile/activity_tree",
             "//pkg/security/security_profile/dump",
@@ -282,7 +291,7 @@ go_test(
             "//pkg/util/kernel",
             "//pkg/util/ktime",
             "//pkg/util/testutil/flake",
-            "@com_github_cenkalti_backoff_v6//:backoff",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_creack_pty//:pty",
             "@com_github_iceber_iouring_go//:iouring-go",
@@ -319,6 +328,7 @@ go_test(
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
+            "//pkg/security/secl/model/utils",
             "//pkg/security/security_profile",
             "//pkg/security/security_profile/activity_tree",
             "//pkg/security/security_profile/dump",
@@ -329,7 +339,7 @@ go_test(
             "//pkg/util/kernel",
             "//pkg/util/ktime",
             "//pkg/util/testutil/flake",
-            "@com_github_cenkalti_backoff_v6//:backoff",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_creack_pty//:pty",
             "@com_github_iceber_iouring_go//:iouring-go",

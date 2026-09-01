@@ -21,7 +21,7 @@ import (
 	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/stretchr/testify/require"
@@ -39,11 +39,12 @@ type RemoteConfigState struct {
 
 // RemoteConfigStatePackage is the state of a package in the remote config.
 type RemoteConfigStatePackage struct {
-	Package                 string `json:"package"`
-	StableVersion           string `json:"stable_version"`
-	ExperimentVersion       string `json:"experiment_version"`
-	StableConfigVersion     string `json:"stable_config_version"`
-	ExperimentConfigVersion string `json:"experiment_config_version"`
+	Package                 string            `json:"package"`
+	StableVersion           string            `json:"stable_version"`
+	ExperimentVersion       string            `json:"experiment_version"`
+	StableConfigVersion     string            `json:"stable_config_version"`
+	ExperimentConfigVersion string            `json:"experiment_config_version"`
+	ProcessStates           map[string]string `json:"process_states"`
 }
 
 // Backend is the fake fleet backend.

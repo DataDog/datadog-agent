@@ -20,10 +20,8 @@ import (
 
 	"github.com/google/gopacket"
 
-	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -88,8 +86,9 @@ type Event struct {
 	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
 	// context
-	SpanContext    SpanContext    `field:"-"`
-	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
+	SpanContext    SpanContext     `field:"-"`
+	GoLabels       GoLabelsContext `field:"-"`
+	NetworkContext NetworkContext  `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
@@ -165,6 +164,9 @@ func NewEventZeroer() func(*Event) {
 	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
 	return func(e *Event) {
+		e.SpanContext = eventZero.SpanContext
+		e.GoLabels = eventZero.GoLabels
+
 		switch e.GetEventType() {
 		case PrCtlEventType:
 
@@ -295,6 +297,14 @@ type SyscallContext struct {
 	Resolved bool `field:"-"`
 }
 
+// GoLabelsContext is a handle to a set of Go pprof labels captured at syscall
+// entry and stored in the go_labels_ctx ring. The raw labels are parsed
+// in user space to resolve span/trace ids (see the golabelsctx resolver).
+type GoLabelsContext struct {
+	ID       uint32 `field:"-"`
+	Resolved bool   `field:"-"`
+}
+
 // ChmodEvent represents a chmod event
 type ChmodEvent struct {
 	SyscallEvent
@@ -395,9 +405,6 @@ type Process struct {
 	CGroup           CGroupContext    `field:"cgroup"`    // SECLDoc[cgroup] Definition:`CGroup`
 	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
 
-	SpanID  uint64        `field:"-"`
-	TraceID utils.TraceID `field:"-"`
-
 	TTYName     string      `field:"tty_name"`                                                          // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
 	Comm        string      `field:"comm"`                                                              // SECLDoc[comm] Definition:`Comm attribute of the process`
 	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter,set_handler:SetInterpreterFields"` // Script interpreter as identified by the shebang
@@ -425,7 +432,7 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
-	TracerMetadata tracermetadata.TracerMetadata `field:"-"` // Metadata from APM tracer instrumentation
+	Tracer Tracer `field:"-"`
 
 	ArgsID uint64 `field:"-"`
 	EnvsID uint64 `field:"-"`

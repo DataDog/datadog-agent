@@ -51,11 +51,29 @@ dd_agent_go_test(
         "whichtailer_test.go",
     ],
     embed = [":tailerfactory"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
+    gotags_sets = [
+        [
+            "cel",
+            "clusterchecks",
+            "docker",
+            "kubeapiserver",
+            "kubelet",
+            "orchestrator",
+        ],
+        [
+            "cel",
+            "clusterchecks",
+            "kubeapiserver",
+            "kubelet",
+            "orchestrator",
+        ],
+        [
+            "cel",
+            "docker",
+            "kubelet",
+        ],
     ],
+    include_default = False,
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",

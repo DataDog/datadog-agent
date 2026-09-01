@@ -22,6 +22,14 @@ struct syscall_context_t {
 struct span_context_t {
     u64 span_id;
     u64 trace_id[2];
+    u64 extra_attrs_id; // reserved for extra span attributes; 0 when none are available
+};
+
+// Handle to a set of Go pprof labels stored in the go_labels_ctx ring.
+// Looks the id up and parses the required raw labels in userspace.
+struct go_labels_context_t {
+    u32 id;
+    u32 padding;
 };
 
 struct process_context_t {

@@ -30,9 +30,6 @@ const (
 	// defaultTestTimeoutSeconds is the total test timeout applied when the test
 	// config does not specify one, matching the default added on the RC path.
 	defaultTestTimeoutSeconds = 60
-	// defaultMaxTTL is the fallback max-TTL used only when computing the
-	// per-hop timeout and neither the test config nor cfg.MaxTTL is set.
-	defaultMaxTTL = 30
 )
 
 // runWorkers starts the configured number of worker goroutines and waits for them.
@@ -241,13 +238,13 @@ func fillNetworkConfig(cfg *config.Config, ncr common.NetworkConfigRequest) {
 	if ncr.MaxTTL != nil {
 		cfg.MaxTTL = uint8(*ncr.MaxTTL)
 	} else {
-		cfg.MaxTTL = defaultMaxTTL
+		cfg.MaxTTL = config.DefaultMaxTTL
 	}
 	timeoutSec := defaultTestTimeoutSeconds
 	if ncr.Timeout != nil {
 		timeoutSec = *ncr.Timeout
 	}
-	cfg.Timeout = time.Duration(float64(timeoutSec) * 0.9 / float64(cfg.MaxTTL) * float64(time.Second))
+	cfg.Timeout = config.PerHopTimeout(time.Duration(timeoutSec)*time.Second, cfg.MaxTTL)
 	if ncr.TracerouteCount != nil {
 		cfg.TracerouteQueries = *ncr.TracerouteCount
 	}
@@ -370,10 +367,24 @@ func configRequestToResultRequest(req common.ConfigRequest) (common.ResultReques
 	}
 }
 
+// resolveNamespace returns the NDM namespace to stamp on the emitted path. A
+// non-empty namespace supplied by the test config takes precedence; otherwise
+// the Agent default (network_devices.namespace) is used, mirroring the
+// network_path integration.
+func (s *syntheticsTestScheduler) resolveNamespace(req common.ConfigRequest) string {
+	if req != nil {
+		if ns := req.GetNamespace(); ns != nil && *ns != "" {
+			return *ns
+		}
+	}
+	return s.namespace
+}
+
 // networkPathToTestResult converts a workerResult into the public TestResult structure.
 func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*common.TestResult, error) {
 	t := common.Test{
 		ID:      w.testCfg.cfg.PublicID,
+		Name:    w.testCfg.cfg.TestName,
 		SubType: strings.ToLower(string(w.testCfg.cfg.Config.Request.GetSubType())),
 		Type:    w.testCfg.cfg.Type,
 		Version: w.testCfg.cfg.Version,
@@ -394,10 +405,14 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	w.tracerouteResult.Source.Name = w.hostname
 	w.tracerouteResult.Source.DisplayName = w.hostname
 	w.tracerouteResult.Source.Hostname = w.hostname
+	w.tracerouteResult.Namespace = s.resolveNamespace(w.testCfg.cfg.Config.Request)
 	w.tracerouteResult.TestConfigID = w.testCfg.cfg.PublicID
 	w.tracerouteResult.TestResultID = testResultID
 	w.tracerouteResult.Origin = payload.PathOriginSynthetics
-	w.tracerouteResult.TestRunType = payload.TestRunTypeScheduled
+	w.tracerouteResult.TestRunType = payload.TestRunType(w.testCfg.cfg.RunType)
+	if w.testCfg.cfg.RunType == common.RunTypeCI {
+		w.tracerouteResult.TestRunType = payload.TestRunTypeTriggered
+	}
 	w.tracerouteResult.SourceProduct = payload.SourceProductSynthetics
 	w.tracerouteResult.CollectorType = payload.CollectorTypeAgent
 	w.tracerouteResult.Timestamp = w.finishedAt.UnixMilli()
@@ -444,8 +459,14 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 
 	return &common.TestResult{
 		Location: struct {
-			ID string `json:"id"`
-		}{ID: "agent:" + w.hostname},
+			ID          string `json:"id"`
+			Name        string `json:"name,omitempty"`
+			DisplayName string `json:"displayName,omitempty"`
+		}{
+			ID:          "agent:" + w.hostname,
+			Name:        w.testCfg.cfg.LocationName,
+			DisplayName: w.testCfg.cfg.LocationDisplayName,
+		},
 		DD:     make(map[string]interface{}),
 		Result: result,
 		Test:   t,

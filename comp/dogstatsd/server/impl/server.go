@@ -366,13 +366,20 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	return s
 }
 
+// errNoListeners is the only startup failure that dogstatsd_require_listener
+// treats as fatal.
+var errNoListeners = errors.New("listening on neither udp nor socket, please check your configuration")
+
 func (s *dsdServer) startHook(context context.Context) error {
 	err := s.start(context)
-	if err != nil {
-		s.log.Errorf("Could not start dogstatsd: %s", err)
-	} else {
+	if err == nil {
 		s.log.Debug("dogstatsd started")
+		return nil
 	}
+	if errors.Is(err, errNoListeners) && s.config.GetBool("dogstatsd_require_listener") {
+		return fmt.Errorf("dogstatsd start failed: %w", err)
+	}
+	s.log.Errorf("Could not start dogstatsd: %s", err)
 	return nil
 }
 
@@ -418,7 +425,6 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	if len(socketStreamPath) > 0 {
-		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
 		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
@@ -448,7 +454,7 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	if len(tmpListeners) == 0 {
-		return errors.New("listening on neither udp nor socket, please check your configuration")
+		return errNoListeners
 	}
 
 	s.packetsIn = packetsChannel

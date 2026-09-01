@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/cluster_agent.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/cluster_agent.yaml
 node_type: section
 title: Cluster Agent Configuration
 type: object
@@ -17,7 +17,6 @@ properties:
     default: false
     visibility: public
     description: Set to true to enable the Cluster Agent.
-    comment: Datadog cluster agent
   auth_token:
     node_type: setting
     type: string
@@ -119,8 +118,6 @@ properties:
         description: |-
           Sample rate for traces emitted by the Cluster Agent (0.0 to 1.0).
           Default is 0.1 (10%) for safety. Set to 1.0 to trace all operations.
-        tags:
-        - golang_type:float64
   allow_legacy_tls:
     node_type: setting
     type: boolean

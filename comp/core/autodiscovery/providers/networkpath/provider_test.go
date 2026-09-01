@@ -32,6 +32,8 @@ func TestProviderValidScheduledConfig(t *testing.T) {
 		"path/a": {Config: []byte(`{
 			"type": "scheduled",
 			"test_config_id": "test-config-a",
+			"test_config_name": "Production paths",
+			"tags": ["team:payments", "env:prod"],
 			"unknown_root_field": true,
 			"config": {
 				"unknown_config_field": true,
@@ -72,22 +74,25 @@ func TestProviderValidScheduledConfig(t *testing.T) {
 
 	instance := unmarshalInstance(t, first.Instances[0])
 	assert.Equal(t, "test-config-a", instance["test_config_id"])
+	assert.Equal(t, "Production paths", instance["test_config_name"])
 	assert.Equal(t, "api.example.com", instance["hostname"])
 	assert.Equal(t, 443, instance["port"])
 	assert.Equal(t, "TCP", instance["protocol"])
 	assert.Equal(t, 60, instance["min_collection_interval"])
-	assert.Equal(t, 1000, instance["timeout"])
+	assert.Equal(t, 30, instance["timeout"])
 	assert.Equal(t, 30, instance["max_ttl"])
 	assert.Equal(t, "syn", instance["tcp_method"])
 	assert.Equal(t, 3, instance["traceroute_queries"])
 	assert.Equal(t, 50, instance["e2e_queries"])
 	assert.Equal(t, "frontend", instance["source_service"])
 	assert.Equal(t, "api", instance["destination_service"])
-	assert.Equal(t, []interface{}{"env:prod"}, instance["tags"])
+	assert.Equal(t, []interface{}{"team:payments", "env:prod"}, instance["tags"])
 
 	second := unmarshalInstance(t, changes.Schedule[1].Instances[0])
 	assert.Equal(t, "test-config-a", second["test_config_id"])
+	assert.Equal(t, "Production paths", second["test_config_name"])
 	assert.Equal(t, "db.example.com", second["hostname"])
+	assert.Equal(t, []interface{}{"team:payments", "env:prod"}, second["tags"])
 }
 
 func TestProviderNoOpSnapshotDoesNotRestartChecks(t *testing.T) {
@@ -102,6 +107,140 @@ func TestProviderNoOpSnapshotDoesNotRestartChecks(t *testing.T) {
 
 	provider.Update(map[string]state.RawConfig{"path/a": {Config: config}}, applyStatuses().callback)
 	assertNoChanges(t, changesCh)
+}
+
+func TestProviderAcceptsLegacyConfigWithoutTestConfigName(t *testing.T) {
+	configs, err := parseConfig(rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	instance := unmarshalInstance(t, configs[0].Instances[0])
+	assert.Equal(t, "test-config-a", instance["test_config_id"])
+	assert.NotContains(t, instance, "test_config_name")
+}
+
+func TestProviderConvertsTotalTimeoutToPerHop(t *testing.T) {
+	tests := []struct {
+		name            string
+		endpoint        string
+		expectedTimeout int
+	}{
+		{
+			name:            "exact milliseconds",
+			endpoint:        `{"hostname":"api.example.com","timeout_ms":1000,"max_ttl":30}`,
+			expectedTimeout: 30,
+		},
+		{
+			name:            "fractional milliseconds round up",
+			endpoint:        `{"hostname":"api.example.com","timeout_ms":1000,"max_ttl":32}`,
+			expectedTimeout: 29,
+		},
+		{
+			name:            "positive sub-millisecond timeout does not trigger the check default",
+			endpoint:        `{"hostname":"api.example.com","timeout_ms":1,"max_ttl":30}`,
+			expectedTimeout: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configs, err := parseConfig(rawScheduledConfig("test-config-a", tt.endpoint))
+			require.NoError(t, err)
+			require.Len(t, configs, 1)
+
+			instance := unmarshalInstance(t, configs[0].Instances[0])
+			assert.Equal(t, tt.expectedTimeout, instance["timeout"])
+		})
+	}
+}
+
+func TestCalculatePerHopTimeoutMS(t *testing.T) {
+	tests := []struct {
+		name            string
+		totalTimeoutMS  int64
+		maxTTL          int
+		expectedTimeout int64
+	}{
+		{
+			name:            "reserves ten percent",
+			totalTimeoutMS:  1000,
+			maxTTL:          1,
+			expectedTimeout: 900,
+		},
+		{
+			name:            "divides budget evenly across hops",
+			totalTimeoutMS:  1000,
+			maxTTL:          30,
+			expectedTimeout: 30,
+		},
+		{
+			name:            "rounds fractional milliseconds up",
+			totalTimeoutMS:  1000,
+			maxTTL:          32,
+			expectedTimeout: 29,
+		},
+		{
+			name:            "minimum contract values remain positive",
+			totalTimeoutMS:  1,
+			maxTTL:          1,
+			expectedTimeout: 1,
+		},
+		{
+			name:            "minimum timeout at maximum TTL remains positive",
+			totalTimeoutMS:  1,
+			maxTTL:          255,
+			expectedTimeout: 1,
+		},
+		{
+			name:            "maximum timeout and TTL",
+			totalTimeoutMS:  120000,
+			maxTTL:          255,
+			expectedTimeout: 424,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedTimeout, calculatePerHopTimeoutMS(tt.totalTimeoutMS, tt.maxTTL))
+		})
+	}
+}
+
+func TestProviderTimeoutUsesEffectiveDefaultMaxTTL(t *testing.T) {
+	configs, err := parseConfig(rawScheduledConfig("test-config-a", `{"hostname":"api.example.com","timeout_ms":1000}`))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	instance := unmarshalInstance(t, configs[0].Instances[0])
+	assert.Equal(t, 30, instance["timeout"])
+	assert.NotContains(t, instance, "max_ttl")
+
+	checkConfig, err := networkpathcheck.NewCheckConfig(configs[0].Instances[0], nil)
+	require.NoError(t, err)
+	assert.Equal(t, uint8(30), checkConfig.MaxTTL)
+	assert.Equal(t, 30*time.Millisecond, checkConfig.Timeout)
+}
+
+func TestProviderOmittedTimeoutKeepsExistingCheckDefault(t *testing.T) {
+	configs, err := parseConfig(rawScheduledConfig("test-config-a", `{"hostname":"api.example.com","max_ttl":30}`))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	instance := unmarshalInstance(t, configs[0].Instances[0])
+	assert.NotContains(t, instance, "timeout")
+
+	checkConfig, err := networkpathcheck.NewCheckConfig(configs[0].Instances[0], nil)
+	require.NoError(t, err)
+	assert.Equal(t, time.Second, checkConfig.Timeout)
+}
+
+func TestLocalYAMLTimeoutRemainsPerHop(t *testing.T) {
+	config, err := networkpathcheck.NewCheckConfig(
+		integration.Data("hostname: api.example.com\ntimeout: 1000\nmax_ttl: 30\n"),
+		nil,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, time.Second, config.Timeout)
 }
 
 func TestProviderSendChangesReturnsOnShutdownWhenChannelFull(t *testing.T) {
@@ -295,7 +434,7 @@ func TestProviderEmptyTestsFailsClosed(t *testing.T) {
 	assert.NotEmpty(t, provider.GetConfigErrors()["path/a"])
 }
 
-func TestProviderRejectsDynamicType(t *testing.T) {
+func TestProviderIgnoresDynamicType(t *testing.T) {
 	provider := NewProvider()
 	changesCh := provider.Stream(context.Background())
 	assert.Empty(t, <-changesCh)
@@ -305,10 +444,33 @@ func TestProviderRejectsDynamicType(t *testing.T) {
 		"path/a": {Config: []byte(rawDynamicConfigString("test-config-a"))},
 	}, statuses.callback)
 
-	assert.Equal(t, state.ApplyStateError, statuses.values["path/a"].State)
-	assert.Contains(t, statuses.values["path/a"].Error, `unsupported Network Path config type "dynamic"`)
-	assert.NotEmpty(t, provider.GetConfigErrors()["path/a"])
+	assert.NotContains(t, statuses.values, "path/a")
+	assert.NotContains(t, provider.GetConfigErrors(), "path/a")
 	assertNoChanges(t, changesCh)
+}
+
+func TestProviderDynamicTypeDefensivelyClearsScheduledStateAtSamePath(t *testing.T) {
+	provider := NewProvider()
+	changesCh := provider.Stream(context.Background())
+	assert.Empty(t, <-changesCh)
+
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: rawScheduledConfig("test-config-a", `{"hostname":"api.example.com"}`)},
+	}, applyStatuses().callback)
+	first := <-changesCh
+	require.Len(t, first.Schedule, 1)
+
+	statuses := applyStatuses()
+	provider.Update(map[string]state.RawConfig{
+		"path/a": {Config: []byte(rawDynamicConfigString("dynamic-sentinel"))},
+	}, statuses.callback)
+
+	assert.NotContains(t, statuses.values, "path/a")
+	second := <-changesCh
+	require.Len(t, second.Unschedule, 1)
+	assert.Empty(t, second.Schedule)
+	assert.NotContains(t, provider.activeByPath, "path/a")
+	assert.NotContains(t, provider.GetConfigErrors(), "path/a")
 }
 
 func TestProviderDynamicSnapshotUnschedulesMissingScheduledPath(t *testing.T) {
@@ -327,14 +489,14 @@ func TestProviderDynamicSnapshotUnschedulesMissingScheduledPath(t *testing.T) {
 		"path/dynamic": {Config: []byte(rawDynamicConfigString("dynamic-sentinel"))},
 	}, statuses.callback)
 
-	assert.Equal(t, state.ApplyStateError, statuses.values["path/dynamic"].State)
+	assert.NotContains(t, statuses.values, "path/dynamic")
 	second := <-changesCh
 	require.Len(t, second.Unschedule, 1)
 	assert.Empty(t, second.Schedule)
 	instance := unmarshalInstance(t, second.Unschedule[0].Instances[0])
 	assert.Equal(t, "test-config-a", instance["test_config_id"])
 	assert.Equal(t, "api.example.com", instance["hostname"])
-	assert.NotEmpty(t, provider.GetConfigErrors()["path/dynamic"])
+	assert.NotContains(t, provider.GetConfigErrors(), "path/dynamic")
 }
 
 func TestProviderRejectsUnsupportedType(t *testing.T) {
@@ -393,11 +555,12 @@ func TestParseConfigOutputIsAcceptedByNetworkPathCheck(t *testing.T) {
 	checkConfig, err := networkpathcheck.NewCheckConfig(configs[0].Instances[0], nil)
 	require.NoError(t, err)
 	assert.Equal(t, "test-config-a", checkConfig.TestConfigID)
+	assert.Empty(t, checkConfig.TestConfigName)
 	assert.Equal(t, "api.example.com", checkConfig.DestHostname)
 	assert.Equal(t, uint16(443), checkConfig.DestPort)
 	assert.Equal(t, payload.ProtocolTCP, checkConfig.Protocol)
 	assert.Equal(t, uint8(30), checkConfig.MaxTTL)
-	assert.Equal(t, time.Second, checkConfig.Timeout)
+	assert.Equal(t, 30*time.Millisecond, checkConfig.Timeout)
 	assert.Equal(t, time.Minute, checkConfig.MinCollectionInterval)
 	assert.Equal(t, "frontend", checkConfig.SourceService)
 	assert.Equal(t, "api", checkConfig.DestinationService)

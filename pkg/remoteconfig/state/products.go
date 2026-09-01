@@ -48,6 +48,7 @@ var validProducts = map[string]struct{}{
 	ProductDOQueryActions:               {},
 	ProductK8SActions:                   {},
 	ProductNetworkPath:                  {},
+	ProductDataSecurityDBScanTasks:      {},
 }
 
 const (
@@ -113,7 +114,7 @@ const (
 	ProductTesting2 = "TESTING2"
 	// ProductOrchestratorK8sCRDs receives values for k8s crds
 	ProductOrchestratorK8sCRDs = "ORCHESTRATOR_K8S_CRDS"
-	// ProductHaAgent is the HA Agent product
+	// ProductHaAgent is the HA Agent product, also shared by comp/workloadbalancing.
 	ProductHaAgent = "HA_AGENT"
 	// ProductSyntheticsTest is the Synthetics test product
 	ProductSyntheticsTest = "SYNTHETIC_TEST"
@@ -139,4 +140,7 @@ const (
 	ProductK8SActions = "K8S_ACTIONS"
 	// ProductNetworkPath configures Network Path scheduled tests
 	ProductNetworkPath = "NETWORK_PATH"
+	// ProductDataSecurityDBScanTasks remotely triggers Data Security DB scan tasks
+	// TODO(dsec-216): mutualize with pkg/config/remote/data/product.go.
+	ProductDataSecurityDBScanTasks = "DATA_SECURITY_DB_SCAN_TASKS"
 )

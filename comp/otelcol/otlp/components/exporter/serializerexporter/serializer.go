@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -46,8 +47,8 @@ func setupForwarder(config pkgconfigmodel.Config) {
 	// Forwarder
 	config.Set("additional_endpoints", map[string][]string{}, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_timeout", 20, pkgconfigmodel.SourceDefault)
-	config.Set("forwarder_connection_reset_interval", 0, pkgconfigmodel.SourceDefault)                                               // in seconds, 0 means disabled
-	config.Set("forwarder_apikey_validation_interval", pkgconfigsetup.DefaultAPIKeyValidationInterval, pkgconfigmodel.SourceDefault) // in minutes
+	config.Set("forwarder_connection_reset_interval", 0, pkgconfigmodel.SourceDefault)                                          // in seconds, 0 means disabled
+	config.Set("forwarder_apikey_validation_interval", constants.DefaultAPIKeyValidationInterval, pkgconfigmodel.SourceDefault) // in minutes
 
 	config.Set("forwarder_num_workers", 1, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_stop_timeout", 2, pkgconfigmodel.SourceDefault)
@@ -57,7 +58,7 @@ func setupForwarder(config pkgconfigmodel.Config) {
 	config.Set("forwarder_backoff_factor", 2, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_backoff_base", 2, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_backoff_max", 64, pkgconfigmodel.SourceDefault)
-	config.Set("forwarder_recovery_interval", pkgconfigsetup.DefaultForwarderRecoveryInterval, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_recovery_interval", constants.DefaultForwarderRecoveryInterval, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_recovery_reset", false, pkgconfigmodel.SourceDefault)
 
 	// Forwarder storage on disk
@@ -84,15 +85,24 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	config.Set("serializer_max_series_points_per_payload", 10000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_payload_size", 512000, pkgconfigmodel.SourceDefault)
 	config.Set("serializer_max_series_uncompressed_payload_size", 5242880, pkgconfigmodel.SourceDefault)
-	config.Set("serializer_compressor_kind", pkgconfigsetup.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
-	config.Set("serializer_zstd_compressor_level", pkgconfigsetup.DefaultZstdCompressionLevel, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
+	config.Set("serializer_zstd_compressor_level", constants.DefaultZstdCompressionLevel, pkgconfigmodel.SourceDefault)
 
 	config.Set("use_v2_api.series", true, pkgconfigmodel.SourceDefault)
 
-	// The serializer exporter forces zlib compression (metricscompressionfx
-	// fx-otel), which is incompatible with the v3 metrics intake.
+	// Scope: this function only runs for the standalone OSS Datadog exporter shipped in
+	// opentelemetry-collector-contrib. That is the single path today where
+	// serializerexporter builds its own serializer (the `f.s == nil` branch in
+	// factory.go); DDOT (cmd/otel-agent) and the core Agent's OTLP ingestion both inject
+	// an already-built serializer and never reach this code.
+	//
+	// On this OSS path the compressor is wired by the caller (initSerializerInternal) via
+	// metricscompression/fx-otel → NewCompressorReqOtel → a hardcoded zlib.New(). The
+	// serializer uses that compressor object directly, so the serializer_compressor_kind
+	// = zstd set above has no effect here: series are sent zlib-compressed
+	// (Content-Encoding: deflate). Only the v2 intake accepts zlib, so v3 is disabled below.
 	config.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
-	config.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.Set("enable_payloads.events", true, pkgconfigmodel.SourceDefault)

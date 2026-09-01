@@ -26,7 +26,7 @@ import (
 
 	"testing"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 )
 
 type testAgentUpgradeSuite struct {

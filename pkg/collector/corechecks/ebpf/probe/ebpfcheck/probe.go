@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package ebpfcheck is the system-probe side of the eBPF check
 package ebpfcheck
@@ -73,6 +73,10 @@ type Probe struct {
 	mphCache *mapProgHelperCache
 
 	nrcpus uint32
+
+	// closeMu guards Close against concurrent GetAndFlush on the eBPF maps.
+	closeMu sync.Mutex
+	closed  bool
 }
 
 // NewProbe creates a [Probe]
@@ -265,6 +269,13 @@ func (k *Probe) attach(collSpec *ebpf.CollectionSpec) (err error) {
 
 // Close releases all associated resources
 func (k *Probe) Close() {
+	k.closeMu.Lock()
+	defer k.closeMu.Unlock()
+	if k.closed {
+		return
+	}
+	k.closed = true
+
 	ddebpf.RemoveNameMappingsCollection(k.coll)
 	for _, l := range k.links {
 		if err := l.Close(); err != nil {
@@ -282,6 +293,12 @@ func (k *Probe) Close() {
 
 // GetAndFlush gets the stats
 func (k *Probe) GetAndFlush() (results model.EBPFStats) {
+	k.closeMu.Lock()
+	defer k.closeMu.Unlock()
+	if k.closed {
+		return
+	}
+
 	if err := k.getMapStats(&results); err != nil {
 		log.Debugf("error getting map stats: %s", err)
 		return

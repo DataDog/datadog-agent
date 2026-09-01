@@ -11,10 +11,7 @@ exit /b 2
 :: Ensure `XDG_CACHE_HOME` denotes a directory
 if not defined DOTNET_RUNNING_IN_CONTAINER >nul 2>&1 sc query CExecSvc && set DOTNET_RUNNING_IN_CONTAINER=1
 if not exist "%XDG_CACHE_HOME%" (
-  if defined CI (
-    >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote a directory in CI!
-    exit /b 2
-  )
+  if defined CI goto :error_xdg_cache_home_must_exist
   if defined DOTNET_RUNNING_IN_CONTAINER (
     >&2 echo 💡 To persist caches across restarts, please set XDG_CACHE_HOME pointing to a mounted directory, e.g.:
     >&2 echo     docker.exe run --env=XDG_CACHE_HOME=C:\cache --volume="$HOME\.cache:C:\cache" ...
@@ -25,11 +22,9 @@ if not exist "%XDG_CACHE_HOME%" (
 set "extra_args="
 if defined XDG_CACHE_HOME (
   set "XDG_CACHE_HOME=!XDG_CACHE_HOME:/=\!"
-  if "!XDG_CACHE_HOME:~1,2!" neq ":\" if "!XDG_CACHE_HOME:~0,2!" neq "\\" (
-    >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote an absolute path!
-    exit /b 2
-  )
+  if "!XDG_CACHE_HOME:~1,2!" neq ":\" if "!XDG_CACHE_HOME:~0,2!" neq "\\" goto :error_xdg_cache_home_must_be_absolute
   set "GOCACHE=!XDG_CACHE_HOME!\go-build"
+  set "GOLANGCI_LINT_CACHE=!XDG_CACHE_HOME!\golangci-lint"
   set "GOMODCACHE=!XDG_CACHE_HOME!\go\mod"
   set "PIP_CACHE_DIR=!XDG_CACHE_HOME!\pip"
   :: https://github.com/bazelbuild/bazel/issues/27808
@@ -40,7 +35,10 @@ if defined XDG_CACHE_HOME (
   set extra_args="--disk_cache=!bazel_home!\disk-cache"
   :: https://github.com/bazelbuild/bazel/issues/26384
   for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" set "extra_args=!extra_args! --repo_contents_cache="
-  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci --config=cache:frontend"
+  if defined CI if not defined GITHUB_ACTIONS (
+    if not defined BUILDBARN_ID_TOKEN goto :error_buildbarn_id_token_must_be_set
+    set "extra_args=!extra_args! --config=ci --config=cache:frontend"
+  )
 ) else (
   :: Without XDG_CACHE_HOME, fall back Go caches to official defaults so Go repo rules work under strict repo_env
   if not defined GOCACHE set "GOCACHE=%LOCALAPPDATA%\go-build"
@@ -50,6 +48,9 @@ if defined XDG_CACHE_HOME (
     set "gp="
   )
 )
+
+:: Local developer remote cache selection (CI selects its own endpoint above).
+if not defined CI call :remote_cache_select
 
 :: Check legacy max path length of 260 characters got lifted, or fail with instructions
 for %%i in ("%~dp0..\.cache") do if defined XDG_CACHE_HOME (set "more_than_260_chars=!XDG_CACHE_HOME!") else set "more_than_260_chars=%%~fi"
@@ -80,6 +81,18 @@ if defined args if defined extra_args call :insert_extra_args
 "%BAZEL_REAL%" !startup_options! !args!
 exit /b !errorlevel!
 
+:error_buildbarn_id_token_must_be_set
+>&2 echo 🔴 BUILDBARN_ID_TOKEN must be populated in CI
+exit /b 2
+
+:error_xdg_cache_home_must_exist
+>&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote a directory in CI
+exit /b 2
+
+:error_xdg_cache_home_must_be_absolute
+>&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote an absolute path
+exit /b 2
+
 :: "--startup cmd ..." -> "--startup cmd --config=ci ..."
 :insert_extra_args
 set "startup_args="
@@ -99,3 +112,74 @@ for /f "tokens=1* delims= " %%i in ("!next_args!") do (
 )
 if not defined cmd if defined next_args goto :parse_next_arg
 exit /b
+
+:: Buildbarn remote cache auto-selection. Policy via DD_BAZEL_REMOTE_CACHE:
+:: auto (default) | on | off. Appends --config=cache to extra_args when enabled.
+:remote_cache_select
+:: An explicit cache config on the command line, or an rc-file opt-out, wins.
+echo %* | findstr /C:"--config=cache" /C:"--config=no-remote-cache" >nul && goto :eof
+call :rc_opts_out && goto :eof
+if not defined DD_BAZEL_REMOTE_CACHE set "DD_BAZEL_REMOTE_CACHE=auto"
+if /i "%DD_BAZEL_REMOTE_CACHE%"=="off" goto :eof
+if /i "%DD_BAZEL_REMOTE_CACHE%"=="on" (
+  if defined extra_args (set "extra_args=!extra_args! --config=cache") else set "extra_args=--config=cache"
+  goto :eof
+)
+if /i not "%DD_BAZEL_REMOTE_CACHE%"=="auto" (
+  >&2 echo 🔴 Unknown DD_BAZEL_REMOTE_CACHE=%DD_BAZEL_REMOTE_CACHE%, expected auto^|on^|off
+  goto :eof
+)
+call :remote_cache_eligible || goto :eof
+if defined extra_args (set "extra_args=!extra_args! --config=cache") else set "extra_args=--config=cache"
+goto :eof
+
+:: True (exit 0) when a user rc file opts out of the remote cache. The wrapper
+:: injects --config=cache on the command line, which would otherwise beat an
+:: rc-level --config=no-remote-cache (command-line options win over rc ones).
+:rc_opts_out
+for %%R in ("%~dp0..\user.bazelrc" "%USERPROFILE%\.bazelrc") do (
+  if exist "%%~R" findstr /R /C:"^[^#]*config=no-remote-cache" "%%~R" >nul 2>&1 && exit /b 0
+)
+exit /b 1
+
+:remote_cache_eligible
+set "_have_token="
+if defined BUILDBARN_ID_TOKEN set "_have_token=1"
+if defined DOTNET_RUNNING_IN_CONTAINER (
+  if not defined _have_token (
+    >&2 echo 💡 Bazel remote cache skipped: no Buildbarn token in this container. Mint one on the host and inject it, e.g.:
+    >&2 echo     docker.exe run --env=BUILDBARN_ID_TOKEN=^<token^> ...
+    exit /b 1
+  )
+) else (
+  if not defined _have_token where vault >nul 2>&1 || exit /b 1
+)
+call :remote_cache_reachable
+exit /b !errorlevel!
+
+:: Reachability probe with asymmetric caching (mirrors remote-cache-select.sh).
+:: Any HTTPS response (incl. gRPC's 415) counts as reachable; only a
+:: connection/TLS failure counts as unreachable. A positive result is sticky
+:: until %TEMP% is cleared; a negative result is cached for 60s so a VPN
+:: reconnect is picked up quickly without re-probing on every build.
+:remote_cache_reachable
+set "_dir=%TEMP%\datadog-agent"
+set "_probe=%_dir%\remote-cache-probe"
+if exist "%_probe%" (
+  set "_r="
+  set /p _r=<"%_probe%"
+  if "!_r!"=="ok" exit /b 0
+  if "!_r!"=="no" (
+    set "_age="
+    for /f %%A in ('powershell -NoProfile -Command "[int]((Get-Date)-(Get-Item '%_probe%').LastWriteTime).TotalSeconds" 2^>nul') do set "_age=%%A"
+    if defined _age if !_age! lss 60 exit /b 1
+  )
+)
+if not exist "%_dir%" mkdir "%_dir%" >nul 2>&1
+curl.exe --silent --output NUL --connect-timeout 2 --max-time 4 "https://buildbarn-frontend-datadog-agent.us1.ddbuild.io/" >nul 2>&1
+if !errorlevel! neq 0 (
+  >"%_probe%" echo no
+  exit /b 1
+)
+>"%_probe%" echo ok
+exit /b 0

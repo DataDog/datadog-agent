@@ -21,7 +21,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/vmihailenco/msgpack/v5"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
@@ -281,7 +281,6 @@ func registerSyscallHandlers() (map[int]syscallHandler, []string) {
 	handlers := make(map[int]syscallHandler)
 	syscalls := registerFIMHandlers(handlers)
 	syscalls = append(syscalls, registerProcessHandlers(handlers)...)
-	syscalls = append(syscalls, registerERPCHandlers(handlers)...)
 	syscalls = append(syscalls, registerNetworkHandlers(handlers)...)
 	return handlers, syscalls
 }

@@ -91,9 +91,10 @@ extensions:
           branch: "conductor-sandbox"
           parent_environments: ["staging"]
         - name: "stable-nightly-build"
-          branch: "7.81.x"
+          branch: "7.82.x"
           schedule: "30 2 * * *"
           build_only: true
+          parent_environments: ["staging"]
           options:
             disable_bia: true
             disable_failure_notifications: true
@@ -101,6 +102,7 @@ extensions:
           branch: "main"
           schedule: "0 3 * * 6,0"
           build_only: true
+          parent_environments: ["staging"]
           options:
             disable_bia: true
             disable_failure_notifications: true

@@ -1,14 +1,33 @@
-genrule(
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+
+# C++/WinRT needs cl.exe. Keep the vcxproj and drive hermetic MSBuild from
+# @msvc_toolchains (same pattern as deps/cpython:python_win) so the rest of the
+# Windows tree stays on MinGW. The agent loads this DLL at runtime over a C ABI
+# (see pkg/util/winutil/datadoginterop).
+run_binary(
     name = "libdatadog_interop",
     srcs = [
+        "DatadogInterop/DatadogInterop.vcxproj",
         "DatadogInterop/msstoreapps.cpp",
         "DatadogInterop/msstoreapps.h",
-        "DatadogInterop/DatadogInterop.vcxproj",
-        "build_interop.bat",
+        "@msvc_toolchains//msbuild",
+        "@msvc_toolchains//msbuild:toolchain_tree",
+        "@msvc_toolchains//msbuild:vctargets_marker",
+        "@msvc_toolchains//msvc/tree:toolchain_tree",
+        "@msvc_toolchains//msvc/tree:version_marker",
+        "@msvc_toolchains//winsdk/tree:root_marker",
+        "@msvc_toolchains//winsdk/tree:toolchain_tree",
     ],
     outs = ["libdatadog-interop.dll"],
-    cmd_bat = "$(location build_interop.bat) $(location @visual_studio//:msbuild) $(location DatadogInterop/DatadogInterop.vcxproj) $@",
+    env = {
+        "MSBUILD": "$(location @msvc_toolchains//msbuild:msbuild)",
+        "VCXPROJ": "$(location DatadogInterop/DatadogInterop.vcxproj)",
+        "OUTPUT": "$(location libdatadog-interop.dll)",
+        "VCTOOLS_VERSION_FILE": "$(location @msvc_toolchains//msvc/tree:version_marker)",
+        "WINSDK_MARKER": "$(location @msvc_toolchains//winsdk/tree:root_marker)",
+        "VCTARGETS_MARKER": "$(location @msvc_toolchains//msbuild:vctargets_marker)",
+    },
     target_compatible_with = ["@platforms//os:windows"],
-    tools = ["@visual_studio//:msbuild"],
+    tool = "build_interop.bat",
     visibility = ["//visibility:public"],
 )

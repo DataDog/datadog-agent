@@ -28,8 +28,15 @@ import (
 type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite
 
 type packageTestsWithSkippedFlavors struct {
-	t                          packageTests
-	skippedFlavors             []e2eos.Descriptor
+	t              packageTests
+	skippedFlavors []e2eos.Descriptor
+	// onlyFlavors, when non-empty, restricts the suite to these descriptors and
+	// skips every other one. Unlike skippedFlavors it also matches the
+	// architecture, so a suite that is only meaningful on one arch does not
+	// provision a VM for the other. Prefer it over listing every flavor to skip:
+	// a suite pinned to a couple of representative hosts should not silently
+	// spread to new flavors added to the matrix.
+	onlyFlavors                []e2eos.Descriptor
 	skippedInstallationMethods []InstallMethodOption
 }
 
@@ -48,17 +55,51 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}
+	// apmInjectMultilibFlavors are the hosts the multilib launcher suite runs on:
+	// one per glibc $LIB convention. Debian/Ubuntu resolve $LIB to the multiarch
+	// lib/<triplet> pair, RHEL and friends to lib64 (64-bit) and lib (32-bit), so
+	// a launcher layout that works on Ubuntu can still be unreachable on RHEL.
+	// amd64 only — $LIB has a single expansion on arm64 and there is no 32-bit
+	// injector for it. RedHat9 is deliberately absent from testApmInjectAgent's
+	// matrix (the rest of that suite needs Docker, which RHEL 9 does not ship),
+	// hence a dedicated suite rather than un-skipping the flavor there.
+	apmInjectMultilibFlavors = []e2eos.Descriptor{
+		withArch(e2eos.Ubuntu2404, e2eos.AMD64Arch),
+		withArch(e2eos.RedHat9, e2eos.AMD64Arch),
+	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
 		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}},
+		{t: testApmInjectMultilib, onlyFlavors: apmInjectMultilibFlavors, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario},
 	}
 )
 
+// withArch returns a copy of d pinned to arch.
+func withArch(d e2eos.Descriptor, arch e2eos.Architecture) e2eos.Descriptor {
+	d.Architecture = arch
+	return d
+}
+
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
 		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldRunFlavor reports whether flavor passes an onlyFlavors restriction. An
+// empty list means "no restriction". Comparison is on the whole descriptor, so
+// the architecture set by the caller is part of the match.
+func shouldRunFlavor(onlyFlavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
+	if len(onlyFlavors) == 0 {
+		return true
+	}
+	for _, f := range onlyFlavors {
+		if f == flavor {
 			return true
 		}
 	}
@@ -96,6 +137,9 @@ func TestPackages(t *testing.T) {
 			if shouldSkipFlavor(test.skippedFlavors, flavor) {
 				continue
 			}
+			if !shouldRunFlavor(test.onlyFlavors, flavor) {
+				continue
+			}
 			if shouldSkipInstallMethod(test.skippedInstallationMethods, method) {
 				continue
 			}
@@ -109,7 +153,7 @@ func TestPackages(t *testing.T) {
 				t.Parallel()
 				opts := []awshost.ProvisionerOption{
 					awshost.WithRunOptions(
-						ec2.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
+						ec2.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture), ec2.WithInternetAccess()),
 						ec2.WithoutAgent(),
 					),
 				}
@@ -168,6 +212,8 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.pipelineAgentVersion = PipelineAgentVersion(s.T())
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
+	s.host.ConfigureAptMirrors()
+	s.host.ConfigureYumMirrors()
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
 	s.updatePythonOnSuse()
@@ -273,7 +319,7 @@ func envForceVersion(pkg, version string) string {
 
 func (s *packageBaseSuite) Purge() {
 	// Reset the systemctl failed counter, best effort as they may not be loaded
-	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP, dataPlaneUnit, dataPlaneUnitXP} {
+	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP, dataPlaneUnit, dataPlaneUnitXP, procmgrUnit, procmgrUnitXP} {
 		s.Env().RemoteHost.Execute("sudo systemctl reset-failed " + service)
 	}
 

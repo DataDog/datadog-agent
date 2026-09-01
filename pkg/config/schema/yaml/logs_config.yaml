@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/logs_config.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/logs_config.yaml
 node_type: section
 type: object
 visibility: public
@@ -138,7 +138,7 @@ properties:
     description: The maximum time (in seconds) the Datadog Agent waits to fill each
       batch of logs before sending.
     tags:
-    - golang_type:float64
+    - generate_const:DefaultBatchWait
   close_timeout:
     node_type: setting
     type: integer
@@ -208,6 +208,8 @@ properties:
 
       Note: Datadog's ingest API truncates any logs greater than 1 MB by discarding the
       remainder. See https://docs.datadoghq.com/api/latest/logs/ for details.
+    tags:
+    - generate_const:DefaultMaxMessageSizeBytes
     comment: maximum log message size in bytes
   integrations_logs_files_max_size:
     node_type: setting
@@ -290,6 +292,8 @@ properties:
     node_type: setting
     type: integer
     default: 23
+    tags:
+    - generate_const:DefaultAuditorTTL
     comment: in hours
   auto_multi_line:
     node_type: section
@@ -311,8 +315,6 @@ properties:
         node_type: setting
         type: number
         default: 0.75
-        tags:
-        - golang_type:float64
       pattern_table_max_size:
         node_type: setting
         type: integer
@@ -332,8 +334,6 @@ properties:
         node_type: setting
         type: number
         default: 0.5
-        tags:
-        - golang_type:float64
       tokenizer_max_input_bytes:
         node_type: setting
         type: integer
@@ -342,8 +342,6 @@ properties:
     node_type: setting
     type: number
     default: 0.48
-    tags:
-    - golang_type:float64
   auto_multi_line_default_match_timeout:
     node_type: setting
     type: integer
@@ -377,18 +375,26 @@ properties:
     node_type: setting
     type: integer
     default: 0
+    tags:
+    - generate_const:DefaultBatchMaxConcurrentSend
   batch_max_content_size:
     node_type: setting
     type: integer
     default: 5000000
+    tags:
+    - generate_const:DefaultBatchMaxContentSize
   batch_max_size:
     node_type: setting
     type: integer
     default: 1000
+    tags:
+    - generate_const:DefaultBatchMaxSize
   compression_kind:
     node_type: setting
     type: string
     default: zstd
+    tags:
+    - generate_const:DefaultLogCompressionKind
   connection_reset_interval:
     node_type: setting
     type: integer
@@ -512,8 +518,6 @@ properties:
         node_type: setting
         type: number
         default: 1000
-        tags:
-        - golang_type:float64
         comment: Maximum burst allowance per pattern, measured in accumulated credits/logs.
       disabled_sources:
         node_type: setting
@@ -550,8 +554,6 @@ properties:
         node_type: setting
         type: number
         default: 0.9
-        tags:
-        - golang_type:float64
         comment: Fraction of tokens that must match for two logs to be treated as
           the same pattern.
       max_patterns:
@@ -570,8 +572,6 @@ properties:
         node_type: setting
         type: number
         default: 1
-        tags:
-        - golang_type:float64
         comment: Steady-state logs per second allowed for each matched pattern.
       smart_severity_profiles:
         node_type: section
@@ -593,8 +593,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1000
-                tags:
-                - golang_type:float64
               pass_through:
                 node_type: setting
                 type: boolean
@@ -603,8 +601,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
           medium:
             node_type: section
             type: object
@@ -613,8 +609,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1000
-                tags:
-                - golang_type:float64
               pass_through:
                 node_type: setting
                 type: boolean
@@ -623,8 +617,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
       tag_pattern_hash:
         node_type: setting
         type: boolean
@@ -652,8 +644,6 @@ properties:
     node_type: setting
     type: number
     default: 1
-    tags:
-    - golang_type:float64
     comment: Time in seconds
   fingerprint_config:
     node_type: section
@@ -711,12 +701,12 @@ properties:
     node_type: setting
     type: integer
     default: 100
+    tags:
+    - generate_const:DefaultInputChanSize
   integrations_logs_disk_ratio:
     node_type: setting
     type: number
     default: 0.8
-    tags:
-    - golang_type:float64
     comment: Do not store logs on disk when the disk usage exceeds 80% of the disk
       capacity.
   k8s_container_use_file:
@@ -774,23 +764,25 @@ properties:
     type: number
     default: 1
     tags:
-    - golang_type:float64
+    - generate_const:DefaultLogsSenderBackoffBase
   sender_backoff_factor:
     node_type: setting
     type: number
     default: 2
     tags:
-    - golang_type:float64
+    - generate_const:DefaultLogsSenderBackoffFactor
   sender_backoff_max:
     node_type: setting
     type: number
     default: 120
     tags:
-    - golang_type:float64
+    - generate_const:DefaultLogsSenderBackoffMax
   sender_recovery_interval:
     node_type: setting
     type: integer
     default: 2
+    tags:
+    - generate_const:DefaultForwarderRecoveryInterval
   sender_recovery_reset:
     node_type: setting
     type: boolean
@@ -873,4 +865,6 @@ properties:
     node_type: setting
     type: integer
     default: 1
+    tags:
+    - generate_const:DefaultZstdCompressionLevel
 comment: Delegated authentication for logs

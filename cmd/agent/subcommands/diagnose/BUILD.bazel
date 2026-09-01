@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "diagnose",
@@ -34,6 +35,7 @@ go_library(
         "//comp/healthplatform",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/fx",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/process/util/containers",
         "//pkg/util/fxutil",
@@ -44,11 +46,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "diagnose_test",
     srcs = ["command_test.go"],
     embed = [":diagnose"],
-    gotags = ["test"],
     deps = [
         "//cmd/agent/command",
         "//comp/core",

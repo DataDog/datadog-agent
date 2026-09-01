@@ -5,6 +5,7 @@
 #include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
@@ -50,6 +51,14 @@ int __attribute__((always_inline)) filename_create_common(struct path *p) {
 
 HOOK_ENTRY("filename_create")
 int hook_filename_create(ctx_t *ctx) {
+    struct path *p = (struct path *)CTX_PARM3(ctx);
+    return filename_create_common(p);
+}
+
+// __filename_create is the pre-5.15 upstream (and some el9 z-streams') name for
+// the same function: identical signature, third arg is struct path *.
+HOOK_ENTRY("__filename_create")
+int hook___filename_create(ctx_t *ctx) {
     struct path *p = (struct path *)CTX_PARM3(ctx);
     return filename_create_common(p);
 }
@@ -130,8 +139,24 @@ int hook_do_mkdirat(ctx_t *ctx) {
     return 0;
 }
 
+HOOK_ENTRY("filename_mkdirat")
+int hook_filename_mkdirat(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
+    if (!syscall) {
+        umode_t mode = (umode_t)CTX_PARM3(ctx);
+        return trace__sys_mkdir(ctx, ASYNC_SYSCALL, NULL, mode);
+    }
+    return 0;
+}
+
 HOOK_EXIT("do_mkdirat")
 int rethook_do_mkdirat(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_mkdir_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
+}
+
+HOOK_EXIT("filename_mkdirat")
+int rethook_filename_mkdirat(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_mkdir_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
@@ -151,7 +176,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_mkdir_exit, struct tracepoint_raw_syscalls_s
     return sys_mkdir_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
+int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;
@@ -168,29 +193,30 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx) {
         return 0;
     }
 
-    struct mkdir_event_t event = {
-        .syscall.retval = retval,
-        .syscall_ctx.id = syscall->ctx_id,
-        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
-        .file = syscall->mkdir.file,
-        .mode = syscall->mkdir.mode,
-    };
+    struct mkdir_event_t *event = SPAN_FILL_EVENT(struct mkdir_event_t, EVENT_MKDIR);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->syscall_ctx.id = syscall->ctx_id;
+    event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
+    event->file = syscall->mkdir.file;
+    event->mode = syscall->mkdir.mode;
 
-    fill_file(syscall->mkdir.dentry, &event.file);
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    fill_file(syscall->mkdir.dentry, &event->file);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_MKDIR, event);
+    span_fill_tail_call(ctx, prog_type);
     return 0;
 }
 
 TAIL_CALL_FNC(dr_mkdir_callback, ctx_t *ctx) {
-    return dr_mkdir_callback(ctx);
+    return dr_mkdir_callback(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
 TAIL_CALL_TRACEPOINT_FNC(dr_mkdir_callback, struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_mkdir_callback(args);
+    return dr_mkdir_callback(args, TRACEPOINT_TYPE);
 }
 
 #endif

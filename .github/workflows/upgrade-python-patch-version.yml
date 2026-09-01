@@ -23,7 +23,7 @@ jobs:
           scope: DataDog/datadog-agent
           policy: self.upgrade-python-version.create-pr
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
@@ -73,9 +73,9 @@ jobs:
             Upgrades the Agent's embedded Python interpreter from **${{ steps.update.outputs.current_version }}** to **${{ steps.update.outputs.new_version }}** (patch version update).
             
             ### Changes
-            - Updated `omnibus/config/software/python3.rb` with new version and SHA256
             - Updated `deps/cpython/cpython.MODULE.bazel` with new version and SHA256
             - Updated `test/new-e2e/tests/agent-platform/common/agent_behaviour.go` with expected version
+            - Updated `packaging/aix/lib/env.sh` with new version
             - Created release note documenting the upgrade
             
             ### Motivation
@@ -89,4 +89,4 @@ jobs:
             ### Describe how you validated your changes
             CI is considered enough to validate changes.
           team-reviewers: agent-integrations
-          labels: team/agent-integrations,changelog/no-changelog,ask-review
+          labels: team/agent-integrations,changelog/no-changelog

@@ -22,7 +22,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -349,6 +349,8 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 
 // This test is basically the same as TestFilterOpenLeafDiscarder but activity dumps are enabled.
 // This means that the event is actually forwarded to user space, but the rule should not be evaluated
+var _ = declareInlineConfig(TestFilterOpenLeafDiscarderActivityDump)
+
 func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1398,6 +1400,8 @@ func TestFilterBpfCmd(t *testing.T) {
 	}
 }
 
+var _ = declare(TestFilterRuntimeDiscarded, testOpts{discardRuntime: true})
+
 func TestFilterRuntimeDiscarded(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1412,7 +1416,7 @@ func TestFilterRuntimeDiscarded(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{discardRuntime: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

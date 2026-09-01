@@ -61,14 +61,14 @@
       mkdir -p "$DDA_DIR"
       sudo mv dda $DDA_DIR
       rm -f dda.tar.gz
+      # Explicitly bootstrap dda's managed environment. The stable mirror
+      # (UV_DEFAULT_INDEX) lags new dda releases by a publish waiting period, so
+      # let this install also resolve dda from the testing index already present
+      # in UV_INDEX. Scoped to the bootstrap only.
+      UV_INDEX_STRATEGY=unsafe-best-match dda self restore
       dda self dep sync -f legacy-tasks
       dda self pip install awscli==1.29.45
     fi
-
-.vault_login:
-  # Point the CLI to our internal vault
-  - export VAULT_ADDR=https://vault.us1.ddbuild.io
-  - vault login -method=aws -no-print
 
 .aws_retry_config:
   - export AWS_RETRY_MODE=standard
@@ -76,17 +76,22 @@
 
 .macos_gitlab:
   extends: [".bazel:defs:cache:macos"]
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["setup_agent_version"]
   id_tokens:
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
   variables:
     AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}/.aws/credentials-by-job-id/${CI_JOB_ID}
+    # Forbid the AWS SDK/CLI from falling back to the EC2 instance profile via IMDS, so a
+    # missing or expired CI Identities credentials file fails loudly instead of silently
+    # succeeding under the runner's instance role. Only affects the AWS SDK/CLI: the raw
+    # `curl 169.254.169.254` in .macos_runner_maintenance keeps working.
+    AWS_EC2_METADATA_DISABLED: "true"
   before_script:
-    - !reference [.vault_login]
     - !reference [.aws_retry_config]
     # Drop GOPROXY entries not usable from macOS runners, before any go command.
     - !reference [.sanitize_goproxy]
+    - !reference [.kill_bazel_server]
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))
@@ -94,7 +99,18 @@
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
+    # Populate AWS_SHARED_CREDENTIALS_FILE via CI Identities. macOS runners no longer
+    # carry an IAM instance role, so any `aws` call made by the job (e.g. the
+    # agent-version.cache download in `dda inv agent.build`) needs these credentials.
+    - ci-identities-gitlab-job-client assume-role
     - export GOCACHE="$TMPDIR/go-build"
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e install-tools --verbose
+
+.macos_runner_make_workspace_writable:
+  - |
+    # GitLab Runner 18 fails the next job during clear_worktree when the
+    # previous job leaves read-only files in the persistent macOS workspace.
+    # Best-effort only: do not mask the job's real result if cleanup fails.
+    if [ -n "$CI_PROJECT_DIR" ] && [ -d "$CI_PROJECT_DIR" ]; then
+      chmod -R u+w "$CI_PROJECT_DIR" 2>/dev/null || true
+    fi

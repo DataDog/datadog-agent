@@ -8,8 +8,20 @@ from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.e2e_framework.config import Config
-from tasks.e2e_framework.setup.ssh_keys import KeyInfo, add_key_to_ssh_agent, default_key_paths
-from tasks.e2e_framework.tool import ask, ask_yesno, error, get_aws_cmd, info, is_windows, warn
+from tasks.e2e_framework.setup.ssh_keys import (
+    KeyInfo,
+    add_key_to_ssh_agent,
+    default_key_paths,
+)
+from tasks.e2e_framework.tool import (
+    ask,
+    ask_yesno,
+    error,
+    get_aws_cmd,
+    info,
+    warn,
+    write_secret_file,
+)
 
 SUPPORTED_KEY_TYPES = ["rsa", "ed25519"]
 AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "sandbox", "tse-playground"]
@@ -56,6 +68,7 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
     if not aws.publicKeyPath:
         aws.publicKeyPath = str(default_pub)
 
+    setup_aws_sso_config(config)
     # AWS authentication (SSO profile in ~/.aws/config + active aws-vault session) is
     # handled outside of this task — by your org tooling or manually. The keypair check
     # below uses aws-vault and will surface any auth errors with the standard aws-vault
@@ -199,11 +212,8 @@ sso_session = {sso_session_name}
 sso_account_id = {acct_id}
 sso_role_name = {role}
 region = {region}
-
-[sso-session {sso_session_name}]
-sso_start_url = {start_url}
 sso_region = {region}
-sso_registration_scopes = sso:account:access
+sso_start_url = {start_url}
 
 [profile exec-{profile_name}]
 credential_process = aws-vault exec {profile_name} --json
@@ -256,7 +266,10 @@ def _aws_create_keypair(
 
     # check if key pair already exists
     if not check_existing_aws_keypair(
-        ctx, keypair_name, use_aws_vault=use_aws_vault, aws_account_name=aws_account_name
+        ctx,
+        keypair_name,
+        use_aws_vault=use_aws_vault,
+        aws_account_name=aws_account_name,
     ):
         return
     if Path(private_key_path).exists():
@@ -272,29 +285,41 @@ def _aws_create_keypair(
     if out is None:
         raise Exit(f"Failed to create key pair {keypair_name}")
     key_material = out.stdout.strip()
-    # write private key to disk
-    os.makedirs(Path(private_key_path).parent, exist_ok=True)
-    with open(private_key_path, "w") as f:
-        f.write(key_material)
-    if not is_windows():
-        os.chmod(private_key_path, 0o600)
-        # Windows permissions should be fine as is via inheritance
 
-    # generate public key from private key
-    cmd = f'ssh-keygen -f "{private_key_path}" -y'
-    out = ctx.run(cmd, hide=True)
-    if out is None:
-        raise Exit(f"Failed to generate public key from private key {private_key_path}")
-    public_key = out.stdout.strip()
-    # write public key to disk
-    with open(public_key_path, "w") as f:
-        f.write(public_key)
+    # The remote keypair is useless without the local files built below, and every step that
+    # builds them can fail. A remote half left behind cannot be repaired by a later run, which
+    # can only refuse to continue and print a manual delete command. Files that already
+    # existed are not ours to remove.
+    ours = [p for p in (private_key_path, public_key_path) if not Path(p).exists()]
+    try:
+        os.makedirs(Path(private_key_path).parent, exist_ok=True)
+        write_secret_file(private_key_path, key_material)
 
-    # encrypt the private key with a random passphrase (matches token_urlsafe length used for Pulumi)
-    passphrase = secrets.token_urlsafe(32)
-    ctx.run(f'ssh-keygen -p -P "" -N "{passphrase}" -f "{private_key_path}"', hide=True)
-    info("✓ Private key encrypted with passphrase (stored in ~/.test_infra_config.yaml, chmod 0600)")
-    add_key_to_ssh_agent(ctx, private_key_path, passphrase)
+        # generate public key from private key
+        cmd = f'ssh-keygen -f "{private_key_path}" -y'
+        out = ctx.run(cmd, hide=True)
+        if out is None:
+            raise Exit(f"Failed to generate public key from private key {private_key_path}")
+        public_key = out.stdout.strip()
+        # write public key to disk
+        with open(public_key_path, "w") as f:
+            f.write(public_key)
+
+        # encrypt the private key with a random passphrase (matches token_urlsafe length used for Pulumi)
+        passphrase = secrets.token_urlsafe(32)
+        ctx.run(f'ssh-keygen -p -P "" -N "{passphrase}" -f "{private_key_path}"', hide=True)
+        info("✓ Private key encrypted with passphrase (stored in ~/.test_infra_config.yaml, chmod 0600)")
+        add_key_to_ssh_agent(ctx, private_key_path, passphrase)
+    except BaseException:
+        # BaseException is caught so that interrupting a prompt also rolls back.
+        _rollback_created_keypair(
+            ctx,
+            keypair_name,
+            ours,
+            use_aws_vault=use_aws_vault,
+            aws_account_name=aws_account_name,
+        )
+        raise
 
     # update config object
     awsConf = config.configParams.aws
@@ -305,6 +330,49 @@ def _aws_create_keypair(
     if private_key_path:
         awsConf.privateKeyPath = private_key_path
     awsConf.privateKeyPassword = passphrase
+
+
+def _rollback_created_keypair(
+    ctx: Context,
+    keypair_name: str,
+    local_paths: list[str],
+    use_aws_vault: bool | None = False,
+    aws_account_name: str | None = None,
+) -> None:
+    """
+    Drop a keypair that was created remotely but never finished setting up locally.
+
+    Nothing here raises, because the caller is already unwinding the failure that matters
+    and replacing it with a cleanup error would hide the real diagnosis.
+    """
+    delete_cmd = get_aws_cmd(
+        f'ec2 delete-key-pair --key-name "{keypair_name}"',
+        use_aws_vault=use_aws_vault,
+        aws_account=aws_account_name,
+    )
+    try:
+        out = ctx.run(delete_cmd, hide=True, warn=True)
+        deleted = out is not None and out.exited == 0
+    except BaseException:
+        deleted = False
+
+    if not deleted:
+        # The remote key outlived the failure, so the local files are still its counterpart
+        # and are left in place for the user to salvage.
+        warn(
+            f"Setup failed after creating AWS keypair '{keypair_name}', and it could not be "
+            f"deleted automatically. Remove it before retrying:\n  {delete_cmd}"
+        )
+        return
+
+    for path in local_paths:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            warn(f"Could not remove {path} left behind by the failed keypair setup: {e}")
+    info(f"↩ Rolled back partially created keypair '{keypair_name}'")
 
 
 def aws_resolve_keypair_opts(
@@ -368,7 +436,8 @@ def aws_resolve_keypair_opts(
             account_part = f"{awsConf.account}_" if awsConf.account else ""
             account_part = account_part.replace("-", "_")
             default_private_key_path = Path.home().joinpath(
-                ".ssh", f'id_{key_type or "rsa"}_e2e_{account_part}{keypair_name}.{key_format}'
+                ".ssh",
+                f'id_{key_type or "rsa"}_e2e_{account_part}{keypair_name}.{key_format}',
             )
         while True:
             private_key_path = ask(f"🔑 Private key path (default: {default_private_key_path}): ")
@@ -502,7 +571,10 @@ def _aws_import_keypair(
 
     # check if key pair already exists
     if not check_existing_aws_keypair(
-        ctx, keypair_name, use_aws_vault=use_aws_vault, aws_account_name=aws_account_name
+        ctx,
+        keypair_name,
+        use_aws_vault=use_aws_vault,
+        aws_account_name=aws_account_name,
     ):
         return
 

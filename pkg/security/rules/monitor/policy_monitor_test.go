@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// CWS is not supported on AIX.
+//go:build !aix
+
 // Package monitor holds rules related files
 package monitor
 
@@ -34,6 +37,7 @@ type testCase struct {
 	policies             []*testPolicy
 	expectedPolicyStates []*PolicyState
 	model                *model.Model
+	eventTypeEnabled     map[eval.EventType]bool
 }
 
 func TestPolicyMonitorPolicyState(t *testing.T) {
@@ -74,6 +78,63 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							ID:         "rule_a",
 							Expression: `exec.file.path == "/etc/foo/bar"`,
 							Status:     "loaded",
+						},
+					},
+				},
+			},
+		},
+		{
+			// the capture pattern is what distinguishes an action storing part of a
+			// field from one storing the whole of it, so it has to be reported
+			name: "rule with a capture set action",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Actions: []*rules.ActionDefinition{
+									{
+										Set: &rules.SetDefinition{
+											Name:    "artifact",
+											Field:   "process.file.path", // use field available for both Linux and Windows
+											Capture: "/orchestration/([^/]+)/",
+											Scope:   "process",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Actions: []RuleAction{
+								{
+									Set: &RuleSetAction{
+										Name:    "artifact",
+										Field:   "process.file.path",
+										Capture: "/orchestration/([^/]+)/",
+										Scope:   "process",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -1588,6 +1649,55 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 	if runtime.GOOS == "linux" {
 		testCases = append(testCases, []*testCase{
 			{
+				name: "rule targeting an event type disabled by its feature flag",
+				eventTypeEnabled: map[eval.EventType]bool{
+					model.ExecEventType.String():         true,
+					model.CapabilitiesEventType.String(): false,
+				},
+				policies: []*testPolicy{
+					{
+						info: rules.PolicyInfo{
+							Name:   "Policy A",
+							Source: "test",
+						},
+						def: rules.PolicyDef{
+							Rules: []*rules.RuleDefinition{
+								{
+									ID:         "rule_a",
+									Expression: `exec.file.path == "/etc/foo/bar"`,
+								},
+								{
+									ID:         "rule_b",
+									Expression: `capabilities.used > 0`,
+								},
+							},
+						},
+					},
+				},
+				expectedPolicyStates: []*PolicyState{
+					{
+						PolicyMetadata: PolicyMetadata{
+							Name:   "Policy A",
+							Source: "test",
+						},
+						Status: PolicyStatusPartiallyLoaded,
+						Rules: []*RuleState{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Status:     "loaded",
+							},
+							{
+								ID:         "rule_b",
+								Expression: `capabilities.used > 0`,
+								Status:     string(rules.EventTypeNotEnabledErrType),
+								Message:    rules.ErrEventTypeNotEnabled.Error(),
+							},
+						},
+					},
+				},
+			},
+			{
 				name: "policy with os filters",
 				policies: []*testPolicy{
 					{
@@ -1723,7 +1833,6 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 	eventCtor := func() eval.Event {
 		return &model.Event{}
 	}
-	ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1731,6 +1840,11 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 			if m == nil {
 				m = &model.Model{}
 			}
+			eventTypeEnabled := tc.eventTypeEnabled
+			if eventTypeEnabled == nil {
+				eventTypeEnabled = map[eval.EventType]bool{"*": true}
+			}
+			ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
 			rs := rules.NewRuleSet(m, eventCtor, ruleOpts, evalOpts)
 			loader := rules.NewPolicyLoader(newTestPolicyProvider(tc.policies...))
 			filteredRules, errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{MacroFilters: macroFilters, RuleFilters: ruleFilters})

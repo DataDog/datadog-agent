@@ -10,6 +10,7 @@ from tasks.libs.common.utils import (
     RTLOADER_LIB_NAME,
     get_build_flags,
     get_rtloader_paths,
+    join_command,
     link_or_copy,
     running_in_ci,
     running_in_github_actions,
@@ -17,6 +18,46 @@ from tasks.libs.common.utils import (
     running_in_pre_commit,
     running_in_pyapp,
 )
+
+
+class TestJoinCommand(unittest.TestCase):
+    ARGS = ["git", "-C", r"C:\Users\dd agent\repo", "diff", "--", ":(glob)**/guideline.md"]
+
+    @mock.patch("tasks.libs.common.utils.is_windows", return_value=False)
+    def test_join_command_quotes_for_posix_shells(self, _is_windows):
+        self.assertEqual(
+            join_command(self.ARGS),
+            "git -C 'C:\\Users\\dd agent\\repo' diff -- ':(glob)**/guideline.md'",
+        )
+
+    @mock.patch("tasks.libs.common.utils.is_windows", return_value=True)
+    def test_join_command_quotes_for_cmd_exe(self, _is_windows):
+        # cmd.exe treats the single quotes shlex produces as literal characters, so the arguments are
+        # quoted with the double quotes it understands instead.
+        self.assertEqual(
+            join_command(self.ARGS),
+            'git -C "C:\\Users\\dd agent\\repo" diff -- ":(glob)**/guideline.md"',
+        )
+
+    @mock.patch("tasks.libs.common.utils.is_windows", return_value=True)
+    def test_join_command_quotes_cmd_metacharacters(self, _is_windows):
+        # Left bare, cmd.exe would consume the caret and hand git `HEAD...HEAD`, and would split the
+        # path at the ampersand. Both reach the program intact once quoted.
+        for arg, expected in (
+            ("HEAD^...HEAD", '"HEAD^...HEAD"'),
+            (r"C:\src\R&D\repo", r'"C:\src\R&D\repo"'),
+            ("a|b", '"a|b"'),
+            ("c>d", '"c>d"'),
+            ("e<f", '"e<f"'),
+            ("g(h)i", '"g(h)i"'),
+            # A trailing backslash must be doubled, or it escapes the closing quote.
+            ("C:\\src\\R&D\\", '"C:\\src\\R&D\\\\"'),
+            # Nothing for cmd.exe to act on, so no quotes are added.
+            ("HEAD~5...HEAD", "HEAD~5...HEAD"),
+            ("--diff-filter=ACDMRTUXB", "--diff-filter=ACDMRTUXB"),
+        ):
+            with self.subTest(arg=arg):
+                self.assertEqual(join_command([arg]), expected)
 
 
 class TestRunningIn(unittest.TestCase):
@@ -140,21 +181,23 @@ class TestGetBuildFlags(unittest.TestCase):
     @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
     @mock.patch("tasks.libs.common.utils.get_rtloader_paths", return_value=(["/dev/embedded/lib"], "", ""))
     def test_infers_python_home_from_bazel_rtloader_path(self, _get_rtloader_paths, _get_version_ldflags):
-        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev")
+        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev", include_python=True)
 
         self.assertIn("python.pythonHome3=/dev/embedded", ldflags.replace("\\", "/"))
 
     @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
     @mock.patch("tasks.libs.common.utils.get_rtloader_paths", return_value=(["/external/embedded/lib"], "", ""))
     def test_infers_python_home_from_selected_rtloader_root_path(self, _get_rtloader_paths, _get_version_ldflags):
-        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev", rtloader_root="/external")
+        ldflags, _, _ = get_build_flags(
+            mock.Mock(), embedded_path="/dev", rtloader_root="/external", include_python=True
+        )
 
         self.assertIn("python.pythonHome3=/external/embedded", ldflags.replace("\\", "/"))
 
     @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
     @mock.patch("tasks.libs.common.utils.get_rtloader_paths", return_value=(["/dev/lib"], "", ""))
     def test_does_not_infer_python_home_from_legacy_rtloader_path(self, _get_rtloader_paths, _get_version_ldflags):
-        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev")
+        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev", include_python=True)
 
         self.assertNotIn("python.pythonHome3", ldflags)
 
@@ -167,7 +210,9 @@ class TestGetBuildFlags(unittest.TestCase):
     ):
         # The selected (first) rtloader is a legacy root; a stale embedded lib from a prior
         # Bazel build must not override the Python home for the rtloader actually linked.
-        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev", rtloader_root="/external")
+        ldflags, _, _ = get_build_flags(
+            mock.Mock(), embedded_path="/dev", rtloader_root="/external", include_python=True
+        )
 
         self.assertNotIn("python.pythonHome3", ldflags)
 
@@ -178,7 +223,7 @@ class TestGetBuildFlags(unittest.TestCase):
     def test_uses_external_linker_for_multiple_rtloader_rpaths_on_macos(
         self, _get_xcode_version, _get_rtloader_paths, _get_version_ldflags
     ):
-        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev")
+        ldflags, _, _ = get_build_flags(mock.Mock(), embedded_path="/dev", include_python=True)
 
         self.assertIn("-Wl,-rpath,/dev/lib", ldflags)
         self.assertIn("-Wl,-rpath,/dev/embedded/lib", ldflags)

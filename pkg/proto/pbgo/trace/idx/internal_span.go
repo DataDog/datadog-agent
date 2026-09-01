@@ -92,6 +92,16 @@ func (s *StringTable) Add(str string) uint32 {
 	return s.addUnchecked(str)
 }
 
+// AddBytes is Add for a byte slice. It avoids materializing a string when the value
+// is already interned, which is the common case when decoding a payload. On a miss
+// the string is copied, so the table never aliases the caller's buffer.
+func (s *StringTable) AddBytes(b []byte) uint32 {
+	if idx, ok := s.lookup[string(b)]; ok {
+		return idx
+	}
+	return s.addUnchecked(string(b))
+}
+
 // Get returns the string at the given index - panics if out of bounds
 func (s *StringTable) Get(idx uint32) string {
 	return s.strings[idx]
@@ -204,6 +214,10 @@ func (x *TracerPayload) CompactStrings() {
 	markRef(x.HostnameRef)
 	markRef(x.AppVersionRef)
 	markAttributeRefs(x.Attributes, markRef)
+	if x.ContainerDebug != nil {
+		markRef(x.ContainerDebug.ErrorRef)
+		markRef(x.ContainerDebug.BufferEvictionReasonRef)
+	}
 
 	// Collect refs from chunks and spans
 	for _, chunk := range x.Chunks {
@@ -274,6 +288,10 @@ func (x *TracerPayload) CompactStrings() {
 	x.HostnameRef = remap(x.HostnameRef)
 	x.AppVersionRef = remap(x.AppVersionRef)
 	remapAttributes(x.Attributes, remap)
+	if x.ContainerDebug != nil {
+		x.ContainerDebug.ErrorRef = remap(x.ContainerDebug.ErrorRef)
+		x.ContainerDebug.BufferEvictionReasonRef = remap(x.ContainerDebug.BufferEvictionReasonRef)
+	}
 
 	// Remap chunks
 	for _, chunk := range x.Chunks {
@@ -719,6 +737,19 @@ func (c *InternalTraceChunk) LegacyTraceID() uint64 {
 	var buf [16]byte
 	copy(buf[16-len(c.TraceID):], c.TraceID)
 	return binary.BigEndian.Uint64(buf[8:])
+}
+
+// TraceIDHigh returns the high-order 8 bytes of the trace chunk's TraceID as a uint64.
+// A trace ID shorter than the full 16 bytes is right-aligned into a zero-padded 16-byte
+// buffer first (matching LegacyTraceID's interpretation of short trace IDs), so any
+// high-order bytes that were actually supplied are still reflected in the result.
+func (c *InternalTraceChunk) TraceIDHigh() uint64 {
+	if len(c.TraceID) >= 16 {
+		return binary.BigEndian.Uint64(c.TraceID[:8])
+	}
+	var buf [16]byte
+	copy(buf[16-len(c.TraceID):], c.TraceID)
+	return binary.BigEndian.Uint64(buf[:8])
 }
 
 // SetLegacyTraceID sets the trace ID of the chunk from a legacy uint64 trace ID, additional bits are set to 0

@@ -1,0 +1,13 @@
+generator: []
+
+blackhole:
+  # Absorb OPMS polling against the configured dd_url. The experiment explicitly
+  # routes OPMS to this local HTTP endpoint.
+  - http:
+      binding_addr: "127.0.0.1:9091"
+
+target_metrics:
+  - prometheus: # private action runner telemetry
+      uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "private-action-runner"

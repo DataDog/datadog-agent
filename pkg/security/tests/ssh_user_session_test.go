@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 )
@@ -571,6 +571,11 @@ func TestSSHUserSessionRotated(t *testing.T) {
 	})
 }
 
+// withForceReload() at the newTestModule call is load-bearing: this test and
+// TestSSHUserSessionSnapshot share the inline-config run, so without it the
+// second would reuse the first's module.
+var _ = declareInlineConfig(TestSSHUserSessionBlocking)
+
 func TestSSHUserSessionBlocking(t *testing.T) {
 	SkipIfNotAvailable(t)
 	if testEnvironment == DockerEnvironment {
@@ -690,6 +695,8 @@ func TestSSHUserSessionBlocking(t *testing.T) {
 	_ = exec.Command("ssh", exitArgs...).Run()
 
 }
+
+var _ = declareInlineConfig(TestSSHUserSessionSnapshot)
 
 func TestSSHUserSessionSnapshot(t *testing.T) {
 	SkipIfNotAvailable(t)

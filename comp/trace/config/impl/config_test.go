@@ -20,11 +20,13 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
 	"time"
 
+	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -42,6 +44,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
@@ -283,7 +286,7 @@ func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetInTest("cmd_port", "-1")
+		coreConfig.SetInTest("cmd_port", -1)
 
 		fallbackHostnameFunc = func() (string, error) {
 			return "", errors.New("could not get hostname")
@@ -326,7 +329,7 @@ func TestConfigHostname(t *testing.T) {
 
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetInTest("cmd_port", "-1")
+		coreConfig.SetInTest("cmd_port", -1)
 		config := buildComponent(t, false, coreConfig)
 
 		cfg := config.Object()
@@ -381,6 +384,25 @@ func TestConfigHostname(t *testing.T) {
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(t *testing.T, response string, code int) string {
+			if loc := os.Getenv("HOSTNAME_HELPER"); loc != "" {
+				t.Setenv("DD_TEST_HOSTNAME_RESPONSE", response)
+				t.Setenv("DD_TEST_HOSTNAME_EXIT", strconv.Itoa(code))
+				src, err := runfiles.Rlocation(loc)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Copy out of runfiles: Windows file junctions cannot be exec'd, and
+				// callers os.Remove the returned path.
+				dst := filepath.Join(t.TempDir(), filepath.Base(src))
+				data, err := os.ReadFile(src)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(dst, data, 0700); err != nil {
+					t.Fatal(err)
+				}
+				return dst
+			}
 			f, err := os.CreateTemp("", "trace-test-hostname.*.go")
 			if err != nil {
 				t.Fatal(err)
@@ -521,6 +543,55 @@ func TestSite(t *testing.T) {
 	}
 }
 
+func TestProfilingURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://intake.profile.datadoghq.com./api/v2/profile",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://intake.profile.datadoghq.eu./api/v2/profile",
+		},
+		{
+			name: "FQDN conversion disabled",
+			settings: map[string]interface{}{
+				"site":                         "datadoghq.eu",
+				"convert_dd_site_fqdn.enabled": false,
+			},
+			expected: "https://intake.profile.datadoghq.eu/api/v2/profile",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://intake.profile.example.com/api/v2/profile",
+		},
+		{
+			name: "explicit profiling URL",
+			settings: map[string]interface{}{
+				"site":                        "datadoghq.eu",
+				"apm_config.profiling_dd_url": "https://profiles.example.com/custom/path",
+			},
+			expected: "https://profiles.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.ProfilingProxy.DDURL)
+		})
+	}
+}
+
 func TestDefaultConfig(t *testing.T) {
 	config := buildConfigComponent(t, true)
 	cfg := config.Object()
@@ -556,6 +627,21 @@ func TestNoAPMConfig(t *testing.T) {
 	assert.Equal(t, 28125, cfg.StatsdPort)
 }
 
+// TestReceiverHostKubernetesDefaultOverridesBindHost reproduces the case where bind_host is set
+// explicitly but apm_non_local_traffic comes only from the Kubernetes binary default (applied at
+// SourceDefault, so IsConfigured is false). The trace receiver must still listen on 0.0.0.0,
+// matching the historical datadog-kubernetes.yaml behavior, while statsd keeps honoring bind_host.
+func TestReceiverHostKubernetesDefaultOverridesBindHost(t *testing.T) {
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.Set("bind_host", "127.0.0.1", configmodel.SourceFile)
+	coreConfig.Set("apm_config.apm_non_local_traffic", true, configmodel.SourceDefault)
+
+	cfg := buildComponent(t, true, coreConfig).Object()
+	require.NotNil(t, cfg)
+	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
+	assert.Equal(t, "127.0.0.1", cfg.StatsdHost)
+}
+
 func TestDisableLoggingConfig(t *testing.T) {
 	config := buildConfigComponentFromYAML(t, true, "./testdata/disable_file_logging.yaml")
 	cfg := config.Object()
@@ -566,6 +652,16 @@ func TestDisableLoggingConfig(t *testing.T) {
 }
 
 func TestFullYamlConfig(t *testing.T) {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+
 	config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
 	cfg := config.Object()
 
@@ -2650,6 +2746,26 @@ func TestDebuggerLogsEnabled(t *testing.T) {
 			name:     "logs_disabled_no_override",
 			settings: map[string]interface{}{"logs_enabled": false},
 			expected: false,
+		},
+		{
+			name:     "logs_unset_defaults_enabled",
+			settings: map[string]interface{}{},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_disables",
+			settings: map[string]interface{}{"log_enabled": false},
+			expected: false,
+		},
+		{
+			name:     "stale_deprecated_log_enabled_does_not_disable",
+			settings: map[string]interface{}{"logs_enabled": true, "log_enabled": false},
+			expected: true,
+		},
+		{
+			name:     "deprecated_log_enabled_still_enables",
+			settings: map[string]interface{}{"logs_enabled": false, "log_enabled": true},
+			expected: true,
 		},
 	}
 	for _, tt := range tests {

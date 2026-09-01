@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import tempfile
 import traceback
+from pathlib import Path
 
+import requests
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.libs.common.auth import dd_auth_api_app_keys
+from tasks.libs.common.auth import datadog_infra_token, dd_auth_api_app_keys
+from tasks.schema.generate import schema_codegen
 
 SPEC_PACKAGE = "./pkg/collector/corechecks/gpu/spec"
 ALLOWLIST_PACKAGE = f"{SPEC_PACKAGE}/allowlist"
@@ -23,12 +27,67 @@ DEFAULT_METRICS_LIST_PATH = "gpu_metrics.tsv"
 VALIDATOR_PACKAGE = f"{SPEC_PACKAGE}/metrics-validator"
 VALIDATOR_BINARY = f"{VALIDATOR_PACKAGE}/gpu-metrics-validator"
 VALIDATOR_SITE = "datadoghq.com"
+GPU_BURNER_BRANCH = "main"
+GPU_BURNER_VERSION = "9ded3e87"
+MASS_READ_URL = "https://mass-read.us1.ddbuild.io/internal/artifact"
+MASS_AUDIENCE = "rapid-dependency-management-mass"
+
+
+def get_gpu_burner_artifact_path() -> str:
+    branch = os.environ.get("GPU_BURNER_BRANCH", GPU_BURNER_BRANCH)
+    version = os.environ.get("GPU_BURNER_VERSION", GPU_BURNER_VERSION)
+    return f"gpu-burner/branches/{branch}/{version}/gpu-burner.tar.gz"
 
 
 def build_binary(ctx, package: str, output_path: str, label: str) -> str:
     print(f"== Building {label} binary ==")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(f"go build -o {shlex.quote(output_path)} {package}")
     return output_path
+
+
+@task(
+    name="download-gpu-burner",
+    help={
+        "output_path": "Directory where the gpu-burner archive is extracted",
+    },
+)
+def download_gpu_burner(ctx, output_path: str):
+    """
+    Download and extract gpu-burner from mASS.
+
+    Uses authanywhere in CI and ddtool when run locally.
+    """
+    destination = Path(output_path).resolve()
+    destination.mkdir(parents=True, exist_ok=True)
+    gpu_burner_artifact_path = get_gpu_burner_artifact_path()
+    artifact_url = f"{MASS_READ_URL}/{gpu_burner_artifact_path}"
+    print("== Fetching mASS authorization token ==", flush=True)
+    token = datadog_infra_token(ctx, audience=MASS_AUDIENCE)
+
+    print(f"== Downloading gpu-burner to {destination} ==", flush=True)
+    with tempfile.NamedTemporaryFile(prefix="gpu-burner-", suffix=".tar.gz") as archive:
+        try:
+            response = requests.get(
+                artifact_url,
+                headers={"Authorization": token},
+                stream=True,
+                timeout=None,
+            )
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise Exit(message=f"failed to download gpu-burner from mASS: {e}") from e
+
+        with open(archive.name, "wb") as writer:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    writer.write(chunk)
+
+        print(f"== Extracting gpu-burner to {destination} ==", flush=True)
+        ctx.run(f"tar -xzf {shlex.quote(archive.name)} -C {shlex.quote(str(destination))}")
 
 
 @task(

@@ -12,7 +12,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
+	"github.com/cenkalti/backoff/v7"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -129,9 +130,9 @@ func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostnameinterface
 // getHostnameWithContext attempts to acquire a hostname by connecting to the
 // core agent's gRPC endpoints extending the given context.
 func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, error) {
-	ipcPort, err := strconv.Atoi(pkgconfigsetup.GetIPCPort())
+	ipcPort, err := strconv.Atoi(pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()))
 	if err != nil || ipcPort <= 0 {
-		return "", fmt.Errorf("IPC port is disabled (%s), skipping core-agent hostname lookup", pkgconfigsetup.GetIPCPort())
+		return "", fmt.Errorf("IPC port is disabled (%s), skipping core-agent hostname lookup", pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()))
 	}
 
 	backOff := backoff.NewExponentialBackOff()
@@ -148,12 +149,12 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
-		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+		ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 		if err != nil {
 			return "", err
 		}
 
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.ipc.GetTLSClientConfig())
+		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()), r.ipc.GetTLSClientConfig())
 		if err != nil {
 			return "", err
 		}

@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/runtime_security_config.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/runtime_security_config.yaml
 node_type: section
 type: object
 properties:
@@ -37,8 +37,6 @@ properties:
                 node_type: setting
                 type: number
                 default: 5
-                tags:
-                - golang_type:float64
               compression_kind:
                 node_type: setting
                 type: string
@@ -77,20 +75,14 @@ properties:
                 node_type: setting
                 type: number
                 default: 1
-                tags:
-                - golang_type:float64
               sender_backoff_factor:
                 node_type: setting
                 type: number
                 default: 2
-                tags:
-                - golang_type:float64
               sender_backoff_max:
                 node_type: setting
                 type: number
                 default: 120
-                tags:
-                - golang_type:float64
               sender_recovery_interval:
                 node_type: setting
                 type: integer
@@ -123,7 +115,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: CWS - general config
   endpoints:
     node_type: section
     type: object
@@ -150,8 +141,6 @@ properties:
         node_type: setting
         type: number
         default: 5
-        tags:
-        - golang_type:float64
       compression_kind:
         node_type: setting
         type: string
@@ -190,20 +179,14 @@ properties:
         node_type: setting
         type: number
         default: 1
-        tags:
-        - golang_type:float64
       sender_backoff_factor:
         node_type: setting
         type: number
         default: 2
-        tags:
-        - golang_type:float64
       sender_backoff_max:
         node_type: setting
         type: number
         default: 120
-        tags:
-        - golang_type:float64
       sender_recovery_interval:
         node_type: setting
         type: integer
@@ -234,11 +217,6 @@ properties:
     platform_default:
       windows: localhost:3335
       other: ${install_path}/run/runtime-security.sock
-    comment: |-
-      CWS - general config
-      the following entries are platform specific
-      - runtime_security_config.policies.dir
-      - runtime_security_config.socket
   use_secruntime_track:
     node_type: setting
     type: boolean

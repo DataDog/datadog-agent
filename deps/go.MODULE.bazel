@@ -12,13 +12,9 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 inject_repo(
     go_deps,
     protobuf = "protobuf",
-    rules_proto = "rules_proto",
 )
 
-# TODO(agent-build): when all Go modules are migrated, use //:go.work instead of @bazelify_go_work//:go.work
-use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
-
-go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
+go_deps.from_file(go_work = "//:go.work")
 go_deps.gazelle_default_attributes(
     # Using default attributes causes build_file_generation to change to `on`,
     # potentially overwriting existing BUILD files. We prefer the default `auto` behaviour
@@ -27,53 +23,9 @@ go_deps.gazelle_default_attributes(
         # We don't want to generate code from protos from dependencies, as this most often fails
         # and is different behavior from the default with go tooling
         "gazelle:proto disable",
-        # ABLD-471: third-party modules that import datadog-agent submodules would
-        # otherwise generate `@com_github_datadog_datadog_agent_*` labels (because
-        # bazelify_go_work materializes our local go.work modules as external repos),
-        # while the same Go package is also reachable in-tree at `//<path>`. The linker
-        # then sees two copies of the package. Redirect every such import to the in-tree
-        # label so both build contexts agree. The list grows as new third-party imports
-        # surface — long-term fix is retiring bazelify_go_work or unifying label spaces.
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace @@//pkg/proto/pbgo/trace:trace",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize @@//pkg/trace/traceutil/normalize:normalize",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/metrics/event @@//pkg/metrics/event:event",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/metrics/servicecheck @@//pkg/metrics/servicecheck:servicecheck",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source @@//pkg/opentelemetry-mapping-go/otlp/attributes/source:source",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/serializer/marshaler @@//pkg/serializer/marshaler:marshaler",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/serializer/types @@//pkg/serializer/types:types",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/hostname/validate @@//pkg/util/hostname/validate:validate",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/core/config @@//comp/core/config:config",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/core/log/def @@//comp/core/log/def:def",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/core/tagger/types @@//comp/core/tagger/types:types",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder @@//comp/forwarder/defaultforwarder:defaultforwarder",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/logs/agent/config @@//comp/logs/agent/config:config",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient @@//comp/otelcol/otlp/components/metricsclient:metricsclient",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil @@//comp/otelcol/otlp/testutil:testutil",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/create @@//pkg/config/create:create",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/model @@//pkg/config/model:model",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/setup @@//pkg/config/setup:setup",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/config/utils @@//pkg/config/utils:utils",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry @@//pkg/fleet/installer/telemetry:telemetry",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/metrics @@//pkg/metrics:metrics",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/obfuscate @@//pkg/obfuscate:obfuscate",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata @@//pkg/opentelemetry-mapping-go/inframetadata:inframetadata",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai @@//pkg/opentelemetry-mapping-go/inframetadata/gohai:gohai",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload @@//pkg/opentelemetry-mapping-go/inframetadata/payload:payload",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes @@//pkg/opentelemetry-mapping-go/otlp/attributes:attributes",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/azure @@//pkg/opentelemetry-mapping-go/otlp/attributes/azure:azure",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/ec2 @@//pkg/opentelemetry-mapping-go/otlp/attributes/ec2:ec2",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/gcp @@//pkg/opentelemetry-mapping-go/otlp/attributes/gcp:gcp",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics @@//pkg/opentelemetry-mapping-go/otlp/metrics:metrics",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/serializer @@//pkg/serializer:serializer",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/tagset @@//pkg/tagset:tagset",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/config @@//pkg/trace/config:config",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/log @@//pkg/trace/log:log",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/otel/stats @@//pkg/trace/otel/stats:stats",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/stats @@//pkg/trace/stats:stats",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib @@//pkg/util/compression/impl-zlib:impl-zlib",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/util/option @@//pkg/util/option:option",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state:state",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/network/driver @@//pkg/network/driver:driver",
+        # Map external imports of datadog-agent submodules to in-tree labels: as for any override, last match wins
+        "gazelle:resolve_regexp go ^github[.]com/DataDog/datadog-agent/(.+)$ @@//$1",  # general
+        "gazelle:resolve_regexp go ^github[.]com/DataDog/datadog-agent/(.+/([^/]+)/v[0-9]+)$ @@//$1:$2",  # versioned
     ],
 )
 go_deps.gazelle_override(
@@ -104,16 +56,6 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=trivy_no_javadb"],
     path = "github.com/aquasecurity/trivy",
 )
-go_deps.gazelle_override(
-    # strptime_cgo_testlib.go uses tm_gmtoff (GNU extension, absent in
-    # musl libc). Exclude the CGo test-helper files so Gazelle does not
-    # include them in the generated go_library BUILD rules.
-    build_extra_args = [
-        "-exclude=timeutils/strptime_cgo_testlib.go",
-        "-exclude=timeutils/strptime_cgo_test.go",
-    ],
-    path = "github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal",
-)
 use_repo(
     go_deps,
     "cat_dario_mergo",
@@ -122,6 +64,7 @@ use_repo(
     "com_github_acobaugh_osrelease",
     "com_github_alecthomas_participle",
     "com_github_alecthomas_units",
+    "com_github_apache_arrow_go_v18",
     "com_github_aptly_dev_aptly",
     "com_github_aquasecurity_trivy",
     "com_github_aquasecurity_trivy_db",
@@ -149,7 +92,7 @@ use_repo(
     "com_github_bhmj_jsonslice",
     "com_github_blabber_go_freebsd_sysctl",
     "com_github_bmatcuk_doublestar_v4",
-    "com_github_cenkalti_backoff_v6",
+    "com_github_cenkalti_backoff_v7",
     "com_github_cespare_xxhash_v2",
     "com_github_charlievieth_strcase",
     "com_github_cilium_ebpf",
@@ -174,6 +117,7 @@ use_repo(
     "com_github_datadog_datadog_go_v5",
     "com_github_datadog_datadog_operator_api",
     "com_github_datadog_datadog_traceroute",
+    "com_github_datadog_dd_policy_engine_go",
     "com_github_datadog_dd_trace_go_v2",
     "com_github_datadog_ddtrivy",
     "com_github_datadog_ebpf_manager",
@@ -204,7 +148,6 @@ use_repo(
     "com_github_frapposelli_wwhrd",
     "com_github_freddierice_go_losetup",
     "com_github_fsnotify_fsnotify",
-    "com_github_ghodss_yaml",
     "com_github_glaslos_ssdeep",
     "com_github_go_delve_delve",
     "com_github_go_enry_go_license_detector_v4",
@@ -215,7 +158,6 @@ use_repo(
     "com_github_go_viper_mapstructure_v2",
     "com_github_go_zookeeper_zk",
     "com_github_gobwas_glob",
-    "com_github_goccy_go_yaml",
     "com_github_gocomply_scap",
     "com_github_godbus_dbus_v5",
     "com_github_godror_godror",
@@ -277,6 +219,7 @@ use_repo(
     "com_github_masterminds_sprig_v3",
     "com_github_mattn_go_sqlite3",
     "com_github_mdlayher_netlink",
+    "com_github_mdlayher_socket",
     "com_github_mdlayher_vsock",
     "com_github_microsoft_go_winio",
     "com_github_microsoft_hcsshim",
@@ -286,16 +229,19 @@ use_repo(
     "com_github_moby_moby_api",
     "com_github_moby_moby_client",
     "com_github_moby_sys_mountinfo",
+    "com_github_modern_go_reflect2",
     "com_github_mohae_deepcopy",
     "com_github_netsampler_goflow2",
     "com_github_nvidia_go_nvml",
     "com_github_oliveagle_jsonpath",
     "com_github_open_policy_agent_opa",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_connector_countconnector",
     "com_github_open_telemetry_opentelemetry_collector_contrib_connector_routingconnector",
     "com_github_open_telemetry_opentelemetry_collector_contrib_connector_spanmetricsconnector",
     "com_github_open_telemetry_opentelemetry_collector_contrib_exporter_loadbalancingexporter",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_datadogextension",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_healthcheckextension",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_extension_k8sleaderelector",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_dockerobserver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_ecsobserver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_extension_observer_hostobserver",
@@ -321,6 +267,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_fluentforwardreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_hostmetricsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_jaegerreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8sclusterreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8sobjectsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_kubeletstatsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_podmanreceiver",
@@ -336,7 +283,6 @@ use_repo(
     "com_github_pierrec_lz4_v4",
     "com_github_pkg_sftp",
     "com_github_planetscale_vtprotobuf",
-    "com_github_pmezard_go_difflib",
     "com_github_prometheus_client_golang",
     "com_github_prometheus_client_model",
     "com_github_prometheus_common",
@@ -372,7 +318,6 @@ use_repo(
     "com_github_safchain_baloum",
     "com_github_safchain_ethtool",
     "com_github_samber_lo",
-    "com_github_santhosh_tekuri_jsonschema_v5",
     "com_github_santhosh_tekuri_jsonschema_v6",
     "com_github_sassoftware_go_rpmutils",
     "com_github_secure_systems_lab_go_securesystemslib",
@@ -447,6 +392,7 @@ use_repo(
     "io_opentelemetry_go_collector_component",
     "io_opentelemetry_go_collector_component_componentstatus",
     "io_opentelemetry_go_collector_component_componenttest",
+    "io_opentelemetry_go_collector_config_configauth",
     "io_opentelemetry_go_collector_config_confighttp",
     "io_opentelemetry_go_collector_config_confignet",
     "io_opentelemetry_go_collector_config_configopaque",
@@ -543,6 +489,7 @@ use_repo(
     "org_uber_go_multierr",
     "org_uber_go_zap",
     "org_uber_go_zap_exp",
+    "sh_helm_helm_v3",
     "tools_gotest_gotestsum",
 )
 
@@ -564,17 +511,10 @@ go_deps.module_override(
 # the absolute, per-invocation sandbox path (.../processwrapper-sandbox/<N>/...). That
 # makes zstd.a non-reproducible build-to-build, so every test linking it always misses
 # the remote cache. -DNDEBUG drops the asserts (also a perf win), yielding a stable,
-# path-independent object. Both the modern fork and the older github.com/DataDog/zstd_0
-# (a separate module pulled in by the OTel collector components) need the same treatment.
-go_deps.module_override(
-    patch_strip = 1,
-    patches = ["//bazel/rules/go_zstd:zstd-ndebug.patch"],
+# path-independent object.
+go_deps.gazelle_override(
+    directives = ["gazelle:go_copts -DNDEBUG"],
     path = "github.com/DataDog/zstd",
-)
-go_deps.module_override(
-    patch_strip = 1,
-    patches = ["//bazel/rules/go_zstd:zstd_0-ndebug.patch"],
-    path = "github.com/DataDog/zstd_0",
 )
 
 # sdjournal wraps journald's C API and `#include <systemd/sd-journal.h>` at compile
@@ -585,6 +525,31 @@ go_deps.module_override(
     patch_strip = 1,
     patches = ["//bazel/rules/go_systemd:sdjournal-cdeps.patch"],
     path = "github.com/coreos/go-systemd/v22",
+)
+
+# godror vendors the ODPI-C library (odpi/include, odpi/src, odpi/embed) as
+# plain Go source-tree files with no buildable .go files under the default
+# build tags, so Gazelle never generates a BUILD.bazel for those directories
+# and the cgo compile's "#cgo CFLAGS: -Iodpi/..." directives find nothing in
+# the sandbox. Patch in a cc_library exposing the vendored sources via cdeps.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = [
+        "//bazel/rules/go_godror:odpi-build-file.patch",
+        "//bazel/rules/go_godror:cdeps-attr.patch",
+    ],
+    path = "github.com/godror/godror",
+)
+
+# kustomize's native Go-plugin loader flips the linker into dynlinking mode (-Wl,-z,nocopyreloc), breaking
+# github.com/DataDog/zstd's copy-relocation-dependent cgo (#54846). A gotags-based exclusion doesn't work here:
+# rules_go's own compile-time constraint filter re-evaluates //go:build tags using each consumer's real (transitively
+# propagated) gotags, independent of what Gazelle put in srcs, so the disabled stub would get silently dropped again.
+# Patch out the build-tag guard itself so there's nothing left to get wrong.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:kustomize-disable-go-plugin-loader.patch"],
+    path = "sigs.k8s.io/kustomize/api",
 )
 
 inject_repo(go_deps, "systemd")

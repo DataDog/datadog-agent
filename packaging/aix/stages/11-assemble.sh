@@ -120,6 +120,7 @@ log "sitecustomize.py installed to $PYTHON_LIB_DIR/sitecustomize.py"
 
 log "Creating required runtime directories"
 mkdir -p "$STAGING/var/log/datadog"
+chmod 750 "$STAGING/var/log/datadog"
 mkdir -p "$STAGING/var/run/datadog"
 mkdir -p "$STAGING/opt/datadog-agent/run"
 mkdir -p "$STAGING/opt/datadog-agent/checks.d"
@@ -168,6 +169,19 @@ for script in preinst postinst config unconfig prerm; do
     log "  Installed: $SCRIPTS_INSTALLED/$script"
 done
 log "All package lifecycle scripts installed"
+
+# render-datadog-config.py is a helper invoked by the "config" script above
+# (not a lifecycle script itself), staged alongside them for the same reason:
+# it must exist at its final installed path for "config" to find it at
+# install time.
+RENDER_SCRIPT_SRC="$PKGSCRIPTS_SRC/render-datadog-config.py"
+if [ ! -f "$RENDER_SCRIPT_SRC" ]; then
+    log "ERROR: render-datadog-config.py not found: $RENDER_SCRIPT_SRC"
+    exit 1
+fi
+cp "$RENDER_SCRIPT_SRC" "$SCRIPTS_DIR/render-datadog-config.py"
+cp "$RENDER_SCRIPT_SRC" "$SCRIPTS_INSTALLED/render-datadog-config.py"
+log "render-datadog-config.py installed to $SCRIPTS_DIR and $SCRIPTS_INSTALLED"
 
 # ─── Step 5: Set correct ownership ────────────────────────────────────────────
 #

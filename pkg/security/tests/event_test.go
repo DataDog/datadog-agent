@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -241,7 +241,7 @@ func TestEventIteratorRegister(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_register_1",
-			Expression: `open.file.path == "{{.Root}}/test-register" && process.ancestors[A].name == "syscall_tester" && process.ancestors[A].argv in ["span-exec"]`,
+			Expression: `open.file.path == "{{.Root}}/test-register" && process.ancestors[A].name == "syscall_tester" && process.ancestors[A].argv in ["self-exec"]`,
 		},
 		{
 			ID:         "test_register_2",
@@ -274,7 +274,7 @@ func TestEventIteratorRegister(t *testing.T) {
 
 	t.Run("std", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "span-exec", "123", "456", "/usr/bin/touch", testFile)
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "self-exec", "self-exec", "open", testFile)
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_1")
 		}, "test_register_1")
@@ -446,6 +446,10 @@ func cleanupABottomUp(path string) {
 		path = filepath.Dir(path)
 	}
 }
+
+// The two subtests deliberately build different modules, one per dentry
+// resolution path, so this test cannot share one with anybody.
+var _ = declareInlineConfig(TestEventTruncatedParents)
 
 func TestEventTruncatedParents(t *testing.T) {
 	SkipIfNotAvailable(t)

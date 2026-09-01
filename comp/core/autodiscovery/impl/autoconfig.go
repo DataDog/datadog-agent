@@ -19,9 +19,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 
 	"github.com/DataDog/datadog-agent/pkg/util/slices"
 
@@ -493,7 +494,7 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 
 // AddConfigProviderFromCatalog looks up a config provider factory in the catalog by name,
 // creates the provider using internal dependencies, and registers it with autodiscovery.
-func (ac *AutoConfig) AddConfigProviderFromCatalog(cp pkgconfigsetup.ConfigurationProviders) error {
+func (ac *AutoConfig) AddConfigProviderFromCatalog(cp constants.ConfigurationProviders) error {
 	factory, found := ac.providerCatalog[cp.Name]
 	if !found {
 		return fmt.Errorf("unable to find this provider in the catalog: %v", cp.Name)

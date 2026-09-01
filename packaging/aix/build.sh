@@ -73,6 +73,7 @@ check_tool() {
 check_tool git        git
 check_tool curl       curl
 check_tool xz         xz
+check_tool zstd       zstd
 check_tool make       make
 check_tool cmake      cmake
 check_tool gcc        gcc
@@ -102,8 +103,6 @@ check_aix_devel /opt/freeware/lib64/libncursesw.a     ncurses-devel
 check_aix_devel /opt/freeware/include/readline/readline.h  readline-devel
 check_aix_devel /opt/freeware/lib64/libreadline.a     readline-devel
 
-check_aix_devel /opt/freeware/include/gdbm.h          gdbm-devel
-check_aix_devel /opt/freeware/lib/libgdbm.a           gdbm-devel
 check_aix_devel /opt/freeware/include/libxslt/xslt.h  libxslt-devel
 check_aix_devel /opt/freeware/lib/libxslt.a           libxslt-devel
 # libexslt ships with libxslt-devel; stage 01 copies it silently if present.

@@ -47,10 +47,10 @@ type AppOption func(*appConfig)
 
 // appConfig holds the accumulated application-level options.
 type appConfig struct {
-	extraEnvVars      corev1.EnvVarArray
-	extraVolumes      corev1.VolumeArray
-	extraVolumeMounts corev1.VolumeMountArray
-	k8sSecrets        []appSecretSpec
+	extraEnvVars        corev1.EnvVarArray
+	extraVolumes        corev1.VolumeArray
+	extraVolumeMounts   corev1.VolumeMountArray
+	k8sSecrets          []appSecretSpec
 	skipDefaultHostname bool
 }
 
@@ -458,6 +458,9 @@ func buildConfigMapData(otelConfig string, fakeIntake *fakeintake.Fakeintake) (p
 					"metrics": map[string]any{"endpoint": url},
 					"traces":  map[string]any{"endpoint": url},
 					"logs":    map[string]any{"endpoint": url},
+					// The orchestrator path POSTs manifests to the raw endpoint
+					// (no path appended), so include the intake route here.
+					"orchestrator_explorer": map[string]any{"endpoint": url + "/api/v2/orchmanif"},
 				},
 			},
 		}
@@ -486,7 +489,12 @@ func dockerOTelAgentFullImagePath(e config.Env) string {
 	}
 
 	if e.PipelineID() != "" && e.CommitSHA() != "" {
-		tag := fmt.Sprintf("%s-%s-7-full", e.PipelineID(), e.CommitSHA())
+		var tag string
+		if e.AgentFIPS() {
+			tag = fmt.Sprintf("%s-%s-7-fips-full", e.PipelineID(), e.CommitSHA())
+		} else {
+			tag = fmt.Sprintf("%s-%s-7-full", e.PipelineID(), e.CommitSHA())
+		}
 		exists, err := e.InternalRegistryImageTagExists(fmt.Sprintf("%s/agent-qa", e.InternalRegistry()), tag)
 		if err != nil || !exists {
 			panic(fmt.Sprintf("image %s/agent-qa:%s not found in the internal registry", e.InternalRegistry(), tag))

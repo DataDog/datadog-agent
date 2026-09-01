@@ -8,6 +8,7 @@ go_library(
         "deployment.go",
         "kueue.go",
         "metadata.go",
+        "node.go",
         "parser.go",
         "pod.go",
         "utils.go",
@@ -41,10 +42,14 @@ dd_agent_go_test(
         "utils_test.go",
     ],
     embed = [":kubernetes_resource_parsers"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core/config",
         "//comp/core/workloadmeta/collectors/util",

@@ -9,14 +9,6 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.libs.ciproviders.github_actions_tools import (
-    download_artifacts,
-    download_with_retry,
-    follow_workflow_run,
-    print_failed_jobs_logs,
-    print_workflow_conclusion,
-    trigger_windows_bump_workflow,
-)
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import send_event
 from tasks.libs.owners.linter import (
@@ -27,53 +19,9 @@ from tasks.libs.owners.linter import (
 )
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
-from tasks.libs.releasing.version import current_version
 from tasks.libs.types.types import PermissionCheck
 
 ALL_TEAMS = '@datadog/agent-community-eng'
-
-
-def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-images"):
-    if new_version is None:
-        raise Exit(message="workflow needs the 'new_version' field value to be not None")
-    args_per_repo = {
-        "ci-platform-machine-images": {
-            "workflow_name": "windows-runner-agent-bump.yml",
-            "github_action_ref": "main",
-        },
-    }
-
-    run = trigger_windows_bump_workflow(
-        repo=repo,
-        workflow_name=args_per_repo[repo]["workflow_name"],
-        github_action_ref=args_per_repo[repo]["github_action_ref"],
-        new_version=new_version,
-    )
-    full_repo = f"DataDog/{repo}"
-    workflow_conclusion, workflow_url = follow_workflow_run(run, full_repo, 0.5)
-
-    if workflow_conclusion != "success":
-        if workflow_conclusion == "failure":
-            print_failed_jobs_logs(run)
-        return workflow_conclusion
-
-    print_workflow_conclusion(workflow_conclusion, workflow_url)
-
-    download_with_retry(download_artifacts, run, ".", 3, 5, full_repo)
-
-    with open("PR_URL_ARTIFACT") as f:
-        PR_URL = f.read().strip()
-
-    if not PR_URL:
-        raise Exit(message="Failed to fetch artifact from the workflow. (Empty artifact)")
-
-    message = f":robobits: A new windows-runner bump PR to {new_version} has been generated. Please take a look :frog-review:\n:pr: {PR_URL} :ty:"
-
-    from slack_sdk import WebClient
-
-    client = WebClient(token=os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
-    client.chat_postMessage(channel="ci-infra-support", text=message)
-    return workflow_conclusion
 
 
 @task
@@ -96,23 +44,6 @@ def is_pr_ready(ctx, git_ref: str, target_branch: str | None = None):
         print(color_message(f"PR for branch {git_ref!r} targets {prs[0].base.ref!r}, not {target_branch!r}", "yellow"))
         raise Exit(code=1)
     print(color_message(f"PR for branch {git_ref!r} is ready", "green"))
-
-
-@task
-def update_windows_runner_version(
-    ctx,
-    new_version=None,
-):
-    """
-    Trigger a workflow on the ci-platform-machine-images repository to bump windows gitlab runner
-    """
-    if new_version is None:
-        new_version = str(current_version(ctx, "7"))
-
-    repo = "ci-platform-machine-images"
-    conclusion = _update_windows_runner_version(new_version, repo)
-    if conclusion != "success":
-        raise Exit(message=f"Windows runner bump workflow {conclusion} for {repo}", code=1)
 
 
 @task

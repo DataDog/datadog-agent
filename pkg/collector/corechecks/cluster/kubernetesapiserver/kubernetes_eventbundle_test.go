@@ -227,7 +227,7 @@ func TestEventsTagging(t *testing.T) {
 		{
 			name:         "job",
 			k8sEvent:     createEvent(1, "default", "logger-1609783080", "Job", "8d8ae0d4-3e36-49be-94f5-786e823d7502", "job-controller", "job-controller", "", "SuccessfulCreate", "Created pod: logger-1609783080-5g2g4", "Normal", 709662600),
-			expectedTags: []string{"source_component:job-controller", "kube_kind:Job", "kubernetes_kind:Job", "kube_name:logger-1609783080", "name:logger-1609783080", "kube_job:logger-1609783080", "namespace:default", "kube_namespace:default", "reporting_controller:job-controller", "orchestrator:kubernetes"},
+			expectedTags: []string{"source_component:job-controller", "kube_kind:Job", "kubernetes_kind:Job", "kube_name:logger-1609783080", "name:logger-1609783080", "kube_job:logger-1609783080", "kube_cronjob:logger", "namespace:default", "kube_namespace:default", "reporting_controller:job-controller", "orchestrator:kubernetes"},
 		},
 		{
 			name:         "service",

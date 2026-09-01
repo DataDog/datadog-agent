@@ -2,6 +2,162 @@
 Release Notes
 =============
 
+.. _Release Notes_7.82.2:
+
+7.82.2
+======
+
+.. _Release Notes_7.82.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-08-19
+Pinned to datadog-agent v7.82.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7822>`_.
+
+
+.. _Release Notes_7.82.1:
+
+7.82.1
+======
+
+.. _Release Notes_7.82.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-08-11
+Pinned to datadog-agent v7.82.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7821>`_.
+
+
+.. _Release Notes_7.82.0:
+
+7.82.0
+======
+
+.. _Release Notes_7.82.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-08-05
+Pinned to datadog-agent v7.82.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7820>`_.
+
+
+.. _Release Notes_7.82.0_New Features:
+
+New Features
+------------
+
+- The Cluster Agent's Prometheus HTTP Service Discovery provider supports
+  an optional ``exclude_filter`` field per endpoint entry. The field
+  accepts a CEL expression evaluated against each discovered target's
+  ``host``, ``port``, and ``labels`` fields. Targets for which the
+  expression returns ``true`` are skipped at collection time.
+
+
+.. _Release Notes_7.82.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Cluster Agent's leader election now uses a dedicated Kubernetes API server
+  client with independently managed client-side rate limiting to be more resilient.
+
+- Reduce scale-up stabilization windows for built-in DPA presets:
+  Optimize Cost from 300s to 190s, Optimize Balance from 600s to 130s,
+  and Optimize Performance from 900s to 70s. This allows faster
+  scale-up response for workloads using autoscaling profiles.
+
+- Cluster check stickiness is now enabled by default. The dispatcher biases
+  check placement toward the runner where a check previously ran, reducing
+  unnecessary check migrations. The behavior can be tuned or disabled via the
+  following configuration options:
+  
+  - ``cluster_checks.stickiness_enabled`` — enable or disable stickiness (default: ``true``)
+  - ``cluster_checks.stickiness_factor`` — multiplier applied to check cost when computing the bias (default: ``4.0``)
+  - ``cluster_checks.stickiness_upper_limit`` — maximum bias applied regardless of check cost (default: ``1.0``)
+  - ``cluster_checks.stickiness_lower_limit`` — minimum bias applied when stickiness is enabled (default: ``0.05``)
+
+
+.. _Release Notes_7.82.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed APM Single Step Instrumentation injecting the library twice when the
+  admission webhook is reinvoked (for example on GKE Autopilot, where another
+  mutating webhook triggers reinvocation). In CSI injection mode the pod has no
+  init container, so the re-admission guard failed to detect that the pod was
+  already instrumented and appended the injector to ``LD_PRELOAD`` a second time.
+  The guard now also checks for the instrumentation volume, which is present in
+  every injection mode.
+
+- Fixed an issue where the Cluster Agent could associate a pod's detected
+  languages with the wrong Deployment. The Cluster Agent now only attributes a pod's
+  detected languages to a Deployment when the pod is owned by a ReplicaSet and
+  the ReplicaSet derived from the pod name matches the owner ReplicaSet. Pods
+  that are not owned by a ReplicaSet are no longer considered for
+  Deployment-level language detection.
+
+- Fix ``cluster_checks.nodes_reporting`` gauge drifting upward across
+  leader elections. The metric is now correctly decremented when the
+  cluster agent loses leadership and the node store is reset.
+
+- Fix `agent` commands in DCA (listener should always be started)
+
+- Fix permission in docker image when executing "/readsecret.sh" script with dd-agent user
+
+- Fixed an issue in the KSM check where cluster-aggregate metrics
+  (``kubernetes_state.container.<cpu|memory>_requested.total``,
+  ``kubernetes_state.container.<cpu|memory|gpu|mig>_limit.total``,
+  and the ``initcontainer`` equivalents) reported incorrect cluster totals
+  when the check ran with ``pod_collection_mode: node_kubelet``. The
+  aggregate metrics are now computed from a dedicated instance (running on
+  the cluster-agent or a cluster-checks runner) in the new
+  ``pod_collection_mode: cluster_aggregates_only`` mode, which watches all
+  pods directly from the API server. To enable the fix, set the
+  ``cluster_aggregates_enabled: true`` instance option on the
+  ``node_kubelet`` and ``cluster_unassigned`` instances; those instances then
+  suppress the affected accumulators, eliminating multi-source gauge collision
+  at ingestion. Without that option the previous (colliding) behavior is
+  unchanged, so it must be set alongside deploying the
+  ``cluster_aggregates_only`` instance. The fix preserves the per-pod metric
+  scaling benefit of ``node_kubelet`` mode while restoring correct cluster
+  aggregates.
+
+- Fix a bug in the orchestrator explorer check that led to trying to collect
+  Kubernetes subresources under certain custom resource API groups.
+
+
+.. _Release Notes_7.81.3:
+
+7.81.3
+======
+
+.. _Release Notes_7.81.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-30
+Pinned to datadog-agent v7.81.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7813>`_.
+
+
+.. _Release Notes_7.81.2:
+
+7.81.2
+======
+
+.. _Release Notes_7.81.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-07-22
+Pinned to datadog-agent v7.81.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7812>`_.
+
+
 .. _Release Notes_7.81.1:
 
 7.81.1

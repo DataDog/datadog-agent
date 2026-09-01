@@ -589,6 +589,32 @@ func TestCompactStrings(t *testing.T) {
 	}
 }
 
+// TestCompactStrings_ContainerDebug verifies that ContainerDebug string refs survive
+// compaction: the referenced strings are retained and the refs are remapped correctly.
+func TestCompactStrings_ContainerDebug(t *testing.T) {
+	pbPayload := &TracerPayload{
+		// index 1 ("unused") is never referenced and should be dropped by compaction.
+		Strings:        []string{"", "unused", "container-1", "resolution timeout", "timeout"},
+		ContainerIDRef: 2,
+		ContainerDebug: &ContainerDebug{
+			ErrorRef:                3,
+			LatencyMs:               150,
+			WasBuffered:             true,
+			BufferMs:                200,
+			BufferEvictionReasonRef: 4,
+		},
+	}
+
+	pbPayload.CompactStrings()
+
+	// The unused string should have been dropped.
+	assert.NotContains(t, pbPayload.Strings, "unused")
+	// Refs must still resolve to their original values after remapping.
+	assert.Equal(t, "container-1", pbPayload.Strings[pbPayload.ContainerIDRef])
+	assert.Equal(t, "resolution timeout", pbPayload.Strings[pbPayload.ContainerDebug.ErrorRef])
+	assert.Equal(t, "timeout", pbPayload.Strings[pbPayload.ContainerDebug.BufferEvictionReasonRef])
+}
+
 // TestRemapAttributes_KeyOverlap demonstrates a bug where remapAttributes can lose
 // attributes when the new key of one attribute equals the old key of another attribute.
 func TestRemapAttributes_KeyOverlap(t *testing.T) {
@@ -914,6 +940,33 @@ func TestLegacyTraceIDShortIsZeroPadded(t *testing.T) {
 			c := &InternalTraceChunk{TraceID: tc.tid}
 			assert.NotPanics(t, func() {
 				assert.Equal(t, tc.want, c.LegacyTraceID())
+			})
+		})
+	}
+}
+
+// TestTraceIDHighShortIsZeroPadded verifies that TraceIDHigh does not panic on a TraceID
+// shorter than 16 bytes, and that any high-order bytes actually supplied (for TraceIDs
+// between 9 and 15 bytes) are reflected in the result rather than being treated as zero.
+func TestTraceIDHighShortIsZeroPadded(t *testing.T) {
+	cases := []struct {
+		name string
+		tid  []byte
+		want uint64
+	}{
+		{"empty", []byte{}, 0},
+		{"4 bytes", []byte{1, 2, 3, 4}, 0},
+		{"8 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8}, 0},
+		// 15 bytes: 7 bytes spill into the high 8 bytes once right-aligned (buf[0]=0, buf[1:8]=1..7).
+		{"15 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, 0x0001020304050607},
+		// Full 16-byte trace ID: high 8 bytes only.
+		{"16 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8, 99, 99, 99, 99, 99, 99, 99, 99}, 0x0102030405060708},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &InternalTraceChunk{TraceID: tc.tid}
+			assert.NotPanics(t, func() {
+				assert.Equal(t, tc.want, c.TraceIDHigh())
 			})
 		})
 	}

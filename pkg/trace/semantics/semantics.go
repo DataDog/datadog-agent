@@ -12,7 +12,6 @@
 //   - rpc.system is superseded by rpc.system.name (OTel semconv v1.39.0); add rpc.system.name
 //     as a fallback or promote it to canonical. Note: this affects getOTelOperationNameV2,
 //     so a release note is required.
-//   - db.system is deprecated in favor of db.system.name; add db.system.name to mappings.
 package semantics
 
 // Provider indicates the source of a semantic attribute definition.
@@ -59,6 +58,7 @@ const (
 	ConceptHTTPStatusCode Concept = "http.status_code"
 	ConceptHTTPMethod     Concept = "http.method"
 	ConceptHTTPRoute      Concept = "http.route"
+	ConceptURLTemplate    Concept = "url.template"
 	ConceptGRPCStatusCode Concept = "rpc.grpc.status_code"
 	ConceptSpanKind       Concept = "span.kind"
 	ConceptDDBaseService  Concept = "_dd.base_service"

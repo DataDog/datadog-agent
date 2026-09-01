@@ -23,6 +23,7 @@ import (
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, sender sender.Sender, hostname string, profiles ncmprofile.Map, connectFn func(*ncmconfig.DeviceInstance) (ncmremote.Connection, error), clock clock.Clock) *networkDeviceConfigImpl {
@@ -108,32 +109,37 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 	startTime := n.clock.Now()
 	log := LoggerFromContext(ctx)
 	deviceID := dc.device.DeviceID()
-	if dc.noMatchingProfile {
-		log.Debugf("All profiles tested on past runs with no matches.")
-		return fmt.Errorf("no matching NCM profile for device %s", deviceID)
-	}
 	device := dc.device
 	sender := ncmsender.NewNCMSender(baseSender, device.Namespace, n.clock, n.hostname)
+	sender.SetDeviceTags(dc.GetTags())
+	defer sender.Commit()
 
-	conn, err := n.connectAndEnsureProfile(ctx, dc)
-	if err != nil {
-		return err
+	if dc.noMatchingProfile {
+		log.Debugf("All profiles tested on past runs with no matches.")
+		sender.SendNCMCheckFailure(types.ErrNoProfile)
+		return fmt.Errorf("no matching NCM profile for device %s", deviceID)
+	}
+
+	conn, connErr := n.connectAndEnsureProfile(ctx, dc)
+	if connErr != nil {
+		sender.SendNCMCheckFailure(connErr.Type())
+		return connErr
 	}
 	defer conn.Close()
 
 	// Update the remote client's device profile to access the correct commands
 	conn.SetProfile(dc.profile)
 
+	// dc.profile is now resolved, so refresh the device tags to include it.
 	sender.SetDeviceTags(dc.GetTags())
 	var nonBlockingErrors []error
 
 	if err := sender.SendDeviceMetadata(deviceID, device.IPAddress); err != nil {
 		log.Warnf("failed to send device metadata: %s", err)
-		nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to send device metadata: %w", err))
+		nonBlockingErrors = append(nonBlockingErrors, types.WrapErrorf(types.ErrMetadataSendFailed, "failed to send device metadata: %w", err))
 	}
-	defer sender.Commit()
 
-	configs, localStoreChanged, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store)
+	configs, localStoreChanged, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store, sender)
 	nonBlockingErrors = append(nonBlockingErrors, confErrs...)
 
 	var inventoryEntries []ncmreport.InventoryEntry
@@ -149,6 +155,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		log.Debugf("local config store unchanged since last report %v ago (< %v).", timeSinceInventory, n.inventoryMaxInterval)
 	}
 	if hasStore && (localStoreChanged || timeSinceInventory > n.inventoryMaxInterval) {
+		var err error
 		inventoryEntries, err = n.buildInventoryReport()
 		if err != nil {
 			log.Errorf("skipping inventory report due to error: %v", err)
@@ -159,7 +166,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		err := sender.SendNCMPayload(ncmreport.ToNCMPayload(device.Namespace, n.hostname, configs, inventoryEntries, n.clock.Now().Unix()))
 		if err != nil {
 			log.Warnf("Failed to send payload to backend: %v", err)
-			nonBlockingErrors = append(nonBlockingErrors, fmt.Errorf("failed to send payload to backend: %w", err))
+			nonBlockingErrors = append(nonBlockingErrors, types.WrapErrorf(types.ErrPayloadSendFailed, "failed to send payload to backend: %w", err))
 		} else if len(inventoryEntries) > 0 {
 			n.setLastInventoryTime(n.clock.Now())
 		}
@@ -171,6 +178,11 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		dc.lastReportTime = startTime
 		return nil
 	}
+	errTypes := make([]types.ErrorType, 0, len(nonBlockingErrors))
+	for _, nbErr := range nonBlockingErrors {
+		errTypes = append(errTypes, types.AsRollbackError(nbErr).Type())
+	}
+	sender.SendNCMCheckFailure(errTypes...)
 	sender.SendNCMCheckMetrics(startTime, dc.lastReportTime, false)
 	return fmt.Errorf("check completed but with errors: %v", errors.Join(nonBlockingErrors...))
 }
@@ -186,70 +198,21 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryE
 	entries := make([]ncmreport.InventoryEntry, 0, len(configMeta))
 	for _, m := range configMeta {
 		entries = append(entries, ncmreport.InventoryEntry{
-			Namespace:  m.GetNamespace(),
-			ConfigID:   m.ConfigUUID,
-			DeviceID:   m.DeviceID,
-			ReportedAt: m.CapturedAt,
+			Namespace: m.GetNamespace(),
+			ConfigID:  m.ConfigUUID,
+			DeviceID:  m.DeviceID,
 		})
 	}
 	return entries, nil
 }
 
-// RollbackConfig rolls back a device to a previous configuration that's
-// saved locally on this agent.
-func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) error {
-	if n.store == nil {
-		return errors.New("rollback is disabled")
-	}
-	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
-	log.Infof("Rollback requested: Device %q to version %q", deviceID, configVersion)
-	ctx = WithLogger(ctx, log)
-	dc, err := n.devices.GetAndLock(ctx, deviceID)
-	if err != nil {
-		return err
-	}
-	defer dc.UnlockOrLog(log)
-
-	rawConfig, metadata, err := n.store.GetConfig(configVersion)
-	if err != nil {
-		return err
-	}
-	if metadata.DeviceID != deviceID {
-		return fmt.Errorf("input mismatch: config %q is not for device %q", configVersion, deviceID)
-	}
-
-	expectedHash := ncmstore.HashConfig(rawConfig)
-	if expectedHash != hash {
-		return fmt.Errorf("hash mismatch for config %q", configVersion)
-	}
-
-	conn, err := n.connectAndEnsureProfile(ctx, dc)
-	if err != nil {
-		return fmt.Errorf("%v: %w", deviceID, err)
-	}
-	defer conn.Close()
-
-	err = conn.PushConfig(ctx, rawConfig)
-	if err != nil {
-		return fmt.Errorf("cannot push config to device %q: %w", deviceID, err)
-	}
-
-	// TODO if this fails we should still return success so that the user knows
-	// the rollback itself happened.
-	reportErr := n.reportConfig(ctx, dc, n.sender)
-	if reportErr != nil {
-		log.Errorf("Rollback succeeded, but reportConfig failed: %v", reportErr)
-	}
-	return nil
-}
-
 // connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
-func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, error) {
+func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, types.RollbackError) {
 	log := LoggerFromContext(ctx)
 	conn, err := n.connect(dc.device)
 	if err != nil {
 		log.Errorf("unable to connect to device: %s", err)
-		return nil, err
+		return nil, types.WrapErrorf(types.ErrCannotConnect, "unable to connect to %s: %w", dc.device.DeviceID(), err)
 	}
 	if dc.profile == nil {
 		log.Debug("No profile specified, testing known profiles")
@@ -257,7 +220,7 @@ func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, d
 		if !ok {
 			dc.noMatchingProfile = true
 			_ = conn.Close()
-			return nil, fmt.Errorf("no matching NCM profile for device %s", dc.device.DeviceID())
+			return nil, types.WrapErrorf(types.ErrNoProfile, "no matching NCM profile for device %s", dc.device.DeviceID())
 		}
 		dc.profile = prof
 	}

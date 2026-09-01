@@ -193,9 +193,9 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	}
 
 	if v, ok := reqs.LogsAgent.Get(); ok {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store, reqs.Config)
 	} else {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store, reqs.Config)
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 	factories.Connectors[datadogConnectorType] = datadogconnector.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
@@ -215,7 +215,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.156.0",
+	Version:     "v0.159.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }
@@ -250,6 +250,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 			return factories, nil
 		},
 		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled),
+		// grpclog.SetLoggerV2 is not mutex-protected; skip it to avoid racing with other gRPC clients in-process.
+		SkipSettingGRPCLogger: true,
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
@@ -291,6 +293,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 			return factories, nil
 		},
 		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled),
+		SkipSettingGRPCLogger:  true, // see comment in NewComponent
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {

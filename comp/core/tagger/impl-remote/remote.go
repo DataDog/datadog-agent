@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/google/uuid"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
@@ -530,13 +530,19 @@ func (t *remoteTagger) run() {
 			taggerStreamInitialized = true
 		}
 
+		// Local copy: on timeout DoWithTimeout leaks its goroutine, which
+		// must not keep touching t.stream after run() moves on.
+		stream := t.stream
+
 		var response *pb.StreamTagsResponse
 		err := grpcutil.DoWithTimeout(func() error {
 			var err error
-			response, err = t.stream.Recv()
+			response, err = stream.Recv()
 			return err
 		}, streamRecvTimeout)
 		if err != nil {
+			// Cancel now so a hung Recv() above unblocks promptly instead
+			// of leaking until the connection notices on its own.
 			t.streamCancel()
 
 			t.telemetryStore.ClientStreamErrors.Inc()

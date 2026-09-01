@@ -47,6 +47,7 @@ dd_agent_go_test(
         "events_test.go",
         "iterable_series_test.go",
         "iterable_series_v3_test.go",
+        "origin_mapping_test.go",
         "pipeline_test.go",
         "series_benchmark_test.go",
         "service_checks_test.go",
@@ -54,6 +55,10 @@ dd_agent_go_test(
         "sketch_series_test.go",
     ],
     embed = [":metrics"],
+    gotags_sets = [[
+        "zlib",
+        "zstd",
+    ]],
     deps = [
         "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder/endpoints",

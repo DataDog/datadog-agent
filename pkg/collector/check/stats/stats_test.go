@@ -92,7 +92,7 @@ func TestNewStats(t *testing.T) {
 
 func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("telemetry.checks", "*")
+	mockConfig.SetInTest("telemetry.checks", []string{"*"})
 
 	NewStats(newMockCheck())
 
@@ -113,7 +113,7 @@ func TestNewStatsStateTelemetryInitialized(t *testing.T) {
 
 func TestFirstExecutionTimeMetric(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("telemetry.checks", "*")
+	mockConfig.SetInTest("telemetry.checks", []string{"*"})
 
 	stats := NewStats(newMockCheck())
 	haagent := haagentmock.NewMockHaAgent()
@@ -180,4 +180,25 @@ func TestTranslateEventPlatformEventTypes(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, assert.ObjectsAreEqual(expected, result))
 	assert.EqualValues(t, expected, result)
+}
+
+// TestStatsCloneConcurrent reproduces the scenario that raced in production: something
+// reading a *Stats (e.g. via GetCheckStats()) while Add()/SetStateCancelling() run
+// concurrently on the same instance. Run with -race.
+func TestStatsCloneConcurrent(_ *testing.T) {
+	stats := NewStats(newMockCheck())
+	haagent := haagentmock.NewMockHaAgent()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 1000 {
+			stats.Add(time.Millisecond, nil, []error{}, SenderStats{}, haagent)
+			stats.SetStateCancelling()
+		}
+	}()
+	for range 1000 {
+		stats.Clone()
+	}
+	<-done
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package decode
 
@@ -12,7 +12,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
@@ -25,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 type logger struct {
@@ -80,12 +83,9 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 		switch seg := segment.(type) {
 		case ir.StringSegment:
 			// Literal string - append directly, but check limits.
-			segStr := string(seg)
-			remainingBytes := maxLogLineBytes - result.Len()
-			if len(segStr) > remainingBytes {
-				segStr = segStr[:remainingBytes]
-			}
-			result.WriteString(segStr)
+			result.WriteString(utilstrings.TruncateUTF8(
+				string(seg), maxLogLineBytes-result.Len(),
+			))
 		case *ir.JSONSegment:
 			savedLen := result.Len()
 			// Update limits to reflect remaining bytes.
@@ -106,7 +106,10 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			)
 		}
 	}
-	return writeTokens(enc, jsontext.String(result.String()))
+	// Sanitizing widens invalid bytes, so the limit has to be applied again.
+	return writeTokens(enc, jsontext.String(
+		utilstrings.TruncateUTF8(safeText(result.String()), maxLogLineBytes),
+	))
 }
 
 func (m *messageData) processJSONSegment(
@@ -796,6 +799,42 @@ func writeRedacted(enc *jsontext.Encoder, typeName string, reason jsontext.Token
 		reason,
 		jsontext.EndObject,
 	)
+}
+
+// safeText replaces each byte of invalid UTF-8 with the replacement character,
+// matching what [allowInvalidUTF8] makes the encoder do. Only the log message
+// needs this: its byte budget is spent before it reaches the encoder, and a
+// replacement character is wider than the byte it stands in for.
+func safeText(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	// Ranging over a string yields one replacement character per invalid byte.
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// trimPartialRune drops a trailing rune that a byte-boundary capture limit cut
+// in half. Bytes that are invalid UTF-8 in their own right are left in place, so
+// that they are reported as replacement characters rather than disappearing.
+func trimPartialRune(s string) string {
+	// Walk back over the trailing continuation bytes to the byte that starts
+	// the last rune. FullRuneInString is false only for a rune that is cut
+	// short; bytes that can never encode a rune count as complete.
+	for i := len(s) - 1; i >= 0 && len(s)-i < utf8.UTFMax; i-- {
+		if !utf8.RuneStart(s[i]) {
+			continue
+		}
+		if !utf8.FullRuneInString(s[i:]) {
+			return s[:i]
+		}
+		break
+	}
+	return s
 }
 
 func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {

@@ -9,8 +9,24 @@ import (
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
+
+// StandardJMXIntegrations is the list of standard jmx integrations.
+// This list is used by the Agent to determine if an integration is JMXFetch-based,
+// based only on the integration name.
+// DEPRECATED: this list is only used for backward compatibility with older JMXFetch integration
+// configs. All JMXFetch integrations should instead define `is_jmx: true` at the init_config or
+// instance level.
+var StandardJMXIntegrations = map[string]struct{}{
+	"activemq":    {},
+	"activemq_58": {},
+	"cassandra":   {},
+	"jmx":         {},
+	"presto":      {},
+	"solr":        {},
+	"tomcat":      {},
+	"kafka":       {},
+}
 
 // IsJMXConfig checks if a certain YAML config contains at least one instance of a JMX config
 func IsJMXConfig(config integration.Config) bool {
@@ -25,7 +41,7 @@ func IsJMXConfig(config integration.Config) bool {
 
 // IsJMXInstance checks if a certain YAML instance is a JMX config
 func IsJMXInstance(name string, instance integration.Data, initConfig integration.Data) bool {
-	if _, ok := pkgconfigsetup.StandardJMXIntegrations[name]; ok {
+	if _, ok := StandardJMXIntegrations[name]; ok {
 		return true
 	}
 

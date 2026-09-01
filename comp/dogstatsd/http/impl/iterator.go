@@ -7,40 +7,75 @@ package httpimpl
 
 import (
 	"fmt"
-	"slices"
-	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
+// payloadStats counts what a single payload contributed. Accumulated as the
+// iterator is drained and reported to telemetry once, instead of touching the
+// counters for every point.
+type payloadStats struct {
+	metrics         uint64
+	points          uint64
+	filteredMetrics uint64
+	filteredPoints  uint64
+}
+
+func (s *payloadStats) report(tlm *endpointTelemetry) {
+	tlm.metrics.Add(float64(s.metrics))
+	tlm.points.Add(float64(s.points))
+	tlm.filteredMetrics.Add(float64(s.filteredMetrics))
+	tlm.filteredPoints.Add(float64(s.filteredPoints))
+}
+
 type iteratorCommon struct {
-	reader   *reader.MetricDataReader
-	origin   origin
-	hostname string
-	err      error
+	reader     *reader.MetricDataReader
+	origin     origin
+	hostname   string
+	filterList utilstrings.Matcher
+	stats      payloadStats
+	err        error
 }
 
-func (it *iteratorCommon) processTags() tagset.CompositeTags {
-	clientTags := it.reader.Tags()
-	cardTag := slices.IndexFunc(clientTags, func(s string) bool {
-		return strings.HasPrefix(s, constants.CardinalityTagPrefix)
-	})
-	if cardTag < 0 {
-		return tagset.NewCompositeTags(it.origin.getTags(), clientTags)
+// nextUnfilteredMetric advances the reader to the next metric that is not in
+// the filter list. It returns false once the payload is exhausted or the reader
+// fails.
+func (it *iteratorCommon) nextUnfilteredMetric() bool {
+	for {
+		if it.err != nil {
+			return false
+		}
+
+		if !it.reader.HaveMoreMetrics() {
+			return false
+		}
+
+		it.err = it.reader.NextMetric()
+		if it.err != nil {
+			return false
+		}
+
+		// NextMetric drains any points left over from the previous metric, so
+		// skipping here keeps the reader's column indexes in sync.
+		if !it.filterList.Test(it.reader.Name()) {
+			return true
+		}
+
+		it.stats.filteredMetrics++
+		it.stats.filteredPoints += it.reader.NumPoints()
 	}
-	card, _ := strings.CutPrefix(clientTags[cardTag], constants.CardinalityTagPrefix)
-	clientTags = remove(slices.Clone(clientTags), cardTag)
-	return tagset.NewCompositeTags(it.origin.getTagsWith(card), clientTags)
 }
 
-func remove(s []string, i int) []string {
-	j := len(s) - 1
-	s[i], s[j] = s[j], ""
-	return s[:j]
+// processTags merges the origin tags with the tags sent by the client. The
+// reader has already dropped the legacy dd.internal.card tag from the tagset
+// dictionary, cardinality only comes from the type column.
+func (it *iteratorCommon) processTags() tagset.CompositeTags {
+	originTags := it.origin.getTagsWith(it.reader.TagCardinality())
+	return tagset.NewCompositeTags(originTags, it.reader.Tags())
 }
 
 type seriesIterator struct {
@@ -48,12 +83,13 @@ type seriesIterator struct {
 	buffer metrics.Serie
 }
 
-func newSeriesIterator(payload *pb.Payload, origin origin, hostname string) (*seriesIterator, error) {
+func newSeriesIterator(payload *pb.Payload, origin origin, hostname string, filterList utilstrings.Matcher) (*seriesIterator, error) {
 	it := &seriesIterator{
 		iteratorCommon: iteratorCommon{
-			reader:   reader.NewMetricDataReader(payload.MetricData),
-			origin:   origin,
-			hostname: hostname,
+			reader:     reader.NewMetricDataReader(payload.MetricData),
+			origin:     origin,
+			hostname:   hostname,
+			filterList: filterList,
 		},
 	}
 
@@ -62,16 +98,7 @@ func newSeriesIterator(payload *pb.Payload, origin origin, hostname string) (*se
 
 // MoveNext reads one entire metric record from the dogstatsd payload into the internal buffer.
 func (it *seriesIterator) MoveNext() bool {
-	if it.err != nil {
-		return false
-	}
-
-	if !it.reader.HaveMoreMetrics() {
-		return false
-	}
-
-	it.err = it.reader.NextMetric()
-	if it.err != nil {
+	if !it.nextUnfilteredMetric() {
 		return false
 	}
 
@@ -130,6 +157,9 @@ func (it *seriesIterator) MoveNext() bool {
 			Value: it.reader.Value(),
 		})
 	}
+
+	it.stats.metrics++
+	it.stats.points += uint64(len(b.Points))
 
 	return true
 }
