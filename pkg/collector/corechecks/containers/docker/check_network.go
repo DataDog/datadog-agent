@@ -192,17 +192,6 @@ var (
 	getRoutesFunc = system.ParseProcessRoutes
 )
 
-// routesForContainer returns the routes of the container network namespace, trying each of its
-// PIDs until one is readable.
-//
-// All the processes of a container share the same network namespace, so they all (normally) yield
-// the same routes. Picking a single PID is not enough: `entry.pids` is a snapshot that may be
-// several seconds old, and its order is not guaranteed to put the container main process first.
-// In particular, once the kernel PID counter has wrapped around, the lowest PID of a container is
-// the youngest process, hence the most likely to be gone already.
-//
-// Mirrors the PID selection of `buildNetworkStats`: only a vanished process is worth retrying with
-// another PID.
 func routesForContainer(procPath string, entry *containerNetworkEntry) ([]system.NetworkRoute, error) {
 	for _, pid := range entry.pids {
 		routes, err := getRoutesFunc(procPath, pid)
@@ -210,9 +199,6 @@ func routesForContainer(procPath string, entry *containerNetworkEntry) ([]system
 			return routes, nil
 		}
 
-		// Any other failure (permission denied, malformed route file, Windows routing table API
-		// error, …) is not tied to that particular PID and would repeat identically for all of
-		// them, so report it right away instead of hammering the whole process list.
 		if !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}

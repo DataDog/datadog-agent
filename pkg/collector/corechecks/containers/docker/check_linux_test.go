@@ -343,8 +343,6 @@ func TestFindDockerNetworksPIDSelection(t *testing.T) {
 		},
 	}
 
-	// 0x000012AC / 0x0000FFFF is 172.18.0.0/16 in the little-endian representation used by
-	// /proc/<pid>/net/route, so it matches the 172.18.0.2 address of the `ubuntu_default` network.
 	liveRoutes := []system.NetworkRoute{
 		{
 			Interface: "eth1",
@@ -386,8 +384,6 @@ func TestFindDockerNetworksPIDSelection(t *testing.T) {
 			expectedTried:   nil,
 		},
 		{
-			// A failure that is not a vanished process would repeat identically for every PID,
-			// so it must abort the loop instead of walking the whole process list.
 			name:            "permanent failure stops at the first PID",
 			pids:            []int{deniedPID, livePID},
 			expectedMapping: nil,
