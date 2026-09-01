@@ -326,7 +326,10 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.Raw
 			if err != nil {
 				log.Errorf("could not execute request: %s", err)
 				applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-				return
+				// Report the failure against this request and carry on with the rest of the
+				// set. A method the platform declines must not suppress the requests beside
+				// it, which returning here would do.
+				continue
 			}
 			applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}

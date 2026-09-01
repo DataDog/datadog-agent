@@ -282,6 +282,12 @@ func newTestInstaller(t *testing.T) *testInstaller {
 		secretsPubKey,
 		secretsPrivKey,
 	)
+	// These tests exercise task dispatch, not the per-platform supported set, so the gate is
+	// opened for every method. The gate itself is covered by method_gate_test.go.
+	daemon.gate = supportedMethods{}
+	for _, method := range allMethods {
+		daemon.gate.(supportedMethods)[method] = true
+	}
 	i := &testInstaller{
 		daemonImpl: daemon,
 		rcc:        rcc,

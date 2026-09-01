@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fleet Automation now reports a status for every request in a task set. Previously, when one
+    request failed, the requests alongside it in the same set were left without a status, so a
+    deployment could appear to stall with no error reported against it.

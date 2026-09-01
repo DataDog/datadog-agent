@@ -6,7 +6,10 @@
 package embedded
 
 import (
+	"bytes"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"io/fs"
 	"strings"
 	"testing"
@@ -106,4 +109,116 @@ func serviceNames(entries []fs.DirEntry) []string {
 		}
 	}
 	return names
+}
+
+// TestGetLaunchdJobEmbedsBothVariants ensures every launchd job GetLaunchdJob can construct at
+// runtime is actually compiled in, and that the definitions are property lists rather than
+// whatever the template happened to emit.
+func TestGetLaunchdJobEmbedsBothVariants(t *testing.T) {
+	stable, err := LaunchdJobs(LaunchdStable)
+	require.NoError(t, err)
+	assert.NotEmpty(t, stable)
+	assert.Contains(t, stable, "com.datadoghq.installer")
+	assert.Contains(t, stable, "com.datadoghq.agent")
+
+	experiment, err := LaunchdJobs(LaunchdExperiment)
+	require.NoError(t, err)
+	assert.NotEmpty(t, experiment)
+
+	// The installer daemon supervises an experiment, so it is never part of one.
+	assert.NotContains(t, experiment, "com.datadoghq.installer")
+
+	for _, variant := range []LaunchdVariant{LaunchdStable, LaunchdExperiment} {
+		labels, err := LaunchdJobs(variant)
+		require.NoError(t, err)
+		for _, label := range labels {
+			t.Run(label+string(variant), func(t *testing.T) {
+				content, err := GetLaunchdJob(label, variant)
+				require.NoError(t, err)
+				assert.NotEmpty(t, content)
+
+				assertPropertyList(t, content)
+				// RunAtLoad is what starts the job at boot with no login session, so it is
+				// required on every definition rather than merely typical of them.
+				assert.Contains(t, string(content), "<key>RunAtLoad</key>")
+				assert.Contains(t, string(content), fmt.Sprintf("<string>%s</string>", label+string(variant)))
+			})
+		}
+	}
+}
+
+// TestLaunchdExperimentJobsOmitKeepAlive is the property Fleet's failure detection rests on:
+// launchd must never relaunch a failed experiment, so an -exp exit is a terminal event rather
+// than one iteration of a respawn loop.
+func TestLaunchdExperimentJobsOmitKeepAlive(t *testing.T) {
+	labels, err := LaunchdJobs(LaunchdExperiment)
+	require.NoError(t, err)
+	require.NotEmpty(t, labels)
+
+	for _, label := range labels {
+		t.Run(label, func(t *testing.T) {
+			experiment, err := GetLaunchdJob(label, LaunchdExperiment)
+			require.NoError(t, err)
+			assert.NotContains(t, string(experiment), "KeepAlive")
+
+			// The stable definition of the same job is supervised, so the assertion above is
+			// about the variant and not about the template having lost the key entirely.
+			stable, err := GetLaunchdJob(label, LaunchdStable)
+			require.NoError(t, err)
+			assert.Contains(t, string(stable), "KeepAlive")
+		})
+	}
+}
+
+// TestLaunchdVariantsDifferOnlyAsSpecified asserts the four differences between the job sets that
+// the RFC names, so a template edit cannot quietly collapse them.
+func TestLaunchdVariantsDifferOnlyAsSpecified(t *testing.T) {
+	stable, err := GetLaunchdJob("com.datadoghq.agent", LaunchdStable)
+	require.NoError(t, err)
+	experiment, err := GetLaunchdJob("com.datadoghq.agent", LaunchdExperiment)
+	require.NoError(t, err)
+
+	// 1. Label suffix.
+	assert.Contains(t, string(stable), "<string>com.datadoghq.agent</string>")
+	assert.Contains(t, string(experiment), "<string>com.datadoghq.agent-exp</string>")
+
+	// 2. Configuration directory, named in the definition's own argv because launchd cannot
+	//    supply one at load time.
+	assert.Contains(t, string(stable), "<string>/opt/datadog-agent/etc</string>")
+	assert.Contains(t, string(experiment), "<string>/opt/datadog-agent/etc-exp</string>")
+
+	// 3. Program: the façade for stable, direct into the pool for -exp.
+	assert.Contains(t, string(stable), "<string>/opt/datadog-agent/bin/agent/agent</string>")
+	assert.Contains(t, string(experiment), "<string>/opt/datadog-packages/datadog-agent/experiment/bin/agent/agent</string>")
+
+	// 4. Restart supervision, covered in full by TestLaunchdExperimentJobsOmitKeepAlive.
+	assert.Contains(t, string(stable), "KeepAlive")
+	assert.NotContains(t, string(experiment), "KeepAlive")
+
+	// State is fixed and singular: both sets write the same pidfile in the same run directory.
+	for _, content := range [][]byte{stable, experiment} {
+		assert.Contains(t, string(content), "<string>/opt/datadog-agent/run/agent.pid</string>")
+	}
+}
+
+// assertPropertyList checks that content is a well-formed XML property list. The repository has no
+// plist decoder, and pulling one in for a structural check would be a dependency for one
+// assertion; launchd will refuse a definition that is not well-formed XML rooted at <plist>, which
+// is what this catches.
+func assertPropertyList(t *testing.T, content []byte) {
+	t.Helper()
+
+	decoder := xml.NewDecoder(bytes.NewReader(content))
+	var root string
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err, "definition is not well-formed XML")
+		if start, ok := token.(xml.StartElement); ok && root == "" {
+			root = start.Name.Local
+		}
+	}
+	assert.Equal(t, "plist", root, "definition is not rooted at <plist>")
 }
