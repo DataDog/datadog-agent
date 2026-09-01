@@ -687,6 +687,23 @@ impl CliOutput {
         self
     }
 
+    /// Parse a numeric "Label: value" line and assert it is at least `min`.
+    pub fn assert_field_at_least(&self, label: &str, min: u64) -> &Self {
+        let raw = self.field_value(label);
+        let value: u64 = raw.parse().unwrap_or_else(|_| {
+            panic!(
+                "field '{label}': expected a number, got '{raw}'\nstdout: {}",
+                self.stdout
+            )
+        });
+        assert!(
+            value >= min,
+            "field '{label}': expected >={min}, got {value}\nstdout: {}",
+            self.stdout
+        );
+        self
+    }
+
     /// Assert that a field label exists regardless of value.
     pub fn assert_has_field(&self, label: &str) -> &Self {
         let needle = format!("{label}:");

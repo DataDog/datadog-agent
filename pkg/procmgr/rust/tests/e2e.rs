@@ -824,6 +824,17 @@ fn test_cli_describe_last_exit_text() {
 }
 
 #[test]
+fn test_cli_describe_restarts_text() {
+    let env = TestEnv::new().with_process("crasher").start();
+    env.assert_restart_count_at_least("crasher", 2);
+
+    env.cli(&["describe", "crasher"])
+        .assert_success()
+        .assert_field("Name", "crasher")
+        .assert_field_at_least("Restarts", 2);
+}
+
+#[test]
 fn test_cli_describe_not_found() {
     let env = TestEnv::new().start();
 
