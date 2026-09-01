@@ -48,7 +48,8 @@ import (
 // queryTimeout caps RegisterRemoteAgent and stream open; stream Recv uses ctx.
 const queryTimeout = 30 * time.Second
 
-// defaultRefreshInterval must stay well under remote_agent.registry.idle_timeout (30s).
+// defaultRefreshInterval is the fallback when RAR reports no interval. The consumer seeds the
+// config, so it has no config component to read the schema default from.
 const defaultRefreshInterval = 10 * time.Second
 
 // noSessionPollInterval is how often streamLoop re-checks for a session being re-minted.
@@ -84,7 +85,8 @@ type consumer struct {
 	authToken string
 	clientTLS *tls.Config
 
-	// sessionID is re-minted whenever RAR drops the session, so every access takes sessionMu.
+	// sessionID identifies this consumer's registration with the Remote Agent Registry. It is
+	// re-minted whenever RAR drops the session, so every access takes sessionMu.
 	sessionID       string
 	refreshInterval time.Duration
 	sessionMu       sync.RWMutex
@@ -547,11 +549,7 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	}
 	// The first snapshot seeds a config nothing has read yet; a later one replaces a config the
 	// process is already running on, so its changes have to be broadcast.
-	if c.ready.Load() {
-		configstreambootstrap.Config().DirectBulkSetAndNotify(settings)
-	} else {
-		configstreambootstrap.Config().DirectBulkSet(settings)
-	}
+	configstreambootstrap.Config().DirectBulkSet(settings, c.ready.Load())
 	c.lastSeqID.Store(snapshot.SequenceId)
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 

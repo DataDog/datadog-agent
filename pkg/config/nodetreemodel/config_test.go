@@ -2084,7 +2084,7 @@ func TestDirectBulkSet(t *testing.T) {
 		{Key: "outranked", Value: 4, Source: model.SourceFile},
 		{Key: "undeclared", Value: 5, Source: model.SourceEnvVar},
 		{Key: "a_float", Value: float64(5), Source: model.SourceEnvVar},
-	})
+	}, false)
 
 	assert.Equal(t, 1, cfg.Get("from_env"))
 	assert.Equal(t, model.SourceEnvVar, cfg.GetSource("from_env"))
@@ -2418,7 +2418,7 @@ b:
 		res)
 }
 
-func TestDirectBulkSetAndNotify(t *testing.T) {
+func TestDirectBulkSetNotifying(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("changed", 0)
 	cfg.SetDefault("unchanged", 0)
@@ -2426,14 +2426,13 @@ func TestDirectBulkSetAndNotify(t *testing.T) {
 	cfg.BuildSchema()
 
 	setter := cfg.(interface {
-		DirectBulkSet(settings []model.DirectSetting)
-		DirectBulkSetAndNotify(settings []model.DirectSetting)
+		DirectBulkSet(settings []model.DirectSetting, shouldNotify bool)
 	})
 
 	setter.DirectBulkSet([]model.DirectSetting{
 		{Key: "changed", Value: 1, Source: model.SourceEnvVar},
 		{Key: "unchanged", Value: 2, Source: model.SourceEnvVar},
-	})
+	}, false)
 	cfg.Set("outranked", 9, model.SourceAgentRuntime)
 
 	type notification struct {
@@ -2447,11 +2446,11 @@ func TestDirectBulkSetAndNotify(t *testing.T) {
 		got = append(got, notification{key, source, previous, value})
 	})
 
-	setter.DirectBulkSetAndNotify([]model.DirectSetting{
+	setter.DirectBulkSet([]model.DirectSetting{
 		{Key: "changed", Value: 7, Source: model.SourceEnvVar},
 		{Key: "unchanged", Value: 2, Source: model.SourceEnvVar},
 		{Key: "outranked", Value: 4, Source: model.SourceFile},
-	})
+	}, true)
 
 	// Only 'changed' moved: 'unchanged' was rewritten with the same value, and 'outranked' lost the
 	// merge to a higher-priority source, so neither is a change any receiver should hear about.

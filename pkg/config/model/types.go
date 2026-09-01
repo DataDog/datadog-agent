@@ -227,11 +227,10 @@ type Writer interface {
 	UnsetForSource(key string, source Source)
 	// DirectBulkSet writes settings already resolved by another config, keeping each one in the
 	// source layer it came from so the result mirrors the sender. It exists for config streaming
-	// and nothing else should call it: unlike Set it accepts SourceEnvVar and skips notifications,
-	// which makes it unfit for applying a live change.
-	DirectBulkSet(settings []DirectSetting)
-	// DirectBulkSetAndNotify is DirectBulkSet plus notifications, for a snapshot replacing a config the process already runs on.
-	DirectBulkSetAndNotify(settings []DirectSetting)
+	// and nothing else should call it: unlike Set it accepts SourceEnvVar, which makes it unfit
+	// for applying a live change. shouldNotify notifies receivers for every setting whose resolved
+	// value changed, which a snapshot replacing a config the process already runs on requires.
+	DirectBulkSet(settings []DirectSetting, shouldNotify bool)
 }
 
 // ReaderWriter is a subset of Config that allows reading and writing the configuration

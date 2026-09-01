@@ -316,19 +316,9 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 }
 
 // DirectBulkSet implements model.Writer. Keys are assumed already lowercased, which holds for
-// anything enumerated from another config.
-func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
-	c.directBulkSet(settings, false)
-}
-
-// DirectBulkSetAndNotify applies a snapshot like DirectBulkSet, but notifies receivers for each
-// setting whose resolved value changed. A snapshot replayed on a reconnected stream can carry
-// changes the client never saw as incremental updates, so those must reach receivers.
-func (c *ntmConfig) DirectBulkSetAndNotify(settings []model.DirectSetting) {
-	c.directBulkSet(settings, true)
-}
-
-func (c *ntmConfig) directBulkSet(settings []model.DirectSetting, notify bool) {
+// anything enumerated from another config. A snapshot replayed on a reconnected stream can carry
+// changes the client never saw as incremental updates, so shouldNotify must be set for those.
+func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting, shouldNotify bool) {
 	c.Lock()
 
 	// Previous values are read before any merge, so they all reflect the pre-snapshot state.
@@ -362,7 +352,7 @@ func (c *ntmConfig) directBulkSet(settings []model.DirectSetting, notify bool) {
 			value = converted
 		}
 
-		if notify {
+		if shouldNotify {
 			changes = append(changes, change{key: key, source: setting.Source, previous: c.leafAtPathFromNode(key, c.root).Get()})
 		}
 
@@ -377,7 +367,7 @@ func (c *ntmConfig) directBulkSet(settings []model.DirectSetting, notify bool) {
 		log.Errorf("could not merge config layers: %s", err)
 	}
 
-	if !notify {
+	if !shouldNotify {
 		c.Unlock()
 		return
 	}
