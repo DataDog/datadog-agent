@@ -27,7 +27,7 @@ func TestBuildRateKeySortsTags(t *testing.T) {
 	}
 
 	require.Equal(t, buildRateKey(metricA, "gpu-1"), buildRateKey(metricB, "gpu-1"))
-	require.Equal(t, []string{"b:2", "a:1"}, metricA.tags, "input tags should not be mutated")
+	require.Equal(t, []string{"b:2", "a:1"}, metricA.Tags(), "input tags should not be mutated")
 }
 
 func TestBuildRateKeySortsAssociatedWorkloads(t *testing.T) {

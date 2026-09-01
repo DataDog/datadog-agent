@@ -56,7 +56,7 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 		require.Equal(t, nvlinkFECHistoryMetricName, sample.Name)
 		require.Equal(t, int64(100+bucket), sample.Value)
 		require.Equal(t, Medium, sample.Priority())
-		require.Contains(t, sample.tags, "nvlink_port:1")
+		require.Contains(t, sample.Tags(), "nvlink_port:1")
 		require.Equal(t, [2]float64{float64(bucket), float64(bucket)}, sample.Bounds)
 		require.True(t, sample.Monotonic)
 		require.False(t, sample.FlushFirstValue)

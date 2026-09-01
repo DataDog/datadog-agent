@@ -63,9 +63,9 @@ func TestNVLinkPLRCollectorWithPRMCache(t *testing.T) {
 	port2Count := 0
 	for _, metric := range requireMetrics(t, metrics) {
 		switch {
-		case hasTag(metric.tags, "nvlink_port:1"):
+		case hasTag(metric.Tags(), "nvlink_port:1"):
 			port1Count++
-		case hasTag(metric.tags, "nvlink_port:2"):
+		case hasTag(metric.Tags(), "nvlink_port:2"):
 			port2Count++
 		default:
 			t.Fatalf("missing nvlink_port tag on metric %+v", metric)
@@ -94,7 +94,7 @@ func TestNVLinkPLRCollectorCachePartialError(t *testing.T) {
 	require.Error(t, err)
 	require.Len(t, metrics, len(prm.PLRCounterFields))
 	for _, metric := range requireMetrics(t, metrics) {
-		require.Contains(t, metric.tags, "nvlink_port:1")
+		require.Contains(t, metric.Tags(), "nvlink_port:1")
 	}
 }
 

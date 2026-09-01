@@ -41,11 +41,16 @@ type Sample interface {
 	// Priority is the priority of the sample, indicating which sample to keep in case of duplicates. Low (default) is the lowest priority.
 	Priority() MetricPriority
 
-	// Key is the unique identifier for the sample, it is used to deduplicate samples with the same key. It should include the sample type
+	// Key identifies the sample group used for cross-collector deduplication.
+	// Samples that should be kept together, such as buckets of the same histogram,
+	// must return the same key. The key must include the sample type.
 	Key() string
 
 	// AssociatedWorkloads returns the workloads that are associated with the sample.
 	AssociatedWorkloads() []workloadmeta.EntityID
+
+	// Tags returns a copy of the sample-specific tags.
+	Tags() []string
 
 	// Clone returns a copy of the sample that can be enriched independently.
 	Clone() Sample
@@ -69,6 +74,10 @@ func (s *baseSample) Priority() MetricPriority {
 
 func (s *baseSample) AssociatedWorkloads() []workloadmeta.EntityID {
 	return slices.Clone(s.associatedWorkloads)
+}
+
+func (s *baseSample) Tags() []string {
+	return slices.Clone(s.tags)
 }
 
 func (s *baseSample) clone() baseSample {

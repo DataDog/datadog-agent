@@ -365,7 +365,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 
 			require.NotNil(t, smActiveMetric, "sm_active metric should always be emitted")
 			require.Equal(t, tt.expectedSmActive, smActiveMetric.Value, "sm_active value should match expected calculation: %s", tt.description)
-			require.Nil(t, smActiveMetric.tags, "sm_active should have no tags (device-wide metric)")
+			require.Nil(t, smActiveMetric.Tags(), "sm_active should have no tags (device-wide metric)")
 		})
 	}
 }

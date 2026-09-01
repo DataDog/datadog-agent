@@ -122,9 +122,9 @@ func TestNVLinkFieldsCollectorQueriesForcedScopeForEachPort(t *testing.T) {
 		nvlinkPortTag(2),
 		nvlinkPortTag(3),
 	}, []string{
-		speeds[0].tags[0],
-		speeds[1].tags[0],
-		speeds[2].tags[0],
+		speeds[0].Tags()[0],
+		speeds[1].Tags()[0],
+		speeds[2].Tags()[0],
 	})
 }
 

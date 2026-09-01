@@ -202,16 +202,16 @@ func TestDeviceEventsCollector(t *testing.T) {
 	xid31Tags := []string{"type:31", "origin:hardware"}
 	xid12Tags := []string{"type:12", "origin:driver"}
 	xid31Total := func(value float64) *Metric {
-		return &Metric{baseSample: baseSample{priority: Medium, tags: xid31Tags}, Name: xidErrorsTotalMetricName, Value: value, Type: metrics.GaugeType}
+		return NewMetric(xidErrorsTotalMetricName, value, metrics.GaugeType, Medium, xid31Tags, nil)
 	}
 	xid31Count := func(value float64) *Metric {
-		return &Metric{baseSample: baseSample{priority: Medium, tags: xid31Tags}, Name: xidErrorsCountMetricName, Value: value, Type: metrics.CountType}
+		return NewMetric(xidErrorsCountMetricName, value, metrics.CountType, Medium, xid31Tags, nil)
 	}
 	xid12Total := func(value float64) *Metric {
-		return &Metric{baseSample: baseSample{priority: Medium, tags: xid12Tags}, Name: xidErrorsTotalMetricName, Value: value, Type: metrics.GaugeType}
+		return NewMetric(xidErrorsTotalMetricName, value, metrics.GaugeType, Medium, xid12Tags, nil)
 	}
 	xid12Count := func(value float64) *Metric {
-		return &Metric{baseSample: baseSample{priority: Medium, tags: xid12Tags}, Name: xidErrorsCountMetricName, Value: value, Type: metrics.CountType}
+		return NewMetric(xidErrorsCountMetricName, value, metrics.CountType, Medium, xid12Tags, nil)
 	}
 	cache.events = []safenvml.DeviceEventData{
 		{

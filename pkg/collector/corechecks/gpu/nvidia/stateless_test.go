@@ -55,7 +55,7 @@ func TestSramEccErrorStatusSample(t *testing.T) {
 	assertMetric := func(name string, value float64, tags ...string) {
 		t.Helper()
 		for _, metric := range metricsOut {
-			if metric.Name == name && slices.Equal(metric.tags, tags) {
+			if metric.Name == name && slices.Equal(metric.Tags(), tags) {
 				require.Equal(t, value, metric.Value)
 				require.Equal(t, metrics.GaugeType, metric.Type)
 				return
@@ -1121,8 +1121,9 @@ func TestClockThrottleReasonMetrics(t *testing.T) {
 						expectedTag = throttleReasonTag + ":" + test.expectedReason
 					}
 
-					require.Len(t, metric.tags, 1)
-					require.Equal(t, expectedTag, metric.tags[0], "expected metric %s to have tag %s", metric.Name, expectedTag)
+					metricTags := metric.Tags()
+					require.Len(t, metricTags, 1)
+					require.Equal(t, expectedTag, metricTags[0], "expected metric %s to have tag %s", metric.Name, expectedTag)
 				} else {
 					require.Failf(t, "unexpected metric", "received unknown metric %s", metric.Name)
 				}
@@ -1160,7 +1161,7 @@ func TestNeedsRecoverySample(t *testing.T) {
 			require.Equal(t, "device.needs_recovery", metric.Name)
 			require.Equal(t, metrics.GaugeType, metric.Type)
 			require.Equal(t, tt.expectedValue, metric.Value)
-			require.Equal(t, []string{tt.expectedTag}, metric.tags)
+			require.Equal(t, []string{tt.expectedTag}, metric.Tags())
 
 		})
 	}

@@ -22,6 +22,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestCollectorsStillInitIfOneFails(t *testing.T) {
@@ -513,10 +514,7 @@ func seedPRMCacheForDevices(t *testing.T, cache *PRMCache, devices []ddnvml.Devi
 
 func TestRemoveDuplicateSamples(t *testing.T) {
 	metric := func(name string, priority MetricPriority, tags ...string) *Metric {
-		return &Metric{
-			baseSample: baseSample{priority: priority, tags: tags},
-			Name:       name,
-		}
+		return NewMetric(name, 0, ddmetrics.GaugeType, priority, tags, nil)
 	}
 
 	t.Run("ComprehensiveScenario", func(t *testing.T) {
@@ -551,7 +549,7 @@ func TestRemoveDuplicateSamples(t *testing.T) {
 			switch metric.Name {
 			case "memory.usage":
 				require.Equal(t, Medium, metric.Priority())
-				require.NotContains(t, metric.tags, "pid:1003")
+				require.NotContains(t, metric.Tags(), "pid:1003")
 				memoryUsageCount++
 			case "core.temp":
 				require.Equal(t, Medium, metric.Priority())
@@ -664,7 +662,7 @@ func TestRemoveDuplicateSamples(t *testing.T) {
 		}
 		result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
 		require.Len(t, result, 1)
-		require.ElementsMatch(t, result[0].tags, tags)
+		require.ElementsMatch(t, result[0].Tags(), tags)
 	})
 
 	t.Run("DifferentPrioritySameCollector", func(t *testing.T) {
@@ -676,7 +674,7 @@ func TestRemoveDuplicateSamples(t *testing.T) {
 		}
 		result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
 		require.Len(t, result, 1)
-		require.ElementsMatch(t, result[0].tags, []string{"pid:1001"})
+		require.ElementsMatch(t, result[0].Tags(), []string{"pid:1001"})
 	})
 }
 
@@ -769,11 +767,9 @@ func TestConfiguredMetricPriority(t *testing.T) {
 	}
 
 	for _, collector := range collectors {
-		metrics, err := collector.Collect()
+		samples, err := collector.Collect()
 		require.NoError(t, err)
-		for _, sample := range metrics {
-			metric, ok := sample.(*Metric)
-			require.True(t, ok)
+		for _, metric := range requireMetrics(t, samples) {
 			metricMap, ok := metricsByCollector[metric.Name]
 			if ok {
 				require.NotContains(t, metricMap, collector.Name(), "each collector should only emit one %s metric with the same name", metric.Name)
