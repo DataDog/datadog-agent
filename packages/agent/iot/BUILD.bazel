@@ -132,7 +132,7 @@ pkg_install(
     name = "install_example_config",
     srcs = [
         ":example_config",
-        "//cmd/agent/dist/conf.d:all_files",
+        "//cmd/agent/dist/conf.d:iot_files",
     ],
 )
 
