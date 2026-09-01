@@ -41,18 +41,15 @@ def build(
     flavor = AgentFlavor[flavor]
 
     if enable_bazel:
+        bazel_args = [f"--//packages/agent:flavor={flavor.name}"]
         if race:
             raise NotImplementedError("--enable-bazel does not support --race.")
         if build_include is not None or build_exclude is not None:
             raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
-        if flavor != AgentFlavor.base:
-            raise NotImplementedError(f"--enable-bazel does not support flavor={flavor.name}.")
         if install_path is not None:
             raise NotImplementedError("--enable-bazel does not support --install-path.")
-        if sys.platform != 'linux':
-            raise NotImplementedError("--enable-bazel is only supported on Linux.")
 
-        build_binary_with_bazel(BAZEL_TARGET, bin_path=BIN_PATH)
+        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
         return
 
     ldflags, gcflags, env = get_build_flags(
