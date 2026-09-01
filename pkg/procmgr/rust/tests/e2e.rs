@@ -11,7 +11,7 @@ use helpers::{
     pid_is_alive, wait_for_pid_gone, write_config,
 };
 use std::collections::BTreeMap;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 #[test]
 fn daemon_starts_ready() {
@@ -520,21 +520,15 @@ fn restart_on_failure_respawns_failed_exit() {
 #[test]
 fn burst_limit_stops_with_failed_state() {
     let procmgr = TestEnv::new().with_process("burst_limited").start();
-    let deadline = Instant::now() + Duration::from_secs(30);
-    loop {
-        let last_err = match procmgr.process("burst_limited") {
-            Ok(snap) if snap.state == "Failed" && snap.restart_count == 4 => return,
-            Ok(snap) => format!(
-                "burst_limited state={} restart_count={} (want Failed + 4)",
-                snap.state, snap.restart_count
-            ),
-            Err(e) => e,
-        };
-        if Instant::now() >= deadline {
-            panic!("expected burst_limited to reach Failed with restart_count 4: {last_err}");
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    procmgr
+        .wait_for_restart_count_terminal(
+            "burst_limited",
+            4,
+            ProcessExpect::Failed,
+            Duration::from_secs(3),
+            Duration::from_secs(30),
+        )
+        .unwrap_or_else(|e| panic!("expected burst_limited to hit restart burst limit: {e}"));
 }
 
 #[test]

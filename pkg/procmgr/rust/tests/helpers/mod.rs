@@ -1399,6 +1399,49 @@ impl TestEnv {
             .unwrap_or_else(|e| panic!("expected restart_count >={min} for '{name}': {e}"));
     }
 
+    /// Wait until `restart_count` equals `count`, state matches `expected`, and both hold for
+    /// `stable_for`. Fails immediately if `restart_count` exceeds `count` (e.g. burst limit
+    /// did not trip). Use `stable_for` longer than the fixture `restart_sec` when count is
+    /// incremented at schedule time before the pending restart completes.
+    pub fn wait_for_restart_count_terminal(
+        &self,
+        name: &str,
+        count: u64,
+        expected: ProcessExpect,
+        stable_for: Duration,
+        timeout: Duration,
+    ) -> Result<ProcessSnapshot, String> {
+        let expected_state = expected.as_str();
+        let deadline = Instant::now() + timeout;
+        let mut stable_since: Option<Instant> = None;
+        loop {
+            let snap = self.process(name)?;
+            if snap.restart_count > count {
+                return Err(format!(
+                    "process '{name}' restart_count={} exceeds terminal cap {count}: {snap:?}",
+                    snap.restart_count
+                ));
+            }
+            let matches = snap.state == expected_state
+                && snap.restart_count == count
+                && process_matches_expect(&snap, expected);
+            if matches {
+                let since = stable_since.get_or_insert_with(Instant::now);
+                if since.elapsed() >= stable_for {
+                    return Ok(snap);
+                }
+            } else {
+                stable_since = None;
+            }
+            if Instant::now() >= deadline {
+                return Err(self.format_wait_failure(format!(
+                    "process '{name}' did not stay in {expected_state} with restart_count={count} for {stable_for:?}, last: {snap:?}"
+                )));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     pub fn assert_daemon_log_line_contains(&self, patterns: &[&str]) {
         assert!(
             self.daemon()
