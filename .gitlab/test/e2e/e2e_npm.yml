@@ -37,7 +37,6 @@ new-e2e-npm-eks-init:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_tools_deps
     - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_npm_or_e2e_changes]

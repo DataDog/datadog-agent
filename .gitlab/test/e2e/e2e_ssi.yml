@@ -36,7 +36,6 @@
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_tools_deps
     - !reference [.needs_fakeintake_publish]
   rules:
     - !reference [.on_e2e_main_release_or_rc]

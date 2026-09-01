@@ -33,7 +33,6 @@ new-e2e-base-coverage:
     - go_e2e_deps
     - job: go_e2e_test_binaries
       artifacts: false
-    - go_tools_deps
     - agent_deb-x64-a7
   rules:
     - !reference [.except_mergequeue]
@@ -47,7 +46,6 @@ new-e2e-base:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
-    - go_tools_deps
     - job: go_e2e_test_binaries
       artifacts: false
     - agent_deb-x64-a7
@@ -220,6 +218,7 @@ generate-fips-e2e-pipeline:
     - job: qa_agent
       optional: true
     - qa_agent_full
+    - qa_agent_full_fips
     - job: qa_agent_fips
       optional: true
     - job: qa_agent_fips_jmx

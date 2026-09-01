@@ -51,7 +51,7 @@ class LintResult(ExecResult):
             failure_string = self.failure_string(flavor)
             failure_string += "Linter failures:\n"
             for lint_output in self.lint_outputs:
-                if lint_output.exited != 0:
+                if lint_output.returncode != 0:
                     failure_string = f"{failure_string}{lint_output.stdout}\n" if lint_output.stdout else failure_string
                     failure_string = f"{failure_string}{lint_output.stderr}\n" if lint_output.stderr else failure_string
 
@@ -113,8 +113,7 @@ def process_input_args(
     lint=False,
 ):
     """
-    Takes the input module, targets and flavor arguments from dda inv test and dda inv coverage.upload-to-codecov,
-    sets default values for them & casts them to the expected types.
+    Normalize module, target, and flavor arguments for Go test and lint invoke tasks.
     """
     if only_modified_packages:
         from tasks import get_modified_packages
