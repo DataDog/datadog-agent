@@ -19,7 +19,7 @@ rust-version = "1.94"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
-aws-lc-rs = { version = ">=1, <1.18", default-features = false, features = ["non-fips"] }
+aws-lc-rs = { version = ">=1, <1.19", default-features = false, features = ["non-fips"] }
 base64 = "0.22"
 cap-std = "4.0"
 # Keep only the `dd-sds` feature and disable default features so we pull in just
