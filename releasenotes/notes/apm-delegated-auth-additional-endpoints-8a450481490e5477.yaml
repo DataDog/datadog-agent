@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    APM : Add delegated authentication support for additional metrics, traces,
+    and HTTP logs endpoints configured with ``DELA(...)`` directives.

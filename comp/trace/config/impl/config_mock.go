@@ -10,6 +10,7 @@ package configimpl
 import (
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // NewMock exported mock builder to allow modifying mocks that might be
@@ -28,6 +29,11 @@ func NewMock(reqs Requires) (traceconfig.Component, error) {
 	}
 
 	c.SetMaxMemCPU(env.IsContainerized())
+	c.coreConfig.OnUpdate(func(setting string, _ model.Source, _, _ any, _ uint64) {
+		if setting == apmAdditionalEndpoints {
+			c.reloadAdditionalEndpoints()
+		}
+	})
 
 	return &c, nil
 }

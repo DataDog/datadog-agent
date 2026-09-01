@@ -18,6 +18,7 @@ import (
 	"html"
 	"net/http"
 	"strings"
+	"sync"
 
 	"go.yaml.in/yaml/v2"
 
@@ -39,6 +40,7 @@ import (
 const (
 	apiKeyConfigKey          = "api_key"
 	apmConfigAPIKeyConfigKey = "apm_config.api_key" // deprecated setting
+	apmAdditionalEndpoints   = "apm_config.additional_endpoints"
 )
 
 // Requires defines the trace config component deps.
@@ -65,7 +67,9 @@ type cfg struct {
 	coreConfig coreconfig.Component
 
 	// UpdateAPIKeyFn is the callback func for API Key updates
-	updateAPIKeyFn func(oldKey, newKey string)
+	updateAPIKeyFn              func(oldKey, newKey string)
+	updateAdditionalEndpointsFn func([]*pkgtraceconfig.Endpoint)
+	additionalEndpointsMu       sync.Mutex
 
 	// ipc is used to retrieve the auth_token to issue authenticated requests
 	ipc ipc.Component
@@ -92,6 +96,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
 		log.Debugf("OnUpdate: %s", setting)
+		if setting == apmAdditionalEndpoints {
+			c.reloadAdditionalEndpoints()
+			return
+		}
 		if setting != apiKeyConfigKey {
 			return
 		}
@@ -115,6 +123,36 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{Comp: &c}, nil
 }
 
+func (c *cfg) reloadAdditionalEndpoints() {
+	c.additionalEndpointsMu.Lock()
+	defer c.additionalEndpointsMu.Unlock()
+
+	baseCount := 1
+	for _, endpoint := range c.Endpoints {
+		if endpoint.IsMRF {
+			baseCount++
+		}
+	}
+	if len(c.Endpoints) < baseCount {
+		log.Warnf("Cannot reload '%s': trace-agent endpoint list is incomplete", apmAdditionalEndpoints)
+		return
+	}
+	base := append([]*pkgtraceconfig.Endpoint(nil), c.Endpoints[:baseCount]...)
+	c.Endpoints = appendEndpoints(base, apmAdditionalEndpoints)
+	if c.coreConfig.IsConfigured("proxy.no_proxy") {
+		noProxy := make(map[string]bool)
+		for _, host := range c.coreConfig.GetStringSlice("proxy.no_proxy") {
+			noProxy[host] = true
+		}
+		for _, endpoint := range c.Endpoints {
+			endpoint.NoProxy = noProxy[endpoint.Host]
+		}
+	}
+	if c.updateAdditionalEndpointsFn != nil {
+		c.updateAdditionalEndpointsFn(c.Endpoints)
+	}
+}
+
 func (c *cfg) updateAPIKey(oldKey, newKey string) {
 	// Update API Key on config, and propagate the signal to registered listeners
 	c.UpdateAPIKey(newKey)
@@ -129,6 +167,17 @@ func (c *cfg) OnUpdateAPIKey(callback func(oldKey, newKey string)) {
 		log.Error("OnUpdateAPIKey has already been configured. Only 1 callback can be used at a time.")
 	}
 	c.updateAPIKeyFn = callback
+}
+
+// OnUpdateAdditionalEndpoints registers the live endpoint update callback.
+func (c *cfg) OnUpdateAdditionalEndpoints(callback func([]*pkgtraceconfig.Endpoint)) {
+	c.additionalEndpointsMu.Lock()
+	defer c.additionalEndpointsMu.Unlock()
+	if c.updateAdditionalEndpointsFn != nil {
+		log.Error("OnUpdateAdditionalEndpoints has already been configured. Only 1 callback can be used at a time.")
+	}
+	c.updateAdditionalEndpointsFn = callback
+	callback(c.Endpoints)
 }
 
 func (c *cfg) Object() *pkgtraceconfig.AgentConfig {

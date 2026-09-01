@@ -150,6 +150,9 @@ func DedupAPIKeys(endpoints []APIKeys) []string {
 	seen := make(map[string]bool)
 	for _, endpoint := range endpoints {
 		for _, apiKey := range endpoint.Keys {
+			if IsDelaDirective(apiKey) {
+				continue
+			}
 			if _, ok := seen[apiKey]; !ok {
 				seen[apiKey] = true
 				dedupedAPIKeys = append(dedupedAPIKeys, apiKey)

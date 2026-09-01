@@ -57,7 +57,8 @@ type Endpoint struct {
 	useSSL     bool
 
 	// the apiKey to use for this endpoint
-	apiKey *atomic.String
+	apiKey        *atomic.String
+	delegatedAuth bool
 	// The path of the config used to get the API key. This path is used to listen for configuration updates from
 	// the config.
 	configSettingPath string
@@ -114,9 +115,15 @@ type EndpointCompressionOptions struct {
 
 // NewEndpoint returns a new Endpoint with the minimal field initialized.
 func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, pathPrefix string, useSSL bool) Endpoint {
-	apiKey = pkgconfigutils.SanitizeAPIKey(apiKey)
+	delegatedAuth := pkgconfigutils.IsDelaDirective(apiKey)
+	if delegatedAuth {
+		apiKey = ""
+	} else {
+		apiKey = pkgconfigutils.SanitizeAPIKey(apiKey)
+	}
 	return Endpoint{
 		apiKey:            atomic.NewString(apiKey),
+		delegatedAuth:     delegatedAuth,
 		configSettingPath: apiKeyConfigPath,
 		Host:              host,
 		Port:              port,
@@ -124,6 +131,11 @@ func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, 
 		useSSL:            useSSL,
 		isReliable:        true, // by default endpoints are reliable
 	}
+}
+
+// IsWaitingForDelegatedAuth reports whether this endpoint is waiting for config write-back.
+func (e *Endpoint) IsWaitingForDelegatedAuth() bool {
+	return e.delegatedAuth && e.GetAPIKey() == ""
 }
 
 // newTCPEndpoint returns a new TCP Endpoint based on LogsConfigKeys. The endpoint is by default reliable and will use

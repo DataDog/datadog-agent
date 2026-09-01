@@ -73,20 +73,14 @@ func TestDirectiveRegistersUnderTheKeyTheConsumerLooksUp(t *testing.T) {
 		"the consumer's lookup must find the provider discovery registered")
 }
 
-// Write-back is what put the credential into the config tree in the first place. Keeping it off
-// for these instances is the whole point of delivering through a Provider, so assert it directly
-// rather than trusting the default.
-func TestDirectiveDoesNotWriteTheCredentialBackIntoConfig(t *testing.T) {
+func TestDirectiveWritesCredentialBackToExactMapEntry(t *testing.T) {
 	rec := discoverEndpoints(t, map[string][]string{
-		"https://app.datadoghq.com": {"DELA(org-uuid-1, aws)"},
+		"https://app.datadoghq.com": {"plain-key", "DELA(org-uuid-1, aws)"},
 	})
 
 	require.Len(t, rec.recorded, 1)
-	assert.True(t, rec.recorded[0].SkipConfigWriteback)
-	assert.Empty(t, rec.recorded[0].AdditionalEndpointDomain,
-		"the map-shape write-back path must not also be armed")
-	assert.Empty(t, rec.recorded[0].AdditionalEndpointsListConfigKey,
-		"the list-shape write-back path must not also be armed")
+	assert.False(t, rec.recorded[0].SkipConfigWriteback)
+	assert.Equal(t, []string{"additional_endpoints", "https://app.datadoghq.com", "1"}, rec.recorded[0].WritebackPath)
 }
 
 // A directive registers an instance; a plain API key alongside it does not.
@@ -259,7 +253,8 @@ func TestListShapeDirectiveRegistersUnderTheKeyLogsLooksUp(t *testing.T) {
 	assert.Equal(t, "logs_config.additional_endpoints", configKey)
 	assert.Equal(t, "org2.datadoghq.com", destination)
 	assert.Equal(t, "DELA(org-uuid-2, aws)", rec.recorded[0].Directive)
-	assert.True(t, rec.recorded[0].SkipConfigWriteback)
+	assert.False(t, rec.recorded[0].SkipConfigWriteback)
+	assert.Equal(t, []string{"logs_config", "additional_endpoints", "0", "api_key"}, rec.recorded[0].WritebackPath)
 
 	assert.NotNil(t, rec.ProviderForDirective("logs_config.additional_endpoints", "org2.datadoghq.com", "DELA(org-uuid-2, aws)"))
 }

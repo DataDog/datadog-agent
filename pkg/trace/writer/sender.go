@@ -54,6 +54,8 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			recorder:       r,
 			userAgent:      fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
 			isMRF:          endpoint.IsMRF,
+			configuredHost: endpoint.Host,
+			delegatedAuth:  endpoint.DelegatedAuth,
 			MRFFailoverAPM: cfg.MRFFailoverAPM,
 		}
 		apiKeyManager := &apiKeyManager{
@@ -148,7 +150,9 @@ type senderConfig struct {
 	// client specifies the HTTP client to use when sending requests.
 	client *config.ResetClient
 	// url specifies the URL to send requests too.
-	url *url.URL
+	url            *url.URL
+	configuredHost string
+	delegatedAuth  bool
 	// maxConns specifies the maximum number of allowed concurrent ougoing
 	// connections.
 	maxConns int
@@ -458,7 +462,11 @@ const (
 )
 
 func (s *sender) do(req *http.Request) error {
-	req.Header.Set(headerAPIKey, s.apiKeyManager.Get())
+	apiKey := s.apiKeyManager.Get()
+	if apiKey == "" && s.cfg.delegatedAuth {
+		return &retriableError{errors.New("API key is not ready")}
+	}
+	req.Header.Set(headerAPIKey, apiKey)
 	req.Header.Set(headerUserAgent, s.cfg.userAgent)
 	resp, err := s.cfg.client.Do(req)
 	if err != nil {
@@ -498,6 +506,25 @@ func (s *sender) do(req *http.Request) error {
 		return errors.New(resp.Status)
 	}
 	return nil
+}
+
+func updateSenderEndpoints(senders []*sender, endpoints []*config.Endpoint) {
+	if len(senders) != len(endpoints) {
+		log.Warnf("Cannot update trace endpoints: endpoint count changed from %d to %d", len(senders), len(endpoints))
+		return
+	}
+	keysByHost := make(map[string][]string, len(endpoints))
+	for _, endpoint := range endpoints {
+		keysByHost[endpoint.Host] = append(keysByHost[endpoint.Host], endpoint.APIKey)
+	}
+	for _, sender := range senders {
+		keys := keysByHost[sender.cfg.configuredHost]
+		if len(keys) == 0 {
+			continue
+		}
+		sender.apiKeyManager.Update(keys[0])
+		keysByHost[sender.cfg.configuredHost] = keys[1:]
+	}
 }
 
 // isRetriable reports whether an HTTP status code is inherently retriable.

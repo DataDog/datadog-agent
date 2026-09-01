@@ -134,6 +134,11 @@ func (w *TraceWriterV1) UpdateAPIKey(oldKey, newKey string) {
 	}
 }
 
+// UpdateEndpoints refreshes sender keys after additional_endpoints changes.
+func (w *TraceWriterV1) UpdateEndpoints(endpoints []*config.Endpoint) {
+	updateSenderEndpoints(w.senders, endpoints)
+}
+
 func (w *TraceWriterV1) reporter() {
 	tck := time.NewTicker(w.tick)
 	info.UpdateTraceWriterInfo(w.statsLastMinute)

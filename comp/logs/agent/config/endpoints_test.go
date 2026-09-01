@@ -1027,3 +1027,8 @@ func (suite *EndpointsTestSuite) TestMRFHTTPEndpointConnectionResetInterval() {
 func TestEndpointsTestSuite(t *testing.T) {
 	suite.Run(t, new(EndpointsTestSuite))
 }
+
+func TestNewEndpointHoldsDelegatedAuthDirective(t *testing.T) {
+	endpoint := NewEndpoint("DELA(org, aws)", "logs_config.additional_endpoints", "example.com", 443, "", true)
+	assert.Empty(t, endpoint.GetAPIKey())
+}

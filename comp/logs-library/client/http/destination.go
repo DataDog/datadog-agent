@@ -53,12 +53,13 @@ const (
 
 // HTTP errors.
 var (
-	errClient  = errors.New("client error")
-	errServer  = errors.New("server error")
-	tlmSend    = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
-	tlmInUse   = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
-	tlmIdle    = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
-	tlmDropped = telemetryimpl.GetCompatComponent().NewCounterWithOpts("logs_client_http_destination", "payloads_dropped", []string{}, "Number of payloads dropped because of unrecoverable errors", telemetry.Options{DefaultMetric: true})
+	errClient         = errors.New("client error")
+	errServer         = errors.New("server error")
+	errAPIKeyNotReady = errors.New("api key is not ready")
+	tlmSend           = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "send", []string{"endpoint_host", "error"}, "Payloads sent")
+	tlmInUse          = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "in_use_ms", []string{"sender"}, "Time spent sending payloads in ms")
+	tlmIdle           = telemetryimpl.GetCompatComponent().NewCounter("logs_client_http_destination", "idle_ms", []string{"sender"}, "Time spent idle while not sending payloads in ms")
+	tlmDropped        = telemetryimpl.GetCompatComponent().NewCounterWithOpts("logs_client_http_destination", "payloads_dropped", []string{}, "Number of payloads dropped because of unrecoverable errors", telemetry.Options{DefaultMetric: true})
 
 	expVarIdleMsMapKey  = "idleMs"
 	expVarInUseMsMapKey = "inUseMs"
@@ -329,8 +330,8 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 
 	ctx := d.destinationsContext.Context()
 
-	if err != nil {
-		return err
+	if d.endpoint.IsWaitingForDelegatedAuth() {
+		return client.NewRetryableError(errAPIKeyNotReady)
 	}
 	metrics.BytesSent.Add(int64(payload.UnencodedSize))
 	var sourceTag string

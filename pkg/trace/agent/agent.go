@@ -80,6 +80,7 @@ type Writer interface {
 
 	// UpdateAPIKey signals the Writer to update the API Keys stored in its senders config.
 	UpdateAPIKey(oldKey, newKey string)
+	UpdateEndpoints([]*config.Endpoint)
 }
 
 // TraceWriter provides a way to write trace chunks
@@ -316,6 +317,13 @@ func (a *Agent) UpdateAPIKey(oldKey, newKey string) {
 	a.TraceWriter.UpdateAPIKey(oldKey, newKey)
 	a.TraceWriterV1.UpdateAPIKey(oldKey, newKey)
 	a.StatsWriter.UpdateAPIKey(oldKey, newKey)
+}
+
+// UpdateAdditionalEndpoints propagates endpoint key changes to live senders.
+func (a *Agent) UpdateAdditionalEndpoints(endpoints []*config.Endpoint) {
+	a.TraceWriter.UpdateEndpoints(endpoints)
+	a.TraceWriterV1.UpdateEndpoints(endpoints)
+	a.StatsWriter.UpdateEndpoints(endpoints)
 }
 
 func (a *Agent) work() {

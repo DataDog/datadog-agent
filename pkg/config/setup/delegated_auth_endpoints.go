@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v2"
@@ -155,16 +156,7 @@ func providerConfigForDirective(directive delaDirective, defaultProviderConfig c
 	}
 }
 
-// mapShapeDelegatedAuthEndpointKeys lists the map-shape additional_endpoints settings (domain ->
-// []api_key) whose consumers take their credential from a delegated-auth Provider.
-//
-// Adding a setting here is not enough on its own. The consumer that reads it must also (a) drop
-// DELA(...) values from the API keys it derives, and (b) ask Component.ProvidersFor for the
-// credential. A setting listed here whose consumer does neither will ship the literal "DELA(...)"
-// text to the intake as if it were an API key.
-//
-// Settings reached through pkg/config/utils.MakeEndpoints satisfy (a) already, because
-// PartitionRealAndPendingKeys strips directives while keeping the domain alive.
+// mapShapeDelegatedAuthEndpointKeys lists map-shaped settings that support DELA write-back.
 var mapShapeDelegatedAuthEndpointKeys = []string{
 	// Read by pkg/config/utils.GetMultipleEndpoints and served by comp/forwarder/defaultforwarder,
 	// which covers metrics, events, service checks and everything else on the main forwarder.
@@ -174,13 +166,7 @@ var mapShapeDelegatedAuthEndpointKeys = []string{
 	"apm_config.additional_endpoints",
 }
 
-// listShapeDelegatedAuthEndpointKeys lists the list-shape additional_endpoints settings (a list of
-// entries each with api_key and host) whose consumers take their credential from a Provider.
-//
-// The same caveat as the map-shape list applies: a setting only belongs here once its consumer
-// both stops treating the directive as an API key and asks for the provider. Settings reached
-// through comp/logs/agent/config satisfy the first half already, and the second once the subsystem
-// passes a lookup via LogsConfigKeys.WithCredentialProviders.
+// listShapeDelegatedAuthEndpointKeys lists list-shaped settings that support DELA write-back.
 var listShapeDelegatedAuthEndpointKeys = []string{
 	// Read by comp/logs/agent/config and served by the logs HTTP destination.
 	"logs_config.additional_endpoints",
@@ -200,7 +186,7 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 				continue
 			}
 
-			directive, ok := common.CaseInsensitiveStringField(entry, "api_key")
+			apiKeyField, directive, ok := common.CaseInsensitiveStringFieldWithKey(entry, "api_key")
 			if !ok || !strings.HasPrefix(strings.TrimSpace(directive), pkgconfigmodel.DelaDirectivePrefix) {
 				continue
 			}
@@ -217,7 +203,7 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 			addDelegatedAuthEndpointInstance(ctx, config, delegatedAuthComp, defaultProviderConfig, secretResolver, directive,
 				fmt.Sprintf("additional endpoint entry %d (%q) at %q", index, host, configKey),
 				fmt.Sprintf("%s[%d]", configKey, index),
-				configKey, host)
+				configKey, host, append(strings.Split(configKey, "."), strconv.Itoa(index), apiKeyField))
 		}
 	}
 }
@@ -243,7 +229,7 @@ func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgco
 					// The index disambiguates two directives under the same domain that share an
 					// org UUID but differ in their params, e.g. two regions of the same org.
 					fmt.Sprintf("%s[%s][%d]", configKey, domain, index),
-					configKey, domain)
+					configKey, domain, append(strings.Split(configKey, "."), domain, strconv.Itoa(index)))
 			}
 		}
 	}
@@ -252,7 +238,7 @@ func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgco
 // addDelegatedAuthEndpointInstance parses directiveText and registers the instance it describes,
 // associating the resulting Provider with (configKey, destination) so the consumer can find it.
 // describe names the endpoint in log messages; bookkeepingKey is a per-directive unique string.
-func addDelegatedAuthEndpointInstance(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig, secretResolver secrets.Component, directiveText, describe, bookkeepingKey, configKey, destination string) {
+func addDelegatedAuthEndpointInstance(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig, secretResolver secrets.Component, directiveText, describe, bookkeepingKey, configKey, destination string, writebackPath []string) {
 	directive, ok := parseDelaDirective(directiveText)
 	if !ok {
 		log.Warnf("Could not parse the delegated auth directive %q for %s; it will be ignored and no data will be sent to that endpoint", redactDelaDirectiveForLogging(directiveText), describe)
@@ -265,21 +251,19 @@ func addDelegatedAuthEndpointInstance(ctx context.Context, config pkgconfigmodel
 	}
 	log.Infof("Configuring delegated authentication for %s", describe)
 
-	// APIKeyConfigKey must be unique per directive: the component keys its instances map by this
-	// string, so a collision would silently drop all but one instance. With write-back skipped it
-	// names nothing in the config - it is bookkeeping only.
+	// APIKeyConfigKey must be unique per directive because it keys the component's instances map.
 	_, err = delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
-		Config:              config,
-		OrgUUID:             directive.orgUUID,
-		RefreshInterval:     config.GetInt("delegated_auth.refresh_interval_mins"),
-		APIKeyConfigKey:     bookkeepingKey + "[" + directive.orgUUID + "]",
-		ProviderConfig:      instanceProviderConfig,
-		ConfigKey:           configKey,
-		Directive:           directiveText,
-		TargetSite:          destination,
-		FallbackAPIKey:      resolveFallbackAPIKey(secretResolver, directive.params["fallback"], configKey),
-		SkipConfigWriteback: true,
-		Destination:         destination,
+		Config:          config,
+		OrgUUID:         directive.orgUUID,
+		RefreshInterval: config.GetInt("delegated_auth.refresh_interval_mins"),
+		APIKeyConfigKey: bookkeepingKey + "[" + directive.orgUUID + "]",
+		ProviderConfig:  instanceProviderConfig,
+		ConfigKey:       configKey,
+		Directive:       directiveText,
+		TargetSite:      destination,
+		FallbackAPIKey:  resolveFallbackAPIKey(secretResolver, directive.params["fallback"], configKey),
+		WritebackPath:   writebackPath,
+		Destination:     destination,
 	})
 	if err != nil {
 		log.Errorf("Failed to configure delegated auth for %s: %v", describe, err)

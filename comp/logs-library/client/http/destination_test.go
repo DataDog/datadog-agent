@@ -41,6 +41,18 @@ func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
 	assert.Equal(t, "https://foo/v1/input", url)
 }
 
+func TestUnresolvedDelegatedAuthKeyDoesNotSend(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewTestServer(200, cfg)
+	defer server.Stop()
+	server.Destination.endpoint = config.NewEndpoint("DELA(org, aws)", "logs_config.additional_endpoints", "example.com", 443, "", true)
+
+	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
+	assert.ErrorIs(t, err, errAPIKeyNotReady)
+	var retryable *client.RetryableError
+	assert.ErrorAs(t, err, &retryable)
+}
+
 func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
 	url := buildURL(config.NewEndpoint("bar", "", "foo", 0, config.EmptyPathPrefix, false))
 	assert.Equal(t, "http://foo/v1/input", url)

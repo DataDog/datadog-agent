@@ -100,6 +100,8 @@ func (m *mockTraceWriter) UpdateAPIKey(_, newKey string) {
 	m.apiKey = newKey
 }
 
+func (m *mockTraceWriter) UpdateEndpoints(_ []*config.Endpoint) {}
+
 type mockConcentrator struct {
 	stats   []stats.Input
 	statsV1 []stats.InputV1
@@ -3073,6 +3075,8 @@ func (n *noopTraceWriter) WriteChunksV1(_ *writer.SampledChunksV1) {
 func (n *noopTraceWriter) FlushSync() error { return nil }
 
 func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
+
+func (n *noopTraceWriter) UpdateEndpoints(_ []*config.Endpoint) {}
 
 func benchThroughput(file string) func(*testing.B) {
 	return func(b *testing.B) {

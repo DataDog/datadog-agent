@@ -113,6 +113,11 @@ func (w *DatadogStatsWriter) UpdateAPIKey(oldKey, newKey string) {
 	}
 }
 
+// UpdateEndpoints refreshes sender keys after additional_endpoints changes.
+func (w *DatadogStatsWriter) UpdateEndpoints(endpoints []*config.Endpoint) {
+	updateSenderEndpoints(w.senders, endpoints)
+}
+
 // Run starts the DatadogStatsWriter, making it ready to receive stats and report w.statsd.
 func (w *DatadogStatsWriter) Run() {
 	t := time.NewTicker(5 * time.Second)

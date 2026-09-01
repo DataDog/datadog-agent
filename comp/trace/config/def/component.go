@@ -30,6 +30,9 @@ type Component interface {
 
 	// OnUpdateAPIKey registers a callback for API Key changes
 	OnUpdateAPIKey(func(oldKey, newKey string))
+
+	// OnUpdateAdditionalEndpoints registers a callback for endpoint key changes.
+	OnUpdateAdditionalEndpoints(func([]*traceconfig.Endpoint))
 }
 
 // Params defines the parameters for the config component.

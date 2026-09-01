@@ -266,6 +266,11 @@ additional_endpoints:
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
+func TestDedupAPIKeysSkipsDelegatedAuthDirectives(t *testing.T) {
+	keys := DedupAPIKeys([]APIKeys{{Keys: []string{"plain-key", "DELA(org, aws)", "plain-key"}}})
+	assert.Equal(t, []string{"plain-key"}, keys)
+}
+
 func TestSiteEnvVar(t *testing.T) {
 	testCases := []struct {
 		convertSiteFQDNEnabled bool

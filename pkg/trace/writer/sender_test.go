@@ -85,6 +85,26 @@ func TestIsRetriable(t *testing.T) {
 	}
 }
 
+func TestUpdateSenderEndpointsMatchesHostsAcrossReordering(t *testing.T) {
+	first := &sender{cfg: &senderConfig{configuredHost: "https://first.example"}, apiKeyManager: &apiKeyManager{apiKey: "old-first"}}
+	second := &sender{cfg: &senderConfig{configuredHost: "https://second.example"}, apiKeyManager: &apiKeyManager{apiKey: "old-second"}}
+
+	updateSenderEndpoints([]*sender{first, second}, []*config.Endpoint{
+		{Host: "https://second.example", APIKey: "new-second"},
+		{Host: "https://first.example", APIKey: "new-first"},
+	})
+
+	assert.Equal(t, "new-first", first.apiKeyManager.Get())
+	assert.Equal(t, "new-second", second.apiKeyManager.Get())
+}
+
+func TestSenderDoesNotSendWithoutResolvedAPIKey(t *testing.T) {
+	s := &sender{cfg: &senderConfig{delegatedAuth: true}, apiKeyManager: &apiKeyManager{}}
+	err := s.do(httptest.NewRequest(http.MethodPost, "https://example.com", nil))
+	var retriable *retriableError
+	assert.ErrorAs(t, err, &retriable)
+}
+
 func TestSender(t *testing.T) {
 	t.Run("accept", func(t *testing.T) {
 		assert := assert.New(t)

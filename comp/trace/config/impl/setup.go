@@ -193,7 +193,16 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			continue
 		}
 		for _, key := range keys {
-			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)})
+			delegatedAuth := utils.IsDelaDirective(key)
+			if delegatedAuth && cfgKey != apmAdditionalEndpoints {
+				log.Warnf("'%s' does not support delegated auth; skipping the endpoint at %q", cfgKey, url)
+				continue
+			}
+			apiKey := utils.SanitizeAPIKey(key)
+			if delegatedAuth {
+				apiKey = ""
+			}
+			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: apiKey, DelegatedAuth: delegatedAuth})
 		}
 	}
 	return endpoints

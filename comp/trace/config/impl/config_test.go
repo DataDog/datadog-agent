@@ -2346,6 +2346,27 @@ func TestOnUpdateAPIKeyCallback(t *testing.T) {
 	assert.Equal(t, 1, n)
 }
 
+func TestReloadAdditionalEndpointsNotifiesWithResolvedKey(t *testing.T) {
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.SetInTest(apmAdditionalEndpoints, map[string][]string{
+		"https://second.example": {"resolved-key"},
+	})
+	coreConfig.SetInTest("proxy.no_proxy", []string{"https://second.example"})
+	c := &cfg{
+		AgentConfig: &traceconfig.AgentConfig{Endpoints: []*traceconfig.Endpoint{{Host: "https://main.example", APIKey: "main-key"}}},
+		coreConfig:  coreConfig,
+	}
+	var updated []*traceconfig.Endpoint
+	c.OnUpdateAdditionalEndpoints(func(endpoints []*traceconfig.Endpoint) { updated = endpoints })
+
+	c.reloadAdditionalEndpoints()
+
+	require.Len(t, updated, 2)
+	assert.Equal(t, "https://second.example", updated[1].Host)
+	assert.Equal(t, "resolved-key", updated[1].APIKey)
+	assert.True(t, updated[1].NoProxy)
+}
+
 func buildConfigComponent(t *testing.T, setHostnameInConfig bool) Component {
 	t.Helper()
 
