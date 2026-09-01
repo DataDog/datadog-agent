@@ -60,11 +60,39 @@ type Provides struct {
 // observation is a message sent from handles to the observer.
 type observation struct {
 	source string
-	metric *metricObs
-	log    *logObs
+	metric metricHandoff
+	// hasMetric distinguishes a metric observation from the zero-value union.
+	hasMetric bool
+	log       *logObs
 	// flush, when non-nil, is closed by the dispatch loop once this observation
 	// is reached, signalling that all prior observations have been processed.
 	flush chan struct{}
+}
+
+// metricHandoff is the immutable value queued by metric producers. Scalar
+// fields are snapshotted while the caller-owned MetricView is valid. tags is a
+// read-only view whose backing storage is guaranteed by the MetricView contract
+// to remain valid after ObserveMetric returns.
+type metricHandoff struct {
+	name      string
+	value     float64
+	host      string
+	tags      tagset.CompositeTags
+	timestamp int64
+}
+
+func newMetricHandoff(sample observerdef.MetricView) metricHandoff {
+	timestamp := sample.GetTimestampUnix()
+	if timestamp == 0 {
+		timestamp = time.Now().Unix()
+	}
+	return metricHandoff{
+		name:      sample.GetName(),
+		value:     sample.GetValue(),
+		host:      sample.GetHost(),
+		tags:      sample.GetTags(),
+		timestamp: timestamp,
+	}
 }
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
@@ -541,10 +569,26 @@ func (o *observerImpl) run() {
 			close(obs.flush)
 			continue
 		}
+		var metric *metricObs
+		if obs.hasMetric {
+			decision := prepareMetricHandoff(obs.source, obs.metric, o.metricFilter)
+			if decision.metric == nil {
+				if o.telemetry != nil && decision.source != "" {
+					o.telemetry.recordFilteredMetric(decision.source)
+				}
+				continue
+			}
+			obs.source = decision.source
+			metric = decision.metric
+			if o.telemetry != nil {
+				o.telemetry.recordMetricAccepted(decision.source)
+			}
+		}
+
 		o.replayMu.Lock()
 		var requests []advanceRequest
-		if obs.metric != nil {
-			requests = o.engine.IngestMetric(obs.source, obs.metric)
+		if metric != nil {
+			requests = o.engine.IngestMetric(obs.source, metric)
 		}
 		if obs.log != nil {
 			logRequests := o.engine.IngestLog(obs.source, obs.log)
@@ -751,7 +795,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // metricDropHandle so external metrics are dropped at the edge, while
 // ObserveLog calls still pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
-	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry, filter: o.metricFilter}
+	h := &handle{ch: o.obsCh, source: name, telemetry: o.telemetry}
 	o.engine.registerHandle(h)
 	var out observerdef.Handle = h
 	if !o.ingestMetricsEnabled {
@@ -1082,24 +1126,64 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
 	}
+	return prepareMetricAfterPrecheck(
+		normalizedSource,
+		name,
+		sample.GetValue(),
+		host,
+		sample.GetTags(),
+		sample.GetTimestampUnix(),
+		precheck,
+		filter,
+	)
+}
 
-	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
-	// storage, and downstream Add calls hit the tagsSorted fast path.
-	tags := canonicalizeTags(sample.GetTags().UnsafeToReadOnlySliceString())
-	if filter.isMutedWithHost(name, normalizedSource, host, tags) ||
-		(precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, normalizedSource, host, tags, precheck.firstCandidate)) {
+func prepareMetricHandoff(source string, sample metricHandoff, filter *metricsFilterRules) metricIngestDecision {
+	name := sample.name
+	host := sample.host
+	normalizedSource := normalizeMetricSource(name, source)
+	precheck := filter.precheck(name, normalizedSource, host)
+	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
 	}
+	return prepareMetricAfterPrecheck(
+		normalizedSource,
+		name,
+		sample.value,
+		host,
+		sample.tags,
+		sample.timestamp,
+		precheck,
+		filter,
+	)
+}
 
-	timestamp := sample.GetTimestampUnix()
+func prepareMetricAfterPrecheck(
+	source string,
+	name string,
+	value float64,
+	host string,
+	resolvedTags tagset.CompositeTags,
+	timestamp int64,
+	precheck metricFilterPrecheck,
+	filter *metricsFilterRules,
+) metricIngestDecision {
+	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
+	// storage, and downstream Add calls hit the tagsSorted fast path.
+	tags := canonicalizeTags(resolvedTags.UnsafeToReadOnlySliceString())
+	if filter.isMutedWithHost(name, source, host, tags) ||
+		(precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, source, host, tags, precheck.firstCandidate)) {
+		return metricIngestDecision{source: source}
+	}
 	if timestamp == 0 {
 		timestamp = time.Now().Unix()
 	}
+
 	return metricIngestDecision{
-		source: normalizedSource,
+		source: source,
 		metric: &metricObs{
 			name:      name,
-			value:     sample.GetValue(),
+			value:     value,
 			host:      host,
 			tags:      tags,
 			timestamp: timestamp,
@@ -1141,14 +1225,6 @@ type handle struct {
 	source    string
 	dropCount atomic.Int64 // per-handle drop counter, collected by engine at advance time
 	telemetry *observerTelemetry
-	filter    *metricsFilterRules
-
-	// The overwhelmingly common filtered-metric source for a handle is its
-	// source. Bind that Prometheus counter lazily to avoid a label lookup and a
-	// variadic allocation for every rejected metric.
-	filteredMetricOnce   sync.Once
-	filteredMetricSource string
-	filteredMetric       telemetry.SimpleCounter
 }
 
 // ObserveMetric observes a DogStatsD metric sample.
@@ -1158,51 +1234,28 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 
 // ObserveMetricAndReportDrop observes a metric and reports whether this
 // specific call was dropped by observer backpressure (channel full).
-// Metrics rejected by processing rules are counted via telemetry but do not
-// report a channel drop.
+// Processing-rule rejection happens after a successful enqueue and is counted
+// separately. A full channel reports backpressure without evaluating rules.
 func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView) bool {
-	decision := prepareMetricIngest(h.source, sample, h.filter)
-	if decision.metric == nil {
-		if h.telemetry != nil && decision.source != "" {
-			h.recordFilteredMetric(decision.source)
-		}
-		return false
-	}
+	metric := newMetricHandoff(sample)
+	source := normalizeMetricSource(metric.name, h.source)
 	obs := observation{
-		source: decision.source,
-		metric: decision.metric,
+		source:    source,
+		metric:    metric,
+		hasMetric: true,
 	}
 
 	// Non-blocking send - drop if channel is full.
 	select {
 	case h.ch <- obs:
-		if h.telemetry != nil {
-			h.telemetry.recordMetricAccepted(decision.source)
-		}
 		return false
 	default:
 		h.dropCount.Add(1)
 		if h.telemetry != nil {
-			h.telemetry.recordObservationDropped("metrics", decision.source)
+			h.telemetry.recordObservationDropped("metrics", source)
 		}
 		return true
 	}
-}
-
-func (h *handle) recordFilteredMetric(source string) {
-	h.filteredMetricOnce.Do(func() {
-		h.filteredMetricSource = source
-		h.filteredMetric = h.telemetry.filteredMetrics.WithValues(source)
-	})
-	if h.filteredMetricSource == source {
-		h.filteredMetric.Inc()
-		return
-	}
-
-	// datadog.* metrics are normalized to the agent namespace, rather than the
-	// source that created this handle. That path is uncommon, so retain the
-	// generic lookup to keep telemetry labels correct.
-	h.telemetry.recordFilteredMetric(source)
 }
 
 // ObserveLog observes a log message.

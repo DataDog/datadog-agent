@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
-
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 // buildSyntheticStorage creates a storage pre-populated with numSeries series,
@@ -87,31 +85,18 @@ func BenchmarkMetricFilterV1Rules(b *testing.B) {
 	}
 }
 
-func BenchmarkHandleObserveMetricV1RulesParallelRejectedMetric(b *testing.B) {
-	telemetryComp := telemetryimpl.GetCompatComponent()
-	telemetryComp.Reset()
-	b.Cleanup(telemetryComp.Reset)
-
-	h := &handle{
-		source:    "check",
-		filter:    newV1MetricFilter(b),
-		telemetry: newObserverTelemetry(telemetryComp),
-	}
+func BenchmarkHandleObserveMetricHandoff(b *testing.B) {
+	ch := make(chan observation, 1)
+	h := &handle{ch: ch, source: "check"}
 	sample := highLoadMetric("kubernetes.pod.count")
-	if h.ObserveMetricAndReportDrop(sample) {
-		b.Fatal("expected metric to be rejected by processing rules")
-	}
-
 	b.ReportAllocs()
-	b.SetParallelism(4)
 	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			if h.ObserveMetricAndReportDrop(sample) {
-				panic("expected metric to be rejected by processing rules")
-			}
+	for i := 0; i < b.N; i++ {
+		if h.ObserveMetricAndReportDrop(sample) {
+			b.Fatal("unexpected full metric handoff channel")
 		}
-	})
+		<-ch
+	}
 }
 
 func newV1MetricFilter(b *testing.B) *metricsFilterRules {

@@ -128,12 +128,20 @@ func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) 
 	})
 
 	// The first observation creates a series but does not advance analysis.
-	obs.obsCh <- observation{source: "ns", metric: &metricObs{name: "requests", value: 1, timestamp: 0}}
+	obs.obsCh <- observation{
+		source:    "ns",
+		metric:    metricHandoff{name: "requests", value: 1, timestamp: 1},
+		hasMetric: true,
+	}
 	obs.Flush()
 	requireSeriesCountTelemetry(t, telComp, 0)
 
 	// A later observation advances analysis and publishes the current count.
-	obs.obsCh <- observation{source: "ns", metric: &metricObs{name: "requests", value: 1, timestamp: 2}}
+	obs.obsCh <- observation{
+		source:    "ns",
+		metric:    metricHandoff{name: "requests", value: 1, timestamp: 2},
+		hasMetric: true,
+	}
 	obs.Flush()
 	requireSeriesCountTelemetry(t, telComp, 1)
 

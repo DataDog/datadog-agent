@@ -35,11 +35,14 @@ type HandleFunc func(name string) Handle
 //
 // This interface exists to prevent data races. The underlying metric data may be
 // reused immediately after ObserveMetric returns, so implementations must not
-// store the MetricView itself. Copy any needed values synchronously.
+// store the MetricView itself. Scalar values must be copied synchronously.
+// GetTags must return read-only backing storage that remains valid after the
+// call, allowing the observer to defer tag materialization to its own goroutine.
 type MetricView interface {
 	GetName() string
 	GetValue() float64
 	// GetTags returns the final tags used by the metrics pipeline for this sample.
+	// Its backing slices must remain immutable and valid after ObserveMetric returns.
 	GetTags() tagset.CompositeTags
 	// GetHost returns the host dimension carried separately from metric tags.
 	GetHost() string

@@ -553,17 +553,27 @@ func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 		metricFilter:         filter,
 	}
 	obs.handleFunc = obs.innerHandle
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
 
 	obs.GetHandle("dogstatsd").ObserveMetric(&metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
 	})
+	obs.Flush()
 
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
 }
 
-func TestHandleFilteredMetricTelemetryCachePreservesNormalizedSourceLabels(t *testing.T) {
+func TestAsyncFilteredMetricTelemetryPreservesNormalizedSourceLabels(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
 		Type:        excludeAtMatch,
 		Name:        "drop_everything",
@@ -589,14 +599,29 @@ func TestHandleFilteredMetricTelemetryCachePreservesNormalizedSourceLabels(t *te
 			telComp.Reset()
 			t.Cleanup(telComp.Reset)
 
-			h := &handle{
-				source:    "check",
-				telemetry: newObserverTelemetry(telComp),
-				filter:    filter,
+			obs := &observerImpl{
+				engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+				obsCh:                make(chan observation, len(tc.metricNames)),
+				telemetry:            newObserverTelemetry(telComp),
+				ingestMetricsEnabled: true,
+				metricFilter:         filter,
 			}
+			obs.handleFunc = obs.innerHandle
+			done := make(chan struct{})
+			go func() {
+				obs.run()
+				close(done)
+			}()
+			t.Cleanup(func() {
+				close(obs.obsCh)
+				<-done
+			})
+
+			h := obs.GetHandle("check")
 			for _, metricName := range tc.metricNames {
 				h.ObserveMetric(&metricObs{name: metricName})
 			}
+			obs.Flush()
 
 			requireCounterMetricValueBySource(t, "check", 1.0, telComp)
 			requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
@@ -992,11 +1017,24 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 		value:     2,
 		timestamp: 1000,
 	}))
+
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
+	obs.Flush()
+
 	assert.False(t, h.ObserveMetricAndReportDrop(&metricObs{
 		name:      "system.cpu.user",
 		value:     3,
 		timestamp: 1000,
 	}))
+	obs.Flush()
 
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsDropped, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
