@@ -54,6 +54,9 @@ fn sleeper_fixture_auto_starts() {
     procmgr
         .wait_for_process_running("sleeper")
         .expect("expected sleeper running");
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
 }
 
 #[test]
@@ -68,7 +71,9 @@ fn sleeper_fixture_no_auto_start() {
         running: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 }
 
 #[test]
@@ -88,7 +93,10 @@ fn invalid_syntax_fixture_skipped() {
     procmgr
         .wait_for_process_running("sleeper")
         .expect("expected sleeper running");
-    procmgr.require_list().assert_absent("invalid_syntax");
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
+    list.assert_absent("invalid_syntax");
     procmgr.assert_config_skip_logged("invalid_syntax");
 }
 
@@ -105,7 +113,9 @@ fn missing_binary_fixture_fails_to_spawn() {
         created: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("missing_binary", ProcessExpect::Failed);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("missing_binary", ProcessExpect::Failed);
 }
 
 #[test]
@@ -150,7 +160,9 @@ fn condition_blocked_fixture_stays_created() {
         running: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("condition_blocked", ProcessExpect::Created);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("condition_blocked", ProcessExpect::Created);
     procmgr.assert_condition_path_not_met_logged(
         "condition_blocked",
         "/nonexistent/path/procmgr-condition-test",
@@ -169,7 +181,9 @@ fn start_process_transitions_created_to_running() {
         running: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 
     procmgr.assert_start_process("sleeper_idle");
 
@@ -180,7 +194,9 @@ fn start_process_transitions_created_to_running() {
         created: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Running);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Running);
 }
 
 #[test]
@@ -209,7 +225,9 @@ fn stop_process_transitions_running_to_stopped() {
         running: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("sleeper", ProcessExpect::Stopped);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper", ProcessExpect::Stopped);
 }
 
 #[test]
@@ -408,7 +426,9 @@ fn reload_remove_and_add_swaps_catalog() {
     });
 
     procmgr.assert_pid_gone(old_pid);
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 }
 
 #[test]
