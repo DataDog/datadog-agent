@@ -43,3 +43,16 @@ func TestAssignAtPathRejectsInvalidPath(t *testing.T) {
 	assert.Error(t, AssignAtPath(config, []string{"items", "2"}, "value", SourceSecret))
 	assert.Error(t, AssignAtPath(config, []string{"items", "-1"}, "value", SourceSecret))
 }
+
+func TestAssignAtPathTypedMapSlice(t *testing.T) {
+	config := &pathConfig{values: map[string]interface{}{
+		"logs_config.additional_endpoints": []map[string]interface{}{
+			{"host": "example.com", "api_key": "DELA(org, aws)"},
+		},
+	}}
+
+	err := AssignAtPath(config, []string{"logs_config", "additional_endpoints", "0", "api_key"}, "resolved", SourceSecret)
+	require.NoError(t, err)
+	entries := config.values["logs_config.additional_endpoints"].([]map[string]interface{})
+	assert.Equal(t, "resolved", entries[0]["api_key"])
+}

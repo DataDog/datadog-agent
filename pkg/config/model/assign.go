@@ -92,6 +92,24 @@ func AssignAtPath(config PathWriter, settingPath []string, newValue any, source 
 			} else {
 				current = value[index]
 			}
+		case []map[string]interface{}:
+			index, err := pathIndex(elem, len(value))
+			if err != nil {
+				return err
+			}
+			if last {
+				return fmt.Errorf("cannot replace map entry '%s' with a scalar", settingPath)
+			}
+			current = value[index]
+		case []map[interface{}]interface{}:
+			index, err := pathIndex(elem, len(value))
+			if err != nil {
+				return err
+			}
+			if last {
+				return fmt.Errorf("cannot replace map entry '%s' with a scalar", settingPath)
+			}
+			current = value[index]
 		default:
 			return fmt.Errorf("cannot assign to setting '%s' of type %T", settingPath, current)
 		}
