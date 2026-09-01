@@ -70,10 +70,10 @@ fn path_is_existing_file(path: &Path) -> bool {
         let Ok(entries) = std::fs::read_dir(parent) else {
             return false;
         };
-        return entries.flatten().any(|entry| {
+        entries.flatten().any(|entry| {
             entry.file_name().eq_ignore_ascii_case(name)
                 && entry.file_type().is_ok_and(|t| t.is_file())
-        });
+        })
     }
     #[cfg(not(windows))]
     false

@@ -27,7 +27,6 @@ mod win_handle;
 #[cfg(any(test, feature = "test-helpers"))]
 pub(crate) use agent_credentials::spawn_user_for_profile;
 pub(crate) use legacy_scm_env::core_agent_scm_env_var;
-pub(crate) use legacy_scm_env::refresh_core_agent_scm_environment;
 #[cfg(test)]
 pub(crate) use legacy_scm_env::set_test_core_agent_scm_env;
 pub(crate) use pipe_caller::pipe_client_may_mutate;

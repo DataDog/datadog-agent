@@ -111,6 +111,11 @@ pub(crate) fn spawn_user_for_profile(
         .map(|credential| credential.display_name())
 }
 
+#[cfg(test)]
+pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
+    Ok(AgentAccount::LocalSystem)
+}
+
 #[cfg(not(test))]
 pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
     let Some(key) = open_datadog_agent_key() else {

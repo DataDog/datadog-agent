@@ -16,7 +16,7 @@ use super::super::wide;
 
 const SERVICE_ACCOUNT_PASSWORD: &str = "_SA_{262E99C9-6160-4871-ACEC-4E61736B6F21}";
 
-pub(super) struct LogonUserCredentials<'a> {
+pub(crate) struct LogonUserCredentials<'a> {
     domain: &'a str,
     username: &'a str,
     password: Option<&'a str>,

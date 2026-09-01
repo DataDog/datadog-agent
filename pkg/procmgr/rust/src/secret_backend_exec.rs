@@ -26,11 +26,13 @@ pub(crate) struct BackendRun<'a> {
 }
 
 /// Spawn with the inherited supervisor token (`std::process::Command`).
+#[cfg_attr(windows, allow(dead_code))]
 pub(crate) fn exec_inherited_token(run: &BackendRun<'_>) -> Result<String> {
     spawn_and_capture(run, |_| Ok(()))
 }
 
 /// Spawn after optional `Command` setup (e.g. Unix `pre_exec` to drop to the agent user).
+#[cfg_attr(windows, allow(dead_code))]
 pub(crate) fn spawn_and_capture(
     run: &BackendRun<'_>,
     configure: impl FnOnce(&mut Command) -> Result<()>,
@@ -127,6 +129,7 @@ where
     }
 }
 
+#[cfg_attr(windows, allow(dead_code))]
 fn wait_for_command_child(
     child: &mut Child,
     deadline: Instant,
@@ -187,6 +190,7 @@ fn kill_process_tree(pid: u32) {
 }
 
 #[cfg(windows)]
+#[cfg_attr(windows, allow(dead_code))]
 fn kill_process_tree(pid: u32) {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};

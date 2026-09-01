@@ -41,11 +41,11 @@ use super::baseline_env_vars_from_token;
 use super::legacy_scm_env::build_secret_backend_env_vars;
 use super::resolve_executable::resolve_executable_in_env;
 use super::secret_backend_rights;
-use super::spawn::logon::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::spawn::user_profile::UserProfileGuard;
 use super::spawn::win32::{
     build_windows_command_line, duplicate_primary_token, env_vars_to_wide_block,
 };
+use super::spawn::{TokenHandle, logon_user_credentials, logon_user_token};
 use super::wide;
 use super::win_handle::WinHandle;
 
@@ -210,12 +210,9 @@ impl CapturedChild {
         wait_with_stdout_drain(
             stdout,
             run.max_output_bytes,
-            {
-                let process = process;
-                move || terminate_process(process.0)
-            },
+            move || process.terminate(),
             move || {
-                let exit_code = wait_for_exit(process.0, timeout, command)?;
+                let exit_code = wait_for_exit(process.raw(), timeout, command)?;
                 if exit_code != 0 {
                     bail!("secret backend {command} exited with code {exit_code}");
                 }
@@ -246,8 +243,8 @@ fn spawn_with_pipes(
     let mut si: STARTUPINFOW = unsafe { std::mem::zeroed() };
     si.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
     si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = stdin.child.raw();
-    si.hStdOutput = stdout.child.raw();
+    si.hStdInput = stdin.child.as_handle();
+    si.hStdOutput = stdout.child.as_handle();
     si.hStdError = stderr;
 
     let mut pi: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
@@ -376,10 +373,22 @@ fn clear_inheritable(handle: HANDLE) -> Result<()> {
     Ok(())
 }
 
+#[derive(Clone, Copy)]
 struct SendProcessHandle(HANDLE);
 
-// SAFETY: Win32 process handles are kernel objects safe to send to a worker thread.
+// SAFETY: Win32 process handles are kernel objects safe to use across threads.
 unsafe impl Send for SendProcessHandle {}
+unsafe impl Sync for SendProcessHandle {}
+
+impl SendProcessHandle {
+    fn terminate(self) {
+        terminate_process(self.0);
+    }
+
+    fn raw(self) -> HANDLE {
+        self.0
+    }
+}
 
 fn terminate_process(process: HANDLE) {
     unsafe {

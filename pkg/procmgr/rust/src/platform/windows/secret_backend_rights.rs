@@ -219,8 +219,8 @@ impl SidAllocated {
             AllocateAndInitializeSid(
                 &SECURITY_NT_AUTHORITY,
                 2,
-                SECURITY_BUILTIN_DOMAIN_RID,
-                DOMAIN_ALIAS_RID_ADMINS,
+                SECURITY_BUILTIN_DOMAIN_RID.try_into().unwrap(),
+                DOMAIN_ALIAS_RID_ADMINS.try_into().unwrap(),
                 0,
                 0,
                 0,
