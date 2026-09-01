@@ -17,51 +17,63 @@ use std::time::Duration;
 fn daemon_starts_ready() {
     let env = TestEnv::new();
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_version_not_empty();
-    procmgr.assert_status_processes_count(StatusProcessesCount::zeros());
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_version_not_empty();
+    status.assert_processes_count(StatusProcessesCount::zeros());
 }
 
 #[test]
 fn status_fails_without_daemon() {
     let env = TestEnv::new();
-    env.assert_status_err();
+    env.status()
+        .expect_err("expected status to fail without daemon");
 }
 
 #[test]
 fn status_ready_without_config_dir() {
     let env = TestEnv::with_missing_config_dir();
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount::zeros());
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount::zeros());
 }
 
 #[test]
 fn sleeper_fixture_auto_starts() {
     let env = TestEnv::new().with_process("sleeper");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         running: Some(1),
         created: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
 }
 
 #[test]
 fn sleeper_fixture_no_auto_start() {
     let env = TestEnv::new().with_process("sleeper_idle");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         created: Some(1),
         running: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 }
 
 #[test]
@@ -70,15 +82,21 @@ fn invalid_syntax_fixture_skipped() {
         .with_process("sleeper")
         .with_process("invalid_syntax");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         running: Some(1),
         created: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_running("sleeper");
-    procmgr.assert_process_absent("invalid_syntax");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
+    list.assert_absent("invalid_syntax");
     procmgr.assert_config_skip_logged("invalid_syntax");
 }
 
@@ -86,24 +104,27 @@ fn invalid_syntax_fixture_skipped() {
 fn missing_binary_fixture_fails_to_spawn() {
     let env = TestEnv::new().with_process("missing_binary");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         failed: Some(1),
         running: Some(0),
         created: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("missing_binary", ProcessExpect::Failed);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("missing_binary", ProcessExpect::Failed);
 }
 
 #[test]
 fn exit_ok_fixture_exits_cleanly() {
     let env = TestEnv::new().with_process("exit_ok");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
     procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         exited: Some(1),
         running: Some(0),
@@ -116,9 +137,9 @@ fn exit_ok_fixture_exits_cleanly() {
 fn exit_fail_fixture_exits_with_failure() {
     let env = TestEnv::new().with_process("exit_fail");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
     procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         failed: Some(1),
         running: Some(0),
@@ -131,14 +152,17 @@ fn exit_fail_fixture_exits_with_failure() {
 fn condition_blocked_fixture_stays_created() {
     let env = TestEnv::new().with_process("condition_blocked");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         created: Some(1),
         running: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("condition_blocked", ProcessExpect::Created);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("condition_blocked", ProcessExpect::Created);
     procmgr.assert_condition_path_not_met_logged(
         "condition_blocked",
         "/nonexistent/path/procmgr-condition-test",
@@ -149,56 +173,70 @@ fn condition_blocked_fixture_stays_created() {
 fn start_process_transitions_created_to_running() {
     let env = TestEnv::new().with_process("sleeper_idle");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         created: Some(1),
         running: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 
     procmgr.assert_start_process("sleeper_idle");
 
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         running: Some(1),
         created: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Running);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Running);
 }
 
 #[test]
 fn stop_process_transitions_running_to_stopped() {
     let env = TestEnv::new().with_process("sleeper");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         running: Some(1),
         stopped: Some(0),
         created: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
 
     procmgr.assert_stop_process("sleeper");
 
-    procmgr.assert_status_processes_count(StatusProcessesCount {
+    let status = procmgr.require_status();
+    status.assert_processes_count(StatusProcessesCount {
         total: Some(1),
         stopped: Some(1),
         running: Some(0),
         ..Default::default()
     });
-    procmgr.assert_process_state("sleeper", ProcessExpect::Stopped);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper", ProcessExpect::Stopped);
 }
 
 #[test]
 fn stop_process_kills_child() {
     let env = TestEnv::new().with_process("sleeper");
     let procmgr = env.start();
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
 
     let snapshot = procmgr
         .process("sleeper")
@@ -218,8 +256,8 @@ fn stop_process_kills_child() {
 #[test]
 fn list_empty_when_no_processes() {
     let procmgr = TestEnv::new().start();
-    procmgr.assert_status_ready();
-    procmgr.assert_list_empty();
+    procmgr.require_status().assert_ready();
+    procmgr.require_list().assert_empty();
 }
 
 #[test]
@@ -228,10 +266,14 @@ fn list_shows_running_and_created_mix() {
         .with_process("sleeper")
         .with_process("sleeper_idle");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
-    procmgr.assert_list_len(2);
-    procmgr.assert_process_running("sleeper");
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    procmgr.require_status().assert_ready();
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let list = procmgr.require_list();
+    list.assert_len(2);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 }
 
 #[test]
@@ -240,18 +282,20 @@ fn list_shows_exited_with_last_exit_code() {
         .with_process("exit_ok")
         .with_process("exit_fail");
     let procmgr = env.start();
-    procmgr.assert_status_ready();
     procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
     procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
-    procmgr.assert_list_len(2);
-    procmgr.assert_process_last_exit_code("exit_ok", 0);
-    procmgr.assert_process_last_exit_code("exit_fail", 1);
+    let list = procmgr.require_list();
+    list.assert_len(2);
+    list.assert_last_exit_code("exit_ok", 0);
+    list.assert_last_exit_code("exit_fail", 1);
 }
 
 #[test]
 fn reload_unchanged_leaves_running_process() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
     procmgr.assert_reload_matches(ReloadExpect {
         unchanged: Some(vec!["sleeper".into()]),
         added: Some(vec![]),
@@ -264,15 +308,19 @@ fn reload_unchanged_leaves_running_process() {
 #[test]
 fn reload_adds_fixture_to_catalog() {
     let procmgr = TestEnv::new().start();
-    procmgr.assert_list_empty();
+    procmgr.require_list().assert_empty();
 
     procmgr.install_fixture("sleeper");
     procmgr.assert_reload_matches(ReloadExpect {
         added: Some(vec!["sleeper".into()]),
         ..Default::default()
     });
-    procmgr.assert_list_len(1);
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
 }
 
 #[test]
@@ -281,9 +329,13 @@ fn reload_removes_deleted_yaml_from_catalog() {
         .with_process("sleeper")
         .with_process("sleeper_idle")
         .start();
-    procmgr.assert_list_len(2);
-    procmgr.assert_process_running("sleeper");
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let list = procmgr.require_list();
+    list.assert_len(2);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 
     procmgr.remove_process_yaml("sleeper_idle");
     procmgr.assert_reload_matches(ReloadExpect {
@@ -293,15 +345,19 @@ fn reload_removes_deleted_yaml_from_catalog() {
         modified: Some(vec![]),
         preserve_running_pids: vec!["sleeper".into()],
     });
-    procmgr.assert_list_len(1);
-    procmgr.assert_process_absent("sleeper_idle");
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_absent("sleeper_idle");
 }
 
 #[test]
 fn reload_remove_only_empties_catalog() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
-    procmgr.assert_list_len(1);
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let list = procmgr.require_list();
+    list.assert_len(1);
     let old_pid = procmgr.process("sleeper").expect("sleeper").pid;
 
     procmgr.remove_process_yaml("sleeper");
@@ -314,28 +370,31 @@ fn reload_remove_only_empties_catalog() {
     });
 
     procmgr.assert_pid_gone(old_pid);
-    procmgr.assert_list_empty();
+    procmgr.require_list().assert_empty();
 }
 
 #[test]
 fn reload_adds_no_auto_start_stays_created() {
     let procmgr = TestEnv::new().start();
-    procmgr.assert_list_empty();
+    procmgr.require_list().assert_empty();
 
     procmgr.install_fixture("sleeper_idle");
     procmgr.assert_reload_matches(ReloadExpect {
         added: Some(vec!["sleeper_idle".into()]),
         ..Default::default()
     });
-    procmgr.assert_list_len(1);
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 }
 
 #[test]
 fn reload_modify_respawns_with_new_pid() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
-    let count_before = procmgr.list_processes().expect("list before reload").len();
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let count_before = procmgr.require_list().len();
     let old_pid = procmgr.process("sleeper").expect("sleeper").pid;
 
     procmgr.overwrite_with_fixture("sleeper", "sleeper_long");
@@ -348,7 +407,7 @@ fn reload_modify_respawns_with_new_pid() {
         ..Default::default()
     });
 
-    let count_after = procmgr.list_processes().expect("list after reload").len();
+    let count_after = procmgr.require_list().len();
     assert_eq!(
         count_before, count_after,
         "modify reload should not change catalog size"
@@ -359,7 +418,9 @@ fn reload_modify_respawns_with_new_pid() {
 #[test]
 fn reload_remove_and_add_swaps_catalog() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
     let old_pid = procmgr.process("sleeper").expect("sleeper").pid;
 
     procmgr.remove_process_yaml("sleeper");
@@ -374,13 +435,17 @@ fn reload_remove_and_add_swaps_catalog() {
     });
 
     procmgr.assert_pid_gone(old_pid);
-    procmgr.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Created);
 }
 
 #[test]
 fn describe_running_process_matches_fixture() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
 
     let list_snap = procmgr.process("sleeper").expect("sleeper");
     procmgr.assert_describe_matches(
@@ -400,7 +465,9 @@ fn describe_running_process_matches_fixture() {
 #[test]
 fn describe_resolves_uuid_prefix() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr.assert_process_running("sleeper");
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
 
     let uuid = procmgr.process("sleeper").expect("sleeper").uuid.clone();
     let prefix = uuid[..8].to_string();
@@ -420,7 +487,9 @@ fn describe_resolves_uuid_prefix() {
 #[test]
 fn describe_shows_static_config_fields() {
     let procmgr = TestEnv::new().with_process("full").start();
-    procmgr.assert_process_running("full");
+    procmgr
+        .wait_for_process_running("full")
+        .expect("expected full running");
 
     let root = procmgr.env_root().display().to_string();
     procmgr.assert_describe_matches(
@@ -459,6 +528,87 @@ fn describe_after_exit_shows_last_exit() {
 }
 
 #[test]
+fn restart_always_increments_count_in_list() {
+    let procmgr = TestEnv::new().with_process("crasher").start();
+    procmgr.assert_restart_count_at_least("crasher", 2);
+    procmgr.require_list().assert_len(1);
+}
+
+#[test]
+fn describe_shows_restart_count_after_always_policy() {
+    let procmgr = TestEnv::new().with_process("crasher").start();
+    procmgr.assert_restart_count_at_least("crasher", 2);
+    procmgr.assert_describe_matches(
+        "crasher",
+        DescribeExpect {
+            name: Some("crasher".into()),
+            restart_count_at_least: Some(2),
+            ..Default::default()
+        },
+    );
+}
+
+#[test]
+fn restart_on_failure_leaves_clean_exit_terminal() {
+    let procmgr = TestEnv::new().with_process("exit_ok_on_failure").start();
+    procmgr.assert_process_state_within("exit_ok_on_failure", ProcessExpect::Exited);
+    assert_eq!(
+        procmgr
+            .process("exit_ok_on_failure")
+            .expect("snap")
+            .restart_count,
+        0
+    );
+}
+
+#[test]
+fn restart_on_success_respawns_clean_exit() {
+    let procmgr = TestEnv::new().with_process("exit_ok_on_success").start();
+    procmgr.assert_restart_count_at_least("exit_ok_on_success", 2);
+}
+
+#[test]
+fn restart_on_success_leaves_failed_exit_terminal() {
+    let procmgr = TestEnv::new().with_process("exit_fail_on_success").start();
+    procmgr.assert_process_state_within("exit_fail_on_success", ProcessExpect::Failed);
+    assert_eq!(
+        procmgr
+            .process("exit_fail_on_success")
+            .expect("snap")
+            .restart_count,
+        0
+    );
+}
+
+#[test]
+fn restart_on_failure_respawns_failed_exit() {
+    let procmgr = TestEnv::new().with_process("exit_fail_on_failure").start();
+    procmgr.assert_restart_count_at_least("exit_fail_on_failure", 2);
+}
+
+#[test]
+fn burst_limit_stops_with_failed_state() {
+    let procmgr = TestEnv::new().with_process("burst_limited").start();
+    procmgr
+        .wait_for_restart_count_terminal(
+            "burst_limited",
+            4,
+            ProcessExpect::Failed,
+            Duration::from_secs(3),
+            Duration::from_secs(30),
+        )
+        .unwrap_or_else(|e| panic!("expected burst_limited to hit restart burst limit: {e}"));
+}
+
+#[test]
+fn burst_interval_allows_continued_restarts() {
+    let procmgr = TestEnv::new().with_process("burst_spaced").start();
+    procmgr
+        .wait_for_restart_count_at_least("burst_spaced", 5, Duration::from_secs(10))
+        .unwrap_or_else(|e| panic!("expected spaced restarts to continue: {e}"));
+}
+
+#[test]
 fn test_cli_config_basic() {
     let env = TestEnv::new()
         .with_config("sleeper", test_helpers::sleep_config_yaml())
@@ -466,7 +616,7 @@ fn test_cli_config_basic() {
 
     let config_dir = env.config_dir().display().to_string();
 
-    env.cli(&["config"])
+    env.cli_config()
         .assert_success()
         .assert_field("Source", "yaml")
         .assert_field("Location", &config_dir)
@@ -483,7 +633,7 @@ fn test_cli_config_json() {
 
     let config_dir = env.config_dir().display().to_string();
 
-    let out = env.cli(&["config", "--json"]);
+    let out = env.cli_config_json();
     out.assert_success();
     let json = out.stdout_json();
 
@@ -501,7 +651,7 @@ fn test_cli_status_basic() {
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    env.cli(&["status"])
+    env.cli_status()
         .assert_success()
         .assert_field("Ready", "true")
         .assert_has_field("Version")
@@ -528,7 +678,7 @@ fn test_cli_status_counts() {
     env.daemon().wait_for_log_default("[runner-a] spawned");
     env.daemon().wait_for_log_default("[runner-b] spawned");
 
-    env.cli(&["status"])
+    env.cli_status()
         .assert_success()
         .assert_field("Total Processes", "3")
         .assert_field("Running", "2")
@@ -550,7 +700,7 @@ fn test_cli_status_json() {
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    let out = env.cli(&["status", "--json"]);
+    let out = env.cli_status_json();
     out.assert_success();
     let json = out.stdout_json();
 
@@ -577,20 +727,20 @@ fn test_cli_status_after_stop() {
     env.daemon().wait_for_log_default("[svc-a] spawned");
     env.daemon().wait_for_log_default("[svc-b] spawned");
 
-    env.cli(&["status"])
+    env.cli_status()
         .assert_success()
         .assert_field("Running", "2")
         .assert_field("Stopped", "0");
 
-    env.cli(&["stop", "svc-a"]).assert_success();
+    env.cli_stop("svc-a").assert_success();
 
-    env.cli(&["status"])
+    env.cli_status()
         .assert_success()
         .assert_field("Total Processes", "2")
         .assert_field("Running", "1")
         .assert_field("Stopped", "1");
 
-    let json = env.cli(&["status", "--json"]).stdout_json();
+    let json = env.cli_status_json().stdout_json();
     assert_eq!(json["running_processes"], 1);
     assert_eq!(json["stopped_processes"], 1);
 }
@@ -611,7 +761,7 @@ fn test_cli_status_mixed_states() {
     env.daemon().wait_for_log_default("[bad] failed to spawn");
     env.daemon().wait_for_log_default("[quick] exited with");
 
-    let out = env.cli(&["status"]);
+    let out = env.cli_status();
     out.assert_success()
         .assert_field("Total Processes", "4")
         .assert_field("Running", "1")
@@ -620,7 +770,7 @@ fn test_cli_status_mixed_states() {
         .assert_field("Exited", "1")
         .assert_field("Stopped", "0");
 
-    let json_out = env.cli(&["status", "--json"]);
+    let json_out = env.cli_status_json();
     json_out.assert_success();
     let json = json_out.stdout_json();
     assert_eq!(json["total_processes"], 4);
@@ -639,14 +789,14 @@ fn test_cli_config_with_runtime_processes() {
 
     env.daemon().wait_for_log_default("[loaded] spawned");
 
-    env.cli(&["config"])
+    env.cli_config()
         .assert_success()
         .assert_field("Loaded Processes", "1")
         .assert_field("Runtime Processes", "0");
 
     env.create_sleep("dynamic", &[]).assert_success();
 
-    env.cli(&["config"])
+    env.cli_config()
         .assert_success()
         .assert_field("Loaded Processes", "1")
         .assert_field("Runtime Processes", "1");
@@ -663,7 +813,7 @@ fn test_cli_list_terminal_table_fields() {
 
     let python = test_helpers::python_exe();
     procmgr
-        .cli(&["list"])
+        .cli_list()
         .assert_success()
         .assert_table_row(
             "exit_ok",
@@ -694,7 +844,7 @@ fn test_cli_list_json() {
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    let out = env.cli(&["list", "--json"]);
+    let out = env.cli_list_json();
     out.assert_success();
     let json = out.stdout_json();
     let arr = json.as_array().expect("expected JSON array");
@@ -719,7 +869,7 @@ fn test_cli_list_json() {
 fn test_cli_list_json_empty() {
     let env = TestEnv::new().start();
 
-    let out = env.cli(&["list", "--json"]);
+    let out = env.cli_list_json();
     out.assert_success();
     let json = out.stdout_json();
     let arr = json.as_array().expect("expected JSON array");
@@ -727,70 +877,31 @@ fn test_cli_list_json_empty() {
 }
 
 #[test]
-fn test_cli_list_shows_restart_count() {
-    let env = TestEnv::new()
-        .with_config(
-            "crasher",
-            &test_helpers::false_config_with("restart: always\n"),
-        )
-        .start();
-
-    assert!(
-        env.daemon()
-            .wait_for_log_count("[crasher] spawned", 3, Duration::from_secs(10)),
-        "crasher should have restarted at least twice"
-    );
-
-    env.cli(&["list"])
-        .assert_success()
-        .assert_table_row_count(1);
-
-    let out = env.cli(&["list", "--json"]);
-    out.assert_success();
-    let json = out.stdout_json();
-    let count = json[0]["restart_count"]
-        .as_u64()
-        .expect("restart_count should be a number");
-    assert!(count >= 2, "expected restart_count >= 2, got {count}");
-}
-
-#[test]
 fn test_cli_describe_last_exit_text() {
     let env = TestEnv::new().with_process("exit_fail").start();
     env.assert_process_state_within("exit_fail", ProcessExpect::Failed);
 
-    env.cli(&["describe", "exit_fail"])
+    env.cli_describe("exit_fail")
         .assert_success()
         .assert_field("Last Exit", "exit 1");
 }
 
 #[test]
-fn test_cli_describe_after_restart() {
-    let env = TestEnv::new()
-        .with_config(
-            "crasher",
-            &test_helpers::false_config_with("restart: always\n"),
-        )
-        .start();
+fn test_cli_describe_restarts_text() {
+    let env = TestEnv::new().with_process("crasher").start();
+    env.assert_restart_count_at_least("crasher", 2);
 
-    assert!(
-        env.daemon()
-            .wait_for_log_count("[crasher] spawned", 3, Duration::from_secs(10)),
-        "crasher should have restarted at least twice"
-    );
-
-    let out = env.cli(&["describe", "crasher"]);
-    out.assert_success().assert_field("Name", "crasher");
-
-    let restarts: u32 = out.field_value("Restarts").parse().unwrap();
-    assert!(restarts >= 2, "expected Restarts >= 2, got {restarts}");
+    env.cli_describe("crasher")
+        .assert_success()
+        .assert_field("Name", "crasher")
+        .assert_field_at_least("Restarts", 2);
 }
 
 #[test]
 fn test_cli_describe_not_found() {
     let env = TestEnv::new().start();
 
-    env.cli(&["describe", "nonexistent"])
+    env.cli_describe("nonexistent")
         .assert_failure()
         .assert_stderr_contains("not found");
 }
@@ -803,7 +914,7 @@ fn test_cli_describe_json() {
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    let out = env.cli(&["describe", "--json", "sleeper"]);
+    let out = env.cli_describe_json("sleeper");
     out.assert_success();
     let json = out.stdout_json();
 
@@ -827,19 +938,19 @@ fn test_cli_start_by_uuid() {
         )
         .start();
 
-    let list_json = env.cli(&["list", "--json"]).stdout_json();
+    let list_json = env.cli_list_json().stdout_json();
     let uuid = list_json[0]["uuid"]
         .as_str()
         .expect("uuid should be a string");
     let prefix = &uuid[..8];
 
-    env.cli(&["start", prefix])
+    env.cli_start(prefix)
         .assert_success()
         .assert_field("State", "Running");
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    let pid = env.cli(&["describe", "sleeper"]).pid_from_field("PID");
+    let pid = env.cli_describe("sleeper").pid_from_field("PID");
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
 }
 
@@ -851,7 +962,7 @@ fn test_cli_start_already_running() {
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    env.cli(&["start", "sleeper"])
+    env.cli_start("sleeper")
         .assert_failure()
         .assert_stderr_contains("already");
 }
@@ -860,7 +971,7 @@ fn test_cli_start_already_running() {
 fn test_cli_start_not_found() {
     let env = TestEnv::new().start();
 
-    env.cli(&["start", "nonexistent"])
+    env.cli_start("nonexistent")
         .assert_failure()
         .assert_stderr_contains("not found");
 }
@@ -874,7 +985,7 @@ fn test_cli_start_json() {
         )
         .start();
 
-    let out = env.cli(&["start", "--json", "sleeper"]);
+    let out = env.cli_start_json("sleeper");
     out.assert_success();
     let json = out.stdout_json();
 
@@ -894,13 +1005,13 @@ fn test_cli_stop_by_uuid() {
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    let list_json = env.cli(&["list", "--json"]).stdout_json();
+    let list_json = env.cli_list_json().stdout_json();
     let uuid = list_json[0]["uuid"]
         .as_str()
         .expect("uuid should be a string");
     let prefix = &uuid[..8];
 
-    env.cli(&["stop", prefix])
+    env.cli_stop(prefix)
         .assert_success()
         .assert_field("State", "Stopped");
 }
@@ -913,10 +1024,10 @@ fn test_cli_stop_already_stopped() {
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    env.cli(&["stop", "sleeper"]).assert_success();
+    env.cli_stop("sleeper").assert_success();
     env.daemon().wait_for_log_default("[sleeper] stopped");
 
-    env.cli(&["stop", "sleeper"])
+    env.cli_stop("sleeper")
         .assert_failure()
         .assert_stderr_contains("not running");
 }
@@ -925,7 +1036,7 @@ fn test_cli_stop_already_stopped() {
 fn test_cli_stop_not_found() {
     let env = TestEnv::new().start();
 
-    env.cli(&["stop", "nonexistent"])
+    env.cli_stop("nonexistent")
         .assert_failure()
         .assert_stderr_contains("not found");
 }
@@ -938,7 +1049,7 @@ fn test_cli_stop_json() {
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    let out = env.cli(&["stop", "--json", "sleeper"]);
+    let out = env.cli_stop_json("sleeper");
     out.assert_success();
     let json = out.stdout_json();
 
@@ -955,7 +1066,7 @@ fn test_cli_create_minimal() {
 
     env.daemon().wait_for_log_default("[foo] spawned");
 
-    let pid = env.cli(&["describe", "foo"]).pid_from_field("PID");
+    let pid = env.cli_describe("foo").pid_from_field("PID");
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
 }
 
@@ -967,11 +1078,11 @@ fn test_cli_create_with_auto_start() {
 
     env.daemon().wait_for_log_default("[svc] spawned");
 
-    env.cli(&["list"])
+    env.cli_list()
         .assert_success()
         .assert_table_row("svc", &[("STATE", "Running")]);
 
-    let pid = env.cli(&["list"]).pid_from_table_row("svc");
+    let pid = env.cli_list().pid_from_table_row("svc");
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
 }
 
@@ -982,7 +1093,7 @@ fn test_cli_create_no_auto_start() {
     env.create_sleep("manual", &["--no-auto-start"])
         .assert_success();
 
-    env.cli(&["list"])
+    env.cli_list()
         .assert_success()
         .assert_table_row("manual", &[("STATE", "Created"), ("PID", "-")]);
 }
@@ -1017,7 +1128,7 @@ fn test_cli_create_with_all_options() {
 
     env.daemon().wait_for_log_default("[full] spawned");
 
-    let out = env.cli(&["describe", "full"]);
+    let out = env.cli_describe("full");
     out.assert_success()
         .assert_field("Name", "full")
         .assert_field("Command", test_helpers::sleep_cmd(300).0)
@@ -1033,7 +1144,7 @@ fn test_cli_create_then_describe() {
     env.create_sleep("svc", &["--no-auto-start"])
         .assert_success();
 
-    let out = env.cli(&["describe", "svc"]);
+    let out = env.cli_describe("svc");
     out.assert_success()
         .assert_field("Name", "svc")
         .assert_field("State", "Created")
@@ -1096,7 +1207,7 @@ fn test_cli_create_env_vars() {
     )
     .assert_success();
 
-    let out = env.cli(&["describe", "--json", "env-svc"]);
+    let out = env.cli_describe_json("env-svc");
     out.assert_success();
     let json = out.stdout_json();
 
@@ -1110,7 +1221,7 @@ fn test_cli_reload_text_modified() {
     let env = TestEnv::new().with_process("sleeper").start();
     env.overwrite_with_fixture("sleeper", "sleeper_long");
 
-    env.cli(&["reload"])
+    env.cli_reload()
         .assert_success()
         .assert_field("Modified", "sleeper");
 }
@@ -1121,7 +1232,7 @@ fn test_cli_reload_text_added_removed() {
     env.remove_process_yaml("sleeper");
     env.install_fixture("sleeper_idle");
 
-    env.cli(&["reload"])
+    env.cli_reload()
         .assert_success()
         .assert_field("Added", "sleeper_idle")
         .assert_field("Removed", "sleeper");
@@ -1137,7 +1248,7 @@ fn test_cli_reload_json() {
 
     write_config(env.config_dir(), "added", test_helpers::sleep_config_yaml());
 
-    let out = env.cli(&["reload", "--json"]);
+    let out = env.cli_reload_json();
     out.assert_success();
     let json = out.stdout_json();
 
@@ -1166,26 +1277,26 @@ fn test_cli_full_lifecycle() {
     env.create_sleep("svc", &["--no-auto-start"])
         .assert_success();
 
-    env.cli(&["list"])
+    env.cli_list()
         .assert_success()
         .assert_table_row("svc", &[("STATE", "Created"), ("PID", "-")]);
 
-    env.cli(&["start", "svc"]).assert_success();
+    env.cli_start("svc").assert_success();
     env.daemon().wait_for_log_default("[svc] spawned");
 
-    let out = env.cli(&["describe", "svc"]);
+    let out = env.cli_describe("svc");
     out.assert_success().assert_field("State", "Running");
     let pid = out.pid_from_field("PID");
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
 
-    env.cli(&["stop", "svc"]).assert_success();
+    env.cli_stop("svc").assert_success();
 
     assert!(
         wait_for_pid_gone(pid, Duration::from_secs(5)),
         "PID {pid} should be gone after stop"
     );
 
-    env.cli(&["describe", "svc"])
+    env.cli_describe("svc")
         .assert_success()
         .assert_field("State", "Stopped")
         .assert_field("PID", "-");
@@ -1198,36 +1309,36 @@ fn test_cli_create_stop_start_cycle() {
     env.create_sleep("svc", &[]).assert_success();
     env.daemon().wait_for_log_default("[svc] spawned");
 
-    env.cli(&["describe", "svc"])
+    env.cli_describe("svc")
         .assert_success()
         .assert_field("State", "Running");
 
-    env.cli(&["stop", "svc"]).assert_success();
-    env.cli(&["describe", "svc"])
+    env.cli_stop("svc").assert_success();
+    env.cli_describe("svc")
         .assert_success()
         .assert_field("State", "Stopped");
 
-    env.cli(&["start", "svc"]).assert_success();
+    env.cli_start("svc").assert_success();
     env.daemon()
         .wait_for_log_count("[svc] spawned", 2, Duration::from_secs(10));
-    env.cli(&["describe", "svc"])
+    env.cli_describe("svc")
         .assert_success()
         .assert_field("State", "Running");
 
-    let pid = env.cli(&["describe", "svc"]).pid_from_field("PID");
+    let pid = env.cli_describe("svc").pid_from_field("PID");
     assert!(pid_is_alive(pid), "PID {pid} should be alive after restart");
 
-    env.cli(&["stop", "svc"]).assert_success();
+    env.cli_stop("svc").assert_success();
     assert!(
         wait_for_pid_gone(pid, Duration::from_secs(5)),
         "PID {pid} should be gone after second stop"
     );
 
-    env.cli(&["start", "svc"]).assert_success();
+    env.cli_start("svc").assert_success();
     env.daemon()
         .wait_for_log_count("[svc] spawned", 3, Duration::from_secs(10));
 
-    let new_pid = env.cli(&["describe", "svc"]).pid_from_field("PID");
+    let new_pid = env.cli_describe("svc").pid_from_field("PID");
     assert!(pid_is_alive(new_pid), "PID {new_pid} should be alive");
 }
 
@@ -1242,15 +1353,15 @@ fn test_cli_stop_start_then_kill_restarts_on_failure() {
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    env.cli(&["stop", "sleeper"]).assert_success();
-    env.cli(&["start", "sleeper"]).assert_success();
+    env.cli_stop("sleeper").assert_success();
+    env.cli_start("sleeper").assert_success();
     assert!(
         env.daemon()
             .wait_for_log_count("[sleeper] spawned", 2, Duration::from_secs(10)),
         "start after stop should spawn a new child"
     );
 
-    let pid = env.cli(&["describe", "sleeper"]).pid_from_field("PID");
+    let pid = env.cli_describe("sleeper").pid_from_field("PID");
     kill_pid_force(pid);
 
     assert!(
@@ -1259,7 +1370,7 @@ fn test_cli_stop_start_then_kill_restarts_on_failure() {
         "on-failure should auto-restart after stop -> start -> external kill"
     );
 
-    let json = env.cli(&["list", "--json"]).stdout_json();
+    let json = env.cli_list_json().stdout_json();
     assert_eq!(json[0]["state"], "Running");
     assert!(
         json[0]["restart_count"].as_u64().unwrap() >= 1,
@@ -1277,7 +1388,7 @@ fn test_cli_status_reflects_operations() {
     env.daemon().wait_for_log_default("[svc-a] spawned");
     env.daemon().wait_for_log_default("[svc-b] spawned");
 
-    env.cli(&["status"])
+    env.cli_status()
         .assert_success()
         .assert_field("Total Processes", "2")
         .assert_field("Running", "2")
@@ -1286,9 +1397,9 @@ fn test_cli_status_reflects_operations() {
         .assert_field("Failed", "0")
         .assert_field("Exited", "0");
 
-    env.cli(&["stop", "svc-a"]).assert_success();
+    env.cli_stop("svc-a").assert_success();
 
-    env.cli(&["status"])
+    env.cli_status()
         .assert_success()
         .assert_field("Total Processes", "2")
         .assert_field("Running", "1")
@@ -1300,7 +1411,7 @@ fn test_cli_status_reflects_operations() {
     env.create_sleep("svc-c", &[]).assert_success();
     env.daemon().wait_for_log_default("[svc-c] spawned");
 
-    env.cli(&["status"])
+    env.cli_status()
         .assert_success()
         .assert_field("Total Processes", "3")
         .assert_field("Running", "2")
@@ -1320,19 +1431,19 @@ fn test_cli_create_with_dependencies() {
     env.create_sleep("frontend", &["--after", "backend", "--no-auto-start"])
         .assert_success();
 
-    env.cli(&["list"])
+    env.cli_list()
         .assert_success()
         .assert_table_row_count(2)
         .assert_table_row("backend", &[("STATE", "Created"), ("PID", "-")])
         .assert_table_row("frontend", &[("STATE", "Created"), ("PID", "-")]);
 
-    env.cli(&["start", "backend"]).assert_success();
+    env.cli_start("backend").assert_success();
     env.daemon().wait_for_log_default("[backend] spawned");
-    env.cli(&["start", "frontend"]).assert_success();
+    env.cli_start("frontend").assert_success();
     env.daemon().wait_for_log_default("[frontend] spawned");
 
-    let backend_pid = env.cli(&["list"]).pid_from_table_row("backend");
-    let frontend_pid = env.cli(&["list"]).pid_from_table_row("frontend");
+    let backend_pid = env.cli_list().pid_from_table_row("backend");
+    let frontend_pid = env.cli_list().pid_from_table_row("frontend");
     assert!(
         pid_is_alive(backend_pid),
         "backend PID {backend_pid} should be alive"
@@ -1342,7 +1453,7 @@ fn test_cli_create_with_dependencies() {
         "frontend PID {frontend_pid} should be alive"
     );
 
-    let out = env.cli(&["describe", "--json", "frontend"]);
+    let out = env.cli_describe_json("frontend");
     out.assert_success();
     let json = out.stdout_json();
     let after = json["after"].as_array().expect("after should be an array");
@@ -1362,13 +1473,13 @@ fn test_cli_create_nonexistent_dependency_ignored() {
 
     env.daemon().wait_for_log_default("[svc] spawned");
 
-    let pid = env.cli(&["list"]).pid_from_table_row("svc");
+    let pid = env.cli_list().pid_from_table_row("svc");
     assert!(
         pid_is_alive(pid),
         "PID {pid} should be alive despite missing dep"
     );
 
-    let out = env.cli(&["describe", "--json", "svc"]);
+    let out = env.cli_describe_json("svc");
     out.assert_success();
     let json = out.stdout_json();
     let after = json["after"].as_array().expect("after should be an array");
@@ -1417,13 +1528,9 @@ fn test_cli_all_commands_json_parseable() {
         out.stdout_json();
     }
 
-    env.cli(&["stop", "--json", "svc"])
-        .assert_success()
-        .stdout_json();
+    env.cli_stop_json("svc").assert_success().stdout_json();
 
-    env.cli(&["start", "--json", "svc"])
-        .assert_success()
-        .stdout_json();
+    env.cli_start_json("svc").assert_success().stdout_json();
 
     env.create_sleep("dyn", &["--json", "--no-auto-start"])
         .assert_success()
@@ -1434,9 +1541,7 @@ fn test_cli_all_commands_json_parseable() {
         "extra",
         &test_helpers::sleep_config_with("auto_start: false\n"),
     );
-    env.cli(&["reload", "--json"])
-        .assert_success()
-        .stdout_json();
+    env.cli_reload_json().assert_success().stdout_json();
 }
 
 #[test]
@@ -1488,24 +1593,6 @@ fn test_cli_exit_codes() {
 }
 
 #[test]
-fn test_cli_restart_on_failure_ignores_success_exit() {
-    let env = TestEnv::new()
-        .with_config(
-            "ok",
-            &test_helpers::true_config_with("restart: on-failure\n"),
-        )
-        .start();
-
-    env.daemon().wait_for_log_default("[ok] exited with");
-
-    let out = env.cli(&["list", "--json"]);
-    out.assert_success();
-    let json = out.stdout_json();
-    assert_eq!(json[0]["state"], "Exited");
-    assert_eq!(json[0]["restart_count"], 0);
-}
-
-#[test]
 fn test_cli_daemon_nonexistent_config_dir() {
     let env = TestEnv::with_missing_config_dir();
     let config_dir = env.config_dir().display().to_string();
@@ -1515,12 +1602,12 @@ fn test_cli_daemon_nonexistent_config_dir() {
         "config directory {config_dir} does not exist, no processes to manage"
     ));
 
-    env.cli(&["status"])
+    env.cli_status()
         .assert_success()
         .assert_field("Ready", "true")
         .assert_field("Total Processes", "0");
 
-    env.cli(&["list"])
+    env.cli_list()
         .assert_success()
         .assert_stdout_contains("No processes");
 }
@@ -1533,7 +1620,7 @@ fn test_cli_daemon_shutdown_stops_children() {
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    let pid = env.cli(&["list"]).pid_from_table_row("sleeper");
+    let pid = env.cli_list().pid_from_table_row("sleeper");
     assert!(pid_is_alive(pid), "child PID {pid} should be alive");
 
     drop(env);
@@ -1553,7 +1640,7 @@ fn test_cli_daemon_shutdown_via_sigint() {
 
     env.daemon().wait_for_log_default("[sleeper] spawned");
 
-    let child_pid = env.cli(&["list"]).pid_from_table_row("sleeper");
+    let child_pid = env.cli_list().pid_from_table_row("sleeper");
     let daemon_pid = env.daemon_pid();
 
     assert!(pid_is_alive(child_pid), "child should be alive");
@@ -1573,117 +1660,6 @@ fn test_cli_daemon_shutdown_via_sigint() {
 }
 
 #[test]
-fn test_cli_restart_on_success_restarts_on_exit_zero() {
-    let env = TestEnv::new()
-        .with_config(
-            "ok-loop",
-            &test_helpers::true_config_with("restart: on-success\n"),
-        )
-        .start();
-
-    assert!(
-        env.daemon()
-            .wait_for_log_count("[ok-loop] spawned", 3, Duration::from_secs(10)),
-        "on-success should restart on exit 0"
-    );
-
-    let json = env.cli(&["list", "--json"]).stdout_json();
-    let count = json[0]["restart_count"].as_u64().unwrap();
-    assert!(count >= 2, "expected restart_count >= 2, got {count}");
-}
-
-#[test]
-fn test_cli_restart_on_failure_restarts_on_exit_nonzero() {
-    let env = TestEnv::new()
-        .with_config(
-            "crasher",
-            &test_helpers::false_config_with("restart: on-failure\n"),
-        )
-        .start();
-
-    assert!(
-        env.daemon()
-            .wait_for_log_count("[crasher] spawned", 3, Duration::from_secs(10)),
-        "on-failure should restart on exit 1"
-    );
-
-    let json = env.cli(&["list", "--json"]).stdout_json();
-    let count = json[0]["restart_count"].as_u64().unwrap();
-    assert!(count >= 2, "expected restart_count >= 2, got {count}");
-}
-
-#[test]
-fn test_cli_restart_on_success_ignores_failure_exit() {
-    let env = TestEnv::new()
-        .with_config(
-            "fail-once",
-            &test_helpers::false_config_with("restart: on-success\n"),
-        )
-        .start();
-
-    env.daemon().wait_for_log_default("[fail-once] exited with");
-
-    let json = env.cli(&["list", "--json"]).stdout_json();
-    assert_eq!(json[0]["state"], "Failed");
-    assert_eq!(json[0]["restart_count"], 0);
-}
-
-#[test]
-fn test_cli_burst_limiting_stops_restarts() {
-    let env = TestEnv::new()
-        .with_config(
-            "burst",
-            &test_helpers::false_config_with(concat!(
-                "restart: always\n",
-                "restart_sec: 2\n",
-                "restart_max_delay_sec: 2\n",
-                "start_limit_burst: 4\n",
-                "start_limit_interval_sec: 60\n",
-            )),
-        )
-        .start();
-
-    env.daemon()
-        .wait_for_log("[burst] start limit reached", Duration::from_secs(30));
-
-    let json = env.cli(&["list", "--json"]).stdout_json();
-    assert_eq!(json[0]["state"], "Failed");
-    assert_eq!(json[0]["restart_count"], 4);
-}
-
-#[test]
-fn test_cli_burst_interval_allows_spaced_restarts() {
-    let env = TestEnv::new()
-        .with_config(
-            "spaced",
-            &test_helpers::false_config_with(concat!(
-                "restart: always\n",
-                "restart_sec: 0.6\n",
-                "restart_max_delay_sec: 0.6\n",
-                "start_limit_burst: 2\n",
-                "start_limit_interval_sec: 1\n",
-            )),
-        )
-        .start();
-
-    assert!(
-        env.daemon()
-            .wait_for_log_count("[spaced] spawned", 5, Duration::from_secs(10)),
-        "interval window should allow restarts to continue past burst limit"
-    );
-
-    assert_eq!(
-        env.daemon().count_log_matches("start limit reached"),
-        0,
-        "burst limiting should never trigger when restarts are spaced"
-    );
-
-    let json = env.cli(&["list", "--json"]).stdout_json();
-    let count = json[0]["restart_count"].as_u64().unwrap();
-    assert!(count >= 4, "expected restart_count >= 4, got {count}");
-}
-
-#[test]
 fn test_cli_condition_path_exists_not_met() {
     let env = TestEnv::new()
         .with_config(
@@ -1695,7 +1671,7 @@ fn test_cli_condition_path_exists_not_met() {
     env.daemon()
         .wait_for_log_default("[missing-bin] condition_path_exists not met");
 
-    let json = env.cli(&["list", "--json"]).stdout_json();
+    let json = env.cli_list_json().stdout_json();
     assert_eq!(json[0]["name"], "missing-bin");
     assert_eq!(json[0]["state"], "Created");
     assert_eq!(json[0]["pid"], 0);
@@ -1727,7 +1703,7 @@ fn test_cli_environment_file_loading() {
 
     env.daemon().wait_for_log_default("[env-test] exited with");
 
-    let json = env.cli(&["list", "--json"]).stdout_json();
+    let json = env.cli_list_json().stdout_json();
     assert_eq!(json[0]["state"], "Exited");
     assert_eq!(json[0]["last_exit_code"], 0);
 }
@@ -1761,7 +1737,7 @@ fn test_cli_env_overrides_environment_file() {
     env.daemon()
         .wait_for_log_default("[override-test] exited with");
 
-    let json = env.cli(&["list", "--json"]).stdout_json();
+    let json = env.cli_list_json().stdout_json();
     assert_eq!(json[0]["state"], "Exited");
     assert_eq!(json[0]["last_exit_code"], 0);
 }
@@ -1784,7 +1760,7 @@ fn test_cli_child_does_not_inherit_parent_env() {
 
     env.daemon().wait_for_log_default("[clean-env] exited with");
 
-    let json = env.cli(&["list", "--json"]).stdout_json();
+    let json = env.cli_list_json().stdout_json();
     assert_eq!(json[0]["state"], "Exited");
     assert_eq!(json[0]["last_exit_code"], 0);
 }
@@ -1807,7 +1783,7 @@ fn test_cli_optional_environment_file_skipped_when_missing() {
         .wait_for_log_default("optional environment file not found, skipping");
     env.daemon().wait_for_log_default("[opt-env] exited with");
 
-    let json = env.cli(&["list", "--json"]).stdout_json();
+    let json = env.cli_list_json().stdout_json();
     assert_eq!(json[0]["state"], "Exited");
     assert_eq!(json[0]["last_exit_code"], 0);
 }

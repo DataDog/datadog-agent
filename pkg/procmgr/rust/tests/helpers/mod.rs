@@ -55,6 +55,10 @@ pub struct ProcessSnapshot {
     pub last_signal: Option<i32>,
 }
 
+/// Parsed output from `list --json`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProcessList(pub Vec<ProcessSnapshot>);
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 struct ReloadSnapshot {
     added: Vec<String>,
@@ -190,6 +194,7 @@ pub struct DescribeExpect {
     pub restart_policy: Option<String>,
     pub auto_start: Option<bool>,
     pub restart_count: Option<u64>,
+    pub restart_count_at_least: Option<u64>,
     pub last_exit_code: Option<Option<i32>>,
     pub env_contains: Option<BTreeMap<String, String>>,
     pub after: Option<Vec<String>>,
@@ -232,6 +237,13 @@ impl DescribeSnapshot {
             &expected.restart_count,
             self,
         );
+        if let Some(min) = expected.restart_count_at_least {
+            assert!(
+                self.restart_count >= min,
+                "describe restart_count: expected >={min}, got {}\nfull: {self:?}",
+                self.restart_count
+            );
+        }
         assert_describe_field(
             "last_exit_code",
             &self.last_exit_code,
@@ -333,6 +345,66 @@ impl ProcessExpect {
     }
 }
 
+impl ProcessList {
+    pub fn require_process(&self, name: &str) -> &ProcessSnapshot {
+        self.0
+            .iter()
+            .find(|p| p.name == name)
+            .unwrap_or_else(|| panic!("process '{name}' not found in catalog: {:?}", self.0))
+    }
+
+    pub fn assert_empty(&self) {
+        assert!(
+            self.0.is_empty(),
+            "expected empty catalog, got {:?}",
+            self.0
+        );
+    }
+
+    pub fn assert_len(&self, expected: usize) {
+        assert_eq!(
+            self.0.len(),
+            expected,
+            "expected {expected} process(es) in catalog, got {:?}",
+            self.0
+        );
+    }
+
+    pub fn assert_absent(&self, name: &str) {
+        assert!(
+            !self.0.iter().any(|p| p.name == name),
+            "process '{name}' should not be in catalog, got {:?}",
+            self.0
+        );
+    }
+
+    pub fn assert_process_state(&self, name: &str, expected: ProcessExpect) {
+        let process = self.require_process(name);
+        let expected_state = expected.as_str();
+        assert_eq!(
+            process.state, expected_state,
+            "process '{name}': expected state {expected_state}, got {process:?}"
+        );
+        assert!(
+            process_matches_expect(process, expected),
+            "process '{name}' PID expectation not met for {expected_state}: {process:?}"
+        );
+    }
+
+    pub fn assert_last_exit_code(&self, name: &str, code: i32) {
+        let process = self.require_process(name);
+        assert_eq!(
+            process.last_exit_code,
+            Some(code),
+            "process '{name}' last_exit_code: expected {code}, got {process:?}"
+        );
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
 /// Unset fields are not checked.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct StatusProcessesCount {
@@ -357,6 +429,55 @@ impl StatusProcessesCount {
             exited: Some(0),
             starting: Some(0),
             stopping: Some(0),
+        }
+    }
+}
+
+impl DaemonStatus {
+    pub fn assert_ready(&self) {
+        assert!(self.ready, "expected daemon ready, got {self:?}");
+    }
+
+    pub fn assert_version_not_empty(&self) {
+        assert!(
+            !self.version.is_empty(),
+            "expected non-empty status version, got {self:?}"
+        );
+    }
+
+    pub fn assert_processes_count(&self, expected: StatusProcessesCount) {
+        let fields = [
+            ("total_processes", self.total_processes, expected.total),
+            (
+                "running_processes",
+                self.running_processes,
+                expected.running,
+            ),
+            (
+                "created_processes",
+                self.created_processes,
+                expected.created,
+            ),
+            (
+                "stopped_processes",
+                self.stopped_processes,
+                expected.stopped,
+            ),
+            ("failed_processes", self.failed_processes, expected.failed),
+            ("exited_processes", self.exited_processes, expected.exited),
+            (
+                "starting_processes",
+                self.starting_processes,
+                expected.starting,
+            ),
+            (
+                "stopping_processes",
+                self.stopping_processes,
+                expected.stopping,
+            ),
+        ];
+        for (field, actual, exp) in fields {
+            assert_status_field(field, actual, exp, self);
         }
     }
 }
@@ -435,6 +556,32 @@ impl ListClient {
         }
         serde_json::from_str(&out.stdout)
             .map_err(|e| format!("failed to parse list JSON: {e}\nstdout: {}", out.stdout))
+    }
+}
+
+struct DescribeClient {
+    runner: CliRunner,
+}
+
+impl DescribeClient {
+    fn new(socket_path: &Path) -> Self {
+        Self {
+            runner: CliRunner::new(socket_path),
+        }
+    }
+
+    fn describe(&self, name_or_uuid: &str) -> Result<DescribeSnapshot, String> {
+        let out = self.runner.run(&["describe", "--json", name_or_uuid]);
+        if !out.status.success() {
+            return Err(format!(
+                "describe --json {name_or_uuid} failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        serde_json::from_str(&out.stdout)
+            .map_err(|e| format!("failed to parse describe JSON: {e}\nstdout: {}", out.stdout))
     }
 }
 
@@ -675,6 +822,23 @@ impl CliOutput {
         assert_eq!(
             value, expected,
             "field '{label}': expected '{expected}', got '{value}'",
+        );
+        self
+    }
+
+    /// Parse a numeric "Label: value" line and assert it is at least `min`.
+    pub fn assert_field_at_least(&self, label: &str, min: u64) -> &Self {
+        let raw = self.field_value(label);
+        let value: u64 = raw.parse().unwrap_or_else(|_| {
+            panic!(
+                "field '{label}': expected a number, got '{raw}'\nstdout: {}",
+                self.stdout
+            )
+        });
+        assert!(
+            value >= min,
+            "field '{label}': expected >={min}, got {value}\nstdout: {}",
+            self.stdout
         );
         self
     }
@@ -993,63 +1157,16 @@ impl TestEnv {
         StatusClient::new(&self.socket_path).status()
     }
 
-    fn require_status(&self) -> DaemonStatus {
+    pub fn require_status(&self) -> DaemonStatus {
         self.status()
             .unwrap_or_else(|e| panic!("failed to get daemon status: {e}"))
     }
 
-    pub fn assert_status_err(&self) -> String {
-        self.status().expect_err("expected status to fail")
-    }
-
-    pub fn assert_status_ready(&self) {
-        let status = self.require_status();
-        assert!(status.ready, "expected daemon ready, got {status:?}");
-    }
-
-    pub fn assert_status_version_not_empty(&self) {
-        let status = self.require_status();
-        assert!(
-            !status.version.is_empty(),
-            "expected non-empty status version, got {status:?}"
-        );
-    }
-
-    pub fn assert_status_processes_count(&self, expected: StatusProcessesCount) {
-        let status = self.require_status();
-        let fields = [
-            ("total_processes", status.total_processes, expected.total),
-            (
-                "running_processes",
-                status.running_processes,
-                expected.running,
-            ),
-            (
-                "created_processes",
-                status.created_processes,
-                expected.created,
-            ),
-            (
-                "stopped_processes",
-                status.stopped_processes,
-                expected.stopped,
-            ),
-            ("failed_processes", status.failed_processes, expected.failed),
-            ("exited_processes", status.exited_processes, expected.exited),
-            (
-                "starting_processes",
-                status.starting_processes,
-                expected.starting,
-            ),
-            (
-                "stopping_processes",
-                status.stopping_processes,
-                expected.stopping,
-            ),
-        ];
-        for (field, actual, exp) in fields {
-            assert_status_field(field, actual, exp, &status);
-        }
+    pub fn require_list(&self) -> ProcessList {
+        ProcessList(
+            self.list_processes()
+                .unwrap_or_else(|e| panic!("failed to list processes: {e}")),
+        )
     }
 
     pub fn list_processes(&self) -> Result<Vec<ProcessSnapshot>, String> {
@@ -1067,12 +1184,18 @@ impl TestEnv {
             .ok_or_else(|| format!("process '{name}' not found"))
     }
 
-    pub fn wait_for_process_running(
+    /// Poll until `name` is Running with a live PID for `stable_running_duration()`.
+    pub fn wait_for_process_running(&self, name: &str) -> Result<ProcessSnapshot, String> {
+        self.wait_for_process_running_stable(name, stable_running_duration())
+    }
+
+    /// Poll until `name` is Running with a live PID for `stable_for` (default timeout).
+    pub fn wait_for_process_running_stable(
         &self,
         name: &str,
-        timeout: Duration,
+        stable_for: Duration,
     ) -> Result<ProcessSnapshot, String> {
-        self.wait_for_process_running_with_timeout(name, timeout)
+        self.wait_for_process_running_with_stable(name, default_process_wait_timeout(), stable_for)
     }
 
     pub fn wait_for_process_state(
@@ -1082,7 +1205,11 @@ impl TestEnv {
         timeout: Duration,
     ) -> Result<ProcessSnapshot, String> {
         if expected == ProcessExpect::Running {
-            return self.wait_for_process_running_with_timeout(name, timeout);
+            return self.wait_for_process_running_with_stable(
+                name,
+                timeout,
+                stable_running_duration(),
+            );
         }
 
         let client = ListClient::new(&self.socket_path);
@@ -1183,7 +1310,8 @@ impl TestEnv {
             .collect();
         self.assert_reload().assert_matches(&expected);
         for (name, pid_before) in pids_before {
-            self.assert_process_running(name);
+            self.wait_for_process_running(name)
+                .unwrap_or_else(|e| panic!("expected process '{name}' running after reload: {e}"));
             assert_eq!(
                 self.require_process_pid(name),
                 pid_before,
@@ -1199,17 +1327,7 @@ impl TestEnv {
     }
 
     fn describe(&self, name_or_uuid: &str) -> Result<DescribeSnapshot, String> {
-        let out = self.cli(&["describe", "--json", name_or_uuid]);
-        if !out.status.success() {
-            return Err(format!(
-                "describe --json {name_or_uuid} failed (exit {:?})\nstdout: {}\nstderr: {}",
-                out.status.code(),
-                out.stdout,
-                out.stderr,
-            ));
-        }
-        serde_json::from_str(&out.stdout)
-            .map_err(|e| format!("failed to parse describe JSON: {e}\nstdout: {}", out.stdout))
+        DescribeClient::new(&self.socket_path).describe(name_or_uuid)
     }
 
     fn assert_describe(&self, name_or_uuid: &str) -> DescribeSnapshot {
@@ -1230,14 +1348,6 @@ impl TestEnv {
         format!("{last_err}\n--- daemon logs ---\n{logs}\n--- end daemon logs ---")
     }
 
-    fn wait_for_process_running_with_timeout(
-        &self,
-        name: &str,
-        timeout: Duration,
-    ) -> Result<ProcessSnapshot, String> {
-        self.wait_for_process_running_with_stable(name, timeout, stable_running_duration())
-    }
-
     fn wait_for_process_running_with_stable(
         &self,
         name: &str,
@@ -1252,20 +1362,31 @@ impl TestEnv {
             let last_err = match client.list() {
                 Ok(processes) => match processes.iter().find(|p| p.name == name) {
                     Some(process) if process.state == "Running" && process.pid > 0 => {
-                        let reset = stable_pid != Some(process.pid);
-                        if reset || running_since.is_none() {
-                            running_since = Some(Instant::now());
-                            stable_pid = Some(process.pid);
-                        }
-                        let since = running_since.expect("running_since set above");
-                        if since.elapsed() >= stable_for {
+                        if !process_matches_expect(process, ProcessExpect::Running) {
+                            running_since = None;
+                            stable_pid = None;
+                            format!(
+                                "process '{name}' in Running but PID {} is not alive: {process:?}",
+                                process.pid
+                            )
+                        } else if stable_for.is_zero() {
                             return Ok(process.clone());
+                        } else {
+                            let reset = stable_pid != Some(process.pid);
+                            if reset || running_since.is_none() {
+                                running_since = Some(Instant::now());
+                                stable_pid = Some(process.pid);
+                            }
+                            let since = running_since.expect("running_since set above");
+                            if since.elapsed() >= stable_for {
+                                return Ok(process.clone());
+                            }
+                            format!(
+                                "process '{name}' running (pid {}) but not stable for {stable_for:?} yet ({:?} elapsed)",
+                                process.pid,
+                                since.elapsed()
+                            )
                         }
-                        format!(
-                            "process '{name}' running (pid {}) but not stable for {stable_for:?} yet ({:?} elapsed)",
-                            process.pid,
-                            since.elapsed()
-                        )
                     }
                     Some(process) => {
                         running_since = None;
@@ -1291,59 +1412,75 @@ impl TestEnv {
         }
     }
 
-    pub fn assert_process_running(&self, name: &str) {
-        self.wait_for_process_running(name, default_process_wait_timeout())
-            .unwrap_or_else(|e| panic!("expected process '{name}' running: {e}"));
-        self.assert_process_pid_alive(name);
+    pub fn wait_for_restart_count_at_least(
+        &self,
+        name: &str,
+        min: u64,
+        timeout: Duration,
+    ) -> Result<ProcessSnapshot, String> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            let last_err = match self.process(name) {
+                Ok(snap) if snap.restart_count >= min => return Ok(snap),
+                Ok(snap) => format!(
+                    "process '{name}' restart_count={} (want >={min})",
+                    snap.restart_count
+                ),
+                Err(e) => e,
+            };
+            if Instant::now() >= deadline {
+                return Err(self.format_wait_failure(last_err));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
     }
 
-    pub fn assert_process_state(&self, name: &str, expected: ProcessExpect) {
-        let process = self.find_process(name).unwrap_or_else(|e| panic!("{e}"));
+    pub fn assert_restart_count_at_least(&self, name: &str, min: u64) {
+        self.wait_for_restart_count_at_least(name, min, default_process_wait_timeout())
+            .unwrap_or_else(|e| panic!("expected restart_count >={min} for '{name}': {e}"));
+    }
+
+    /// Wait until `restart_count` equals `count`, state matches `expected`, and both hold for
+    /// `stable_for`. Fails immediately if `restart_count` exceeds `count` (e.g. burst limit
+    /// did not trip). Use `stable_for` longer than the fixture `restart_sec` when count is
+    /// incremented at schedule time before the pending restart completes.
+    pub fn wait_for_restart_count_terminal(
+        &self,
+        name: &str,
+        count: u64,
+        expected: ProcessExpect,
+        stable_for: Duration,
+        timeout: Duration,
+    ) -> Result<ProcessSnapshot, String> {
         let expected_state = expected.as_str();
-        assert_eq!(
-            process.state, expected_state,
-            "process '{name}': expected state {expected_state}, got {process:?}"
-        );
-        assert!(
-            process_matches_expect(&process, expected),
-            "process '{name}' PID expectation not met for {expected_state}: {process:?}"
-        );
-    }
-
-    pub fn assert_process_last_exit_code(&self, name: &str, code: i32) {
-        let process = self.find_process(name).unwrap();
-        assert_eq!(
-            process.last_exit_code,
-            Some(code),
-            "process '{name}' last_exit_code: expected {code}, got {process:?}"
-        );
-    }
-
-    pub fn assert_process_absent(&self, name: &str) {
-        let processes = self
-            .list_processes()
-            .unwrap_or_else(|e| panic!("failed to list processes: {e}"));
-        assert!(
-            !processes.iter().any(|p| p.name == name),
-            "process '{name}' should not be in catalog, got {processes:?}"
-        );
-    }
-
-    pub fn assert_list_empty(&self) {
-        let processes = self.list_processes().expect("failed to list processes");
-        assert!(
-            processes.is_empty(),
-            "expected empty catalog, got {processes:?}"
-        );
-    }
-
-    pub fn assert_list_len(&self, expected: usize) {
-        let processes = self.list_processes().expect("failed to list processes");
-        assert_eq!(
-            processes.len(),
-            expected,
-            "expected {expected} process(es) in catalog, got {processes:?}"
-        );
+        let deadline = Instant::now() + timeout;
+        let mut stable_since: Option<Instant> = None;
+        loop {
+            let snap = self.process(name)?;
+            if snap.restart_count > count {
+                return Err(format!(
+                    "process '{name}' restart_count={} exceeds terminal cap {count}: {snap:?}",
+                    snap.restart_count
+                ));
+            }
+            let matches = snap.state == expected_state
+                && snap.restart_count == count
+                && process_matches_expect(&snap, expected);
+            if matches {
+                let since = stable_since.get_or_insert_with(Instant::now);
+                if since.elapsed() >= stable_for {
+                    return Ok(snap);
+                }
+            } else {
+                stable_since = None;
+            }
+            if Instant::now() >= deadline {
+                return Err(self.format_wait_failure(format!(
+                    "process '{name}' did not stay in {expected_state} with restart_count={count} for {stable_for:?}, last: {snap:?}"
+                )));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
     }
 
     pub fn assert_daemon_log_line_contains(&self, patterns: &[&str]) {
@@ -1365,19 +1502,6 @@ impl TestEnv {
         self.assert_daemon_log_line_contains(&[&prefix, path]);
     }
 
-    fn assert_process_pid_alive(&self, name: &str) {
-        let process = self.find_process(name).unwrap_or_else(|e| panic!("{e}"));
-        let pid = process.pid as u32;
-        assert!(
-            pid > 0,
-            "process '{name}' should have a PID, got {process:?}"
-        );
-        assert!(
-            pid_is_alive(pid),
-            "PID {pid} for process '{name}' should be alive"
-        );
-    }
-
     pub fn assert_pid_gone(&self, pid: u64) {
         assert!(
             wait_for_pid_gone(pid as u32, DEFAULT_TIMEOUT),
@@ -1387,7 +1511,8 @@ impl TestEnv {
 
     pub fn assert_process_pid_changed(&self, name: &str, old_pid: u64) {
         self.assert_pid_gone(old_pid);
-        self.assert_process_running(name);
+        self.wait_for_process_running(name)
+            .unwrap_or_else(|e| panic!("expected process '{name}' running with new pid: {e}"));
         let new_pid = self.require_process_pid(name);
         assert_ne!(old_pid, new_pid, "PID should change for {name}");
     }
@@ -1413,9 +1538,68 @@ impl TestEnv {
     }
 
     /// Run a CLI command against this environment's daemon.
+    ///
+    /// Prefer the typed `cli_*` helpers below for standard subcommands in contract
+    /// tests. Use this for `create` and other multi-flag invocations.
     pub fn cli(&self, args: &[&str]) -> CliOutput {
         let runner = CliRunner::new(&self.socket_path);
         runner.run(args)
+    }
+
+    pub fn cli_config(&self) -> CliOutput {
+        self.cli(&["config"])
+    }
+
+    pub fn cli_config_json(&self) -> CliOutput {
+        self.cli(&["config", "--json"])
+    }
+
+    pub fn cli_status(&self) -> CliOutput {
+        self.cli(&["status"])
+    }
+
+    pub fn cli_status_json(&self) -> CliOutput {
+        self.cli(&["status", "--json"])
+    }
+
+    pub fn cli_list(&self) -> CliOutput {
+        self.cli(&["list"])
+    }
+
+    pub fn cli_list_json(&self) -> CliOutput {
+        self.cli(&["list", "--json"])
+    }
+
+    pub fn cli_describe(&self, name: &str) -> CliOutput {
+        self.cli(&["describe", name])
+    }
+
+    pub fn cli_describe_json(&self, name: &str) -> CliOutput {
+        self.cli(&["describe", "--json", name])
+    }
+
+    pub fn cli_start(&self, name: &str) -> CliOutput {
+        self.cli(&["start", name])
+    }
+
+    pub fn cli_start_json(&self, name: &str) -> CliOutput {
+        self.cli(&["start", "--json", name])
+    }
+
+    pub fn cli_stop(&self, name: &str) -> CliOutput {
+        self.cli(&["stop", name])
+    }
+
+    pub fn cli_stop_json(&self, name: &str) -> CliOutput {
+        self.cli(&["stop", "--json", name])
+    }
+
+    pub fn cli_reload(&self) -> CliOutput {
+        self.cli(&["reload"])
+    }
+
+    pub fn cli_reload_json(&self) -> CliOutput {
+        self.cli(&["reload", "--json"])
     }
 
     /// Access the daemon handle for log inspection, PID checks, etc.
