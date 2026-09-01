@@ -163,12 +163,10 @@ func postgresMatchesCommandline(args []string) bool {
 }
 
 func postgresGetArgs(args []string) ([]string, bool) {
-	for i, arg := range args {
-		if path.Base(arg) == "postgres" {
-			return args[i+1:], true
-		}
+	if len(args) == 0 || path.Base(args[0]) != "postgres" {
+		return nil, false
 	}
-	return nil, false
+	return args[1:], true
 }
 
 func postgresGetExplicitConfigArg(args []string) (string, bool) {

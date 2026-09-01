@@ -188,6 +188,24 @@ func TestPostgresCollectorReadsDetectedConfigWhenEnvVarsFail(t *testing.T) {
 	assert.Empty(t, collected.EnvVars)
 }
 
+func TestPostgresCollectorSkipsClientCommandline(t *testing.T) {
+	const backupConfigPath = "/backup/postgresql.conf"
+	reader := &postgresCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"pg_basebackup", "-U", "postgres", "-D", "/backup"},
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			backupConfigPath: {Path: backupConfigPath, Content: []byte("max_connections = 200\n")},
+		},
+	}
+
+	collected, err := NewPostgres().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, collected)
+	assert.Empty(t, reader.readFileCalls)
+}
+
 func TestPostgresCollectorCanCollectFromProcess(t *testing.T) {
 	collector := postgresConfigCollector{}
 	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
@@ -195,6 +213,9 @@ func TestPostgresCollectorCanCollectFromProcess(t *testing.T) {
 	}))
 	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
 		Args: []string{"postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"pg_basebackup", "-U", "postgres", "-D", "/backup"},
 	}))
 	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{}))
 }
@@ -214,6 +235,7 @@ func TestPostgresGetConfigArgFromCommandline(t *testing.T) {
 		{name: "last data directory wins", args: []string{"postgres", "-D", "/one", "-D", "/two"}, wantPath: "/two/postgresql.conf", wantOK: true},
 		{name: "explicit config file wins over data directory", args: []string{"postgres", "-D", "/var/lib/postgresql/data", "-c", "config_file=/etc/postgresql/postgresql.conf"}, wantPath: "/etc/postgresql/postgresql.conf", wantOK: true},
 		{name: "shell wrapper", args: []string{"/bin/sh", "-c", "postgres -D /var/lib/postgresql/data"}, wantPath: "/var/lib/postgresql/data/postgresql.conf", wantOK: true},
+		{name: "client command with postgres user", args: []string{"pg_basebackup", "-U", "postgres", "-D", "/backup"}},
 		{name: "no path", args: []string{"postgres"}},
 		{name: "non postgres command", args: []string{"redis-server", "/etc/redis/redis.conf"}},
 	}
