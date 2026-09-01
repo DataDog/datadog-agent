@@ -1184,17 +1184,12 @@ impl TestEnv {
             .ok_or_else(|| format!("process '{name}' not found"))
     }
 
-    /// Poll until `name` is Running with a live PID (default timeout, no stability wait).
+    /// Poll until `name` is Running with a live PID for `stable_running_duration()`.
     pub fn wait_for_process_running(&self, name: &str) -> Result<ProcessSnapshot, String> {
-        self.wait_for_process_running_with_stable(
-            name,
-            default_process_wait_timeout(),
-            Duration::ZERO,
-        )
+        self.wait_for_process_running_stable(name, stable_running_duration())
     }
 
-    /// Like [`wait_for_process_running`](Self::wait_for_process_running), but requires the
-    /// process to stay Running for `stable_for` before returning.
+    /// Poll until `name` is Running with a live PID for `stable_for` (default timeout).
     pub fn wait_for_process_running_stable(
         &self,
         name: &str,
@@ -1210,7 +1205,11 @@ impl TestEnv {
         timeout: Duration,
     ) -> Result<ProcessSnapshot, String> {
         if expected == ProcessExpect::Running {
-            return self.wait_for_process_running_stable(name, stable_running_duration());
+            return self.wait_for_process_running_with_stable(
+                name,
+                timeout,
+                stable_running_duration(),
+            );
         }
 
         let client = ListClient::new(&self.socket_path);
