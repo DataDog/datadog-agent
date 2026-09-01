@@ -82,6 +82,9 @@ func NewComponent(deps Requires) Provides {
 }
 
 func newTelemetry() *telemetryImpl {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	return &telemetryImpl{
 		mutex:           &mutex,
 		registry:        registry,
@@ -109,7 +112,8 @@ func (t *telemetryImpl) Reset() {
 	t.registry = registry
 	t.metricHelpMutex.Lock()
 	defer t.metricHelpMutex.Unlock()
-	clear(t.metricHelp)
+	metricHelp = make(map[string]string)
+	t.metricHelp = metricHelp
 }
 
 // CanonicalMetricHelp returns the HELP text for a metric family created in the normal telemetry registry.

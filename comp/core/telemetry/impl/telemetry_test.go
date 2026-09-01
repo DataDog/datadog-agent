@@ -216,6 +216,17 @@ func TestCanonicalMetricHelp(t *testing.T) {
 	assert.False(t, found)
 }
 
+func TestCanonicalMetricHelpDoesNotLeakAcrossReset(t *testing.T) {
+	stale := newTelemetry()
+	live := newTelemetry()
+	live.Reset()
+	t.Cleanup(live.Reset)
+
+	stale.NewSimpleCounter("stale", "metric", "stale help")
+	_, found := live.CanonicalMetricHelp("stale__metric")
+	require.False(t, found)
+}
+
 func TestGatherText(t *testing.T) {
 	tel := fxutil.Test[telemetry.Mock](t, MockModule())
 
