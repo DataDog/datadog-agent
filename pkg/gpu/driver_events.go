@@ -86,7 +86,6 @@ func (t *driverEventTelemetry) init(component telemetry.Component) {
 var errDriverEventSubscriberStopped = errors.New("driver event subscriber stopped")
 
 type driverEventReader interface {
-	Records() <-chan kernel.KmsgRecord
 	Errors() <-chan error
 	Stop()
 }
@@ -94,6 +93,8 @@ type driverEventReader interface {
 // DriverEventSubscriber reads NVIDIA Xid events from /dev/kmsg and associates them with physical GPU UUIDs.
 type DriverEventSubscriber struct {
 	reader       driverEventReader
+	records      <-chan kernel.KmsgRecord
+	unsubscribe  func()
 	telemetry    *driverEventTelemetry
 	timeResolver *ktime.Resolver
 
@@ -125,15 +126,22 @@ func NewDriverEventSubscriber(component telemetry.Component, deviceCache ddnvml.
 		return nil, fmt.Errorf("create kernel time resolver: %w", err)
 	}
 
-	reader, err := kernel.NewKmsgReader(component, isNvidiaXidMessage)
+	reader, err := kernel.NewKmsgReader(component)
 	if err != nil {
 		return nil, fmt.Errorf("create kmsg reader: %w", err)
 	}
 
+	records, unsubscribe, err := reader.Subscribe("gpu-driver-events", isNvidiaXidMessage)
+	if err != nil {
+		reader.Stop()
+		return nil, fmt.Errorf("subscribe to kmsg reader: %w", err)
+	}
 	driverEventsTelemetryDefinitions.init(component)
 	subscriber := &DriverEventSubscriber{
 		reader:       reader,
 		telemetry:    &driverEventsTelemetryDefinitions,
+		records:      records,
+		unsubscribe:  unsubscribe,
 		timeResolver: timeResolver,
 		events:       make(chan model.DriverEvent, cfg.QueueSize),
 		deviceCache:  deviceCache,
@@ -165,6 +173,9 @@ func (s *DriverEventSubscriber) Stop() {
 	s.stopOnce.Do(func() {
 		s.reader.Stop()
 		<-s.done
+		if s.unsubscribe != nil {
+			s.unsubscribe()
+		}
 	})
 }
 
@@ -176,7 +187,7 @@ func (s *DriverEventSubscriber) run() {
 
 	for {
 		select {
-		case record, ok := <-s.reader.Records():
+		case record, ok := <-s.records:
 			if !ok {
 				return
 			}
