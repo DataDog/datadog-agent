@@ -121,10 +121,7 @@ go_library(
 dd_agent_go_test(
     name = "coat_test",
     # keep: split from coat_linux_test.
-    srcs = [
-        "process_state_test.go",
-        "services_test.go",
-    ],
+    srcs = ["services_test.go"],
     embed = [":coat"],
     # keep: procmgr dep is in coat_linux_test only.
     deps = [
@@ -136,7 +133,10 @@ dd_agent_go_test(
 dd_agent_go_test(
     name = "coat_linux_test",
     # keep: split from coat_test.
-    srcs = ["collector_test.go"],
+    srcs = [
+        "collector_test.go",
+        "process_state_test.go",
+    ],
     embed = [":coat"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
