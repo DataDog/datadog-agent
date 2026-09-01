@@ -59,11 +59,6 @@ agents:
 	)
 }
 
-var otlpIngestMetricsAttributesAsTagsParams = utils.IAParams{
-	InfraAttributes:         true,
-	MetricsAttributesAsTags: true,
-}
-
 func (s *otlpIngestMetricsAttributesAsTagsTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
@@ -73,5 +68,5 @@ func (s *otlpIngestMetricsAttributesAsTagsTestSuite) SetupSuite() {
 }
 
 func (s *otlpIngestMetricsAttributesAsTagsTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s, otlpIngestMetricsAttributesAsTagsParams)
+	utils.TestMetricsAttributesAsTags(s)
 }

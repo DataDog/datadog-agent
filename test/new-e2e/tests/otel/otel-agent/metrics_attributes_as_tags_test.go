@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -52,12 +51,6 @@ datadog:
 	)
 }
 
-var metricsAttributesAsTagsParams = utils.IAParams{
-	InfraAttributes:         true,
-	Cardinality:             types.HighCardinality,
-	MetricsAttributesAsTags: true,
-}
-
 func (s *metricsAttributesAsTagsTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
@@ -67,5 +60,5 @@ func (s *metricsAttributesAsTagsTestSuite) SetupSuite() {
 }
 
 func (s *metricsAttributesAsTagsTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s, metricsAttributesAsTagsParams)
+	utils.TestMetricsAttributesAsTags(s)
 }
