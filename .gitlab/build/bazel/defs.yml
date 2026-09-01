@@ -46,7 +46,7 @@
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
 
 # Temporarily kill any Bazel server running on that slot until https://github.com/bazelbuild/bazel/issues/30435 is fixed
-# in the Bazel version we use (hopefully in Bazel 9.3.0):
+# in our Bazel version, i.e. through https://github.com/bazelbuild/bazel/commit/058adaacae08166ce6e6edb0e2fdb28a67524314
 .kill_bazel_server:
   - pkill -f "output_base=$XDG_CACHE_HOME" || [ "$?" -eq 1 ]  # No processes matched
 
