@@ -16,6 +16,9 @@ Packages installed:
       ExperimentVersion: {{ $remoteConfig.ExperimentVersion }}
       StableConfigVersion: {{ $remoteConfig.StableConfigVersion }}
       ExperimentConfigVersion: {{ $remoteConfig.ExperimentConfigVersion }}
+      {{- range $service, $state := $remoteConfig.ProcessStates }}
+      ProcessState[{{ $service }}]: {{ $state }}
+      {{- end }}
       Task:
         {{- if $remoteConfig.Task }}
         Id: {{ $remoteConfig.Task.ID }}
