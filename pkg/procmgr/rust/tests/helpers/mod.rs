@@ -446,6 +446,32 @@ impl ListClient {
     }
 }
 
+struct DescribeClient {
+    runner: CliRunner,
+}
+
+impl DescribeClient {
+    fn new(socket_path: &Path) -> Self {
+        Self {
+            runner: CliRunner::new(socket_path),
+        }
+    }
+
+    fn describe(&self, name_or_uuid: &str) -> Result<DescribeSnapshot, String> {
+        let out = self.runner.run(&["describe", "--json", name_or_uuid]);
+        if !out.status.success() {
+            return Err(format!(
+                "describe --json {name_or_uuid} failed (exit {:?})\nstdout: {}\nstderr: {}",
+                out.status.code(),
+                out.stdout,
+                out.stderr,
+            ));
+        }
+        serde_json::from_str(&out.stdout)
+            .map_err(|e| format!("failed to parse describe JSON: {e}\nstdout: {}", out.stdout))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // DaemonHandle
 // ---------------------------------------------------------------------------
@@ -1224,17 +1250,7 @@ impl TestEnv {
     }
 
     fn describe(&self, name_or_uuid: &str) -> Result<DescribeSnapshot, String> {
-        let out = self.cli(&["describe", "--json", name_or_uuid]);
-        if !out.status.success() {
-            return Err(format!(
-                "describe --json {name_or_uuid} failed (exit {:?})\nstdout: {}\nstderr: {}",
-                out.status.code(),
-                out.stdout,
-                out.stderr,
-            ));
-        }
-        serde_json::from_str(&out.stdout)
-            .map_err(|e| format!("failed to parse describe JSON: {e}\nstdout: {}", out.stdout))
+        DescribeClient::new(&self.socket_path).describe(name_or_uuid)
     }
 
     fn assert_describe(&self, name_or_uuid: &str) -> DescribeSnapshot {
