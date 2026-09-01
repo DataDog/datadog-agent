@@ -215,7 +215,7 @@ installer_suse_rpm-arm64:
     DD_ENABLE_VPA: false
 
 .package_iot_rpm_common:
-  extends: .bazel:defs:cache:omnibus-transition
+  extends: .bazel:defs:cache:progressive
   rules:
     - when: on_success
   script:
