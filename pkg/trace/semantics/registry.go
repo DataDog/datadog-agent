@@ -119,6 +119,10 @@ func (r *EmbeddedRegistry) loadFromJSON(data []byte) error {
 	return nil
 }
 
+// computeContentHash returns "sha256:<lowercase hex>" over the UTF-8 bytes of
+// {"concepts": <concepts>} serialized like Python json.dumps with sort_keys=True
+// and separators=(",", ":"). Object keys are sorted recursively, array order is
+// preserved, and non-ASCII runes are escaped as lowercase \uXXXX sequences.
 func computeContentHash(data []byte) (string, error) {
 	var payload struct {
 		Concepts json.RawMessage `json:"concepts"`
