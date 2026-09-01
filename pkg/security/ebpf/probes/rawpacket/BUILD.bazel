@@ -32,6 +32,7 @@ go_library(
             # keep: gazelle can't see the imports in pcap.go (its
             # `linux && pcap && cgo` build tag isn't gazelle-resolvable, see
             # the "keep" note on that file in srcs above).
+            "//pkg/security/ebpf/probes",  # keep
             "@com_github_cloudflare_cbpfc//:cbpfc",  # keep
             "@com_github_google_gopacket//layers",  # keep
             "@com_github_google_gopacket//pcap",  # keep
