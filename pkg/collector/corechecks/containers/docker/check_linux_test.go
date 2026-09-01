@@ -324,6 +324,8 @@ func TestFindDockerNetworksPIDSelection(t *testing.T) {
 	// handed out to the short-lived children it forks.
 	const livePID = 2280542
 	const deadPID, otherDeadPID = 1510160, 1511051
+	// PID whose routes cannot be read for a reason that is not tied to that PID, e.g. EACCES.
+	const deniedPID = 1600000
 
 	rawContainer := container.Summary{
 		ID:    "docker-app",
@@ -383,6 +385,14 @@ func TestFindDockerNetworksPIDSelection(t *testing.T) {
 			expectedMapping: nil,
 			expectedTried:   nil,
 		},
+		{
+			// A failure that is not a vanished process would repeat identically for every PID,
+			// so it must abort the loop instead of walking the whole process list.
+			name:            "permanent failure stops at the first PID",
+			pids:            []int{deniedPID, livePID},
+			expectedMapping: nil,
+			expectedTried:   []int{deniedPID},
+		},
 	}
 
 	for _, test := range tests {
@@ -390,10 +400,14 @@ func TestFindDockerNetworksPIDSelection(t *testing.T) {
 			var tried []int
 			getRoutesFunc = func(_ string, pid int) ([]system.NetworkRoute, error) {
 				tried = append(tried, pid)
-				if pid != livePID {
+				switch pid {
+				case livePID:
+					return liveRoutes, nil
+				case deniedPID:
+					return nil, fmt.Errorf("unable to read routes for pid %d: %w", pid, os.ErrPermission)
+				default:
 					return nil, fmt.Errorf("unable to read routes for pid %d: %w", pid, os.ErrNotExist)
 				}
-				return liveRoutes, nil
 			}
 			t.Cleanup(func() { getRoutesFunc = system.ParseProcessRoutes })
 

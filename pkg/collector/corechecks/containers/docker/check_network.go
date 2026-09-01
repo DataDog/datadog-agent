@@ -9,7 +9,10 @@ package docker
 
 import (
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"net"
+	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -197,16 +200,27 @@ var (
 // several seconds old, and its order is not guaranteed to put the container main process first.
 // In particular, once the kernel PID counter has wrapped around, the lowest PID of a container is
 // the youngest process, hence the most likely to be gone already.
-func routesForContainer(procPath string, entry *containerNetworkEntry) (routes []system.NetworkRoute, err error) {
+//
+// Mirrors the PID selection of `buildNetworkStats`: only a vanished process is worth retrying with
+// another PID.
+func routesForContainer(procPath string, entry *containerNetworkEntry) ([]system.NetworkRoute, error) {
 	for _, pid := range entry.pids {
-		if routes, err = getRoutesFunc(procPath, pid); err == nil {
+		routes, err := getRoutesFunc(procPath, pid)
+		if err == nil {
 			return routes, nil
+		}
+
+		// Any other failure (permission denied, malformed route file, Windows routing table API
+		// error, …) is not tied to that particular PID and would repeat identically for all of
+		// them, so report it right away instead of hammering the whole process list.
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
 		}
 
 		log.Tracef("Cannot list routes for container id %s through pid %d: %s, trying next pid", entry.containerID, pid, err)
 	}
 
-	return routes, err
+	return nil, fmt.Errorf("none of the %d known PIDs of the container are still running", len(entry.pids))
 }
 
 func findDockerNetworks(procPath string, entry *containerNetworkEntry, container container.Summary) {
