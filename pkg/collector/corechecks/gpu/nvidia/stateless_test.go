@@ -16,7 +16,6 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -28,7 +27,7 @@ import (
 func TestSramEccErrorStatusSample(t *testing.T) {
 	mockDevice := setupMockDevice(t,
 		testutil.WithArchitecture("ampere"),
-		testutil.WithCustomHook(func(device *mock.Device) {
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
 			device.GetSramEccErrorStatusFunc = func() (nvml.EccSramErrorStatus, nvml.Return) {
 				return nvml.EccSramErrorStatus{
 					AggregateCor:            11,
@@ -191,7 +190,7 @@ func TestAllECCAPIHandlers(t *testing.T) {
 		legacyMetric("uncorrected", "total", "texture_shm", 116),
 		legacyMetric("uncorrected", "total", "cbu", 117),
 	)
-	configureEccAPIs := func(device *mock.Device) {
+	configureEccAPIs := func(device *testutil.MockDevice) {
 		device.GetMemoryErrorCounterFunc = func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, nvml.Return) {
 			return legacyCounterValue(errorType, counterType, memoryLocation), nvml.SUCCESS
 		}
@@ -260,7 +259,7 @@ func TestStatelessCollectorSkipsMaxClockInfoForVGPU(t *testing.T) {
 	device := setupMockDevice(t,
 		testutil.WithDeviceFeatureMode(testutil.DeviceFeatureVGPU),
 		testutil.WithMockAllFunctions(),
-		testutil.WithCustomHook(func(device *mock.Device) {
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
 			device.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
 				virtualizationModeCalls++
 				return nvml.GPU_VIRTUALIZATION_MODE_VGPU, nvml.SUCCESS
@@ -452,7 +451,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 		},
 		{
 			name: "Success with 4 links",
-			mockOpts: []testutil.NvmlMockOption{testutil.WithCustomHook(func(device *mock.Device) {
+			mockOpts: []testutil.NvmlMockOption{testutil.WithCustomHook(func(device *testutil.MockDevice) {
 				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
 					require.Len(t, values, 1, "Expected one field value for total number of links, got %d", len(values))
 					require.Equal(t, values[0].FieldId, uint32(nvml.FI_DEV_NVLINK_LINK_COUNT), "Expected field ID to be FI_DEV_NVLINK_LINK_COUNT, got %d", values[0].FieldId)
@@ -991,7 +990,7 @@ func TestPCIELinkMetrics(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			device := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
+			device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
 				device.GetCurrPcieLinkWidthFunc = func() (int, nvml.Return) {
 					if test.currentWidth == -1 {
 						return 0, nvml.ERROR_UNKNOWN
