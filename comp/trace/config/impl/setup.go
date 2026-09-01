@@ -646,6 +646,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.profiling_dd_url"; core.IsConfigured(k) {
 		c.ProfilingProxy.DDURL = core.GetString(k)
 	}
+	if c.ProfilingProxy.DDURL == "" {
+		// Resolve the implicit URL here to keep config dependencies out of pkg/trace.
+		c.ProfilingProxy.DDURL = utils.BuildURLWithPrefix(config.ProfilingEndpointPrefix, c.Site) + config.ProfilingEndpointPath
+	}
 	if k := "apm_config.profiling_additional_endpoints"; core.IsConfigured(k) {
 		c.ProfilingProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
 	}

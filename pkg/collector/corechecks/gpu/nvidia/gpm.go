@@ -244,7 +244,7 @@ func (c *gpmCollector) Name() CollectorName {
 	return gpm
 }
 
-func (c *gpmCollector) Collect() ([]*Metric, error) {
+func (c *gpmCollector) Collect() ([]Sample, error) {
 	err := c.collectSample()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect GPM sample: %w", err)
@@ -255,7 +255,7 @@ func (c *gpmCollector) Collect() ([]*Metric, error) {
 		return nil, fmt.Errorf("failed to get GPM metrics: %w", err)
 	}
 
-	metrics := make([]Metric, 0, len(c.metricsToCollect))
+	samples := make([]Sample, 0, len(c.metricsToCollect))
 	var errs []error
 	for i := uint32(0); i < gpmMetrics.NumMetrics; i++ {
 		metric := gpmMetrics.Metrics[i]
@@ -270,13 +270,13 @@ func (c *gpmCollector) Collect() ([]*Metric, error) {
 			continue
 		}
 
-		metrics = append(metrics, Metric{
-			Name:     metricData.name,
-			Value:    metric.Value,
-			Type:     metricData.metricType,
-			Priority: High, // All GPM metrics have priority over other collectors
+		samples = append(samples, &Metric{
+			baseSample: baseSample{priority: High}, // All GPM metrics have priority over other collectors
+			Name:       metricData.name,
+			Value:      metric.Value,
+			Type:       metricData.metricType,
 		})
 	}
 
-	return metricValuesToPointers(metrics), errors.Join(errs...)
+	return samples, errors.Join(errs...)
 }

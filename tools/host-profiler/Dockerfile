@@ -1,9 +1,10 @@
 FROM debian:trixie-slim AS dda
-ARG DDA_VERSION=v0.29.0
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
+COPY .dda/version /tmp/dda.version
 RUN ARCH=$(dpkg --print-architecture) && \
+    DDA_VERSION="v$(cat /tmp/dda.version)" && \
     if [ "$ARCH" = "amd64" ]; then DDA_ARCH="x86_64"; \
     elif [ "$ARCH" = "arm64" ]; then DDA_ARCH="aarch64"; fi && \
     curl -fsSL --retry 4 "https://github.com/DataDog/datadog-agent-dev/releases/download/${DDA_VERSION}/dda-${DDA_ARCH}-unknown-linux-gnu.tar.gz" \

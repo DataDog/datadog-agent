@@ -84,25 +84,25 @@ func (c *nvlinkFECCollector) Name() CollectorName {
 	return nvlinkFEC
 }
 
-func (c *nvlinkFECCollector) Collect() ([]*Metric, error) {
+func (c *nvlinkFECCollector) Collect() ([]Sample, error) {
 	var (
-		allMetrics []*Metric
+		allSamples []Sample
 		multiErr   []error
 	)
 
 	for _, port := range c.ports {
-		metrics, err := c.getPortMetrics(port)
-		allMetrics = append(allMetrics, metrics...)
+		samples, err := c.getPortMetrics(port)
+		allSamples = append(allSamples, samples...)
 		if err != nil {
 			multiErr = append(multiErr, fmt.Errorf("get port metrics for port %d: %w", port, err))
 			continue
 		}
 	}
 
-	return allMetrics, errors.Join(multiErr...)
+	return allSamples, errors.Join(multiErr...)
 }
 
-func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
+func (c *nvlinkFECCollector) getPortMetrics(port int) ([]Sample, error) {
 	fields := make([]nvml.FieldValue, len(nvlinkFECHistoryFieldIDs))
 	scopeID := uint32(port - 1)
 	for i, fieldID := range nvlinkFECHistoryFieldIDs {
@@ -116,7 +116,7 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 		return nil, fmt.Errorf("get FEC history field values for scope %d: %w", scopeID, err)
 	}
 
-	var fecMetrics []*Metric
+	var fecSamples []Sample
 	var multiErr []error
 	fecSeverityCounts := make([]float64, 3)
 	for bucket, fieldValue := range fields {
@@ -136,19 +136,15 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 		}
 
 		histBounds := [2]float64{float64(bucket), float64(bucket)}
-		metric := &Metric{
-			Name:     nvlinkFECHistoryMetricName,
-			Type:     metrics.HistogramType,
-			Value:    float64(count),
-			Priority: Medium,
-			Tags:     []string{nvlinkPortTag(port)},
-			HistogramBucket: &Bucket{
-				Bounds:    histBounds,
-				Monotonic: true,
-			},
+		sample := &HistogramSample{
+			baseSample: baseSample{priority: Medium, tags: []string{nvlinkPortTag(port)}},
+			Name:       nvlinkFECHistoryMetricName,
+			Value:      int64(count),
+			Bounds:     histBounds,
+			Monotonic:  true,
 		}
 
-		fecMetrics = append(fecMetrics, metric)
+		fecSamples = append(fecSamples, sample)
 		switch {
 		case bucket == 0:
 			fecSeverityCounts[0] += float64(count)
@@ -161,14 +157,14 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 
 	// If we have partial errors we can't emit the grouped metrics as they're not complete.
 	if len(multiErr) == 0 {
-		fecMetrics = append(fecMetrics, c.fecSeverityMetrics(port, fecSeverityCounts)...)
+		fecSamples = append(fecSamples, c.fecSeveritySamples(port, fecSeverityCounts)...)
 	}
 
-	return fecMetrics, errors.Join(multiErr...)
+	return fecSamples, errors.Join(multiErr...)
 }
 
-func (c *nvlinkFECCollector) fecSeverityMetrics(port int, counts []float64) []*Metric {
-	return []*Metric{
+func (c *nvlinkFECCollector) fecSeveritySamples(port int, counts []float64) []Sample {
+	return []Sample{
 		c.fecSeverityMetric(nvlinkFECNoErrorsMetricName, port, counts[0]),
 		c.fecSeverityMetric(nvlinkFECLightErrorsMetricName, port, counts[1]),
 		c.fecSeverityMetric(nvlinkFECHeavyErrorsMetricName, port, counts[2]),
@@ -177,11 +173,10 @@ func (c *nvlinkFECCollector) fecSeverityMetrics(port int, counts []float64) []*M
 
 func (c *nvlinkFECCollector) fecSeverityMetric(name string, port int, count float64) *Metric {
 	return &Metric{
+		baseSample:          baseSample{priority: Medium, tags: []string{nvlinkPortTag(port)}},
 		Name:                name,
 		Type:                metrics.GaugeType,
 		Value:               count,
-		Priority:            Medium,
-		Tags:                []string{nvlinkPortTag(port)},
 		RateCalculationMode: PerSecondRateCalculation,
 	}
 }

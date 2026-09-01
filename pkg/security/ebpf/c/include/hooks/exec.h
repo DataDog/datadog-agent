@@ -272,6 +272,9 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     // insert the pid cache entry for the new process
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
 
+    // the child inherits the address space the thread-context readers describe
+    inherit_span_context(ppid, pid);
+
     // [activity_dump] inherit tracing state
     inherit_traced_state(ctx, ppid, pid, &event->cgroup);
 
@@ -363,7 +366,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         struct exit_event_t *event = SPAN_FILL_EVENT(struct exit_event_t, EVENT_EXIT);
         if (!event) {
             // tear down the process state even if the event can't be staged
-            unregister_go_labels();
+            unregister_span_context();
             cleanup_traced_state(tgid);
             pop_syscall(EVENT_ANY);
             return 0;
@@ -895,7 +898,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 
-    unregister_go_labels();
+    unregister_span_context();
 
     return 0;
 }
