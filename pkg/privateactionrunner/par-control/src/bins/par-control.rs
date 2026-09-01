@@ -17,8 +17,6 @@ use std::sync::Arc;
 #[derive(Parser)]
 #[command(name = "par-control", about = "Private Action Runner control plane")]
 struct Cli {
-    /// The Go command that resolves the control-plane configuration. It receives
-    /// the Agent config path, so par-control takes no --config of its own.
     #[arg(
         long = "bootstrap-command",
         num_args = 1..,
@@ -44,14 +42,9 @@ async fn main() -> ExitCode {
 async fn run() -> Result<()> {
     let cli = Cli::parse();
 
-    // The logger's level filter is immutable after initialization, so it starts
-    // at Trace and the configured level is applied with set_max_level once
-    // bootstrap reports it. Until then, bootstrap's own logs are not filtered.
-    // A logging failure does not prevent the runner from starting.
     if let Err(error) = dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PAR-CONTROL",
         level: log::Level::Trace,
-        // dd-procmgrd redirects stdout and stderr per its process definition.
         log_file: None,
     }) {
         eprintln!("par-control: could not initialize the logger: {error}");
@@ -62,14 +55,11 @@ async fn run() -> Result<()> {
     log::set_max_level(bootstrapped.log_level());
 
     if !bootstrapped.split_mode {
-        log::info!(
-            "private_action_runner.split_enabled is not enabled; \
-             the monolithic runner owns OPMS polling. Exiting."
-        );
+        log::info!("private_action_runner split mode is disabled; exiting");
         return Ok(());
     }
 
-    let config = bootstrapped.into_config()?;
+    let config = bootstrapped.into_config();
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,
@@ -93,7 +83,6 @@ async fn run() -> Result<()> {
         &config.procmgr_socket,
         config.executor_process_name.clone(),
     ));
-    // The IPC certificate is loaded lazily because the executor may create it.
     let dispatcher = Arc::new(ExecutorDispatcher::new(
         &config.executor_socket,
         Some(&config.ipc_cert_file),

@@ -23,7 +23,6 @@ rust_library(
         "src/bootstrap.rs",
         "src/config.rs",
         "src/executor.rs",
-        "src/identity.rs",
         "src/jwt.rs",
         "src/lib.rs",
         "src/opms.rs",
@@ -34,9 +33,7 @@ rust_library(
         "src/tls.rs",
         "src/transport.rs",
     ],
-    compile_data = glob(["testdata/*.txt"]) + [
-        "//cmd/privateactionrunner/subcommands/bootstrapparcontrol:testdata/bootstrap_config.json",
-    ],
+    compile_data = glob(["testdata/*.txt"]),
     crate_name = "par_control",
     edition = "2024",
     link_deps = [":cpp_stdlib"],

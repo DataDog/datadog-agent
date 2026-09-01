@@ -6,7 +6,6 @@
 pub mod bootstrap;
 pub mod config;
 pub mod executor;
-pub mod identity;
 pub mod jwt;
 pub mod opms;
 pub mod orchestrator;

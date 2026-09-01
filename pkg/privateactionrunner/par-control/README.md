@@ -9,24 +9,10 @@ See this [RFC](https://docs.google.com/document/d/1VS1aI_rKRSfx9qx-bZaHJKRq8_oZd
 
 ## Configuration
 
-Go is the configuration authority. `par-control` takes no config file of its own:
-it runs the command given by `--bootstrap-command`, which is
-`privateactionrunner bootstrap-par-control --cfgpath <datadog.yaml>`. That command
-loads the canonical Agent configuration — local YAML, environment, Fleet policy,
-secrets, endpoint and path resolution — ensures the runner is enrolled, and
-returns the resolved control-plane configuration through a private temporary
-file created by `par-control`. Stdout and stderr carry logs only.
-
-`par-control` parses that file, validates it at the trust boundary, and exits
-successfully when `split_mode` is false. It does not load YAML, read Fleet policy,
-decode environment variables, or resolve Agent file paths; adding any of that back
-would reintroduce the Go/Rust divergence this split was built to remove. The JSON
-field names and their `_milliseconds` duration units are a contract with
-`cmd/privateactionrunner/subcommands/bootstrapparcontrol`.
-
-The configuration carries the runner private key and may carry proxy
-credentials, so the temporary file is user-only and the payload is never logged
-or included in an error.
+Go owns configuration and enrollment. At startup, `par-control` runs the command
+passed to `--bootstrap-command` and reads its resolved JSON from a private
+temporary file. Stdout and stderr remain logs. The payload may contain credentials,
+so it is never logged or included in errors.
 
 ## Build and test
 

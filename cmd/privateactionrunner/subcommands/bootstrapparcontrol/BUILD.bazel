@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-exports_files(["testdata/bootstrap_config.json"])
-
 go_library(
     name = "bootstrapparcontrol",
     srcs = [
@@ -38,7 +36,6 @@ go_library(
 dd_agent_go_test(
     name = "bootstrapparcontrol_test",
     srcs = ["command_test.go"],
-    data = ["testdata/bootstrap_config.json"],
     embed = [":bootstrapparcontrol"],
     deps = [
         "//cmd/privateactionrunner/command",
