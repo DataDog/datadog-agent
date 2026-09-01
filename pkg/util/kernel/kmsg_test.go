@@ -178,7 +178,10 @@ func TestKmsgReaderConcurrentSubscribeUnsubscribeAndStop(t *testing.T) {
 
 	persistentClosed := make(chan struct{})
 	go func() {
-		for range persistentRecords {
+		for {
+			if _, ok := <-persistentRecords; !ok {
+				break
+			}
 		}
 		close(persistentClosed)
 	}()
