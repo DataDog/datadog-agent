@@ -1,5 +1,5 @@
 ---
-aix_unit_tests:
+tests_aix-ppc64:
   stage: source_test
   extends: .aix_remote
   script:
