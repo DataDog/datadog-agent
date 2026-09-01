@@ -7,6 +7,7 @@ go_library(
         "apm_inject_linux.go",
         "apm_inject_windows.go",
         "apm_library_dotnet_windows.go",
+        "config_experiment_darwin.go",
         "datadog_agent_darwin.go",
         "datadog_agent_ddot_linux.go",
         "datadog_agent_ddot_windows.go",
@@ -105,6 +106,7 @@ dd_agent_go_test(
     name = "packages_test",
     srcs = [
         "apm_inject_windows_test.go",
+        "config_experiment_darwin_test.go",
         "datadog_agent_darwin_test.go",
         "datadog_agent_eudm_windows_test.go",
         "datadog_agent_extensions_test.go",

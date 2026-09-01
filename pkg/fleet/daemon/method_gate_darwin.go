@@ -9,9 +9,13 @@ package daemon
 
 // newMethodGate returns the set of task methods the macOS daemon executes.
 //
-// Empty: the daemon reports host state and receives task sets, but it executes nothing yet, so
-// every method is declined. The three *_config methods are turned on with configuration
-// management; the three version methods with update management.
+// Configuration management is implemented, so the three *_config methods are executed. The three
+// version methods are still declined: nothing on macOS can download and lay down a package
+// version yet, and a stub that returned nil would be reported to the backend as done.
 func newMethodGate() methodGate {
-	return supportedMethods{}
+	return supportedMethods{
+		methodStartConfigExperiment:   true,
+		methodStopConfigExperiment:    true,
+		methodPromoteConfigExperiment: true,
+	}
 }

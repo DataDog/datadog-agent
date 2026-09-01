@@ -8,6 +8,7 @@
 package packages
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,6 +26,10 @@ var datadogAgentPackage = hooks{
 	preInstall:  preInstallDatadogAgent,
 	postInstall: postInstallDatadogAgent,
 	preRemove:   preRemoveDatadogAgent,
+
+	postStartConfigExperiment:   postStartConfigExperimentDatadogAgent,
+	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
+	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
 }
 
 const (
@@ -121,20 +126,31 @@ func (l agentLayout) convenienceLinks() map[string]string {
 	}
 }
 
-// stableJobs are the launchd jobs that run normally, in the order they are loaded.
-var stableJobs = []string{
+// agentJobs are the launchd jobs that are defined in both variants, in the order they are loaded.
+// These are the jobs a configuration experiment swaps.
+var agentJobs = []string{
 	"com.datadoghq.agent",
 	"com.datadoghq.sysprobe",
 	"com.datadoghq.data-plane",
-	"com.datadoghq.installer",
 }
 
-// experimentJobs are the jobs an experiment runs under. Part 1 never loads them; it only makes
-// sure a leftover set from an interrupted experiment is cleaned up.
-var experimentJobs = []string{
-	"com.datadoghq.agent-exp",
-	"com.datadoghq.sysprobe-exp",
-	"com.datadoghq.data-plane-exp",
+// installerJob is the daemon that drives experiments. It has no experiment variant: the process
+// that starts and stops an experiment cannot be part of the set it swaps, or it would stop itself
+// halfway through.
+const installerJob = "com.datadoghq.installer"
+
+// stableJobs are the launchd jobs that run normally, in the order they are loaded.
+var stableJobs = append(append([]string{}, agentJobs...), installerJob)
+
+// experimentJobs are the jobs an experiment runs under, by full label.
+var experimentJobs = experimentLabels()
+
+func experimentLabels() []string {
+	labels := make([]string, 0, len(agentJobs))
+	for _, label := range agentJobs {
+		labels = append(labels, label+string(launchd.Experiment))
+	}
+	return labels
 }
 
 // launchdClient and ensureAgentUser are indirected so the hook tests can assert the filesystem
@@ -144,6 +160,11 @@ var (
 	ensureAgentUser = user.EnsureAgentUserAndGroup
 	launchdJobDir   = launchd.System.Dir()
 )
+
+// agentJobSet is the swappable set, in the system domain. It excludes the installer daemon.
+func agentJobSet() launchd.JobSet {
+	return launchd.JobSet{Labels: agentJobs, Dir: launchdJobDir, Client: launchdClient()}
+}
 
 // stableJob returns the job definition record for a label in the system domain.
 func stableJob(label string) launchd.Job {
@@ -300,4 +321,27 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 		installinfo.RemoveInstallInfo()
 	}
 	return nil
+}
+
+// postStartConfigExperimentDatadogAgent hands the Agent over to the experiment job set. The
+// installer has already published the experiment configuration directory by the time it runs.
+func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
+	return configExperiment{jobs: agentJobSet()}.Start(ctx)
+}
+
+// preStopConfigExperimentDatadogAgent hands the Agent back to the stable job set, before the
+// installer discards the experiment configuration directory.
+//
+// The context is detached from cancellation: the experiment is being torn down, and stopping
+// halfway would leave the host running neither set.
+func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
+	ctx.Context = context.WithoutCancel(ctx.Context)
+	return configExperiment{jobs: agentJobSet()}.Stop(ctx)
+}
+
+// postPromoteConfigExperimentDatadogAgent hands the Agent back to the stable job set, which now
+// reads the promoted configuration.
+func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
+	ctx.Context = context.WithoutCancel(ctx.Context)
+	return configExperiment{jobs: agentJobSet()}.Promote(ctx)
 }
