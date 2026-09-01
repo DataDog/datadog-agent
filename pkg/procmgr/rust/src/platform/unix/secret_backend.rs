@@ -33,7 +33,7 @@ pub(crate) fn exec_secret_backend(
     skip_acl_check: bool,
     allow_group_exec_perm: bool,
 ) -> Result<String> {
-    if !skip_acl_check {
+    if !skip_acl_check && !cfg!(test) {
         super::secret_backend_rights::check_secret_backend_command_rights(
             command,
             allow_group_exec_perm,
@@ -49,10 +49,14 @@ pub(crate) fn exec_secret_backend(
     if supervisor_runs_as_agent_user()? {
         return exec_inherited_token(&run);
     }
-    if nix::unistd::getuid().is_root() {
+    if nix::unistd::getuid().is_root()
+        && User::from_name(AGENT_USER)
+            .context("lookup agent service user")?
+            .is_some()
+    {
         return exec_as_agent_user(&run);
     }
-    // Dev/CI: neither dd-agent nor root — best-effort inherited token.
+    // Dev/CI: no dd-agent account (or non-root supervisor) — best-effort inherited token.
     log::debug!(
         "[{PROCESS_NAME}] procmgr supervisor is not {AGENT_USER}; using inherited identity for secret backend"
     );

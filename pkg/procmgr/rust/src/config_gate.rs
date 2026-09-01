@@ -527,13 +527,6 @@ impl YamlCache {
     }
 }
 
-/// Drop cached secret handles and backend settings before config-gate re-evaluation.
-pub(crate) fn clear_secret_caches() {
-    secrets::clear_caches();
-    #[cfg(windows)]
-    crate::platform::refresh_core_agent_scm_environment();
-}
-
 /// Returns true when `conditions` is empty or any `(path, key)` pair is enabled.
 pub fn condition_config_any_met(conditions: &[ConditionConfigFile]) -> bool {
     if conditions.is_empty() {
@@ -725,6 +718,7 @@ fn try_value_as_bool(
     }
 }
 
+#[cfg(test)]
 fn value_as_bool(value: &serde_yaml::Value, agent_yaml: &str) -> Option<bool> {
     try_value_as_bool(value, agent_yaml, true).ok().flatten()
 }

@@ -18,11 +18,6 @@ pub(crate) fn check_secret_backend_command_rights(
     path: &str,
     allow_group_exec: bool,
 ) -> Result<()> {
-    if cfg!(test) {
-        // Unit tests create backends under temp dirs without production permissions.
-        return Ok(());
-    }
-
     let path_obj = Path::new(path);
     if !path_obj.is_file() {
         bail!("invalid executable '{path}', can't stat it: no such file");
