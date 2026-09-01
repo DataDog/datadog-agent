@@ -6,7 +6,6 @@ go_library(
     srcs = [
         "config_adapter.go",
         "constants.go",
-        "opms_endpoint.go",
         "transform.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config",
@@ -17,7 +16,6 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/privateactionrunner/adapters/actions",
-        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/util",

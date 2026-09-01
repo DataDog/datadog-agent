@@ -7,21 +7,13 @@ package privateactionrunnerimpl
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
 func TestExecutorIdleTimeout(t *testing.T) {
@@ -38,36 +30,6 @@ func TestExecutorIdleTimeout(t *testing.T) {
 			assert.Equal(t, tt.want, executorIdleTimeout(tt.idleSeconds))
 		})
 	}
-}
-
-func TestGetRunnerConfigDiscardsCorruptIdentity(t *testing.T) {
-	// Must match bootstrap-par-control: recover instead of wedging startup.
-	identityPath := filepath.Join(t.TempDir(), "identity.json")
-	require.NoError(t, os.WriteFile(identityPath, []byte("not-json"), 0o600))
-
-	privateJWK, _, err := parutil.GenerateKeys()
-	require.NoError(t, err)
-	encodedKey, err := privateJWK.MarshalJSON()
-	require.NoError(t, err)
-	urn := parutil.MakeRunnerURN("us1", 123, "test-runner")
-
-	hostnameGetter, _ := hostnamemock.NewMock("test-host")
-	runner := &PrivateActionRunner{
-		coreConfig: coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-			"private_action_runner.enabled":            true,
-			"private_action_runner.identity_file_path": identityPath,
-			"private_action_runner.self_enroll":        false,
-			"private_action_runner.urn":                urn,
-			"private_action_runner.private_key":        base64.RawURLEncoding.EncodeToString(encodedKey),
-		}),
-		hostnameGetter: hostnameGetter,
-		logger:         logmock.New(t),
-	}
-
-	cfg, err := runner.getRunnerConfig(context.Background())
-
-	require.NoError(t, err)
-	assert.Equal(t, urn, cfg.Urn)
 }
 
 func TestStopCleansUpMetricsClient(t *testing.T) {

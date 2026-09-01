@@ -21,10 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// ErrIdentityCorrupt marks unusable persisted identity content, such as
-// truncated JSON. Not returned for I/O failures, which may be transient.
-var ErrIdentityCorrupt = errors.New("persisted identity is corrupt")
-
 // GetIdentityFromPreviousEnrollment retrieves PAR identity from either K8s secret or file based on configuration
 func GetIdentityFromPreviousEnrollment(ctx context.Context, cfg configModel.Reader) (*PersistedIdentity, error) {
 	if cfg.GetBool(setup.PARIdentityUseK8sSecret) && flavor.GetFlavor() == flavor.ClusterAgent {
@@ -63,27 +59,17 @@ func getIdentityFromFile(cfg configModel.Reader) (*PersistedIdentity, error) {
 
 	var identityContent PersistedIdentity
 	if err := json.Unmarshal(data, &identityContent); err != nil {
-		return nil, fmt.Errorf("%w: failed to parse identity file JSON: %w", ErrIdentityCorrupt, err)
+		return nil, fmt.Errorf("failed to parse identity file JSON: %w", err)
 	}
 
 	if identityContent.URN == "" {
-		return nil, fmt.Errorf("%w: URN is empty in identity file", ErrIdentityCorrupt)
+		return nil, errors.New("URN is empty in identity file")
 	}
 	if identityContent.PrivateKey == "" {
-		return nil, fmt.Errorf("%w: private key is empty in identity file", ErrIdentityCorrupt)
+		return nil, errors.New("private key is empty in identity file")
 	}
 
 	return &identityContent, nil
-}
-
-// RemoveIdentityFile removes a stale file-backed identity. A missing file is
-// already the desired state and is not an error.
-func RemoveIdentityFile(cfg configModel.Reader) error {
-	filePath := getIdentityFilePath(cfg)
-	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to remove stale identity file: %w", err)
-	}
-	return nil
 }
 
 // persistIdentityToFile saves the enrollment result to the identity file

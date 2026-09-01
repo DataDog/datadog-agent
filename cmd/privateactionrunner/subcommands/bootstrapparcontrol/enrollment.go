@@ -7,7 +7,6 @@ package bootstrapparcontrol
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 
@@ -15,103 +14,73 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
 type enrollAndPersistFunc func(context.Context, log.Component, config.Component, *enrollment.AgentIdentifier) (*enrollment.Result, error)
 
-// ensureEnrollment guarantees that a usable runner identity exists, reusing a
-// persisted identity when it belongs to the current Agent host and falling back
-// to self-enrollment.
-func ensureEnrollment(ctx context.Context, logger log.Component, cfg config.Component, hostnameComp hostname.Component, enrollAndPersist enrollAndPersistFunc) error {
-	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, hostnameComp)
+func ensureEnrollment(ctx context.Context, logger log.Component, cfg config.Component, hostnameComp hostname.Component, enroll enrollAndPersistFunc) error {
+	agentID, err := enrollment.GetAgentIdentifier(ctx, hostnameComp)
 	if err != nil {
-		return fmt.Errorf("failed to get agent identifier: %w", err)
-	}
-
-	discardPersisted := false
-
-	persisted, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, cfg)
-	switch {
-	case err != nil && !errors.Is(err, enrollment.ErrIdentityCorrupt):
-		// May be transient; re-enrolling would register a second runner.
-		return fmt.Errorf("failed to load persisted identity: %w", err)
-	case err != nil:
-		logger.Warnf("Discarding unusable persisted identity: %v", err)
-		discardPersisted = true
-	case persisted != nil:
-		if err := validateIdentity(persisted.URN, persisted.PrivateKey); err != nil {
-			logger.Warnf("Discarding invalid persisted identity: %v", err)
-			discardPersisted = true
-		} else if !enrollment.ShouldReenroll(agentIdentifier, persisted) {
-			logger.Info("Persisted identity is valid; enrollment is not required")
-			return nil
-		} else {
-			discardPersisted = true
-		}
-	}
-
-	configuredURN := cfg.GetString(par.PARUrn)
-	configuredPrivateKey := cfg.GetString(par.PARPrivateKey)
-	if err := validateConfiguredIdentity(configuredURN, configuredPrivateKey); err != nil {
 		return err
 	}
-	if configuredURN != "" && configuredPrivateKey != "" {
-		// A persisted identity wins over inline configuration, so an unusable
-		// file has to go before the inline identity can be used.
-		if discardPersisted {
-			if err := enrollment.RemoveIdentityFile(cfg); err != nil {
-				return err
-			}
-		}
-		logger.Info("Configured identity is complete; enrollment is not required")
+
+	identity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	if identity != nil && !enrollment.ShouldReenroll(agentID, identity) {
+		applyIdentity(cfg, identity)
 		return nil
 	}
 
+	if cfg.GetString(par.PARUrn) != "" && cfg.GetString(par.PARPrivateKey) != "" {
+		return nil
+	}
 	if !cfg.GetBool(par.PARSelfEnroll) {
-		return errors.New("no valid Private Action Runner identity is available and private_action_runner.self_enroll is false; configure a URN and private key or enable self-enrollment")
+		return errors.New("no Private Action Runner identity is configured and self-enrollment is disabled")
 	}
 
-	result, err := enrollAndPersist(ctx, logger, cfg, agentIdentifier)
+	if _, err := enroll(ctx, logger, cfg, agentID); err != nil {
+		return err
+	}
+	identity, err = enrollment.GetIdentityFromPreviousEnrollment(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	logger.Infof("Identity successfully enrolled. New URN: %s", result.URN)
+	applyIdentity(cfg, identity)
 	return nil
 }
 
-func validateConfiguredIdentity(urn, privateKey string) error {
-	if urn != "" {
-		if _, err := parutil.ParseRunnerURN(urn); err != nil {
-			return fmt.Errorf("configured private_action_runner.urn is invalid: %w", err)
-		}
+func applyIdentity(cfg config.Component, identity *enrollment.PersistedIdentity) {
+	if identity == nil {
+		return
 	}
-	if privateKey != "" {
-		if err := validatePrivateKey(privateKey); err != nil {
-			return fmt.Errorf("configured private_action_runner.private_key is invalid: %w", err)
-		}
-	}
-	return nil
+	cfg.Set(par.PARUrn, identity.URN, model.SourceAgentRuntime)
+	cfg.Set(par.PARPrivateKey, identity.PrivateKey, model.SourceAgentRuntime)
 }
 
-func validateIdentity(urn, privateKey string) error {
-	if _, err := parutil.ParseRunnerURN(urn); err != nil {
-		return fmt.Errorf("invalid URN: %w", err)
-	}
-	if err := validatePrivateKey(privateKey); err != nil {
-		return fmt.Errorf("invalid private key: %w", err)
-	}
-	return nil
-}
-
-func validatePrivateKey(encoded string) error {
-	jwk, err := parutil.Base64ToJWK(encoded)
+func enrollAndPersist(ctx context.Context, logger log.Component, cfg config.Component, agentID *enrollment.AgentIdentifier) (*enrollment.Result, error) {
+	result, err := enrollment.Enroll(ctx, cfg, agentID)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("enrollment failed: %w", err)
 	}
-	if _, ok := jwk.Key.(*ecdsa.PrivateKey); !ok {
-		return errors.New("JWK does not contain an ECDSA private key")
+	if err := enrollment.RotateIdentity(ctx, cfg, result); err != nil {
+		return nil, fmt.Errorf("failed to persist new identity: %w", err)
 	}
-	return nil
+
+	parCfg, err := parconfig.FromDDConfig(cfg, nil)
+	if err == nil {
+		if urn, err := parutil.ParseRunnerURN(result.URN); err == nil {
+			autoconnections.CreateConnectionsIfEnabled(
+				ctx, cfg, parCfg, cfg.GetString("api_key"), cfg.GetString("app_key"), urn.RunnerID,
+				result, autoconnections.NewBasicTagsProvider(),
+			)
+		}
+	}
+	return result, nil
 }

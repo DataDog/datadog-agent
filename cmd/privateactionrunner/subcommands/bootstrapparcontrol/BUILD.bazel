@@ -11,7 +11,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/privateactionrunner/command",
-        "//cmd/privateactionrunner/subcommands/identity",
         "//comp/core",
         "//comp/core/config",
         "//comp/core/hostname",
@@ -23,6 +22,7 @@ go_library(
         "//pkg/fips",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/modes",
+        "//pkg/privateactionrunner/autoconnections",
         "//pkg/privateactionrunner/enrollment",
         "//pkg/privateactionrunner/util",
         "//pkg/util/fxutil",
@@ -34,10 +34,7 @@ go_library(
 
 dd_agent_go_test(
     name = "bootstrapparcontrol_test",
-    srcs = [
-        "command_test.go",
-        "enrollment_test.go",
-    ],
+    srcs = ["command_test.go"],
     embed = [":bootstrapparcontrol"],
     deps = [
         "//cmd/privateactionrunner/command",

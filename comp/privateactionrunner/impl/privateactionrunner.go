@@ -212,12 +212,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 
 	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, p.coreConfig)
 	if err != nil {
-		// Corrupt content never fixes itself, so fall back instead of wedging startup.
-		if !errors.Is(err, enrollment.ErrIdentityCorrupt) {
-			return nil, fmt.Errorf("failed to get identity: %w", err)
-		}
-		p.logger.Warnf("Discarding unusable persisted identity: %v", err)
-		persistedIdentity = nil
+		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
 	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity) {
 		persistedIdentity = nil
