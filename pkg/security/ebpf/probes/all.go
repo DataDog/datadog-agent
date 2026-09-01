@@ -214,8 +214,7 @@ type MapSpecEditorOpts struct {
 	EventSamplingConnectEnabled   bool
 	EventSamplingBindEnabled      bool
 	EventSamplingDNSEnabled       bool
-	SyscallSampleEnabled          bool
-	SyscallSampleMaxEntries       int
+	EventSamplingSyscallsEnabled  bool
 	BasenameApproversSize         int
 }
 
@@ -325,9 +324,9 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
-	if opts.SyscallSampleEnabled && opts.SyscallSampleMaxEntries > 0 {
+	if opts.EventSamplingSyscallsEnabled {
 		editors["syscall_samples"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.SyscallSampleMaxEntries),
+			MaxEntries: 20000,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

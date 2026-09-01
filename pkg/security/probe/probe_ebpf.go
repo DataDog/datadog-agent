@@ -2434,7 +2434,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 			}
 		}
 		// Workload profiles V2
-		if p.config.RuntimeSecurity.SecurityProfileSyscallsEnabled {
+		if p.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
 			activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 		}
 	}
@@ -3128,8 +3128,16 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
 		},
 		manager.ConstantEditor{
-			Name:  "syscall_sample_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileSyscallsEnabled),
+			Name:  "event_sampling_syscalls_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingSyscallsEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_syscalls_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_syscalls_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsThreshold),
 		},
 		manager.ConstantEditor{
 			Name:  "dynamic_sampling_enabled",
@@ -3225,8 +3233,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
 		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
 		EventSamplingDNSEnabled:       p.config.RuntimeSecurity.EventSamplingDNSEnabled,
-		SyscallSampleEnabled:          p.config.RuntimeSecurity.SecurityProfileSyscallsEnabled,
-		SyscallSampleMaxEntries:       p.config.RuntimeSecurity.SecurityProfileSyscallsMaxEntries,
+		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.EventSamplingSyscallsEnabled,
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
@@ -3317,7 +3324,7 @@ func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 			p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 		}
 	}
-	if p.config.RuntimeSecurity.SecurityProfileSyscallsEnabled {
+	if p.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
 		// Add syscall monitor probes
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 	}

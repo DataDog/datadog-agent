@@ -438,6 +438,10 @@ properties:
             node_type: setting
             type: integer
             default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 60
   event_server:
     node_type: section
     type: object
@@ -771,23 +775,6 @@ properties:
             node_type: setting
             type: string
             default: 30s
-          syscalls:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
-                comment: Collect the syscalls issued by profiled workloads.
-              max_entries:
-                node_type: setting
-                type: integer
-                default: 8192
-                comment: |
-                  Size of the kernel syscall sample LRU, in (exec cookie, syscall id) entries.
-                  When the LRU is full, older entries are evicted and the corresponding sample events
-                  will be re-emitted the next time the (exec, syscall) tuple is observed.
       watch_dir:
         node_type: setting
         type: boolean
