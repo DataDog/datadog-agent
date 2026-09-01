@@ -1441,8 +1441,10 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	ps.Variables = newVariablesContext(e, rule, "process.")
 
-	// add the syscalls from the event only for the top level parent
-	if e.GetEventType() == model.SyscallsEventType {
+	// add the syscalls from the event only for the top level parent. Skip sample first-hits
+	// (workload profiles v2) — they carry a single SyscallID + SampleCookie, not a drain
+	// bitmap, and are not part of the backend rule-engine schema.
+	if e.GetEventType() == model.SyscallsEventType && e.Syscalls.EventReason != model.SampleReason {
 		ps.Syscalls = newSyscallsEventSerializer(&e.Syscalls)
 	}
 
@@ -1922,7 +1924,11 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Connect.Retval)
 		s.ConnectEventSerializer = newConnectEventSerializer(event)
 	case model.SyscallsEventType:
-		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
+		// Sample first-hits (workload profiles v2) don't populate the drain bitmap and are
+		// consumed userspace-side; skip the backend serializer.
+		if event.Syscalls.EventReason != model.SampleReason {
+			s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
+		}
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)

@@ -1860,10 +1860,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Syscalls, eventType, offset, dataLen, data) {
 			return false
 		}
-	case model.SyscallsSampleEventType:
-		if !p.regularUnmarshalEvent(&event.SyscallsSample, eventType, offset, dataLen, data) {
-			return false
-		}
 	case model.OnDemandEventType:
 		if p.onDemandManager.isDisabled() {
 			seclog.Debugf("on-demand event received but on-demand probes are disabled")

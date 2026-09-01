@@ -114,10 +114,9 @@ type Event struct {
 	Signal            SignalEvent         `field:"signal" event:"signal"`             // [7.35] [Process] A signal was sent
 	Exit              ExitEvent           `field:"exit" event:"exit"`                 // [7.38] [Process] A process was terminated
 	Setrlimit         SetrlimitEvent      `field:"setrlimit" event:"setrlimit"`       // [7.68] [Process] A setrlimit command was executed
-	CapabilitiesUsage CapabilitiesEvent   `field:"capabilities" event:"capabilities"` // [7.70] [Process] [Experimental] A process used some capabilities
-	Syscalls          SyscallsEvent       `field:"-"`
-	SyscallsSample    SyscallsSampleEvent `field:"-"`
-	LoginUIDWrite     LoginUIDWriteEvent  `field:"-"`
+	CapabilitiesUsage CapabilitiesEvent  `field:"capabilities" event:"capabilities"` // [7.70] [Process] [Experimental] A process used some capabilities
+	Syscalls          SyscallsEvent      `field:"-"`
+	LoginUIDWrite     LoginUIDWriteEvent `field:"-"`
 	PrCtl             PrCtlEvent          `field:"prctl" event:"prctl"` // [7.71] [Process] A prctl command was executed
 
 	// network syscalls
@@ -918,14 +917,6 @@ type SampleRefreshEvent struct {
 	Cookie uint32
 }
 
-// SyscallsSampleEvent is emitted the first time a given (exec_cookie, syscall_id)
-// tuple is observed by the workload profiles v2 syscall sampler. Later observations
-// only produce SampleRefreshEvent heartbeats keyed by SampleCookie.
-type SyscallsSampleEvent struct {
-	SyscallID    uint32
-	SampleCookie uint32
-}
-
 // AcceptEvent represents an accept event
 type AcceptEvent struct {
 	SyscallEvent
@@ -959,10 +950,16 @@ type VethPairEvent struct {
 	PeerDevice NetDevice
 }
 
-// SyscallsEvent represents a syscalls event
+// SyscallsEvent represents a syscalls event. It carries either a drain-form bitmap
+// (EventReason in {SyscallMonitorPeriodReason, ExitReason, ExecveReason}, Syscalls populated)
+// or a workload-profiles-v2 sample first-hit (EventReason == SampleReason, SyscallID and
+// SampleCookie populated). Subsequent hits of the same (exec_cookie, syscall_id) tuple only
+// produce SampleRefreshEvent heartbeats keyed by SampleCookie.
 type SyscallsEvent struct {
-	EventReason SyscallDriftEventReason
-	Syscalls    []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+	EventReason  SyscallDriftEventReason
+	Syscalls     []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+	SyscallID    uint32    // single syscall id when EventReason == SampleReason; 0 otherwise
+	SampleCookie uint32    // sample cookie when EventReason == SampleReason; 0 otherwise
 }
 
 // PathKey identifies an entry in the dentry cache

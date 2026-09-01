@@ -979,8 +979,9 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 			sampleCookie = event.Bind.SampleCookie
 		case model.ConnectEventType:
 			sampleCookie = event.Connect.SampleCookie
-		case model.SyscallsSampleEventType:
-			sampleCookie = event.SyscallsSample.SampleCookie
+		case model.SyscallsEventType:
+			// Only sample first-hit events carry a cookie; drain events have SampleCookie == 0.
+			sampleCookie = event.Syscalls.SampleCookie
 		}
 		if sampleCookie != 0 {
 			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{

@@ -103,6 +103,14 @@ enum TC_RAWPACKET_KEYS {
 #define SYSCALL_MONITOR_TYPE_DUMP 1
 #define SYSCALL_MONITOR_TYPE_DRIFT 2
 
+// syscall_monitor_event_t::event_reason values. 1..3 mirror should_send in
+// send_or_skip_syscall_monitor_event (drain-form flavours). 4 marks a workload-profiles-v2
+// sample first-hit: syscalls[] is unused, single syscall_id + sample_cookie carry the payload.
+#define SYSCALL_DRIFT_REASON_PERIOD 1
+#define SYSCALL_DRIFT_REASON_EXIT   2
+#define SYSCALL_DRIFT_REASON_EXECVE 3
+#define SYSCALL_DRIFT_REASON_SAMPLE 4
+
 #define SELINUX_WRITE_BUFFER_LEN 64
 #define SELINUX_ENFORCE_STATUS_DISABLE_KEY 0
 #define SELINUX_ENFORCE_STATUS_ENFORCE_KEY 1

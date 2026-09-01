@@ -1390,24 +1390,21 @@ func (e *SampleRefreshEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 4, nil
 }
 
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *SyscallsSampleEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
-		return 0, ErrNotEnoughData
-	}
-
-	e.SyscallID = binary.NativeEndian.Uint32(data[0:4])
-	e.SampleCookie = binary.NativeEndian.Uint32(data[4:8])
-	return 8, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself. The wire layout carries either
+// a drain-form bitmap (Syscalls) or a workload-profiles-v2 sample first-hit (SyscallID +
+// SampleCookie); EventReason discriminates. Both flavours share the same 80-byte tail.
 func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 72 {
+	if len(data) < 80 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.EventReason = SyscallDriftEventReason(binary.NativeEndian.Uint64(data[0:8]))
+
+	if e.EventReason == SampleReason {
+		e.SyscallID = binary.NativeEndian.Uint32(data[72:76])
+		e.SampleCookie = binary.NativeEndian.Uint32(data[76:80])
+		return 80, nil
+	}
 
 	for i, b := range data[8:72] {
 		// compute the ID of the syscall
@@ -1417,7 +1414,7 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 			}
 		}
 	}
-	return 72, nil
+	return 80, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

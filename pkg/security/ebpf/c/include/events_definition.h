@@ -420,6 +420,10 @@ struct ptrace_event_t {
     u32 ns_pid;
 };
 
+// syscall_monitor_event_t is EVENT_SYSCALLS on the wire. It carries either a drain-form
+// bitmap (event_reason in {PERIOD, EXIT, EXECVE}, syscalls[] populated, syscall_id/sample_cookie=0)
+// or a workload-profiles-v2 sample first-hit (event_reason=SAMPLE, syscalls[]=0, single
+// syscall_id + sample_cookie). Subsequent hits for the same tuple only emit sample_refresh_event_t.
 struct syscall_monitor_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -429,15 +433,6 @@ struct syscall_monitor_event_t {
 
     u64 event_reason;
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
-};
-
-// Emitted the first time a given (exec_cookie, syscall_id) is seen. Later observations
-// only produce sample_refresh_event_t heartbeats keyed by sample_cookie.
-struct syscall_sample_event_t {
-    struct kevent_t event;
-    struct process_context_t process;
-    struct span_context_t span;
-    struct cgroup_context_t cgroup;
 
     u32 syscall_id;
     u32 sample_cookie;

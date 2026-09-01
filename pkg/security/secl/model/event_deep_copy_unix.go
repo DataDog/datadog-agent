@@ -75,7 +75,6 @@ func (e *Event) DeepCopy() *Event {
 	copied.Splice = deepCopySpliceEvent(e.Splice)
 	copied.SysCtl = deepCopySysCtlEvent(e.SysCtl)
 	copied.Syscalls = deepCopySyscallsEvent(e.Syscalls)
-	copied.SyscallsSample = deepCopySyscallsSampleEvent(e.SyscallsSample)
 	copied.TracerMemfdSeal = deepCopyTracerMemfdSealEvent(e.TracerMemfdSeal)
 	copied.Umount = deepCopyUmountEvent(e.Umount)
 	copied.Unlink = deepCopyUnlinkEvent(e.Unlink)
@@ -1187,12 +1186,8 @@ func deepCopySysCtlEvent(fieldToCopy SysCtlEvent) SysCtlEvent {
 func deepCopySyscallsEvent(fieldToCopy SyscallsEvent) SyscallsEvent {
 	copied := SyscallsEvent{}
 	copied.EventReason = fieldToCopy.EventReason
-	return copied
-}
-func deepCopySyscallsSampleEvent(fieldToCopy SyscallsSampleEvent) SyscallsSampleEvent {
-	copied := SyscallsSampleEvent{}
-	copied.SampleCookie = fieldToCopy.SampleCookie
 	copied.SyscallID = fieldToCopy.SyscallID
+	copied.SampleCookie = fieldToCopy.SampleCookie
 	return copied
 }
 func deepCopyTracerMemfdSealEvent(fieldToCopy TracerMemfdSealEvent) TracerMemfdSealEvent {

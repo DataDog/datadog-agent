@@ -763,13 +763,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		rsConfig.EventSamplingSyscallsEnabled = true
 	}
 
-	// V2 syscalls collection uses the sample-based path (syscalls_sample event), so if the user
-	// opted into "syscalls" for V2 event types, transparently accept the sample flavour too.
-	if slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.SyscallsEventType) &&
-		!slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.SyscallsSampleEventType) {
-		rsConfig.SecurityProfileV2EventTypes = append(rsConfig.SecurityProfileV2EventTypes, model.SyscallsSampleEventType)
-	}
-
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err
 	}
