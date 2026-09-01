@@ -1347,6 +1347,7 @@ workflow:
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
         - .gitlab/build/source_test/linux.yml
+        - tasks/gpu.py
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - !reference [.manual]
