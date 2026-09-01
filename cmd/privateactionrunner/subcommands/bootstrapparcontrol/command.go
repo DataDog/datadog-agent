@@ -39,10 +39,10 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-// ConfigPrefix marks the single stdout line that carries the resolved
-// control-plane configuration. The one-shot logger also writes to stdout, so
-// par-control needs an unambiguous marker to separate configuration from logs.
-const ConfigPrefix = "PAR_CONTROL_CONFIG="
+// ConfigPathEnv names the file created by par-control for the resolved
+// configuration. Keeping the payload off stdout prevents secrets from being
+// mixed with bootstrap logs.
+const ConfigPathEnv = "DD_PAR_CONTROL_CONFIG_PATH"
 
 // Identity is the runner identity par-control signs OPMS requests with.
 type Identity struct {
@@ -101,8 +101,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "bootstrap-par-control",
 		Short: "Resolve the Private Action Runner split-mode control-plane configuration",
 		Long: `Loads the canonical Agent configuration, ensures that the runner has a valid
-identity, and prints the resolved par-control configuration as a single
-` + ConfigPrefix + ` prefixed JSON line on stdout.
+identity, and writes the resolved par-control configuration to the file named
+by DD_PAR_CONTROL_CONFIG_PATH.
 
 When split mode is disabled the command succeeds without enrolling and reports
 only the launch gate and log level.`,
@@ -121,7 +121,16 @@ only the launch gate and log level.`,
 }
 
 func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
-	return bootstrap(context.Background(), logger, cfg, hostnameComp, identitycmd.EnrollAndPersist, os.Stdout)
+	path := os.Getenv(ConfigPathEnv)
+	if path == "" {
+		return fmt.Errorf("%s is not set", ConfigPathEnv)
+	}
+	out, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, 0)
+	if err != nil {
+		return errors.New("failed to open the par-control configuration file")
+	}
+	defer out.Close()
+	return bootstrap(context.Background(), logger, cfg, hostnameComp, identitycmd.EnrollAndPersist, out)
 }
 
 func bootstrap(ctx context.Context, logger log.Component, cfg config.Component, hostnameComp hostname.Component, enrollAndPersist enrollAndPersistFunc, out io.Writer) error {
@@ -256,17 +265,14 @@ func resolveProxy(cfg config.Component, target string) (string, error) {
 	return proxyURL.String(), nil
 }
 
-// emitConfig writes the configuration as one compact prefixed JSON line.
-//
-// The payload carries the runner private key and may carry proxy credentials, so
-// it must never appear in an error: par-control suppresses this line from the
-// logs it forwards, and an error would route the same bytes to a log sink.
+// emitConfig writes the configuration as compact JSON. The payload carries the
+// runner private key and may carry proxy credentials, so errors never include it.
 func emitConfig(out io.Writer, resolved *ControlPlaneConfig) error {
 	encoded, err := json.Marshal(resolved)
 	if err != nil {
 		return errors.New("failed to serialize the par-control configuration")
 	}
-	if _, err := fmt.Fprintf(out, "%s%s\n", ConfigPrefix, encoded); err != nil {
+	if _, err := out.Write(encoded); err != nil {
 		return errors.New("failed to write the par-control configuration")
 	}
 	return nil

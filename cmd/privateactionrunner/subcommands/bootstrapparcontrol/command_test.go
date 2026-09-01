@@ -15,7 +15,6 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,19 +65,10 @@ func runBootstrap(t *testing.T, cfg coreconfig.Component) (*ControlPlaneConfig, 
 	return parseEmitted(t, out.String()), out.String(), nil
 }
 
-func parseEmitted(t *testing.T, stdout string) *ControlPlaneConfig {
+func parseEmitted(t *testing.T, payload string) *ControlPlaneConfig {
 	t.Helper()
-	var payloads []string
-	for _, line := range strings.Split(stdout, "\n") {
-		if after, ok := strings.CutPrefix(line, ConfigPrefix); ok {
-			payloads = append(payloads, after)
-		}
-	}
-	require.Len(t, payloads, 1, "expected exactly one configuration line")
-	require.NotContains(t, payloads[0], "\n", "configuration must be a single line")
-
 	var resolved ControlPlaneConfig
-	require.NoError(t, json.Unmarshal([]byte(payloads[0]), &resolved))
+	require.NoError(t, json.Unmarshal([]byte(payload), &resolved))
 	return &resolved
 }
 
@@ -123,9 +113,8 @@ func TestBootstrapGateOnlyPayloadIsMinimal(t *testing.T) {
 	var out bytes.Buffer
 	require.NoError(t, bootstrap(context.Background(), logmock.New(t), cfg, hostnameComp, failIfEnrolled(t), &out))
 
-	_, payload, _ := strings.Cut(strings.TrimSpace(out.String()), ConfigPrefix)
 	var keys map[string]json.RawMessage
-	require.NoError(t, json.Unmarshal([]byte(payload), &keys))
+	require.NoError(t, json.Unmarshal(out.Bytes(), &keys))
 
 	assert.ElementsMatch(t, []string{"split_mode", "log_level"}, mapKeys(keys))
 }
@@ -362,7 +351,7 @@ func TestBootstrapErrorsNeverCarrySecrets(t *testing.T) {
 	assert.NotContains(t, err.Error(), secretKey)
 	assert.NotContains(t, err.Error(), "hunter2")
 	// A failed bootstrap emits no configuration at all.
-	assert.NotContains(t, stdout, ConfigPrefix)
+	assert.Empty(t, stdout)
 }
 
 func TestBootstrapPropagatesEnrollmentFailure(t *testing.T) {
@@ -377,5 +366,5 @@ func TestBootstrapPropagatesEnrollmentFailure(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "private_action_runner.self_enroll is false")
-	assert.NotContains(t, stdout, ConfigPrefix)
+	assert.Empty(t, stdout)
 }
