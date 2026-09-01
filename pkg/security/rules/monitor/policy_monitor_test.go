@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// CWS is not supported on AIX.
+//go:build !aix
+
 // Package monitor holds rules related files
 package monitor
 

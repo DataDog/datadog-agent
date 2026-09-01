@@ -17,22 +17,29 @@ path = "src/bins/par-control.rs"
 
 [dependencies]
 anyhow.workspace = true
+base64.workspace = true
+chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 datadog-agent-commons.workspace = true
 dd-agent-log.workspace = true
 dd-procmgr-client.workspace = true
 hyper-util.workspace = true
 log.workspace = true
+p256 = { workspace = true, features = ["ecdsa", "pem", "pkcs8", "std"] }
 prost.workspace = true
+reqwest.workspace = true
 rustls-pki-types.workspace = true
 saluki-tls.workspace = true
 serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 serde_yaml.workspace = true
 tokio = { workspace = true, features = [
   "macros",
   "net",
   "rt-multi-thread",
   "signal",
+  "sync",
+  "time",
 ] }
 tokio-rustls.workspace = true
 tokio-stream = { workspace = true, features = ["net"] }
