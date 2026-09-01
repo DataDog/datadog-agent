@@ -9,7 +9,6 @@ package software
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -518,6 +517,7 @@ func TestDriverCollectorReportsOEMDeviceDriversWithoutAService(t *testing.T) {
 	// source cannot see it.
 	collector := deviceDriverCollectorFor([]winutil.DeviceDriver{{
 		InstanceID:    `PCI\VEN_1179&DEV_011A&SUBSYS_00011179\4&2A3B7C1D&0&00E4`,
+		HardwareID:    `PCI\VEN_1179&DEV_011A&SUBSYS_00011179`,
 		Description:   "KIOXIA KXG80ZNV1T02 NVMe",
 		DriverVersion: "2.2.1.14",
 		Manufacturer:  "KIOXIA Corporation",
@@ -536,7 +536,7 @@ func TestDriverCollectorReportsOEMDeviceDriversWithoutAService(t *testing.T) {
 	assert.Equal(t, "2.2.1.14", entry.Version)
 	assert.Equal(t, "KIOXIA Corporation", entry.Publisher)
 	assert.Equal(t, "installed", entry.Status)
-	assert.Equal(t, "kioxia kxg80znv1t02 nvme", entry.ProductCode, "the device description is the identity")
+	assert.Equal(t, `pci\ven_1179&dev_011a&subsys_00011179`, entry.ProductCode, "the hardware ID is the identity")
 	assert.Empty(t, entry.InstallPath, "this source names no binary")
 	assert.Empty(t, entry.InstallDate)
 }
@@ -571,7 +571,7 @@ func TestDriverCollectorSkipsInboxDeviceDrivers(t *testing.T) {
 		{InstanceID: `PCI\B`, Description: "Intel(R) Ethernet Connection I219-LM", DriverVersion: "12.19.2.60",
 			Manufacturer: "Intel", InfName: "e1d68x64.inf"},
 		{InstanceID: `PCI\C`, Description: "Vendor Widget", DriverVersion: "3.1.0.0",
-			Manufacturer: "Vendor", InfName: "OEM7.INF"},
+			HardwareID: `PCI\VEN_1234&DEV_5678`, Manufacturer: "Vendor", InfName: "OEM7.INF"},
 	})
 
 	entries, warnings, err := collector.Collect()
@@ -579,7 +579,7 @@ func TestDriverCollectorSkipsInboxDeviceDrivers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, warnings, "an inbox driver is a deliberate exclusion, not an unusable record")
 	require.Len(t, entries, 1)
-	assert.Equal(t, "vendor widget", entries[0].ProductCode, "the INF prefix is matched case-insensitively")
+	assert.Equal(t, `pci\ven_1234&dev_5678`, entries[0].ProductCode, "the INF prefix is matched case-insensitively")
 }
 
 func TestDriverCollectorReportsMicrosoftDeviceDriversPublishedAsOEM(t *testing.T) {
@@ -599,8 +599,8 @@ func TestDriverCollectorReportsMicrosoftDeviceDriversPublishedAsOEM(t *testing.T
 }
 
 func TestDriverCollectorSkipsDeviceDriversWithoutADescription(t *testing.T) {
-	// The device description is the identity, so a record without one is unusable rather than
-	// deliberately excluded, and that difference is what earns it a warning.
+	// The device description is still required as the display name, so a record without one is
+	// unusable rather than deliberately excluded, and that difference earns it a warning.
 	collector := deviceDriverCollectorFor([]winutil.DeviceDriver{
 		{InstanceID: `PCI\A`, Description: "   ", DriverVersion: "1.0", InfName: "oem1.inf"},
 		// A version is mandatory for a package to be signable, so this should never occur;
@@ -618,20 +618,20 @@ func TestDriverCollectorSkipsDeviceDriversWithoutADescription(t *testing.T) {
 }
 
 func TestDeviceDriverIdentitySurvivesVersionBump(t *testing.T) {
-	// The same requirement the service source has, and the reason the device description
-	// rather than the INF name or the instance id is the identity: oemNN.inf is renumbered
-	// when a package is republished, and an instance id embeds the device's slot.
+	// The hardware ID survives both the oemNN.inf renumbering that accompanies an update and
+	// the physical-instance suffix embedded in the instance ID.
 	const description = "Vendor Widget"
+	const hardwareID = `PCI\VEN_1AF4&DEV_1000`
 
 	before, _, err := deviceDriverCollectorFor([]winutil.DeviceDriver{{
-		InstanceID: `PCI\VEN_1AF4&DEV_1000\3&11583659&0&08`, Description: description,
+		InstanceID: `PCI\VEN_1AF4&DEV_1000\3&11583659&0&08`, HardwareID: hardwareID, Description: description,
 		DriverVersion: "1.0.0.1", Manufacturer: "Vendor", InfName: "oem12.inf",
 	}}).Collect()
 	require.NoError(t, err)
 	require.Len(t, before, 1)
 
 	after, _, err := deviceDriverCollectorFor([]winutil.DeviceDriver{{
-		InstanceID: `PCI\VEN_1AF4&DEV_1000\3&11583659&0&09`, Description: description,
+		InstanceID: `PCI\VEN_1AF4&DEV_1000\3&11583659&0&09`, HardwareID: hardwareID, Description: description,
 		DriverVersion: "2.0.0.0", Manufacturer: "Vendor", InfName: "oem31.inf",
 	}}).Collect()
 	require.NoError(t, err)
@@ -643,10 +643,10 @@ func TestDeviceDriverIdentitySurvivesVersionBump(t *testing.T) {
 }
 
 func TestDriverCollectorCollapsesDeviceDriversOfTheSameModel(t *testing.T) {
-	// Two identical devices are one driver package, so one entry is the right answer.
+	// Two physical instances with the same hardware ID are one device model.
 	collector := deviceDriverCollectorFor([]winutil.DeviceDriver{
-		{InstanceID: `PCI\SLOT_1`, Description: "Vendor 10G NIC", DriverVersion: "4.1.0.0", InfName: "oem5.inf"},
-		{InstanceID: `PCI\SLOT_2`, Description: "Vendor 10G NIC", DriverVersion: "4.1.0.0", InfName: "oem5.inf"},
+		{InstanceID: `PCI\SLOT_1`, HardwareID: `PCI\VEN_1234&DEV_5678`, Description: "Vendor 10G NIC", DriverVersion: "4.1.0.0", InfName: "oem5.inf"},
+		{InstanceID: `PCI\SLOT_2`, HardwareID: `PCI\VEN_1234&DEV_5678`, Description: "Vendor 10G NIC", DriverVersion: "4.1.0.0", InfName: "oem5.inf"},
 	})
 
 	entries, _, err := collector.Collect()
@@ -655,15 +655,10 @@ func TestDriverCollectorCollapsesDeviceDriversOfTheSameModel(t *testing.T) {
 	assert.Len(t, entries, 1)
 }
 
-// TestDeviceDriverIdentityUsesDeviceDescription guards Research verified-item 1: the identity
-// and display name of a device driver come from SPDRP_DEVICEDESC (Description here), never
-// from SPDRP_FRIENDLYNAME. Reading the friendly name instead would change the product code of
-// every printer, NIC and vNIC on a driver update, which would read as a mass uninstall and
-// reinstall.
-func TestDeviceDriverIdentityUsesDeviceDescription(t *testing.T) {
-	t.Run("the description is the identity and the display name", func(t *testing.T) {
+func TestDeviceDriverIdentityUsesHardwareID(t *testing.T) {
+	t.Run("the hardware ID is the identity and the description is the display name", func(t *testing.T) {
 		collector := deviceDriverCollectorFor([]winutil.DeviceDriver{{
-			InstanceID: `PCI\A`, Description: "Local Print Queue", DriverVersion: "1.0.0.0",
+			InstanceID: `PCI\A`, HardwareID: `PCI\VEN_1234&DEV_5678`, Description: "Local Print Queue", DriverVersion: "1.0.0.0",
 			Manufacturer: "Vendor", InfName: "oem1.inf",
 		}})
 
@@ -672,23 +667,32 @@ func TestDeviceDriverIdentityUsesDeviceDescription(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, entries, 1)
 		assert.Equal(t, "Local Print Queue", entries[0].DisplayName)
-		assert.Equal(t, "local print queue", entries[0].ProductCode)
+		assert.Equal(t, `pci\ven_1234&dev_5678`, entries[0].ProductCode)
 	})
 
-	t.Run("an empty description is a warning naming the instance id, not a friendly-name fallback", func(t *testing.T) {
-		const instanceID = `PCI\NO_DESCRIPTION`
-		collector := deviceDriverCollectorFor([]winutil.DeviceDriver{{
-			InstanceID: instanceID, DriverVersion: "1.0.0.0", InfName: "oem1.inf",
-		}})
+	t.Run("generic descriptions with different hardware IDs do not collide", func(t *testing.T) {
+		collector := deviceDriverCollectorFor([]winutil.DeviceDriver{
+			{InstanceID: `USB\A`, HardwareID: `USB\VID_1111&PID_0001`, Description: "USB Composite Device", DriverVersion: "1.0", InfName: "oem1.inf"},
+			{InstanceID: `USB\B`, HardwareID: `USB\VID_2222&PID_0002`, Description: "USB Composite Device", DriverVersion: "1.0", InfName: "oem2.inf"},
+		})
 
-		entries, warnings, err := collector.Collect()
+		entries, _, err := collector.Collect()
 
 		require.NoError(t, err)
-		assert.Empty(t, entries)
-		require.Len(t, warnings, 1)
-		// The warning is built with %q, which renders the instance id's backslash as \\, so the
-		// expected fragment is derived the same way rather than hardcoded with the wrong escaping.
-		assert.Contains(t, warnings[0].Message, fmt.Sprintf("%q", instanceID))
+		assert.Len(t, entries, 2)
+	})
+
+	t.Run("manufacturer and description are the fallback", func(t *testing.T) {
+		collector := deviceDriverCollectorFor([]winutil.DeviceDriver{{
+			InstanceID: `ROOT\A`, Description: "Vendor Device", DriverVersion: "1.0",
+			Manufacturer: "Vendor", InfName: "oem1.inf",
+		}})
+
+		entries, _, err := collector.Collect()
+
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+		assert.Equal(t, "vendor|vendor device", entries[0].ProductCode)
 	})
 }
 

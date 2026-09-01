@@ -35,6 +35,8 @@ func TestEnumDeviceDrivers(t *testing.T) {
 		seen[device.InstanceID] = struct{}{}
 
 		if device.Service != "" {
+			assert.Empty(t, device.HardwareID,
+				"device %q has a service, so its hardware ID should be left unread", device.InstanceID)
 			assert.Empty(t, device.Description,
 				"device %q has a service, so its description should be left unread", device.InstanceID)
 			assert.Empty(t, device.InfName,

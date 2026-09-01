@@ -518,6 +518,7 @@ type wmiSystemDriver struct {
 type wmiPnPSignedDriver struct {
 	DeviceID      string
 	DeviceName    string
+	HardwareID    string
 	DriverVersion string
 	Manufacturer  string
 	InfName       string
@@ -587,7 +588,7 @@ func wmiDeviceDrivers(t *testing.T) []winutil.DeviceDriver {
 
 	var signed []wmiPnPSignedDriver
 	require.NoError(t, json.Unmarshal(
-		getCimInstanceJSON(t, "Win32_PnPSignedDriver", "DeviceID, DeviceName, DriverVersion, Manufacturer, InfName"), &signed))
+		getCimInstanceJSON(t, "Win32_PnPSignedDriver", "DeviceID, DeviceName, HardWareID, DriverVersion, Manufacturer, InfName"), &signed))
 
 	var entities []wmiPnPEntity
 	require.NoError(t, json.Unmarshal(
@@ -604,6 +605,7 @@ func wmiDeviceDrivers(t *testing.T) []winutil.DeviceDriver {
 	for _, d := range signed {
 		devices = append(devices, winutil.DeviceDriver{
 			InstanceID:    d.DeviceID,
+			HardwareID:    d.HardwareID,
 			Service:       serviceByDeviceID[strings.ToUpper(strings.TrimSpace(d.DeviceID))],
 			Description:   d.DeviceName,
 			Manufacturer:  d.Manufacturer,

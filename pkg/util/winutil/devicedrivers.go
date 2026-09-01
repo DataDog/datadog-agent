@@ -24,6 +24,9 @@ type DeviceDriver struct {
 	// InstanceID is the PnP instance path of the device, e.g.
 	// "PCI\VEN_1179&DEV_011A&SUBSYS_00011179\4&2A3B7C1D&0&00E4".
 	InstanceID string
+	// HardwareID is the device's most specific hardware ID. Unlike InstanceID, it does not
+	// identify one physical instance or encode its location.
+	HardwareID string
 	// Service is the name of the kernel service driving the device, empty when it has none.
 	// When non-empty, every other field is left empty: the device is already reported by the
 	// service source under that name, and this record exists only to say so.
@@ -89,9 +92,18 @@ func EnumDeviceDrivers() ([]DeviceDriver, error) {
 
 		infName, driverVersion := driverSoftwareKeyProperties(devInfo, data, instanceID)
 
-		// Never read SPDRP_FRIENDLYNAME or ProviderName here: the identity the collector builds
-		// from this record is the device description, and either substitute would change the
-		// product code of every printer, NIC and vNIC on a driver update.
+		hardwareIDs, err := stringListProperty(devInfo, data, windows.SPDRP_HARDWAREID)
+		if err != nil {
+			log.Debugf("failed to read SPDRP_HARDWAREID for device %q: %v", instanceID, err)
+		}
+		var hardwareID string
+		if len(hardwareIDs) > 0 {
+			hardwareID = hardwareIDs[0]
+		}
+
+		// Never read SPDRP_FRIENDLYNAME here: it changes for printers, NICs and vNICs on a
+		// driver update. The device description is only the display name; the hardware ID is
+		// the stable identity.
 		description, err := stringProperty(devInfo, data, windows.SPDRP_DEVICEDESC)
 		if err != nil {
 			log.Debugf("failed to read SPDRP_DEVICEDESC for device %q: %v", instanceID, err)
@@ -103,6 +115,7 @@ func EnumDeviceDrivers() ([]DeviceDriver, error) {
 
 		drivers = append(drivers, DeviceDriver{
 			InstanceID:    instanceID,
+			HardwareID:    hardwareID,
 			Description:   description,
 			Manufacturer:  manufacturer,
 			DriverVersion: driverVersion,
@@ -111,6 +124,22 @@ func EnumDeviceDrivers() ([]DeviceDriver, error) {
 	}
 
 	return drivers, nil
+}
+
+// stringListProperty reads a SPDRP_* device registry property expected to hold a string list.
+func stringListProperty(devInfo windows.DevInfo, data *windows.DevInfoData, property windows.SPDRP) ([]string, error) {
+	value, err := devInfo.DeviceRegistryProperty(data, property)
+	if err != nil {
+		if errors.Is(err, windows.ERROR_INVALID_DATA) || errors.Is(err, windows.ERROR_KEY_DOES_NOT_EXIST) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	values, ok := value.([]string)
+	if !ok {
+		return nil, nil
+	}
+	return values, nil
 }
 
 // stringProperty reads a SPDRP_* device registry property expected to hold a string.

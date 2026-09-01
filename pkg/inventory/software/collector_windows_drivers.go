@@ -300,11 +300,9 @@ func (c *driverCollector) collectServiceDrivers(byProductCode map[string]*Entry)
 // collectDeviceDrivers adds the OEM driver packages that register no kernel service to
 // byProductCode. Those are invisible to the service source, which is the gap this closes.
 //
-// The identity is the device description. The service name is not available here — its
-// absence is what selects these records in the first place — and of what the source does
-// offer it is the field that survives a driver update, which is the property the identity
-// needs. Its one failure mode is a vendor rewording the device description between package
-// versions, which costs one spurious uninstall and reinstall and then settles.
+// The identity is the device's most specific hardware ID. It survives driver updates and,
+// unlike the description, distinguishes devices that share a generic name. Manufacturer and
+// description are used as a fallback for the unusual device that exposes no hardware ID.
 func (c *driverCollector) collectDeviceDrivers(byProductCode map[string]*Entry) ([]*Warning, error) {
 	deviceQuery := c.deviceQueryFn
 	if deviceQuery == nil {
@@ -357,10 +355,17 @@ func (c *driverCollector) collectDeviceDrivers(byProductCode map[string]*Entry) 
 			continue
 		}
 
-		productCode := strings.ToLower(name)
+		manufacturer := strings.TrimSpace(driver.Manufacturer)
+		identity := strings.TrimSpace(driver.HardwareID)
+		if identity == "" {
+			identity = name
+			if manufacturer != "" {
+				identity = manufacturer + "|" + name
+			}
+		}
+		productCode := strings.ToLower(identity)
 		if _, ok := byProductCode[productCode]; ok {
-			// Two devices of the same model share a device description, and are one driver
-			// package.
+			// Two devices with the same hardware ID are the same model.
 			continue
 		}
 
@@ -368,7 +373,7 @@ func (c *driverCollector) collectDeviceDrivers(byProductCode map[string]*Entry) 
 			Source:      softwareTypeDriver,
 			DisplayName: name,
 			Version:     version,
-			Publisher:   strings.TrimSpace(driver.Manufacturer),
+			Publisher:   manufacturer,
 			Status:      "installed",
 			ProductCode: productCode,
 			// InstallPath is left empty: this source names no binary. It is also what tells
