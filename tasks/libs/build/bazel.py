@@ -241,30 +241,37 @@ def bazel(
 
 
 def build_binary_with_bazel(target: str, args: list[str] | None = None, bin_path: str = None) -> None:
-    """Build a Bazel target and copy its output to bin_path.
+    """Build a Bazel target and copy its output(s) to bin_path.
 
     Args:
         target: Bazel target
         args: extra arguments passed to both the build and cquery invocations
-        bin_path: directory to copy the binary to. None for no copy.
+        bin_path: where to copy the build output(s), None for no copy. If the
+            target produces a single output, this is the destination file path;
+            if it produces several (e.g. a filegroup), it is the destination
+            directory and each output is copied there under its own basename.
     """
     args = args or []
     bazel("build", target, *args)
     # We need cquery to find the output path that has the configuration hash in it.
-    output = bazel("cquery", "--output=files", target, *args, capture_output=True).strip()
-    outputs = [line for line in output.splitlines() if line]
-    if len(outputs) != 1:
-        raise SystemExit(f"Expected exactly one output file for Bazel target {target!r}, got: {outputs!r}")
-    src = os.path.join(get_repo_root(), outputs[0])
+    cquery_output = bazel("cquery", "--output=files", target, *args, capture_output=True).strip()
+    outputs = [line for line in cquery_output.splitlines() if line]
+    if not outputs:
+        raise SystemExit(f"Expected at least one output file for Bazel target {target!r}, got none")
 
-    if bin_path:
-        os.makedirs(os.path.dirname(bin_path), exist_ok=True)
-        shutil.copy2(src, bin_path)
-        os.chmod(bin_path, 0o755)
-        uid = os.environ.get("HOST_UID", "-1")
-        gid = os.environ.get("HOST_GID", "-1")
+    if not bin_path:
+        return
+
+    uid = os.environ.get("HOST_UID", "-1")
+    gid = os.environ.get("HOST_GID", "-1")
+    for output in outputs:
+        src = os.path.join(get_repo_root(), output)
+        dst = bin_path if len(outputs) == 1 else os.path.join(bin_path, os.path.basename(output))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(src, dst)
+        os.chmod(dst, 0o755)
         if uid != "-1" and gid != "-1":
-            os.chown(bin_path, int(uid), int(gid))
+            os.chown(dst, int(uid), int(gid))
 
 
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:

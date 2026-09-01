@@ -14,7 +14,7 @@ from invoke.tasks import task
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
@@ -292,18 +292,9 @@ def build_otel_tls_artifacts(build_dir, arch: Arch):
         print("Skipping the OTel TLS glibc testers while cross-compiling")
         return
 
-    bazel("build", OTEL_TLS_BAZEL_TARGET)
-
-    # The filegroup is the one list of artifacts; asking Bazel for its files
-    # keeps this from drifting from the BUILD file.
-    execroot = bazel("info", "execution_root", capture_output=True).strip()
-    artifacts = bazel("cquery", "--output=files", OTEL_TLS_BAZEL_TARGET, capture_output=True).split()
-
-    for artifact in artifacts:
-        src = os.path.join(execroot, artifact)
-        dst = os.path.join(build_dir, os.path.basename(artifact))
-        shutil.copy2(src, dst)
-        os.chmod(dst, 0o755)
+    # OTEL_TLS_BAZEL_TARGET is a filegroup, so build_binary_with_bazel copies
+    # every artifact into build_dir under its own basename.
+    build_binary_with_bazel(OTEL_TLS_BAZEL_TARGET, bin_path=build_dir)
 
 
 def create_dir_if_needed(dir):
