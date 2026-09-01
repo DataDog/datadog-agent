@@ -131,6 +131,7 @@ pub fn true_def(name: &str) -> ProcessDefinition {
 
 #[cfg(not(windows))]
 mod boot;
+#[cfg(not(windows))]
 mod config_gate;
 mod create;
 mod resolve;
