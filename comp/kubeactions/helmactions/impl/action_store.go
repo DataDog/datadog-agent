@@ -45,16 +45,6 @@ type ActionRecord struct {
 	ClaimedAt       int64
 }
 
-// ActionStoreInterface defines the store methods used by ActionProcessor.
-// type ActionStoreInterface interface {
-// 	// Claim tries to claim an action for execution. Returns false if already claimed.
-// 	Claim(key ActionKey) bool
-// 	// MarkExecuted updates the record for a previously claimed action.
-// 	MarkExecuted(key ActionKey, status, message string, executedAt, receivedAt, actionCreatedAt int64)
-// 	// GetRecord retrieves the execution record for an action.
-// 	GetRecord(key ActionKey) (ActionRecord, bool)
-// }
-
 // JobPhase summarises a tracked Job's high-level state.
 type JobPhase string
 
@@ -105,11 +95,8 @@ type PodRecord struct {
 
 // ActionStore tracks processed actions in-memory to prevent duplicate execution.
 type ActionStore struct {
-	executed map[string]ActionRecord
 	jobs     map[types.UID]JobRecord
 	pods     map[types.UID]PodRecord
-	// mu guards above mentioned
-	mu       sync.RWMutex
 	stopCh   chan struct{}
 	stopOnce sync.Once
 }
@@ -117,9 +104,8 @@ type ActionStore struct {
 // NewActionStore creates a new ActionStore and starts the background cleanup goroutine.
 func NewActionStore() *ActionStore {
 	s := &ActionStore{
-		executed: make(map[string]ActionRecord),
-		jobs:     make(map[types.UID]JobRecord),
-		pods:     make(map[types.UID]PodRecord),
+		jobs: make(map[types.UID]JobRecord),
+		pods: make(map[types.UID]PodRecord),
 	}
 
 	log.Debugf("[HelmActions] Action store initialized (TTL=%v, retention=%v, cleanup=%v)",
@@ -148,13 +134,10 @@ type trackedLifecycle interface {
 // per record type (Job: "just terminal", Pod: "just failed"), and only the
 // caller knows which transition matters to its watcher.
 func upsertTracked[T trackedLifecycle](
-	s *ActionStore,
 	m map[types.UID]T,
 	uid types.UID,
 	build func(prev T, now int64) (T, bool),
 ) (T, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	prev := m[uid]
 	now := time.Now().Unix()
 	rec, transitioned := build(prev, now)
@@ -168,11 +151,10 @@ func (s *ActionStore) TrackJob(job *batchv1.Job, _ *helmactions.RollbackInputs) 
 	if job == nil || job.UID == "" {
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if _, exists := s.jobs[job.UID]; exists {
 		return
 	}
+
 	now := time.Now().Unix()
 	s.jobs[job.UID] = JobRecord{
 		UID:       job.UID,
@@ -189,7 +171,7 @@ func (s *ActionStore) TrackJob(job *batchv1.Job, _ *helmactions.RollbackInputs) 
 // the Job watcher on ADDED/MODIFIED events. Returns the resulting record and
 // whether it represents a transition into a terminal phase (succeeded/failed).
 func (s *ActionStore) UpdateJob(job *batchv1.Job) (JobRecord, bool) {
-	return upsertTracked(s, s.jobs, job.UID, func(prev JobRecord, now int64) (JobRecord, bool) {
+	return upsertTracked(s.jobs, job.UID, func(prev JobRecord, now int64) (JobRecord, bool) {
 		phase, msg := classifyJob(job)
 		rec := JobRecord{
 			UID:         job.UID,
@@ -218,8 +200,6 @@ func (s *ActionStore) UpdateJob(job *batchv1.Job) (JobRecord, bool) {
 
 // RemoveJob drops a tracked Job. Called on watcher DELETED events.
 func (s *ActionStore) RemoveJob(uid types.UID) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	delete(s.jobs, uid)
 }
 
@@ -227,7 +207,7 @@ func (s *ActionStore) RemoveJob(uid types.UID) {
 // record and whether this update is the transition into the Failed phase — the
 // caller uses that signal to trigger log capture.
 func (s *ActionStore) UpdatePod(pod *corev1.Pod) (PodRecord, bool) {
-	return upsertTracked(s, s.pods, pod.UID, func(prev PodRecord, now int64) (PodRecord, bool) {
+	return upsertTracked(s.pods, pod.UID, func(prev PodRecord, now int64) (PodRecord, bool) {
 		phase, reason, message, exitCode := classifyPod(pod)
 		rec := PodRecord{
 			UID:         pod.UID,
@@ -257,16 +237,12 @@ func (s *ActionStore) UpdatePod(pod *corev1.Pod) (PodRecord, bool) {
 
 // RemovePod drops a tracked Pod. Called on watcher DELETED events.
 func (s *ActionStore) RemovePod(uid types.UID) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	delete(s.pods, uid)
 }
 
 // GetPodsForJob returns the tracked Pods whose batch.kubernetes.io/job-name
 // label matches the given Job name.
 func (s *ActionStore) GetPodsForJob(jobName string) []PodRecord {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	var out []PodRecord
 	for _, p := range s.pods {
 		if p.JobName == jobName {
@@ -279,8 +255,6 @@ func (s *ActionStore) GetPodsForJob(jobName string) []PodRecord {
 // AttachPodLogs stores the captured tail of a Pod's logs on its record. Safe to
 // call when the Pod has already been removed — the update is dropped.
 func (s *ActionStore) AttachPodLogs(uid types.UID, logs string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	rec, ok := s.pods[uid]
 	if !ok {
 		return
@@ -361,24 +335,7 @@ func (s *ActionStore) cleanupLoop(ctx context.Context) {
 }
 
 func (s *ActionStore) cleanup() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	cutoff := time.Now().Add(-RecordRetentionTTL).Unix()
-	removed := 0
-	for k, r := range s.executed {
-		ts := r.ActionCreatedAt
-		if ts == 0 {
-			ts = r.ExecutedAt
-		}
-		if (ts > 0 && ts < cutoff) || (r.ClaimedAt > 0 && r.ClaimedAt < cutoff) {
-			delete(s.executed, k)
-			removed++
-		}
-	}
-	if removed > 0 {
-		log.Debugf("[HelmActions] Cleaned up %d expired action records (remaining: %d)", removed, len(s.executed))
-	}
 
 	removedJobs := 0
 	for uid, j := range s.jobs {

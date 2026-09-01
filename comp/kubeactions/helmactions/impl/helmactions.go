@@ -106,8 +106,6 @@ func (h *helmactionsImpl) start(context.Context) error {
 
 	go h.jobWatcher.run(watchCtx, h.watchCtxDone)
 
-	// TODO: mark start time and pick up jobs finsihed 3 minues ago. 3 chosen as averate agent settle time
-	// once those are grabbed, report their statuses back to EVP
 	return nil
 }
 
