@@ -8,12 +8,16 @@
 package autoinstrumentation
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
@@ -349,4 +353,59 @@ func TestOnRemoteConfigUpdate_InvalidFirstSnapshotStaysPending(t *testing.T) {
 	require.Equal(t, 1, applied)
 	require.False(t, m.allowInjectAll.Load())
 	require.Nil(t, m.getMatchingTarget(pod))
+}
+
+// emptyAnswerFetcher stands in for the remote-config service and answers every
+// poll with no configs at all.
+type emptyAnswerFetcher struct{}
+
+func (emptyAnswerFetcher) ClientGetConfigs(context.Context, *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+	return &pbgo.ClientGetConfigsResponse{}, nil
+}
+
+// TestSubscribeRemoteConfig_TimeoutReleasesInjectAll checks the bound on the wait:
+// remote config that never answers must not silently withhold SSI from a
+// configuration that asked for it.
+func TestSubscribeRemoteConfig_TimeoutReleasesInjectAll(t *testing.T) {
+	previous := rcInjectAllWaitTimeout
+	rcInjectAllWaitTimeout = 10 * time.Millisecond
+	t.Cleanup(func() { rcInjectAllWaitTimeout = previous })
+
+	// A client that is never started never answers.
+	client, err := rcclient.NewClient(emptyAnswerFetcher{}, rcclient.WithoutTufVerification())
+	require.NoError(t, err)
+
+	m := newMatchMutator(t, rcSSIOnNoTargets, newMatchTestWmeta(t))
+	m.allowInjectAll.Store(false)
+
+	m.subscribeRemoteConfig(client)
+	require.False(t, m.allowInjectAll.Load(), "not before the deadline")
+
+	require.Eventually(t, func() bool {
+		return m.allowInjectAll.Load()
+	}, 5*time.Second, 10*time.Millisecond)
+
+	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	require.Equal(t, "default", name)
+	require.False(t, fromPolicy)
+}
+
+// TestSubscribeRemoteConfig_UnsyncedProductKeepsInjectAllClosed is the other half:
+// with no completed poll for APM_POLICIES, an empty local cache is not an answer
+// and inject-all stays withheld.
+func TestSubscribeRemoteConfig_UnsyncedProductKeepsInjectAllClosed(t *testing.T) {
+	previous := rcInjectAllWaitTimeout
+	rcInjectAllWaitTimeout = time.Hour
+	t.Cleanup(func() { rcInjectAllWaitTimeout = previous })
+
+	client, err := rcclient.NewClient(emptyAnswerFetcher{}, rcclient.WithoutTufVerification())
+	require.NoError(t, err)
+
+	m := newMatchMutator(t, rcSSIOnNoTargets, newMatchTestWmeta(t))
+	m.allowInjectAll.Store(false)
+
+	m.subscribeRemoteConfig(client)
+
+	require.False(t, m.allowInjectAll.Load())
+	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "db"})))
 }

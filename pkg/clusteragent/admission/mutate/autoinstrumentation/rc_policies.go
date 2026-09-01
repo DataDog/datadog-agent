@@ -24,6 +24,10 @@ var (
 	apmPolicyPrefixPattern = regexp.MustCompile(`^(\d+)\.`)
 )
 
+// rcInjectAllWaitTimeout bounds how long SSI inject-all is withheld while
+// waiting for the first remote-config answer. A var so tests can shorten it.
+var rcInjectAllWaitTimeout = time.Minute
+
 // sortRemotePolicyPaths preserves the numeric-prefix ordering used by the
 // APM_POLICIES product. It is intentionally local: Remote Config paths are
 // otherwise opaque and this must not be treated as a generic RC convention.
@@ -70,34 +74,23 @@ func (m *TargetMutator) subscribeRemoteConfig(client *rcclient.Client) {
 
 	log.Infof("auto-instrumentation: subscribing to remote config product %q for SSI policies", state.ProductApmPolicies)
 
-	if client.HasSynced() {
-		m.applySnapshotAndSubscribe(client)
-		return
-	}
+	// WithInitialUpdate: a plain subscription only fires on changes, so "the
+	// backend has no policies for us" would never reach onRemoteConfigUpdate --
+	// and that callback is what releases inject-all.
+	client.SubscribeAll(
+		state.ProductApmPolicies,
+		rcclient.NewUpdateListener(m.onRemoteConfigUpdate),
+		rcclient.WithInitialUpdate(),
+	)
 
-	log.Infof("auto-instrumentation: waiting for the first remote config snapshot of %q before applying SSI inject-all", state.ProductApmPolicies)
-	go m.waitForFirstRemoteConfigUpdate(client)
-}
-
-// applySnapshotAndSubscribe applies the current APM_POLICIES snapshot then
-// subscribes for subsequent updates.
-func (m *TargetMutator) applySnapshotAndSubscribe(client *rcclient.Client) {
-	m.onRemoteConfigUpdate(client.GetConfigs(state.ProductApmPolicies), client.UpdateApplyStatus)
-	client.Subscribe(state.ProductApmPolicies, m.onRemoteConfigUpdate)
-}
-
-// waitForFirstRemoteConfigUpdate waits until the RC client has completed a
-// poll, then applies the snapshot and subscribes. This is local to the mutator:
-// the RC client must not fan that signal out to other product listeners.
-func (m *TargetMutator) waitForFirstRemoteConfigUpdate(client *rcclient.Client) {
-	ticker := time.NewTicker(200 * time.Millisecond)
-	defer ticker.Stop()
-	for range ticker.C {
-		if client.HasSynced() {
-			m.applySnapshotAndSubscribe(client)
-			return
+	// Bound the wait: if remote config never answers, instrument rather than
+	// silently withhold SSI from a configuration that asked for it.
+	time.AfterFunc(rcInjectAllWaitTimeout, func() {
+		if m.allowInjectAll.CompareAndSwap(false, true) {
+			log.Warnf("auto-instrumentation: no remote config answer for %q after %s, applying SSI inject-all",
+				state.ProductApmPolicies, rcInjectAllWaitTimeout)
 		}
-	}
+	})
 }
 
 func (m *TargetMutator) enableInjectAll() {
