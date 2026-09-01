@@ -1,0 +1,21 @@
+description: Datadog Private Action Runner - Control Plane
+command: '{{.InstallDir}}/bin/agent/par-control.exe'
+args:
+  # Go resolves the whole control-plane configuration, so par-control reads no
+  # config file of its own.
+  - --bootstrap-command
+  - '{{.InstallDir}}/bin/agent/privateactionrunner.exe'
+  - bootstrap-par-control
+  - --cfgpath
+  - '{{.EtcDir}}/datadog.yaml'
+auto_start: true
+# par-control drains for at most 170 seconds, including terminal publication.
+stop_timeout: 180
+condition_path_exists: '{{.InstallDir}}/bin/agent/par-control.exe'
+restart: on-failure
+restart_sec: 2
+start_limit_interval_sec: 10
+start_limit_burst: 5
+# Windows services have no console to inherit, so dd-procmgrd owns the log file.
+stdout: '{{.EtcDir}}/logs/par-control.log'
+stderr: '{{.EtcDir}}/logs/par-control.log'

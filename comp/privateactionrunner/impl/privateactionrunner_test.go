@@ -40,8 +40,10 @@ func TestSplitDeploymentSupported(t *testing.T) {
 		want          bool
 	}{
 		{name: "linux host", goos: "linux", want: true},
+		{name: "windows host", goos: "windows", want: true},
 		{name: "linux container", goos: "linux", containerized: true},
-		{name: "unsupported host platform", goos: "windows"},
+		{name: "windows container", goos: "windows", containerized: true},
+		{name: "unsupported host platform", goos: "darwin"},
 	}
 
 	for _, tt := range tests {
