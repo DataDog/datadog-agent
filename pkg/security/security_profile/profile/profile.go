@@ -87,7 +87,10 @@ type Profile struct {
 	Instances     []*tags.Workload
 
 	// V2
-	isEnabled bool
+	// First has been sent
+	hasAlreadyBeenSent *atomic.Bool
+	isEnabled          bool
+	startedAt          time.Time
 }
 
 // IsEnabled returns true if the profile is enabled
@@ -114,6 +117,21 @@ func (p *Profile) resetActivityTreeLocked() {
 	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
 	}
+}
+
+// HasAlreadyBeenSent returns true if the profile has already been sent
+func (p *Profile) HasAlreadyBeenSent() bool {
+	return p.hasAlreadyBeenSent.Load()
+}
+
+// SetHasAlreadyBeenSent sets the hasAlreadyBeenSent flag to true
+func (p *Profile) SetHasAlreadyBeenSent() {
+	p.hasAlreadyBeenSent.Store(true)
+}
+
+// StartedAt returns the time at which this in-memory profile instance was created.
+func (p *Profile) StartedAt() time.Time {
+	return p.startedAt
 }
 
 // Opts defines the options to create a new profile
@@ -160,11 +178,13 @@ func New(opts ...Opts) *Profile {
 		Header: ActivityDumpHeader{
 			DNSNames: utils.NewStringKeys(nil),
 		},
-		LoadedInKernel:  atomic.NewBool(false),
-		LoadedNano:      atomic.NewUint64(0),
-		versionContexts: make(map[string]*VersionContext),
-		profileCookie:   utils.RandNonZeroUint64(),
-		isEnabled:       true,
+		LoadedInKernel:     atomic.NewBool(false),
+		LoadedNano:         atomic.NewUint64(0),
+		hasAlreadyBeenSent: atomic.NewBool(false),
+		versionContexts:    make(map[string]*VersionContext),
+		profileCookie:      utils.RandNonZeroUint64(),
+		isEnabled:          true,
+		startedAt:          time.Now(),
 	}
 
 	for _, opt := range opts {

@@ -164,6 +164,10 @@ type ManagerV2 struct {
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
 
+	if err := storage.ClearLocalProfilesOnStart(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory); err != nil {
+		return nil, fmt.Errorf("couldn't clear local security profiles: %w", err)
+	}
+
 	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't instantiate the local storage: %w", err)
@@ -509,6 +513,10 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 			m.persistProfileToStorage(p, request, data)
 		}
 	}
+
+	if enabled {
+		p.SetHasAlreadyBeenSent()
+	}
 }
 
 // persistProfileToStorage persists profile data to a specific storage backend
@@ -690,10 +698,17 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 	m.queueSize.Inc()
 }
 
+func (m *ManagerV2) shouldSendAnomalyDetection(p *profile.Profile, now time.Time) bool {
+	if m.config.RuntimeSecurity.SecurityProfileV2UseTimeBasedAnomalyStabilization {
+		return now.Sub(p.StartedAt()) >= m.config.RuntimeSecurity.SecurityProfileV2AnomalyStabilizationPeriod
+	}
+	return p.HasAlreadyBeenSent()
+}
+
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
 func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	profile, inserted := m.insertEventIntoProfile(event)
-	if !inserted || profile == nil {
+	if !inserted || profile == nil || !m.shouldSendAnomalyDetection(profile, time.Now()) {
 		return
 	}
 

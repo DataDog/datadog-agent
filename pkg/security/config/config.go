@@ -554,6 +554,14 @@ type RuntimeSecurityConfig struct {
 	// visibility: private
 	// default_value: 5120
 	SecurityProfileV2MaxDumpSize func() int
+	// SecurityProfileV2UseTimeBasedAnomalyStabilization, when true, withholds anomaly
+	// detection events for SecurityProfileV2AnomalyStabilizationPeriod after a profile
+	// starts instead of waiting for the first persistence.
+	SecurityProfileV2UseTimeBasedAnomalyStabilization bool
+	// SecurityProfileV2AnomalyStabilizationPeriod is the delay after a profile starts
+	// before anomaly detection events are emitted, used only when
+	// SecurityProfileV2UseTimeBasedAnomalyStabilization is true.
+	SecurityProfileV2AnomalyStabilizationPeriod time.Duration
 
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	// visibility: private
@@ -1053,6 +1061,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)
 			return mds * (1 << 10)
 		},
+		SecurityProfileV2UseTimeBasedAnomalyStabilization: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.anomaly_stabilization.use_time_based"),
+		SecurityProfileV2AnomalyStabilizationPeriod:       pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.anomaly_stabilization.period"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
