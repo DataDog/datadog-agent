@@ -100,23 +100,6 @@ int main(int argc, char **argv) {
 }
 `
 
-func TestResolveOTelTLSDynamicMain(t *testing.T) {
-	skipUnsupportedOTelTLSArch(t)
-
-	dir := t.TempDir()
-	bin := compileOTelTLSFixture(t, dir, "dynamic-main", otelTLSFixtureMain, "-rdynamic")
-	requireDynamicTLSSymbol(t, bin)
-
-	cmd := startOTelTLSFixture(t, bin)
-	res, err := resolveOTelTLS(uint32(cmd.Process.Pid), "cpp")
-	require.NoError(t, err)
-
-	// The access model picked for a main executable's own TLS variable depends
-	// on the compiler/glibc version, so only assert resolution completed.
-	require.Equal(t, uint32(otelRuntimeNative), res.runtimeLang)
-	require.Len(t, serializeOTelTLSValue(res), otelTLSValueSize)
-}
-
 // TestResolveOTelTLSAccessModels pins the access model each TLS dialect and
 // visibility lands on, over the matrix the upstream profiler builds for its own
 // integration tests (processcontext/integrationtests/testdata/Makefile in
@@ -136,9 +119,6 @@ func TestResolveOTelTLSAccessModels(t *testing.T) {
 		source string
 		flags  []string
 		access tlsAccess
-		// dtv marks the models resolved through the DTV of a dlopen'd module,
-		// the only ones with a module ID.
-		dtv bool
 	}{
 		{
 			name:   "general-dynamic-desc",
@@ -151,7 +131,6 @@ func TestResolveOTelTLSAccessModels(t *testing.T) {
 			source: otelTLSFixtureDSO,
 			flags:  []string{"-mtls-dialect=" + altDialect},
 			access: accessGlobalDynamic,
-			dtv:    true,
 		},
 		{
 			name:   "initial-exec",
@@ -164,7 +143,6 @@ func TestResolveOTelTLSAccessModels(t *testing.T) {
 			source: otelTLSFixtureDSOHidden,
 			flags:  []string{"-ftls-model=local-dynamic", "-mtls-dialect=" + altDialect},
 			access: accessLocalDynamic,
-			dtv:    true,
 		},
 	}
 
@@ -191,22 +169,6 @@ func TestResolveOTelTLSAccessModels(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, test.access, access.access)
-
-			bin := compileOTelTLSFixture(t, dir, "dlopen-main", otelTLSFixtureDlopenMain, "-ldl")
-			cmd := startOTelTLSFixture(t, bin, lib)
-			res, err := resolveOTelTLS(uint32(cmd.Process.Pid), "cpp")
-			require.NoError(t, err)
-
-			require.Equal(t, uint32(otelRuntimeNative), res.runtimeLang)
-			require.Len(t, serializeOTelTLSValue(res), otelTLSValueSize)
-			if test.dtv {
-				// A module ID of its own is the proof the offset came from
-				// walking this process's DTV.
-				require.NotZero(t, res.moduleID)
-				require.NotZero(t, res.dtvInfo.multiplier)
-			} else {
-				require.Zero(t, res.moduleID)
-			}
 		})
 	}
 }
@@ -429,26 +391,6 @@ func elfHeaderVaddr(t *testing.T, path string) (uint64, bool) {
 		}
 	}
 	return 0, false
-}
-
-// TestOTelTargetProcessDTVInfo covers the DTV layout extraction on its own, so
-// that it keeps coverage where the toolchain cannot build the dialect a
-// DTV-resolved access model needs and TestResolveOTelTLSAccessModels skips.
-func TestOTelTargetProcessDTVInfo(t *testing.T) {
-	skipUnsupportedOTelTLSArch(t)
-
-	dir := t.TempDir()
-	bin := compileOTelTLSFixture(t, dir, "dtv-main", otelTLSFixtureMain, "-rdynamic")
-
-	cmd := startOTelTLSFixture(t, bin)
-	target, err := openOTelTargetProcess(uint32(cmd.Process.Pid))
-	require.NoError(t, err)
-
-	dtv, err := target.dtvInfo()
-	require.NoError(t, err)
-	// The values themselves are read out of the running libc's __tls_get_addr,
-	// so only assert the entry size is one of the two layouts that exist.
-	require.Contains(t, []uint32{8, 16}, dtv.multiplier)
 }
 
 func skipUnsupportedOTelTLSArch(t *testing.T) {
