@@ -235,8 +235,9 @@ func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
 	return metricsGet, errors.Join(errs...)
 }
 
-func (c *gpmCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *gpmCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *gpmCollector) Name() CollectorName {

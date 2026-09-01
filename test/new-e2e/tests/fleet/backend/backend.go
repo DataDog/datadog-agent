@@ -39,11 +39,12 @@ type RemoteConfigState struct {
 
 // RemoteConfigStatePackage is the state of a package in the remote config.
 type RemoteConfigStatePackage struct {
-	Package                 string `json:"package"`
-	StableVersion           string `json:"stable_version"`
-	ExperimentVersion       string `json:"experiment_version"`
-	StableConfigVersion     string `json:"stable_config_version"`
-	ExperimentConfigVersion string `json:"experiment_config_version"`
+	Package                 string            `json:"package"`
+	StableVersion           string            `json:"stable_version"`
+	ExperimentVersion       string            `json:"experiment_version"`
+	StableConfigVersion     string            `json:"stable_config_version"`
+	ExperimentConfigVersion string            `json:"experiment_config_version"`
+	ProcessStates           map[string]string `json:"process_states"`
 }
 
 // Backend is the fake fleet backend.

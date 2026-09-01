@@ -235,6 +235,7 @@ dd_agent_go_test(
         "user_nix_test.go",
     ],
     embed = [":checks"],
+    env_inherit = ["PATH"],  # CollectSystemInfo invokes system utilities (e.g. ioreg on macOS)
     gotags_sets = [["systemprobechecks"]],
     deps = [
         "//comp/core",

@@ -22,6 +22,10 @@ require (
 	gotest.tools/gotestsum v1.13.0
 )
 
+// Use the AIX compilation fix until it is merged and released upstream.
+// See https://github.com/gotestyourself/gotestsum/pull/567
+replace gotest.tools/gotestsum => github.com/pgimalac/gotestsum v0.0.0-20260515163658-2222dd98bb9f
+
 require (
 	4d63.com/gocheckcompilerdirectives v1.3.0 // indirect
 	4d63.com/gochecknoglobals v0.2.2 // indirect
