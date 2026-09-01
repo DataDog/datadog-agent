@@ -64,7 +64,8 @@ type Listener interface {
 	//                        * status: The apply status indicating success, failure, or error details
 	//
 	// Behavior:
-	//   - Called only when there are actual configuration changes to process
+	//   - Called when there are configuration changes to process, and once with the
+	//     current configs if the subscription used WithInitialUpdate
 	//   - May be skipped if signature verification fails and ShouldIgnoreSignatureExpiration() returns false
 	//   - Listeners should process all provided configurations and report their apply status
 	//   - The applyStateCallback must be called for proper state tracking and error reporting
@@ -122,15 +123,20 @@ type Client struct {
 	backoffPolicy     backoff.Policy
 	backoffErrorCount int
 
-	// synced is set after the first successful ClientGetConfigs round-trip,
-	// including an empty snapshot. It is not cleared on later poll failures.
-	synced atomic.Bool
-
 	configFetcher ConfigFetcher
 
 	state *state.Repository
 
 	listeners map[string][]Listener
+
+	// initialUpdates holds, per product, the listeners subscribed
+	// WithInitialUpdate that have not been delivered to yet. A product is removed
+	// once all of its listeners have been. Guarded by m.
+	initialUpdates map[string]map[Listener]struct{}
+
+	// syncedProducts holds the products carried by a ClientGetConfigs round-trip
+	// that completed successfully. Guarded by m.
+	syncedProducts map[string]struct{}
 
 	// Elements that can be changed during the execution of listeners
 	// They are atomics so that they don't have to share the top-level mutex
@@ -335,6 +341,8 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 		state:          repository,
 		backoffPolicy:  backoffPolicy,
 		listeners:      make(map[string][]Listener),
+		initialUpdates: make(map[string]map[Listener]struct{}),
+		syncedProducts: make(map[string]struct{}),
 		configFetcher:  cf,
 	}, nil
 }
@@ -374,8 +382,37 @@ func (c *Client) SetAgentName(agentName string) {
 	}
 }
 
+// SubscribeOption customizes how a subscription is delivered.
+type SubscribeOption func(*subscribeOptions)
+
+type subscribeOptions struct {
+	initialUpdate bool
+}
+
+// WithInitialUpdate guarantees the subscriber is called once with the product's
+// current state, including when that state is empty. If a poll carrying the
+// product has already completed, the delivery happens during Subscribe;
+// otherwise it happens on the first poll that carries it.
+//
+// By default a subscriber only sees changes, so it cannot tell "the backend has
+// no configs for me" from "the client has not asked yet". Use this option when
+// an empty config set is itself an answer the subscriber is gated on. It does
+// not backdate the guarantee: a poll that did not carry the product is not an
+// answer for it.
+//
+// The delivery may run on the calling goroutine, so the listener must not call
+// back into the client.
+func WithInitialUpdate() SubscribeOption {
+	return func(opts *subscribeOptions) { opts.initialUpdate = true }
+}
+
 // SubscribeAll subscribes to all events (config updates, state changed, ...)
-func (c *Client) SubscribeAll(product string, listener Listener) {
+func (c *Client) SubscribeAll(product string, listener Listener, opts ...SubscribeOption) {
+	var options subscribeOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -386,6 +423,19 @@ func (c *Client) SubscribeAll(product string, listener Listener) {
 	}
 
 	c.listeners[product] = append(c.listeners[product], listener)
+	if options.initialUpdate {
+		if c.hasSyncedProductLocked(product) {
+			// The product already has a backend answer, so deliver it here rather
+			// than waiting for the next poll. Every delivery happens under m, so a
+			// concurrent poll cannot notify this listener before we do.
+			listener.OnUpdate(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
+		} else {
+			if c.initialUpdates[product] == nil {
+				c.initialUpdates[product] = make(map[Listener]struct{})
+			}
+			c.initialUpdates[product][listener] = struct{}{}
+		}
+	}
 }
 
 // Subscribe subscribes to config updates of a product.
@@ -405,12 +455,23 @@ func (c *Client) GetConfigs(product string) map[string]state.RawConfig {
 	return c.state.GetConfigs(product)
 }
 
-// HasSynced reports whether this client has completed at least one successful
-// config poll against the remote-config service. An empty snapshot counts: the
-// round-trip happened, there were simply no configs for the subscribed
-// products. Later poll failures do not clear this.
-func (c *Client) HasSynced() bool {
-	return c.synced.Load()
+// hasSyncedProduct reports whether a poll that requested the given product has
+// completed successfully. An empty result counts: the backend answered, it simply
+// had nothing for that product.
+//
+// The signal is product-scoped because a poll says nothing about a product it did
+// not request: subscribing to a product does not backdate its sync. Callers must
+// hold m.
+func (c *Client) hasSyncedProductLocked(product string) bool {
+	_, ok := c.syncedProducts[product]
+	return ok
+}
+
+// hasSyncedProduct is hasSyncedProductLocked, taking m.
+func (c *Client) hasSyncedProduct(product string) bool {
+	c.m.Lock()
+	defer c.m.Unlock()
+	return c.hasSyncedProductLocked(product)
 }
 
 // SetCWSWorkloads updates the list of workloads that needs cws profiles
@@ -537,23 +598,46 @@ func (c *Client) update() error {
 	if err != nil {
 		return err
 	}
-	c.synced.Store(true)
-	// We don't want to force the products to reload config if nothing changed
-	// in the latest update.
-	if len(changedProducts) == 0 {
-		return nil
-	}
-
 	c.m.Lock()
 	defer c.m.Unlock()
+	// The request holds the products that were actually on the wire, and this poll
+	// is an answer for every one of them -- including those it returned nothing
+	// for.
+	polledProducts := req.Client.GetProducts()
+	for _, product := range polledProducts {
+		c.syncedProducts[product] = struct{}{}
+	}
+	// We don't want to force the products to reload config if nothing changed
+	// in the latest update, unless a listener is still owed its initial update:
+	// an empty answer is not a config change, but it is the answer that listener
+	// is gated on.
+	if len(changedProducts) == 0 && len(c.initialUpdates) == 0 {
+		return nil
+	}
 	for product, productListeners := range c.listeners {
-		if containsProduct(changedProducts, product) {
-			for _, listener := range productListeners {
-				if response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
-					!listener.ShouldIgnoreSignatureExpiration() {
-					listener.OnUpdate(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
-				}
+		changed := containsProduct(changedProducts, product)
+		// A poll says nothing about a product it did not request, so it cannot
+		// serve as that product's initial update.
+		var owed map[Listener]struct{}
+		if containsProduct(polledProducts, product) {
+			owed = c.initialUpdates[product]
+		}
+		if !changed && len(owed) == 0 {
+			continue
+		}
+		for _, listener := range productListeners {
+			_, owedInitialUpdate := owed[listener]
+			if !changed && !owedInitialUpdate {
+				continue
 			}
+			if response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
+				!listener.ShouldIgnoreSignatureExpiration() {
+				delete(owed, listener)
+				listener.OnUpdate(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
+			}
+		}
+		if owed != nil && len(owed) == 0 {
+			delete(c.initialUpdates, product)
 		}
 	}
 	return nil
