@@ -145,7 +145,7 @@ func TestSyntheticsTestConfig_UnmarshalJSON_AllFields(t *testing.T) {
 		"org_id": 101,
 		"main_dc": "eu-west-1",
 		"public_id": "pub-12345",
-		"run_type": "on-demand",
+		"run_type": "triggered",
 		"tick_every": 60
 	}`
 
@@ -167,7 +167,7 @@ func TestSyntheticsTestConfig_UnmarshalJSON_AllFields(t *testing.T) {
 		OrgID:    101,
 		MainDC:   "eu-west-1",
 		PublicID: "pub-12345",
-		RunType:  "on-demand",
+		RunType:  RunTypeTriggered,
 		Interval: 60,
 		Config: struct {
 			Assertions []Assertion   `json:"assertions"`

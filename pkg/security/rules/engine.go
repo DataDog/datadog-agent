@@ -678,7 +678,12 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 
 			if eventTypes, exists := categories[category]; exists {
 				for _, eventType := range eventTypes {
-					enabled[eventType] = true
+					switch eventType {
+					case model.CapabilitiesEventType.String():
+						enabled[eventType] = e.probe.IsCapabilitiesMonitoringEnabled()
+					default:
+						enabled[eventType] = true
+					}
 				}
 			}
 		}

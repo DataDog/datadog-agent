@@ -7,6 +7,7 @@ pub mod config;
 pub mod executor;
 pub mod jwt;
 pub mod opms;
+pub mod orchestrator;
 pub mod platform;
 pub mod procmgr;
 pub mod proto;

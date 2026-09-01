@@ -119,8 +119,8 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 
 	// Build the final context to send out
 	ncc := &NcmCheckContext{
-		MinCollectionInterval:      time.Duration(initConfig.MinCollectionInterval) * time.Second,
-		InventoryReportMaxInterval: time.Duration(initConfig.InventoryReportMaxInterval) * time.Second,
+		MinCollectionInterval:      initConfig.MinCollectionInterval,
+		InventoryReportMaxInterval: initConfig.InventoryReportMaxInterval,
 		Device:                     &deviceInstance,
 	}
 	return ncc, nil
@@ -173,10 +173,20 @@ func (ic *InitConfig) applyDefaults() {
 	if ic.MinCollectionInterval <= 0 {
 		log.Debugf("No or invalid min_collection_interval specified in init config, applying default: %d", defaultCheckInterval)
 		ic.MinCollectionInterval = defaultCheckInterval // Default to 15 minutes
+	} else if ic.MinCollectionInterval < time.Millisecond {
+		// go-yaml parses a plain int (e.g. "30") as "30ns"; we want plain ints
+		// to be seconds. We assume that any time frame less than a millisecond
+		// was entered without units and parsed as nanoseconds.
+		ic.MinCollectionInterval *= time.Second
 	}
 	if ic.InventoryReportMaxInterval <= 0 {
 		log.Debugf("No or invalid inventory_report_max_interval specified in init config, applying default: %s", defaultInventoryReportMaxInterval)
 		ic.InventoryReportMaxInterval = defaultInventoryReportMaxInterval
+	} else if ic.InventoryReportMaxInterval < time.Millisecond {
+		// go-yaml parses a plain int (e.g. "30") as "30ns"; we want plain ints
+		// to be seconds. We assume that any time frame less than a millisecond
+		// was entered without units and parsed as nanoseconds.
+		ic.InventoryReportMaxInterval *= time.Second
 	}
 }
 

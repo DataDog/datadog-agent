@@ -161,6 +161,8 @@ runtime_security_config:
 {{end}}
   security_profile:
     enabled: {{ .EnableSecurityProfile }}
+    v2:
+      enabled: false
 {{if .EnableSecurityProfile}}
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}
@@ -622,6 +624,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	for _, opt := range fopts {
 		opt(&opts)
 	}
+	resolveStaticOpts(t, &opts)
 
 	prevEbpfLessEnabled := ebpfLessEnabled
 	defer func() {

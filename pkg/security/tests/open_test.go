@@ -607,8 +607,10 @@ func openMountByID(mountID int) (f *os.File, err error) {
 	return nil, errors.New("mountID not found")
 }
 
-func benchmarkOpenSameFile(b *testing.B, disableFilters bool, rules ...*rules.RuleDefinition) {
-	test, err := newTestModule(b, nil, rules, withStaticOpts(testOpts{disableFilters: disableFilters}))
+// benchmarkOpenSameFile benchmarks repeated opens of one file, with or without
+// filters depending on what its caller declared.
+func benchmarkOpenSameFile(b *testing.B, rules ...*rules.RuleDefinition) {
+	test, err := newTestModule(b, nil, rules)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -633,26 +635,32 @@ func benchmarkOpenSameFile(b *testing.B, disableFilters bool, rules ...*rules.Ru
 	}
 }
 
+var _ = declare(BenchmarkOpenNoApprover, testOpts{disableFilters: true})
+
 func BenchmarkOpenNoApprover(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
 
-	benchmarkOpenSameFile(b, true, rule)
+	benchmarkOpenSameFile(b, rule)
 }
 
+// BenchmarkOpenWithApprover keeps filters on, which is the default config, so it
+// needs no declaration.
 func BenchmarkOpenWithApprover(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
 
-	benchmarkOpenSameFile(b, false, rule)
+	benchmarkOpenSameFile(b, rule)
 }
 
+var _ = declare(BenchmarkOpenNoKprobe, testOpts{disableFilters: true})
+
 func BenchmarkOpenNoKprobe(b *testing.B) {
-	benchmarkOpenSameFile(b, true)
+	benchmarkOpenSameFile(b)
 }
 
 func createFolder(current string, filesPerFolder, maxDepth int) error {

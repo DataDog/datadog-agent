@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -23,23 +24,18 @@ import (
 // customization. The mock exposes exactly one MIG-disabled physical device.
 func setupMockDevice(t *testing.T, extraMockOpts ...testutil.NvmlMockOption) ddnvml.Device {
 	t.Helper()
-
 	opts := append([]testutil.NvmlMockOption{
-		testutil.WithMIGDisabled(),
 		testutil.WithDeviceCount(1),
 	}, extraMockOpts...)
-	devices := setupMockDevices(t, opts...)
-	require.NotEmpty(t, devices)
-	return devices[0]
+	mock := nvmltestutil.SetupMockNVML(t, opts...)
+	return nvmltestutil.PhysicalDevice(t, mock, 0)
 }
 
 // setupMockDevices installs a mock NVML interface (configured via the given options)
 // and returns all physical devices exposed by the resulting device cache.
 func setupMockDevices(t *testing.T, mockOpts ...testutil.NvmlMockOption) []ddnvml.Device {
 	t.Helper()
-
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(mockOpts...)
-	ddnvml.WithMockNVML(t, nvmlMock)
+	nvmltestutil.SetupMockNVML(t, mockOpts...)
 	deviceCache := ddnvml.NewDeviceCache()
 	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
@@ -59,11 +55,11 @@ func TestNewBaseCollector(t *testing.T) {
 			apiCalls: []apiCallInfo{
 				{
 					Name:    "test_api1",
-					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
+					Handler: func(ddnvml.Device, uint64) ([]Sample, uint64, error) { return []Sample{}, 0, nil },
 				},
 				{
 					Name:    "test_api2",
-					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
+					Handler: func(ddnvml.Device, uint64) ([]Sample, uint64, error) { return []Sample{}, 0, nil },
 				},
 			},
 			expectError: false,
@@ -73,11 +69,11 @@ func TestNewBaseCollector(t *testing.T) {
 			apiCalls: []apiCallInfo{
 				{
 					Name:    "supported_api",
-					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) { return []Metric{}, 0, nil },
+					Handler: func(ddnvml.Device, uint64) ([]Sample, uint64, error) { return []Sample{}, 0, nil },
 				},
 				{
 					Name: "unsupported_api",
-					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) {
+					Handler: func(ddnvml.Device, uint64) ([]Sample, uint64, error) {
 						return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("unsupported_api", nvml.ERROR_NOT_SUPPORTED)
 					},
 				},
@@ -89,13 +85,13 @@ func TestNewBaseCollector(t *testing.T) {
 			apiCalls: []apiCallInfo{
 				{
 					Name: "unsupported_api1",
-					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) {
+					Handler: func(ddnvml.Device, uint64) ([]Sample, uint64, error) {
 						return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("unsupported_api1", nvml.ERROR_NOT_SUPPORTED)
 					},
 				},
 				{
 					Name: "unsupported_api2",
-					Handler: func(ddnvml.Device, uint64) ([]Metric, uint64, error) {
+					Handler: func(ddnvml.Device, uint64) ([]Sample, uint64, error) {
 						return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("unsupported_api2", nvml.ERROR_NOT_SUPPORTED)
 					},
 				},
@@ -136,18 +132,18 @@ func TestBaseCollector_Collect(t *testing.T) {
 			apiCalls: []apiCallInfo{
 				{
 					Name: "metric1",
-					Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-						return []Metric{
-							{Name: "test.metric1", Value: 1.0, Type: metrics.GaugeType},
+					Handler: func(_ ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+						return []Sample{
+							&Metric{Name: "test.metric1", Value: 1.0, Type: metrics.GaugeType},
 						}, 0, nil
 					},
 				},
 				{
 					Name: "metric2",
-					Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-						return []Metric{
-							{Name: "test.metric2", Value: 2.0, Type: metrics.GaugeType},
-							{Name: "test.metric3", Value: 3.0, Type: metrics.GaugeType},
+					Handler: func(_ ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+						return []Sample{
+							&Metric{Name: "test.metric2", Value: 2.0, Type: metrics.GaugeType},
+							&Metric{Name: "test.metric3", Value: 3.0, Type: metrics.GaugeType},
 						}, 0, nil
 					},
 				},
@@ -161,13 +157,13 @@ func TestBaseCollector_Collect(t *testing.T) {
 			apiCalls: []apiCallInfo{
 				{
 					Name: "working_api",
-					Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-						return []Metric{{Name: "test.working", Value: 1.0, Type: metrics.GaugeType}}, 0, nil
+					Handler: func(_ ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+						return []Sample{&Metric{Name: "test.working", Value: 1.0, Type: metrics.GaugeType}}, 0, nil
 					},
 				},
 				{
 					Name: "failing_api",
-					Handler: func(_ ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					Handler: func(_ ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 						return nil, 0, errors.New("API call failed")
 					},
 				},
@@ -195,7 +191,9 @@ func TestBaseCollector_Collect(t *testing.T) {
 
 			// Verify expected metrics are present
 			metricNames := make([]string, len(collectedMetrics))
-			for i, metric := range collectedMetrics {
+			for i, sample := range collectedMetrics {
+				metric, ok := sample.(*Metric)
+				require.True(t, ok)
 				metricNames[i] = metric.Name
 				require.Equal(t, metrics.GaugeType, metric.Type)
 			}
@@ -213,12 +211,12 @@ func TestNewSamplingCollector(t *testing.T) {
 	apiCalls := []apiCallInfo{
 		{
 			Name: "sampling_api",
-			Handler: func(_ ddnvml.Device, timestamp uint64) ([]Metric, uint64, error) {
+			Handler: func(_ ddnvml.Device, timestamp uint64) ([]Sample, uint64, error) {
 				// Sampling collector - should receive non-zero timestamp after first call
 				timestamps[callCount] = timestamp
 				callCount++
 				newTimestamp := timestamp + 10
-				return []Metric{{Name: "test.sampling", Value: 1.0, Type: metrics.GaugeType}}, newTimestamp, nil
+				return []Sample{&Metric{Name: "test.sampling", Value: 1.0, Type: metrics.GaugeType}}, newTimestamp, nil
 			},
 		},
 	}

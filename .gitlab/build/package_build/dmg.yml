@@ -71,6 +71,7 @@
     - !reference [.macos_runner_maintenance]
     - !reference [.macos_setup_cache]
     - !reference [.sanitize_goproxy]
+    - !reference [.kill_bazel_server]
     # Populate AWS_SHARED_CREDENTIALS_FILE via CI Identities (no macOS IAM instance role needed);
     # must run before build_agent_dmg.sh since Omnibus reads it for S3 cache access during the build.
     - ci-identities-gitlab-job-client assume-role

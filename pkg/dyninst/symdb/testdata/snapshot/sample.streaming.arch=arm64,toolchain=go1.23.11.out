@@ -184,8 +184,8 @@ Package: main
 		Var: &v: *main.firstBehavior (declared at line 400, available: [391-449])
 		Var: &fortyTwo: *int (declared at line 403, available: [404-404])
 		Var: .autotmp_8: [0]int (declared at line 448, available: [391-449])
-	Function: executeServerFuncs (main.executeServerFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go [36:43] injectible: [36-38], [40-43]
-		Arg: ctx: context.Context (declared at line 36, available: [36-43])
+	Function: executeServerFuncs (main.executeServerFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/orders.go [36:42] injectible: [36-38], [40-42]
+		Arg: ctx: context.Context (declared at line 36, available: [36-42])
 		Var: s: *main.Server (declared at line 40, available: )
 		Var: span: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span (declared at line 37, available: [38-41])
 	Function: executeServerFuncs.WithSpanID.func1 (main.executeServerFuncs.WithSpanID.func1) in github.com/DataDog/dd-trace-go/v2/ddtrace/tracer/option.go [1359:1361] injectible: [1359-1361]

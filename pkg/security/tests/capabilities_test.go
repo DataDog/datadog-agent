@@ -21,6 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+var _ = declare(TestCapabilitiesEvent, testOpts{
+	capabilitiesMonitoringEnabled: true,
+})
+
 func TestCapabilitiesEvent(t *testing.T) {
 	SkipIfNotAvailable(t)
 	// skip tests if we are running within a container
@@ -57,9 +61,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
-		capabilitiesMonitoringEnabled: true,
-	}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

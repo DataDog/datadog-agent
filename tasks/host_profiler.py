@@ -19,7 +19,7 @@ from tasks.schema.generate import schema_codegen
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
 CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
 PPROFILE_MODULE = "go.opentelemetry.io/collector/pdata/pprofile"
-PPROFILE_MAX_VERSION = "v0.158.0"
+PPROFILE_MAX_VERSION = "v0.159.0"
 
 BIN_NAME = "host-profiler"
 BIN_DIR = os.path.join(".", "bin", "host-profiler")

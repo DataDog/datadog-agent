@@ -86,6 +86,7 @@ type EBPFResolver struct {
 	pathIDMap           ebpf.Map
 	kernelThreadPidsMap ebpf.Map
 	goLabelsMap         ebpf.Map
+	otelTLSMap          ebpf.Map
 	opts                ResolverOpts
 
 	// stats
@@ -1191,8 +1192,6 @@ func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
 }
 
 // AddTracerMetadata reads tracer metadata from a memfd and adds it to the process cache entry.
-// If the metadata is successfully parsed, the tracer is a Go runtime, and span tracking is
-// enabled, it also resolves the pprof label offsets and populates the go_labels_procs BPF map.
 func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	fd := event.TracerMemfdSeal.Fd
 	fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", strconv.Itoa(int(fd)))
@@ -1206,13 +1205,9 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 	return nil
 }
 
-// SnapshotTracer detects whether a pre-existing process (one that started
-// before the agent) is running a Datadog tracer and, if so, populates the
-// user-space tracer metadata and the kernel-side go_labels_procs offset map
-// the same way the runtime tracer_memfd_seal event handler does.
-//
-// Called from the startup snapshot for every pid; processes without a tracer
-// memfd return cheaply via the GetTracerMetadata error path.
+// SnapshotTracer detects whether a process that started before the agent is
+// running a Datadog tracer and, if so, applies its metadata the same way the
+// runtime tracer_memfd_seal event handler does.
 func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 	// Only do the (mildly expensive) /proc/<pid>/fd scan for pids that
 	// SyncCache actually entered into the cache — anything else can't be
@@ -1233,10 +1228,10 @@ func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 	p.applyTracerMetadata(pid, tmeta)
 }
 
-// applyTracerMetadata stores tracer metadata on the process cache entry and, for Go
-// processes when span tracking is enabled, resolves the pprof label offsets for
-// goroutine-level span context. Must be called WITHOUT the resolver lock held; ELF I/O
-// happens outside the lock.
+// applyTracerMetadata stores tracer metadata on the process cache entry and, when
+// span tracking is enabled, resolves the thread-context reader for the process:
+// the pprof label offsets for Go, the OTel TLS layout for every language. Must be
+// called WITHOUT the resolver lock held, since ELF I/O happens outside the lock.
 func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
@@ -1244,12 +1239,31 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 	}
 	p.Unlock()
 
-	if p.config.SpanTrackingEnabled && tmeta.TracerLanguage == "go" {
-		// Go: resolve pprof label offsets for goroutine-level span context.
+	if !p.config.SpanTrackingEnabled {
+		return
+	}
+
+	if tmeta.TracerLanguage == "go" {
 		if err := p.resolveGoLabels(pid); err != nil {
 			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
 		}
 	}
+
+	if p.otelTLSMap != nil {
+		if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
+			seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+		}
+	}
+}
+
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, tracerLanguage string) error {
+	res, err := resolveOTelTLS(pid, tracerLanguage)
+	if err != nil {
+		return err
+	}
+
+	value := serializeOTelTLSValue(res)
+	return p.otelTLSMap.Put(pid, value)
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
@@ -1320,6 +1334,11 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 	}
 
 	if p.goLabelsMap, err = managerhelper.Map(p.manager, "go_labels_procs"); err != nil {
+		return err
+	}
+
+	// optional map: without it, OTel span context is simply never resolved
+	if p.otelTLSMap, err = managerhelper.Map(p.manager, "otel_tls"); err != nil {
 		return err
 	}
 

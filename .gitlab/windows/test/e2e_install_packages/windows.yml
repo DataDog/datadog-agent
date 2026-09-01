@@ -65,6 +65,7 @@
       - E2E_MSI_TEST: TestInstallExistingAltDir
       - E2E_MSI_TEST: TestInstallAltDirAndCorruptForUninstall
       - E2E_MSI_TEST: TestInstallFail
+      - E2E_MSI_TEST: TestInstallWithUntrustedConfigRoot
       - E2E_MSI_TEST: TestInstallWithLanmanServerDisabled
       - E2E_MSI_TEST: TestInstallWithInstallOnlyFlag
       - E2E_MSI_TEST: TestInstallWithAutologger
