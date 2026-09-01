@@ -503,7 +503,7 @@ func TestSubmitV1IntakeDirect(t *testing.T) {
 // between every components of the forwarder. Corner cases and error are tested
 // per component.
 func TestForwarderEndtoEnd(t *testing.T) {
-	// reseting DroppedOnInput
+	// reseting HighPriorityQueueFull
 	highPriorityQueueFull.Set(0)
 
 	var wg sync.WaitGroup

@@ -6,13 +6,17 @@
 package telemetry
 
 import (
+	"maps"
+	"reflect"
+	"slices"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
@@ -29,8 +33,9 @@ func float64Ptr(value float64) *float64 {
 
 func gaugeMetric(labels map[string]string, value float64) *dto.Metric {
 	metric := &dto.Metric{Gauge: &dto.Gauge{Value: float64Ptr(value)}}
-	for name, value := range labels {
-		metric.Label = append(metric.Label, &dto.LabelPair{Name: stringPtr(name), Value: stringPtr(value)})
+	// Sorted, like the label pairs a real Gather returns, so the resulting tag order is stable.
+	for _, name := range slices.Sorted(maps.Keys(labels)) {
+		metric.Label = append(metric.Label, &dto.LabelPair{Name: stringPtr(name), Value: stringPtr(labels[name])})
 	}
 	return metric
 }
@@ -53,6 +58,92 @@ func counterMetricFamily(name string, value float64) *dto.MetricFamily {
 			Counter: &dto.Counter{Value: float64Ptr(value)},
 		}},
 	}
+}
+
+func histogramMetricFamily(name string, count uint64, sum float64) *dto.MetricFamily {
+	metricType := dto.MetricType_HISTOGRAM
+	return &dto.MetricFamily{
+		Name: stringPtr(name),
+		Type: &metricType,
+		Metric: []*dto.Metric{{
+			Histogram: &dto.Histogram{
+				SampleCount: &count,
+				SampleSum:   &sum,
+				Bucket: []*dto.Bucket{
+					{UpperBound: float64Ptr(1), CumulativeCount: &count},
+					{UpperBound: float64Ptr(10), CumulativeCount: &count},
+				},
+			},
+		}},
+	}
+}
+
+func typedMetricFamily(name string, metricType dto.MetricType) *dto.MetricFamily {
+	return &dto.MetricFamily{
+		Name: stringPtr(name),
+		Type: &metricType,
+		Metric: []*dto.Metric{{
+			Untyped: &dto.Untyped{Value: float64Ptr(3)},
+			Summary: &dto.Summary{SampleSum: float64Ptr(3)},
+		}},
+	}
+}
+
+// fakeTelemetry serves canned metric families for each of the two telemetry registries.
+type fakeTelemetry struct {
+	telemetry.Component
+
+	defaultMfs []*dto.MetricFamily
+	regularMfs []*dto.MetricFamily
+}
+
+func (f *fakeTelemetry) Gather(defaultGather bool) ([]*dto.MetricFamily, error) {
+	if defaultGather {
+		return f.defaultMfs, nil
+	}
+	return f.regularMfs, nil
+}
+
+// newTestCheck builds a configured check backed by the given registries, plus a mock sender.
+func newTestCheck(t *testing.T, instance string, defaultMfs, regularMfs []*dto.MetricFamily) (*checkImpl, *mocksender.MockSender) {
+	t.Helper()
+
+	sm := mocksender.CreateDefaultDemultiplexer(t)
+	c := &checkImpl{
+		CheckBase: corechecks.NewCheckBase(CheckName),
+		telemetry: &fakeTelemetry{defaultMfs: defaultMfs, regularMfs: regularMfs},
+	}
+	require.NoError(t, c.Configure(sm, integration.FakeConfigHash, integration.Data(instance), nil, "test", "provider"))
+
+	return c, mocksender.NewMockSenderWithSenderManager(c.ID(), sm)
+}
+
+// expectRunScaffolding registers the calls every Run() makes regardless of what it reports.
+func expectRunScaffolding(s *mocksender.MockSender) {
+	s.On("SetNoIndex", mock.AnythingOfType("bool")).Return()
+	s.On("Commit").Return().Times(1)
+}
+
+// callIndex returns the position in the recorded call order of the first call to method whose
+// leading arguments match argPrefix, or -1 if there is none.
+func callIndex(s *mocksender.MockSender, method string, argPrefix ...interface{}) int {
+	for i, call := range s.Calls {
+		if call.Method != method || len(call.Arguments) < len(argPrefix) {
+			continue
+		}
+
+		match := true
+		for j, want := range argPrefix {
+			if !reflect.DeepEqual(call.Arguments[j], want) {
+				match = false
+				break
+			}
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
 }
 
 func TestCollectAndMergeRegularRegistryMetrics(t *testing.T) {
@@ -159,34 +250,201 @@ func TestSendMergedMetrics(t *testing.T) {
 	s.AssertExpectations(t)
 }
 
-func TestCheck(t *testing.T) {
-	reg := prometheus.NewRegistry()
+// defaultRegistryFixture is a stand-in for what the default registry holds: a couple of plain
+// families plus the merge metrics that are folded together with the regular registry.
+func defaultRegistryFixture() []*dto.MetricFamily {
+	return []*dto.MetricFamily{
+		gaugeMetricFamily(
+			"test__gauge",
+			gaugeMetric(map[string]string{"foo": "bar"}, 1),
+			gaugeMetric(map[string]string{"foo": "baz"}, 2),
+		),
+		counterMetricFamily("test__counter", 4),
+		gaugeMetricFamily(
+			pointSentMetric,
+			gaugeMetric(map[string]string{domainLabel: "https://api.datadoghq.com"}, 10),
+		),
+	}
+}
 
-	func() {
-		gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{Subsystem: "test", Name: "_gauge"}, []string{"foo"})
-		gauge.WithLabelValues("bar").Set(1.0)
-		gauge.WithLabelValues("baz").Set(2.0)
-		reg.MustRegister(gauge)
+// regularRegistryFixture mixes an allowlisted family, a family that is only reported in advanced
+// mode, and a remote-agent merge metric.
+func regularRegistryFixture() []*dto.MetricFamily {
+	return []*dto.MetricFamily{
+		counterMetricFamily("logs__decoded", 7),
+		gaugeMetricFamily(
+			"scheduler__queue_size",
+			gaugeMetric(map[string]string{"interval": "15", "shadow": "false"}, 3),
+		),
+		counterMetricFamily("some__internal_only_metric", 99),
+		gaugeMetricFamily(
+			pointSentMetric,
+			gaugeMetric(map[string]string{
+				domainLabel:  "https://api.datadoghq.com",
+				emitterLabel: "agent-data-plane",
+			}, 12),
+		),
+	}
+}
 
-		count := prometheus.NewCounter(prometheus.CounterOpts{Subsystem: "test", Name: "_counter"})
-		count.Add(4.0)
-		reg.MustRegister(count)
-	}()
+func TestRunWithoutInternalTelemetry(t *testing.T) {
+	c, s := newTestCheck(t, "", defaultRegistryFixture(), regularRegistryFixture())
 
-	sm := mocksender.CreateDefaultDemultiplexer(t)
+	expectRunScaffolding(s)
 
-	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName)}
-	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider")
-
-	s := mocksender.NewMockSenderWithSenderManager(c.ID(), sm)
+	// Only the default registry is reported, plus the merged point.sent covering both registries.
 	s.On("Gauge", "datadog.agent.test.gauge", 1.0, "", []string{"foo:bar"}).Return().Times(1)
 	s.On("Gauge", "datadog.agent.test.gauge", 2.0, "", []string{"foo:baz"}).Return().Times(1)
 	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.counter", 4.0, "", []string{}, true).Return().Times(1)
-	s.On("Commit").Return().Times(1)
+	s.On("Gauge", "datadog.agent.point.sent", 22.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
 
-	mfs, err := reg.Gather()
-	require.Nil(t, err)
+	require.NoError(t, c.Run())
 
-	c.handleMetricFamilies(mfs, s)
+	// Any regular-registry metric would be an unexpected call, which the mock fails on, but assert
+	// the intent explicitly so a future SetupAcceptAll cannot silently weaken this.
+	s.AssertNotCalled(t, "MonotonicCountWithFlushFirstValue", "datadog.agent.logs.decoded", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	s.AssertExpectations(t)
+}
+
+func TestRunWithInternalTelemetryEnabled(t *testing.T) {
+	c, s := newTestCheck(t, "internal_telemetry:\n  enabled: true\n", defaultRegistryFixture(), regularRegistryFixture())
+
+	expectRunScaffolding(s)
+
+	s.On("Gauge", "datadog.agent.test.gauge", 1.0, "", []string{"foo:bar"}).Return().Times(1)
+	s.On("Gauge", "datadog.agent.test.gauge", 2.0, "", []string{"foo:baz"}).Return().Times(1)
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.counter", 4.0, "", []string{}, true).Return().Times(1)
+	s.On("Gauge", "datadog.agent.point.sent", 22.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
+	// Allowlisted regular-registry families.
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.logs.decoded", 7.0, "", []string{}, true).Return().Times(1)
+	s.On("Gauge", "datadog.agent.scheduler.queue_size", 3.0, "", []string{"interval:15", "shadow:false"}).Return().Times(1)
+
+	require.NoError(t, c.Run())
+
+	// Not on the allowlist, so it stays internal until advanced mode is turned on.
+	s.AssertNotCalled(t, "MonotonicCountWithFlushFirstValue", "datadog.agent.some.internal_only_metric", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	s.AssertExpectations(t)
+}
+
+func TestRunWithInternalTelemetryAdvanced(t *testing.T) {
+	c, s := newTestCheck(t, "internal_telemetry:\n  advanced: true\n", defaultRegistryFixture(), regularRegistryFixture())
+
+	expectRunScaffolding(s)
+
+	s.On("Gauge", "datadog.agent.test.gauge", 1.0, "", []string{"foo:bar"}).Return().Times(1)
+	s.On("Gauge", "datadog.agent.test.gauge", 2.0, "", []string{"foo:baz"}).Return().Times(1)
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.counter", 4.0, "", []string{}, true).Return().Times(1)
+	s.On("Gauge", "datadog.agent.point.sent", 22.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.logs.decoded", 7.0, "", []string{}, true).Return().Times(1)
+	s.On("Gauge", "datadog.agent.scheduler.queue_size", 3.0, "", []string{"interval:15", "shadow:false"}).Return().Times(1)
+	// Advanced mode reports everything, including families that are not on the allowlist.
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.some.internal_only_metric", 99.0, "", []string{}, true).Return().Times(1)
+
+	require.NoError(t, c.Run())
+
+	// point.sent lives in both registries; the merge path owns it, so advanced mode must not
+	// report the regular-registry copy a second time.
+	s.AssertNumberOfCalls(t, "Gauge", 4)
+	s.AssertExpectations(t)
+}
+
+func TestRunReportsInternalTelemetryAsIndexed(t *testing.T) {
+	c, s := newTestCheck(t, "internal_telemetry:\n  enabled: true\n", defaultRegistryFixture(), regularRegistryFixture())
+
+	expectRunScaffolding(s)
+
+	s.On("Gauge", mock.AnythingOfType("string"), mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string")).Return()
+	s.On("MonotonicCountWithFlushFirstValue", mock.AnythingOfType("string"), mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string"), true).Return()
+
+	require.NoError(t, c.Run())
+
+	// Default-registry metrics stay no-index; internal telemetry is reported after the sender is
+	// switched back to indexing, matching what the go_expvar instance produced.
+	noIndexOn := callIndex(s, "SetNoIndex", true)
+	noIndexOff := callIndex(s, "SetNoIndex", false)
+	defaultMetric := callIndex(s, "Gauge", "datadog.agent.test.gauge")
+	internalMetric := callIndex(s, "MonotonicCountWithFlushFirstValue", "datadog.agent.logs.decoded")
+
+	require.NotEqual(t, -1, noIndexOn)
+	require.NotEqual(t, -1, noIndexOff)
+	require.NotEqual(t, -1, defaultMetric)
+	require.NotEqual(t, -1, internalMetric)
+	require.Less(t, noIndexOn, defaultMetric, "default registry metrics must be reported while no-index is on")
+	require.Less(t, defaultMetric, noIndexOff, "no-index must only be turned off after the default registry is reported")
+	require.Less(t, noIndexOff, internalMetric, "internal telemetry must be reported as indexed")
+}
+
+func TestSendMetricFamilyHistogramDropsBuckets(t *testing.T) {
+	c, s := newTestCheck(t, "", nil, nil)
+
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.histogram.sum", 12.5, "", []string{}, true).Return().Times(1)
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.histogram.count", 3.0, "", []string{}, true).Return().Times(1)
+
+	c.sendMetricFamily(histogramMetricFamily("test__histogram", 3, 12.5), s)
+
+	s.AssertNumberOfCalls(t, "MonotonicCountWithFlushFirstValue", 2)
+	s.AssertExpectations(t)
+}
+
+func TestSendMetricFamilySkipsUnsupportedTypes(t *testing.T) {
+	c, s := newTestCheck(t, "", nil, nil)
+
+	for _, metricType := range []dto.MetricType{dto.MetricType_SUMMARY, dto.MetricType_UNTYPED} {
+		c.sendMetricFamily(typedMetricFamily("test__unsupported", metricType), s)
+	}
+
+	s.AssertNumberOfCalls(t, "Gauge", 0)
+	s.AssertNumberOfCalls(t, "MonotonicCountWithFlushFirstValue", 0)
+}
+
+func TestParseInstanceConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		instance string
+		expected internalTelemetryConfig
+	}{
+		{
+			name:     "empty instance",
+			instance: "",
+			expected: internalTelemetryConfig{},
+		},
+		{
+			name:     "null instance",
+			instance: "null",
+			expected: internalTelemetryConfig{},
+		},
+		{
+			name:     "unrelated keys only",
+			instance: "min_collection_interval: 30\n",
+			expected: internalTelemetryConfig{},
+		},
+		{
+			name:     "enabled",
+			instance: "internal_telemetry:\n  enabled: true\n",
+			expected: internalTelemetryConfig{Enabled: true},
+		},
+		{
+			name:     "advanced implies enabled",
+			instance: "internal_telemetry:\n  advanced: true\n",
+			expected: internalTelemetryConfig{Enabled: true, Advanced: true},
+		},
+		{
+			name:     "explicitly disabled",
+			instance: "internal_telemetry:\n  enabled: false\n",
+			expected: internalTelemetryConfig{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, err := parseInstanceConfig(integration.Data(test.instance))
+			require.NoError(t, err)
+			require.Equal(t, test.expected, cfg.InternalTelemetry)
+		})
+	}
+}
+
+func TestParseInstanceConfigRejectsMalformedYAML(t *testing.T) {
+	_, err := parseInstanceConfig(integration.Data("internal_telemetry: [oops\n"))
+	require.Error(t, err)
 }

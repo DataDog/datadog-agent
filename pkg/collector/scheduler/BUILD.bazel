@@ -24,6 +24,7 @@ dd_agent_go_test(
     srcs = [
         "job_test.go",
         "scheduler_test.go",
+        "telemetry_test.go",
     ],
     embed = [":scheduler"],
     deps = [

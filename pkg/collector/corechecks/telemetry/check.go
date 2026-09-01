@@ -13,6 +13,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -30,6 +31,18 @@ const (
 type checkImpl struct {
 	corechecks.CheckBase
 	telemetry telemetry.Component
+	cfg       instanceConfig
+}
+
+// Configure parses the instance configuration before handing off to the common check setup.
+func (c *checkImpl) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
+	cfg, err := parseInstanceConfig(data)
+	if err != nil {
+		return err
+	}
+	c.cfg = cfg
+
+	return c.CheckBase.Configure(senderManager, integrationConfigDigest, data, initConfig, source, provider)
 }
 
 func (c *checkImpl) Run() error {
@@ -62,6 +75,15 @@ func (c *checkImpl) Run() error {
 	c.sendMergedMetrics(mergedMetrics, sender)
 	c.handleMetricFamilies(mfs, sender)
 
+	if c.cfg.InternalTelemetry.Enabled {
+		// Internal telemetry stands in for the go_expvar agent_stats instance, whose metrics are
+		// indexed, so these are reported as regular indexed metrics rather than no-index ones.
+		sender.SetNoIndex(false)
+		c.sendInternalTelemetry(regularMfs, sender)
+	}
+
+	sender.Commit()
+
 	return nil
 }
 
@@ -69,37 +91,72 @@ func (c *checkImpl) handleMetricFamilies(mfs []*dto.MetricFamily, sender sender.
 	for _, mf := range mfs {
 		// Merged metrics are emitted explicitly by sendMergedMetrics so overlapping regular-registry values can be included
 		// without changing customer-facing metric names or tags.
-		if mf == nil || mf.Name == nil || mf.Type == nil || len(mf.Metric) == 0 || isMergedMetric(mf.GetName()) {
+		if mf == nil || isMergedMetric(mf.GetName()) {
 			continue
 		}
 
-		name := c.buildName(*mf.Name)
+		c.sendMetricFamily(mf, sender)
+	}
+}
 
-		for _, m := range mf.Metric {
-			if m == nil {
-				continue
-			}
-
-			tags := c.buildTags(m.Label)
-
-			switch *mf.Type {
-			case dto.MetricType_GAUGE:
-				if m.Gauge == nil {
-					continue
-				}
-				sender.Gauge(name, *m.Gauge.Value, "", tags)
-			case dto.MetricType_COUNTER:
-				if m.Counter == nil {
-					continue
-				}
-				sender.MonotonicCountWithFlushFirstValue(name, *m.Counter.Value, "", tags, true)
-			default:
-				log.Debugf("unknown telemetry metric type: %s", mf)
-			}
-		}
+// sendInternalTelemetry reports the regular telemetry registry: either the curated set that gives
+// parity with the go_expvar agent_stats example, or everything when running in advanced mode.
+func (c *checkImpl) sendInternalTelemetry(mfs []*dto.MetricFamily, sender sender.Sender) {
+	include := telemetry.NoFilter
+	if !c.cfg.InternalTelemetry.Advanced {
+		include = telemetry.StaticMetricFilter(curatedInternalMetrics...)
 	}
 
-	sender.Commit()
+	for _, mf := range mfs {
+		// sendMergedMetrics already reports these, folding the regular-registry remote agent
+		// series into the default-registry ones. Reporting them again here would double count.
+		if mf == nil || isMergedMetric(mf.GetName()) || !include(mf) {
+			continue
+		}
+
+		c.sendMetricFamily(mf, sender)
+	}
+}
+
+// sendMetricFamily reports every series of a single Prometheus metric family. Summaries and
+// untyped metrics are not supported and are dropped.
+func (c *checkImpl) sendMetricFamily(mf *dto.MetricFamily, sender sender.Sender) {
+	if mf.Name == nil || mf.Type == nil || len(mf.Metric) == 0 {
+		return
+	}
+
+	name := c.buildName(mf.GetName())
+
+	for _, m := range mf.Metric {
+		if m == nil {
+			continue
+		}
+
+		tags := c.buildTags(m.Label)
+
+		switch mf.GetType() {
+		case dto.MetricType_GAUGE:
+			if m.Gauge == nil {
+				continue
+			}
+			sender.Gauge(name, m.Gauge.GetValue(), "", tags)
+		case dto.MetricType_COUNTER:
+			if m.Counter == nil {
+				continue
+			}
+			sender.MonotonicCountWithFlushFirstValue(name, m.Counter.GetValue(), "", tags, true)
+		case dto.MetricType_HISTOGRAM:
+			if m.Histogram == nil {
+				continue
+			}
+			// Buckets are dropped on purpose: `le` is unbounded and would multiply the number of
+			// series by the bucket count. Sum and count still give the rate and the average.
+			sender.MonotonicCountWithFlushFirstValue(name+".sum", m.Histogram.GetSampleSum(), "", tags, true)
+			sender.MonotonicCountWithFlushFirstValue(name+".count", float64(m.Histogram.GetSampleCount()), "", tags, true)
+		default:
+			log.Debugf("unsupported telemetry metric type %s for metric %q", mf.GetType(), mf.GetName())
+		}
+	}
 }
 
 func (c *checkImpl) buildName(name string) string {

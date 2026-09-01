@@ -91,6 +91,7 @@ func newFlushTimeStats(name string) {
 
 func addFlushTime(name string, value int64) {
 	flushTimeStats[name].add(value)
+	tlmFlushTime.Set(float64(value), name)
 }
 
 func newFlushCountStats(name string) {
@@ -99,6 +100,7 @@ func newFlushCountStats(name string) {
 
 func addFlushCount(name string, value int64) {
 	flushCountStats[name].add(value)
+	tlmFlushCount.Set(float64(value), name)
 }
 
 func expStatsMap(statsMap map[string]*Stats) func() interface{} {
@@ -138,7 +140,6 @@ var (
 	aggregatorCheckHistogramBucketMetricSample = expvar.Int{}
 	aggregatorServiceCheck                     = expvar.Int{}
 	aggregatorEvent                            = expvar.Int{}
-	aggregatorHostnameUpdate                   = expvar.Int{}
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
 	aggregatorOrchestratorManifests            = expvar.Int{}
@@ -150,6 +151,12 @@ var (
 
 	tlmFlush = telemetryimpl.GetCompatComponent().NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
+	tlmFlushTime = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "flush_time",
+		[]string{"flush_type"}, "Duration in nanoseconds of the last flush, by flush type")
+	tlmFlushCount = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "flush_count",
+		[]string{"data_type"}, "Number of items shipped by the last flush, by data type")
+	tlmNumberOfFlush = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "number_of_flush",
+		"Total number of flushes performed by the aggregator")
 
 	tlmChannelSize = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "channel_size",
 		[]string{"shard"}, "Size of the aggregator channel")
@@ -213,7 +220,6 @@ func init() {
 	aggregatorExpvars.Set("ChecksHistogramBucketMetricSample", &aggregatorCheckHistogramBucketMetricSample)
 	aggregatorExpvars.Set("ServiceCheck", &aggregatorServiceCheck)
 	aggregatorExpvars.Set("Event", &aggregatorEvent)
-	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
 	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
 	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
 	aggregatorExpvars.Set("OrchestratorManifests", &aggregatorOrchestratorManifests)
@@ -266,8 +272,6 @@ type BufferedAggregator struct {
 	haAgent                haagent.Component
 	configID               string
 	hostname               string
-	hostnameUpdate         chan string
-	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
 	flushChan              chan flushTrigger
 
 	stopChan  chan chan struct{}
@@ -349,8 +353,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		haAgent:                     haAgent,
 		configID:                    configID,
 		hostname:                    hostname,
-		hostnameUpdate:              make(chan string),
-		hostnameUpdateDone:          make(chan struct{}),
 		flushChan:                   make(chan flushTrigger),
 		stopChan:                    make(chan chan struct{}),
 		health:                      health.RegisterLiveness("aggregator"),

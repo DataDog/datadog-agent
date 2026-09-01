@@ -30,6 +30,9 @@ var (
 		[]string{"check_name"}, "How many checks are currently tracked by the scheduler")
 	tlmQueuesCount = telemetryimpl.GetCompatComponent().NewCounter("scheduler", "queues_count",
 		nil, "How many queues were opened")
+	// tlmQueueSize mirrors the `scheduler/Queues/<n>/Size` expvar: how many jobs a queue holds.
+	tlmQueueSize = telemetryimpl.GetCompatComponent().NewGauge("scheduler", "queue_size",
+		[]string{"interval", "shadow"}, "How many jobs are currently held by a scheduling queue")
 )
 
 func init() {
@@ -245,6 +248,8 @@ func (s *Scheduler) stopQueues() {
 				log.Debugf("Stopped queue %v", q.interval)
 				q.running = false
 			}
+			// Drop the series so a stopped queue doesn't report a stale size forever.
+			tlmQueueSize.Delete(q.telemetryTags()...)
 		}
 	}
 }

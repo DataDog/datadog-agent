@@ -296,6 +296,7 @@ func (a *logAgent) startSchedulers() {
 
 		a.log.Info("logs-agent started")
 		a.started.Store(status.StatusRunning)
+		metrics.TlmLogsRunning.Set(1)
 	})
 }
 
@@ -309,6 +310,7 @@ func (a *logAgent) stop(context.Context) error {
 	a.stopHTTPRetry()
 
 	status.Clear()
+	metrics.TlmLogsRunning.Set(0)
 
 	toStop := []startstop.Stoppable{
 		a.schedulers,

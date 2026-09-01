@@ -38,12 +38,16 @@ instances:
 
   # The following instance pulls the go_expvar metrics of the running datadog-agent
   # Feel free to comment out the instance if you're not interested in these metrics
+  #
+  # Prefer the built-in `telemetry` core check instead: setting `internal_telemetry.enabled`
+  # in `conf.d/telemetry.d/conf.yaml` reports the same signals straight from the Agent's
+  # in-process telemetry registry, with no HTTP scrape and no Python check. It also covers
+  # per-destination sender idle/in-use time, which this instance no longer can: the expvar
+  # keys for those are named after an internal worker ID that changes shape between versions.
   - expvar_url: http://localhost:5000/debug/vars  # if you've defined `expvar_port` in datadog.yaml, change the port here to that value
     namespace: datadog.agent
     metrics:
       # datadog-agent forwarder monitoring
-      - path: forwarder/Transactions/DroppedOnInput
-        type: rate
       - path: forwarder/Transactions/RetryQueueSize
       - path: forwarder/Transactions/Success
         type: rate
@@ -114,8 +118,6 @@ instances:
         type: rate
       - path: aggregator/Event
         type: rate
-      - path: aggregator/HostnameUpdate
-        type: rate
 
       # datadog-agent scheduler monitoring
       - path: scheduler/ChecksEntered
@@ -124,16 +126,6 @@ instances:
       - path: scheduler/Queues/.*/Interval
         alias: scheduler.queues.interval
       - path: scheduler/QueuesCount
-
-      # datadog-agent serializer monitoring
-      - path: splitter/NotTooBig
-        type: rate
-      - path: splitter/TooBig
-        type: rate
-      - path: splitter/TotalLoops
-        type: rate
-      - path: splitter/PayloadDrops
-        type: rate
 
       # datadog-agent logs-agent monitoring
       - path: logs-agent/IsRunning
@@ -150,44 +142,3 @@ instances:
         type: rate
       - path: logs-agent/EncodedBytesSent
         type: rate
-      - path: logs-agent/HttpDestinationStats/logs_0_reliable_0/idleMs
-        type: rate
-        alias: batch_strategy.idle_time
-        tags: 
-        - sender:0
-      - path: logs-agent/HttpDestinationStats/logs_0_reliable_0/inUseMs
-        type: rate
-        alias: batch_strategy.in_use_time
-        tags: 
-        - sender:0
-      - path: logs-agent/HttpDestinationStats/logs_1_reliable_0/idleMs
-        type: rate
-        alias: batch_strategy.idle_time
-        tags: 
-        - sender:1
-      - path: logs-agent/HttpDestinationStats/logs_1_reliable_0/inUseMs
-        type: rate
-        alias: batch_strategy.in_use_time
-        tags: 
-        - sender:1
-      - path: logs-agent/HttpDestinationStats/logs_2_reliable_0/idleMs
-        type: rate
-        alias: batch_strategy.idle_time
-        tags: 
-        - sender:2
-      - path: logs-agent/HttpDestinationStats/logs_2_reliable_0/inUseMs
-        type: rate
-        alias: batch_strategy.in_use_time
-        tags: 
-        - sender:2
-      - path: logs-agent/HttpDestinationStats/logs_3_reliable_0/idleMs
-        type: rate
-        alias: batch_strategy.idle_time
-        tags: 
-        - sender:3
-      - path: logs-agent/HttpDestinationStats/logs_3_reliable_0/inUseMs
-        type: rate
-        alias: batch_strategy.in_use_time
-        tags: 
-        - sender:3
-
