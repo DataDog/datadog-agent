@@ -55,7 +55,11 @@ func (d *dispatcher) prepareShardSchedule(config integration.Config) (shards []i
 		return nil, false
 	}
 
-	log.Infof("Successfully split %s into %d %s configs", config.Name, len(digests), label)
+	if len(digests) < len(rawShards) {
+		log.Warnf("Only %d/%d %s configs for %s(%s) could be patched; the missing instance(s) will not run until fixed", len(digests), len(rawShards), label, config.Name, config.Digest())
+	} else {
+		log.Debugf("Successfully split %s into %d %s configs", config.Name, len(digests), label)
+	}
 	d.shards.mark(config.Digest(), digests)
 
 	return patched, true
