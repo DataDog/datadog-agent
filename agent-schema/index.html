@@ -3870,19 +3870,19 @@
   
 
 
-<h1 id="agent-configuration-schema">Agent Configuration Schema<a class="headerlink" href="#agent-configuration-schema" title="Permanent link">&para;</a></h1>
+<h1 id="agent-configuration-schema">Agent Configuration Schema</h1>
 <p>The Datadog Agent configuration schema is a YAML-based
 <a href="https://json-schema.org/">JSON Schema</a> that centrally describes every
 configuration setting for the Agent. It is written in YAML for readability but
 is fully compatible with JSON Schema tooling.</p>
-<h2 id="why-it-exists">Why it exists<a class="headerlink" href="#why-it-exists" title="Permanent link">&para;</a></h2>
+<h2 id="why-it-exists">Why it exists</h2>
 <p>Previously, Agent configuration was defined through a combination of imperative Go code (<code>BindEnvAndSetDefault</code> calls in
 <code>pkg/config/setup</code>), YAML example files maintained by-hand, and scattered validation logic. This made it hard to
 understand what a setting does, what values it accepts, or what its default is — without reading source code.</p>
 <p>The schema replaces this with a <strong>single source of truth</strong>. All information
 about a setting — its type, default value, documentation, environment variables,
 validation rules, and visibility — lives in one place.</p>
-<h2 id="what-it-enables">What it enables<a class="headerlink" href="#what-it-enables" title="Permanent link">&para;</a></h2>
+<h2 id="what-it-enables">What it enables</h2>
 <ul>
 <li><strong>Config validation without running the Agent</strong> — any JSON Schema library can
   validate a customer's <code>datadog.yaml</code> against the schema.</li>
@@ -3896,7 +3896,7 @@ validation rules, and visibility — lives in one place.</p>
 <li><strong>Runtime validation</strong>  — The user configuration can be validate at runtime by the Agent allowing automatic fallback
   to default upon an invalid value.</li>
 </ul>
-<h2 id="terminology">Terminology<a class="headerlink" href="#terminology" title="Permanent link">&para;</a></h2>
+<h2 id="terminology">Terminology</h2>
 <ul>
 <li><strong>Path</strong> — a string of terms separated by dots (<code>"."</code>) that represents a series of nodes in the config tree.</li>
 <li><strong>Setting</strong> — a configurable value that can be located using a path (example <code>apm_config.enabled</code>)</li>
@@ -3904,7 +3904,7 @@ validation rules, and visibility — lives in one place.</p>
 <li><strong>Object</strong> — a data type of key-value pairs. Also called a map (in Go) or dict (in Python), but called an object in JSON Schema since it comes from JavaScript.</li>
 <li><strong>Default</strong> — the value that will be retrieved for a given setting if none is specified by the user's file-based configuration or environment variable (or other source).</li>
 </ul>
-<h2 id="node-types">Node types<a class="headerlink" href="#node-types" title="Permanent link">&para;</a></h2>
+<h2 id="node-types">Node types</h2>
 <p>The schema tree is composed of two types of nodes:</p>
 <ul>
 <li><strong>Setting nodes</strong> represent individual settings. They have a type and a value.
@@ -3917,7 +3917,7 @@ validation rules, and visibility — lives in one place.</p>
 <p>The distinction matters when a setting's value is an object. For example, <code>docker_labels_as_tags</code> is a <code>type: object</code>
 setting node — its value is a dict of strings, but that dict is the setting's <em>value</em>, not a group of child settings. It
 is a setting node, and <strong>not</strong> a section node.</p>
-<h2 id="one-schema-per-configuration-file">One schema per configuration file<a class="headerlink" href="#one-schema-per-configuration-file" title="Permanent link">&para;</a></h2>
+<h2 id="one-schema-per-configuration-file">One schema per configuration file</h2>
 <p>The Agent ships with multiple configuration files, each with its own schema:</p>
 <table>
 <thead>
@@ -3938,12 +3938,12 @@ is a setting node, and <strong>not</strong> a section node.</p>
 </tbody>
 </table>
 <p>All schemas share the same keyword set described in this documentation.</p>
-<h2 id="json-schema-foundation">JSON Schema foundation<a class="headerlink" href="#json-schema-foundation" title="Permanent link">&para;</a></h2>
+<h2 id="json-schema-foundation">JSON Schema foundation</h2>
 <p>The Agent schema builds on <a href="https://json-schema.org/">JSON Schema draft 2020-12</a>.
 This documentation focuses on how keywords are used in the Agent schema
 specifically. For a general introduction to JSON Schema, see
 <a href="https://json-schema.org/understanding-json-schema">Understanding JSON Schema</a>.</p>
-<h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
+<h2 id="next-steps">Next steps</h2>
 <ul>
 <li><a href="keywords/">Keyword Reference</a> — complete reference for all supported keywords.</li>
 <li><a href="examples/">Examples</a> — annotated, real-world examples from the schema.</li>
