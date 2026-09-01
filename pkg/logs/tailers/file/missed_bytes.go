@@ -9,9 +9,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
-// missedBytesIdentity resolves the tuple to report a rotation loss under. Both
-// fields can be empty, so the fallbacks keep unlabelled configs from collapsing
-// onto one tuple.
+// missedBytesIdentity resolves the tuple to report a rotation loss under. The
+// IntegrationName fallback keeps integration-only configs off the bare tuple;
+// configs setting none of the three collapse onto ("unknown", "unknown").
 func missedBytesIdentity(cfg *config.LogsConfig) (source string, service string) {
 	const unknown = "unknown"
 	if cfg == nil {

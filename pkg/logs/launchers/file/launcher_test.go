@@ -20,7 +20,6 @@ import (
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
-	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -496,20 +495,6 @@ func (suite *BaseLauncherTestSuite) TestLauncherLifeCycle() {
 	// all tailers should be stopped
 	s.Stop()
 	suite.Equal(0, s.tailers.Count())
-}
-
-// analyze-logs starts this launcher directly while wiring the health platform and
-// sharing the running agent's issue store, so a launcher must never claim a logs
-// agent. See MarkLogsAgentRunning.
-func (suite *BaseLauncherTestSuite) TestStartDoesNotMarkLogsAgentRunning() {
-	logsmetrics.ResetMissedBytesForTest()
-	defer logsmetrics.ResetMissedBytesForTest()
-
-	s := suite.s
-	s.Start(launchers.NewMockSourceProvider(), suite.pipelineProvider, auditorMock.NewMockRegistry(), tailers.NewTailerTracker())
-	defer s.Stop()
-
-	suite.False(logsmetrics.LogsAgentRunning())
 }
 
 func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {

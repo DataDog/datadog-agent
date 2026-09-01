@@ -19,11 +19,15 @@ import (
 )
 
 const (
-	contextKeyBytes          = "bytes_missed_24h"
-	contextKeyRotations      = "rotation_count_24h"
-	contextKeySourceCount    = "source_count"
-	contextKeySourcesOmitted = "sources_omitted"
-	contextKeyLastLossAt     = "last_loss_at"
+	contextKeyBytes     = "bytes_missed_24h"
+	contextKeyRotations = "rotation_count_24h"
+
+	// Distinct source names, not tuples: this is the count that reaches the prose.
+	contextKeySourceCount = "source_count"
+
+	contextKeyPairsOmitted = "source_service_pairs_omitted"
+
+	contextKeyLastLossAt = "last_loss_at"
 
 	// Context is map[string]string, so the breakdown travels as encoded sourceLoss.
 	contextKeySources = "sources"
@@ -61,7 +65,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	bytesLost, _ := strconv.ParseInt(ctx[contextKeyBytes], 10, 64)
 	rotations, _ := strconv.ParseInt(ctx[contextKeyRotations], 10, 64)
 	sourceCount, _ := strconv.ParseInt(ctx[contextKeySourceCount], 10, 64)
-	omitted, _ := strconv.ParseInt(ctx[contextKeySourcesOmitted], 10, 64)
+	omitted, _ := strconv.ParseInt(ctx[contextKeyPairsOmitted], 10, 64)
 
 	lastLossAt := ctx[contextKeyLastLossAt]
 	if lastLossAt == "" {
@@ -70,7 +74,8 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 
 	sources := decodeSources(ctx[contextKeySources])
 
-	named := sourceCount == 1 && len(sources) == 1
+	// Nameable only when one source and one service are the entire loss.
+	named := sourceCount == 1 && len(sources) == 1 && omitted == 0
 
 	scope := fmt.Sprintf("%d %s", sourceCount, pluralize(sourceCount, "source"))
 	subject := "Logs from " + scope
@@ -92,12 +97,12 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	}
 
 	extra, err := structpb.NewStruct(map[string]any{
-		contextKeyBytes:          bytesLost,
-		contextKeyRotations:      rotations,
-		contextKeySourceCount:    sourceCount,
-		contextKeySourcesOmitted: omitted,
-		contextKeyLastLossAt:     lastLossAt,
-		contextKeySources:        sourcesAsExtra(sources),
+		contextKeyBytes:        bytesLost,
+		contextKeyRotations:    rotations,
+		contextKeySourceCount:  sourceCount,
+		contextKeyPairsOmitted: omitted,
+		contextKeyLastLossAt:   lastLossAt,
+		contextKeySources:      sourcesAsExtra(sources),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("missedbytes: build issue extra: %w", err)
@@ -176,7 +181,7 @@ func describeSources(sources []sourceLoss, omitted int64) string {
 		parts = append(parts, fmt.Sprintf("%s/%s %s", s.Source, s.Service, humanizeBytes(s.Bytes)))
 	}
 	if omitted > 0 {
-		parts = append(parts, fmt.Sprintf("and %d other %s", omitted, pluralize(omitted, "source")))
+		parts = append(parts, fmt.Sprintf("and %d other %s", omitted, pluralize(omitted, "source/service pair")))
 	}
 	return "Most affected: " + strings.Join(parts, ", ") + "."
 }

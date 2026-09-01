@@ -50,9 +50,12 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 
 	var totalBytes, totalRotations int64
 	var lastLossAt time.Time
+	// Counted here, not in BuildIssue, which only receives the capped breakdown.
+	distinctSources := make(map[string]struct{}, len(summaries))
 	for _, s := range summaries {
 		totalBytes += s.Bytes
 		totalRotations += s.Rotations
+		distinctSources[s.Source] = struct{}{}
 		if s.LastLossAt.After(lastLossAt) {
 			lastLossAt = s.LastLossAt
 		}
@@ -70,12 +73,12 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 		IssueName: IssueName,
 		Source:    issueSource,
 		Context: map[string]string{
-			contextKeyBytes:          strconv.FormatInt(totalBytes, 10),
-			contextKeyRotations:      strconv.FormatInt(totalRotations, 10),
-			contextKeySourceCount:    strconv.Itoa(len(summaries)),
-			contextKeySourcesOmitted: strconv.Itoa(omitted),
-			contextKeyLastLossAt:     lastLossAt.UTC().Format(time.RFC3339),
-			contextKeySources:        string(encoded),
+			contextKeyBytes:        strconv.FormatInt(totalBytes, 10),
+			contextKeyRotations:    strconv.FormatInt(totalRotations, 10),
+			contextKeySourceCount:  strconv.Itoa(len(distinctSources)),
+			contextKeyPairsOmitted: strconv.Itoa(omitted),
+			contextKeyLastLossAt:   lastLossAt.UTC().Format(time.RFC3339),
+			contextKeySources:      string(encoded),
 		},
 	}}, nil
 }

@@ -75,7 +75,7 @@ func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
 	assert.Equal(t, "4200512", report.Context[contextKeyBytes], "totals sum across every tuple")
 	assert.Equal(t, "3", report.Context[contextKeyRotations])
 	assert.Equal(t, "2", report.Context[contextKeySourceCount])
-	assert.Equal(t, "0", report.Context[contextKeySourcesOmitted])
+	assert.Equal(t, "0", report.Context[contextKeyPairsOmitted])
 	assert.NotEmpty(t, report.Context[contextKeyLastLossAt])
 
 	assert.Equal(t, []sourceLoss{
@@ -84,7 +84,29 @@ func TestCheck_LossProducesOneSummaryReport(t *testing.T) {
 	}, reportSources(t, report.Context))
 }
 
+// One entry per service under a shared source is the norm for container file tailing.
+func TestCheck_SourceCountIgnoresServices(t *testing.T) {
+	c := newTestChecker(t, "host-a")
+	logsmetrics.MarkLogsAgentRunning()
+	logsmetrics.RecordMissedBytes("nginx", "web", 4000000)
+	logsmetrics.RecordMissedBytes("nginx", "api", 200000)
+
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	ctx := reports[0].Context
+
+	assert.Equal(t, "1", ctx[contextKeySourceCount], "two services of one source are one source")
+	assert.Len(t, reportSources(t, ctx), 2, "the breakdown still lists both tuples")
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, "Lost 4.2 MB of logs from 1 source in the last 24 hours", issue.GetTitle())
+}
+
 // The breakdown is capped, so it must spend its slots on the worst offenders.
+// source-00 and source-01 are dropped yet still counted, so this also covers a
+// source living only in a tuple BuildIssue never sees.
 func TestCheck_BreakdownKeepsLargestSourcesAndCountsTheRest(t *testing.T) {
 	c := newTestChecker(t, "host-a")
 	logsmetrics.MarkLogsAgentRunning()
@@ -100,8 +122,8 @@ func TestCheck_BreakdownKeepsLargestSourcesAndCountsTheRest(t *testing.T) {
 	require.Len(t, reports, 1)
 	ctx := reports[0].Context
 
-	assert.Equal(t, strconv.Itoa(total), ctx[contextKeySourceCount], "the count covers every tuple, not just the listed ones")
-	assert.Equal(t, "2", ctx[contextKeySourcesOmitted])
+	assert.Equal(t, strconv.Itoa(total), ctx[contextKeySourceCount], "the count covers every source, not just the listed ones")
+	assert.Equal(t, "2", ctx[contextKeyPairsOmitted])
 
 	got := reportSources(t, ctx)
 	require.Len(t, got, maxBreakdownSources)

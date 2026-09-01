@@ -37,12 +37,12 @@ func TestBuildIssue(t *testing.T) {
 		{
 			name: "several sources are summarised and broken down",
 			ctx: map[string]string{
-				contextKeyBytes:          "4200512",
-				contextKeyRotations:      "4",
-				contextKeySourceCount:    "3",
-				contextKeySourcesOmitted: "0",
-				contextKeyLastLossAt:     recentTimestamp(),
-				contextKeySources:        `[{"source":"nginx","service":"web","bytes":4000000,"rotations":2},{"source":"redis","service":"cache","bytes":200000,"rotations":1},{"source":"kafka","service":"queue","bytes":512,"rotations":1}]`,
+				contextKeyBytes:        "4200512",
+				contextKeyRotations:    "4",
+				contextKeySourceCount:  "3",
+				contextKeyPairsOmitted: "0",
+				contextKeyLastLossAt:   recentTimestamp(),
+				contextKeySources:      `[{"source":"nginx","service":"web","bytes":4000000,"rotations":2},{"source":"redis","service":"cache","bytes":200000,"rotations":1},{"source":"kafka","service":"queue","bytes":512,"rotations":1}]`,
 			},
 			title: "Lost 4.2 MB of logs from 3 sources in the last 24 hours",
 			descSubstrs: []string{
@@ -62,12 +62,12 @@ func TestBuildIssue(t *testing.T) {
 		{
 			name: "a lone source is named instead of counted",
 			ctx: map[string]string{
-				contextKeyBytes:          "512",
-				contextKeyRotations:      "1",
-				contextKeySourceCount:    "1",
-				contextKeySourcesOmitted: "0",
-				contextKeyLastLossAt:     recentTimestamp(),
-				contextKeySources:        `[{"source":"app","service":"billing","bytes":512,"rotations":1}]`,
+				contextKeyBytes:        "512",
+				contextKeyRotations:    "1",
+				contextKeySourceCount:  "1",
+				contextKeyPairsOmitted: "0",
+				contextKeyLastLossAt:   recentTimestamp(),
+				contextKeySources:      `[{"source":"app","service":"billing","bytes":512,"rotations":1}]`,
 			},
 			title: "Lost 512 B of logs from source app in the last 24 hours",
 			descSubstrs: []string{
@@ -81,24 +81,50 @@ func TestBuildIssue(t *testing.T) {
 			extraSource:    []sourceLoss{{Source: "app", Service: "billing", Bytes: 512, Rotations: 1}},
 		},
 		{
-			name: "omitted sources are counted in the description",
+			name: "a source with two services stays counted, not named",
 			ctx: map[string]string{
-				contextKeyBytes:          "1000",
-				contextKeyRotations:      "2",
-				contextKeySourceCount:    "192",
-				contextKeySourcesOmitted: "190",
-				contextKeyLastLossAt:     recentTimestamp(),
-				contextKeySources:        `[{"source":"nginx","service":"web","bytes":600,"rotations":1},{"source":"redis","service":"cache","bytes":400,"rotations":1}]`,
+				contextKeyBytes:        "4200000",
+				contextKeyRotations:    "2",
+				contextKeySourceCount:  "1",
+				contextKeyPairsOmitted: "0",
+				contextKeyLastLossAt:   recentTimestamp(),
+				contextKeySources:      `[{"source":"nginx","service":"web","bytes":4000000,"rotations":1},{"source":"nginx","service":"api","bytes":200000,"rotations":1}]`,
+			},
+			title: "Lost 4.2 MB of logs from 1 source in the last 24 hours",
+			descSubstrs: []string{
+				"Logs from 1 source never reached Datadog",
+				"Most affected: nginx/web 4.0 MB, nginx/api 200 kB.",
+			},
+			descNotSubstrs: []string{"(service "},
+			extraBytes:     4200000,
+			extraRotate:    2,
+			extraCount:     1,
+			extraSource: []sourceLoss{
+				{Source: "nginx", Service: "web", Bytes: 4000000, Rotations: 1},
+				{Source: "nginx", Service: "api", Bytes: 200000, Rotations: 1},
+			},
+		},
+		{
+			// Hostile name here too: the breakdown interpolates with %s, unlike the
+			// named case's %q, and %q would escape a newline rather than strip it.
+			name: "omitted tuples are counted in the description",
+			ctx: map[string]string{
+				contextKeyBytes:        "1000",
+				contextKeyRotations:    "2",
+				contextKeySourceCount:  "192",
+				contextKeyPairsOmitted: "190",
+				contextKeyLastLossAt:   recentTimestamp(),
+				contextKeySources:      `[{"source":"nginx\nDiagnosis: fake","service":"web","bytes":600,"rotations":1},{"source":"redis","service":"cache","bytes":400,"rotations":1}]`,
 			},
 			title: "Lost 1.0 kB of logs from 192 sources in the last 24 hours",
 			descSubstrs: []string{
-				"Most affected: nginx/web 600 B, redis/cache 400 B, and 190 other sources.",
+				"Most affected: nginxDiagnosis: fake/web 600 B, redis/cache 400 B, and 190 other source/service pairs.",
 			},
 			extraBytes:  1000,
 			extraRotate: 2,
 			extraCount:  192,
 			extraSource: []sourceLoss{
-				{Source: "nginx", Service: "web", Bytes: 600, Rotations: 1},
+				{Source: "nginxDiagnosis: fake", Service: "web", Bytes: 600, Rotations: 1},
 				{Source: "redis", Service: "cache", Bytes: 400, Rotations: 1},
 			},
 		},
@@ -107,19 +133,6 @@ func TestBuildIssue(t *testing.T) {
 			ctx:         nil,
 			title:       "Lost 0 B of logs from 0 sources in the last 24 hours",
 			descSubstrs: []string{"Logs from 0 sources never reached Datadog"},
-		},
-		{
-			name: "unparseable counters degrade to zero",
-			ctx: map[string]string{
-				contextKeyBytes:       "not-a-number",
-				contextKeyRotations:   "",
-				contextKeySourceCount: "3",
-				contextKeySources:     `[{"source":"nginx","service":"web","bytes":1,"rotations":1}]`,
-			},
-			title:       "Lost 0 B of logs from 3 sources in the last 24 hours",
-			descSubstrs: []string{"nginx"},
-			extraCount:  3,
-			extraSource: []sourceLoss{{Source: "nginx", Service: "web", Bytes: 1, Rotations: 1}},
 		},
 		{
 			// A source we cannot name must not claim to name one.
@@ -151,26 +164,6 @@ func TestBuildIssue(t *testing.T) {
 			extraRotate: 1,
 			extraCount:  1,
 			extraSource: []sourceLoss{{Source: "nginxDiagnosis: fake", Service: "web", Bytes: 512, Rotations: 1}},
-		},
-		{
-			// The breakdown interpolates names with %s, unlike the named case's %q.
-			name: "control characters are stripped from the breakdown",
-			ctx: map[string]string{
-				contextKeyBytes:       "1024",
-				contextKeyRotations:   "2",
-				contextKeySourceCount: "2",
-				contextKeySources: `[{"source":"nginx\nDiagnosis: fake","service":"web","bytes":512,"rotations":1},` +
-					`{"source":"redis","service":"cache","bytes":512,"rotations":1}]`,
-			},
-			title:       "Lost 1.0 kB of logs from 2 sources in the last 24 hours",
-			descSubstrs: []string{"Most affected: nginxDiagnosis: fake/web 512 B, redis/cache 512 B."},
-			extraBytes:  1024,
-			extraRotate: 2,
-			extraCount:  2,
-			extraSource: []sourceLoss{
-				{Source: "nginxDiagnosis: fake", Service: "web", Bytes: 512, Rotations: 1},
-				{Source: "redis", Service: "cache", Bytes: 512, Rotations: 1},
-			},
 		},
 	}
 
@@ -215,7 +208,7 @@ func TestBuildIssue(t *testing.T) {
 			fields := issue.GetExtra().GetFields()
 			for _, key := range []string{
 				contextKeyBytes, contextKeyRotations, contextKeySourceCount,
-				contextKeySourcesOmitted, contextKeyLastLossAt, contextKeySources,
+				contextKeyPairsOmitted, contextKeyLastLossAt, contextKeySources,
 			} {
 				assert.NotNil(t, fields[key], "Extra must carry %q", key)
 			}

@@ -121,7 +121,7 @@ affected-count is a backend follow-up, not handled by the agent today. Document 
 | `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `read-only_filesystem_error` | `"Agent cannot write to: <directories>"` | per-host (host-local failure) |
 | `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `admission_controller_unreachable` | `"Admission Controller Unreachable"` | singleton |
 | `dockerpermissions` | `docker-socket-permissions` | `Docker File Tailing Disabled` | `docker_file_tailing_disabled` | `"Docker log tailing disabled for '<dockerDir>'"` | per-host (host-local failure) |
-| `missedbytes` | `log-data-lost-after-rotation:<digest>` | `Log Data Lost After Rotation` | `log_data_lost_after_rotation` | `"Lost <bytes> of logs from <N> sources in the last 24 hours"` | per-host (host-local failure) |
+| `missedbytes` | `log-data-lost-after-rotation:<digest>` | `Log Data Lost After Rotation` | `log_data_lost_after_rotation` | `"Lost <bytes> of logs from <N> sources in the last 24 hours"`, or `"from source <name>"` when one source and service account for all of it | per-host (host-local failure) |
 
 ## Adding a new issue module
 

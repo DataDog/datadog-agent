@@ -5,5 +5,5 @@ features:
     file tailer loses log data because a file was rotated before the tailer
     finished reading it. The issue is reported once per host and covers every
     affected log source, reporting the total bytes lost and rotations involved
-    over the last 24 hours together with a per-source breakdown. Loss recorded
-    before an Agent restart is not carried across the restart.
+    over the last 24 hours together with a breakdown per source and service.
+    Loss recorded before an Agent restart is not carried across the restart.
