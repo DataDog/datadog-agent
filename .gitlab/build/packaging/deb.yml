@@ -124,7 +124,7 @@ installer_deb-arm64:
     PACKAGE_REQUIRED_FILES_LIST: ""
 
 .package_iot_deb_common:
-  extends: .bazel:defs:cache:omnibus-transition
+  extends: .bazel:defs:cache:progressive
   rules:
     - when: on_success
   stage: packaging
