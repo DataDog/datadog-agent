@@ -23,19 +23,19 @@ import (
 func TestNewSampleCollector(t *testing.T) {
 	tests := []struct {
 		name                  string
-		customSetup           testutil.NvmlMockOption
+		customSetup           testutil.NvmlDeviceOption
 		expectError           bool
 		expectedSupportedAPIs int
 	}{
 		{
 			name:                  "Supported",
-			customSetup:           testutil.WithCombinedOptions(), // Use default setup with all functions enabled
+			customSetup:           testutil.WithCombinedDeviceOptions(), // Use default setup with all functions enabled
 			expectError:           false,
 			expectedSupportedAPIs: 5,
 		},
 		{
 			name: "Unsupported",
-			customSetup: testutil.WithCombinedOptions(
+			customSetup: testutil.WithCombinedDeviceOptions(
 				testutil.WithProcessData([]testutil.MockProcessData{}, nvml.ERROR_NOT_SUPPORTED),
 				testutil.WithSamplesUnsupported(),
 			),

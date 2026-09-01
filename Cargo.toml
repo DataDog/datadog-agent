@@ -19,7 +19,8 @@ rust-version = "1.94"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
-aws-lc-rs = { version = ">=1, <1.18", default-features = false, features = ["non-fips"] }
+aws-lc-rs = { version = ">=1, <1.19", default-features = false, features = ["non-fips"] }
+base64 = "0.22"
 cap-std = "4.0"
 # Keep only the `dd-sds` feature and disable default features so we pull in just
 # the necessary dependencies and avoid shipping the third-party checkers.
@@ -44,9 +45,12 @@ lru = { version = "0.18.0", default-features = false }
 memchr = "2.7.6"
 nom = "8.0"
 normalize-path = "0.2"
+p256 = { version = "0.14", default-features = false }
 phf = { version = "0.14", features = ["macros"] }
 rawzip = "0.5.0"
+reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12"] }
+rustls-native-certs = { version = "0.8", default-features = false }
 rustls-pki-types = { version = "1", default-features = false, features = ["std"] }
 saluki-tls = { git = "https://github.com/DataDog/saluki", rev = "a6c1769ab1629b0040126f306726da6170fbbd77" }
 tokio-rustls = { version = "0.26", default-features = false, features = ["tls12"] }
@@ -67,7 +71,7 @@ tonic-build = "0.14"
 tonic-prost = "0.14"
 tonic-prost-build = "0.14"
 tonic-reflection = "0.14"
-# Keep ureq HTTP-only; HTTPS clients use the explicitly configured Rustls stack.
+# default-features off: avoid rustls/ring/webpki (ISC + CDLA) for cargo-deny; HTTP-only client.
 ureq = { version = "3.0", default-features = false, features = ["json"] }
 uzers = "0.12"
 walkdir = "2"

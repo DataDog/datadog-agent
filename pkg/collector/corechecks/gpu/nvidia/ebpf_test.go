@@ -322,7 +322,7 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 	device1UUID := "device-1-uuid"
 	device2UUID := "device-2-uuid"
 
-	device := setupMockDevice(t, testutil.WithDeviceUUIDs([]string{device1UUID, device2UUID}))
+	device := setupMockDevice(t, testutil.WithPhysicalDeviceUUIDs([]string{device1UUID, device2UUID}))
 	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
 			Key: model.ProcessStatsKey{
