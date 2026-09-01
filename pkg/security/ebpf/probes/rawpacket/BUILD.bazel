@@ -1,15 +1,18 @@
 load("@rules_go//go:def.bzl", "go_library")
 
-# The `pcap`-tagged file (pcap.go) is intentionally omitted: the default Bazel
-# build does not enable the `pcap` build tag (mirroring how
-# //pkg/security/secl/model excludes oo_packet_filter_unix.go), so only the
-# build-tag-default sources are listed here.
 # gazelle:exclude pcap.go
 
 go_library(
     name = "rawpacket",
     srcs = [
         "bpffilter.go",
+        # keep: gazelle can't resolve the custom "pcap" build tag in this
+        # file's `linux && pcap && cgo` constraint (it's excluded above), so
+        # it must be listed by hand alongside pcap_unsupported.go (its
+        # negation) — Go's own build-tag filtering picks the right one at
+        # compile time. "pcap" is a LINUX_ONLY_TAGS entry in
+        # tasks/build_tags.bzl, enabled by default for system-probe on linux.
+        "pcap.go",  # keep
         "pcap_unsupported.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket",
@@ -26,6 +29,14 @@ go_library(
             "//pkg/security/secl/model",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_cilium_ebpf//asm",
+            # keep: gazelle can't see the imports in pcap.go (its
+            # `linux && pcap && cgo` build tag isn't gazelle-resolvable, see
+            # the "keep" note on that file in srcs above).
+            "@com_github_cloudflare_cbpfc//:cbpfc",  # keep
+            "@com_github_google_gopacket//layers",  # keep
+            "@com_github_google_gopacket//pcap",  # keep
+            "@com_github_hashicorp_go_multierror//:go-multierror",  # keep
+            "@org_golang_x_net//bpf",  # keep
         ],
         "//conditions:default": [],
     }),
