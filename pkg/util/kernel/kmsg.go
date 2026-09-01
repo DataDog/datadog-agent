@@ -37,6 +37,7 @@ type KmsgRecord struct {
 }
 
 // KmsgFilter determines whether a parsed kmsg record is delivered to the reader's output channel.
+// Filters run synchronously on the reader goroutine and must be fast, non-blocking, pure, non-reentrant, and non-panicking.
 type KmsgFilter func(KmsgRecord) bool
 
 // KmsgReader reads records from /dev/kmsg in a background goroutine.
@@ -93,6 +94,7 @@ func (t *kmsgTelemetry) init(component telemetry.Component) {
 }
 
 // NewKmsgReader opens /dev/kmsg, seeks to the end of its current buffer, and starts reading future records.
+// Telemetry is process-wide: the component passed to the first call owns the metrics for all reader instances.
 func NewKmsgReader(component telemetry.Component) (*KmsgReader, error) {
 	if component == nil {
 		return nil, errors.New("kmsg telemetry component is nil")

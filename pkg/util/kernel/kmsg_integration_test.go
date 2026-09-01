@@ -21,6 +21,8 @@ import (
 )
 
 func TestKmsgReaderIntegration(t *testing.T) {
+	resetKmsgTelemetryDefinitionsForTest(t)
+
 	preStartMarker := fmt.Sprintf("datadog-kmsg-reader-pre-start-%d", time.Now().UnixNano())
 	postStartMarker := fmt.Sprintf("datadog-kmsg-reader-post-start-%d", time.Now().UnixNano())
 	require.NoError(t, writeKmsgMarker(preStartMarker))
@@ -51,7 +53,10 @@ func TestKmsgReaderIntegration(t *testing.T) {
 }
 
 func TestKmsgReaderStopCancelsIdleReadIntegration(t *testing.T) {
-	reader, err := NewKmsgReader(telemetrymock.New(t))
+	resetKmsgTelemetryDefinitionsForTest(t)
+
+	tel := telemetrymock.New(t)
+	reader, err := NewKmsgReader(tel)
 	require.NoError(t, err)
 
 	stopped := make(chan struct{})
@@ -65,6 +70,19 @@ func TestKmsgReaderStopCancelsIdleReadIntegration(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timed out stopping kmsg reader")
 	}
+
+	metrics, err := tel.GetCountMetric("kernel__kmsg", "records_read")
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+}
+
+func resetKmsgTelemetryDefinitionsForTest(t *testing.T) {
+	t.Helper()
+
+	kmsgTelemetryDefinitions = kmsgTelemetry{}
+	t.Cleanup(func() {
+		kmsgTelemetryDefinitions = kmsgTelemetry{}
+	})
 }
 
 func writeKmsgMarker(marker string) error {
