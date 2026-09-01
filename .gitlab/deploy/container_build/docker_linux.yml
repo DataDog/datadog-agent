@@ -435,9 +435,8 @@ docker_build_agent7_fips_full_arm64:
     - mv -vf $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $ARTIFACTS_BUILD_CONTEXT/
     # Build nosys.so from the agent image's nosys-seccomp stage and extract it as a
-    # standalone artifact, instead of duplicating the gcc/libseccomp-dev toolchain
-    # stage inside this image (see PR review on #55669). Cached via registry so
-    # this only actually compiles when nosys.c/nosys.sym or the base image change.
+    # standalone artifact.
+    # Cached via registry so so we only compile when nosys.c/nosys.sym or the base image change.
     - |
       NOSYS_CACHE_REF="registry.ddbuild.io/ci/datadog-agent/nosys-seccomp:cache-${ARCH}"
       NOSYS_CACHE_FROM="--cache-from type=registry,ref=${NOSYS_CACHE_REF}"

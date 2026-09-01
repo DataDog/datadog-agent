@@ -62,7 +62,7 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH" \
 #  same time for speed.
 # For agent install and operation: ca-certificates, tzdata, adduser
 # For TSE operations: curl
-RUN apt full-upgrade -y \
+RUN apt-get update && apt full-upgrade -y \
     && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser \
     && rm -rf \
       /var/cache/debconf/*-old \
