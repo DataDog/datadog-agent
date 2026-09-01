@@ -67,6 +67,8 @@ const (
 const (
 	postgresConfigDir       = "/tmp/configfilesdiscovery-postgres"
 	postgresContainerName   = "postgres-configfilesdiscovery"
+	postgresConfigPath      = "/var/lib/postgresql/data/configfilesdiscovery/postgresql.conf"
+	postgresInitScriptName  = "10-add-config.sh"
 	postgresIntegrationName = "postgres"
 	postgresDBName          = "configfilesdiscovery"
 	postgresUser            = "configfilesdiscovery"
@@ -91,6 +93,16 @@ const redisDefaultConfig = `port 6379
 appendonly no
 maxmemory-policy allkeys-lru
 # configfilesdiscovery-default-e2e-sentinel
+`
+
+const postgresInitScript = `#!/bin/sh
+set -eu
+
+cat >> "$PGDATA/postgresql.conf" <<'EOF'
+max_connections = 200
+cluster_name = 'configfilesdiscovery-postgres-e2e'
+log_line_prefix = '%m [%p] '
+EOF
 `
 
 const redisExplicitStartScript = `#!/bin/sh
@@ -165,8 +177,9 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-kafka", pulumi.String(kafkaCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-postgres", pulumi.String(postgresCompose)),
 		dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
-			"CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR": pulumi.String(redisConfigDir),
-			"CONFIG_FILES_DISCOVERY_KAFKA_CONFIG_DIR": pulumi.String(kafkaConfigDir),
+			"CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR":    pulumi.String(redisConfigDir),
+			"CONFIG_FILES_DISCOVERY_KAFKA_CONFIG_DIR":    pulumi.String(kafkaConfigDir),
+			"CONFIG_FILES_DISCOVERY_POSTGRES_CONFIG_DIR": pulumi.String(postgresConfigDir),
 		}),
 	}
 
@@ -174,6 +187,7 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 		awsdocker.WithRunOptions(
 			scendocker.WithPreAgentInstallHook(createConfigFilesDiscoveryRedisConfig),
 			scendocker.WithPreAgentInstallHook(createConfigFilesDiscoveryKafkaConfig),
+			scendocker.WithPreAgentInstallHook(createConfigFilesDiscoveryPostgresConfig),
 			scendocker.WithAgentOptions(agentOpts...),
 		),
 	)))
@@ -199,6 +213,14 @@ func createConfigFilesDiscoveryKafkaConfig(_ *aws.Environment, host *remote.Host
 		[]configFilesDiscoveryFixtureFile{
 			{name: kafkaStartScriptName, content: kafkaStartScript},
 		},
+	)
+}
+
+func createConfigFilesDiscoveryPostgresConfig(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
+	return createConfigFilesDiscoveryFixtureFiles(
+		host,
+		postgresConfigDir,
+		[]configFilesDiscoveryFixtureFile{{name: postgresInitScriptName, content: postgresInitScript}},
 	)
 }
 
@@ -352,7 +374,7 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisEnvVarsDiscoveredWithoutConfi
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for redis env var discovery payload")
 }
 
-func (s *configFilesDiscoveryDockerSuite) TestPostgresEnvVarsDiscovered() {
+func (s *configFilesDiscoveryDockerSuite) TestPostgresConfigFileAndEnvVarsDiscovered() {
 	t := s.T()
 	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
 		integrationName: postgresIntegrationName,
@@ -374,7 +396,20 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresEnvVarsDiscovered() {
 
 		for _, payload := range postgresPayloads {
 			assertAgentDiscoveryPayload(c, payload, postgresIntegrationName)
-			assert.Empty(c, payload.ConfigFiles)
+			postgresConfigs := findConfigFilePayloads([]*aggregator.AgentDiscoveryPayload{payload}, postgresIntegrationName, postgresConfigPath)
+			if !assert.NotEmpty(c, postgresConfigs, "no postgres config file in payload %+v", payload) {
+				return
+			}
+			for _, postgresConfig := range postgresConfigs {
+				assertConfigFilePayload(c, postgresConfig, configFilePayloadExpectation{
+					integrationName: postgresIntegrationName,
+					configPath:      postgresConfigPath,
+					payloadFormat:   agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_PROPERTIES,
+				})
+				assert.Contains(c, string(postgresConfig.config.Content), "max_connections = 200")
+				assert.Contains(c, string(postgresConfig.config.Content), "cluster_name = 'configfilesdiscovery-postgres-e2e'")
+				assert.Contains(c, string(postgresConfig.config.Content), "log_line_prefix = '%m [%p] '")
+			}
 
 			envVars := make(map[string]string, len(payload.EnvVars))
 			for _, envVar := range payload.EnvVars {
@@ -397,7 +432,7 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresEnvVarsDiscovered() {
 			assert.NotContains(c, envVars, "POSTGRESQL_PASSWORD_FILE")
 			assert.NotContains(c, envVars, "POSTGRESQL_LDAP_URL")
 		}
-	}, 3*time.Minute, 10*time.Second, "timed out waiting for postgres env var discovery payload")
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for postgres config file discovery payload")
 }
 
 func (s *configFilesDiscoveryDockerSuite) TestKafkaDefaultConfigFileDiscovered() {
