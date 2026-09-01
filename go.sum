@@ -2526,6 +2526,8 @@ github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
 github.com/CycloneDX/cyclonedx-go v0.11.0 h1:GokP8FiRC+foiuwWhSSLpSD5H4hSWtGnR3wo7apkBFI=
 github.com/CycloneDX/cyclonedx-go v0.11.0/go.mod h1:vUvbCXQsEm48OI6oOlanxstwNByXjCZ2wuleUlwGEO8=
+github.com/CycloneDX/cyclonedx-go v0.12.0 h1:/7Jum36UA6V043tQZ/fE3jf+Nf9gn/qxUFfd7QReMy8=
+github.com/CycloneDX/cyclonedx-go v0.12.0/go.mod h1:V2577HhxDDCDLYfkm55WJrz16nHTfyQZwcWUBSG7Z28=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/DataDog/agent-payload/v5 v5.0.209 h1:VthYhodp1FRrf2HSk0bxyLiNt1xbqMHCf+whsdOkt3Y=
