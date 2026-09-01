@@ -899,19 +899,17 @@ func TestGetStateNoStats(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
-func TestResetClearsKSMShardedConfigs(t *testing.T) {
+func TestResetClearsShardedConfigs(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	d := newDispatcher(fakeTagger)
 
 	// Manually mark a config as sharded (simulates a prior Schedule call)
 	digest := "some-digest"
-	d.ksmShardedConfigs[digest] = []string{"shard-1", "shard-2"}
-	require.True(t, len(d.ksmShardedConfigs) == 1)
+	d.shards.mark(digest, []string{"shard-1", "shard-2"})
+	require.True(t, d.shards.isTracked(digest))
 
 	d.reset()
 
-	d.ksmShardingMutex.Lock()
-	defer d.ksmShardingMutex.Unlock()
-	assert.Empty(t, d.ksmShardedConfigs,
-		"ksmShardedConfigs must be cleared on reset to avoid silently dropping KSM checks after leader re-election")
+	assert.False(t, d.shards.isTracked(digest),
+		"shards must be cleared on reset to avoid silently dropping sharded checks after leader re-election")
 }
