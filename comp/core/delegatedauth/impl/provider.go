@@ -6,6 +6,7 @@
 package delegatedauthimpl
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"sync/atomic"
 )
@@ -113,18 +114,18 @@ func (p *instanceProvider) setResolved(key string) {
 // setFallback records the operator-supplied static key after an exchange has failed. It does not
 // overwrite an already-resolved credential: a transient refresh failure should keep using the last
 // known-good key rather than regress to the fallback.
-func (p *instanceProvider) setFallback(key string) {
+func (p *instanceProvider) setFallback(key string) bool {
 	if key == "" {
 		// Nothing to fall back to - keep buffering and let retries continue.
-		return
+		return false
 	}
 	for {
 		current := p.cred.Load()
 		if current != nil && current.usable {
-			return
+			return false
 		}
 		if p.cred.CompareAndSwap(current, &credential{value: key, usable: true}) {
-			return
+			return true
 		}
 	}
 }
@@ -134,4 +135,9 @@ func (p *instanceProvider) setFallback(key string) {
 func (p *instanceProvider) hasCredential() bool {
 	c := p.cred.Load()
 	return c != nil && c.usable
+}
+
+func (p *instanceProvider) matches(value string) bool {
+	c := p.cred.Load()
+	return c != nil && c.usable && subtle.ConstantTimeCompare([]byte(c.value), []byte(value)) == 1
 }

@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "model",
     srcs = [
+        "assign.go",
         "config_overrides.go",
         "config_overrides_test_helpers.go",
         "delegated_auth.go",

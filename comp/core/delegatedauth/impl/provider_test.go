@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 )
 
@@ -86,6 +87,19 @@ func TestProviderFallbackDoesNotRegressAResolvedCredential(t *testing.T) {
 	require.True(t, p.Authorize(h))
 	assert.Equal(t, "resolved-key", h.Get(apiKeyHeader),
 		"a refresh failure must keep the last resolved key, not fall back")
+}
+
+func TestProviderUsesFallbackAfterRejectedCredentialRefreshFails(t *testing.T) {
+	p := newInstanceProvider()
+	p.setRefreshTrigger(make(chan struct{}, 1))
+	p.setResolved("rejected-key")
+
+	require.True(t, p.Refresh())
+	require.True(t, p.setFallback("static-fallback"))
+
+	h := http.Header{}
+	require.True(t, p.Authorize(h))
+	assert.Equal(t, "static-fallback", h.Get(apiKeyHeader))
 }
 
 // Authorize runs on the request path while the refresh goroutine swaps credentials. Exercised
@@ -220,12 +234,8 @@ func TestProviderRefreshResetsToBufferingAndSignals(t *testing.T) {
 	}
 }
 
-// Two directives with the same org UUID and the same target site resolve to the same API key,
-// so they must share one credential provider rather than each starting its own background
-// refresh goroutine and making its own WIF exchange. Without dedup, the same org appearing in
-// both additional_endpoints and apm_config.additional_endpoints would trigger two separate
-// cloud exchanges for the same key.
-func TestCredentialCacheDeduplicatesByOrgUUIDAndTargetSite(t *testing.T) {
+// Matching directives share one provider instead of starting duplicate refresh loops.
+func TestCredentialCacheSharesMatchingLifecycle(t *testing.T) {
 	d := &delegatedAuthComponent{
 		instances:       make(map[string]*authInstance),
 		providers:       make(map[providerKey][]registeredProvider),
@@ -234,7 +244,9 @@ func TestCredentialCacheDeduplicatesByOrgUUIDAndTargetSite(t *testing.T) {
 
 	orgA := newInstanceProvider()
 	orgA.setResolved("shared-key-for-org-a")
-	cacheKey := credentialCacheKey{orgUUID: "org-a", targetSite: "https://app.datadoghq.com"}
+	params := delegatedauth.InstanceParams{OrgUUID: "org-a", RefreshInterval: 60}
+	providerConfig := &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"}
+	cacheKey := newCredentialCacheKey(params, "https://app.datadoghq.com", providerConfig)
 	d.credentialCache[cacheKey] = orgA
 
 	// A second directive for the same org+site should reuse orgA's provider, not create a new one.
@@ -261,11 +273,50 @@ func TestCredentialCacheDeduplicatesByOrgUUIDAndTargetSite(t *testing.T) {
 	// A different org gets its own provider.
 	orgB := newInstanceProvider()
 	orgB.setResolved("org-b-key")
-	d.credentialCache[credentialCacheKey{orgUUID: "org-b", targetSite: "https://app.datadoghq.com"}] = orgB
+	d.credentialCache[newCredentialCacheKey(delegatedauth.InstanceParams{OrgUUID: "org-b", RefreshInterval: 60}, "https://app.datadoghq.com", providerConfig)] = orgB
 	d.registerProvider(delegatedauth.InstanceParams{
 		ConfigKey: "additional_endpoints", Destination: "https://app.datadoghq.com", Directive: "DELA(org-b, aws)",
 	}, orgB)
 
 	providers := d.ProvidersFor("additional_endpoints", "https://app.datadoghq.com")
 	assert.Len(t, providers, 2, "two different orgs on the same domain should have two providers")
+}
+
+func TestRefreshForTargetsMatchingCredential(t *testing.T) {
+	d := &delegatedAuthComponent{providers: make(map[providerKey][]registeredProvider)}
+	first := newInstanceProvider()
+	first.setResolved("first-key")
+	firstTrigger := make(chan struct{}, 1)
+	first.setRefreshTrigger(firstTrigger)
+	second := newInstanceProvider()
+	second.setResolved("second-key")
+	secondTrigger := make(chan struct{}, 1)
+	second.setRefreshTrigger(secondTrigger)
+
+	params := delegatedauth.InstanceParams{ConfigKey: "additional_endpoints", Destination: "https://example.com"}
+	d.registerProvider(params, first)
+	params.Directive = "DELA(second, aws)"
+	d.registerProvider(params, second)
+
+	require.True(t, d.RefreshFor("additional_endpoints", "https://example.com", "second-key"))
+	assert.Empty(t, firstTrigger)
+	assert.Len(t, secondTrigger, 1)
+	assert.False(t, d.RefreshFor("additional_endpoints", "https://example.com", "unknown-key"))
+}
+
+func TestCredentialCacheKeyIncludesLifecycleConfiguration(t *testing.T) {
+	base := delegatedauth.InstanceParams{OrgUUID: "org-a", RefreshInterval: 60, FallbackAPIKey: "fallback-a"}
+	baseConfig := &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"}
+	baseKey := newCredentialCacheKey(base, "https://app.datadoghq.com", baseConfig)
+
+	regionKey := newCredentialCacheKey(base, "https://app.datadoghq.com", &cloudauthconfig.AWSProviderConfig{Region: "eu-west-1"})
+	assert.NotEqual(t, baseKey, regionKey)
+
+	refreshParams := base
+	refreshParams.RefreshInterval = 30
+	assert.NotEqual(t, baseKey, newCredentialCacheKey(refreshParams, "https://app.datadoghq.com", baseConfig))
+
+	fallbackParams := base
+	fallbackParams.FallbackAPIKey = "fallback-b"
+	assert.NotEqual(t, baseKey, newCredentialCacheKey(fallbackParams, "https://app.datadoghq.com", baseConfig))
 }

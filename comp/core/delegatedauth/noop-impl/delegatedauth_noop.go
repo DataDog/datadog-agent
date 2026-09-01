@@ -52,6 +52,9 @@ func (d *DelegatedAuthNoop) ProviderForDirective(_, _, _ string) delegatedauth.P
 	return nil
 }
 
+// RefreshFor is a no-op and never finds a provider.
+func (d *DelegatedAuthNoop) RefreshFor(_, _, _ string) bool { return false }
+
 // noopProvider never holds a credential.
 type noopProvider struct{}
 

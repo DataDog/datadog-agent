@@ -82,7 +82,11 @@ func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}
 		instanceInfo := make(map[string]interface{})
 
 		// Status
-		if instance.apiKey != nil {
+		active := instance.apiKey != nil
+		if instance.credProvider != nil {
+			active = instance.credProvider.hasCredential()
+		}
+		if active {
 			instanceInfo["Status"] = "Active"
 		} else {
 			instanceInfo["Status"] = "Pending"

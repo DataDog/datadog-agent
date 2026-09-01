@@ -270,6 +270,26 @@ func TestStatusJSON_EnabledWithInstances(t *testing.T) {
 	assert.Equal(t, "3 consecutive failures", logsInstance["Error"])
 }
 
+func TestStatusJSON_FallbackIsActive(t *testing.T) {
+	provider := newInstanceProvider()
+	provider.setFallback("fallback-key")
+	comp := &delegatedAuthComponent{
+		instances: map[string]*authInstance{
+			"additional_endpoints[1]": {
+				credProvider:        provider,
+				refreshInterval:     time.Hour,
+				apiKeyConfigKey:     "additional_endpoints[1]",
+				consecutiveFailures: 1,
+			},
+		},
+	}
+
+	stats := make(map[string]interface{})
+	require.NoError(t, comp.JSON(false, stats))
+	instances := stats["instances"].(map[string]map[string]interface{})
+	assert.Equal(t, "Active", instances["additional_endpoints[1]"]["Status"])
+}
+
 func TestStatusText_NotEnabled(t *testing.T) {
 	comp := &delegatedAuthComponent{
 		instances: make(map[string]*authInstance),
@@ -1248,6 +1268,23 @@ func TestMergeIntoAdditionalEndpointsDoesNotAdvanceLastWrittenValueWhenWriteIsLo
 }
 
 func TestWriteAPIKeyToTargetDispatchesByInstanceShape(t *testing.T) {
+	t.Run("exact path", func(t *testing.T) {
+		mockConfig := mock.New(t)
+		domain := "https://second-org.datadoghq.com"
+		mockConfig.SetInTest("additional_endpoints", map[string][]string{
+			domain: {"static-key", "DELA(second-org-uuid, aws)", "DELA(second-org-uuid, aws)"},
+		})
+		comp := &delegatedAuthComponent{config: mockConfig}
+		instance := &authInstance{
+			writebackPath: []string{"additional_endpoints", domain, "2"},
+		}
+
+		comp.writeAPIKeyToTarget(instance, "resolved-key", false)
+
+		got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+		assert.Equal(t, []string{"static-key", "DELA(second-org-uuid, aws)", "resolved-key"}, got[domain])
+	})
+
 	t.Run("flat", func(t *testing.T) {
 		mockConfig := mock.New(t)
 		comp := &delegatedAuthComponent{config: mockConfig}
@@ -1296,6 +1333,16 @@ func TestWriteAPIKeyToTargetDispatchesByInstanceShape(t *testing.T) {
 }
 
 func TestFallbackTargetInstanceCarriesWriteTargetFields(t *testing.T) {
+	t.Run("exact path", func(t *testing.T) {
+		path := []string{"additional_endpoints", "https://second-org.datadoghq.com", "1"}
+		instance := fallbackTargetInstance(delegatedauth.InstanceParams{
+			APIKeyConfigKey: "additional_endpoints[https://second-org.datadoghq.com][1]",
+			WritebackPath:   path,
+		})
+
+		assert.Equal(t, path, instance.writebackPath)
+	})
+
 	t.Run("map shape", func(t *testing.T) {
 		instance := fallbackTargetInstance(delegatedauth.InstanceParams{
 			APIKeyConfigKey:              "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]",
@@ -1356,8 +1403,9 @@ func TestAddInstanceWritesFallbackWhenNoCloudProviderDetected(t *testing.T) {
 	assert.Equal(t, []string{"static-fallback-key"}, got["https://second-org.datadoghq.com"],
 		"with no cloud provider detected, the fallback key should be written instead of leaving the domain with zero keys")
 
-	// No instance/retry loop should be created for the no-provider case.
-	assert.Empty(t, comp.instances)
+	// Keep a status instance, but do not start a retry loop when provider detection is terminal.
+	require.Contains(t, comp.instances, "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]")
+	assert.Nil(t, comp.instances["additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]"].done)
 }
 
 func TestAddInstanceWithoutFallbackSkipsSilentlyWhenNoCloudProviderDetected(t *testing.T) {

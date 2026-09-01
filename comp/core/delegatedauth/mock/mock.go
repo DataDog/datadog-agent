@@ -8,6 +8,7 @@ package mock
 
 import (
 	"context"
+	"crypto/subtle"
 	"net/http"
 	"testing"
 
@@ -112,4 +113,15 @@ func (m *Mock) ProvidersFor(configKey, destination string) []delegatedauth.Provi
 // ProviderForDirective implements delegatedauth.Component.
 func (m *Mock) ProviderForDirective(configKey, destination, directive string) delegatedauth.Provider {
 	return m.directives[[3]string{configKey, destination, directive}]
+}
+
+// RefreshFor implements delegatedauth.Component.
+func (m *Mock) RefreshFor(configKey, destination, credential string) bool {
+	for _, provider := range m.ProvidersFor(configKey, destination) {
+		header := http.Header{}
+		if provider.Authorize(header) && subtle.ConstantTimeCompare([]byte(header.Get("DD-Api-Key")), []byte(credential)) == 1 {
+			return provider.Refresh()
+		}
+	}
+	return false
 }

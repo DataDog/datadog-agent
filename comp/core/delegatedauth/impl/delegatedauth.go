@@ -8,8 +8,10 @@ package delegatedauthimpl
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -51,6 +53,7 @@ type authInstance struct {
 	authConfig      *common.AuthConfig
 	refreshInterval time.Duration
 	apiKeyConfigKey string // Configuration key where the API key should be written
+	writebackPath   []string
 
 	// targetSite is the site to exchange the auth proof against. Empty means use the primary site.
 	targetSite string
@@ -124,11 +127,7 @@ type delegatedAuthComponent struct {
 	// can carry more than one provider when several orgs dual-ship to it.
 	providers map[providerKey][]registeredProvider
 
-	// credentialCache deduplicates WIF exchanges: two directives with the same (orgUUID,
-	// targetSite) resolve to the same API key, so they share one instanceProvider and one
-	// background refresh goroutine. Without this, the same org appearing in both
-	// additional_endpoints and apm_config.additional_endpoints would trigger two separate
-	// cloud exchanges for the same key — one per subsystem.
+	// credentialCache shares instances only when identity and lifecycle settings match.
 	credentialCache map[credentialCacheKey]*instanceProvider
 
 	// additionalEndpointsMu serializes read-modify-write access to additional_endpoints config
@@ -142,12 +141,55 @@ type providerKey struct {
 	destination string
 }
 
-// credentialCacheKey identifies a unique WIF exchange: the same org UUID against the same
-// target site always resolves to the same API key, regardless of which subsystem's config the
-// directive was discovered in.
+// credentialCacheKey identifies one exchange and fallback lifecycle.
 type credentialCacheKey struct {
-	orgUUID    string
-	targetSite string
+	orgUUID             string
+	targetSite          string
+	providerName        string
+	providerRegion      string
+	refreshIntervalMins int
+	fallbackFingerprint [sha256.Size]byte
+}
+
+func newCredentialCacheKey(params delegatedauth.InstanceParams, targetSite string, providerConfig common.ProviderConfig) credentialCacheKey {
+	providerName := ""
+	providerRegion := ""
+	if providerConfig != nil {
+		providerName = providerConfig.ProviderName()
+		if awsConfig, ok := providerConfig.(*cloudauthconfig.AWSProviderConfig); ok {
+			providerRegion = awsConfig.Region
+		}
+	}
+	refreshInterval := params.RefreshInterval
+	if refreshInterval <= 0 {
+		refreshInterval = 60
+	}
+	return credentialCacheKey{
+		orgUUID:             params.OrgUUID,
+		targetSite:          targetSite,
+		providerName:        providerName,
+		providerRegion:      providerRegion,
+		refreshIntervalMins: refreshInterval,
+		fallbackFingerprint: sha256.Sum256([]byte(params.FallbackAPIKey)),
+	}
+}
+
+func (d *delegatedAuthComponent) recordUnavailableInstance(params delegatedauth.InstanceParams, provider *instanceProvider, err error) {
+	instance := fallbackTargetInstance(params)
+	refreshInterval := params.RefreshInterval
+	if refreshInterval <= 0 {
+		refreshInterval = 60
+	}
+	instance.refreshInterval = time.Duration(refreshInterval) * time.Minute
+	instance.credProvider = provider
+	instance.fallbackAPIKey = params.FallbackAPIKey
+	instance.skipConfigWriteback = params.SkipConfigWriteback
+	instance.consecutiveFailures = 1
+	instance.lastError = err
+
+	d.mu.Lock()
+	d.instances[params.APIKeyConfigKey] = instance
+	d.mu.Unlock()
 }
 
 // registeredProvider keeps the directive alongside its provider so a consumer that owns one
@@ -317,15 +359,17 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	// buffer rather than ship unauthenticated.
 	if providerConfig == nil {
 		log.Warnf("Delegated auth is not available on this host, so '%s' will keep its statically configured value", params.APIKeyConfigKey)
+		unavailableErr := errors.New("no delegated auth provider is available on this host")
 
 		// Deduplicate only in directive mode (SkipConfigWriteback). In flat-key mode each config
 		// slot needs its own instance to write the fallback key back into config.
 		if params.SkipConfigWriteback {
 			targetSite := resolveTargetSite(params)
-			cacheKey := credentialCacheKey{orgUUID: params.OrgUUID, targetSite: targetSite}
+			cacheKey := newCredentialCacheKey(params, targetSite, params.ProviderConfig)
 			d.mu.Lock()
 			if existing, ok := d.credentialCache[cacheKey]; ok {
 				d.mu.Unlock()
+				d.recordUnavailableInstance(params, existing, unavailableErr)
 				d.registerProvider(params, existing)
 				return existing, nil
 			}
@@ -337,6 +381,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 			d.credentialCache[cacheKey] = credProvider
 			d.mu.Unlock()
 
+			d.recordUnavailableInstance(params, credProvider, unavailableErr)
 			d.registerProvider(params, credProvider)
 			return credProvider, nil
 		}
@@ -347,6 +392,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		if params.FallbackAPIKey != "" {
 			d.writeAPIKeyToTarget(fallbackTargetInstance(params), params.FallbackAPIKey, true)
 		}
+		d.recordUnavailableInstance(params, credProvider, unavailableErr)
 		d.registerProvider(params, credProvider)
 		return credProvider, nil
 	}
@@ -380,7 +426,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	// each config slot needs its own authInstance to write the resolved key back into config.
 	var credProvider *instanceProvider
 	if params.SkipConfigWriteback {
-		cacheKey := credentialCacheKey{orgUUID: params.OrgUUID, targetSite: targetSite}
+		cacheKey := newCredentialCacheKey(params, targetSite, providerConfig)
 		d.mu.Lock()
 		if existing, ok := d.credentialCache[cacheKey]; ok {
 			d.mu.Unlock()
@@ -410,6 +456,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		authConfig:                       authConfig,
 		refreshInterval:                  refreshInterval,
 		apiKeyConfigKey:                  apiKeyConfigKey,
+		writebackPath:                    append([]string(nil), params.WritebackPath...),
 		targetSite:                       targetSite,
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
@@ -555,6 +602,21 @@ func (d *delegatedAuthComponent) ProviderForDirective(configKey, destination, di
 	return nil
 }
 
+// RefreshFor implements delegatedauth.Component.
+func (d *delegatedAuthComponent) RefreshFor(configKey, destination, credential string) bool {
+	d.mu.RLock()
+	registered := slices.Clone(d.providers[providerKey{configKey: configKey, destination: destination}])
+	d.mu.RUnlock()
+
+	for _, entry := range registered {
+		provider, ok := entry.provider.(*instanceProvider)
+		if ok && provider.matches(credential) {
+			return provider.Refresh()
+		}
+	}
+	return false
+}
+
 // providerConfigForInstance applies a directive-specific provider configuration after shared
 // initialization. This lets multiple delegated-auth instances use distinct provider settings.
 func providerConfigForInstance(initialized, instance common.ProviderConfig) common.ProviderConfig {
@@ -650,6 +712,7 @@ func (d *delegatedAuthComponent) doRefresh(instance *authInstance, ticker *time.
 
 	var shouldUpdateConfig bool
 	var apiKeyToUpdate string
+	var fallbackActivated bool
 
 	d.mu.Lock()
 	if lErr != nil {
@@ -661,6 +724,7 @@ func (d *delegatedAuthComponent) doRefresh(instance *authInstance, ticker *time.
 
 		instance.consecutiveFailures++
 		instance.lastError = lErr
+		fallbackActivated = instance.credProvider.setFallback(instance.fallbackAPIKey)
 
 		nextInterval := instance.backoff.NextBackOff()
 		instance.nextRefresh = time.Now().Add(nextInterval)
@@ -688,6 +752,8 @@ func (d *delegatedAuthComponent) doRefresh(instance *authInstance, ticker *time.
 
 	if shouldUpdateConfig {
 		d.deliverAPIKey(instance, apiKeyToUpdate)
+	} else if fallbackActivated && !instance.skipConfigWriteback {
+		d.writeAPIKeyToTarget(instance, instance.fallbackAPIKey, true)
 	}
 }
 

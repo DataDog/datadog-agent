@@ -302,3 +302,11 @@ func TestListShapeTwoOrgsOnOneHostStayDistinct(t *testing.T) {
 	assert.NotNil(t, rec.ProviderForDirective("logs_config.additional_endpoints", host, "DELA(org-b, aws)"))
 	assert.Nil(t, rec.ProviderForDirective("logs_config.additional_endpoints", host, "DELA(org-c, aws)"))
 }
+
+func TestConfigureDelegatedAuthReturnsContextError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := configureDelegatedAuth(ctx, confFromYAML(t, ""), newRecordingComponent(), nil)
+	require.ErrorIs(t, err, context.Canceled)
+}

@@ -28,6 +28,7 @@ func resolveTargetSite(params delegatedauth.InstanceParams) string {
 func fallbackTargetInstance(params delegatedauth.InstanceParams) *authInstance {
 	return &authInstance{
 		apiKeyConfigKey:                  params.APIKeyConfigKey,
+		writebackPath:                    append([]string(nil), params.WritebackPath...),
 		targetSite:                       resolveTargetSite(params),
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
@@ -48,6 +49,16 @@ func (d *delegatedAuthComponent) updateConfigWithAPIKey(instance *authInstance, 
 // isFallback only affects the log message.
 func (d *delegatedAuthComponent) writeAPIKeyToTarget(instance *authInstance, apiKey string, isFallback bool) {
 	switch {
+	case len(instance.writebackPath) > 0:
+		if err := pkgconfigmodel.AssignAtPath(d.config, instance.writebackPath, apiKey, pkgconfigmodel.SourceSecret); err != nil {
+			log.Errorf("Could not write delegated auth key to config path %q: %v", instance.writebackPath, err)
+			return
+		}
+		if isFallback {
+			log.Infof("Using fallback API key at %q, ending with: %s", instance.writebackPath, scrubber.HideKeyExceptLastChars(apiKey))
+		} else {
+			log.Infof("Updated delegated API key at %q, ending with: %s", instance.writebackPath, scrubber.HideKeyExceptLastChars(apiKey))
+		}
 	case instance.additionalEndpointsListConfigKey != "":
 		d.mergeIntoAdditionalEndpointsList(instance, apiKey, isFallback)
 	case instance.additionalEndpointDomain != "":

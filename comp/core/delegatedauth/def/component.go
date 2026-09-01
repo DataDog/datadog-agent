@@ -90,6 +90,11 @@ type InstanceParams struct {
 	// AdditionalEndpointDomain or AdditionalEndpointsListConfigKey is set.
 	AdditionalEndpointDirective string
 
+	// [flat] WritebackPath addresses the exact config value to replace. For example,
+	// {"additional_endpoints", domain, "1"} selects one key in a map-shape endpoint.
+	// When set, it takes precedence over the legacy map/list write-back fields above.
+	WritebackPath []string
+
 	// [shared] TargetSite is the Datadog site to exchange the auth proof against.
 	// Falls back to AdditionalEndpointDomain, then to the agent's primary site.
 	TargetSite string
@@ -177,4 +182,8 @@ type Component interface {
 	// Returns nil when no instance was registered for that directive, e.g. because it named an
 	// unsupported provider - the caller must then refuse to send rather than send unauthenticated.
 	ProviderForDirective(configKey, destination, directive string) Provider
+
+	// RefreshFor requests an immediate refresh for the provider currently serving credential at
+	// configKey and destination. It returns false when no matching provider can be refreshed.
+	RefreshFor(configKey, destination, credential string) bool
 }
