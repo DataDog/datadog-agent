@@ -42,6 +42,7 @@ dd_agent_go_test(
         "agent_keep_rights_test.go",
         "agent_user_test.go",
         "autologger_test.go",
+        "config_root_test.go",
         "install_subservices_test.go",
         "install_test.go",
         "npm_test.go",

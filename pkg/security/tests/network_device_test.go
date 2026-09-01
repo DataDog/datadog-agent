@@ -31,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+var _ = declare(TestNetDevice, testOpts{networkIngressEnabled: true})
+
 func TestNetDevice(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -50,7 +52,7 @@ func TestNetDevice(t *testing.T) {
 		Expression: `dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,6 +153,8 @@ func TestNetDevice(t *testing.T) {
 	}
 }
 
+var _ = declare(TestTCFilters, testOpts{networkIngressEnabled: true})
+
 func TestTCFilters(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -170,7 +174,7 @@ func TestTCFilters(t *testing.T) {
 		Expression: `dns.question.type == A`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}

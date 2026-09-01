@@ -4,27 +4,7 @@
 #include "maps.h"
 #include "process.h"
 
-// Reads the current thread's TLS thread pointer (x86 fsbase / ARM64 tpidr) from
-// the kernel task_struct via BTF-resolved offsets. Used as the base for the
-// Go runtime.g lookup below.
-static u64 __attribute__((always_inline)) read_thread_pointer() {
-    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-    u64 thread_offset = get_task_struct_thread_offset();
-    u64 tp_field_offset = get_thread_struct_tp_offset();
-
-    // 0 means the offset did not resolved (those fields are never at the start of the struct)
-    if (thread_offset == 0 || tp_field_offset == 0) {
-        return 0;
-    }
-
-    u64 tp = 0;
-    int ret = bpf_probe_read_kernel(&tp, sizeof(tp),
-                                     (void *)task + thread_offset + tp_field_offset);
-    if (ret < 0) {
-        return 0;
-    }
-    return tp;
-}
+#include "thread_pointer.h"
 
 #if defined(__aarch64__)
 // Processor state bits used to tell a user-mode register context from a
@@ -348,6 +328,20 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
     }
 
     return id;
+}
+
+// The offsets describe the executable, which a fork does not replace.
+static int __attribute__((always_inline)) inherit_go_labels(u32 ppid, u32 pid) {
+    struct go_labels_offsets_t *parent = bpf_map_lookup_elem(&go_labels_procs, &ppid);
+    if (!parent) {
+        return 0;
+    }
+
+    // copy to stack for older kernel verifiers
+    struct go_labels_offsets_t on_stack_offs = *parent;
+    bpf_map_update_elem(&go_labels_procs, &pid, &on_stack_offs, BPF_ANY);
+
+    return 0;
 }
 
 static int __attribute__((always_inline)) unregister_go_labels() {

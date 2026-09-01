@@ -103,6 +103,12 @@ func TestPostgresCollectorCollectsEnvVars(t *testing.T) {
 			"POSTGRESQL_PASSWORD":            "must-not-be-forwarded",
 			"UNREQUESTED":                    "value",
 		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			"/opt/bitnami/postgresql/conf/postgresql.conf": {
+				Path:    "/opt/bitnami/postgresql/conf/postgresql.conf",
+				Content: []byte("max_connections = 200\nshared_preload_libraries = 'pg_stat_statements'\n"),
+			},
+		},
 	}
 	collector := NewPostgres()
 
@@ -126,7 +132,12 @@ func TestPostgresCollectorCollectsEnvVars(t *testing.T) {
 		{Name: "POSTGRES_PORT_NUMBER", Value: "5432"},
 		{Name: "POSTGRES_USER", Value: "app"},
 	}, collected.EnvVars)
-	assert.Empty(t, collected.ConfigFiles)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
+		Path:          "/opt/bitnami/postgresql/conf/postgresql.conf",
+		Content:       []byte("max_connections = 200\nshared_preload_libraries = 'pg_stat_statements'\n"),
+		PayloadFormat: postgresConfigPayloadFormat,
+	}, collected.ConfigFiles[0])
 }
 
 func TestPostgresCollectorSkipsWhenNoSelectedEnvVars(t *testing.T) {
@@ -153,17 +164,135 @@ func TestPostgresCollectorReturnsEnvVarErrors(t *testing.T) {
 	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
 }
 
-func TestPostgresCollectorCanCollectFromProcessAlwaysFalse(t *testing.T) {
+func TestPostgresCollectorReadsDetectedConfigWhenEnvVarsFail(t *testing.T) {
+	const configPath = "/etc/postgresql/postgresql.conf"
+	reader := &postgresCollectorTestReader{
+		readEnvVarsErr: errors.New("env unavailable"),
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"postgres", "-c", "config_file=" + configPath},
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			configPath: {Path: configPath, Content: []byte("max_connections = 200\n")},
+		},
+	}
+
+	collected, err := NewPostgres().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{configPath}, reader.readFileCalls)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigFile{{
+		Path:          configPath,
+		Content:       []byte("max_connections = 200\n"),
+		PayloadFormat: postgresConfigPayloadFormat,
+	}}, collected.ConfigFiles)
+	assert.Empty(t, collected.EnvVars)
+}
+
+func TestPostgresCollectorReadsExplicitConfigAfterDockerEntrypoint(t *testing.T) {
+	const explicitConfigPath = "/etc/postgresql/custom.conf"
+	const fallbackConfigPath = "/var/lib/postgresql/data/postgresql.conf"
+	reader := &postgresCollectorTestReader{
+		env: map[string]string{
+			"PGDATA": "/var/lib/postgresql/data",
+		},
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/usr/local/bin/docker-entrypoint.sh", "postgres", "-c", "config_file=" + explicitConfigPath},
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			explicitConfigPath: {Path: explicitConfigPath, Content: []byte("max_connections = 200\n")},
+			fallbackConfigPath: {Path: fallbackConfigPath, Content: []byte("max_connections = 100\n")},
+		},
+	}
+
+	collected, err := NewPostgres().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{explicitConfigPath}, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, explicitConfigPath, collected.ConfigFiles[0].Path)
+}
+
+func TestPostgresCollectorSkipsClientCommandline(t *testing.T) {
+	const backupConfigPath = "/backup/postgresql.conf"
+	reader := &postgresCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"pg_basebackup", "-U", "postgres", "-D", "/backup"},
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			backupConfigPath: {Path: backupConfigPath, Content: []byte("max_connections = 200\n")},
+		},
+	}
+
+	collected, err := NewPostgres().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, collected)
+	assert.Empty(t, reader.readFileCalls)
+}
+
+func TestPostgresCollectorCanCollectFromProcess(t *testing.T) {
 	collector := postgresConfigCollector{}
-	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"postgres"},
+	}))
+	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
 		Args: []string{"postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"},
 	}))
+	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"docker-entrypoint.sh", "postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"pg_basebackup", "-U", "postgres", "-D", "/backup"},
+	}))
 	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{}))
+}
+
+func TestPostgresGetConfigArgFromCommandline(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		wantPath string
+		wantOK   bool
+	}{
+		{name: "explicit config file", args: []string{"postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"}, wantPath: "/etc/postgresql/postgresql.conf", wantOK: true},
+		{name: "long explicit config file", args: []string{"postgres", "--config-file=/etc/postgresql/postgresql.conf"}, wantPath: "/etc/postgresql/postgresql.conf", wantOK: true},
+		{name: "last explicit config file wins", args: []string{"postgres", "-c", "config_file=/one/postgresql.conf", "-c", "config_file=/two/postgresql.conf"}, wantPath: "/two/postgresql.conf", wantOK: true},
+		{name: "data directory", args: []string{"postgres", "-D", "/var/lib/postgresql/data"}, wantPath: "/var/lib/postgresql/data/postgresql.conf", wantOK: true},
+		{name: "attached data directory", args: []string{"postgres", "-D/var/lib/postgresql/data"}, wantPath: "/var/lib/postgresql/data/postgresql.conf", wantOK: true},
+		{name: "last data directory wins", args: []string{"postgres", "-D", "/one", "-D", "/two"}, wantPath: "/two/postgresql.conf", wantOK: true},
+		{name: "explicit config file wins over data directory", args: []string{"postgres", "-D", "/var/lib/postgresql/data", "-c", "config_file=/etc/postgresql/postgresql.conf"}, wantPath: "/etc/postgresql/postgresql.conf", wantOK: true},
+		{name: "shell wrapper", args: []string{"/bin/sh", "-c", "postgres -D /var/lib/postgresql/data"}, wantPath: "/var/lib/postgresql/data/postgresql.conf", wantOK: true},
+		{name: "official docker entrypoint", args: []string{"docker-entrypoint.sh", "postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"}, wantPath: "/etc/postgresql/postgresql.conf", wantOK: true},
+		{name: "client command with postgres user", args: []string{"pg_basebackup", "-U", "postgres", "-D", "/backup"}},
+		{name: "no path", args: []string{"postgres"}},
+		{name: "non postgres command", args: []string{"redis-server", "/etc/redis/redis.conf"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, ok := postgresGetConfigArgFromCommandline(tt.args)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.wantPath, path)
+		})
+	}
+}
+
+func TestPostgresFallbackConfigArg(t *testing.T) {
+	assert.Equal(t, "/opt/bitnami/postgresql/conf/postgresql.conf", postgresFallbackConfigArg([]configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "PGDATA", Value: "/var/lib/postgresql/data"},
+		{Name: "POSTGRESQL_CONF_FILE", Value: "/opt/bitnami/postgresql/conf/postgresql.conf"},
+	}))
+	assert.Equal(t, "/var/lib/postgresql/data/postgresql.conf", postgresFallbackConfigArg([]configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "PGDATA", Value: "/var/lib/postgresql/data"},
+	}))
 }
 
 type postgresCollectorTestReader struct {
 	env            map[string]string
 	readEnvVarsErr error
+	commandline    configfilesdiscoveryimpl.TargetCommandline
+	files          map[string]configfilesdiscoveryimpl.ConfigFile
+	readFileCalls  []string
 }
 
 func (r *postgresCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeType {
@@ -172,8 +301,12 @@ func (r *postgresCollectorTestReader) Runtime() configfilesdiscoveryimpl.Runtime
 
 func (r *postgresCollectorTestReader) Close() {}
 
-func (r *postgresCollectorTestReader) ReadFile(context.Context, string) (configfilesdiscoveryimpl.ConfigFile, error) {
-	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("not implemented")
+func (r *postgresCollectorTestReader) ReadFile(_ context.Context, path string) (configfilesdiscoveryimpl.ConfigFile, error) {
+	r.readFileCalls = append(r.readFileCalls, path)
+	if file, found := r.files[path]; found {
+		return file, nil
+	}
+	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("not found")
 }
 
 func (r *postgresCollectorTestReader) ReadEnvVars(_ context.Context, predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {
@@ -195,7 +328,7 @@ func (r *postgresCollectorTestReader) ReadEnvVars(_ context.Context, predicate c
 }
 
 func (r *postgresCollectorTestReader) ReadRuntimeCommandline(context.Context) (configfilesdiscoveryimpl.TargetCommandline, error) {
-	return configfilesdiscoveryimpl.TargetCommandline{}, nil
+	return r.commandline, nil
 }
 
 func (r *postgresCollectorTestReader) ReadLiveProcessCommandlines(context.Context) []configfilesdiscoveryimpl.TargetCommandline {

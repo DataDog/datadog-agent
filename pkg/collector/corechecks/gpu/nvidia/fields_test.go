@@ -13,6 +13,7 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -37,7 +38,7 @@ func TestFieldsCollector_AllMetricsEmitted(t *testing.T) {
 
 	emittedValues := make(map[string][]float64)
 	emittedRateModes := make(map[string][]RateCalculationMode)
-	for _, m := range collected {
+	for _, m := range requireMetrics(t, collected) {
 		emittedValues[m.Name] = append(emittedValues[m.Name], m.Value)
 		emittedRateModes[m.Name] = append(emittedRateModes[m.Name], m.RateCalculationMode)
 	}
@@ -50,7 +51,11 @@ func TestFieldsCollector_AllMetricsEmitted(t *testing.T) {
 }
 func TestFieldsCollectorPreservesRawValuesForRateMetrics(t *testing.T) {
 	returnValues := make(map[uint32]testutil.MockFieldValue)
-	device := setupMockDevice(t, testutil.WithFieldValuesFullOverride(returnValues))
+	mock := nvmltestutil.SetupMockNVML(t,
+		testutil.WithDeviceCount(1),
+		testutil.WithFieldValuesFullOverride(returnValues),
+	)
+	device := nvmltestutil.PhysicalDevice(t, mock, 0)
 
 	collector, err := newFieldsCollector(device, nil)
 	require.NoError(t, err)
@@ -70,12 +75,13 @@ func TestFieldsCollectorPreservesRawValuesForRateMetrics(t *testing.T) {
 	returnValues[positiveID] = testutil.NewFieldValue(1500)
 	returnValues[negativeID] = testutil.NewFieldValue(500)
 	returnValues[zeroID] = testutil.NewFieldValue(1000)
+	mock.Device(0).SetFieldValues(returnValues)
 
 	collected, err := fc.Collect()
 	require.NoError(t, err)
 
 	foundPositive, foundNegative, foundZero := false, false, false
-	for _, m := range collected {
+	for _, m := range requireMetrics(t, collected) {
 		if m.Name == "deltaPositive" {
 			foundPositive = true
 			require.Equal(t, 1500.0, m.Value)
