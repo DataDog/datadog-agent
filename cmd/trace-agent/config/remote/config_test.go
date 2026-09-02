@@ -225,6 +225,56 @@ func TestEmptyResponse(t *testing.T) {
 	r.Body.Close()
 }
 
+// errReader is an io.Reader that returns err on every Read call after
+// optionally yielding the given initial bytes.
+type errReader struct {
+	done bool
+	err  error
+}
+
+func (e *errReader) Read(p []byte) (int, error) {
+	if e.done {
+		return 0, e.err
+	}
+	e.done = true
+	return 0, e.err
+}
+
+// writeHeaderCountingRecorder wraps httptest.ResponseRecorder to count
+// WriteHeader calls, allowing tests to detect superfluous WriteHeader
+// invocations (the root cause of the bug being fixed).
+type writeHeaderCountingRecorder struct {
+	*httptest.ResponseRecorder
+	writeHeaderCount int
+}
+
+func (r *writeHeaderCountingRecorder) WriteHeader(code int) {
+	r.writeHeaderCount++
+	r.ResponseRecorder.WriteHeader(code)
+}
+
+func TestBodyReadError(t *testing.T) {
+	assert := assert.New(t)
+	grpc := agentGRPCConfigFetcher{}
+	rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+	// ClientGetConfigs must never be called when the body read fails.
+	grpc.On("ClientGetConfigs", mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, nil).Maybe()
+
+	handler := ConfigHandler(rcv, &grpc, &config.AgentConfig{}, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+	req, _ := http.NewRequest("POST", "/v0.7/config", &errReader{err: io.ErrUnexpectedEOF})
+	req.Header.Set("Content-Type", "application/msgpack")
+	rec := &writeHeaderCountingRecorder{ResponseRecorder: httptest.NewRecorder()}
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(http.StatusBadRequest, rec.Code)
+	assert.Contains(rec.Body.String(), io.ErrUnexpectedEOF.Error())
+	assert.Equal(1, rec.writeHeaderCount, "WriteHeader should be called exactly once, not multiple times")
+	grpc.AssertNotCalled(t, "ClientGetConfigs")
+}
+
 type agentGRPCConfigFetcher struct {
 	pbgo.AgentSecureClient
 	mock.Mock
