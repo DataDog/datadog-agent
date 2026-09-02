@@ -65,6 +65,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("sysctl"),
 		eval.EventType("unlink"),
 		eval.EventType("unload_module"),
+		eval.EventType("unshare"),
 		eval.EventType("utimes"),
 	}
 }
@@ -37302,6 +37303,28 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "unshare.flags":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Unshare.Flags)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "unshare.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Unshare.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "utimes.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -39937,6 +39960,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"unlink.syscall.path",
 		"unload_module.name",
 		"unload_module.retval",
+		"unshare.flags",
+		"unshare.retval",
 		"utimes.file.change_time",
 		"utimes.file.extension",
 		"utimes.file.filesystem",
@@ -44595,6 +44620,10 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "unload_module", reflect.String, "string", false, nil
 	case "unload_module.retval":
 		return "unload_module", reflect.Int, "int", false, nil
+	case "unshare.flags":
+		return "unshare", reflect.Int, "int", false, nil
+	case "unshare.retval":
+		return "unshare", reflect.Int, "int", false, nil
 	case "utimes.file.change_time":
 		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.extension":
@@ -54432,6 +54461,10 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("unload_module.name", &ev.UnloadModule.Name, value)
 	case "unload_module.retval":
 		return ev.setInt64FieldValue("unload_module.retval", &ev.UnloadModule.SyscallEvent.Retval, value)
+	case "unshare.flags":
+		return ev.setUint64FieldValue("unshare.flags", &ev.Unshare.Flags, value)
+	case "unshare.retval":
+		return ev.setInt64FieldValue("unshare.retval", &ev.Unshare.SyscallEvent.Retval, value)
 	case "utimes.file.change_time":
 		return ev.setUint64FieldValue("utimes.file.change_time", &ev.Utimes.File.FileFields.CTime, value)
 	case "utimes.file.extension":

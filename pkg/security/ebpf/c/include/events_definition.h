@@ -349,6 +349,17 @@ struct mount_event_t {
     u32    source;
 };
 
+struct unshare_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct go_labels_context_t go_labels;
+    struct cgroup_context_t cgroup;
+    struct syscall_t syscall;
+
+    u64 flags;
+};
+
 struct unshare_mntns_event_t {
     struct kevent_t event;
     struct mount_fields_t mountfields;
@@ -701,6 +712,7 @@ union event_t {
     struct delete_module_event_t delete_module;
     struct mount_event_t mount;
     struct unshare_mntns_event_t unshare_mntns;
+    struct unshare_event_t unshare;
     struct mprotect_event_t mprotect;
     struct net_device_event_t net_device;
     struct veth_pair_event_t veth_pair;
