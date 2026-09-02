@@ -232,7 +232,7 @@ type errReader struct {
 	err  error
 }
 
-func (e *errReader) Read(p []byte) (int, error) {
+func (e *errReader) Read(_ []byte) (int, error) {
 	if e.done {
 		return 0, e.err
 	}
