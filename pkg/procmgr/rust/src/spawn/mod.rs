@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-mod identity;
 mod profile;
 mod request;
 mod stdio_setting;

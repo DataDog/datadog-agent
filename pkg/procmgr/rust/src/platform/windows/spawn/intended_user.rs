@@ -18,3 +18,17 @@ pub(crate) fn intended_spawn_user(process_name: &str, profile: SpawnProfile) -> 
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::spawn::SpawnProfile;
+
+    #[test]
+    fn privileged_profile_spawn_user_is_local_system() {
+        assert_eq!(
+            intended_spawn_user("datadog-agent-process", SpawnProfile::Privileged),
+            r"NT AUTHORITY\SYSTEM"
+        );
+    }
+}
