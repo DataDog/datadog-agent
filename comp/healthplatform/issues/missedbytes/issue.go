@@ -10,12 +10,15 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/dustin/go-humanize"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
 const (
@@ -31,6 +34,9 @@ const (
 
 	// Context is map[string]string, so the breakdown travels as encoded sourceLoss.
 	contextKeySources = "sources"
+
+	// Encoded backpressureWire. Absent when no pipeline monitor answered.
+	contextKeyBackpressure = "backpressure"
 
 	// The reporting component, not the scheduler's checkSource label.
 	issueSource = "logs"
@@ -54,6 +60,17 @@ type sourceLoss struct {
 	Service   string `json:"service"`
 	Bytes     int64  `json:"bytes"`
 	Rotations int64  `json:"rotations"`
+	// Bottleneck is the stage saturated at loss time, not check time. Empty when unattributed.
+	Bottleneck          string `json:"bottleneck,omitempty"`
+	BottleneckRotations int64  `json:"bottleneck_rotations,omitempty"`
+}
+
+// backpressureWire is the check-time snapshot as it crosses Context.
+type backpressureWire struct {
+	State             string                              `json:"state"`
+	Bottleneck        *logsmetrics.ComponentBackpressure  `json:"bottleneck"`
+	Components        []logsmetrics.ComponentBackpressure `json:"components"`
+	ComponentsOmitted int                                 `json:"components_omitted"`
 }
 
 // MissedBytesIssue is the template for "log-data-lost-after-rotation" issues.
@@ -88,6 +105,8 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 		breakdown = ""
 	}
 
+	bp := decodeBackpressure(ctx[contextKeyBackpressure])
+
 	sentences := []string{
 		fmt.Sprintf("%s never reached Datadog: %d log %s closed %s before the Agent finished reading it.",
 			subject, rotations, pluralize(rotations, "rotation"), file),
@@ -95,15 +114,23 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 	if breakdown != "" {
 		sentences = append(sentences, breakdown)
 	}
+	if cause := describeCause(bp, sources); cause != "" {
+		sentences = append(sentences, cause)
+	}
 
-	extra, err := structpb.NewStruct(map[string]any{
+	extraFields := map[string]any{
 		contextKeyBytes:        bytesLost,
 		contextKeyRotations:    rotations,
 		contextKeySourceCount:  sourceCount,
 		contextKeyPairsOmitted: omitted,
 		contextKeyLastLossAt:   lastLossAt,
 		contextKeySources:      sourcesAsExtra(sources),
-	})
+	}
+	if bp != nil {
+		extraFields[contextKeyBackpressure] = backpressureAsExtra(bp)
+	}
+
+	extra, err := structpb.NewStruct(extraFields)
 	if err != nil {
 		return nil, fmt.Errorf("missedbytes: build issue extra: %w", err)
 	}
@@ -129,7 +156,7 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 			// Plain text: Summary is not rendered as markdown.
 			Summary: "Give the Agent more time to finish reading rotated files, and relieve any saturation in the logs pipeline.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Run `sudo datadog-agent status` and note any saturated component in the Logs Agent Backpressure section."},
+				{Order: 1, Text: firstRemediationStep(bp, sources)},
 				{Order: 2, Text: "Raise `logs_config.close_timeout` (DD_LOGS_CONFIG_CLOSE_TIMEOUT) above its 60 second default to give the tailer longer to finish a rotated file."},
 				{Order: 3, Text: "If a `destination_reliable_N` or `worker` row is saturated, check the Agent log for failed or retried submissions and resolve any proxy, DNS, authentication, or connectivity errors."},
 				{Order: 4, Text: "If the `strategy` row is saturated, set `logs_config.use_compression` to false or raise `logs_config.pipelines`."},
@@ -197,14 +224,145 @@ func describeSources(sources []sourceLoss, omitted int64) string {
 func sourcesAsExtra(sources []sourceLoss) []any {
 	values := make([]any, 0, len(sources))
 	for _, s := range sources {
-		values = append(values, map[string]any{
+		value := map[string]any{
 			"source":    s.Source,
 			"service":   s.Service,
 			"bytes":     s.Bytes,
 			"rotations": s.Rotations,
-		})
+		}
+		// Absent means not attributed, which is not the same as NoBottleneck.
+		if s.Bottleneck != "" {
+			value["bottleneck"] = s.Bottleneck
+			value["bottleneck_rotations"] = s.BottleneckRotations
+		}
+		values = append(values, value)
 	}
 	return values
+}
+
+// decodeBackpressure tolerates a malformed value: a failure only costs the enrichment.
+func decodeBackpressure(encoded string) *backpressureWire {
+	if encoded == "" {
+		return nil
+	}
+	var bp backpressureWire
+	if err := json.Unmarshal([]byte(encoded), &bp); err != nil {
+		return nil
+	}
+	if bp.State == "" {
+		return nil
+	}
+	bp.Bottleneck = sanitizeComponent(bp.Bottleneck)
+	for i := range bp.Components {
+		if c := sanitizeComponent(&bp.Components[i]); c != nil {
+			bp.Components[i] = *c
+		}
+	}
+	return &bp
+}
+
+// sanitizeComponent bounds the names: they reach Description unescaped.
+func sanitizeComponent(c *logsmetrics.ComponentBackpressure) *logsmetrics.ComponentBackpressure {
+	if c == nil {
+		return nil
+	}
+	c.Component = sanitizeName(c.Component)
+	c.Instance = sanitizeName(c.Instance)
+	return c
+}
+
+// backpressureAsExtra reshapes the snapshot so the backend receives objects, not a string.
+func backpressureAsExtra(bp *backpressureWire) map[string]any {
+	components := make([]any, 0, len(bp.Components))
+	for _, c := range bp.Components {
+		components = append(components, componentAsExtra(c))
+	}
+	extra := map[string]any{
+		"state":              bp.State,
+		"components":         components,
+		"components_omitted": bp.ComponentsOmitted,
+	}
+	if bp.Bottleneck != nil {
+		extra["bottleneck"] = componentAsExtra(*bp.Bottleneck)
+	}
+	return extra
+}
+
+func componentAsExtra(c logsmetrics.ComponentBackpressure) map[string]any {
+	return map[string]any{
+		"component":           c.Component,
+		"instance":            c.Instance,
+		"avg_ratio":           c.AvgRatio,
+		"max_5m":              c.Max5m,
+		"max_30m":             c.Max30m,
+		"max_2h":              c.Max2h,
+		"max_5h":              c.Max5h,
+		"max_10h":             c.Max10h,
+		"saturated_1m_s":      c.Saturated1mSeconds,
+		"saturated_30m_s":     c.Saturated30mSeconds,
+		"currently_saturated": c.CurrentlySaturated,
+	}
+}
+
+// describeCause names the stage responsible, preferring the one sampled at loss time: the
+// loss window is 24h and the check runs every 15m, so the two can disagree.
+func describeCause(bp *backpressureWire, sources []sourceLoss) string {
+	if atLoss, rotations := lossTimeBottleneck(sources); atLoss != "" {
+		if atLoss == logsmetrics.NoBottleneck {
+			return fmt.Sprintf("The logs pipeline was keeping up during %d of these %s, so the Agent ran out of time rather than throughput.",
+				rotations, pluralize(rotations, "rotation"))
+		}
+		return fmt.Sprintf("The %s stage of the logs pipeline was saturated during %d of these %s.",
+			atLoss, rotations, pluralize(rotations, "rotation"))
+	}
+
+	if bp == nil || bp.Bottleneck == nil {
+		return ""
+	}
+	return fmt.Sprintf("The %s stage of the logs pipeline is %s, saturated for %s of the last 30 minutes.",
+		bp.Bottleneck.Component, strings.ToLower(bp.State), fmtSeconds(bp.Bottleneck.Saturated30mSeconds))
+}
+
+func lossTimeBottleneck(sources []sourceLoss) (string, int64) {
+	totals := make(map[string]int64, len(sources))
+	for _, s := range sources {
+		if s.Bottleneck != "" {
+			totals[s.Bottleneck] += s.BottleneckRotations
+		}
+	}
+	var name string
+	var max int64
+	for component, count := range totals {
+		if count > max || (count == max && component < name) {
+			name, max = component, count
+		}
+	}
+	return name, max
+}
+
+// firstRemediationStep names the stage to fix so the reader can skip to the matching branch.
+// Loss time wins over check time: it is what lost the data, not what is saturated now.
+func firstRemediationStep(bp *backpressureWire, sources []sourceLoss) string {
+	switch component, _ := lossTimeBottleneck(sources); {
+	case component == logsmetrics.NoBottleneck:
+		// Naming the check-time component here would claim it was measured at loss time.
+		return "The logs pipeline was keeping up when this data was lost, so no component was saturating; step 2 is the one that applies. Run `sudo datadog-agent status` to confirm nothing is saturated now."
+	case component != "":
+		return fmt.Sprintf("The Agent measured the `%s` component as the saturated one when the data was lost; skip to the step below that matches it. Run `sudo datadog-agent status` to check whether it is still saturated.",
+			component)
+	case bp != nil && bp.Bottleneck != nil:
+		return fmt.Sprintf("The Agent could not measure which component was saturated when the data was lost, but `%s` is saturated now; skip to the step below that matches it.",
+			bp.Bottleneck.Component)
+	}
+	return "Run `sudo datadog-agent status` and note any saturated component in the Logs Agent Backpressure section."
+}
+
+func fmtSeconds(seconds int64) string {
+	d := time.Duration(seconds) * time.Second
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", seconds)
+	}
+	return fmt.Sprintf("%dm", int(d.Minutes()))
 }
 
 func humanizeBytes(n int64) string {
