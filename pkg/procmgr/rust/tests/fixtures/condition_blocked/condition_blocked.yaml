@@ -1,0 +1,4 @@
+command: {{python}}
+args:
+  - {{script}}
+condition_path_exists: /nonexistent/path/procmgr-condition-test

@@ -7,12 +7,12 @@
 #include "constants/enums.h"
 #include "structs/all.h"
 
-#define BPF_SK_MAP(_name, _value_type)         \
-    struct {                                   \
-        __uint(type, BPF_MAP_TYPE_SK_STORAGE); \
-        __type(value, _value_type);            \
-        __uint(map_flags, BPF_F_NO_PREALLOC);  \
-        __type(key, u32);                      \
+#define BPF_SK_MAP(_name, _value_type, _flags)       \
+    struct {                                         \
+        __uint(type, BPF_MAP_TYPE_SK_STORAGE);       \
+        __type(value, _value_type);                  \
+        __uint(map_flags, _flags);                   \
+        __type(key, u32);                            \
     } _name SEC(".maps");
 
 BPF_ARRAY_MAP(path_id_high, u32, PATH_ID_HIGH_MAP_SIZE)
@@ -41,6 +41,10 @@ BPF_ARRAY_MAP(socket_field_approvers, struct u64_flags_filter_t, 3)
 BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
+BPF_ARRAY_MAP(go_labels_ctx_gen_id, u32, 1)
+BPF_ARRAY_MAP(go_labels_ctx, struct go_labels_ctx_entry_t, GO_LABELS_CTX_MAX_ENTRIES)
+BPF_ARRAY_MAP(otel_attrs_gen_id, u32, 1)
+BPF_ARRAY_MAP(otel_span_attrs, struct otel_span_attrs_t, OTEL_SPAN_ATTRS_MAX_ENTRIES)
 BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 6)
 BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
@@ -78,7 +82,8 @@ BPF_LRU_MAP(kernel_thread_pids, u32, u8, 16738)
 BPF_LRU_MAP(exec_pid_transfer, u32, u64, 512)
 BPF_LRU_MAP(netns_cache, u32, u32, 40960)
 BPF_LRU_MAP(mntns_cache, u32, u32, 40960)
-BPF_LRU_MAP(span_tls, u32, struct span_tls_t, 1) // max entries will be overridden at runtime
+BPF_LRU_MAP(go_labels_procs, u32, struct go_labels_offsets_t, 1) // max entries will be overridden at runtime
+BPF_LRU_MAP(otel_tls, u32, struct otel_tls_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(inode_discarders, struct inode_discarder_t, struct inode_discarder_params_t, 4096)
 BPF_LRU_MAP(prctl_discarders, char[MAX_PRCTL_NAME_LEN], int, 1024)
 BPF_LRU_MAP(auid_discarders, u32, struct auid_discarder_params_t, 1024)
@@ -108,7 +113,10 @@ BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 1, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(bind_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(connect_samples, struct bind_connect_sample_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
-BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
+BPF_SK_MAP(sk_storage_meta, struct sock_meta_t, BPF_F_NO_PREALLOC);
+// sk_storage_pid stores the pid owning a socket, used for TC pid resolution through bpf_sk_lookup.
+// BPF_F_CLONE allows the storage entry to be cloned when a socket is cloned.
+BPF_SK_MAP(sk_storage_pid, u32, BPF_F_NO_PREALLOC | BPF_F_CLONE);
 
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, struct cgroup_tracing_event_t, EVENT_GEN_SIZE)
@@ -137,9 +145,11 @@ BPF_PERCPU_ARRAY_MAP(network_flow_monitor_event_gen, struct network_flow_monitor
 BPF_PERCPU_ARRAY_MAP(active_flows_gen, struct active_flows_t, 1)
 BPF_PERCPU_ARRAY_MAP(raw_packet_enabled, u32, 1)
 BPF_PERCPU_ARRAY_MAP(sysctl_event_gen, struct sysctl_event_t, 1)
-BPF_PERCPU_ARRAY_MAP(on_demand_event_gen, struct on_demand_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(setsockopt_event, struct setsockopt_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(dropped_packets, u32, 256)
+// Shared per-CPU staging slot for the deferred span-context fill + send
+BPF_PERCPU_ARRAY_MAP(span_fill_event, struct span_fill_slot_t, 1)
+BPF_PERCPU_ARRAY_MAP(go_labels_scratch_gen, struct go_labels_scratch_t, 1)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
@@ -154,6 +164,9 @@ BPF_PROG_ARRAY(raw_packet_classifier_router_1, 32)
 BPF_PROG_ARRAY(flush_network_stats_progs, 2)
 BPF_PROG_ARRAY(open_ret_progs, 1)
 BPF_PROG_ARRAY(cache_syscall_progs, 1)
+// Targets for the deferred span-context fill + send.
+BPF_PROG_ARRAY(span_fill_progs, 3)
+BPF_PROG_ARRAY(span_fill_tp_progs, 2)
 
 BPF_PERF_EVENT_ARRAY_MAP(events, u32)
 BPF_PERCPU_ARRAY_MAP(events_stats, struct perf_map_stats_t, EVENT_MAX)

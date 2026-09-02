@@ -778,7 +778,11 @@ properties:
         type: boolean
         default: false
         visibility: public
-        description: Set to true to enable the Traceroute Module of the System Probe
+        description: |-
+          Set to true to enable the Traceroute Module of the System Probe.
+          When this setting is unset, the module is enabled automatically if Cloud Network Monitoring
+          and either Standard or Basic Network Path Dynamic Tests are enabled. Set to false explicitly to
+          prevent automatic enablement.
   runtime_security_config:
     $ref: system-probe-cws.yaml
   event_monitoring_config:
@@ -986,6 +990,17 @@ properties:
                 env_vars:
                 - DD_EVENT_MONITORING_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
                 - DD_RUNTIME_SECURITY_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
+          sk_lookup_pid_resolution:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: true
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_SK_LOOKUP_PID_RESOLUTION_ENABLED
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_SK_LOOKUP_PID_RESOLUTION_ENABLED
       basename_approvers_size:
         node_type: setting
         type: integer
@@ -1245,7 +1260,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_SPAN_TRACKING_ENABLED
             - DD_RUNTIME_SECURITY_CONFIG_SPAN_TRACKING_ENABLED
@@ -1513,8 +1528,6 @@ properties:
             node_type: setting
             type: number
             default: 0.5
-            tags:
-            - golang_type:float64
           interrupt_overhead:
             node_type: setting
             type: string
@@ -1533,8 +1546,6 @@ properties:
             node_type: setting
             type: number
             default: 0.1
-            tags:
-            - golang_type:float64
       debug_info_disk_cache:
         node_type: section
         type: object
@@ -1563,8 +1574,6 @@ properties:
             node_type: setting
             type: number
             default: 0
-            tags:
-            - golang_type:float64
       diagnostics_output_file_path:
         node_type: setting
         type: boolean

@@ -286,7 +286,7 @@ func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetInTest("cmd_port", "-1")
+		coreConfig.SetInTest("cmd_port", -1)
 
 		fallbackHostnameFunc = func() (string, error) {
 			return "", errors.New("could not get hostname")
@@ -329,7 +329,7 @@ func TestConfigHostname(t *testing.T) {
 
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetInTest("cmd_port", "-1")
+		coreConfig.SetInTest("cmd_port", -1)
 		config := buildComponent(t, false, coreConfig)
 
 		cfg := config.Object()
@@ -539,6 +539,55 @@ func TestSite(t *testing.T) {
 
 			require.NotNil(t, cfg)
 			assert.Equal(t, tt.url, cfg.Endpoints[0].Host)
+		})
+	}
+}
+
+func TestProfilingURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://intake.profile.datadoghq.com./api/v2/profile",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://intake.profile.datadoghq.eu./api/v2/profile",
+		},
+		{
+			name: "FQDN conversion disabled",
+			settings: map[string]interface{}{
+				"site":                         "datadoghq.eu",
+				"convert_dd_site_fqdn.enabled": false,
+			},
+			expected: "https://intake.profile.datadoghq.eu/api/v2/profile",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://intake.profile.example.com/api/v2/profile",
+		},
+		{
+			name: "explicit profiling URL",
+			settings: map[string]interface{}{
+				"site":                        "datadoghq.eu",
+				"apm_config.profiling_dd_url": "https://profiles.example.com/custom/path",
+			},
+			expected: "https://profiles.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.ProfilingProxy.DDURL)
 		})
 	}
 }

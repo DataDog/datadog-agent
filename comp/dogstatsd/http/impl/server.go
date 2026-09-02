@@ -48,14 +48,20 @@ func (s *server) start(ctx context.Context) error {
 		return fmt.Errorf("error fetching hostname: %w", err)
 	}
 
+	// One semaphore shared by every handler, so the limit applies to the process
+	// rather than to each endpoint.
+	sem := newSemaphore(s.config.GetInt("dogstatsd_experimental_http.max_concurrent_requests"))
+
 	newBase := func(endpoint string) handlerBase {
 		return handlerBase{
-			log:        s.log,
-			tagger:     s.tagger,
-			hostname:   hostname,
-			filterList: s.filterList,
-			out:        s.out,
-			tlm:        s.telemetry.forEndpoint(endpoint),
+			log:            s.log,
+			tagger:         s.tagger,
+			hostname:       hostname,
+			filterList:     s.filterList,
+			out:            s.out,
+			tlm:            s.telemetry.forEndpoint(endpoint),
+			sem:            sem,
+			maxPayloadSize: s.config.GetInt64("dogstatsd_experimental_http.max_payload_size"),
 		}
 	}
 
@@ -69,6 +75,8 @@ func (s *server) start(ctx context.Context) error {
 	s.http = &http.Server{
 		Handler:   mux,
 		Protocols: &p,
+		// Also sets IdleTimeout
+		ReadTimeout: s.config.GetDuration("dogstatsd_experimental_http.read_timeout"),
 	}
 
 	addr := s.config.GetString("dogstatsd_experimental_http.listen_address")

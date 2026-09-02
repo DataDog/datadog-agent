@@ -318,6 +318,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 			InstallName: windowsInstallName,
 			Namespace:   args.Namespace,
 			ValuesYAML:  windowsValuesYAML,
+			Version:     pulumi.String(chartVersion),
 		}, windowsOpts...)
 		if err != nil {
 			return nil, err
@@ -881,6 +882,19 @@ func BuildOpenShiftHelmValues() HelmValues {
 			"podSecurity": pulumi.Map{
 				"securityContextConstraints": pulumi.Map{
 					"create": pulumi.Bool(true),
+				},
+			},
+		},
+		"clusterChecksRunner": pulumi.Map{
+			"enabled": pulumi.Bool(true),
+			"resources": pulumi.StringMapMap{
+				"limits": pulumi.StringMap{
+					"cpu":    pulumi.String("300m"),
+					"memory": pulumi.String("400Mi"),
+				},
+				"requests": pulumi.StringMap{
+					"cpu":    pulumi.String("150m"),
+					"memory": pulumi.String("300Mi"),
 				},
 			},
 		},
