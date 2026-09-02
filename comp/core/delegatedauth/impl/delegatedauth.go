@@ -650,7 +650,11 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 
 	written := false
 	for attempt := 1; attempt <= maxAdditionalEndpointsWriteAttempts; attempt++ {
+		sequenceID := d.config.GetSequenceID()
 		endpoints := d.config.GetStringMapStringSlice(configKey)
+		if d.config.GetSequenceID() != sequenceID {
+			continue
+		}
 		merged := make(map[string][]string, len(endpoints))
 		for k, v := range endpoints {
 			merged[k] = append([]string{}, v...)
@@ -696,15 +700,12 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 		}
 		merged[domain] = keys
 
-		// Re-check the whole value before writing to avoid discarding concurrent changes to other domains.
-		if beforeWrite := d.config.GetStringMapStringSlice(configKey); !reflect.DeepEqual(beforeWrite, endpoints) {
-			if !lastAttempt {
-				continue
+		if !d.config.SetIfSequenceID(configKey, merged, pkgconfigmodel.SourceSecret, sequenceID) {
+			if lastAttempt {
+				log.Warnf("Concurrent update to '%s' prevented delegated auth key write for additional endpoint '%s'; giving up after %d attempts, a later refresh will retry", configKey, domain, maxAdditionalEndpointsWriteAttempts)
 			}
-			log.Warnf("Possible concurrent update to '%s' detected while writing delegated auth key for additional endpoint '%s'; writing anyway after %d attempts", configKey, domain, maxAdditionalEndpointsWriteAttempts)
+			continue
 		}
-
-		d.config.Set(configKey, merged, pkgconfigmodel.SourceSecret)
 
 		// Verify the write stuck.
 		if current := d.config.GetStringMapStringSlice(configKey); reflect.DeepEqual(current, merged) {
@@ -738,10 +739,14 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 
 	written := false
 	for attempt := 1; attempt <= maxAdditionalEndpointsWriteAttempts; attempt++ {
+		sequenceID := d.config.GetSequenceID()
 		entries, ok := common.NormalizeListShapeEntries(d.config.Get(configKey))
 		if !ok {
 			log.Warnf("Could not read list-shape additional endpoints at '%s' (unexpected type); skipping delegated auth update", configKey)
 			return
+		}
+		if d.config.GetSequenceID() != sequenceID {
+			continue
 		}
 
 		merged := make([]any, len(entries))
@@ -794,16 +799,12 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 			return
 		}
 
-		// Re-check the list before writing — see mergeIntoAdditionalEndpoints.
-		entriesNormalized, _ := common.NormalizeListShapeEntries(entries)
-		if beforeWrite, ok := common.NormalizeListShapeEntries(d.config.Get(configKey)); ok && !reflect.DeepEqual(beforeWrite, entriesNormalized) {
-			if !lastAttempt {
-				continue
+		if !d.config.SetIfSequenceID(configKey, merged, pkgconfigmodel.SourceSecret, sequenceID) {
+			if lastAttempt {
+				log.Warnf("Concurrent update to '%s' prevented delegated auth key write for additional endpoint entry; giving up after %d attempts, a later refresh will retry", configKey, maxAdditionalEndpointsWriteAttempts)
 			}
-			log.Warnf("Possible concurrent update to '%s' detected while writing delegated auth key for additional endpoint entry; writing anyway after %d attempts", configKey, maxAdditionalEndpointsWriteAttempts)
+			continue
 		}
-
-		d.config.Set(configKey, merged, pkgconfigmodel.SourceSecret)
 
 		// Verify the write stuck; normalize both sides since merged's element representation
 		// isn't necessarily identical to what a fresh read of the same data produces.
