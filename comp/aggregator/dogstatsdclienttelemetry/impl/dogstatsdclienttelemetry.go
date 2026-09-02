@@ -112,7 +112,7 @@ func normalizeClientLibrary(client string) string {
 
 func normalizeClientTransport(transport string) string {
 	switch transport {
-	case "udp", "uds", "uds-stream", "uds-datagram", "namedpipe", "named_pipe", "custom", "http":
+	case "udp", "uds", "uds-stream", "uds-datagram", "pipe", "namedpipe", "named_pipe", "custom", "http":
 		return transport
 	default:
 		return unknownTagValue
