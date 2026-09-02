@@ -1967,6 +1967,33 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
+        "SetNSEvent": {
+            "properties": {
+                "fd": {
+                    "type": "integer",
+                    "description": "File descriptor of the namespace the thread requested to join"
+                },
+                "nstype": {
+                    "type": "string",
+                    "description": "Namespace types the thread joined, ANY if the type couldn't be determined"
+                },
+                "mntns": {
+                    "type": "integer",
+                    "description": "Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
+                },
+                "netns": {
+                    "type": "integer",
+                    "description": "Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "fd",
+                "nstype"
+            ],
+            "description": "SetNSEventSerializer serializes a setns event"
+        },
         "SetSockOptEvent": {
             "properties": {
                 "socket_type": {
@@ -2575,6 +2602,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         "setrlimit": {
             "$ref": "#/$defs/SetrlimitEvent"
         },
+        "setns": {
+            "$ref": "#/$defs/SetNSEvent"
+        },
         "socket": {
             "$ref": "#/$defs/SocketEvent"
         }
@@ -2630,6 +2660,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 | `setrlimit` | $ref | Please see [SetrlimitEvent](#setrlimitevent) |
+| `setns` | $ref | Please see [SetNSEvent](#setnsevent) |
 | `socket` | $ref | Please see [SocketEvent](#socketevent) |
 
 ## `AWSIMDSEvent`
@@ -5513,6 +5544,48 @@ ancestor lineage to find the same value. |
 | `tags` | List of tags associated to this profile |
 | `event_in_profile` | True if the corresponding event is part of this profile |
 | `event_type_state` | State of the event type in this profile |
+
+
+## `SetNSEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "fd": {
+            "type": "integer",
+            "description": "File descriptor of the namespace the thread requested to join"
+        },
+        "nstype": {
+            "type": "string",
+            "description": "Namespace types the thread joined, ANY if the type couldn't be determined"
+        },
+        "mntns": {
+            "type": "integer",
+            "description": "Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
+        },
+        "netns": {
+            "type": "integer",
+            "description": "Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "fd",
+        "nstype"
+    ],
+    "description": "SetNSEventSerializer serializes a setns event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `fd` | File descriptor of the namespace the thread requested to join |
+| `nstype` | Namespace types the thread joined, ANY if the type couldn't be determined |
+| `mntns` | Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved |
+| `netns` | Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved |
 
 
 ## `SetSockOptEvent`

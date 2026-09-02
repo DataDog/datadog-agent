@@ -602,6 +602,19 @@ struct setrlimit_event_t {
     u64 rlim_max;
 };
 
+struct setns_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct cgroup_context_t cgroup;
+    struct syscall_t syscall;
+
+    s32 fd;
+    s32 nstype;
+    u32 mntns_id;
+    u32 netns_id;
+};
+
 struct setsockopt_event_t {
     struct kevent_t event;
     struct process_context_t process;

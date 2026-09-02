@@ -79,6 +79,7 @@ enum event_type
     EVENT_SETSID,
     EVENT_NOP,
     EVENT_SOCKET,
+    EVENT_SETNS,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events

@@ -1631,6 +1631,25 @@ func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SetNSEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := e.SyscallEvent.UnmarshalBinary(data)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 16 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.FD = int(int32(binary.NativeEndian.Uint32(data[read : read+4])))
+	e.NSType = int(int32(binary.NativeEndian.Uint32(data[read+4 : read+8])))
+	e.MntNS = binary.NativeEndian.Uint32(data[read+8 : read+12])
+	e.NetNS = binary.NativeEndian.Uint32(data[read+12 : read+16])
+
+	return read + 16, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *CapabilitiesEvent) UnmarshalBinary(data []byte) (int, error) {
 	const size = 16
 	if len(data) < size {

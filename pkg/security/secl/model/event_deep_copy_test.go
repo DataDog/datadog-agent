@@ -341,6 +341,11 @@ func createFullyPopulatedEvent() *Event {
 	e.Setrlimit.RlimCur = 1024
 	e.Setrlimit.RlimMax = 2048
 
+	e.SetNS.FD = 3
+	e.SetNS.NSType = 0x40000000 // CLONE_NEWNET
+	e.SetNS.MntNS = 4026531840
+	e.SetNS.NetNS = 4026532001
+
 	e.CapabilitiesUsage.Attempted = 0xABCD
 	e.CapabilitiesUsage.Used = 0xEF01
 

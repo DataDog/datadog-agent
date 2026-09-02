@@ -59,6 +59,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `rmdir` | File | A directory was removed | 7.27 |
 | `selinux` | Kernel | An SELinux operation was run | 7.30 |
 | `setgid` | Process | A process changed its effective gid | 7.27 |
+| `setns` | Kernel | A thread joined an existing namespace | 7.84 |
 | `setrlimit` | Process | A setrlimit command was executed | 7.68 |
 | `setsockopt` | Network | A setsockopt was executed | 7.68 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
@@ -1894,6 +1895,18 @@ A process changed its effective gid
 | [`setgid.gid`](#setgid-gid-doc) | New GID of the process |
 | [`setgid.group`](#setgid-group-doc) | New group of the process |
 
+### Event `setns`
+
+A thread joined an existing namespace
+
+| Property | Definition |
+| -------- | ------------- |
+| [`setns.fd`](#setns-fd-doc) | File descriptor of the namespace the thread requested to join |
+| [`setns.mntns`](#setns-mntns-doc) | MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved |
+| [`setns.netns`](#setns-netns-doc) | NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved |
+| [`setns.nstype`](#setns-nstype-doc) | Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined |
+| [`setns.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
 ### Event `setrlimit`
 
 A setrlimit command was executed
@@ -3609,8 +3622,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 28 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 29 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setns` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -4722,6 +4735,37 @@ Definition: New GID of the process
 Type: string
 
 Definition: New group of the process
+
+
+
+### `setns.fd` {#setns-fd-doc}
+Type: int
+
+Definition: File descriptor of the namespace the thread requested to join
+
+
+
+### `setns.mntns` {#setns-mntns-doc}
+Type: int
+
+Definition: MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved
+
+
+
+### `setns.netns` {#setns-netns-doc}
+Type: int
+
+Definition: NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved
+
+
+
+### `setns.nstype` {#setns-nstype-doc}
+Type: int
+
+Definition: Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined
+
+
+Constants: [Namespace types](#namespace-types)
 
 
 
@@ -5956,6 +6000,20 @@ MMap flags are the supported flags for the mmap syscall.
 | `MAP_HUGE_2GB` | all |
 | `MAP_HUGE_16GB` | all |
 | `MAP_32BIT` | amd64 |
+
+### `Namespace types` {#namespace-types}
+Namespace types are the supported namespace types for the setns syscall.
+
+| Name | Architectures |
+| ---- |---------------|
+| `CLONE_NEWTIME` | all |
+| `CLONE_NEWNS` | all |
+| `CLONE_NEWCGROUP` | all |
+| `CLONE_NEWUTS` | all |
+| `CLONE_NEWIPC` | all |
+| `CLONE_NEWUSER` | all |
+| `CLONE_NEWPID` | all |
+| `CLONE_NEWNET` | all |
 
 ### `Network Address Family constants` {#network-address-family-constants}
 Network Address Family constants are the supported network address families.

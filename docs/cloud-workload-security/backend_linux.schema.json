@@ -1956,6 +1956,33 @@
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
+    "SetNSEvent": {
+      "properties": {
+        "fd": {
+          "type": "integer",
+          "description": "File descriptor of the namespace the thread requested to join"
+        },
+        "nstype": {
+          "type": "string",
+          "description": "Namespace types the thread joined, ANY if the type couldn't be determined"
+        },
+        "mntns": {
+          "type": "integer",
+          "description": "Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
+        },
+        "netns": {
+          "type": "integer",
+          "description": "Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "fd",
+        "nstype"
+      ],
+      "description": "SetNSEventSerializer serializes a setns event"
+    },
     "SetSockOptEvent": {
       "properties": {
         "socket_type": {
@@ -2563,6 +2590,9 @@
     },
     "setrlimit": {
       "$ref": "#/$defs/SetrlimitEvent"
+    },
+    "setns": {
+      "$ref": "#/$defs/SetNSEvent"
     },
     "socket": {
       "$ref": "#/$defs/SocketEvent"

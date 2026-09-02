@@ -219,6 +219,7 @@ dd_agent_go_test(
         "selftests_test.go",
         "selinux_test.go",
         "serializers_test.go",
+        "setns_test.go",
         "setrlimit_test.go",
         "setsockopt_test.go",
         "signal_test.go",

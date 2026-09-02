@@ -136,6 +136,7 @@ type Event struct {
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 	SysCtl       SysCtlEvent       `field:"sysctl" event:"sysctl"`               // [7.65] [Kernel] A sysctl parameter was read or modified
 	CgroupWrite  CgroupWriteEvent  `field:"cgroup_write" event:"cgroup_write"`   // [7.68] [Kernel] A process migrated another process to a cgroup
+	SetNS        SetNSEvent        `field:"setns" event:"setns"`                 // [7.84] [Kernel] A thread joined an existing namespace
 
 	// network events
 	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
@@ -1117,6 +1118,15 @@ type SetrlimitEvent struct {
 	RlimMax   uint64          `field:"rlim_max"` // SECLDoc[rlim_max] Definition:`Maximum (hard) limit value`
 	TargetPid uint32          `field:"-"`        // Internal field, not exposed to users
 	Target    *ProcessContext `field:"target"`   // SECLDoc[target] Definition:`Process context of the target process`
+}
+
+// SetNSEvent represents a setns event
+type SetNSEvent struct {
+	SyscallEvent
+	FD     int    `field:"fd"`     // SECLDoc[fd] Definition:`File descriptor of the namespace the thread requested to join`
+	NSType int    `field:"nstype"` // SECLDoc[nstype] Definition:`Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined` Constants:`Namespace types`
+	MntNS  uint32 `field:"mntns"`  // SECLDoc[mntns] Definition:`MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved`
+	NetNS  uint32 `field:"netns"`  // SECLDoc[netns] Definition:`NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved`
 }
 
 // SetSockOptEvent represents a set socket option event

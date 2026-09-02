@@ -62,6 +62,7 @@ func initSetSockOptOptNameConstantsSolSocket() {}
 func initSetSockOptOptNameConstantsTCP()       {}
 func initSetSockOptOptNameConstantsIPv6()      {}
 func initRlimitConstants()                     {}
+func initNamespaceTypeConstants()              {}
 func initSocketDomainConstants()               {}
 func initSocketTypeConstants()                 {}
 func initSocketFamilyConstants()               {}

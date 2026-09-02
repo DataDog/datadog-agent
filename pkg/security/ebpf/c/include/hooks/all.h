@@ -38,6 +38,7 @@
 #include "utimes.h"
 #include "on_demand.h"
 #include "chdir.h"
+#include "setns.h"
 #include "setrlimit.h"
 #include "setsid.h"
 #include "caps.h"

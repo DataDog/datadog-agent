@@ -1207,6 +1207,75 @@ int test_new_netns_exec(int argc, char **argv) {
     return EXIT_FAILURE;
 }
 
+// setns_from_path opens the nsfs file at path and joins the namespace it refers to.
+static int setns_from_path(const char *path, int nstype) {
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        perror("open");
+        return EXIT_FAILURE;
+    }
+
+    if (setns(fd, nstype) < 0) {
+        perror("setns");
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
+// Usage: syscall_tester setns <net|mnt|any|netns-roundtrip>
+int test_setns(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: setns <net|mnt|any|netns-roundtrip>\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *mode = argv[1];
+
+    if (strcmp(mode, "net") == 0) {
+        return setns_from_path("/proc/self/ns/net", CLONE_NEWNET);
+    }
+
+    if (strcmp(mode, "mnt") == 0) {
+        return setns_from_path("/proc/self/ns/mnt", CLONE_NEWNS);
+    }
+
+    // nstype 0 lets the kernel infer the namespace type from the file descriptor
+    if (strcmp(mode, "any") == 0) {
+        return setns_from_path("/proc/self/ns/net", 0);
+    }
+
+    // Leave the current network namespace, then join it back through the file descriptor
+    // held across the unshare: the reported netns must be the original one, not the new one.
+    if (strcmp(mode, "netns-roundtrip") == 0) {
+        int fd = open("/proc/self/ns/net", O_RDONLY | O_CLOEXEC);
+        if (fd < 0) {
+            perror("open");
+            return EXIT_FAILURE;
+        }
+
+        if (unshare(CLONE_NEWNET) < 0) {
+            perror("unshare");
+            close(fd);
+            return EXIT_FAILURE;
+        }
+
+        if (setns(fd, CLONE_NEWNET) < 0) {
+            perror("setns");
+            close(fd);
+            return EXIT_FAILURE;
+        }
+
+        close(fd);
+        return EXIT_SUCCESS;
+    }
+
+    fprintf(stderr, "Unknown setns mode: %s\n", mode);
+    return EXIT_FAILURE;
+}
+
 int test_network_flow_send_udp4(int argc, char **argv) {
     if (argc < 3) {
         fprintf(stderr, "Please specify the remote IP address and port\n");
@@ -2066,6 +2135,8 @@ int main(int argc, char **argv) {
             exit_code = test_tracer_memfd_with_keys(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "setns") == 0) {
+            exit_code = test_setns(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {

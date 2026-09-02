@@ -7760,6 +7760,40 @@
       ]
     },
     {
+      "name": "setns",
+      "definition": "A thread joined an existing namespace",
+      "type": "Kernel",
+      "from_agent_version": "7.84",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "setns.fd",
+          "definition": "File descriptor of the namespace the thread requested to join",
+          "property_doc_link": "setns-fd-doc"
+        },
+        {
+          "name": "setns.mntns",
+          "definition": "MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved",
+          "property_doc_link": "setns-mntns-doc"
+        },
+        {
+          "name": "setns.netns",
+          "definition": "NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved",
+          "property_doc_link": "setns-netns-doc"
+        },
+        {
+          "name": "setns.nstype",
+          "definition": "Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined",
+          "property_doc_link": "setns-nstype-doc"
+        },
+        {
+          "name": "setns.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "setrlimit",
       "definition": "A setrlimit command was executed",
       "type": "Process",
@@ -14735,6 +14769,7 @@
         "removexattr",
         "rename",
         "rmdir",
+        "setns",
         "setrlimit",
         "setsockopt",
         "setxattr",
@@ -16716,6 +16751,54 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.fd",
+      "link": "setns-fd-doc",
+      "type": "int",
+      "definition": "File descriptor of the namespace the thread requested to join",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.mntns",
+      "link": "setns-mntns-doc",
+      "type": "int",
+      "definition": "MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.netns",
+      "link": "setns-netns-doc",
+      "type": "int",
+      "definition": "NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.nstype",
+      "link": "setns-nstype-doc",
+      "type": "int",
+      "definition": "Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "Namespace types",
+      "constants_link": "namespace-types",
       "examples": []
     },
     {
@@ -20560,6 +20643,45 @@
         {
           "name": "MAP_32BIT",
           "architecture": "amd64"
+        }
+      ]
+    },
+    {
+      "name": "Namespace types",
+      "link": "namespace-types",
+      "description": "Namespace types are the supported namespace types for the setns syscall.",
+      "all": [
+        {
+          "name": "CLONE_NEWTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWNS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWCGROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUTS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWIPC",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUSER",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWPID",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWNET",
+          "architecture": "all"
         }
       ]
     },

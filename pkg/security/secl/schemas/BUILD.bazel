@@ -47,6 +47,7 @@ go_library(
         "rename.schema.json",
         "ruleset_loaded.schema.json",
         "selinux.schema.json",
+        "setns.schema.json",
         "setrlimit.schema.json",
         "signal.schema.json",
         "socket.schema.json",

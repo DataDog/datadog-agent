@@ -39,6 +39,7 @@ go_library(
         "rename.go",
         "rmdir.go",
         "selinux.go",
+        "setns.go",
         "setrlimit.go",
         "setsockopt.go",
         "shared.go",

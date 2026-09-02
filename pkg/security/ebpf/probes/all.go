@@ -120,6 +120,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getSocketProbes(fentry, cgroup2MountPoint)...)
 	allProbes = append(allProbes, getMemfdProbes(fentry)...)
 	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "setsid")
+	allProbes = append(allProbes, getSetNSProbes(fentry)...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{

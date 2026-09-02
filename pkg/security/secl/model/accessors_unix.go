@@ -55,6 +55,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("rmdir"),
 		eval.EventType("selinux"),
 		eval.EventType("setgid"),
+		eval.EventType("setns"),
 		eval.EventType("setrlimit"),
 		eval.EventType("setsockopt"),
 		eval.EventType("setuid"),
@@ -22538,6 +22539,61 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setns.fd":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SetNS.FD
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.nstype":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SetNS.NSType
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.resource":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -38701,6 +38757,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setgid.fsgroup",
 		"setgid.gid",
 		"setgid.group",
+		"setns.fd",
+		"setns.mntns",
+		"setns.netns",
+		"setns.nstype",
+		"setns.retval",
 		"setrlimit.resource",
 		"setrlimit.retval",
 		"setrlimit.rlim_cur",
@@ -42517,6 +42578,16 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setgid", reflect.Int, "int", false, nil
 	case "setgid.group":
 		return "setgid", reflect.String, "string", false, nil
+	case "setns.fd":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.mntns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.netns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.nstype":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.retval":
+		return "setns", reflect.Int, "int", false, nil
 	case "setrlimit.resource":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.retval":
@@ -48190,6 +48261,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("setgid.gid", &ev.SetGID.GID, value)
 	case "setgid.group":
 		return ev.setStringFieldValue("setgid.group", &ev.SetGID.Group, value)
+	case "setns.fd":
+		return ev.setIntFieldValue("setns.fd", &ev.SetNS.FD, value)
+	case "setns.mntns":
+		return ev.setUint32FieldValue("setns.mntns", &ev.SetNS.MntNS, value)
+	case "setns.netns":
+		return ev.setUint32FieldValue("setns.netns", &ev.SetNS.NetNS, value)
+	case "setns.nstype":
+		return ev.setIntFieldValue("setns.nstype", &ev.SetNS.NSType, value)
+	case "setns.retval":
+		return ev.setInt64FieldValue("setns.retval", &ev.SetNS.SyscallEvent.Retval, value)
 	case "setrlimit.resource":
 		return ev.setIntFieldValue("setrlimit.resource", &ev.Setrlimit.Resource, value)
 	case "setrlimit.retval":

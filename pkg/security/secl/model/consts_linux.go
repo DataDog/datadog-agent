@@ -880,6 +880,19 @@ var (
 		"RLIMIT_RTTIME":     unix.RLIMIT_RTTIME,
 	}
 
+	// NamespaceTypeConstants are the supported namespace types for the setns syscall
+	// generate_constants:Namespace types,Namespace types are the supported namespace types for the setns syscall.
+	NamespaceTypeConstants = map[string]int{
+		"CLONE_NEWTIME":   unix.CLONE_NEWTIME,
+		"CLONE_NEWNS":     unix.CLONE_NEWNS,
+		"CLONE_NEWCGROUP": unix.CLONE_NEWCGROUP,
+		"CLONE_NEWUTS":    unix.CLONE_NEWUTS,
+		"CLONE_NEWIPC":    unix.CLONE_NEWIPC,
+		"CLONE_NEWUSER":   unix.CLONE_NEWUSER,
+		"CLONE_NEWPID":    unix.CLONE_NEWPID,
+		"CLONE_NEWNET":    unix.CLONE_NEWNET,
+	}
+
 	// SocketDomainConstants is the list of socket domains
 	// generate_constants:Socket domains,Socket domains are the supported socket domains.
 	SocketDomainConstants = map[string]int{
@@ -1460,6 +1473,13 @@ func initRlimitConstants() {
 	for k, v := range RlimitConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
 		rlimitStrings[v] = k
+	}
+}
+
+func initNamespaceTypeConstants() {
+	for k, v := range NamespaceTypeConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		namespaceTypeStrings[v] = k
 	}
 }
 
@@ -2326,6 +2346,18 @@ const (
 	PipeBufFlagLoss PipeBufFlag = 0x40 /* Message loss happened after this buffer */
 )
 
+// NamespaceType represents the namespace type bitmask requested by a setns syscall
+type NamespaceType int
+
+func (nst NamespaceType) String() string {
+	// 0 means the type could not be determined: the caller passed 0 and no install callback was
+	// observed. Name it rather than render an empty string.
+	if nst == 0 {
+		return "ANY"
+	}
+	return bitmaskToString(int(nst), namespaceTypeStrings)
+}
+
 // Signal represents a type of unix signal (ie, SIGKILL, SIGSTOP etc)
 type Signal int
 
@@ -2352,6 +2384,7 @@ var (
 	pipeBufFlagStrings                = map[int]string{}
 	sysctlActionStrings               = map[uint32]string{}
 	rlimitStrings                     = map[int]string{}
+	namespaceTypeStrings              = map[int]string{}
 	setsockoptOptNameStringsIP        = map[int]string{}
 	setsockoptOptNameStringsSolSocket = map[int]string{}
 	setsockoptOptNameStringsTCP       = map[int]string{}

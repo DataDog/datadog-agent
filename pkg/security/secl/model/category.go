@@ -113,6 +113,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		CgroupWriteEventType.String(),
 		CgroupTracingEventType.String(),
 		UnshareMountNsEventType.String(),
+		SetNSEventType.String(),
 		OnDemandEventType.String():
 		return KernelCategory
 

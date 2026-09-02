@@ -64,6 +64,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Rmdir = deepCopyRmdirEvent(e.Rmdir)
 	copied.SELinux = deepCopySELinuxEvent(e.SELinux)
 	copied.SetGID = deepCopySetgidEvent(e.SetGID)
+	copied.SetNS = deepCopySetNSEvent(e.SetNS)
 	copied.SetSockOpt = deepCopySetSockOptEvent(e.SetSockOpt)
 	copied.SetUID = deepCopySetuidEvent(e.SetUID)
 	copied.SetXAttr = deepCopySetXAttrEvent(e.SetXAttr)
@@ -1098,6 +1099,15 @@ func deepCopySetgidEvent(fieldToCopy SetgidEvent) SetgidEvent {
 	copied.FSGroup = fieldToCopy.FSGroup
 	copied.GID = fieldToCopy.GID
 	copied.Group = fieldToCopy.Group
+	return copied
+}
+func deepCopySetNSEvent(fieldToCopy SetNSEvent) SetNSEvent {
+	copied := SetNSEvent{}
+	copied.FD = fieldToCopy.FD
+	copied.MntNS = fieldToCopy.MntNS
+	copied.NSType = fieldToCopy.NSType
+	copied.NetNS = fieldToCopy.NetNS
+	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	return copied
 }
 func deepCopySetSockOptEvent(fieldToCopy SetSockOptEvent) SetSockOptEvent {
