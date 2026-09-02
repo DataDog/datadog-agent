@@ -33,6 +33,13 @@ other:
     available from the ``telemetry`` core check with a proper ``sender`` tag.
 upgrade:
   - |
+    Prometheus histograms in the telemetry registry are reported as native Datadog
+    distributions rather than as ``.sum`` and ``.count`` counters, so percentiles, min and max
+    are available. Bucket counts are de-cumulated and submitted as bucket ranges, which the
+    check sampler interpolates into a sketch; this costs one series per histogram instead of
+    two, and the first observation in each bucket is skipped so that history accumulated
+    before the Agent started is not reported as a single interval.
+  - |
     When a remote agent (such as ADP) reports a metric that the Core Agent also reports as
     default telemetry, the ``telemetry`` core check no longer sums the two into a single
     series with the ``emitter`` tag stripped. Both series are now reported unchanged, so the

@@ -35,6 +35,12 @@ const internalTelemetryAgentConfig = `telemetry:
 // "everything the curated set is supposed to leave behind".
 const notCuratedMetric = "datadog.agent.transactions.input_bytes"
 
+// histogramMetric is a Prometheus histogram the check reports as a native distribution. The Go
+// runtime collector registers it in every Agent and the scheduler accumulates latencies
+// continuously, so unlike most internal histograms it is reliably non-empty on an idle host, and
+// its per-interval delta is reliably non-zero.
+const histogramMetric = "datadog.agent.go_sched_latencies_seconds"
+
 type internalTelemetrySuite struct {
 	e2e.BaseSuite[environments.Host]
 }
@@ -132,6 +138,15 @@ func (s *internalTelemetrySuite) TestCurationAndAdvancedAtRuntime() {
 			metrics, err := s.Env().FakeIntake.Client().FilterMetrics(notCuratedMetric)
 			require.NoError(c, err)
 			assert.NotEmpty(c, metrics, "%s should be reported once advanced mode is on", notCuratedMetric)
+		}, 2*time.Minute, 10*time.Second)
+
+		// Histograms go out as native distributions rather than as metrics, so they arrive as
+		// sketches. The first observation of each bucket is skipped to avoid reporting everything
+		// since Agent start in one interval, so this needs a second check run to appear.
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			sketches, err := s.Env().FakeIntake.Client().FilterSketches(histogramMetric)
+			require.NoError(c, err)
+			assert.NotEmpty(c, sketches, "%s should be reported as a distribution", histogramMetric)
 		}, 2*time.Minute, 10*time.Second)
 	})
 }

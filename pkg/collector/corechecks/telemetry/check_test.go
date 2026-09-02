@@ -7,6 +7,7 @@ package telemetry
 
 import (
 	"maps"
+	"math"
 	"slices"
 	"testing"
 
@@ -35,6 +36,10 @@ func stringPtr(value string) *string {
 }
 
 func float64Ptr(value float64) *float64 {
+	return &value
+}
+
+func uint64Ptr(value uint64) *uint64 {
 	return &value
 }
 
@@ -78,21 +83,26 @@ func counterMetricFamily(name string, value float64) *dto.MetricFamily {
 	return counterMetricFamilyWith(name, counterMetric(nil, value))
 }
 
-func histogramMetricFamily(name string, count uint64, sum float64) *dto.MetricFamily {
+// histogramBucket is an (upper bound, cumulative count) pair, matching Prometheus semantics where
+// each bucket counts every observation at or below its bound.
+type histogramBucket struct {
+	upperBound float64
+	cumulative uint64
+}
+
+func histogramMetricFamily(name string, sampleCount uint64, sampleSum float64, buckets ...histogramBucket) *dto.MetricFamily {
 	metricType := dto.MetricType_HISTOGRAM
+	histogram := &dto.Histogram{SampleCount: &sampleCount, SampleSum: &sampleSum}
+	for _, bucket := range buckets {
+		histogram.Bucket = append(histogram.Bucket, &dto.Bucket{
+			UpperBound:      float64Ptr(bucket.upperBound),
+			CumulativeCount: uint64Ptr(bucket.cumulative),
+		})
+	}
 	return &dto.MetricFamily{
-		Name: stringPtr(name),
-		Type: &metricType,
-		Metric: []*dto.Metric{{
-			Histogram: &dto.Histogram{
-				SampleCount: &count,
-				SampleSum:   &sum,
-				Bucket: []*dto.Bucket{
-					{UpperBound: float64Ptr(1), CumulativeCount: &count},
-					{UpperBound: float64Ptr(10), CumulativeCount: &count},
-				},
-			},
-		}},
+		Name:   stringPtr(name),
+		Type:   &metricType,
+		Metric: []*dto.Metric{{Histogram: histogram}},
 	}
 }
 
@@ -312,16 +322,78 @@ func TestRunReportsRemoteOnlyMetricsThroughInternalTelemetry(t *testing.T) {
 	s.AssertExpectations(t)
 }
 
-func TestSendMetricFamiliesHistogramDropsBuckets(t *testing.T) {
+const histogramMetric = "datadog.agent.test.histogram"
+
+// sendHistogram runs one metric family through the check and returns the mock sender, with the
+// bucket call accepted unconditionally so each test can assert only what it cares about.
+func sendHistogram(t *testing.T, mf *dto.MetricFamily) *mocksender.MockSender {
+	t.Helper()
+
 	c, s := newTestCheck(t, nil, nil, nil)
+	s.On("HistogramBucket", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	c.sendMetricFamilies([]*dto.MetricFamily{mf}, nil, nil, s)
 
-	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.histogram.sum", 12.5, "", []string{}, true).Return().Times(1)
-	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.histogram.count", 3.0, "", []string{}, true).Return().Times(1)
+	return s
+}
 
-	c.sendMetricFamilies([]*dto.MetricFamily{histogramMetricFamily("test__histogram", 3, 12.5)}, nil, nil, s)
+func TestSendHistogramDeCumulatesBuckets(t *testing.T) {
+	// 100 observations at or below 1, 50 more in (1,10], and 10 above 10.
+	s := sendHistogram(t, histogramMetricFamily("test__histogram", 160, 12.5,
+		histogramBucket{upperBound: 1, cumulative: 100},
+		histogramBucket{upperBound: 10, cumulative: 150},
+	))
 
-	s.AssertNumberOfCalls(t, "MonotonicCountWithFlushFirstValue", 2)
-	s.AssertExpectations(t)
+	// Bounds are ranges, not cumulative counts, and the sampler is told they grow monotonically so
+	// it computes the per-interval delta itself.
+	s.AssertHistogramBucket(t, "HistogramBucket", histogramMetric, 100, 0, 1, true, "", []string{}, false)
+	s.AssertHistogramBucket(t, "HistogramBucket", histogramMetric, 50, 1, 10, true, "", []string{}, false)
+	// client_golang leaves +Inf out of the dto, so it is synthesized from SampleCount.
+	s.AssertHistogramBucket(t, "HistogramBucket", histogramMetric, 10, 10, math.Inf(1), true, "", []string{}, false)
+	s.AssertNumberOfCalls(t, "HistogramBucket", 3)
+}
+
+func TestSendHistogramUsesAnExplicitInfBucket(t *testing.T) {
+	// The text parser behind remote agent telemetry does include the +Inf bucket. It must be used
+	// rather than double counted against SampleCount.
+	s := sendHistogram(t, histogramMetricFamily("test__histogram", 160, 12.5,
+		histogramBucket{upperBound: 1, cumulative: 100},
+		histogramBucket{upperBound: math.Inf(1), cumulative: 160},
+	))
+
+	s.AssertHistogramBucket(t, "HistogramBucket", histogramMetric, 100, 0, 1, true, "", []string{}, false)
+	s.AssertHistogramBucket(t, "HistogramBucket", histogramMetric, 60, 1, math.Inf(1), true, "", []string{}, false)
+	s.AssertNumberOfCalls(t, "HistogramBucket", 2)
+}
+
+func TestSendHistogramSortsBucketsBeforeDeCumulating(t *testing.T) {
+	// De-cumulating an unsorted family without sorting first would yield negative deltas.
+	s := sendHistogram(t, histogramMetricFamily("test__histogram", 160, 12.5,
+		histogramBucket{upperBound: 10, cumulative: 150},
+		histogramBucket{upperBound: 1, cumulative: 100},
+	))
+
+	s.AssertHistogramBucket(t, "HistogramBucket", histogramMetric, 100, 0, 1, true, "", []string{}, false)
+	s.AssertHistogramBucket(t, "HistogramBucket", histogramMetric, 50, 1, 10, true, "", []string{}, false)
+	s.AssertNumberOfCalls(t, "HistogramBucket", 3)
+}
+
+func TestSendHistogramReportsNoSumOrCount(t *testing.T) {
+	// The sketch carries the count exactly and the average, so the suffixed counts the check used
+	// to emit instead of buckets are gone.
+	s := sendHistogram(t, histogramMetricFamily("test__histogram", 160, 12.5,
+		histogramBucket{upperBound: 1, cumulative: 100},
+	))
+
+	s.AssertNumberOfCalls(t, "MonotonicCountWithFlushFirstValue", 0)
+	s.AssertNumberOfCalls(t, "Gauge", 0)
+}
+
+func TestSendHistogramWithoutBuckets(t *testing.T) {
+	// A histogram with no explicit buckets is still worth its overflow bucket.
+	s := sendHistogram(t, histogramMetricFamily("test__histogram", 7, 12.5))
+
+	s.AssertHistogramBucket(t, "HistogramBucket", histogramMetric, 7, 0, math.Inf(1), true, "", []string{}, false)
+	s.AssertNumberOfCalls(t, "HistogramBucket", 1)
 }
 
 func TestSendMetricFamiliesSkipsUnsupportedTypes(t *testing.T) {

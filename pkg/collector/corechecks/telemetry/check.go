@@ -8,7 +8,9 @@
 package telemetry
 
 import (
+	"cmp"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 
@@ -228,11 +230,72 @@ func (c *checkImpl) sendMetricFamilies(mfs []*dto.MetricFamily, familyFilter fun
 				if m.Histogram == nil {
 					continue
 				}
-				// Buckets are dropped on purpose: `le` is unbounded and would multiply the number of
-				// series by the bucket count. Sum and count still give the rate and the average.
-				sender.MonotonicCountWithFlushFirstValue(name+".sum", m.Histogram.GetSampleSum(), "", tags, true)
-				sender.MonotonicCountWithFlushFirstValue(name+".count", float64(m.Histogram.GetSampleCount()), "", tags, true)
+				sendHistogramAsDistribution(name, m.Histogram, tags, sender)
 			}
+		}
+	}
+}
+
+// sendHistogramAsDistribution reports a Prometheus histogram as a native Datadog distribution,
+// feeding each bucket range to the check sampler which interpolates them into a sketch. This is
+// what the Python openmetrics check produces with `send_distribution_buckets: true`, and it costs
+// one series per histogram rather than one per bucket.
+//
+// Prometheus bucket counts are cumulative in two independent senses, and only one of them is the
+// sampler's job:
+//
+//   - Across buckets: `le=10` counts everything already counted by `le=1`. De-cumulated here,
+//     since submitting the raw counts would credit the (1,10] range with observations belonging
+//     to [0,1].
+//   - Over time: every count grows for the lifetime of the process. Handled by the sampler,
+//     which diffs against the previous run per (context, bucket bounds) given Monotonic: true.
+//     De-cumulated per-bucket counts are still monotonic over time, so that stays correct.
+//
+// Note that the sampler drops a bucket whose value is zero before it records a previous value for
+// it, so the first observation to land in a previously-empty bucket is lost. Passing
+// flushFirstValue would avoid that, at the cost of reporting everything since Agent start as if
+// it happened in one interval.
+func sendHistogramAsDistribution(name string, histogram *dto.Histogram, tags []string, sender sender.Sender) {
+	// Sort defensively. client_golang emits buckets in ascending order, but remote agent
+	// telemetry is reparsed from the text format, and an out-of-order bucket would produce
+	// negative deltas that the sampler discards.
+	buckets := slices.Clone(histogram.Bucket)
+	slices.SortFunc(buckets, func(a, b *dto.Bucket) int {
+		return cmp.Compare(a.GetUpperBound(), b.GetUpperBound())
+	})
+
+	// The sampler treats an infinite upper bound as a point mass at the lower bound, so the
+	// overflow bucket is reported like any other.
+	var lowerBound float64
+	var prevCumulative uint64
+	sawInf := false
+
+	for _, bucket := range buckets {
+		if bucket == nil {
+			continue
+		}
+
+		upperBound := bucket.GetUpperBound()
+		cumulative := bucket.GetCumulativeCount()
+		if cumulative < prevCumulative {
+			// Not de-cumulatable: the family is malformed rather than merely unsorted.
+			log.Debugf("skipping out-of-order bucket [%f-%f] for telemetry metric %q", lowerBound, upperBound, name)
+			continue
+		}
+
+		sender.HistogramBucket(name, int64(cumulative-prevCumulative), lowerBound, upperBound, true, "", tags, false)
+
+		sawInf = sawInf || math.IsInf(upperBound, 1)
+		lowerBound = upperBound
+		prevCumulative = cumulative
+	}
+
+	// client_golang leaves the +Inf bucket out of the dto entirely and carries its count in
+	// SampleCount, while the text parser used for remote agent telemetry includes it. Synthesize
+	// it when it is missing, otherwise the tail of every Core Agent histogram is dropped.
+	if !sawInf {
+		if total := histogram.GetSampleCount(); total > prevCumulative {
+			sender.HistogramBucket(name, int64(total-prevCumulative), lowerBound, math.Inf(1), true, "", tags, false)
 		}
 	}
 }
