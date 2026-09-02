@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+load("//tasks:build_tags.bzl", "PRIVATEACTIONRUNNER_TAGS")
 
 #gazelle:dd_agent_go_test on
 
@@ -114,9 +116,10 @@ go_library(
     }),
 )
 
-go_binary(
+dd_agent_go_binary(
     name = "privateactionrunner",
     embed = [":privateactionrunner_lib"],
+    gotags = PRIVATEACTIONRUNNER_TAGS,
     visibility = ["//visibility:public"],
 )
 
