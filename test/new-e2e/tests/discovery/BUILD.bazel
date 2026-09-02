@@ -21,6 +21,10 @@ dd_agent_go_test(
         "testdata/config/system_probe_config.yaml",
         "testdata/config/system_probe_config_fallback.yaml",
         "testdata/config/system_probe_config_privileged_logs.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-redis.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-spark-master.yaml",
     ] + select({
         "@rules_go//go/platform:android": [
             "testdata/compose/docker-compose.fake-krakend.yaml",
@@ -41,6 +45,10 @@ dd_agent_go_test(
         "testdata/config/system_probe_config.yaml",
         "testdata/config/system_probe_config_fallback.yaml",
         "testdata/config/system_probe_config_privileged_logs.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-redis.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-spark-master.yaml",
     ] + select({
         "@rules_go//go/platform:android": [
             "testdata/compose/docker-compose.fake-krakend.yaml",
