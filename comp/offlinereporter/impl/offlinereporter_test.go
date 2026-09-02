@@ -111,19 +111,16 @@ func TestCorruptFile(t *testing.T) {
 }
 
 // TestOnStart_WritesFile verifies the heartbeat file is created on startup.
+// The first write happens synchronously in the OnStart hook, so it is already
+// on disk once fxutil.Test has started the app.
 func TestOnStart_WritesFile(t *testing.T) {
 	fs, clk, opts := newTestOptions(t, true)
 	fxutil.Test[testDeps](t, opts)
 
-	var secs int64
-	require.Eventually(t, func() bool {
-		data, err := afero.ReadFile(fs, testFilePath)
-		if err != nil {
-			return false
-		}
-		secs, err = strconv.ParseInt(string(data), 10, 64)
-		return err == nil
-	}, 100*time.Millisecond, 5*time.Millisecond)
+	data, err := afero.ReadFile(fs, testFilePath)
+	require.NoError(t, err)
+	secs, err := strconv.ParseInt(string(data), 10, 64)
+	require.NoError(t, err)
 	assert.Equal(t, clk.Now().Unix(), secs)
 }
 
