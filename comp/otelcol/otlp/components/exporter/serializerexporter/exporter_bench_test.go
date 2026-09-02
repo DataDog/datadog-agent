@@ -119,6 +119,30 @@ func makeGaugeMetrics(n int) pmetric.Metrics {
 	return md
 }
 
+// makeSketchMetrics builds a pmetric.Metrics payload with n delta histogram
+// data points, which the default histogram mode turns into sketches.
+func makeSketchMetrics(n int) pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	sm := rm.ScopeMetrics().AppendEmpty()
+	now := pcommon.NewTimestampFromTime(time.Now())
+	for i := 0; i < n; i++ {
+		m := sm.Metrics().AppendEmpty()
+		m.SetName("bench.histogram." + strconv.Itoa(i%64))
+		h := m.SetEmptyHistogram()
+		h.SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+		dp := h.DataPoints().AppendEmpty()
+		dp.SetTimestamp(now)
+		dp.BucketCounts().FromRaw([]uint64{1, 2, 3, 4})
+		dp.ExplicitBounds().FromRaw([]float64{1, 10, 100})
+		dp.SetCount(10)
+		dp.SetSum(float64(i))
+		dp.Attributes().PutStr("tag1", "value"+strconv.Itoa(i%8))
+		dp.Attributes().PutStr("tag2", "value"+strconv.Itoa(i%16))
+	}
+	return md
+}
+
 // benchExporterConfig builds an ExporterConfig wired to the fake intake.
 func benchExporterConfig(t testing.TB, intakeURL string) *ExporterConfig {
 	t.Helper()
@@ -181,7 +205,24 @@ type metricsConsumer interface {
 	ConsumeMetrics(context.Context, pmetric.Metrics) error
 }
 
-func benchConsumeMetrics(b *testing.B, useSync bool, metricsPerBatch int) {
+// benchPayload names a payload shape so sub-benchmarks read as
+// "shape=gauge" / "shape=sketch" rather than as opaque booleans.
+type benchPayload struct {
+	name  string
+	build func(int) pmetric.Metrics
+}
+
+var benchPayloads = []benchPayload{
+	{name: "gauge", build: makeGaugeMetrics},
+	{name: "sketch", build: makeSketchMetrics},
+}
+
+// benchExtraTags is what metrics.tags looks like when it is configured: the
+// consumer holds it alongside each point's own tags, so it is worth measuring
+// both with and without.
+const benchExtraTags = "extra1:a,extra2:b,extra3:c"
+
+func benchConsumeMetrics(b *testing.B, useSync bool, metricsPerBatch int, payload benchPayload, extraTags string) {
 	restore := setSyncForwarderGate(b, useSync)
 	defer restore()
 
@@ -189,13 +230,14 @@ func benchConsumeMetrics(b *testing.B, useSync bool, metricsPerBatch int) {
 	defer intake.Close()
 
 	cfg := benchExporterConfig(b, intake.URL)
+	cfg.Metrics.Tags = extraTags
 	exp := buildBenchExporter(b, cfg)
 	defer func() { _ = exp.Shutdown(context.Background()) }()
 
 	mc, ok := exp.(metricsConsumer)
 	require.True(b, ok, "exporter does not implement ConsumeMetrics: %T", exp)
 
-	md := makeGaugeMetrics(metricsPerBatch)
+	md := payload.build(metricsPerBatch)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -210,24 +252,33 @@ func benchConsumeMetrics(b *testing.B, useSync bool, metricsPerBatch int) {
 	b.ReportMetric(float64(intake.bytes.Load())/float64(b.N), "intake_bytes/op")
 }
 
+// benchConsumeMetricsMatrix runs the payload shape x extra-tags x batch-size
+// matrix for one forwarder.
+func benchConsumeMetricsMatrix(b *testing.B, useSync bool) {
+	for _, payload := range benchPayloads {
+		for _, extra := range []struct {
+			name string
+			tags string
+		}{{name: "no_extra_tags", tags: ""}, {name: "extra_tags", tags: benchExtraTags}} {
+			for _, n := range []int{100, 1000, 10000} {
+				b.Run(fmt.Sprintf("shape=%s/%s/metrics=%d", payload.name, extra.name, n), func(b *testing.B) {
+					benchConsumeMetrics(b, useSync, n, payload, extra.tags)
+				})
+			}
+		}
+	}
+}
+
 // BenchmarkConsumeMetrics_DefaultForwarder benchmarks the legacy async
 // DefaultForwarder path (feature gate off).
 func BenchmarkConsumeMetrics_DefaultForwarder(b *testing.B) {
-	for _, n := range []int{100, 1000, 10000} {
-		b.Run(fmt.Sprintf("metrics=%d", n), func(b *testing.B) {
-			benchConsumeMetrics(b, false, n)
-		})
-	}
+	benchConsumeMetricsMatrix(b, false)
 }
 
 // BenchmarkConsumeMetrics_SyncForwarder benchmarks the OTelSyncForwarder path
 // (feature gate on — the post-OTAGENT-1024 default).
 func BenchmarkConsumeMetrics_SyncForwarder(b *testing.B) {
-	for _, n := range []int{100, 1000, 10000} {
-		b.Run(fmt.Sprintf("metrics=%d", n), func(b *testing.B) {
-			benchConsumeMetrics(b, true, n)
-		})
-	}
+	benchConsumeMetricsMatrix(b, true)
 }
 
 // benchSyncForwarderConsumers measures end-to-end throughput of the sync
