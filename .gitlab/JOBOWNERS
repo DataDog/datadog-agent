@@ -215,6 +215,7 @@ new-e2e-agent-health                    @DataDog/fleet-remediation
 new-e2e-agent-telemetry                 @DataDog/fleet-remediation
 new-e2e-fips-compliance-test*           @DataDog/agent-runtimes
 new-e2e-remote-config                   @DataDog/remote-config
+new-e2e-remote-flags                    @DataDog/fleet-remediation
 # --- Containers / orchestration / SSI ---
 new-e2e-autoscaling*                    @DataDog/container-autoscaling
 new-e2e-containers*                     @DataDog/container-integrations @DataDog/container-platform

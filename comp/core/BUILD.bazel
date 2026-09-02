@@ -21,6 +21,7 @@ go_library(
         "//comp/core/log/fx",
         "//comp/core/log/mock",
         "//comp/core/pid/fx",
+        "//comp/core/remoteflags/e2esubscriber/fx",
         "//comp/core/remoteflags/fx",
         "//comp/core/secrets/fx",
         "//comp/core/secrets/fx-noop",
