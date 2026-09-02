@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/se
 go 1.26.0
 
 require (
+	github.com/DataDog/agent-payload/v5 v5.0.209
 	github.com/DataDog/datadog-agent/comp/core/config v0.82.0
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.82.0
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.82.0
@@ -61,7 +62,6 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.209 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.82.0 // indirect
