@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -49,6 +50,7 @@ const processConsumerChanSize = 100
 
 const defaultCollectedDebugEvents = 100
 const maxCollectedDebugEvents = 1000000
+const driverEventQueueSize = 100
 
 var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
 
@@ -69,13 +71,14 @@ var GPUMonitoring = &module.Factory{
 
 		deviceCache := ddnvml.NewDeviceCache()
 		var p *gpu.Probe
+		var driverEventSubscriber *gpu.DriverEventSubscriber
+		var err error
 		if c.EnableEBPFProbes {
 			probeDeps := gpu.ProbeDependencies{
 				Telemetry:      deps.Telemetry,
 				ProcessMonitor: processEventConsumer,
 				WorkloadMeta:   deps.WMeta,
 			}
-			var err error
 			p, err = gpu.NewProbe(c, probeDeps)
 			if err != nil {
 				cancel()
@@ -83,9 +86,32 @@ var GPUMonitoring = &module.Factory{
 			}
 			deviceCache = p.GetDeviceCache()
 		}
+		if c.EnableEBPFProbes || c.DriverEventsEnabled {
+			if err := deviceCache.Refresh(); err != nil {
+				if p != nil {
+					p.Close()
+				}
+				cancel()
+				return nil, fmt.Errorf("refresh GPU device cache: %w", err)
+			}
+			go refreshDeviceCache(ctx, deviceCache, c.DeviceCacheRefreshInterval)
+		}
+		if c.DriverEventsEnabled {
+			driverEventSubscriber, err = gpu.NewDriverEventSubscriber(deps.Telemetry, deviceCache, gpu.DriverEventSubscriberConfig{
+				QueueSize: driverEventQueueSize,
+			})
+			if err != nil {
+				if p != nil {
+					p.Close()
+				}
+				cancel()
+				return nil, fmt.Errorf("unable to start GPU driver event subscriber: %w", err)
+			}
+		}
 
 		return &GPUMonitoringModule{
-			Probe: p,
+			Probe:                 p,
+			driverEventSubscriber: driverEventSubscriber,
 			prmHandler: prm.NewHandler(func(uuid string) (prm.Device, error) {
 				return deviceCache.GetByUUID(uuid)
 			}),
@@ -102,10 +128,16 @@ var GPUMonitoring = &module.Factory{
 // GPUMonitoringModule is a module for GPU monitoring
 type GPUMonitoringModule struct {
 	*gpu.Probe
-	prmHandler    *prm.Handler
-	cfg           *gpuconfig.Config
-	context       context.Context    // Context associated with the module
-	contextCancel context.CancelFunc // Cancel function associated with the context
+	driverEventSubscriber driverEventSubscriber
+	prmHandler            *prm.Handler
+	cfg                   *gpuconfig.Config
+	context               context.Context    // Context associated with the module
+	contextCancel         context.CancelFunc // Cancel function associated with the context
+}
+
+type driverEventSubscriber interface {
+	GetAndFlush() ([]model.DriverEvent, error)
+	Stop()
 }
 
 // Register registers the GPU monitoring module
@@ -125,6 +157,20 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(req, w, stats, utils.CompactOutput)
+	}))
+
+	httpMux.HandleFunc("/driver-events", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+		if t.driverEventSubscriber == nil {
+			http.Error(w, "GPU driver events are disabled", http.StatusServiceUnavailable)
+			return
+		}
+		events, err := t.driverEventSubscriber.GetAndFlush()
+		if err != nil {
+			log.Errorf("Error getting GPU driver events: %v", err)
+			http.Error(w, "GPU driver event subscriber stopped", http.StatusServiceUnavailable)
+			return
+		}
+		utils.WriteAsJSON(req, w, events, utils.CompactOutput)
 	}))
 
 	if t.cfg != nil && t.cfg.PRMEndpointEnabled && t.prmHandler != nil {
@@ -198,8 +244,30 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 // Close closes the GPU monitoring module
 func (t *GPUMonitoringModule) Close() {
 	t.contextCancel()
+	if t.driverEventSubscriber != nil {
+		t.driverEventSubscriber.Stop()
+	}
 	if t.Probe != nil {
 		t.Probe.Close()
+	}
+}
+
+func refreshDeviceCache(ctx context.Context, deviceCache ddnvml.DeviceCache, interval time.Duration) {
+	if interval <= 0 {
+		return
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := deviceCache.Refresh(); err != nil {
+				log.Warnf("failed to refresh GPU device cache: %v", err)
+			}
+		}
 	}
 }
 
