@@ -1677,20 +1677,6 @@ func TestRemoteQueriesExecuteIntakeTestDriveConfig(t *testing.T) {
 	assert.True(t, conf.IsKnown("remote_queries.execute.enable_query_allowlist"))
 }
 
-func TestRemoteQueriesExecuteTimeoutMsConfig(t *testing.T) {
-	conf := newTestConf(t)
-
-	// remote_queries.execute.timeout_ms is the agent-owned, customer-DB-protective
-	// statement timeout. It must be registered in the Agent config schema
-	// (BindEnvAndSetDefault) with a 300000 (5 minutes) default: the remote-query
-	// executor overrides the worker-injected limits.timeoutMs with this value, and
-	// the config model default keeps it always set in practice.
-	assert.True(t, conf.IsKnown("remote_queries.execute.timeout_ms"),
-		"timeout_ms must be a registered config key")
-	assert.Equal(t, 300000, conf.GetInt("remote_queries.execute.timeout_ms"),
-		"timeout_ms must default to 300000 (5 minutes)")
-}
-
 func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
 	cfg := newEmptyMockConf(t)

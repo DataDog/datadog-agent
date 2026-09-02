@@ -8675,15 +8675,6 @@ properties:
             node_type: setting
             type: string
             default: ""
-          timeout_ms:
-            node_type: setting
-            type: integer
-            default: 300000
-            comment: |-
-              Agent-owned remote-query statement timeout in milliseconds. It protects the customer's database by
-              capping how long the integration's read-only transaction holds its snapshot, so the Agent overrides
-              the worker-injected 30 seconds default with this value. 300000 (5 minutes) is sized for the 10 GiB
-              result envelope at realistic streaming rates.
       match_check:
         node_type: section
         type: object

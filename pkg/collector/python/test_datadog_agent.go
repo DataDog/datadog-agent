@@ -110,22 +110,6 @@ func testGetConfig(t *testing.T) {
 	// GetConfig returns nil for unknown keys.
 	GetConfig(C.CString("remote_queries.execute.intake_test_drive_selector"), &config)
 	require.Nil(t, config, "the superseded intake_test_drive_selector key must not be registered")
-
-	// remote_queries.execute.timeout_ms is the agent-owned statement timeout the
-	// executor clamps onto the request limits before the integration runs; it must
-	// be registered so GetConfig returns its default instead of nil for an unknown
-	// key.
-	GetConfig(C.CString("remote_queries.execute.timeout_ms"), &config)
-	require.NotNil(t, config)
-	assert.Equal(t, "300000", C.GoString(config))
-
-	pkgconfigsetup.Datadog().SetInTest("remote_queries.execute.timeout_ms", 45000)
-	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().UnsetForSource("remote_queries.execute.timeout_ms", pkgconfigmodel.SourceUnknown)
-	})
-	GetConfig(C.CString("remote_queries.execute.timeout_ms"), &config)
-	require.NotNil(t, config)
-	assert.Equal(t, "45000", C.GoString(config))
 }
 
 func testSetExternalTags(t *testing.T) {
