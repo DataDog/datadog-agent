@@ -43,14 +43,21 @@ erratic: false
 
 target:
   name: datadog-agent
-  # Inherited from the smp-playground sweep, where 8192 MiB was reached by
-  # three successive increases after replicates crashed at 200 MiB/s of
-  # DogStatsD traffic. Traffic here was subsequently lowered to 20 MiB/s
-  # (previously 60 MiB/s, which crashed this experiment in CI), so this
-  # allotment is generous rather than measured. Trim it (and cpu_allotment)
-  # once a run reports actual `total_pss_bytes` at the new rate.
-  cpu_allotment: 6
-  memory_allotment: 8192 MiB
+  # Was cpu_allotment: 6 / memory_allotment: 8192 MiB, inherited unchanged
+  # from the smp-playground sweep (reached by three successive increases
+  # after replicates crashed at 200 MiB/s of DogStatsD traffic). That request
+  # is a large outlier vs every other case here (all sit at cpu_allotment: 4,
+  # memory_allotment <= 2 GiB) and every one of this experiment's replicates
+  # failed with ZERO captured telemetry (no total_pss_bytes, no cgroup
+  # metrics, nothing) even after traffic was lowered to 20 MiB/s -- consistent
+  # with a scheduling/capacity failure on the SMP fleet (nodes are 8-vCPU
+  # c6i.2xlarge; a 6-vCPU ask leaves little room to bin-pack alongside the ~10
+  # other experiments' replicates competing for the same node pool), not an
+  # application crash. Right-sized to match the proven-safe footprint of
+  # dsd_uds_10mb_3k_timestamped_contexts_* in this same suite. Trim further
+  # once a successful run reports actual `total_pss_bytes`.
+  cpu_allotment: 4
+  memory_allotment: 2048 MiB
 
   environment:
     DD_API_KEY: a0000001
