@@ -82,6 +82,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		}),
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
+		flaretypes.NewFiller(getAgentTelemetryDynamicProfiles),
 		flaretypes.NewFiller(getWindowsData),
 		flaretypes.NewFiller(common.GetExpVar),
 		flaretypes.NewFiller(provideInstallInfo),
@@ -251,6 +252,21 @@ func (r *RemoteFlareProvider) provideExtraFiles(_ context.Context, fb flaretypes
 
 func getVersionHistory(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.CopyFile(filepath.Join(pkgconfigsetup.Datadog().GetString("run_path"), "version-history.json")) //nolint:errcheck
+	return nil
+}
+
+// getAgentTelemetryDynamicProfiles collects the agent telemetry dynamic profiles cache: the
+// fetched document and, beside it, the attempt record. The dynamic profiles mechanism logs
+// its failures at debug level only (it must never surface a user-visible error), so these
+// files are the only way to see from a flare what was fetched, when, and why the last
+// attempt failed.
+func getAgentTelemetryDynamicProfiles(_ context.Context, fb flaretypes.FlareBuilder) error {
+	runPath := pkgconfigsetup.Datadog().GetString("run_path")
+	if runPath == "" {
+		return nil
+	}
+	fb.CopyFile(filepath.Join(runPath, "agent-telemetry-dynamic-profiles.json"))         //nolint:errcheck
+	fb.CopyFile(filepath.Join(runPath, "agent-telemetry-dynamic-profiles-attempt.json")) //nolint:errcheck
 	return nil
 }
 
