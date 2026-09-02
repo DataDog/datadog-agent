@@ -69,6 +69,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `sysctl` | Kernel | A sysctl parameter was read or modified | 7.65 |
 | `unlink` | File | A file was deleted | 7.27 |
 | `unload_module` | Kernel | A kernel module was deleted | 7.35 |
+| `unshare` | Kernel | A process created new namespaces | 7.83 |
 | `utimes` | File | Change file access/modification times | 7.27 |
 
 ## FIM triggers
@@ -2768,6 +2769,15 @@ A kernel module was deleted
 | [`unload_module.name`](#unload_module-name-doc) | Name of the kernel module that was deleted |
 | [`unload_module.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
+### Event `unshare`
+
+A process created new namespaces
+
+| Property | Definition |
+| -------- | ------------- |
+| [`unshare.flags`](#unshare-flags-doc) | Namespace flags requested by the unshare call |
+| [`unshare.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
 ### Event `utimes`
 
 Change file access/modification times
@@ -3609,8 +3619,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 28 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 29 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `unshare` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -5016,6 +5026,16 @@ Definition: Name of the kernel module that was deleted
 
 
 
+### `unshare.flags` {#unshare-flags-doc}
+Type: int
+
+Definition: Namespace flags requested by the unshare call
+
+
+Constants: [Clone flags](#clone-flags)
+
+
+
 ### `utimes.syscall.path` {#utimes-syscall-path-doc}
 Type: string
 
@@ -5387,6 +5407,24 @@ Boolean constants are the supported boolean constants.
 | ---- |---------------|
 | `true` | all |
 | `false` | all |
+
+### `Clone flags` {#clone-flags}
+Clone flags are the supported namespace flags for the unshare syscall.
+
+| Name | Architectures |
+| ---- |---------------|
+| `CLONE_NEWNS` | all |
+| `CLONE_NEWCGROUP` | all |
+| `CLONE_NEWUTS` | all |
+| `CLONE_NEWIPC` | all |
+| `CLONE_NEWUSER` | all |
+| `CLONE_NEWPID` | all |
+| `CLONE_NEWNET` | all |
+| `CLONE_NEWTIME` | all |
+| `CLONE_FILES` | all |
+| `CLONE_FS` | all |
+| `CLONE_SYSVSEM` | all |
+| `CLONE_THREAD` | all |
 
 ### `CompressionType` {#compressiontype}
 Compression algorithm.

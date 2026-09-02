@@ -125,14 +125,24 @@ HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char *, source, const char *, target, co
     return 0;
 }
 
+// namespace flags worth reporting on. Deliberately excludes CLONE_NEWCGROUP, which
+// only moves the caller into the current cgroup namespace, and the non-namespace
+// flags (CLONE_FILES, CLONE_FS, CLONE_SYSVSEM) which carry no detection value.
+#define UNSHARE_REPORTED_FLAGS (CLONE_NEWUSER | CLONE_NEWNET | CLONE_NEWNS | CLONE_NEWPID)
+
 HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
-    // unshare is only used to propagate mounts created when a mount namespace is copied
-    if (!(flags & CLONE_NEWNS)) {
+    // CLONE_NEWNS is always cached, rules or no rules: the mount resolver relies on
+    // this entry to register the mounts cloned by the namespace copy.
+    if (!(flags & CLONE_NEWNS) &&
+        (!(flags & UNSHARE_REPORTED_FLAGS) || !is_event_enabled(EVENT_UNSHARE))) {
         return 0;
     }
 
     struct syscall_cache_t syscall = {
-        .type = EVENT_UNSHARE_MNTNS,
+        .type = EVENT_UNSHARE,
+        .mount = {
+            .unshare_flags = flags,
+        },
     };
 
     cache_syscall_update_cgroup(ctx, &syscall);
@@ -140,9 +150,37 @@ HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
     return 0;
 }
 
-HOOK_SYSCALL_EXIT(unshare) {
-    pop_syscall(EVENT_UNSHARE_MNTNS);
+int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_UNSHARE);
+    if (!syscall) {
+        return 0;
+    }
+
+    // the per-mount EVENT_UNSHARE_MNTNS events for the CLONE_NEWNS case are emitted
+    // separately by dr_mount_stage_two_callback; this is the single per-syscall event
+    if (!(syscall->mount.unshare_flags & UNSHARE_REPORTED_FLAGS) || !is_event_enabled(EVENT_UNSHARE)) {
+        return 0;
+    }
+
+    struct unshare_event_t event = {
+        .syscall.retval = retval,
+        .flags = syscall->mount.unshare_flags,
+    };
+
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_cgroup_context(entry, &event.cgroup);
+    fill_span_context(&event.span);
+
+    send_event(ctx, EVENT_UNSHARE, event);
     return 0;
+}
+
+HOOK_SYSCALL_EXIT(unshare) {
+    return sys_unshare_ret(ctx, (int)SYSCALL_PARMRET(ctx));
+}
+
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_unshare_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_unshare_ret(args, args->ret);
 }
 
 void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *syscall, struct mount_fields_t *mfields) {
@@ -302,7 +340,9 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx, enum T
             event->source = SOURCE_PIVOT_ROOT;
         }
         span_fill_tail_call(ctx, prog_type);
-    } else if (syscall->type == EVENT_UNSHARE_MNTNS) {
+    } else if (syscall->type == EVENT_UNSHARE && (syscall->mount.unshare_flags & CLONE_NEWNS)) {
+        // one internal event per mount cloned by the namespace copy. The public
+        // per-syscall EVENT_UNSHARE is sent separately, from the exit hook.
         struct unshare_mntns_event_t event = { 0 };
 
         fill_mount_fields(syscall, &event.mountfields);

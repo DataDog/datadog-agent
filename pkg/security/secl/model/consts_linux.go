@@ -859,6 +859,23 @@ var (
 		"SYSCTL_WRITE": SysCtlWriteAction,
 	}
 
+	// CloneFlagsConstants are the clone flags accepted by the unshare syscall
+	// generate_constants:Clone flags,Clone flags are the supported namespace flags for the unshare syscall.
+	CloneFlagsConstants = map[string]uint64{
+		"CLONE_NEWNS":     unix.CLONE_NEWNS,
+		"CLONE_NEWCGROUP": unix.CLONE_NEWCGROUP,
+		"CLONE_NEWUTS":    unix.CLONE_NEWUTS,
+		"CLONE_NEWIPC":    unix.CLONE_NEWIPC,
+		"CLONE_NEWUSER":   unix.CLONE_NEWUSER,
+		"CLONE_NEWPID":    unix.CLONE_NEWPID,
+		"CLONE_NEWNET":    unix.CLONE_NEWNET,
+		"CLONE_NEWTIME":   unix.CLONE_NEWTIME,
+		"CLONE_FILES":     unix.CLONE_FILES,
+		"CLONE_FS":        unix.CLONE_FS,
+		"CLONE_SYSVSEM":   unix.CLONE_SYSVSEM,
+		"CLONE_THREAD":    unix.CLONE_THREAD,
+	}
+
 	// RlimitConstants are the supported resource limit types for setrlimit
 	// generate_constants:Resource limit types,Resource limit types are the supported resource types for setrlimit syscall.
 	RlimitConstants = map[string]int{
@@ -1463,6 +1480,15 @@ func initRlimitConstants() {
 	}
 }
 
+func initCloneFlagsConstants() {
+	for k, v := range CloneFlagsConstants {
+		if bits.UintSize == 64 || v < math.MaxInt32 {
+			seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		}
+		cloneFlagsStrings[v] = k
+	}
+}
+
 func initPrCtlOptionConstants() {
 	for k, v := range PrCtlOptionConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
@@ -1598,6 +1624,18 @@ func (kc KernelCapability) StringArray() []string {
 	computed := bitmaskU64ToStringArray(uint64(kc), kernelCapabilitiesStrings)
 	capsStringArrayCache.Add(kc, computed)
 	return computed
+}
+
+// CloneFlags represents a clone flags bitmask value, as passed to unshare
+type CloneFlags uint64
+
+func (cf CloneFlags) String() string {
+	return bitmaskU64ToString(uint64(cf), cloneFlagsStrings)
+}
+
+// StringArray returns the clone flags as an array of strings
+func (cf CloneFlags) StringArray() []string {
+	return bitmaskU64ToStringArray(uint64(cf), cloneFlagsStrings)
 }
 
 // BPFCmd represents a BPF command
@@ -2352,6 +2390,7 @@ var (
 	pipeBufFlagStrings                = map[int]string{}
 	sysctlActionStrings               = map[uint32]string{}
 	rlimitStrings                     = map[int]string{}
+	cloneFlagsStrings                 = map[uint64]string{}
 	setsockoptOptNameStringsIP        = map[int]string{}
 	setsockoptOptNameStringsSolSocket = map[int]string{}
 	setsockoptOptNameStringsTCP       = map[int]string{}
