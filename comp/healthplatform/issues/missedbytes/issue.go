@@ -126,7 +126,8 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 		// Ordered cheapest to most invasive, per the component's remediation rules.
 		// Steps 3-5 branch on the saturated component step 1 identifies.
 		Remediation: &healthplatform.Remediation{
-			Summary: "Raise `logs_config.close_timeout` to give the tailer more time, then relieve any logs pipeline saturation reported by `datadog-agent status`.",
+			// Plain text: Summary is not rendered as markdown.
+			Summary: "Give the Agent more time to finish reading rotated files, and relieve any saturation in the logs pipeline.",
 			Steps: []*healthplatform.RemediationStep{
 				{Order: 1, Text: "Run `sudo datadog-agent status` and note any saturated component in the Logs Agent Backpressure section."},
 				{Order: 2, Text: "Raise `logs_config.close_timeout` (DD_LOGS_CONFIG_CLOSE_TIMEOUT) above its 60 second default to give the tailer longer to finish a rotated file."},

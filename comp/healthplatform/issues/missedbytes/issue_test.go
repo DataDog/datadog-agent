@@ -194,7 +194,8 @@ func TestBuildIssue(t *testing.T) {
 			assert.Equal(t, []string{"logs", "file-tailing", "rotation", "data-loss"}, issue.GetTags())
 
 			require.NotNil(t, issue.GetRemediation())
-			assert.Contains(t, issue.GetRemediation().GetSummary(), "logs_config.close_timeout")
+			assert.NotEmpty(t, issue.GetRemediation().GetSummary())
+			assert.NotContains(t, issue.GetRemediation().GetSummary(), "`", "Summary is not rendered as markdown")
 			assert.Nil(t, issue.GetRemediation().GetScript())
 
 			steps := issue.GetRemediation().GetSteps()
