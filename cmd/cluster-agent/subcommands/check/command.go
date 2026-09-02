@@ -35,8 +35,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		// Required by the kubeapiserver collector, but never enabled in the
 		// "check" command because autoscaling doesn't run.
 		fx.Supply(autoscalinggate.New()),
-		// Create the Leader election engine without initializing it, using the
-		// telemetry component provided by fx.
+		// Create the Leader election engine without initializing it
 		fx.Invoke(func(tm telemetry.Component) {
 			if pkgconfigsetup.Datadog().GetBool("leader_election") {
 				ctx, _ := pkgcommon.GetMainCtxCancel()
