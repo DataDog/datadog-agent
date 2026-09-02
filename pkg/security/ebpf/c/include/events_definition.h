@@ -712,6 +712,7 @@ union event_t {
     struct delete_module_event_t delete_module;
     struct mount_event_t mount;
     struct unshare_mntns_event_t unshare_mntns;
+    struct unshare_event_t unshare;
     struct mprotect_event_t mprotect;
     struct net_device_event_t net_device;
     struct veth_pair_event_t veth_pair;
