@@ -45,46 +45,42 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 	expectedLightErrors := 0.0
 	expectedHeavyErrors := 0.0
 	for bucket := range nvlinkFECHistoryFieldIDs {
-		metric := collectedMetrics[bucket]
+		sample, ok := collectedMetrics[bucket].(*HistogramSample)
+		require.True(t, ok)
 		if bucket > 0 && bucket <= defaultNVLinkFECLightErrorThreshold {
 			expectedLightErrors += float64(100 + bucket)
 		} else if bucket > defaultNVLinkFECLightErrorThreshold {
 			expectedHeavyErrors += float64(100 + bucket)
 		}
 
-		require.Equal(t, nvlinkFECHistoryMetricName, metric.Name)
-		require.Equal(t, metrics.HistogramType, metric.Type)
-		require.Equal(t, float64(100+bucket), metric.Value)
-		require.Equal(t, Medium, metric.Priority)
-		require.Contains(t, metric.Tags, "nvlink_port:1")
-		require.NotNil(t, metric.HistogramBucket)
-		require.Equal(t, [2]float64{float64(bucket), float64(bucket)}, metric.HistogramBucket.Bounds)
-		require.True(t, metric.HistogramBucket.Monotonic)
-		require.False(t, metric.HistogramBucket.FlushFirstValue)
+		require.Equal(t, nvlinkFECHistoryMetricName, sample.Name)
+		require.Equal(t, int64(100+bucket), sample.Value)
+		require.Equal(t, Medium, sample.Priority())
+		require.Contains(t, sample.Tags(), "nvlink_port:1")
+		require.Equal(t, [2]float64{float64(bucket), float64(bucket)}, sample.Bounds)
+		require.True(t, sample.Monotonic)
+		require.False(t, sample.FlushFirstValue)
 	}
 
 	require.Equal(t, &Metric{
+		baseSample:          baseSample{priority: Medium, tags: []string{"nvlink_port:1"}},
 		Name:                nvlinkFECNoErrorsMetricName,
 		Type:                metrics.GaugeType,
 		Value:               100,
-		Priority:            Medium,
-		Tags:                []string{"nvlink_port:1"},
 		RateCalculationMode: PerSecondRateCalculation,
 	}, collectedMetrics[len(nvlinkFECHistoryFieldIDs)])
 	require.Equal(t, &Metric{
+		baseSample:          baseSample{priority: Medium, tags: []string{"nvlink_port:1"}},
 		Name:                nvlinkFECLightErrorsMetricName,
 		Type:                metrics.GaugeType,
 		Value:               expectedLightErrors,
-		Priority:            Medium,
-		Tags:                []string{"nvlink_port:1"},
 		RateCalculationMode: PerSecondRateCalculation,
 	}, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+1])
 	require.Equal(t, &Metric{
+		baseSample:          baseSample{priority: Medium, tags: []string{"nvlink_port:1"}},
 		Name:                nvlinkFECHeavyErrorsMetricName,
 		Type:                metrics.GaugeType,
 		Value:               expectedHeavyErrors,
-		Priority:            Medium,
-		Tags:                []string{"nvlink_port:1"},
 		RateCalculationMode: PerSecondRateCalculation,
 	}, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+2])
 }
@@ -113,10 +109,11 @@ func TestNVLinkFECCollectorConfigurableLightErrorThreshold(t *testing.T) {
 	collectedMetrics, err := collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs)+3)
+	severityMetrics := requireMetrics(t, collectedMetrics[len(nvlinkFECHistoryFieldIDs):])
 
-	require.Equal(t, 0.0, collectedMetrics[len(nvlinkFECHistoryFieldIDs)].Value)
-	require.Equal(t, 3.0, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+1].Value)
-	require.Equal(t, 117.0, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+2].Value)
+	require.Equal(t, 0.0, severityMetrics[0].Value)
+	require.Equal(t, 3.0, severityMetrics[1].Value)
+	require.Equal(t, 117.0, severityMetrics[2].Value)
 }
 
 func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {

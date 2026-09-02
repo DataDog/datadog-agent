@@ -2423,8 +2423,8 @@ code.cloudfoundry.org/diego-db-helpers v0.3.0 h1:LPVZ47sOr4e3MLbTUbBX7pTDWhP2XWI
 code.cloudfoundry.org/diego-db-helpers v0.3.0/go.mod h1:eFhaHV7SOqZWV+lV9ZSjPTXfq3AO3e55lsAnfKvUozg=
 code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5 h1:qzFDi35GOoKwh4wx4W0SnpexLOeZtnBYP1/Ia5Xjo1M=
 code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5/go.mod h1:ap2gRuUzfTHIqW0xmGZjjUoljsyEiTEAnk/1s3ftm/w=
-code.cloudfoundry.org/lager/v3 v3.82.0 h1:/iTYAOg02MbOaq/Sh4jdka5IUtUYVN1YYR8GHbjMOK0=
-code.cloudfoundry.org/lager/v3 v3.82.0/go.mod h1:MfEnRvMtBJxBIDRHZKv9s6ssvB5HFnprVLSiwWZlx+s=
+code.cloudfoundry.org/lager/v3 v3.84.0 h1:us7j6umD2hzLZwk1jjzEPHgvpYFClYZ8ucxeLjZdBiw=
+code.cloudfoundry.org/lager/v3 v3.84.0/go.mod h1:3e2EcI09jM+xBskLCaue0NWnfSEal8t4bBqYMOJ6yCA=
 code.cloudfoundry.org/locket v1.1.0 h1:UW1NmuPzDHNNOuYnZ0tyLanL7aQHXnto1Ej3BCp7uS4=
 code.cloudfoundry.org/locket v1.1.0/go.mod h1:uHOC1u/FKBvYHW0wTzFjI3WT85O2jGxz1I4+2nrjWLk=
 code.cloudfoundry.org/tlsconfig v0.60.0 h1:bB+VlWZ1Y3RTHJBNMnUx0pnkSN0DrzmJI3A0g1YSnVw=
@@ -2524,8 +2524,8 @@ github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U+0KMqAA0KcU=
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
-github.com/CycloneDX/cyclonedx-go v0.11.0 h1:GokP8FiRC+foiuwWhSSLpSD5H4hSWtGnR3wo7apkBFI=
-github.com/CycloneDX/cyclonedx-go v0.11.0/go.mod h1:vUvbCXQsEm48OI6oOlanxstwNByXjCZ2wuleUlwGEO8=
+github.com/CycloneDX/cyclonedx-go v0.12.0 h1:/7Jum36UA6V043tQZ/fE3jf+Nf9gn/qxUFfd7QReMy8=
+github.com/CycloneDX/cyclonedx-go v0.12.0/go.mod h1:V2577HhxDDCDLYfkm55WJrz16nHTfyQZwcWUBSG7Z28=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/DataDog/agent-payload/v5 v5.0.209 h1:VthYhodp1FRrf2HSk0bxyLiNt1xbqMHCf+whsdOkt3Y=
@@ -2534,8 +2534,8 @@ github.com/DataDog/aptly v1.4.1-0.20260507130549-83af7604fdc9 h1:SqGEmv63IrjqqDm
 github.com/DataDog/aptly v1.4.1-0.20260507130549-83af7604fdc9/go.mod h1:UmLcF4Qcn6yaiqp5xrsVwEfeBSD2YTWkWLv69SIlvtE=
 github.com/DataDog/cast v1.8.0 h1:uooY8bMzq+cjgiNP1VTquCWve5emgk8fRspZojJwQa8=
 github.com/DataDog/cast v1.8.0/go.mod h1:ancEpBxwJDODSW/UG4rDrAqiKolqNNh2DX3mk86cAdo=
-github.com/DataDog/datadog-api-client-go/v2 v2.63.0 h1:X8kcvq2mL+ytlcDgf0QJpHWg4UrHybmwPFd/B/C/Pms=
-github.com/DataDog/datadog-api-client-go/v2 v2.63.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
+github.com/DataDog/datadog-api-client-go/v2 v2.64.0 h1:RKgtwwMqqRS11VY5+ufZuBau51h87R9npbzOkRIZ0ak=
+github.com/DataDog/datadog-api-client-go/v2 v2.64.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go v2.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go v4.8.3+incompatible h1:fNGaYSuObuQb5nzeTQqowRAd9bpDIRRV4/gUtIBjh8Q=
@@ -3507,8 +3507,8 @@ github.com/google/pprof v0.0.0-20210609004039-a478d1d731e9/go.mod h1:kpwsk12EmLe
 github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1/go.mod h1:kpwsk12EmLew5upagYY7GY0pfYCcupk39gWOCRROcvE=
 github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26/go.mod h1:dDKJzRmX4S37WGHujM7tX//fmj1uioxKzKxz3lo4HJo=
 github.com/google/pprof v0.0.0-20240227163752-401108e1b7e7/go.mod h1:czg5+yv1E0ZGTi6S6vVK1mke0fV+FaUhNGcd6VRS9Ik=
-github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3 h1:LMLX+LgTNWpfvCBdFebv6EsYotImrt/Ppc5cXIriCSo=
-github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3/go.mod h1:jl5iWTm0/hd5PjEYEOuwAJ57L/CibdZfrqZ5XA5GrCk=
+github.com/google/pprof v0.0.0-20260824235931-c0b50f2f6510 h1:CQYko0lanR9GRMWuUwgBH5CBCWz0UTXNkDHFOZvNA0w=
+github.com/google/pprof v0.0.0-20260824235931-c0b50f2f6510/go.mod h1:jl5iWTm0/hd5PjEYEOuwAJ57L/CibdZfrqZ5XA5GrCk=
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
 github.com/google/s2a-go v0.1.0/go.mod h1:OJpEgntRZo8ugHpF9hkoLJbS5dSI20XZeXJ9JVywLlM=
 github.com/google/s2a-go v0.1.3/go.mod h1:Ej+mSEMGRnqRzjc7VtF+jdBwYG5fuJfiZ8ELkjEwM0A=
@@ -4755,8 +4755,8 @@ github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPx
 github.com/sirupsen/logrus v1.4.1/go.mod h1:ni0Sbl8bgC9z8RoU9G6nDWqqs/fq4eDPysMBDgk/93Q=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/sirupsen/logrus v1.7.0/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=
-github.com/sirupsen/logrus v1.10.1 h1:xi4336Zh11WpU14fXR6I67V3yaTPQYwRx2WEtHbRg4Q=
-github.com/sirupsen/logrus v1.10.1/go.mod h1:vsQHnG7xzNsxk3NrwboUiWPnIC3dmbjcGPykD7+tiHk=
+github.com/sirupsen/logrus v1.10.2 h1:G2SED73/qrAu6YwbdxOD6peLkCBI3z7L+ykJFTXJBBo=
+github.com/sirupsen/logrus v1.10.2/go.mod h1:SLEg8TqYulVKKfIGHldVp2K2aYz2DKSVBq4g/H5bR7Q=
 github.com/skydive-project/go-debouncer v1.0.1 h1:N75Mdusd65Jjbc7k5t2oo+7qLIdMtSNJKssmpEYuSgo=
 github.com/skydive-project/go-debouncer v1.0.1/go.mod h1:7pK+5HBlYCD8W2cXhvMRsMsdWelDEPfpbE6PwSlDX68=
 github.com/smartystreets/assertions v0.0.0-20180927180507-b2de0cb4f26d/go.mod h1:OnSkiWE9lh6wB0YB77sQom3nweQdgAjqCqsofrRNTgc=
@@ -4862,8 +4862,8 @@ github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.480 h1:Dwnf
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.480/go.mod h1:7sCQWVkxcsR38nffDW057DRGk8mUjK1Ing/EFOK8s8Y=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.0.480 h1:YEDZmv2ABU8QvwXEVTOQgVEQzDOByhz73vdjL6sERkE=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.0.480/go.mod h1:zaBIuDDs+rC74X8Aog+LSu91GFtHYRYDC196RGTm2jk=
-github.com/terminalstatic/go-xsd-validate v0.1.6 h1:TenYeQ3eY631qNi1/cTmLH/s2slHPRKTTHT+XSHkepo=
-github.com/terminalstatic/go-xsd-validate v0.1.6/go.mod h1:18lsvYFofBflqCrvo1umpABZ99+GneNTw2kEEc8UPJw=
+github.com/terminalstatic/go-xsd-validate v0.1.8 h1:UVrTCy1j3DhwaYTTUF+QYO/Nan13S0tf+Jwi+p45Bf0=
+github.com/terminalstatic/go-xsd-validate v0.1.8/go.mod h1:1kb47fi2c6onlf+B7UrrQ9VYraOhcYwFm3iG+J6F4Zo=
 github.com/testcontainers/testcontainers-go v0.44.0 h1:/Fwh6HY1mIikhnm9e7HwoxGycx0lzRAE0f5VQpjFxzI=
 github.com/testcontainers/testcontainers-go v0.44.0/go.mod h1:IcnwQrYTO86xHXu5bvMaBH7ATlbS3Qn1M1QWW3c66rE=
 github.com/testcontainers/testcontainers-go/modules/localstack v0.40.0 h1:b+lN2Ch4J/6EwqB+Af+QQbSfv4sFGetHlBHpXi+1yJU=

@@ -2545,7 +2545,7 @@ name = "par-control"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
+ "base64 0.23.1",
  "chrono",
  "clap",
  "datadog-agent-commons",
@@ -2561,7 +2561,6 @@ dependencies = [
  "saluki-tls",
  "serde",
  "serde_json",
- "serde_yaml",
  "tempfile",
  "tokio",
  "tokio-rustls",
@@ -2570,8 +2569,6 @@ dependencies = [
  "tonic-prost",
  "tonic-prost-build",
  "tower",
- "windows-registry",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
