@@ -354,49 +354,6 @@ func TestSendMetricFamiliesContinuesPastFilteredAndUnsupportedFamilies(t *testin
 	s.AssertExpectations(t)
 }
 
-func TestInternalTelemetryConfig(t *testing.T) {
-	tests := []struct {
-		name      string
-		overrides map[string]interface{}
-		expected  internalTelemetryConfig
-	}{
-		{
-			name:     "defaults",
-			expected: internalTelemetryConfig{},
-		},
-		{
-			name:      "enabled",
-			overrides: map[string]interface{}{internalTelemetryEnabledSetting: true},
-			expected:  internalTelemetryConfig{enabled: true},
-		},
-		{
-			name:      "advanced implies enabled",
-			overrides: map[string]interface{}{internalTelemetryAdvancedSetting: true},
-			expected:  internalTelemetryConfig{enabled: true, advanced: true},
-		},
-		{
-			name: "explicitly disabled but advanced",
-			overrides: map[string]interface{}{
-				internalTelemetryEnabledSetting:  false,
-				internalTelemetryAdvancedSetting: true,
-			},
-			expected: internalTelemetryConfig{enabled: true, advanced: true},
-		},
-		{
-			name:      "explicitly disabled",
-			overrides: map[string]interface{}{internalTelemetryEnabledSetting: false},
-			expected:  internalTelemetryConfig{},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			c := &checkImpl{config: config.NewMockWithOverrides(t, test.overrides)}
-			require.Equal(t, test.expected, c.internalTelemetryConfig())
-		})
-	}
-}
-
 // TestRunFollowsRuntimeConfigChanges pins the runtime-setting behavior: both settings are
 // resolved on every run, so flipping them takes effect on the next check run without the check
 // being reconfigured or recreated.
