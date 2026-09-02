@@ -16,7 +16,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.82.0
-	github.com/DataDog/datadog-api-client-go/v2 v2.63.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.64.0
 	github.com/apache/arrow-go/v18 v18.7.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/fx v1.24.0
