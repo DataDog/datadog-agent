@@ -645,7 +645,7 @@ func TestNoSuccessfulProbes(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		errorCount := 0
-		for _, msg := range fakeDeps.diagUploader.messages {
+		for _, msg := range fakeDeps.diagUploader.snapshot() {
 			if msg.Debugger.Diagnostic.Status != uploader.StatusError {
 				continue
 			}
@@ -826,15 +826,26 @@ func (f *fakeDecoder) ReportStackPCs(stackHash uint64, stackPCs []uint64) {
 }
 
 type fakeDiagnosticsUploader struct {
+	mu       sync.Mutex
 	messages []*uploader.DiagnosticMessage
 }
 
 func (f *fakeDiagnosticsUploader) Enqueue(diag *uploader.DiagnosticMessage) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.messages = append(f.messages, diag)
 	return nil
 }
 
 func (f *fakeDiagnosticsUploader) Stop() {}
+
+// snapshot returns a copy of the messages enqueued so far. It is safe to call
+// concurrently with Enqueue, unlike reading the messages field directly.
+func (f *fakeDiagnosticsUploader) snapshot() []*uploader.DiagnosticMessage {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*uploader.DiagnosticMessage(nil), f.messages...)
+}
 
 type fakeLogsUploaderFactory struct {
 	uploaders map[uploader.LogsUploaderMetadata]*fakeLogsUploader
