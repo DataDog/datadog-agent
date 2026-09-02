@@ -34,9 +34,11 @@ int __attribute__((always_inline)) unregister_otel_tls() {
 #define OTEL_CTX_VMA_NAME "OTEL_CTX"
 #define OTEL_CTX_VMA_NAME_SIZE sizeof(OTEL_CTX_VMA_NAME)
 
-// handle_otel_process_ctx_naming tells user space that a process just published
-// or updated its OTel process context.
-static void __attribute__((always_inline)) handle_otel_process_ctx_naming(void *ctx, int option, unsigned long arg2, const char *name) {
+// handle_otel_process_ctx_naming records that the prctl syscall the current
+// thread is entering names a mapping OTEL_CTX. The name is only readable from
+// /proc/<pid>/maps once the syscall returned, so the event is left to the exit
+// side.
+static void __attribute__((always_inline)) handle_otel_process_ctx_naming(int option, unsigned long arg2, const char *name) {
     if (!is_span_tracking_enabled()) {
         return;
     }
@@ -59,6 +61,25 @@ static void __attribute__((always_inline)) handle_otel_process_ctx_naming(void *
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    u8 naming = 1;
+    bpf_map_update_elem(&otel_process_ctx_naming, &pid_tgid, &naming, BPF_ANY);
+}
+
+// send_otel_process_ctx_naming_event tells user space that a process just
+// published or updated its OTel process context.
+//
+// return value of the prctl is deliberately ignored: the OTEP 4719 protocol doesn't
+// ask for it to succeed.
+static void __attribute__((always_inline)) send_otel_process_ctx_naming_event(void *ctx) {
+    if (!is_span_tracking_enabled()) {
+        return;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (!bpf_map_lookup_elem(&otel_process_ctx_naming, &pid_tgid)) {
+        return;
+    }
+    bpf_map_delete_elem(&otel_process_ctx_naming, &pid_tgid);
 
     struct otel_process_ctx_event_t event = {};
     event.event.type = EVENT_OTEL_PROCESS_CTX;

@@ -13,7 +13,7 @@
 long __attribute__((always_inline)) trace__sys_prctl(void *ctx, u8 async, int option, void *arg2, const char *arg5) {
     // Unrelated to the prctl event, and ahead of everything it needs: a process
     // naming an anonymous mapping OTEL_CTX is publishing its OTel process context.
-    handle_otel_process_ctx_naming(ctx, option, (unsigned long)arg2, arg5);
+    handle_otel_process_ctx_naming(option, (unsigned long)arg2, arg5);
 
     // Early return if the probe was attach for the process context notification.
     if (!is_event_enabled(EVENT_PRCTL)) {
@@ -91,6 +91,9 @@ HOOK_SYSCALL_ENTRY5(prctl, int, option, void *, arg2, unsigned long, arg3, unsig
 
 HOOK_SYSCALL_EXIT(prctl) {
     int retval = SYSCALL_PARMRET(ctx);
+
+    send_otel_process_ctx_naming_event(ctx);
+
     return sys_prctl_ret(ctx, retval);
 }
 
