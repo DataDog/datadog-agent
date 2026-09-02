@@ -2,6 +2,7 @@
 #define _HOOKS_MOUNT_H_
 
 #include "constants/syscall_macro.h"
+#include "helpers/approvers.h"
 #include "helpers/events_predicates.h"
 #include "helpers/filesystem.h"
 #include "helpers/span_fill.h"
@@ -126,15 +127,14 @@ HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char *, source, const char *, target, co
 }
 
 HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
-    // CLONE_NEWNS is always cached, rules or no rules: the mount resolver relies on
-    // this entry to register the mounts cloned by the namespace copy. Every other
-    // call is cached only when a rule references unshare.*.
+    // CLONE_NEWNS is cached rules or no rules, the mount resolver relies on this entry
     if (!((flags & CLONE_NEWNS) || is_event_enabled(EVENT_UNSHARE))) {
         return 0;
     }
 
     struct syscall_cache_t syscall = {
         .type = EVENT_UNSHARE,
+        .policy = fetch_policy(EVENT_UNSHARE),
         .mount = {
             .unshare_flags = flags,
         },
@@ -151,11 +151,12 @@ int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
         return 0;
     }
 
-    // the CLONE_NEWNS entry above is cached with no rule loaded, so the public event
-    // still has to be gated here. The per-mount EVENT_UNSHARE_MNTNS events for that
-    // case are emitted separately by dr_mount_stage_two_callback; this is the single
-    // per-syscall event.
+    // the CLONE_NEWNS entry above is cached even with no rule loaded
     if (!is_event_enabled(EVENT_UNSHARE)) {
+        return 0;
+    }
+
+    if (approve_syscall(syscall, unshare_approvers) == DISCARDED) {
         return 0;
     }
 
@@ -338,8 +339,6 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx, enum T
         }
         span_fill_tail_call(ctx, prog_type);
     } else if (syscall->type == EVENT_UNSHARE && (syscall->mount.unshare_flags & CLONE_NEWNS)) {
-        // one internal event per mount cloned by the namespace copy. The public
-        // per-syscall EVENT_UNSHARE is sent separately, from the exit hook.
         struct unshare_mntns_event_t event = { 0 };
 
         fill_mount_fields(syscall, &event.mountfields);

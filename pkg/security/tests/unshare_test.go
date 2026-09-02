@@ -56,8 +56,6 @@ func TestUnshareEvent(t *testing.T) {
 		t.Fatalf("Failed to load syscall tester: %v", err)
 	}
 
-	// runs the unshare syscall directly, so the event has to be attributed to the
-	// syscall rather than to the name of the calling binary
 	runUnshare := func(flags int) func() error {
 		return func() error {
 			cmd := exec.Command(syscallTester, "unshare-flags", strconv.Itoa(flags))
@@ -93,11 +91,9 @@ func TestUnshareEvent(t *testing.T) {
 		}
 	})
 
-	// the shape the LPE exploits this event exists to catch use: an unprivileged user
-	// namespace paired with a new network namespace, to obtain CAP_NET_ADMIN
+	// the shape the LPE exploits use: a user namespace paired with a network one
 	t.Run("unshare-newuser-newnet", func(t *testing.T) {
-		// RHEL 7 kernels ship with user namespaces disabled (user_namespace.enable=0),
-		// so unshare(CLONE_NEWUSER) fails outright and never reaches the hook
+		// RHEL 7 kernels disable user namespaces, so unshare(CLONE_NEWUSER) never reaches the hook
 		checkKernelCompatibility(t, "user namespaces disabled on RHEL7 kernels", func(kv *kernel.Version) bool {
 			return kv.IsRH7Kernel()
 		})
@@ -108,8 +104,7 @@ func TestUnshareEvent(t *testing.T) {
 		}
 	})
 
-	// CLONE_NEWNS also drives the internal per-mount unshare_mntns events consumed by
-	// the mount resolver; exactly one public unshare event must still be reported
+	// CLONE_NEWNS also drives the internal per-mount unshare_mntns events
 	t.Run("unshare-newns", func(t *testing.T) {
 		flags := unix.CLONE_NEWNS
 		if err := test.GetEventSent(t, runUnshare(flags), assertUnshare(t, flags), time.Second*3, "test_unshare_newns"); err != nil {

@@ -1192,9 +1192,6 @@ int test_tracer_memfd_with_keys(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-// invokes the unshare syscall directly rather than exec'ing unshare(1): CWS must
-// catch the syscall regardless of the calling binary, which is the whole point of
-// the unshare event
 int test_unshare_flags(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Please specify the unshare flags as an integer\n");

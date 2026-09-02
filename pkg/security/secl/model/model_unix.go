@@ -644,8 +644,7 @@ type MountEvent struct {
 	SyscallFSType         string `field:"syscall.fs_type,ref:mount.syscall.str3"`         // SECLDoc[syscall.fs_type] Definition:`File system type argument of the syscall`
 }
 
-// UnshareMountNSEvent represents a mount cloned from a newly created mount namespace.
-// Internal, emitted once per cloned mount; see UnshareEvent for the public per-syscall event.
+// UnshareMountNSEvent represents a mount cloned from a newly created mount namespace
 type UnshareMountNSEvent struct {
 	Mount
 }
