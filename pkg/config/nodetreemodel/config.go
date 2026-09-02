@@ -315,9 +315,8 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	return tree, err
 }
 
-// DirectBulkSet implements model.Writer. Keys are assumed already lowercased, which holds for
-// anything enumerated from another config. A snapshot replayed on a reconnected stream can carry
-// changes the client never saw as incremental updates, so shouldNotify must be set for those.
+// DirectBulkSet implements model.Writer. shouldNotify if true will send notifications for settings that
+// change values.
 func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting, shouldNotify bool) {
 	c.Lock()
 
