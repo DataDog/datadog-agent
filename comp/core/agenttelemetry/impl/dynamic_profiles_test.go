@@ -733,7 +733,9 @@ func TestBuildHeaders(t *testing.T) {
 	assert.NotEmpty(t, h["DD-Agent-OS"])
 	assert.NotEmpty(t, h["DD-Agent-Arch"])
 	assert.Equal(t, "application/yaml, text/yaml", h["Accept"])
-	assert.NotEmpty(t, h["DD-Agent-Flavor"])
+	// Flavor is deliberately absent: it is the only targeting dimension that varies between the agent processes
+	// sharing this cache, so advertising it would let one flavor's document be served to all of them.
+	assert.NotContains(t, h, "DD-Agent-Flavor")
 	assert.NotContains(t, h, "If-None-Match")
 	assert.NotContains(t, h, "DD-Agent-Telemetry-Dynamic-Profiles-Last-Error")
 
@@ -747,17 +749,19 @@ func TestBuildHeaders(t *testing.T) {
 
 // The error header must never carry a formatted error: those can embed proxy
 // hostnames, filesystem paths or resolver output.
-// The reported flavor must use the same spelling as the mandatory "emitter" metric tag,
-// so the endpoint sees one spelling per flavor rather than both "trace-agent" (emitter)
-// and "trace_agent" (raw flavor.GetFlavor).
-func TestBuildHeaders_FlavorMatchesEmitterConvention(t *testing.T) {
+// Every dimension the request advertises must be identical across the agent processes that share this cache, or the
+// first flavor to poll would suppress the others and then hand them its document. Version, OS and architecture are the
+// same for every process on a host; flavor is not, so it must never be added back.
+func TestBuildHeaders_AdvertisesNoPerProcessDimension(t *testing.T) {
 	flavor.SetTestFlavor(t, "trace_agent")
 
 	a, _ := getTestDynamicProfilesAtel(t, "https://example.com/p.yaml")
 	h := a.dynamicProfiles.buildHeaders(nil, nil)
 
-	assert.Equal(t, "trace-agent", h["DD-Agent-Flavor"])
-	assert.Equal(t, normalizedFlavor(), h["DD-Agent-Flavor"])
+	for name, value := range h {
+		assert.NotContains(t, value, "trace-agent", "header %q leaks the process flavor", name)
+		assert.NotContains(t, value, "trace_agent", "header %q leaks the process flavor", name)
+	}
 }
 
 // The persisted failure record carries the same normalized flavor.
@@ -1059,6 +1063,51 @@ func TestDynamicProfiles_304KeepsCache(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, at.LastError)
 	assert.Greater(t, at.AttemptedAtNS, stale.UnixNano())
+}
+
+// A 304 confirms that the document whose ETag we sent -- the one on disk -- is current, so it must end up published.
+// A peer can write the document and die before updating the attempt record, in which case the 304 is the first time
+// this process learns the document is both present and current.
+func TestDynamicProfiles_304AdoptsCachedDocument(t *testing.T) {
+	var sawIfNoneMatch atomic.Value
+	sawIfNoneMatch.Store("")
+	srv, hits := newDynamicProfilesServer(t, func(w http.ResponseWriter, r *http.Request) {
+		sawIfNoneMatch.Store(r.Header.Get("If-None-Match"))
+		w.WriteHeader(http.StatusNotModified)
+	})
+
+	a, r := getTestDynamicProfilesAtel(t, srv.URL)
+	dp := a.dynamicProfiles
+
+	// A peer wrote the document but never got as far as the attempt record.
+	stale := time.Now().Add(-2 * dp.pollInterval)
+	require.NoError(t, writeCachedDocument(dp.cachePath, &cachedDocument{
+		FetchedAtNS: stale.UnixNano(),
+		ETag:        "peer-etag",
+		Config:      testDynamicProfilesDoc,
+	}))
+
+	// Nothing is published yet: this process started before the peer wrote.
+	require.Nil(t, dp.load())
+	require.Empty(t, r.liveJobs())
+
+	dp.poll(context.Background())
+
+	assert.Equal(t, int64(1), hits.Load())
+	assert.Equal(t, "peer-etag", sawIfNoneMatch.Load(), "the ETag must come from the on-disk document")
+
+	snapshot := dp.load()
+	require.NotNil(t, snapshot, "304 must publish the confirmed document")
+	assert.Len(t, snapshot.profiles, 1)
+	assert.Len(t, r.liveJobs(), 1)
+
+	// The gate advanced and the document was left alone.
+	at, err := readAttemptRecord(dp.attemptPath)
+	require.NoError(t, err)
+	assert.NotZero(t, at.AttemptedAtNS)
+	doc, err := readCachedDocument(dp.cachePath)
+	require.NoError(t, err)
+	assert.Equal(t, testDynamicProfilesDoc, doc.Config)
 }
 
 // 204/404 is how the endpoint withdraws the dynamic profiles.

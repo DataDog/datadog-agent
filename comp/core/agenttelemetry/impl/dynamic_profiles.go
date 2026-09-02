@@ -794,7 +794,12 @@ func (dp *dynamicProfilesManager) poll(ctx context.Context) {
 
 	switch {
 	case res.notModified:
+		// 304 confirms that the document we sent an ETag for -- the one on disk -- is current. Publish it before
+		// recording the attempt: a peer may have written it after our startup and died before updating the attempt
+		// record, in which case this is the first time we learn it is both present and current. adoptCached is a no-op
+		// when it already matches what we published.
 		dp.logComp.Debugf("agent telemetry dynamic profiles: not modified")
+		dp.adoptCached(doc)
 		dp.recordAttempt(now)
 		return
 	case res.absent:
@@ -897,8 +902,18 @@ func (dp *dynamicProfilesManager) apply(cfg *Config, raw string) {
 		len(profiles), len(dp.jobIDs))
 }
 
-// buildHeaders builds the request headers. OS, architecture, version and flavor exist so the endpoint can target a
-// subset of the fleet.
+// buildHeaders builds the request headers. Version, OS and architecture let the endpoint target a subset of the fleet.
+//
+// Every dimension advertised here must be identical for all agent processes on a host, because they share one cache and
+// one attempt record: the first process to poll suppresses the others for a poll interval, and they then adopt its
+// document. Version, OS and architecture satisfy that -- all the agent processes on a host are the same build.
+//
+// Flavor deliberately does not appear. It is the one dimension that varies per process, so advertising it would let the
+// endpoint return a trace-agent document that the core agent had already suppressed the fetch for (or vice versa), and
+// the shared cache would serve it to every flavor for the rest of the interval. Keying the cache by flavor instead
+// would restore correctness but multiply requests per host by the number of running flavors, which defeats the point of
+// sharing it. Flavor targeting also buys little: every flavor already applies the same document against its own
+// telemetry registry, and metrics it does not have are simply skipped.
 func (dp *dynamicProfilesManager) buildHeaders(doc *cachedDocument, attempt *attemptRecord) map[string]string {
 	agentVersion := version.AgentVersion
 
@@ -906,7 +921,6 @@ func (dp *dynamicProfilesManager) buildHeaders(doc *cachedDocument, attempt *att
 		"User-Agent":       fmt.Sprintf("datadog-agent/%s (%s)", agentVersion, runtime.Version()),
 		"Accept":           "application/yaml, text/yaml",
 		"DD-Agent-Version": agentVersion,
-		"DD-Agent-Flavor":  normalizedFlavor(),
 		"DD-Agent-OS":      runtime.GOOS,
 		"DD-Agent-Arch":    runtime.GOARCH,
 	}
@@ -918,6 +932,10 @@ func (dp *dynamicProfilesManager) buildHeaders(doc *cachedDocument, attempt *att
 	// Report the previous poll's failure so the endpoint can track breakage of the mechanism itself. Prefer the
 	// persisted record (which may come from a peer process or a previous boot) and fall back to this process's own
 	// memory when the disk write itself failed.
+	//
+	// The flavor in here is diagnostic, not targeting: it names the process that hit the failure, which -- because the
+	// attempt record is shared -- is often not the process sending this request. It must never be used to vary the
+	// response, for the same reason DD-Agent-Flavor is not sent.
 	last := dp.lastError.Load()
 	if attempt != nil && attempt.LastError != nil {
 		last = attempt.LastError
