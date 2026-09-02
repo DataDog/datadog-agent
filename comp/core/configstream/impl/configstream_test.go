@@ -485,7 +485,7 @@ func TestConfigStream(t *testing.T) {
 		require.Equal(t, "original_value", update.Update.Setting.Value.GetStringValue())
 		require.Equal(t, string(model.SourceAgentRuntime), update.Update.Setting.Source)
 	})
-	t.Run("drops the removal when the fallback value cannot be encoded", func(t *testing.T) {
+	dropsRemovalWhenFallbackIsUnencodable := func(t *testing.T) {
 		provides, configComp := buildComponent(t)
 
 		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-unencodable"})
@@ -534,6 +534,9 @@ func TestConfigStream(t *testing.T) {
 		}
 		_, isSnapshot = event.GetEvent().(*pb.ConfigEvent_Snapshot)
 		require.True(t, isSnapshot, "sequence gap must resynchronize the subscriber")
+	}
+	t.Run("drops the removal when the fallback value cannot be encoded", func(t *testing.T) {
+		synctest.Test(t, dropsRemovalWhenFallbackIsUnencodable)
 	})
 
 	resyncsWithSnapshotOnDiscontinuity := func(t *testing.T) {
