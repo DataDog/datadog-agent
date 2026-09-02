@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "user",
-    srcs = ["user.go"],
+    srcs = [
+        "user.go",
+        "user_darwin.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user",
     visibility = ["//visibility:public"],
     deps = select({

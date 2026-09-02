@@ -240,7 +240,7 @@ func applyDatadogYAMLRegistryConfig(env *env.Env) {
 
 // RootCommands returns the root commands
 func RootCommands() []*cobra.Command {
-	return []*cobra.Command{
+	return append([]*cobra.Command{
 		installCommand(),
 		setupCommand(),
 		setupInstallerCommand(),
@@ -264,7 +264,7 @@ func RootCommands() []*cobra.Command {
 		prermCommand(),
 		hooksCommand(),
 		packageCommand(),
-	}
+	}, platformCommands()...)
 }
 
 // UnprivilegedCommands returns the unprivileged commands

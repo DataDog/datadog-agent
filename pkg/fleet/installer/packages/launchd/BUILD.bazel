@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "launchd",
+    srcs = [
+        "jobset.go",
+        "launchd.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/packages/embedded",
+            "//pkg/fleet/installer/telemetry",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/packages/embedded",
+            "//pkg/fleet/installer/telemetry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "launchd_test",
+    srcs = [
+        "jobset_test.go",
+        "launchd_test.go",
+    ],
+    embed = [":launchd"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/packages/embedded",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/packages/embedded",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

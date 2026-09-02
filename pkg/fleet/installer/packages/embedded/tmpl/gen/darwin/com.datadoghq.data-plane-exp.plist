@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.datadoghq.data-plane-exp</string>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>DD_LOG_TO_CONSOLE</key>
+            <string>false</string>
+            <key>DD_FLEET_POLICIES_DIR</key>
+            <string>/opt/datadog-agent/etc-exp/managed/datadog-agent/stable</string>
+            <key>DD_INVENTORIES_FIRST_RUN_DELAY</key>
+            <string>5</string>
+        </dict>
+        <key>ProgramArguments</key>
+        <array>
+            <string>/opt/datadog-agent/embedded/bin/agent-data-plane</string>
+            <string>--config</string>
+            <string>/opt/datadog-agent/etc-exp/datadog.yaml</string>
+            <string>run</string>
+            <string>--pidfile</string>
+            <string>/opt/datadog-agent/run/agent-data-plane.pid</string>
+        </array>
+        <key>StandardOutPath</key>
+        <string>/opt/datadog-agent/logs/launchd_data_plane-exp.log</string>
+        <key>StandardErrorPath</key>
+        <string>/opt/datadog-agent/logs/launchd_data_plane-exp.log</string>
+        <key>ExitTimeOut</key>
+        <integer>10</integer>
+        <key>UserName</key>
+        <string>_dd-agent</string>
+        <key>GroupName</key>
+        <string>daemon</string>
+    </dict>
+</plist>

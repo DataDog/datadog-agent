@@ -11,6 +11,7 @@ import (
 	"errors"
 	"io/fs"
 	"path"
+	"strings"
 )
 
 // ScriptDDCleanup is the embedded dd-cleanup script.
@@ -38,6 +39,12 @@ var systemdUnits embed.FS
 //
 //go:embed tmpl/gen/pm
 var procmgrUnits embed.FS
+
+// launchdJobs holds the launchd job definitions for macOS: the stable set and the -exp set,
+// rendered from the same templates (see embedded/tmpl/main.go).
+//
+//go:embed tmpl/gen/darwin
+var launchdJobs embed.FS
 
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
@@ -90,6 +97,56 @@ func GetProcmgrUnit(name string, unitType UnitType, ambiantCapabilitiesSupported
 // GetProcmgrProcess returns the process config for the given name (actually only for procmgr)
 func GetProcmgrProcess(name string) ([]byte, error) {
 	return procmgrUnits.ReadFile(path.Join("tmpl/gen/pm", "processes.d", name))
+}
+
+// LaunchdVariant selects one of the two launchd job sets.
+type LaunchdVariant string
+
+const (
+	// LaunchdStable is the job set that runs normally: supervised, through the façade, reading
+	// the stable configuration directory.
+	LaunchdStable LaunchdVariant = ""
+	// LaunchdExperiment is the job set an experiment runs under: unsupervised, direct into the
+	// pool, reading the experiment configuration directory.
+	LaunchdExperiment LaunchdVariant = "-exp"
+)
+
+// GetLaunchdJob returns the launchd job definition for the given label and variant.
+//
+// name is the label without its variant suffix, e.g. "com.datadoghq.agent". The installer daemon
+// has no experiment variant and is only available as LaunchdStable.
+func GetLaunchdJob(name string, variant LaunchdVariant) ([]byte, error) {
+	return launchdJobs.ReadFile(path.Join("tmpl/gen/darwin", name+string(variant)+".plist"))
+}
+
+// LaunchdJobs returns the labels every launchd job definition is embedded for, in the given
+// variant.
+func LaunchdJobs(variant LaunchdVariant) ([]string, error) {
+	entries, err := launchdJobs.ReadDir("tmpl/gen/darwin")
+	if err != nil {
+		return nil, err
+	}
+	var labels []string
+	for _, entry := range entries {
+		label := strings.TrimSuffix(entry.Name(), ".plist")
+		if label == entry.Name() {
+			continue
+		}
+		// The stable variant has no suffix, so it must not match the -exp definitions.
+		switch variant {
+		case LaunchdExperiment:
+			if !strings.HasSuffix(label, string(LaunchdExperiment)) {
+				continue
+			}
+			label = strings.TrimSuffix(label, string(LaunchdExperiment))
+		default:
+			if strings.HasSuffix(label, string(LaunchdExperiment)) {
+				continue
+			}
+		}
+		labels = append(labels, label)
+	}
+	return labels, nil
 }
 
 func flavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
