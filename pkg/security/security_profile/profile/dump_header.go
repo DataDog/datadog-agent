@@ -30,4 +30,10 @@ type ActivityDumpHeader struct {
 	// this is a hack used to provide this global list to the backend in the JSON header
 	// instead of in the protobuf payload.
 	DNSNames *utils.StringKeys `json:"dns_names"`
+
+	// Hardening holds a whole-profile posture summary, hoisted here for the same reason as
+	// DNSNames above: the header is the only part of a dump the backend indexes, so this is
+	// what lets hardening controls be evaluated without opening the protobuf attachment.
+	// Omitted when the profile cannot support one, or when the feature is disabled.
+	Hardening *HardeningPosture `json:"hardening,omitempty"`
 }
