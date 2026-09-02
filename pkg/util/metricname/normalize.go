@@ -128,10 +128,6 @@ func isNormalized(name string) bool {
 // normalize into a stack buffer, and is why this appends rather than returning a
 // string: no caller is forced to pay for the rewrite allocation.
 func NormalizeAppend(dst []byte, name string) ([]byte, bool) {
-	return normalizeAppend(dst, name)
-}
-
-func normalizeAppend(dst []byte, name string) ([]byte, bool) {
 	start, ok := firstAlpha(name)
 	if !ok {
 		return dst, false

@@ -18,7 +18,7 @@ import (
 // via NormalizeAppend instead, so this deliberately exists only in tests -- see
 // Matcher.Test.
 func normalize(name string) (string, bool) {
-	got, ok := normalizeAppend(make([]byte, 0, MaxLength), name)
+	got, ok := NormalizeAppend(make([]byte, 0, MaxLength), name)
 	if !ok {
 		return name, false
 	}
