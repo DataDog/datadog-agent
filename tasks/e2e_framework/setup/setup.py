@@ -186,7 +186,7 @@ def setup(
         debug_env(ctx, config_path=config_path)
 
     if interactive:
-        info("\n✓ Setup complete. Try: dda inv new-e2e-tests.run --targets=./test/new-e2e/examples\n")
+        info("\n✓ Setup complete. Try: dda inv new-e2e-tests.run --targets=./examples\n")
 
 
 @task
