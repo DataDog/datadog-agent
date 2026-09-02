@@ -731,10 +731,6 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			},
 		},
 		{
-			// Regression test for CONS-8533: webhooks whose own LabelSelectors()
-			// return a nil namespaceSelector (e.g. cws exec instrumentation) must
-			// still get the AKS-required exclusions, or AKS's admission enforcer
-			// and the cluster agent's reconcile loop fight over the object forever.
 			name: "AKS-specific label selector applied to webhooks with no namespace selector of their own",
 			setupConfig: func(mockConfig model.Config) {
 				mockConfig.SetInTest("admission_controller.add_aks_selectors", true)
