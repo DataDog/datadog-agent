@@ -164,6 +164,7 @@ dd_agent_go_test(
 dd_agent_go_test(
     name = "permissions_test",
     srcs = ["permissions_test.go"],
+    data = glob(["testdata/**"]),
     embed = [":bytecode"],
     deps = select({
         "@rules_go//go/platform:android": [
