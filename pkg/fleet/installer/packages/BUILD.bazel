@@ -49,6 +49,7 @@ go_library(
             "//pkg/fleet/installer/packages/service/sysvinit",
             "//pkg/fleet/installer/packages/service/upstart",
             "//pkg/fleet/installer/packages/user",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/installinfo",
@@ -64,6 +65,7 @@ go_library(
             "//pkg/fleet/installer/packages/service/sysvinit",
             "//pkg/fleet/installer/packages/service/upstart",
             "//pkg/fleet/installer/packages/user",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/msi",
@@ -91,6 +93,7 @@ dd_agent_go_test(
         "apm_inject_windows_test.go",
         "datadog_agent_eudm_windows_test.go",
         "datadog_agent_extensions_test.go",
+        "datadog_agent_linux_test.go",
         "datadog_agent_windows_test.go",
         "otel_config_common_test.go",
     ],

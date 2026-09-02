@@ -3,6 +3,7 @@ Description=Datadog rshell privileged helper
 After=datadog-agent.service datadog-agent-action.service
 BindsTo=datadog-agent.service datadog-agent-action.service
 Conflicts=datadog-agent-rshell-privileged-exp.service
+ConditionPathExists=/opt/datadog-agent/embedded/bin/rshell
 
 [Service]
 Type=simple

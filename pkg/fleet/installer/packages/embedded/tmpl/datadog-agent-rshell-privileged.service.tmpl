@@ -4,11 +4,13 @@ Description=Datadog rshell privileged helper
 After=datadog-agent.service datadog-agent-action.service
 BindsTo=datadog-agent.service datadog-agent-action.service
 Conflicts=datadog-agent-rshell-privileged-exp.service
+ConditionPathExists={{.InstallDir}}/embedded/bin/rshell
 {{- else}}
 Description=Datadog rshell privileged helper experiment
 After=datadog-agent-exp.service datadog-agent-action-exp.service
 BindsTo=datadog-agent-exp.service datadog-agent-action-exp.service
 Conflicts=datadog-agent-rshell-privileged.service
+ConditionPathExists={{.InstallDir}}/embedded/bin/rshell
 {{- end}}
 
 [Service]
