@@ -59,6 +59,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 		}
 		apiKeyManager := &apiKeyManager{
 			apiKey:           endpoint.APIKey,
+			providerRequired: endpoint.CredentialDirective != "",
 			refreshFn:        cfg.SecretsRefreshFn,
 			throttleInterval: cfg.APIKeyRefreshThrottleInterval,
 			isFromSecret:     cfg.APIKeyIsFromSecretFn,
@@ -194,11 +195,18 @@ type apiKeyManager struct {
 	// provider, when set, supplies this endpoint's credential instead of apiKey. It may have no
 	// credential yet, in which case the payload waits rather than being sent unauthenticated.
 	provider config.CredentialProvider
+
+	// providerRequired distinguishes a DELA endpoint whose provider could not be
+	// constructed from an ordinary endpoint with an empty API key.
+	providerRequired bool
 }
 
 // Authorize stamps this endpoint's credential onto h and reports whether it did. It returns false
 // only for a delegated-auth endpoint whose credential has not arrived yet.
 func (m *apiKeyManager) Authorize(h http.Header) bool {
+	if m.providerRequired && m.provider == nil {
+		return false
+	}
 	return credential.StampAuth(h, m.provider, m.Get())
 }
 

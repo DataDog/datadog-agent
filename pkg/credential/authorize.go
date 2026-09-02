@@ -14,9 +14,9 @@ import "net/http"
 const apiKeyHeader = "DD-Api-Key"
 
 // StampAuth stamps the credential onto h. It tries the provider first, then
-// falls back to the static key. Returns true when the caller may send, false
-// when the credential is not yet available (provider still resolving) or no key
-// is configured.
+// falls back to the static key. A provider that is still resolving returns
+// false. Without a provider, it preserves the existing static path, including
+// its empty-key behavior.
 //
 // This is the shared implementation of the "provider-or-static-key" pattern
 // that was previously duplicated across the resolver, logs, trace writer, and
@@ -24,9 +24,6 @@ const apiKeyHeader = "DD-Api-Key"
 func StampAuth(h http.Header, provider Provider, staticKey string) bool {
 	if provider != nil {
 		return provider.Authorize(h)
-	}
-	if staticKey == "" {
-		return false
 	}
 	h.Set(apiKeyHeader, staticKey)
 	return true

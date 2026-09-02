@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    APM : Add delegated authentication support for Agent intake endpoints.
