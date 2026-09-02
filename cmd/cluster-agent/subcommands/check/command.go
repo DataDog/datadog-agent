@@ -10,6 +10,7 @@ package check
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/check"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
@@ -24,9 +25,11 @@ import (
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	ctx, _ := pkgcommon.GetMainCtxCancel()
-	// Create the Leader election engine without initializing it
+	// Create the Leader election engine without initializing it. This one-shot
+	// command never serves the telemetry endpoint, so the engine gets a no-op
+	// telemetry component.
 	if pkgconfigsetup.Datadog().GetBool("leader_election") {
-		leaderelection.CreateGlobalLeaderEngine(ctx)
+		leaderelection.CreateGlobalLeaderEngine(ctx, noopsimpl.NewComponent())
 	}
 
 	cmd := check.MakeCommand(func() check.GlobalParams {

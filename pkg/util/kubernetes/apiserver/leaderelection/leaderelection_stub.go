@@ -9,7 +9,11 @@
 // mechanism offered in Kubernetes.
 package leaderelection
 
-import "context"
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+)
 
 // CreateGlobalLeaderEngine does nothing
-func CreateGlobalLeaderEngine(_ context.Context) {}
+func CreateGlobalLeaderEngine(_ context.Context, _ telemetry.Component) {}

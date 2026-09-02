@@ -15,7 +15,6 @@ go_library(
     deps = [
         "//comp/core/status",
         "//comp/core/telemetry/def",
-        "//comp/core/telemetry/impl",
         "//internal/third_party/client-go/tools/leaderelection/resourcelock",
         "//pkg/config/setup",
         "//pkg/util/cache",
