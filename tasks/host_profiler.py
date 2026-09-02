@@ -11,7 +11,7 @@ from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import ALLOWED_REPO_NIGHTLY_BRANCHES
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.libs.releasing.json import get_current_milestone
 from tasks.libs.releasing.version import query_version
 from tasks.schema.generate import schema_codegen
@@ -19,7 +19,7 @@ from tasks.schema.generate import schema_codegen
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
 CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
 PPROFILE_MODULE = "go.opentelemetry.io/collector/pdata/pprofile"
-PPROFILE_MAX_VERSION = "v0.158.0"
+PPROFILE_MAX_VERSION = "v0.159.0"
 
 BIN_NAME = "host-profiler"
 BIN_DIR = os.path.join(".", "bin", "host-profiler")
@@ -70,15 +70,10 @@ def build(ctx):
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
-    env = {"GO111MODULE": "on"}
     build_tags = get_default_build_tags(build="host-profiler")
-    ldflags = get_version_ldflags(ctx)
+    ldflags, gcflags, env = get_build_flags(ctx)
     if profiler_version := _get_profiler_agent_version(ctx):
         ldflags += f" -X {REPO_PATH}/pkg/version.AgentVersion={profiler_version}"
-    if os.environ.get("DELVE"):
-        gcflags = "all=-N -l"
-    else:
-        gcflags = ""
 
     # generate windows resources
     if sys.platform == 'win32':

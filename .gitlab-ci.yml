@@ -298,25 +298,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v132333024-4b82e653
+  CI_IMAGE_BTF_GEN: v133257318-6ecce2dd
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v132333024-4b82e653
+  CI_IMAGE_DOCKER_X64: v133257318-6ecce2dd
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v132333024-4b82e653
+  CI_IMAGE_DOCKER_ARM64: v133257318-6ecce2dd
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v132333024-4b82e653
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v133257318-6ecce2dd
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v132333024-4b82e653
+  CI_IMAGE_LINUX: v133257318-6ecce2dd
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v132333024-4b82e653
+  CI_IMAGE_RPM_X64: v133257318-6ecce2dd
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v132333024-4b82e653
+  CI_IMAGE_RPM_ARM64: v133257318-6ecce2dd
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v132333024-4b82e653
+  CI_IMAGE_RPM_ARMHF: v133257318-6ecce2dd
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v130938967-3a9f81bc
+  CI_IMAGE_WIN_LTSC2022_X64: v133257318-6ecce2dd
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v130938967-3a9f81bc
+  CI_IMAGE_WIN_LTSC2025_X64: v133257318-6ecce2dd
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -351,7 +351,6 @@ variables:
   AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
   AGENT_QA_E2E: agent-qa-e2e # agent-devx
   ATLASSIAN_WRITE: atlassian-write # agent-delivery
-  CODECOV: codecov # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
   DYNAMIC_TESTS_BREAKGLASS: dynamic-tests-breakglass # agent-devx
   E2E_AZURE: e2e-azure # agent-devx
@@ -1348,6 +1347,7 @@ workflow:
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
         - .gitlab/build/source_test/linux.yml
+        - tasks/gpu.py
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - !reference [.manual]
