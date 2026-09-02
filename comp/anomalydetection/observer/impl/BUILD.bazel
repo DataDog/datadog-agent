@@ -54,7 +54,6 @@ go_library(
         "//comp/anomalydetection/severityevents/impl",
         "//comp/core/config",
         "//comp/core/telemetry/def",
-        "//comp/core/telemetry/impl/noops",
         "//comp/def",
         "//pkg/config/structure",
         "//pkg/util/log",
