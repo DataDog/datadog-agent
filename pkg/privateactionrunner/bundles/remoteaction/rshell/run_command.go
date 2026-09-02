@@ -67,7 +67,10 @@ type RunCommandHandlerConfig struct {
 // The two actions share all sandboxing logic and differ only in mode:
 // - runCommand runs rshell in read-only mode (interp.ModeReadOnly) ;
 // - runRemediationCommand runs it in remediation mode (interp.ModeRemediation)
-// both still confined to the effective AllowedPaths sandbox.
+// both still confined to the effective AllowedPaths sandbox. Either action can
+// delegate selectively elevated execution to the privileged helper; the helper
+// independently authenticates the signed action and enforces its corresponding
+// execution mode.
 //
 // The operator allowlists narrow the per-task backend lists before being passed
 // to rshell. They use different equivalence notions:
@@ -371,9 +374,6 @@ func (h *RunCommandHandler) Run(
 }
 
 func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task) (interface{}, error) {
-	if h.mode != interp.ModeRemediation {
-		return nil, errors.New("privileged execution is available only for remediation actions")
-	}
 	if !h.privilegedEnabled {
 		return nil, errors.New("privileged rshell execution is disabled by local configuration")
 	}

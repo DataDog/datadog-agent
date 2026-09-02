@@ -641,13 +641,23 @@ func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
 }
 
 func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
-	handler := newDefaultRunRemediationCommandHandler()
-	task := makeTask("sudo truncate -s 0 /var/log/app.log", []string{"rshell:truncate"})
-	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
-	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:truncate"}
+	tests := []struct {
+		name    string
+		handler *RunCommandHandler
+	}{
+		{name: "read-only", handler: newDefaultRunCommandHandler()},
+		{name: "remediation", handler: newDefaultRunRemediationCommandHandler()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
+			task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
+			task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
 
-	_, err := handler.Run(context.Background(), task, nil)
-	require.ErrorContains(t, err, "disabled by local configuration")
+			_, err := tt.handler.Run(context.Background(), task, nil)
+			require.ErrorContains(t, err, "disabled by local configuration")
+		})
+	}
 }
 
 func TestWholeScriptRootIsRejected(t *testing.T) {
@@ -660,27 +670,31 @@ func TestWholeScriptRootIsRejected(t *testing.T) {
 }
 
 func TestPrivilegedHelperTaskWireCompatibility(t *testing.T) {
-	agentTask := &privateactionspb.PrivateActionTask{
-		ActionName:     "runRemediationCommand",
-		BundleId:       "com.datadoghq.remoteaction.rshell",
-		OrgId:          42,
-		TaskId:         "task-1",
-		ConnectionInfo: &privateactionspb.ConnectionInfo{RunnerId: "runner-1"},
-		SystemInputs: &privateactionspb.SystemInputs{Input: &privateactionspb.SystemInputs_RemoteAction{
-			RemoteAction: &privateactionspb.RemoteAction{AllowedCommands: []string{"rshell:truncate"}, AllowedPaths: []string{"/var/log:rw"}},
-		}},
+	for _, actionName := range []string{"runCommand", "runRemediationCommand"} {
+		t.Run(actionName, func(t *testing.T) {
+			agentTask := &privateactionspb.PrivateActionTask{
+				ActionName:     actionName,
+				BundleId:       "com.datadoghq.remoteaction.rshell",
+				OrgId:          42,
+				TaskId:         "task-1",
+				ConnectionInfo: &privateactionspb.ConnectionInfo{RunnerId: "runner-1"},
+				SystemInputs: &privateactionspb.SystemInputs{Input: &privateactionspb.SystemInputs_RemoteAction{
+					RemoteAction: &privateactionspb.RemoteAction{AllowedCommands: []string{"rshell:cat"}, AllowedPaths: []string{"/root:ro"}},
+				}},
+			}
+			wire, err := proto.Marshal(agentTask)
+			require.NoError(t, err)
+			var helperTask privilegedhelper.PrivateActionTask
+			require.NoError(t, proto.Unmarshal(wire, &helperTask))
+			assert.Equal(t, agentTask.ActionName, helperTask.ActionName)
+			assert.Equal(t, agentTask.BundleId, helperTask.BundleId)
+			assert.Equal(t, agentTask.OrgId, helperTask.OrgId)
+			assert.Equal(t, agentTask.TaskId, helperTask.TaskId)
+			assert.Equal(t, agentTask.ConnectionInfo.RunnerId, helperTask.ConnectionInfo.RunnerId)
+			assert.Equal(t, agentTask.SystemInputs.GetRemoteAction().AllowedCommands, helperTask.SystemInputs.GetRemoteAction().AllowedCommands)
+			assert.Equal(t, agentTask.SystemInputs.GetRemoteAction().AllowedPaths, helperTask.SystemInputs.GetRemoteAction().AllowedPaths)
+		})
 	}
-	wire, err := proto.Marshal(agentTask)
-	require.NoError(t, err)
-	var helperTask privilegedhelper.PrivateActionTask
-	require.NoError(t, proto.Unmarshal(wire, &helperTask))
-	assert.Equal(t, agentTask.ActionName, helperTask.ActionName)
-	assert.Equal(t, agentTask.BundleId, helperTask.BundleId)
-	assert.Equal(t, agentTask.OrgId, helperTask.OrgId)
-	assert.Equal(t, agentTask.TaskId, helperTask.TaskId)
-	assert.Equal(t, agentTask.ConnectionInfo.RunnerId, helperTask.ConnectionInfo.RunnerId)
-	assert.Equal(t, agentTask.SystemInputs.GetRemoteAction().AllowedCommands, helperTask.SystemInputs.GetRemoteAction().AllowedCommands)
-	assert.Equal(t, agentTask.SystemInputs.GetRemoteAction().AllowedPaths, helperTask.SystemInputs.GetRemoteAction().AllowedPaths)
 }
 
 func TestRunCommandMissingRemoteActionPolicyBlocksExecution(t *testing.T) {
