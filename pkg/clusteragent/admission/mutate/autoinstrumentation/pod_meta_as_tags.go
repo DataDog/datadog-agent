@@ -81,14 +81,14 @@ func envVarSourceFromFieldRef(kind podMetaKind, path string) *corev1.EnvVarSourc
 	}
 }
 
-func ustEnvVarMutatorForPodMeta(pod *corev1.Pod, mappingSource podMetaAsTags, tag, envVarName string) *ustEnvVarMutator {
+func ustEnvVarMutatorForPodMeta(pod *corev1.Pod, mappingSource podMetaAsTags, tag, envVarName string, skipIfOTELEquivalent otelEquivalentCheck) *ustEnvVarMutator {
 	env, found := envVarForPodMetaMapping(pod, podMetaKindLabels, mappingSource, tag, envVarName)
 	if found {
-		return &ustEnvVarMutator{EnvVar: env}
+		return &ustEnvVarMutator{EnvVar: env, skipIfOTELEquivalent: skipIfOTELEquivalent}
 	}
 
 	if env, found := envVarForPodMetaMapping(pod, podMetaKindAnnotations, mappingSource, tag, envVarName); found {
-		return &ustEnvVarMutator{EnvVar: env}
+		return &ustEnvVarMutator{EnvVar: env, skipIfOTELEquivalent: skipIfOTELEquivalent}
 	}
 
 	return nil
@@ -97,6 +97,10 @@ func ustEnvVarMutatorForPodMeta(pod *corev1.Pod, mappingSource podMetaAsTags, ta
 type ustEnvVarMutator struct {
 	EnvVar corev1.EnvVar
 	Source *corev1.EnvVar
+
+	// skipIfOTELEquivalent, if set, skips injecting EnvVar into a container
+	// that already carries an OpenTelemetry-native equivalent of it.
+	skipIfOTELEquivalent otelEquivalentCheck
 }
 
 func (m *ustEnvVarMutator) mutateContainer(c *corev1.Container) error {
@@ -113,6 +117,10 @@ func (m *ustEnvVarMutator) mutateContainer(c *corev1.Container) error {
 		if e.Name == m.EnvVar.Name {
 			return nil
 		}
+	}
+
+	if m.skipIfOTELEquivalent != nil && m.skipIfOTELEquivalent(c) {
+		return nil
 	}
 
 	var envs []corev1.EnvVar

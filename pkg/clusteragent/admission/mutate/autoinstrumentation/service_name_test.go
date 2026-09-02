@@ -145,3 +145,37 @@ func TestFindServiceNameInPod(t *testing.T) {
 		})
 	}
 }
+
+func TestServiceNameMutatorSkipsInjectionWhenOtelServiceNamePresent(t *testing.T) {
+	mutator := &serviceNameMutator{
+		EnvVar: corev1.EnvVar{Name: "DD_SERVICE", Value: "banana"},
+		Source: serviceNameSourceOwnerName,
+	}
+
+	c := &corev1.Container{
+		Env: []corev1.EnvVar{
+			{Name: "OTEL_SERVICE_NAME", Value: "otel-service"},
+		},
+	}
+
+	err := mutator.mutateContainer(c)
+	require.NoError(t, err)
+	require.Equal(t, []corev1.EnvVar{
+		{Name: "OTEL_SERVICE_NAME", Value: "otel-service"},
+	}, c.Env)
+}
+
+func TestServiceNameMutatorInjectsWhenNoOtelServiceName(t *testing.T) {
+	mutator := &serviceNameMutator{
+		EnvVar: corev1.EnvVar{Name: "DD_SERVICE", Value: "banana"},
+		Source: serviceNameSourceOwnerName,
+	}
+
+	c := &corev1.Container{}
+
+	err := mutator.mutateContainer(c)
+	require.NoError(t, err)
+	require.Len(t, c.Env, 2)
+	require.Equal(t, "DD_SERVICE", c.Env[0].Name)
+	require.Equal(t, "banana", c.Env[0].Value)
+}

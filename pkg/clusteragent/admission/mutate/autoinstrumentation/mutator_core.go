@@ -309,7 +309,7 @@ func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod, config extractedPodLibIn
 		tags.Version: kubernetes.VersionTagEnvVar,
 		tags.Env:     kubernetes.EnvTagEnvVar,
 	} {
-		if mutator := ustEnvVarMutatorForPodMeta(pod, m.config.podMetaAsTags, tag, envVarName); mutator != nil {
+		if mutator := ustEnvVarMutatorForPodMeta(pod, m.config.podMetaAsTags, tag, envVarName, otelEquivalentOf(envVarName)); mutator != nil {
 			mutators = append(mutators, mutator)
 		}
 	}

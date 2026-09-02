@@ -57,8 +57,9 @@ func (s *serviceNameMutator) mutateContainer(c *corev1.Container) error {
 	}
 
 	mutator := &ustEnvVarMutator{
-		EnvVar: s.EnvVar,
-		Source: source,
+		EnvVar:               s.EnvVar,
+		Source:               source,
+		skipIfOTELEquivalent: otelEquivalentOf(kubernetes.ServiceTagEnvVar),
 	}
 
 	return mutator.mutateContainer(c)
