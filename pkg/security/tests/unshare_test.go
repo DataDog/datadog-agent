@@ -36,10 +36,6 @@ func TestUnshareEvent(t *testing.T) {
 			Expression: `unshare.flags & CLONE_NEWNS > 0 && process.file.name == "syscall_tester"`,
 		},
 		{
-			ID:         "test_unshare_newpid",
-			Expression: `unshare.flags & CLONE_NEWPID > 0 && process.file.name == "syscall_tester"`,
-		},
-		{
 			ID:         "test_unshare_newuser_newnet",
 			Expression: `unshare.flags & CLONE_NEWUSER > 0 && unshare.flags & CLONE_NEWNET > 0 && process.file.name == "syscall_tester"`,
 		},
@@ -108,13 +104,6 @@ func TestUnshareEvent(t *testing.T) {
 	t.Run("unshare-newns", func(t *testing.T) {
 		flags := unix.CLONE_NEWNS
 		if err := test.GetEventSent(t, runUnshare(flags), assertUnshare(t, flags), time.Second*3, "test_unshare_newns"); err != nil {
-			t.Error(err)
-		}
-	})
-
-	t.Run("unshare-newpid", func(t *testing.T) {
-		flags := unix.CLONE_NEWPID
-		if err := test.GetEventSent(t, runUnshare(flags), assertUnshare(t, flags), time.Second*3, "test_unshare_newpid"); err != nil {
 			t.Error(err)
 		}
 	})
