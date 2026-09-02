@@ -7,6 +7,7 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -52,7 +53,7 @@ func SetProcessManagerEnabled(ctx context.Context, enabled bool) error {
 	switch service.GetServiceManagerType(installRoot) {
 	case service.SystemdType, service.ProcmgrType:
 	default:
-		return fmt.Errorf("switching the process manager is only supported under systemd")
+		return errors.New("switching the process manager is only supported under systemd")
 	}
 
 	// Flipping the installer's own process manager is scoped to OCI installs (the fleet-managed

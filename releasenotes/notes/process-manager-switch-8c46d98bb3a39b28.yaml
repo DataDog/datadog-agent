@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Installer: Added a ``datadog-installer process-manager enable|disable`` command to switch
+    which service manager (``dd-procmgrd`` or the native systemd/SCM services) supervises the
+    Agent's extension processes after install.
+fixes:
+  - |
+    Installer: The ``DD_PROCESS_MANAGER_ENABLED`` choice now persists across installer daemon
+    restarts, updates, and experiments instead of reverting to the default on every operation
+    that does not explicitly set it.
