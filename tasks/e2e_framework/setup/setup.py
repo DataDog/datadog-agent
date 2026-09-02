@@ -452,6 +452,8 @@ def debug_env(ctx, config_path: str | None = None):
     """
     Debug E2E and test-infra-definitions required tools and configuration
     """
+    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION
+
     # check pulumi found
     try:
         out = run_pulumi(ctx, "version", project_dir=False, skip_update_check=False, hide=True)
@@ -507,18 +509,24 @@ def debug_env(ctx, config_path: str | None = None):
 
     # Show AWS account info
     info("Logged-in aws account info:")
+    # AWS_REGION being unset is not fatal: every resource the E2E framework uses lives in
+    # us-east-1, which is also what the SSO profile sets. Some setups (aws-vault on a
+    # Datadog workspace, for one) simply don't export it.
+    region = os.environ.get("AWS_REGION")
     if os.environ.get("AWS_PROFILE"):
         info(f"\tAWS_PROFILE={os.environ.get('AWS_PROFILE')}")
-        region = os.environ.get("AWS_REGION")
-        if not region:
-            raise Exit("Missing env var AWS_REGION, please set var", 1)
-        info(f"\tAWS_REGION={region}")
     else:
-        for env in ["AWS_VAULT", "AWS_REGION"]:
-            val = os.environ.get(env, None)
-            if val is None:
-                raise Exit(f"Missing env var {env}, please login with awscli/aws-vault or set AWS_PROFILE", 1)
-            info(f"\t{env}={val}")
+        aws_vault = os.environ.get("AWS_VAULT")
+        if aws_vault is None:
+            raise Exit("Missing env var AWS_VAULT, please login with awscli/aws-vault or set AWS_PROFILE", 1)
+        info(f"\tAWS_VAULT={aws_vault}")
+
+    if region:
+        info(f"\tAWS_REGION={region}")
+        if region != DEFAULT_AWS_REGION:
+            warn(f"\tAWS_REGION is {region}, but the E2E resources only exist in {DEFAULT_AWS_REGION}")
+    else:
+        info(f"\tAWS_REGION is unset, {DEFAULT_AWS_REGION} will be used")
 
     # Check if aws creds are valid
     try:
