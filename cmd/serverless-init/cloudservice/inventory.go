@@ -15,7 +15,7 @@ const (
 	// Downstream workload_type values, from the allowlist enforced by the
 	// dd-go event-platform-resource-writer service.
 	workloadTypeCloudRunService   = "cloud_run_service"
-	workloadTypeCloudFunctionGen2 = "cloud_function_gen2"
+	workloadTypeCloudRunFunction  = "cloud_run_function"
 	workloadTypeCloudRunJob       = "cloud_run_job"
 	workloadTypeAzureContainerApp = "azure_container_app"
 	workloadTypeAzureAppService   = "azure_app_service"
@@ -43,6 +43,7 @@ type InventoryData struct {
 
 	Region              string
 	GCPProjectID        string
+	AWSAccountID        string
 	AzureSubscriptionID string
 	AzureResourceGroup  string
 	Runtime             string
@@ -75,11 +76,12 @@ func (m *MicroVM) GetInventoryData() InventoryData {
 	if arn == "" {
 		return InventoryData{WorkloadType: workloadTypeAWSMicroVM}
 	}
-	region, _, imageName := parseMicroVMARN(arn)
+	region, accountID, imageName := parseMicroVMARN(arn)
 	return InventoryData{
 		WorkloadType: workloadTypeAWSMicroVM,
 		ResourceID:   arn,
 		ResourceName: imageName,
 		Region:       region,
+		AWSAccountID: accountID,
 	}
 }
