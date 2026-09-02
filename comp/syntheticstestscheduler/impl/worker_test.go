@@ -529,7 +529,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 	}
 }
 
-func TestNetworkPathToTestResult_UsesRequestResultIDAndMapsCIRunType(t *testing.T) {
+func TestNetworkPathToTestResult_UsesRequestResultIDAndMapsSyntheticsRunType(t *testing.T) {
 	src := "frontend"
 	dst := "backend"
 	icmpTTL := 5
@@ -544,9 +544,8 @@ func TestNetworkPathToTestResult_UsesRequestResultIDAndMapsCIRunType(t *testing.
 	worker := workerResult{
 		testCfg: SyntheticsTestCtx{
 			cfg: common.SyntheticsTestConfig{
-				PublicID: "pub-triggered",
+				PublicID: "pub-on-demand",
 				ResultID: "backend-result-id",
-				RunType:  string(payload.TestRunTypeTriggered),
 				Type:     "network",
 				Config: struct {
 					Assertions []common.Assertion   `json:"assertions"`
@@ -574,8 +573,9 @@ func TestNetworkPathToTestResult_UsesRequestResultIDAndMapsCIRunType(t *testing.
 	}{
 		{name: "scheduled", runType: common.RunTypeScheduled, expected: payload.TestRunTypeScheduled},
 		{name: "triggered", runType: common.RunTypeTriggered, expected: payload.TestRunTypeTriggered},
-		{name: "fast", runType: common.RunTypeFast, expected: payload.TestRunType(common.RunTypeFast)},
+		{name: "fast", runType: common.RunTypeFast, expected: payload.TestRunTypeFast},
 		{name: "ci", runType: common.RunTypeCI, expected: payload.TestRunTypeTriggered},
+		{name: "unknown", runType: "unknown", expected: payload.TestRunTypeTriggered},
 	}
 
 	for _, tt := range testCases {
