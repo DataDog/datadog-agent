@@ -547,10 +547,6 @@ func (suite *ReconcilingConfigManagerSuite) TestServiceTemplateFiltering() {
 	)
 }
 
-func newEndpointAnnotationPrecedenceService() *listeners.KubeEndpointService {
-	return listeners.CreateDummyKubeEndpoint("myservice", "default", nil)
-}
-
 func newEndpointAnnotationPrecedenceTemplate(endpointID, provider, source, version string) integration.Config {
 	return integration.Config{
 		Name:          "redisdb",
@@ -562,7 +558,9 @@ func newEndpointAnnotationPrecedenceTemplate(endpointID, provider, source, versi
 }
 
 func (suite *ReconcilingConfigManagerSuite) TestEndpointAnnotationPrecedenceTransitions() {
-	newService := newEndpointAnnotationPrecedenceService
+	newService := func() *listeners.KubeEndpointService {
+		return listeners.CreateDummyKubeEndpoint("myservice", "default", nil)
+	}
 	endpointID := newService().GetServiceID()
 	newTemplate := func(provider, source, version string) integration.Config {
 		return newEndpointAnnotationPrecedenceTemplate(endpointID, provider, source, version)
@@ -616,7 +614,7 @@ func (suite *ReconcilingConfigManagerSuite) TestEndpointAnnotationPrecedenceTran
 }
 
 func (suite *ReconcilingConfigManagerSuite) TestEndpointAnnotationPrecedenceUpdates() {
-	service := newEndpointAnnotationPrecedenceService()
+	service := listeners.CreateDummyKubeEndpoint("myservice", "default", nil)
 	newTemplate := func(provider, source, version string) integration.Config {
 		return newEndpointAnnotationPrecedenceTemplate(service.GetServiceID(), provider, source, version)
 	}
