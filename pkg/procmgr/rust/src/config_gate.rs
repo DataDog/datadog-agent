@@ -814,6 +814,11 @@ pub(crate) mod test_env {
     }
 
     /// `tempfile` directories are mode `0700`; on Linux CI (root) secret backends run as `dd-agent`.
+    #[cfg(any(
+        procmgr_pr_all,
+        procmgr_pr_config_gate_secrets,
+        procmgr_pr_config_gate_core
+    ))]
     #[cfg(unix)]
     pub(crate) fn open_tempdir_for_agent_user(path: &std::path::Path) {
         use std::os::unix::fs::PermissionsExt;
@@ -821,9 +826,19 @@ pub(crate) mod test_env {
             .expect("open tempdir for agent user");
     }
 
+    #[cfg(any(
+        procmgr_pr_all,
+        procmgr_pr_config_gate_secrets,
+        procmgr_pr_config_gate_core
+    ))]
     #[cfg(not(unix))]
     pub(crate) fn open_tempdir_for_agent_user(_path: &std::path::Path) {}
 
+    #[cfg(any(
+        procmgr_pr_all,
+        procmgr_pr_config_gate_secrets,
+        procmgr_pr_config_gate_core
+    ))]
     pub(crate) fn tempdir_for_secret_backend() -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("tempdir");
         open_tempdir_for_agent_user(dir.path());
@@ -831,6 +846,11 @@ pub(crate) mod test_env {
     }
 
     /// Write a `.cmd` secret backend that prints fixed JSON via `type` (avoids PowerShell escaping).
+    #[cfg(any(
+        procmgr_pr_all,
+        procmgr_pr_config_gate_secrets,
+        procmgr_pr_config_gate_core
+    ))]
     #[cfg(windows)]
     pub(crate) fn write_cmd_secret_backend_json(script_path: &std::path::Path, json: &str) {
         let response_path = script_path.with_extension("json");

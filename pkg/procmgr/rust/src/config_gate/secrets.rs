@@ -166,6 +166,11 @@ fn cache_handle(handle: &str, value: &str) {
 
 /// Drop cached handles and backend settings so reload re-queries the secret backend.
 #[cfg(test)]
+#[cfg(any(
+    procmgr_pr_all,
+    procmgr_pr_config_gate_secrets,
+    procmgr_pr_config_gate_core
+))]
 pub(super) fn clear_caches() {
     if let Some(cache) = HANDLE_CACHE.get()
         && let Ok(mut guard) = cache.lock()
