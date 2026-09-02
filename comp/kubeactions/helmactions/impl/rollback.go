@@ -16,7 +16,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/utils/ptr"
 
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -58,12 +57,12 @@ func NewRollbackExecutor(clientset kubernetes.Interface) *RollbackExecutor {
 // Run validates opts and creates a Job that runs `helm rollback <release>
 // [<revision>] --namespace <release-namespace>`. It returns the created Job;
 // callers that need to observe completion should watch the Job or its Pods.
-func (e *RollbackExecutor) Run(ctx context.Context, opts helmactions.RollbackInputs) (*batchv1.Job, error) {
+func (e *RollbackExecutor) Run(ctx context.Context, opts helmactions.RollbackInputs, meta helmactions.TaskMeta) (*batchv1.Job, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	job := buildRollbackJob(opts)
+	job := buildRollbackJob(opts, meta.ActionID)
 	created, err := e.clientset.BatchV1().Jobs(opts.JobNamespace).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("executor jobs create [ns:%s]: %w", opts.JobNamespace, err)
@@ -73,7 +72,7 @@ func (e *RollbackExecutor) Run(ctx context.Context, opts helmactions.RollbackInp
 	return created, nil
 }
 
-func buildRollbackJob(opts helmactions.RollbackInputs) *batchv1.Job {
+func buildRollbackJob(opts helmactions.RollbackInputs, actionID string) *batchv1.Job {
 	image := opts.Image
 	if image == "" {
 		image = DefaultHelmImage
@@ -83,12 +82,12 @@ func buildRollbackJob(opts helmactions.RollbackInputs) *batchv1.Job {
 
 	ttl := opts.TTLSecondsAfterFinished
 	if ttl == nil {
-		ttl = ptr.To(defaultTTLSecondsAfterFinished)
+		ttl = new(defaultTTLSecondsAfterFinished)
 	}
 
 	deadline := opts.ActiveDeadlineSeconds
 	if deadline == nil {
-		deadline = ptr.To(int64(jobStuckDurationLimit.Seconds()))
+		deadline = new(int64(jobStuckDurationLimit.Seconds()))
 	}
 
 	args := []string{"rollback", opts.Release}
@@ -113,11 +112,16 @@ func buildRollbackJob(opts helmactions.RollbackInputs) *batchv1.Job {
 		env = append(env, corev1.EnvVar{Name: "HELM_DRIVER", Value: opts.Driver})
 	}
 
+	annotations := map[string]string{
+		helmactions.AnnotationActionID: actionID,
+	}
+
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: rollbackJobNamePrefix,
 			Namespace:    opts.JobNamespace,
 			Labels:       labels,
+			Annotations:  annotations,
 		},
 		Spec: batchv1.JobSpec{
 			// backoff only count failed pods

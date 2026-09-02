@@ -47,6 +47,15 @@ func (rh *HelmRollbackHandler) Run(ctx context.Context, task *types.Task,
 	report.ResourceNamespace = in.ReleaseNamespace
 	report.ResourceName = in.Release
 
+	// Carried separately from RollbackInputs (which is only ever the decoded
+	// wire-format inputs) so the Job watcher can report completion back to EVP
+	// against this task once the Job reaches a terminal state, long after
+	// Run() has returned.
+	meta := helmactions.TaskMeta{
+		ActionID: report.ActionID,
+		OrgID:    report.OrgID,
+	}
+
 	// Inform KA backend about job reception
 	rh.ka.ReportReceived(report)
 
@@ -55,7 +64,7 @@ func (rh *HelmRollbackHandler) Run(ctx context.Context, task *types.Task,
 		return rh.reportPreflightFailure(report, err)
 	}
 
-	job, err := helmactionsimpl.NewRollbackExecutor(client).Run(ctx, in)
+	job, err := helmactionsimpl.NewRollbackExecutor(client).Run(ctx, in, meta)
 	if err != nil {
 		return rh.reportPreflightFailure(report, fmt.Errorf("helm rollback executor: %w", err))
 	}
@@ -63,7 +72,7 @@ func (rh *HelmRollbackHandler) Run(ctx context.Context, task *types.Task,
 	// Since Helm Rollback is long running action report progress event that it has started
 	rh.ka.ReportProgress(report, "Rollback started")
 	// Notify helm actions tracking
-	rh.ha.OnRollback(&in, job)
+	rh.ha.OnRollback(&in, meta, job)
 
 	return &HelmRollbackOutputs{
 		Job: job,

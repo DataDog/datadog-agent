@@ -50,8 +50,6 @@ type helmactionsImpl struct {
 	// store might be not needed for helm related actions TODO
 	store      *ActionStore
 	jobWatcher *jobWatcher
-	// ka is used for reporting the status over to EVP
-	ka kubeactions.Component
 }
 
 // NewComponent creates a new helmactions component.
@@ -84,8 +82,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		clusterName: clusterName,
 		params:      reqs.Params,
 		store:       store,
-		jobWatcher:  newJobWatcher(reqs.APIClient.Cl, store),
-		ka:          reqs.KubeActions,
+		jobWatcher:  newJobWatcher(reqs.APIClient.Cl, store, reqs.KubeActions),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})
@@ -134,6 +131,6 @@ func (h *helmactionsImpl) stop(ctx context.Context) error {
 // OnRollback records a newly-scheduled rollback Job in the store so the watcher
 // can track its progress to completion. Called by the privateactionrunner
 // rollback handler after it successfully creates the Job.
-func (h *helmactionsImpl) OnRollback(in *helmactions.RollbackInputs, job *batchv1.Job) {
-	h.jobWatcher.OnRollback(in, job)
+func (h *helmactionsImpl) OnRollback(in *helmactions.RollbackInputs, meta helmactions.TaskMeta, job *batchv1.Job) {
+	h.jobWatcher.OnRollback(in, meta, job)
 }

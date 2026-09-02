@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 
+	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,16 +38,21 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 		}
 		rec, terminal := w.store.UpdateJob(job)
 
-		if terminal {
-			log.Infof("[HelmActions] Job %s/%s reached terminal phase=%s (succeeded=%d failed=%d): %s",
-				rec.Namespace, rec.Name, rec.Phase, rec.Succeeded, rec.Failed, rec.Message)
-			// job is done, report it
+		// check job is reported already
 
+		if terminal {
+			log.Infof("[HelmActions] Job %s/%s [%s] reached terminal phase=%s (succeeded=%d failed=%d): %s",
+				rec.Namespace, rec.Name, rec.ActionID, rec.Phase, rec.Succeeded, rec.Failed, rec.Message)
+
+			// mark job as reported
+			w.reportDone(rec)
 			return
 		}
 
-		log.Infof("[HelmActions] Job %s/%s reached phase=%s (succeeded=%d failed=%d): %sm conds:%v",
-			rec.Namespace, rec.Name, rec.Phase, rec.Succeeded, rec.Failed, rec.Message, job.Status.Conditions)
+		w.reportInprogress(rec)
+
+		log.Infof("[HelmActions] Job %s/%s [%s] reached phase=%s (succeeded=%d failed=%d): %sm conds:%v",
+			rec.Namespace, rec.Name, rec.ActionID, rec.Phase, rec.Succeeded, rec.Failed, rec.Message, job.Status.Conditions)
 
 		if !isStuck(job, jobStuckLimitDurationTest) {
 			return
@@ -65,14 +71,14 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 			return
 		}
 
-		log.Infof("[HelmActions] stuck job detected: %s/%s (age=%s) — %s",
-			job.Namespace, job.Name, time.Since(job.Status.StartTime.Time).Round(time.Second), sampleMsg)
+		log.Infof("[HelmActions] stuck job detected: %s/%s [%s] (age=%s) — %s",
+			job.Namespace, job.Name, rec.ActionID, time.Since(job.Status.StartTime.Time).Round(time.Second), sampleMsg)
 
 		if err := w.deleteJob(ctx, job); err != nil {
 			log.Errorf("[HelmActions] error deleting job %s/%s: %v", job.Namespace, job.Name, err)
 		} else {
 			log.Infof("[HelmActions] deleted job %s/%s", job.Namespace, job.Name)
-			// TODO: report deleted job over to EVP
+			w.reportFailed(rec)
 		}
 
 	case watch.Error:
@@ -92,7 +98,53 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 		}
 		w.store.RemoveJob(job.UID)
 		log.Debugf("[HelmActions] Job %s/%s deleted, dropped from store", job.Namespace, job.Name)
-		// todo(dp): report job removed
+	}
+}
+
+// reportDone emits the terminal action_executed event for a Job that just
+// transitioned into a terminal phase (see ActionStore.UpdateJob). rec.ActionID
+// and rec.OrgID are carried on the record from TrackJob (ultimately sourced
+// from the task that started the rollback, see HelmRollbackHandler.Run) —
+// without them the backend has no way to correlate this event back to the
+// task/org that requested the rollback.
+func (w *jobWatcher) reportDone(rec *JobRecord) {
+	if rec.ActionID == "" {
+		log.Warnf("[HelmActions] Job %s/%s reached terminal phase=%s but has no ActionID — dropping EVP report",
+			rec.Namespace, rec.Name, rec.Phase)
+		return
+	}
+
+	status := kubeactions.StatusSuccess
+	if rec.Phase == JobPhaseFailed {
+		status = kubeactions.StatusFailed
+	}
+
+	res := kubeactions.ExecutionResult{
+		Status:  status,
+		Message: rec.Message,
+	}
+	w.ka.ReportResult(reportFromRecord(rec), res)
+}
+
+func (w *jobWatcher) reportFailed(rec *JobRecord) {
+	res := kubeactions.ExecutionResult{
+		Status:  kubeactions.StatusFailed,
+		Message: rec.Message,
+	}
+	w.ka.ReportResult(reportFromRecord(rec), res)
+}
+
+func (w *jobWatcher) reportInprogress(rec *JobRecord) {
+	w.ka.ReportProgress(reportFromRecord(rec), rec.Message)
+}
+
+func reportFromRecord(rec *JobRecord) kubeactions.ActionReport {
+	return kubeactions.ActionReport{
+		ActionID:          rec.ActionID,
+		ActionType:        kubeactions.ActionTypeHelmRollback,
+		OrgID:             rec.OrgID,
+		ResourceName:      rec.Release,
+		ResourceNamespace: rec.ReleaseNamespace,
 	}
 }
 

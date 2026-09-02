@@ -45,7 +45,7 @@ func (w *jobWatcher) handlePod(_ context.Context, ev watch.Event) {
 // stdout/stderr into ContainerStatus.State.Terminated.Message, which arrives
 // here as part of the Pod object the watch already delivers — no extra API
 // call, and no extra RBAC, needed.
-func captureLogs(store *ActionStore, pod *corev1.Pod, rec PodRecord) {
+func captureLogs(store *ActionStore, pod *corev1.Pod, rec *PodRecord) {
 	for _, cs := range pod.Status.ContainerStatuses {
 		if cs.Name != helmContainerName {
 			continue
