@@ -45,6 +45,13 @@ import (
 // queryTimeout caps RegisterRemoteAgent and stream open; stream Recv uses ctx.
 const queryTimeout = 30 * time.Second
 
+// ipcTimeout bounds the wait for the core agent to write the IPC auth token and certificate, and
+// ipcPollInterval is how often that wait retries.
+const (
+	ipcTimeout      = 60 * time.Second
+	ipcPollInterval = 2 * time.Second
+)
+
 // Requires defines the dependencies for the configstreamconsumer component
 type Requires struct {
 	compdef.In
@@ -105,6 +112,38 @@ type noopConsumer struct{}
 
 func (noopConsumer) IsActive() bool { return false }
 
+// loadIPCCredentials reads the IPC auth token and client certificate, retrying until timeout.
+// A remote agent must never mint either artifact itself, so when the core agent has not written
+// them yet — routine when both start together in a container — the only option is to wait.
+// Failing immediately exits before FX startup completes, which restarts the container.
+func loadIPCCredentials(authTokenPath, certPath string, timeout, interval time.Duration, logger log.Component) (string, *tls.Config, error) {
+	deadline := time.Now().Add(timeout)
+	waiting := false
+
+	for {
+		authToken, err := pkgtoken.LoadAuthTokenFromPath(authTokenPath)
+		if err == nil {
+			var clientTLS *tls.Config
+			clientTLS, err = cert.LoadClientTLSConfigFromPath(certPath)
+			if err == nil {
+				if waiting {
+					logger.Infof("configstreamconsumer: IPC credentials are now available")
+				}
+				return authToken, clientTLS, nil
+			}
+		}
+
+		if time.Now().After(deadline) {
+			return "", nil, fmt.Errorf("load IPC credentials: gave up after %v: %w", timeout, err)
+		}
+		if !waiting {
+			logger.Infof("configstreamconsumer: waiting up to %v for the core agent to write the IPC credentials (%v)", timeout, err)
+			waiting = true
+		}
+		time.Sleep(interval)
+	}
+}
+
 // NewComponent returns a no-op when configstream is disabled; otherwise it blocks until
 // the first snapshot lands (or ReadyTimeout) before returning.
 func NewComponent(reqs Requires) (Provides, error) {
@@ -123,22 +162,24 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	configstreambootstrap.SeedGlobalBuilder(bs, resolvedConfigFile(reqs.Params.CLIConfigPath))
 
-	authToken, err := pkgtoken.LoadAuthTokenFromPath(configstreambootstrap.AuthTokenFilepath())
+	// pkglog.NewWrapper avoids the config → configstreamconsumer → log → config FX cycle
+	// in system-probe's binary (log.Component depends on config).
+	logger := pkglog.NewWrapper(2)
+
+	authToken, clientTLS, err := loadIPCCredentials(
+		configstreambootstrap.AuthTokenFilepath(),
+		configstreambootstrap.IPCCertFilepath(),
+		ipcTimeout, ipcPollInterval, logger,
+	)
 	if err != nil {
-		return Provides{}, fmt.Errorf("load auth token: %w", err)
-	}
-	clientTLS, err := cert.LoadClientTLSConfigFromPath(configstreambootstrap.IPCCertFilepath())
-	if err != nil {
-		return Provides{}, fmt.Errorf("load IPC cert: %w", err)
+		return Provides{}, err
 	}
 
 	// Must drop before snapshot apply, otherwise streamed SourceEnvVar values get wiped too.
 	configstreambootstrap.DisableLocalEnvLayer(reqs.Params.ClientName)
 
 	c := &consumer{
-		// pkglog.NewWrapper avoids the config → configstreamconsumer → log → config FX cycle
-		// in system-probe's binary (log.Component depends on config).
-		log:       pkglog.NewWrapper(2),
+		log:       logger,
 		telemetry: reqs.Telemetry,
 		params:    reqs.Params,
 		addr:      net.JoinHostPort(bs.CmdHost, strconv.Itoa(bs.CmdPort)),

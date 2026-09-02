@@ -3,23 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package strings
+package metricname
 
 import (
 	"slices"
 	"sort"
 	"strings"
+	"unsafe"
 )
 
-// Matcher test a string for match against a list of strings.
+// Matcher tests a metric name for match against a list of metric names.
 // See `NewMatcher` for details.
 type Matcher struct {
 	data        []string
 	matchPrefix bool
 }
 
-// NewMatcher creates a new strings matcher.
+// NewMatcher creates a new metric name matcher.
 // Use `matchPrefix` to  create a prefixes matcher.
+//
+// Entries are taken verbatim. They are expected to already be normalized, i.e.
+// to be metric names as the backend stores and displays them, which is what
+// users copy into a filter list. `Test` normalizes the name it is given, so the
+// comparison happens in that same name space.
 func NewMatcher(data []string, matchPrefix bool) Matcher {
 	data = slices.Clone(data)
 	sort.Strings(data)
@@ -38,9 +44,6 @@ func NewMatcher(data []string, matchPrefix bool) Matcher {
 		data = data[:i+1]
 	}
 
-	// Invariants for data:
-	// For all i, j such that i < j, data[i] < data[j].
-	// for all i, j such that i != j, !HasPrefix(data[i], data[j]).
 	return Matcher{
 		data:        data,
 		matchPrefix: matchPrefix,
@@ -55,8 +58,18 @@ func (m *Matcher) Len() int {
 	return len(m.data)
 }
 
-// Test returns true if the given string matches one in the matcher list.
+// Test returns true if the given metric name matches one in the matcher list,
 // or is matching by prefix if the matcher has been created with `matchPrefix`.
+//
+// The name is normalized before being compared. The Agent sees names exactly as
+// they were submitted, but the intake rewrites them on ingest, so a raw name
+// such as `my metric-name` is stored (and shown to users, and therefore
+// configured in filter lists) as `my_metric_name`. Matching the raw name would
+// let those metrics through the filter list and still have them show up in
+// Datadog. Names the intake would reject never match.
+//
+// Test never allocates. Names that are already normalized are compared as
+// given, and the rest are normalized into a stack buffer.
 func (m *Matcher) Test(name string) bool {
 	if m == nil {
 		return false
@@ -66,6 +79,24 @@ func (m *Matcher) Test(name string) bool {
 		return false
 	}
 
+	// Fast path: already normalized, so compare the name as given.
+	if isNormalized(name) {
+		return m.search(name)
+	}
+
+	var buf [MaxLength]byte
+	key, ok := NormalizeAppend(buf[:0], name)
+	if !ok {
+		return false
+	}
+
+	// Safe: the string aliases buf, search only reads it for comparison and
+	// never retains it, and buf is not written again while it is alive.
+	return m.search(unsafe.String(unsafe.SliceData(key), len(key)))
+}
+
+// search looks name up in the compiled list. name must already be normalized.
+func (m *Matcher) search(name string) bool {
 	i := sort.SearchStrings(m.data, name)
 
 	// SearchStrings returns an index such that either:
