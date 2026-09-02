@@ -312,7 +312,16 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 // that they are refreshed and cleaned up together with the image entity: the
 // container is registered as a child of the image, letting the parent/children
 // machinery re-emit or delete them when the image entity changes or goes away.
-func (c *WorkloadMetaCollector) imageAnnotationTagsForContainer(container *workloadmeta.Container, isComplete bool) *types.TagInfo {
+//
+// rawComplete is the container's own event completeness. It is intentionally
+// run through containerCompleteness so this TagInfo carries the same effective
+// completeness as the base container TagInfo emitted in handleContainer: on
+// Kubernetes/ECS a container is only "complete" once its pod/task metadata is
+// also complete. Publishing raw completeness here would let this later TagInfo
+// overwrite the entity's completeness in the tag store with true before the
+// parent tags have arrived, which can affect custom-metrics billing and
+// cardinality for consumers that gate on completeness.
+func (c *WorkloadMetaCollector) imageAnnotationTagsForContainer(container *workloadmeta.Container, rawComplete bool) *types.TagInfo {
 	if len(c.containerImageAnnotationsAsTags) == 0 {
 		return nil
 	}
@@ -344,7 +353,7 @@ func (c *WorkloadMetaCollector) imageAnnotationTagsForContainer(container *workl
 		OrchestratorCardTags: orch,
 		LowCardTags:          low,
 		StandardTags:         standard,
-		IsComplete:           isComplete,
+		IsComplete:           c.containerCompleteness(container.ID, rawComplete),
 	}
 }
 
@@ -474,8 +483,11 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 			return container.Image.ID == image.ID
 		})
 		for _, container := range containers {
-			containerComplete := c.entityCompleteness[container.EntityID]
-			if imageTagInfo := c.imageAnnotationTagsForContainer(container, containerComplete); imageTagInfo != nil {
+			// entityCompleteness stores the container's raw event completeness;
+			// imageAnnotationTagsForContainer runs it through containerCompleteness
+			// to match the base container TagInfo's effective completeness.
+			rawComplete := c.entityCompleteness[container.EntityID]
+			if imageTagInfo := c.imageAnnotationTagsForContainer(container, rawComplete); imageTagInfo != nil {
 				tagInfos = append(tagInfos, imageTagInfo)
 			}
 		}

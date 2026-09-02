@@ -3816,6 +3816,223 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 	}
 }
 
+// TestHandleContainer_ImageAnnotationTags_IsComplete verifies that the image
+// annotation TagInfo appended to a container (published under
+// containerImageSource) carries the same effective, parent-aware completeness
+// as the base container TagInfo. Without this, the later-processed image
+// TagInfo could overwrite the entity's completeness in the tag store with true
+// before the pod/task tags have arrived. It covers both the forward path
+// (handleContainer, image already in the store) and the re-apply path
+// (handleContainerImage, image metadata arriving after the container).
+func TestHandleContainer_ImageAnnotationTags_IsComplete(t *testing.T) {
+	const (
+		imageID       = "sha256:imageconfigdigest"
+		annotationKey = "com.datadoghq.test.imageformat"
+		podID         = "test-pod"
+		taskARN       = "test-task-arn"
+	)
+
+	imageAnnotationsAsTags := map[string]string{annotationKey: "image_format"}
+
+	image := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   imageID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Annotations: map[string]string{annotationKey: "nydus-demo"},
+		},
+	}
+
+	kubeContainer := workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "test-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: "agent"},
+		Image:      workloadmeta.ContainerImage{ID: imageID},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+	}
+
+	ecsContainer := workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "test-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: "agent"},
+		Image:      workloadmeta.ContainerImage{ID: imageID},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindECSTask,
+			ID:   taskARN,
+		},
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: "test-pod", Namespace: "default"},
+	}
+
+	ecsTask := &workloadmeta.ECSTask{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindECSTask,
+			ID:   taskARN,
+		},
+		EntityMeta:  workloadmeta.EntityMeta{Name: "test-task"},
+		ClusterName: "test-cluster",
+	}
+
+	tests := []struct {
+		name                string
+		features            []env.Feature
+		container           workloadmeta.Container
+		pod                 *workloadmeta.KubernetesPod
+		ecsTask             *workloadmeta.ECSTask
+		parentIsComplete    bool
+		containerIsComplete bool
+		reapply             bool // exercise the handleContainerImage re-apply path
+		expectedIsComplete  bool
+	}{
+		{
+			name:                "no orchestrator: follows container completeness",
+			container:           kubeContainer,
+			containerIsComplete: true,
+			expectedIsComplete:  true,
+		},
+		{
+			name:                "kubernetes: container complete but pod incomplete -> incomplete",
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			pod:                 pod,
+			parentIsComplete:    false,
+			containerIsComplete: true,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "kubernetes: both complete -> complete",
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			pod:                 pod,
+			parentIsComplete:    true,
+			containerIsComplete: true,
+			expectedIsComplete:  true,
+		},
+		{
+			name:                "ECS EC2: container complete but task incomplete -> incomplete",
+			features:            []env.Feature{env.ECSEC2},
+			container:           ecsContainer,
+			ecsTask:             ecsTask,
+			parentIsComplete:    false,
+			containerIsComplete: true,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "re-apply path, kubernetes: container complete but pod incomplete -> incomplete",
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			pod:                 pod,
+			parentIsComplete:    false,
+			containerIsComplete: true,
+			reapply:             true,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "re-apply path, kubernetes: both complete -> complete",
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			pod:                 pod,
+			parentIsComplete:    true,
+			containerIsComplete: true,
+			reapply:             true,
+			expectedIsComplete:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if len(test.features) > 0 {
+				env.SetFeatures(t, test.features...)
+			}
+
+			cfg := configmock.New(t)
+			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return cfg }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			wmeta.Set(image)
+			wmeta.Set(&test.container)
+
+			collector := NewWorkloadMetaCollector(context.TODO(), cfg, wmeta, nil)
+			collector.initContainerMetaAsTags(nil, nil, imageAnnotationsAsTags)
+
+			// Register the parent's completeness in the collector.
+			switch test.container.Owner.Kind {
+			case workloadmeta.KindKubernetesPod:
+				if test.pod != nil {
+					wmeta.Set(test.pod)
+					collector.handleKubePod(workloadmeta.Event{
+						Type:       workloadmeta.EventTypeSet,
+						Entity:     test.pod,
+						IsComplete: test.parentIsComplete,
+					})
+				}
+			case workloadmeta.KindECSTask:
+				if test.ecsTask != nil {
+					wmeta.Set(test.ecsTask)
+					collector.handleECSTask(workloadmeta.Event{
+						Type:       workloadmeta.EventTypeSet,
+						Entity:     test.ecsTask,
+						IsComplete: test.parentIsComplete,
+					})
+				}
+			}
+
+			var actual []*types.TagInfo
+			if test.reapply {
+				// First tag the container (records its raw completeness), then
+				// deliver the image event that re-applies annotation tags.
+				collector.handleContainer(workloadmeta.Event{
+					Type:       workloadmeta.EventTypeSet,
+					Entity:     &test.container,
+					IsComplete: test.containerIsComplete,
+				})
+				actual = collector.handleContainerImage(workloadmeta.Event{
+					Type:       workloadmeta.EventTypeSet,
+					Entity:     image,
+					IsComplete: true,
+				})
+			} else {
+				actual = collector.handleContainer(workloadmeta.Event{
+					Type:       workloadmeta.EventTypeSet,
+					Entity:     &test.container,
+					IsComplete: test.containerIsComplete,
+				})
+			}
+
+			// Locate the image annotation TagInfo: published under
+			// containerImageSource and scoped to the container entity.
+			containerEntityID := types.NewEntityID(types.ContainerID, test.container.EntityID.ID)
+			var imageTagInfo *types.TagInfo
+			for _, ti := range actual {
+				if ti.Source == containerImageSource && ti.EntityID == containerEntityID {
+					imageTagInfo = ti
+					break
+				}
+			}
+
+			require.NotNil(t, imageTagInfo, "expected an image annotation TagInfo for the container")
+			assert.Contains(t, imageTagInfo.LowCardTags, "image_format:nydus-demo")
+			assert.Equal(t, test.expectedIsComplete, imageTagInfo.IsComplete)
+		})
+	}
+}
+
 func TestHandleContainerImage(t *testing.T) {
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindContainerImageMetadata,
