@@ -8,6 +8,8 @@ mod agent_service_sid;
 mod legacy_scm_env;
 mod local_account;
 mod local_agent_account;
+mod pipe_caller;
+mod pipe_security;
 mod runtime_user;
 #[cfg(not(test))]
 mod scm_lsa_secret;
@@ -19,6 +21,8 @@ mod win_handle;
 
 #[cfg(any(test, feature = "test-helpers"))]
 pub(crate) use local_agent_account::spawn_user_for_profile;
+pub(crate) use pipe_caller::pipe_client_may_mutate;
+pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use runtime_user::runtime_user_for_pid;
 pub(crate) use spawn::intended_spawn_user;
 pub(crate) use spawn::spawn_child_handle;
