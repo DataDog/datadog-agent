@@ -951,11 +951,10 @@ mod tests {
             #[cfg(windows)]
             let script = {
                 let path = dir.path().join("newline_secret_backend.cmd");
-                std::fs::write(
+                test_env::write_cmd_secret_backend_json(
                     &path,
-                    "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{\\\"process_enabled\\\":{\\\"value\\\":\\\"true`n\\\"}}'\"\r\n",
-                )
-                .unwrap();
+                    r#"{"process_enabled":{"value":"true\n"}}"#,
+                );
                 path
             };
             let agent_yaml = dir.path().join("datadog.yaml");
@@ -975,10 +974,13 @@ mod tests {
 
     #[test]
     fn clear_caches_drops_cached_handles() {
-        cache_handle("process_enabled", "true");
-        assert_eq!(cached_handle("process_enabled"), Some("true".into()));
-        clear_caches();
-        assert_eq!(cached_handle("process_enabled"), None);
+        with_env_lock(|| {
+            clear_caches();
+            cache_handle("process_enabled", "true");
+            assert_eq!(cached_handle("process_enabled"), Some("true".into()));
+            clear_caches();
+            assert_eq!(cached_handle("process_enabled"), None);
+        });
     }
 
     #[test]

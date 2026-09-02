@@ -6,7 +6,7 @@
 use super::super::*;
 use super::{auto_start_for_test, current_pending_restart, loader, test_runtime_context, uuid_gen};
 use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy};
-use crate::config_gate::{test_env, ConditionConfigFile};
+use crate::config_gate::{ConditionConfigFile, test_env};
 use crate::test_helpers;
 use std::io::Write;
 

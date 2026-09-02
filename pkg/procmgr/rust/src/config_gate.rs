@@ -764,6 +764,7 @@ pub(crate) mod test_env {
     use tokio::sync::Mutex as AsyncMutex;
 
     static LOCK: Mutex<()> = Mutex::new(());
+    #[cfg_attr(windows, allow(dead_code))]
     static ASYNC_LOCK: OnceLock<AsyncMutex<()>> = OnceLock::new();
 
     /// Serialize tests that mutate process environment (config gates + secret backend).
@@ -773,15 +774,13 @@ pub(crate) mod test_env {
     }
 
     /// Serialize async integration tests that depend on an isolated gate env.
+    #[cfg_attr(windows, allow(dead_code))]
     pub(crate) async fn with_async_lock<F, Fut, T>(test: F) -> T
     where
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = T>,
     {
-        let _guard = ASYNC_LOCK
-            .get_or_init(|| AsyncMutex::new(()))
-            .lock()
-            .await;
+        let _guard = ASYNC_LOCK.get_or_init(|| AsyncMutex::new(())).lock().await;
         clear_gated_env_vars();
         test().await
     }
@@ -829,6 +828,18 @@ pub(crate) mod test_env {
         let dir = tempfile::tempdir().expect("tempdir");
         open_tempdir_for_agent_user(dir.path());
         dir
+    }
+
+    /// Write a `.cmd` secret backend that prints fixed JSON via `type` (avoids PowerShell escaping).
+    #[cfg(windows)]
+    pub(crate) fn write_cmd_secret_backend_json(script_path: &std::path::Path, json: &str) {
+        let response_path = script_path.with_extension("json");
+        std::fs::write(&response_path, json).expect("write secret backend JSON");
+        std::fs::write(
+            script_path,
+            format!("@echo off\r\ntype \"{}\"\r\n", response_path.display()),
+        )
+        .expect("write secret backend cmd");
     }
 }
 
@@ -3090,10 +3101,10 @@ process_config:
                 "datadog.yaml",
                 "process_config:\n  process_collection:\n    enabled: true\n",
             );
-            let fleet_dir_json =
-                serde_json::to_string(fleet_dir.to_string_lossy().as_ref()).unwrap();
             #[cfg(unix)]
             let script = {
+                let fleet_dir_json =
+                    serde_json::to_string(fleet_dir.to_string_lossy().as_ref()).unwrap();
                 let path = dir.path().join("secret_backend.sh");
                 std::fs::write(
                     &path,
@@ -3109,13 +3120,12 @@ process_config:
             #[cfg(windows)]
             let script = {
                 let path = dir.path().join("secret_backend.cmd");
-                std::fs::write(
-                    &path,
-                    format!(
-                        "@echo off\r\npowershell -NoProfile -Command \"Write-Output '{{\\\"fleet_policies_dir\\\":{{\\\"value\\\":{fleet_dir_json}}}}}'\"\r\n"
-                    ),
-                )
-                .unwrap();
+                let json = serde_json::json!({
+                    "fleet_policies_dir": {
+                        "value": fleet_dir.to_string_lossy().as_ref()
+                    }
+                });
+                test_env::write_cmd_secret_backend_json(&path, &json.to_string());
                 path
             };
             let agent = write_config(
