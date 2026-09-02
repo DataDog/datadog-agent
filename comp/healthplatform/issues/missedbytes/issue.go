@@ -123,12 +123,18 @@ func (MissedBytesIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue
 		Source:   issueSource,
 		Extra:    extra,
 		Tags:     []string{"logs", "file-tailing", "rotation", "data-loss"},
+		// Ordered cheapest to most invasive, per the component's remediation rules.
+		// Steps 3-5 branch on the saturated component step 1 identifies.
 		Remediation: &healthplatform.Remediation{
-			Summary: "Run `agent status` and review the Logs Agent Backpressure section",
+			Summary: "Raise `logs_config.close_timeout` to give the tailer more time, then relieve any logs pipeline saturation reported by `datadog-agent status`.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Run `agent status` and review the Logs Agent Backpressure section for a saturated pipeline"},
-				{Order: 2, Text: "Raise `logs_config.close_timeout` (DD_LOGS_CONFIG_CLOSE_TIMEOUT) to give the tailer longer to finish a rotated file"},
-				{Order: 3, Text: "If the file rotates faster than the Agent can read it, lower the log volume or rotate less often"},
+				{Order: 1, Text: "Run `sudo datadog-agent status` and note any saturated component in the Logs Agent Backpressure section."},
+				{Order: 2, Text: "Raise `logs_config.close_timeout` (DD_LOGS_CONFIG_CLOSE_TIMEOUT) above its 60 second default to give the tailer longer to finish a rotated file."},
+				{Order: 3, Text: "If a `destination_reliable_N` or `worker` row is saturated, check the Agent log for failed or retried submissions and resolve any proxy, DNS, authentication, or connectivity errors."},
+				{Order: 4, Text: "If the `strategy` row is saturated, set `logs_config.use_compression` to false or raise `logs_config.pipelines`."},
+				{Order: 5, Text: "If the `processor` row is saturated, scope global `logs_config.processing_rules` to the affected source, or set `logs_config.auto_multi_line_detection` to false."},
+				{Order: 6, Text: "If the Agent still cannot keep up, drop unneeded logs with an `exclude_at_match` processing rule, or reduce the volume written to the file between rotations."},
+				{Order: 7, Text: "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log."},
 			},
 		},
 	}, nil

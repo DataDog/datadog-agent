@@ -194,7 +194,7 @@ func TestBuildIssue(t *testing.T) {
 			assert.Equal(t, []string{"logs", "file-tailing", "rotation", "data-loss"}, issue.GetTags())
 
 			require.NotNil(t, issue.GetRemediation())
-			assert.Contains(t, issue.GetRemediation().GetSummary(), "Logs Agent Backpressure")
+			assert.Contains(t, issue.GetRemediation().GetSummary(), "logs_config.close_timeout")
 			assert.Nil(t, issue.GetRemediation().GetScript())
 
 			steps := issue.GetRemediation().GetSteps()
