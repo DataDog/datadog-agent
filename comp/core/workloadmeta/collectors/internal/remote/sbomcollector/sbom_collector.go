@@ -72,6 +72,13 @@ func isOSPackage(comp *cyclonedx_v1_4.Component) bool {
 	return false
 }
 
+// hasForeignPurl reports whether the component's purl places it outside the
+// databases the runtime scanner reads. A component carrying no purl is left to
+// the name and version match.
+func hasForeignPurl(comp *cyclonedx_v1_4.Component) bool {
+	return comp.GetPurl() != "" && !isOSPackage(comp)
+}
+
 type client struct {
 	cl sbompb.SBOMCollectorClient
 }
@@ -299,8 +306,13 @@ func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 			ReleaseNotes:       existingComp.ReleaseNotes,
 		}
 
-		// Add or update runtime properties from newBom.
+		// Add or update runtime properties from newBom. The report describes the
+		// dpkg, rpm and apk databases, so a component whose purl sits elsewhere
+		// shares a name and a version with it and nothing more.
 		newComp, reported := newComponentsMap[key]
+		if reported && hasForeignPurl(mergedComp) {
+			reported = false
+		}
 		if reported && newComp.Properties != nil {
 			updateProperty := func(propertyName string) {
 				var newProp *cyclonedx_v1_4.Property

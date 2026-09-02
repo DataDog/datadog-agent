@@ -1,0 +1,4 @@
+command: {{python}}
+args:
+  - {{script}}
+auto_start: false
