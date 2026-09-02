@@ -27,6 +27,11 @@ const (
 	RemoteQueriesExecuteEnabledConfig = "remote_queries.execute.enabled"
 	// RemoteQueriesEnableQueryAllowlistConfig controls the proof-query allowlist; missing defaults to enabled.
 	RemoteQueriesEnableQueryAllowlistConfig = "remote_queries.execute.enable_query_allowlist"
+	// RemoteQueriesExecuteTimeoutMsConfig is the agent-owned statement timeout for remote queries, in
+	// milliseconds. Unlike the size limits, the timeout is DB-protective — it caps how long the
+	// integration's read-only transaction holds a snapshot on the customer's database — so it belongs to
+	// the Agent, not the backend worker: a positive value overrides the injected limits.timeoutMs.
+	RemoteQueriesExecuteTimeoutMsConfig = "remote_queries.execute.timeout_ms"
 
 	// RemoteQueryOperationProduceJSONPages is the one supported integration operation:
 	// produce bounded JSON page files and upload them directly to its-agent-intake.
@@ -90,6 +95,27 @@ func RemoteQueriesQueryAllowlistEnabled(cfg interface {
 		return true
 	}
 	return cfg.GetBool(RemoteQueriesEnableQueryAllowlistConfig)
+}
+
+// remoteQueryDeliveryWithStatementTimeout applies the agent-owned statement timeout to the
+// backend-injected delivery limits. The timeout is the DB-protective limit class — it caps how long
+// the integration's read-only transaction can hold a snapshot on the customer's database — so
+// the Agent config owns it: a positive remote_queries.execute.timeout_ms replaces the injected
+// limits.timeoutMs, and a non-positive or missing value falls back to the injected limit. The
+// returned delivery is a copy, so the caller's request payload stays untouched.
+func remoteQueryDeliveryWithStatementTimeout(delivery *RemoteQueryResultDelivery, cfg config.Component) *RemoteQueryResultDelivery {
+	if delivery == nil || delivery.Limits == nil || cfg == nil {
+		return delivery
+	}
+	timeoutMs := cfg.GetInt(RemoteQueriesExecuteTimeoutMsConfig)
+	if timeoutMs <= 0 {
+		return delivery
+	}
+	overridden := *delivery
+	limits := *delivery.Limits
+	limits.TimeoutMs = timeoutMs
+	overridden.Limits = &limits
+	return &overridden
 }
 
 func isRemoteQueryAllowedProofQuery(query string) bool {
@@ -163,8 +189,10 @@ type RemoteQueryExecuteTarget struct {
 }
 
 // RemoteQueryUploadLimits contains the backend-injected effective limits of the paged-JSON
-// result contract. Every value is server-owned: the Agent forwards them opaquely and the
-// integration enforces them.
+// result contract. Every value is server-owned — the Agent forwards them opaquely and the
+// integration enforces them — except TimeoutMs, the DB-protective statement timeout class,
+// which is agent-owned: the Agent overrides it with remote_queries.execute.timeout_ms
+// before the request reaches the integration.
 type RemoteQueryUploadLimits struct {
 	MaxFileBytes   int
 	MaxResultBytes int
@@ -606,8 +634,11 @@ func (s *RemoteQueryExecuteService) Execute(_ RemoteQueryExecuteRequest) RemoteQ
 // ExecuteStream executes a paged-JSON request and emits metadata-only stream events. The
 // Agent is a control-plane forwarder: it carries the backend-injected upload instructions
 // through to the integration request JSON and passes the emit callback straight through.
-// The integration uploads bounded JSON page files itself; only progress metadata, the
-// final compact run receipt, and errors come back through the stream.
+// The one limit the Agent rewrites is the DB-protective statement timeout: a positive
+// remote_queries.execute.timeout_ms config value overrides the injected limits.timeoutMs
+// before the request reaches the integration. The integration uploads bounded JSON page
+// files itself; only progress metadata, the final compact run receipt, and errors come back
+// through the stream.
 func (s *RemoteQueryExecuteService) ExecuteStream(_ctx context.Context, req RemoteQueryExecuteRequest, emit func(check.RemoteQueryStreamEvent) error) RemoteQueryExecuteResult {
 	if emit == nil {
 		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "remote query stream emitter is unavailable")
@@ -629,6 +660,7 @@ func (s *RemoteQueryExecuteService) ExecuteStream(_ctx context.Context, req Remo
 	}
 
 	internal := req.internal()
+	internal.ResultDelivery = remoteQueryDeliveryWithStatementTimeout(internal.ResultDelivery, s.cfg)
 	match, result := s.matchExecutor(internal)
 	if result.Error != nil {
 		return result
