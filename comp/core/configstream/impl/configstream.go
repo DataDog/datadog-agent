@@ -148,9 +148,8 @@ func (cs *configStream) run() {
 
 		pbSetting, err := newConfigSetting(setting, newValue, source)
 		if err != nil {
-			// For a removal, sending a bare unset_source would read as "nothing remains" and
-			// diverge the subscriber for good. Dropping it leaves a sequence gap instead, which
-			// resyncs the subscriber -- but only once some later event is dispatched.
+			// The skipped sequence ID is what repairs the subscriber: the gap resyncs it, though not
+			// until some later event is dispatched.
 			cs.log.Warnf("Failed to encode setting '%s', dropping the event: %v", setting, err)
 			return
 		}

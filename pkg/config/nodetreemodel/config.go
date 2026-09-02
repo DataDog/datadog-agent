@@ -424,7 +424,6 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		resolvedSource model.Source
 		receivers      []model.NotificationReceiver
 		sequenceID     uint64
-		notify         bool
 	)
 
 	func() {
@@ -464,7 +463,6 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		c.sequenceID++
 		sequenceID = c.sequenceID
 		receivers = slices.Clone(c.notificationReceivers)
-		notify = true
 
 		// The merged tree only needs mending when the layer we cleared was the one winning in it.
 		if c.leafAtPathFromNode(key, c.root).Source() == source {
@@ -486,7 +484,7 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		resolvedSource = resolved.Source()
 	}()
 
-	if !notify {
+	if receivers == nil {
 		return
 	}
 
