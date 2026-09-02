@@ -1,0 +1,28 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    OTel Agent: the ``datadog`` exporter no longer batches traces in the exporter helper.
+    The trace agent already batches internally, so exporter-side batching added no benefit
+    for traces, but it marked the exporter as mutating, which forced the Collector to make
+    a full copy of every trace batch in the default pipeline where the ``datadog`` exporter
+    and the ``datadog/connector`` connector both consume the ``traces`` pipeline. Removing
+    the copy reduces CPU and allocations on the trace path. Metrics and logs are unaffected
+    and keep their exporter-side batching.
+
+upgrade:
+  - |
+    OTel Agent: the ``sending_queue::batch`` setting of the ``datadog`` exporter is now
+    ignored for traces, and the exporter logs a message at startup when it is set. The
+    setting continues to apply to metrics and logs. Because the Collector only reports
+    batch sizes for exporters that batch, the internal telemetry metrics
+    ``otelcol_exporter_queue_batch_send_size`` and
+    ``otelcol_exporter_queue_batch_send_size_bytes`` are no longer emitted for the
+    ``datadog`` exporter's traces signal. All other ``otelcol_exporter_*`` metrics,
+    including queue size and capacity, are unchanged. No configuration change is required.
