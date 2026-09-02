@@ -3,5 +3,14 @@ tests_aix-ppc64:
   stage: source_test
   extends: .aix_remote
   script:
-    - 'echo "=== AIX: running unit tests (run-tests.sh) ==="'
-    - ssh -tt -p $AIX_PORT $AIX_USER@$AIX_HOST "sh $AIX_AGENT_SRC/packaging/aix/ci/run-tests.sh"
+    - 'echo "=== AIX: running unit tests ==="'
+    - |
+      ssh -T -p $AIX_PORT $AIX_USER@$AIX_HOST bash -s <<EOF
+      set -eu
+      . "$AIX_AGENT_SRC/packaging/aix/lib/env.sh"
+      cd "\$AGENT_SRC"
+      python3.12 -m invoke -e test \
+          --only-modified-packages \
+          --build-exclude=python \
+          --build-cpus=1
+      EOF

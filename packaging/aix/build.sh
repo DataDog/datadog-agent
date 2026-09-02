@@ -60,10 +60,9 @@ fi
 
 # ── Build-specific prerequisite: Rust SDK ───────────────────────────────────
 # The host toolchain (gcc, go, git, cmake, protoc, the -devel libs, ...) is
-# provisioned and verified by packaging/aix/ci/setup-host.sh; build.sh assumes
-# it has been run. Rust is installed best-effort there (it needs IBM Open XL
-# C/C++ Runtime filesets not available on every host), so fail fast here with a
-# clear message if it's missing — the build needs it for stages 05/06/07/08.
+# provisioned and verified by packaging/aix/setup-host.sh; build.sh assumes
+# it has been run. Fail fast here with a clear message if Rust is missing —
+# the build needs it for stages 05/06/07/08.
 check_tool() {
     _tool=$1; _pkg=${2:-$1}
     if ! command -v "$_tool" >/dev/null 2>&1; then
