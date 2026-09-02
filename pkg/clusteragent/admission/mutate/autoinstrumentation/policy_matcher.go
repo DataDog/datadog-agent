@@ -16,8 +16,8 @@ import (
 )
 
 // policyMatcher evaluates SSI policies against pods using the pure Go policy
-// engine. It holds the effective ordered policy set (configuration policies,
-// optionally augmented with remote-config ones) and resolves the first match.
+// engine. The last policy that evaluates to TRUE wins. FALSE and ABSTAIN do
+// not match.
 type policyMatcher struct {
 	policies []policies.Policy
 	wmeta    workloadmeta.Component
@@ -31,8 +31,7 @@ func newPolicyMatcher(ps []policies.Policy, wmeta workloadmeta.Component) *polic
 	}
 }
 
-// Match returns the outcome of the first policy that matches the pod, mirroring
-// the "first match wins" semantics of the target mutator.
+// Match returns the outcome of the last policy that matches the pod.
 func (m *policyMatcher) Match(pod *corev1.Pod) (policies.Outcome, bool) {
 	idx := m.matchIndex(pod)
 	if idx < 0 {
@@ -41,13 +40,13 @@ func (m *policyMatcher) Match(pod *corev1.Pod) (policies.Outcome, bool) {
 	return m.policies[idx].Outcome, true
 }
 
-// matchIndex returns the index of the first policy that matches the pod, or -1
-// if none match. Policies are evaluated in order (first match wins).
+// matchIndex returns the index of the last policy that evaluates to TRUE, or
+// -1 if none match.
 //
 // Namespace labels are fetched lazily when the first policy that needs them is
 // reached. If they cannot be resolved, policies that need namespace labels are
 // skipped while policies using the available pod and namespace-name facts keep
-// their relative first-match ordering.
+// their relative last-match ordering.
 func (m *policyMatcher) matchIndex(pod *corev1.Pod) int {
 	if m == nil || pod == nil {
 		return -1
@@ -59,6 +58,7 @@ func (m *policyMatcher) matchIndex(pod *corev1.Pod) int {
 	}
 	namespaceLabelsLoaded := false
 	namespaceLabelsUnavailable := false
+	matched := -1
 
 	for i := range m.policies {
 		if nodeUsesNamespaceLabels(m.policies[i].Rules) && !namespaceLabelsLoaded {
@@ -78,10 +78,10 @@ func (m *policyMatcher) matchIndex(pod *corev1.Pod) int {
 		}
 
 		if policies.Evaluate(m.policies[i].Rules, ctx) == policies.ResultTrue {
-			return i
+			matched = i
 		}
 	}
-	return -1
+	return matched
 }
 
 func nodeUsesNamespaceLabels(n *policies.Node) bool {

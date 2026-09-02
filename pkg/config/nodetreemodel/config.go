@@ -230,7 +230,6 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
-
 	c.maybeRebuild()
 
 	c.Lock()
@@ -314,6 +313,47 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 
 	err = tree.setAt(key, value, source, copyOnWrite)
 	return tree, err
+}
+
+// DirectBulkSet implements model.Writer. Keys are assumed already lowercased, which holds for
+// anything enumerated from another config.
+func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
+	c.Lock()
+	defer c.Unlock()
+
+	for _, setting := range settings {
+		key := setting.Key
+		// Stored anyway, as the YAML loader does, so the client mirrors the sender. Reconnects
+		// resend the whole snapshot, hence warn once.
+		if !c.isKnownKey(key) {
+			if _, alreadySeen := c.unknownKeys.LoadOrStore(key, struct{}{}); !alreadySeen {
+				log.Warnf("unknown key from config stream: %s", key)
+			}
+		}
+
+		declaredNode := c.nodeAtPathFromNode(key, c.defaults)
+		if declaredNode.IsInnerNode() {
+			log.Errorf("could not set '%s': partial path of a setting", key)
+			continue
+		}
+
+		// structpb collapses every number to float64, so a value still needs coercing back to the
+		// declared type. Unknown keys have no default, for which this is a no-op.
+		value := setting.Value
+		if converted, err := basic.ConvertToDefaultType(value, declaredNode.Get(), false); err == nil {
+			value = converted
+		}
+
+		if _, err := c.insertValueIntoTree(key, value, setting.Source); err != nil {
+			log.Errorf("could not insert value for '%s': %s", key, err)
+		}
+	}
+
+	// Set merges per write; rebuilding the root once at the end is equivalent because Merge
+	// ranks conflicting leaves by source, not by merge order.
+	if err := c.mergeAllLayers(); err != nil {
+		log.Errorf("could not merge config layers: %s", err)
+	}
 }
 
 // SetInTest assigns the value to the given key using source Unknown, may only be called from tests

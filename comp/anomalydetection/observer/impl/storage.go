@@ -60,6 +60,12 @@ type StorageConfig struct {
 	// this to true alongside MaxCorrelations=-1 to retain the full history for
 	// replay analysis.
 	TrackCorrelationHistory bool
+
+	// TrackAnomalyHistory enables full raw anomaly history for replay/debug
+	// introspection. Default false: live production keeps only a bounded dedup
+	// cache because reporters consume advance-local anomalies directly. The
+	// testbench enables this to display every anomaly from a finite replay.
+	TrackAnomalyHistory bool
 }
 
 // DefaultStorageConfig returns the hard-coded production defaults.
@@ -70,7 +76,7 @@ func DefaultStorageConfig() StorageConfig {
 		PointRetentionSecs:                 storagePointRetentionSecs,
 		InactiveSeriesTTLSeconds:           storageInactiveSeriesTTLSeconds,
 		InactiveSeriesCheckIntervalSeconds: storageInactiveSeriesCheckIntervalSeconds,
-		// TrackCorrelationHistory defaults to false: live agent incurs no overhead.
+		// History tracking defaults to false: live agent incurs no replay-only overhead.
 	}
 }
 
@@ -124,12 +130,6 @@ type timeSeriesStorage struct {
 	// reference count. When the count drops to zero on eviction the entry is
 	// deleted. Protected by s.mu (write lock).
 	tagIntern map[uint64]*tagInternEntry
-
-	// Drop accounting for invalid/unsafe input values.
-	droppedNonFinite int64
-	droppedExtreme   int64
-	droppedByMetric  map[string]int64
-	sampledDrops     map[string]int
 }
 
 // tagInternEntry is the value stored in timeSeriesStorage.tagIntern.
@@ -317,8 +317,6 @@ func newTimeSeriesStorageWith(cfg StorageConfig) *timeSeriesStorage {
 		seriesIDStats:         make(map[observer.SeriesRef]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		tagIntern:             make(map[uint64]*tagInternEntry),
-		droppedByMetric:       make(map[string]int64),
-		sampledDrops:          make(map[string]int),
 	}
 }
 
@@ -332,7 +330,7 @@ type AddResult struct {
 }
 
 // Add inserts a (namespace, name, value, timestamp, tags) point into storage.
-// Invalid values are dropped at ingest with accounting and sampled logging.
+// Invalid values are dropped at ingest.
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) AddResult {
@@ -340,13 +338,11 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	defer s.mu.Unlock()
 
 	if math.IsInf(value, 0) || math.IsNaN(value) {
-		s.recordDroppedValue("non_finite", namespace, name, value, timestamp, tags)
 		return AddResult{Ref: -1}
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
 	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
-		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return AddResult{Ref: -1}
 	}
 	h := seriesKeyHash(namespace, name, tags)
@@ -462,35 +458,6 @@ func insertBucket(s []pointBucket, idx int, v pointBucket) []pointBucket {
 	copy(s[idx+1:], s[idx:])
 	s[idx] = v
 	return s
-}
-
-func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, value float64, timestamp int64, tags []string) {
-	switch reason {
-	case "non_finite":
-		s.droppedNonFinite++
-	case "extreme":
-		s.droppedExtreme++
-	}
-
-	metricKey := namespace + "|" + name
-	s.droppedByMetric[metricKey]++
-	sampled := s.sampledDrops[metricKey]
-	if sampled < 3 {
-		s.sampledDrops[metricKey] = sampled + 1
-		logging.Warnf("dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
-			reason, namespace, name, value, timestamp, tags, sampled+1)
-	}
-}
-
-func (s *timeSeriesStorage) DroppedValueStats() (nonFinite int64, extreme int64, byMetric map[string]int64) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	byMetric = make(map[string]int64, len(s.droppedByMetric))
-	for k, v := range s.droppedByMetric {
-		byMetric[k] = v
-	}
-	return s.droppedNonFinite, s.droppedExtreme, byMetric
 }
 
 // GetSeries returns the series using the specified aggregation.
@@ -1180,6 +1147,18 @@ func (s *timeSeriesStorage) SetSeriesRetention(ref observer.SeriesRef, retention
 	if stats := s.resolveByID(ref); stats != nil {
 		stats.retentionOverrideSecs = max(retentionSecs, 0)
 	}
+}
+
+// pointRetentionForSeries returns the effective point-retention window for a
+// series. Missing series use the storage-wide value, which also provides the
+// fallback for anomalies that do not have a storage-backed source.
+func (s *timeSeriesStorage) pointRetentionForSeries(ref observer.SeriesRef) int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if stats := s.resolveByID(ref); stats != nil && stats.retentionOverrideSecs > 0 {
+		return stats.retentionOverrideSecs
+	}
+	return s.cfg.PointRetentionSecs
 }
 
 // SetSeriesActivityTimestamp overrides the timestamp used to rank a series for

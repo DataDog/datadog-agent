@@ -216,7 +216,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.158.0",
+	Version:     "v0.159.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }

@@ -72,6 +72,13 @@ func isOSPackage(comp *cyclonedx_v1_4.Component) bool {
 	return false
 }
 
+// hasForeignPurl reports whether the component's purl places it outside the
+// databases the runtime scanner reads. A component carrying no purl is left to
+// the name and version match.
+func hasForeignPurl(comp *cyclonedx_v1_4.Component) bool {
+	return comp.GetPurl() != "" && !isOSPackage(comp)
+}
+
 type client struct {
 	cl sbompb.SBOMCollectorClient
 }
@@ -214,13 +221,13 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 }
 
 // mergeRuntimeProperties merges runtime properties from newBom into existingBom.
-// Returns a new BOM whose component list is deduplicated (by name+normalised version) and
-// enriched with runtime properties (LastSeenRunning / HasSetSuidBit / RunningAsRoot) taken
-// from newBom.  The properties are defaulted on the OS packages, the ones in the
-// scanner's scope, so that their absence elsewhere reads as "out of scope".
-// Deduplication is necessary because a previously-merged SBOM stored in the image entity
-// may already carry both an original Trivy entry and a runtime-enriched copy of the same
-// package, and every merge round would otherwise re-emit both copies.
+// Returns a new BOM whose component list is deduplicated (by bom-ref) and enriched with
+// runtime properties (LastSeenRunning / HasSetSuidBit / RunningAsRoot) taken from newBom.
+// The properties are defaulted on the OS packages, the ones in the scanner's scope, so
+// that their absence elsewhere reads as "out of scope".  Deduplication guards against a
+// stored image SBOM carrying the same component twice, and the bom-ref is what identifies
+// a component: Trivy reports one entry per install location, so one library version
+// legitimately appears once per lockfile that pins it.
 func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_v1_4.Bom {
 	if newBom == nil || len(newBom.Components) == 0 {
 		return existingBom
@@ -250,8 +257,9 @@ func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 		Vulnerabilities:    existingBom.Vulnerabilities,
 	}
 
-	// seen tracks which name@version keys have already been emitted so that duplicate
-	// entries for the same package (which can accumulate across merge rounds) are dropped.
+	// seen tracks the bom-refs already emitted, so a component appearing twice is
+	// emitted once. Deduplication applies to the components that carry a bom-ref,
+	// and the others are emitted in turn.
 	seen := make(map[string]struct{}, len(existingBom.Components))
 
 	for _, existingComp := range existingBom.Components {
@@ -259,14 +267,15 @@ func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 			continue
 		}
 
+		if ref := existingComp.GetBomRef(); ref != "" {
+			if _, already := seen[ref]; already {
+				continue
+			}
+			seen[ref] = struct{}{}
+		}
+
 		normalizedVersion, _ := normalizeVersion(existingComp.Version)
 		key := existingComp.Name + "@" + normalizedVersion
-
-		// Emit only the first occurrence of each package.
-		if _, already := seen[key]; already {
-			continue
-		}
-		seen[key] = struct{}{}
 
 		// Copy all fields so we do not mutate the original BOM. The property
 		// slice is cloned because updateProperty replaces entries in place.
@@ -297,8 +306,13 @@ func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 			ReleaseNotes:       existingComp.ReleaseNotes,
 		}
 
-		// Add or update runtime properties from newBom.
+		// Add or update runtime properties from newBom. The report describes the
+		// dpkg, rpm and apk databases, so a component whose purl sits elsewhere
+		// shares a name and a version with it and nothing more.
 		newComp, reported := newComponentsMap[key]
+		if reported && hasForeignPurl(mergedComp) {
+			reported = false
+		}
 		if reported && newComp.Properties != nil {
 			updateProperty := func(propertyName string) {
 				var newProp *cyclonedx_v1_4.Property
