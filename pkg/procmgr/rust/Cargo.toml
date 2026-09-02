@@ -63,4 +63,5 @@ tempfile.workspace = true
 
 [[test]]
 name = "e2e"
+path = "tests/e2e/main.rs"
 required-features = ["test-helpers"]
