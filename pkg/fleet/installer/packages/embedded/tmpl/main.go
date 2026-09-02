@@ -216,14 +216,14 @@ var (
 		Stable:           true,
 	}
 
-	// Ideally the folder names would be systemd and procmgr (instead of sd and pm)
-	// and -nocap (instead of -nc)
-	// but windows has a limit of file path length, so we use shorter names
+	// Keep these generated folder names short enough for Windows checkouts. The
+	// systemd variants use s/{o,on,d,dn} for OCI, OCI without capabilities,
+	// deb/rpm, and deb/rpm without capabilities, respectively.
 	systemdEmbeddedLayouts = []embeddedLayout{
-		{subdir: "sd/oci", units: unitSetSystemd(stableDataOCI, expDataOCI, true)},
-		{subdir: "sd/debrpm", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, true)},
-		{subdir: "sd/oci-nc", units: unitSetSystemd(stableDataOCI, expDataOCI, false)},
-		{subdir: "sd/debrpm-nc", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, false)},
+		{subdir: "s/o", units: unitSetSystemd(stableDataOCI, expDataOCI, true)},
+		{subdir: "s/d", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "s/on", units: unitSetSystemd(stableDataOCI, expDataOCI, false)},
+		{subdir: "s/dn", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, false)},
 	}
 	procmgrEmbeddedLayouts = []embeddedLayout{
 		{subdir: "pm/oci", units: unitSetProcmgr(stableDataOCI, expDataOCI, true)},

@@ -317,10 +317,10 @@ install -m 0755 bin/agent/agent "$output_dir/bin/datadog-agent"
 install -m 0755 bin/privateactionrunner/privateactionrunner "$output_dir/bin/private-action-runner"
 install -m 0755 bin/rshell/rshell "$output_dir/bin/rshell"
 install -m 0644 \
-    pkg/fleet/installer/packages/embedded/tmpl/gen/debrpm/datadog-agent-rshell-privileged.service \
+    pkg/fleet/installer/packages/embedded/tmpl/gen/s/d/datadog-agent-rshell-privileged.service \
     "$output_dir/systemd/datadog-agent-rshell-privileged.service"
 install -m 0644 \
-    pkg/fleet/installer/packages/embedded/tmpl/gen/debrpm/datadog-agent-rshell-privileged.socket \
+    pkg/fleet/installer/packages/embedded/tmpl/gen/s/d/datadog-agent-rshell-privileged.socket \
     "$output_dir/systemd/datadog-agent-rshell-privileged.socket"
 
 echo "Built native $target_triple privileged-rshell Agent bundle at: $output_dir"

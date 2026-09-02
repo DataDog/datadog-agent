@@ -21,8 +21,8 @@ import (
 // one variant's directory.
 func TestGetSystemdUnitEmbedsAllVariants(t *testing.T) {
 	for _, unitType := range []UnitType{UnitTypeOCI, UnitTypeDebRpm} {
-		units := embeddedUnitsInDir(t, "tmpl/gen/sd/"+string(unitType))
-		assert.ElementsMatch(t, units, embeddedUnitsInDir(t, "tmpl/gen/sd/"+string(unitType)+"-nc"),
+		units := embeddedUnitsInDir(t, "tmpl/gen/s/"+systemdFlavorDir(unitType, true))
+		assert.ElementsMatch(t, units, embeddedUnitsInDir(t, "tmpl/gen/s/"+systemdFlavorDir(unitType, false)),
 			"embedded unit sets differ between %s and %s-nc", unitType, unitType)
 
 		for _, unit := range units {
