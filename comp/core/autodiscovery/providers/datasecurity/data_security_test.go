@@ -33,6 +33,10 @@ type mockedRcClient struct {
 
 func (m *mockedRcClient) SubscribeAgentTask() {}
 
+func (m *mockedRcClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
+	return state.ConfigTUFProof{}, false
+}
+
 func (m *mockedRcClient) Subscribe(product data.Product, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 	m.product = product
 	// callback is the controller's update method, which RC would normally invoke on each config change.

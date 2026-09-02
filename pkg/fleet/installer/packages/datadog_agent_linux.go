@@ -61,6 +61,7 @@ const (
 	installerSymlink = "/usr/bin/datadog-installer"
 
 	privilegedRshellBinaryRelPath  = "embedded/bin/rshell"
+	privilegedRshellPolicyDir      = "/etc/datadog-agent/rshell.d"
 	privilegedRshellMinLandlockABI = 3
 	privilegedRshellSocketStable   = "datadog-agent-rshell-privileged.socket"
 	privilegedRshellSocketExp      = "datadog-agent-rshell-privileged-exp.socket"
@@ -70,6 +71,7 @@ var (
 	// agentDirectories are the directories that the agent needs to function
 	agentDirectories = file.Directories{
 		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: privilegedRshellPolicyDir, Mode: 0755, Owner: "root", Group: "root"},
 		{Path: "/etc/datadog-agent/managed", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/var/log/datadog", Mode: 0750, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/run", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
@@ -79,6 +81,7 @@ var (
 	// agentConfigPermissions are the ownerships and modes that are enforced on the agent configuration files
 	agentConfigPermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+		{Path: "rshell.d", Owner: "root", Group: "root", Recursive: true},
 		{Path: "managed", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "inject", Owner: "root", Group: "root", Recursive: true},
 		{Path: "compliance.d", Owner: "root", Group: "root", Recursive: true},

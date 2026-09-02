@@ -26,6 +26,10 @@ type mockedRcClient struct{}
 
 func (m *mockedRcClient) SubscribeAgentTask() {}
 
+func (m *mockedRcClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
+	return state.ConfigTUFProof{}, false
+}
+
 func (m *mockedRcClient) Subscribe(data.Product, func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
 }
 

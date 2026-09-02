@@ -12,9 +12,40 @@ import (
 	"runtime"
 	"testing"
 
+	installerFile "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPrivilegedRshellPolicyDirectoryPermissions(t *testing.T) {
+	assert.Contains(t, agentDirectories, installerFile.Directory{
+		Path:  privilegedRshellPolicyDir,
+		Mode:  0755,
+		Owner: "root",
+		Group: "root",
+	})
+	policyPermission := installerFile.Permission{
+		Path:      "rshell.d",
+		Owner:     "root",
+		Group:     "root",
+		Recursive: true,
+	}
+	assert.Contains(t, agentConfigPermissions, policyPermission)
+
+	basePermissionIndex := -1
+	policyPermissionIndex := -1
+	for i, permission := range agentConfigPermissions {
+		if permission.Path == "." && permission.Recursive {
+			basePermissionIndex = i
+		}
+		if permission == policyPermission {
+			policyPermissionIndex = i
+		}
+	}
+	require.NotEqual(t, -1, basePermissionIndex)
+	require.NotEqual(t, -1, policyPermissionIndex)
+	assert.Less(t, basePermissionIndex, policyPermissionIndex, "root ownership must be restored after the recursive dd-agent ownership pass")
+}
 
 func TestPrivilegedRshellSupported(t *testing.T) {
 	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {

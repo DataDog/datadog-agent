@@ -2224,6 +2224,10 @@ func makeMockClient(profiles []profiledefinition.ProfileDefinition) (*mockRCClie
 
 func (m *mockRCClient) SubscribeAgentTask() {}
 
+func (m *mockRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
+	return state.ConfigTUFProof{}, false
+}
+
 // noop
 func (m *mockRCClient) applyStateCallback(string, state.ApplyStatus) {}
 

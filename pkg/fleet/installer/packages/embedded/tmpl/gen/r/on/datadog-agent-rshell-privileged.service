@@ -9,7 +9,7 @@ ConditionPathExists=/opt/datadog-packages/datadog-agent/stable/embedded/bin/rshe
 Type=simple
 Group=dd-agent
 UMask=0077
-ExecStart=/opt/datadog-packages/datadog-agent/stable/embedded/bin/rshell privileged-helper --policy=/etc/datadog-agent/rshell-privileged-helper-policy.json --idle-timeout=30s
+ExecStart=/opt/datadog-packages/datadog-agent/stable/embedded/bin/rshell privileged-helper --policy=/etc/datadog-agent/rshell.d/policy.json --idle-timeout=30s
 PrivateNetwork=yes
 RestrictAddressFamilies=AF_UNIX
 LockPersonality=yes

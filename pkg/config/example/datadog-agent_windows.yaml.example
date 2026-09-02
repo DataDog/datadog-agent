@@ -4756,8 +4756,8 @@ api_key:
 #   # @param restricted_shell - custom object - optional
 #   # Local restrictions for remote rshell actions. Privileged execution has
 #   # an additional administrator-controlled opt-in and requires the systemd
-#   # socket. A root-owned rshell-privileged-helper-policy.json can optionally
-#   # narrow the backend-provided command and path policy.
+#   # socket. On Linux, a root-owned /etc/datadog-agent/rshell.d/policy.json
+#   # can optionally narrow the backend-provided command and path policy.
 #
 #   restricted_shell:
 #     allowed_commands:
