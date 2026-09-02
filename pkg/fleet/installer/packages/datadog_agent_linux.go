@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
@@ -227,6 +228,12 @@ func installFilesystem(ctx HookContext) (err error) {
 	// 8. Stop and remove legacy procmgr unit names so only datadog-agent-procmgr.service runs dd-procmgrd
 	if err = retireLegacyProcmgrUnits(ctx); err != nil {
 		log.Warnf("failed to retire legacy procmgr units: %v", err)
+	}
+
+	// 9. Persist the install-time process manager choice into the installer daemon's own
+	// service environment so it survives daemon restarts, updates, and experiments.
+	if err = persistProcessManagerEnabled(ctx, env.FromEnv().ProcessManagerEnabled); err != nil {
+		log.Warnf("failed to persist process manager state: %v", err)
 	}
 	return nil
 }
