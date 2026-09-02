@@ -61,6 +61,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/privileged-logs/test/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
+    "./pkg/util/kernel",
     "./pkg/util/kernel/headers/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
@@ -171,22 +172,14 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     return
 
 
-def get_libpcap_cgo_flags(ctx, install_path: str = None):
-    """Return a dictionary with the CGO flags needed to link against libpcap.
-    If install_path is provided, then we expect this path to contain libpcap as a shared library.
-    """
-    if install_path is not None:
-        return {
-            'CGO_CFLAGS': f"-I{os.path.join(install_path, 'embedded', 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(install_path, 'embedded', 'lib')}",
-        }
-    else:
-        embedded_path = get_embedded_path(ctx)
-        assert embedded_path, "Failed to find embedded path"
-        return {
-            'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'embedded', 'include')}",
-            'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'embedded', 'lib')}",
-        }
+def get_libpcap_cgo_flags(ctx):
+    """Return CGO flags for the development tree where build_libpcap installs its output."""
+    embedded_path = get_embedded_path(ctx)
+    assert embedded_path, "Failed to find embedded path"
+    return {
+        'CGO_CFLAGS': f"-I{os.path.join(embedded_path, 'embedded', 'include')}",
+        'CGO_LDFLAGS': f"-L{os.path.join(embedded_path, 'embedded', 'lib')}",
+    }
 
 
 @task
@@ -273,7 +266,7 @@ def build_sysprobe_binary(
 
     if not is_windows and "pcap" in build_tags:
         build_libpcap(ctx, arch=arch_obj, env=env)
-        cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
+        cgo_flags = get_libpcap_cgo_flags(ctx)
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:
@@ -961,6 +954,7 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/ebpf/testdata/c:logdebug-test",
     "//pkg/ebpf/testdata/c:error_telemetry",
     "//pkg/ebpf/testdata/c:sleepable",
+    "//pkg/ebpf/testdata/c:preempt_test",
     "//pkg/ebpf/testdata/c:uprobe_attacher-test",
     "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
 ]

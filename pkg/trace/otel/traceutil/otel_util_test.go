@@ -406,6 +406,7 @@ func TestGetOTelResource(t *testing.T) {
 		name       string
 		rattrs     map[string]string
 		sattrs     map[string]string
+		spanKind   ptrace.SpanKind
 		normalize  bool
 		expectedV1 string
 		expectedV2 string
@@ -426,6 +427,13 @@ func TestGetOTelResource(t *testing.T) {
 			sattrs:     map[string]string{"http.request.method": "GET"},
 			expectedV1: "GET",
 			expectedV2: "GET",
+		},
+		{
+			name:       "HTTP client method and URL template resource",
+			sattrs:     map[string]string{"http.request.method": "GET", "url.template": "/users/{user_id}"},
+			spanKind:   ptrace.SpanKindClient,
+			expectedV1: "GET",
+			expectedV2: "GET /users/{user_id}",
 		},
 		{
 			name:       "HTTP method and route resource",
@@ -534,6 +542,7 @@ func TestGetOTelResource(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			span := ptrace.NewSpan()
 			span.SetName("span_name")
+			span.SetKind(tt.spanKind)
 			for k, v := range tt.sattrs {
 				span.Attributes().PutStr(k, v)
 			}
@@ -820,6 +829,32 @@ func TestGetOTelResourceV2_HTTPRequestMethodResource(t *testing.T) {
 			sattrs:   map[string]string{"http.request.method": "POST", string(semconv.HTTPRouteKey): "/api/users"},
 			spanKind: ptrace.SpanKindClient,
 			expected: "POST",
+		},
+		{
+			name:     "http.request.method with URL template for client",
+			sattrs:   map[string]string{"http.request.method": "POST", "url.template": "/api/users/{user_id}"},
+			spanKind: ptrace.SpanKindClient,
+			expected: "POST /api/users/{user_id}",
+		},
+		{
+			name: "client uses URL template and ignores route",
+			sattrs: map[string]string{
+				"http.request.method":        "POST",
+				"url.template":               "/api/users/{user_id}",
+				string(semconv.HTTPRouteKey): "/api/users/:user_id",
+			},
+			spanKind: ptrace.SpanKindClient,
+			expected: "POST /api/users/{user_id}",
+		},
+		{
+			name: "server uses route and ignores URL template",
+			sattrs: map[string]string{
+				"http.request.method":        "POST",
+				"url.template":               "/api/users/{user_id}",
+				string(semconv.HTTPRouteKey): "/api/users/:user_id",
+			},
+			spanKind: ptrace.SpanKindServer,
+			expected: "POST /api/users/:user_id",
 		},
 		{
 			name:     "http.method (semconv 1.6.1) only",
