@@ -92,11 +92,29 @@ func clientTelemetryTags(serie *metrics.Serie) (string, string) {
 	transport := unknownTagValue
 	serie.Tags.Find(func(tag string) bool {
 		if strings.HasPrefix(tag, dogStatsDClientLibraryTagPrefix) {
-			client = strings.TrimPrefix(tag, dogStatsDClientLibraryTagPrefix)
+			client = normalizeClientLibrary(strings.TrimPrefix(tag, dogStatsDClientLibraryTagPrefix))
 		} else if strings.HasPrefix(tag, dogStatsDClientTransportTagPrefix) {
-			transport = strings.TrimPrefix(tag, dogStatsDClientTransportTagPrefix)
+			transport = normalizeClientTransport(strings.TrimPrefix(tag, dogStatsDClientTransportTagPrefix))
 		}
 		return client != unknownTagValue && transport != unknownTagValue
 	})
 	return client, transport
+}
+
+func normalizeClientLibrary(client string) string {
+	switch client {
+	case "go", "py", "java", "ruby", "csharp", "php", "rust":
+		return client
+	default:
+		return unknownTagValue
+	}
+}
+
+func normalizeClientTransport(transport string) string {
+	switch transport {
+	case "udp", "uds", "uds-stream", "uds-datagram", "namedpipe", "named_pipe", "custom", "http":
+		return transport
+	default:
+		return unknownTagValue
+	}
 }
