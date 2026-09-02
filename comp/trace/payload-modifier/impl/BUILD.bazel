@@ -11,6 +11,7 @@ go_library(
         "//comp/trace/payload-modifier/def",
         "//pkg/config/utils",
         "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
         "//pkg/serverless/env",
         "//pkg/serverless/trace/modifier",
         "//pkg/trace/agent",
