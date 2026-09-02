@@ -158,7 +158,7 @@ func (r *EmbeddedRegistry) Source() string {
 // payload bytes. It is the key for both publishing a registry and invalidating
 // registry-derived state. It is presentation-sensitive, so cosmetically
 // reformatted payloads compare unequal; this is accepted because
-// over-invalidating is cheap while under-invalidating is the bug.
+// over-invalidating is cheap while under-invalidating is a bug.
 func RegistryEqual(a, b Registry) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
