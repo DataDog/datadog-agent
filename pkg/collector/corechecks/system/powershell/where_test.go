@@ -176,6 +176,16 @@ func TestWhereRejectsNonScalarValue(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// An explicit null is the supported way to filter on an unset property, and is
+// what the schema's required `value` leaves available. See schema.go.
+func TestWhereAcceptsExplicitNullValue(t *testing.T) {
+	inst, err := parseInstanceConfig([]byte(
+		"cmdlet: Get-SmbShare\nmetrics:\n  - [1, share]\nwhere:\n  - property: Path\n    op: eq\n    value: null\n"))
+	require.NoError(t, err)
+	require.Len(t, inst.Where, 1)
+	assert.Nil(t, inst.Where[0].Value)
+}
+
 // Ordering operators take any scalar, because PowerShell decides the comparison
 // from the property's type rather than from the configured value.
 func TestWhereOrderingAcceptsAnyScalar(t *testing.T) {

@@ -224,6 +224,65 @@ func TestPatternIsCaseSensitive(t *testing.T) {
 	assert.NoError(t, check("(?i)dnscache", "Dnscache"))
 }
 
+func TestParseAllowlistRejectsCaseOnlyDuplicateCmdlets(t *testing.T) {
+	// PowerShell resolves cmdlet names case-insensitively, so these two entries
+	// are two policies for one cmdlet and an instance would get whichever it spelled.
+	_, err := parseAllowlist([]byte(`
+version: 1
+allowed_cmdlets:
+  Get-Service:
+    module: "*"
+    parameters:
+      Name: { pattern: 'dnscache' }
+  Get-service:
+    module: "*"
+    parameters:
+      Name: { pattern: '.*' }
+`))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "differ only in case")
+	// Named in sorted order, since Go randomizes map iteration.
+	assert.Contains(t, err.Error(), `"Get-Service" and "Get-service"`)
+}
+
+func TestParseAllowlistRejectsCaseOnlyDuplicateParameters(t *testing.T) {
+	// Parameter names are case-insensitive to PowerShell too, and the splat table
+	// is keyed by them, so one would silently overwrite the other.
+	_, err := parseAllowlist([]byte(`
+version: 1
+allowed_cmdlets:
+  Get-Service:
+    module: "*"
+    parameters:
+      Name: { pattern: 'dnscache' }
+      name: { pattern: '.*' }
+`))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "differ only in case")
+	assert.Contains(t, err.Error(), `"Name" and "name"`)
+}
+
+func TestParseAllowlistAllowsCaseVariantAllowedValues(t *testing.T) {
+	// allowed_values are compared case-sensitively on purpose, so two values
+	// differing only in case are two distinct permitted values, not a collision.
+	al, err := parseAllowlist([]byte(`
+version: 1
+allowed_cmdlets:
+  Get-Certificate:
+    module: PKI
+    parameters:
+      Template: { allowed_values: [WebServer, webserver] }
+`))
+	require.NoError(t, err)
+
+	for _, v := range []string{"WebServer", "webserver"} {
+		assert.NoError(t, al.validateInstance(&instanceConfig{
+			Cmdlet:     "Get-Certificate",
+			Parameters: []parameterEntry{{Name: "Template", Value: v}},
+		}), "value %q", v)
+	}
+}
+
 func TestParseAllowlistRequiresModule(t *testing.T) {
 	// A cmdlet entry without a module is rejected (strict, secure-by-default).
 	_, err := parseAllowlist([]byte("version: 1\nallowed_cmdlets:\n  Get-Service:\n    parameters:\n      Name: {}\n"))

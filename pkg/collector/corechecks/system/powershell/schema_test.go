@@ -103,6 +103,18 @@ func TestSchemaRejectsMalformedWhereTuple(t *testing.T) {
 	assert.Error(t, validateInstanceSchema(data))
 }
 
+func TestSchemaRequiresWhereValueInMappingForm(t *testing.T) {
+	// The tuple form requires arity 3, so this keeps the two forms symmetric. An
+	// omitted value compares against $null, which silently keeps every row or none
+	// depending on the operator.
+	base := "cmdlet: Get-SmbShare\nmetrics:\n  - [1, share]\nwhere:\n  - property: Path\n    op: eq\n"
+	assert.Error(t, validateInstanceSchema([]byte(base)))
+
+	// An explicit null stays accepted: filtering on an unset property is valid, and
+	// `required` tests key presence, so it can tell the two apart.
+	assert.NoError(t, validateInstanceSchema([]byte(base+"    value: null\n")))
+}
+
 func TestSchemaRejectsUnsupportedWhereOperator(t *testing.T) {
 	// The operator enum is duplicated in the schema so a typo is reported alongside
 	// any other config error instead of aborting at the first one.

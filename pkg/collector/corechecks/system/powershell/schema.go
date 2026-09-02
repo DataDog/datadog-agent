@@ -92,13 +92,16 @@ func (tagByEntry) JSONSchemaBytes() ([]byte, error) {
 // a {property, op, value} mapping. The operator is constrained here as well as in
 // whereOps so a typo is reported by schema validation alongside any other config
 // errors, rather than aborting at the first one.
+//
+// `value` is required, matching the tuple form's arity. Only this layer can tell an
+// absent key from an explicit `value: null`, which stays accepted.
 func (whereEntry) JSONSchemaBytes() ([]byte, error) {
 	return []byte(`{
   "oneOf": [
     { "type": "array", "minItems": 3, "maxItems": 3 },
     {
       "type": "object",
-      "required": ["property", "op"],
+      "required": ["property", "op", "value"],
       "properties": {
         "property": { "type": "string" },
         "op": {

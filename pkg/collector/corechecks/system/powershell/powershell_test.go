@@ -176,7 +176,7 @@ func TestSubmitMetricErrors(t *testing.T) {
 // cmdlet allowlisted and its module unpinned.
 func newExecTestCheck(cmdlet string) *PowershellCheck {
 	return &PowershellCheck{
-		instance: &instanceConfig{Timeout: defaultTimeout},
+		instance: &instanceConfig{Timeout: defaultTimeout, MaxOutputBytes: defaultMaxOutputBytes},
 		allowlist: &allowlist{
 			Version:        allowlistVersion,
 			AllowedCmdlets: map[string]allowedCmdlet{cmdlet: {Module: "*"}},

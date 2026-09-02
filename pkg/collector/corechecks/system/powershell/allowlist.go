@@ -10,7 +10,9 @@ package powershell
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v2"
@@ -61,7 +63,17 @@ func parseAllowlist(data []byte) (*allowlist, error) {
 		return nil, errors.New("allowlist has no allowed_cmdlets")
 	}
 
-	for name, cmd := range a.AllowedCmdlets {
+	// Sorted so a collision below names the two keys in a stable order.
+	seenCmdlets := make(map[string]string, len(a.AllowedCmdlets))
+	for _, name := range slices.Sorted(maps.Keys(a.AllowedCmdlets)) {
+		cmd := a.AllowedCmdlets[name]
+		// PowerShell resolves cmdlet names case-insensitively, but these are Go map
+		// keys, so two such entries would be two policies for one cmdlet.
+		if prior, dup := seenCmdlets[strings.ToLower(name)]; dup {
+			return nil, fmt.Errorf("allowlist entries %q and %q differ only in case; declare only one", prior, name)
+		}
+		seenCmdlets[strings.ToLower(name)] = name
+
 		if err := validateGetCmdletName(name); err != nil {
 			return nil, fmt.Errorf("allowlist entry %q: %w", name, err)
 		}
@@ -70,7 +82,16 @@ func parseAllowlist(data []byte) (*allowlist, error) {
 		if strings.TrimSpace(cmd.Module) == "" {
 			return nil, fmt.Errorf("allowlist entry %q: module is required (use \"*\" to skip the module check)", name)
 		}
-		for pName, p := range cmd.Parameters {
+		seenParams := make(map[string]string, len(cmd.Parameters))
+		for _, pName := range slices.Sorted(maps.Keys(cmd.Parameters)) {
+			p := cmd.Parameters[pName]
+			// Parameter names are case-insensitive to PowerShell too, and the splat
+			// table is keyed by them.
+			if prior, dup := seenParams[strings.ToLower(pName)]; dup {
+				return nil, fmt.Errorf("allowlist entry %q parameters %q and %q differ only in case; declare only one", name, prior, pName)
+			}
+			seenParams[strings.ToLower(pName)] = pName
+
 			if err := validateIdentifier("parameter", pName); err != nil {
 				return nil, fmt.Errorf("allowlist entry %q: %w", name, err)
 			}

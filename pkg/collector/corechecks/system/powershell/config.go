@@ -10,6 +10,8 @@ package powershell
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -100,6 +102,11 @@ func (m *metricEntry) finalize() error {
 	if m.Name == "" {
 		return fmt.Errorf("metric for property %q is missing a name", m.Property)
 	}
+	// Projected with Select-Object, so reject a malformed name here rather than on
+	// every run. The virtual "1" is a valid identifier, so it needs no exception.
+	if err := validateIdentifier("property", m.Property); err != nil {
+		return fmt.Errorf("metric %q: %w", m.Name, err)
+	}
 	if m.Type == "" {
 		m.Type = "gauge"
 	}
@@ -121,13 +128,16 @@ func (m *metricEntry) finalize() error {
 	}
 	if len(m.Mapping) > 0 {
 		normalized := make(map[string]float64, len(m.Mapping))
-		for k, v := range m.Mapping {
+		seen := make(map[string]string, len(m.Mapping))
+		// Sorted so a collision below names the two keys in a stable order.
+		for _, k := range slices.Sorted(maps.Keys(m.Mapping)) {
 			lk := strings.ToLower(k)
 			// Two keys differing only in case would silently discard one.
-			if _, dup := normalized[lk]; dup {
-				return fmt.Errorf("metric %q has 'mapping' keys differing only in case (%q); lookups are case-insensitive", m.Name, k)
+			if prior, dup := seen[lk]; dup {
+				return fmt.Errorf("metric %q has 'mapping' keys %q and %q, which differ only in case; lookups are case-insensitive", m.Name, prior, k)
 			}
-			normalized[lk] = v
+			seen[lk] = k
+			normalized[lk] = m.Mapping[k]
 		}
 		m.Mapping = normalized
 	}
@@ -194,6 +204,9 @@ func (p *parameterEntry) finalize() error {
 	if p.Name == "" {
 		return errors.New("parameter entry is missing a name")
 	}
+	if err := validateIdentifier("parameter", p.Name); err != nil {
+		return err
+	}
 	// Scalars only: the allowlist checks a value as a string while the payload
 	// carries JSON, and those two agree only for scalars.
 	switch p.Value.(type) {
@@ -236,6 +249,10 @@ func (t *tagByEntry) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (t *tagByEntry) finalize() error {
 	if t.Property == "" {
 		return errors.New("tag_by entry is missing a property")
+	}
+	// Projected with Select-Object. The alias becomes a tag key, not an identifier.
+	if err := validateIdentifier("property", t.Property); err != nil {
+		return fmt.Errorf("tag_by entry: %w", err)
 	}
 	if t.Alias == "" {
 		t.Alias = strings.ToLower(t.Property)
@@ -291,6 +308,15 @@ func (q *tagQueryEntry) finalize() error {
 	if q.LinkSourceProperty == "" || q.TargetCmdlet == "" || q.LinkTargetProperty == "" || q.TargetProperty == "" {
 		return errors.New("tag_queries entry is missing one of LinkSource/TargetCmdlet/LinkTarget/TargetProperty")
 	}
+	if err := validateGetCmdletName(q.TargetCmdlet); err != nil {
+		return fmt.Errorf("tag_queries entry: %w", err)
+	}
+	// All three are projected with Select-Object. The alias becomes a tag key.
+	for _, prop := range []string{q.LinkSourceProperty, q.LinkTargetProperty, q.TargetProperty} {
+		if err := validateIdentifier("property", prop); err != nil {
+			return fmt.Errorf("tag_queries entry: %w", err)
+		}
+	}
 	if q.Alias == "" {
 		q.Alias = strings.ToLower(q.TargetProperty)
 	}
@@ -310,6 +336,9 @@ type instanceConfig struct {
 	Tags       []string         `json:"tags" yaml:"tags"`
 	TagQueries []tagQueryEntry  `json:"tag_queries" yaml:"tag_queries"`
 	Timeout    int              `json:"timeout" yaml:"timeout"`
+	// MaxOutputBytes bounds the JSON buffered from one cmdlet run, so it bounds
+	// Agent memory. Clamped to maxOutputBytesCeiling.
+	MaxOutputBytes int `json:"max_output_bytes" yaml:"max_output_bytes"`
 }
 
 // parseInstanceConfig unmarshals and validates a single instance's YAML.
@@ -333,6 +362,16 @@ func parseInstanceConfig(data []byte) (*instanceConfig, error) {
 	if len(inst.Where) > maxWhereEntries {
 		return nil, fmt.Errorf("'where' has %d entries, which exceeds the maximum of %d", len(inst.Where), maxWhereEntries)
 	}
+	// The splat table is keyed case-insensitively, so a duplicate would silently
+	// overwrite. Rejected here so an ambiguous config never configures at all.
+	seenParams := make(map[string]string, len(inst.Parameters))
+	for i := range inst.Parameters {
+		key := strings.ToLower(inst.Parameters[i].Name)
+		if prior, dup := seenParams[key]; dup {
+			return nil, fmt.Errorf("parameter %q is specified more than once (also as %q)", inst.Parameters[i].Name, prior)
+		}
+		seenParams[key] = inst.Parameters[i].Name
+	}
 	// timeout is optional and defaults to defaultTimeout. A negative value is
 	// invalid; warn and fall back to the default rather than failing the check.
 	if inst.Timeout < 0 {
@@ -340,6 +379,18 @@ func parseInstanceConfig(data []byte) (*instanceConfig, error) {
 	}
 	if inst.Timeout <= 0 {
 		inst.Timeout = defaultTimeout
+	}
+	// Same treatment as timeout: warn and fall back rather than fail the check. The
+	// ceiling is absolute, since this bound is what protects Agent memory.
+	if inst.MaxOutputBytes < 0 {
+		log.Warnf("cmdlet %s: 'max_output_bytes' must be a positive number of bytes, got %d; using default of %d", inst.Cmdlet, inst.MaxOutputBytes, defaultMaxOutputBytes)
+	}
+	if inst.MaxOutputBytes <= 0 {
+		inst.MaxOutputBytes = defaultMaxOutputBytes
+	}
+	if inst.MaxOutputBytes > maxOutputBytesCeiling {
+		log.Warnf("cmdlet %s: 'max_output_bytes' of %d exceeds the maximum of %d; using the maximum", inst.Cmdlet, inst.MaxOutputBytes, maxOutputBytesCeiling)
+		inst.MaxOutputBytes = maxOutputBytesCeiling
 	}
 	return &inst, nil
 }

@@ -41,8 +41,13 @@ const (
 	// read from the installer's admin-only <ProgramData>\Datadog\protected dir.
 	allowlistFileName = "powershell_allowlist.yaml"
 
-	// maxOutputBytes bounds the JSON captured from a single cmdlet invocation.
-	maxOutputBytes = 10 * 1024 * 1024
+	// defaultMaxOutputBytes bounds the JSON captured from a single cmdlet
+	// invocation when the instance does not override it.
+	defaultMaxOutputBytes = 10 * 1024 * 1024
+
+	// maxOutputBytesCeiling caps what an instance may ask for. The bound exists to
+	// keep a runaway cmdlet from exhausting Agent memory, so it stays absolute.
+	maxOutputBytesCeiling = 100 * 1024 * 1024
 
 	// maxStderrBytes bounds diagnostic output captured from a single cmdlet
 	// invocation. Stderr is only used for error reporting, so it needs a much
@@ -100,6 +105,8 @@ func (c *PowershellCheck) Configure(senderManager sender.SenderManager, integrat
 	}
 
 	c.instance = inst
+	// Read once and reused by Run. After an allowlist edit, the Agent must be
+	// restarted to reload the check and the allowlist.
 	c.allowlist = al
 
 	log.Infof("configured cmdlet %s: module %s, %d parameter(s), %d filter(s), %d metric(s), %d join(s), timeout %ds",
@@ -250,7 +257,7 @@ func (c *PowershellCheck) submitMetric(s sender.Sender, m *metricEntry, row map[
 
 // runCmdlet builds the command and its payload, spawns a one-shot powershell.exe
 // under a timeout with a restricted environment, and parses the JSON output. The
-// script is safe to log; the payload is not, since it carries configured values.
+// script holds no configuration, so it is logged as is.
 func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, where []whereEntry, selectProps []string) ([]map[string]interface{}, error) {
 	// The allowlist may pin the cmdlet to a module; enforce it at runtime.
 	var module string
@@ -261,7 +268,6 @@ func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, wher
 	if err != nil {
 		return nil, err
 	}
-	// Safe to log; the payload is not, since it carries configured values.
 	log.Debugf("generated script for cmdlet %s:\n%s", cmdlet, script)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.instance.Timeout)*time.Second)
@@ -277,7 +283,7 @@ func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, wher
 	// Copied on a goroutine while the preamble reads to EOF, so neither side stalls.
 	cmd.Stdin = bytes.NewReader(payload)
 
-	stdout := &cappedBuffer{limit: maxOutputBytes}
+	stdout := &cappedBuffer{limit: c.instance.MaxOutputBytes}
 	stderr := &cappedBuffer{limit: maxStderrBytes}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
@@ -308,10 +314,10 @@ func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, wher
 	}
 
 	if stdout.truncated {
-		return nil, fmt.Errorf("output exceeded %d bytes", maxOutputBytes)
+		return nil, fmt.Errorf("output exceeded %d bytes", c.instance.MaxOutputBytes)
 	}
-	if n := len(stdout.Bytes()); n > maxOutputBytes*8/10 {
-		log.Warnf("cmdlet %s produced %d bytes, over 80%% of the %d byte cap", cmdlet, n, maxOutputBytes)
+	if n := len(stdout.Bytes()); n > c.instance.MaxOutputBytes*8/10 {
+		log.Warnf("cmdlet %s produced %d bytes, over 80%% of the %d byte cap", cmdlet, n, c.instance.MaxOutputBytes)
 	}
 
 	rows, err := parseRows(stdout.Bytes())

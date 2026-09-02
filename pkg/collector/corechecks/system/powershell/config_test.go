@@ -213,7 +213,75 @@ func TestMetricMappingRejectsCaseCollidingKeys(t *testing.T) {
 	// Lower-casing would silently discard one of these.
 	_, err := parseInstanceConfig([]byte(
 		"cmdlet: Get-X\nmetrics:\n  - property: S\n    name: s\n    mapping: {Up: 1, up: 0}\n    default_value: -1\n"))
-	assert.Error(t, err)
+	require.Error(t, err)
+	// Named in sorted order, since Go randomizes map iteration.
+	assert.Contains(t, err.Error(), `"Up" and "up"`)
+}
+
+func TestParseInstanceConfigRejectsMalformedIdentifiers(t *testing.T) {
+	// These are all projected with Select-Object or splatted as parameter names,
+	// so a malformed one is rejected here rather than failing every run.
+	cases := []struct {
+		name string
+		yaml string
+	}{
+		{"metric property", "cmdlet: Get-Service\nmetrics:\n  - [Bad Prop, s]\n"},
+		{"parameter name", "cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nparameters:\n  - [Bad Name, x]\n"},
+		{"tag_by property", "cmdlet: Get-Service\nmetrics:\n  - [Status, s]\ntag_by:\n  - Bad;Prop\n"},
+		{"tag_queries link source", "cmdlet: Get-Service\nmetrics:\n  - [Status, s]\ntag_queries:\n  - [Bad;Id, Get-X, Y, Z]\n"},
+		{"tag_queries target property", "cmdlet: Get-Service\nmetrics:\n  - [Status, s]\ntag_queries:\n  - [Id, Get-X, Y, Bad;Z]\n"},
+		{"tag_queries target cmdlet", "cmdlet: Get-Service\nmetrics:\n  - [Status, s]\ntag_queries:\n  - [Id, Remove-Item, Y, Z]\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parseInstanceConfig([]byte(tc.yaml))
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestParseInstanceConfigAllowsDottedMetricNamesAndAliases(t *testing.T) {
+	// Only properties and parameter names are identifiers. A metric name and a
+	// tag alias are neither, and must not be caught by the checks above.
+	inst, err := parseInstanceConfig([]byte(
+		"cmdlet: Get-Service\nmetrics:\n  - [Status, my.svc.status]\ntag_by:\n  - Name AS service.name\n"))
+	require.NoError(t, err)
+	assert.Equal(t, "my.svc.status", inst.Metrics[0].Name)
+	assert.Equal(t, "service.name", inst.TagBy[0].Alias)
+}
+
+func TestParseInstanceConfigRejectsDuplicateParameters(t *testing.T) {
+	// The splat table is keyed case-insensitively, so a duplicate would silently
+	// overwrite instead of failing.
+	_, err := parseInstanceConfig([]byte(
+		"cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nparameters:\n  - [Name, a]\n  - [Name, b]\n"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "more than once")
+
+	_, err = parseInstanceConfig([]byte(
+		"cmdlet: Get-Service\nmetrics:\n  - [Status, s]\nparameters:\n  - [Name, a]\n  - [name, b]\n"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "more than once")
+}
+
+func TestParseInstanceConfigMaxOutputBytes(t *testing.T) {
+	base := "cmdlet: Get-Service\nmetrics:\n  - [Status, s]\n"
+
+	inst, err := parseInstanceConfig([]byte(base + "max_output_bytes: 2048\n"))
+	require.NoError(t, err)
+	assert.Equal(t, 2048, inst.MaxOutputBytes)
+
+	// Unset, zero, and negative all fall back to the default.
+	for _, cfg := range []string{"", "max_output_bytes: 0\n", "max_output_bytes: -5\n"} {
+		inst, err = parseInstanceConfig([]byte(base + cfg))
+		require.NoError(t, err, "config %q", cfg)
+		assert.Equal(t, defaultMaxOutputBytes, inst.MaxOutputBytes, "config %q", cfg)
+	}
+
+	// The ceiling is absolute: it is what bounds Agent memory.
+	inst, err = parseInstanceConfig([]byte(base + "max_output_bytes: 999999999\n"))
+	require.NoError(t, err)
+	assert.Equal(t, maxOutputBytesCeiling, inst.MaxOutputBytes)
 }
 
 func TestSelectPropertiesDedup(t *testing.T) {

@@ -131,6 +131,10 @@
 #     ##     `[Length, gt, '1 KB']` fails. Try a filter as a real Where-Object command
 #     ##     before deploying it.
 #     ##
+#     ## `value` is required in both forms. Write `value: null` to filter on a
+#     ## property that is unset; omitting it is rejected, because comparing against
+#     ## $null by accident keeps every row or none depending on the operator.
+#     ##
 #     ## A `where` property does not need to appear in `metrics` or `tag_by`:
 #     ## filtering happens before projection, so a filter-only property is never
 #     ## collected.
@@ -203,6 +207,18 @@
 #     ## this many seconds for the main cmdlet and for each join cmdlet separately.
 #     #
 #     timeout: 30
+#
+#     ## @param max_output_bytes - integer - optional - default: 10485760
+#     ## Maximum bytes of JSON buffered from a single cmdlet invocation. A run that
+#     ## produces more fails, and one that passes 80% of the cap logs a warning.
+#     ## Applies per cmdlet run, like `timeout` above.
+#     ##
+#     ## Raise this only if a cmdlet legitimately returns more than the default 10
+#     ## MiB; narrowing `where` or using one of the cmdlet's own parameters is
+#     ## usually better. The value is buffered in Agent memory, so it is capped at
+#     ## 104857600 (100 MiB) and a larger value is clamped to that.
+#     #
+#     max_output_bytes: 10485760
 #
 #     ## @param tags - list of strings - optional
 #     ## A list of tags to attach to every metric emitted by this instance.

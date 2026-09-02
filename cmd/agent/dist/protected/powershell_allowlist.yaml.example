@@ -53,6 +53,11 @@
 # Cmdlet keys, parameter names and allowed_values are matched case-sensitively too,
 # so they must be spelled exactly as the instance spells them, and a cmdlet key must
 # be a capitalised Get-<Noun>.
+#
+# PowerShell itself resolves cmdlet and parameter names case-insensitively, so two
+# entries differing only in case (Get-Service and Get-service) would be two policies
+# for one cmdlet. That is rejected at load time; declare only one. Two allowed_values
+# differing only in case are fine, since values are compared case-sensitively.
 
 version: 1
 allowed_cmdlets:
