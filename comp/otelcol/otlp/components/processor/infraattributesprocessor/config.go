@@ -86,7 +86,10 @@ type Config struct {
 	// behavior is unchanged: custom tags remain plain resource attributes and are
 	// dropped by the allowlist.
 	//
-	// This only affects the metrics pipeline.
+	// This only affects the metrics pipeline. It is redundant with the Datadog
+	// exporter's `resource_attributes_as_tags` (which promotes every resource
+	// attribute) and should not be combined with it: enabling both leaks the
+	// internal `datadog.container.tag.` namespace as literal metric tags.
 	MetricsAttributesAsTags bool `mapstructure:"metrics_attributes_as_tags"`
 }
 

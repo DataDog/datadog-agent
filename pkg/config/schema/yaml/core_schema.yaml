@@ -4504,8 +4504,9 @@ properties:
             node_type: section
             type: object
             visibility: public
-            description: Controls whether infrastructure attributes (host tags, container
-              tags) are attached to OTLP metrics ingested by the Agent.
+            description: Controls how the infraattributes processor promotes custom
+              tagger-derived tags onto OTLP metrics ingested by the Agent. Known
+              infrastructure attributes are attached regardless of this section.
             tags:
             - template_section:CoreAgent
             properties:
