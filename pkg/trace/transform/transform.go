@@ -409,6 +409,10 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 			str.WriteString(",")
 		}
 		var wrote bool
+		// dropped counts attributes discarded by this function. It is accumulated
+		// locally rather than written back to the span event, because the input pdata
+		// may be shared read-only with other consumers of the same pipeline.
+		var dropped uint32
 		str.WriteString("{")
 		if v := e.Timestamp(); v != 0 {
 			str.WriteString(`"time_unix_nano":`)
@@ -451,16 +455,19 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 					}
 					j++
 				} else {
+					// Unreachable with today's encoding/json: marshalling a Go string
+					// never fails, as invalid UTF-8 is coerced to U+FFFD rather than
+					// rejected. Kept as defence in depth, which is also why no test
+					// reaches it -- the key would have to be un-marshalable to get here.
 					log.Errorf("Error parsing the following attribute key on span event %v, dropping attribute: %v", e.Name(), k)
-					e.SetDroppedAttributesCount(e.DroppedAttributesCount() + 1)
+					dropped++
 				}
-				j++
 				return true
 			})
 			str.WriteString("}")
 			wrote = true
 		}
-		if v := e.DroppedAttributesCount(); v != 0 {
+		if v := e.DroppedAttributesCount() + dropped; v != 0 {
 			if wrote {
 				str.WriteString(",")
 			}
