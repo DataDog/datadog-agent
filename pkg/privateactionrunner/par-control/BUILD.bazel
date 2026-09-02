@@ -20,10 +20,13 @@ cc_library(
 rust_library(
     name = "par-control-lib",
     srcs = [
+        "src/bootstrap.rs",
         "src/config.rs",
         "src/executor.rs",
+        "src/jwt.rs",
         "src/lib.rs",
-        "src/platform.rs",
+        "src/opms.rs",
+        "src/orchestrator.rs",
         "src/procmgr.rs",
         "src/proto.rs",
         "src/test_support.rs",
@@ -41,28 +44,26 @@ rust_library(
         "//pkg/procmgr/rust/client:dd-procmgr-client",
         "//pkg/proto/datadog/privateactionrunner:executor_rust_proto",
         "@crates//:anyhow",
+        "@crates//:base64",
+        "@crates//:chrono",
         "@crates//:datadog-agent-commons",
         "@crates//:hyper-util",
         "@crates//:log",
+        "@crates//:p256",
         "@crates//:prost",
+        "@crates//:reqwest",
         "@crates//:rustls",
         "@crates//:rustls-pki-types",
         "@crates//:saluki-tls",
         "@crates//:serde",
-        "@crates//:serde_yaml",
+        "@crates//:serde_json",
         "@crates//:tokio",
         "@crates//:tokio-rustls",
         "@crates//:tokio-stream",
         "@crates//:tonic",
         "@crates//:tonic-prost",
         "@crates//:tower",
-    ] + select({
-        "@platforms//os:windows": [
-            "@crates//:windows-registry",
-            "@crates//:windows-sys",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 rust_binary(
@@ -89,6 +90,7 @@ rust_test(
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = [
         "@crates//:tempfile",
+        "@crates//:tokio",
         "@crates//:tokio-stream",
     ],
 )

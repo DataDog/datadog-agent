@@ -129,6 +129,7 @@ class GoModule:
         'always': lambda platform=None: True,
         'never': lambda platform=None: False,
         'is_linux': lambda platform=None: (platform or sys.platform) == "linux",
+        'not_aix': lambda platform=None: (platform or sys.platform) != "aix",
     }
 
     # Posix path of the module's directory
