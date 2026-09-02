@@ -6,6 +6,7 @@
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::parse_environment_file;
 use crate::platform;
+use crate::spawn::{SpawnProfile, profile_for};
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{info, warn};
@@ -91,6 +92,8 @@ pub struct ManagedProcess {
     name: String,
     uuid: String,
     config: ProcessConfig,
+    profile: SpawnProfile,
+    user: String,
     state: ProcessState,
     pid: Option<u32>,
     child: Option<Child>,
@@ -117,11 +120,15 @@ impl ManagedProcess {
     }
 
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
+        let profile = profile_for(&name);
+        let user = platform::intended_spawn_user(&name, profile);
         let restarts = RestartTracker::new(config.restart_delay());
         Self {
             name,
             uuid,
             config,
+            profile,
+            user,
             state: ProcessState::Created,
             pid: None,
             child: None,
@@ -178,7 +185,17 @@ impl ManagedProcess {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn set_intended_user(&mut self, _user: String) {}
+    pub(crate) fn set_intended_user(&mut self, user: String) {
+        self.user = user;
+    }
+
+    pub fn profile(&self) -> SpawnProfile {
+        self.profile
+    }
+
+    pub fn user(&self) -> &str {
+        &self.user
+    }
 
     pub fn restart_count(&self) -> u32 {
         self.restarts.count

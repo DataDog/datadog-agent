@@ -160,10 +160,6 @@ pub fn exit_cmd(code: i32) -> (&'static str, Vec<String>) {
     (sh, vec![flag.to_string(), format!("exit {code}")])
 }
 
-// ---------------------------------------------------------------------------
-// YAML config builders
-// ---------------------------------------------------------------------------
-
 /// Build a YAML config from a command, args, and extra options.
 pub fn cmd_yaml(cmd: &str, args: &[String], extra: &str) -> String {
     let mut yaml = format!("command: {cmd}\n");
@@ -212,10 +208,6 @@ pub fn temp_dir_str() -> String {
     std::env::temp_dir().display().to_string()
 }
 
-// ---------------------------------------------------------------------------
-// Misc
-// ---------------------------------------------------------------------------
-
 pub fn python_exe() -> String {
     if let Ok(python) = std::env::var("PYTHON")
         && !python.is_empty()
@@ -251,4 +243,13 @@ pub fn make_config(command: &str, args: Vec<String>) -> crate::config::ProcessCo
         stderr: "null".to_string(),
         ..Default::default()
     }
+}
+
+pub fn expected_spawn_user(process_name: &str) -> String {
+    use crate::spawn::profile_for;
+    crate::platform::intended_spawn_user(process_name, profile_for(process_name))
+}
+
+pub fn expected_runtime_user_for_pid(pid: u32) -> String {
+    crate::platform::runtime_user_for_pid(pid).unwrap_or_else(|| "unknown".to_string())
 }
