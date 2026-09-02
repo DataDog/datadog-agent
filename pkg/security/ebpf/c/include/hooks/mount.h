@@ -133,8 +133,8 @@ HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char *, source, const char *, target, co
 HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
     // CLONE_NEWNS is always cached, rules or no rules: the mount resolver relies on
     // this entry to register the mounts cloned by the namespace copy.
-    if (!(flags & CLONE_NEWNS) &&
-        (!(flags & UNSHARE_REPORTED_FLAGS) || !is_event_enabled(EVENT_UNSHARE))) {
+    if (!((flags & CLONE_NEWNS) ||
+          ((flags & UNSHARE_REPORTED_FLAGS) && is_event_enabled(EVENT_UNSHARE)))) {
         return 0;
     }
 
@@ -158,7 +158,7 @@ int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
 
     // the per-mount EVENT_UNSHARE_MNTNS events for the CLONE_NEWNS case are emitted
     // separately by dr_mount_stage_two_callback; this is the single per-syscall event
-    if (!(syscall->mount.unshare_flags & UNSHARE_REPORTED_FLAGS) || !is_event_enabled(EVENT_UNSHARE)) {
+    if (!((syscall->mount.unshare_flags & UNSHARE_REPORTED_FLAGS) && is_event_enabled(EVENT_UNSHARE))) {
         return 0;
     }
 
