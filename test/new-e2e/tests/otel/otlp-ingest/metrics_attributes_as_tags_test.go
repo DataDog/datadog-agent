@@ -61,8 +61,9 @@ agents:
 
 func (s *otlpIngestMetricsAttributesAsTagsTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
-	defer s.CleanupOnSetupFailure()
+	// BaseSuite.SetupSuite already registers a t.Cleanup hook that runs
+	// CleanupOnSetupFailure; deferring it here would consume setup panics before
+	// testify can report their stack (see suite.go CleanupOnSetupFailure docs).
 
 	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
