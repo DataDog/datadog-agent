@@ -33,13 +33,17 @@ jobs:
         with:
           go-version: stable
 
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
       - name: Prepare working tree
         id: prepare
         run: |
           echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           # all_settings.go is generated and gitignored, so codegen must run
           # before the build.
-          pip install "dda==$(cat .dda/version)"
           dda inv -- -e schema.codegen
 
       - name: Build serverless-init
@@ -74,11 +78,15 @@ jobs:
         with:
           go-version: stable
 
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
       - name: Prepare working tree
         id: prepare
         run: |
           echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-          pip install "dda==$(cat .dda/version)"
           dda inv -- -e schema.codegen
 
       - name: Build serverless-init
