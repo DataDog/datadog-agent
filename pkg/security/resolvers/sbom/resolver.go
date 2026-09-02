@@ -458,7 +458,6 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 					GenerationMethod: "security-agent",
 					RequestID:        string(sbom.ContainerID),
 				}
-				r.enrichedSBOMForwarded.Inc()
 				r.Notifier.NotifyListeners(SBOMComputed, scanResult)
 			},
 		)
@@ -1052,6 +1051,12 @@ func (r *Resolver) SetPolicyGeneratorCallback(cb func(workloadKey string, contai
 	r.policyGenLock.Lock()
 	defer r.policyGenLock.Unlock()
 	r.policyGeneratorCb = cb
+}
+
+// CountEnrichedSBOMForwarded records an enriched SBOM that was successfully
+// handed over to its consumer.
+func (r *Resolver) CountEnrichedSBOMForwarded() {
+	r.enrichedSBOMForwarded.Inc()
 }
 
 // CountEnrichedSBOMForwardDropped records an enriched SBOM that was computed but
