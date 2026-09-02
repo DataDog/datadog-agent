@@ -5,6 +5,7 @@ import os
 import pathlib
 import platform
 import shlex
+import shutil
 import subprocess
 import tempfile
 from io import StringIO
@@ -431,12 +432,37 @@ def notify_macos(ctx, text):
 
 
 def notify_linux(ctx, text):
+    # Headless Linux boxes -- Datadog workspaces among them -- have no libnotify and no
+    # D-Bus session, so there is nothing to notify.
+    if shutil.which("notify-send") is None:
+        return
     ctx.run(f"notify-send 'test/e2e-framework' '{text}'")
 
 
 def notify_windows():
     # TODO: Implenent notification on windows. Would require windows computer (with desktop) to test
     return
+
+
+def copy_to_clipboard_if_supported(text: str, prompt: str | None = None) -> bool:
+    """
+    Copy `text` to the clipboard, and return whether that worked.
+
+    Headless machines -- Datadog workspaces among them -- have no clipboard, so the copy
+    is probed before `prompt` is shown: asking the user to press a key and only then
+    failing would be worse than not offering the copy at all.
+    """
+    try:
+        import pyperclip
+
+        pyperclip.copy("")
+    except Exception:
+        return False
+
+    if prompt:
+        input(prompt)
+    pyperclip.copy(text)
+    return True
 
 
 # ensure we run pulumi from a directory with a Pulumi.yaml file
@@ -482,10 +508,7 @@ def show_connection_message(
 
     print(f"\nYou can run the following command to connect to the host `{command}`.\n")
     if copy_to_clipboard:
-        import pyperclip
-
-        input("Press a key to copy command to clipboard...")
-        pyperclip.copy(command)
+        copy_to_clipboard_if_supported(command, prompt="Press a key to copy command to clipboard...")
 
 
 def add_known_host(ctx: Context, address: str) -> None:

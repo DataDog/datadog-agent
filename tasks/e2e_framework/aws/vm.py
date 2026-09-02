@@ -286,14 +286,13 @@ def rdp_vm(
         raise Exit("No VM found in the stack.")
 
     for vm_id, vm in out.items():
-        import pyperclip
-
         if "address" not in vm:
             continue
         vm_ip = vm["address"]
         password = vm["password"]
         tool.rdp(ctx, vm_ip)
         print(f"Password for VM {vm_id} ({vm_ip}): {password}")
-        print("Username is Administrator, password has been copied to clipboard")
-
-        pyperclip.copy(password)
+        if tool.copy_to_clipboard_if_supported(password):
+            print("Username is Administrator, password has been copied to clipboard")
+        else:
+            print("Username is Administrator")
