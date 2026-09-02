@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    ``dd-procmgr``: ``list`` and ``describe`` now show how each managed child is spawned. ``list`` adds ``profile`` and ``user`` columns (table and JSON). ``describe`` adds ``Profile``, ``User``, and ``Runtime User`` when the process is running and the OS account can be resolved. This makes Windows spawn profile behavior visible (for example, process-agent running as ``privileged`` / ``NT AUTHORITY\SYSTEM`` vs other children as ``agent`` / the installer user) without reading registry state.
