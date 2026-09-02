@@ -17,12 +17,15 @@ type Client interface {
 }
 
 type adapter struct {
-	comp rcclient.Component
+	comp          rcclient.Component
+	proofProvider rcclient.TUFProofProvider
 }
 
 func NewAdapter(comp rcclient.Component) Client {
+	proofProvider, _ := comp.(rcclient.TUFProofProvider)
 	return &adapter{
-		comp: comp,
+		comp:          comp,
+		proofProvider: proofProvider,
 	}
 }
 
@@ -31,5 +34,8 @@ func (a *adapter) Subscribe(product string, fn func(update map[string]state.RawC
 }
 
 func (a *adapter) GetConfigTUFProof(targetPath string) (state.ConfigTUFProof, bool) {
-	return a.comp.GetConfigTUFProof(targetPath)
+	if a.proofProvider == nil {
+		return state.ConfigTUFProof{}, false
+	}
+	return a.proofProvider.GetConfigTUFProof(targetPath)
 }

@@ -49,10 +49,6 @@ func (rc *mockRCClient) Subscribe(product data.Product, fn func(update map[strin
 
 func (rc *mockRCClient) SubscribeAgentTask() {}
 
-func (rc *mockRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
-	return state.ConfigTUFProof{}, false
-}
-
 func TestRemoteConfigBTFTimeout(t *testing.T) {
 	skipIfUnsupported(t)
 	cfg := &Config{

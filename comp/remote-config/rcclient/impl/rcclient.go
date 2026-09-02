@@ -59,6 +59,8 @@ type rcClient struct {
 	IPC               ipc.Component
 }
 
+var _ rcclient.TUFProofProvider = (*rcClient)(nil)
+
 // Dependencies defines the dependencies for the rcclient component.
 type Dependencies struct {
 	compdef.In

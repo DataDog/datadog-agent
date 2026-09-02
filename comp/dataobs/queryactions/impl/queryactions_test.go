@@ -33,10 +33,6 @@ func (m *mockRCClient) Subscribe(_ data.Product, fn func(map[string]state.RawCon
 	m.subscribedCh <- fn
 }
 
-func (m *mockRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
-	return state.ConfigTUFProof{}, false
-}
-
 func newMockRCClient() *mockRCClient {
 	return &mockRCClient{
 		subscribedCh: make(chan func(map[string]state.RawConfig, func(string, state.ApplyStatus)), 1),

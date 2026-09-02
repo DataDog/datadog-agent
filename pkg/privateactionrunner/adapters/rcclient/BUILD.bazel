@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "rcclient",
@@ -7,6 +7,16 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/remote-config/rcclient/def",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+    ],
+)
+
+go_test(
+    name = "rcclient_test",
+    srcs = ["rc_client_adapter_test.go"],
+    embed = [":rcclient"],
+    deps = [
         "//pkg/config/remote/data",
         "//pkg/remoteconfig/state",
     ],
