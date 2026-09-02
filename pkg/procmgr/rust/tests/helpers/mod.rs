@@ -180,13 +180,15 @@ struct DescribeSnapshot {
     pub runtime_user: String,
 }
 
-/// Unset fields are not checked (same pattern as ReloadExpect / StatusProcessesCount).
 #[derive(Debug, Clone, Default)]
 pub struct DescribeExpect {
     pub name: Option<String>,
     pub state: Option<String>,
     pub uuid: Option<String>,
     pub pid: Option<u64>,
+    pub profile: Option<String>,
+    pub user: Option<String>,
+    pub runtime_user: Option<String>,
     pub command: Option<String>,
     pub args: Option<Vec<String>>,
     pub description: Option<String>,
@@ -210,6 +212,14 @@ impl DescribeSnapshot {
         assert_describe_field("state", &self.state, &expected.state, self);
         assert_describe_field("uuid", &self.uuid, &expected.uuid, self);
         assert_describe_field("pid", &self.pid, &expected.pid, self);
+        assert_describe_field("profile", &self.profile, &expected.profile, self);
+        assert_describe_field("user", &self.user, &expected.user, self);
+        assert_describe_field(
+            "runtime_user",
+            &self.runtime_user,
+            &expected.runtime_user,
+            self,
+        );
         assert_describe_field("command", &self.command, &expected.command, self);
         assert_describe_field("args", &self.args, &expected.args, self);
         assert_describe_field(
@@ -585,10 +595,6 @@ impl DescribeClient {
     }
 }
 
-// ---------------------------------------------------------------------------
-// DaemonHandle
-// ---------------------------------------------------------------------------
-
 /// Handle to a running dd-procmgrd daemon.
 pub struct DaemonHandle {
     child: Child,
@@ -773,10 +779,6 @@ impl Drop for DaemonHandle {
         let _ = self.child.wait();
     }
 }
-
-// ---------------------------------------------------------------------------
-// CliOutput
-// ---------------------------------------------------------------------------
 
 /// Captured output from a dd-procmgr CLI invocation.
 pub struct CliOutput {
@@ -1016,10 +1018,6 @@ fn extract_column(row: &str, col_idx: usize, columns: &[(&str, usize)]) -> Strin
     row.get(start..end).unwrap_or("").trim().to_string()
 }
 
-// ---------------------------------------------------------------------------
-// CliRunner
-// ---------------------------------------------------------------------------
-
 /// Runs dd-procmgr CLI commands against a daemon socket.
 struct CliRunner {
     socket_path: PathBuf,
@@ -1049,10 +1047,6 @@ impl CliRunner {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// TestEnv
-// ---------------------------------------------------------------------------
 
 pub struct TestEnv {
     _dir: tempfile::TempDir,
@@ -1528,9 +1522,9 @@ impl TestEnv {
             "--command".into(),
             cmd.into(),
         ];
-        if !args.is_empty() {
+        for arg in args {
             cli_args.push("--args".into());
-            cli_args.extend(args);
+            cli_args.push(arg);
         }
         cli_args.extend(extra_args.iter().map(|s| s.to_string()));
         let refs: Vec<&str> = cli_args.iter().map(String::as_str).collect();
@@ -1620,10 +1614,6 @@ impl Drop for TestEnv {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Free functions
-// ---------------------------------------------------------------------------
 
 fn assert_status_field(field: &str, actual: u32, expected: Option<u32>, status: &DaemonStatus) {
     if let Some(expected) = expected {

@@ -15,11 +15,15 @@ fn describe_running_process_matches_fixture() {
         .expect("expected sleeper running");
 
     let list_snap = procmgr.process("sleeper").expect("sleeper");
+    let pid = list_snap.pid as u32;
     procmgr.assert_describe_matches(
         "sleeper",
         DescribeExpect {
             name: Some("sleeper".into()),
             state: Some("Running".into()),
+            profile: Some("agent".into()),
+            user: Some(test_helpers::expected_spawn_user("sleeper")),
+            runtime_user: Some(test_helpers::expected_runtime_user_for_pid(pid)),
             command: Some(list_snap.command),
             args: Some(list_snap.args),
             has_uuid: Some(true),
@@ -64,6 +68,8 @@ fn describe_shows_static_config_fields() {
         DescribeExpect {
             name: Some("full".into()),
             state: Some("Running".into()),
+            profile: Some("agent".into()),
+            user: Some(test_helpers::expected_spawn_user("full")),
             description: Some("a test process".into()),
             working_dir: Some(root),
             restart_policy: Some("always".into()),
@@ -87,6 +93,8 @@ fn describe_after_exit_shows_last_exit() {
         DescribeExpect {
             name: Some("exit_fail".into()),
             state: Some("Failed".into()),
+            profile: Some("agent".into()),
+            user: Some(test_helpers::expected_spawn_user("exit_fail")),
             pid: Some(0),
             last_exit_code: Some(Some(1)),
             ..Default::default()
@@ -138,11 +146,17 @@ fn test_cli_describe_json() {
 
     assert_eq!(json["name"], "sleeper");
     assert_eq!(json["state"], "Running");
+    assert_eq!(json["profile"], "agent");
+    assert_eq!(json["user"], test_helpers::expected_spawn_user("sleeper"));
     assert_eq!(json["command"], test_helpers::sleep_cmd(300).0);
     assert_eq!(json["args"], test_helpers::sleep_args_json());
     assert!(!json["uuid"].as_str().unwrap_or("").is_empty());
 
     let pid = json["pid"].as_u64().expect("pid should be a number") as u32;
+    assert_eq!(
+        json["runtime_user"],
+        test_helpers::expected_runtime_user_for_pid(pid)
+    );
     assert!(pid > 0);
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
 }
