@@ -2223,6 +2223,93 @@ func TestLegacyBucketsTags(t *testing.T) {
 	assert.ElementsMatch(t, seriesTwo[0].tags, []string{"lower_bound:-inf", "upper_bound:1.0"})
 }
 
+// aliasWatchingConsumer retains dimensions.Tags() for the two histogram methods, the only
+// ones handed a Dimensions built straight from the per-scope tag slice; everywhere else
+// WithAttributeMap has allocated a fresh one.
+type aliasWatchingConsumer struct {
+	mockTimeSeriesConsumer
+	histTags map[string][]string
+}
+
+func (c *aliasWatchingConsumer) ConsumeExplicitBoundHistogram(_ context.Context, dimensions *Dimensions, _ pmetric.HistogramDataPointSlice) {
+	if c.histTags == nil {
+		c.histTags = map[string][]string{}
+	}
+	c.histTags[dimensions.Name()] = dimensions.Tags()
+}
+
+func (c *aliasWatchingConsumer) ConsumeExponentialHistogram(_ context.Context, dimensions *Dimensions, _ pmetric.ExponentialHistogramDataPointSlice) {
+	if c.histTags == nil {
+		c.histTags = map[string][]string{}
+	}
+	c.histTags[dimensions.Name()] = dimensions.Tags()
+}
+
+// TestScopeTagsDoNotAliasAcrossScopes: the tag slice each scope hands the Consumer must have
+// its own backing array. TagsFromAttributes leaves spare capacity, so appending the scope
+// tags into it would make every scope of a resource share one array and the last scope's
+// tags overwrite the earlier ones'. Only observable through the minimal translator's
+// histogram callbacks, which forward the per-scope Dimensions untouched; elsewhere
+// WithAttributeMap masks it. Fixed in both translators to keep the invariant at the source.
+func TestScopeTagsDoNotAliasAcrossScopes(t *testing.T) {
+	const (
+		scopeOne = "scope.one"
+		scopeTwo = "scope.two"
+	)
+
+	// One attribute that maps to a tag, plus several that don't -- those leave the
+	// spare capacity behind.
+	buildMetrics := func() pmetric.Metrics {
+		md := pmetric.NewMetrics()
+		rm := md.ResourceMetrics().AppendEmpty()
+		attrs := rm.Resource().Attributes()
+		attrs.PutStr("service.name", "svc")
+		for i := 0; i < 4; i++ {
+			attrs.PutStr(fmt.Sprintf("unmapped.attribute.%d", i), "value")
+		}
+		for _, scopeName := range []string{scopeOne, scopeTwo} {
+			sm := rm.ScopeMetrics().AppendEmpty()
+			sm.Scope().SetName(scopeName)
+			sm.Scope().SetVersion("v1")
+			met := sm.Metrics().AppendEmpty()
+			met.SetName("metric." + scopeName)
+			met.SetEmptyHistogram()
+			met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+			dp := met.Histogram().DataPoints().AppendEmpty()
+			dp.SetTimestamp(seconds(0))
+			dp.BucketCounts().FromRaw([]uint64{1, 1})
+			dp.ExplicitBounds().FromRaw([]float64{0})
+			dp.SetCount(2)
+		}
+		return md
+	}
+
+	set := componenttest.NewNopTelemetrySettings()
+	set.Logger = zap.NewNop()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	require.NoError(t, err)
+
+	tr, err := NewMinimalTranslator(zap.NewNop(), attributesTranslator,
+		WithFallbackSourceProvider(testProvider(fallbackHostname)),
+		WithInstrumentationScopeMetadataAsTags(),
+	)
+	require.NoError(t, err)
+
+	// The consumer retains dimensions.Tags(), so anything the second scope wrote over the
+	// first scope's tags is visible after MapMetrics returns.
+	consumer := &aliasWatchingConsumer{}
+	_, err = tr.MapMetrics(context.Background(), buildMetrics(), consumer, nil)
+	require.NoError(t, err)
+	require.Len(t, consumer.histTags, 2)
+
+	assert.ElementsMatch(t, []string{
+		"service:svc", "instrumentation_scope:" + scopeOne, "instrumentation_scope_version:v1",
+	}, consumer.histTags["metric."+scopeOne])
+	assert.ElementsMatch(t, []string{
+		"service:svc", "instrumentation_scope:" + scopeTwo, "instrumentation_scope_version:v1",
+	}, consumer.histTags["metric."+scopeTwo])
+}
+
 // TestMalformedHistogramNoPanic verifies that histograms violating the OTel
 // invariant (counts == bounds+1) are rejected without panicking, covering both
 // the counts > bounds+1 case (which would panic in getBounds) and the
