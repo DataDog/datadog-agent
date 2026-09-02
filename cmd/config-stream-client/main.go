@@ -200,22 +200,14 @@ func main() {
 
 			setting := e.Update.Setting
 			fmt.Printf("  Key: %s\n", setting.Key)
-			fmt.Printf("  Value: %v\n", formatValue(setting.Value))
-			fmt.Printf("  Source: %s\n", setting.Source)
-			fmt.Println()
-
-		case *pb.ConfigEvent_Unset:
-			currentSeqID := e.Unset.SequenceId
-			fmt.Printf("UNSET received (seq_id=%d)\n", currentSeqID)
-			if snapshotReceived && currentSeqID > maxSeqID {
-				maxSeqID = currentSeqID
+			if setting.UnsetSource != "" {
+				fmt.Printf("  Cleared source: %s\n", setting.UnsetSource)
 			}
-			fmt.Printf("  Key: %s\n", e.Unset.Key)
-			fmt.Printf("  Cleared source: %s\n", e.Unset.Source)
-			if resolved := e.Unset.GetResolved(); resolved != nil {
-				fmt.Printf("  Now resolves to: %v (source: %s)\n", formatValue(resolved.Value), resolved.Source)
-			} else {
+			if setting.Source == "" {
 				fmt.Printf("  Now resolves to: nothing\n")
+			} else {
+				fmt.Printf("  Value: %v\n", formatValue(setting.Value))
+				fmt.Printf("  Source: %s\n", setting.Source)
 			}
 			fmt.Println()
 

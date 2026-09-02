@@ -66,8 +66,7 @@ message ConfigStreamRequest {
 message ConfigEvent {
   oneof event {
     ConfigSnapshot snapshot = 1;  // Sent first, then on resync
-    ConfigUpdate update = 2;      // Incremental changes
-    ConfigUnset unset = 3;        // A source layer was cleared
+    ConfigUpdate update = 2;      // Incremental changes, including removals
   }
 }
 
@@ -83,22 +82,15 @@ message ConfigUpdate {
   ConfigSetting setting = 3; // Single changed setting
 }
 
-message ConfigUnset {
-  string origin = 1;                   // Config file (e.g., "datadog.yaml")
-  int32 sequence_id = 2;               // Monotonic sequence ID, shared with updates
-  string key = 3;                      // Setting name
-  string source = 4;                   // The layer cleared, not the one fallen back to
-  ConfigSetting resolved = 5;          // What the key resolves to now; unset if nothing remains
-}
-
 message ConfigSetting {
   string source = 1;             // "file", "env-var", "remote-config", etc.
   string key = 2;                // Setting name
   google.protobuf.Value value = 3; // Typed value (string, int, bool, etc.)
+  string unset_source = 4;       // Set only on a removal: the layer cleared
 }
 ```
 
-**Removals:** snapshots carry only the merged view, one entry per key tagged with the winning source, so a subscriber has no lower layer of its own to fall back to. `ConfigUnset` therefore names the layer that was cleared and carries the value the key resolves to without it, which the subscriber writes before dropping the cleared entry. `resolved` is absent when nothing remains, and an unset shares its sequence ID with the update it replaces.
+**Removals** travel as updates, not as their own event. Snapshots carry only the merged view, one entry per key tagged with the winning source, so a subscriber has no lower layer of its own to fall back to. A removal therefore sets `unset_source` to the layer that was cleared while `source` and `value` describe what the key resolves to without it, which a layer-aware subscriber writes before dropping the cleared entry. Every declared setting has a default, so the fallback bottoms out there; `source` is empty only for an undeclared key, which leaves the config entirely. A subscriber that keeps a single layer can ignore `unset_source` entirely and just apply the value.
 
 **Unrecognized events** must trigger a resynchronization, not be ignored: skipping an event silently diverges from the sender, whereas erroring out of the stream reconnects and receives a fresh snapshot.
 

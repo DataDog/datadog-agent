@@ -136,20 +136,14 @@ type Proxy struct {
 	NoProxy []string `mapstructure:"no_proxy"`
 }
 
-// NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
-// configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
-// 'NotificationReceiver' should not be blocking.
+// NotificationReceiver represents the callback type to receive notifications each time the `Set` or
+// `UnsetForSource` method is called. The configuration will call each NotificationReceiver
+// registered through the 'OnUpdate' method, therefore 'NotificationReceiver' should not be blocking.
 //
-// source is the layer 'newValue' resolves from, which for an unset is the layer being fallen back to
-// rather than the one cleared. Use 'OnUnset' to observe which layer changed.
-type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64)
-
-// UnsetNotificationReceiver receives the removal of a setting from one source layer, which
-// NotificationReceiver cannot express: it names the cleared layer and reports what the setting
-// resolves to without it, so a config mirroring only another one's merged view can reproduce the
-// result. resolvedSource is SourceUnknown when no layer is left to fall back to. Fires even when the
-// resolved value is unchanged, before the NotificationReceiver call sharing its sequence ID.
-type UnsetNotificationReceiver func(setting string, clearedSource Source, resolvedValue any, resolvedSource Source, sequenceID uint64)
+// source and newValue describe what the setting resolves to after the change. unsetSource is empty
+// except for a removal, where it names the layer that was cleared and source is the layer now
+// winning, or SourceUnknown when none is left.
+type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64, unsetSource Source)
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
@@ -225,9 +219,6 @@ type Reader interface {
 	// OnUpdate adds a callback to the list receivers to be called each time a value is change in the configuration
 	// by a call to the 'Set' method. The configuration will sequentially call each receiver.
 	OnUpdate(callback NotificationReceiver)
-
-	// OnUnset adds a callback called each time 'UnsetForSource' removes a setting from a source layer.
-	OnUnset(callback UnsetNotificationReceiver)
 
 	// Stringify stringifies the config, only available if "test" build tag is enabled
 	Stringify(source Source, opts ...StringifyOption) string

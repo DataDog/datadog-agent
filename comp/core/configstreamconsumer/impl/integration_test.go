@@ -247,11 +247,11 @@ func TestRunNoopWhenConfigstreamDisabled(t *testing.T) {
 	}
 }
 
-// TestUnsetEventRestoresShadowedValue covers the scenario from the review thread: a value supplied by
+// TestUnsetUpdateRestoresShadowedValue covers the scenario from the review thread: a value supplied by
 // an env var, shadowed by an agent-runtime write, then unset. Snapshots only carry the core agent's
 // merged view, and the consumer's own env layer is deliberately disabled, so it has no lower layer to
-// fall back to -- the unset event has to supply the resolution or the key silently reverts to default.
-func TestUnsetEventRestoresShadowedValue(t *testing.T) {
+// fall back to -- the removal has to supply the resolution or the key silently reverts to default.
+func TestUnsetUpdateRestoresShadowedValue(t *testing.T) {
 	configstreambootstrap.UseDynamicSchema(t)
 	dir := t.TempDir()
 	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
@@ -293,15 +293,14 @@ remote_agent:
 		// SourceEnvVar is why this cannot be applied as an ordinary update: Set rejects writes to
 		// the env layer, and the consumer's local one is cleared at startup.
 		mock.events <- &pb.ConfigEvent{
-			Event: &pb.ConfigEvent_Unset{
-				Unset: &pb.ConfigUnset{
+			Event: &pb.ConfigEvent_Update{
+				Update: &pb.ConfigUpdate{
 					SequenceId: 2,
-					Key:        "test.key",
-					Source:     string(model.SourceAgentRuntime),
-					Resolved: &pb.ConfigSetting{
-						Key:    "test.key",
-						Value:  mustNewValue(t, "from-env"),
-						Source: string(model.SourceEnvVar),
+					Setting: &pb.ConfigSetting{
+						Key:         "test.key",
+						Value:       mustNewValue(t, "from-env"),
+						Source:      string(model.SourceEnvVar),
+						UnsetSource: string(model.SourceAgentRuntime),
 					},
 				},
 			},

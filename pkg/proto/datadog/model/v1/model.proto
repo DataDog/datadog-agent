@@ -154,6 +154,11 @@ message ConfigSetting {
   string source = 1;
   string key = 2;
   google.protobuf.Value value = 3;
+  // Empty for a plain set. For a removal it names the layer that was cleared, and 'source' and
+  // 'value' then describe what the key resolves to without it -- for a declared setting that
+  // bottoms out at its default. 'source' is empty only for an undeclared key, which leaves the
+  // config entirely. Clients that keep a single layer can ignore this and just apply the value.
+  string unset_source = 4;
 }
 
 message ConfigSnapshot {
@@ -168,24 +173,9 @@ message ConfigUpdate {
   ConfigSetting setting = 3;
 }
 
-// ConfigUnset clears a setting from one source layer. A ConfigUpdate cannot express this: it would
-// write the shadowed value into the layer being cleared.
-message ConfigUnset {
-  string origin = 1;
-  int32 sequence_id = 2;
-  string key = 3;
-  // The source layer to clear, not the layer the value falls back to.
-  string source = 4;
-  // What the key resolves to on the sender once the layer is cleared. Receivers mirror the sender's
-  // merged view rather than its layers, so they have no lower layer of their own to fall back to.
-  // Unset when nothing is left to fall back to.
-  ConfigSetting resolved = 5;
-}
-
 message ConfigEvent {
   oneof event {
     ConfigSnapshot snapshot = 1;
     ConfigUpdate update = 2;
-    ConfigUnset unset = 3;
   }
 }

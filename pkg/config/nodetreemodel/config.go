@@ -111,7 +111,6 @@ type ntmConfig struct {
 	envTransform map[string]func(string) interface{}
 
 	notificationReceivers []model.NotificationReceiver
-	unsetReceivers        []model.UnsetNotificationReceiver
 	sequenceID            uint64
 
 	// Proxy settings
@@ -176,13 +175,6 @@ func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.Lock()
 	defer c.Unlock()
 	c.notificationReceivers = append(c.notificationReceivers, callback)
-}
-
-// OnUnset adds a receiver called on every layer removal, including ones that leave the resolved value unchanged.
-func (c *ntmConfig) OnUnset(callback model.UnsetNotificationReceiver) {
-	c.Lock()
-	defer c.Unlock()
-	c.unsetReceivers = append(c.unsetReceivers, callback)
 }
 
 func (c *ntmConfig) getTreeBySource(source model.Source) (*nodeImpl, error) {
@@ -315,7 +307,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID)
+		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, "")
 	}
 }
 
@@ -431,9 +423,8 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		resolvedValue  interface{}
 		resolvedSource model.Source
 		receivers      []model.NotificationReceiver
-		unsetReceivers []model.UnsetNotificationReceiver
 		sequenceID     uint64
-		notifyUpdate   bool
+		notify         bool
 	)
 
 	func() {
@@ -472,7 +463,8 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		// Allocated on removal, not on value change: a mirror drops the entry either way.
 		c.sequenceID++
 		sequenceID = c.sequenceID
-		unsetReceivers = slices.Clone(c.unsetReceivers)
+		receivers = slices.Clone(c.notificationReceivers)
+		notify = true
 
 		// The merged tree only needs mending when the layer we cleared was the one winning in it.
 		if c.leafAtPathFromNode(key, c.root).Source() == source {
@@ -492,29 +484,19 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		resolved := c.leafAtPathFromNode(key, c.root)
 		resolvedValue = resolved.Get()
 		resolvedSource = resolved.Source()
-
-		// Value has not changed, do not notify
-		if reflect.DeepEqual(previousValue, resolvedValue) {
-			return
-		}
-
-		receivers = slices.Clone(c.notificationReceivers)
-		notifyUpdate = true
 	}()
+
+	if !notify {
+		return
+	}
 
 	// Notify receivers outside the lock. Subscribers commonly read the
 	// config from within their callback, and doing so while the write
 	// lock is still held deadlocks them against this goroutine.
-	// Unset receivers run first so a mirror drops the entry before the value change is reported.
-	for _, receiver := range unsetReceivers {
-		receiver(key, source, resolvedValue, resolvedSource, sequenceID)
-	}
-
-	if !notifyUpdate {
-		return
-	}
+	// Unlike Set, every removal notifies: a config mirroring the layers has to drop the entry even
+	// when a lower layer resolves to the same value.
 	for _, receiver := range receivers {
-		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID)
+		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, source)
 	}
 }
 

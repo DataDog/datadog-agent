@@ -73,7 +73,7 @@ type domainResolver struct {
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
 // of the resolver.
 func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Component) {
-	config.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
+	config.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64, _ model.Source) {
 		found := false
 
 		apiKeys, _ := resolver.GetAPIKeysInfo()

@@ -346,13 +346,13 @@ type configInterceptor struct {
 
 func (ci *configInterceptor) OnUpdate(cb model.NotificationReceiver) {
 	ci.realCallback = cb
-	ci.BuildableConfig.OnUpdate(func(setting string, source model.Source, oldValue, newValue interface{}, sequenceID uint64) {
+	ci.BuildableConfig.OnUpdate(func(setting string, source model.Source, oldValue, newValue interface{}, sequenceID uint64, unsetSource model.Source) {
 		if ci.swallowNextUpdate {
 			ci.swallowNextUpdate = false
 			return
 		}
 		if ci.realCallback != nil {
-			ci.realCallback(setting, source, oldValue, newValue, sequenceID)
+			ci.realCallback(setting, source, oldValue, newValue, sequenceID, unsetSource)
 		}
 	})
 }
@@ -476,17 +476,16 @@ func TestConfigStream(t *testing.T) {
 			t.Fatal("timed out waiting for config unset")
 		}
 		require.NotNil(t, event)
-		unset, isUnset := event.GetEvent().(*pb.ConfigEvent_Unset)
-		require.True(t, isUnset, "unset must be its own event kind, got %T", event.GetEvent())
-		require.Equal(t, "my.new.setting", unset.Unset.Key)
-		require.Equal(t, string(model.SourceCLI), unset.Unset.Source, "the cleared layer, not the fallback")
+		update, isUpdate = event.GetEvent().(*pb.ConfigEvent_Update)
+		require.True(t, isUpdate, "a removal travels as an update, got %T", event.GetEvent())
+		require.Equal(t, "my.new.setting", update.Update.Setting.Key)
+		require.Equal(t, string(model.SourceCLI), update.Update.Setting.UnsetSource, "the cleared layer, not the fallback")
 
 		// Subscribers mirror the merged view, so the removal has to say what the key resolves to now.
-		require.NotNil(t, unset.Unset.Resolved, "unset must carry the post-unset resolution")
-		require.Equal(t, "original_value", unset.Unset.Resolved.Value.GetStringValue())
-		require.Equal(t, string(model.SourceAgentRuntime), unset.Unset.Resolved.Source)
+		require.Equal(t, "original_value", update.Update.Setting.Value.GetStringValue())
+		require.Equal(t, string(model.SourceAgentRuntime), update.Update.Setting.Source)
 	})
-	t.Run("drops the unset when the fallback value cannot be encoded", func(t *testing.T) {
+	t.Run("drops the removal when the fallback value cannot be encoded", func(t *testing.T) {
 		provides, configComp := buildComponent(t)
 
 		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-unencodable"})
@@ -515,9 +514,9 @@ func TestConfigStream(t *testing.T) {
 		// a complex one. This write is shadowed by CLI, so it notifies nobody and stays off the wire.
 		configComp.Set("complex.setting", map[string]interface{}{"n": math.Inf(1)}, model.SourceAgentRuntime)
 
-		// Clearing CLI falls back to the +Inf map, which has no JSON representation. An unset without
-		// Resolved would read as "nothing remains" and diverge the subscriber for good, so nothing is
-		// sent at all.
+		// Clearing CLI falls back to the +Inf map, which has no JSON representation. A removal with a
+		// bare unset_source would read as "nothing remains" and diverge the subscriber for good, so
+		// nothing is sent at all.
 		configComp.UnsetForSource("complex.setting", model.SourceCLI)
 		select {
 		case event = <-eventsCh:
