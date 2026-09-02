@@ -60,6 +60,10 @@ const (
 	argsEnvsValueCacheSize           = 8192
 	numAllowedPIDsToResolvePerPeriod = 1
 	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
+
+	// otelProcCtxQueueSize bounds the pids waiting for OTel process context
+	// resolution.
+	otelProcCtxQueueSize = 100
 )
 
 // EBPFResolver resolved process context
@@ -88,6 +92,13 @@ type EBPFResolver struct {
 	goLabelsMap         ebpf.Map
 	otelTLSMap          ebpf.Map
 	opts                ResolverOpts
+
+	// otelProcCtxQueue carries the pids whose OTel process context is waiting to
+	// be resolved by the loop Start spawns. otelProcCtxPending mirrors what the
+	// channel holds so a pid is never queued twice.
+	otelProcCtxQueue   chan uint32
+	otelProcCtxPending map[uint32]struct{}
+	otelProcCtxLock    sync.Mutex
 
 	// stats
 	hitsStats                 map[string]*atomic.Int64
@@ -1249,14 +1260,58 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 	}
 }
 
-// ResolveOTelProcessContext resolves how to the OTel process context the given PID publishes
+// ResolveOTelProcessContext queues the resolution of the OTel process context
+// the given pid publishes.
 func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
+	if !p.config.SpanTrackingEnabled || p.otelTLSMap == nil {
+		return
+	}
+
+	p.otelProcCtxLock.Lock()
+	defer p.otelProcCtxLock.Unlock()
+
+	if _, pending := p.otelProcCtxPending[pid]; pending {
+		return
+	}
+
+	select {
+	case p.otelProcCtxQueue <- pid:
+		p.otelProcCtxPending[pid] = struct{}{}
+	default:
+		seclog.Warnf("OTel process context queue full, dropping pid %d", pid)
+	}
+}
+
+// SnapshotOTelProcessContext resolves the OTel process context of a process
+// that published before the agent was watching.
+func (p *EBPFResolver) SnapshotOTelProcessContext(pid uint32) {
 	if !p.config.SpanTrackingEnabled || p.otelTLSMap == nil {
 		return
 	}
 
 	if err := p.resolveAndUpdateOTelTLS(pid); err != nil {
 		seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+	}
+}
+
+// resolveOTelProcessContextLoop drains otelProcCtxQueue and resolves each pid's
+// OTel process context
+func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case pid := <-p.otelProcCtxQueue:
+			// Cleared before resolving, so an update that lands while this pid
+			// is in flight is queued again rather than lost.
+			p.otelProcCtxLock.Lock()
+			delete(p.otelProcCtxPending, pid)
+			p.otelProcCtxLock.Unlock()
+
+			if err := p.resolveAndUpdateOTelTLS(pid); err != nil {
+				seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+			}
+		}
 	}
 }
 
@@ -1365,6 +1420,7 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 	}
 
 	go p.cacheFlush(ctx)
+	go p.resolveOTelProcessContextLoop(ctx)
 
 	return nil
 }
@@ -1734,6 +1790,8 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		pathResolver:              pathResolver,
 		envVarsResolver:           envVarsResolver,
 		userSessionResolver:       userSessionResolver,
+		otelProcCtxQueue:          make(chan uint32, otelProcCtxQueueSize),
+		otelProcCtxPending:        make(map[uint32]struct{}),
 	}
 
 	for _, t := range metrics.AllTypesTags {

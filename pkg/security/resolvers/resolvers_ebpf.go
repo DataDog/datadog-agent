@@ -339,7 +339,7 @@ func (r *EBPFResolvers) snapshot() error {
 		// Likewise for the thread-context readers, which hang off the OTel
 		// process context a process publishes rather than off its tracer
 		// metadata, and whose publication was missed the same way.
-		r.ProcessResolver.ResolveOTelProcessContext(uint32(proc.Pid))
+		r.ProcessResolver.SnapshotOTelProcessContext(uint32(proc.Pid))
 	}
 
 	return nil

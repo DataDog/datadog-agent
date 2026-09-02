@@ -58,6 +58,8 @@ func NewTestEBPFResolver(
 		envsSize:                  atomic.NewInt64(0),
 		brokenLineage:             atomic.NewInt64(0),
 		inodeErrStats:             make(map[string]*atomic.Int64),
+		otelProcCtxQueue:          make(chan uint32, otelProcCtxQueueSize),
+		otelProcCtxPending:        make(map[uint32]struct{}),
 	}
 
 	for _, t := range metrics.AllTypesTags {
