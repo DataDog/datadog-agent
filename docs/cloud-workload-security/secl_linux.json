@@ -654,7 +654,7 @@
         },
         {
           "name": "process.aws_security_credentials.access_key_id",
-          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
           "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
         },
         {
@@ -664,7 +664,7 @@
         },
         {
           "name": "process.aws_security_credentials.type",
-          "definition": "the security credentials type",
+          "definition": "The security credentials type",
           "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
@@ -2817,7 +2817,7 @@
         },
         {
           "name": "exec.aws_security_credentials.access_key_id",
-          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
           "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
         },
         {
@@ -2827,7 +2827,7 @@
         },
         {
           "name": "exec.aws_security_credentials.type",
-          "definition": "the security credentials type",
+          "definition": "The security credentials type",
           "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
@@ -3446,7 +3446,7 @@
         },
         {
           "name": "exit.aws_security_credentials.access_key_id",
-          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
           "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
         },
         {
@@ -3456,7 +3456,7 @@
         },
         {
           "name": "exit.aws_security_credentials.type",
-          "definition": "the security credentials type",
+          "definition": "The security credentials type",
           "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
@@ -4010,12 +4010,12 @@
         },
         {
           "name": "imds.aws.security_credentials.access_key_id",
-          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
           "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
         },
         {
           "name": "imds.aws.security_credentials.type",
-          "definition": "the security credentials type",
+          "definition": "The security credentials type",
           "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
@@ -6049,7 +6049,7 @@
         },
         {
           "name": "ptrace.tracee.aws_security_credentials.access_key_id",
-          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
           "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
         },
         {
@@ -6059,7 +6059,7 @@
         },
         {
           "name": "ptrace.tracee.aws_security_credentials.type",
-          "definition": "the security credentials type",
+          "definition": "The security credentials type",
           "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
@@ -8453,7 +8453,7 @@
         },
         {
           "name": "setrlimit.target.aws_security_credentials.access_key_id",
-          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
           "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
         },
         {
@@ -8463,7 +8463,7 @@
         },
         {
           "name": "setrlimit.target.aws_security_credentials.type",
-          "definition": "the security credentials type",
+          "definition": "The security credentials type",
           "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
@@ -10434,7 +10434,7 @@
         },
         {
           "name": "signal.target.aws_security_credentials.access_key_id",
-          "definition": "the access key ID of the security credentials in the IMDS answer",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
           "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
         },
         {
@@ -10444,7 +10444,7 @@
         },
         {
           "name": "signal.target.aws_security_credentials.type",
-          "definition": "the security credentials type",
+          "definition": "The security credentials type",
           "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
@@ -12124,7 +12124,7 @@
       "name": "*.access_key_id",
       "link": "common-awssecuritycredentials-access_key_id-doc",
       "type": "string",
-      "definition": "the access key ID of the security credentials in the IMDS answer",
+      "definition": "The access key ID of the security credentials in the IMDS answer",
       "prefixes": [
         "exec.aws_security_credentials",
         "exit.aws_security_credentials",
@@ -15206,7 +15206,7 @@
       "name": "*.type",
       "link": "common-awssecuritycredentials-type-doc",
       "type": "string",
-      "definition": "the security credentials type",
+      "definition": "The security credentials type",
       "prefixes": [
         "exec.aws_security_credentials",
         "exit.aws_security_credentials",

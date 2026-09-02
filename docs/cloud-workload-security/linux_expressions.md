@@ -310,9 +310,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`process.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`process.auid`](#common-credentials-auid-doc) | Login UID of the process |
-| [`process.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`process.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
 | [`process.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
-| [`process.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
+| [`process.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -809,9 +809,9 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`exec.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`exec.auid`](#common-credentials-auid-doc) | Login UID of the process |
-| [`exec.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`exec.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
 | [`exec.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
-| [`exec.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
+| [`exec.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exec.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -940,9 +940,9 @@ A process was terminated
 | [`exit.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`exit.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`exit.auid`](#common-credentials-auid-doc) | Login UID of the process |
-| [`exit.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`exit.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
 | [`exit.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
-| [`exit.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
+| [`exit.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exit.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -1058,8 +1058,8 @@ An IMDS event was captured
 | Property | Definition |
 | -------- | ------------- |
 | [`imds.aws.is_imds_v2`](#imds-aws-is_imds_v2-doc) | a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions |
-| [`imds.aws.security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
-| [`imds.aws.security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
+| [`imds.aws.security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
+| [`imds.aws.security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`imds.cloud_provider`](#imds-cloud_provider-doc) | the intended cloud provider of the IMDS event |
 | [`imds.host`](#imds-host-doc) | the host of the HTTP protocol |
 | [`imds.server`](#imds-server-doc) | the server header of a response |
@@ -1525,9 +1525,9 @@ A ptrace command was executed
 | [`ptrace.tracee.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`ptrace.tracee.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`ptrace.tracee.auid`](#common-credentials-auid-doc) | Login UID of the process |
-| [`ptrace.tracee.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`ptrace.tracee.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
 | [`ptrace.tracee.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
-| [`ptrace.tracee.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
+| [`ptrace.tracee.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -2037,9 +2037,9 @@ A setrlimit command was executed
 | [`setrlimit.target.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`setrlimit.target.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`setrlimit.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
-| [`setrlimit.target.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`setrlimit.target.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
 | [`setrlimit.target.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
-| [`setrlimit.target.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
+| [`setrlimit.target.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`setrlimit.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -2454,9 +2454,9 @@ A signal was sent
 | [`signal.target.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`signal.target.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`signal.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
-| [`signal.target.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | the access key ID of the security credentials in the IMDS answer |
+| [`signal.target.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
 | [`signal.target.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
-| [`signal.target.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | the security credentials type |
+| [`signal.target.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
@@ -2830,7 +2830,7 @@ Change file access/modification times
 ### `*.access_key_id` {#common-awssecuritycredentials-access_key_id-doc}
 Type: string
 
-Definition: the access key ID of the security credentials in the IMDS answer
+Definition: The access key ID of the security credentials in the IMDS answer
 
 `*.access_key_id` has 7 possible prefixes:
 `exec.aws_security_credentials` `exit.aws_security_credentials` `imds.aws.security_credentials` `process.aws_security_credentials` `ptrace.tracee.aws_security_credentials` `setrlimit.target.aws_security_credentials` `signal.target.aws_security_credentials`
@@ -3770,7 +3770,7 @@ Definition: Name of the TTY associated with the process
 ### `*.type` {#common-awssecuritycredentials-type-doc}
 Type: string
 
-Definition: the security credentials type
+Definition: The security credentials type
 
 `*.type` has 7 possible prefixes:
 `exec.aws_security_credentials` `exit.aws_security_credentials` `imds.aws.security_credentials` `process.aws_security_credentials` `ptrace.tracee.aws_security_credentials` `setrlimit.target.aws_security_credentials` `signal.target.aws_security_credentials`
