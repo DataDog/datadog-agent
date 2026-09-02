@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support for resolving secrets through Agent Secrets Management for the private action runner
