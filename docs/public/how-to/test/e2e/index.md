@@ -58,6 +58,17 @@ dda inv e2e.setup --with-azure --with-gcp
 
 The configuration is persisted to `~/.test_infra_config.yaml` (chmod `0600`, since it contains the auto-generated Pulumi passphrase). Re-running `dda inv e2e.setup` is idempotent — it prints `✓ already configured` checks and exits.
 
+### Caveats
+
+**Only `us-east-1` regions.** Every AWS resource the framework depends on is pinned to `us-east-1`: the AMIs and subnets, the ECR registries, the KMS keys and the fakeintake ECS cluster (see `test/e2e-framework/resources/aws/environmentDefaults.go`), plus `us-east-1a`/`us-east-1b` for macOS hosts. There is no supported way to run against another region, so a dev machine in, say, `eu-west-3` won't work.
+
+**Only `zsh` and `bash`.** `fish` is not supported. Both the docs and several tasks emit POSIX shell syntax for you to paste — inline `VAR=value cmd` assignments and `export VAR=…` lines (for instance the `KUBECONFIG` line printed by `dda inv aws.create-kind`) — none of which `fish` accepts.
+
+**Running from a Datadog workspace** works, with two things worth knowing:
+
+- Stacks, EC2 key pairs and SSH keys are named after `$REAL_USER` and `$WORKSPACE_NAME`, not the OS user (which is `bits` for everyone on a workspace). Two workspaces owned by the same developer therefore get their own key pair and their own stacks, and `dda inv aws.destroy-vm` only ever sees the stacks created from that workspace.
+- Workspaces are headless, so desktop notifications and the "copy to clipboard" prompts are skipped automatically. The connection command or password is printed instead.
+
 ## See Also
 
 - [Test Categories](../../../guidelines/testing/test-categories.md) - Understanding different test types
