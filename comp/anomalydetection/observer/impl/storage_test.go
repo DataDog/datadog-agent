@@ -726,6 +726,54 @@ func TestTimeSeriesStorage_TotalSeriesCountTracksCapacityEviction(t *testing.T) 
 	require.Equal(t, 1, s.TotalSeriesCount())
 }
 
+func TestTimeSeriesStorage_AddEvictsBeforeAdmissionAtCapacity(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{
+		MaxSeries:          4,
+		EvictionFloorRatio: 0.5,
+	})
+	first := s.Add("workload", "first", 1, 1, nil).Ref
+	second := s.Add("workload", "second", 1, 2, nil).Ref
+	third := s.Add("workload", "third", 1, 3, nil).Ref
+	fourth := s.Add("workload", "fourth", 1, 4, nil).Ref
+	require.Equal(t, 4, s.TotalSeriesCount())
+
+	admitted := s.Add("workload", "new", 1, 5, nil)
+
+	require.True(t, admitted.IsNew)
+	require.GreaterOrEqual(t, admitted.Ref, observer.SeriesRef(0))
+	require.Equal(t, []observer.SeriesRef{first, second, third}, admitted.CapacityEvictedRefs)
+	require.Equal(t, 2, s.TotalSeriesCount(), "admission must land on the configured eviction target")
+	assert.Nil(t, s.GetSeriesMeta(first))
+	assert.Nil(t, s.GetSeriesMeta(second))
+	assert.Nil(t, s.GetSeriesMeta(third))
+	assert.NotNil(t, s.GetSeriesMeta(fourth))
+	assert.NotNil(t, s.GetSeriesMeta(admitted.Ref))
+
+	updated := s.Add("workload", "new", 2, 6, nil)
+	assert.False(t, updated.IsNew)
+	assert.Empty(t, updated.CapacityEvictedRefs, "updating an admitted series must not trigger eviction")
+	assert.Equal(t, 2, s.TotalSeriesCount())
+}
+
+func TestTimeSeriesStorage_AdmissionCapacityExcludesTelemetrySeries(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{
+		MaxSeries:          1,
+		EvictionFloorRatio: 0.5,
+	})
+	workload := s.Add("workload", "first", 1, 1, nil).Ref
+	telemetry := s.Add(observer.TelemetryNamespace, "internal", 1, 2, nil)
+	require.Empty(t, telemetry.CapacityEvictedRefs)
+	require.Equal(t, 1, s.TotalSeriesCount())
+
+	admitted := s.Add("workload", "second", 1, 3, nil)
+
+	require.Equal(t, []observer.SeriesRef{workload}, admitted.CapacityEvictedRefs)
+	require.Equal(t, 1, s.TotalSeriesCount())
+	assert.Nil(t, s.GetSeriesMeta(workload))
+	assert.NotNil(t, s.GetSeriesMeta(telemetry.Ref), "capacity admission must not evict telemetry series")
+	assert.NotNil(t, s.GetSeriesMeta(admitted.Ref))
+}
+
 func TestTimeSeriesStorage_EvictInactiveBefore(t *testing.T) {
 	s := newTimeSeriesStorage()
 	old := s.Add("workload", "old", 1, 100, []string{"env:test"}).Ref

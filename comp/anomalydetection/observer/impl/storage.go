@@ -20,8 +20,9 @@ import (
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
 type StorageConfig struct {
-	// MaxSeries caps live series; when exceeded on Advance, series are evicted
-	// until count drops to MaxSeries*(1-EvictionFloorRatio). 0 disables eviction.
+	// MaxSeries caps live non-telemetry series. Before a new series is admitted at
+	// capacity, the oldest existing series are evicted until the incoming series
+	// can be added at MaxSeries*(1-EvictionFloorRatio). 0 disables the cap for replay.
 	MaxSeries int
 
 	// EvictionFloorRatio controls how far below MaxSeries eviction drains.
@@ -327,6 +328,9 @@ type AddResult struct {
 	// Ref is the SeriesRef assigned to this point's series.
 	// -1 when the point is dropped (non-finite or sentinel values).
 	Ref observer.SeriesRef
+	// CapacityEvictedRefs contains series evicted before admitting this point.
+	// Callers must fan these refs out to detector and auxiliary state cleanup.
+	CapacityEvictedRefs []observer.SeriesRef
 }
 
 // Add inserts a (namespace, name, value, timestamp, tags) point into storage.
@@ -371,7 +375,11 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 			}
 		}
 	}
+	var capacityEvictedRefs []observer.SeriesRef
 	if !exists {
+		if namespace != observer.TelemetryNamespace {
+			capacityEvictedRefs = s.evictForAdmissionLocked()
+		}
 		// Only intern on new series creation so the ref count tracks exactly
 		// the number of live series holding the canonical slice.
 		canonical, th := s.internTags(tags)
@@ -395,7 +403,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		}
 		s.seriesGen++
 	}
-	res := AddResult{IsNew: !exists, Ref: stats.ref}
+	res := AddResult{IsNew: !exists, Ref: stats.ref, CapacityEvictedRefs: capacityEvictedRefs}
 	stats.writeGeneration++
 	if len(stats.buckets) == 0 || timestamp > stats.lastActivityTimestamp {
 		stats.lastActivityTimestamp = timestamp
@@ -1208,6 +1216,15 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.evictToCapacityLocked(seriesLimit, target)
+}
+
+// evictToCapacityLocked is EvictToCapacity with the storage write lock already
+// held. Capacity admission uses it before allocating the incoming series.
+func (s *timeSeriesStorage) evictToCapacityLocked(seriesLimit, target int) []observer.SeriesRef {
+	if target < 0 {
+		target = 0
+	}
 
 	// Common case is under the limit, skip allocation entirely.
 	count := s.liveSeriesCount
@@ -1221,7 +1238,7 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	}
 	candidates := make([]entry, 0, count)
 	for _, st := range s.seriesIDStats {
-		if st == nil {
+		if st == nil || st.Namespace == observer.TelemetryNamespace {
 			continue
 		}
 		candidates = append(candidates, entry{ref: st.ref, lastTs: st.lastActivityTimestamp})
@@ -1255,6 +1272,35 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 	return freed
 }
 
+// capacityEvictionTarget is the number of live series that should remain after
+// a capacity event. Production config validation guarantees a ratio in [0, 1),
+// while the clamps keep explicit replay/test configurations safe as well.
+func (s *timeSeriesStorage) capacityEvictionTarget() int {
+	if s.cfg.MaxSeries <= 0 {
+		return 0
+	}
+	if math.IsNaN(s.cfg.EvictionFloorRatio) || s.cfg.EvictionFloorRatio < 0 {
+		return s.cfg.MaxSeries
+	}
+	if s.cfg.EvictionFloorRatio >= 1 {
+		return 1
+	}
+	target := s.cfg.MaxSeries - int(float64(s.cfg.MaxSeries)*s.cfg.EvictionFloorRatio)
+	return max(1, min(s.cfg.MaxSeries, target))
+}
+
+// evictForAdmissionLocked makes room before a new non-telemetry series is
+// allocated. New identities win admission even when their first point is older
+// than existing activity. It leaves one slot below the configured post-eviction
+// target so admitting the incoming series lands exactly on that target.
+func (s *timeSeriesStorage) evictForAdmissionLocked() []observer.SeriesRef {
+	if s.cfg.MaxSeries <= 0 || s.liveSeriesCount < s.cfg.MaxSeries {
+		return nil
+	}
+	targetBeforeAdmission := s.capacityEvictionTarget() - 1
+	return s.evictToCapacityLocked(s.cfg.MaxSeries-1, targetBeforeAdmission)
+}
+
 // EvictInactiveBefore removes non-telemetry series whose last activity is at
 // or before cutoff. The caller supplies a data-time cutoff so eviction is
 // deterministic in both live operation and replay.
@@ -1283,8 +1329,7 @@ func (s *timeSeriesStorage) EvictDefault() []observer.SeriesRef {
 	if s.cfg.MaxSeries <= 0 {
 		return nil
 	}
-	target := s.cfg.MaxSeries - int(float64(s.cfg.MaxSeries)*s.cfg.EvictionFloorRatio)
-	return s.EvictToCapacity(s.cfg.MaxSeries, target)
+	return s.EvictToCapacity(s.cfg.MaxSeries, s.capacityEvictionTarget())
 }
 
 // CompactSeriesID translates a full series key to its compact numeric ID string.
