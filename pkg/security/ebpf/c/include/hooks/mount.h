@@ -125,16 +125,11 @@ HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char *, source, const char *, target, co
     return 0;
 }
 
-// namespace flags worth reporting on. Deliberately excludes CLONE_NEWCGROUP, which
-// only moves the caller into the current cgroup namespace, and the non-namespace
-// flags (CLONE_FILES, CLONE_FS, CLONE_SYSVSEM) which carry no detection value.
-#define UNSHARE_REPORTED_FLAGS (CLONE_NEWUSER | CLONE_NEWNET | CLONE_NEWNS | CLONE_NEWPID)
-
 HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
     // CLONE_NEWNS is always cached, rules or no rules: the mount resolver relies on
-    // this entry to register the mounts cloned by the namespace copy.
-    if (!((flags & CLONE_NEWNS) ||
-          ((flags & UNSHARE_REPORTED_FLAGS) && is_event_enabled(EVENT_UNSHARE)))) {
+    // this entry to register the mounts cloned by the namespace copy. Every other
+    // call is cached only when a rule references unshare.*.
+    if (!((flags & CLONE_NEWNS) || is_event_enabled(EVENT_UNSHARE))) {
         return 0;
     }
 
@@ -156,9 +151,11 @@ int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
         return 0;
     }
 
-    // the per-mount EVENT_UNSHARE_MNTNS events for the CLONE_NEWNS case are emitted
-    // separately by dr_mount_stage_two_callback; this is the single per-syscall event
-    if (!((syscall->mount.unshare_flags & UNSHARE_REPORTED_FLAGS) && is_event_enabled(EVENT_UNSHARE))) {
+    // the CLONE_NEWNS entry above is cached with no rule loaded, so the public event
+    // still has to be gated here. The per-mount EVENT_UNSHARE_MNTNS events for that
+    // case are emitted separately by dr_mount_stage_two_callback; this is the single
+    // per-syscall event.
+    if (!is_event_enabled(EVENT_UNSHARE)) {
         return 0;
     }
 

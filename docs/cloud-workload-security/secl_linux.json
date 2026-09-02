@@ -11873,7 +11873,7 @@
       "name": "unshare",
       "definition": "A process created new namespaces",
       "type": "Kernel",
-      "from_agent_version": "7.83",
+      "from_agent_version": "7.84",
       "experimental": false,
       "properties": [
         {

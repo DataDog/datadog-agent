@@ -120,10 +120,8 @@ struct syscall_cache_t {
             int source;
             u64 ns_inum;
 
-            // flags requested by the unshare syscall. Lives in this arm rather than
-            // its own because the unshare hook shares the mount arm: the mount hooks
-            // write into the fields above for the CLONE_NEWNS case, and a separate
-            // union arm would alias them.
+            // unshare flags. In the mount arm because the CLONE_NEWNS path writes
+            // the fields above; a separate union arm would alias them.
             u64 unshare_flags;
         } mount;
 
