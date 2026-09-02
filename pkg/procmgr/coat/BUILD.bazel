@@ -112,6 +112,7 @@ go_library(
             "@com_github_microsoft_go_winio//:go-winio",
             "@org_golang_google_grpc//:grpc",
             "@org_golang_google_grpc//credentials/insecure",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),
@@ -119,12 +120,27 @@ go_library(
 
 dd_agent_go_test(
     name = "coat_test",
+    # keep: split from coat_linux_test.
+    srcs = ["services_test.go"],
+    embed = [":coat"],
+    # keep: procmgr dep is in coat_linux_test only.
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "coat_linux_test",
+    # keep: split from coat_test.
     srcs = [
         "collector_test.go",
         "process_state_test.go",
     ],
     embed = [":coat"],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
+        "//pkg/proto/pbgo/procmgr",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

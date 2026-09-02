@@ -27,6 +27,13 @@ fn list_shows_running_and_created_mix() {
     list.assert_len(2);
     list.assert_process_state("sleeper", ProcessExpect::Running);
     list.assert_process_state("sleeper_idle", ProcessExpect::Created);
+    for name in ["sleeper", "sleeper_idle"] {
+        assert_eq!(
+            list.require_process(name).user,
+            test_helpers::expected_spawn_user(name),
+            "list user for {name}"
+        );
+    }
 }
 
 #[test]
@@ -62,6 +69,8 @@ fn test_cli_list_terminal_table_fields() {
                 ("STATE", "Exited"),
                 ("PID", "-"),
                 ("LAST EXIT", "exit 0"),
+                ("PROFILE", "agent"),
+                ("USER", &test_helpers::expected_spawn_user("exit_ok")),
                 ("COMMAND", &python),
             ],
         )
@@ -71,6 +80,8 @@ fn test_cli_list_terminal_table_fields() {
                 ("STATE", "Failed"),
                 ("PID", "-"),
                 ("LAST EXIT", "exit 1"),
+                ("PROFILE", "agent"),
+                ("USER", &test_helpers::expected_spawn_user("exit_fail")),
                 ("COMMAND", &python),
             ],
         )
@@ -94,6 +105,8 @@ fn test_cli_list_json() {
     let entry = &arr[0];
     assert_eq!(entry["name"], "sleeper");
     assert_eq!(entry["state"], "Running");
+    assert_eq!(entry["profile"], "agent");
+    assert_eq!(entry["user"], test_helpers::expected_spawn_user("sleeper"));
     assert_eq!(entry["command"], test_helpers::sleep_cmd(300).0);
     assert_eq!(entry["args"], test_helpers::sleep_args_json());
     assert_eq!(entry["restart_count"], 0);
