@@ -22,12 +22,6 @@ func TestHistogramMetricNamesFilter(t *testing.T) {
 
 	cfg["histogram_aggregates"] = []string{"avg", "max", "median"}
 	cfg["histogram_percentiles"] = []string{"0.73", "0.22"}
-
-	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
-	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
-
 	bl := []string{
 		"foo",
 		"bar",
@@ -41,22 +35,27 @@ func TestHistogramMetricNamesFilter(t *testing.T) {
 		"bar.22percentile",
 		"count",
 	}
-
-	filtered := filterList.createHistogramsFilterList(bl, false)
-	require.ElementsMatch(filtered, []string{"foo.avg", "foo.max", "baz.73percentile", "bar.22percentile"})
-}
-
-func TestHistogramMetricNamesFilterWithPrefixes(t *testing.T) {
-	cfg := make(map[string]interface{})
-	require := require.New(t)
-
-	cfg["histogram_aggregates"] = []string{"avg", "max", "median"}
-	cfg["histogram_percentiles"] = []string{"0.73"}
+	cfg["metric_filterlist"] = bl
 
 	logComponent := logmock.New(t)
 	configComponent := config.NewMockWithOverrides(t, cfg)
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
 	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	histo := filterList.GetHistoFilterList()
+
+	// Only names ending in a configured histogram aggregate or percentile
+	// suffix belong in the histogram-specific filter list.
+	for _, kept := range []string{"foo.avg", "foo.max", "baz.73percentile", "bar.22percentile"} {
+		require.True(histo.Test(kept), "%s should be in the histogram filter list", kept)
+	}
+	for _, dropped := range []string{"foo", "bar", "baz", "foomax", "foo.count", "bar.50percentile", "count"} {
+		require.False(histo.Test(dropped), "%s should not be in the histogram filter list", dropped)
+	}
+}
+
+func TestHistogramMetricNamesFilterWithPrefixes(t *testing.T) {
+	require := require.New(t)
 
 	bl := []string{
 		"foo",         // exact, no aggregate suffix
@@ -67,14 +66,37 @@ func TestHistogramMetricNamesFilterWithPrefixes(t *testing.T) {
 		"count.other", // exact, no aggregate suffix
 	}
 
+	newFilterList := func(matchPrefix bool) *FilterList {
+		cfg := map[string]interface{}{
+			"histogram_aggregates":           []string{"avg", "max", "median"},
+			"histogram_percentiles":          []string{"0.73"},
+			"metric_filterlist":              bl,
+			"metric_filterlist_match_prefix": matchPrefix,
+		}
+		logComponent := logmock.New(t)
+		configComponent := config.NewMockWithOverrides(t, cfg)
+		telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+		return NewFilterList(logComponent, configComponent, telemetryComponent)
+	}
+
 	// Every prefix entry has to be kept: it can match an aggregate-suffixed name
 	// that the exact suffix check cannot recognise.
-	filtered := filterList.createHistogramsFilterList(bl, false)
-	require.ElementsMatch(filtered, []string{"foo.avg", "bar.*", "baz.9*", "qux.avg.*"})
+	histo := newFilterList(false).GetHistoFilterList()
+	require.True(histo.Test("foo.avg"), "exact entry with an aggregate suffix should be kept")
+	require.True(histo.Test("bar.anything"), "bar.* prefix should be kept unconditionally")
+	require.True(histo.Test("baz.95percentile"), "baz.9* prefix should be kept unconditionally")
+	require.True(histo.Test("qux.avg.x"), "qux.avg.* prefix should be kept unconditionally")
+	require.False(histo.Test("foo"), "exact entry without an aggregate suffix should not be kept")
+	require.False(histo.Test("count.other"), "exact entry without an aggregate suffix should not be kept")
 
-	// With the legacy global prefix mode, every entry is a prefix.
-	filtered = filterList.createHistogramsFilterList(bl, true)
-	require.ElementsMatch(filtered, bl)
+	// With the legacy global prefix mode, every entry becomes a prefix, so the
+	// histogram filter list is compiled identically to the main one.
+	filterListPrefix := newFilterList(true)
+	main := filterListPrefix.GetMetricFilterList()
+	histoPrefix := filterListPrefix.GetHistoFilterList()
+	for _, name := range []string{"foo", "fooX", "foo.avg", "bar.anything", "baz.95percentile", "qux.avg.x", "count.other", "count.otherX"} {
+		require.Equal(main.Test(name), histoPrefix.Test(name), "%s should match the histogram list iff it matches the main list", name)
+	}
 }
 
 func TestMetricFilterListPrefixEntries(t *testing.T) {

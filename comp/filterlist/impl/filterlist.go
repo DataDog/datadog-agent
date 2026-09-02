@@ -196,43 +196,26 @@ func (fl *FilterList) GetHistoFilterList() utilstrings.Matcher {
 	return fl.histoFilterList
 }
 
-// create a list based on all `metricNames` but only containing entries that can
-// match a metric name with a histogram aggregate suffix.
-func (fl *FilterList) createHistogramsFilterList(metricNames []string, matchPrefix bool) []string {
+// isHistogramAggregateSuffix reports whether `metricName` ends with a
+// configured histogram aggregate or percentile suffix, meaning it can only be
+// produced by aggregating a histogram: such a name isn't filterable until
+// after aggregation, so it belongs in the histogram-specific filter list.
+//
+// It is never asked about entries matched by prefix: those always belong in
+// the histogram filter list already (see `SetMetricFilterList`), regardless
+// of this predicate.
+func (fl *FilterList) isHistogramAggregateSuffix(metricName string) bool {
 	aggrs := fl.config.GetStringSlice("histogram_aggregates")
+	if slices.ContainsFunc(aggrs, func(aggr string) bool {
+		return strings.HasSuffix(metricName, "."+aggr)
+	}) {
+		return true
+	}
 
 	percentiles := metrics.ParsePercentiles(fl.config.GetStringSlice("histogram_percentiles"))
-	percentileAggrs := make([]string, len(percentiles))
-	for i, percentile := range percentiles {
-		percentileAggrs[i] = fmt.Sprintf("%dpercentile", percentile)
-	}
-
-	var histoMetricNames []string
-	for _, metricName := range metricNames {
-		// A prefix entry can match any name starting with it, including the
-		// aggregates derived from a histogram, so it always has to be kept.
-		if matchPrefix || strings.HasSuffix(metricName, utilstrings.PrefixSuffix) {
-			histoMetricNames = append(histoMetricNames, metricName)
-			continue
-		}
-
-		// metric names ending with a histogram aggregate
-		if slices.ContainsFunc(aggrs, func(aggr string) bool {
-			return strings.HasSuffix(metricName, "."+aggr)
-		}) {
-			histoMetricNames = append(histoMetricNames, metricName)
-			continue
-		}
-		// metric names ending with a percentile
-		if slices.ContainsFunc(percentileAggrs, func(percentileAggr string) bool {
-			return strings.HasSuffix(metricName, "."+percentileAggr)
-		}) {
-			histoMetricNames = append(histoMetricNames, metricName)
-		}
-	}
-
-	fl.log.Debugf("SetMetricFilterList created a histograms subset of %d metric names", len(histoMetricNames))
-	return histoMetricNames
+	return slices.ContainsFunc(percentiles, func(percentile int) bool {
+		return strings.HasSuffix(metricName, fmt.Sprintf(".%dpercentile", percentile))
+	})
 }
 
 // SetTagFilterList takes a map of metric names to tag configuration, hashes the
@@ -276,11 +259,14 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 	// we will use two different filterlists:
 	// - one with all the metrics names, with all values from `metricNames`
 	// - one with only the metric names ending with histogram aggregates suffixes
-
-	// only histogram metric names (including their aggregates suffixes)
-	histoMetricNames := fl.createHistogramsFilterList(metricNames, matchPrefix)
+	//
+	// A prefix entry can match any name starting with it, including the
+	// aggregates derived from a histogram, so it always belongs in the
+	// histogram filter list too: its compiled prefixes are therefore always
+	// identical to the main filter list's, and RestrictExact shares them
+	// instead of recompiling a duplicate copy.
 	filterList := utilstrings.NewMatcher(metricNames, matchPrefix)
-	histoFilterList := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
+	histoFilterList := filterList.RestrictExact(fl.isHistogramAggregateSuffix)
 
 	// Report the compiled size: with prefix matching, NewMatcher compacts
 	// redundant sub-prefixes, so len(metricNames) can overcount.

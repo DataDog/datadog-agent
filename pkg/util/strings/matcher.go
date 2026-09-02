@@ -117,6 +117,29 @@ func compactExact(exact, prefixes []string) []string {
 	return exact
 }
 
+// RestrictExact returns a Matcher that shares this Matcher's compiled
+// `prefixes` — a derived matcher that must still match every prefix this one
+// matches (e.g. a histogram-aggregate name derived from a metric matched by
+// prefix) has nothing new to compute there, so the slice is shared rather
+// than rebuilt — restricted to the exact entries for which `keep` returns
+// true.
+//
+// m.exact is already sorted, deduplicated, and free of entries covered by a
+// prefix; filtering by `keep` preserves all three properties, so the result
+// needs no re-sorting or re-compaction against `prefixes`.
+func (m Matcher) RestrictExact(keep func(string) bool) Matcher {
+	var exact []string
+	for _, e := range m.exact {
+		if keep(e) {
+			exact = append(exact, e)
+		}
+	}
+	return Matcher{
+		exact:    exact,
+		prefixes: m.prefixes,
+	}
+}
+
 // Len returns the number of entries in the compiled matcher.
 func (m *Matcher) Len() int {
 	if m == nil {
