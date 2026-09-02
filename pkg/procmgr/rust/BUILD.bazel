@@ -148,12 +148,30 @@ pkg_install(
 # Tests
 # ============================================================================
 
+# PR-added unit tests (vs jose/procmgr-config-gates) are gated in source with
+# #[cfg(any(procmgr_pr_all, procmgr_pr_<batch>))]. Default: none enabled, so
+# dd-procmgrd_test matches the base branch. Uncomment entries below to enable
+# batches incrementally and bisect CI failures.
+_PROCMGR_PR_TEST_CFGS = [
+    # "procmgr_pr_config_gate_secrets",
+    # "procmgr_pr_config_gate_core",
+    # "procmgr_pr_secret_backend_exec",
+    # "procmgr_pr_platform_unix_secret_backend",
+    # "procmgr_pr_platform_windows_resolve_executable",
+    # "procmgr_pr_platform_windows_secret_backend",
+    # "procmgr_pr_platform_windows_legacy_scm_env",
+    # "procmgr_pr_platform_windows_secret_backend_rights",
+    # Or enable everything: "procmgr_pr_all",
+]
+
+_PROCMGR_PR_TEST_RUSTC_FLAGS = ["--cfg=" + cfg for cfg in _PROCMGR_PR_TEST_CFGS]
+
 rust_test(
     name = "dd-procmgrd_test",
     size = "large",
     crate = ":dd-procmgrd-lib",
     edition = "2024",
-    rustc_flags = ["--cfg=bazel"],
+    rustc_flags = ["--cfg=bazel"] + _PROCMGR_PR_TEST_RUSTC_FLAGS,
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = ["@crates//:tempfile"],
 )

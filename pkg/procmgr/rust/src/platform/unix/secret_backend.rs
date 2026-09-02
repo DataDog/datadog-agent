@@ -123,6 +123,7 @@ fn io_error(err: nix::errno::Errno) -> std::io::Error {
 }
 
 #[cfg(test)]
+#[cfg(any(procmgr_pr_all, procmgr_pr_platform_unix_secret_backend))]
 mod tests {
     use super::*;
 

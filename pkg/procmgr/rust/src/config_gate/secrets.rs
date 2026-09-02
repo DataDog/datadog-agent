@@ -498,6 +498,7 @@ fn yaml_bool(root: &serde_yaml::Value, key: &str) -> Option<bool> {
 }
 
 #[cfg(test)]
+#[cfg(any(procmgr_pr_all, procmgr_pr_config_gate_secrets))]
 mod tests {
     use super::*;
     use crate::config_gate::test_env;

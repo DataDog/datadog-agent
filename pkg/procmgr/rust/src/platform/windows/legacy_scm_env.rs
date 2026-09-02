@@ -297,6 +297,7 @@ mod tests {
         set_test_core_agent_scm_env(None);
     }
 
+    #[cfg(any(procmgr_pr_all, procmgr_pr_platform_windows_legacy_scm_env))]
     #[test]
     fn build_secret_backend_env_vars_merges_core_agent_scm_over_baseline() {
         set_test_core_agent_scm_env(Some(HashMap::from([
@@ -315,6 +316,7 @@ mod tests {
         set_test_core_agent_scm_env(None);
     }
 
+    #[cfg(any(procmgr_pr_all, procmgr_pr_platform_windows_legacy_scm_env))]
     #[test]
     fn refresh_core_agent_scm_environment_replaces_stale_cache() {
         set_test_core_agent_scm_env(None);

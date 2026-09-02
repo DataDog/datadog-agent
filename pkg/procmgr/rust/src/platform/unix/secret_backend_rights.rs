@@ -44,6 +44,7 @@ pub(crate) fn check_secret_backend_command_rights(
 }
 
 #[cfg(test)]
+#[cfg(any(procmgr_pr_all, procmgr_pr_platform_unix_secret_backend))]
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;

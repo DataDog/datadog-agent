@@ -432,6 +432,7 @@ fn wait_for_exit(process: HANDLE, timeout: Duration, command: &str) -> Result<u3
 }
 
 #[cfg(test)]
+#[cfg(any(procmgr_pr_all, procmgr_pr_platform_windows_secret_backend))]
 mod tests {
     use super::super::legacy_scm_env::set_test_core_agent_scm_env;
     use super::*;

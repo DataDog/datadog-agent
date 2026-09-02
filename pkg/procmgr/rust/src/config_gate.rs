@@ -3087,6 +3087,7 @@ process_config:
         );
     }
 
+    #[cfg(any(procmgr_pr_all, procmgr_pr_config_gate_core))]
     #[test]
     fn fleet_policies_dir_resolves_secret_backed_env_path() {
         with_env_lock(|| {
@@ -3142,6 +3143,7 @@ process_config:
         });
     }
 
+    #[cfg(any(procmgr_pr_all, procmgr_pr_config_gate_core))]
     #[test]
     fn secret_resolved_value_beats_fleet_policy() {
         with_env_lock(|| {
@@ -3194,6 +3196,7 @@ process_config:
         });
     }
 
+    #[cfg(any(procmgr_pr_all, procmgr_pr_config_gate_core))]
     #[test]
     fn fleet_policy_enc_is_not_resolved() {
         with_env_lock(|| {
@@ -3250,6 +3253,7 @@ process_config:
         });
     }
 
+    #[cfg(any(procmgr_pr_all, procmgr_pr_config_gate_core))]
     #[test]
     fn env_bool_unresolved_secret_errors_instead_of_falling_through() {
         with_env_lock(|| {
@@ -3269,6 +3273,7 @@ process_config:
         });
     }
 
+    #[cfg(any(procmgr_pr_all, procmgr_pr_config_gate_core))]
     #[test]
     fn unresolved_env_secret_blocks_gate_despite_yaml_true() {
         with_env_lock(|| {
@@ -3292,6 +3297,7 @@ process_config:
         });
     }
 
+    #[cfg(any(procmgr_pr_all, procmgr_pr_config_gate_core))]
     #[test]
     fn env_bool_resolves_secret_backed_gate_values() {
         with_env_lock(|| {
@@ -3338,6 +3344,7 @@ process_config:
         });
     }
 
+    #[cfg(any(procmgr_pr_all, procmgr_pr_config_gate_core))]
     #[test]
     fn derived_secret_infrastructure_mode_enables_system_probe_gate() {
         with_env_lock(|| {

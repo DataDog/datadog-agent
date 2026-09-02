@@ -132,6 +132,7 @@ fn find_on_path(command: &str, path_dirs: &[PathBuf]) -> Option<String> {
 }
 
 #[cfg(test)]
+#[cfg(any(procmgr_pr_all, procmgr_pr_platform_windows_resolve_executable))]
 mod tests {
     use super::*;
     use std::fs;

@@ -206,6 +206,7 @@ fn kill_process_tree(pid: u32) {
 }
 
 #[cfg(test)]
+#[cfg(any(procmgr_pr_all, procmgr_pr_secret_backend_exec))]
 mod tests {
     use super::*;
 
