@@ -23,7 +23,7 @@ fn restart_test_timeout() -> Duration {
 
 #[tokio::test]
 async fn test_enqueue_pending_restart_retries_after_failed_respawn() -> anyhow::Result<()> {
-    let (cmd, _args) = test_helpers::sleep_cmd(60);
+    let (cmd, _args) = test_helpers::long_sleep_cmd();
     let make_def = |secs: u32| ProcessDefinition {
         name: "action-executor".to_string(),
         config: ProcessConfig {
@@ -90,7 +90,7 @@ async fn test_enqueue_pending_restart_retries_after_failed_respawn() -> anyhow::
 
 #[tokio::test]
 async fn test_stale_restart_timer_invalidated_after_manual_start() -> anyhow::Result<()> {
-    let (cmd, args) = test_helpers::sleep_cmd(60);
+    let (cmd, args) = test_helpers::long_sleep_cmd();
     let mgr = ProcessManager::new(
         loader(vec![ProcessDefinition {
             name: "action-executor".to_string(),
@@ -205,7 +205,7 @@ async fn test_complete_restart_skips_already_running() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_complete_restart_honors_policy_for_auto_start_false() -> anyhow::Result<()> {
-    let (cmd, args) = test_helpers::sleep_cmd(60);
+    let (cmd, args) = test_helpers::long_sleep_cmd();
     let mgr = ProcessManager::new(
         loader(vec![ProcessDefinition {
             name: "action-executor".to_string(),
@@ -255,7 +255,7 @@ async fn test_complete_restart_honors_policy_for_auto_start_false() -> anyhow::R
 
 #[tokio::test]
 async fn test_complete_restart_skips_retry_when_restart_policy_revoked() -> anyhow::Result<()> {
-    let (cmd, args) = test_helpers::sleep_cmd(60);
+    let (cmd, args) = test_helpers::long_sleep_cmd();
     let mgr = ProcessManager::new(
         loader(vec![ProcessDefinition {
             name: "action-executor".to_string(),

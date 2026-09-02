@@ -448,7 +448,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_to_proto_running_with_pid() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = test_helpers::long_sleep_cmd();
         let expected_args = args.clone();
         let cfg = ProcessConfig {
             command: cmd.to_string(),

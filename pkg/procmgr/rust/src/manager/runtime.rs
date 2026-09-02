@@ -560,7 +560,7 @@ mod tests {
         use crate::test_helpers;
         use tokio::sync::oneshot;
 
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = test_helpers::long_sleep_cmd();
         let catalog = Arc::new(ProcessCatalog::load(
             &StaticConfigLoader::new(vec![ProcessDefinition {
                 name: "svc".into(),
@@ -621,7 +621,7 @@ mod tests {
         use crate::test_helpers;
         use tokio::sync::oneshot;
 
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let (cmd, args) = test_helpers::long_sleep_cmd();
         let catalog = ProcessCatalog::load(
             &StaticConfigLoader::new(vec![ProcessDefinition {
                 name: "svc".into(),

@@ -20,7 +20,7 @@ async fn test_create_auto_start_reserves_before_return() -> anyhow::Result<()> {
 
     let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
     let (handles, _rx) = test_runtime_context();
-    let (cmd, args) = test_helpers::sleep_cmd(60);
+    let (cmd, args) = test_helpers::long_sleep_cmd();
 
     mgr.handle_create(
         "auto-svc".to_string(),
@@ -121,7 +121,7 @@ async fn test_startup_order_indices_match_processes() {
 async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![sleep_def("svc-a")]), uuid_gen());
     let (handles, _rx) = test_runtime_context();
-    let (cmd, args) = test_helpers::sleep_cmd(60);
+    let (cmd, args) = test_helpers::long_sleep_cmd();
     mgr.handle_create(
         "svc-b".to_string(),
         ProcessConfig {
@@ -150,7 +150,7 @@ async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Resu
 async fn test_create_auto_start_spawns_process() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
     let (handles, _rx) = test_runtime_context();
-    let (cmd, args) = test_helpers::sleep_cmd(60);
+    let (cmd, args) = test_helpers::long_sleep_cmd();
     mgr.handle_create(
         "auto-svc".to_string(),
         ProcessConfig {
@@ -186,7 +186,7 @@ async fn test_create_auto_start_spawns_process() -> anyhow::Result<()> {
 async fn test_create_auto_start_false_stays_created() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
     let (handles, _rx) = test_runtime_context();
-    let (cmd, args) = test_helpers::sleep_cmd(60);
+    let (cmd, args) = test_helpers::long_sleep_cmd();
     mgr.handle_create(
         "manual-svc".to_string(),
         ProcessConfig {
@@ -237,7 +237,7 @@ async fn test_create_auto_start_bad_command_still_created() -> anyhow::Result<()
 async fn test_create_auto_start_condition_not_met() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
     let (handles, _rx) = test_runtime_context();
-    let (cmd, args) = test_helpers::sleep_cmd(60);
+    let (cmd, args) = test_helpers::long_sleep_cmd();
     mgr.handle_create(
         "cond-svc".to_string(),
         ProcessConfig {

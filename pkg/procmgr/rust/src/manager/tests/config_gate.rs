@@ -11,7 +11,7 @@ use crate::test_helpers;
 use std::io::Write;
 
 fn gated_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
-    let (cmd, args) = test_helpers::sleep_cmd(60);
+    let (cmd, args) = test_helpers::long_sleep_cmd();
     ProcessDefinition {
         name: name.to_string(),
         config: ProcessConfig {
@@ -37,7 +37,7 @@ fn write_agent_yaml(dir: &std::path::Path, process_collection_enabled: bool) -> 
 }
 
 fn gated_on_failure_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
-    let (cmd, args) = test_helpers::sleep_cmd(60);
+    let (cmd, args) = test_helpers::long_sleep_cmd();
     ProcessDefinition {
         name: name.to_string(),
         config: ProcessConfig {

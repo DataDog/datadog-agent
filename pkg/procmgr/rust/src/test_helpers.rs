@@ -50,6 +50,20 @@ pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
     )
 }
 
+/// Long-lived sleeper for tests that spawn a child and then stop or shut it down.
+///
+/// Unix keeps a 60s sleep so graceful-stop paths have headroom. Windows uses 2s
+/// because `ping -n` makes minute-scale sleeps dominate CI runtime.
+#[cfg(unix)]
+pub fn long_sleep_cmd() -> (&'static str, Vec<String>) {
+    sleep_cmd(60)
+}
+
+#[cfg(windows)]
+pub fn long_sleep_cmd() -> (&'static str, Vec<String>) {
+    sleep_cmd(2)
+}
+
 /// Shell command + flag for running an inline script.
 /// Usage: `let (sh, flag) = shell_cmd(); Command::new(sh).args([flag, "exit 42"])`
 #[cfg(unix)]

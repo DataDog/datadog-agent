@@ -325,7 +325,7 @@ async fn test_start_returns_committed_snapshot_after_immediate_exit() -> anyhow:
 async fn test_create_auto_start_respects_in_flight_reservation() -> anyhow::Result<()> {
     let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
     let (handles, _rx) = test_runtime_context();
-    let (cmd, args) = test_helpers::sleep_cmd(60);
+    let (cmd, args) = test_helpers::long_sleep_cmd();
 
     mgr.handle_create(
         "auto-svc".to_string(),
