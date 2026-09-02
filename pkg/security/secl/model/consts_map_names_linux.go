@@ -134,6 +134,7 @@ var bpfMapNames = []string{
 	"traced_cgroups",
 	"traced_cgroups_",
 	"traced_pids",
+	"unshare_flags_a",
 	"user_sessions",
 	"veth_devices",
 	"veth_state_mach",

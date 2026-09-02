@@ -71,6 +71,22 @@ func TestRegexAggregator_LabelIgnored(t *testing.T) {
 	assert.Equal(t, collect(startGroup), collect(aggregate))
 }
 
+func TestRegexAggregatorPreservesSafeCheckpointLength(t *testing.T) {
+	ag := newRegexAggregator(t, `^START`, 1000)
+
+	first := newMessage("START")
+	first.SetRawDataLenForCheckpoint(0)
+	require.Empty(t, processMsg(ag, first, startGroup))
+
+	continuation := newMessage("continuation")
+	continuation.SetRawDataLenForCheckpoint(77)
+	require.Empty(t, processMsg(ag, continuation, aggregate))
+
+	msgs := flushMsgs(ag)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, 77, msgs[0].RawDataLenForCheckpoint())
+}
+
 // TestRegexAggregator_TokensFromAggregateLeader anchors:
 //
 //	surface RegexAggregation (regex_aggregator.allium)
