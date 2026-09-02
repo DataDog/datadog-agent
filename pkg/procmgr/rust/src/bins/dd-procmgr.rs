@@ -58,8 +58,7 @@ enum Commands {
         /// Executable path
         #[arg(long)]
         command: String,
-        /// Command arguments (repeatable)
-        #[arg(long, num_args = 1..)]
+        #[arg(long, action = clap::ArgAction::Append, num_args = 1..)]
         args: Vec<String>,
         /// Environment variable KEY=VALUE (repeatable)
         #[arg(long, value_name = "KEY=VALUE")]
@@ -218,10 +217,6 @@ fn format_last_exit(exit_code: Option<i32>, signal: Option<i32>) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// list
-// ---------------------------------------------------------------------------
-
 async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
         .list(proto::ListRequest {})
@@ -239,6 +234,8 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                     "name": p.name,
                     "state": state_name(p.state),
                     "pid": p.pid,
+                    "profile": p.profile,
+                    "user": p.user,
                     "command": p.command,
                     "args": p.args,
                     "restart_count": p.restart_count,
@@ -256,7 +253,20 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         return Ok(());
     }
 
-    let rows: Vec<[String; 7]> = resp
+    const LIST_TABLE_HEADERS: [&str; 9] = [
+        "NAME",
+        "UUID",
+        "STATE",
+        "PID",
+        "PROFILE",
+        "USER",
+        "RESTARTS",
+        "LAST EXIT",
+        "COMMAND",
+    ];
+    const LIST_TABLE_COLS: usize = LIST_TABLE_HEADERS.len();
+
+    let rows: Vec<[String; LIST_TABLE_COLS]> = resp
         .processes
         .iter()
         .map(|p| {
@@ -269,6 +279,8 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                 } else {
                     "-".to_string()
                 },
+                p.profile.clone(),
+                p.user.clone(),
                 p.restart_count.to_string(),
                 format_last_exit(p.last_exit_code, p.last_signal),
                 p.command.clone(),
@@ -276,44 +288,39 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         })
         .collect();
 
-    let headers = [
-        "NAME",
-        "UUID",
-        "STATE",
-        "PID",
-        "RESTARTS",
-        "LAST EXIT",
-        "COMMAND",
-    ];
-    let widths: Vec<usize> = (0..7)
+    let widths: Vec<usize> = (0..LIST_TABLE_COLS)
         .map(|col| {
             rows.iter()
                 .map(|r| r[col].len())
                 .max()
                 .unwrap_or(0)
-                .max(headers[col].len())
+                .max(LIST_TABLE_HEADERS[col].len())
         })
         .collect();
 
     println!(
-        "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {}",
-        headers[0],
-        headers[1],
-        headers[2],
-        headers[3],
-        headers[4],
-        headers[5],
-        headers[6],
+        "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {:<w6$}  {:<w7$}  {}",
+        LIST_TABLE_HEADERS[0],
+        LIST_TABLE_HEADERS[1],
+        LIST_TABLE_HEADERS[2],
+        LIST_TABLE_HEADERS[3],
+        LIST_TABLE_HEADERS[4],
+        LIST_TABLE_HEADERS[5],
+        LIST_TABLE_HEADERS[6],
+        LIST_TABLE_HEADERS[7],
+        LIST_TABLE_HEADERS[8],
         w0 = widths[0],
         w1 = widths[1],
         w2 = widths[2],
         w3 = widths[3],
         w4 = widths[4],
         w5 = widths[5],
+        w6 = widths[6],
+        w7 = widths[7],
     );
     for row in &rows {
         println!(
-            "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {}",
+            "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {:<w6$}  {:<w7$}  {}",
             row[0],
             row[1],
             row[2],
@@ -321,20 +328,20 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
             row[4],
             row[5],
             row[6],
+            row[7],
+            row[8],
             w0 = widths[0],
             w1 = widths[1],
             w2 = widths[2],
             w3 = widths[3],
             w4 = widths[4],
             w5 = widths[5],
+            w6 = widths[6],
+            w7 = widths[7],
         );
     }
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// describe
-// ---------------------------------------------------------------------------
 
 async fn cmd_describe(
     client: &mut ProcessManagerClient<Channel>,
@@ -352,12 +359,14 @@ async fn cmd_describe(
     let detail = resp.detail.ok_or("no detail returned")?;
 
     if json {
-        let val = serde_json::json!({
+        let mut val = serde_json::json!({
             "uuid": detail.uuid,
             "name": detail.name,
             "description": detail.description,
             "state": state_name(detail.state),
             "pid": detail.pid,
+            "profile": detail.profile,
+            "user": detail.user,
             "command": detail.command,
             "args": detail.args,
             "working_dir": detail.working_dir,
@@ -373,6 +382,9 @@ async fn cmd_describe(
             "after": detail.after,
             "before": detail.before,
         });
+        if !detail.runtime_user.is_empty() {
+            val["runtime_user"] = serde_json::json!(detail.runtime_user);
+        }
         println!("{}", serde_json::to_string_pretty(&val).unwrap());
         return Ok(());
     }
@@ -392,6 +404,11 @@ async fn cmd_describe(
     println!("UUID:                {}", detail.uuid);
     println!("State:               {}", state_name(detail.state));
     println!("PID:                 {}", pid_str);
+    println!("Profile:             {}", detail.profile);
+    println!("User:                {}", detail.user);
+    if !detail.runtime_user.is_empty() {
+        println!("Runtime User:        {}", detail.runtime_user);
+    }
     println!("Command:             {}", detail.command);
     println!("Args:                {}", args_str);
     if !detail.description.is_empty() {
@@ -428,10 +445,6 @@ async fn cmd_describe(
     }
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// status
-// ---------------------------------------------------------------------------
 
 async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
@@ -490,10 +503,6 @@ fn format_duration(secs: u64) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// config
-// ---------------------------------------------------------------------------
-
 async fn cmd_config(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
         .get_config(proto::GetConfigRequest {})
@@ -518,10 +527,6 @@ async fn cmd_config(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
     println!("Runtime Processes:   {}", resp.runtime_processes);
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// start
-// ---------------------------------------------------------------------------
 
 async fn cmd_start(
     client: &mut ProcessManagerClient<Channel>,
@@ -555,10 +560,6 @@ async fn cmd_start(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// stop
-// ---------------------------------------------------------------------------
-
 async fn cmd_stop(
     client: &mut ProcessManagerClient<Channel>,
     name_or_uuid: &str,
@@ -586,10 +587,6 @@ async fn cmd_stop(
     println!("  State:  {}", state_name(resp.state));
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// create
-// ---------------------------------------------------------------------------
 
 #[allow(clippy::too_many_arguments)]
 async fn cmd_create(
@@ -646,10 +643,6 @@ async fn cmd_create(
     }
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// reload
-// ---------------------------------------------------------------------------
 
 async fn cmd_reload(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
@@ -788,5 +781,80 @@ mod tests {
         let err = parse_env_args(&args).unwrap_err();
         assert!(err.contains("INVALID"));
         assert!(err.contains("KEY=VALUE"));
+    }
+
+    #[test]
+    fn test_create_parses_multi_value_args() {
+        let cli = Cli::try_parse_from([
+            "dd-procmgr",
+            "create",
+            "--name",
+            "test",
+            "--command",
+            "/bin/sleep",
+            "--args",
+            "300",
+            "ignored",
+        ])
+        .unwrap();
+        let Commands::Create { args, .. } = cli.command else {
+            panic!("expected create subcommand");
+        };
+        assert_eq!(args, vec!["300".to_string(), "ignored".to_string()]);
+    }
+
+    #[test]
+    fn test_create_does_not_swallow_create_flags_after_args() {
+        let cli = Cli::try_parse_from([
+            "dd-procmgr",
+            "create",
+            "--name",
+            "test",
+            "--command",
+            "/bin/sleep",
+            "--args",
+            "300",
+            "--no-auto-start",
+        ])
+        .unwrap();
+        let Commands::Create {
+            args,
+            no_auto_start,
+            ..
+        } = cli.command
+        else {
+            panic!("expected create subcommand");
+        };
+        assert_eq!(args, vec!["300".to_string()]);
+        assert!(no_auto_start);
+    }
+
+    #[test]
+    fn test_create_parses_powershell_hyphen_args() {
+        let cli = Cli::try_parse_from([
+            "dd-procmgr",
+            "create",
+            "--name",
+            "test",
+            "--command",
+            r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+            "--args=-NoProfile",
+            "--args=-NonInteractive",
+            "--args=-Command",
+            "--args=Write-Output ok",
+        ])
+        .unwrap();
+        let Commands::Create { args, .. } = cli.command else {
+            panic!("expected create subcommand");
+        };
+        assert_eq!(
+            args,
+            vec![
+                "-NoProfile".to_string(),
+                "-NonInteractive".to_string(),
+                "-Command".to_string(),
+                "Write-Output ok".to_string(),
+            ]
+        );
     }
 }
