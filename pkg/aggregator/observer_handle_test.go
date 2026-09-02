@@ -29,7 +29,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // recordingHandle records every ObserveMetric call for test assertions.
@@ -40,25 +39,23 @@ type recordingHandle struct {
 type recordedCall struct {
 	name      string
 	value     float64
-	tags      tagset.CompositeTags
+	tags      []string
 	host      string
 	timestamp int64
 }
 
 func (h *recordingHandle) ObserveMetric(v observer.MetricView) {
-	// Copy the ephemeral fields, but intentionally retain the CompositeTags so
-	// these integration tests exercise its post-ObserveMetric lifetime contract.
+	// copy values — the MetricView contract forbids retaining the view itself
+	tags := v.GetTags().UnsafeToReadOnlySliceString()
+	tagsCopy := make([]string, len(tags))
+	copy(tagsCopy, tags)
 	h.calls = append(h.calls, recordedCall{
 		name:      v.GetName(),
 		value:     v.GetValue(),
-		tags:      v.GetTags(),
+		tags:      tagsCopy,
 		host:      v.GetHost(),
 		timestamp: v.GetTimestampUnix(),
 	})
-}
-
-func (c recordedCall) flattenedTags() []string {
-	return c.tags.UnsafeToReadOnlySliceString()
 }
 
 func (h *recordingHandle) ObserveLog(_ observer.LogView) {}
@@ -109,7 +106,7 @@ func TestTimeSamplerObserverHandle(t *testing.T) {
 	require.Len(t, handle.calls, 2)
 	assert.Equal(t, "metric.a", handle.calls[0].name)
 	assert.Equal(t, 1.0, handle.calls[0].value)
-	assert.Equal(t, []string{"env:prod"}, handle.calls[0].flattenedTags())
+	assert.Equal(t, []string{"env:prod"}, handle.calls[0].tags)
 	assert.Equal(t, "host-a", handle.calls[0].host)
 	assert.Equal(t, int64(1000), handle.calls[0].timestamp)
 
@@ -138,7 +135,7 @@ func TestTimeSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 
 	require.Len(t, handle.calls, 1)
 	assert.Equal(t, "host-a", handle.calls[0].host)
-	assert.Equal(t, []string{"service:web"}, handle.calls[0].flattenedTags())
+	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
 }
 
 func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
@@ -188,13 +185,13 @@ func TestSamplerObserverHandleUsesResolvedOriginTags(t *testing.T) {
 
 			resolved := tc.observe(t, setupTagger(t), sample, filterlist.NewNoopTagMatcher())
 			assert.Equal(t, "host-a", resolved.host)
-			assert.ElementsMatch(t, []string{"service:web", "env:prod", "image_name:image", "pod_name:thing1"}, resolved.flattenedTags())
+			assert.ElementsMatch(t, []string{"service:web", "env:prod", "image_name:image", "pod_name:thing1"}, resolved.tags)
 
 			filtered := tc.observe(t, setupTagger(t), sample, filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 				"metric.origin": {Tags: []string{"env", "pod_name"}, Action: "exclude"},
 			}, logmock.New(t)))
 			assert.Equal(t, "host-a", filtered.host)
-			assert.ElementsMatch(t, []string{"service:web", "image_name:image"}, filtered.flattenedTags())
+			assert.ElementsMatch(t, []string{"service:web", "image_name:image"}, filtered.tags)
 		})
 	}
 }
@@ -245,8 +242,8 @@ func TestNoAggStreamWorkerObserverHandleUsesSerializedTags(t *testing.T) {
 	require.Len(mockSerializer.series, 1)
 	require.Len(handle.calls, 1)
 	assert.Equal(t, "host-gauge", handle.calls[0].host)
-	assert.ElementsMatch(t, []string{"tag:1", "tag:2", "env:prod"}, handle.calls[0].flattenedTags())
-	assert.ElementsMatch(t, mockSerializer.series[0].Tags.UnsafeToReadOnlySliceString(), handle.calls[0].flattenedTags())
+	assert.ElementsMatch(t, []string{"tag:1", "tag:2", "env:prod"}, handle.calls[0].tags)
+	assert.ElementsMatch(t, mockSerializer.series[0].Tags.UnsafeToReadOnlySliceString(), handle.calls[0].tags)
 }
 
 // TestTimeSamplerObserverHandleNil verifies no panic when observerHandle is nil.
@@ -350,7 +347,7 @@ func TestCheckSamplerObserverHandle(t *testing.T) {
 	require.Len(t, handle.calls, 2)
 	assert.Equal(t, "system.cpu.user", handle.calls[0].name)
 	assert.Equal(t, 42.0, handle.calls[0].value)
-	assert.Equal(t, []string{"host:myhost"}, handle.calls[0].flattenedTags())
+	assert.Equal(t, []string{"host:myhost"}, handle.calls[0].tags)
 	assert.Equal(t, int64(1000), handle.calls[0].timestamp)
 
 	assert.Equal(t, "system.mem.used", handle.calls[1].name)
@@ -378,7 +375,7 @@ func TestCheckSamplerObserverHandleUsesFilteredTags(t *testing.T) {
 
 	require.Len(t, handle.calls, 1)
 	assert.Equal(t, "host-a", handle.calls[0].host)
-	assert.Equal(t, []string{"service:web"}, handle.calls[0].flattenedTags())
+	assert.Equal(t, []string{"service:web"}, handle.calls[0].tags)
 }
 
 // TestCheckSamplerObserverHandleNil verifies no panic when observerHandle is nil.
