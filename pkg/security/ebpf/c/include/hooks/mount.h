@@ -172,7 +172,8 @@ int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    // unshare_event_t carries no go_labels field, so only the span is filled
+    fill_span_context(&event.span, NULL);
 
     send_event(ctx, EVENT_UNSHARE, event);
     return 0;
