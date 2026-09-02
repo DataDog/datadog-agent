@@ -8,7 +8,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.0
 	github.com/DataDog/datadog-agent/comp/logs-library v0.82.0
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.64.0-devel.0.20250218192636-64fdfe7ec366
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.82.0
@@ -22,8 +21,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/serializer v0.82.0
 	github.com/DataDog/datadog-agent/pkg/trace v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0
-	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
+	github.com/DataDog/datadog-agent/pkg/util/otel v0.82.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.159.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.65.0
 	go.opentelemetry.io/collector/config/confignet v1.65.0
@@ -73,7 +73,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.83.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
@@ -167,7 +167,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.159.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.159.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.159.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect

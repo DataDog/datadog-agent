@@ -56,7 +56,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.83.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.0.0-00010101000000-000000000000 // indirect

@@ -128,7 +128,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/config/schema v0.83.0-devel.0.20260729075015-99ed037f1c29
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0
-	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.83.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.82.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.82.0
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.0.0-00010101000000-000000000000
@@ -187,7 +187,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.81.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.82.0
-	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
+	github.com/DataDog/datadog-agent/pkg/util/otel v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.82.0

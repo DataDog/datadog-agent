@@ -10,12 +10,16 @@ import "github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 // These are re-exported here because `opentelemetry-collector-contrib/pkg/datadog/agentcomponents` still reaches
 // for them through `pkgconfigsetup`. Once OTEL is updated they will be removed.
 const (
+	// DefaultAPIKeyValidationInterval is an alias of constants.DefaultAPIKeyValidationInterval
+	DefaultAPIKeyValidationInterval = constants.DefaultAPIKeyValidationInterval
 	// DefaultAuditorTTL is an alias of constants.DefaultAuditorTTL
 	DefaultAuditorTTL = constants.DefaultAuditorTTL
 	// DefaultBatchMaxContentSize is an alias of constants.DefaultBatchMaxContentSize
 	DefaultBatchMaxContentSize = constants.DefaultBatchMaxContentSize
 	// DefaultBatchMaxSize is an alias of constants.DefaultBatchMaxSize
 	DefaultBatchMaxSize = constants.DefaultBatchMaxSize
+	// DefaultCompressorKind is an alias of constants.DefaultCompressorKind
+	DefaultCompressorKind = constants.DefaultCompressorKind
 	// DefaultForwarderRecoveryInterval is an alias of constants.DefaultForwarderRecoveryInterval
 	DefaultForwarderRecoveryInterval = constants.DefaultForwarderRecoveryInterval
 	// DefaultInputChanSize is an alias of constants.DefaultInputChanSize
@@ -28,4 +32,6 @@ const (
 	DefaultLogsSenderBackoffMax = constants.DefaultLogsSenderBackoffMax
 	// DefaultMaxMessageSizeBytes is an alias of constants.DefaultMaxMessageSizeBytes
 	DefaultMaxMessageSizeBytes = constants.DefaultMaxMessageSizeBytes
+	// DefaultZstdCompressionLevel is an alias of constants.DefaultZstdCompressionLevel
+	DefaultZstdCompressionLevel = constants.DefaultZstdCompressionLevel
 )

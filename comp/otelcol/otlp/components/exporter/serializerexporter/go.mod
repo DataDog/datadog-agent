@@ -11,13 +11,11 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.0
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.82.0
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.82.0
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.82.0
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.0
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.82.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.82.0
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.82.0
-	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.82.0
 	github.com/DataDog/datadog-agent/pkg/metrics v0.82.0
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.83.0-devel.0.20260714134811-fee4bbf7ff73
@@ -30,7 +28,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/http v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0
-	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
+	github.com/DataDog/datadog-agent/pkg/util/otel v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.82.0
 	github.com/google/go-cmp v0.7.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.159.0
@@ -79,6 +77,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.83.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.82.0 // indirect
@@ -126,6 +125,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
+	github.com/google/go-tpm-tools v0.4.8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
