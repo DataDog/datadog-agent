@@ -8,7 +8,9 @@
 package checks
 
 import (
+	"os"
 	"os/user"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -30,7 +32,7 @@ func TestLookupUserWithId(t *testing.T) {
 	}{
 		{
 			name:         "user found",
-			expectedUser: &user.User{Name: "steve"},
+			expectedUser: &user.User{Username: "steve"},
 			ttl:          cache.NoExpiration,
 		},
 		{
@@ -47,7 +49,7 @@ func TestLookupUserWithId(t *testing.T) {
 				t.Helper()
 
 				if tc.expectedUser != nil {
-					assert.Equal(t, tc.expectedUser.Name, u.Name)
+					assert.Equal(t, tc.expectedUser.Username, u.Username)
 				} else {
 					assert.Nil(t, tc.expectedUser)
 				}
@@ -61,7 +63,7 @@ func TestLookupUserWithId(t *testing.T) {
 				assert.True(t, ok)
 				switch v := res.(type) {
 				case *user.User:
-					assert.Equal(t, tc.expectedUser.Name, v.Name)
+					assert.Equal(t, tc.expectedUser.Username, v.Username)
 				case error:
 					assert.ErrorIs(t, v, tc.expectedError)
 				}
@@ -88,8 +90,36 @@ func TestLookupUserWithId(t *testing.T) {
 	}
 }
 
+func TestLookupIDPrefersHostPasswdBeforeCachedFallback(t *testing.T) {
+	dir := t.TempDir()
+	err := os.WriteFile(filepath.Join(dir, "passwd"), []byte("host-user:x:123:123::/:/bin/sh\n"), 0o600)
+	assert.NoError(t, err)
+	t.Setenv("HOST_ETC", dir)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("process_config.cache_lookupid", true)
+	probe := NewLookupIDProbe(cfg)
+	fallbackCalls := 0
+	probe.lookupID = func(uid string) (*user.User, error) {
+		fallbackCalls++
+		return &user.User{Username: "fallback-user", Uid: uid}, nil
+	}
+
+	hostUser, err := probe.LookupID("123")
+	assert.NoError(t, err)
+	assert.Equal(t, "host-user", hostUser.Username)
+	assert.Equal(t, 0, fallbackCalls)
+
+	for range 2 {
+		fallbackUser, err := probe.LookupID("124")
+		assert.NoError(t, err)
+		assert.Equal(t, "fallback-user", fallbackUser.Username)
+	}
+	assert.Equal(t, 1, fallbackCalls)
+}
+
 func TestLookupIDConfigSetting(t *testing.T) {
-	testLookupIDFunc := func(_ string) (*user.User, error) { return &user.User{Name: "jojo"}, nil }
+	testLookupIDFunc := func(_ string) (*user.User, error) { return &user.User{Username: "jojo"}, nil }
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg := configmock.New(t)
@@ -100,7 +130,7 @@ func TestLookupIDConfigSetting(t *testing.T) {
 
 		_, _ = p.LookupID("1234") // testLookupIDFunc should be called and "1234" added to the cache
 		u, ok := p.lookupIDCache.Get("1234")
-		assert.Equal(t, "jojo", u.(*user.User).Name)
+		assert.Equal(t, "jojo", u.(*user.User).Username)
 		assert.True(t, ok)
 	})
 
