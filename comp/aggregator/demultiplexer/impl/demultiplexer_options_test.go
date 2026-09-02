@@ -94,7 +94,7 @@ func (*recordingFinalDogStatsDSerieObserver) ObserveFinalDogStatsDSerie(*metrics
 type noopClientDropDetector struct{}
 
 func (*noopClientDropDetector) CompleteFinalDogStatsDSerieFlush() {}
-func (*noopClientDropDetector) ObserveClientBytes(dogstatsdclientdropdetector.ClientByteMetric, float64) {
+func (*noopClientDropDetector) ObserveClientBytes(string, dogstatsdclientdropdetector.ClientByteMetric, float64) {
 }
 
 func TestCreateAgentDemultiplexerOptionsStoresFinalDogStatsDSerieObservers(t *testing.T) {

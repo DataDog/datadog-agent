@@ -20,22 +20,23 @@ import (
 )
 
 type observedClientBytes struct {
-	metric dogstatsdclientdropdetector.ClientByteMetric
-	bytes  float64
+	clientLibrary string
+	metric        dogstatsdclientdropdetector.ClientByteMetric
+	bytes         float64
 }
 
 type recordingDropDetector struct {
 	observations []observedClientBytes
 }
 
-func (d *recordingDropDetector) ObserveClientBytes(metric dogstatsdclientdropdetector.ClientByteMetric, bytes float64) {
-	d.observations = append(d.observations, observedClientBytes{metric: metric, bytes: bytes})
+func (d *recordingDropDetector) ObserveClientBytes(clientLibrary string, metric dogstatsdclientdropdetector.ClientByteMetric, bytes float64) {
+	d.observations = append(d.observations, observedClientBytes{clientLibrary: clientLibrary, metric: metric, bytes: bytes})
 }
 
 func (*recordingDropDetector) CompleteFinalDogStatsDSerieFlush() {}
 
-func transportTags(transport string) tagset.CompositeTags {
-	return tagset.CompositeTagsFromSlice([]string{"client_transport:" + transport})
+func clientTags(transport, library string) tagset.CompositeTags {
+	return tagset.CompositeTagsFromSlice([]string{"client_transport:" + transport, "client:" + library})
 }
 
 func TestComponentObservesClientByteRateSeries(t *testing.T) {
@@ -159,23 +160,23 @@ func TestComponentSharesOnlyValidUDSClientBytesWithDetector(t *testing.T) {
 	provides := NewComponent(Requires{Telemetry: telemetry, DropDetector: detector})
 
 	for _, serie := range []*metrics.Serie{
-		{Name: dogStatsDClientBytesSentMetric, Tags: transportTags("uds"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 5}}},
-		{Name: dogStatsDClientBytesSentMetric, Tags: transportTags("uds-stream"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 4}}},
-		{Name: dogStatsDClientBytesDroppedMetric, Tags: transportTags("uds"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 1}}},
-		{Name: dogStatsDClientBytesDroppedQueueMetric, Tags: transportTags("uds"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 0.6}}},
-		{Name: dogStatsDClientBytesDroppedWriterMetric, Tags: transportTags("uds"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 0.4}}},
-		{Name: dogStatsDClientBytesSentMetric, Tags: transportTags("uds"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: -1}}},
-		{Name: dogStatsDClientBytesSentMetric, Tags: transportTags("udp"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 100}}},
+		{Name: dogStatsDClientBytesSentMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 5}}},
+		{Name: dogStatsDClientBytesSentMetric, Tags: clientTags("uds-stream", "py"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 4}}},
+		{Name: dogStatsDClientBytesDroppedMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 1}}},
+		{Name: dogStatsDClientBytesDroppedQueueMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 0.6}}},
+		{Name: dogStatsDClientBytesDroppedWriterMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 0.4}}},
+		{Name: dogStatsDClientBytesSentMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: -1}}},
+		{Name: dogStatsDClientBytesSentMetric, Tags: clientTags("udp", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 100}}},
 		{Name: "customer.metric", MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 100}}},
 	} {
 		provides.Observer.ObserveFinalDogStatsDSerie(serie)
 	}
 
 	require.Equal(t, []observedClientBytes{
-		{metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 50},
-		{metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 40},
-		{metric: dogstatsdclientdropdetector.ClientByteMetricDropped, bytes: 10},
-		{metric: dogstatsdclientdropdetector.ClientByteMetricDroppedQueue, bytes: 6},
-		{metric: dogstatsdclientdropdetector.ClientByteMetricDroppedWriter, bytes: 4},
+		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 50},
+		{clientLibrary: "py", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 40},
+		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricDropped, bytes: 10},
+		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricDroppedQueue, bytes: 6},
+		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricDroppedWriter, bytes: 4},
 	}, detector.observations)
 }

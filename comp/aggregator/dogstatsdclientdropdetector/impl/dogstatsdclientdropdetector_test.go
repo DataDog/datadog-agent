@@ -95,6 +95,11 @@ func useTestClock(detector *component) func(time.Duration) {
 }
 
 func completeWindow(detector *component, stats clientByteStats) {
+	observeClientStats(detector, dogstatsdclientdrops.ClientLibraryGo, stats)
+	detector.CompleteFinalDogStatsDSerieFlush()
+}
+
+func observeClientStats(detector *component, library dogstatsdclientdrops.ClientLibrary, stats clientByteStats) {
 	for _, observation := range []struct {
 		metric dogstatsdclientdropdetector.ClientByteMetric
 		bytes  float64
@@ -105,26 +110,13 @@ func completeWindow(detector *component, stats clientByteStats) {
 		{metric: dogstatsdclientdropdetector.ClientByteMetricDroppedWriter, bytes: stats.droppedWriter},
 	} {
 		if observation.bytes > 0 {
-			detector.ObserveClientBytes(observation.metric, observation.bytes)
+			detector.ObserveClientBytes(string(library), observation.metric, observation.bytes)
 		}
 	}
-	detector.CompleteFinalDogStatsDSerieFlush()
 }
 
-func newFailingMigrationComponent(t testing.TB) (*component, *reportErrorHealthPlatform, string, string) {
-	t.Helper()
-	previousID := dogstatsdclientdrops.UDSIssueID + ":97864685c4a5b06a"
-	previousIssue, err := dogstatsdclientdrops.BuildUDSIssue(dogstatsdclientdrops.UDSDetectionContext{Hostname: "previous-node"})
-	require.NoError(t, err)
-	previousIssue.Id = previousID
-	currentID := dogstatsdclientdrops.UDSIssueIDForHost(hostuuid.GetUUID(), testHostname)
-	healthPlatform := &reportErrorHealthPlatform{
-		Mock:      healthplatformmock.New(t, healthplatformmock.WithIssue(previousIssue)),
-		issueID:   currentID,
-		reportErr: errors.New("report failed"),
-	}
-	detector := newTestComponentWithHealthPlatform(t, healthPlatform, testHostname)
-	return detector, healthPlatform, previousID, currentID
+func goClientState(detector *component) *clientState {
+	return detector.clientState(dogstatsdclientdrops.ClientLibraryGo)
 }
 
 func TestDroppedRatioThreshold(t *testing.T) {
@@ -161,13 +153,14 @@ func TestComponentIgnoresWindowBeforeStartupReconciliation(t *testing.T) {
 	}).Comp.(*component)
 
 	completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
-	require.Equal(t, clientByteStats{}, detector.stats)
-	require.False(t, detector.confirmationPending)
-	require.Nil(t, healthPlatform.GetIssue(detector.issueID))
+	state := goClientState(detector)
+	require.Equal(t, clientByteStats{}, state.stats)
+	require.False(t, state.confirmationPending)
+	require.Nil(t, healthPlatform.GetIssue(state.issueID))
 
 	lifecycle.start(t)
 	completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
-	require.True(t, detector.confirmationPending)
+	require.True(t, state.confirmationPending)
 }
 
 func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
@@ -178,7 +171,7 @@ func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
 	unhealthy := clientByteStats{sent: 980, dropped: 20, droppedQueue: 12, droppedWriter: 8}
 	completeWindow(detector, unhealthy)
 
-	issueID := detector.issueID
+	issueID := goClientState(detector).issueID
 	require.Nil(t, healthPlatform.GetIssue(issueID))
 
 	advance(detector.unhealthyConfirmationDuration)
@@ -186,7 +179,7 @@ func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
 
 	issue := healthPlatform.GetIssue(issueID)
 	require.NotNil(t, issue)
-	require.Equal(t, dogstatsdclientdrops.UDSIssueName, issue.IssueName)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueName(dogstatsdclientdrops.ClientLibraryGo), issue.IssueName)
 	require.Contains(t, issue.Title, testHostname)
 	require.Contains(t, issue.Title, "UDS")
 	require.Equal(t, "uds", issue.Extra.GetFields()["transport_family"].GetStringValue())
@@ -214,10 +207,29 @@ func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
 	require.Equal(t, []string{issueID}, healthPlatform.ResolvedIDs())
 }
 
+func TestComponentMaintainsIndependentIssuesPerClientLibrary(t *testing.T) {
+	detector, healthPlatform := newTestComponent(t)
+	advance := useTestClock(detector)
+	goState := detector.clientState(dogstatsdclientdrops.ClientLibraryGo)
+	pythonState := detector.clientState(dogstatsdclientdrops.ClientLibraryPython)
+
+	for range 2 {
+		observeClientStats(detector, dogstatsdclientdrops.ClientLibraryGo, clientByteStats{sent: 98, dropped: 2})
+		observeClientStats(detector, dogstatsdclientdrops.ClientLibraryPython, clientByteStats{sent: 100})
+		detector.CompleteFinalDogStatsDSerieFlush()
+		advance(detector.unhealthyConfirmationDuration)
+	}
+
+	goIssue := healthPlatform.GetIssue(goState.issueID)
+	require.NotNil(t, goIssue)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueName(dogstatsdclientdrops.ClientLibraryGo), goIssue.IssueName)
+	require.Nil(t, healthPlatform.GetIssue(pythonState.issueID))
+}
+
 func TestComponentPendingTransitionsRequireContinuousEvidence(t *testing.T) {
 	detector, healthPlatform := newTestComponent(t)
 	advance := useTestClock(detector)
-	issueID := detector.issueID
+	issueID := goClientState(detector).issueID
 	observe := func(sent, dropped float64) {
 		completeWindow(detector, clientByteStats{sent: sent, dropped: dropped})
 	}
@@ -254,7 +266,7 @@ func TestComponentPendingTransitionsRequireContinuousEvidence(t *testing.T) {
 }
 
 func TestComponentRetriesFailedIssueReport(t *testing.T) {
-	issueID := dogstatsdclientdrops.UDSIssueIDForHost(hostuuid.GetUUID(), testHostname)
+	issueID := dogstatsdclientdrops.UDSIssueIDForHost(dogstatsdclientdrops.ClientLibraryGo, hostuuid.GetUUID(), testHostname)
 	healthPlatform := &reportErrorHealthPlatform{
 		Mock:      healthplatformmock.New(t),
 		issueID:   issueID,
@@ -267,88 +279,23 @@ func TestComponentRetriesFailedIssueReport(t *testing.T) {
 	completeWindow(detector, unhealthy)
 	advance(detector.unhealthyConfirmationDuration)
 	completeWindow(detector, unhealthy)
-	require.False(t, detector.issueActive)
-	require.True(t, detector.confirmationPending)
+	state := goClientState(detector)
+	require.False(t, state.issueActive)
+	require.True(t, state.confirmationPending)
 
 	healthPlatform.reportErr = nil
 	completeWindow(detector, unhealthy)
-	require.True(t, detector.issueActive)
-	require.False(t, detector.confirmationPending)
+	require.True(t, state.issueActive)
+	require.False(t, state.confirmationPending)
 }
 
 func TestComponentReconcilesPersistedIssueState(t *testing.T) {
-	t.Run("migrates an active issue from a stale host identity", func(t *testing.T) {
-		healthPlatform := healthplatformmock.New(t)
-		previousID := dogstatsdclientdrops.UDSIssueID + ":97864685c4a5b06a"
-		previousIssue, err := dogstatsdclientdrops.BuildUDSIssue(dogstatsdclientdrops.UDSDetectionContext{Hostname: "previous-node"})
-		require.NoError(t, err)
-		previousIssue.Id = previousID
-		require.NoError(t, healthPlatform.ReportIssue(previousIssue))
-
-		detector := newTestComponentWithHealthPlatform(t, healthPlatform, testHostname)
-		currentID := detector.issueID
-		restoredIssue := healthPlatform.GetIssue(currentID)
-		require.NotNil(t, restoredIssue)
-		require.Contains(t, restoredIssue.Description, "awaiting current client telemetry")
-		require.False(t, restoredIssue.Extra.GetFields()["detection_evidence_available"].GetBoolValue())
-		require.Equal(t, []string{previousID}, healthPlatform.ResolvedIDs())
-		require.True(t, detector.issueNeedsRefresh)
-
-		completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
-
-		currentIssue := healthPlatform.GetIssue(currentID)
-		require.NotNil(t, currentIssue)
-		require.Contains(t, currentIssue.Description, "2.0000%")
-		require.Contains(t, currentIssue.Description, "unclassified=2.00")
-		require.True(t, currentIssue.Extra.GetFields()["detection_evidence_available"].GetBoolValue())
-		require.Equal(t, []string{previousID}, healthPlatform.ResolvedIDs())
-		require.False(t, detector.issueNeedsRefresh)
-	})
-
-	t.Run("retries a failed migration with unhealthy telemetry", func(t *testing.T) {
-		detector, healthPlatform, previousID, currentID := newFailingMigrationComponent(t)
-		require.True(t, detector.issueActive)
-		require.True(t, detector.issueNeedsRefresh)
-		require.Equal(t, []string{previousID}, detector.staleIssueIDs)
-		require.NotNil(t, healthPlatform.GetIssue(previousID))
-		require.Nil(t, healthPlatform.GetIssue(currentID))
-		require.Empty(t, healthPlatform.ResolvedIDs())
-
-		healthPlatform.reportErr = nil
-		completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
-		require.NotNil(t, healthPlatform.GetIssue(currentID))
-		require.Nil(t, healthPlatform.GetIssue(previousID))
-		require.Equal(t, []string{previousID}, healthPlatform.ResolvedIDs())
-		require.Empty(t, detector.staleIssueIDs)
-		require.False(t, detector.issueNeedsRefresh)
-	})
-
-	t.Run("resolves a stale issue after continuous healthy recovery", func(t *testing.T) {
-		detector, healthPlatform, previousID, currentID := newFailingMigrationComponent(t)
-		advance := useTestClock(detector)
-
-		completeWindow(detector, clientByteStats{sent: 100})
-		advance(detector.recoveryConfirmationDuration)
-		completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
-		completeWindow(detector, clientByteStats{sent: 100})
-		require.NotNil(t, healthPlatform.GetIssue(previousID))
-
-		advance(detector.recoveryConfirmationDuration)
-		completeWindow(detector, clientByteStats{sent: 100})
-
-		require.Nil(t, healthPlatform.GetIssue(previousID))
-		require.Nil(t, healthPlatform.GetIssue(currentID))
-		require.Contains(t, healthPlatform.ResolvedIDs(), previousID)
-		require.Empty(t, detector.staleIssueIDs)
-		require.False(t, detector.issueActive)
-	})
-
 	t.Run("rehydrates persisted-only issue before receiving telemetry", func(t *testing.T) {
-		issueID := dogstatsdclientdrops.UDSIssueIDForHost(hostuuid.GetUUID(), testHostname)
+		issueID := dogstatsdclientdrops.UDSIssueIDForHost(dogstatsdclientdrops.ClientLibraryGo, hostuuid.GetUUID(), testHostname)
 		baseStore := healthplatformmock.New(t)
 		healthPlatform := &persistedOnlyHealthPlatform{
 			Mock:         baseStore,
-			activeByName: map[string][]string{dogstatsdclientdrops.UDSIssueName: {issueID}},
+			activeByName: map[string][]string{dogstatsdclientdrops.UDSIssueName(dogstatsdclientdrops.ClientLibraryGo): {issueID}},
 		}
 
 		detector := newTestComponentWithHealthPlatform(t, healthPlatform, testHostname)
@@ -356,8 +303,9 @@ func TestComponentReconcilesPersistedIssueState(t *testing.T) {
 		require.NotNil(t, restoredIssue)
 		require.Contains(t, restoredIssue.Description, "awaiting current client telemetry")
 		require.False(t, restoredIssue.Extra.GetFields()["detection_evidence_available"].GetBoolValue())
-		require.True(t, detector.issueActive)
-		require.True(t, detector.issueNeedsRefresh)
+		state := goClientState(detector)
+		require.True(t, state.issueActive)
+		require.True(t, state.issueNeedsRefresh)
 
 		advance := useTestClock(detector)
 		completeWindow(detector, clientByteStats{sent: 100})

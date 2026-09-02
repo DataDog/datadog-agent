@@ -348,7 +348,7 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 
 	require.Len(t, deps.Observers, 1)
 	observer := deps.Observers[0]
-	tags := tagset.CompositeTagsFromSlice([]string{"client_transport:uds"})
+	tags := tagset.CompositeTagsFromSlice([]string{"client_transport:uds", "client:go"})
 	completeWindow := func(sent, dropped, queue, writer float64) {
 		for _, metric := range []struct {
 			name  string
@@ -375,7 +375,7 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 		if err != nil {
 			return nil
 		}
-		issueID := dogstatsdclientdrops.UDSIssueIDForHost(hostuuid.GetUUID(), "my-hostname")
+		issueID := dogstatsdclientdrops.UDSIssueIDForHost(dogstatsdclientdrops.ClientLibraryGo, hostuuid.GetUUID(), "my-hostname")
 		for _, payload := range payloads {
 			issue := payload.Issues[issueID]
 			if issue != nil && issue.PersistedIssue != nil && issue.PersistedIssue.State == state {
@@ -392,9 +392,9 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 		active = findIssue(healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE)
 		return active != nil
 	}, 2*time.Second, 10*time.Millisecond)
-	require.Equal(t, dogstatsdclientdrops.UDSIssueIDForHost(hostuuid.GetUUID(), "my-hostname"), active.Id)
-	require.Equal(t, dogstatsdclientdrops.UDSIssueName, active.IssueName)
-	require.Equal(t, dogstatsdclientdrops.UDSIssueType, active.IssueType)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueIDForHost(dogstatsdclientdrops.ClientLibraryGo, hostuuid.GetUUID(), "my-hostname"), active.Id)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueName(dogstatsdclientdrops.ClientLibraryGo), active.IssueName)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueType(dogstatsdclientdrops.ClientLibraryGo), active.IssueType)
 	require.Contains(t, active.Title, "UDS")
 	require.Contains(t, active.Title, "my-hostname")
 	require.Equal(t, "uds", active.Extra.GetFields()["transport_family"].GetStringValue())
@@ -412,8 +412,8 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 		return findIssue(healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) != nil
 	}, 2*time.Second, 10*time.Millisecond)
 	resolved := findIssue(healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED)
-	require.Equal(t, dogstatsdclientdrops.UDSIssueName, resolved.IssueName)
-	require.Equal(t, dogstatsdclientdrops.UDSIssueType, resolved.IssueType)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueName(dogstatsdclientdrops.ClientLibraryGo), resolved.IssueName)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueType(dogstatsdclientdrops.ClientLibraryGo), resolved.IssueType)
 }
 
 // TestAllModulesIssueNameMatchesBuiltIssueName guards the invariant that
