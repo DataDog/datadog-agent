@@ -7,7 +7,6 @@ package resolver
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,21 +45,19 @@ func (r *fakeSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 }
 
 func TestResolveConnectionInfoToCredentialConnectionTokensV2(t *testing.T) {
-	t.Setenv("PAR_DATABASE_PASSWORD", "resolved-password")
-	t.Setenv("PAR_DATABASE_URL", "https://database.example.com")
 	connInfo := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
 		TokensV2: []*privateactionspb.ConnectionTokenV2{
 			newV2PlainTextToken([]string{privateconnection.RootTokenGroupName, "username"}, "database-user"),
-			newV2EnvironmentVariableToken([]string{privateconnection.RootTokenGroupName, "password"}, "PAR_DATABASE_PASSWORD"),
-			newV2EnvironmentVariableToken([]string{http.BaseUrlTokenName}, "PAR_DATABASE_URL"),
+			newV2PlainTextToken([]string{privateconnection.RootTokenGroupName, "password"}, "database-password"),
+			newV2PlainTextToken([]string{http.BaseUrlTokenName}, "https://database.example.com"),
 		},
 	}
 	want := &privateconnection.PrivateCredentials{
 		Type: privateconnection.TokenAuthType,
 		Tokens: []privateconnection.PrivateCredentialsToken{
 			{Name: "username", Value: "database-user"},
-			{Name: "password", Value: "resolved-password"},
+			{Name: "password", Value: "database-password"},
 		},
 		HttpDetails: privateconnection.HttpDetails{
 			BaseURL:       "https://database.example.com",
@@ -69,24 +66,9 @@ func TestResolveConnectionInfoToCredentialConnectionTokensV2(t *testing.T) {
 		},
 	}
 
-	got, err := NewPrivateCredentialResolver(nil).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
+	got, err := NewPrivateCredentialResolver(nil, true).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
-}
-
-func TestResolveConnectionInfoToCredentialConnectionTokensV2MissingEnvironmentVariable(t *testing.T) {
-	name := "PAR_ENVIRONMENT_VARIABLE_THAT_IS_NOT_SET"
-	require.NoError(t, os.Unsetenv(name))
-	connInfo := &privateactionspb.ConnectionInfo{
-		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
-		TokensV2: []*privateactionspb.ConnectionTokenV2{
-			newV2EnvironmentVariableToken([]string{privateconnection.RootTokenGroupName, "password"}, name),
-		},
-	}
-
-	got, err := NewPrivateCredentialResolver(nil).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
-	assert.Nil(t, got)
-	assert.EqualError(t, err, "environment variable \"PAR_ENVIRONMENT_VARIABLE_THAT_IS_NOT_SET\" for connection token \"password\" is not set")
 }
 
 func TestResolveConnectionInfoToCredentialConnectionTokensV2DatadogAgentSecrets(t *testing.T) {
@@ -103,7 +85,7 @@ func TestResolveConnectionInfoToCredentialConnectionTokensV2DatadogAgentSecrets(
 		},
 	}
 
-	got, err := NewPrivateCredentialResolver(secretResolver).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
+	got, err := NewPrivateCredentialResolver(secretResolver, true).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"password": "resolved-password"}, got.AsTokenMap())
 	assert.Equal(t, []privateconnection.PrivateCredentialsToken{{Name: "X-API-Key", Value: "resolved-api-key"}}, got.HttpDetails.Headers)
@@ -122,9 +104,26 @@ func TestResolveConnectionInfoToCredentialConnectionTokensV2RejectsUnavailableSe
 		},
 	}
 
-	got, err := NewPrivateCredentialResolver(nil).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
+	got, err := NewPrivateCredentialResolver(nil, true).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
 	assert.Nil(t, got)
 	assert.EqualError(t, err, "could not resolve Datadog Agent secrets: Datadog Agent secret resolver is unavailable")
+}
+
+func TestResolveConnectionInfoToCredentialConnectionTokensV2RejectsDisabledSecretManagement(t *testing.T) {
+	secretResolver := &fakeSecretResolver{values: map[string]string{
+		"ENC[database_password]": "resolved-password",
+	}}
+	connInfo := &privateactionspb.ConnectionInfo{
+		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
+		TokensV2: []*privateactionspb.ConnectionTokenV2{
+			newV2DatadogAgentSecretToken([]string{privateconnection.RootTokenGroupName, "password"}, "ENC[database_password]"),
+		},
+	}
+
+	got, err := NewPrivateCredentialResolver(secretResolver, false).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
+	assert.Nil(t, got)
+	assert.EqualError(t, err, "could not resolve Datadog Agent secrets: Datadog Agent secret management is disabled")
+	assert.Zero(t, secretResolver.calls)
 }
 
 func TestResolveConnectionInfoToCredentialConnectionTokensV2RejectsUnresolvedSecret(t *testing.T) {
@@ -135,7 +134,7 @@ func TestResolveConnectionInfoToCredentialConnectionTokensV2RejectsUnresolvedSec
 		},
 	}
 
-	got, err := NewPrivateCredentialResolver(&fakeSecretResolver{passthrough: true}).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
+	got, err := NewPrivateCredentialResolver(&fakeSecretResolver{passthrough: true}, true).ResolveConnectionInfoToCredential(context.Background(), connInfo, nil)
 	assert.Nil(t, got)
 	assert.EqualError(t, err, "could not resolve Datadog Agent secrets: secret handle \"ENC[database_password]\" was not resolved")
 }
@@ -145,15 +144,6 @@ func newV2PlainTextToken(nameSegments []string, value string) *privateactionspb.
 		NameSegments: nameSegments,
 		Source: &privateactionspb.ConnectionTokenV2_PlainText_{
 			PlainText: &privateactionspb.ConnectionTokenV2_PlainText{Value: value},
-		},
-	}
-}
-
-func newV2EnvironmentVariableToken(nameSegments []string, name string) *privateactionspb.ConnectionTokenV2 {
-	return &privateactionspb.ConnectionTokenV2{
-		NameSegments: nameSegments,
-		Source: &privateactionspb.ConnectionTokenV2_EnvironmentVariable_{
-			EnvironmentVariable: &privateactionspb.ConnectionTokenV2_EnvironmentVariable{Name: name},
 		},
 	}
 }

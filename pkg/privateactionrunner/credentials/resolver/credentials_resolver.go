@@ -36,7 +36,8 @@ type SecretResolver interface {
 }
 
 type privateCredentialResolver struct {
-	secretResolver SecretResolver
+	secretResolver          SecretResolver
+	secretManagementEnabled bool
 }
 
 type PrivateConnectionConfig struct {
@@ -51,8 +52,11 @@ type Credential struct {
 	Password   string `json:"password,omitempty"`
 }
 
-func NewPrivateCredentialResolver(secretResolver SecretResolver) PrivateCredentialResolver {
-	return &privateCredentialResolver{secretResolver: secretResolver}
+func NewPrivateCredentialResolver(secretResolver SecretResolver, secretManagementEnabled bool) PrivateCredentialResolver {
+	return &privateCredentialResolver{
+		secretResolver:          secretResolver,
+		secretManagementEnabled: secretManagementEnabled,
+	}
 }
 
 func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, connInfo *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
@@ -116,13 +120,6 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 		switch source := token.GetSource().(type) {
 		case *privateactionspb.ConnectionTokenV2_PlainText_:
 			resolvedValues[i] = source.PlainText.GetValue()
-		case *privateactionspb.ConnectionTokenV2_EnvironmentVariable_:
-			name := source.EnvironmentVariable.GetName()
-			value, ok := os.LookupEnv(name)
-			if !ok {
-				return nil, fmt.Errorf("environment variable %q for connection token %q is not set", name, tokenName)
-			}
-			resolvedValues[i] = value
 		case *privateactionspb.ConnectionTokenV2_DatadogAgentSecret_:
 			handle := source.DatadogAgentSecret.GetHandle()
 			if handle == "" {
@@ -153,6 +150,9 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 }
 
 func (p *privateCredentialResolver) resolveAgentSecrets(handles []string, connectionID string) ([]string, error) {
+	if !p.secretManagementEnabled {
+		return nil, errors.New("Datadog Agent secret management is disabled")
+	}
 	if p.secretResolver == nil {
 		return nil, errors.New("Datadog Agent secret resolver is unavailable")
 	}

@@ -115,16 +115,11 @@ message ConnectionTokenV2 {
 
   oneof source {
     PlainText plain_text = 2;
-    EnvironmentVariable environment_variable = 3;
     DatadogAgentSecret datadog_agent_secret = 4;
   }
 
   message PlainText {
     string value = 1;
-  }
-
-  message EnvironmentVariable {
-    string name = 1;
   }
 
   message DatadogAgentSecret {
