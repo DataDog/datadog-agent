@@ -29,10 +29,7 @@ import (
 // reportReasonStartup marks the primary synchronous on-start submission. It is
 // telemetry-only downstream (a bounded metric dimension) and not persisted.
 const reportReasonStartup = "startup"
-
-// serverlessFieldPrefix is applied uniformly to every serverless-specific key
-// in agent_metadata.
-const serverlessFieldPrefix = "serverless_"
+const reportReasonPeriodic = "periodic"
 
 // serverlessInitFlavor is the payload flavor emitted by serverless-init. It is
 // injected only into the payload (via Set below), not the process-global flavor
@@ -59,7 +56,7 @@ func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf 
 		return
 	}
 	for key, value := range buildFields(cs, modeConf, conf, tags) {
-		ia.Set(serverlessFieldPrefix+key, value)
+		ia.Set(key, value)
 	}
 	ia.Set("flavor", serverlessInitFlavor)
 }
@@ -71,6 +68,7 @@ func Submit(ia inventoryagent.Component, conf configmodel.Reader) {
 		return
 	}
 	ia.Submit()
+	ia.Set("report_reason", reportReasonPeriodic)
 }
 
 // SetDeploymentID sets the deployment_id serverless field, for platforms that
@@ -80,7 +78,7 @@ func SetDeploymentID(ia inventoryagent.Component, conf configmodel.Reader, id st
 	if !conf.GetBool("serverless.inventory_enabled") {
 		return
 	}
-	ia.Set(serverlessFieldPrefix+"deployment_id", id)
+	ia.Set("deployment_id", id)
 }
 
 // buildFields flattens the per-platform inventory data and process-level
@@ -107,6 +105,7 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 
 		"region":                inv.Region,
 		"gcp_project_id":        inv.GCPProjectID,
+		"aws_account_id":        inv.AWSAccountID,
 		"azure_subscription_id": inv.AzureSubscriptionID,
 		"azure_resource_group":  inv.AzureResourceGroup,
 
