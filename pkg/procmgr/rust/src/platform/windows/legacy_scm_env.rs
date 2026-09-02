@@ -36,7 +36,10 @@ fn core_agent_scm_env_map() -> std::sync::MutexGuard<'static, Option<HashMap<Str
     guard
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
+#[cfg(any(
+    procmgr_pr_all,
+    procmgr_pr_platform_windows_legacy_scm_env,
+))]
 pub(crate) fn refresh_core_agent_scm_environment() {
     let mut guard = CORE_AGENT_SCM_ENV.lock().expect("core agent scm env lock");
     *guard = Some(load_core_agent_scm_environment());
