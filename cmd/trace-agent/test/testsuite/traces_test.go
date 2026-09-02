@@ -304,9 +304,9 @@ func tracesEqual(from pb.Trace, toStrings []string, to *idx.TraceChunk) bool {
 		return false
 	}
 	// The trace ID is carried at the chunk level in the idx format; its low 64
-	// bits are the legacy uint64 trace ID.
-	if len(from) > 0 && len(to.TraceID) == 16 {
-		if from[0].TraceID != binary.BigEndian.Uint64(to.TraceID[8:]) {
+	// bits are the legacy uint64 trace ID. All trace IDs should be padded to a full 16 bytes.
+	if len(from) > 0 {
+		if len(to.TraceID) != 16 || from[0].TraceID != binary.BigEndian.Uint64(to.TraceID[8:]) {
 			return false
 		}
 	}
