@@ -8,7 +8,11 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"os/user"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"testing"
@@ -23,10 +27,39 @@ import (
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+func TestFormatUserUsesHostPasswdAndPreservesUnresolvedName(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "passwd"), []byte("host-user:x:432:543::/:/bin/sh\n"), 0o600))
+	t.Setenv("HOST_ETC", dir)
+
+	cfg := configmock.New(t)
+	probe := NewLookupIDProbe(cfg)
+	probe.lookupID = func(string) (*user.User, error) { return nil, errors.New("unknown user") }
+
+	resolved := formatUser(&procutil.Process{Uids: []int32{432}, Gids: []int32{543}}, probe)
+	assert.Equal(t, "host-user", resolved.Name)
+	assert.Equal(t, int32(432), resolved.Uid)
+	assert.Equal(t, int32(543), resolved.Gid)
+
+	unresolved := formatUser(&procutil.Process{Uids: []int32{433}}, probe)
+	assert.Empty(t, unresolved.Name)
+	assert.Equal(t, int32(433), unresolved.Uid)
+}
+
+func TestFormatUserNilProbeIsHostAware(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "passwd"), []byte("nil-probe-user:x:434:434::/:/bin/sh\n"), 0o600))
+	t.Setenv("HOST_ETC", dir)
+
+	resolved := formatUser(&procutil.Process{Uids: []int32{434}}, nil)
+	assert.Equal(t, "nil-probe-user", resolved.Name)
+}
 
 func makeContainer(id string) *model.Container {
 	return &model.Container{

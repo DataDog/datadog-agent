@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Process collection now resolves host usernames from
+    ``${HOST_ETC}/passwd`` before consulting the Agent container's user
+    database. This preserves correct host usernames when a host UID collides
+    with an account in the Agent image, while retaining existing fallbacks
+    when the host passwd file is unavailable.
