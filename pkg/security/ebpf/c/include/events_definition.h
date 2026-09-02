@@ -353,6 +353,7 @@ struct unshare_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
