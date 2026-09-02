@@ -5425,6 +5425,8 @@ Clone flags are the supported namespace flags for the unshare syscall.
 | `CLONE_FS` | all |
 | `CLONE_SYSVSEM` | all |
 | `CLONE_THREAD` | all |
+| `CLONE_SIGHAND` | all |
+| `CLONE_VM` | all |
 
 ### `CompressionType` {#compressiontype}
 Compression algorithm.

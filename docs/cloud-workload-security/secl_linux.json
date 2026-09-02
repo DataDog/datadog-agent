@@ -18592,6 +18592,14 @@
         {
           "name": "CLONE_THREAD",
           "architecture": "all"
+        },
+        {
+          "name": "CLONE_SIGHAND",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_VM",
+          "architecture": "all"
         }
       ]
     },

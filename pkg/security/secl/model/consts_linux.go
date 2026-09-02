@@ -874,6 +874,8 @@ var (
 		"CLONE_FS":        unix.CLONE_FS,
 		"CLONE_SYSVSEM":   unix.CLONE_SYSVSEM,
 		"CLONE_THREAD":    unix.CLONE_THREAD,
+		"CLONE_SIGHAND":   unix.CLONE_SIGHAND,
+		"CLONE_VM":        unix.CLONE_VM,
 	}
 
 	// RlimitConstants are the supported resource limit types for setrlimit
