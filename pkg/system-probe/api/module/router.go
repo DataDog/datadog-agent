@@ -12,7 +12,8 @@ import (
 	"sync/atomic"
 )
 
-// Router provides a wrapper around http.ServeMux so routes can be re-registered.
+// Router wraps an http.ServeMux to attach per-module pprof labels and to
+// disable a module's routes (returning 404) once Unregister is called at shutdown.
 type Router struct {
 	router     *http.ServeMux
 	labels     pprof.LabelSet
