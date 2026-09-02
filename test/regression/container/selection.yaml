@@ -1,0 +1,17 @@
+# SMP regression experiment selection policy.
+#
+# Trigger buckets -> experiments, UNIONED: an experiment runs if it matches `always`, OR it is under a
+# `codeowners` team that is involved in the PR, OR any applied label lists it.
+#
+# Experiments are discovered by a recursive walk of this directory: any folder containing an
+# experiment.yaml is an experiment (at any depth). Entries are standard globs (`*` = one path segment,
+# `**` = any depth) matched against experiment paths relative to this directory (test/regression/container),
+# or an exact path, or a bare experiment name (unique across the whole dir, compared case-insensitively).
+# `codeowners` maps a team slug to the experiments that run when that team is involved; `labels` maps
+# `smp/<label>` to the experiments that run when the label is applied. Every experiment must be in some
+# bucket (`smp experiments resolve` fails otherwise). ebpf is a separate lane (test/regression/ebpf),
+# physically outside this directory, and is not part of this manifest.
+
+always:
+  - quality_gates/**
+  - metrics/**
