@@ -52,6 +52,10 @@ use windows_sys::Win32::System::Threading::{
 };
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
+static SERVICE_STOP_SIGNAL_TIME: OnceLock<std::time::Instant> = OnceLock::new();
+
+const SCM_STOP_WAIT_HINT: std::time::Duration = std::time::Duration::from_secs(180);
+const EXIT_GATE: std::time::Duration = std::time::Duration::from_secs(5);
 
 static CONSOLE_LOCK: Mutex<()> = Mutex::new(());
 
@@ -61,6 +65,21 @@ pub(crate) fn console_lock() -> std::sync::MutexGuard<'static, ()> {
 
 pub fn shutdown_notify() -> &'static Notify {
     SHUTDOWN_NOTIFY.get_or_init(Notify::new)
+}
+
+/// Record when SCM delivered STOP/SHUTDOWN/PRESHUTDOWN (before async teardown).
+pub(crate) fn record_service_stop_signal() {
+    let _ = SERVICE_STOP_SIGNAL_TIME.set(std::time::Instant::now());
+}
+
+/// Time SCM stop was signaled, if this process is stopping as a Windows service.
+pub(crate) fn service_stop_signal_time() -> Option<std::time::Instant> {
+    SERVICE_STOP_SIGNAL_TIME.get().copied()
+}
+
+/// Deadline for ordered child shutdown after an SCM stop signal.
+pub(crate) fn service_shutdown_deadline(signal_time: std::time::Instant) -> std::time::Instant {
+    signal_time + SCM_STOP_WAIT_HINT.saturating_sub(EXIT_GATE)
 }
 
 pub struct JobObject {
@@ -152,6 +171,10 @@ impl JobObject {
             }
             Ok(info.ActiveProcesses)
         }
+    }
+
+    pub(crate) fn may_have_active_members(&self) -> bool {
+        !matches!(self.active_process_count(), Ok(0))
     }
 
     pub fn wait_until_empty(&self, timeout: std::time::Duration) -> bool {

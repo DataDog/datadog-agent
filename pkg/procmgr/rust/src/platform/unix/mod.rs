@@ -104,3 +104,7 @@ pub async fn shutdown_signal() {
         _ = sigint.recv() => { log::info!("received SIGINT"); }
     }
 }
+
+pub(crate) fn service_stop_signal_time() -> Option<std::time::Instant> {
+    None
+}

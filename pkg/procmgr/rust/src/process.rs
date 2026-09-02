@@ -6,7 +6,10 @@
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::expand_env_vars;
 use crate::handle::ProcessHandle;
+#[cfg(windows)]
+use crate::handle::ProcessWaitControl;
 use crate::platform;
+use crate::shutdown::ShutdownBudget;
 use crate::spawn::{SpawnProfile, profile_for};
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
@@ -105,6 +108,8 @@ pub struct ManagedProcess {
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
     user_profile: Option<platform::UserProfileGuard>,
+    #[cfg(windows)]
+    wait_control: Option<std::sync::Arc<ProcessWaitControl>>,
 }
 
 impl ManagedProcess {
@@ -140,6 +145,8 @@ impl ManagedProcess {
             job_object: None,
             #[cfg(windows)]
             user_profile: None,
+            #[cfg(windows)]
+            wait_control: None,
         }
     }
 
@@ -181,6 +188,85 @@ impl ManagedProcess {
     pub(crate) fn clear_windows_spawn_resources(&mut self) {
         self.job_object = None;
         self.user_profile = None;
+        self.wait_control = None;
+    }
+
+    #[cfg(windows)]
+    fn cancel_process_wait(&self) {
+        if let Some(wait_control) = &self.wait_control {
+            wait_control.cancel();
+        }
+    }
+
+    #[cfg(windows)]
+    fn prepare_windows_spawn_resource_release(&mut self) {
+        let Some(job) = self.job_object.as_ref() else {
+            self.user_profile = None;
+            return;
+        };
+        match job.active_process_count() {
+            Ok(0) => self.clear_windows_spawn_resources(),
+            Ok(_) => info!(
+                "[{}] job still has active members; waiting before releasing profile",
+                self.name
+            ),
+            Err(e) => {
+                warn!(
+                    "[{}] failed to query job active processes: {e:#}; retaining job resources for cleanup",
+                    self.name
+                );
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    pub(crate) async fn ensure_windows_spawn_resources_released(&mut self, budget: ShutdownBudget) {
+        let Some(job) = self.job_object.as_ref() else {
+            self.user_profile = None;
+            return;
+        };
+        if job.may_have_active_members() {
+            if let Err(e) = job.terminate() {
+                warn!(
+                    "[{}] failed to terminate residual job members: {e:#}",
+                    self.name
+                );
+            }
+            let job_timeout = budget.remaining_cap(Self::FORCE_KILL_TIMEOUT);
+            if job_timeout.is_zero() {
+                warn!(
+                    "[{}] shutdown deadline reached; releasing profile without waiting for job drain",
+                    self.name
+                );
+            } else if !Self::wait_for_job_empty(job, job_timeout).await {
+                warn!(
+                    "[{}] timed out waiting for job members to exit before releasing profile",
+                    self.name
+                );
+            }
+        }
+        self.clear_windows_spawn_resources();
+    }
+
+    #[cfg(windows)]
+    async fn wait_for_job_empty(job: &platform::JobObject, timeout: Duration) -> bool {
+        const POLL_INTERVAL: Duration = Duration::from_millis(100);
+        let deadline = Instant::now() + timeout;
+        loop {
+            match job.active_process_count() {
+                Ok(0) => return true,
+                Ok(_) => {
+                    if Instant::now() >= deadline {
+                        return matches!(job.active_process_count(), Ok(0));
+                    }
+                    time::sleep(
+                        POLL_INTERVAL.min(deadline.saturating_duration_since(Instant::now())),
+                    )
+                    .await;
+                }
+                Err(_) => return false,
+            }
+        }
     }
 
     pub fn profile(&self) -> SpawnProfile {
@@ -266,6 +352,10 @@ impl ManagedProcess {
         let handle = platform::spawn_child_handle(self)?;
 
         self.pid = handle.id();
+        #[cfg(windows)]
+        {
+            self.wait_control = Some(handle.wait_control());
+        }
         info!(
             "[{}] spawned (pid={}, cmd={})",
             self.name,
@@ -306,7 +396,10 @@ impl ManagedProcess {
         self.last_exit_status = Some(status);
         self.pid = None;
         #[cfg(windows)]
-        self.clear_windows_spawn_resources();
+        {
+            self.prepare_windows_spawn_resource_release();
+            self.wait_control = None;
+        }
         if self.stop_requested {
             self.stop_requested = false;
             self.transition_to(ProcessState::Stopped);
@@ -347,7 +440,7 @@ impl ManagedProcess {
             if let Err(e) = job.terminate() {
                 warn!("[{}] job object terminate failed: {e}", self.name);
             } else {
-                self.clear_windows_spawn_resources();
+                // Job terminate is async; keep job/profile until exit is observed.
                 return;
             }
         }
@@ -394,10 +487,17 @@ impl ManagedProcess {
     /// Wait for the process to stop after a graceful-stop signal has been sent.
     /// Escalates to force-kill if the process doesn't exit within `stop_timeout`.
     pub async fn wait_for_stop(&mut self) {
+        self.wait_for_stop_since(ShutdownBudget::unlimited(std::time::Instant::now()))
+            .await;
+    }
+
+    pub(crate) async fn wait_for_stop_since(&mut self, budget: ShutdownBudget) {
         if !self.is_running() {
+            #[cfg(windows)]
+            self.ensure_windows_spawn_resources_released(budget).await;
             return;
         }
-        let stop = self.stop_timeout();
+        let stop = budget.graceful_budget(self.stop_timeout());
         if let Some(handle) = self.take_watcher_handle() {
             tokio::pin!(handle);
             if time::timeout(stop, &mut handle).await.is_err() {
@@ -407,11 +507,21 @@ impl ManagedProcess {
                     stop.as_secs()
                 );
                 self.force_kill();
-                if time::timeout(Self::FORCE_KILL_TIMEOUT, handle)
-                    .await
-                    .is_err()
-                {
+                let force_timeout = budget.remaining_cap(Self::FORCE_KILL_TIMEOUT);
+                if force_timeout.is_zero() {
+                    warn!(
+                        "[{}] shutdown deadline reached; skipping force-kill wait",
+                        self.name
+                    );
+                    #[cfg(windows)]
+                    self.cancel_process_wait();
+                } else if time::timeout(force_timeout, handle).await.is_err() {
                     warn!("[{}] still running after force-kill, giving up", self.name);
+                    #[cfg(windows)]
+                    {
+                        self.cancel_process_wait();
+                        let _ = time::timeout(Duration::from_secs(1), handle).await;
+                    }
                 }
             }
         } else if self.has_child_handle() && time::timeout(stop, self.wait()).await.is_err() {
@@ -421,14 +531,23 @@ impl ManagedProcess {
                 stop.as_secs()
             );
             self.force_kill();
-            if time::timeout(Self::FORCE_KILL_TIMEOUT, self.wait())
-                .await
-                .is_err()
-            {
+            let force_timeout = budget.remaining_cap(Self::FORCE_KILL_TIMEOUT);
+            if force_timeout.is_zero() {
+                warn!(
+                    "[{}] shutdown deadline reached; skipping force-kill wait",
+                    self.name
+                );
+                #[cfg(windows)]
+                self.cancel_process_wait();
+            } else if time::timeout(force_timeout, self.wait()).await.is_err() {
                 warn!("[{}] still running after force-kill, giving up", self.name);
+                #[cfg(windows)]
+                self.cancel_process_wait();
             }
         }
         self.mark_stopped();
+        #[cfg(windows)]
+        self.ensure_windows_spawn_resources_released(budget).await;
     }
 
     fn mark_stopped(&mut self) {
@@ -436,7 +555,10 @@ impl ManagedProcess {
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
         #[cfg(windows)]
-        self.clear_windows_spawn_resources();
+        {
+            self.cancel_process_wait();
+            self.wait_control = None;
+        }
     }
 
     #[cfg(test)]

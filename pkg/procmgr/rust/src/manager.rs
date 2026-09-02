@@ -158,6 +158,11 @@ impl ProcessManager {
         }
         info!("[{}] exited with {}", proc.name(), event.status);
         proc.set_last_status(event.status);
+        #[cfg(windows)]
+        proc.ensure_windows_spawn_resources_released(crate::shutdown::ShutdownBudget::unlimited(
+            std::time::Instant::now(),
+        ))
+        .await;
         if let Some(delay) = proc.handle_restart() {
             let tx = restart_tx.clone();
             let name = event.name.clone();
@@ -428,14 +433,24 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
         let name = proc.name().to_owned();
         let pid = proc.pid().unwrap_or(0);
         let watcher_handle = tokio::spawn(async move {
+            #[cfg(windows)]
+            let wait_control = handle.wait_control();
             let status = match handle.wait().await {
                 Ok(status) => status,
                 Err(e) => {
+                    #[cfg(windows)]
+                    if wait_control.is_cancelled() {
+                        return;
+                    }
                     warn!("[{name}] wait error: {e}, killing process");
                     let _ = handle.kill().await;
                     match handle.wait().await {
                         Ok(s) => s,
                         Err(e2) => {
+                            #[cfg(windows)]
+                            if wait_control.is_cancelled() {
+                                return;
+                            }
                             warn!("[{name}] failed to reap after kill: {e2}");
                             return;
                         }
