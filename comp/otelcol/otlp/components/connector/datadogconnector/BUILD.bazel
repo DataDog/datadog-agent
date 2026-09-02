@@ -48,6 +48,8 @@ dd_agent_go_test(
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/opentelemetry-mapping-go/otlp/metrics",
         "//pkg/proto/pbgo/trace",
+        "//pkg/trace/otel/stats",
+        "//pkg/trace/stats",
         "@com_github_google_go_cmp//cmp",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//featuregates",
         "@com_github_stretchr_testify//assert",

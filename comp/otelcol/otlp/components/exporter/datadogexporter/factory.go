@@ -182,8 +182,40 @@ func (f *factory) createTracesExporter(
 		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0 * time.Second}),
 		// We don't do retries on traces because of deduping concerns on APM Events.
 		exporterhelper.WithRetry(configretry.BackOffConfig{Enabled: false}),
-		exporterhelper.WithQueue(cfg.QueueSettings),
+		// We don't batch traces, see queueSettingsWithoutBatch.
+		exporterhelper.WithQueue(queueSettingsWithoutBatch(cfg.QueueSettings, set.Logger)),
 	)
+}
+
+// queueSettingsWithoutBatch returns a copy of the exporter's queue configuration with
+// batching cleared.
+//
+// Batching buys traces nothing: consumeTraces hands each ResourceSpans to the trace
+// agent individually and the trace agent batches internally, so a larger batch here
+// only changes how many times consumeTraces is called, not how much work is done.
+//
+// It does cost something, though. exporterhelper declares the whole exporter
+// MutatesData: true whenever sending_queue.batch is set, because the batcher merges
+// requests in place. In the default DDOT traces pipeline the datadog exporter shares
+// its pipeline with the datadog connector, so a mutating exporter forces the fanout
+// consumer to deep-copy every ptrace.Traces it receives. Clearing the batch config
+// keeps the exporter read-only and lets both consumers share one copy.
+//
+// Metrics and logs keep their batching: fewer, larger payloads genuinely help there.
+// Since the same *datadogconfig.Config backs all three signals, this must not write
+// through to cfg.QueueSettings. configoptional.Optional stores its value inline, so
+// qCfg is already a copy of the caller's Optional and everything below operates on
+// that copy.
+func queueSettingsWithoutBatch(qCfg configoptional.Optional[exporterhelper.QueueBatchConfig], logger *zap.Logger) configoptional.Optional[exporterhelper.QueueBatchConfig] {
+	q := qCfg.Get()
+	if q == nil || !q.Batch.HasValue() {
+		return qCfg
+	}
+	logger.Info("sending_queue::batch is ignored for traces: the trace agent batches internally, " +
+		"and batching in the exporter forces an extra copy of every batch")
+	withoutBatch := *q
+	withoutBatch.Batch = configoptional.None[exporterhelper.BatchConfig]()
+	return configoptional.Some(withoutBatch)
 }
 
 // createMetricsExporter creates a metrics exporter based on this config.
