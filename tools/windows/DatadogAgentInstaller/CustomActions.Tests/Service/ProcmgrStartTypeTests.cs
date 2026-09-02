@@ -45,6 +45,32 @@ namespace CustomActions.Tests.Service
                 c => c.SetStartType(ProcmgrServiceName, It.IsNotIn(expected)), Times.Never);
         }
 
+        private void VerifyAgentUserCredentialsUnchanged()
+        {
+            foreach (var serviceName in new[]
+                     {
+                         Constants.AgentServiceName,
+                         Constants.TraceAgentServiceName,
+                         Constants.SecurityAgentServiceName,
+                     })
+            {
+                Test.ServiceController.Verify(
+                    c => c.SetCredentials(serviceName, It.IsAny<string>(), It.IsAny<string>()),
+                    Times.Never);
+            }
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_PreservesAgentServiceCredentials_WhenPasswordNotProvided()
+        {
+            GivenServiceAccount(false);
+            GivenAgentUserPassword(null);
+
+            Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
+
+            VerifyAgentUserCredentialsUnchanged();
+        }
+
         [Fact]
         public void ConfigureServiceUsers_EnablesProcmgr_ForDomainAccountWithoutPassword()
         {
@@ -127,6 +153,66 @@ namespace CustomActions.Tests.Service
                 .Should().Throw<Win32Exception>();
         }
 
+        private void GivenScmServicePassword(string password)
+        {
+            Test.NativeMethods
+                .Setup(n => n.FetchScmServicePassword(Constants.AgentServiceName))
+                .Returns(password);
+        }
+
+        private void GivenServiceExists(string serviceName, bool exists = true)
+        {
+            Test.ServiceController
+                .Setup(c => c.ServiceExists(serviceName))
+                .Returns(exists);
+        }
+
+        private void GivenServiceStartName(string serviceName, string account)
+        {
+            Test.ServiceController
+                .Setup(c => c.GetServiceStartName(serviceName))
+                .Returns(account);
+        }
+
+        private void GivenPasswordNotProvidedDomainUpgrade()
+        {
+            GivenServiceAccount(false);
+            GivenAgentUserPassword(null);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_ConfiguresLocalSystemNonCoreAgentUserServices_WhenPasswordNotProvided()
+        {
+            const string scmPassword = "scm-stored-password";
+            GivenPasswordNotProvidedDomainUpgrade();
+            GivenServiceExists(Constants.PrivateActionRunnerServiceName);
+            GivenServiceStartName(Constants.PrivateActionRunnerServiceName, "LocalSystem");
+            GivenScmServicePassword(scmPassword);
+
+            Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
+
+            VerifyAgentUserCredentialsUnchanged();
+            Test.ServiceController.Verify(
+                c => c.SetCredentials(Constants.PrivateActionRunnerServiceName, DomainUserName, scmPassword),
+                Times.Once);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_SkipsNonCoreAgentUserServicesAlreadyOnAgentUser_WhenPasswordNotProvided()
+        {
+            GivenPasswordNotProvidedDomainUpgrade();
+            GivenServiceExists(Constants.TraceAgentServiceName);
+            GivenServiceStartName(Constants.TraceAgentServiceName, DomainUserName);
+            GivenScmServicePassword("scm-stored-password");
+
+            Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
+
+            VerifyAgentUserCredentialsUnchanged();
+            Test.ServiceController.Verify(
+                c => c.SetCredentials(Constants.TraceAgentServiceName, It.IsAny<string>(), It.IsAny<string>()),
+                Times.Never);
+        }
+
         [Fact]
         public void ConfigureServiceUsers_DoesNotChangeStartTypeOfOtherServices()
         {
@@ -138,6 +224,77 @@ namespace CustomActions.Tests.Service
             Test.ServiceController.Verify(
                 c => c.SetStartType(It.IsNotIn(ProcmgrServiceName), It.IsAny<ServiceStartMode>()),
                 Times.Never);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_DisablesLocalSystemNonCoreServices_WhenScmPasswordUnavailable()
+        {
+            GivenPasswordNotProvidedDomainUpgrade();
+            GivenServiceExists(Constants.PrivateActionRunnerServiceName);
+            GivenServiceStartName(Constants.PrivateActionRunnerServiceName, "LocalSystem");
+            GivenScmServicePassword(null);
+
+            Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
+
+            VerifyAgentUserCredentialsUnchanged();
+            Test.ServiceController.Verify(
+                c => c.SetStartType(Constants.PrivateActionRunnerServiceName, ServiceStartMode.Disabled),
+                Times.Once);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_DisablesLocalSystemNonCoreServices_WhenScmPasswordFetchFails()
+        {
+            GivenPasswordNotProvidedDomainUpgrade();
+            GivenServiceExists(Constants.PrivateActionRunnerServiceName);
+            GivenServiceStartName(Constants.PrivateActionRunnerServiceName, "LocalSystem");
+            Test.NativeMethods
+                .Setup(n => n.FetchScmServicePassword(Constants.AgentServiceName))
+                .Throws(new Win32Exception(5));
+
+            Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
+
+            VerifyAgentUserCredentialsUnchanged();
+            Test.ServiceController.Verify(
+                c => c.SetStartType(Constants.PrivateActionRunnerServiceName, ServiceStartMode.Disabled),
+                Times.Once);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_SkipsDisablingNonCoreServicesAlreadyOnAgentUser_WhenScmPasswordUnavailable()
+        {
+            GivenPasswordNotProvidedDomainUpgrade();
+            GivenServiceExists(Constants.TraceAgentServiceName);
+            GivenServiceStartName(Constants.TraceAgentServiceName, DomainUserName);
+            GivenScmServicePassword(null);
+
+            Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
+
+            Test.ServiceController.Verify(
+                c => c.SetStartType(Constants.TraceAgentServiceName, It.IsAny<ServiceStartMode>()),
+                Times.Never);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsers_DisablesLocalSystemNonCoreService_WhenCredentialConfigurationFails()
+        {
+            const string scmPassword = "scm-stored-password";
+            GivenPasswordNotProvidedDomainUpgrade();
+            GivenServiceExists(Constants.PrivateActionRunnerServiceName);
+            GivenServiceStartName(Constants.PrivateActionRunnerServiceName, "LocalSystem");
+            GivenScmServicePassword(scmPassword);
+            Test.ServiceController
+                .Setup(c => c.SetCredentials(
+                    Constants.PrivateActionRunnerServiceName,
+                    DomainUserName,
+                    scmPassword))
+                .Throws(new Win32Exception(5));
+
+            Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
+
+            Test.ServiceController.Verify(
+                c => c.SetStartType(Constants.PrivateActionRunnerServiceName, ServiceStartMode.Disabled),
+                Times.Once);
         }
     }
 }

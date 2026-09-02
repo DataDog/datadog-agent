@@ -90,6 +90,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction StartDDServices { get; }
 
+        public ManagedAction DiscardCredentialRollbackSecrets { get; }
+
         public ManagedAction StartDDServicesRollback { get; }
 
         public ManagedAction RestoreDaclRollback { get; }
@@ -718,6 +720,20 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("DD_INSTALL_ONLY=[DD_INSTALL_ONLY]");
+
+            // Deferred script is complete after StartDDServices; discard LSA rollback password copies.
+            DiscardCredentialRollbackSecrets = new CustomAction<CustomActions>(
+                new Id(nameof(DiscardCredentialRollbackSecrets)),
+                CustomActions.DiscardCredentialRollbackSecrets,
+                Return.ignore,
+                When.After,
+                new Step(StartDDServices.Id),
+                Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            };
 
             // Rollback StartDDServices stops the the services so that any file locks are released.
             StartDDServicesRollback = new CustomAction<CustomActions>(

@@ -87,6 +87,7 @@
     <Compile Include="Process\ProcessConfigTests.cs" />
     <Compile Include="Proxy\ProcessConfigTests.cs" />
     <Compile Include="Service\ProcmgrStartTypeTests.cs" />
+    <Compile Include="Service\ServiceCredentialsRollbackDataTests.cs" />
     <Compile Include="Service\ServiceCustomActionTests.cs" />
     <Compile Include="Service\ServiceCustomActionsTestSetup.cs" />
     <Compile Include="Telemetry\TelemetryUnitTests.cs" />

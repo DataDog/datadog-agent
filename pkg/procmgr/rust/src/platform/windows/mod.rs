@@ -4,10 +4,11 @@
 // Copyright 2026-present Datadog, Inc.
 
 mod account_name;
+mod agent_credentials;
 mod agent_service_sid;
 mod legacy_scm_env;
 mod local_account;
-mod local_agent_account;
+mod managed_service_account;
 mod pipe_caller;
 mod pipe_security;
 mod runtime_user;
@@ -20,7 +21,7 @@ mod wide;
 mod win_handle;
 
 #[cfg(any(test, feature = "test-helpers"))]
-pub(crate) use local_agent_account::spawn_user_for_profile;
+pub(crate) use agent_credentials::spawn_user_for_profile;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use runtime_user::runtime_user_for_pid;

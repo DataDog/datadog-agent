@@ -3,6 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//! Read SCM-stored service account passwords from the LSA secret store.
+//!
+//! Windows stores service passwords under `_SC_<ServiceName>`. Even LocalSystem
+//! receives `STATUS_ACCESS_DENIED` from `LsaRetrievePrivateData` on that prefix,
+//! so copy the secret to a temporary non-`_SC_` name first (same approach as
+//! common service-credential tooling).
+
 use std::ptr;
 
 use anyhow::{Context, Result, bail};
@@ -52,6 +59,7 @@ impl RegistryKey {
         Ok(Self(handle))
     }
 
+    // Volatile so crash leftovers do not persist across reboot.
     fn create(local_machine: HKEY, subkey: &str) -> Result<Self> {
         let subkey_w = wide::null_terminated(subkey);
         let mut handle = ptr::null_mut();
@@ -158,6 +166,7 @@ impl Drop for TempLsaSecret {
     }
 }
 
+/// Restores process-token privileges after copying an SCM LSA secret.
 struct RegistryPrivilegeGuard {
     token: windows_sys::Win32::Foundation::HANDLE,
     previous_states: Vec<Vec<u8>>,
@@ -317,6 +326,10 @@ fn temp_secret_lsa_name(registry_subkey: &str) -> Result<String> {
         .context("temporary LSA secret name")
 }
 
+/// Copy `CurrVal`, `SecDesc`, and related subkeys without touching the parent default value.
+///
+/// `_SC_*` secret keys carry an invalid default value; copying the parent tree fails on
+/// some hosts. Child-by-child copy matches the approach used by service-credential tooling.
 fn copy_lsa_secret_children(source: &RegistryKey, destination: &RegistryKey) -> Result<()> {
     let mut index = 0u32;
     loop {
@@ -361,6 +374,7 @@ fn copy_lsa_secret_children(source: &RegistryKey, destination: &RegistryKey) -> 
     Ok(())
 }
 
+/// Read the SCM-stored password for `service_name`, if present.
 pub(crate) fn read_scm_service_password(service_name: &str) -> Result<Option<String>> {
     let _privileges = RegistryPrivilegeGuard::enable_for_lsa_secret_copy();
 

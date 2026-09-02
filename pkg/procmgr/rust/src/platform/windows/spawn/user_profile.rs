@@ -7,8 +7,8 @@ use anyhow::{Context, Result, bail};
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::UI::Shell::{LoadUserProfileW, PROFILEINFOW, UnloadUserProfile};
 
+use super::super::agent_credentials::AgentAccount;
 use super::super::local_account::computer_name;
-use super::super::local_agent_account::AgentAccount;
 use super::super::wide;
 use super::logon::TokenHandle;
 use super::win32::duplicate_primary_token;
@@ -80,7 +80,8 @@ fn profile_load_user_name(account: &AgentAccount) -> Result<String> {
         }
         AgentAccount::LocalService => Ok(r"NT AUTHORITY\LocalService".to_string()),
         AgentAccount::NetworkService => Ok(r"NT AUTHORITY\NetworkService".to_string()),
-        AgentAccount::PasswordLogon { domain, user, .. } => {
+        AgentAccount::PasswordLogon { domain, user, .. }
+        | AgentAccount::ServiceAccountLogon { domain, user } => {
             let computer = if domain.is_empty() {
                 computer_name()?
             } else {

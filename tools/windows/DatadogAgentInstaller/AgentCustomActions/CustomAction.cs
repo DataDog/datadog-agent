@@ -192,6 +192,12 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
+        public static ActionResult DiscardCredentialRollbackSecrets(Session session)
+        {
+            return Datadog.CustomActions.ServiceCustomAction.DiscardCredentialRollbackSecrets(session);
+        }
+
+        [CustomAction]
         public static ActionResult StartDDServicesRollback(Session session)
         {
             return Datadog.CustomActions.ServiceCustomAction.StartDDServicesRollback(session);

@@ -22,9 +22,14 @@ namespace CustomActions.Tests.Service
 
         public ServiceCustomAction Create()
         {
+            return Create(rollbackDataName: null);
+        }
+
+        public ServiceCustomAction Create(string rollbackDataName)
+        {
             return new ServiceCustomAction(
                 Session.Object,
-                rollbackDataName: null,
+                rollbackDataName: rollbackDataName,
                 nativeMethods: NativeMethods.Object,
                 registryServices: RegistryServices.Object,
                 directoryServices: DirectoryServices.Object,

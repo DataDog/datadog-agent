@@ -39,7 +39,8 @@ const (
 	// password.
 	preLSASecretAgentVersion = "7.65.2-1"
 
-	procmgrServiceName = "dd-procmgr-service"
+	procmgrServiceName             = "dd-procmgr-service"
+	privateActionRunnerServiceName = "datadog-agent-action"
 )
 
 func TestInstallsOnDomainController(t *testing.T) {
@@ -162,7 +163,8 @@ type testUpgradeWithoutStoredPasswordSuite struct {
 // installed with Agent 7.65 or earlier without providing DDAGENTUSER_PASSWORD. Before
 // dd-procmgr-service moved to LocalSystem (#55529), that upgrade disabled the service to
 // avoid domain account lockout (#55130). With LocalSystem procmgr, the service stays enabled
-// because it no longer logs on as the Agent user.
+// because it no longer logs on as the Agent user. Agent-profile children must still spawn
+// using the SCM-stored datadogagent credential when the installer LSA secret is missing.
 func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordKeepsProcessManagerEnabled() {
 	host := suite.Env().RemoteHost
 	username := fmt.Sprintf("%s\\%s", TestDomain, TestUser)
@@ -203,6 +205,24 @@ func (suite *testUpgradeWithoutStoredPasswordSuite) TestUpgradeWithoutPasswordKe
 
 		suite.Assert().NoError(windowsCommon.StartService(host, procmgrServiceName),
 			"%s should start without the Agent user password once it runs as LocalSystem", procmgrServiceName)
+	})
+
+	suite.Run("private action runner uses domain agent account", func() {
+		account, err := windowsCommon.GetServiceAccountName(host, privateActionRunnerServiceName)
+		suite.Require().NoError(err)
+		suite.Assert().Equal(
+			windowsCommon.MakeDownLevelLogonName(TestDomain, TestUser),
+			account,
+			"%s must run as the domain Agent user after no-password upgrade",
+			privateActionRunnerServiceName,
+		)
+	})
+
+	suite.Run("agent-profile children spawn without installer LSA password", func() {
+		suite.assertAgentProfileSpawnWithoutInstallerLSAPassword(
+			host,
+			windowsCommon.MakeDownLevelLogonName(TestDomain, TestUser),
+		)
 	})
 
 	suite.Run("core Agent is unaffected", func() {

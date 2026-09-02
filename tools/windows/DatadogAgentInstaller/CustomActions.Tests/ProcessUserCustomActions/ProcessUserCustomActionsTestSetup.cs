@@ -72,11 +72,14 @@ namespace CustomActions.Tests.ProcessUserCustomActions
         {
             var service = new Mock<IWindowsService>();
             service.SetupGet(s => s.DisplayName).Returns("Datadog Agent");
-            service.SetupGet(s => s.ServiceName).Returns("datadogagent");
+            service.SetupGet(s => s.ServiceName).Returns(Constants.AgentServiceName);
             ServiceController.SetupGet(s => s.Services).Returns(new[]
             {
                 service.Object
             });
+            ServiceController
+                .Setup(c => c.ServiceExists(Constants.AgentServiceName))
+                .Returns(true);
 
             return this;
         }

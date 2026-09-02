@@ -3,25 +3,33 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//! Windows spawn credentials: how CreateProcessAsUserW obtains its primary token.
+
 use anyhow::{Result, anyhow, bail};
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 
 use crate::spawn::SpawnProfile;
 
-use super::super::local_agent_account::AgentAccount;
+use super::super::agent_credentials::AgentAccount;
 #[cfg(not(test))]
-use super::super::local_agent_account::resolve_agent_account;
+use super::super::agent_credentials::resolve_agent_account;
 use super::super::token_identity::{open_current_process_token, token_user_is_local_system};
 use super::logon::{logon_user_credentials, logon_user_token};
 use super::win32::duplicate_primary_token;
 
 const SYSTEM_DISPLAY: &str = "NT AUTHORITY\\SYSTEM";
 
+/// Primary-token strategy for a spawn.
+///
+/// Every spawn uses one of two paths:
+/// - [`Self::InheritSupervisor`]: duplicate dd-procmgrd's token (LocalSystem service or test harness)
+/// - [`Self::Logon`]: LogonUserW for a distinct installer account (ddagentuser / gMSA)
 #[derive(Debug)]
 pub(crate) enum SpawnCredential {
     InheritSupervisor {
         display_name: String,
+        /// Privileged spawn and production LocalSystem agent spawn require this.
         require_local_system: bool,
     },
     #[cfg_attr(test, allow(dead_code))]
@@ -129,7 +137,7 @@ mod tests {
             SpawnCredential::resolve(SpawnProfile::Agent).expect("resolve agent profile in tests");
         assert!(
             matches!(credential, SpawnCredential::InheritSupervisor { .. }),
-            "unexpected test credential: {credential:?}"
+            "unit tests must not resolve registry credentials: {credential:?}"
         );
     }
 }

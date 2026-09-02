@@ -11,8 +11,11 @@ use windows_sys::Win32::Security::{
     RevertToSelf,
 };
 
-use super::super::local_agent_account::AgentAccount;
+use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
+
+/// Password placeholder for gMSA `LogonUserW` (`SERVICE_ACCOUNT_PASSWORD` in lmaccess.h).
+const SERVICE_ACCOUNT_PASSWORD: &str = "_SA_{262E99C9-6160-4871-ACEC-4E61736B6F21}";
 
 pub(super) struct LogonUserCredentials<'a> {
     domain: &'a str,
@@ -45,6 +48,11 @@ pub(crate) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredent
             domain: domain.as_str(),
             username: user.as_str(),
             password: Some(password.as_str()),
+        },
+        AgentAccount::ServiceAccountLogon { domain, user } => LogonUserCredentials {
+            domain: domain.as_str(),
+            username: user.as_str(),
+            password: Some(SERVICE_ACCOUNT_PASSWORD),
         },
     }
 }
@@ -142,7 +150,7 @@ pub(super) fn with_impersonated_token<T>(
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::local_agent_account::AgentAccount;
+    use super::super::super::agent_credentials::AgentAccount;
     use super::*;
 
     #[test]
