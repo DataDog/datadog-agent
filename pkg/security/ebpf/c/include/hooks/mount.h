@@ -127,6 +127,11 @@ HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char *, source, const char *, target, co
 }
 
 HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
+    // unshare(0) is a no-op, there is nothing to report
+    if (!flags) {
+        return 0;
+    }
+
     // CLONE_NEWNS is cached rules or no rules, the mount resolver relies on this entry
     if (!((flags & CLONE_NEWNS) || is_event_enabled(EVENT_UNSHARE))) {
         return 0;
