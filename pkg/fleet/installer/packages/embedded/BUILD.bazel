@@ -17,8 +17,12 @@ service_srcs = glob([
     "tmpl/gen/windows/*.yaml",
     "tmpl/gen/pm/debrpm/*.service",
     "tmpl/gen/pm/oci/*.service",
-    "tmpl/gen/s/d/*.service",
-    "tmpl/gen/s/o/*.service",
+    "tmpl/gen/sd/debrpm/*.service",
+    "tmpl/gen/sd/oci/*.service",
+    "tmpl/gen/r/d/*.service",
+    "tmpl/gen/r/d/*.socket",
+    "tmpl/gen/r/o/*.service",
+    "tmpl/gen/r/o/*.socket",
 ])
 
 # Selected by GetSystemdUnit/GetProcmgrUnit on hosts without ambient capability support. These must
@@ -28,8 +32,12 @@ service_srcs = glob([
 nocap_service_srcs = glob([
     "tmpl/gen/pm/debrpm-nc/*.service",
     "tmpl/gen/pm/oci-nc/*.service",
-    "tmpl/gen/s/dn/*.service",
-    "tmpl/gen/s/on/*.service",
+    "tmpl/gen/sd/debrpm-nc/*.service",
+    "tmpl/gen/sd/oci-nc/*.service",
+    "tmpl/gen/r/dn/*.service",
+    "tmpl/gen/r/dn/*.socket",
+    "tmpl/gen/r/on/*.service",
+    "tmpl/gen/r/on/*.socket",
 ])
 
 go_library(

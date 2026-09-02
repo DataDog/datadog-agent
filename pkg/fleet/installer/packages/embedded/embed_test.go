@@ -21,10 +21,31 @@ import (
 // one variant's directory.
 func TestGetSystemdUnitEmbedsAllVariants(t *testing.T) {
 	for _, unitType := range []UnitType{UnitTypeOCI, UnitTypeDebRpm} {
-		units := embeddedUnitsInDir(t, "tmpl/gen/s/"+systemdFlavorDir(unitType, true))
-		assert.ElementsMatch(t, units, embeddedUnitsInDir(t, "tmpl/gen/s/"+systemdFlavorDir(unitType, false)),
+		units := embeddedUnitsInDir(t, "tmpl/gen/sd/"+string(unitType))
+		assert.ElementsMatch(t, units, embeddedUnitsInDir(t, "tmpl/gen/sd/"+string(unitType)+"-nc"),
 			"embedded unit sets differ between %s and %s-nc", unitType, unitType)
 
+		for _, unit := range units {
+			for _, ambiantCapabilitiesSupported := range []bool{true, false} {
+				name := fmt.Sprintf("%s/%s/ambiantCapabilitiesSupported=%t", unitType, unit, ambiantCapabilitiesSupported)
+				t.Run(name, func(t *testing.T) {
+					content, err := GetSystemdUnit(unit, unitType, ambiantCapabilitiesSupported)
+					require.NoError(t, err)
+					assert.NotEmpty(t, content)
+				})
+			}
+		}
+	}
+}
+
+func TestGetSystemdUnitEmbedsPrivilegedRshellVariants(t *testing.T) {
+	units := []string{
+		"datadog-agent-rshell-privileged.service",
+		"datadog-agent-rshell-privileged-exp.service",
+		"datadog-agent-rshell-privileged.socket",
+		"datadog-agent-rshell-privileged-exp.socket",
+	}
+	for _, unitType := range []UnitType{UnitTypeOCI, UnitTypeDebRpm} {
 		for _, unit := range units {
 			for _, ambiantCapabilitiesSupported := range []bool{true, false} {
 				name := fmt.Sprintf("%s/%s/ambiantCapabilitiesSupported=%t", unitType, unit, ambiantCapabilitiesSupported)

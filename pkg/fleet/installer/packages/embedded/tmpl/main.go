@@ -114,30 +114,35 @@ func mustRenderYAMLConfig(name string, data installerTemplateData) []byte {
 
 func unitSetSystemd(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
 	units := map[string][]byte{
-		"datadog-agent.service":                       mustReadUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-exp.service":                   mustReadUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-installer.service":             mustReadUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-installer-exp.service":         mustReadUnit("datadog-agent-installer.service", expData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-data-plane.service":            mustReadUnit("datadog-agent-data-plane.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-data-plane-exp.service":        mustReadUnit("datadog-agent-data-plane.service", expData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-trace.service":                 mustReadUnit("datadog-agent-trace.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-trace-exp.service":             mustReadUnit("datadog-agent-trace.service", expData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-process.service":               mustReadUnit("datadog-agent-process.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-process-exp.service":           mustReadUnit("datadog-agent-process.service", expData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-security.service":              mustReadUnit("datadog-agent-security.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-security-exp.service":          mustReadUnit("datadog-agent-security.service", expData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-sysprobe.service":              mustReadUnit("datadog-agent-sysprobe.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-sysprobe-exp.service":          mustReadUnit("datadog-agent-sysprobe.service", expData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-action.service":                mustReadUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-action-exp.service":            mustReadUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent.service":                mustReadUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-exp.service":            mustReadUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-installer.service":      mustReadUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-installer-exp.service":  mustReadUnit("datadog-agent-installer.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-data-plane.service":     mustReadUnit("datadog-agent-data-plane.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-data-plane-exp.service": mustReadUnit("datadog-agent-data-plane.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-trace.service":          mustReadUnit("datadog-agent-trace.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-trace-exp.service":      mustReadUnit("datadog-agent-trace.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-process.service":        mustReadUnit("datadog-agent-process.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-process-exp.service":    mustReadUnit("datadog-agent-process.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-security.service":       mustReadUnit("datadog-agent-security.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-security-exp.service":   mustReadUnit("datadog-agent-security.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-sysprobe.service":       mustReadUnit("datadog-agent-sysprobe.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-sysprobe-exp.service":   mustReadUnit("datadog-agent-sysprobe.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-action.service":         mustReadUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-action-exp.service":     mustReadUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-ddot.service":           mustReadUnit("datadog-agent-ddot.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-ddot-exp.service":       mustReadUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported, false),
+	}
+	return units
+}
+
+func unitSetPrivilegedRshell(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+	return map[string][]byte{
 		"datadog-agent-rshell-privileged.service":     mustReadUnit("datadog-agent-rshell-privileged.service", stableData, ambiantCapabilitiesSupported, false),
 		"datadog-agent-rshell-privileged-exp.service": mustReadUnit("datadog-agent-rshell-privileged.service", expData, ambiantCapabilitiesSupported, false),
 		"datadog-agent-rshell-privileged.socket":      mustReadUnit("datadog-agent-rshell-privileged.socket", stableData, ambiantCapabilitiesSupported, false),
 		"datadog-agent-rshell-privileged-exp.socket":  mustReadUnit("datadog-agent-rshell-privileged.socket", expData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-ddot.service":                  mustReadUnit("datadog-agent-ddot.service", stableData, ambiantCapabilitiesSupported, false),
-		"datadog-agent-ddot-exp.service":              mustReadUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported, false),
 	}
-	return units
 }
 
 // For memory efficiency, procmgr units only defines the units that are different from the systemd units.
@@ -216,14 +221,20 @@ var (
 		Stable:           true,
 	}
 
-	// Keep these generated folder names short enough for Windows checkouts. The
-	// systemd variants use s/{o,on,d,dn} for OCI, OCI without capabilities,
-	// deb/rpm, and deb/rpm without capabilities, respectively.
+	// Ideally the folder names would be systemd and procmgr (instead of sd and pm)
+	// and -nocap (instead of -nc)
+	// but windows has a limit of file path length, so we use shorter names
 	systemdEmbeddedLayouts = []embeddedLayout{
-		{subdir: "s/o", units: unitSetSystemd(stableDataOCI, expDataOCI, true)},
-		{subdir: "s/d", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, true)},
-		{subdir: "s/on", units: unitSetSystemd(stableDataOCI, expDataOCI, false)},
-		{subdir: "s/dn", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, false)},
+		{subdir: "sd/oci", units: unitSetSystemd(stableDataOCI, expDataOCI, true)},
+		{subdir: "sd/debrpm", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "sd/oci-nc", units: unitSetSystemd(stableDataOCI, expDataOCI, false)},
+		{subdir: "sd/debrpm-nc", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, false)},
+		// The rshell-only paths are short enough for Windows checkouts without
+		// renaming the existing generated systemd fixture tree.
+		{subdir: "r/o", units: unitSetPrivilegedRshell(stableDataOCI, expDataOCI, true)},
+		{subdir: "r/d", units: unitSetPrivilegedRshell(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "r/on", units: unitSetPrivilegedRshell(stableDataOCI, expDataOCI, false)},
+		{subdir: "r/dn", units: unitSetPrivilegedRshell(stableDataDebRpm, expDataDebRpm, false)},
 	}
 	procmgrEmbeddedLayouts = []embeddedLayout{
 		{subdir: "pm/oci", units: unitSetProcmgr(stableDataOCI, expDataOCI, true)},
