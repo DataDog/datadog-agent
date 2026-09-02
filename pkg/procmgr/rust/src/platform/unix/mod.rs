@@ -41,7 +41,10 @@ pub(crate) fn spawn_user_for_supervisor() -> String {
         .clone()
 }
 
-pub(crate) fn intended_spawn_user(process_name: &str, profile: crate::spawn::SpawnProfile) -> String {
+pub(crate) fn intended_spawn_user(
+    process_name: &str,
+    profile: crate::spawn::SpawnProfile,
+) -> String {
     let _ = (process_name, profile);
     spawn_user_for_supervisor()
 }

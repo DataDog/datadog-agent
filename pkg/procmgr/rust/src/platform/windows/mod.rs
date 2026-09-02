@@ -47,8 +47,8 @@ use windows_sys::Win32::System::JobObjects::{
     QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, OpenProcess,
-    PROCESS_SET_QUOTA, PROCESS_TERMINATE, TerminateProcess,
+    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, OpenProcess, PROCESS_SET_QUOTA,
+    PROCESS_TERMINATE, TerminateProcess,
 };
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
@@ -209,12 +209,16 @@ pub fn apply_child_baseline_env(cmd: &mut tokio::process::Command) {
                 }
             }
             Err(e) => {
-                log::warn!("CreateEnvironmentBlock baseline failed ({e:#}); using process-env fallback");
+                log::warn!(
+                    "CreateEnvironmentBlock baseline failed ({e:#}); using process-env fallback"
+                );
                 apply_fallback_process_env(cmd);
             }
         },
         Err(e) => {
-            log::warn!("OpenProcessToken for child baseline env failed ({e:#}); using process-env fallback");
+            log::warn!(
+                "OpenProcessToken for child baseline env failed ({e:#}); using process-env fallback"
+            );
             apply_fallback_process_env(cmd);
         }
     }

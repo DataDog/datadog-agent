@@ -7,8 +7,8 @@ use anyhow::{Context, Result, bail};
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::UI::Shell::{LoadUserProfileW, PROFILEINFOW, UnloadUserProfile};
 
-use super::super::local_agent_account::AgentAccount;
 use super::super::local_account::computer_name;
+use super::super::local_agent_account::AgentAccount;
 use super::super::wide;
 use super::logon::TokenHandle;
 use super::win32::duplicate_primary_token;
