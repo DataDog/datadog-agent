@@ -237,7 +237,7 @@ require (
 	github.com/securego/gosec/v2 v2.26.1 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/shogo82148/go-shuffle v1.0.1 // indirect
-	github.com/sirupsen/logrus v1.10.1 // indirect
+	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/sivchari/containedctx v1.0.3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/sonatard/noctx v0.5.1 // indirect
