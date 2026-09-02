@@ -19,6 +19,7 @@
   timeout: 2h
   rules:
     - !reference [.except_mergequeue]
+    - !reference [.on_scheduled_main]
     - !reference [.manual]
   variables:
     # Where the agent source is cloned on the AIX host.
