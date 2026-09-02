@@ -84,9 +84,10 @@ func TestRemotePolicies_AppliedOnEmptyBaseline(t *testing.T) {
 	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "other"})))
 }
 
-// TestRemotePolicies_HelmCatchAllWinsOverRemote verifies that an explicit static
-// catch-all matches in the static phase, so remote policies never apply.
-func TestRemotePolicies_HelmCatchAllWinsOverRemote(t *testing.T) {
+// TestRemotePolicies_OverrideStaticMatch verifies last-TRUE-wins across planes:
+// a matching RC policy overrides a static target; a static match stands when
+// no RC policy matches.
+func TestRemotePolicies_OverrideStaticMatch(t *testing.T) {
 	wmeta := newMatchTestWmeta(t)
 	m := newMatchMutator(t, rcCatchAllCfg, wmeta)
 
@@ -96,10 +97,14 @@ func TestRemotePolicies_HelmCatchAllWinsOverRemote(t *testing.T) {
 	}))
 
 	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
-	require.Equal(t, "config-default", name)
-	require.False(t, fromPolicy)
+	require.Equal(t, "remote", name)
+	require.True(t, fromPolicy)
 
 	name, fromPolicy = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "legacy"}))
+	require.Equal(t, "", name)
+	require.False(t, fromPolicy)
+
+	name, fromPolicy = matchedTarget(t, m, rcPod("ns", map[string]string{"app": "other"}))
 	require.Equal(t, "config-default", name)
 	require.False(t, fromPolicy)
 }

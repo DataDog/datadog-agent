@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Single Step Instrumentation now lets a matching Remote Config
+    Instrumentation rule override a local target (Helm, Operator, or
+    ``datadog.yaml``). Evaluation stays last-match-wins: Remote Config
+    runs after local targeting, so a specific remote allow or deny can
+    change a workload that a local target already selected. A local
+    match still stands when no remote rule matches.

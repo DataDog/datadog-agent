@@ -479,19 +479,21 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 	}
 }
 
-// getMatchingTarget: static targets first, then RC, then SSI inject-all if both
-// are absent. A matched deny returns nil and does not fall through.
+// getMatchingTarget: static targets first, then RC (last-TRUE-wins, can
+// override a static match), then SSI inject-all if both are absent. A matched
+// deny returns nil and does not fall through.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
 		return nil
 	}
 
-	if t, matched := applyMatch(&m.staticPolicies, pod); matched {
-		return t
-	}
+	static, staticMatched := applyMatch(&m.staticPolicies, pod)
 	remotePolicies := m.remotePolicies.Load()
 	if t, matched := applyMatch(remotePolicies, pod); matched {
 		return t
+	}
+	if staticMatched {
+		return static
 	}
 	if m.ssiEnabled && !hasTargets(&m.staticPolicies) && remotePolicies == nil {
 		return m.injectAll
