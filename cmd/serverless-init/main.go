@@ -208,6 +208,10 @@ func preloadEarly() {
 	// hardcodes forceFlushAll=false on ticks, so bucket-aligned flushes during
 	// the run are preserved.
 	setOverride("dogstatsd_flush_incomplete_buckets", true)
+
+	// Agent Data Plane (ADP) is a separate process serverless-init does not support.
+	setOverride("data_plane.enabled", false)
+	setOverride("data_plane.dogstatsd.enabled", false)
 }
 
 // setOverride sets key to val with SourceAgentRuntime priority, logging a
