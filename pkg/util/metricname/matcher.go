@@ -9,7 +9,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"unsafe"
 )
 
 // Matcher tests a metric name for match against a list of metric names.
@@ -79,20 +78,15 @@ func (m *Matcher) Test(name string) bool {
 		return false
 	}
 
-	// Fast path: already normalized, so compare the name as given.
-	if isNormalized(name) {
-		return m.search(name)
-	}
-
 	var buf [MaxLength]byte
-	key, ok := normalizeAppend(buf[:0], name)
+	key, ok := NormalizeAppend(buf[:0], name)
 	if !ok {
 		return false
 	}
 
 	// Safe: the string aliases buf, search only reads it for comparison and
 	// never retains it, and buf is not written again while it is alive.
-	return m.search(unsafe.String(unsafe.SliceData(key), len(key)))
+	return m.search(key)
 }
 
 // search looks name up in the compiled list. name must already be normalized.

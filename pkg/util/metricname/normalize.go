@@ -16,6 +16,8 @@
 // changes which metrics get filtered.
 package metricname
 
+import "unsafe"
+
 // MaxLength is the maximum allowed length of a metric name in bytes.
 //
 // Names longer than this are rejected outright by the intake (they are not
@@ -127,44 +129,62 @@ func isNormalized(name string) bool {
 // enough for append never to reallocate. That is what lets Matcher.Test
 // normalize into a stack buffer, and is why this appends rather than returning a
 // string: no caller is forced to pay for the rewrite allocation.
-func NormalizeAppend(dst []byte, name string) ([]byte, bool) {
+func NormalizeAppend(dst []byte, name string) (string, bool) {
 	return normalizeAppend(dst, name)
 }
 
-func normalizeAppend(dst []byte, name string) ([]byte, bool) {
+func normalizeAppend(dst []byte, name string) (string, bool) {
 	start, ok := firstAlpha(name)
 	if !ok {
-		return dst, false
+		return name, false
 	}
 
 	// The first iteration always appends, because name[start] is a letter, so
 	// the lookbacks below never read past the end of what this call wrote.
 	for i := start; i < len(name); i++ {
 		switch c := name[i]; {
-		case isAlphaNum(c):
-			dst = append(dst, c)
-		case c == '.':
-			switch dst[len(dst)-1] {
-			// overwrite underscores that happens before periods
-			case '_':
-				dst[len(dst)-1] = '.'
-			default:
-				dst = append(dst, '.')
+		case isAlphaNum(c) || c == '.':
+			// OK
+		case c == '_':
+			j := i + 1
+			for ; j < len(name) && name[j] == '_'; j++ {
+			}
+			// one or more underscores is between alphanums, so we need to keep one
+			keep := isAlphaNum(name[i-1]) && j < len(name) && isAlphaNum(name[j])
+			if keep && i+1 == j { // "a_b": keep as is, continue after "b"
+				i = j
+			} else if keep { // "a__b": copy "a_", keep "b", continue after "b"
+				dst = append(dst, name[start:i+1]...)
+				i = j
+				start = j
+			} else { // "a_?": copy "a", continue after "_"
+				dst = append(dst, name[start:i]...)
+				i = j - 1
+				start = j
 			}
 		default:
-			// we skipped all non-alpha chars up front so we have seen at least one
-			switch dst[len(dst)-1] {
-			// no double underscores and no underscore after a period.
-			case '.', '_':
-			default:
+			dst = append(dst, name[start:i]...)
+			// skip entire run
+			for ; i < len(name); i++ {
+				if isAlphaNum(name[i]) || name[i] == '.' {
+					break
+				}
+			}
+			start = i
+			if dst[len(dst)-1] != '.' && i < len(name) && isAlphaNum(name[i]) {
 				dst = append(dst, '_')
 			}
 		}
 	}
 
+	if start == 0 {
+		return name, true
+	}
+
+	dst = append(dst, name[start:]...)
 	if dst[len(dst)-1] == '_' {
 		dst = dst[:len(dst)-1]
 	}
 
-	return dst, true
+	return unsafe.String(unsafe.SliceData(dst), len(dst)), true
 }
