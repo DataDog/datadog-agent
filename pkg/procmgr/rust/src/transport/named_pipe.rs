@@ -8,39 +8,76 @@ use log::info;
 use std::ffi::OsString;
 use std::future::Future;
 use std::io;
+use std::os::windows::io::AsRawHandle;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
+use windows_sys::Win32::Foundation::HANDLE;
+
+use crate::platform::{create_pipe_server, pipe_client_may_mutate};
+
 const DEFAULT_PIPE_INSTANCES: usize = 4;
 
 pub fn ipc_path() -> PathBuf {
     dd_procmgr_client::ipc_path()
 }
 
-/// Named pipes don't require filesystem preparation.
 pub fn prepare(_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Named pipe permissions are set via security descriptors at creation time.
 pub fn set_permissions(_path: &Path) {}
 
-/// Named pipes are kernel objects; no filesystem cleanup needed.
 pub fn cleanup(_path: &Path) {}
 
-// ---------------------------------------------------------------------------
-// NamedPipeIo — wrapper for tonic's `Connected` trait
-// ---------------------------------------------------------------------------
+#[derive(Clone)]
+pub struct PipeCallerAuth {
+    pipe: PipeHandle,
+    may_mutate: Arc<OnceLock<bool>>,
+}
 
-/// Newtype around [`NamedPipeServer`] that implements
-/// [`tonic::transport::server::Connected`] so tonic can serve over it.
-struct NamedPipeIo(NamedPipeServer);
+#[derive(Clone, Copy, Debug)]
+struct PipeHandle(HANDLE);
+
+unsafe impl Send for PipeHandle {}
+unsafe impl Sync for PipeHandle {}
+
+impl PipeCallerAuth {
+    fn new(pipe: &NamedPipeServer) -> Self {
+        Self {
+            pipe: PipeHandle(pipe.as_raw_handle() as HANDLE),
+            may_mutate: Arc::new(OnceLock::new()),
+        }
+    }
+
+    pub fn may_mutate(&self) -> bool {
+        *self
+            .may_mutate
+            .get_or_init(|| pipe_client_may_mutate(self.pipe.0))
+    }
+}
+
+struct NamedPipeIo {
+    pipe: NamedPipeServer,
+    caller: PipeCallerAuth,
+}
+
+impl NamedPipeIo {
+    fn new(pipe: NamedPipeServer) -> Self {
+        let caller = PipeCallerAuth::new(&pipe);
+        Self { pipe, caller }
+    }
+}
 
 impl tonic::transport::server::Connected for NamedPipeIo {
-    type ConnectInfo = ();
-    fn connect_info(&self) -> Self::ConnectInfo {}
+    type ConnectInfo = PipeCallerAuth;
+
+    fn connect_info(&self) -> Self::ConnectInfo {
+        self.caller.clone()
+    }
 }
 
 impl AsyncRead for NamedPipeIo {
@@ -49,7 +86,7 @@ impl AsyncRead for NamedPipeIo {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_read(cx, buf)
+        Pin::new(&mut self.pipe).poll_read(cx, buf)
     }
 }
 
@@ -59,21 +96,17 @@ impl AsyncWrite for NamedPipeIo {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.0).poll_write(cx, buf)
+        Pin::new(&mut self.pipe).poll_write(cx, buf)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_flush(cx)
+        Pin::new(&mut self.pipe).poll_flush(cx)
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.0).poll_shutdown(cx)
+        Pin::new(&mut self.pipe).poll_shutdown(cx)
     }
 }
-
-// ---------------------------------------------------------------------------
-// Server
-// ---------------------------------------------------------------------------
 
 pub async fn serve<F>(router: tonic::transport::server::Router, shutdown: F) -> Result<()>
 where
@@ -82,10 +115,10 @@ where
     let path = ipc_path();
     let pipe_name = path.as_os_str().to_os_string();
 
-    let server = ServerOptions::new()
-        .first_pipe_instance(true)
-        .create(&pipe_name)
-        .context("failed to create named pipe")?;
+    let mut server_options = ServerOptions::new();
+    server_options.first_pipe_instance(true);
+    let server =
+        create_pipe_server(&server_options, &pipe_name).context("failed to create named pipe")?;
 
     info!("gRPC server listening on {}", path.display());
 
@@ -104,13 +137,8 @@ where
         .await
         .context("gRPC server error");
 
-    // Always cancel the accept loop before returning — even on error — so we
-    // don't leak a background task blocked on server.connect().
     accept_handle.abort();
 
-    // Surface the accept-loop error when tonic returned successfully (e.g. the
-    // incoming stream ended because the accept loop hit a fatal error and
-    // dropped the sender).
     serve_result?;
     match accept_handle.await {
         Ok(Ok(())) => {}
@@ -123,9 +151,6 @@ where
     Ok(())
 }
 
-/// Accept connections on the named pipe, sending each connected instance
-/// through the channel. Creates a new pipe instance after each connection
-/// so the next client can connect.
 async fn accept_loop(
     pipe_name: OsString,
     mut server: NamedPipeServer,
@@ -143,11 +168,12 @@ async fn accept_loop(
         }
 
         let connected = server;
-        server = ServerOptions::new()
-            .create(&pipe_name)
+        server = create_pipe_server(&ServerOptions::new(), &pipe_name)
             .context("failed to create next named pipe instance")?;
 
-        if tx.send(Ok(NamedPipeIo(connected))).await.is_err() {
+        let io = NamedPipeIo::new(connected);
+
+        if tx.send(Ok(io)).await.is_err() {
             break;
         }
     }
