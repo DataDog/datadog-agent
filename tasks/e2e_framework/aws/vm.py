@@ -1,4 +1,3 @@
-import contextlib
 import json
 
 from invoke.context import Context
@@ -282,8 +281,7 @@ def rdp_vm(
     if not stack_name:
         raise Exit("Please provide a stack name to connect to.")
 
-    with tool.use_ci_pulumi_backend(ctx) if ci else contextlib.nullcontext():
-        out = tool.get_stack_json_outputs(ctx, stack_name)
+    out = tool.get_stack_json_outputs(ctx, stack_name, config_path=config_path, ci=ci)
     if not out:
         raise Exit("No VM found in the stack.")
 

@@ -16,6 +16,7 @@ from tasks.e2e_framework.tool import (
     get_pulumi_run_folder,
     info,
     is_windows,
+    run_pulumi,
     warn,
 )
 
@@ -150,9 +151,8 @@ def setup(
     else:
         install_pulumi(ctx)
 
-    with ctx.cd(get_pulumi_run_folder()):
-        ctx.run("pulumi --non-interactive plugin install", hide=True)
-        ctx.run("pulumi login --local", hide=True)
+    run_pulumi(ctx, "--non-interactive plugin install", project_dir=get_pulumi_run_folder(), hide=True)
+    run_pulumi(ctx, "login --local", project_dir=False, hide=True)
     info("✓ Pulumi plugins installed; local backend configured")
 
     try:
@@ -455,7 +455,7 @@ def debug_env(ctx, config_path: str | None = None):
     """
     # check pulumi found
     try:
-        out = ctx.run("pulumi version", hide=True)
+        out = run_pulumi(ctx, "version", project_dir=False, skip_update_check=False, hide=True)
     except UnexpectedExit as e:
         error(f"{e}")
         error("Pulumi CLI not found, please install it: https://www.pulumi.com/docs/get-started/install/")
@@ -464,7 +464,7 @@ def debug_env(ctx, config_path: str | None = None):
 
     # Check pulumi credentials
     try:
-        out = ctx.run("pulumi whoami", hide=True)
+        out = run_pulumi(ctx, "whoami", project_dir=False, hide=True)
     except UnexpectedExit as e:
         error("No pulumi credentials found")
         info("Please login, e.g. pulumi login --local")

@@ -4,6 +4,7 @@ import json
 import os
 import pathlib
 import platform
+import shlex
 import subprocess
 import tempfile
 from io import StringIO
@@ -11,6 +12,7 @@ from typing import Any
 
 from invoke.context import Context
 from invoke.exceptions import Exit
+from invoke.runners import Result
 
 try:
     from termcolor import colored
@@ -158,56 +160,171 @@ CI_PULUMI_BACKEND_URL = "s3://dd-pulumi-state"
 CI_PULUMI_PASSPHRASE_SSM_PARAM = "ci.datadog-agent.pulumi_password"
 
 
-@contextlib.contextmanager
-def use_ci_pulumi_backend(ctx: Context):
+def _ci_pulumi_env() -> dict[str, str]:
     """
-    Temporarily point the local Pulumi CLI at CI's S3 state backend and export
-    the CI Pulumi secrets passphrase (read from SSM), so a CI-created stack
-    (absent from the local file backend) can be queried. Always restores the
-    local backend on exit, even if an error occurs.
+    Point the Pulumi CLI at CI's S3 state backend and supply the CI secrets passphrase
+    (read from SSM), so a CI-created stack -- absent from the local file backend -- can be
+    queried.
 
-    Must be run with AWS credentials that can read CI_PULUMI_BACKEND_URL and
-    decrypt CI_PULUMI_PASSPHRASE_SSM_PARAM, e.g.:
+    Must be run with AWS credentials that can read CI_PULUMI_BACKEND_URL and decrypt
+    CI_PULUMI_PASSPHRASE_SSM_PARAM, e.g.:
         aws-vault exec sso-agent-qa-read-only -- dda inv aws.rdp-vm --stack-name=<ci-stack-name> --ci
     """
     import boto3
 
-    previous_passphrase = os.environ.get("PULUMI_CONFIG_PASSPHRASE")
-    ctx.run(f"pulumi login {CI_PULUMI_BACKEND_URL}", hide=True)
+    ssm = boto3.client("ssm", region_name="us-east-1")
+    passphrase = ssm.get_parameter(Name=CI_PULUMI_PASSPHRASE_SSM_PARAM, WithDecryption=True)["Parameter"]["Value"]
+    # Selecting the backend through the environment rather than `pulumi login` keeps the
+    # dev machine's own login untouched: there is no global state to restore if the
+    # command fails.
+    return {
+        "PULUMI_BACKEND_URL": CI_PULUMI_BACKEND_URL,
+        "PULUMI_CONFIG_PASSPHRASE": passphrase,
+    }
+
+
+def _local_pulumi_passphrase(config_path: str | None) -> str | None:
+    # Imported here because config imports this module.
+    from . import config as e2e_config
+
     try:
-        ssm = boto3.client("ssm", region_name="us-east-1")
-        passphrase = ssm.get_parameter(Name=CI_PULUMI_PASSPHRASE_SSM_PARAM, WithDecryption=True)["Parameter"]["Value"]
-        os.environ["PULUMI_CONFIG_PASSPHRASE"] = passphrase
-        yield
-    finally:
-        # Always restore the local backend and passphrase env var, even if login, the
-        # SSM lookup, or the wrapped call failed, so a CI lookup never leaves the dev
-        # environment pointed at CI's S3 state or holding the CI passphrase.
-        if previous_passphrase is None:
-            os.environ.pop("PULUMI_CONFIG_PASSPHRASE", None)
-        else:
-            os.environ["PULUMI_CONFIG_PASSPHRASE"] = previous_passphrase
-        ctx.run("pulumi login --local", hide=True)
+        return e2e_config.get_pulumi_passphrase(e2e_config.get_local_config(config_path))
+    except Exception:
+        # A broken config file shouldn't stop `pulumi version` or `pulumi login` from
+        # running. Commands that do need the passphrase still prompt, as they did before.
+        return None
 
 
-def get_stack_json_outputs(ctx: Context, full_stack_name: str) -> Any:
-    buffer = StringIO()
+def pulumi_env(
+    *,
+    config_path: str | None = None,
+    ci: bool = False,
+    skip_update_check: bool = True,
+    overrides: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """
+    Build the environment overrides that every Pulumi invocation needs.
 
-    cmd_parts: list[str] = [
-        "pulumi",
-        "stack",
-        "output",
-        "--json",
-        "--show-secrets",
-        "-s",
-        full_stack_name,
-        get_pulumi_dir_flag(),
-    ]
-    ctx.run(
+    The passphrase is read from the local config file (~/.test_infra_config.yaml) unless
+    the caller's environment already carries one, so the tasks work on a machine where it
+    was never exported -- a Datadog workspace, for instance.
+    """
+    env: dict[str, str] = {}
+    if skip_update_check:
+        env["PULUMI_SKIP_UPDATE_CHECK"] = "true"
+
+    # Membership rather than truthiness: an empty passphrase is a valid Pulumi setup.
+    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ and "PULUMI_CONFIG_PASSPHRASE_FILE" not in os.environ:
+        passphrase = _local_pulumi_passphrase(config_path)
+        if passphrase:
+            env["PULUMI_CONFIG_PASSPHRASE"] = passphrase
+
+    if ci:
+        env.update(_ci_pulumi_env())
+    if overrides:
+        env.update(overrides)
+    return env
+
+
+def run_pulumi(
+    ctx: Context,
+    args: str,
+    *,
+    stack: str | None = None,
+    project_dir: bool | str = True,
+    config_path: str | None = None,
+    ci: bool = False,
+    env: dict[str, str] | None = None,
+    skip_update_check: bool = True,
+    pty: bool = False,
+    hide: str | bool | None = None,
+    warn: bool = False,
+) -> Result | None:
+    """
+    Run a Pulumi command.
+
+    Every Pulumi invocation in the e2e tasks goes through here, so the project directory,
+    the passphrase and the rest of the environment are resolved in a single place.
+
+    `project_dir` drives the -C flag: True picks the e2e-framework Pulumi project, False
+    omits it (for commands that aren't project scoped, such as `login` or `version`), and
+    a path uses that directory.
+    """
+    cmd_parts = ["pulumi"]
+    if project_dir is True:
+        dir_flag = get_pulumi_dir_flag()
+        if dir_flag:
+            cmd_parts.append(dir_flag)
+    elif project_dir is not False:
+        cmd_parts.append(f"-C {shlex.quote(str(project_dir))}")
+    # Callers build args by interpolating optional flag groups, so it can come with
+    # leading or trailing blanks when a group is empty.
+    if args.strip():
+        cmd_parts.append(args.strip())
+    if stack is not None:
+        cmd_parts.append(f"-s {stack}")
+
+    return ctx.run(
         " ".join(cmd_parts),
-        out_stream=buffer,
+        env=pulumi_env(config_path=config_path, ci=ci, skip_update_check=skip_update_check, overrides=env),
+        # A pty is only ever useful for the commands whose progress the user watches, and
+        # invoke can't allocate one on Windows.
+        pty=pty and not is_windows(),
+        hide=hide,
+        warn=warn,
     )
-    return json.loads(buffer.getvalue())
+
+
+def pulumi_json(
+    ctx: Context,
+    args: str,
+    *,
+    stack: str | None = None,
+    project_dir: bool | str = True,
+    config_path: str | None = None,
+    ci: bool = False,
+    warn: bool = False,
+) -> Any:
+    """
+    Run a Pulumi command that prints JSON and return the parsed output, or None when the
+    command failed and `warn` is set.
+
+    stdout is captured instead of echoed; stderr keeps streaming so Pulumi's own error
+    message stays visible when the command fails.
+    """
+    result = run_pulumi(
+        ctx, args, stack=stack, project_dir=project_dir, config_path=config_path, ci=ci, hide="stdout", warn=warn
+    )
+    if result is None or result.exited != 0:
+        return None
+    return json.loads(result.stdout)
+
+
+def pulumi_stack_names(
+    ctx: Context,
+    *,
+    project: str | None = None,
+    project_dir: bool | str = True,
+    config_path: str | None = None,
+) -> list[str]:
+    """
+    Names of every stack the current backend knows about.
+    """
+    args = "stack ls --all --json"
+    if project:
+        args += f" --project {project}"
+    stacks = pulumi_json(ctx, args, project_dir=project_dir, config_path=config_path) or []
+    return [stack["name"] for stack in stacks if "name" in stack]
+
+
+def get_stack_json_outputs(ctx: Context, full_stack_name: str, config_path: str | None = None, ci: bool = False) -> Any:
+    return pulumi_json(
+        ctx,
+        "stack output --json --show-secrets",
+        stack=full_stack_name,
+        config_path=config_path,
+        ci=ci,
+    )
 
 
 def get_aws_wrapper(
@@ -303,7 +420,7 @@ def get_pulumi_dir_flag():
     root_path = get_pulumi_run_folder()
     current_path = os.getcwd()
     if not os.path.isfile(os.path.join(current_path, "Pulumi.yaml")):
-        return f"-C {root_path}"
+        return f"-C {shlex.quote(root_path)}"
     return ""
 
 
