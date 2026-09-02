@@ -52,9 +52,10 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 	}
 
 	rms := md.ResourceMetrics()
+	batch := iamp.infraTags.newTagBatch()
 	for i := 0; i < rms.Len(); i++ {
 		resourceAttributes := rms.At(i).Resource().Attributes()
-		iamp.infraTags.ProcessTags(iamp.logger, iamp.cardinality, resourceAttributes, iamp.cfg.AllowHostnameOverride, promote, false, nil)
+		batch.ProcessTags(iamp.logger, iamp.cardinality, resourceAttributes, iamp.cfg.AllowHostnameOverride, promote, false, nil)
 	}
 	return md, nil
 }

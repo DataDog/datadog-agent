@@ -40,6 +40,7 @@ func newInfraAttributesLogsProcessor(
 
 func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.Logs) (plog.Logs, error) {
 	rls := ld.ResourceLogs()
+	batch := ialp.infraTags.newTagBatch()
 	for i := 0; i < rls.Len(); i++ {
 		rl := rls.At(i)
 		resourceAttributes := rl.Resource().Attributes()
@@ -50,7 +51,7 @@ func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.
 		// feed trace-agent's `_dd.tags.container` promotion
 		// (ConsumeContainerTagsFromResource), which logs never go through.
 		// Always pass "off" here regardless of the configured mode.
-		ialp.infraTags.ProcessTags(ialp.logger, ialp.cardinality, resourceAttributes, ialp.cfg.AllowHostnameOverride, ContainerTagPromotionOff, ialp.cfg.LogsTagsAsDDTags, &ddtags)
+		batch.ProcessTags(ialp.logger, ialp.cardinality, resourceAttributes, ialp.cfg.AllowHostnameOverride, ContainerTagPromotionOff, ialp.cfg.LogsTagsAsDDTags, &ddtags)
 
 		if len(ddtags) == 0 {
 			continue
