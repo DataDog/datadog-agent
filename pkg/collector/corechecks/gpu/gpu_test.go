@@ -44,6 +44,7 @@ import (
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
 
@@ -718,6 +719,39 @@ func TestEmitSampleHistogramBucket(t *testing.T) {
 	require.NoError(t, err)
 
 	mockSender.AssertExpectations(t)
+}
+
+func TestEmitSampleEventUsesOccurrenceTimeAndEnrichedTags(t *testing.T) {
+	mockSender := mocksender.NewMockSender(t, "gpu")
+	mockSender.SetupAcceptAll()
+
+	check := &Check{}
+	occurredAt := time.Unix(123, 0)
+	sample := nvidia.NewEvent(
+		event.Event{
+			Title:          "XID 31 error on GPU-1",
+			Text:           "NVRM: Xid ...",
+			AlertType:      event.AlertTypeError,
+			Priority:       event.PriorityNormal,
+			SourceTypeName: CheckName,
+			EventType:      "gpu_xid",
+			AggregationKey: "GPU-1",
+			Tags:           []string{"event_tag:value"},
+		},
+		occurredAt,
+		nvidia.Medium,
+		[]string{"source:kmsg"},
+		nil,
+	)
+
+	require.NoError(t, check.emitSample(sample, mockSender, time.Unix(456, 0), nil, []string{"gpu_uuid:GPU-1"}))
+	require.Len(t, mockSender.Mock.Calls, 1)
+
+	emitted, ok := mockSender.Mock.Calls[0].Arguments.Get(0).(event.Event)
+	require.True(t, ok)
+	require.Equal(t, occurredAt.Unix(), emitted.Ts)
+	require.Equal(t, sample.Key(), sample.Clone().Key())
+	require.ElementsMatch(t, []string{"source:kmsg", "gpu_uuid:GPU-1", "event_tag:value"}, emitted.Tags)
 }
 
 func TestTagsChangeBetweenRuns(t *testing.T) {
