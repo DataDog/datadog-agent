@@ -7,11 +7,12 @@ package filterlistimpl
 
 import (
 	"encoding/json"
-	"maps"
+	"fmt"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/twmb/murmur3"
 )
 
@@ -44,6 +45,9 @@ type byName struct {
 
 type metricEntry struct {
 	Name string `json:"metric_name"`
+	// Except is optional, and only meaningful when Name is a `*` prefix: the
+	// metrics it matches are kept even though Name matches them.
+	Except []string `json:"except"`
 }
 
 // onFilterListUpdateCallback receives both metric and tag filterlist configurations.
@@ -70,6 +74,9 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	// the RC platform
 	for configPath, v := range updates {
 		fl.log.Debugf("received filterlist config: %q", string(v.Config))
+
+		fmt.Println("\033[035m", string(v.Config), "\033[0m")
+
 		var config statsdFilterListUpdate
 		if err := json.Unmarshal(v.Config, &config); err != nil {
 			applyStateCallback(configPath, state.ApplyStatus{
@@ -97,20 +104,20 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		tagFilterListUpdates = append(tagFilterListUpdates, config.FilteredTags)
 	}
 
-	metricNames := fl.buildMetricFilterListConfig(metricFilterListUpdates)
+	metricRules := fl.buildMetricFilterListConfig(metricFilterListUpdates)
 
-	if len(metricNames) > 0 {
+	if len(metricRules) > 0 {
 		// update the runtime config to be consistent
 		// in `agent config` calls.
-		fl.config.Set("metric_filterlist", metricNames, model.SourceRC)
+		fl.config.Set("metric_filterlist", metricFilterListEntries(metricRules), model.SourceRC)
 		fl.config.Set("metric_filterlist_match_prefix", false, model.SourceRC)
-		if len(fl.localFilterListConfig.metricNames) > 0 {
+		if len(fl.localFilterListConfig.metricRules) > 0 {
 			fl.config.Set("statsd_metric_blocklist", []string{}, model.SourceRC)
 			fl.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceRC)
 		}
 
 		// apply this new blocklist to all the running workers
-		fl.SetMetricFilterList(metricNames, false)
+		fl.SetMetricFilterRules(metricRules, false)
 	} else {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
@@ -139,17 +146,34 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	}
 }
 
-// buildMetricFilterListConfig builds the metrics to be used for the metric filterlist,
-// Metric names are deduped.
-func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []string {
-	metrics := make(map[string]struct{})
+// buildMetricFilterListConfig builds the rules to be used for the metric
+// filterlist. Metric names are passed through as-is, so a name ending with `*`
+// is a prefix pattern, exactly like one coming from the configuration file.
+//
+// Entries with no exception are deduped by name. Entries with exceptions are
+// not: two entries on the same name but with different exceptions are not
+// interchangeable, and the matcher applies each entry's exceptions to its own
+// match, so keeping both is what makes a metric excepted by only one of them
+// still get dropped.
+func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []utilstrings.Rule {
+	var rules []utilstrings.Rule
+	seen := make(map[string]struct{})
+
 	for _, update := range metricFilterListUpdates {
 		for _, metric := range update.ByName.Metrics {
-			metrics[metric.Name] = struct{}{}
+			if len(metric.Except) > 0 {
+				rules = append(rules, utilstrings.Rule{Pattern: metric.Name, Except: metric.Except})
+				continue
+			}
+			if _, ok := seen[metric.Name]; ok {
+				continue
+			}
+			seen[metric.Name] = struct{}{}
+			rules = append(rules, utilstrings.Rule{Pattern: metric.Name})
 		}
 	}
-	metricNames := slices.Collect(maps.Keys(metrics))
-	return metricNames
+
+	return rules
 }
 
 // buildConfig builds the configuration to use.

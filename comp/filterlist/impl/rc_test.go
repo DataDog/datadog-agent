@@ -176,6 +176,98 @@ func TestFilterListUpdateWithValidMetrics(t *testing.T) {
 	require.ElementsMatch([]string{"test.metric.1", "test.metric.2"}, metricNames)
 }
 
+// TestFilterListUpdateWithPrefixedMetrics tests that a metric name delivered by
+// RC and ending with `*` is a prefix pattern, exactly like one read from the
+// configuration file.
+func TestFilterListUpdateWithPrefixedMetrics(t *testing.T) {
+	require := require.New(t)
+
+	filterList, configComponent := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [
+						{"metric_name": "test.prefixed.*"},
+						{"metric_name": "test.exact"}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	// The pattern is stored as-is, so `agent config` reports what RC sent.
+	metricNames := configComponent.GetStringSlice("metric_filterlist")
+	require.ElementsMatch([]string{"test.prefixed.*", "test.exact"}, metricNames)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("test.prefixed.anything"))
+	require.True(matcher.Test("test.exact"))
+	require.False(matcher.Test("test.exact.suffix"))
+	require.False(matcher.Test("test.other"))
+
+	// The prefix entry is kept in the histogram subset used at flush time.
+	histo := filterList.GetHistoFilterList()
+	require.True(histo.Test("test.prefixed.histo.avg"))
+}
+
+// TestFilterListUpdateWithExceptions tests that a prefix delivered by RC can
+// carry exceptions, exactly like one read from the configuration file.
+func TestFilterListUpdateWithExceptions(t *testing.T) {
+	require := require.New(t)
+
+	filterList, configComponent := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [
+						{"metric_name": "redis.*", "except": ["redis.net.commands", "redis.keys.*"]},
+						{"metric_name": "test.exact"}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("redis.mem.used"))
+	require.False(matcher.Test("redis.net.commands"))
+	require.False(matcher.Test("redis.keys.count"))
+	require.True(matcher.Test("test.exact"))
+
+	// `agent config` reports the list in the shape the configuration file uses,
+	// so that what RC sent is readable and can be parsed back.
+	entries := configComponent.Get("metric_filterlist")
+	require.ElementsMatch([]interface{}{
+		map[string]interface{}{
+			"metric_name": "redis.*",
+			"except":      []string{"redis.net.commands", "redis.keys.*"},
+		},
+		"test.exact",
+	}, entries)
+}
+
 // TestFilterListUpdateWithValidTags tests the callback with valid tag filter list updates
 func TestFilterListUpdateWithValidTags(t *testing.T) {
 	require := require.New(t)

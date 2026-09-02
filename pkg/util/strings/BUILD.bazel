@@ -18,5 +18,8 @@ dd_agent_go_test(
         "truncate_test.go",
     ],
     embed = [":strings"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

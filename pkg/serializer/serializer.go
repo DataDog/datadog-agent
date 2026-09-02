@@ -361,7 +361,11 @@ func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload
 	s.logger.Debugf("Sending metadata payload, content: %v", string(payload))
 
 	if mustSplit {
+		fmt.Println("\033[035m", "metadata payload was too big to send, metadata payloads cannot be split", len(compressedPayload), len(payload), "\033[0m")
 		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
+	} else {
+		fmt.Println("\033[032m", "metadata payload was too cool to send, metadata payloads cannot be split", len(compressedPayload), len(payload), "\033[0m")
+		fmt.Println("\033[032m", string(payload), "\033[0m")
 	}
 
 	if err := submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), s.jsonExtraHeadersWithCompression); err != nil {
