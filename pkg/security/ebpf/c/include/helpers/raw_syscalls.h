@@ -63,20 +63,17 @@ __attribute__((always_inline)) void send_or_skip_syscall_monitor_event(struct _t
     };
     if (entry->dirty) {
         if (now > entry->last_sent + get_syscall_monitor_event_period()) {
-            // it's been a while since we last sent something and the list of syscalls is dirty, send now
-            should_send = 1;
+            should_send = SYSCALL_DRIFT_REASON_PERIOD;
             goto shoud_send_event;
         }
         key.syscall_key = EXIT_SYSCALL_KEY;
         if (is_syscall(&key)) {
-            // a thread is about to exit and the list of syscalls is dirty, send now
-            should_send = 2;
+            should_send = SYSCALL_DRIFT_REASON_EXIT;
             goto shoud_send_event;
         }
         key.syscall_key = EXECVE_SYSCALL_KEY;
         if (is_syscall(&key)) {
-            // a new process is about to exec, flush the existing syscalls now
-            should_send = 3;
+            should_send = SYSCALL_DRIFT_REASON_EXECVE;
         }
     }
 

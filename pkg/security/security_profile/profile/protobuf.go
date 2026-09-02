@@ -278,3 +278,64 @@ func (p *Profile) DecodeSecurityProfileProtobuf(reader io.Reader) error {
 
 	return nil
 }
+
+// unionSyscalls returns the sorted set of every syscall observed across all image tag IDs.
+func unionSyscalls(byTag map[uint64][]uint32) []uint32 {
+	if len(byTag) == 0 {
+		return nil
+	}
+	set := make(map[uint32]struct{})
+	for _, syscalls := range byTag {
+		for _, s := range syscalls {
+			set[s] = struct{}{}
+		}
+	}
+	if len(set) == 0 {
+		return nil
+	}
+	out := make([]uint32, 0, len(set))
+	for s := range set {
+		out = append(out, s)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// unionCapabilities returns the sorted attempted/used sets aggregated across all image tag IDs.
+func unionCapabilities(byTag map[uint64]*activity_tree.CapabilityRollup) *activity_tree.CapabilityRollup {
+	if len(byTag) == 0 {
+		return nil
+	}
+	attempted := make(map[uint64]struct{})
+	used := make(map[uint64]struct{})
+	for _, r := range byTag {
+		if r == nil {
+			continue
+		}
+		for _, c := range r.Attempted {
+			attempted[c] = struct{}{}
+		}
+		for _, c := range r.Used {
+			used[c] = struct{}{}
+		}
+	}
+	if len(attempted) == 0 && len(used) == 0 {
+		return nil
+	}
+	return &activity_tree.CapabilityRollup{
+		Attempted: sortedUint64Set(attempted),
+		Used:      sortedUint64Set(used),
+	}
+}
+
+func sortedUint64Set(set map[uint64]struct{}) []uint64 {
+	if len(set) == 0 {
+		return nil
+	}
+	out := make([]uint64, 0, len(set))
+	for v := range set {
+		out = append(out, v)
+	}
+	slices.Sort(out)
+	return out
+}

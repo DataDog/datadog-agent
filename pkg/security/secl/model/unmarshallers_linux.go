@@ -1390,9 +1390,8 @@ func (e *SampleRefreshEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 4, nil
 }
 
-// UnmarshalBinary unmarshalls a binary representation of itself. The wire layout carries either
-// a drain-form bitmap (Syscalls) or a workload-profiles-v2 sample first-hit (SyscallID +
-// SampleCookie); EventReason discriminates. Both flavours share the same 80-byte tail.
+// UnmarshalBinary unmarshalls a binary representation of itself. EventReason selects between
+// the drain bitmap (bytes [8:72]) and the sample first-hit tail (bytes [72:80]).
 func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 80 {
 		return 0, ErrNotEnoughData

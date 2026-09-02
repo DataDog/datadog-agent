@@ -542,9 +542,6 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		newEntry, eventNodeBase := node.InsertBindEvent(event, imageTagID, generationType, at.Stats, dryRun)
 		return newEntry, node, eventNodeBase, nil
 	case model.SyscallsEventType:
-		// Sample first-hit (workload profiles v2) rides on the same EVENT_SYSCALLS type with
-		// EventReason == SampleReason and a nonzero SampleCookie; drain events flow the legacy
-		// path.
 		if event.Syscalls.EventReason == model.SampleReason {
 			newEntry, eventNodeBase := node.InsertSyscallSample(event, imageTagID, at.SyscallsMask, at.Stats, dryRun)
 			return newEntry, node, eventNodeBase, nil

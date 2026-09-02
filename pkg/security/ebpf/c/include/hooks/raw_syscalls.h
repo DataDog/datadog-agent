@@ -71,13 +71,8 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
         }
     }
 
-    // are we feeding the user space workload profile manager ?
-    //
-    // Sample first-hit rides on EVENT_SYSCALLS itself, mirroring how bind/open/connect tag
-    // their regular event with a sample_cookie: process/cgroup/span context is already filled
-    // above, we just reset the drain-form fields and set the sample-form ones. Refresh stays a
-    // cookie-only heartbeat. Dedup is keyed on (exec_cookie, syscall_id); no container gate
-    // here — userspace filters on cgroup context.
+    // workload profiles v2 sampler: first-hit rides on EVENT_SYSCALLS with a sample_cookie
+    // (bind/open/connect pattern); repeat hits emit a cookie-only refresh.
     if (!event->process.is_kworker) {
         struct pid_cache_t *pid_entry = get_pid_cache(pid);
         if (pid_entry != NULL) {

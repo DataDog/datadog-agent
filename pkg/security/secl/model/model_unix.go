@@ -950,16 +950,13 @@ type VethPairEvent struct {
 	PeerDevice NetDevice
 }
 
-// SyscallsEvent represents a syscalls event. It carries either a drain-form bitmap
-// (EventReason in {SyscallMonitorPeriodReason, ExitReason, ExecveReason}, Syscalls populated)
-// or a workload-profiles-v2 sample first-hit (EventReason == SampleReason, SyscallID and
-// SampleCookie populated). Subsequent hits of the same (exec_cookie, syscall_id) tuple only
-// produce SampleRefreshEvent heartbeats keyed by SampleCookie.
+// SyscallsEvent represents a syscalls event. Two payload shapes discriminated by EventReason:
+// drain (Syscalls bitmap) or workload-profiles-v2 sample first-hit (SyscallID+SampleCookie).
 type SyscallsEvent struct {
 	EventReason  SyscallDriftEventReason
 	Syscalls     []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
-	SyscallID    uint32    // single syscall id when EventReason == SampleReason; 0 otherwise
-	SampleCookie uint32    // sample cookie when EventReason == SampleReason; 0 otherwise
+	SyscallID    uint32    // populated iff EventReason == SampleReason
+	SampleCookie uint32    // populated iff EventReason == SampleReason
 }
 
 // PathKey identifies an entry in the dentry cache

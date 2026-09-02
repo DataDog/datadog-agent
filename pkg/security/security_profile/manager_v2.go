@@ -955,11 +955,16 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	// Ensure version context exists for this selector
-	m.ensureVersionContext(secprof, selector.Tag)
+	// Key the version context by the concrete image_tag (matching V1's behaviour in secprofs.go)
+	// so it lines up with the activity tree's imageTagIDs. Passing selector.Tag here would use the
+	// "*" grouping sentinel, which the tree never registers, breaking rollup lookups at encode time.
+	imageTag := secprof.GetTagValue("image_tag")
+	if imageTag == "" {
+		imageTag = "latest"
+	}
+	m.ensureVersionContext(secprof, imageTag)
 
 	// Insert the event into the profile's activity tree
-	imageTag := secprof.GetTagValue("image_tag")
 	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
@@ -980,8 +985,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		case model.ConnectEventType:
 			sampleCookie = event.Connect.SampleCookie
 		case model.SyscallsEventType:
-			// Only sample first-hit events carry a cookie; drain events have SampleCookie == 0.
-			sampleCookie = event.Syscalls.SampleCookie
+			sampleCookie = event.Syscalls.SampleCookie // 0 for drain events
 		}
 		if sampleCookie != 0 {
 			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{

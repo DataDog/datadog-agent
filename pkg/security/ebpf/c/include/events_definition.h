@@ -420,10 +420,9 @@ struct ptrace_event_t {
     u32 ns_pid;
 };
 
-// syscall_monitor_event_t is EVENT_SYSCALLS on the wire. It carries either a drain-form
-// bitmap (event_reason in {PERIOD, EXIT, EXECVE}, syscalls[] populated, syscall_id/sample_cookie=0)
-// or a workload-profiles-v2 sample first-hit (event_reason=SAMPLE, syscalls[]=0, single
-// syscall_id + sample_cookie). Subsequent hits for the same tuple only emit sample_refresh_event_t.
+// EVENT_SYSCALLS. Two payload shapes discriminated by event_reason:
+//   - drain (PERIOD/EXIT/EXECVE): syscalls[] bitmap populated
+//   - sample first-hit (SAMPLE):  single syscall_id + sample_cookie
 struct syscall_monitor_event_t {
     struct kevent_t event;
     struct process_context_t process;

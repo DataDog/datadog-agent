@@ -515,7 +515,6 @@ const (
 	// ExecveReason means that the event was sent because an execve syscall was detected on a pid with a dirty cache entry
 	ExecveReason
 	// SampleReason means the event carries a workload-profiles-v2 sample first-hit
-	// (single SyscallID + SampleCookie); the drain-form Syscalls slice is empty.
 	SampleReason
 )
 

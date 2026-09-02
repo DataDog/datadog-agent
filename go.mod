@@ -1415,4 +1415,4 @@ replace (
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
 )
 
-replace github.com/DataDog/agent-payload/v5 => /Users/momar.toure/dd/agent-payload
+replace github.com/DataDog/agent-payload/v5 => ../agent-payload/

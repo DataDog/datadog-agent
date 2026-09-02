@@ -756,7 +756,6 @@ properties:
             - open
             - dns
             - bind
-            - connect
             - syscalls
             - capabilities
             items:
