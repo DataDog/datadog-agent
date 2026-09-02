@@ -16,12 +16,15 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/process/userresolver"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 var (
 	// overridden in tests
 	hostCPUCount = system.HostCPUCount
+
+	defaultLookupIDResolver = userresolver.New(user.LookupId)
 )
 
 func formatUser(fp *procutil.Process, uidProbe *LookupIDProbe) *model.ProcessUser {
@@ -33,8 +36,7 @@ func formatUser(fp *procutil.Process, uidProbe *LookupIDProbe) *model.ProcessUse
 			err error
 		)
 		if uidProbe == nil {
-			// If the probe is nil, skip it and just call `user.LookupId` directly
-			u, err = user.LookupId(strconv.Itoa(int(fp.Uids[0])))
+			u, err = defaultLookupIDResolver.LookupID(strconv.Itoa(int(fp.Uids[0])))
 		} else {
 			u, err = uidProbe.LookupID(strconv.Itoa(int(fp.Uids[0])))
 		}
