@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-#[cfg(any(test, windows))]
+#[cfg(test)]
 use super::profile::SpawnProfile;
 
-#[cfg(any(test, windows))]
+#[cfg(test)]
 pub fn spawn_user_for(process_name: &str, profile: SpawnProfile) -> String {
     crate::platform::intended_spawn_user(process_name, profile)
 }

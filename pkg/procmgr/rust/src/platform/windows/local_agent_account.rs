@@ -3,7 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result, bail};
+#[cfg(not(test))]
+use anyhow::{Context, Result};
+#[cfg(not(test))]
+use anyhow::bail;
+#[cfg(not(test))]
 use log::info;
 use windows_sys::Win32::Security::{
     IsWellKnownSid, WinLocalServiceSid, WinLocalSystemSid, WinNetworkServiceSid,
@@ -83,18 +87,6 @@ fn account_name_for_logon(domain: &str, user: &str) -> AccountName {
     AccountName::new(display_domain, user)
 }
 
-#[cfg(any(test, feature = "test-helpers"))]
-pub(crate) fn spawn_user_for_profile(
-    process_name: &str,
-    profile: crate::spawn::SpawnProfile,
-) -> Result<String> {
-    use super::spawn::SpawnCredential;
-
-    SpawnCredential::resolve(profile)
-        .with_context(|| format!("[{process_name}] resolve spawn credential for spawn user"))
-        .map(|credential| credential.display_name())
-}
-
 #[cfg(not(test))]
 pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
     let Some(key) = open_datadog_agent_key() else {
@@ -160,6 +152,7 @@ fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Resu
     })
 }
 
+#[cfg(not(test))]
 fn well_known_from_names(domain: &str, user: &str) -> Option<AgentAccount> {
     if is_local_system_name(domain, user) {
         Some(AgentAccount::LocalSystem)
@@ -188,17 +181,20 @@ fn well_known_from_sid(sid: &[u8]) -> Option<AgentAccount> {
     }
 }
 
+#[cfg(not(test))]
 fn is_local_system_name(domain: &str, user: &str) -> bool {
     (domain.is_empty() && user.eq_ignore_ascii_case("LocalSystem"))
         || (domain.eq_ignore_ascii_case("NT AUTHORITY") && user.eq_ignore_ascii_case("SYSTEM"))
 }
 
+#[cfg(not(test))]
 fn is_local_service_name(domain: &str, user: &str) -> bool {
     (domain.is_empty() && user.eq_ignore_ascii_case("LocalService"))
         || (domain.eq_ignore_ascii_case("NT AUTHORITY")
             && user.eq_ignore_ascii_case("LOCAL SERVICE"))
 }
 
+#[cfg(not(test))]
 fn is_network_service_name(domain: &str, user: &str) -> bool {
     (domain.is_empty() && user.eq_ignore_ascii_case("NetworkService"))
         || (domain.eq_ignore_ascii_case("NT AUTHORITY")

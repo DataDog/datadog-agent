@@ -19,8 +19,6 @@ mod token_identity;
 mod wide;
 mod win_handle;
 
-#[cfg(any(test, feature = "test-helpers"))]
-pub(crate) use local_agent_account::spawn_user_for_profile;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
 pub(crate) use runtime_user::runtime_user_for_pid;
