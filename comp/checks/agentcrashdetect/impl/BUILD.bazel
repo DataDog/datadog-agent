@@ -1,9 +1,11 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl",
     srcs = [
         "agentcrashdetect.go",
+        "ddinjector_crash_model.go",
+        "ddinjector_crash_windows.go",
         "empty.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/impl",
@@ -13,8 +15,10 @@ go_library(
             "//comp/checks/agentcrashdetect/def",
             "//comp/core/agenttelemetry/def",
             "//comp/core/autodiscovery/integration",
+            "//comp/core/log/def",
             "//comp/core/sysprobeconfig/def",
             "//comp/def",
+            "//comp/etw/def",
             "//pkg/aggregator/sender",
             "//pkg/collector/check",
             "//pkg/collector/corechecks",
@@ -24,7 +28,16 @@ go_library(
             "//pkg/util/option",
             "@in_yaml_go_yaml_v2//:yaml",
             "@org_golang_x_sys//windows/registry",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_time//rate",
         ],
         "//conditions:default": [],
     }),
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["ddinjector_crash_model_test.go"],
+    embed = [":impl"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

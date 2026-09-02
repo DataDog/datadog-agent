@@ -3031,6 +3031,11 @@ func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
 	assert.True(t, len(atCfg.events) > 0)
 	assert.True(t, len(atCfg.schedule) > 0)
 	assert.True(t, len(atCfg.Profiles) > len(atCfg.events))
+
+	ddInjectorCrash, found := atCfg.events["ddinjector-crash"]
+	require.True(t, found)
+	assert.Equal(t, "ddinjector-crash", ddInjectorCrash.RequestType)
+	assert.Equal(t, "ddinjector_crash", ddInjectorCrash.PayloadKey)
 }
 
 func TestAgentTelemetryEventConfiguration(t *testing.T) {
