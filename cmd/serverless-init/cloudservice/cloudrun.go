@@ -213,12 +213,13 @@ func (c *CloudRun) GetInventoryData() InventoryData {
 	revision := os.Getenv(revisionNameEnvVar)
 
 	serviceCCRID := cloudRunServiceCCRID(project, region, service)
+	serviceInventoryID := "//run.googleapis.com/" + serviceCCRID
 
 	if c.isFunction {
 		return InventoryData{
-			WorkloadType:     workloadTypeCloudFunctionGen2,
+			WorkloadType:     workloadTypeCloudRunFunction,
 			ResourceID:       cloudRunFunctionCCRID(project, region, service, os.Getenv(functionTargetEnvVar)),
-			ParentResourceID: serviceCCRID,
+			ParentResourceID: serviceInventoryID,
 			ResourceName:     service,
 			Region:           region,
 			GCPProjectID:     project,
@@ -228,8 +229,8 @@ func (c *CloudRun) GetInventoryData() InventoryData {
 
 	return InventoryData{
 		WorkloadType:     workloadTypeCloudRunService,
-		ResourceID:       cloudRunRevisionCCRID(serviceCCRID, revision),
-		ParentResourceID: serviceCCRID,
+		ResourceID:       "//run.googleapis.com/" + cloudRunRevisionCCRID(serviceCCRID, revision),
+		ParentResourceID: serviceInventoryID,
 		ResourceName:     service,
 		Region:           region,
 		GCPProjectID:     project,
