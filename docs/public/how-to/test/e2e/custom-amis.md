@@ -3,7 +3,7 @@
 Many E2E tests rely on extra dependencies being installed - instead of installing them at runtime (via an `apt install` or similar), we prefer to "bake" them into the underlying AMI that is used for provisioning the test VMs, as installing at runtime is a big source of flakiness (see [here](dependencies.md))
 These images are pinned by ID in this repo (`test/e2e-framework/resources/aws/platforms.json`) and always associated with a specific OS Descriptior in the E2E framework (see below.)
 
-The images themselves are built in [ami-builder](https://github.com/DataDog/ami-builder/tree/master/ami/images/e2e). This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.
+The images themselves are built in [ami-builder](https://github.com/ddoghq/ami-builder/tree/master/ami/images/e2e). This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.
 
 ## How an AMI is chosen
 
@@ -59,7 +59,7 @@ If you need an extra dependency in your test, **prefer adding it to the existing
 
 ## Adding or bumping an image
 
-The build lives in [ami-builder](https://github.com/DataDog/ami-builder); this repo only holds the resulting ID.
+The build lives in [ami-builder](https://github.com/ddoghq/ami-builder); this repo only holds the resulting ID.
 
 1. Make the image change in ami-builder under `ami/images/e2e/` and open a PR there.
 1. Run the manual `build:<os>-<arch>-<version>` job in that branch's child pipeline. The build jobs are manual-only, and a feature branch produces a real usable AMI even without merging.
