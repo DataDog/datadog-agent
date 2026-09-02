@@ -9,17 +9,18 @@ import (
 	"fmt"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // sampleNoSource implements MetricView only — no sourceProvider.
 type sampleNoSource struct{ name string }
 
-func (s *sampleNoSource) GetName() string         { return s.name }
-func (s *sampleNoSource) GetValue() float64       { return 0 }
-func (s *sampleNoSource) GetRawTags() []string    { return nil }
-func (s *sampleNoSource) GetHost() string         { return "" }
-func (s *sampleNoSource) GetTimestampUnix() int64 { return 0 }
-func (s *sampleNoSource) GetSampleRate() float64  { return 1 }
+func (s *sampleNoSource) GetName() string               { return s.name }
+func (s *sampleNoSource) GetValue() float64             { return 0 }
+func (s *sampleNoSource) GetTags() tagset.CompositeTags { return tagset.CompositeTags{} }
+func (s *sampleNoSource) GetHost() string               { return "" }
+func (s *sampleNoSource) GetTimestampUnix() int64       { return 0 }
+func (s *sampleNoSource) GetSampleRate() float64        { return 1 }
 
 // countingHandle records how many MetricView and LogView observations it receives.
 type countingHandle struct {

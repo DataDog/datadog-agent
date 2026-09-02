@@ -92,10 +92,6 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 }
 
 func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64, filterList filterlist.TagMatcher) {
-	if s.observerHandle != nil {
-		s.observerHandle.ObserveMetric(metricSample)
-	}
-
 	// use the timestamp provided in the sample if any
 	if metricSample.Timestamp > 0 {
 		timestamp = metricSample.Timestamp
@@ -103,6 +99,14 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp), filterList)
+	if s.observerHandle != nil {
+		context, _ := s.contextResolver.get(contextKey)
+		s.observerHandle.ObserveMetric(resolvedMetricView{
+			sample: metricSample,
+			host:   context.Host,
+			tags:   context.Tags(),
+		})
+	}
 	bucketStart := s.calculateBucketStart(timestamp)
 
 	switch metricSample.Mtype {
