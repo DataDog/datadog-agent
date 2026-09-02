@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "dogstatsdclientdrops",
-    srcs = ["issue.go"],
+    srcs = [
+        "definitions.go",
+        "issue.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dogstatsdclientdrops",
     visibility = ["//visibility:public"],
     deps = [

@@ -6,6 +6,7 @@
 package dogstatsdclientdrops
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,7 +30,8 @@ func TestBuildUDSIssue(t *testing.T) {
 		{
 			name: "UDS drop",
 			context: UDSDetectionContext{
-				Hostname:                    "test-host",
+				ClientLibrary:               ClientLibraryGo,
+				AgentHostname:               "test-host",
 				DroppedRatio:                0.02,
 				Threshold:                   0.01,
 				BytesSent:                   980,
@@ -38,7 +40,7 @@ func TestBuildUDSIssue(t *testing.T) {
 				BytesDroppedWriter:          8,
 				DropReasonBreakdownComplete: true,
 			},
-			expectedTitle:       "Sustained DogStatsD UDS payload drops detected on test-host",
+			expectedTitle:       "Sustained DogStatsD Go UDS payload drops detected by Agent test-host",
 			expectedTransport:   transportFamilyUDS,
 			expectedDescription: "2.0000% payload-byte drop rate",
 			expectedBytes:       "dropped=20.00",
@@ -48,14 +50,15 @@ func TestBuildUDSIssue(t *testing.T) {
 		{
 			name: "fractional near-threshold values remain visible",
 			context: UDSDetectionContext{
-				Hostname:                 "test-host",
+				ClientLibrary:            ClientLibraryGo,
+				AgentHostname:            "test-host",
 				DroppedRatio:             0.010001,
 				Threshold:                0.01,
 				BytesSent:                49.5,
 				BytesDropped:             0.5,
 				BytesDroppedUnclassified: 0.5,
 			},
-			expectedTitle:        "Sustained DogStatsD UDS payload drops detected on test-host",
+			expectedTitle:        "Sustained DogStatsD Go UDS payload drops detected by Agent test-host",
 			expectedTransport:    transportFamilyUDS,
 			expectedDescription:  "1.0001% payload-byte drop rate",
 			expectedBytes:        "dropped=0.50",
@@ -63,8 +66,9 @@ func TestBuildUDSIssue(t *testing.T) {
 			expectedUnclassified: 0.5,
 		},
 		{
-			name:                "missing context uses safe defaults",
-			expectedTitle:       "Sustained DogStatsD UDS payload drops detected on unknown host",
+			name:                "missing hostname uses safe default",
+			context:             UDSDetectionContext{ClientLibrary: ClientLibraryGo},
+			expectedTitle:       "Sustained DogStatsD Go UDS payload drops detected by Agent unknown host",
 			expectedTransport:   transportFamilyUDS,
 			expectedDescription: "0.0000% payload-byte drop rate",
 			expectedBytes:       "dropped=0.00",
@@ -76,9 +80,10 @@ func TestBuildUDSIssue(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			issue, err := BuildUDSIssue(test.context)
 			require.NoError(t, err)
+			library := NormalizeClientLibrary(string(test.context.ClientLibrary))
 			assert.Empty(t, issue.Id)
-			assert.Equal(t, UDSIssueName, issue.IssueName)
-			assert.Equal(t, UDSIssueType, issue.IssueType)
+			assert.Equal(t, UDSIssueName(library), issue.IssueName)
+			assert.Equal(t, UDSIssueType(library), issue.IssueType)
 			assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.Severity)
 			assert.Equal(t, test.expectedTitle, issue.Title)
 			assert.Contains(t, issue.Description, test.expectedDescription)
@@ -92,7 +97,9 @@ func TestBuildUDSIssue(t *testing.T) {
 			assert.Equal(t, source, issue.Source)
 			require.NotNil(t, issue.Extra)
 			fields := issue.Extra.GetFields()
+			assert.Contains(t, issue.Tags, "host:"+fields[contextKeyHostname].GetStringValue())
 			assert.Equal(t, test.expectedTransport, fields[contextKeyTransportFamily].GetStringValue())
+			assert.Equal(t, string(library), fields[contextKeyClientLibrary].GetStringValue())
 			assert.True(t, fields[contextKeyDetectionEvidenceAvailable].GetBoolValue())
 			assert.Contains(t, fields, contextKeyHostname)
 			assert.Contains(t, fields, contextKeyDroppedRatio)
@@ -103,48 +110,75 @@ func TestBuildUDSIssue(t *testing.T) {
 			assert.Contains(t, fields, contextKeyBytesDroppedWriter)
 			assert.Equal(t, test.expectedUnclassified, fields[contextKeyBytesDroppedUnclassified].GetNumberValue())
 			assert.Equal(t, test.expectedComplete, fields[contextKeyDropReasonBreakdownComplete].GetBoolValue())
-			require.Len(t, issue.Remediation.Steps, 3)
-			assert.Equal(t, "Identify the source of DogStatsD UDS payload drops, then reduce queue or writer pressure.", issue.Remediation.Summary)
+			require.NotEmpty(t, issue.Remediation.Steps)
 			assert.EqualValues(t, 1, issue.Remediation.Steps[0].Order)
-			assert.EqualValues(t, 2, issue.Remediation.Steps[1].Order)
-			assert.EqualValues(t, 3, issue.Remediation.Steps[2].Order)
-			assert.Contains(t, issue.Remediation.Steps[0].Text, "datadog.dogstatsd.client.bytes_dropped_queue")
-			assert.Contains(t, issue.Remediation.Steps[0].Text, "datadog.dogstatsd.client.bytes_dropped_writer")
-			assert.Contains(t, issue.Remediation.Steps[1].Text, "reduce both queue and writer pressure")
-			assert.Contains(t, issue.Remediation.Steps[1].Text, "sender queue capacity")
-			assert.Contains(t, issue.Remediation.Steps[1].Text, "write and connection timeouts")
-			assert.Equal(t, "Redeploy the affected application.", issue.Remediation.Steps[2].Text)
+			assert.Contains(t, issue.Remediation.Steps[0].Text, "datadog.dogstatsd.client.bytes_dropped")
+			assert.Contains(t, issue.Remediation.Steps[len(issue.Remediation.Steps)-1].Text, highThroughputDocs)
 		})
 	}
 }
 
+func TestBuildUDSIssueRejectsUnsupportedLibrary(t *testing.T) {
+	issue, err := BuildUDSIssue(UDSDetectionContext{ClientLibrary: "ruby", AgentHostname: "test-host"})
+	require.Error(t, err)
+	assert.Nil(t, issue)
+}
+
 func TestBuildRestoredUDSIssue(t *testing.T) {
-	issue, err := BuildRestoredUDSIssue("test-host")
+	issue, err := BuildRestoredUDSIssue(ClientLibraryPython, "test-host")
 	require.NoError(t, err)
 	assert.Empty(t, issue.Id)
-	assert.Equal(t, UDSIssueName, issue.IssueName)
-	assert.Equal(t, UDSIssueType, issue.IssueType)
-	assert.Equal(t, "Sustained DogStatsD UDS payload drops detected on test-host", issue.Title)
+	assert.Equal(t, UDSIssueName(ClientLibraryPython), issue.IssueName)
+	assert.Equal(t, UDSIssueType(ClientLibraryPython), issue.IssueType)
+	assert.Equal(t, "Sustained DogStatsD Python UDS payload drops detected by Agent test-host", issue.Title)
 	assert.Contains(t, issue.Description, "previously detected")
 	assert.Contains(t, issue.Description, "awaiting current client telemetry")
 	require.NotNil(t, issue.Extra)
 	fields := issue.Extra.GetFields()
 	assert.Equal(t, "test-host", fields[contextKeyHostname].GetStringValue())
+	assert.Equal(t, "py", fields[contextKeyClientLibrary].GetStringValue())
 	assert.Equal(t, transportFamilyUDS, fields[contextKeyTransportFamily].GetStringValue())
 	assert.False(t, fields[contextKeyDetectionEvidenceAvailable].GetBoolValue())
 	assert.NotContains(t, fields, contextKeyDroppedRatio)
 	assert.NotContains(t, fields, contextKeyBytesSent)
 	assert.NotContains(t, fields, contextKeyBytesDropped)
-	require.Len(t, issue.Remediation.Steps, 3)
+	require.NotEmpty(t, issue.Remediation.Steps)
+}
+
+func TestLibrarySpecificUDSRemediation(t *testing.T) {
+	for _, test := range []struct {
+		library     ClientLibrary
+		contains    []string
+		notContains []string
+	}{
+		{library: ClientLibraryGo, contains: []string{"client:go", "WithoutClientSideAggregation", "WithSenderQueueSize", "WithErrorHandler", "code-lang=go"}},
+		{library: ClientLibraryPython, contains: []string{"client:py", "statsd_disable_aggregation=False", "sender_queue_timeout", "socket_connect_timeout", "code-lang=python"}},
+		{library: ClientLibraryJava, contains: []string{"client:java", "errorHandler", "enableAggregation(true)", "connectionTimeout", "code-lang=java"}, notContains: []string{bytesDroppedQueueMetric, bytesDroppedWriterMetric}},
+	} {
+		t.Run(string(test.library), func(t *testing.T) {
+			issue, err := BuildUDSIssue(UDSDetectionContext{ClientLibrary: test.library, AgentHostname: "test-host"})
+			require.NoError(t, err)
+			var remediation strings.Builder
+			for _, step := range issue.Remediation.Steps {
+				remediation.WriteString(step.Text)
+			}
+			for _, expected := range test.contains {
+				assert.Contains(t, remediation.String(), expected)
+			}
+			for _, unexpected := range test.notContains {
+				assert.NotContains(t, remediation.String(), unexpected)
+			}
+		})
+	}
 }
 
 func TestStableUDSIssueIdentity(t *testing.T) {
-	assert.Equal(t, "DogStatsD UDS Client Payload Drops", UDSIssueName)
-	assert.Equal(t, "dogstatsd_uds_client_payload_drops", UDSIssueType)
-	assert.Equal(t, "dogstatsd-uds-client-payload-drops", UDSIssueID)
-	assert.Equal(t, "dogstatsd-uds-client-payload-drops:uuid:test-uuid", UDSIssueIDForHost("test-uuid", "test-host"))
-	assert.Equal(t, "dogstatsd-uds-client-payload-drops:hostname:test-host", UDSIssueIDForHost("", "test-host"))
-	assert.Equal(t, UDSIssueIDForHost("test-uuid", "old-host"), UDSIssueIDForHost("test-uuid", "new-host"))
-	assert.NotEqual(t, UDSIssueIDForHost("first-uuid", "test-host"), UDSIssueIDForHost("second-uuid", "test-host"))
-	assert.NotEqual(t, UDSIssueIDForHost("", "first-host"), UDSIssueIDForHost("", "second-host"))
+	assert.Equal(t, "DogStatsD Go UDS Client Payload Drops", UDSIssueName(ClientLibraryGo))
+	assert.Equal(t, "dogstatsd_go_uds_client_payload_drops", UDSIssueType(ClientLibraryGo))
+	assert.Equal(t, "dogstatsd-go-uds-client-payload-drops:uuid:test-uuid", UDSIssueIDForHost(ClientLibraryGo, "test-uuid", "test-host"))
+	assert.Equal(t, "dogstatsd-go-uds-client-payload-drops:hostname:test-host", UDSIssueIDForHost(ClientLibraryGo, "", "test-host"))
+	assert.Equal(t, UDSIssueIDForHost(ClientLibraryGo, "test-uuid", "old-host"), UDSIssueIDForHost(ClientLibraryGo, "test-uuid", "new-host"))
+	assert.NotEqual(t, UDSIssueIDForHost(ClientLibraryGo, "test-uuid", "test-host"), UDSIssueIDForHost(ClientLibraryPython, "test-uuid", "test-host"))
+	assert.NotEqual(t, UDSIssueIDForHost(ClientLibraryGo, "first-uuid", "test-host"), UDSIssueIDForHost(ClientLibraryGo, "second-uuid", "test-host"))
+	assert.NotEqual(t, UDSIssueIDForHost(ClientLibraryGo, "", "first-host"), UDSIssueIDForHost(ClientLibraryGo, "", "second-host"))
 }

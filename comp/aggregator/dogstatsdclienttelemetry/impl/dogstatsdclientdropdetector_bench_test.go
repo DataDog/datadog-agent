@@ -97,7 +97,7 @@ func benchmarkFinalDogStatsDSeries(name string) ([]*metrics.Serie, string, float
 
 	for i := range series {
 		serieName := name
-		tags := tagset.CompositeTagsFromSlice([]string{"client_transport:uds", dogStatsDClientLibraryTagPrefix + "go"})
+		tags := tagset.CompositeTagsFromSlice([]string{dogStatsDClientTransportTagPrefix + "uds", dogStatsDClientLibraryTagPrefix + "go"})
 		if name == "unmatched-distinct-metric-names" {
 			serieName = fmt.Sprintf("customer.metric.%d", i)
 			expected = 0
