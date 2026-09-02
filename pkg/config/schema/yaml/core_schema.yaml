@@ -365,7 +365,6 @@ properties:
       (one per container instead of one per host). This may impact your custom metrics billing.
     tags:
     - template_section:Common
-    - full-agent-only:true
     comment: |-
       The cardinality of tags to send for checks.
       Choices are: low, orchestrator, high.
@@ -385,7 +384,6 @@ properties:
       (one per container instead of one per host). This may impact your custom metrics billing.
     tags:
     - template_section:Common
-    - full-agent-only:true
     comment: |-
       The cardinality of tags to send for dogstatsd.
       Choices are: low, orchestrator, high.
@@ -3358,7 +3356,6 @@ properties:
         <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
     tags:
     - template_section:DockerTagging
-    - full-agent-only:true
   docker_env_as_tags:
     node_type: setting
     type: object
@@ -3376,7 +3373,6 @@ properties:
         <ENVVAR_NAME>: <TAG_KEY>
     tags:
     - template_section:DockerTagging
-    - full-agent-only:true
   kubernetes_pod_labels_as_tags:
     node_type: setting
     title: Kubernetes tag extraction
@@ -3396,7 +3392,6 @@ properties:
         <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
-    - full-agent-only:true
   kubernetes_pod_annotations_as_tags:
     node_type: setting
     type: object
@@ -3415,7 +3410,6 @@ properties:
         <HIGH_CARDINALITY_ANNOTATION>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
-    - full-agent-only:true
   kubernetes_namespace_labels_as_tags:
     node_type: setting
     type: object
@@ -3434,7 +3428,6 @@ properties:
         <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
-    - full-agent-only:true
   container_env_as_tags:
     node_type: setting
     type: object
@@ -3503,7 +3496,6 @@ properties:
       ECS Agent for tasks scheduled with the EC2 launch type.
     tags:
     - template_section:ECS
-    - full-agent-only:true
   ecs_resource_tags_replace_colon:
     node_type: setting
     type: boolean
@@ -3925,7 +3917,6 @@ properties:
         beta.kubernetes.io/os: os
     tags:
     - template_section:KubeApiServer
-    - full-agent-only:true
   kubernetes_node_annotations_as_tags:
     node_type: setting
     type: object
@@ -3943,7 +3934,6 @@ properties:
         cluster.k8s.io/machine: machine
     tags:
     - template_section:KubeApiServer
-    - full-agent-only:true
   kubernetes_node_annotations_as_host_aliases:
     node_type: setting
     type: array
@@ -4327,7 +4317,6 @@ properties:
     description: This section configures High Availability Agent feature.
     tags:
     - template_section:CoreAgent
-    - full-agent-only:true
     properties:
       enabled:
         node_type: setting
@@ -6330,8 +6319,6 @@ properties:
         node_type: setting
         type: boolean
         default: true
-    tags:
-    - full-agent-only:true
   data_security:
     node_type: section
     type: object
@@ -6847,8 +6834,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-    tags:
-    - full-agent-only:true
   dogstatsd_capture_depth:
     node_type: setting
     type: integer
@@ -7638,8 +7623,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    tags:
-    - full-agent-only:true
     comment: overridden in Heroku buildpack
   hostname_drift_initial_delay:
     node_type: setting
@@ -8046,8 +8029,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    tags:
-    - full-agent-only:true
     comment: overridden in IoT Agent main
   ipc_address:
     node_type: setting
@@ -8279,8 +8260,6 @@ properties:
     default: {}
     additionalProperties:
       type: string
-    tags:
-    - full-agent-only:true
   kubernetes_node_label_as_cluster_name:
     node_type: setting
     type: string
@@ -8291,14 +8270,10 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    tags:
-    - full-agent-only:true
   kubernetes_resources_annotations_as_tags:
     node_type: setting
     type: string
     default: '{}'
-    tags:
-    - full-agent-only:true
     comment: |-
       kubernetes_resources_annotations_as_tags should be parseable as map[string]map[string]string
       it maps group resources to annotations as tags maps
@@ -8312,8 +8287,6 @@ properties:
     node_type: setting
     type: string
     default: '{}'
-    tags:
-    - full-agent-only:true
     comment: |-
       kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
       it maps group resources to labels as tags maps
@@ -8422,26 +8395,18 @@ properties:
     default: []
     items:
       type: string
-    tags:
-    - full-agent-only:true
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean
     default: false
-    tags:
-    - full-agent-only:true
   metric_tag_filterlist:
     node_type: setting
     type: array
     default: []
-    tags:
-    - full-agent-only:true
   metric_tag_filterlist_adp_only:
     node_type: setting
     type: boolean
     default: true
-    tags:
-    - full-agent-only:true
     comment: |-
       When true (default), metric_tag_filterlist tag stripping is only applied when data_plane.enabled is true.
       Set to false to apply tag stripping regardless of whether ADP is running.
@@ -9246,14 +9211,10 @@ properties:
     default: []
     items:
       type: string
-    tags:
-    - full-agent-only:true
   statsd_metric_blocklist_match_prefix:
     node_type: setting
     type: boolean
     default: false
-    tags:
-    - full-agent-only:true
   statsd_metric_namespace_blacklist:
     node_type: setting
     type: array
