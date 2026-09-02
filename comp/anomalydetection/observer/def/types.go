@@ -33,9 +33,9 @@ type HandleFunc func(name string) Handle
 
 // MetricView provides read-only access to a metric sample.
 //
-// The underlying metric data may be reused immediately after ObserveMetric
-// returns, so implementations must not retain the MetricView itself. Values
-// returned by methods other than GetTags must be copied synchronously.
+// MetricView is valid only for the duration of ObserveMetric. Implementations
+// must copy values they need before returning, except for GetTags, whose
+// backing-storage lifetime is documented below.
 type MetricView interface {
 	GetName() string
 	GetValue() float64
