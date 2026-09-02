@@ -8,6 +8,8 @@ package enrollment
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -33,6 +35,7 @@ type Result struct {
 	Hostname      string
 	RunnerName    string
 	OrchClusterID string
+	APIKeyHash    string
 }
 
 type AgentIdentifier struct {
@@ -45,6 +48,17 @@ type PersistedIdentity struct {
 	URN           string `json:"urn"`
 	Hostname      string `json:"hostname,omitempty"`
 	OrchClusterID string `json:"orch_cluster_id,omitempty"`
+	// APIKeyHash is the SHA-256 hash (hex-encoded) of the api_key used at enrollment
+	// time. It lets us detect when the configured api_key has since changed without
+	// persisting the api_key itself alongside the identity.
+	APIKeyHash string `json:"api_key_hash,omitempty"`
+}
+
+// HashAPIKey returns a hex-encoded SHA-256 hash of the given API key, suitable for
+// detecting api_key changes across restarts without persisting the key itself.
+func HashAPIKey(apiKey string) string {
+	sum := sha256.Sum256([]byte(apiKey))
+	return hex.EncodeToString(sum[:])
 }
 
 // GetAgentIdentifier returns the identifier for the current agent.
@@ -66,13 +80,19 @@ func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Co
 }
 
 // ShouldReenroll checks whether the persisted identity needs refreshing.
-// Re-enrollment is only supported for the node agent.
-func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity) bool {
+// Re-enrollment is only supported for the node agent: the cluster agent identity is
+// shared across replicas via a K8s secret, so triggering re-enrollment from any
+// individual replica's config could cause races between them.
+func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity, currentAPIKey string) bool {
 	if identity == nil || flavor.GetFlavor() == flavor.ClusterAgent {
 		return false
 	}
 	if identity.Hostname != "" && identity.Hostname != agentIdentifier.Hostname {
 		log.Infof("Saved identity hostname does not match current hostname, re-enrolling")
+		return true
+	}
+	if identity.APIKeyHash != "" && identity.APIKeyHash != HashAPIKey(currentAPIKey) {
+		log.Infof("Configured api_key does not match the one used for the saved identity, re-enrolling")
 		return true
 	}
 	return false
@@ -135,6 +155,7 @@ func SelfEnroll(
 		Hostname:      enrollmentHostname,
 		RunnerName:    runnerName,
 		OrchClusterID: agentIdentifier.OrchClusterID,
+		APIKeyHash:    HashAPIKey(apiKey),
 	}, nil
 }
 
@@ -218,5 +239,6 @@ func SelfEnrollApiKeyOnly(
 		Hostname:      enrollmentHostname,
 		RunnerName:    runnerName,
 		OrchClusterID: agentIdentifier.OrchClusterID,
+		APIKeyHash:    HashAPIKey(apiKey),
 	}, nil
 }

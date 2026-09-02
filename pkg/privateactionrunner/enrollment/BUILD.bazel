@@ -38,6 +38,7 @@ dd_agent_go_test(
     srcs = [
         "enrollment_test.go",
         "k8s_secret_test.go",
+        "storage_test.go",
     ],
     embed = [":enrollment"],
     gotags_sets = [[
@@ -48,6 +49,8 @@ dd_agent_go_test(
         "orchestrator",
     ]],
     deps = [
+        "//comp/core/config",
+        "//pkg/privateactionrunner/util",
         "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

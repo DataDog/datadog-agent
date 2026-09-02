@@ -46,7 +46,7 @@ func TestShouldReenroll_NodeAgent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			agentID := &AgentIdentifier{Hostname: tc.agentHostname}
 			identity := &PersistedIdentity{Hostname: tc.persistedHostname}
-			assert.Equal(t, tc.want, ShouldReenroll(agentID, identity))
+			assert.Equal(t, tc.want, ShouldReenroll(agentID, identity, "some-api-key"))
 		})
 	}
 }
@@ -55,8 +55,46 @@ func TestShouldReenroll_ClusterAgent_NeverReenrolls(t *testing.T) {
 	flavor.SetFlavor(flavor.ClusterAgent)
 	defer flavor.SetFlavor(flavor.DefaultAgent)
 
-	// Cluster agent re-enrollment is disabled; even a mismatch should return false.
+	// Cluster agent re-enrollment is disabled; even a hostname or api_key mismatch should return false.
 	agentID := &AgentIdentifier{OrchClusterID: "cluster-new"}
-	identity := &PersistedIdentity{OrchClusterID: "cluster-old"}
-	assert.False(t, ShouldReenroll(agentID, identity))
+	identity := &PersistedIdentity{OrchClusterID: "cluster-old", APIKeyHash: HashAPIKey("old-key")}
+	assert.False(t, ShouldReenroll(agentID, identity, "new-key"))
+}
+
+func TestShouldReenroll_APIKeyChanged(t *testing.T) {
+	flavor.SetFlavor(flavor.DefaultAgent)
+
+	tests := []struct {
+		name            string
+		currentAPIKey   string
+		persistedAPIKey string
+		want            bool
+	}{
+		{
+			name:            "same api key - no reenroll",
+			currentAPIKey:   "key-a",
+			persistedAPIKey: "key-a",
+			want:            false,
+		},
+		{
+			name:            "different api key - reenroll",
+			currentAPIKey:   "key-b",
+			persistedAPIKey: "key-a",
+			want:            true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			agentID := &AgentIdentifier{Hostname: "my-host"}
+			identity := &PersistedIdentity{Hostname: "my-host", APIKeyHash: HashAPIKey(tc.persistedAPIKey)}
+			assert.Equal(t, tc.want, ShouldReenroll(agentID, identity, tc.currentAPIKey))
+		})
+	}
+
+	t.Run("empty persisted api key hash - no reenroll (backward compat)", func(t *testing.T) {
+		agentID := &AgentIdentifier{Hostname: "my-host"}
+		identity := &PersistedIdentity{Hostname: "my-host"}
+		assert.False(t, ShouldReenroll(agentID, identity, "any-key"))
+	})
 }

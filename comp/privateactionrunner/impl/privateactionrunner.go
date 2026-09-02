@@ -214,7 +214,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
-	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity) {
+	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {

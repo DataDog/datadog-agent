@@ -33,6 +33,7 @@ const (
 	privateKeyField    = "private_key"
 	urnField           = "urn"
 	orchClusterIDField = "orch_cluster_id"
+	apiKeyHashField    = "api_key_hash"
 	secretPollInterval = 1 * time.Second
 )
 
@@ -146,6 +147,7 @@ func parseSecretData(secret *corev1.Secret, ns, secretName string) (*PersistedId
 		PrivateKey:    string(privateKey),
 		URN:           string(urn),
 		OrchClusterID: string(secret.Data[orchClusterIDField]),
+		APIKeyHash:    string(secret.Data[apiKeyHashField]),
 	}, nil
 }
 
@@ -170,6 +172,7 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 		privateKeyField:    []byte(encodedPrivateKey),
 		urnField:           []byte(result.URN),
 		orchClusterIDField: []byte(result.OrchClusterID),
+		apiKeyHashField:    []byte(result.APIKeyHash),
 	}
 
 	newSecret := &corev1.Secret{
