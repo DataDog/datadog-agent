@@ -6,6 +6,7 @@
 pub mod command;
 pub mod config;
 pub mod env;
+pub mod handle;
 pub mod grpc;
 pub mod manager;
 pub mod ordering;

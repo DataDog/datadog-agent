@@ -101,6 +101,8 @@ pub struct ManagedProcess {
     last_exit_status: Option<std::process::ExitStatus>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
+    #[cfg(windows)]
+    user_profile: Option<platform::UserProfileGuard>,
 }
 
 impl ManagedProcess {
@@ -130,6 +132,8 @@ impl ManagedProcess {
             last_exit_status: None,
             #[cfg(windows)]
             job_object: None,
+            #[cfg(windows)]
+            user_profile: None,
         }
     }
 
@@ -156,6 +160,25 @@ impl ManagedProcess {
     pub fn config(&self) -> &ProcessConfig {
         &self.config
     }
+
+    #[cfg(windows)]
+    pub(crate) fn set_job_object(&mut self, job: platform::JobObject) {
+        self.job_object = Some(job);
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn set_user_profile_guard(&mut self, profile: platform::UserProfileGuard) {
+        self.user_profile = Some(profile);
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn clear_windows_spawn_resources(&mut self) {
+        self.job_object = None;
+        self.user_profile = None;
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn set_intended_user(&mut self, _user: String) {}
 
     pub fn restart_count(&self) -> u32 {
         self.restarts.count
