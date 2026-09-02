@@ -84,7 +84,7 @@ func TestBuildUDSIssue(t *testing.T) {
 			assert.Empty(t, issue.Id)
 			assert.Equal(t, UDSIssueName(library), issue.IssueName)
 			assert.Equal(t, UDSIssueType(library), issue.IssueType)
-			assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.Severity)
+			assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_LOW, issue.Severity)
 			assert.Equal(t, test.expectedTitle, issue.Title)
 			assert.Contains(t, issue.Description, test.expectedDescription)
 			assert.Contains(t, issue.Description, "above the ")
@@ -130,6 +130,7 @@ func TestBuildRestoredUDSIssue(t *testing.T) {
 	assert.Empty(t, issue.Id)
 	assert.Equal(t, UDSIssueName(ClientLibraryPython), issue.IssueName)
 	assert.Equal(t, UDSIssueType(ClientLibraryPython), issue.IssueType)
+	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.Severity)
 	assert.Equal(t, "Sustained DogStatsD Python UDS payload drops detected by Agent test-host", issue.Title)
 	assert.Contains(t, issue.Description, "previously detected")
 	assert.Contains(t, issue.Description, "awaiting current client telemetry")
@@ -143,6 +144,20 @@ func TestBuildRestoredUDSIssue(t *testing.T) {
 	assert.NotContains(t, fields, contextKeyBytesSent)
 	assert.NotContains(t, fields, contextKeyBytesDropped)
 	require.NotEmpty(t, issue.Remediation.Steps)
+}
+
+func TestSeverityForDroppedRatio(t *testing.T) {
+	for _, test := range []struct {
+		ratio    float64
+		severity healthplatform.IssueSeverity
+	}{
+		{ratio: 0.0499, severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_LOW},
+		{ratio: 0.05, severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM},
+		{ratio: 0.2499, severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM},
+		{ratio: 0.25, severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH},
+	} {
+		require.Equal(t, test.severity, SeverityForDroppedRatio(test.ratio))
+	}
 }
 
 func TestLibrarySpecificUDSRemediation(t *testing.T) {

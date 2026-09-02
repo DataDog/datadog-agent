@@ -18,8 +18,10 @@ import (
 const (
 	category = "dogstatsd"
 	location = "dogstatsd"
-	severity = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
 	source   = "dogstatsd"
+
+	mediumSeverityDroppedRatio = 0.05
+	highSeverityDroppedRatio   = 0.25
 
 	transportFamilyUDS = "uds"
 
@@ -91,6 +93,17 @@ func UDSIssueIDForHost(clientLibrary ClientLibrary, hostUUID, agentHostname stri
 	return fmt.Sprintf("%s:hostname:%s", base, agentHostname)
 }
 
+// SeverityForDroppedRatio maps the dropped-byte ratio to an Agent Health severity.
+func SeverityForDroppedRatio(ratio float64) healthplatform.IssueSeverity {
+	if ratio >= highSeverityDroppedRatio {
+		return healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH
+	}
+	if ratio >= mediumSeverityDroppedRatio {
+		return healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
+	}
+	return healthplatform.IssueSeverity_ISSUE_SEVERITY_LOW
+}
+
 // BuildUDSIssue creates an Agent Health issue from a confirmed UDS violation.
 func BuildUDSIssue(context UDSDetectionContext) (*healthplatform.Issue, error) {
 	context.ClientLibrary = NormalizeClientLibrary(string(context.ClientLibrary))
@@ -158,6 +171,10 @@ func buildUDSIssue(context UDSDetectionContext, restored bool) (*healthplatform.
 		)
 	}
 
+	issueSeverity := SeverityForDroppedRatio(context.DroppedRatio)
+	if restored {
+		issueSeverity = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
+	}
 	issue := &healthplatform.Issue{
 		IssueName:   definition.issueName,
 		IssueType:   definition.issueType,
@@ -165,7 +182,7 @@ func buildUDSIssue(context UDSDetectionContext, restored bool) (*healthplatform.
 		Description: description,
 		Category:    category,
 		Location:    location,
-		Severity:    severity,
+		Severity:    issueSeverity,
 		Source:      source,
 		Tags:        []string{"dogstatsd", "client", "client:" + string(definition.library), "host:" + agentHostname, "payload-drops", transportFamilyUDS},
 		Remediation: buildUDSRemediation(definition, agentHostname),

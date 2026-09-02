@@ -179,6 +179,7 @@ func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
 
 	issue := healthPlatform.GetIssue(issueID)
 	require.NotNil(t, issue)
+	require.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_LOW, issue.Severity)
 	require.Equal(t, dogstatsdclientdrops.UDSIssueName(dogstatsdclientdrops.ClientLibraryGo), issue.IssueName)
 	require.Contains(t, issue.Title, testHostname)
 	require.Contains(t, issue.Title, "UDS")
@@ -193,6 +194,9 @@ func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
 
 	completeWindow(detector, clientByteStats{sent: 970, dropped: 30})
 	require.Equal(t, firstDescription, healthPlatform.GetIssue(issueID).Description)
+
+	completeWindow(detector, clientByteStats{sent: 700, dropped: 300})
+	require.Equal(t, healthplatformpayload.IssueSeverity_ISSUE_SEVERITY_HIGH, healthPlatform.GetIssue(issueID).Severity)
 
 	// Drop-reason telemetry alone is not proof that the primary ratio recovered.
 	completeWindow(detector, clientByteStats{droppedQueue: 1})

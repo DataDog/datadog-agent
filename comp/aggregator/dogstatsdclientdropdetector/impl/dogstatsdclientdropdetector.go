@@ -11,6 +11,8 @@ import (
 	"math"
 	"time"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	dogstatsdclientdropdetector "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -50,10 +52,11 @@ type clientByteStats struct {
 }
 
 type clientState struct {
-	library     dogstatsdclientdrops.ClientLibrary
-	stats       clientByteStats
-	issueID     string
-	issueActive bool
+	library       dogstatsdclientdrops.ClientLibrary
+	stats         clientByteStats
+	issueID       string
+	issueActive   bool
+	issueSeverity healthplatformpayload.IssueSeverity
 	// issueNeedsRefresh marks restored active lifecycle state whose full issue
 	// payload must be reported again after an Agent restart.
 	issueNeedsRefresh bool
@@ -170,8 +173,8 @@ func (d *component) completeWindow(state *clientState) {
 
 func (d *component) handleUnhealthyWindow(state *clientState, stats clientByteStats) {
 	if state.issueActive {
-		if state.issueNeedsRefresh {
-			ratio, _ := droppedRatio(stats)
+		ratio, _ := droppedRatio(stats)
+		if state.issueNeedsRefresh || dogstatsdclientdrops.SeverityForDroppedRatio(ratio) != state.issueSeverity {
 			d.reportIssue(state, stats, ratio)
 		}
 		d.resetPendingTransition(state)
@@ -270,13 +273,12 @@ func (d *component) reportRestoredIssue(state *clientState) {
 	issue.Id = state.issueID
 	if err := d.healthPlatform.ReportIssue(issue); err != nil {
 		d.logger.Warnf("failed to restore DogStatsD client payload drop health issue after restart: %v", err)
+		return
 	}
+	state.issueSeverity = issue.Severity
 }
 
 func (d *component) reportIssue(state *clientState, stats clientByteStats, ratio float64) {
-	if state.issueActive && !state.issueNeedsRefresh {
-		return
-	}
 	unclassified, breakdownComplete := stats.dropReasonBreakdown()
 	issue, err := dogstatsdclientdrops.BuildUDSIssue(dogstatsdclientdrops.UDSDetectionContext{
 		ClientLibrary:               state.library,
@@ -303,6 +305,7 @@ func (d *component) reportIssue(state *clientState, stats clientByteStats, ratio
 		return
 	}
 	state.issueActive = true
+	state.issueSeverity = issue.Severity
 	state.issueNeedsRefresh = false
 }
 
