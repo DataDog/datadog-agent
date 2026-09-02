@@ -107,7 +107,6 @@ func dogtelSecretsStandaloneProvisioner() provisioners.TypedProvisioner[environm
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
-			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 		),
 	)

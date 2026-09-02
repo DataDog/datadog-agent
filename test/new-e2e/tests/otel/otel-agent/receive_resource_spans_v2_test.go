@@ -39,7 +39,6 @@ agents:
 	t.Parallel()
 	e2e.Run(t, &otelAgentSpanReceiverV2TestSuite{}, e2e.WithProvisioner(
 		provkindvm.Provisioner(provkindvm.WithRunOptions(
-			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig))),
 		)),
 	)

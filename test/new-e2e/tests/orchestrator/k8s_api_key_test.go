@@ -38,7 +38,6 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	suite.UpdateEnv(
 		awskindvm.Provisioner(
 			awskindvm.WithRunOptions(
-				scenariokindvm.WithInternetAccess(),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithNamespace(namespace),
 					kubernetesagentparams.WithHelmValues(fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL)),

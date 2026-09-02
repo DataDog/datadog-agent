@@ -255,7 +255,6 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
 			ec2.WithAMI(params.systemData.ami, params.systemData.os, os.AMD64Arch),
-			ec2.WithInternetAccess(),
 		)
 		if err != nil {
 			return fmt.Errorf("ec2.NewVM: %w", err)

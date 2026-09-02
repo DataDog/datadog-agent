@@ -64,7 +64,6 @@ func dogtelStandaloneProvisioner() provisioners.TypedProvisioner[environments.Ku
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
-			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 		),
 	)
@@ -227,7 +226,6 @@ func dogtelCoexistProvisioner() provisioners.TypedProvisioner[environments.Kuber
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
-			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 			scenkindvm.WithAgentOptions(
 				kubernetesagentparams.WithNamespace(coreAgentNamespace),

@@ -116,7 +116,6 @@ func dogtelGatewayProvisioner() provisioners.TypedProvisioner[environments.Kuber
 	}
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
-			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithStandaloneOTelAgent(deployFn),
 			scenkindvm.WithAgentOptions(
 				kubernetesagentparams.WithHelmValues(dogtelGatewayHelmValues),

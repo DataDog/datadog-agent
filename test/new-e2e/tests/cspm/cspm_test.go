@@ -179,7 +179,6 @@ func TestCSPM(t *testing.T) {
 	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(
 		provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
-				scenkindvm.WithInternetAccess(),
 				scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)),
 				// Surface the EC2 host's dockerd inside the kind nodes so
 				// TestDockerRulesFilteredOnContainerdCRI can reproduce the

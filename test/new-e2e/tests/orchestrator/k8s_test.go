@@ -42,7 +42,6 @@ func TestKindSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awskindvm.Provisioner(
 			awskindvm.WithRunOptions(
-				scenariokindvm.WithInternetAccess(),
 				scenariokindvm.WithDeployTestWorkload(),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithDualShipping(),

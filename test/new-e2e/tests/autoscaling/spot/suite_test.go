@@ -175,7 +175,6 @@ func TestSpotSchedulingKindCI(t *testing.T) {
 	}
 	e2e.Run(t, &spotSchedulingSuite{waitForLogs: true}, e2e.WithProvisioner(awskindvm.Provisioner(
 		awskindvm.WithRunOptions(
-			kindvmscen.WithInternetAccess(),
 			kindvmscen.WithName(kindClusterName),
 			kindvmscen.WithKindWorkerNodes(workerNodes...),
 			kindvmscen.WithoutFakeIntake(),

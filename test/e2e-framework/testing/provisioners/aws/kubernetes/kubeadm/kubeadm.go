@@ -43,8 +43,6 @@ func Provisioner(opts ...provisionerOption) provisioners.TypedProvisioner[enviro
 	runParams := kubeadm.GetRunParams(params.runOptions...)
 
 	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+runParams.Name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
-		// Prepend the no-internet default so that caller-provided opts (e.g. kubeadm.WithInternetAccess()) can override it.
-		opts = append([]provisionerOption{WithRunOptions(kubeadm.WithoutInternetAccess())}, opts...)
 		params := getProvisionerParams(opts...)
 		runParams := kubeadm.GetRunParams(params.runOptions...)
 

@@ -121,16 +121,16 @@ func WithVMOptions(opts ...ec2.VMOption) RunOption {
 	return func(p *RunParams) error { p.vmOptions = append(p.vmOptions, opts...); return nil }
 }
 
-// WithoutInternetAccess replaces the account's default security groups on the Kind VM
-// with the ones configured to block internet access (see ec2.WithoutInternetAccess).
+// WithoutInternetAccess opts the Kind VM out of internet access: the account's default
+// security groups are replaced with the ones configured to block internet access (see
+// ec2.WithoutInternetAccess). This is opt-in: internet access remains the default, and
+// a suite only uses this once its bootstrap and image pulls work without internet.
 func WithoutInternetAccess() RunOption {
 	return WithVMOptions(ec2.WithoutInternetAccess())
 }
 
-// WithInternetAccess explicitly opts the Kind VM into internet access, overriding any
-// no-internet default set by the provisioner. Tests that need to reach external hosts
-// (e.g. to download packages, pull images, or contact external APIs) must call this
-// option explicitly.
+// WithInternetAccess explicitly opts the Kind VM into internet access, overriding a
+// WithoutInternetAccess option set earlier in the options list.
 func WithInternetAccess() RunOption {
 	return WithVMOptions(ec2.WithInternetAccess())
 }

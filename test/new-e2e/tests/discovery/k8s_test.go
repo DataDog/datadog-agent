@@ -81,7 +81,6 @@ func createHelmValues(cfg helmConfig) (string, error) {
 func k8sProvisioner(helmValues string) provisioners.TypedProvisioner[environments.Kubernetes] {
 	return provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
-			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return nginx.K8sAppDefinition(e, kubeProvider, nginxNamespace, nginxPort, "", false, nil)
 			}),
