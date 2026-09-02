@@ -1547,6 +1547,68 @@ func TestNewMap(t *testing.T) {
 	}
 }
 
+// TestBuildMapSharedInfraAttributesProcessor ensures that the per-signal
+// options that configure the shared `infraattributes` processor
+// (metrics_attributes_as_tags for metrics, logs_tags_as_ddtags for logs) both
+// survive when metrics and logs pipelines are enabled together. The metrics and
+// logs default pipeline configs each declare an empty `infraattributes:` block,
+// and confmap/koanf overwrites a map value with a nil one during merge, so a
+// naive per-pipeline merge lets whichever pipeline is merged last clobber the
+// other's option (regression for OTELS-1131).
+func TestBuildMapSharedInfraAttributesProcessor(t *testing.T) {
+	tests := []struct {
+		name                    string
+		metricsInfraAttrsAsTags bool
+		logsTagsAsDDTags        bool
+		wantMetricsAttrsAsTags  bool
+		wantLogsTagsAsDDTags    bool
+	}{
+		{
+			name:                    "metrics_attributes_as_tags with logs enabled",
+			metricsInfraAttrsAsTags: true,
+			logsTagsAsDDTags:        false,
+			wantMetricsAttrsAsTags:  true,
+			wantLogsTagsAsDDTags:    false,
+		},
+		{
+			name:                    "logs_tags_as_ddtags with metrics enabled",
+			metricsInfraAttrsAsTags: false,
+			logsTagsAsDDTags:        true,
+			wantMetricsAttrsAsTags:  false,
+			wantLogsTagsAsDDTags:    true,
+		},
+		{
+			name:                    "both options enabled",
+			metricsInfraAttrsAsTags: true,
+			logsTagsAsDDTags:        true,
+			wantMetricsAttrsAsTags:  true,
+			wantLogsTagsAsDDTags:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pcfg := PipelineConfig{
+				OTLPReceiverConfig:      testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:               5003,
+				MetricsEnabled:          true,
+				LogsEnabled:             true,
+				MetricsInfraAttrsAsTags: tc.metricsInfraAttrsAsTags,
+				LogsTagsAsDDTags:        tc.logsTagsAsDDTags,
+				Metrics:                 map[string]any{},
+			}
+			cfg, err := buildMap(pcfg)
+			require.NoError(t, err)
+
+			infraAttrs, _ := cfg.Get(buildKey("processors", "infraattributes")).(map[string]any)
+			assert.Equal(t, tc.wantMetricsAttrsAsTags, infraAttrs["metrics_attributes_as_tags"] == true,
+				"metrics_attributes_as_tags on shared infraattributes processor")
+			assert.Equal(t, tc.wantLogsTagsAsDDTags, infraAttrs["logs_tags_as_ddtags"] == true,
+				"logs_tags_as_ddtags on shared infraattributes processor")
+		})
+	}
+}
+
 func TestUnmarshal(t *testing.T) {
 	pcfg := PipelineConfig{
 		OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
