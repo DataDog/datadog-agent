@@ -5,7 +5,9 @@
 
 use anyhow::{Result, bail};
 use std::ptr;
+use std::sync::LazyLock;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+use windows_sys::Win32::NetworkManagement::NetManagement::SERVICE_ACCOUNT_PASSWORD;
 use windows_sys::Win32::Security::{
     ImpersonateLoggedOnUser, LOGON32_LOGON_SERVICE, LOGON32_PROVIDER_DEFAULT, LogonUserW,
     RevertToSelf,
@@ -14,8 +16,8 @@ use windows_sys::Win32::Security::{
 use super::super::agent_credentials::AgentAccount;
 use super::super::wide;
 
-/// Password placeholder for gMSA `LogonUserW` (`SERVICE_ACCOUNT_PASSWORD` in lmaccess.h).
-const SERVICE_ACCOUNT_PASSWORD: &str = "_SA_{262E99C9-6160-4871-ACEC-4E61736B6F21}";
+static GMSA_LOGON_PASSWORD: LazyLock<String> =
+    LazyLock::new(|| wide::from_ptr(SERVICE_ACCOUNT_PASSWORD));
 
 pub(super) struct LogonUserCredentials<'a> {
     domain: &'a str,
@@ -52,7 +54,7 @@ pub(crate) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredent
         AgentAccount::ServiceAccountLogon { domain, user } => LogonUserCredentials {
             domain: domain.as_str(),
             username: user.as_str(),
-            password: Some(SERVICE_ACCOUNT_PASSWORD),
+            password: Some(GMSA_LOGON_PASSWORD.as_str()),
         },
     }
 }
