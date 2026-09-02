@@ -25,7 +25,7 @@ import (
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -258,6 +258,13 @@ func main() {
 	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, nil); err != nil {
 		log.Debugf("early config load error (non-fatal): %v", err)
 	}
+
+	// Report how long configuration initialization took. This is the phase that
+	// grows as settings are added.
+	//
+	// Fixed milliseconds rather than a Duration so CI regression checks can match
+	// one number without parsing Go's variable duration units.
+	log.Debugf("serverless-init: config load took %.3fms", float64(time.Since(pkgconfigsetup.StartTime).Microseconds())/1000)
 
 	cloudService := cloudservice.GetCloudServiceType()
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
