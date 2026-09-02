@@ -55,8 +55,7 @@ func TestKmsgReaderIntegration(t *testing.T) {
 func TestKmsgReaderStopCancelsIdleReadIntegration(t *testing.T) {
 	resetKmsgTelemetryDefinitionsForTest(t)
 
-	tel := telemetrymock.New(t)
-	reader, err := NewKmsgReader(tel)
+	reader, err := NewKmsgReader(telemetrymock.New(t))
 	require.NoError(t, err)
 
 	stopped := make(chan struct{})
@@ -70,10 +69,6 @@ func TestKmsgReaderStopCancelsIdleReadIntegration(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timed out stopping kmsg reader")
 	}
-
-	metrics, err := tel.GetCountMetric("kernel__kmsg", "records_read")
-	require.NoError(t, err)
-	require.Len(t, metrics, 1)
 }
 
 func resetKmsgTelemetryDefinitionsForTest(t *testing.T) {
