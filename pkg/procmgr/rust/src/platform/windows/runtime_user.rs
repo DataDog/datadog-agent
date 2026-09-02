@@ -14,8 +14,8 @@ use windows_sys::Win32::System::Threading::{
 };
 
 use super::account_name::AccountName;
-use super::local_agent_account::canonical_account_name_for_well_known_sid;
 use super::local_account::is_local_account;
+use super::local_agent_account::canonical_account_name_for_well_known_sid;
 use super::wide;
 
 pub(crate) fn runtime_user_for_pid(pid: u32) -> Option<String> {

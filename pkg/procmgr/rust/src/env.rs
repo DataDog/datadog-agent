@@ -44,7 +44,10 @@ pub(crate) fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<Stri
     out
 }
 
-pub(crate) fn try_expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> Option<String> {
+pub(crate) fn try_expand_vars_with(
+    input: &str,
+    lookup: impl Fn(&str) -> Option<String>,
+) -> Option<String> {
     let mut out = String::with_capacity(input.len());
     let mut rest = input;
     while let Some(start) = rest.find("${") {

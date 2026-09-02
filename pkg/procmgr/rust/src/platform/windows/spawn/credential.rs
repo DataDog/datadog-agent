@@ -100,9 +100,7 @@ fn inherit_supervisor_primary_token(
         && !token_user_is_local_system(process_token.as_handle())
             .map_err(|e| anyhow!("[{process_name}] verify supervisor token is LocalSystem: {e}"))?
     {
-        bail!(
-            "[{process_name}] privileged spawn requires dd-procmgrd to run as LocalSystem"
-        );
+        bail!("[{process_name}] privileged spawn requires dd-procmgrd to run as LocalSystem");
     }
     duplicate_primary_token(process_name, process_token.as_handle())
 }

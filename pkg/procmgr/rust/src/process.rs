@@ -108,7 +108,7 @@ pub struct ManagedProcess {
 }
 
 impl ManagedProcess {
-    const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
+    pub(crate) const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
 
     pub fn new_config(name: String, uuid: String, config: ProcessConfig) -> Self {
         Self::new_inner(name, uuid, config, ProcessOrigin::Config)
@@ -377,10 +377,7 @@ impl ManagedProcess {
 
     /// Wait for the child to exit. Only works when we still hold the handle.
     pub async fn wait(&mut self) -> Result<std::process::ExitStatus> {
-        let handle = self
-            .handle
-            .as_mut()
-            .context("no child handle to wait on")?;
+        let handle = self.handle.as_mut().context("no child handle to wait on")?;
         let status = handle.wait().await?;
         info!("[{}] exited with {status}", self.name);
         self.handle = None;
