@@ -18,17 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
-// internalTelemetryCheckConfig turns on the curated internal telemetry set. It lands at
-// conf.d/telemetry.d/conf.yaml, taking precedence over the conf.yaml.default the package ships.
-const internalTelemetryCheckConfig = `init_config:
-
-instances:
-  - internal_telemetry:
-      enabled: true
+// internalTelemetryAgentConfig turns on the curated internal telemetry set. Both settings live in
+// datadog.yaml rather than in the check's own configuration, and both are runtime settings.
+const internalTelemetryAgentConfig = `telemetry:
+  internal:
+    enabled: true
 `
 
 // notCuratedMetric is reported into the regular telemetry registry by the forwarder on every
@@ -53,7 +52,7 @@ func TestInternalTelemetrySuite(t *testing.T) {
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithRunOptions(
 				ec2.WithAgentOptions(
-					agentparams.WithIntegration("telemetry.d", internalTelemetryCheckConfig),
+					agentparams.WithAgentConfig(internalTelemetryAgentConfig),
 				),
 			),
 		)),
@@ -101,20 +100,51 @@ func (s *internalTelemetrySuite) TestCuratedCountersReported() {
 	}
 }
 
-// TestNonCuratedMetricsStayInternal checks that enabling internal_telemetry reports the curated
-// set rather than the whole registry, which is what internal_telemetry.advanced is for.
-func (s *internalTelemetrySuite) TestNonCuratedMetricsStayInternal() {
-	// Establish a positive signal first: once a curated metric has arrived, the pipeline has
-	// flushed at least once, so a non-curated metric would be here too if it were being reported.
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("datadog.agent.aggregator.number_of_flush")
-		require.NoError(c, err)
-		assert.NotEmpty(c, metrics, "no curated metric received yet, cannot conclude anything about the rest")
-	}, 5*time.Minute, 10*time.Second)
+// TestCurationAndAdvancedAtRuntime covers the boundary between the curated set and the whole
+// registry, and that telemetry.internal.advanced takes effect at runtime.
+//
+// The two halves are subtests because they must run in order: the first proves a non-curated
+// metric is absent, and the second makes that same metric start arriving. The intake keeps
+// everything it has received, so running them the other way round would leave the absence check
+// with no way to pass.
+func (s *internalTelemetrySuite) TestCurationAndAdvancedAtRuntime() {
+	s.T().Run("curated set excludes the rest of the registry", func(t *testing.T) {
+		// Establish a positive signal first: once a curated metric has arrived, the pipeline has
+		// flushed, so a non-curated metric would be here too if it were being reported.
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			metrics, err := s.Env().FakeIntake.Client().FilterMetrics("datadog.agent.aggregator.number_of_flush")
+			require.NoError(c, err)
+			assert.NotEmpty(c, metrics, "no curated metric received yet, cannot conclude anything about the rest")
+		}, 5*time.Minute, 10*time.Second)
 
-	metrics, err := s.Env().FakeIntake.Client().FilterMetrics(notCuratedMetric)
-	require.NoError(s.T(), err)
-	assert.Empty(s.T(), metrics, "%s is not on the curated allowlist and must not be reported", notCuratedMetric)
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(notCuratedMetric)
+		require.NoError(t, err)
+		assert.Empty(t, metrics, "%s is not on the curated allowlist and must not be reported", notCuratedMetric)
+	})
+
+	s.T().Run("advanced widens it without a restart", func(t *testing.T) {
+		// telemetry.internal.advanced is a runtime setting and the check reads it on every run, so
+		// this takes effect on the next check run with no restart and no reconfiguration.
+		s.setRuntimeSetting(t, "telemetry.internal.advanced", "true")
+		t.Cleanup(func() { s.setRuntimeSetting(t, "telemetry.internal.advanced", "false") })
+
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			metrics, err := s.Env().FakeIntake.Client().FilterMetrics(notCuratedMetric)
+			require.NoError(c, err)
+			assert.NotEmpty(c, metrics, "%s should be reported once advanced mode is on", notCuratedMetric)
+		}, 2*time.Minute, 10*time.Second)
+	})
+}
+
+// setRuntimeSetting changes a runtime setting through the Agent CLI and confirms it took, which
+// is also what proves the setting is registered as runtime-capable in the first place.
+func (s *internalTelemetrySuite) setRuntimeSetting(t *testing.T, setting, value string) {
+	t.Helper()
+
+	s.Env().Agent.Client.Config(agentclient.WithArgs([]string{"set", setting, value}))
+
+	got := s.Env().Agent.Client.Config(agentclient.WithArgs([]string{"get", setting}))
+	require.Contains(t, got, value, "%s did not take the value %q, got: %s", setting, value, got)
 }
 
 // assertGaugeReported waits for a gauge to arrive with a positive value, carrying every tag in

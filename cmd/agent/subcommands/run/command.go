@@ -582,6 +582,8 @@ func getSharedFxOption() fx.Option {
 					"multi_region_failover.metric_allowlist": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.metric_allowlist", "Allowlist of metrics to be redirected to failover region."),
 					"internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
 					"dogstatsd_stream_log_too_big":           commonsettings.NewDogstatsdStreamLogTooBigSetting(),
+					"telemetry.internal.enabled":             internalsettings.NewInternalTelemetryRuntimeSetting("telemetry.internal.enabled", "Enable/disable reporting the Agent's internal telemetry as datadog.agent.* metrics."),
+					"telemetry.internal.advanced":            internalsettings.NewInternalTelemetryRuntimeSetting("telemetry.internal.advanced", "Enable/disable reporting every metric in the Agent's internal telemetry registry instead of the curated set."),
 				},
 				Config: config,
 			}

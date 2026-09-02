@@ -11,13 +11,16 @@ import (
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 const (
@@ -119,18 +122,28 @@ func (f *fakeTelemetry) Gather(defaultGather bool) ([]*dto.MetricFamily, error) 
 	return f.regularMfs, nil
 }
 
-// newTestCheck builds a configured check backed by the given registries, plus a mock sender.
-func newTestCheck(t *testing.T, instance string, defaultMfs, regularMfs []*dto.MetricFamily) (*checkImpl, *mocksender.MockSender) {
+// newTestCheck builds a configured check backed by the given registries and Agent config
+// overrides, plus a mock sender.
+func newTestCheck(t *testing.T, overrides map[string]interface{}, defaultMfs, regularMfs []*dto.MetricFamily) (*checkImpl, *mocksender.MockSender) {
 	t.Helper()
 
 	sm := mocksender.CreateDefaultDemultiplexer(t)
 	c := &checkImpl{
 		CheckBase: corechecks.NewCheckBase(CheckName),
 		telemetry: &fakeTelemetry{defaultMfs: defaultMfs, regularMfs: regularMfs},
+		config:    config.NewMockWithOverrides(t, overrides),
 	}
-	require.NoError(t, c.Configure(sm, integration.FakeConfigHash, integration.Data(instance), nil, "test", "provider"))
+	require.NoError(t, c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider"))
 
 	return c, mocksender.NewMockSenderWithSenderManager(c.ID(), sm)
+}
+
+func internalTelemetryEnabled() map[string]interface{} {
+	return map[string]interface{}{internalTelemetryEnabledSetting: true}
+}
+
+func internalTelemetryAdvanced() map[string]interface{} {
+	return map[string]interface{}{internalTelemetryAdvancedSetting: true}
 }
 
 // expectRunScaffolding registers the calls every Run() makes regardless of what it reports.
@@ -186,7 +199,7 @@ func expectDefaultRegistry(s *mocksender.MockSender) {
 }
 
 func TestRunWithoutInternalTelemetry(t *testing.T) {
-	c, s := newTestCheck(t, "", defaultRegistryFixture(), regularRegistryFixture())
+	c, s := newTestCheck(t, nil, defaultRegistryFixture(), regularRegistryFixture())
 
 	expectRunScaffolding(s)
 	expectDefaultRegistry(s)
@@ -201,7 +214,7 @@ func TestRunWithoutInternalTelemetry(t *testing.T) {
 }
 
 func TestRunWithInternalTelemetryEnabled(t *testing.T) {
-	c, s := newTestCheck(t, "internal_telemetry:\n  enabled: true\n", defaultRegistryFixture(), regularRegistryFixture())
+	c, s := newTestCheck(t, internalTelemetryEnabled(), defaultRegistryFixture(), regularRegistryFixture())
 
 	expectRunScaffolding(s)
 	expectDefaultRegistry(s)
@@ -220,7 +233,7 @@ func TestRunWithInternalTelemetryEnabled(t *testing.T) {
 }
 
 func TestRunWithInternalTelemetryAdvanced(t *testing.T) {
-	c, s := newTestCheck(t, "internal_telemetry:\n  advanced: true\n", defaultRegistryFixture(), regularRegistryFixture())
+	c, s := newTestCheck(t, internalTelemetryAdvanced(), defaultRegistryFixture(), regularRegistryFixture())
 
 	expectRunScaffolding(s)
 	expectDefaultRegistry(s)
@@ -242,7 +255,7 @@ func TestRunReportsOverlappingCounterSeries(t *testing.T) {
 		counterMetricFamilyWith("shared__counter", counterMetric(map[string]string{emitterLabel: "agent-data-plane"}, 7)),
 	}
 
-	c, s := newTestCheck(t, "", defaultMfs, regularMfs)
+	c, s := newTestCheck(t, nil, defaultMfs, regularMfs)
 
 	expectRunScaffolding(s)
 	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.shared.counter", 5.0, "", []string{}, true).Return().Times(1)
@@ -267,7 +280,7 @@ func TestRunSkipsRegularSeriesIdenticalToADefaultSeries(t *testing.T) {
 		),
 	}
 
-	c, s := newTestCheck(t, "", defaultMfs, regularMfs)
+	c, s := newTestCheck(t, nil, defaultMfs, regularMfs)
 
 	expectRunScaffolding(s)
 	s.On("Gauge", "datadog.agent.point.sent", 10.0, "", []string{"domain:api"}).Return().Times(1)
@@ -287,12 +300,12 @@ func TestRunReportsRemoteOnlyMetricsThroughInternalTelemetry(t *testing.T) {
 		counterMetricFamilyWith("logs__decoded", counterMetric(map[string]string{emitterLabel: "agent-data-plane"}, 3)),
 	}
 
-	c, s := newTestCheck(t, "", nil, regularMfs)
+	c, s := newTestCheck(t, nil, nil, regularMfs)
 	expectRunScaffolding(s)
 	require.NoError(t, c.Run())
 	s.AssertNumberOfCalls(t, "MonotonicCountWithFlushFirstValue", 0)
 
-	c, s = newTestCheck(t, "internal_telemetry:\n  enabled: true\n", nil, regularMfs)
+	c, s = newTestCheck(t, internalTelemetryEnabled(), nil, regularMfs)
 	expectRunScaffolding(s)
 	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.logs.decoded", 3.0, "", []string{"emitter:agent-data-plane"}, true).Return().Times(1)
 	require.NoError(t, c.Run())
@@ -300,7 +313,7 @@ func TestRunReportsRemoteOnlyMetricsThroughInternalTelemetry(t *testing.T) {
 }
 
 func TestSendMetricFamiliesHistogramDropsBuckets(t *testing.T) {
-	c, s := newTestCheck(t, "", nil, nil)
+	c, s := newTestCheck(t, nil, nil, nil)
 
 	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.histogram.sum", 12.5, "", []string{}, true).Return().Times(1)
 	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.histogram.count", 3.0, "", []string{}, true).Return().Times(1)
@@ -312,7 +325,7 @@ func TestSendMetricFamiliesHistogramDropsBuckets(t *testing.T) {
 }
 
 func TestSendMetricFamiliesSkipsUnsupportedTypes(t *testing.T) {
-	c, s := newTestCheck(t, "", nil, nil)
+	c, s := newTestCheck(t, nil, nil, nil)
 
 	for _, metricType := range []dto.MetricType{dto.MetricType_SUMMARY, dto.MetricType_UNTYPED} {
 		c.sendMetricFamilies([]*dto.MetricFamily{typedMetricFamily("test__unsupported", metricType)}, nil, nil, s)
@@ -331,7 +344,7 @@ func TestSendMetricFamiliesContinuesPastFilteredAndUnsupportedFamilies(t *testin
 		counterMetricFamily("test__reported", 2),
 	}
 
-	c, s := newTestCheck(t, "", nil, nil)
+	c, s := newTestCheck(t, nil, nil, nil)
 	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.reported", 2.0, "", []string{}, true).Return().Times(1)
 
 	c.sendMetricFamilies(mfs, func(mf *dto.MetricFamily) bool {
@@ -341,54 +354,90 @@ func TestSendMetricFamiliesContinuesPastFilteredAndUnsupportedFamilies(t *testin
 	s.AssertExpectations(t)
 }
 
-func TestParseInstanceConfig(t *testing.T) {
+func TestInternalTelemetryConfig(t *testing.T) {
 	tests := []struct {
-		name     string
-		instance string
-		expected internalTelemetryConfig
+		name      string
+		overrides map[string]interface{}
+		expected  internalTelemetryConfig
 	}{
 		{
-			name:     "empty instance",
-			instance: "",
+			name:     "defaults",
 			expected: internalTelemetryConfig{},
 		},
 		{
-			name:     "null instance",
-			instance: "null",
-			expected: internalTelemetryConfig{},
+			name:      "enabled",
+			overrides: map[string]interface{}{internalTelemetryEnabledSetting: true},
+			expected:  internalTelemetryConfig{enabled: true},
 		},
 		{
-			name:     "unrelated keys only",
-			instance: "min_collection_interval: 30\n",
-			expected: internalTelemetryConfig{},
+			name:      "advanced implies enabled",
+			overrides: map[string]interface{}{internalTelemetryAdvancedSetting: true},
+			expected:  internalTelemetryConfig{enabled: true, advanced: true},
 		},
 		{
-			name:     "enabled",
-			instance: "internal_telemetry:\n  enabled: true\n",
-			expected: internalTelemetryConfig{Enabled: true},
+			name: "explicitly disabled but advanced",
+			overrides: map[string]interface{}{
+				internalTelemetryEnabledSetting:  false,
+				internalTelemetryAdvancedSetting: true,
+			},
+			expected: internalTelemetryConfig{enabled: true, advanced: true},
 		},
 		{
-			name:     "advanced implies enabled",
-			instance: "internal_telemetry:\n  advanced: true\n",
-			expected: internalTelemetryConfig{Enabled: true, Advanced: true},
-		},
-		{
-			name:     "explicitly disabled",
-			instance: "internal_telemetry:\n  enabled: false\n",
-			expected: internalTelemetryConfig{},
+			name:      "explicitly disabled",
+			overrides: map[string]interface{}{internalTelemetryEnabledSetting: false},
+			expected:  internalTelemetryConfig{},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cfg, err := parseInstanceConfig(integration.Data(test.instance))
-			require.NoError(t, err)
-			require.Equal(t, test.expected, cfg.InternalTelemetry)
+			c := &checkImpl{config: config.NewMockWithOverrides(t, test.overrides)}
+			require.Equal(t, test.expected, c.internalTelemetryConfig())
 		})
 	}
 }
 
-func TestParseInstanceConfigRejectsMalformedYAML(t *testing.T) {
-	_, err := parseInstanceConfig(integration.Data("internal_telemetry: [oops\n"))
-	require.Error(t, err)
+// TestRunFollowsRuntimeConfigChanges pins the runtime-setting behavior: both settings are
+// resolved on every run, so flipping them takes effect on the next check run without the check
+// being reconfigured or recreated.
+func TestRunFollowsRuntimeConfigChanges(t *testing.T) {
+	c, s := newTestCheck(t, nil, defaultRegistryFixture(), regularRegistryFixture())
+
+	// This test runs the check several times, so expectations are not bounded with Times().
+	s.On("Commit").Return()
+	s.On("Gauge", "datadog.agent.test.gauge", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string")).Return()
+	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.counter", 4.0, "", []string{}, true).Return()
+	s.On("Gauge", "datadog.agent.point.sent", mock.AnythingOfType("float64"), "", mock.AnythingOfType("[]string")).Return()
+	curated := "datadog.agent.logs.decoded"
+	everything := "datadog.agent.some.internal_only_metric"
+	s.On("MonotonicCountWithFlushFirstValue", curated, 7.0, "", []string{}, true).Return()
+	s.On("Gauge", "datadog.agent.scheduler.queue_size", 3.0, "", []string{"interval:15", "shadow:false"}).Return()
+	s.On("MonotonicCountWithFlushFirstValue", everything, 99.0, "", []string{}, true).Return()
+
+	// Off: the default batch only.
+	require.NoError(t, c.Run())
+	s.AssertNotCalled(t, "MonotonicCountWithFlushFirstValue", curated, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	// Turning it on mid-life takes effect on the next run, with no reconfiguration.
+	c.config.Set(internalTelemetryEnabledSetting, true, model.SourceCLI)
+	require.NoError(t, c.Run())
+	s.AssertCalled(t, "MonotonicCountWithFlushFirstValue", curated, 7.0, "", []string{}, true)
+	s.AssertNotCalled(t, "MonotonicCountWithFlushFirstValue", everything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	// Same for widening to advanced.
+	c.config.Set(internalTelemetryAdvancedSetting, true, model.SourceCLI)
+	require.NoError(t, c.Run())
+	s.AssertCalled(t, "MonotonicCountWithFlushFirstValue", everything, 99.0, "", []string{}, true)
+
+	// And for turning it back off.
+	before := len(s.Calls)
+	c.config.Set(internalTelemetryEnabledSetting, false, model.SourceCLI)
+	c.config.Set(internalTelemetryAdvancedSetting, false, model.SourceCLI)
+	require.NoError(t, c.Run())
+	for _, call := range s.Calls[before:] {
+		if len(call.Arguments) > 0 {
+			assert.NotEqual(t, curated, call.Arguments[0], "internal telemetry must stop when the setting is turned off")
+			assert.NotEqual(t, everything, call.Arguments[0], "advanced telemetry must stop when the setting is turned off")
+		}
+	}
 }

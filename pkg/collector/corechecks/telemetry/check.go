@@ -14,7 +14,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -31,23 +31,18 @@ const (
 	// seriesKeySep is a byte that cannot occur in a metric name or tag, so joining on it cannot
 	// make two different series produce the same key.
 	seriesKeySep = "\xff"
+
+	// internalTelemetryEnabledSetting reports the curated set of internal telemetry metrics, and
+	// internalTelemetryAdvancedSetting widens that to the whole registry. Both are runtime
+	// settings, so they are read on every run rather than cached at configuration time.
+	internalTelemetryEnabledSetting  = "telemetry.internal.enabled"
+	internalTelemetryAdvancedSetting = "telemetry.internal.advanced"
 )
 
 type checkImpl struct {
 	corechecks.CheckBase
 	telemetry telemetry.Component
-	cfg       instanceConfig
-}
-
-// Configure parses the instance configuration before handing off to the common check setup.
-func (c *checkImpl) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
-	cfg, err := parseInstanceConfig(data)
-	if err != nil {
-		return err
-	}
-	c.cfg = cfg
-
-	return c.CheckBase.Configure(senderManager, integrationConfigDigest, data, initConfig, source, provider)
+	config    config.Component
 }
 
 func (c *checkImpl) Run() error {
@@ -87,8 +82,10 @@ func (c *checkImpl) Run() error {
 
 	// If "internal telemetry" is enabled, we send the remainder of the non-default metrics, which may be further
 	// filtered depending on whether or not "advanced" mode is enabled.
-	if c.cfg.InternalTelemetry.Enabled {
-		c.sendNonDefaultTelemetry(regularMfs, defaultReportedMetrics, sender)
+	internalTelemetryAdvanced := c.config.GetBool(internalTelemetryAdvancedSetting)
+	internalTelemetryEnabled := internalTelemetryAdvanced || c.config.GetBool(internalTelemetryEnabledSetting)
+	if internalTelemetryEnabled {
+		c.sendNonDefaultTelemetry(regularMfs, internalTelemetryAdvanced, defaultReportedMetrics, sender)
 	}
 
 	sender.Commit()
@@ -167,11 +164,11 @@ func (c *checkImpl) sendOverlappedNonDefaultTelemetry(mfs []*dto.MetricFamily, r
 	c.sendMetricFamilies(mfs, familyFilter, metricFilter, sender)
 }
 
-func (c *checkImpl) sendNonDefaultTelemetry(mfs []*dto.MetricFamily, reported reportedMetrics, sender sender.Sender) {
+func (c *checkImpl) sendNonDefaultTelemetry(mfs []*dto.MetricFamily, advanced bool, reported reportedMetrics, sender sender.Sender) {
 	// Set up an additional filter that includes certain non-default metrics depending on whether or not advanced
 	// internal telemetry is enabled.
 	shouldInclude := telemetry.NoFilter
-	if !c.cfg.InternalTelemetry.Advanced {
+	if !advanced {
 		shouldInclude = telemetry.StaticMetricFilter(curatedInternalMetrics...)
 	}
 
@@ -278,11 +275,12 @@ func buildTags(lps []*dto.LabelPair) []string {
 }
 
 // Factory creates a new check factory
-func Factory(telemetry telemetry.Component) option.Option[func() check.Check] {
+func Factory(telemetry telemetry.Component, config config.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return &checkImpl{
 			CheckBase: corechecks.NewCheckBase(CheckName),
 			telemetry: telemetry,
+			config:    config,
 		}
 	})
 }

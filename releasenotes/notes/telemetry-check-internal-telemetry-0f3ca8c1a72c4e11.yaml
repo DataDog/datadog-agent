@@ -3,15 +3,17 @@ features:
   - |
     The ``telemetry`` core check can now report the Agent's internal telemetry registry as
     ``datadog.agent.*`` metrics, read directly in-process with no HTTP scrape. Setting
-    ``internal_telemetry.enabled`` in ``conf.d/telemetry.d/conf.yaml`` reports a curated set
-    covering the forwarder, DogStatsD, the aggregator, the check scheduler, and the logs
-    agent, making it a replacement for the ``go_expvar`` instance described in
-    ``conf.d/go_expvar.d/agent_stats.yaml.example``. Setting ``internal_telemetry.advanced``
+    ``telemetry.internal.enabled`` in ``datadog.yaml`` reports a curated set covering the
+    forwarder, DogStatsD, the aggregator, the check scheduler, and the logs agent, making it a
+    replacement for the ``go_expvar`` instance described in
+    ``conf.d/go_expvar.d/agent_stats.yaml.example``. Setting ``telemetry.internal.advanced``
     instead reports every metric in the registry.
 
-    Both options are disabled by default. When enabled, the reported metrics are indexed
-    custom metrics; ``advanced`` in particular reports an unbounded number of them and is
-    intended for debugging rather than steady-state use.
+    Both settings are disabled by default and can be changed at runtime, for example with
+    ``agent config set telemetry.internal.enabled true``; the check picks the new value up on
+    its next run, with no restart. When enabled, the reported metrics are indexed custom
+    metrics; ``advanced`` in particular reports an unbounded number of them and is intended
+    for debugging rather than steady-state use.
 enhancements:
   - |
     Added internal telemetry metrics for signals that were previously only available through

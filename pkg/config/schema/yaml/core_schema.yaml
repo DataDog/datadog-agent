@@ -9333,6 +9333,32 @@ properties:
         comment: |-
           Enable telemetry metrics on the internals of the Agent.
           This create a lot of billable custom metrics.
+      internal:
+        node_type: section
+        type: object
+        properties:
+          advanced:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: |-
+              Report every metric in the Agent's internal telemetry registry instead of the
+              curated set. Implies telemetry.internal.enabled.
+
+              The registry is large and its contents change between Agent versions, so this
+              emits an unbounded number of custom metrics. Intended for debugging.
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: |-
+              Report the Agent's own internal telemetry as datadog.agent.* metrics, covering
+              the forwarder, DogStatsD, the aggregator, the check scheduler and the logs
+              agent. This is the replacement for the go_expvar instance described in
+              conf.d/go_expvar.d/agent_stats.yaml.example.
+
+              These are billable custom metrics. Can be changed at runtime with
+              `agent config set telemetry.internal.enabled`.
       offlinereporter:
         node_type: section
         type: object
