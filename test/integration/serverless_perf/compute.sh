@@ -77,6 +77,8 @@ echo "pkg: github.com/DataDog/datadog-agent/cmd/serverless-init"
 echo "warmup (discarded)" >&2
 measure_once >/dev/null
 
+samples=()
+
 for i in $(seq 1 "${ITERATION_COUNT}"); do
     ms=$(measure_once)
     if [ -z "$ms" ]; then
@@ -86,6 +88,19 @@ for i in $(seq 1 "${ITERATION_COUNT}"); do
         exit 1
     fi
     echo "iteration $i: ${ms}ms" >&2
+    samples+=("$ms")
     # benchstat wants ns; emit one sample per line as a 1-iteration benchmark.
     awk -v ms="$ms" 'BEGIN { printf "BenchmarkConfigLoad 1 %d ns/op\n", ms * 1000000 }'
 done
+
+# Summary on stderr so it lands in the job log next to the iterations. benchstat
+# reports the same median from stdout, but having it here means the number is
+# visible without downloading an artifact. sort -g and awk rather than bash
+# arithmetic: these are floats.
+median=$(printf '%s\n' "${samples[@]}" | sort -g | awk -v n="${#samples[@]}" '
+    NR==int((n+1)/2) { lo=$1 }
+    NR==int(n/2)+1   { hi=$1 }
+    END              { printf "%.3f", (lo+hi)/2 }')
+min=$(printf '%s\n' "${samples[@]}" | sort -g | head -1)
+max=$(printf '%s\n' "${samples[@]}" | sort -g | tail -1)
+echo "median: ${median}ms (n=${#samples[@]}, min ${min}ms, max ${max}ms)" >&2

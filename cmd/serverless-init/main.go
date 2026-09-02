@@ -384,6 +384,16 @@ func run(
 		cloudService, tagConfig, metricTags, demux,
 	)
 
+	// Total startup: everything before the user's workload runs — package init,
+	// main's pre-Fx work, Fx graph construction, and every agent setup() builds.
+	// Shares its t0 with the "config load took" line above, so the two are
+	// directly comparable and give config load as a fraction of startup.
+	//
+	// Not a true process-start baseline: StartTime is set when
+	// pkg/config/setup's package vars are evaluated, so anything initialized
+	// before that package is excluded. Good enough for sizing the ratio.
+	log.Debugf("serverless-init: startup took %.3fms", float64(time.Since(pkgconfigsetup.StartTime).Microseconds())/1000)
+
 	err := cloudService.Run(modeConf, logConfig)
 
 	// Defers are LIFO. Order of execution:
