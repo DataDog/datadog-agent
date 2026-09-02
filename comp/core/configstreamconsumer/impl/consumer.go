@@ -80,6 +80,9 @@ type consumer struct {
 
 	lastSeqID atomic.Int32
 
+	// Layers this stream has written, keyed by setting. Touched only from the stream goroutine.
+	streamedLayers map[string]map[pkgconfigmodel.Source]struct{}
+
 	ready     atomic.Bool
 	readyCh   chan struct{}
 	readyOnce sync.Once
@@ -143,6 +146,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		authToken: authToken,
 		clientTLS: clientTLS,
 		readyCh:   make(chan struct{}),
+
+		streamedLayers: make(map[string]map[pkgconfigmodel.Source]struct{}),
 	}
 	c.initMetrics()
 
@@ -334,10 +339,34 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	c.log.Infof("Applying config snapshot (seq_id: %d, settings: %d)", snapshot.SequenceId, len(snapshot.Settings))
 
 	settings := make([]pkgconfigmodel.DirectSetting, 0, len(snapshot.Settings))
+	fresh := make(map[string]map[pkgconfigmodel.Source]struct{}, len(snapshot.Settings))
 	for _, setting := range snapshot.Settings {
-		settings = append(settings, toDirectSetting(setting))
+		ds := toDirectSetting(setting)
+		settings = append(settings, ds)
+		if fresh[ds.Key] == nil {
+			fresh[ds.Key] = make(map[pkgconfigmodel.Source]struct{}, 1)
+		}
+		fresh[ds.Key][ds.Source] = struct{}{}
 	}
-	configstreambootstrap.Config().DirectBulkSet(settings)
+
+	cfg := configstreambootstrap.Config()
+	cfg.DirectBulkSet(settings)
+
+	// A snapshot is the sender's entire state, so a layer the stream wrote earlier that the
+	// snapshot no longer claims has to be retracted. Left in place it would outrank the snapshot's
+	// own entry for that key and resurrect a value removed while this client was disconnected.
+	// Retracted after the bulk set so each notification already carries the value that now wins.
+	for key, sources := range c.streamedLayers {
+		for source := range sources {
+			if _, stillClaimed := fresh[key][source]; stillClaimed {
+				continue
+			}
+			c.log.Debugf("Snapshot retracts stale layer (key: %s, source: %s)", key, source)
+			cfg.UnsetForSource(key, source)
+		}
+	}
+	c.streamedLayers = fresh
+
 	c.lastSeqID.Store(snapshot.SequenceId)
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 
@@ -350,6 +379,18 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	})
 
 	return nil
+}
+
+// recordLayer notes that the stream put key into source, so a later snapshot can retract the
+// layer if it stops claiming it.
+func (c *consumer) recordLayer(key string, source pkgconfigmodel.Source) {
+	if c.streamedLayers == nil {
+		c.streamedLayers = make(map[string]map[pkgconfigmodel.Source]struct{})
+	}
+	if c.streamedLayers[key] == nil {
+		c.streamedLayers[key] = make(map[pkgconfigmodel.Source]struct{}, 1)
+	}
+	c.streamedLayers[key][source] = struct{}{}
 }
 
 // toDirectSetting decodes a streamed setting into the form the config builder takes.
@@ -389,6 +430,7 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 		// Updates never carry env-var-sourced settings, so Set's guardrail is not in the way and
 		// registered receivers still get notified.
 		cfg.Set(setting.Key, setting.Value, setting.Source)
+		c.recordLayer(setting.Key, setting.Source)
 	} else {
 		c.log.Debugf("Applying config unset (seq_id: %d, key: %s, cleared source: %s)", update.SequenceId, update.Setting.Key, update.Setting.UnsetSource)
 		// Seeding the layer fallen back to is not optional: snapshots only carry the merged view, so
@@ -397,8 +439,16 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 		// the final value instead of transiently with the default. Empty only for an undeclared key.
 		if update.Setting.Source != "" {
 			cfg.DirectBulkSet([]pkgconfigmodel.DirectSetting{toDirectSetting(update.Setting)})
+			c.recordLayer(update.Setting.Key, pkgconfigmodel.Source(update.Setting.Source))
 		}
-		cfg.UnsetForSource(update.Setting.Key, pkgconfigmodel.Source(update.Setting.UnsetSource))
+		cleared := pkgconfigmodel.Source(update.Setting.UnsetSource)
+		cfg.UnsetForSource(update.Setting.Key, cleared)
+		if sources := c.streamedLayers[update.Setting.Key]; sources != nil {
+			delete(sources, cleared)
+			if len(sources) == 0 {
+				delete(c.streamedLayers, update.Setting.Key)
+			}
+		}
 	}
 
 	c.lastSeqID.Store(update.SequenceId)

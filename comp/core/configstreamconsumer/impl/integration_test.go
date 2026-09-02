@@ -336,3 +336,100 @@ remote_agent:
 		t.Fatal("OneShot did not complete")
 	}
 }
+
+// A layer cleared while this client was disconnected is only visible as its absence from the
+// reconnect snapshot, so the snapshot has to retract it rather than merely add what it does claim.
+func TestSnapshotRetractsLayerRemovedWhileDisconnected(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	host, port, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+
+	datadogYaml := fmt.Sprintf(`
+cmd_host: %s
+cmd_port: %s
+auth_token_file_path: %s
+ipc_cert_file_path: %s
+remote_agent:
+  registry:
+    enabled: true
+  configstream:
+    consumer:
+      enabled: true
+`, host, port,
+		filepath.Join(dir, "auth_token"),
+		filepath.Join(dir, "ipc_cert.pem"),
+	)
+	datadogPath := filepath.Join(dir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("trace-agent", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+		configstreamconsumerfx.Module(),
+	)
+
+	testRun := func(_ configstreamconsumer.Component) error {
+		cfg := configstreambootstrap.Config()
+		require.Equal(t, "from-file", cfg.Get("test.key"))
+
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Update{
+				Update: &pb.ConfigUpdate{
+					SequenceId: 2,
+					Setting: &pb.ConfigSetting{
+						Key:    "test.key",
+						Value:  mustNewValue(t, "from-cli"),
+						Source: string(model.SourceCLI),
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return cfg.Get("test.key") == "from-cli"
+		}, 10*time.Second, 20*time.Millisecond, "the cli layer never took effect")
+
+		// The core agent cleared the cli layer while this client was away. The resynchronization
+		// snapshot reports the file layer as the winner and says nothing about cli.
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 3,
+					Settings: []*pb.ConfigSetting{
+						{Key: "test.key", Value: mustNewValue(t, "from-file"), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return cfg.Get("test.key") == "from-file"
+		}, 10*time.Second, 20*time.Millisecond, "the stale cli layer outlived the snapshot that dropped it")
+		require.Equal(t, model.SourceFile, cfg.GetSource("test.key"))
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "test.key", Value: mustNewValue(t, "from-file"), Source: string(model.SourceFile)},
+				},
+			},
+		},
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("OneShot did not complete")
+	}
+}
