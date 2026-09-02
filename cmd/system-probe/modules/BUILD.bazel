@@ -11,6 +11,8 @@ go_library(
         "ebpf.go",
         "eventmonitor.go",
         "eventmonitor_linux.go",
+        "eventmonitor_sbom_linux.go",
+        "eventmonitor_sbom_windows.go",
         "eventmonitor_windows.go",
         "gpu.go",
         "gpu_unsupported.go",
@@ -49,6 +51,7 @@ go_library(
         "//pkg/system-probe/config/types",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//comp/core/ipc/def",
             "//comp/networkpath/traceroute/def",
             "//pkg/collector/corechecks/ebpf/probe/ebpfcheck",
             "//pkg/collector/corechecks/ebpf/probe/noisyneighbor",
@@ -147,6 +150,7 @@ go_library(
             "@org_golang_google_grpc//:grpc",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/ipc/def",
             "//comp/networkpath/traceroute/def",
             "//pkg/collector/corechecks/ebpf/probe/ebpfcheck",
             "//pkg/collector/corechecks/ebpf/probe/noisyneighbor",
@@ -211,6 +215,7 @@ go_library(
             "@org_golang_google_protobuf//proto",
         ],
         "@rules_go//go/platform:windows": [
+            "//comp/core/ipc/def",
             "//comp/core/sysprobeconfig/def",
             "//comp/core/telemetry/def",
             "//comp/networkpath/traceroute/def",

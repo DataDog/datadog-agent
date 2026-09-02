@@ -292,21 +292,15 @@ var (
 	// MetricSBOMResolverActiveSBOMs is the name of the metric used to report the count of SBOMs kept in memory
 	// Tags: -
 	MetricSBOMResolverActiveSBOMs = newRuntimeMetric(".sbom_resolver.active_sboms")
-	// MetricSBOMResolverSBOMGenerations is the name of the metric used to report when a SBOM is being generated at runtime
+	// MetricSBOMResolverIndexesReceived is the name of the metric used to report the number of file indexes received from the core agent
 	// Tags: -
-	MetricSBOMResolverSBOMGenerations = newRuntimeMetric(".sbom_resolver.sbom_generations")
-	// MetricSBOMResolverFailedSBOMGenerations is the name of the metric used to report when a SBOM generation failed
+	MetricSBOMResolverIndexesReceived = newRuntimeMetric(".sbom_resolver.indexes_received")
+	// MetricSBOMResolverReportsSent is the name of the metric used to report the number of usage reports sent to the core agent
 	// Tags: -
-	MetricSBOMResolverFailedSBOMGenerations = newRuntimeMetric(".sbom_resolver.failed_sbom_generations")
-	// MetricSBOMResolverSBOMCacheLen is the name of the metric used to report the count of SBOMs kept in cache
+	MetricSBOMResolverReportsSent = newRuntimeMetric(".sbom_resolver.reports_sent")
+	// MetricSBOMResolverUnattributedFiles is the name of the metric used to report the number of accessed files no index attributes
 	// Tags: -
-	MetricSBOMResolverSBOMCacheLen = newRuntimeMetric(".sbom_resolver.sbom_cache.len")
-	// MetricSBOMResolverSBOMCacheHit is the name of the metric used to report the number of SBOMs that were generated from cache
-	// Tags: -
-	MetricSBOMResolverSBOMCacheHit = newRuntimeMetric(".sbom_resolver.sbom_cache.hit")
-	// MetricSBOMResolverSBOMCacheMiss is the name of the metric used to report the number of SBOMs that weren't in cache
-	// Tags: -
-	MetricSBOMResolverSBOMCacheMiss = newRuntimeMetric(".sbom_resolver.sbom_cache.miss")
+	MetricSBOMResolverUnattributedFiles = newRuntimeMetric(".sbom_resolver.unattributed_files")
 
 	// CGroup resolver metrics
 

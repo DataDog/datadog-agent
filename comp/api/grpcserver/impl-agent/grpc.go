@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
 	configstreamServer "github.com/DataDog/datadog-agent/comp/core/configstream/server"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -33,6 +33,8 @@ import (
 	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
+	sbomusage "github.com/DataDog/datadog-agent/comp/sbom/usage/def"
+	sbomusageServer "github.com/DataDog/datadog-agent/comp/sbom/usage/server"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -64,6 +66,7 @@ type Requires struct {
 	Hostname            hostnameinterface.Component
 	ConfigStream        configstream.Component
 	HealthPlatformStore healthplatformstore.Component
+	SBOMUsage           option.Option[sbomusage.Component]
 }
 
 type server struct {
@@ -84,6 +87,7 @@ type server struct {
 	hostname            hostnameinterface.Component
 	configStream        configstream.Component
 	healthPlatformStore healthplatformstore.Component
+	sbomUsage           option.Option[sbomusage.Component]
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -141,12 +145,23 @@ func (s *server) BuildServer() http.Handler {
 		configComp:           s.configComp,
 		configStreamServer:   configstreamServer.NewServer(s.configComp, s.configStream, s.remoteAgentRegistry),
 		healthPlatformStore:  s.healthPlatformStore,
+		sbomUsageServer:      sbomUsageServer(s.sbomUsage),
 	})
 	pb.RegisterRemoteAgentServer(grpcServer, &remoteAgentServer{
 		remoteAgentRegistry: s.remoteAgentRegistry,
 	})
 
 	return grpcServer
+}
+
+// sbomUsageServer returns the server serving the SBOM runtime usage streams, or
+// nil when the enrichment is off, which makes both of its RPCs report as much.
+func sbomUsageServer(comp option.Option[sbomusage.Component]) *sbomusageServer.Server {
+	usage, ok := comp.Get()
+	if !ok {
+		return nil
+	}
+	return sbomusageServer.NewServer(usage)
 }
 
 // Provides defines the output of the grpc component
@@ -175,6 +190,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			hostname:            reqs.Hostname,
 			configStream:        reqs.ConfigStream,
 			healthPlatformStore: reqs.HealthPlatformStore,
+			sbomUsage:           reqs.SBOMUsage,
 		},
 	}
 	return provides, nil

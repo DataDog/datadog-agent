@@ -742,6 +742,11 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 		if len(restrictions) > 0 && !slices.Contains(restrictions, eventType) {
 			return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrFieldNotAvailable{Field: field, EventType: eventType, RestrictedTo: restrictions}}
 		}
+		for _, prefix := range rs.opts.UnavailableFieldPrefixes {
+			if strings.Contains(field, prefix) {
+				return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrFieldSourceUnavailable{Field: field, Why: "no source is configured for `" + prefix + "` fields"}}
+			}
+		}
 	}
 
 	// ignore event types not supported
@@ -1459,6 +1464,14 @@ func (rs *RuleSet) CopyInheritedVariables(scope eval.VariableScope) {
 }
 
 // NewRuleSet returns a new ruleset for the specified data model
+// SetUnavailableFieldPrefixes names the field prefixes whose source is not
+// running, so a rule reading one fails to load with a reason the product shows
+// rather than loading cleanly and never matching. It has to be called before any
+// policy is loaded, and only the caller knows which of its sources are up.
+func (rs *RuleSet) SetUnavailableFieldPrefixes(prefixes []string) {
+	rs.opts.UnavailableFieldPrefixes = prefixes
+}
+
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts) *RuleSet {
 	logger := log.OrNullLogger(opts.Logger)
 

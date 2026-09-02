@@ -573,30 +573,10 @@ properties:
         node_type: setting
         type: string
         default: 1m
-      forward_interval:
-        node_type: setting
-        type: string
-        default: 20s
-      generate_policies:
-        node_type: setting
-        type: boolean
-        default: false
-      host:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
       refresh_interval:
         node_type: setting
         type: string
         default: 3s
-      workloads_cache_size:
-        node_type: setting
-        type: integer
-        default: 10
   security_profile:
     node_type: section
     type: object

@@ -1,8 +1,0 @@
-load("@rules_go//go:def.bzl", "go_library")
-
-go_library(
-    name = "types",
-    srcs = ["package.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types",
-    visibility = ["//visibility:public"],
-)

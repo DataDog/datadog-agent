@@ -2619,7 +2619,6 @@ func TestSecurityProfileSystemd(t *testing.T) {
 		securityProfileWatchDir:             true,
 		traceSystemdCgroups:                 true,
 		enableSBOM:                          true,
-		enableHostSBOM:                      true,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -2753,7 +2752,6 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 		anomalyDetectionWarmupPeriod:            time.Second,
 		traceSystemdCgroups:                     true,
 		enableSBOM:                              true,
-		enableHostSBOM:                          true,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -2872,7 +2870,6 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 		anomalyDetectionWarmupPeriod:            1 * time.Second,
 		traceSystemdCgroups:                     true,
 		enableSBOM:                              true,
-		enableHostSBOM:                          true,
 	}))
 	if err != nil {
 		t.Fatal(err)

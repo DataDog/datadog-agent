@@ -112,6 +112,8 @@ const (
 	AgentFilterErrType RuleLoadErrType = "agent_filter_error"
 	// EventTypeNotEnabledErrType event type not enabled
 	EventTypeNotEnabledErrType RuleLoadErrType = "event_type_disabled"
+	// FieldSourceUnavailableErrType a field the rule reads has no source running
+	FieldSourceUnavailableErrType RuleLoadErrType = "field_source_unavailable"
 	// SyntaxErrType syntax error
 	SyntaxErrType RuleLoadErrType = "syntax_error"
 	// UnknownErrType undefined error
@@ -128,6 +130,11 @@ func (e *ErrRuleLoad) Type() RuleLoadErrType {
 		return AgentVersionErrType
 	case errors.Is(e.Err, ErrEventTypeNotEnabled):
 		return EventTypeNotEnabledErrType
+	}
+
+	var errFieldSourceUnavailable *ErrFieldSourceUnavailable
+	if errors.As(e.Err, &errFieldSourceUnavailable) {
+		return FieldSourceUnavailableErrType
 	}
 
 	var (
@@ -196,6 +203,18 @@ func (e *ErrCapture) Error() string {
 
 func (e *ErrCapture) Unwrap() error {
 	return e.Err
+}
+
+// ErrFieldSourceUnavailable is returned when a rule reads a field whose source
+// is not running, so the rule could load and then never match. Saying so at load
+// time puts it in front of whoever wrote the rule.
+type ErrFieldSourceUnavailable struct {
+	Field eval.Field
+	Why   string
+}
+
+func (e *ErrFieldSourceUnavailable) Error() string {
+	return fmt.Sprintf("field `%s` has no source: %s", e.Field, e.Why)
 }
 
 // ErrFieldNotAvailable is returned when a field is not available

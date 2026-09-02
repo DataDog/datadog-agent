@@ -21,6 +21,7 @@ go_library(
         "//pkg/sbom",
         "//pkg/sbom/collectors",
         "//pkg/sbom/types",
+        "//pkg/sbom/usage",
         "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/trivy",

@@ -14,7 +14,6 @@ go_library(
     deps = [
         "//pkg/security/config",
         "//pkg/security/secl/rules",
-        "//pkg/security/seclog",
         "//pkg/version",
         "@com_github_hashicorp_go_multierror//:go-multierror",
     ],

@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package datadog.sbomusage;
+
+option go_package = "pkg/proto/pbgo/core"; // golang
+
+// Capabilities names the scan sources the core agent has running, so a consumer
+// learns which indexes to expect from a fact rather than from a configuration
+// key belonging to another process. It is the first message on an index stream
+// and is re-sent whenever the set changes.
+message Capabilities {
+    bool containerImage = 1; // per image, deduplicated, the usual source
+    bool container      = 2; // per live container rootfs, through procfs
+    bool host           = 3;
+}
+
+enum IndexStatus {
+    INDEX_READY  = 0; // the index carries a table
+    INDEX_FAILED = 1; // this scan produced no table and will not be retried
+    INDEX_GONE   = 2; // the workload is finished with; release the index and its usage
+}
+
+// Component carries the package metadata system-probe needs for attribution.
+// purl is a semantic package coordinate and is not a unique component identity;
+// compact refs identify occurrences within one index.
+message Component {
+    string purl        = 1;
+    string name        = 2;
+    string version     = 3;
+    int32  epoch       = 4;
+    string release     = 5;
+    string srcVersion  = 6;
+    int32  srcEpoch    = 7;
+    string srcRelease  = 8;
+    // application marks the artifact that contains the other components reached
+    // through the same path, a Go binary or a language runtime.
+    bool   application = 9;
+    // reportable is false when the core agent could not join this occurrence to
+    // a unique final BOM ref. It remains usable for package.* resolution.
+    bool   reportable  = 10;
+}
+
+// Index is the file-to-component table of one exact scan/BOM instance. hashes and refs
+// are parallel and sorted by hash, so a lookup returns a range: one path can
+// belong to several components. The file names stay with the agent that built
+// the table; a consumer matches the hash of the path it resolved.
+message Index {
+    string             scanId     = 1;
+    uint64             generation = 2;
+    IndexStatus        status     = 3;
+    repeated Component components = 4;
+    repeated uint32    refs       = 5;
+    repeated uint64    hashes     = 6;
+    string             indexId    = 7; // opaque identity of the exact BOM/index instance
+}
+
+message IndexRequest {
+}
+
+message IndexUpdate {
+    oneof body {
+        Capabilities capabilities = 1;
+        Index        index        = 2;
+    }
+}
+
+// Usage is what a runtime observer saw of one component of an index.
+message Usage {
+    uint32 ref          = 1; // index into the exact index instance's components
+    int64  lastSeenUnix = 2;
+    bool   suid         = 3;
+    bool   asRoot       = 4;
+}
+
+// UsageReport answers one exact index instance. It names only the components seen
+// running, so a component absent from a report was measured and found idle,
+// which a consumer tells apart from one absent from the index and therefore
+// never measurable.
+message UsageReport {
+    string          scanId     = 1;
+    uint64          generation = 2;
+    repeated Usage  usage      = 3;
+    string          indexId    = 4;
+}
+
+// RefreshRequest asks for a workload to be scanned again, because its package
+// database changed and the index no longer describes it.
+message RefreshRequest {
+    string scanId      = 1;
+    string containerId = 2;
+}
+
+message UsageMessage {
+    oneof body {
+        UsageReport    report  = 1;
+        RefreshRequest refresh = 2;
+    }
+}
+
+// UsageAck reports whether a message was applied and the index currently active
+// for its scan. applied is optional so a new client can recognize a legacy core
+// agent and fall back to its generation-based acknowledgement.
+message UsageAck {
+    string scanId     = 1;
+    uint64 generation = 2;
+    string indexId    = 3;
+    optional bool applied = 4;
+}

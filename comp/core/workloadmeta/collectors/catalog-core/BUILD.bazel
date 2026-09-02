@@ -21,7 +21,6 @@ go_library(
         "//comp/core/workloadmeta/collectors/internal/podman",
         "//comp/core/workloadmeta/collectors/internal/process",
         "//comp/core/workloadmeta/collectors/internal/remote/processcollector",
-        "//comp/core/workloadmeta/collectors/internal/remote/sbomcollector",
         "@org_uber_go_fx//:fx",
     ],
 )

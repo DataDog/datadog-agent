@@ -19,6 +19,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	sbomusage "github.com/DataDog/datadog-agent/comp/sbom/usage/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -117,10 +118,11 @@ type Check struct {
 	sender            sender.Sender
 	stopCh            chan struct{}
 	cfg               config.Component
+	usage             option.Option[sbomusage.Component]
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, cfg config.Component, tagger tagger.Component) option.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, cfg config.Component, tagger tagger.Component, sbomUsage option.Option[sbomusage.Component]) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
@@ -130,6 +132,7 @@ func Factory(store workloadmeta.Component, filterStore workloadfilter.Component,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
 			cfg:               cfg,
+			usage:             sbomUsage,
 		})
 	})
 }
@@ -161,6 +164,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		sender,
 		c.tagger,
 		c.cfg,
+		c.usage,
 		c.instance.ChunkSize,
 		time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second,
 		time.Duration(c.instance.HostHeartbeatValiditySeconds)*time.Second); err != nil {

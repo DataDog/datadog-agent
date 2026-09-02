@@ -35,7 +35,7 @@ func TestCommand(t *testing.T) {
 	commands := []*cobra.Command{
 		// run() is substituted by the assertFn below, so no real workloadmeta
 		// collector is needed; an empty catalog avoids building collectors like
-		// sbomcollector that require a real IPC auth token unavailable in tests.
+		// the SBOM usage collector, which require a real IPC auth token unavailable in tests.
 		MakeCommand(func() GlobalParams {
 			// the config needs an existing config file when initializing
 			config := path.Join(t.TempDir(), "datadog.yaml")
@@ -111,7 +111,7 @@ func TestCommandWithInstanceID(t *testing.T) {
 	commands := []*cobra.Command{
 		// run() is substituted by the assertFn below, so no real workloadmeta
 		// collector is needed; an empty catalog avoids building collectors like
-		// sbomcollector that require a real IPC auth token unavailable in tests.
+		// the SBOM usage collector, which require a real IPC auth token unavailable in tests.
 		MakeCommand(func() GlobalParams {
 			config := path.Join(t.TempDir(), "datadog.yaml")
 			err := os.WriteFile(config, []byte("hostname: test"), 0644)
