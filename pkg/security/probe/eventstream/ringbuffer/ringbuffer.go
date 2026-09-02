@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -29,8 +28,7 @@ import (
 )
 
 const (
-	defaultDispatcherQueueSize  = 16384
-	defaultStatsPollingInterval = 5 * time.Second
+	defaultDispatcherQueueSize = 16384
 )
 
 // RingBuffer implements the EventStream interface
@@ -46,11 +44,9 @@ type RingBuffer struct {
 	occupancy  atomic.Int64
 	enqueued   atomic.Uint64
 	processed  atomic.Uint64
-	dropped    atomic.Uint64
 	peak       atomic.Int64
 
-	statsdClient         statsd.ClientInterface
-	statsPollingInterval time.Duration
+	statsdClient statsd.ClientInterface
 }
 
 // Init the ring buffer
@@ -72,11 +68,6 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 		queueSize := dispatcherQueueSize(config)
 		rb.queue = make(chan *ringbuf.Record, queueSize)
 		seclog.Infof("ring buffer dispatcher queue enabled, size=%d", queueSize)
-	}
-
-	rb.statsPollingInterval = config.StatsPollingInterval
-	if rb.statsPollingInterval <= 0 {
-		rb.statsPollingInterval = defaultStatsPollingInterval
 	}
 
 	ebpfTelemetry.ReportRingBufferTelemetry(rb.ringBuffer)
@@ -133,11 +124,17 @@ func (rb *RingBuffer) drain() {
 }
 
 func (rb *RingBuffer) handleRecord(record *ringbuf.Record) {
+	defer func() {
+		if r := recover(); r != nil {
+			seclog.Errorf("ring buffer dispatcher panic: %v", r)
+		}
+		rb.recordPool.Put(record)
+	}()
+
 	rb.occupancy.Add(-1)
 	rb.queueBytes.Add(-int64(len(record.RawSample)))
 	rb.processed.Add(1)
 	rb.handler(0, record.RawSample)
-	rb.recordPool.Put(record)
 }
 
 func (rb *RingBuffer) observeDepth(n int) {
@@ -153,35 +150,28 @@ func (rb *RingBuffer) observeDepth(n int) {
 	}
 }
 
-func (rb *RingBuffer) sendStats() {
+// SendStats reports dispatcher queue occupancy and counters.
+func (rb *RingBuffer) SendStats() error {
 	if rb.statsdClient == nil || rb.queue == nil {
-		return
+		return nil
 	}
 
-	_ = rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueUsage, float64(rb.occupancy.Load()), nil, 1.0)
-	_ = rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueCapacity, float64(cap(rb.queue)), nil, 1.0)
-	_ = rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueBytes, float64(rb.queueBytes.Load()), nil, 1.0)
-	_ = rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueuePeak, float64(rb.peak.Swap(0)), nil, 1.0)
-
-	_ = rb.statsdClient.Count(metrics.MetricEventStreamDispatcherQueueEnqueued, int64(rb.enqueued.Swap(0)), nil, 1.0)
-	_ = rb.statsdClient.Count(metrics.MetricEventStreamDispatcherQueueProcessed, int64(rb.processed.Swap(0)), nil, 1.0)
-	_ = rb.statsdClient.Count(metrics.MetricEventStreamDispatcherQueueDropped, int64(rb.dropped.Swap(0)), nil, 1.0)
-}
-
-func (rb *RingBuffer) monitor(wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	ticker := time.NewTicker(rb.statsPollingInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-rb.ctx.Done():
-			return
-		case <-ticker.C:
-			rb.sendStats()
-		}
+	if err := rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueUsage, float64(rb.occupancy.Load()), nil, 1.0); err != nil {
+		return err
 	}
+	if err := rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueCapacity, float64(cap(rb.queue)), nil, 1.0); err != nil {
+		return err
+	}
+	if err := rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueueBytes, float64(rb.queueBytes.Load()), nil, 1.0); err != nil {
+		return err
+	}
+	if err := rb.statsdClient.Gauge(metrics.MetricEventStreamDispatcherQueuePeak, float64(rb.peak.Swap(0)), nil, 1.0); err != nil {
+		return err
+	}
+	if err := rb.statsdClient.Count(metrics.MetricEventStreamDispatcherQueueEnqueued, int64(rb.enqueued.Swap(0)), nil, 1.0); err != nil {
+		return err
+	}
+	return rb.statsdClient.Count(metrics.MetricEventStreamDispatcherQueueProcessed, int64(rb.processed.Swap(0)), nil, 1.0)
 }
 
 // Start the event stream.
@@ -196,11 +186,6 @@ func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
 
 	wg.Add(1)
 	go rb.dispatch(wg)
-
-	if rb.statsdClient != nil {
-		wg.Add(1)
-		go rb.monitor(wg)
-	}
 
 	return nil
 }
@@ -224,7 +209,6 @@ func (rb *RingBuffer) handleEvent(record *ringbuf.Record, _ *manager.RingBuffer,
 	case <-rb.ctx.Done():
 		rb.occupancy.Add(-1)
 		rb.queueBytes.Add(-size)
-		rb.dropped.Add(1)
 		rb.recordPool.Put(record)
 	}
 }

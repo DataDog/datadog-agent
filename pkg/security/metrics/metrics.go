@@ -191,9 +191,6 @@ var (
 	// MetricEventStreamDispatcherQueueProcessed is the number of events taken off the user space dispatcher queue
 	// Tags: -
 	MetricEventStreamDispatcherQueueProcessed = newRuntimeMetric(".event_stream.dispatcher_queue.processed")
-	// MetricEventStreamDispatcherQueueDropped is the number of events discarded without processing (shutdown)
-	// Tags: -
-	MetricEventStreamDispatcherQueueDropped = newRuntimeMetric(".event_stream.dispatcher_queue.dropped")
 
 	// Process Resolver metrics
 

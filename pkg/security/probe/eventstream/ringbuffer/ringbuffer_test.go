@@ -138,3 +138,39 @@ func TestQueueTracksBytesAndPeak(t *testing.T) {
 	require.Equal(t, int64(2), rb.peak.Load())
 	require.Equal(t, uint64(2), rb.enqueued.Load())
 }
+
+func TestDispatcherRecoversFromHandlerPanic(t *testing.T) {
+	done := make(chan []byte, 1)
+	var n int
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	rb := New(ctx, func(_ int, data []byte) {
+		n++
+		if n == 1 {
+			panic("boom")
+		}
+		done <- append([]byte(nil), data...)
+	}, nil)
+	rb.queue = make(chan *ringbuf.Record, 4)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go rb.dispatch(&wg)
+
+	rb.handleEvent(&ringbuf.Record{RawSample: []byte{1}}, nil, nil)
+	rb.handleEvent(&ringbuf.Record{RawSample: []byte{2}}, nil, nil)
+
+	select {
+	case got := <-done:
+		require.Equal(t, []byte{2}, got)
+	case <-time.After(2 * time.Second):
+		t.Fatal("dispatcher did not recover from handler panic")
+	}
+
+	require.Equal(t, uint64(2), rb.processed.Load())
+	require.Zero(t, rb.occupancy.Load())
+
+	cancel()
+	wg.Wait()
+}
