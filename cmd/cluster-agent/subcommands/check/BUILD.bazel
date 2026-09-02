@@ -8,7 +8,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -20,7 +20,7 @@ go_library(
         ],
         "@rules_go//go/platform:android": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -32,7 +32,7 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -44,7 +44,7 @@ go_library(
         ],
         "@rules_go//go/platform:dragonfly": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -56,7 +56,7 @@ go_library(
         ],
         "@rules_go//go/platform:freebsd": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -68,7 +68,7 @@ go_library(
         ],
         "@rules_go//go/platform:illumos": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -80,7 +80,7 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -92,7 +92,7 @@ go_library(
         ],
         "@rules_go//go/platform:js": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -104,7 +104,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -116,7 +116,7 @@ go_library(
         ],
         "@rules_go//go/platform:netbsd": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -128,7 +128,7 @@ go_library(
         ],
         "@rules_go//go/platform:openbsd": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -140,7 +140,7 @@ go_library(
         ],
         "@rules_go//go/platform:osx": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -152,7 +152,7 @@ go_library(
         ],
         "@rules_go//go/platform:plan9": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -164,7 +164,7 @@ go_library(
         ],
         "@rules_go//go/platform:qnx": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",
@@ -176,7 +176,7 @@ go_library(
         ],
         "@rules_go//go/platform:solaris": [
             "//cmd/cluster-agent/command",
-            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/collectors/catalog-clusteragent",
             "//pkg/cli/subcommands/check",
             "//pkg/clusteragent/autoscaling/autoscalinggate",

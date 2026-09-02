@@ -10,7 +10,7 @@ package check
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/check"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
@@ -24,14 +24,6 @@ import (
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	ctx, _ := pkgcommon.GetMainCtxCancel()
-	// Create the Leader election engine without initializing it. This one-shot
-	// command never serves the telemetry endpoint, so the engine gets a no-op
-	// telemetry component.
-	if pkgconfigsetup.Datadog().GetBool("leader_election") {
-		leaderelection.CreateGlobalLeaderEngine(ctx, noopsimpl.NewComponent())
-	}
-
 	cmd := check.MakeCommand(func() check.GlobalParams {
 		return check.GlobalParams{
 			ConfFilePath: globalParams.ConfFilePath,
@@ -43,6 +35,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		// Required by the kubeapiserver collector, but never enabled in the
 		// "check" command because autoscaling doesn't run.
 		fx.Supply(autoscalinggate.New()),
+		// Create the Leader election engine without initializing it, using the
+		// telemetry component provided by fx.
+		fx.Invoke(func(tm telemetry.Component) {
+			if pkgconfigsetup.Datadog().GetBool("leader_election") {
+				ctx, _ := pkgcommon.GetMainCtxCancel()
+				leaderelection.CreateGlobalLeaderEngine(ctx, tm)
+			}
+		}),
 	))
 
 	return []*cobra.Command{cmd}
