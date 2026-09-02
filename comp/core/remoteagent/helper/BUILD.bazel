@@ -13,6 +13,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/def",
         "//pkg/proto/pbgo/core",
+        "//pkg/util/filesystem",
         "//pkg/util/grpc",
         "//pkg/util/system/socket",
         "@com_github_cenkalti_backoff_v7//:backoff",

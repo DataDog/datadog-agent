@@ -10,7 +10,9 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/api/loader",
     visibility = ["//visibility:public"],
-    deps = select({
+    deps = [
+        "//pkg/util/filesystem",
+    ] + select({
         "@rules_go//go/platform:android": [
             "@org_golang_x_sys//unix",
         ],

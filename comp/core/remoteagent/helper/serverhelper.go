@@ -19,20 +19,19 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
-
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
@@ -328,10 +327,7 @@ func buildRemoteAgentListener(listenURI string) (*remoteAgentListener, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := removeStaleSocket(socketPath); err != nil {
-			return nil, err
-		}
-		l, err := net.Listen("unix", socketPath)
+		l, err := filesystem.ListenUnix(socketPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to listen on UDS %q: %w", socketPath, err)
 		}
@@ -395,23 +391,6 @@ func unixSocketPath(rest string) (string, error) {
 		path = "/" + path
 	}
 	return path, nil
-}
-
-func removeStaleSocket(socketPath string) error {
-	info, err := os.Stat(socketPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("failed to stat existing socket path %q: %w", socketPath, err)
-	}
-	if info.Mode()&os.ModeSocket == 0 {
-		return fmt.Errorf("refusing to bind UDS at %q: path exists and is not a socket", socketPath)
-	}
-	if err := os.Remove(socketPath); err != nil {
-		return fmt.Errorf("failed to remove stale UDS at %q: %w", socketPath, err)
-	}
-	return nil
 }
 
 func newRemoteAgentClient(ipcComp ipc.Component, agentIpcAddress string, cfg config.Component, log log.Component) (pbcore.RemoteAgentClient, error) {

@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 const (
@@ -24,11 +25,7 @@ const (
 // NewLocalAPI returns a new LocalAPI.
 func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 	socketPath := filepath.Join(paths.RunPath, socketName)
-	err := os.RemoveAll(socketPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not remove socket: %w", err)
-	}
-	listener, err := net.Listen("unix", socketPath)
+	listener, err := filesystem.ListenUnix(socketPath)
 	if err != nil {
 		return nil, err
 	}

@@ -19,18 +19,7 @@ import (
 
 // platformSpecificListener returns a unix net.Listener for linux platforms
 func platformSpecificListener(address string) (net.Listener, error) {
-	fi, err := os.Stat(address)
-	if err == nil {
-		// already exists
-		if fi.Mode()&os.ModeSocket == 0 {
-			return nil, fmt.Errorf("cannot reuse %q; not a unix socket", address)
-		}
-		if err := os.Remove(address); err != nil {
-			return nil, fmt.Errorf("unable to remove stale socket: %v", err)
-		}
-	}
-
-	ln, err := net.Listen("unix", address)
+	ln, err := filesystem.ListenUnix(address)
 	if err != nil {
 		return nil, err
 	}

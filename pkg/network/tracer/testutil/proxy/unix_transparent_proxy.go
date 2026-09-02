@@ -17,12 +17,12 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"sync"
 	"time"
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -69,12 +69,7 @@ func NewUnixTransparentProxyServer(unixPath, remoteAddr string, useTLS, useContr
 
 // Run starts the proxy server.
 func (p *UnixTransparentProxyServer) Run() error {
-	// Clear the old socket if it exists.
-	if err := p.clearOldSocket(); err != nil {
-		return err
-	}
-
-	ln, err := net.Listen("unix", p.unixPath)
+	ln, err := filesystem.ListenUnix(p.unixPath)
 	if err != nil {
 		return err
 	}
@@ -102,8 +97,6 @@ func (p *UnixTransparentProxyServer) Run() error {
 
 // Stop stops the proxy server.
 func (p *UnixTransparentProxyServer) Stop() {
-	defer func() { _ = p.clearOldSocket() }()
-
 	_ = p.ln.Close()
 	p.wg.Wait()
 }
@@ -288,21 +281,4 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 	}
 
 	streamWait.Wait()
-}
-
-// clearOldSocket clears the old socket if it exists.
-func (p *UnixTransparentProxyServer) clearOldSocket() error {
-	pipe, err := os.Stat(p.unixPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-	}
-
-	mode := pipe.Mode()
-	if os.ModeSocket&mode != 0 { // is a socket
-		return os.Remove(p.unixPath)
-	}
-	return fmt.Errorf("%q exists but it is not a socket", p.unixPath)
 }

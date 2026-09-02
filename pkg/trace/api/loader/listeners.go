@@ -9,21 +9,13 @@ import (
 	"fmt"
 	"net"
 	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // GetUnixListener returns a net.Listener listening on the given "unix" socket path.
 func GetUnixListener(path string) (net.Listener, error) {
-	fi, err := os.Stat(path)
-	if err == nil {
-		// already exists
-		if fi.Mode()&os.ModeSocket == 0 {
-			return nil, fmt.Errorf("cannot reuse %q; not a unix socket", path)
-		}
-		if err := os.Remove(path); err != nil {
-			return nil, fmt.Errorf("unable to remove stale socket: %v", err)
-		}
-	}
-	ln, err := net.Listen("unix", path)
+	ln, err := filesystem.ListenUnix(path)
 	if err != nil {
 		return nil, err
 	}

@@ -10,16 +10,14 @@ package executor
 import (
 	"context"
 	"net"
-	"os"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // Listen creates the executor's Unix socket, removing any stale socket file first.
 func Listen(address string) (net.Listener, error) {
-	if err := os.Remove(address); err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-	return net.Listen("unix", address)
+	return filesystem.ListenUnix(address)
 }
 
 // Dial connects to the executor's socket.

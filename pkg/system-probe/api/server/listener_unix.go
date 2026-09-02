@@ -23,22 +23,9 @@ func NewListener(socketAddr string) (net.Listener, error) {
 		return nil, errors.New("uds: empty socket path provided")
 	}
 
-	// Check to see if there's a pre-existing system probe socket.
-	fileInfo, err := os.Stat(socketAddr)
-	if err == nil { // No error means the socket file already exists
-		// If it's not a UNIX socket, then this is a problem.
-		if fileInfo.Mode()&os.ModeSocket == 0 {
-			return nil, fmt.Errorf("uds: reuse %s socket path: path already exists and it is not a UNIX socket", socketAddr)
-		}
-		// Attempt to remove the pre-existing socket
-		if err = os.Remove(socketAddr); err != nil {
-			return nil, fmt.Errorf("uds: remove stale UNIX socket: %v", err)
-		}
-	}
-
-	conn, err := net.Listen("unix", socketAddr)
+	conn, err := filesystem.ListenUnix(socketAddr)
 	if err != nil {
-		return nil, fmt.Errorf("listen: %s", err)
+		return nil, fmt.Errorf("failed to create system-probe socket: %w", err)
 	}
 
 	if err := os.Chmod(socketAddr, 0720); err != nil {

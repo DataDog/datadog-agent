@@ -19,6 +19,7 @@ go_library(
         "rights_nix_test_util.go",
         "rights_windows.go",
         "rights_windows_test_util.go",
+        "socket.go",
         "writable.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/filesystem",
