@@ -246,7 +246,7 @@ func TestToEnv(t *testing.T) {
 		{
 			name:     "Empty configuration",
 			env:      &Env{},
-			expected: nil,
+			expected: []string{"DD_PROCESS_MANAGER_ENABLED=false"},
 		},
 		{
 			name: "All configuration set",
@@ -302,6 +302,7 @@ func TestToEnv(t *testing.T) {
 				"DD_API_KEY=123456",
 				"DD_SITE=datadoghq.eu",
 				"DD_REMOTE_UPDATES=true",
+				"DD_PROCESS_MANAGER_ENABLED=false",
 				"DD_INSTALLER_MIRROR=https://mirror.example.com",
 				"DD_INSTALLER_REGISTRY_URL=registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH=auth",
@@ -340,6 +341,7 @@ func TestToEnv(t *testing.T) {
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
+				"DD_PROCESS_MANAGER_ENABLED=false",
 				"DD_PRIVATE_ACTION_RUNNER_ENABLED=true",
 				"DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST=action1,action2",
 			},
@@ -354,6 +356,7 @@ func TestToEnv(t *testing.T) {
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
+				"DD_PROCESS_MANAGER_ENABLED=false",
 			},
 		},
 	}
@@ -392,6 +395,13 @@ func TestFromEnvFIPSMode(t *testing.T) {
 func TestToEnvFIPSMode(t *testing.T) {
 	assert.NotContains(t, (&Env{FIPSMode: false}).ToEnv(), "DD_FIPS_MODE=true")
 	assert.Contains(t, (&Env{FIPSMode: true}).ToEnv(), "DD_FIPS_MODE=true")
+}
+
+func TestToEnvProcessManagerEnabled(t *testing.T) {
+	// Unlike most other flags, ProcessManagerEnabled must always be serialized (even when
+	// false) so it reliably overrides whatever a spawned subprocess would otherwise inherit.
+	assert.Contains(t, (&Env{ProcessManagerEnabled: false}).ToEnv(), "DD_PROCESS_MANAGER_ENABLED=false")
+	assert.Contains(t, (&Env{ProcessManagerEnabled: true}).ToEnv(), "DD_PROCESS_MANAGER_ENABLED=true")
 }
 
 func TestAgentUserVars(t *testing.T) {
