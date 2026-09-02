@@ -4,9 +4,61 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
+use log::warn;
 
-/// Parse a systemd-style environment file into key-value pairs.
-/// Supports `KEY=VALUE`, `KEY="VALUE"`, `KEY='VALUE'`, comments (#), and blank lines.
+pub(crate) fn expand_env_vars(input: &str) -> String {
+    expand_vars_with(input, |name| std::env::var(name).ok())
+}
+
+pub(crate) fn try_expand_env_vars(input: &str) -> Option<String> {
+    try_expand_vars_with(input, |name| std::env::var(name).ok())
+}
+
+pub(crate) fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(start) = rest.find("${") {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        match after.find('}') {
+            Some(end) => {
+                let name = &after[..end];
+                match lookup(name) {
+                    Some(val) => out.push_str(&val),
+                    None => {
+                        warn!(
+                            "process config references unset variable ${{{name}}}, leaving it literal"
+                        );
+                        out.push_str(&rest[start..start + 2 + end + 1]);
+                    }
+                }
+                rest = &after[end + 1..];
+            }
+            None => {
+                out.push_str(&rest[start..]);
+                return out;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+pub(crate) fn try_expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> Option<String> {
+    let mut out = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(start) = rest.find("${") {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        let end = after.find('}')?;
+        let name = &after[..end];
+        out.push_str(&lookup(name)?);
+        rest = &after[end + 1..];
+    }
+    out.push_str(rest);
+    Some(out)
+}
+
 pub fn parse_environment_file(path: &str) -> Result<Vec<(String, String)>> {
     let contents = std::fs::read_to_string(path)
         .with_context(|| format!("reading environment file: {path}"))?;
@@ -66,5 +118,27 @@ LANG=en_US.UTF-8
     #[test]
     fn test_parse_missing_file() {
         assert!(parse_environment_file("/nonexistent/env").is_err());
+    }
+
+    #[test]
+    fn test_try_expand_vars_substitutes_known() {
+        let lookup = |name: &str| match name {
+            "DD_INVENTORIES_FIRST_RUN_DELAY" => Some("5".to_string()),
+            _ => None,
+        };
+        assert_eq!(
+            try_expand_vars_with("${DD_INVENTORIES_FIRST_RUN_DELAY}", lookup),
+            Some("5".to_string())
+        );
+    }
+
+    #[test]
+    fn test_try_expand_vars_none_when_unset() {
+        let lookup = |_: &str| None;
+        assert_eq!(
+            try_expand_vars_with("${DD_INVENTORIES_FIRST_RUN_DELAY}", lookup),
+            None,
+            "an unset optional variable must yield None so the caller can omit the env var"
+        );
     }
 }

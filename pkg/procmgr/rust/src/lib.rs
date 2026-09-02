@@ -14,6 +14,8 @@ pub mod process;
 #[cfg(windows)]
 pub mod service;
 pub mod shutdown;
+mod spawn;
+mod spawn_context;
 pub mod state;
 #[cfg(any(test, feature = "test-helpers"))]
 pub mod test_helpers;
