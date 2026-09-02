@@ -17,7 +17,7 @@ import (
 func TestRouterUnregister(t *testing.T) {
 	mux := http.NewServeMux()
 	r := NewRouter("test", mux)
-	r.HandleFunc("GET /asdf", func(w http.ResponseWriter, req *http.Request) {
+	r.HandleFunc("GET /asdf", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
