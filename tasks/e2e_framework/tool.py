@@ -142,18 +142,43 @@ def get_default_workload_install() -> bool:
     return True
 
 
+def get_local_user() -> str:
+    """
+    The developer's login.
+
+    On a shared dev VM (a Datadog workspace) the OS user is `bits` for everyone, so the
+    real identity comes from $REAL_USER.
+    """
+    return os.getenv("REAL_USER") or getpass.getuser()
+
+
+def get_resource_owner_id() -> str:
+    """
+    The identity used to name cloud resources: Pulumi stacks, EC2 key pairs and SSH keys.
+
+    The workspace name is part of it so that several workspaces owned by the same
+    developer don't fight over the same key pair or stack names in a shared account.
+    """
+    parts = [get_local_user()]
+    workspace = os.getenv("WORKSPACE_NAME")
+    if workspace:
+        parts.append(workspace)
+    # EKS doesn't support '.' and spaces in the user name could be problematic on Windows
+    return "-".join(parts).replace(".", "-").replace(" ", "-").lower()
+
+
 def get_stack_name(stack_name: str | None, scenario_name: str) -> str:
     if stack_name is None:
         stack_name = scenario_name.replace("/", "-")
     # The scenario name cannot start with the stack name because ECS
-    # stack name cannot start with 'ecs' or 'aws'
-    return f"{get_stack_name_prefix()}{stack_name}"
+    # stack name cannot start with 'ecs' or 'aws'.
+    # Normalizing here rather than in the caller keeps deploy and destroy looking for the
+    # same name: they used to disagree on the casing of a --stack-name.
+    return f"{get_stack_name_prefix()}{stack_name}".replace(" ", "-").lower()
 
 
 def get_stack_name_prefix() -> str:
-    user_name = f"{getpass.getuser()}-"
-    # EKS doesn't support '.' and spaces in the user name could be problematic on Windows
-    return user_name.replace(".", "-").replace(" ", "-")
+    return f"{get_resource_owner_id()}-"
 
 
 CI_PULUMI_BACKEND_URL = "s3://dd-pulumi-state"

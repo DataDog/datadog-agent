@@ -223,9 +223,8 @@ def _deploy(
     pulumi_extra_args: str = "",
     pulumi_env: dict[str, str] | None = None,
 ) -> str:
+    # get_stack_name normalizes the name, so destroy looks for the one deployed here
     stack_name = tool.get_stack_name(stack_name, flags["scenario"])
-    # make sure the stack name is safe
-    stack_name = stack_name.replace(" ", "-").lower()
     log_flags_array: list[str] = []
     up_flags = ""
 

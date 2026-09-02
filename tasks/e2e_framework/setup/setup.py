@@ -14,6 +14,7 @@ from tasks.e2e_framework.tool import (
     error,
     get_aws_cmd,
     get_pulumi_run_folder,
+    get_resource_owner_id,
     info,
     is_windows,
     run_pulumi,
@@ -36,8 +37,6 @@ def _force_cleanup(
     Uses computed default paths — not the existing config — so it targets exactly
     what the next setup run would create.
     """
-    import getpass
-
     from tasks.e2e_framework.config import get_full_profile_path
     from tasks.e2e_framework.setup.aws import DEFAULT_AWS_ACCOUNT, _default_keypair_name
     from tasks.e2e_framework.setup.ssh_keys import default_key_paths, ssh_agent_supported
@@ -57,7 +56,7 @@ def _force_cleanup(
                 p.unlink()
                 info(f"✓ Deleted {p}")
 
-    user = getpass.getuser()
+    user = get_resource_owner_id()
     effective_account = account or DEFAULT_AWS_ACCOUNT
 
     # AWS: remove from agent, delete local files, then delete EC2 keypair

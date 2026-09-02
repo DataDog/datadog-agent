@@ -146,5 +146,29 @@ class TestExistingStacks(unittest.TestCase):
         self.assertEqual(fulls, ["jdoe-aws-vm", "jdoe-eks"])
 
 
+class TestResourceOwnerID(unittest.TestCase):
+    def test_falls_back_to_the_os_user(self):
+        with mock.patch.dict("os.environ", {}, clear=True), mock.patch("getpass.getuser", return_value="John.Doe"):
+            self.assertEqual(tool.get_resource_owner_id(), "john-doe")
+
+    def test_real_user_wins_over_the_os_user(self):
+        env = {"REAL_USER": "john.doe"}
+        with mock.patch.dict("os.environ", env, clear=True), mock.patch("getpass.getuser", return_value="bits"):
+            self.assertEqual(tool.get_resource_owner_id(), "john-doe")
+
+    def test_workspace_name_disambiguates_two_workspaces(self):
+        env = {"REAL_USER": "john.doe", "WORKSPACE_NAME": "test-e2e"}
+        with mock.patch.dict("os.environ", env, clear=True), mock.patch("getpass.getuser", return_value="bits"):
+            self.assertEqual(tool.get_resource_owner_id(), "john-doe-test-e2e")
+            self.assertEqual(tool.get_stack_name(None, "aws/vm"), "john-doe-test-e2e-aws-vm")
+
+    def test_an_explicit_stack_name_is_normalized(self):
+        # deploy used to lowercase the full name while destroy did not, so a --stack-name
+        # with uppercase deployed under a name destroy could never find again.
+        env = {"REAL_USER": "john.doe"}
+        with mock.patch.dict("os.environ", env, clear=True):
+            self.assertEqual(tool.get_stack_name("My Stack", "aws/vm"), "john-doe-my-stack")
+
+
 if __name__ == "__main__":
     unittest.main()
