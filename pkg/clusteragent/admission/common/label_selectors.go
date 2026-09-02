@@ -8,6 +8,8 @@
 package common
 
 import (
+	"reflect"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -83,6 +85,34 @@ func applyAdmissionEnabledSelectors(selector *metav1.LabelSelector) {
 			EnabledLabelKey: "true",
 		}
 	}
+}
+
+// EnsureAKSSelectors appends the AKS-required namespace exclusions to nsSelector (creating
+// it if nil) when admission_controller.add_aks_selectors is enabled. AKS's admission
+// enforcer injects these same requirements into any webhook rule that omits them; if the
+// cluster agent's desired state doesn't already include them, the enforcer and the
+// reconcile loop perpetually fight over the webhook object (CONS-8533). Requirements
+// already present (e.g. added via DefaultLabelSelectors) are left untouched.
+func EnsureAKSSelectors(nsSelector *metav1.LabelSelector) *metav1.LabelSelector {
+	if !pkgconfigsetup.Datadog().GetBool("admission_controller.add_aks_selectors") {
+		return nsSelector
+	}
+	if nsSelector == nil {
+		nsSelector = &metav1.LabelSelector{}
+	}
+	for _, req := range AzureAKSLabelSelectorRequirement() {
+		alreadyPresent := false
+		for _, existing := range nsSelector.MatchExpressions {
+			if reflect.DeepEqual(existing, req) {
+				alreadyPresent = true
+				break
+			}
+		}
+		if !alreadyPresent {
+			nsSelector.MatchExpressions = append(nsSelector.MatchExpressions, req)
+		}
+	}
+	return nsSelector
 }
 
 func AzureAKSLabelSelectorRequirement() []metav1.LabelSelectorRequirement {

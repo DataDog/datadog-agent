@@ -352,6 +352,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 		}
 
 		nsSelector, objSelector := webhook.LabelSelectors(c.config.useNamespaceSelector())
+		nsSelector = common.EnsureAKSSelectors(nsSelector)
 
 		validatingWebhooks = append(
 			validatingWebhooks,
@@ -376,6 +377,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 		}
 
 		nsSelector, objSelector := webhook.LabelSelectors(c.config.useNamespaceSelector())
+		nsSelector = common.EnsureAKSSelectors(nsSelector)
 
 		mutatingWebhooks = append(
 			mutatingWebhooks,
