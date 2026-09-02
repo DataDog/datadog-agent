@@ -49,27 +49,6 @@ pub(crate) fn intended_spawn_user(
     spawn_user_for_supervisor()
 }
 
-#[cfg(test)]
-mod spawn_user_tests {
-    use super::*;
-    use crate::spawn::SpawnProfile;
-
-    #[test]
-    fn intended_spawn_user_matches_supervisor() {
-        use nix::unistd::{User, geteuid};
-
-        let expected = User::from_uid(geteuid())
-            .ok()
-            .flatten()
-            .map(|u| u.name)
-            .unwrap_or_else(|| "unknown".to_string());
-        assert_eq!(
-            intended_spawn_user("datadog-agent-trace", SpawnProfile::Agent),
-            expected
-        );
-    }
-}
-
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.
 pub fn setup_process_group(cmd: &mut Command) {
@@ -126,5 +105,26 @@ pub async fn shutdown_signal() {
     tokio::select! {
         _ = sigterm.recv() => { log::info!("received SIGTERM"); }
         _ = sigint.recv() => { log::info!("received SIGINT"); }
+    }
+}
+
+#[cfg(test)]
+mod spawn_user_tests {
+    use super::*;
+    use crate::spawn::SpawnProfile;
+
+    #[test]
+    fn intended_spawn_user_matches_supervisor() {
+        use nix::unistd::{User, geteuid};
+
+        let expected = User::from_uid(geteuid())
+            .ok()
+            .flatten()
+            .map(|u| u.name)
+            .unwrap_or_else(|| "unknown".to_string());
+        assert_eq!(
+            intended_spawn_user("datadog-agent-trace", SpawnProfile::Agent),
+            expected
+        );
     }
 }

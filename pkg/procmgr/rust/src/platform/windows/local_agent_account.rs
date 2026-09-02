@@ -4,9 +4,9 @@
 // Copyright 2026-present Datadog, Inc.
 
 #[cfg(not(test))]
-use anyhow::{Context, Result};
-#[cfg(not(test))]
 use anyhow::bail;
+#[cfg(not(test))]
+use anyhow::{Context, Result};
 #[cfg(not(test))]
 use log::info;
 use windows_sys::Win32::Security::{
