@@ -14,6 +14,7 @@ go_library(
         "dns_node.go",
         "file_node.go",
         "flow_node.go",
+        "hardening_posture.go",
         "imds_node.go",
         "network_device_node.go",
         "paths_reducer.go",
@@ -77,6 +78,7 @@ dd_agent_go_test(
     name = "activity_tree_test",
     srcs = [
         "activity_tree_test.go",
+        "hardening_posture_test.go",
         "paths_reducer_test.go",
         "process_node_snapshot_test.go",
         "size_test.go",
