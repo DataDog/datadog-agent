@@ -5,12 +5,11 @@
 
 //go:build windows
 
-// Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
+// Package agentcrashdetect detects and reports crashes related to Datadog Windows drivers.
 package agentcrashdetect
 
 // team: windows-products
 
 // Component is the component type.
 type Component interface {
-	/* TODO: define Component interface */
 }

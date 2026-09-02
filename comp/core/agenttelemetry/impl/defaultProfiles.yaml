@@ -267,6 +267,10 @@ profiles:
       request_type: agent-bsod
       payload_key: agent_bsod
       message: 'Agent BSOD'
+    - name: ddinjector-crash
+      request_type: ddinjector-crash
+      payload_key: ddinjector_crash
+      message: 'DDInjector crash attribution'
 - name: service-discovery
   metric:
     metrics:
