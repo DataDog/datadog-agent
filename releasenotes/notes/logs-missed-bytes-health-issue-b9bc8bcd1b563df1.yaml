@@ -6,4 +6,7 @@ features:
     finished reading it. The issue is reported once per host and covers every
     affected log source, reporting the total bytes lost and rotations involved
     over the last 24 hours together with a breakdown per source and service.
+    The issue also names the saturated logs pipeline component responsible: the
+    stage that was saturated when the data was lost, per source, alongside a
+    snapshot of every component's saturation at the time the issue was reported.
     Loss recorded before an Agent restart is not carried across the restart.

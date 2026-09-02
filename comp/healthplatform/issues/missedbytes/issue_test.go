@@ -6,6 +6,7 @@
 package missedbytes
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+
+	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
 // last_loss_at reaches Extra but not the prose: the platform tracks last-seen.
@@ -256,4 +259,191 @@ func TestSanitizeName(t *testing.T) {
 			assert.True(t, utf8.ValidString(got), "a multi-byte name must not be split into invalid UTF-8")
 		})
 	}
+}
+
+func backpressureContext(t *testing.T, bp backpressureWire) string {
+	t.Helper()
+	encoded, err := json.Marshal(bp)
+	require.NoError(t, err)
+	return string(encoded)
+}
+
+func saturatedComponent(name string, sat30m int64) *logsmetrics.ComponentBackpressure {
+	return &logsmetrics.ComponentBackpressure{
+		Component:           name,
+		Instance:            "0",
+		AvgRatio:            0.98,
+		Saturated30mSeconds: sat30m,
+		CurrentlySaturated:  true,
+	}
+}
+
+// Without the key the issue must render exactly as it did before backpressure existed.
+func TestBuildIssue_NoBackpressureIsUnchanged(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:        "1024",
+		contextKeyRotations:    "2",
+		contextKeySourceCount:  "1",
+		contextKeyPairsOmitted: "0",
+		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
+		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":2}]`,
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	assert.NotContains(t, issue.GetExtra().AsMap(), contextKeyBackpressure)
+	assert.NotContains(t, issue.GetDescription(), "pipeline")
+	assert.Equal(t, "Run `sudo datadog-agent status` and note any saturated component in the Logs Agent Backpressure section.",
+		issue.GetRemediation().GetSteps()[0].GetText())
+}
+
+func TestBuildIssue_BackpressureReachesExtraAsObjects(t *testing.T) {
+	bottleneck := saturatedComponent("destination_reliable_0", 1740)
+	ctx := map[string]string{
+		contextKeyBytes:        "1024",
+		contextKeyRotations:    "2",
+		contextKeySourceCount:  "1",
+		contextKeyPairsOmitted: "0",
+		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
+		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":2}]`,
+		contextKeyBackpressure: backpressureContext(t, backpressureWire{
+			State:             logsmetrics.BackpressureSaturated,
+			Bottleneck:        bottleneck,
+			Components:        []logsmetrics.ComponentBackpressure{*bottleneck},
+			ComponentsOmitted: 3,
+		}),
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	extra := issue.GetExtra().AsMap()
+	bp, ok := extra[contextKeyBackpressure].(map[string]any)
+	require.True(t, ok, "backpressure must arrive as an object, not an encoded string")
+	assert.Equal(t, logsmetrics.BackpressureSaturated, bp["state"])
+	assert.Equal(t, float64(3), bp["components_omitted"])
+
+	components, ok := bp["components"].([]any)
+	require.True(t, ok, "components must arrive as a list of objects")
+	require.Len(t, components, 1)
+	assert.Equal(t, "destination_reliable_0", components[0].(map[string]any)["component"])
+
+	got, ok := bp["bottleneck"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "destination_reliable_0", got["component"])
+	assert.Equal(t, float64(1740), got["saturated_30m_s"])
+}
+
+// Loss-time attribution is causal; the check-time snapshot is only correlational, so the
+// description must prefer the former when the two disagree.
+func TestBuildIssue_DescriptionPrefersLossTimeBottleneck(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:        "1024",
+		contextKeyRotations:    "9",
+		contextKeySourceCount:  "1",
+		contextKeyPairsOmitted: "0",
+		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
+		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":9,"bottleneck":"strategy","bottleneck_rotations":7}]`,
+		contextKeyBackpressure: backpressureContext(t, backpressureWire{
+			State:      logsmetrics.BackpressureSaturated,
+			Bottleneck: saturatedComponent("processor", 1740),
+		}),
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	assert.Contains(t, issue.GetDescription(), "The strategy stage of the logs pipeline was saturated during 7 of these rotations.")
+	assert.NotContains(t, issue.GetDescription(), "processor stage")
+
+	// The remediation branches on what lost the data, not on what happens to be saturated
+	// while the check runs.
+	assert.Contains(t, issue.GetRemediation().GetSteps()[0].GetText(), "`strategy`")
+	assert.NotContains(t, issue.GetRemediation().GetSteps()[0].GetText(), "`processor`")
+}
+
+// The loss happened while the pipeline was keeping up: the fix is close_timeout, not
+// relieving saturation, and the prose has to say so.
+func TestBuildIssue_HealthyAtLossTimeSaysSo(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:        "1024",
+		contextKeyRotations:    "4",
+		contextKeySourceCount:  "1",
+		contextKeyPairsOmitted: "0",
+		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
+		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":4,"bottleneck":"none","bottleneck_rotations":4}]`,
+		contextKeyBackpressure: backpressureContext(t, backpressureWire{State: logsmetrics.BackpressureHealthy}),
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	assert.Contains(t, issue.GetDescription(), "ran out of time rather than throughput")
+	assert.Equal(t, "Run `sudo datadog-agent status` and note any saturated component in the Logs Agent Backpressure section.",
+		issue.GetRemediation().GetSteps()[0].GetText(), "a healthy pipeline names no component to skip to")
+}
+
+// agent diagnose prints Description verbatim behind a fixed prefix.
+func TestBuildIssue_DescriptionStaysOneBlock(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:        "1024",
+		contextKeyRotations:    "9",
+		contextKeySourceCount:  "2",
+		contextKeyPairsOmitted: "0",
+		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
+		contextKeySources:      `[{"source":"nginx","service":"web","bytes":900,"rotations":7,"bottleneck":"worker","bottleneck_rotations":7},{"source":"redis","service":"cache","bytes":124,"rotations":2,"bottleneck":"worker","bottleneck_rotations":2}]`,
+		contextKeyBackpressure: backpressureContext(t, backpressureWire{
+			State:      logsmetrics.BackpressureWarning,
+			Bottleneck: saturatedComponent("worker", 45),
+		}),
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	assert.NotContains(t, issue.GetDescription(), "\n")
+	assert.Contains(t, issue.GetDescription(), "during 9 of these rotations", "counts sum across the breakdown")
+}
+
+// A malformed value must cost only the enrichment, never the loss report.
+func TestBuildIssue_MalformedBackpressureDegrades(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:        "1024",
+		contextKeyRotations:    "2",
+		contextKeySourceCount:  "1",
+		contextKeyPairsOmitted: "0",
+		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
+		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":2}]`,
+		contextKeyBackpressure: "{not json",
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	assert.Equal(t, "Lost 1.0 kB of logs from source nginx in the last 24 hours", issue.GetTitle())
+	assert.NotContains(t, issue.GetExtra().AsMap(), contextKeyBackpressure)
+}
+
+// Nothing was attributed at loss time, so the check-time snapshot is the only branch
+// available and the step must still name it.
+func TestBuildIssue_FallsBackToCheckTimeBottleneck(t *testing.T) {
+	ctx := map[string]string{
+		contextKeyBytes:        "1024",
+		contextKeyRotations:    "2",
+		contextKeySourceCount:  "1",
+		contextKeyPairsOmitted: "0",
+		contextKeyLastLossAt:   "2026-08-31T13:12:05Z",
+		contextKeySources:      `[{"source":"nginx","service":"web","bytes":1024,"rotations":2}]`,
+		contextKeyBackpressure: backpressureContext(t, backpressureWire{
+			State:      logsmetrics.BackpressureSaturated,
+			Bottleneck: saturatedComponent("destination_reliable_0", 1740),
+		}),
+	}
+
+	issue, err := MissedBytesIssue{}.BuildIssue(ctx)
+	require.NoError(t, err)
+
+	assert.Contains(t, issue.GetRemediation().GetSteps()[0].GetText(), "`destination_reliable_0`")
+	assert.Contains(t, issue.GetDescription(), "destination_reliable_0 stage of the logs pipeline is saturated")
 }

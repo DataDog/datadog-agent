@@ -273,7 +273,10 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.Fingerprin
 func (a *logAgent) startPipeline() {
 
 	// setup the status
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars, a.pipelineProvider.GetPipelineMonitor())
+	pipelineMonitor := a.pipelineProvider.GetPipelineMonitor()
+	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars, pipelineMonitor)
+	// The health platform check reads the same snapshots but takes no arguments.
+	metrics.RegisterPipelineMonitor(pipelineMonitor)
 
 	starter := startstop.NewStarter(
 		a.destinationsCtx,

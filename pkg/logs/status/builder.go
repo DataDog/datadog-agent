@@ -145,64 +145,39 @@ func (b *Builder) getComponentUtilization() []ComponentUtilization {
 }
 
 // getBackpressureStatus returns SATURATED (saturated in last 1m), WARNING (last 30m only), or HEALTHY.
+// The selection is shared with the log-data-lost-after-rotation issue, whose remediation
+// tells the customer to cross-check this section. Only the prose is built here.
 func (b *Builder) getBackpressureStatus(utils []ComponentUtilization) BackpressureStatus {
-	// SATURATED signal: among currently-saturated components, surface the one with the highest EWMA.
-	var hasCurrSat bool
-	var maxCurrRatio float64
-	var currSatName, currSatInst string
-	var currSat30m int64
-
-	// WARNING signal: the component with the most recent 1m/30m saturation.
-	var maxSat1m, maxSat30m int64
-	var sat30mForMaxSat1m int64
-	var satName1m, satInst1m string
-	var satName30m, satInst30m string
-
+	comps := make([]logsMetrics.ComponentBackpressure, 0, len(utils))
 	for _, u := range utils {
-		if u.CurrentlySaturated && u.AvgRatio > maxCurrRatio {
-			hasCurrSat = true
-			maxCurrRatio = u.AvgRatio
-			currSatName = u.Name
-			currSatInst = u.Instance
-			currSat30m = u.Saturated30mSeconds
-		}
-		if u.Saturated1mSeconds > maxSat1m {
-			maxSat1m = u.Saturated1mSeconds
-			sat30mForMaxSat1m = u.Saturated30mSeconds
-			satName1m = u.Name
-			satInst1m = u.Instance
-		}
-		if u.Saturated30mSeconds > maxSat30m {
-			maxSat30m = u.Saturated30mSeconds
-			satName30m = u.Name
-			satInst30m = u.Instance
-		}
+		comps = append(comps, logsMetrics.ComponentBackpressure{
+			Component:           u.Name,
+			Instance:            u.Instance,
+			AvgRatio:            u.AvgRatio,
+			Saturated1mSeconds:  u.Saturated1mSeconds,
+			Saturated30mSeconds: u.Saturated30mSeconds,
+			CurrentlySaturated:  u.CurrentlySaturated,
+		})
 	}
 
-	// SATURATED: a component is at or above threshold right now. Clears within seconds of recovery.
-	if hasCurrSat {
-		dur30m := time.Duration(currSat30m) * time.Second
+	state, bottleneck := logsMetrics.SelectBottleneck(comps)
+	if bottleneck == nil {
+		return BackpressureStatus{State: state}
+	}
+
+	dur30m := fmtDuration(time.Duration(bottleneck.Saturated30mSeconds) * time.Second)
+	// SATURATED means at or above threshold right now; it clears within seconds of recovery.
+	if state == logsMetrics.BackpressureSaturated {
 		return BackpressureStatus{
-			State:  "SATURATED",
-			Reason: fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", currSatName, currSatInst, fmtDuration(dur30m)),
+			State:  state,
+			Reason: fmt.Sprintf("%s pipeline %s is currently saturated (saturated for %s in the last 30m)", bottleneck.Component, bottleneck.Instance, dur30m),
 		}
 	}
-	// WARNING: saturation occurred in the last 1m or 30m but no component is currently at threshold.
-	if maxSat1m > 0 {
-		dur30m := time.Duration(sat30mForMaxSat1m) * time.Second
-		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName1m, satInst1m, fmtDuration(dur30m)),
-		}
+	// WARNING: saturation occurred in the last 1m or 30m but nothing is currently at threshold.
+	return BackpressureStatus{
+		State:  state,
+		Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", bottleneck.Component, bottleneck.Instance, dur30m),
 	}
-	if maxSat30m > 0 {
-		dur30m := time.Duration(maxSat30m) * time.Second
-		return BackpressureStatus{
-			State:  "WARNING",
-			Reason: fmt.Sprintf("%s pipeline %s is not currently saturated but was saturated for %s in the last 30m", satName30m, satInst30m, fmtDuration(dur30m)),
-		}
-	}
-	return BackpressureStatus{State: "HEALTHY"}
 }
 
 // formatBackpressureSection renders the backpressure section as preformatted text (omitted from JSON).

@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "metrics",
     srcs = [
+        "backpressure.go",
         "capacity_monitor.go",
         "metrics.go",
         "missed_bytes.go",
@@ -25,6 +26,7 @@ go_library(
 dd_agent_go_test(
     name = "metrics_test",
     srcs = [
+        "backpressure_test.go",
         "capacity_monitor_test.go",
         "metrics_test.go",
         "missed_bytes_test.go",

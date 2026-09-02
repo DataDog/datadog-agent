@@ -48,10 +48,17 @@ func findMissedBytesIssue(issues map[string]*healthplatformpayload.Issue) *healt
 // seeded before the bundle starts so the assertion lands on the first tick.
 func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 	logsmetrics.ResetMissedBytesForTest()
+	logsmetrics.ResetPipelineMonitorForTest()
 	t.Cleanup(logsmetrics.ResetMissedBytesForTest)
+	t.Cleanup(logsmetrics.ResetPipelineMonitorForTest)
 
-	// Stands in for a running logs agent and two lossy rotations.
+	// Stands in for a running logs agent with a saturated destination, and two lossy
+	// rotations attributed to it.
 	logsmetrics.MarkLogsAgentRunning()
+	logsmetrics.RegisterFakePipelineMonitorForTest([]logsmetrics.ComponentSnapshot{
+		logsmetrics.SaturatedSnapshotForTest("processor", "0", 0.1, 0, false),
+		logsmetrics.SaturatedSnapshotForTest("destination_reliable_0", "0", 0.98, 29*time.Minute, true),
+	})
 	logsmetrics.RecordMissedBytes("nginx", "web", 4096)
 	logsmetrics.RecordMissedBytes("redis", "cache", 1024)
 
@@ -112,4 +119,13 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 	largest := sources[0].GetStructValue().GetFields()
 	assert.Equal(t, "nginx", largest["source"].GetStringValue())
 	assert.Equal(t, float64(4096), largest["bytes"].GetNumberValue())
+	assert.Equal(t, "destination_reliable_0", largest["bottleneck"].GetStringValue(),
+		"the stage saturated at loss time must survive the trip")
+
+	// Same test as sources: structpb can carry this as an encoded string, and did once.
+	bp := received.GetExtra().GetFields()["backpressure"].GetStructValue().GetFields()
+	require.NotEmpty(t, bp, "backpressure must arrive as an object, not a string")
+	assert.Equal(t, "SATURATED", bp["state"].GetStringValue())
+	assert.Equal(t, "destination_reliable_0", bp["bottleneck"].GetStructValue().GetFields()["component"].GetStringValue())
+	assert.Len(t, bp["components"].GetListValue().GetValues(), 2)
 }
