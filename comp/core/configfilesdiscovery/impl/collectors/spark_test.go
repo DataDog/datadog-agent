@@ -177,9 +177,14 @@ func TestSparkCollectorReturnsReaderErrors(t *testing.T) {
 	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
 }
 
-func TestSparkCollectorCanCollectFromProcessAlwaysFalse(t *testing.T) {
-	assert.False(t, sparkConfigCollector{}.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+func TestSparkCollectorCanCollectFromProcess(t *testing.T) {
+	collector := sparkConfigCollector{}
+
+	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
 		Args: []string{"/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master"},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker"},
 	}))
 }
 

@@ -36,11 +36,11 @@ func NewSpark() configfilesdiscoveryimpl.ConfigCollector {
 	return sparkConfigCollector{}
 }
 
-// CanCollectFromProcess always returns false: this collector only reads
-// environment variables from an Autodiscovery target and has no process-based
-// retry behavior.
-func (sparkConfigCollector) CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline) bool {
-	return false
+// CanCollectFromProcess returns whether a process event identifies a Spark
+// Master. This lets the scheduler retry collection after a wrapper process has
+// started the Master.
+func (sparkConfigCollector) CanCollectFromProcess(commandline configfilesdiscoveryimpl.TargetCommandline) bool {
+	return isSparkMasterCommand(commandline.Args)
 }
 
 func (sparkConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
