@@ -497,6 +497,7 @@ func scrubValue(key string, v interface{}, s *scrubber.Scrubber, forceRedact boo
 }
 
 func writeEmptyJSON(w http.ResponseWriter, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	w.Write([]byte("{}"))
 }

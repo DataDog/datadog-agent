@@ -240,6 +240,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		}
 
 		body := r.cachedInfoResponse.Load().([]byte)
+		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 		w.Write(body) //nolint:errcheck
 	}

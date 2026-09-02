@@ -31,27 +31,30 @@ import (
 
 func TestConfigEndpoint(t *testing.T) {
 	var tcs = []struct {
-		name               string
-		reqBody            string
-		expectedStatusCode int
-		enabled            bool
-		valid              bool
-		response           string
+		name                string
+		reqBody             string
+		expectedStatusCode  int
+		enabled             bool
+		valid               bool
+		response            string
+		expectedContentType string
 	}{
 		{
-			name:               "bad",
-			enabled:            true,
-			expectedStatusCode: http.StatusBadRequest,
-			response:           "unexpected end of JSON input\n",
+			name:                "bad",
+			enabled:             true,
+			expectedStatusCode:  http.StatusBadRequest,
+			response:            "unexpected end of JSON input\n",
+			expectedContentType: "text/plain; charset=utf-8",
 		},
 		{
 			name:    "valid",
 			reqBody: `{"client":{"id":"test_client"}}`,
 
-			enabled:            true,
-			valid:              true,
-			expectedStatusCode: http.StatusOK,
-			response:           `{"targets":"dGVzdA=="}`,
+			enabled:             true,
+			valid:               true,
+			expectedStatusCode:  http.StatusOK,
+			response:            `{"targets":"dGVzdA=="}`,
+			expectedContentType: "application/json",
 		},
 	}
 	for _, tc := range tcs {
@@ -78,6 +81,7 @@ func TestConfigEndpoint(t *testing.T) {
 			assert.Nil(err)
 			assert.Equal(tc.expectedStatusCode, resp.StatusCode)
 			assert.Equal(tc.response, string(body))
+			assert.Equal(tc.expectedContentType, resp.Header.Get("Content-Type"))
 		})
 	}
 }
@@ -164,6 +168,7 @@ func TestUpstreamRequest(t *testing.T) {
 			assert.NoError(err)
 			assert.Equal(200, resp.StatusCode)
 			assert.Equal(`{"targets":"dGVzdA=="}`, string(body))
+			assert.Equal("application/json", resp.Header.Get("Content-Type"))
 		})
 	}
 }
