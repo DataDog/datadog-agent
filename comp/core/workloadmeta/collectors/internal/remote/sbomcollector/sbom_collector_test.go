@@ -360,6 +360,55 @@ func TestMergeRuntimeProperties_DefaultsReportedComponentWithPartialProperties(t
 	assert.Equal(t, "false", v)
 }
 
+func TestMergeRuntimeProperties_KeepsTheReportOffForeignPurls(t *testing.T) {
+	// The report reads the dpkg, rpm and apk databases, so a gem sharing an OS
+	// package's name and version is not the package it saw running.
+	existing := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			{
+				BomRef:  pointer.Ptr("1"),
+				Name:    "openssl",
+				Version: "3.0.11",
+				Purl:    pointer.Ptr("pkg:gem/openssl@3.0.11"),
+			},
+			{
+				BomRef:  pointer.Ptr("2"),
+				Name:    "openssl",
+				Version: "3.0.11",
+				Purl:    pointer.Ptr("pkg:deb/debian/openssl@3.0.11"),
+			},
+		},
+	}
+	newBom := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			component("openssl", "3.0.11",
+				prop(LastAccessProperty, "1700000000"),
+				prop(HasSetSuidBitProperty, "true"),
+				prop(RunningAsRootProperty, "true"),
+			),
+		},
+	}
+
+	merged := mergeRuntimeProperties(existing, newBom)
+
+	require.Len(t, merged.Components, 2)
+	gem, deb := merged.Components[0], merged.Components[1]
+	require.Equal(t, "pkg:gem/openssl@3.0.11", gem.GetPurl())
+
+	for _, name := range []string{LastAccessProperty, HasSetSuidBitProperty, RunningAsRootProperty} {
+		_, ok := findProp(gem, name)
+		assert.Falsef(t, ok, "%s reached the gem", name)
+	}
+
+	// The OS package of the same name and version still takes the report.
+	v, ok := findProp(deb, LastAccessProperty)
+	assert.True(t, ok)
+	assert.Equal(t, "1700000000", v)
+	v, ok = findProp(deb, HasSetSuidBitProperty)
+	assert.True(t, ok)
+	assert.Equal(t, "true", v)
+}
+
 func TestMergeRuntimeProperties_CollapsesDuplicateBomRefs(t *testing.T) {
 	// A stored image SBOM carrying the same component twice: one bom-ref is one
 	// component, so the first occurrence stands for both.
@@ -399,7 +448,8 @@ func TestMergeRuntimeProperties_CollapsesDuplicateBomRefs(t *testing.T) {
 func TestMergeRuntimeProperties_KeepsDistinctComponentsSharingNameAndVersion(t *testing.T) {
 	// Trivy reports one entry per install location, so a library version pinned by
 	// two lockfiles appears twice with distinct bom-refs. Both are real components
-	// that the dependency graph references, so both must survive.
+	// that the dependency graph references, so both must survive. Their purls are
+	// foreign to the report, so neither carries a runtime property.
 	existing := &cyclonedx_v1_4.Bom{
 		Components: []*cyclonedx_v1_4.Component{
 			{
@@ -430,15 +480,48 @@ func TestMergeRuntimeProperties_KeepsDistinctComponentsSharingNameAndVersion(t *
 	for _, c := range merged.Components {
 		refs[c.GetBomRef()] = struct{}{}
 
-		// Both take the runtime update: the report matches them by name and version.
-		v, ok := findProp(c, LastAccessProperty)
-		assert.True(t, ok)
-		assert.Equal(t, "1700000000", v)
+		_, ok := findProp(c, LastAccessProperty)
+		assert.Falsef(t, ok, "the report reached %s", c.GetPurl())
 	}
 
 	// Every dependency reference still resolves to a component of the merged BOM.
 	for _, dep := range merged.Dependencies {
 		assert.Containsf(t, refs, dep.Ref, "dependency ref %q no longer resolves to a component", dep.Ref)
+	}
+}
+
+func TestMergeRuntimeProperties_ReportReachesDuplicateOSPackages(t *testing.T) {
+	// A multilib rpm is installed once per architecture, so it appears with one
+	// name and version, one bom-ref per entry, and the report covers both.
+	existing := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			{
+				BomRef:  pointer.Ptr("5"),
+				Name:    "glibc",
+				Version: "2.34-1.el9",
+				Purl:    pointer.Ptr("pkg:rpm/rhel/glibc@2.34-1.el9?arch=i686"),
+			},
+			{
+				BomRef:  pointer.Ptr("8"),
+				Name:    "glibc",
+				Version: "2.34-1.el9",
+				Purl:    pointer.Ptr("pkg:rpm/rhel/glibc@2.34-1.el9?arch=x86_64"),
+			},
+		},
+	}
+	newBom := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			component("glibc", "2.34-1.el9", prop(LastAccessProperty, "1700000000")),
+		},
+	}
+
+	merged := mergeRuntimeProperties(existing, newBom)
+
+	require.Len(t, merged.Components, 2)
+	for _, c := range merged.Components {
+		v, ok := findProp(c, LastAccessProperty)
+		assert.Truef(t, ok, "%s missed the report", c.GetPurl())
+		assert.Equal(t, "1700000000", v)
 	}
 }
 
