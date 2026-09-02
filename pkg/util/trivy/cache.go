@@ -189,6 +189,9 @@ type persistentCache struct {
 	currentCachedObjectTotalSize int
 	maximumCachedObjectSize      int
 	lastEvicted                  string
+	stop                         chan struct{}
+	stopped                      chan struct{}
+	closeOnce                    sync.Once
 }
 
 // newPersistentCache creates a new instance of persistentCache and returns a pointer to it.
@@ -201,6 +204,8 @@ func newPersistentCache(
 		db:                           localDB,
 		currentCachedObjectTotalSize: 0,
 		maximumCachedObjectSize:      maxCachedObjectSize,
+		stop:                         make(chan struct{}),
+		stopped:                      make(chan struct{}),
 	}
 
 	lruCache, err := simplelru.NewLRU(cacheSize, func(key string, _ struct{}) {
@@ -227,15 +232,7 @@ func newPersistentCache(
 		return nil, err
 	}
 
-	go func() {
-		ticker := time.NewTicker(telemetryTick)
-		for {
-			for range ticker.C {
-				persistentCache.collectTelemetry()
-			}
-			// TODO: add database compaction. BoltDB deletes the old pages but does not shrink the file.
-		}
-	}()
+	go persistentCache.collectTelemetryLoop()
 
 	return persistentCache, nil
 }
@@ -324,10 +321,14 @@ func (c *persistentCache) reduceSize(target int) error {
 	return nil
 }
 
-// Close closes the database.
+// Close stops the telemetry collection and closes the database.
 func (c *persistentCache) Close() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	c.closeOnce.Do(func() {
+		close(c.stop)
+		<-c.stopped
+	})
 	return c.db.Close()
 }
 
@@ -453,6 +454,24 @@ func (c *persistentCache) collectTelemetry() {
 		log.Errorf("could not collect telemetry: %v", err)
 	}
 	telemetry.SBOMCacheDiskSize.Set(float64(diskSize))
+}
+
+// collectTelemetryLoop collects the database's size until the cache is closed.
+// TODO: add database compaction. BoltDB deletes the old pages but does not shrink the file.
+func (c *persistentCache) collectTelemetryLoop() {
+	defer close(c.stopped)
+
+	ticker := time.NewTicker(telemetryTick)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.collectTelemetry()
+		case <-c.stop:
+			return
+		}
+	}
 }
 
 func newMemoryCache() *memoryCache {
