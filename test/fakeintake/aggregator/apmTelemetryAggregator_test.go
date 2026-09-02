@@ -92,3 +92,30 @@ func TestParseAgentTelemetryLogs(t *testing.T) {
 		assert.Equal(t, "agent-errortracking", l.name())
 	})
 }
+
+func TestParseDDInjectorCrashes(t *testing.T) {
+	ts := time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC)
+	payload := api.Payload{
+		Data:      []byte(`{"request_type":"ddinjector-crash","payload":{"message":"DDInjector crash attribution","ddinjector_crash":{"process_name":"crashy.exe","process_id":4242,"exit_status":"0xc0000005","elapsed_ms":123,"phase":"post_injection","events_suppressed":2}}}`),
+		Encoding:  encodingJSON,
+		Timestamp: ts,
+	}
+
+	crashes, err := ParseDDInjectorCrashes(payload)
+	require.NoError(t, err)
+	require.Len(t, crashes, 1)
+	assert.Equal(t, "crashy.exe", crashes[0].ProcessName)
+	assert.Equal(t, uint32(4242), crashes[0].ProcessID)
+	assert.Equal(t, "0xc0000005", crashes[0].ExitStatus)
+	assert.Equal(t, int64(123), crashes[0].ElapsedMs)
+	assert.Equal(t, "post_injection", crashes[0].Phase)
+	assert.Equal(t, uint64(2), crashes[0].EventsSuppressed)
+	assert.Equal(t, ts, crashes[0].GetCollectedTime())
+
+	crashes, err = ParseDDInjectorCrashes(api.Payload{
+		Data:     []byte(`{"request_type":"agent-metrics","payload":{}}`),
+		Encoding: encodingJSON,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, crashes)
+}

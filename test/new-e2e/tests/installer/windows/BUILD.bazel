@@ -62,6 +62,7 @@ dd_agent_go_test(
         "agent_install_test.go",
         "agent_keep_rights_fleet_test.go",
         "agent_upgrade_test.go",
+        "apm_inject_crash_telemetry_test.go",
         "apm_inject_injector_stats_test.go",
         "apm_inject_install_script_test.go",
         "apm_inject_install_test.go",
@@ -83,6 +84,7 @@ dd_agent_go_test(
         "persisting_extensions_test.go",
     ],
     data = [
+        "fixtures/ddinjector_crash.ps1",
         "resources/apm-inject/DummyApp.java",
         "resources/apm-inject/index.aspx",
         "resources/apm-inject/web.config",
@@ -91,6 +93,7 @@ dd_agent_go_test(
     ],
     embed = [":windows"],
     embedsrcs = [
+        "fixtures/ddinjector_crash.ps1",
         "resources/apm-inject/DummyApp.java",
         "resources/apm-inject/index.aspx",
         "resources/apm-inject/web.config",

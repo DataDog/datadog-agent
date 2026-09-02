@@ -28,6 +28,26 @@ type AgentTelemetryLog struct {
 	collectedTime time.Time
 }
 
+// DDInjectorCrash represents one crash-attribution event reported by the
+// Windows DDInjector through the Agent telemetry endpoint.
+type DDInjectorCrash struct {
+	ProcessName      string `json:"process_name"`
+	ProcessID        uint32 `json:"process_id"`
+	ExitStatus       string `json:"exit_status"`
+	ElapsedMs        int64  `json:"elapsed_ms"`
+	Phase            string `json:"phase"`
+	EventsSuppressed uint64 `json:"events_suppressed"`
+	collectedTime    time.Time
+}
+
+func (c *DDInjectorCrash) name() string { return "ddinjector-crash" }
+
+// GetTags returns no tags because DDInjector crash events carry structured fields instead.
+func (c *DDInjectorCrash) GetTags() []string { return []string{} }
+
+// GetCollectedTime returns when the fakeintake server received this payload.
+func (c *DDInjectorCrash) GetCollectedTime() time.Time { return c.collectedTime }
+
 // name returns the grouping key used by the aggregator. All agent-logs records
 // share one key; per-hostname grouping is not needed for single-agent test VMs.
 func (l *AgentTelemetryLog) name() string { return "agent-errortracking" }
@@ -90,5 +110,48 @@ type AgentTelemetryLogAggregator struct {
 func NewAgentTelemetryLogAggregator() AgentTelemetryLogAggregator {
 	return AgentTelemetryLogAggregator{
 		Aggregator: newAggregator(ParseAgentTelemetryLogs),
+	}
+}
+
+type ddInjectorCrashTelemetryEnvelope struct {
+	RequestType string `json:"request_type"`
+	Payload     struct {
+		Crash *DDInjectorCrash `json:"ddinjector_crash"`
+	} `json:"payload"`
+}
+
+// ParseDDInjectorCrashes parses DDInjector crash-attribution events received on
+// the shared Agent telemetry endpoint. Other request types are silently skipped.
+func ParseDDInjectorCrashes(payload api.Payload) ([]*DDInjectorCrash, error) {
+	if bytes.Equal(payload.Data, []byte("{}")) {
+		return []*DDInjectorCrash{}, nil
+	}
+
+	inflated, err := inflate(payload.Data, payload.Encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	var env ddInjectorCrashTelemetryEnvelope
+	if err := json.Unmarshal(inflated, &env); err != nil {
+		return []*DDInjectorCrash{}, nil
+	}
+	if env.RequestType != "ddinjector-crash" || env.Payload.Crash == nil {
+		return []*DDInjectorCrash{}, nil
+	}
+
+	env.Payload.Crash.collectedTime = payload.Timestamp
+	return []*DDInjectorCrash{env.Payload.Crash}, nil
+}
+
+// DDInjectorCrashAggregator aggregates DDInjector crash-attribution events.
+type DDInjectorCrashAggregator struct {
+	Aggregator[*DDInjectorCrash]
+}
+
+// NewDDInjectorCrashAggregator returns a new DDInjectorCrashAggregator.
+func NewDDInjectorCrashAggregator() DDInjectorCrashAggregator {
+	return DDInjectorCrashAggregator{
+		Aggregator: newAggregator(ParseDDInjectorCrashes),
 	}
 }
