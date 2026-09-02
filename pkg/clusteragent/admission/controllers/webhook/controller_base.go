@@ -255,7 +255,10 @@ func (c *controllerBase) triggerReconciliation() {
 }
 
 func (c *controllerBase) getProbeNamespaceSelector() *metav1.LabelSelector {
-	selector := &metav1.LabelSelector{
+	// The AKS-required exclusions (if any) are applied uniformly by
+	// getMutatingWebhookSkeleton/getValidatingWebhookSkeleton, so this only
+	// needs to express the probe's own namespace restriction.
+	return &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
 				Key:      common.NamespaceLabelKey,
@@ -264,10 +267,6 @@ func (c *controllerBase) getProbeNamespaceSelector() *metav1.LabelSelector {
 			},
 		},
 	}
-	if c.config.addAKSSelectors {
-		selector.MatchExpressions = append(selector.MatchExpressions, common.AzureAKSLabelSelectorRequirement()...)
-	}
-	return selector
 }
 
 func (c *controllerBase) getSecret() (*corev1.Secret, error) {
