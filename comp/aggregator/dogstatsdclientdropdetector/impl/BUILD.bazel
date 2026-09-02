@@ -15,6 +15,7 @@ go_library(
         "//comp/healthplatform/issues/dogstatsdclientdrops",
         "//comp/healthplatform/store/def",
         "//pkg/util/uuid",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
     ],
 )
 
