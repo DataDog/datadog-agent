@@ -63,8 +63,9 @@ func hasForeignPurl(comp *cyclonedx_v1_4.Component) bool {
 // runtime properties (LastSeenRunning / HasSetSuidBit / RunningAsRoot) taken from newBom.
 // The properties are defaulted on the OS packages, the ones in the scanner's scope, so
 // that their absence elsewhere reads as "out of scope".  Deduplication guards against a
-// stored image SBOM carrying the same component twice, and the bom-ref is what identifies
-// a component: Trivy reports one entry per install location, so one library version
+// previously-merged SBOM, whether stored in an image entity or held by the sbom check for
+// the host, carrying the same component twice, and the bom-ref is what identifies a
+// component: Trivy reports one entry per install location, so one library version
 // legitimately appears once per lockfile that pins it.
 func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_v1_4.Bom {
 	if newBom == nil || len(newBom.Components) == 0 {
