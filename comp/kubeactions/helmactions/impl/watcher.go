@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
+	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,16 +34,21 @@ const watchReconnectBackoff = 5 * time.Second
 // apiserver. It runs as a single goroutine started in helmactions.start() and
 // terminates when its context is cancelled.
 type jobWatcher struct {
-	client    kubernetes.Interface
-	store     *ActionStore
-	startTime time.Time // todo use it
+	client kubernetes.Interface
+	store  *ActionStore
+	// todo: use it
+	startTime time.Time
+	// ka is used for reporting the status over to EVP
+	ka kubeactions.Component
 }
 
-func newJobWatcher(client kubernetes.Interface, store *ActionStore) *jobWatcher {
+func newJobWatcher(client kubernetes.Interface, store *ActionStore, ka kubeactions.Component) *jobWatcher {
 	return &jobWatcher{
 		client:    client,
 		store:     store,
 		startTime: time.Now(),
+		// ka is used for reporting the status over to EVP
+		ka: ka,
 	}
 }
 
@@ -108,6 +114,6 @@ func (w *jobWatcher) watchOnce(ctx context.Context) error {
 	}
 }
 
-func (w *jobWatcher) OnRollback(in *helmactions.RollbackInputs, job *batchv1.Job) {
-	w.store.TrackJob(job, in)
+func (w *jobWatcher) OnRollback(in *helmactions.RollbackInputs, meta helmactions.TaskMeta, job *batchv1.Job) {
+	w.store.TrackJob(job, in, meta)
 }

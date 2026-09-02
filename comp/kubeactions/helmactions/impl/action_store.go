@@ -72,6 +72,15 @@ type JobRecord struct {
 	CreatedAt   int64 // unix seconds, time we started tracking
 	UpdatedAt   int64 // unix seconds, last watch event time
 	CompletedAt int64 // unix seconds, 0 until succeeded/failed
+
+	// Action metadata copied from RollbackInputs at TrackJob time and carried
+	// forward, unchanged, through every UpdateJob rebuild (same treatment as
+	// CreatedAt) — needed to report completion back to EVP against the
+	// originating task once the Job reaches a terminal state.
+	ActionID         string
+	OrgID            int64
+	Release          string
+	ReleaseNamespace string
 }
 
 // PodRecord captures the latest observed state of a Pod owned by a tracked Job.
@@ -95,8 +104,8 @@ type PodRecord struct {
 
 // ActionStore tracks processed actions in-memory to prevent duplicate execution.
 type ActionStore struct {
-	jobs     map[types.UID]JobRecord
-	pods     map[types.UID]PodRecord
+	jobs     map[types.UID]*JobRecord
+	pods     map[types.UID]*PodRecord
 	stopCh   chan struct{}
 	stopOnce sync.Once
 }
@@ -104,8 +113,8 @@ type ActionStore struct {
 // NewActionStore creates a new ActionStore and starts the background cleanup goroutine.
 func NewActionStore() *ActionStore {
 	s := &ActionStore{
-		jobs: make(map[types.UID]JobRecord),
-		pods: make(map[types.UID]PodRecord),
+		jobs: make(map[types.UID]*JobRecord),
+		pods: make(map[types.UID]*PodRecord),
 	}
 
 	log.Debugf("[HelmActions] Action store initialized (TTL=%v, retention=%v, cleanup=%v)",
@@ -134,11 +143,14 @@ type trackedLifecycle interface {
 // per record type (Job: "just terminal", Pod: "just failed"), and only the
 // caller knows which transition matters to its watcher.
 func upsertTracked[T trackedLifecycle](
-	m map[types.UID]T,
+	m map[types.UID]*T,
 	uid types.UID,
-	build func(prev T, now int64) (T, bool),
-) (T, bool) {
+	build func(prev *T, now int64) (*T, bool),
+) (*T, bool) {
 	prev := m[uid]
+	if prev == nil {
+		prev = new(T)
+	}
 	now := time.Now().Unix()
 	rec, transitioned := build(prev, now)
 	m[uid] = rec
@@ -147,7 +159,7 @@ func upsertTracked[T trackedLifecycle](
 
 // TrackJob registers a Job for status tracking. Idempotent: a second call with
 // the same UID is a no-op (the watcher will own subsequent updates).
-func (s *ActionStore) TrackJob(job *batchv1.Job, _ *helmactions.RollbackInputs) {
+func (s *ActionStore) TrackJob(job *batchv1.Job, in *helmactions.RollbackInputs, meta helmactions.TaskMeta) {
 	if job == nil || job.UID == "" {
 		return
 	}
@@ -156,24 +168,32 @@ func (s *ActionStore) TrackJob(job *batchv1.Job, _ *helmactions.RollbackInputs) 
 	}
 
 	now := time.Now().Unix()
-	s.jobs[job.UID] = JobRecord{
-		UID:       job.UID,
-		Namespace: job.Namespace,
-		Name:      job.Name,
-		Phase:     JobPhasePending,
-		CreatedAt: now,
-		UpdatedAt: now,
+	rec := &JobRecord{
+		UID:              job.UID,
+		Namespace:        job.Namespace,
+		Name:             job.Name,
+		Phase:            JobPhasePending,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		ActionID:         meta.ActionID,
+		OrgID:            meta.OrgID,
+		Release:          in.Release,
+		ReleaseNamespace: in.ReleaseNamespace,
 	}
-	log.Debugf("[HelmActions] Tracking Job %s/%s (uid=%s)", job.Namespace, job.Name, job.UID)
+
+	s.jobs[job.UID] = rec
+	log.Debugf("[HelmActions] Tracking Job %s/%s (uid=%s, actionID=%s)", job.Namespace, job.Name, job.UID, meta.ActionID)
 }
 
 // UpdateJob applies the latest observed state of a Job to the store. Called by
 // the Job watcher on ADDED/MODIFIED events. Returns the resulting record and
 // whether it represents a transition into a terminal phase (succeeded/failed).
-func (s *ActionStore) UpdateJob(job *batchv1.Job) (JobRecord, bool) {
-	return upsertTracked(s.jobs, job.UID, func(prev JobRecord, now int64) (JobRecord, bool) {
+func (s *ActionStore) UpdateJob(job *batchv1.Job) (*JobRecord, bool) {
+	return upsertTracked(s.jobs, job.UID, func(prev *JobRecord, now int64) (*JobRecord, bool) {
+		actionID := jobActionID(job, prev.ActionID)
+
 		phase, msg := classifyJob(job)
-		rec := JobRecord{
+		rec := &JobRecord{
 			UID:         job.UID,
 			Namespace:   job.Namespace,
 			Name:        job.Name,
@@ -185,6 +205,11 @@ func (s *ActionStore) UpdateJob(job *batchv1.Job) (JobRecord, bool) {
 			CreatedAt:   prev.CreatedAt,
 			UpdatedAt:   now,
 			CompletedAt: prev.CompletedAt,
+
+			ActionID:         actionID,
+			OrgID:            prev.OrgID,
+			Release:          prev.Release,
+			ReleaseNamespace: prev.ReleaseNamespace,
 		}
 		if prev.CreatedAt == 0 {
 			// Watcher saw the Job before OnRollback ran (relisted on reconnect).
@@ -198,6 +223,19 @@ func (s *ActionStore) UpdateJob(job *batchv1.Job) (JobRecord, bool) {
 	})
 }
 
+// jobActionID determines actionID for current job usign following logic:
+// in normal conditions DCA runs for a long time and prevID is always present when job is not manually created.
+// prevID can be "" on DCA restart in which case functions inspects job annotation for actionID.
+func jobActionID(job *batchv1.Job, prevID string) string {
+	if prevID != "" {
+		return prevID
+	}
+	if job.Annotations == nil {
+		return ""
+	}
+	return job.Annotations[helmactions.AnnotationActionID]
+}
+
 // RemoveJob drops a tracked Job. Called on watcher DELETED events.
 func (s *ActionStore) RemoveJob(uid types.UID) {
 	delete(s.jobs, uid)
@@ -206,10 +244,10 @@ func (s *ActionStore) RemoveJob(uid types.UID) {
 // UpdatePod applies the latest observed state of a Pod. Returns the resulting
 // record and whether this update is the transition into the Failed phase — the
 // caller uses that signal to trigger log capture.
-func (s *ActionStore) UpdatePod(pod *corev1.Pod) (PodRecord, bool) {
-	return upsertTracked(s.pods, pod.UID, func(prev PodRecord, now int64) (PodRecord, bool) {
+func (s *ActionStore) UpdatePod(pod *corev1.Pod) (*PodRecord, bool) {
+	return upsertTracked(s.pods, pod.UID, func(prev *PodRecord, now int64) (*PodRecord, bool) {
 		phase, reason, message, exitCode := classifyPod(pod)
-		rec := PodRecord{
+		rec := &PodRecord{
 			UID:         pod.UID,
 			Namespace:   pod.Namespace,
 			Name:        pod.Name,
@@ -242,8 +280,8 @@ func (s *ActionStore) RemovePod(uid types.UID) {
 
 // GetPodsForJob returns the tracked Pods whose batch.kubernetes.io/job-name
 // label matches the given Job name.
-func (s *ActionStore) GetPodsForJob(jobName string) []PodRecord {
-	var out []PodRecord
+func (s *ActionStore) GetPodsForJob(jobName string) []*PodRecord {
+	var out []*PodRecord
 	for _, p := range s.pods {
 		if p.JobName == jobName {
 			out = append(out, p)
