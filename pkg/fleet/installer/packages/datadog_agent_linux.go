@@ -61,7 +61,7 @@ const (
 	installerSymlink = "/usr/bin/datadog-installer"
 
 	privilegedRshellBinaryRelPath  = "embedded/bin/rshell"
-	privilegedRshellPolicyDir      = "/etc/datadog-agent/rshell.d"
+	privilegedRshellPolicyDir      = "/etc/datadog-agent-rshell"
 	privilegedRshellMinLandlockABI = 3
 	privilegedRshellSocketStable   = "datadog-agent-rshell-privileged.socket"
 	privilegedRshellSocketExp      = "datadog-agent-rshell-privileged-exp.socket"
@@ -81,7 +81,6 @@ var (
 	// agentConfigPermissions are the ownerships and modes that are enforced on the agent configuration files
 	agentConfigPermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-		{Path: "rshell.d", Owner: "root", Group: "root", Recursive: true},
 		{Path: "managed", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "inject", Owner: "root", Group: "root", Recursive: true},
 		{Path: "compliance.d", Owner: "root", Group: "root", Recursive: true},
@@ -95,11 +94,21 @@ var (
 	// agentPackagePermissions are the ownerships and modes that are enforced on the agent package files
 	agentPackagePermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-		{Path: privilegedRshellBinaryRelPath, Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/system-probe-lite", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
+	}
+
+	// privilegedRshellPackagePermissions protects every directory entry between
+	// the package root and the privileged helper. Protecting only the binary is
+	// insufficient because dd-agent could replace it by renaming a writable
+	// parent directory.
+	privilegedRshellPackagePermissions = file.Permissions{
+		{Path: ".", Owner: "root", Group: "root", Mode: 0755},
+		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},
+		{Path: "embedded/bin", Owner: "root", Group: "root", Mode: 0755},
+		{Path: privilegedRshellBinaryRelPath, Owner: "root", Group: "root", Mode: 0755},
 	}
 
 	// integrationRestorePermissions re-applies dd-agent ownership to embedded/lib after
@@ -182,6 +191,21 @@ func fixRestoredIntegrationOwnership(ctx HookContext) error {
 	return integrationRestorePermissions.Ensure(ctx, filepath.Join(ctx.PackagePath, "embedded/lib"))
 }
 
+func ensurePrivilegedRshellPermissions(ctx HookContext) error {
+	binaryPath := filepath.Join(ctx.PackagePath, privilegedRshellBinaryRelPath)
+	info, err := os.Lstat(binaryPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to inspect privileged rshell helper: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("privileged rshell helper is not a regular file: %s", binaryPath)
+	}
+	return privilegedRshellPackagePermissions.Ensure(ctx, ctx.PackagePath)
+}
+
 // installFilesystem sets up the filesystem for the agent installation
 func installFilesystem(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_filesystem")
@@ -205,6 +229,9 @@ func installFilesystem(ctx HookContext) (err error) {
 	}
 	if err = agentPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set package ownerships: %v", err)
+	}
+	if err = ensurePrivilegedRshellPermissions(ctx); err != nil {
+		return fmt.Errorf("failed to protect privileged rshell helper: %w", err)
 	}
 	if err = agentConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)

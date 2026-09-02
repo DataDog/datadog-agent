@@ -15,4 +15,4 @@ DirectoryMode=0750
 RemoveOnStop=yes
 
 [Install]
-WantedBy=sockets.target
+WantedBy=sockets.target datadog-agent-action.service

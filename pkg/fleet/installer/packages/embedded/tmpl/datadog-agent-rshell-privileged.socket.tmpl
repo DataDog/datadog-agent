@@ -18,7 +18,7 @@ ConditionPathExists={{.InstallDir}}/embedded/bin/rshell
 ListenStream=/run/datadog/rshell-privileged.sock
 Service=datadog-agent-rshell-privileged.service
 {{- else}}
-ListenStream=/run/datadog/rshell-privileged-exp.sock
+ListenStream=/run/datadog/rshell-privileged.sock
 Service=datadog-agent-rshell-privileged-exp.service
 {{- end}}
 SocketUser=dd-agent
@@ -28,4 +28,8 @@ DirectoryMode=0750
 RemoveOnStop=yes
 
 [Install]
-WantedBy=sockets.target
+{{- if .Stable}}
+WantedBy=sockets.target datadog-agent-action.service
+{{- else}}
+WantedBy=sockets.target datadog-agent-action-exp.service
+{{- end}}

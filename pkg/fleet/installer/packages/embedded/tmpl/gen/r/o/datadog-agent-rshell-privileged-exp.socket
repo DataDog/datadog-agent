@@ -6,7 +6,7 @@ Conflicts=datadog-agent-rshell-privileged.socket
 ConditionPathExists=/opt/datadog-packages/datadog-agent/experiment/embedded/bin/rshell
 
 [Socket]
-ListenStream=/run/datadog/rshell-privileged-exp.sock
+ListenStream=/run/datadog/rshell-privileged.sock
 Service=datadog-agent-rshell-privileged-exp.service
 SocketUser=dd-agent
 SocketGroup=dd-agent
@@ -15,4 +15,4 @@ DirectoryMode=0750
 RemoveOnStop=yes
 
 [Install]
-WantedBy=sockets.target
+WantedBy=sockets.target datadog-agent-action-exp.service

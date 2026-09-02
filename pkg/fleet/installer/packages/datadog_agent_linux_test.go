@@ -6,6 +6,7 @@
 package packages
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -18,33 +19,34 @@ import (
 )
 
 func TestPrivilegedRshellPolicyDirectoryPermissions(t *testing.T) {
+	assert.Equal(t, "/etc/datadog-agent-rshell", privilegedRshellPolicyDir)
 	assert.Contains(t, agentDirectories, installerFile.Directory{
 		Path:  privilegedRshellPolicyDir,
 		Mode:  0755,
 		Owner: "root",
 		Group: "root",
 	})
-	policyPermission := installerFile.Permission{
-		Path:      "rshell.d",
-		Owner:     "root",
-		Group:     "root",
-		Recursive: true,
-	}
-	assert.Contains(t, agentConfigPermissions, policyPermission)
+	assert.NotEqual(t, "/etc/datadog-agent", filepath.Dir(privilegedRshellPolicyDir),
+		"the policy directory must not be below the dd-agent-owned config directory")
+}
 
-	basePermissionIndex := -1
-	policyPermissionIndex := -1
-	for i, permission := range agentConfigPermissions {
-		if permission.Path == "." && permission.Recursive {
-			basePermissionIndex = i
-		}
-		if permission == policyPermission {
-			policyPermissionIndex = i
-		}
-	}
-	require.NotEqual(t, -1, basePermissionIndex)
-	require.NotEqual(t, -1, policyPermissionIndex)
-	assert.Less(t, basePermissionIndex, policyPermissionIndex, "root ownership must be restored after the recursive dd-agent ownership pass")
+func TestPrivilegedRshellPackagePermissionsProtectParentDirectories(t *testing.T) {
+	assert.Equal(t, installerFile.Permissions{
+		{Path: ".", Owner: "root", Group: "root", Mode: 0755},
+		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},
+		{Path: "embedded/bin", Owner: "root", Group: "root", Mode: 0755},
+		{Path: privilegedRshellBinaryRelPath, Owner: "root", Group: "root", Mode: 0755},
+	}, privilegedRshellPackagePermissions)
+}
+
+func TestEnsurePrivilegedRshellPermissionsRejectsSymlink(t *testing.T) {
+	packagePath := t.TempDir()
+	binaryPath := filepath.Join(packagePath, privilegedRshellBinaryRelPath)
+	require.NoError(t, os.MkdirAll(filepath.Dir(binaryPath), 0755))
+	require.NoError(t, os.Symlink("/bin/true", binaryPath))
+
+	err := ensurePrivilegedRshellPermissions(HookContext{Context: context.Background(), PackagePath: packagePath})
+	require.ErrorContains(t, err, "privileged rshell helper is not a regular file")
 }
 
 func TestPrivilegedRshellSupported(t *testing.T) {
