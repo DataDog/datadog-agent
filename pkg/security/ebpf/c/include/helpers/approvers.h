@@ -111,7 +111,14 @@ static __always_inline u8 sampling_admission_check(u32 limiter_key, u16 rate, u8
     return (rate == 0) || global_limiter_allow(limiter_key, rate, 1);
 }
 
-static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(struct bind_connect_sample_key_t *key, u32 *out_cookie, u32 *out_refresh_needed) {
+// gen_sample_cookie returns a non-zero 64-bit cookie. The kernel's prandom helper only
+// yields 32 bits at a time, so we splice two calls together. The `| 1` guarantees the
+// cookie is non-zero, which userspace treats as a sentinel meaning "no cookie".
+static __always_inline u64 gen_sample_cookie(void) {
+    return ((u64)bpf_get_prandom_u32() << 32) | (bpf_get_prandom_u32() | 1);
+}
+
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(struct bind_connect_sample_key_t *key, u64 *out_cookie, u32 *out_refresh_needed) {
     u64 event_sampling_bind_enabled = 0;
     LOAD_CONSTANT("event_sampling_bind_enabled", event_sampling_bind_enabled);
     u64 event_sampling_bind_rate = 0;
@@ -139,43 +146,30 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(str
     monitor_event_sample_total(EVENT_BIND);
 
     u64 now = bpf_ktime_get_ns();
-    struct sample_entry_t new_entry;
-    __builtin_memset(&new_entry, 0, sizeof(new_entry));
-    new_entry.cookie = bpf_get_prandom_u32() | 1;
-    new_entry.last_refresh_ns = now;
 
-    if (bpf_map_update_elem(&bind_samples, key, &new_entry, BPF_NOEXIST) < 0) {
-        if (sample_refresh_period_ns > 0 && out_cookie != NULL && out_refresh_needed != NULL) {
-            struct sample_entry_t *existing = bpf_map_lookup_elem(&bind_samples, key);
-            if (existing != NULL) {
-                if (existing->cookie == 0) {
-                    // Never delivered (rate-limited on first attempt). Retry.
-                    if (!sampling_admission_check(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, (u8)event_sampling_bind_threshold)) {
-                        return DISCARDED;
-                    }
-                    existing->cookie = bpf_get_prandom_u32() | 1;
-                    existing->last_refresh_ns = now;
-                    *out_cookie = existing->cookie;
-                    monitor_event_sample_sampled(EVENT_BIND);
-                    return SAMPLED;
-                }
-                // Already delivered: send a refresh if the period has elapsed
-                if ((now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
-                    existing->last_refresh_ns = now;
-                    *out_cookie = existing->cookie;
-                    *out_refresh_needed = 1;
-                }
-            }
+    // Already-seen tuple: emit a refresh at most once per period. No new LRU slot consumed.
+    struct sample_entry_t *existing = bpf_map_lookup_elem(&bind_samples, key);
+    if (existing != NULL) {
+        if (sample_refresh_period_ns > 0 && out_cookie != NULL && out_refresh_needed != NULL &&
+            (now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
+            existing->last_refresh_ns = now;
+            *out_cookie = existing->cookie;
+            *out_refresh_needed = 1;
         }
         return DISCARDED;
     }
 
+    // New tuple: check delivery budget *before* touching the LRU so a burst of first-time
+    // tuples we cannot deliver does not evict already-delivered tuples we still care about.
     if (!sampling_admission_check(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, (u8)event_sampling_bind_threshold)) {
-        // Keep entry but mark as not yet delivered so we can retry later
-        struct sample_entry_t *entry = bpf_map_lookup_elem(&bind_samples, key);
-        if (entry != NULL) {
-            entry->cookie = 0;
-        }
+        return DISCARDED;
+    }
+
+    struct sample_entry_t new_entry = {
+        .cookie = gen_sample_cookie(),
+        .last_refresh_ns = now,
+    };
+    if (bpf_map_update_elem(&bind_samples, key, &new_entry, BPF_NOEXIST) < 0) {
         return DISCARDED;
     }
 
@@ -220,7 +214,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 
 // heartbeat (bounded by sample_refresh_period_ns). Mirrors approve_bind_sample: the LRU bounds
 // *distinct* tuples we remember, and sampling_admission_check bounds delivery *rate* so a burst
 // of first-time syscalls on new execs cannot drown the ringbuffer.
-static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_sample(u64 exec_cookie, u32 syscall_id, u32 *out_cookie, u32 *out_refresh_needed) {
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_sample(u64 exec_cookie, u32 syscall_id, u64 *out_cookie, u32 *out_refresh_needed) {
     u64 event_sampling_syscalls_enabled = 0;
     LOAD_CONSTANT("event_sampling_syscalls_enabled", event_sampling_syscalls_enabled);
     u64 event_sampling_syscalls_rate = 0;
@@ -247,43 +241,27 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_sample(
     };
 
     u64 now = bpf_ktime_get_ns();
-    struct sample_entry_t new_entry;
-    __builtin_memset(&new_entry, 0, sizeof(new_entry));
-    new_entry.cookie = bpf_get_prandom_u32() | 1;
-    new_entry.last_refresh_ns = now;
 
-    if (bpf_map_update_elem(&syscall_samples, &key, &new_entry, BPF_NOEXIST) < 0) {
-        if (sample_refresh_period_ns > 0 && out_cookie != NULL && out_refresh_needed != NULL) {
-            struct sample_entry_t *existing = bpf_map_lookup_elem(&syscall_samples, &key);
-            if (existing != NULL) {
-                if (existing->cookie == 0) {
-                    // Never delivered (rate-limited on first attempt). Retry.
-                    if (!sampling_admission_check(SYSCALLS_SAMPLE_LIMITER, event_sampling_syscalls_rate, (u8)event_sampling_syscalls_threshold)) {
-                        return DISCARDED;
-                    }
-                    existing->cookie = bpf_get_prandom_u32() | 1;
-                    existing->last_refresh_ns = now;
-                    *out_cookie = existing->cookie;
-                    monitor_event_sample_sampled(EVENT_SYSCALLS);
-                    return SAMPLED;
-                }
-                // Already delivered: send a refresh if the period has elapsed
-                if ((now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
-                    existing->last_refresh_ns = now;
-                    *out_cookie = existing->cookie;
-                    *out_refresh_needed = 1;
-                }
-            }
+    struct sample_entry_t *existing = bpf_map_lookup_elem(&syscall_samples, &key);
+    if (existing != NULL) {
+        if (sample_refresh_period_ns > 0 && out_cookie != NULL && out_refresh_needed != NULL &&
+            (now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
+            existing->last_refresh_ns = now;
+            *out_cookie = existing->cookie;
+            *out_refresh_needed = 1;
         }
         return DISCARDED;
     }
 
     if (!sampling_admission_check(SYSCALLS_SAMPLE_LIMITER, event_sampling_syscalls_rate, (u8)event_sampling_syscalls_threshold)) {
-        // Keep entry but mark as not yet delivered so we can retry later
-        struct sample_entry_t *entry = bpf_map_lookup_elem(&syscall_samples, &key);
-        if (entry != NULL) {
-            entry->cookie = 0;
-        }
+        return DISCARDED;
+    }
+
+    struct sample_entry_t new_entry = {
+        .cookie = gen_sample_cookie(),
+        .last_refresh_ns = now,
+    };
+    if (bpf_map_update_elem(&syscall_samples, &key, &new_entry, BPF_NOEXIST) < 0) {
         return DISCARDED;
     }
 
@@ -323,43 +301,27 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(
     monitor_event_sample_total(EVENT_CONNECT);
 
     u64 now = bpf_ktime_get_ns();
-    struct sample_entry_t new_entry;
-    __builtin_memset(&new_entry, 0, sizeof(new_entry));
-    new_entry.cookie = bpf_get_prandom_u32() | 1;
-    new_entry.last_refresh_ns = now;
 
-    if (bpf_map_update_elem(&connect_samples, key, &new_entry, BPF_NOEXIST) < 0) {
-        if (sample_refresh_period_ns > 0 && syscall != NULL) {
-            struct sample_entry_t *existing = bpf_map_lookup_elem(&connect_samples, key);
-            if (existing != NULL) {
-                if (existing->cookie == 0) {
-                    // Never delivered (rate-limited on first attempt). Retry.
-                    if (!sampling_admission_check(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, (u8)event_sampling_connect_threshold)) {
-                        return DISCARDED;
-                    }
-                    existing->cookie = bpf_get_prandom_u32() | 1;
-                    existing->last_refresh_ns = now;
-                    syscall->sample_cookie = existing->cookie;
-                    monitor_event_sample_sampled(EVENT_CONNECT);
-                    return SAMPLED;
-                }
-                // Already delivered: send a refresh if the period has elapsed
-                if ((now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
-                    existing->last_refresh_ns = now;
-                    syscall->sample_cookie = existing->cookie;
-                    syscall->resolver.flags |= SAMPLE_REFRESH_NEEDED;
-                }
-            }
+    struct sample_entry_t *existing = bpf_map_lookup_elem(&connect_samples, key);
+    if (existing != NULL) {
+        if (sample_refresh_period_ns > 0 && syscall != NULL &&
+            (now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
+            existing->last_refresh_ns = now;
+            syscall->sample_cookie = existing->cookie;
+            syscall->resolver.flags |= SAMPLE_REFRESH_NEEDED;
         }
         return DISCARDED;
     }
 
     if (!sampling_admission_check(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, (u8)event_sampling_connect_threshold)) {
-        // Keep entry but mark as not yet delivered so we can retry later
-        struct sample_entry_t *entry = bpf_map_lookup_elem(&connect_samples, key);
-        if (entry != NULL) {
-            entry->cookie = 0;
-        }
+        return DISCARDED;
+    }
+
+    struct sample_entry_t new_entry = {
+        .cookie = gen_sample_cookie(),
+        .last_refresh_ns = now,
+    };
+    if (bpf_map_update_elem(&connect_samples, key, &new_entry, BPF_NOEXIST) < 0) {
         return DISCARDED;
     }
 
@@ -674,43 +636,27 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
     };
 
     u64 now = bpf_ktime_get_ns();
-    struct sample_entry_t new_entry;
-    __builtin_memset(&new_entry, 0, sizeof(new_entry));
-    new_entry.cookie = bpf_get_prandom_u32() | 1;
-    new_entry.last_refresh_ns = now;
 
-    if (bpf_map_update_elem(&open_samples, &key, &new_entry, BPF_NOEXIST) < 0) {
-        if (sample_refresh_period_ns > 0 && syscall != NULL) {
-            struct sample_entry_t *existing = bpf_map_lookup_elem(&open_samples, &key);
-            if (existing != NULL) {
-                if (existing->cookie == 0) {
-                    // Never delivered (rate-limited on first attempt). Retry.
-                    if (!sampling_admission_check(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, (u8)event_sampling_open_threshold)) {
-                        return DISCARDED;
-                    }
-                    existing->cookie = bpf_get_prandom_u32() | 1;
-                    existing->last_refresh_ns = now;
-                    syscall->sample_cookie = existing->cookie;
-                    monitor_event_sample_sampled(EVENT_OPEN);
-                    return SAMPLED;
-                }
-                // Already delivered: send a refresh if the period has elapsed
-                if ((now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
-                    existing->last_refresh_ns = now;
-                    syscall->sample_cookie = existing->cookie;
-                    syscall->resolver.flags |= SAMPLE_REFRESH_NEEDED;
-                }
-            }
+    struct sample_entry_t *existing = bpf_map_lookup_elem(&open_samples, &key);
+    if (existing != NULL) {
+        if (sample_refresh_period_ns > 0 && syscall != NULL &&
+            (now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
+            existing->last_refresh_ns = now;
+            syscall->sample_cookie = existing->cookie;
+            syscall->resolver.flags |= SAMPLE_REFRESH_NEEDED;
         }
         return DISCARDED;
     }
 
     if (!sampling_admission_check(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, (u8)event_sampling_open_threshold)) {
-        // Keep entry but mark as not yet delivered so we can retry later
-        struct sample_entry_t *entry = bpf_map_lookup_elem(&open_samples, &key);
-        if (entry != NULL) {
-            entry->cookie = 0;
-        }
+        return DISCARDED;
+    }
+
+    struct sample_entry_t new_entry = {
+        .cookie = gen_sample_cookie(),
+        .last_refresh_ns = now,
+    };
+    if (bpf_map_update_elem(&open_samples, &key, &new_entry, BPF_NOEXIST) < 0) {
         return DISCARDED;
     }
 
@@ -718,7 +664,6 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
         syscall->sample_cookie = new_entry.cookie;
     }
 
-    // Track open events that were sampled
     monitor_event_sample_sampled(EVENT_OPEN);
 
     return SAMPLED;

@@ -3,6 +3,7 @@
 
 #include "structs/security_profile.h"
 #include "helpers/activity_dump.h"
+#include "helpers/approvers.h"
 #include "helpers/process.h"
 #include "helpers/raw_syscalls.h"
 #include "helpers/span_fill.h"
@@ -76,7 +77,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     if (!event->process.is_kworker) {
         struct pid_cache_t *pid_entry = get_pid_cache(pid);
         if (pid_entry != NULL) {
-            u32 sample_cookie = 0;
+            u64 sample_cookie = 0;
             u32 refresh_needed = 0;
             enum SYSCALL_STATE state = approve_syscall_sample(pid_entry->cookie, args->id, &sample_cookie, &refresh_needed);
             if (state == SAMPLED) {

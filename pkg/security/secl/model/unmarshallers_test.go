@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	syscallsEventByteCount     = 64
+	syscallsEventByteCount = 64
 	// syscallsEventWireBytes is the total tail size of syscall_monitor_event_t on the wire:
-	// event_reason (8) + syscalls bitmap (64) + syscall_id (4) + sample_cookie (4).
-	syscallsEventWireBytes = 8 + syscallsEventByteCount + 8
+	// event_reason (8) + syscalls bitmap (64) + syscall_id (4) + padding (4) + sample_cookie (8).
+	syscallsEventWireBytes = 8 + syscallsEventByteCount + 4 + 4 + 8
 )
 
 func syscallListEqual(t *testing.T, a, b []Syscall) bool {

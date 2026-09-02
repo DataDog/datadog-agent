@@ -141,7 +141,7 @@ type ManagerV2 struct {
 	pendingProfileRemovalsLock sync.Mutex
 
 	// Sample refresh: maps kernel dedup cookie → (process node, event node, imageTag)
-	sampleCookieMap       *lru.Cache[uint32, sampleCookieEntry]
+	sampleCookieMap       *lru.Cache[uint64, sampleCookieEntry]
 	sampleRefreshReceived *atomic.Uint64
 	sampleRefreshHits     *atomic.Uint64
 	sampleRefreshMisses   *atomic.Uint64
@@ -191,7 +191,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		"",
 	))
 
-	cookieMap, _ := lru.New[uint32, sampleCookieEntry](sampleCookieMapSize)
+	cookieMap, _ := lru.New[uint64, sampleCookieEntry](sampleCookieMapSize)
 
 	var containerFilter workloadfilter.FilterBundle
 	if filterStore != nil {
@@ -955,12 +955,15 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	// Key the version context by the concrete image_tag (matching V1's behaviour in secprofs.go)
-	// so it lines up with the activity tree's imageTagIDs. Passing selector.Tag here would use the
-	// "*" grouping sentinel, which the tree never registers, breaking rollup lookups at encode time.
+	// Key the version context by the concrete image_tag so it lines up with the activity tree's
+	// imageTagIDs. `selector.Tag` here would be the "*" grouping sentinel, which the tree never
+	// registers, breaking rollup lookups at encode time. If tag resolution has not caught up yet
+	// we drop the event on the floor rather than routing it to a synthetic "latest" bucket that
+	// would never merge back with the concrete tag once it resolves.
 	imageTag := secprof.GetTagValue("image_tag")
 	if imageTag == "" {
-		imageTag = "latest"
+		m.tagResolutionEventsDropped.Inc()
+		return nil, false
 	}
 	m.ensureVersionContext(secprof, imageTag)
 
@@ -976,7 +979,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 	// Register the sample cookie → (process node, event node) mapping for sample refresh events
 	if processNode != nil {
-		var sampleCookie uint32
+		var sampleCookie uint64
 		switch event.GetEventType() {
 		case model.FileOpenEventType:
 			sampleCookie = event.Open.SampleCookie
@@ -1168,6 +1171,9 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		)
 		if evicted > 0 {
 			seclog.Debugf("evicted %d unused nodes from loaded profile [%s]", evicted, selector.String())
+			if purged := m.purgeOrphanedCookies(); purged > 0 {
+				seclog.Debugf("purged %d orphaned sample cookies after loading profile [%s]", purged, selector.String())
+			}
 		}
 	}
 
@@ -1341,6 +1347,12 @@ func (m *ManagerV2) evictUnusedNodes() {
 
 	if totalEvicted > 0 {
 		seclog.Infof("evicted %d total unused process nodes across all profiles", totalEvicted)
+		// Sweep the cookie map once per eviction cycle: the LRU may otherwise pin the pruned
+		// subtree until refresh events happen to arrive for those cookies (or the LRU evicts
+		// them itself).
+		if purged := m.purgeOrphanedCookies(); purged > 0 {
+			seclog.Debugf("purged %d orphaned sample cookies after eviction cycle", purged)
+		}
 	}
 }
 
@@ -1513,7 +1525,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 
 // HandleSampleRefresh handles a sample refresh event from the kernel.
 // It updates the LastSeen timestamp of the process node associated with the given cookie.
-func (m *ManagerV2) HandleSampleRefresh(cookie uint32) {
+func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 	m.sampleRefreshReceived.Inc()
 
 	entry, ok := m.sampleCookieMap.Get(cookie)
@@ -1550,6 +1562,27 @@ func (m *ManagerV2) purgeCookiesForProfile(prof *profile.Profile) {
 			m.sampleCookieMap.Remove(key)
 		}
 	}
+}
+
+// purgeOrphanedCookies drops sampleCookieMap entries whose target ProcessNode has been evicted
+// from its activity tree. The LRU otherwise keeps the pruned subtree alive via the pointer.
+// Matches HandleSampleRefresh's own lazy-cleanup predicate, so calling this after an eviction
+// pass turns the reactive-on-refresh cleanup into a proactive-per-cycle one. Returns the number
+// of entries purged so the caller can log or export it. Callers may hold profilesLock; the
+// map is self-synchronised.
+func (m *ManagerV2) purgeOrphanedCookies() int {
+	var removed int
+	for _, key := range m.sampleCookieMap.Keys() {
+		entry, ok := m.sampleCookieMap.Peek(key)
+		if !ok {
+			continue
+		}
+		if entry.processNode == nil || entry.processNode.SeenIsEmpty() {
+			m.sampleCookieMap.Remove(key)
+			removed++
+		}
+	}
+	return removed
 }
 
 // LookupEventInProfiles lookups event in profiles.

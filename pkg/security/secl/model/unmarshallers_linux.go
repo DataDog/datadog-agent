@@ -531,8 +531,7 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Flags = binary.NativeEndian.Uint32(data[0:4])
 	e.Mode = binary.NativeEndian.Uint32(data[4:8])
-	e.SampleCookie = binary.NativeEndian.Uint32(data[8:12])
-	// data[12:16] is padding
+	e.SampleCookie = binary.NativeEndian.Uint64(data[8:16])
 	return n + 16, nil
 }
 
@@ -1334,9 +1333,8 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 	e.Protocol = binary.NativeEndian.Uint16(data[read+20 : read+22])
-	// read+22:read+24 is C struct padding
-	e.SampleCookie = binary.NativeEndian.Uint32(data[read+24 : read+28])
-	// read+28:read+32 is sample_padding
+	// read+22:read+24 is C struct padding to 8-align the u64 sample_cookie
+	e.SampleCookie = binary.NativeEndian.Uint64(data[read+24 : read+32])
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
@@ -1365,9 +1363,8 @@ func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 	e.Protocol = binary.NativeEndian.Uint16(data[read+20 : read+22])
-	// read+22:read+24 is C struct padding
-	e.SampleCookie = binary.NativeEndian.Uint32(data[read+24 : read+28])
-	// read+28:read+32 is sample_padding
+	// read+22:read+24 is C struct padding to 8-align the u64 sample_cookie
+	e.SampleCookie = binary.NativeEndian.Uint64(data[read+24 : read+32])
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
@@ -1382,18 +1379,19 @@ func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SampleRefreshEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 4 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Cookie = binary.NativeEndian.Uint32(data[0:4])
-	return 4, nil
+	e.Cookie = binary.NativeEndian.Uint64(data[0:8])
+	return 8, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself. EventReason selects between
-// the drain bitmap (bytes [8:72]) and the sample first-hit tail (bytes [72:80]).
+// the drain bitmap (bytes [8:72]) and the sample first-hit tail (bytes [72:88], with u32
+// syscall_id then 4 bytes of C-struct padding then the u64 sample_cookie).
 func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 80 {
+	if len(data) < 88 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1401,8 +1399,9 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	if e.EventReason == SampleReason {
 		e.SyscallID = binary.NativeEndian.Uint32(data[72:76])
-		e.SampleCookie = binary.NativeEndian.Uint32(data[76:80])
-		return 80, nil
+		// data[76:80] is C struct padding to 8-align the u64 sample_cookie
+		e.SampleCookie = binary.NativeEndian.Uint64(data[80:88])
+		return 88, nil
 	}
 
 	for i, b := range data[8:72] {
@@ -1413,7 +1412,7 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 			}
 		}
 	}
-	return 80, nil
+	return 88, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

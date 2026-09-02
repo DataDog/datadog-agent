@@ -507,7 +507,10 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
-	if rsConfig.SecurityProfileV2Enabled {
+	// Capabilities are only monitored (via kprobes on `cap_capable`) when the V2 profile manager
+	// is tracking the capabilities event type. Enabling the probe when it wouldn't be consumed
+	// would just cost CPU for no observable signal.
+	if rsConfig.SecurityProfileV2Enabled && slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.CapabilitiesEventType) {
 		probeConfig.CapabilitiesMonitoringEnabled = true
 	}
 
