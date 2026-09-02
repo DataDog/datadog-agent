@@ -192,7 +192,7 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	assert.Len(t, result, 2)
 
 	foundMetrics := make(map[string]bool)
-	for _, metric := range result {
+	for _, metric := range requireMetrics(t, result) {
 		foundMetrics[metric.Name] = true
 
 		switch metric.Name {

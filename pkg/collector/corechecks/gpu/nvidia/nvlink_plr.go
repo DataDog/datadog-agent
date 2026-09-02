@@ -70,30 +70,30 @@ func (c *nvlinkPLRCollector) Name() CollectorName {
 	return nvlinkPLR
 }
 
-func (c *nvlinkPLRCollector) Collect() ([]*Metric, error) {
+func (c *nvlinkPLRCollector) Collect() ([]Sample, error) {
 	var (
-		allMetrics []*Metric
+		allSamples []Sample
 		multiErr   []error
 	)
 
 	for _, port := range c.ports {
-		metrics, err := c.getPortMetrics(port)
+		samples, err := c.getPortMetrics(port)
 		if err != nil {
 			multiErr = append(multiErr, fmt.Errorf("get port metrics for port %d: %w", port, err))
 			continue
 		}
-		allMetrics = append(allMetrics, metrics...)
+		allSamples = append(allSamples, samples...)
 	}
 
-	if len(allMetrics) == 0 && len(multiErr) > 0 {
+	if len(allSamples) == 0 && len(multiErr) > 0 {
 		return nil, errors.Join(multiErr...)
 	}
 
-	return allMetrics, errors.Join(multiErr...)
+	return allSamples, errors.Join(multiErr...)
 }
 
-func (c *nvlinkPLRCollector) getPortMetrics(port int) ([]*Metric, error) {
-	var allMetrics []*Metric
+func (c *nvlinkPLRCollector) getPortMetrics(port int) ([]Sample, error) {
+	var samples []Sample
 
 	counters, err := c.prmCache.GetCounters(c.Device().GetDeviceInfo().UUID, port)
 	if err != nil {
@@ -109,14 +109,13 @@ func (c *nvlinkPLRCollector) getPortMetrics(port int) ([]*Metric, error) {
 			continue
 		}
 
-		allMetrics = append(allMetrics, &Metric{
-			Name:     field,
-			Value:    float64(value),
-			Type:     metrics.GaugeType,
-			Tags:     []string{nvlinkPortTag(port)},
-			Priority: Medium,
+		samples = append(samples, &Metric{
+			baseSample: baseSample{priority: Medium, tags: []string{nvlinkPortTag(port)}},
+			Name:       field,
+			Value:      float64(value),
+			Type:       metrics.GaugeType,
 		})
 	}
 
-	return allMetrics, errors.Join(multiErr...)
+	return samples, errors.Join(multiErr...)
 }

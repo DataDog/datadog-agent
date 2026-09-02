@@ -360,13 +360,22 @@ func TestMergeRuntimeProperties_DefaultsReportedComponentWithPartialProperties(t
 	assert.Equal(t, "false", v)
 }
 
-func TestMergeRuntimeProperties_DeduplicatesAcrossRounds(t *testing.T) {
-	// Simulates an already-merged image SBOM that carries both the raw Trivy
-	// entry and a previously-runtime-enriched copy of the same package.
+func TestMergeRuntimeProperties_CollapsesDuplicateBomRefs(t *testing.T) {
+	// A stored image SBOM carrying the same component twice: one bom-ref is one
+	// component, so the first occurrence stands for both.
 	existing := &cyclonedx_v1_4.Bom{
 		Components: []*cyclonedx_v1_4.Component{
-			component("openssl", "1:1.1.1k"),
-			component("openssl", "1.1.1k", prop(LastAccessProperty, "100")),
+			{
+				BomRef:  pointer.Ptr("1"),
+				Name:    "openssl",
+				Version: "1:1.1.1k",
+			},
+			{
+				BomRef:     pointer.Ptr("1"),
+				Name:       "openssl",
+				Version:    "1:1.1.1k",
+				Properties: []*cyclonedx_v1_4.Property{prop(LastAccessProperty, "100")},
+			},
 		},
 	}
 	newBom := &cyclonedx_v1_4.Bom{
@@ -377,16 +386,80 @@ func TestMergeRuntimeProperties_DeduplicatesAcrossRounds(t *testing.T) {
 
 	merged := mergeRuntimeProperties(existing, newBom)
 
-	require.Len(t, merged.Components, 1, "duplicates by name+normalised version must be collapsed")
+	require.Len(t, merged.Components, 1, "components sharing a bom-ref must be collapsed")
 	c := merged.Components[0]
-
-	// First occurrence wins, so the version retains the epoch form.
 	assert.Equal(t, "1:1.1.1k", c.Version)
 
-	// Runtime property is still updated from newBom.
+	// Runtime property is still updated from newBom, across the epoch difference.
 	v, ok := findProp(c, LastAccessProperty)
 	assert.True(t, ok)
 	assert.Equal(t, "200", v)
+}
+
+func TestMergeRuntimeProperties_KeepsDistinctComponentsSharingNameAndVersion(t *testing.T) {
+	// Trivy reports one entry per install location, so a library version pinned by
+	// two lockfiles appears twice with distinct bom-refs. Both are real components
+	// that the dependency graph references, so both must survive.
+	existing := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			{
+				BomRef:  pointer.Ptr("5"),
+				Name:    "actionpack",
+				Version: "7.0.0",
+				Purl:    pointer.Ptr("pkg:gem/actionpack@7.0.0"),
+			},
+			{
+				BomRef:  pointer.Ptr("8"),
+				Name:    "actionpack",
+				Version: "7.0.0",
+				Purl:    pointer.Ptr("pkg:gem/actionpack@7.0.0"),
+			},
+		},
+		Dependencies: []*cyclonedx_v1_4.Dependency{{Ref: "8"}},
+	}
+	newBom := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			component("actionpack", "7.0.0", prop(LastAccessProperty, "1700000000")),
+		},
+	}
+
+	merged := mergeRuntimeProperties(existing, newBom)
+
+	require.Len(t, merged.Components, 2, "distinct components sharing a name and version must both survive")
+	refs := make(map[string]struct{}, len(merged.Components))
+	for _, c := range merged.Components {
+		refs[c.GetBomRef()] = struct{}{}
+
+		// Both take the runtime update: the report matches them by name and version.
+		v, ok := findProp(c, LastAccessProperty)
+		assert.True(t, ok)
+		assert.Equal(t, "1700000000", v)
+	}
+
+	// Every dependency reference still resolves to a component of the merged BOM.
+	for _, dep := range merged.Dependencies {
+		assert.Containsf(t, refs, dep.Ref, "dependency ref %q no longer resolves to a component", dep.Ref)
+	}
+}
+
+func TestMergeRuntimeProperties_KeepsComponentsWithoutBomRef(t *testing.T) {
+	// The bom-ref is what identifies a component, so deduplication applies to the
+	// components that carry one and the others are emitted in turn.
+	existing := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			component("openssl", "1.1.1k"),
+			component("openssl", "1.1.1k"),
+		},
+	}
+	newBom := &cyclonedx_v1_4.Bom{
+		Components: []*cyclonedx_v1_4.Component{
+			component("openssl", "1.1.1k", prop(LastAccessProperty, "1700000000")),
+		},
+	}
+
+	merged := mergeRuntimeProperties(existing, newBom)
+
+	require.Len(t, merged.Components, 2)
 }
 
 func TestMergeRuntimeProperties_NilSafeInputs(t *testing.T) {
