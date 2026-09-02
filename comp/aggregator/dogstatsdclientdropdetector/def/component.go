@@ -25,6 +25,6 @@ const (
 // Component detects sustained client-reported DogStatsD payload drops and
 // maintains the corresponding Agent Health issue lifecycle.
 type Component interface {
-	ObserveClientBytes(metric ClientByteMetric, bytes float64)
+	ObserveClientBytes(clientLibrary string, metric ClientByteMetric, bytes float64)
 	CompleteFinalDogStatsDSerieFlush()
 }
