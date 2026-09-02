@@ -319,6 +319,7 @@ func (a *SBOMAPIServer) collectSBOMS() {
 		if err := sbomResolver.RegisterListener(sbom.SBOMComputed, func(sbom *sbompkg.ScanResult) {
 			select {
 			case a.sboms <- sbom:
+				sbomResolver.CountEnrichedSBOMForwarded()
 				seclog.Debugf("SBOM for %s sent to APIServer channel", sbom.RequestID)
 			default:
 				sbomResolver.CountEnrichedSBOMForwardDropped()
