@@ -17,10 +17,6 @@
   # Only one job may use the AIX host at a time.
   resource_group: aix_ci_host
   timeout: 2h
-  rules:
-    - !reference [.except_mergequeue]
-    - !reference [.on_scheduled_main]
-    - !reference [.manual]
   variables:
     # Where the agent source is cloned on the AIX host.
     AIX_AGENT_SRC: "/opt/dd-build/datadog-agent"
