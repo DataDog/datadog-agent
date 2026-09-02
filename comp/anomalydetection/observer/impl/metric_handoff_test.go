@@ -8,9 +8,25 @@ package observerimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/tagset"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type precheckOnlyMetricView struct {
+	name string
+	host string
+}
+
+func (m *precheckOnlyMetricView) GetName() string { return m.name }
+func (m *precheckOnlyMetricView) GetHost() string { return m.host }
+func (*precheckOnlyMetricView) GetValue() float64 { panic("value must not be read") }
+func (*precheckOnlyMetricView) GetTags() tagset.CompositeTags {
+	panic("tags must not be read")
+}
+func (*precheckOnlyMetricView) GetTimestampUnix() int64 { panic("timestamp must not be read") }
+func (*precheckOnlyMetricView) GetSampleRate() float64  { panic("sample rate must not be read") }
 
 func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {
 	ch := make(chan observation, 1)
@@ -46,7 +62,7 @@ func TestMetricHandoffDefersTagCanonicalization(t *testing.T) {
 	require.NoError(t, err)
 
 	ch := make(chan observation, 1)
-	h := &handle{ch: ch, source: "check"}
+	h := &handle{ch: ch, source: "check", filter: filter}
 	sample := &metricObs{
 		name:      "requests",
 		tags:      []string{"service:web", "env:prod", "service:web"},
@@ -62,4 +78,45 @@ func TestMetricHandoffDefersTagCanonicalization(t *testing.T) {
 	decision := prepareMetricHandoff(queued.source, queued.metric, filter)
 	require.NotNil(t, decision.metric)
 	assert.Equal(t, []string{"env:prod", "service:web", "service:web"}, decision.metric.tags)
+}
+
+func TestMetricHandoffRejectsNameOnlyRuleBeforeSnapshot(t *testing.T) {
+	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
+		Type:        excludeAtMatch,
+		Name:        "drop_system_cpu",
+		NamePattern: "system.cpu.*",
+	}})
+	require.NoError(t, err)
+
+	ch := make(chan observation, 1)
+	h := &handle{ch: ch, source: "dogstatsd", filter: filter}
+
+	require.False(t, h.ObserveMetricAndReportDrop(&precheckOnlyMetricView{
+		name: "system.cpu.user",
+		host: "host-a",
+	}))
+	assert.Len(t, ch, 0)
+}
+
+func TestMetricHandoffDefersTagDependentRule(t *testing.T) {
+	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
+		Type:        excludeAtMatch,
+		Name:        "drop_dev_requests",
+		NamePattern: "requests",
+		Tags:        []string{"env:dev"},
+	}})
+	require.NoError(t, err)
+
+	ch := make(chan observation, 1)
+	h := &handle{ch: ch, source: "dogstatsd", filter: filter}
+	sample := &metricObs{
+		name:      "requests",
+		tags:      []string{"service:web", "env:dev"},
+		timestamp: 123,
+	}
+
+	require.False(t, h.ObserveMetricAndReportDrop(sample))
+	queued := <-ch
+	require.True(t, queued.metric.precheck.needsTags)
+	assert.Nil(t, prepareMetricHandoff(queued.source, queued.metric, filter).metric)
 }
