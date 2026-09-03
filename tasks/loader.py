@@ -28,6 +28,8 @@ def build(
     then copy the result to the same place. Developer opt-in only; defaults to off.
     """
     if enable_bazel:
+        if install_path is not None:
+            raise NotImplementedError("--enable-bazel does not support --install-path.")
         build_binary_with_bazel("//cmd/loader:loader", bin_path=BIN_PATH)
         return
 
