@@ -434,8 +434,27 @@ func (d *delegatedAuthComponent) replaceInstance(ctx context.Context, key string
 				if replacement != nil && replacement.refreshCancel != nil {
 					replacement.refreshCancel()
 				}
-				return ctx.Err()
 			}
+		}
+		if err := ctx.Err(); err != nil {
+			if replacement != nil && replacement.refreshCancel != nil {
+				replacement.refreshCancel()
+				if replacement.done != nil {
+					close(replacement.done)
+				}
+			}
+			if existing.credProvider != nil {
+				existing.credProvider.invalidate()
+			}
+			d.mu.Lock()
+			if d.instances[key] == existing {
+				d.removeProviderRegistrationLocked(key)
+			}
+			d.mu.Unlock()
+			return err
+		}
+		if existing.credProvider != nil {
+			existing.credProvider.invalidate()
 		}
 	}
 	if err := ctx.Err(); err != nil {
@@ -457,12 +476,24 @@ func (d *delegatedAuthComponent) replaceInstance(ctx context.Context, key string
 }
 
 func (d *delegatedAuthComponent) deliverAPIKey(instance *authInstance, apiKey string) {
-	instance.credProvider.setResolved(apiKey)
+	if !instance.credProvider.setResolved(apiKey) {
+		return
+	}
 	if !instance.skipConfigWriteback {
 		d.updateConfigWithAPIKey(instance, apiKey)
 	}
 }
 
+func (d *delegatedAuthComponent) deliverFallbackAPIKey(instance *authInstance) {
+	if !instance.credProvider.setFallback(instance.fallbackAPIKey) {
+		return
+	}
+	if !instance.skipConfigWriteback {
+		d.writeAPIKeyToTarget(instance, instance.fallbackAPIKey, true)
+	}
+}
+
+// registerProvider indexes a provider so consumers constructed after discovery can find it.
 func (d *delegatedAuthComponent) registerProvider(params delegatedauth.InstanceParams, p delegatedauth.Provider) {
 	configKey, destination := params.ProviderKey()
 	key := providerKey{configKey: configKey, destination: destination}
@@ -623,7 +654,7 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 func (d *delegatedAuthComponent) doRefresh(instance *authInstance, ticker *time.Ticker) {
 	credentials, updated, refreshErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
 	var apiKey string
-	var fallbackActivated bool
+	var shouldDeliverFallback bool
 
 	d.mu.Lock()
 	if refreshErr != nil {
@@ -633,7 +664,7 @@ func (d *delegatedAuthComponent) doRefresh(instance *authInstance, ticker *time.
 		}
 		instance.consecutiveFailures++
 		instance.lastError = refreshErr
-		fallbackActivated = instance.credProvider.setFallback(instance.fallbackAPIKey)
+		shouldDeliverFallback = true
 		nextInterval := instance.backoff.NextBackOff()
 		instance.nextRefresh = time.Now().Add(nextInterval)
 		ticker.Reset(nextInterval)
@@ -653,8 +684,8 @@ func (d *delegatedAuthComponent) doRefresh(instance *authInstance, ticker *time.
 
 	if apiKey != "" {
 		d.deliverAPIKey(instance, apiKey)
-	} else if fallbackActivated && !instance.skipConfigWriteback {
-		d.writeAPIKeyToTarget(instance, instance.fallbackAPIKey, true)
+	} else if shouldDeliverFallback {
+		d.deliverFallbackAPIKey(instance)
 	}
 }
 

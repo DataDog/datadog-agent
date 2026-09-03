@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"net/http"
+	"sync"
 	"testing"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
@@ -17,6 +18,8 @@ import (
 
 // Mock is a mock implementation of the delegatedauth.Component interface
 type Mock struct {
+	mu sync.RWMutex
+
 	AddInstanceFunc func(context.Context, delegatedauth.InstanceParams) error
 	// ProvidersForFunc overrides ProvidersFor. When nil, providers returned from AddInstance are
 	// indexed the same way the real component indexes them, so a test can wire a consumer without
@@ -29,8 +32,13 @@ type Mock struct {
 	// separation rather than just bookkeeping.
 	ProviderForInstanceFunc func(params delegatedauth.InstanceParams) delegatedauth.Provider
 
-	providers  map[[2]string][]delegatedauth.Provider
-	directives map[[3]string]delegatedauth.Provider
+	providers map[[2]string][]registeredProvider
+}
+
+type registeredProvider struct {
+	instanceKey string
+	directive   string
+	provider    delegatedauth.Provider
 }
 
 // StaticProvider is a Provider that always authorizes with a fixed key, for tests that only care
@@ -70,9 +78,8 @@ func New(_ testing.TB) delegatedauth.Component {
 	return &Mock{}
 }
 
-// AddInstance calls the mock function if set, then registers a provider for the params so
-// ProvidersFor can find it. The returned provider is pending (no credential) unless the test
-// supplies its own via ProvidersForFunc.
+// AddInstance calls the mock function if set, then registers a provider for the params.
+// ProviderForInstanceFunc can supply a custom provider; the default is pending.
 func (m *Mock) AddInstance(ctx context.Context, params delegatedauth.InstanceParams) (delegatedauth.Provider, error) {
 	var err error
 	if m.AddInstanceFunc != nil {
@@ -86,20 +93,36 @@ func (m *Mock) AddInstance(ctx context.Context, params delegatedauth.InstancePar
 	if m.ProviderForInstanceFunc != nil {
 		p = m.ProviderForInstanceFunc(params)
 	}
-	if m.providers == nil {
-		m.providers = map[[2]string][]delegatedauth.Provider{}
-	}
 	configKey, destination := params.ProviderKey()
-	if m.directives == nil {
-		m.directives = map[[3]string]delegatedauth.Provider{}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.providers == nil {
+		m.providers = map[[2]string][]registeredProvider{}
 	}
-	dkey := [3]string{configKey, destination, params.Directive}
-	if _, seen := m.directives[dkey]; !seen {
-		m.directives[dkey] = p
-	}
+	m.removeProviderLocked(params.APIKeyConfigKey)
 	key := [2]string{configKey, destination}
-	m.providers[key] = append(m.providers[key], p)
+	m.providers[key] = append(m.providers[key], registeredProvider{
+		instanceKey: params.APIKeyConfigKey,
+		directive:   params.Directive,
+		provider:    p,
+	})
 	return p, nil
+}
+
+func (m *Mock) removeProviderLocked(instanceKey string) {
+	for key, registered := range m.providers {
+		kept := registered[:0]
+		for _, candidate := range registered {
+			if candidate.instanceKey != instanceKey {
+				kept = append(kept, candidate)
+			}
+		}
+		if len(kept) == 0 {
+			delete(m.providers, key)
+		} else {
+			m.providers[key] = kept
+		}
+	}
 }
 
 // ProvidersFor implements delegatedauth.Component.
@@ -107,12 +130,26 @@ func (m *Mock) ProvidersFor(configKey, destination string) []delegatedauth.Provi
 	if m.ProvidersForFunc != nil {
 		return m.ProvidersForFunc(configKey, destination)
 	}
-	return m.providers[[2]string{configKey, destination}]
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	registered := m.providers[[2]string{configKey, destination}]
+	providers := make([]delegatedauth.Provider, len(registered))
+	for i, candidate := range registered {
+		providers[i] = candidate.provider
+	}
+	return providers
 }
 
 // ProviderForDirective implements delegatedauth.Component.
 func (m *Mock) ProviderForDirective(configKey, destination, directive string) delegatedauth.Provider {
-	return m.directives[[3]string{configKey, destination, directive}]
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, candidate := range m.providers[[2]string{configKey, destination}] {
+		if candidate.directive == directive {
+			return candidate.provider
+		}
+	}
+	return nil
 }
 
 // RefreshFor implements delegatedauth.Component.

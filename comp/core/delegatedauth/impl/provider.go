@@ -26,11 +26,15 @@ type credential struct {
 	// usable reports whether the caller may send. False means "still resolving, buffer" - never
 	// "send without a credential".
 	usable bool
+	// invalid is terminal. Resolution and fallback updates cannot replace it.
+	invalid bool
 }
 
 // buffering is the credential state before the first exchange completes, and after a failure when
 // no fallback key is configured.
 var buffering = &credential{usable: false}
+
+var invalidCredential = &credential{invalid: true}
 
 // instanceProvider is the Provider for a single delegated-auth instance.
 //
@@ -77,7 +81,7 @@ func (p *instanceProvider) setRefreshTrigger(ch chan struct{}) {
 // Authorize implements delegatedauth.Provider.
 func (p *instanceProvider) Authorize(h http.Header) bool {
 	c := p.cred.Load()
-	if c == nil || !c.usable {
+	if c == nil || c.invalid || !c.usable {
 		return false
 	}
 	h.Set(apiKeyHeader, c.value)
@@ -94,9 +98,15 @@ func (p *instanceProvider) Refresh() bool {
 	if p.refreshTrigger == nil {
 		return false
 	}
-	// Stop further sends under the stale key. A concurrent Authorize that already loaded the
-	// old credential will still use it, but the next call will see buffering.
-	p.cred.Store(buffering)
+	for {
+		current := p.cred.Load()
+		if current == nil || current.invalid {
+			return false
+		}
+		if p.cred.CompareAndSwap(current, buffering) {
+			break
+		}
+	}
 	select {
 	case p.refreshTrigger <- struct{}{}:
 	default:
@@ -107,8 +117,21 @@ func (p *instanceProvider) Refresh() bool {
 
 // setResolved records a credential fetched from the cloud provider. It always wins over a
 // fallback, including when a refresh recovers after earlier failures.
-func (p *instanceProvider) setResolved(key string) {
-	p.cred.Store(&credential{value: key, usable: true})
+func (p *instanceProvider) setResolved(key string) bool {
+	for {
+		current := p.cred.Load()
+		if current != nil && current.invalid {
+			return false
+		}
+		if p.cred.CompareAndSwap(current, &credential{value: key, usable: true}) {
+			return true
+		}
+	}
+}
+
+// invalidate stops new requests from using this provider.
+func (p *instanceProvider) invalidate() {
+	p.cred.Store(invalidCredential)
 }
 
 // setFallback records the operator-supplied static key after an exchange has failed. It does not
@@ -121,7 +144,7 @@ func (p *instanceProvider) setFallback(key string) bool {
 	}
 	for {
 		current := p.cred.Load()
-		if current != nil && current.usable {
+		if current != nil && (current.invalid || current.usable) {
 			return false
 		}
 		if p.cred.CompareAndSwap(current, &credential{value: key, usable: true}) {
@@ -134,10 +157,10 @@ func (p *instanceProvider) setFallback(key string) bool {
 // reporting and tests.
 func (p *instanceProvider) hasCredential() bool {
 	c := p.cred.Load()
-	return c != nil && c.usable
+	return c != nil && !c.invalid && c.usable
 }
 
 func (p *instanceProvider) matches(value string) bool {
 	c := p.cred.Load()
-	return c != nil && c.usable && subtle.ConstantTimeCompare([]byte(c.value), []byte(value)) == 1
+	return c != nil && !c.invalid && c.usable && subtle.ConstantTimeCompare([]byte(c.value), []byte(value)) == 1
 }

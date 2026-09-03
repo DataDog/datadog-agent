@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // A provider that has never resolved must report "no credential" so the caller buffers. Shipping
@@ -193,12 +194,15 @@ func TestReplaceInstanceRemovesOldProviderRoute(t *testing.T) {
 	const instanceKey = "additional_endpoints[old][org]"
 	oldDone := make(chan struct{})
 	close(oldDone)
+	oldProvider := newInstanceProvider()
+	oldProvider.setResolved("old-key")
 	d := &delegatedAuthComponent{
-		instances: map[string]*authInstance{instanceKey: {done: oldDone}},
+		instances: map[string]*authInstance{instanceKey: {
+			credProvider: oldProvider,
+			done:         oldDone,
+		}},
 		providers: make(map[providerKey][]registeredProvider),
 	}
-
-	oldProvider := newInstanceProvider()
 	d.registerProvider(delegatedauth.InstanceParams{
 		APIKeyConfigKey: instanceKey,
 		ConfigKey:       "additional_endpoints",
@@ -209,6 +213,7 @@ func TestReplaceInstanceRemovesOldProviderRoute(t *testing.T) {
 
 	require.NoError(t, d.replaceInstance(context.Background(), instanceKey, &authInstance{done: make(chan struct{})}))
 	assert.Nil(t, d.ProviderForDirective("additional_endpoints", "https://old.datadoghq.com", "DELA(old-org, aws)"))
+	assert.False(t, oldProvider.Authorize(http.Header{}))
 
 	newProvider := newInstanceProvider()
 	d.registerProvider(delegatedauth.InstanceParams{
@@ -218,6 +223,98 @@ func TestReplaceInstanceRemovesOldProviderRoute(t *testing.T) {
 		Directive:       "DELA(new-org, aws)",
 	}, newProvider)
 	require.Same(t, newProvider, d.ProviderForDirective("additional_endpoints", "https://new.datadoghq.com", "DELA(new-org, aws)"))
+}
+
+func TestCanceledReplacementInvalidatesOldProvider(t *testing.T) {
+	const instanceKey = "additional_endpoints[org-a]"
+	config := mock.New(t)
+	config.SetDefault("api_key", "original-key")
+	d := &delegatedAuthComponent{
+		instances: make(map[string]*authInstance),
+		providers: make(map[providerKey][]registeredProvider),
+		config:    config,
+	}
+	oldProvider := newInstanceProvider()
+	oldProvider.setResolved("old-key")
+	old := &authInstance{
+		apiKeyConfigKey: "api_key",
+		credProvider:    oldProvider,
+		fallbackAPIKey:  "fallback-key",
+		refreshCancel:   func() {},
+		done:            make(chan struct{}),
+	}
+	d.instances[instanceKey] = old
+	d.registerProvider(delegatedauth.InstanceParams{
+		APIKeyConfigKey: instanceKey,
+		ConfigKey:       "additional_endpoints",
+		Destination:     "https://old.datadoghq.com",
+		Directive:       "DELA(old-org, aws)",
+	}, oldProvider)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	replacementDone := make(chan struct{})
+	require.ErrorIs(t, d.replaceInstance(ctx, instanceKey, &authInstance{
+		refreshCancel: func() {},
+		done:          replacementDone,
+	}), context.Canceled)
+
+	assert.Nil(t, d.ProviderForDirective("additional_endpoints", "https://old.datadoghq.com", "DELA(old-org, aws)"))
+	assert.False(t, oldProvider.Authorize(http.Header{}))
+	oldProvider.setResolved("late-key")
+	assert.False(t, oldProvider.Authorize(http.Header{}))
+	assert.False(t, oldProvider.Refresh())
+	d.deliverFallbackAPIKey(old)
+	assert.Equal(t, "original-key", config.GetString("api_key"))
+	assert.Same(t, old, d.instances[instanceKey])
+	select {
+	case <-replacementDone:
+	default:
+		t.Fatal("replacement was not stopped")
+	}
+}
+
+func TestCanceledReplacementWithStoppedInstanceIsNotPublished(t *testing.T) {
+	oldDone := make(chan struct{})
+	close(oldDone)
+	oldProvider := newInstanceProvider()
+	oldProvider.setResolved("old-key")
+	d := &delegatedAuthComponent{
+		instances: map[string]*authInstance{"api_key": {
+			credProvider:  oldProvider,
+			refreshCancel: func() {},
+			done:          oldDone,
+		}},
+		providers: make(map[providerKey][]registeredProvider),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	replacementDone := make(chan struct{})
+	require.ErrorIs(t, d.replaceInstance(ctx, "api_key", &authInstance{
+		refreshCancel: func() {},
+		done:          replacementDone,
+	}), context.Canceled)
+
+	assert.NotNil(t, d.instances["api_key"])
+	assert.False(t, oldProvider.Authorize(http.Header{}))
+}
+
+func TestInvalidatedProviderRejectsLateConfigDelivery(t *testing.T) {
+	config := mock.New(t)
+	config.SetDefault("api_key", "original-key")
+	provider := newInstanceProvider()
+	instance := &authInstance{
+		apiKeyConfigKey: "api_key",
+		credProvider:    provider,
+	}
+	d := &delegatedAuthComponent{config: config}
+
+	provider.invalidate()
+	d.deliverAPIKey(instance, "late-key")
+
+	assert.Equal(t, "original-key", config.GetString("api_key"))
+	assert.False(t, provider.Authorize(http.Header{}))
 }
 
 // Refresh returns false when no background refresh goroutine is running (no trigger channel),
