@@ -290,6 +290,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 			InstallName: windowsInstallName,
 			Namespace:   args.Namespace,
 			ValuesYAML:  windowsValuesYAML,
+			Version:     pulumi.String(chartVersion),
 		}, windowsOpts...)
 		if err != nil {
 			return nil, err
