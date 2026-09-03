@@ -1,6 +1,6 @@
 ---
-# e2e stage - ebpf-platform and universal-service-monitoring owned jobs
-# Owned by: ebpf-platform, universal-service-monitoring, agent-devx
+# e2e stage - universal-service-monitoring owned jobs
+# Owned by: universal-service-monitoring, agent-devx
 
 new-e2e-usm:
   extends: .new_e2e_template
