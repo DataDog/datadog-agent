@@ -667,6 +667,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.debugger_dd_url"; core.IsConfigured(k) {
 		c.DebuggerProxy.DDURL = core.GetString(k)
 	}
+	if c.DebuggerProxy.DDURL == "" {
+		// Resolve the implicit URL here to keep config dependencies out of pkg/trace.
+		c.DebuggerProxy.DDURL = utils.BuildURLWithPrefix(config.DebuggerLogsEndpointPrefix, c.Site) + config.DebuggerLogsEndpointPath
+	}
 	if k := "apm_config.debugger_api_key"; core.IsConfigured(k) {
 		c.DebuggerProxy.APIKey = core.GetString(k)
 	}
@@ -676,6 +680,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.debugger_diagnostics_dd_url"; core.IsConfigured(k) {
 		c.DebuggerIntakeProxy.DDURL = core.GetString(k)
 	}
+	if c.DebuggerIntakeProxy.DDURL == "" {
+		// Resolve the implicit URL here to keep config dependencies out of pkg/trace.
+		c.DebuggerIntakeProxy.DDURL = utils.BuildURLWithPrefix(config.DebuggerIntakeEndpointPrefix, c.Site) + config.DebuggerIntakeEndpointPath
+	}
 	if k := "apm_config.debugger_diagnostics_api_key"; core.IsConfigured(k) {
 		c.DebuggerIntakeProxy.APIKey = core.GetString(k)
 	}
@@ -684,6 +692,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "apm_config.symdb_dd_url"; core.IsConfigured(k) {
 		c.SymDBProxy.DDURL = core.GetString(k)
+	}
+	if c.SymDBProxy.DDURL == "" {
+		// Resolve the implicit URL here to keep config dependencies out of pkg/trace.
+		c.SymDBProxy.DDURL = utils.BuildURLWithPrefix(config.DebuggerIntakeEndpointPrefix, c.Site) + config.DebuggerIntakeEndpointPath
 	}
 	if k := "apm_config.symdb_api_key"; core.IsConfigured(k) {
 		c.SymDBProxy.APIKey = core.GetString(k)
@@ -708,6 +720,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.OpenLineageProxy.Enabled = core.GetBool("ol_proxy_config.enabled")
 	if k := "ol_proxy_config.dd_url"; core.IsConfigured(k) {
 		c.OpenLineageProxy.DDURL = core.GetString(k)
+	}
+	if c.OpenLineageProxy.DDURL == "" {
+		// Resolve the implicit URL here to keep config dependencies out of pkg/trace.
+		c.OpenLineageProxy.DDURL = utils.BuildURLWithPrefix(config.OpenLineageEndpointPrefix, c.Site) + config.OpenLineageEndpointPath
 	}
 	if k := "ol_proxy_config.api_key"; core.IsConfigured(k) {
 		c.OpenLineageProxy.APIKey = core.GetString(k)
