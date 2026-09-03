@@ -192,4 +192,4 @@ deploy_containers-host-profiler-preview:
   # Update manually in branches that trigger preview image.
   variables:
     IMG_REGISTRIES: default
-    PREVIEW_NUMBER: ""
+    PREVIEW_NUMBER: "2.0"
