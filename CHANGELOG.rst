@@ -2,6 +2,45 @@
 Release Notes
 =============
 
+.. _Release Notes_7.82.3:
+
+7.82.3
+======
+
+.. _Release Notes_7.82.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-08-26
+
+- Please refer to the `7.82.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7823>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.82.3_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.26.7``.
+
+
+.. _Release Notes_7.82.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The Dynamic Instrumentation proxy in the trace-agent no longer drops
+  debugger data when ``logs_enabled`` is left unset. Data is only dropped
+  when ``logs_enabled`` (or the deprecated ``log_enabled``) is explicitly
+  set to ``false``.
+
+- On Windows, fixed an issue where upgrading the Agent without providing
+  ``DDAGENTUSER_PASSWORD`` could lock out a domain Agent user account. The installer now
+  leaves ``dd-procmgr-service``, and the components it supervises, disabled until the
+  Agent user password is provided again.
+
+
 .. _Release Notes_7.82.2:
 
 7.82.2
