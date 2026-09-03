@@ -3,10 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package gnmi implements the NDM gNMI core check.
-package gnmi
+package config
 
-import gnmi "github.com/openconfig/gnmi/proto/gnmi"
+import (
+	"testing"
 
-// DefaultEncoding is the gNMI subscription encoding requested from devices.
-const DefaultEncoding = gnmi.Encoding_PROTO
+	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/stretchr/testify/require"
+)
+
+func TestDefaultEncoding(t *testing.T) {
+	require.Equal(t, gnmipb.Encoding_PROTO, DefaultEncoding)
+}
