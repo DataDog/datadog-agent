@@ -321,6 +321,27 @@ func TestComponentRetriesFailedIssueReport(t *testing.T) {
 }
 
 func TestComponentReconcilesPersistedIssueState(t *testing.T) {
+	t.Run("replaces an active issue from a stale host identity", func(t *testing.T) {
+		healthPlatform := healthplatformmock.New(t)
+		previousID := dogstatsdclientdrops.UDSIssueIDForHost(dogstatsdclientdrops.ClientLibraryGo, "previous-host-uuid", "previous-node")
+		previousIssue, err := dogstatsdclientdrops.BuildUDSIssue(dogstatsdclientdrops.UDSDetectionContext{
+			ClientLibrary: dogstatsdclientdrops.ClientLibraryGo,
+			AgentHostname: testHostname,
+			DroppedRatio:  0.02,
+		})
+		require.NoError(t, err)
+		previousIssue.Id = previousID
+		require.NoError(t, healthPlatform.ReportIssue(previousIssue))
+
+		detector := newTestComponentWithHealthPlatform(t, healthPlatform, testHostname)
+		state := goClientState(detector)
+		require.NotEqual(t, previousID, state.issueID)
+		require.NotNil(t, healthPlatform.GetIssue(state.issueID))
+		require.Nil(t, healthPlatform.GetIssue(previousID))
+		require.Equal(t, []string{previousID}, healthPlatform.ResolvedIDs())
+		require.Empty(t, state.staleIssueIDs)
+	})
+
 	t.Run("rehydrates persisted-only issue before receiving telemetry", func(t *testing.T) {
 		issueID := dogstatsdclientdrops.UDSIssueIDForHost(dogstatsdclientdrops.ClientLibraryGo, hostuuid.GetUUID(), testHostname)
 		baseStore := healthplatformmock.New(t)

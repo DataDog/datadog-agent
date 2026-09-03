@@ -68,6 +68,8 @@ type clientState struct {
 	// issueNeedsRefresh marks restored active lifecycle state whose full issue
 	// payload must be reported again after an Agent restart.
 	issueNeedsRefresh bool
+	// staleIssueIDs are active IDs for this library that differ from the current host ID.
+	staleIssueIDs []string
 	// confirmationPending means unhealthy confirmation when inactive and recovery when active.
 	confirmationPending bool
 	pendingSince        time.Time
@@ -279,22 +281,25 @@ func (d *component) reconcileIssueState() {
 			continue
 		}
 		state := d.clientState(library)
+		state.issueActive = true
+		state.issueNeedsRefresh = true
+		state.staleIssueIDs = state.staleIssueIDs[:0]
 		for _, activeID := range activeIDs {
-			if activeID == state.issueID {
-				state.issueActive = true
-				state.issueNeedsRefresh = true
-				d.reportRestoredIssue(state)
-				break
+			if activeID != state.issueID {
+				state.staleIssueIDs = append(state.staleIssueIDs, activeID)
 			}
+		}
+		if d.reportRestoredIssue(state) {
+			d.resolveStaleIssues(state)
 		}
 	}
 }
 
-func (d *component) reportRestoredIssue(state *clientState) {
+func (d *component) reportRestoredIssue(state *clientState) bool {
 	issue, err := dogstatsdclientdrops.BuildRestoredUDSIssue(state.library, d.hostname)
 	if issue == nil {
 		d.logger.Warnf("failed to build restored DogStatsD client payload drop health issue: %v", err)
-		return
+		return false
 	}
 	if err != nil {
 		d.logger.Warnf("reporting restored DogStatsD client payload drop health issue without additional diagnostic details: %v", err)
@@ -302,9 +307,10 @@ func (d *component) reportRestoredIssue(state *clientState) {
 	issue.Id = state.issueID
 	if err := d.healthPlatform.ReportIssue(issue); err != nil {
 		d.logger.Warnf("failed to restore DogStatsD client payload drop health issue after restart: %v", err)
-		return
+		return false
 	}
 	state.issueSeverity = issue.Severity
+	return true
 }
 
 func (d *component) reportIssue(state *clientState, stats clientByteStats, ratio float64) {
@@ -336,12 +342,21 @@ func (d *component) reportIssue(state *clientState, stats clientByteStats, ratio
 	state.issueActive = true
 	state.issueSeverity = issue.Severity
 	state.issueNeedsRefresh = false
+	d.resolveStaleIssues(state)
 }
 
 func (d *component) resolveIssue(state *clientState) {
 	d.healthPlatform.ResolveIssue(state.issueID)
+	d.resolveStaleIssues(state)
 	state.issueActive = false
 	state.issueNeedsRefresh = false
+}
+
+func (d *component) resolveStaleIssues(state *clientState) {
+	for _, issueID := range state.staleIssueIDs {
+		d.healthPlatform.ResolveIssue(issueID)
+	}
+	state.staleIssueIDs = nil
 }
 
 func droppedRatio(stats clientByteStats) (float64, bool) {
