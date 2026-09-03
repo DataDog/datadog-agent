@@ -291,9 +291,11 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
 // USM's uprobes are loaded with expected_attach_type BPF_TRACE_UPROBE_MULTI so they can
 // share uprobe_multi links instead of holding one perf_event fd per attachment. A
 // PROG_ARRAY locks onto the expected_attach_type of its first member and rejects any
-// other (kernel/bpf/core.c, __bpf_prog_map_compatible), so once tls_process_progs is
-// owned by those uprobes a kprobe can neither be inserted into it nor tail-call through
-// it. tls_termination_progs is a kprobe-typed mirror of the termination programs.
+// other with -EINVAL (kernel/bpf/core.c, __bpf_prog_map_compatible; upstream 4540aed51b12
+// "bpf: Enforce expected_attach_type for tailcall compatibility", in 6.12.y since 6.12.53),
+// so once tls_process_progs is owned by those uprobes a kprobe can neither be inserted into
+// it nor tail-call through it. tls_termination_progs is a kprobe-typed mirror of the
+// termination programs.
 //
 // HTTP is always skipped here, exactly as the original tls_finish(ctx, &t, true) call
 // did: HTTP termination for both TLS and plaintext traffic is handled by the socket

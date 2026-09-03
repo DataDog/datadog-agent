@@ -400,9 +400,11 @@ func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protoc
 //
 // uprobe_multi requires expected_attach_type == BPF_TRACE_UPROBE_MULTI, which is fixed at
 // load time and cannot be changed afterwards. Kernel PROG_ARRAYs are owner-locked on that
-// value (kernel/bpf/core.c, __bpf_prog_map_compatible), so every program in the TLS
-// tail-call arrays -- and every uprobe that tail-calls into them -- has to carry it
-// together, or the array insert fails with -EINVAL.
+// value (kernel/bpf/core.c, __bpf_prog_map_compatible; upstream 4540aed51b12 "bpf: Enforce
+// expected_attach_type for tailcall compatibility", backported to 6.12.y in 6.12.53), so
+// every program in the TLS tail-call arrays -- and every uprobe that tail-calls into them --
+// has to carry it together, or the array insert / caller load fails with -EINVAL. Kernels
+// without that enforcement accept mixed arrays; stamping the whole group is harmless there.
 //
 // Selecting by section rather than by name is deliberate: today every USM uprobe/uretprobe is
 // an attacher-managed TLS probe (the plaintext path uses socket filters, SEC("socket/...")),

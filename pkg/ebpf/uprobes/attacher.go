@@ -351,9 +351,11 @@ var multiAttachMinKernel = kernel.VersionCode(6, 10, 0)
 // canUseMultiAttach reports whether uprobe_multi links can be used on this host.
 //
 // Collapsing N per-probe perf_event fds into a single link is what makes shutdown fast:
-// each perf_event fd close costs an uninterruptible ~34ms RCU grace period
-// (perf_event_detach_bpf_prog -> synchronize_rcu_tasks_trace), paid serially, so teardown
-// time scales linearly with attachment count. One link pays that cost once.
+// each perf_event fd close waits out uninterruptible RCU Tasks Trace grace periods
+// (uprobe_unregister_sync and perf_event_detach_bpf_prog, both ending in
+// synchronize_rcu_tasks_trace), paid serially, so teardown time scales linearly with
+// attachment count. The per-fd cost depends on arch, kernel and CPU count -- measured at
+// ~35ms on arm64/6.8 and ~0.5s on a 16-vCPU x86_64/6.12 host. One link pays it once.
 var canUseMultiAttach = sync.OnceValue(func() bool {
 	// DD_USM_ENABLE_UPROBE_MULTI (default true) is the rollback switch: set it to a false value
 	// to force USM back onto the per-probe attach path without downgrading the agent -- e.g. if a
@@ -1071,9 +1073,9 @@ func (ua *UprobeAttacher) isReturnProbe(ebpfFuncName string) (bool, error) {
 
 // attachMulti attaches every probe point of a single eBPF program to a binary using one
 // uprobe_multi link, rather than one perf_event fd per location. This is the whole point
-// of the change: teardown cost is per-fd (~34ms of uninterruptible RCU grace period each,
-// paid serially), so collapsing N fds into 1 link makes shutdown time independent of the
-// number of probe points.
+// of the change: teardown cost is per-fd (an uninterruptible RCU Tasks Trace grace period
+// each, tens to hundreds of ms depending on the host, paid serially), so collapsing N fds
+// into 1 link makes shutdown time independent of the number of probe points.
 func (ua *UprobeAttacher) attachMulti(probeID manager.ProbeIdentificationPair, locations []uint64, fpath utils.FilePath) error {
 	if len(locations) == 0 {
 		return nil
