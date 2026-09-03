@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fakeintakecmd",
+    srcs = ["fakeintakecmd.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/fakeintakecmd",
+    visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
+    deps = [
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+    ],
+)

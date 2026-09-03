@@ -1,0 +1,21 @@
+# Example e2ectl environment: EC2 host with the agent installed from the
+# official install script (released version).
+#
+#   e2ectl start   --config ec2-host.yml --name myvm
+#   e2ectl install --config ec2-host.yml --env myvm
+#   e2ectl fakeintake metrics --env myvm
+#   e2ectl stop    --env myvm
+#
+schema: 1
+environment:
+  base: ec2-host
+  vm:
+    os: ubuntu-22.04
+    arch: amd64
+    # instance-type: t3.medium
+  fakeintake: true
+agent:
+  install: script
+  version: "7.69.0"   # released agent version installed by the install script
+  # config: |          # optional datadog.yaml overrides
+  #   log_level: debug
