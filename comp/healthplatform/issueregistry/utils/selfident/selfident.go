@@ -26,7 +26,7 @@ const (
 
 	// defaultResolveRetries/defaultResolveRetryDelay bound how long DeploymentID
 	// waits for workloadmeta to observe the agent's own pod before giving up,
-	// and how long ClusterID retries the Cluster Agent in the background. Kept
+	// and how long resolveClusterID retries the Cluster Agent in the background. Kept
 	// short (~1s) since DeploymentID can block a synchronous ReportIssue caller.
 	defaultResolveRetries    = 5
 	defaultResolveRetryDelay = 200 * time.Millisecond
@@ -109,26 +109,20 @@ func (s *SelfIdent) IssueDiscriminator() string {
 }
 
 // ClusterID returns the best-effort Kubernetes cluster id for payload
-// enrichment only — never part of the issue id. Resolution runs in the
-// background since clustername.GetClusterID() usually makes a synchronous
-// Cluster Agent HTTP call, but a caller made before resolution finishes
-// blocks up to resolveRetries*resolveRetryDelay for it — a startup-only
-// health check (e.g. invalidconfig) calls this exactly once and never
-// re-reports, so returning immediately would permanently miss the id.
-// Callers made after resolution settles return immediately from cache.
+// enrichment only — never part of the issue id. A caller made before
+// resolution finishes waits for it; resolveClusterID itself gives up
+// after resolveRetries*resolveRetryDelay — a startup-only health check
+// (e.g. invalidconfig) calls this exactly once and never re-reports, so
+// returning immediately would permanently miss the id. Callers made
+// after resolution settles return immediately from cache.
 func (s *SelfIdent) ClusterID() string {
 	s.clusterIDResolveOnce.Do(func() {
-		go s.resolveClusterID()
+		s.resolveClusterID()
 	})
-	for attempt := 0; ; attempt++ {
-		if id := s.clusterID.Load(); id != nil {
-			return *id
-		}
-		if attempt >= s.resolveRetries {
-			return ""
-		}
-		time.Sleep(s.resolveRetryDelay)
+	if id := s.clusterID.Load(); id != nil {
+		return *id
 	}
+	return ""
 }
 
 // resolveClusterID retries clustername.GetClusterID() a bounded number of

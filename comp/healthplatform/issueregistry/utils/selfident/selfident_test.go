@@ -9,6 +9,7 @@ package selfident
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -211,27 +212,30 @@ func TestNew_NoopOutsideKubernetes(t *testing.T) {
 // settles — long enough to give a one-shot startup check a real chance at
 // getting the id, but not indefinitely.
 func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
+	synctest.Test(t, syncTestClusterIDBlocksUpToRetryBudget)
+}
+
+func syncTestClusterIDBlocksUpToRetryBudget(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
 	s := New(nil)
-	s.resolveRetries = 3
-	s.resolveRetryDelay = 10 * time.Millisecond
 
 	start := time.Now()
 	first := s.ClusterID()
 	elapsed := time.Since(start)
 	assert.Empty(t, first, "no Cluster Agent is configured in this test, so resolution settles on empty")
-	assert.Less(t, elapsed, time.Second, "ClusterID must not block indefinitely")
+	wantElapsed := time.Duration(s.resolveRetries) * s.resolveRetryDelay
+	assert.Equal(t, wantElapsed, elapsed, "ClusterID must unblock as soon as resolveClusterID's own retry loop settles")
 
 	// Cached from the settled resolution; must return immediately without
-	// re-running the resolution loop. A single before/after comparison is
-	// too sensitive to one-off scheduler/GC jitter under -race, so this
-	// amortizes across many calls: if caching were broken and each call
-	// re-ran the full retry loop, this would take ~50x the first call's
-	// elapsed time; if cached, it's ~50 atomic loads.
+	// re-running the resolution loop. The bubble's fake clock makes a
+	// single before/after comparison exact rather than jitter-prone, but
+	// this still amortizes across many calls: if caching were broken and
+	// each call re-ran the full retry loop, this would take ~50x the first
+	// call's elapsed time; if cached, it's ~50 atomic loads.
 	start = time.Now()
 	for i := 0; i < 50; i++ {
 		assert.Empty(t, s.ClusterID())
 	}
-	assert.Less(t, time.Since(start), elapsed, "later calls must return immediately from cache, not re-run resolution")
+	assert.Zero(t, time.Since(start), "later calls must return immediately from cache, not re-run resolution")
 }
