@@ -176,17 +176,17 @@ fn lookup_token_account(token: windows_sys::Win32::Foundation::HANDLE) -> Option
         }
         let mut sid = vec![0u8; sid_len as usize];
         ptr::copy_nonoverlapping(sid_ptr.cast(), sid.as_mut_ptr(), sid_len as usize);
-        lookup_account_display(&sid)
+        lookup_account_display(&mut sid)
     }
 }
 
 #[cfg(windows)]
-fn lookup_account_display(sid: &[u8]) -> Option<String> {
+fn lookup_account_display(sid: &mut [u8]) -> Option<String> {
     use std::ptr;
     use windows_sys::Win32::Security::LookupAccountSidW;
 
     unsafe {
-        let sid_ptr = sid.as_ptr().cast();
+        let sid_ptr = sid.as_mut_ptr().cast();
         let mut name_size = 0u32;
         let mut domain_size = 0u32;
         let mut sid_type = 0i32;

@@ -511,8 +511,8 @@ pub(crate) fn runtime_user_for_pid(pid: u32) -> Option<String> {
 fn lookup_runtime_user(pid: u32) -> Result<String> {
     let process = open_process_for_query(pid)?;
     let token = open_process_token(&process)?;
-    let sid = token_user_sid(&token)?;
-    lookup_account_display(&sid)
+    let mut sid = token_user_sid(&token)?;
+    lookup_account_display(&mut sid)
 }
 
 fn open_process_for_query(pid: u32) -> Result<ProcessHandle> {
@@ -579,12 +579,12 @@ fn token_user_sid(token: &TokenHandle) -> Result<Vec<u8>> {
     }
 }
 
-fn lookup_account_display(sid: &[u8]) -> Result<String> {
+fn lookup_account_display(sid: &mut [u8]) -> Result<String> {
     use std::ptr;
     use windows_sys::Win32::Security::LookupAccountSidW;
 
     unsafe {
-        let sid_ptr = sid.as_ptr().cast();
+        let sid_ptr = sid.as_mut_ptr().cast();
         let mut name_size = 0u32;
         let mut domain_size = 0u32;
         let mut sid_type = 0i32;
