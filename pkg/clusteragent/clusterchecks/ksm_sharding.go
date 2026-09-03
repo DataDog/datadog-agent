@@ -318,9 +318,17 @@ func (m *ksmShardingManager) createShardedKSMConfigs(
 	var shardedConfigs []integration.Config
 	aggregatesAttached := false
 
+	// DRA collection is not expressed as a collector in the instance config --
+	// the check appends its collectors itself -- so buildResourceGroups cannot
+	// place it in a group. Left alone, every shard inherits
+	// collect_dra_resources and starts its own resourceclaim/resourceslice
+	// informers, multiplying both API-server watches and emitted series by the
+	// shard count. Pin it to exactly one group.
+	draGroup := draOwningGroup(groups)
+
 	// Create a config for each resource group
 	for _, group := range groups {
-		shardConfig := m.createKSMConfigForResourceGroup(baseConfig, shardable, group)
+		shardConfig := m.createKSMConfigForResourceGroup(baseConfig, shardable, group, group.Name == draGroup)
 		// Co-locate the aggregates with the pods shard so one runner carries all
 		// pod-related watches, keeping nodes/others free for other runners.
 		if group.Name == "pods" && len(aggregateInstances) > 0 {
@@ -343,11 +351,29 @@ func (m *ksmShardingManager) createShardedKSMConfigs(
 	return shardedConfigs, nil
 }
 
+// draOwningGroup picks the single shard that carries DRA collection. "others"
+// is preferred: resourceclaims/resourceslices are low-cardinality and belong
+// with the other small resources rather than on the pods or nodes shard, which
+// already carry the expensive watches. Falls back to the last group so the
+// collectors are never silently dropped when no "others" group exists.
+func draOwningGroup(groups []resourceGroup) string {
+	if len(groups) == 0 {
+		return ""
+	}
+	for _, group := range groups {
+		if group.Name == "others" {
+			return group.Name
+		}
+	}
+	return groups[len(groups)-1].Name
+}
+
 // createKSMConfigForResourceGroup creates a KSM config for a specific resource group
 func (m *ksmShardingManager) createKSMConfigForResourceGroup(
 	baseConfig integration.Config,
 	shardableInstance integration.Data,
 	group resourceGroup,
+	collectDRA bool,
 ) integration.Config {
 	// Deliberately not a full struct copy: CELSelector/Discovery are omitted,
 	// or the shard's IsTemplate() would flip true on the runner and it would
@@ -392,6 +418,13 @@ func (m *ksmShardingManager) createKSMConfigForResourceGroup(
 
 	// Enable skip_leader_election for cluster checks running on CLC runners
 	instance["skip_leader_election"] = true
+
+	// Only the owning shard keeps DRA collection; see draOwningGroup. Written
+	// only when the base instance asked for it, so shards of a config that
+	// never enabled DRA stay byte-identical to before.
+	if enabled, ok := instance["collect_dra_resources"].(bool); ok && enabled {
+		instance["collect_dra_resources"] = collectDRA
+	}
 
 	// Serialize back to YAML
 	data, _ := yaml.Marshal(instance)

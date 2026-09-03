@@ -726,3 +726,60 @@ func TestShardableSuppressesTotal_Unparseable(t *testing.T) {
 	_, _, ok := shardableSuppressesTotal(integration.Data("pod_collection_mode: [not, a, string]"))
 	assert.False(t, ok, "unparseable instance must conservatively report not-suppressing")
 }
+
+// TestCreateShardedKSMConfigs_DRAOnExactlyOneShard pins the fix for DRA being
+// duplicated across shards. collect_dra_resources is an instance flag rather
+// than a collector, so buildResourceGroups cannot place it in a group and
+// every shard would otherwise inherit it -- each starting its own
+// resourceclaim/resourceslice informers and emitting the same series.
+func TestCreateShardedKSMConfigs_DRAOnExactlyOneShard(t *testing.T) {
+	manager := newKSMShardingManager(true)
+
+	config := createKSMConfig([]string{"pods", "nodes", "deployments"})
+	var instance map[string]interface{}
+	require.NoError(t, yaml.Unmarshal(config.Instances[0], &instance))
+	instance["collect_dra_resources"] = true
+	data, err := yaml.Marshal(instance)
+	require.NoError(t, err)
+	config.Instances = []integration.Data{integration.Data(data)}
+
+	configs, err := manager.createShardedKSMConfigs(config)
+	require.NoError(t, err)
+	require.Len(t, configs, 3, "expected pods, nodes and others shards")
+
+	enabled := 0
+	var owner []string
+	for _, shard := range configs {
+		for _, inst := range shard.Instances {
+			var parsed map[string]interface{}
+			require.NoError(t, yaml.Unmarshal(inst, &parsed))
+			if on, ok := parsed["collect_dra_resources"].(bool); ok && on {
+				enabled++
+				collectors, _ := parsed["collectors"].([]interface{})
+				for _, c := range collectors {
+					owner = append(owner, c.(string))
+				}
+			}
+		}
+	}
+
+	assert.Equal(t, 1, enabled, "collect_dra_resources must survive on exactly one shard, got %d", enabled)
+	assert.Contains(t, owner, "deployments", "DRA belongs on the low-cardinality others shard, not pods or nodes")
+}
+
+// TestCreateShardedKSMConfigs_NoDRAFlagUntouched guards against the shard
+// builder inventing the flag on configs that never asked for DRA.
+func TestCreateShardedKSMConfigs_NoDRAFlagUntouched(t *testing.T) {
+	manager := newKSMShardingManager(true)
+
+	configs, err := manager.createShardedKSMConfigs(createKSMConfig([]string{"pods", "nodes", "deployments"}))
+	require.NoError(t, err)
+
+	for _, shard := range configs {
+		for _, inst := range shard.Instances {
+			var parsed map[string]interface{}
+			require.NoError(t, yaml.Unmarshal(inst, &parsed))
+			assert.NotContains(t, parsed, "collect_dra_resources")
+		}
+	}
+}

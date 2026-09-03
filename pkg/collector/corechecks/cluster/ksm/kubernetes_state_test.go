@@ -16,9 +16,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	fakediscovery "k8s.io/client-go/discovery/fake"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 	ksmutil "k8s.io/kube-state-metrics/v2/pkg/util"
@@ -2316,6 +2319,142 @@ func TestDiscoverCustomResources_ClusterAggregatesOnly(t *testing.T) {
 	assert.NotContains(t, cr.collectors, "pods",
 		"the standard pods collector must not be enabled in cluster_aggregates_only mode")
 	assert.Len(t, cr.factories, 1, "cluster_aggregates_only should register exactly the extended pod factory")
+}
+
+// TestDiscoverCustomResources_EnablesDRAResources guards the DRA wiring: when
+// the cluster serves resource.k8s.io and collection is enabled, the
+// resourceclaim/resourceslice factories are registered AND their stores are
+// enabled, even when the config carries an explicit collectors list. If this
+// regresses, WithEnabledResources(cr.collectors) never enables them, the
+// informers never start, and kubernetes_state.resourceclaim.*/.resourceslice.*
+// silently vanish.
+func TestDiscoverCustomResources_EnablesDRAResources(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{CollectDRAResources: true}, fakeTagger, nil)
+	c := &apiserver.APIClient{
+		Cl:                fakeclientset.NewSimpleClientset(),
+		DynamicInformerCl: dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
+	}
+
+	cr := k.discoverCustomResources(c, []string{"pods", "nodes"}, draAPIResourceList("v1"))
+
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceclaims",
+		"resourceclaims store must be enabled even with an explicit collectors list")
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceslices",
+		"resourceslices store must be enabled even with an explicit collectors list")
+
+	// Both DRA factories must be registered alongside the standard extended ones.
+	factoryNames := make([]string, 0, len(cr.factories))
+	for _, f := range cr.factories {
+		factoryNames = append(factoryNames, f.Name())
+	}
+	assert.Contains(t, factoryNames, "resourceclaims")
+	assert.Contains(t, factoryNames, "resourceslices")
+
+	// The enabled-resource GVR strings must be exactly what the factories
+	// register under (util.GVRFromType), otherwise WithEnabledResources fails
+	// with "resource <name> does not exist" and the informers never start.
+	for _, name := range []string{"resourceclaims", "resourceslices"} {
+		var f customresource.RegistryFactory
+		for _, fac := range cr.factories {
+			if fac.Name() == name {
+				f = fac
+				break
+			}
+		}
+		require.NotNil(t, f, "factory %s must be registered", name)
+		gvr, err := ksmutil.GVRFromType(f.Name(), f.ExpectedType())
+		require.NoError(t, err)
+		require.NotNil(t, gvr)
+		assert.Contains(t, cr.collectors, gvr.String(),
+			"collectors must contain the GVR string for %s", name)
+	}
+}
+
+// draAPIResourceList builds the discovery result for a cluster serving the DRA
+// group at one version.
+func draAPIResourceList(version string) []*apiv1.APIResourceList {
+	return []*apiv1.APIResourceList{{
+		GroupVersion: "resource.k8s.io/" + version,
+		APIResources: []apiv1.APIResource{
+			{Name: "resourceclaims", Kind: "ResourceClaim", Namespaced: true},
+			{Name: "resourceslices", Kind: "ResourceSlice", Namespaced: false},
+		},
+	}}
+}
+
+func newDRATestClient(t *testing.T) *apiserver.APIClient {
+	t.Helper()
+	return &apiserver.APIClient{
+		Cl:                fakeclientset.NewSimpleClientset(),
+		DynamicInformerCl: dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
+	}
+}
+
+// TestDiscoverCustomResources_DRADisabledByDefault pins the opt-in: most
+// clusters do not serve resource.k8s.io and none of them have the RBAC, so
+// enabling these informers by default would turn every existing deployment
+// into an error loop.
+func TestDiscoverCustomResources_DRADisabledByDefault(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, draAPIResourceList("v1"))
+
+	for _, f := range cr.factories {
+		assert.NotContains(t, []string{"resourceclaims", "resourceslices"}, f.Name())
+	}
+	for _, c := range cr.collectors {
+		assert.NotContains(t, c, "resource.k8s.io")
+	}
+}
+
+// TestDiscoverCustomResources_DRAGroupAbsent covers the cluster that has the
+// option on but does not serve the group: registering anyway would start
+// informers that can only fail.
+func TestDiscoverCustomResources_DRAGroupAbsent(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{CollectDRAResources: true}, fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, nil)
+
+	for _, f := range cr.factories {
+		assert.NotContains(t, []string{"resourceclaims", "resourceslices"}, f.Name())
+	}
+	for _, c := range cr.collectors {
+		assert.NotContains(t, c, "resource.k8s.io")
+	}
+}
+
+// TestDiscoverCustomResources_DRABetaVersion pins version negotiation: the
+// group reached v1 only in Kubernetes 1.34, and pinning v1 makes the informer
+// 404 on every earlier cluster.
+func TestDiscoverCustomResources_DRABetaVersion(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{CollectDRAResources: true}, fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, draAPIResourceList("v1beta1"))
+
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1beta1, Resource=resourceclaims")
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1beta1, Resource=resourceslices")
+}
+
+// TestDiscoverCustomResources_DRANotEnabledForKubeletMode pins the interaction
+// with node-kubelet pod collection: that mode registers only the kubelet pod
+// factory, so enabling a DRA store there would leave WithEnabledResources with
+// a resource that has no factory behind it.
+func TestDiscoverCustomResources_DRANotEnabledForKubeletMode(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName),
+		&KSMConfig{CollectDRAResources: true, PodCollectionMode: nodeKubeletPodCollection},
+		fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, draAPIResourceList("v1"))
+
+	for _, c := range cr.collectors {
+		assert.NotContains(t, c, "resource.k8s.io",
+			"a DRA store must not be enabled without a factory to back it")
+	}
 }
 
 // TestExtendedPodsCollectorKeyMatchesFactory guards the invariant the whole
