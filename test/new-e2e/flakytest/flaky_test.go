@@ -13,9 +13,20 @@ import (
 	"testing"
 )
 
-// TestRandomFailure fails approximately 50% of the time on purpose.
+// TestRandomFailure fails approximately 50% of the time on purpose. Each of
+// its subtests also fails approximately 50% of the time, independently.
 func TestRandomFailure(t *testing.T) {
+	// t.Error rather than t.Fatal so the subtests below still run when the
+	// parent test fails.
 	if rand.Intn(2) == 0 {
-		t.Fatal("unlucky coin flip: this test fails about half of the time on purpose")
+		t.Error("unlucky coin flip: this test fails about half of the time on purpose")
+	}
+
+	for _, name := range []string{"subtest_1", "subtest_2", "subtest_3"} {
+		t.Run(name, func(t *testing.T) {
+			if rand.Intn(2) == 0 {
+				t.Fatal("unlucky coin flip: this subtest fails about half of the time on purpose")
+			}
+		})
 	}
 }
