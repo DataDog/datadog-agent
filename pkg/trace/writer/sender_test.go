@@ -7,12 +7,15 @@ package writer
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -31,7 +34,46 @@ const testAPIKey = "123"
 
 func TestMain(m *testing.M) {
 	log.SetLogger(log.NoopLogger)
-	os.Exit(m.Run())
+	code := m.Run()
+	// Only check for leaks on an otherwise green run: a failing test may well
+	// have skipped its own cleanup, and the leak would be a red herring.
+	if code == 0 {
+		if n, sample := leakedSenderGoroutines(); n > 0 {
+			fmt.Fprintf(os.Stderr,
+				"%d sender goroutine(s) outlived the tests that created them. A leaked sender\n"+
+					"keeps worker goroutines and an HTTP client alive, and its test server keeps a\n"+
+					"listener bound, so both can interfere with later tests in this package. Stop\n"+
+					"every writer and sender you create (see cleanupWriter).\nSample stack:\n%s\n",
+				n, sample)
+			code = 1
+		}
+	}
+	os.Exit(code)
+}
+
+// leakedSenderGoroutines reports how many sender worker goroutines are still
+// running, along with one representative stack. It gives them a short grace
+// period, since Stop closes the queue before the workers observe it.
+func leakedSenderGoroutines() (int, string) {
+	const marker = "trace/writer.(*sender).loop"
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		var found []string
+		buf := make([]byte, 1<<22)
+		dump := string(buf[:runtime.Stack(buf, true)])
+		for g := range strings.SplitSeq(dump, "\n\n") {
+			if strings.Contains(g, marker) {
+				found = append(found, g)
+			}
+		}
+		if len(found) == 0 {
+			return 0, ""
+		}
+		if time.Now().After(deadline) {
+			return len(found), found[0]
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 func TestMaxConns(t *testing.T) {

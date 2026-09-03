@@ -245,11 +245,14 @@ type sender struct {
 	closed  bool         // closed reports if the loop is stopped
 	statsd  statsd.ClientInterface
 	enabled *atomic.Bool // false on inactive MRF senders. True otherwise
+
+	wg       sync.WaitGroup // tracks the worker goroutines started by newSender
+	stopOnce sync.Once      // guards Stop, so it can safely be called more than once
 }
 
 // newSender returns a new sender based on the given config cfg.
 func newSender(cfg *senderConfig, apiKeyManager *apiKeyManager, statsd statsd.ClientInterface) *sender {
-	s := sender{
+	s := &sender{
 		cfg:           cfg,
 		apiKeyManager: apiKeyManager,
 		queue:         make(chan *payload, cfg.maxQueued),
@@ -258,10 +261,14 @@ func newSender(cfg *senderConfig, apiKeyManager *apiKeyManager, statsd statsd.Cl
 		statsd:        statsd,
 		enabled:       atomic.NewBool(true),
 	}
+	s.wg.Add(cfg.maxConns)
 	for i := 0; i < cfg.maxConns; i++ {
-		go s.loop()
+		go func() {
+			defer s.wg.Done()
+			s.loop()
+		}()
 	}
-	return &s
+	return s
 }
 
 // loop runs the main sender loop.
@@ -281,13 +288,43 @@ func (s *sender) backoff(attempt int) {
 }
 
 // Stop stops the sender. It attempts to wait for all inflight payloads to complete
-// with a timeout of 5 seconds.
+// with a timeout of 5 seconds, and then waits for the worker goroutines to exit.
+// Stop is idempotent.
 func (s *sender) Stop() {
-	s.WaitForInflight()
-	s.mu.Lock()
-	s.closed = true
-	s.mu.Unlock()
-	close(s.queue)
+	s.stopOnce.Do(func() {
+		// Wait once before closing, so that payloads already inflight keep their
+		// full retry budget.
+		s.WaitForInflight()
+		s.mu.Lock()
+		s.closed = true
+		s.mu.Unlock()
+		// Push increments inflight while holding a read lock, so any Push that
+		// observed !closed has already been counted by the time the write lock
+		// above is acquired. Waiting again here therefore cannot miss a payload
+		// that raced with the close, and guarantees the channel is only closed
+		// once no producer can still be sending on it.
+		s.WaitForInflight()
+		close(s.queue)
+		// Wait for the workers to exit so they cannot outlive their sender, but
+		// keep the same 5 second budget the inflight wait uses: a worker asleep
+		// in backoff must not hold up agent shutdown indefinitely.
+		waitTimeout(&s.wg, 5*time.Second)
+	})
+}
+
+// waitTimeout waits for wg, giving up after d. It reports whether wg completed.
+func waitTimeout(wg *sync.WaitGroup, d time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(d):
+		return false
+	}
 }
 
 // WaitForInflight blocks until all in progress payloads are sent,
@@ -315,6 +352,11 @@ func (s *sender) Push(p *payload) {
 		s.mu.RUnlock()
 		return
 	}
+	// Count the payload before it becomes visible to a worker: incrementing
+	// after the enqueue lets a concurrent WaitForInflight observe zero while p
+	// is already queued, so callers such as FlushSync and Stop could return
+	// before p was ever sent.
+	s.inflight.Inc()
 	s.mu.RUnlock()
 	select {
 	case s.queue <- p:
@@ -322,7 +364,6 @@ func (s *sender) Push(p *payload) {
 		_ = s.statsd.Count("datadog.trace_agent.sender.push_blocked", 1, nil, 1)
 		s.queue <- p
 	}
-	s.inflight.Inc()
 }
 
 // sendPayload sends the payload p to the destination URL.
