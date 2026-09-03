@@ -934,3 +934,178 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 		Tags:       []string{"env", "host"},
 	})
 }
+
+// TestFilterListUpdateNormalizesTagMetricNames verifies that metric names from a
+// remote tag filterlist configuration are normalized, both in the matcher used at
+// runtime and in the config written back for `agent config`. Names the intake
+// would reject outright are dropped.
+func TestFilterListUpdateNormalizesTagMetricNames(t *testing.T) {
+	require := require.New(t)
+
+	filterList, configComponent := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"tag_filterlist": {
+				"by_name": {
+					"values": [
+						{
+							"metric_name": "test metric-name",
+							"exclude_tags_mode": true,
+							"tags": ["env"]
+						},
+						{
+							"metric_name": "123",
+							"exclude_tags_mode": true,
+							"tags": ["pod"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	// The raw submitted name normalizes to the configured one, so it is matched,
+	// and the unstorable entry was dropped.
+	matcher := filterList.GetTagFilterList()
+	keepTag, shouldStrip := matcher.ShouldStripTags("test metric-name")
+	require.True(shouldStrip)
+	require.False(keepTag("env:prod"))
+	require.True(keepTag("host:server1"))
+
+	_, shouldStrip = matcher.ShouldStripTags("123")
+	require.False(shouldStrip, "unstorable entry must not match")
+
+	// The config reflects the normalized name.
+	var tagEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Equal([]MetricTagListEntry{{
+		MetricName: "test_metric_name",
+		Action:     "exclude",
+		Tags:       []string{"env"},
+	}}, tagEntries)
+}
+
+// TestFilterListUpdateMergesTagNamesThatNormalizeTogether verifies that two
+// remote entries whose names normalize to the same stored name are reconciled
+// like duplicate entries, rather than one arbitrarily winning.
+func TestFilterListUpdateMergesTagNamesThatNormalizeTogether(t *testing.T) {
+	require := require.New(t)
+
+	filterList, configComponent := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"tag_filterlist": {
+				"by_name": {
+					"values": [
+						{
+							"metric_name": "test metric-name",
+							"exclude_tags_mode": true,
+							"tags": ["env"]
+						},
+						{
+							"metric_name": "test_metric_name",
+							"exclude_tags_mode": true,
+							"tags": ["host"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	matcher := filterList.GetTagFilterList()
+	keepTag, shouldStrip := matcher.ShouldStripTags("test metric-name")
+	require.True(shouldStrip)
+	require.False(keepTag("env:prod"))
+	require.False(keepTag("host:server1"))
+	require.True(keepTag("version:1.0"))
+
+	var tagEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Len(tagEntries, 1)
+	slices.Sort(tagEntries[0].Tags)
+	require.Equal(MetricTagListEntry{
+		MetricName: "test_metric_name",
+		Action:     "exclude",
+		Tags:       []string{"env", "host"},
+	}, tagEntries[0])
+}
+
+// TestFilterListUpdateNormalizesTagNames verifies that tag names from a remote tag
+// filterlist configuration are normalized, both in the matcher used at runtime and
+// in the config written back for `agent config`. Tag names the intake would drop
+// outright are dropped.
+func TestFilterListUpdateNormalizesTagNames(t *testing.T) {
+	require := require.New(t)
+
+	filterList, configComponent := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"tag_filterlist": {
+				"by_name": {
+					"values": [
+						{
+							"metric_name": "test.metric",
+							"exclude_tags_mode": true,
+							"tags": ["Kube Namespace", "My-Tag", "123"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	// The raw tags the Agent sees normalize to the configured names, so they are
+	// stripped.
+	matcher := filterList.GetTagFilterList()
+	keepTag, shouldStrip := matcher.ShouldStripTags("test.metric")
+	require.True(shouldStrip)
+	require.False(keepTag("Kube Namespace:default"))
+	require.False(keepTag("kube_namespace:default"))
+	require.False(keepTag("My-Tag:value"))
+	require.True(keepTag("other:value"))
+	require.True(keepTag("123:value"), "an unstorable tag name cannot have been configured")
+
+	// The config reflects the normalized tag names, with the unstorable one dropped.
+	var tagEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Len(tagEntries, 1)
+	slices.Sort(tagEntries[0].Tags)
+	require.Equal(MetricTagListEntry{
+		MetricName: "test.metric",
+		Action:     "exclude",
+		Tags:       []string{"kube_namespace", "my-tag"},
+	}, tagEntries[0])
+}

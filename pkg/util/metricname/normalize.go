@@ -3,17 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package metricname matches metric names against a list, in the name space the
-// Datadog metrics intake stores them in.
+// Package metricname matches metric and tag names against a list, in the name
+// space the Datadog metrics intake stores them in.
 //
-// The Agent submits metric names verbatim; the backend rewrites them on ingest.
-// Any Agent-side decision that has to agree with what the backend stores (for
-// example matching a metric filter list) must therefore compare normalized
+// The Agent submits metric and tag names verbatim; the backend rewrites them on
+// ingest. Any Agent-side decision that has to agree with what the backend stores
+// (for example matching a metric filter list) must therefore compare normalized
 // names rather than the raw names seen on the wire.
 //
+// Metric names and tag names are normalized by different rules, so this package
+// keeps them apart: NormalizeAppend and IsNormalized for metric names,
+// NormalizeTagNameAppend and IsNormalizedASCIITagName for tag names. See
+// NormalizeTagNameAppend for how the two differ.
+//
 // This is a faithful port of `NormMetricNameParse` / `ValidateMetricName` in
-// dd-go (`model/metric.go`). Keep the two in sync: a divergence here silently
-// changes which metrics get filtered.
+// dd-go (`model/metric.go`), and of `NormalizeTag` in `model/tags.go`. Keep them
+// in sync: a divergence here silently changes which metrics and tags get
+// filtered.
 package metricname
 
 // MaxLength is the maximum allowed length of a metric name in bytes.
@@ -55,17 +61,18 @@ func firstAlpha(name string) (int, bool) {
 	return 0, false
 }
 
-// isNormalized reports whether name is a name the intake would store unchanged,
+// IsNormalized reports whether name is a name the intake would store unchanged,
 // i.e. whether normalizing it would be the identity.
 //
 // It performs a single pass and never allocates, which is what lets filter list
 // matching skip the rewrite entirely for the overwhelmingly common case of an
-// already-normalized name. See Matcher.Test.
+// already-normalized name. See Matcher.Test, and tagMatcher.lookup in
+// comp/filterlist/impl for a lookup keyed on normalized names.
 //
-// The predicate is exact: isNormalized(s) is true if and only if normalizing s
+// The predicate is exact: IsNormalized(s) is true if and only if normalizing s
 // yields s unchanged. TestIsNormalizedMatchesNormalize and the fuzz target
 // beside it assert that equivalence.
-func isNormalized(name string) bool {
+func IsNormalized(name string) bool {
 	if len(name) == 0 || len(name) > MaxLength {
 		return false
 	}
@@ -120,7 +127,7 @@ func isNormalized(name string) bool {
 // Because step 4 works on bytes, each byte of a multi-byte UTF-8 sequence is
 // treated separately and the sequence collapses to a single underscore.
 //
-// Normalizing is idempotent: the output always satisfies isNormalized.
+// Normalizing is idempotent: the output always satisfies IsNormalized.
 //
 // A normalized name is never longer than its input, and firstAlpha rejects
 // anything longer than MaxLength, so a dst with MaxLength spare capacity is

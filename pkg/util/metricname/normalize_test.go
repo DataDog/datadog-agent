@@ -143,19 +143,19 @@ func TestNormalizeMaxLength(t *testing.T) {
 func TestIsNormalized(t *testing.T) {
 	for input, expected := range normalizedNames {
 		t.Run(input, func(t *testing.T) {
-			assert.Equal(t, input == expected, isNormalized(input))
+			assert.Equal(t, input == expected, IsNormalized(input))
 		})
 	}
 
 	for _, input := range unstorableNames {
 		t.Run(input, func(t *testing.T) {
-			assert.False(t, isNormalized(input))
+			assert.False(t, IsNormalized(input))
 		})
 	}
 }
 
 // TestIsNormalizedMatchesNormalize asserts the property the fast path in
-// Normalize relies on: isNormalized(s) is true exactly when normalize(s)
+// Normalize relies on: IsNormalized(s) is true exactly when normalize(s)
 // returns s unchanged.
 func TestIsNormalizedMatchesNormalize(t *testing.T) {
 	inputs := []string{
@@ -167,7 +167,7 @@ func TestIsNormalizedMatchesNormalize(t *testing.T) {
 	for _, input := range inputs {
 		t.Run(input, func(t *testing.T) {
 			normalized, ok := normalize(input)
-			assert.Equal(t, ok && normalized == input, isNormalized(input))
+			assert.Equal(t, ok && normalized == input, IsNormalized(input))
 		})
 	}
 }
@@ -183,8 +183,8 @@ func FuzzIsNormalizedMatchesNormalize(f *testing.F) {
 	f.Fuzz(func(t *testing.T, name string) {
 		normalized, ok := normalize(name)
 
-		assert.Equal(t, ok && normalized == name, isNormalized(name),
-			"isNormalized disagrees with Normalize for %q", name)
+		assert.Equal(t, ok && normalized == name, IsNormalized(name),
+			"IsNormalized disagrees with Normalize for %q", name)
 
 		if !ok {
 			assert.Equal(t, name, normalized)
@@ -192,7 +192,7 @@ func FuzzIsNormalizedMatchesNormalize(f *testing.F) {
 		}
 
 		// Normalization must always produce a storable, stable name.
-		assert.True(t, isNormalized(normalized),
+		assert.True(t, IsNormalized(normalized),
 			"Normalize produced a non-normalized name %q from %q", normalized, name)
 
 		again, ok := normalize(normalized)
@@ -275,7 +275,7 @@ func referenceNormalize(name string) (string, bool) {
 // replay their seed corpus. Exhaustive enumeration is the coverage that actually
 // runs in CI.
 //
-// It also pins the equivalence that isNormalized's fast path depends on, since a
+// It also pins the equivalence that IsNormalized's fast path depends on, since a
 // name reported as already normalized must normalise to itself.
 func TestNormalizationMatchesReferenceExhaustive(t *testing.T) {
 	alphabet := []byte{'a', 'B', '1', '.', '_', '-', 0xC3}
@@ -299,12 +299,12 @@ func TestNormalizationMatchesReferenceExhaustive(t *testing.T) {
 					name, wantStr, gotStr)
 			}
 			// The fast path in Matcher.Test skips the rewrite entirely for names
-			// isNormalized accepts, so that must imply the rewrite is a no-op.
-			if isNormalized(name) && gotStr != name {
+			// IsNormalized accepts, so that must imply the rewrite is a no-op.
+			if IsNormalized(name) && gotStr != name {
 				t.Fatalf("%q is reported normalized but normalises to %q", name, gotStr)
 			}
 			// And the output must itself be a fixed point.
-			if !isNormalized(gotStr) {
+			if !IsNormalized(gotStr) {
 				t.Fatalf("normalising %q produced %q, which is not normalized",
 					name, gotStr)
 			}
