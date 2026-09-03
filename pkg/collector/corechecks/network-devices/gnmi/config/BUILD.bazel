@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "config.go",
         "enabled.go",
+        "encoding.go",
         "profile.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config",
@@ -14,6 +15,7 @@ go_library(
         "//comp/core/autodiscovery/integration",
         "//pkg/collector/check/defaults",
         "//pkg/config/setup",
+        "@com_github_openconfig_gnmi//proto/gnmi",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
@@ -22,12 +24,14 @@ dd_agent_go_test(
     name = "config_test",
     srcs = [
         "config_test.go",
+        "encoding_test.go",
         "profile_test.go",
     ],
     embed = [":config"],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//pkg/config/mock",
+        "@com_github_openconfig_gnmi//proto/gnmi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
