@@ -3,9 +3,34 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::helpers::{DescribeExpect, ProcessExpect, TestEnv, pid_is_alive};
+use crate::helpers::{
+    DescribeExpect, ProcessExpect, TestEnv, expected_agent_spawn_user,
+    expected_runtime_user_for_pid, pid_is_alive,
+};
 use dd_procmgrd::test_helpers;
 use std::collections::BTreeMap;
+
+#[test]
+fn describe_running_process_spawn_identity() {
+    let procmgr = TestEnv::new().with_process("sleeper").start();
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+
+    let pid = procmgr.process("sleeper").expect("sleeper").pid as u32;
+    let expected_user = expected_agent_spawn_user();
+    let expected_runtime_user = expected_runtime_user_for_pid(pid);
+
+    procmgr.assert_describe_matches(
+        "sleeper",
+        DescribeExpect {
+            profile: Some("agent".into()),
+            user: Some(expected_user),
+            runtime_user: Some(expected_runtime_user),
+            ..Default::default()
+        },
+    );
+}
 
 #[test]
 fn describe_running_process_matches_fixture() {

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use crate::spawn::SpawnProfile;
 use anyhow::Result;
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
@@ -20,8 +21,8 @@ use windows_sys::Win32::System::JobObjects::{
     SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, OpenProcess, PROCESS_SET_QUOTA,
-    PROCESS_TERMINATE, TerminateProcess,
+    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, OpenProcess, OpenProcessToken,
+    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE, TerminateProcess,
 };
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
@@ -458,5 +459,222 @@ fn apply_fallback_process_env(cmd: &mut tokio::process::Command) {
         {
             cmd.env(key, val);
         }
+    }
+}
+
+const PRIVILEGED_SPAWN_USER: &str = r"NT AUTHORITY\SYSTEM";
+
+pub(crate) fn intended_spawn_user(process_name: &str, profile: SpawnProfile) -> String {
+    match profile {
+        SpawnProfile::Privileged => PRIVILEGED_SPAWN_USER.to_string(),
+        SpawnProfile::Agent => agent_account_display_from_registry(process_name),
+    }
+}
+
+fn agent_account_display_from_registry(process_name: &str) -> String {
+    match try_agent_account_display_from_registry() {
+        Ok(display) => display,
+        Err(e) => {
+            log::warn!("[{process_name}] intended spawn user lookup failed: {e:#}");
+            "unknown".to_string()
+        }
+    }
+}
+
+fn try_agent_account_display_from_registry() -> Result<String> {
+    let key = open_datadog_agent_key().context("open Datadog Agent registry key")?;
+    let user = registry_nonempty_string(&key, "installedUser")
+        .context("read installedUser from registry")?;
+    let domain = key.get_string("installedDomain").unwrap_or_default();
+    Ok(format_account_display(&domain, &user))
+}
+
+fn format_account_display(domain: &str, user: &str) -> String {
+    let domain = domain.trim();
+    if domain.is_empty() || domain == "." {
+        format!(r".\{user}")
+    } else {
+        format!(r"{domain}\{user}")
+    }
+}
+
+pub(crate) fn runtime_user_for_pid(pid: u32) -> Option<String> {
+    match lookup_runtime_user(pid) {
+        Ok(user) => Some(user),
+        Err(e) => {
+            log::debug!("[pid={pid}] runtime user lookup failed: {e:#}");
+            None
+        }
+    }
+}
+
+fn lookup_runtime_user(pid: u32) -> Result<String> {
+    let process = open_process_for_query(pid)?;
+    let token = open_process_token(&process)?;
+    let sid = token_user_sid(&token)?;
+    lookup_account_display(&sid)
+}
+
+fn open_process_for_query(pid: u32) -> Result<ProcessHandle> {
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            anyhow::bail!("OpenProcess: {}", std::io::Error::last_os_error());
+        }
+        Ok(ProcessHandle(handle))
+    }
+}
+
+fn open_process_token(process: &ProcessHandle) -> Result<TokenHandle> {
+    unsafe {
+        let mut token = std::ptr::null_mut();
+        if OpenProcessToken(
+            process.0,
+            windows_sys::Win32::Security::TOKEN_QUERY,
+            &mut token,
+        ) == 0
+        {
+            anyhow::bail!("OpenProcessToken: {}", std::io::Error::last_os_error());
+        }
+        Ok(TokenHandle(token))
+    }
+}
+
+fn token_user_sid(token: &TokenHandle) -> Result<Vec<u8>> {
+    use std::ptr;
+    use windows_sys::Win32::Security::{GetLengthSid, GetTokenInformation, TOKEN_USER, TokenUser};
+
+    unsafe {
+        let mut needed = 0u32;
+        let _ = GetTokenInformation(token.0, TokenUser, ptr::null_mut(), 0, &mut needed);
+        if needed == 0 {
+            anyhow::bail!("GetTokenInformation size query failed");
+        }
+
+        let mut buffer = vec![0u8; needed as usize];
+        if GetTokenInformation(
+            token.0,
+            TokenUser,
+            buffer.as_mut_ptr().cast(),
+            needed,
+            &mut needed,
+        ) == 0
+        {
+            anyhow::bail!("GetTokenInformation: {}", std::io::Error::last_os_error());
+        }
+
+        let token_user = ptr::read_unaligned(buffer.as_ptr().cast::<TOKEN_USER>());
+        let sid_ptr = token_user.User.Sid;
+        if sid_ptr.is_null() {
+            anyhow::bail!("TokenUser SID is null");
+        }
+
+        let sid_len = GetLengthSid(sid_ptr);
+        if sid_len == 0 {
+            anyhow::bail!("GetLengthSid returned 0");
+        }
+        let mut sid = vec![0u8; sid_len as usize];
+        std::ptr::copy_nonoverlapping(sid_ptr.cast(), sid.as_mut_ptr(), sid_len as usize);
+        Ok(sid)
+    }
+}
+
+fn lookup_account_display(sid: &[u8]) -> Result<String> {
+    use std::ptr;
+    use windows_sys::Win32::Security::LookupAccountSidW;
+
+    unsafe {
+        let sid_ptr = sid.as_ptr().cast();
+        let mut name_size = 0u32;
+        let mut domain_size = 0u32;
+        let mut sid_type = 0i32;
+        let _ = LookupAccountSidW(
+            ptr::null(),
+            sid_ptr,
+            ptr::null_mut(),
+            &mut name_size,
+            ptr::null_mut(),
+            &mut domain_size,
+            &mut sid_type,
+        );
+
+        let mut name = vec![0u16; name_size as usize];
+        let mut domain = vec![0u16; domain_size as usize];
+        if LookupAccountSidW(
+            ptr::null(),
+            sid_ptr,
+            name.as_mut_ptr(),
+            &mut name_size,
+            domain.as_mut_ptr(),
+            &mut domain_size,
+            &mut sid_type,
+        ) == 0
+        {
+            anyhow::bail!("LookupAccountSidW: {}", std::io::Error::last_os_error());
+        }
+
+        let user = trim_wide_nul(&name);
+        let domain = trim_wide_nul(&domain);
+        if domain.is_empty() {
+            Ok(user)
+        } else {
+            Ok(format!("{domain}\\{user}"))
+        }
+    }
+}
+
+fn trim_wide_nul(wide: &[u16]) -> String {
+    let end = wide.iter().position(|&c| c == 0).unwrap_or(wide.len());
+    std::ffi::OsString::from_wide(&wide[..end])
+        .to_string_lossy()
+        .into_owned()
+}
+
+struct ProcessHandle(HANDLE);
+
+impl Drop for ProcessHandle {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe {
+                CloseHandle(self.0);
+            }
+        }
+    }
+}
+
+struct TokenHandle(HANDLE);
+
+impl Drop for TokenHandle {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe {
+                CloseHandle(self.0);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod intended_spawn_user_tests {
+    use super::*;
+    use crate::spawn::SpawnProfile;
+
+    #[test]
+    fn privileged_profile_uses_local_system() {
+        assert_eq!(
+            intended_spawn_user("datadog-agent-process", SpawnProfile::Privileged),
+            PRIVILEGED_SPAWN_USER
+        );
+    }
+
+    #[test]
+    fn format_account_display_local_uses_dot_prefix() {
+        assert_eq!(format_account_display("", "ddagentuser"), r".\ddagentuser");
+        assert_eq!(format_account_display(".", "ddagentuser"), r".\ddagentuser");
+    }
+
+    #[test]
+    fn format_account_display_domain() {
+        assert_eq!(format_account_display("CORP", "gmsa$"), r"CORP\gmsa$");
     }
 }

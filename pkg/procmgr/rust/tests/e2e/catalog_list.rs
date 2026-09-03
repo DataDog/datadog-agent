@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::helpers::{ProcessExpect, TestEnv, pid_is_alive};
+use crate::helpers::{ProcessExpect, TestEnv, expected_agent_spawn_user, pid_is_alive};
 use dd_procmgrd::test_helpers;
 
 #[test]
@@ -53,6 +53,7 @@ fn test_cli_list_terminal_table_fields() {
     procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
 
     let python = test_helpers::python_exe();
+    let expected_user = expected_agent_spawn_user();
     procmgr
         .cli_list()
         .assert_success()
@@ -61,6 +62,8 @@ fn test_cli_list_terminal_table_fields() {
             &[
                 ("STATE", "Exited"),
                 ("PID", "-"),
+                ("PROFILE", "agent"),
+                ("USER", &expected_user),
                 ("LAST EXIT", "exit 0"),
                 ("COMMAND", &python),
             ],
@@ -70,6 +73,8 @@ fn test_cli_list_terminal_table_fields() {
             &[
                 ("STATE", "Failed"),
                 ("PID", "-"),
+                ("PROFILE", "agent"),
+                ("USER", &expected_user),
                 ("LAST EXIT", "exit 1"),
                 ("COMMAND", &python),
             ],
@@ -104,6 +109,8 @@ fn test_cli_list_json() {
     let pid = entry["pid"].as_u64().expect("pid should be a number") as u32;
     assert!(pid > 0, "running process should have a PID");
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
+    assert_eq!(entry["profile"], "agent");
+    assert_eq!(entry["user"], expected_agent_spawn_user());
 }
 
 #[test]
