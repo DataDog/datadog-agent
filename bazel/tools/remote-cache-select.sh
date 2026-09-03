@@ -12,7 +12,7 @@
 #
 # CI selects its own endpoint in tools/bazel and never sources this logic.
 
-_buildbarn_host=buildbarn-frontend-datadog-agent.us1.ddbuild.io
+_buildbarn_host=buildbarn-frontend-authed.us1.ddbuild.io
 # Repo root: this file lives at <root>/bazel/tools/remote-cache-select.sh.
 _repo_root=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd) || _repo_root=""
 

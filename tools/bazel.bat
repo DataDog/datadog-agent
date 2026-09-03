@@ -176,7 +176,7 @@ if exist "%_probe%" (
   )
 )
 if not exist "%_dir%" mkdir "%_dir%" >nul 2>&1
-curl.exe --silent --output NUL --connect-timeout 2 --max-time 4 "https://buildbarn-frontend-datadog-agent.us1.ddbuild.io/" >nul 2>&1
+curl.exe --silent --output NUL --connect-timeout 2 --max-time 4 "https://buildbarn-frontend-authed.us1.ddbuild.io/" >nul 2>&1
 if !errorlevel! neq 0 (
   >"%_probe%" echo no
   exit /b 1

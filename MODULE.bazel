@@ -585,3 +585,5 @@ prebuilt_file(
     target_label = "@@//:bin/trace-loader/trace-loader",
     target_name = "trace_loader",
 )
+
+# Dummy change to trigger a full CI pipeline run.
