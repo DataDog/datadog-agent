@@ -156,8 +156,11 @@ func installOrUpdateKind(j job) error {
 	params := helminstaller.Params{Values: values}
 	params.Namespace = "datadog"
 	if j.Image != "" {
-		registry, repository, tag := splitImageRef(j.Image)
-		values["registry"] = registry
+		// In the upstream Datadog chart, agents.image.repository is the FULL image
+		// path including the registry (the chart's image-path helper renders
+		// repository:tag verbatim when repository is set) — see
+		// qa-e2ectl-implementation-notes.md.
+		repository, tag := splitImageRef(j.Image)
 		values["agents"] = map[string]interface{}{
 			"image": map[string]interface{}{
 				"repository": repository,
@@ -270,23 +273,12 @@ func osDescriptor(name string) e2eos.Descriptor {
 }
 
 // splitImageRef splits "gcr.io/datadoghq/agent:tag" into
-// ("gcr.io/datadoghq", "agent", "tag").
-func splitImageRef(ref string) (registry, repository, tag string) {
-	lastSlash := -1
+// ("gcr.io/datadoghq/agent", "tag").
+func splitImageRef(ref string) (repository, tag string) {
 	for i := len(ref) - 1; i >= 0; i-- {
-		if ref[i] == '/' {
-			lastSlash = i
-			break
+		if ref[i] == ':' {
+			return ref[:i], ref[i+1:]
 		}
 	}
-	registry = ref[:lastSlash]
-	rest := ref[lastSlash+1:]
-	for i := len(rest) - 1; i >= 0; i-- {
-		if rest[i] == ':' {
-			tag = rest[i+1:]
-			rest = rest[:i]
-			break
-		}
-	}
-	return registry, rest, tag
+	return ref, ""
 }
