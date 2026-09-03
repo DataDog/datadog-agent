@@ -297,7 +297,8 @@ func TestGetMoreEntriesMaxPages(t *testing.T) {
 	}
 
 	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo)
-	require.ErrorContains(t, err, "max number of page reached")
+	require.ErrorContains(t, err, "reached max_pages limit")
+	require.ErrorContains(t, err, "max_pages=20")
 
 	// Ensure endpoint has been called 20 times
 	require.Equal(t, 20, handler.numberOfCalls())
