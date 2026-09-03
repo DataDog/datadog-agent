@@ -58,11 +58,46 @@ type FingerprintConfig struct {
 	// when reading large files. It's ignored for byte-based fingerprinting.
 	MaxBytes int `json:"max_bytes" mapstructure:"max_bytes" yaml:"max_bytes"`
 
+	// OpenFlags contains optional, read-only Linux flags used when opening the
+	// short-lived descriptor that computes this fingerprint.
+	OpenFlags []FileOpenFlag `json:"open_flags,omitempty" mapstructure:"open_flags" yaml:"open_flags,omitempty"`
+
 	// Source is the source of the fingerprint config
 	// - "per-source": the fingerprint config is set per-source
 	// - "global": the fingerprint config is set globally
 	// - "none": the fingerprint config is not set
 	Source FingerprintConfigSource `json:"source" mapstructure:"source" yaml:"source"`
+}
+
+// SameChecksumParameters reports whether two configurations hash the same bytes of a file.
+// OpenFlags and Source do not affect the resulting value and are ignored.
+func (c *FingerprintConfig) SameChecksumParameters(other *FingerprintConfig) bool {
+	if c == nil || other == nil {
+		return c == other
+	}
+	return c.FingerprintStrategy == other.FingerprintStrategy &&
+		c.Count == other.Count &&
+		c.CountToSkip == other.CountToSkip &&
+		c.MaxBytes == other.MaxBytes
+}
+
+// FileOpenFlag is a reviewed, read-only flag that may be used when opening a
+// log file. Raw operating-system flag values are intentionally not accepted.
+type FileOpenFlag string
+
+const (
+	// FileOpenFlagDirect maps to O_DIRECT on Linux.
+	FileOpenFlagDirect FileOpenFlag = "direct"
+)
+
+// Validate checks whether a file-open flag is in the read-only allowlist.
+func (f FileOpenFlag) Validate() error {
+	switch f {
+	case FileOpenFlagDirect:
+		return nil
+	default:
+		return fmt.Errorf("invalid file open flag: %s", f)
+	}
 }
 
 // FingerprintStrategy defines the strategy used for fingerprinting

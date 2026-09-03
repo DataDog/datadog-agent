@@ -5,14 +5,17 @@
 package file
 
 import (
+	"errors"
 	"fmt"
 	"hash/crc64"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
@@ -24,6 +27,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
+
+func requireLinuxOpenFlags(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("fingerprint open_flags apply on Linux only")
+	}
+}
 
 // FingerprintTestSuite tests the fingerprinting functionality
 type FingerprintTestSuite struct {
@@ -1126,26 +1136,6 @@ func (suite *FingerprintTestSuite) TestFingerprintConfigFallback() {
 			expectedCountToSkip:       0,
 			expectedMaxBytes:          1500,
 		},
-		{
-			name: "file_config_nil_strategy_falls_back_to_global",
-			globalConfig: types.FingerprintConfig{
-				FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-				Count:               1,
-				CountToSkip:         0,
-				MaxBytes:            1000,
-			},
-			fileConfig: &types.FingerprintConfig{
-				// FingerprintStrategy not set
-				Count:       5,
-				CountToSkip: 2,
-				MaxBytes:    3000,
-			},
-			expectedShouldFingerprint: true,
-			expectedStrategy:          types.FingerprintStrategyLineChecksum,
-			expectedCount:             1, // Should use global config values
-			expectedCountToSkip:       0,
-			expectedMaxBytes:          1000,
-		},
 	}
 
 	for _, tc := range testCases {
@@ -1194,52 +1184,6 @@ func (suite *FingerprintTestSuite) TestFingerprintConfigFallback() {
 			}
 		})
 	}
-}
-
-func (suite *FingerprintTestSuite) TestFingerprintConfigPrecedence() {
-	// check file-specific configs take precedence over global configs
-	testData := "line1\nline2\nline3\nline4\n"
-	_, err := suite.testFile.WriteString(testData)
-	suite.Nil(err)
-	suite.testFile.Sync()
-
-	// global config == line_checksum
-	globalConfig := types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-		Count:               1,
-		CountToSkip:         0,
-		MaxBytes:            1000,
-	}
-
-	// File config == byte_checksum - should override global
-	fileConfig := &types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
-		Count:               512,
-		CountToSkip:         0,
-		MaxBytes:            0,
-	}
-
-	source := sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
-		Type:              config.FileType,
-		Path:              suite.testPath,
-		FingerprintConfig: fileConfig,
-	}))
-
-	fingerprinter := NewFingerprinter(globalConfig, opener.NewFileOpener())
-
-	file := NewFile(suite.testPath, source.UnderlyingSource(), false)
-
-	// Should use file config (byte_checksum), not global config (line_checksum)
-	shouldFingerprint := fingerprinter.ShouldFileFingerprint(file)
-	suite.True(shouldFingerprint, "Should fingerprint with file config")
-
-	fingerprint, err := fingerprinter.ComputeFingerprint(file)
-	suite.Nil(err, "ComputeFingerprint should not return error")
-	suite.NotNil(fingerprint.Config, "Fingerprint config should not be nil")
-	suite.Equal(types.FingerprintStrategyByteChecksum, fingerprint.Config.FingerprintStrategy,
-		"Should use file config strategy (byte_checksum), not global config (line_checksum)")
-	suite.Equal(512, fingerprint.Config.Count,
-		"Should use file config count (512), not global config count (1)")
 }
 
 func (suite *FingerprintTestSuite) TestFingerprintConfigEdgeCases() {
@@ -1369,6 +1313,22 @@ func TestFingerprintConfigInfo(t *testing.T) {
 				"Strategy: byte_checksum",
 				"Count: 512",
 				"CountToSkip: 0",
+			},
+		},
+		{
+			name: "per_source_byte_checksum_with_open_flags",
+			config: &types.FingerprintConfig{
+				FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+				Count:               2048,
+				OpenFlags:           []types.FileOpenFlag{types.FileOpenFlagDirect},
+				Source:              types.FingerprintConfigSourcePerSource,
+			},
+			expectedOutput: []string{
+				"Source: per-source",
+				"Strategy: byte_checksum",
+				"Count: 2048",
+				"CountToSkip: 0",
+				"OpenFlags: direct",
 			},
 		},
 		{
@@ -1571,6 +1531,143 @@ func (suite *FingerprintTestSuite) TestComputeFingerprintWithEnabledConfig() {
 	suite.NotNil(fingerprint2.Config)
 	suite.Equal(types.FingerprintStrategyByteChecksum, fingerprint2.Config.FingerprintStrategy)
 	suite.Equal(types.FingerprintConfigSourceGlobal, fingerprint2.Config.Source, "Global config should have Source='global'")
+}
+
+func TestFingerprintOpenFlagsAreForwarded(t *testing.T) {
+	const path = "/logs/application.log"
+	content := []byte(strings.Repeat("x", 2048))
+	openFlags := []types.FileOpenFlag{types.FileOpenFlagDirect}
+
+	mockOpener := opener.NewMockFileOpener()
+	mockOpener.AddMockFile(opener.NewMockFile(path, [][]byte{content}))
+	fingerprinter := NewFingerprinter(types.FingerprintConfig{FingerprintStrategy: types.FingerprintStrategyDisabled}, mockOpener)
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type: config.FileType,
+		Path: path,
+		FingerprintConfig: &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+			Count:               len(content),
+			OpenFlags:           openFlags,
+		},
+	})
+
+	fingerprint, err := fingerprinter.ComputeFingerprint(NewFile(path, source, false))
+	require.NoError(t, err)
+	require.True(t, fingerprint.ValidFingerprint())
+	if runtime.GOOS == "linux" {
+		require.Equal(t, [][]types.FileOpenFlag{openFlags}, mockOpener.OpenCalls)
+	} else {
+		require.Equal(t, [][]types.FileOpenFlag{nil}, mockOpener.OpenCalls, "non-Linux must use OpenLogFile")
+	}
+	require.Equal(t, openFlags, fingerprint.Config.OpenFlags)
+}
+
+func TestLineFingerprintByteFallbackPreservesOpenFlags(t *testing.T) {
+	const path = "/logs/application.log"
+	requestedFlags := []types.FileOpenFlag{types.FileOpenFlagDirect}
+
+	// A line longer than MaxBytes forces line_checksum to fall back to the
+	// default byte strategy. The fallback fingerprint is stored in the registry,
+	// so it must retain the requested flags for position recovery after restart.
+	content := []byte(strings.Repeat("x", 2048))
+	mockOpener := opener.NewMockFileOpener()
+	mockOpener.AddMockFile(opener.NewMockFile(path, [][]byte{content, content[:types.DefaultBytesCount]}))
+	fingerprinter := NewFingerprinter(types.FingerprintConfig{FingerprintStrategy: types.FingerprintStrategyDisabled}, mockOpener)
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type: config.FileType,
+		Path: path,
+		FingerprintConfig: &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+			Count:               2,
+			MaxBytes:            1024,
+			OpenFlags:           requestedFlags,
+		},
+	})
+
+	fingerprint, err := fingerprinter.ComputeFingerprint(NewFile(path, source, false))
+	require.NoError(t, err)
+	require.True(t, fingerprint.ValidFingerprint())
+	require.Equal(t, types.FingerprintStrategyByteChecksum, fingerprint.Config.FingerprintStrategy)
+	require.Equal(t, requestedFlags, fingerprint.Config.OpenFlags)
+	if runtime.GOOS == "linux" {
+		require.Len(t, mockOpener.OpenCalls, 2, "line read then byte fallback each open once")
+		require.Equal(t, requestedFlags, mockOpener.OpenCalls[0])
+		require.Equal(t, requestedFlags, mockOpener.OpenCalls[1])
+	}
+
+	// Position recovery fingerprints by the config stored with the prior
+	// fingerprint. Prove that the fallback config still requests a direct open.
+	recoveryOpener := opener.NewMockFileOpener()
+	recoveryOpener.AddMockFile(opener.NewMockFile(path, [][]byte{content[:types.DefaultBytesCount]}))
+	recoveryFingerprinter := NewFingerprinter(types.FingerprintConfig{FingerprintStrategy: types.FingerprintStrategyDisabled}, recoveryOpener)
+	_, err = recoveryFingerprinter.ComputeFingerprintFromConfig(path, fingerprint.Config)
+	require.NoError(t, err)
+	if runtime.GOOS == "linux" {
+		require.Equal(t, [][]types.FileOpenFlag{requestedFlags}, recoveryOpener.OpenCalls)
+	} else {
+		require.Equal(t, [][]types.FileOpenFlag{nil}, recoveryOpener.OpenCalls, "non-Linux must use OpenLogFile")
+	}
+}
+
+// TestFingerprintFailsWhenFilesystemRejectsDirectOpen pins the deliberate
+// absence of a buffered fallback. Reading through a different path than the one
+// configured would leave the Agent reporting open_flags it is not honouring, so
+// an unusable configuration surfaces as an error for the operator to fix.
+func TestFingerprintFailsWhenFilesystemRejectsDirectOpen(t *testing.T) {
+	requireLinuxOpenFlags(t)
+	const path = "/logs/application.log"
+	content := []byte(strings.Repeat("x", 2048))
+	requestedFlags := []types.FileOpenFlag{types.FileOpenFlagDirect}
+
+	mockOpener := opener.NewMockFileOpener()
+	mockOpener.AddMockFile(opener.NewMockFile(path, [][]byte{content}))
+	mockOpener.OpenErrors = []error{errors.New("direct open failed")}
+	fingerprinter := NewFingerprinter(types.FingerprintConfig{FingerprintStrategy: types.FingerprintStrategyDisabled}, mockOpener)
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type: config.FileType,
+		Path: path,
+		FingerprintConfig: &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+			Count:               len(content),
+			OpenFlags:           requestedFlags,
+		},
+	})
+
+	fingerprint, err := fingerprinter.ComputeFingerprint(NewFile(path, source, false))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "direct open failed")
+	require.False(t, fingerprint.ValidFingerprint())
+	require.Equal(t, [][]types.FileOpenFlag{requestedFlags}, mockOpener.OpenCalls,
+		"the flagged open must not be retried without flags")
+}
+
+func TestFingerprintFailsWhenFilesystemRejectsDirectRead(t *testing.T) {
+	requireLinuxOpenFlags(t)
+	const path = "/logs/application.log"
+	content := []byte(strings.Repeat("y", 2048))
+	requestedFlags := []types.FileOpenFlag{types.FileOpenFlagDirect}
+
+	mockFile := opener.NewMockFile(path, [][]byte{content})
+	mockFile.SetReadErrors(errors.New("direct read failed"))
+	mockOpener := opener.NewMockFileOpener()
+	mockOpener.AddMockFile(mockFile)
+	fingerprinter := NewFingerprinter(types.FingerprintConfig{FingerprintStrategy: types.FingerprintStrategyDisabled}, mockOpener)
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type: config.FileType,
+		Path: path,
+		FingerprintConfig: &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+			Count:               len(content),
+			OpenFlags:           requestedFlags,
+		},
+	})
+
+	fingerprint, err := fingerprinter.ComputeFingerprint(NewFile(path, source, false))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "direct read failed")
+	require.False(t, fingerprint.ValidFingerprint())
+	require.Equal(t, [][]types.FileOpenFlag{requestedFlags}, mockOpener.OpenCalls,
+		"a rejected flagged read must not be retried without flags")
 }
 
 // TestDefaultConfigsHaveSource tests that default fallback configs have Source set

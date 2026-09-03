@@ -679,6 +679,19 @@ properties:
         comment: |-
           The maximum number of bytes that will be used to generate a checksum fingerprint;
           used in cases where the line to hash is too large or if the fingerprinting maxLines=0
+      open_flags:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+        comment: |-
+          Optional Linux flags used only when opening a file to compute its fingerprint.
+          The supported value is "direct" (O_DIRECT). If the requested flags are unusable,
+          new tailers are not started. An active tailer keeps reading its open descriptor,
+          but rotation detection is unavailable until fingerprinting recovers. Affected files
+          are reported per source under "Fingerprint Open Flags Errors" in the agent status.
+          The flag only takes effect on Linux; on other platforms it is accepted and ignored.
   force_auto_multi_line_detection_v1:
     node_type: setting
     type: boolean
