@@ -13,28 +13,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 )
 
-// platformCommands returns the commands the .pkg scripts use to manage the installer daemon.
+// platformCommands returns the commands the .pkg scripts use to manage launchd jobs.
 //
-// They exist so the launchd definition lives in exactly one place -- the embedded copy the Fleet
-// install path also writes -- rather than being duplicated as plist XML inside a shell script,
-// where it would silently drift from the definition the daemon itself maintains.
+// They exist so each job's launchd definition lives in exactly one place -- the embedded copy the
+// Fleet install path also writes -- rather than being duplicated as plist XML inside a shell
+// script, where it would silently drift from the definition the daemon itself maintains.
 func platformCommands() []*cobra.Command {
 	return []*cobra.Command{
-		installDaemonCommand(),
+		installStableJobsCommand(),
 		uninstallDaemonCommand(),
 	}
 }
 
-func installDaemonCommand() *cobra.Command {
+func installStableJobsCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:     "install-daemon",
-		Short:   "Installs and starts the installer daemon's launchd job",
+		Use:     "install-stable-jobs",
+		Short:   "Installs and starts the agent, system-probe, Agent Data Plane and installer daemon launchd jobs",
 		GroupID: "installer",
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			i := newCmd("install_daemon")
+			i := newCmd("install_stable_jobs")
 			defer func() { i.stop(err) }()
-			return packages.InstallDaemonJob(i.ctx)
+			return packages.InstallStableJobs(i.ctx)
 		},
 	}
 }

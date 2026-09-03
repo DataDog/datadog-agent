@@ -282,14 +282,16 @@ func loadStableJob(ctx context.Context, client *launchd.Client, label string) er
 	return nil
 }
 
-// InstallDaemonJob writes and loads the installer daemon's launchd job.
+// InstallStableJobs is postinst's entry point for the agent, system-probe, Agent Data Plane and
+// installer daemon launchd jobs.
 //
-// It is the .dmg's entry point: the package scripts own the Agent's own jobs, but the daemon's
-// definition is the one both install paths must agree on, so it comes from the embedded copy
-// rather than from a plist the shell writes. The job exits cleanly when remote_updates is off,
-// and launchd does not relaunch a clean exit, so loading it unconditionally is safe.
-func InstallDaemonJob(ctx context.Context) error {
-	return loadStableJob(ctx, launchdClient(), installerJob)
+// None of the four is shipped as static plist XML for the .dmg to install: all come from the same
+// embedded copies a Fleet configuration experiment later swaps between, so the .dmg install path
+// and the Fleet path can never drift apart. The installer daemon's job exits cleanly when
+// remote_updates is off, and launchd does not relaunch a clean exit, so loading it unconditionally
+// is safe.
+func InstallStableJobs(ctx context.Context) error {
+	return installStableJobs(HookContext{Context: ctx, Package: agentPackage})
 }
 
 // RemoveDaemonJob unloads the installer daemon and removes its definition. Every step is allowed

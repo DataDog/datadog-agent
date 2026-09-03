@@ -55,6 +55,8 @@ func testJobSet(t *testing.T) (JobSet, *[][]string) {
 // plist is the subset of a launchd job definition these tests assert on.
 type plist struct {
 	label            string
+	userName         string
+	groupName        string
 	programArguments []string
 	keys             map[string]bool
 }
@@ -101,6 +103,10 @@ func parsePlist(t *testing.T, content []byte) plist {
 					parsed.programArguments = append(parsed.programArguments, value)
 				case depth == 1 && key == "Label":
 					parsed.label = value
+				case depth == 1 && key == "UserName":
+					parsed.userName = value
+				case depth == 1 && key == "GroupName":
+					parsed.groupName = value
 				}
 			}
 		case xml.EndElement:
@@ -174,6 +180,28 @@ func TestTheTwoVariantsDifferInExactlyFourWays(t *testing.T) {
 			assert.False(t, experiment.keys["KeepAlive"], "the experiment job must not be respawned")
 		})
 	}
+}
+
+// TestDataPlaneJobRunsWithMacOSConfig pins the exact invocation postinst used to ship as static
+// plist XML for the data-plane LaunchDaemon (packages/macos/app/launchd.data-plane.plist.example.in,
+// removed once postinst started installing this job from the same embedded copy Fleet uses). Any
+// change to how the data plane is invoked or which account it runs as must be deliberate.
+func TestDataPlaneJobRunsWithMacOSConfig(t *testing.T) {
+	content, err := embedded.GetLaunchdJob("com.datadoghq.data-plane", Stable)
+	require.NoError(t, err)
+	stable := parsePlist(t, content)
+
+	assert.Equal(t, "com.datadoghq.data-plane", stable.label)
+	assert.Equal(t, []string{
+		"/opt/datadog-agent/embedded/bin/agent-data-plane",
+		"--config",
+		"/opt/datadog-agent/etc/datadog.yaml",
+		"run",
+		"--pidfile",
+		"/opt/datadog-agent/run/agent-data-plane.pid",
+	}, stable.programArguments)
+	assert.Equal(t, "_dd-agent", stable.userName)
+	assert.Equal(t, "daemon", stable.groupName)
 }
 
 // TestTheInstallerHasNoExperimentVariant pins that the daemon driving an experiment is not part of
