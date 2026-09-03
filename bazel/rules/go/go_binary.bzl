@@ -64,6 +64,23 @@ def _url_safe_to_standard(url_safe):
         return url_safe
     return url_safe[:idx] + "+git." + url_safe[idx + 5:]
 
+def _standard_to_url_safe(standard):
+    """Convert a standard SemVer agent version string to the URL-safe form.
+
+    Mirrors _url_safe_to_standard(): only the SemVer '+' build-metadata
+    separator is replaced with '.', matching the convention used by
+    `dda inv agent.version --url-safe`. No other character is touched.
+
+    Examples:
+      "7.81.0-devel+git.635.e3326d4.pipeline.1" -> "7.81.0-devel.git.635.e3326d4.pipeline.1"
+      "7.81.0-rc.1+git.635.e3326d4"             -> "7.81.0-rc.1.git.635.e3326d4"
+      "7.81.0"                                   -> "7.81.0"  (clean release, no change)
+    """
+    idx = standard.find("+git.")
+    if idx < 0:
+        return standard
+    return standard[:idx] + ".git." + standard[idx + 5:]
+
 def _make_agent_version_url_safe():
     """Return the URL-safe agent version string.
 
