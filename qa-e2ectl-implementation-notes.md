@@ -100,3 +100,18 @@ Follow-up seam (noted, not M1): move the Output structs into Pulumi-free
   with the old name only present on the pre-update agent payloads. The
   `e2ectl update --config <file>` flag replaces the stored config copy, e.g.
   to point at a new local image tag.
+
+## Final state (M1 + local-kind use case)
+
+- Live-verified flow: `e2ectl start` (kind + local docker fakeintake) →
+  `e2ectl install` (released 7.67.0 via the helm installer) → metric rename in
+  pkg/aggregator → `dda inv agent.hacky-dev-image-build` → `e2ectl update` →
+  renamed metric observed in `e2ectl fakeintake metrics`. Old-name payloads
+  from the previous agent remain queryable in the same fakeintake.
+- The `qa-dev` environment was left running for inspection:
+  `e2ectl list`, `e2ectl fakeintake names --env qa-dev`,
+  `kubectl --kubeconfig ~/.e2ectl/envs/qa-dev/kubeconfig ...`,
+  teardown with `e2ectl stop --env qa-dev`.
+- The EC2 path (provision-ec2/destroy-ec2/install-host) is implemented and
+  compile-checked but not executed (no cloud credentials in this session).
+- Unit tests: config validation tables + snapshot roundtrip.
