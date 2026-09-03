@@ -158,6 +158,7 @@ func TestMicroVMGetInventoryData(t *testing.T) {
 		ResourceID:   testImageARN,
 		ResourceName: "my-image",
 		Region:       "us-east-1",
+		AWSAccountID: "123456789012",
 	}, inv)
 }
 
