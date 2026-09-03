@@ -4753,6 +4753,14 @@ api_key:
 #
 #   default_actions_enabled: true
 
+#   # @param agent_secret_management_enabled - boolean - optional - default: true
+#   # @env DD_PRIVATE_ACTION_RUNNER_AGENT_SECRET_MANAGEMENT_ENABLED - boolean - optional - default: true
+#   # Enables resolving connection credentials with the Datadog Agent secret
+#   # management backend. Set to false to disable Agent secret resolution for
+#   # Private Action Runner connections.
+#
+#   agent_secret_management_enabled: true
+
 #   # @param restricted_shell - custom object - optional
 #   # Local restrictions for remote rshell actions. Privileged execution has
 #   # an additional administrator-controlled opt-in and requires the systemd

@@ -658,6 +658,18 @@ private_action_runner:
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 	assert.Nil(t, cfg.RShellAllowedSystemServices)
 	assert.False(t, cfg.RShellDisableDetailedTelemetry)
+	assert.True(t, cfg.AgentSecretManagementEnabled)
+}
+
+func TestFromDDConfigPARAgentSecretManagementDisabled(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARAgentSecretManagementEnabled, false)
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.AgentSecretManagementEnabled)
 }
 
 func TestFromDDConfigPARRestrictedShellDisableDetailedTelemetryUnset(t *testing.T) {
