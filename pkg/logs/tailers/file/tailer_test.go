@@ -149,6 +149,34 @@ func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 	tailer.Stop()
 }
 
+func (suite *TailerTestSuite) TestTailerRotationHandoffQuietPeriodConfig() {
+	mockConfig := configmock.New(suite.T())
+	// To satisfy the suite level tailer
+	suite.tailer.StartFromBeginning()
+
+	tailer := NewTailer(suite.createTailerOptions(nil))
+	suite.Equal(2*time.Second, tailer.rotationHandoffQuietPeriod)
+
+	mockConfig.SetInTest("logs_config.rotation_handoff_quiet_period", 7)
+
+	tailer = NewTailer(suite.createTailerOptions(nil))
+	tailer.StartFromBeginning()
+
+	suite.Equal(7*time.Second, tailer.rotationHandoffQuietPeriod)
+	tailer.Stop()
+}
+
+// The setting is undocumented, so it is absent from the generated config
+// templates and the env var is the only way an operator can reach it.
+func TestRotationHandoffQuietPeriodEnvVar(t *testing.T) {
+	t.Setenv("DD_LOGS_CONFIG_ROTATION_HANDOFF_QUIET_PERIOD", "9")
+
+	quietPeriod := configmock.New(t).GetDuration("logs_config.rotation_handoff_quiet_period") * time.Second
+	if quietPeriod != 9*time.Second {
+		t.Errorf("read a quiet period of %s from the environment, expected %s", quietPeriod, 9*time.Second)
+	}
+}
+
 func (suite *TailerTestSuite) TestTailFromBeginning() {
 	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
 
@@ -715,4 +743,205 @@ func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// The deferred goleak.VerifyNone() will detect if goroutine leaked
+}
+
+// newDrainTestTailer builds the minimal state waitForRotationDrain reads, so the
+// drain timing can be exercised without a file or a running pipeline.
+func newDrainTestTailer(closeTimeout, sleepDuration, quietPeriod time.Duration) *Tailer {
+	return &Tailer{
+		closeTimeout:               closeTimeout,
+		sleepDuration:              sleepDuration,
+		rotationHandoffQuietPeriod: quietPeriod,
+		bytesRead:                  status.NewCountInfo("Bytes Read"),
+	}
+}
+
+func TestWaitForRotationDrainEndsWhenFileGoesIdle(t *testing.T) {
+	t.Parallel()
+
+	quietPeriod := 40 * time.Millisecond
+	// The close timeout is far larger than the quiet period, so a drain that
+	// ends quickly can only have ended on the quiet period.
+	tailer := newDrainTestTailer(30*time.Second, 20*time.Millisecond, quietPeriod)
+
+	start := time.Now()
+	timedOut := tailer.waitForRotationDrain(true)
+	elapsed := time.Since(start)
+
+	if timedOut {
+		t.Errorf("drain reported a close timeout, expected it to report that the file went idle")
+	}
+	if elapsed < quietPeriod {
+		t.Errorf("drain ended after %s, before the quiet period of %s elapsed", elapsed, quietPeriod)
+	}
+	if elapsed > 5*time.Second {
+		t.Errorf("drain took %s, expected it to end on the quiet period rather than on the close timeout of %s",
+			elapsed, tailer.closeTimeout)
+	}
+}
+
+func TestWaitForRotationDrainKeepsReadingWhileFileProducesData(t *testing.T) {
+	t.Parallel()
+
+	pollInterval := 20 * time.Millisecond
+	tailer := newDrainTestTailer(30*time.Second, pollInterval, 40*time.Millisecond)
+
+	// Produce a byte far more often than the poll interval, so every poll during
+	// this window observes growth and the quiet period never accumulates.
+	producing := 300 * time.Millisecond
+	lastByteAt := time.Now().Add(producing)
+	go func() {
+		for time.Now().Before(lastByteAt) {
+			tailer.bytesRead.Add(1)
+			time.Sleep(pollInterval / 10)
+		}
+	}()
+
+	start := time.Now()
+	timedOut := tailer.waitForRotationDrain(true)
+	elapsed := time.Since(start)
+
+	if timedOut {
+		t.Errorf("drain reported a close timeout, expected it to report that the file went idle")
+	}
+	if elapsed < producing {
+		t.Errorf("drain ended after %s, but the file was still producing data for %s", elapsed, producing)
+	}
+	if elapsed > producing+5*time.Second {
+		t.Errorf("drain took %s, expected it to end a quiet period after the last byte", elapsed)
+	}
+}
+
+func TestWaitForRotationDrainHonorsConfiguredQuietPeriod(t *testing.T) {
+	t.Parallel()
+
+	pollInterval := 20 * time.Millisecond
+	shortQuietPeriod := 50 * time.Millisecond
+	longQuietPeriod := time.Second
+
+	// Both files are idle from the start, so the only thing that can separate
+	// the two drains is the configured quiet period.
+	start := time.Now()
+	newDrainTestTailer(30*time.Second, pollInterval, shortQuietPeriod).waitForRotationDrain(true)
+	shortElapsed := time.Since(start)
+
+	start = time.Now()
+	newDrainTestTailer(30*time.Second, pollInterval, longQuietPeriod).waitForRotationDrain(true)
+	longElapsed := time.Since(start)
+
+	if shortElapsed < shortQuietPeriod {
+		t.Errorf("drain ended after %s, before the configured quiet period of %s", shortElapsed, shortQuietPeriod)
+	}
+	if shortElapsed > longQuietPeriod/2 {
+		t.Errorf("a %s quiet period ended the drain after %s, close to the %s one; the setting does not appear to be honored",
+			shortQuietPeriod, shortElapsed, longQuietPeriod)
+	}
+	if longElapsed < longQuietPeriod {
+		t.Errorf("drain ended after %s, before the configured quiet period of %s", longElapsed, longQuietPeriod)
+	}
+}
+
+func TestWaitForRotationDrainIsBoundedByCloseTimeout(t *testing.T) {
+	t.Parallel()
+
+	pollInterval := 20 * time.Millisecond
+	tailer := newDrainTestTailer(300*time.Millisecond, pollInterval, 40*time.Millisecond)
+
+	stopProducing := make(chan struct{})
+	defer close(stopProducing)
+	go func() {
+		for {
+			select {
+			case <-stopProducing:
+				return
+			default:
+				tailer.bytesRead.Add(1)
+				time.Sleep(pollInterval / 10)
+			}
+		}
+	}()
+
+	start := time.Now()
+	timedOut := tailer.waitForRotationDrain(true)
+	elapsed := time.Since(start)
+
+	if !timedOut {
+		t.Errorf("drain reported that the file went idle, expected it to report the close timeout")
+	}
+	if elapsed < tailer.closeTimeout {
+		t.Errorf("drain ended after %s, before the close timeout of %s", elapsed, tailer.closeTimeout)
+	}
+	if elapsed > tailer.closeTimeout+5*time.Second {
+		t.Errorf("drain took %s, expected the close timeout of %s to bound a file that never goes idle",
+			elapsed, tailer.closeTimeout)
+	}
+}
+
+func TestWaitForRotationDrainCloseTimeoutOutranksQuietPeriod(t *testing.T) {
+	t.Parallel()
+
+	// The file is idle from the start, but the quiet period it would have to stay
+	// idle for is longer than the close timeout, which still has the last word.
+	tailer := newDrainTestTailer(300*time.Millisecond, 20*time.Millisecond, 30*time.Second)
+
+	start := time.Now()
+	timedOut := tailer.waitForRotationDrain(true)
+	elapsed := time.Since(start)
+
+	if !timedOut {
+		t.Errorf("drain reported that the file went idle, expected it to report the close timeout")
+	}
+	if elapsed < tailer.closeTimeout {
+		t.Errorf("drain ended after %s, before the close timeout of %s", elapsed, tailer.closeTimeout)
+	}
+	if elapsed > tailer.closeTimeout+5*time.Second {
+		t.Errorf("drain took %s, expected the close timeout of %s to bound a quiet period of %s",
+			elapsed, tailer.closeTimeout, tailer.rotationHandoffQuietPeriod)
+	}
+}
+
+func TestWaitForRotationDrainWithoutQuietPeriodAlwaysWaitsCloseTimeout(t *testing.T) {
+	t.Parallel()
+
+	// A quiet period of zero turns the early exit off, so even an idle file has
+	// to wait out the whole close timeout.
+	tailer := newDrainTestTailer(300*time.Millisecond, 20*time.Millisecond, 0)
+
+	start := time.Now()
+	timedOut := tailer.waitForRotationDrain(true)
+	elapsed := time.Since(start)
+
+	if !timedOut {
+		t.Errorf("drain reported that the file went idle, expected it to report the close timeout")
+	}
+	if elapsed < tailer.closeTimeout {
+		t.Errorf("drain ended after %s, expected the full close timeout of %s even though the file was idle",
+			elapsed, tailer.closeTimeout)
+	}
+	if elapsed > tailer.closeTimeout+5*time.Second {
+		t.Errorf("drain took %s, expected roughly the close timeout of %s", elapsed, tailer.closeTimeout)
+	}
+}
+
+func TestWaitForRotationDrainWithoutIdleEndAlwaysWaitsCloseTimeout(t *testing.T) {
+	t.Parallel()
+
+	// The file never produces anything, so a drain that does not end when idle
+	// has to wait out the whole close timeout.
+	tailer := newDrainTestTailer(300*time.Millisecond, 20*time.Millisecond, 40*time.Millisecond)
+
+	start := time.Now()
+	timedOut := tailer.waitForRotationDrain(false)
+	elapsed := time.Since(start)
+
+	if !timedOut {
+		t.Errorf("drain reported that the file went idle, expected it to report the close timeout")
+	}
+	if elapsed < tailer.closeTimeout {
+		t.Errorf("drain ended after %s, expected the full close timeout of %s even though the file was idle",
+			elapsed, tailer.closeTimeout)
+	}
+	if elapsed > tailer.closeTimeout+5*time.Second {
+		t.Errorf("drain took %s, expected roughly the close timeout of %s", elapsed, tailer.closeTimeout)
+	}
 }

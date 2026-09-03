@@ -86,6 +86,12 @@ type Tailer struct {
 	// reading and processing any remaining log lines in the file.
 	closeTimeout time.Duration
 
+	// rotationHandoffQuietPeriod is how long a rotated file must stop producing
+	// data before a drain that another tailer is waiting on treats it as fully
+	// read.  Zero or less disables that early exit, leaving closeTimeout as the
+	// only bound.
+	rotationHandoffQuietPeriod time.Duration
+
 	// windowsOpenFileTimeout (Windows only) is the duration the tailer will
 	// hold a file open while waiting for the downstream logs pipeline to
 	// clear.  Setting this to too short a time may result in data in rotated
@@ -170,6 +176,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
 	closeTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.close_timeout") * time.Second
+	rotationHandoffQuietPeriod := pkgconfigsetup.Datadog().GetDuration("logs_config.rotation_handoff_quiet_period") * time.Second
 	windowsOpenFileTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	bytesRead := status.NewCountInfo("Bytes Read")
@@ -191,6 +198,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		decodedOffset:                atomic.NewInt64(0),
 		sleepDuration:                opts.SleepDuration,
 		closeTimeout:                 closeTimeout,
+		rotationHandoffQuietPeriod:   rotationHandoffQuietPeriod,
 		windowsOpenFileTimeout:       windowsOpenFileTimeout,
 		stop:                         make(chan struct{}, 1),
 		done:                         make(chan struct{}, 1),
@@ -306,12 +314,31 @@ func (t *Tailer) Stop() {
 // StopAfterFileRotation prepares the tailer to stop after a timeout
 // to finish reading its file that has been log-rotated
 func (t *Tailer) StopAfterFileRotation() {
+	t.stopAfterFileRotation(false)
+}
+
+// StopAfterFileRotationForHandoff prepares the tailer to stop after it has
+// finished reading its file that has been log-rotated, for callers that hand the
+// path over to a replacement tailer.
+//
+// The replacement tailer cannot open the path until this tailer releases its
+// descriptor, so the drain ends once the rotated file has been quiet for
+// rotationHandoffQuietPeriod rather than always waiting out closeTimeout.
+func (t *Tailer) StopAfterFileRotationForHandoff() {
+	t.stopAfterFileRotation(true)
+}
+
+func (t *Tailer) stopAfterFileRotation(endWhenIdle bool) {
 	t.didFileRotate.Store(true)
 	bytesReadAtRotationTime := t.bytesRead.Get()
 	go func() {
-		time.Sleep(t.closeTimeout)
+		timedOut := t.waitForRotationDrain(endWhenIdle)
 		if newBytesRead := t.bytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
-			log.Infof("After rotation close timeout (%s), an additional %d bytes were read from file %q", t.closeTimeout, newBytesRead, t.file.Path)
+			if timedOut {
+				log.Infof("After rotation close timeout (%s), an additional %d bytes were read from file %q", t.closeTimeout, newBytesRead, t.file.Path)
+			} else {
+				log.Infof("After the rotated file %q produced no data for the rotation handoff quiet period (%s), an additional %d bytes were read", t.file.Path, t.rotationHandoffQuietPeriod, newBytesRead)
+			}
 			if t.osFile != nil {
 				fileStat, err := t.osFile.Stat()
 				if err != nil {
@@ -324,7 +351,11 @@ func (t *Tailer) StopAfterFileRotation() {
 					if remainingBytes > 0 {
 						metrics.BytesMissed.Add(remainingBytes)
 						metrics.TlmBytesMissed.Add(float64(remainingBytes))
-						log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
+						if timedOut {
+							log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
+						} else {
+							log.Warnf("After the rotated file %q produced no data for the rotation handoff quiet period (%s), there were %d bytes remaining unread. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_ROTATION_HANDOFF_QUIET_PERIOD", t.file.Path, t.rotationHandoffQuietPeriod, remainingBytes)
+						}
 					}
 				}
 			}
@@ -336,6 +367,49 @@ func (t *Tailer) StopAfterFileRotation() {
 		}
 	}()
 	t.file.Source.RemoveInput(t.file.Path)
+}
+
+// waitForRotationDrain blocks until the rotated file is finished being read, or
+// until closeTimeout elapses, whichever comes first. It reports whether it
+// returned because closeTimeout elapsed rather than because the file stopped
+// producing data, so callers can tell the operator which limit ended the drain.
+func (t *Tailer) waitForRotationDrain(endWhenIdle bool) (timedOut bool) {
+	quietPeriod := t.rotationHandoffQuietPeriod
+	if !endWhenIdle || quietPeriod <= 0 {
+		time.Sleep(t.closeTimeout)
+		return true
+	}
+
+	pollInterval := t.sleepDuration
+	// Only reachable for tailers constructed without a sleep duration.
+	if pollInterval <= 0 {
+		pollInterval = time.Second
+	}
+
+	deadline := time.Now().Add(t.closeTimeout)
+	lastBytesRead := t.bytesRead.Get()
+	lastChange := time.Now()
+
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return true
+		}
+		if remaining < pollInterval {
+			time.Sleep(remaining)
+		} else {
+			time.Sleep(pollInterval)
+		}
+
+		if current := t.bytesRead.Get(); current != lastBytesRead {
+			lastBytesRead = current
+			lastChange = time.Now()
+			continue
+		}
+		if time.Since(lastChange) >= quietPeriod {
+			return false
+		}
+	}
 }
 
 // readForever lets the tailer tail the content of a file

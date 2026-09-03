@@ -369,6 +369,12 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 // scan. A file that is not fingerprinted still gets its effective config so the
 // status page can display it.
 func (s *Launcher) resolveFingerprint(file *tailer.File) (*types.Fingerprint, bool) {
+	// Computing a fingerprint is itself an open on the path, so the sequential
+	// handoff barrier has to come before it.
+	if s.drainingOnPath(file) && s.sequentialHandoffActive(file) {
+		return nil, false
+	}
+
 	if !s.fingerprinter.ShouldFileFingerprint(file) {
 		fpConfig := s.fingerprinter.GetEffectiveConfigForFile(file)
 		if fpConfig == nil {
@@ -385,6 +391,36 @@ func (s *Launcher) resolveFingerprint(file *tailer.File) (*types.Fingerprint, bo
 		return nil, false
 	}
 	return fingerprint, true
+}
+
+// sequentialHandoffActive reports whether a replacement tailer for this file must
+// wait for a rotated tailer on the same path to finish. Direct fingerprint reads are
+// the configuration that exposes CIFS handle reuse.
+//
+// This deliberately asks whether the source configured open_flags, not whether they
+// are honoured on this platform: O_DIRECT is Linux-only, but gating the barrier on
+// that would give the same source different rotation semantics per platform, and
+// open_flags is accepted everywhere precisely so one configuration stays portable.
+func (s *Launcher) sequentialHandoffActive(file *tailer.File) bool {
+	cfg := s.fingerprinter.GetEffectiveConfigForFile(file)
+	return cfg != nil && len(cfg.OpenFlags) > 0
+}
+
+// drainingOnPath reports whether a rotated tailer on this file's path is still
+// draining. Tailer.Identifier() is "file:"+path, so two tailers on one path -- for
+// example a dead and a fresh container -- compare equal here, which is what the
+// barrier needs.
+func (s *Launcher) drainingOnPath(file *tailer.File) bool {
+	if len(s.rotatedTailers) == 0 {
+		return false
+	}
+	id := file.Identifier()
+	for _, t := range s.rotatedTailers {
+		if t.Identifier() == id && !t.IsFinished() {
+			return true
+		}
+	}
+	return false
 }
 
 // cleanUpRotatedTailers removes any rotated tailers that have stopped from the list
@@ -606,7 +642,11 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 
 func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
-	oldTailer.StopAfterFileRotation()
+	if s.sequentialHandoffActive(file) {
+		oldTailer.StopAfterFileRotationForHandoff()
+	} else {
+		oldTailer.StopAfterFileRotation()
+	}
 
 	// Remove the draining tailer from the active map; it will keep draining via rotatedTailers.
 	s.tailers.Remove(oldTailer)
