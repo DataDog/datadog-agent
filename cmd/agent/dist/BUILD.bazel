@@ -9,20 +9,10 @@ pkg_files(
     name = "config_files",
     srcs = [
         "//pkg/config:system_probe_config",
-    ] + select({
-        "//packages/agent:iot_flavor": [
-            "//pkg/config:iot_agent_config",
-        ],
-        "//conditions:default": [
-            "//pkg/config:agent_config",
-        ],
-    }),
+        "//pkg/config:agent_config",
+    ],
     attributes = pkg_attributes(mode = "0644"),
     prefix = select(ETC_DIR_SELECTOR),
-    renames = select({
-        "//packages/agent:iot_flavor": {"//pkg/config:iot_agent_config": "datadog.yaml"},
-        "//conditions:default": None,
-    }),
     visibility = ["//packages/agent:__subpackages__"],
 )
 

@@ -35,9 +35,7 @@ pkg_files(
     renames = {"//cmd/iot-agent": "agent"},
 )
 
-# All components for the IoT agent, target state (consumed by //packages/iot).
-# Build with --//packages/agent:flavor=iot to activate the iot-specific selects in
-# //cmd/agent/dist/conf.d:all_files (IOT_AGENT_CORECHECKS instead of AGENT_CORECHECKS).
+# Everything that lands under /opt/datadog-agent (consumed by //packages/iot).
 pkg_filegroup(
     name = "all_files",
     srcs = [
@@ -91,15 +89,13 @@ pkg_filegroup(
 # This replaces the following explicit steps in datadog-iot-agent.rb:
 #   mkdir "#{install_dir}/bin"
 #   mkdir "#{install_dir}/run/"
-#   move 'bin/agent/dist/datadog.yaml', '/etc/datadog-agent/datadog.yaml.example'
-#   move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
-#   copy 'bin/agent', "#{install_dir}/bin/"
 #
-# Files land at #{install_dir}/{prefix}; the project rb registers them via
-# extra_package_file for packaging.
+# The binary and example config are still copied into install_dir by hand in the
+# rb file (see the "Next steps" comment there), so this stays scoped to :dirs
+# until that transitional step is dropped.
 pkg_install(
     name = "install",
-    srcs = [":whole_distro"],
+    srcs = [":dirs"],
     destdir_flag = "//:install_dir",
 )
 
