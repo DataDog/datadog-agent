@@ -1590,9 +1590,11 @@ func TestLineFingerprintByteFallbackPreservesOpenFlags(t *testing.T) {
 	require.Equal(t, types.FingerprintStrategyByteChecksum, fingerprint.Config.FingerprintStrategy)
 	require.Equal(t, requestedFlags, fingerprint.Config.OpenFlags)
 	if runtime.GOOS == "linux" {
-		require.Len(t, mockOpener.OpenCalls, 2, "line read then byte fallback each open once")
-		require.Equal(t, requestedFlags, mockOpener.OpenCalls[0])
-		require.Equal(t, requestedFlags, mockOpener.OpenCalls[1])
+		// The direct path reads the bounded head once; the line->byte fallback
+		// runs over the same in-memory bytes, so there is no second open.
+		require.Equal(t, [][]types.FileOpenFlag{requestedFlags}, mockOpener.OpenCalls)
+	} else {
+		require.Equal(t, [][]types.FileOpenFlag{nil}, mockOpener.OpenCalls, "non-Linux must use OpenLogFile")
 	}
 
 	// Position recovery fingerprints by the config stored with the prior

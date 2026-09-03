@@ -68,23 +68,6 @@ func (m *MockFileOpener) ReadDirectFingerprintRange(path string, skip, count int
 	return buffer[:read], nil
 }
 
-func (m *MockFileOpener) OpenDirectFingerprintStream(path string, limit int, openFlags []types.FileOpenFlag) (io.ReadCloser, error) {
-	file, err := m.openLogFile(path, openFlags)
-	if err != nil {
-		return nil, err
-	}
-	return &limitedMockReader{Reader: io.LimitReader(file, int64(limit)), closer: file}, nil
-}
-
-type limitedMockReader struct {
-	io.Reader
-	closer io.Closer
-}
-
-func (r *limitedMockReader) Close() error {
-	return r.closer.Close()
-}
-
 func (m *MockFileOpener) openLogFile(path string, openFlags []types.FileOpenFlag) (afero.File, error) {
 	m.OpenCalls = append(m.OpenCalls, append([]types.FileOpenFlag(nil), openFlags...))
 	if len(m.OpenErrors) > 0 {

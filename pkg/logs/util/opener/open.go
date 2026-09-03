@@ -8,7 +8,6 @@ package opener
 
 import (
 	"fmt"
-	"io"
 	"path/filepath"
 	"slices"
 
@@ -26,9 +25,6 @@ type FileOpener interface {
 	// (e.g. O_DIRECT) and returns the logical bytes in [skip, skip+count). Only
 	// the aligned range covering that interval is read from the kernel.
 	ReadDirectFingerprintRange(path string, skip, count int, openFlags []types.FileOpenFlag) ([]byte, error)
-	// OpenDirectFingerprintStream opens path with the requested read-only flags
-	// and returns a forward-only reader over [0, limit). Callers must Close it.
-	OpenDirectFingerprintStream(path string, limit int, openFlags []types.FileOpenFlag) (io.ReadCloser, error)
 	OpenShared(path string) (afero.File, error)
 	Abs(path string) (string, error)
 }
@@ -55,22 +51,6 @@ func (f *fileOpenerImpl) ReadDirectFingerprintRange(path string, skip, count int
 		return nil, err
 	}
 	return readDirectFingerprintRange(path, skip, count)
-}
-
-func (f *fileOpenerImpl) OpenDirectFingerprintStream(path string, limit int, openFlags []types.FileOpenFlag) (io.ReadCloser, error) {
-	if err := requireDirectOpenFlags(openFlags); err != nil {
-		return nil, err
-	}
-	file, err := openDirect(path)
-	if err != nil {
-		return nil, err
-	}
-	reader, err := openDirectFingerprintStream(file, limit)
-	if err != nil {
-		file.Close()
-		return nil, err
-	}
-	return reader, nil
 }
 
 func requireDirectOpenFlags(openFlags []types.FileOpenFlag) error {

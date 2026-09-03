@@ -7,6 +7,7 @@ package file
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"hash/crc64"
@@ -181,21 +182,29 @@ func (f *fingerprinterImpl) computeFingerprintDirect(filePath string, fingerprin
 		}
 		return fingerprintFromByteData(data, fingerprintConfig.Count, fingerprintConfig)
 	case types.FingerprintStrategyLineChecksum:
-		reader, err := f.fileOpener.OpenDirectFingerprintStream(filePath, fingerprintConfig.MaxBytes, openFlags)
-		if err != nil {
-			return newInvalidFingerprint(fingerprintConfig), err
-		}
-		defer reader.Close()
-		return computeFingerPrintByLinesDirect(f.fileOpener, reader, filePath, fingerprintConfig)
+		return f.computeFingerprintByLinesDirect(filePath, openFlags, fingerprintConfig)
 	default:
 		log.Warnf("invalid fingerprint strategy %q for file %q, using default lines strategy", fingerprintConfig.FingerprintStrategy, filePath)
-		reader, err := f.fileOpener.OpenDirectFingerprintStream(filePath, defaultLinesConfig.MaxBytes, openFlags)
-		if err != nil {
-			return newInvalidFingerprint(fingerprintConfig), err
-		}
-		defer reader.Close()
-		return computeFingerPrintByLinesDirect(f.fileOpener, reader, filePath, defaultLinesConfig)
+		return f.computeFingerprintByLinesDirect(filePath, openFlags, defaultLinesConfig)
 	}
+}
+
+// computeFingerprintByLinesDirect reads the bounded head of the file once with
+// the configured open_flags, then runs the shared buffered line-fingerprint flow
+// over the in-memory bytes. This keeps the direct and buffered paths on a single
+// implementation so their checksums cannot drift.
+//
+// The read window covers both the line budget (MaxBytes) and the byte-fallback
+// budget (defaultBytesConfig.Count). The line flow falls back to a byte checksum
+// over the first bytes of the same reader when a line exceeds MaxBytes, so the
+// window must hold enough bytes for that fallback without a second open.
+func (f *fingerprinterImpl) computeFingerprintByLinesDirect(filePath string, openFlags []types.FileOpenFlag, hashConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+	readBudget := max(hashConfig.MaxBytes, defaultBytesConfig.Count)
+	data, err := f.fileOpener.ReadDirectFingerprintRange(filePath, 0, readBudget, openFlags)
+	if err != nil {
+		return newInvalidFingerprint(hashConfig), err
+	}
+	return computeFingerPrintByLines(bytes.NewReader(data), filePath, hashConfig)
 }
 
 // FingerprintOpenFlagsActive reports whether configured open_flags should be
@@ -248,50 +257,6 @@ func fingerprintFromByteData(data []byte, wantBytes int, fingerprintConfig *type
 	}
 
 	checksum := crc64.Checksum(data[:wantBytes], crc64Table)
-	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}, nil
-}
-
-func computeFingerPrintByLinesDirect(fileOpener opener.FileOpener, reader io.Reader, filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
-	linesToSkip := fingerprintConfig.CountToSkip
-	maxLines := fingerprintConfig.Count
-	maxBytes := fingerprintConfig.MaxBytes
-
-	limitedReader := io.LimitReader(reader, int64(maxBytes))
-	scanner := bufio.NewScanner(limitedReader)
-
-	var buffer []byte
-
-	for i := 0; i < linesToSkip+maxLines; i++ {
-		if scanner.Scan() {
-			if i >= linesToSkip {
-				line := scanner.Bytes()
-				buffer = append(buffer, line...)
-			}
-			continue
-		}
-
-		if limitedReader.(*io.LimitedReader).N == 0 {
-			log.Warnf(
-				"Ran out of space reading requested line count for fingerprinting, falling back to byte-based fingerprint for %q. "+
-					"This is almost certainly indicative of a configuration error, please verify your fingerprint configuration.",
-				filePath,
-			)
-			fallbackConfig := *defaultBytesConfig
-			fallbackConfig.OpenFlags = append([]types.FileOpenFlag(nil), fingerprintConfig.OpenFlags...)
-			data, err := fileOpener.ReadDirectFingerprintRange(filePath, 0, fallbackConfig.Count, fallbackConfig.OpenFlags)
-			if err != nil {
-				return newInvalidFingerprint(fingerprintConfig), err
-			}
-			return fingerprintFromByteData(data, fallbackConfig.Count, &fallbackConfig)
-		}
-
-		if err := scanner.Err(); err != nil {
-			return newInvalidFingerprint(fingerprintConfig), err
-		}
-		return newInvalidFingerprint(fingerprintConfig), nil
-	}
-
-	checksum := crc64.Checksum(buffer, crc64Table)
 	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}, nil
 }
 

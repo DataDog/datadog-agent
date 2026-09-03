@@ -10,7 +10,6 @@ package opener
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,22 +86,6 @@ func TestReadDirectFingerprintRangeWithDirect(t *testing.T) {
 	}
 }
 
-func TestOpenDirectFingerprintStreamWithDirect(t *testing.T) {
-	content := make([]byte, directIOAlignment*2+211)
-	for i := range content {
-		content[i] = byte(i%251 + 1)
-	}
-	path := requireDirectIOTestFile(t, "line.log", content)
-
-	reader, err := NewFileOpener().OpenDirectFingerprintStream(path, 2061, []types.FileOpenFlag{types.FileOpenFlagDirect})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = reader.Close() })
-
-	got, err := io.ReadAll(reader)
-	require.NoError(t, err)
-	require.Equal(t, content[:2061], got)
-}
-
 func TestReadDirectFingerprintRangeReportsPermissionError(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root bypasses DAC permission checks, so O_DIRECT open would not hit EACCES")
@@ -119,8 +102,5 @@ func TestDirectFingerprintReadRequiresSupportedFlags(t *testing.T) {
 	opener := NewFileOpener()
 
 	_, err := opener.ReadDirectFingerprintRange(path, 0, 4, nil)
-	require.ErrorContains(t, err, "no supported open flags")
-
-	_, err = opener.OpenDirectFingerprintStream(path, 4, nil)
 	require.ErrorContains(t, err, "no supported open flags")
 }
