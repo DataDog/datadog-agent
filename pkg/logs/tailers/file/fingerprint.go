@@ -157,8 +157,7 @@ func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfi
 		return newInvalidFingerprint(nil), nil
 	}
 
-	openFlags := fingerprintConfig.OpenFlags
-	if fingerprintOpenFlagsActive(openFlags) {
+	if FingerprintOpenFlagsActive(fingerprintConfig) {
 		return f.computeFingerprintDirect(filePath, fingerprintConfig)
 	}
 
@@ -205,14 +204,7 @@ func FingerprintOpenFlagsActive(cfg *types.FingerprintConfig) bool {
 	if cfg == nil {
 		return false
 	}
-	return fingerprintOpenFlagsActive(cfg.OpenFlags)
-}
-
-// fingerprintOpenFlagsActive reports whether configured open_flags should be
-// applied for this fingerprint read. They are Linux-only; other platforms use
-// OpenLogFile and ignore the configured flags.
-func fingerprintOpenFlagsActive(openFlags []types.FileOpenFlag) bool {
-	return len(openFlags) > 0 && runtime.GOOS == "linux"
+	return len(cfg.OpenFlags) > 0 && runtime.GOOS == "linux"
 }
 
 // computeFingerPrintByBytes computes fingerprint using byte-based approach for a given file path
@@ -233,21 +225,14 @@ func computeFingerPrintByBytes(fpFile io.ReadSeeker, filePath string, fingerprin
 	buffer := make([]byte, maxBytes)
 	bytesRead, err := io.ReadFull(fpFile, buffer)
 	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-		if !fingerprintOpenFlagsActive(fingerprintConfig.OpenFlags) {
-			log.Warnf("Failed to read bytes for fingerprint %q: %v", filePath, err)
-		}
+		log.Warnf("Failed to read bytes for fingerprint %q: %v", filePath, err)
 		return newInvalidFingerprint(fingerprintConfig), err
 	}
 
-	return fingerprintFromByteData(buffer[:bytesRead], maxBytes, fingerprintConfig)
-}
-
-func fingerprintFromByteData(data []byte, wantBytes int, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
-	if len(data) == 0 || len(data) < wantBytes {
+	if bytesRead == 0 || bytesRead < maxBytes {
 		return newInvalidFingerprint(fingerprintConfig), nil
 	}
-
-	checksum := crc64.Checksum(data[:wantBytes], crc64Table)
+	checksum := crc64.Checksum(buffer[:maxBytes], crc64Table)
 	return &types.Fingerprint{Value: checksum, Config: fingerprintConfig}, nil
 }
 
@@ -293,9 +278,7 @@ func computeFingerPrintByLines(fpFile io.ReadSeeker, filePath string, fingerprin
 			}
 			// Handle scanner errors
 			if err := scanner.Err(); err != nil {
-				if !fingerprintOpenFlagsActive(fingerprintConfig.OpenFlags) {
-					log.Warnf("Error while reading file for fingerprint %q: %v", filePath, err)
-				}
+				log.Warnf("Error while reading file for fingerprint %q: %v", filePath, err)
 				return newInvalidFingerprint(fingerprintConfig), err
 			}
 			// Check if we have enough data for fingerprinting
