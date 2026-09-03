@@ -153,7 +153,7 @@ pkg_install(
 # dd-procmgrd_test matches the base branch. Uncomment entries below to enable
 # batches incrementally and bisect CI failures.
 _PROCMGR_PR_TEST_CFGS = [
-    # "procmgr_pr_config_gate_secrets",
+    "procmgr_pr_config_gate_secrets",
     # "procmgr_pr_config_gate_core",
     # "procmgr_pr_secret_backend_exec",
     # "procmgr_pr_platform_unix_secret_backend",
