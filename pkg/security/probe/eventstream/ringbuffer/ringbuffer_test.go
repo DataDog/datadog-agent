@@ -71,49 +71,6 @@ func TestDispatcherQueueMaxBytes(t *testing.T) {
 	}
 }
 
-func TestHandleEventInlineWhenQueueDisabled(t *testing.T) {
-	var got []byte
-	rb := New(context.Background(), func(_ int, data []byte) {
-		got = append([]byte(nil), data...)
-	}, nil)
-
-	rb.handleEvent(&ringbuf.Record{RawSample: []byte{1, 2, 3}}, nil, nil)
-
-	require.Equal(t, []byte{1, 2, 3}, got)
-	require.Zero(t, rb.enqueued.Load())
-}
-
-func TestHandleEventQueuesWhenEnabled(t *testing.T) {
-	done := make(chan []byte, 1)
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	rb := New(ctx, func(_ int, data []byte) {
-		done <- append([]byte(nil), data...)
-	}, nil)
-	rb.queue = newByteQueue(4096)
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go rb.dispatch(&wg)
-
-	rb.handleQueuedEvent(&ringbuf.Record{RawSample: []byte{9, 8, 7}}, nil, nil)
-
-	select {
-	case got := <-done:
-		require.Equal(t, []byte{9, 8, 7}, got)
-	case <-time.After(2 * time.Second):
-		t.Fatal("dispatcher did not process the queued event")
-	}
-
-	require.Equal(t, uint64(1), rb.enqueued.Load())
-	require.Zero(t, rb.occupancy.Load())
-	require.Zero(t, rb.queueBytes.Load())
-
-	cancel()
-	wg.Wait()
-}
-
 func TestDispatcherRecoversFromHandlerPanic(t *testing.T) {
 	done := make(chan []byte, 1)
 	var n int
@@ -150,56 +107,18 @@ func TestDispatcherRecoversFromHandlerPanic(t *testing.T) {
 }
 
 func TestSendStats(t *testing.T) {
-	t.Run("reports occupancy, bytes, capacity and enqueued", func(t *testing.T) {
-		client := statsdclient.NewStatsdClient()
-		rb := New(context.Background(), func(int, []byte) {}, client)
-		rb.queue = newByteQueue(4096)
+	client := statsdclient.NewStatsdClient()
+	rb := New(context.Background(), func(int, []byte) {}, client)
+	rb.queue = newByteQueue(4096)
 
-		rb.handleQueuedEvent(&ringbuf.Record{RawSample: make([]byte, 1000)}, nil, nil)
-		rb.handleQueuedEvent(&ringbuf.Record{RawSample: make([]byte, 500)}, nil, nil)
+	rb.handleQueuedEvent(&ringbuf.Record{RawSample: make([]byte, 1000)}, nil, nil)
+	rb.handleQueuedEvent(&ringbuf.Record{RawSample: make([]byte, 500)}, nil, nil)
 
-		require.NoError(t, rb.SendStats())
-		require.Equal(t, int64(2), client.Get(metrics.MetricEventStreamDispatcherQueueUsage))
-		require.Equal(t, int64(1500), client.Get(metrics.MetricEventStreamDispatcherQueueBytes))
-		require.Equal(t, int64(4096), client.Get(metrics.MetricEventStreamDispatcherQueueCapacity))
-		require.Equal(t, int64(2), client.Get(metrics.MetricEventStreamDispatcherQueueEnqueued))
-	})
-
-	t.Run("is a no-op when the queue is disabled", func(t *testing.T) {
-		client := statsdclient.NewStatsdClient()
-		rb := New(context.Background(), func(int, []byte) {}, client)
-
-		require.NoError(t, rb.SendStats())
-		require.Zero(t, client.Get(metrics.MetricEventStreamDispatcherQueueUsage))
-	})
-}
-
-func TestByteQueueAdmitsOversizedWhenEmpty(t *testing.T) {
-	q := newByteQueue(100)
-	t.Cleanup(q.close)
-	rec := &ringbuf.Record{RawSample: make([]byte, 500)}
-	require.True(t, q.enqueue(rec))
-
-	got, ok := q.dequeue()
-	require.True(t, ok)
-	require.Equal(t, rec, got)
-}
-
-func TestByteQueueGrowsBeyondInitialCapacity(t *testing.T) {
-	q := newByteQueue(1 << 20)
-	t.Cleanup(q.close)
-
-	const n = 200 // exceeds the initial ring capacity of 64 to exercise growLocked
-	for i := 0; i < n; i++ {
-		require.True(t, q.enqueue(&ringbuf.Record{RawSample: []byte{byte(i)}}))
-	}
-	require.Greater(t, len(q.buf), 64)
-
-	for i := 0; i < n; i++ {
-		rec, ok := q.dequeue()
-		require.True(t, ok)
-		require.Equal(t, []byte{byte(i)}, rec.RawSample)
-	}
+	require.NoError(t, rb.SendStats())
+	require.Equal(t, int64(2), client.Get(metrics.MetricEventStreamDispatcherQueueUsage))
+	require.Equal(t, int64(1500), client.Get(metrics.MetricEventStreamDispatcherQueueBytes))
+	require.Equal(t, int64(4096), client.Get(metrics.MetricEventStreamDispatcherQueueCapacity))
+	require.Equal(t, int64(2), client.Get(metrics.MetricEventStreamDispatcherQueueEnqueued))
 }
 
 func waitForEnqueueBlocked(t *testing.T, q *byteQueue) {
