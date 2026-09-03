@@ -7,9 +7,9 @@ package config
 
 import (
 	"fmt"
+	"strings"
+	"sync/atomic"
 	"time"
-
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
@@ -56,8 +56,9 @@ type Endpoint struct {
 	isReliable bool
 	useSSL     bool
 
-	// the apiKey to use for this endpoint
-	apiKey *atomic.String
+	credential *atomic.Pointer[endpointCredential]
+	// delegatedAuthDirective identifies the pending list entry across config updates.
+	delegatedAuthDirective string
 	// The path of the config used to get the API key. This path is used to listen for configuration updates from
 	// the config.
 	configSettingPath string
@@ -66,6 +67,8 @@ type Endpoint struct {
 	// the index of this endpoint config within "additional_endpoints" settings. This is needed to not
 	// wrongly update an endpoint when an API key is linked to multuple endpoints.
 	additionalEndpointsIdx int
+	// additionalEndpointsCount detects runtime insertions and removals that invalidate the index.
+	additionalEndpointsCount int
 
 	Host                    string `mapstructure:"host" json:"host"`
 	Port                    int
@@ -91,6 +94,18 @@ type Endpoint struct {
 	ExtraHTTPHeaders map[string]string
 }
 
+type endpointCredential struct {
+	apiKey  string
+	pending bool
+	invalid bool
+}
+
+func newEndpointCredential(apiKey string, pending bool) *atomic.Pointer[endpointCredential] {
+	credential := &atomic.Pointer[endpointCredential]{}
+	credential.Store(&endpointCredential{apiKey: apiKey, pending: pending})
+	return credential
+}
+
 // unmarshalEndpoint is used to load additional endpoints from the configuration which stored as JSON/mapstructure.
 // A different type is used than Endpoint since we want some fields to be private in Endpoint (APIKey, IsReliable, ...).
 type unmarshalEndpoint struct {
@@ -114,16 +129,29 @@ type EndpointCompressionOptions struct {
 
 // NewEndpoint returns a new Endpoint with the minimal field initialized.
 func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, pathPrefix string, useSSL bool) Endpoint {
-	apiKey = pkgconfigutils.SanitizeAPIKey(apiKey)
-	return Endpoint{
-		apiKey:            atomic.NewString(apiKey),
-		configSettingPath: apiKeyConfigPath,
-		Host:              host,
-		Port:              port,
-		PathPrefix:        pathPrefix,
-		useSSL:            useSSL,
-		isReliable:        true, // by default endpoints are reliable
+	directive := ""
+	if pkgconfigutils.IsDelaDirective(apiKey) {
+		directive = strings.TrimSpace(apiKey)
 	}
+	apiKey, pending := delaAwareAPIKey(apiKey)
+	return Endpoint{
+		credential:             newEndpointCredential(apiKey, pending),
+		delegatedAuthDirective: directive,
+		configSettingPath:      apiKeyConfigPath,
+		Host:                   host,
+		Port:                   port,
+		PathPrefix:             pathPrefix,
+		useSSL:                 useSSL,
+		isReliable:             true, // by default endpoints are reliable
+	}
+}
+
+// delaAwareAPIKey replaces a DELA(...) placeholder with an empty key until write-back resolves it.
+func delaAwareAPIKey(apiKey string) (string, bool) {
+	if pkgconfigutils.IsDelaDirective(apiKey) {
+		return "", true
+	}
+	return pkgconfigutils.SanitizeAPIKey(apiKey), false
 }
 
 // newTCPEndpoint returns a new TCP Endpoint based on LogsConfigKeys. The endpoint is by default reliable and will use
@@ -133,7 +161,7 @@ func NewEndpoint(apiKey string, apiKeyConfigPath string, host string, port int, 
 func newTCPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint {
 	apiKey, configPath := logsConfig.getMainAPIKey()
 	e := Endpoint{
-		apiKey:                  atomic.NewString(apiKey),
+		credential:              newEndpointCredential(apiKey, false),
 		configSettingPath:       configPath,
 		ProxyAddress:            logsConfig.socks5ProxyAddress(),
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
@@ -154,7 +182,7 @@ func newHTTPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint
 
 	apiKey, configPath := logsConfig.getMainAPIKey()
 	e := Endpoint{
-		apiKey:                  atomic.NewString(apiKey),
+		credential:              newEndpointCredential(apiKey, false),
 		configSettingPath:       configPath,
 		UseCompression:          logsConfig.useCompression(),
 		CompressionKind:         logsConfig.compressionKind(),
@@ -184,10 +212,15 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 
 	newEndpoints := make([]Endpoint, 0, len(additionals))
 	for idx, e := range additionals {
+		if pkgconfigutils.IsDelaDirective(e.APIKey) {
+			log.Warnf("Additional endpoint %q at %q uses delegated auth, which is not supported over TCP; this endpoint is disabled", e.Host, configKeyUsed)
+			continue
+		}
 		newE := NewEndpoint(e.APIKey, configKeyUsed, e.Host, e.Port, EmptyPathPrefix, false)
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
+		newE.additionalEndpointsCount = len(additionals)
 
 		newE.UseCompression = e.UseCompression
 		newE.CompressionLevel = e.CompressionLevel
@@ -233,6 +266,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
+		newE.additionalEndpointsCount = len(additionals)
 		newE.UseCompression = main.UseCompression
 		newE.CompressionKind = main.CompressionKind
 		newE.CompressionLevel = main.CompressionLevel
@@ -278,7 +312,35 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 
 // GetAPIKey returns the latest API Key for the Endpoint, including when the configuration gets updated at runtime
 func (e *Endpoint) GetAPIKey() string {
-	return e.apiKey.Load()
+	if e.credential == nil {
+		return ""
+	}
+	credential := e.credential.Load()
+	if credential == nil {
+		return ""
+	}
+	return credential.apiKey
+}
+
+// GetAPIKeyIfReady atomically returns the credential and its delegated-auth readiness.
+func (e *Endpoint) GetAPIKeyIfReady() (string, bool) {
+	if e.credential == nil {
+		return "", false
+	}
+	credential := e.credential.Load()
+	if credential == nil {
+		return "", false
+	}
+	return credential.apiKey, !credential.pending && !credential.invalid
+}
+
+// IsWaitingForDelegatedAuth reports whether this endpoint must not send until config write-back.
+func (e *Endpoint) IsWaitingForDelegatedAuth() bool {
+	if e.credential == nil {
+		return false
+	}
+	credential := e.credential.Load()
+	return credential != nil && credential.pending
 }
 
 // UseSSL returns the useSSL config setting
@@ -348,17 +410,17 @@ func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
 		if newAPIKey, ok := newVal.(string); !ok {
 			log.Errorf("new API key for '%s' is invalid (not a string) ignoring new value", e.configSettingPath)
 		} else {
-			if oldKey, ok := oldVal.(string); ok && oldKey != e.apiKey.Load() {
+			if oldKey, ok := oldVal.(string); ok && oldKey != e.GetAPIKey() {
 				// This should never happens as it means that an update from the config was
 				// missed
 				log.Warnf("old API key for '%s' doesn't match the one in this endpoints", e.configSettingPath)
 			}
 			log.Infof("rotating API key for '%s': %s -> %s",
 				e.configSettingPath,
-				scrubber.HideKeyExceptLastChars(e.apiKey.Load()),
+				scrubber.HideKeyExceptLastChars(e.GetAPIKey()),
 				scrubber.HideKeyExceptLastChars(newAPIKey),
 			)
-			e.apiKey.Store(newAPIKey)
+			e.credential.Store(&endpointCredential{apiKey: newAPIKey})
 		}
 	})
 }
@@ -372,20 +434,59 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 		}
 
 		newAdditionalEndpoints, _ := l.getAdditionalEndpoints()
-		if e.additionalEndpointsIdx >= len(newAdditionalEndpoints) {
-			// this should never happens: the number of additional_endpoints should never change at runtime
-			log.Errorf("error: the number of additional_endpoints changed at runtime for '%s', discarding update.", e.configSettingPath)
+		if len(newAdditionalEndpoints) != e.additionalEndpointsCount || e.additionalEndpointsIdx >= len(newAdditionalEndpoints) {
+			e.credential.Store(&endpointCredential{pending: true, invalid: true})
+			log.Errorf("the number of additional endpoints changed at runtime in '%s'; sending is disabled until the Agent restarts", e.configSettingPath)
 			return
 		}
 
-		newAPIKey := newAdditionalEndpoints[e.additionalEndpointsIdx].APIKey
+		updated := newAdditionalEndpoints[e.additionalEndpointsIdx]
+		credential := e.credential.Load()
+		if credential != nil && credential.invalid {
+			return
+		}
+		for index, candidate := range newAdditionalEndpoints {
+			if index == e.additionalEndpointsIdx || !strings.EqualFold(candidate.Host, e.Host) {
+				continue
+			}
+			candidateKey := strings.TrimSpace(candidate.APIKey)
+			matchesDirective := e.delegatedAuthDirective != "" && candidateKey == e.delegatedAuthDirective
+			matchesCurrentKey := credential != nil && credential.apiKey != "" && candidateKey == credential.apiKey
+			if matchesDirective || matchesCurrentKey {
+				e.credential.Store(&endpointCredential{pending: true, invalid: true})
+				log.Errorf("additional endpoint moved at runtime in '%s'; sending is disabled until the Agent restarts", e.configSettingPath)
+				return
+			}
+		}
+		if !strings.EqualFold(updated.Host, e.Host) {
+			e.credential.Store(&endpointCredential{pending: true, invalid: true})
+			log.Errorf("additional endpoint identity changed at runtime for '%s' number %d; sending is disabled until the Agent restarts", e.configSettingPath, e.additionalEndpointsIdx)
+			return
+		}
+
+		rawAPIKey := strings.TrimSpace(updated.APIKey)
+		newAPIKey, pending := delaAwareAPIKey(rawAPIKey)
+		if pending {
+			if e.delegatedAuthDirective != "" && rawAPIKey != e.delegatedAuthDirective {
+				e.credential.Store(&endpointCredential{pending: true, invalid: true})
+				log.Errorf("delegated auth identity changed at runtime for endpoint '%s' number %d; sending is disabled until the Agent restarts", e.configSettingPath, e.additionalEndpointsIdx)
+				return
+			}
+			if e.delegatedAuthDirective != "" {
+				e.credential.Store(&endpointCredential{pending: true})
+				return
+			}
+			e.credential.Store(&endpointCredential{pending: true, invalid: true})
+			log.Warnf("delegated auth was enabled at runtime for endpoint '%s' number %d; sending is disabled until the Agent restarts", e.configSettingPath, e.additionalEndpointsIdx)
+			return
+		}
 		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
 			e.configSettingPath,
 			e.additionalEndpointsIdx,
-			scrubber.HideKeyExceptLastChars(e.apiKey.Load()),
+			scrubber.HideKeyExceptLastChars(e.GetAPIKey()),
 			scrubber.HideKeyExceptLastChars(newAPIKey),
 		)
-		e.apiKey.Store(newAPIKey)
+		e.credential.Store(&endpointCredential{apiKey: newAPIKey})
 	})
 }
 
