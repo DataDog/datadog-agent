@@ -56,12 +56,15 @@ pub(super) fn spawn_as_primary_token(
 
     let primary_token_guard = TokenHandle::new(credential.duplicate_primary_token(process_name)?);
 
-    let profile_guard = credential
-        .agent_account_for_interactive_logon()
-        .map(|agent_account| {
-            UserProfileGuard::load(process_name, primary_token_guard.raw(), agent_account)
-        })
-        .transpose()?;
+    let profile_guard = if credential.account().inherits_supervisor_token() {
+        None
+    } else {
+        Some(UserProfileGuard::load(
+            process_name,
+            primary_token_guard.raw(),
+            credential.account(),
+        )?)
+    };
 
     let env_block = env_block_from_baseline_plus_overrides(
         process_name,

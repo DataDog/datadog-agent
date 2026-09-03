@@ -6,10 +6,10 @@
 use anyhow::Result;
 use std::process::ExitStatus;
 
-#[cfg(not(windows))]
-use tokio::process::Child;
 #[cfg(windows)]
 use anyhow::Context;
+#[cfg(not(windows))]
+use tokio::process::Child;
 #[cfg(windows)]
 use tokio::process::Child;
 
