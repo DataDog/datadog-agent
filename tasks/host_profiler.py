@@ -76,9 +76,10 @@ def build(ctx, enable_bazel=False):
         raise Exit("Windows is not supported for host-profiler")
 
     if enable_bazel:
-        if _get_profiler_agent_version(ctx):
-            raise NotImplementedError("--enable-bazel does not support the nightly/dev-branch AgentVersion override.")
-        build_binary_with_bazel("//cmd/host-profiler:host-profiler", bin_path=BIN_PATH)
+        args = []
+        if profiler_version := _get_profiler_agent_version(ctx):
+            args.append(f"--repo_env=FORCE_AGENT_VERSION={profiler_version}")
+        build_binary_with_bazel("//cmd/host-profiler:host-profiler", args=args, bin_path=BIN_PATH)
     else:
         build_tags = get_default_build_tags(build="host-profiler")
         ldflags, gcflags, env = get_build_flags(ctx)
