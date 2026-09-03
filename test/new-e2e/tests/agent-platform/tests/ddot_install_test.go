@@ -67,7 +67,7 @@ func TestDDOTInstallScript(t *testing.T) {
 			tt.Logf("Testing %s", osDesc.Version)
 			slice := strings.Split(osDesc.Version, "-")
 			var version float64
-			if len(slice) == 2 {
+			if len(slice) == 2 || len(slice) == 3 && slice[2] == "e2e" {
 				version, err = strconv.ParseFloat(slice[1], 64)
 				require.NoError(tt, err)
 			} else if len(slice) == 3 {
@@ -179,7 +179,7 @@ func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 	var err error
 
 	is.T().Run("create /usr/share keyring and source list", func(t *testing.T) {
-		ExecuteWithoutError(t, VMclient, "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
+		ExecuteWithoutError(t, VMclient, "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg > /tmp/apt-get-install.log 2>&1")
 		tmpFileContent := fmt.Sprintf("deb %s %s 7", aptrepo, aptrepoDist)
 		_, err = fileManager.WriteFile("/etc/apt/sources.list.d/datadog.list", []byte(tmpFileContent))
 		require.NoError(t, err)
