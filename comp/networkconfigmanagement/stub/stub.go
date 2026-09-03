@@ -25,7 +25,7 @@ var errNoNCM = types.WrapErrorf(types.ErrDisabled, "NCM not available")
 // NCMStub is an NCM implementation that returns "not available" for every
 // operation.
 type NCMStub struct {
-	err types.RollbackError
+	err types.TypedError
 }
 
 func NewStub(msg string) *NCMStub {
@@ -36,7 +36,7 @@ func NewStub(msg string) *NCMStub {
 
 var _ networkconfigmanagement.Component = (*NCMStub)(nil)
 
-func (s *NCMStub) GetError() types.RollbackError {
+func (s *NCMStub) GetError() types.TypedError {
 	if s.err != nil {
 		return s.err
 	}
@@ -51,7 +51,10 @@ func (s *NCMStub) RegisterDevice(_ *config.DeviceInstance) error { return s.GetE
 func (s *NCMStub) ReportConfig(_ context.Context, _ string, _ sender.Sender) error {
 	return s.GetError()
 }
-func (s *NCMStub) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.RollbackError) {
+func (s *NCMStub) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.TypedError) {
+	return nil, s.GetError()
+}
+func (s *NCMStub) RunCommand(_ context.Context, _, _ string) (*types.CommandResult, types.TypedError) {
 	return nil, s.GetError()
 }
 func (s *NCMStub) SetMaxReportInterval(_ time.Duration) {}
@@ -65,5 +68,10 @@ func (s *NCMStub) GetConfigEndpointHandler() http.HandlerFunc {
 
 // RollbackEndpointHandler implements [networkconfigmanagement.Component].
 func (s *NCMStub) RollbackEndpointHandler() http.HandlerFunc {
+	return s.GetConfigEndpointHandler()
+}
+
+// RunCommandEndpointHandler implements [networkconfigmanagement.Component].
+func (s *NCMStub) RunCommandEndpointHandler() http.HandlerFunc {
 	return s.GetConfigEndpointHandler()
 }

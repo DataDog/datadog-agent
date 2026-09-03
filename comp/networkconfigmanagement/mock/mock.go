@@ -36,6 +36,11 @@ func (m *mockNetworkConfigManagement) GetConfigEndpointHandler() http.HandlerFun
 	panic("unimplemented")
 }
 
+// RunCommandEndpointHandler implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RunCommandEndpointHandler() http.HandlerFunc {
+	panic("unimplemented")
+}
+
 // ReportConfig implements [networkconfigmanagement.Component].
 func (m *mockNetworkConfigManagement) ReportConfig(_ context.Context, deviceID string, _ sender.Sender) error {
 	if _, ok := m.devices[deviceID]; ok {
@@ -51,7 +56,12 @@ func (m *mockNetworkConfigManagement) RegisterDevice(device *config.DeviceInstan
 }
 
 // RollbackConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.RollbackError) {
+func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.TypedError) {
+	return nil, types.InternalError(errors.New("unimplemented"))
+}
+
+// RunCommand implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RunCommand(_ context.Context, _, _ string) (*types.CommandResult, types.TypedError) {
 	return nil, types.InternalError(errors.New("unimplemented"))
 }
 
