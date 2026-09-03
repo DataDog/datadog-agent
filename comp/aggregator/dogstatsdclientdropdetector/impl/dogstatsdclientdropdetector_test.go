@@ -257,7 +257,7 @@ func TestComponentMaintainsIndependentIssuesPerClientLibrary(t *testing.T) {
 	require.Nil(t, healthPlatform.GetIssue(pythonState.issueID))
 }
 
-func TestComponentPendingTransitionsRequireContinuousEvidence(t *testing.T) {
+func TestComponentPendingTransitionsRequireConsistentEvidence(t *testing.T) {
 	detector, healthPlatform := newTestComponent(t)
 	advance := useTestClock(detector)
 	issueID := goClientState(detector).issueID
@@ -272,11 +272,6 @@ func TestComponentPendingTransitionsRequireContinuousEvidence(t *testing.T) {
 
 	observe(98, 2)
 	advance(detector.unhealthyConfirmationDuration)
-	detector.CompleteFinalDogStatsDSerieFlush()
-	observe(98, 2)
-	require.Nil(t, healthPlatform.GetIssue(issueID), "missing telemetry must cancel a pending open")
-
-	advance(detector.unhealthyConfirmationDuration)
 	observe(98, 2)
 	require.NotNil(t, healthPlatform.GetIssue(issueID))
 
@@ -287,13 +282,32 @@ func TestComponentPendingTransitionsRequireContinuousEvidence(t *testing.T) {
 
 	observe(100, 0)
 	advance(detector.recoveryConfirmationDuration)
-	detector.CompleteFinalDogStatsDSerieFlush()
-	observe(100, 0)
-	require.NotNil(t, healthPlatform.GetIssue(issueID), "missing telemetry must cancel a pending resolution")
-
-	advance(detector.recoveryConfirmationDuration)
 	observe(100, 0)
 	require.Nil(t, healthPlatform.GetIssue(issueID))
+}
+
+func TestComponentSparseTelemetryConfirmsTransitions(t *testing.T) {
+	detector, healthPlatform := newTestComponent(t)
+	advance := useTestClock(detector)
+	state := goClientState(detector)
+
+	completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
+	advance(detector.unhealthyConfirmationDuration)
+	detector.CompleteFinalDogStatsDSerieFlush()
+	require.Nil(t, healthPlatform.GetIssue(state.issueID))
+	require.True(t, state.confirmationPending)
+
+	completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
+	require.NotNil(t, healthPlatform.GetIssue(state.issueID))
+
+	completeWindow(detector, clientByteStats{sent: 100})
+	advance(detector.recoveryConfirmationDuration)
+	detector.CompleteFinalDogStatsDSerieFlush()
+	require.NotNil(t, healthPlatform.GetIssue(state.issueID))
+	require.True(t, state.confirmationPending)
+
+	completeWindow(detector, clientByteStats{sent: 100})
+	require.Nil(t, healthPlatform.GetIssue(state.issueID))
 }
 
 func TestComponentRetriesFailedIssueReport(t *testing.T) {
