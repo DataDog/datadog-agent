@@ -1,0 +1,8 @@
+trigger:
+  stage: .pre
+  include: .gitlab-ci.yml
+  variables:
+    RUN_E2E_TESTS: "on" 
+    RUN_KMT_TESTS: "off"
+    RUN_UNIT_TESTS: "off"
+    
