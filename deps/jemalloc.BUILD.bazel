@@ -58,7 +58,6 @@ configure_make(
     configure_in_place = True,
     configure_options = [
         "--disable-debug",
-        "--disable-stats",
         "--disable-fill",
         "--disable-prof",
         "--disable-static",
