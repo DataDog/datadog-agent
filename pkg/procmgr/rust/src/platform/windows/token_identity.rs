@@ -6,14 +6,14 @@
 use std::ptr;
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{
-    GetTokenInformation, IsWellKnownSid, TOKEN_USER, TokenUser, WinLocalSystemSid,
+    GetLengthSid, GetTokenInformation, IsWellKnownSid, TOKEN_USER, TokenUser, WinLocalSystemSid,
 };
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 use super::win_handle::WinHandle;
 
 #[cfg(test)]
-use windows_sys::Win32::Security::{GetLengthSid, LookupAccountSidW};
+use windows_sys::Win32::Security::LookupAccountSidW;
 
 #[cfg(test)]
 use super::account_name::AccountName;
