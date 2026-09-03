@@ -137,7 +137,11 @@ func resolveOTelTLS(pid uint32) (otelTLSResolution, error) {
 	if err != nil {
 		return otelTLSResolution{}, err
 	}
-	attributeKeys, _ := procCtx.Attributes.StringSlice(otelprocessctx.KeyAttributeKeyMap)
+
+	attributeKeys, err := otelprocessctx.KeyAttributeKeyMap(procCtx)
+	if err != nil {
+		return otelTLSResolution{}, err
+	}
 
 	module, sym, err := target.findOTelTLSModule()
 	if err != nil {
@@ -176,21 +180,21 @@ func resolveOTelTLS(pid uint32) (otelTLSResolution, error) {
 // parse the module lookup does anyway has already located.
 func (p *otelTargetProcess) processContext() (otelprocessctx.ProcessContext, error) {
 	if _, _, err := p.groupedReadableFileMaps(); err != nil {
-		return otelprocessctx.ProcessContext{}, err
+		return nil, err
 	}
 	if p.procCtxAddr == 0 {
-		return otelprocessctx.ProcessContext{}, fmt.Errorf("process %d publishes no OTel process context", p.pid)
+		return nil, fmt.Errorf("process %d publishes no OTel process context", p.pid)
 	}
 
 	mem, err := procfs.OpenMem(p.pid)
 	if err != nil {
-		return otelprocessctx.ProcessContext{}, err
+		return nil, err
 	}
 	defer mem.Close()
 
 	procCtx, err := otelprocessctx.Read(mem, p.procCtxAddr)
 	if err != nil {
-		return otelprocessctx.ProcessContext{}, err
+		return nil, err
 	}
 	return procCtx, nil
 }

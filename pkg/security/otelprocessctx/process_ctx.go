@@ -21,6 +21,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
+
+	processcontextpb "go.opentelemetry.io/proto/slim/otlp/processcontext/v1development"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -100,51 +103,54 @@ func Read(mem procfs.Mem, headerAddr uint64) (ProcessContext, error) {
 			return ctx, nil
 		}
 		if !torn {
-			return ProcessContext{}, err
+			return nil, err
 		}
 		lastErr = err
 	}
 
-	return ProcessContext{}, lastErr
+	return nil, lastErr
 }
 
 func readOnce(mem procfs.Mem, headerAddr uint64) (ProcessContext, bool, error) {
 	buf := make([]byte, headerSize)
 	if err := mem.Read(headerAddr, buf); err != nil {
-		return ProcessContext{}, false, fmt.Errorf("cannot read the process context header: %w", err)
+		return nil, false, fmt.Errorf("cannot read the process context header: %w", err)
 	}
 
 	before, err := parseHeader(buf)
 	if err != nil {
-		return ProcessContext{}, false, err
+		return nil, false, err
 	}
 	if before.monotonicPublishedAtNs == unpublished {
-		return ProcessContext{}, false, errors.New("process context is unpublished or being updated")
+		return nil, false, errors.New("process context is unpublished or being updated")
 	}
 	if before.payloadSize == 0 || before.payloadSize > maxPayloadSize {
-		return ProcessContext{}, false, fmt.Errorf("implausible process context payload size %d", before.payloadSize)
+		return nil, false, fmt.Errorf("implausible process context payload size %d", before.payloadSize)
 	}
 	if before.payloadPtr == 0 {
-		return ProcessContext{}, false, errors.New("null process context payload pointer")
+		return nil, false, errors.New("null process context payload pointer")
 	}
 
 	payload := make([]byte, before.payloadSize)
 	if err := mem.Read(before.payloadPtr, payload); err != nil {
-		return ProcessContext{}, false, fmt.Errorf("cannot read the process context payload: %w", err)
+		return nil, false, fmt.Errorf("cannot read the process context payload: %w", err)
 	}
 
 	if err := mem.Read(headerAddr, buf); err != nil {
-		return ProcessContext{}, false, fmt.Errorf("cannot re-read the process context header: %w", err)
+		return nil, false, fmt.Errorf("cannot re-read the process context header: %w", err)
 	}
 	after, err := parseHeader(buf)
 	if err != nil {
-		return ProcessContext{}, false, err
+		return nil, false, err
 	}
 	if after.monotonicPublishedAtNs != before.monotonicPublishedAtNs {
-		return ProcessContext{}, true, errors.New("process context changed while being read")
+		return nil, true, errors.New("process context changed while being read")
 	}
 
-	res, err := decodeProcessContext(payload)
+	var pb processcontextpb.ProcessContext
+	if err := proto.Unmarshal(payload, &pb); err != nil {
+		return nil, false, err
+	}
 
-	return res, false, err
+	return &pb, false, nil
 }

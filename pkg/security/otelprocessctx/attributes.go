@@ -7,70 +7,40 @@
 
 package otelprocessctx
 
-// KeyAttributeKeyMap is the attribute key under which an OTEP 4947 writer publishes,
-// alongside its records, the key names a reader needs to decode them.
-const KeyAttributeKeyMap = "threadlocal.attribute_key_map"
+import (
+	"fmt"
 
-// ProcessContext is the decoded content of the process context a process publishes.
-type ProcessContext struct {
-	// Resource describes the process itself, in OpenTelemetry semantic conventions:
-	// service.name, deployment.environment.name, telemetry.sdk.language, ...
-	Resource Attributes
-	// Attributes are the ones the publisher shares outside the standard resource,
-	// among them the thread-local block this reader is after.
-	Attributes Attributes
-}
-
-// ValueKind tells which field of a Value is populated.
-type ValueKind uint8
-
-// The value kinds this reader keeps. Anything else in the payload is dropped while
-// decoding, since the process context is only read for the thread-local block.
-const (
-	// ValueUnset is the zero value, returned for attributes that are not present.
-	ValueUnset ValueKind = iota
-	// ValueString is a string_value.
-	ValueString
-	// ValueInt is an int_value.
-	ValueInt
-	// ValueStringSlice is an array_value whose entries are all string_values.
-	ValueStringSlice
+	commonpb "go.opentelemetry.io/proto/slim/otlp/common/v1"
+	processcontextpb "go.opentelemetry.io/proto/slim/otlp/processcontext/v1development"
 )
 
-// Value is one decoded attribute value.
-type Value struct {
-	Kind        ValueKind
-	Str         string
-	Int         int64
-	StringSlice []string
+type ProcessContext = *processcontextpb.ProcessContext
+
+// KeyAttributeKeyMap returns the ordered list of attribute key names the process
+// published in its OTel process context (OTEP 4947).
+func KeyAttributeKeyMap(ctx ProcessContext) ([]string, error) {
+	attr := "threadlocal.attribute_key_map"
+
+	value := findAttribute(ctx.GetAttributes(), attr)
+	if value == nil {
+		return nil, fmt.Errorf("unknown attribute %s", attr)
+	}
+
+	entries := value.GetArrayValue().GetValues()
+	keys := make([]string, len(entries))
+	for i, entry := range entries {
+		keys[i] = entry.GetStringValue()
+	}
+	return keys, nil
 }
 
-// Attributes are the extra attributes of a process context, keyed by attribute name.
-type Attributes map[string]Value
-
-// String returns the value of a string attribute.
-func (a Attributes) String(key string) (string, bool) {
-	v, ok := a[key]
-	if !ok || v.Kind != ValueString {
-		return "", false
+// findAttribute returns the value of the attribute named key among attrs, or nil if
+// attrs has none by that name.
+func findAttribute(attrs []*commonpb.KeyValue, key string) *commonpb.AnyValue {
+	for _, kv := range attrs {
+		if kv.GetKey() == key {
+			return kv.GetValue()
+		}
 	}
-	return v.Str, true
-}
-
-// Int returns the value of an integer attribute.
-func (a Attributes) Int(key string) (int64, bool) {
-	v, ok := a[key]
-	if !ok || v.Kind != ValueInt {
-		return 0, false
-	}
-	return v.Int, true
-}
-
-// StringSlice returns the value of a string array attribute.
-func (a Attributes) StringSlice(key string) ([]string, bool) {
-	v, ok := a[key]
-	if !ok || v.Kind != ValueStringSlice {
-		return nil, false
-	}
-	return v.StringSlice, true
+	return nil
 }
