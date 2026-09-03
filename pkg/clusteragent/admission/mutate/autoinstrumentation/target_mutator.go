@@ -38,6 +38,21 @@ const (
 	AppliedPolicyEnvVar = "DD_INSTRUMENTATION_APPLIED_POLICY"
 )
 
+// allowedTracerConfigPrefixes are the env var name prefixes accepted for tracer configs supplied
+// via Targets, remote-config policies, or the tracer-configs annotation. This keeps the mechanism
+// from being used as a generic env var injector while still allowing DD_* and OTel-native OTEL_*
+// configuration (e.g. activating a tracer's OTel mode with OTEL_TRACES_EXPORTER).
+var allowedTracerConfigPrefixes = []string{"DD_", "OTEL_"}
+
+func hasAllowedTracerConfigPrefix(name string) bool {
+	for _, prefix := range allowedTracerConfigPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // policySet is matcher.policies aligned with injection targets by index, so a
 // match resolves directly to its injection config. An empty set (no targets, no
 // policies) matches nothing.
@@ -175,13 +190,12 @@ func buildInternalTargets(config *Config, targets []Target, defaultLibVersions [
 			libVersions = pinnedLibraries.libs
 		}
 
-		// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
-		// this from being used as a generic env var injector. If there is a product requirement to allow arbitrary env
-		// vars in the future, we could relax this requirement.
+		// Convert the tracer configs to env vars. We only allow DD_ and OTEL_ prefixed names to avoid
+		// this from being used as a generic env var injector.
 		envVars := make([]corev1.EnvVar, len(t.TracerConfigs))
 		for j, tc := range t.TracerConfigs {
-			if !strings.HasPrefix(tc.Name, "DD_") {
-				return nil, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+			if !hasAllowedTracerConfigPrefix(tc.Name) {
+				return nil, fmt.Errorf("tracer config %q does not start with DD_ or OTEL_", tc.Name)
 			}
 			envVars[j] = tc.AsEnvVar()
 		}
@@ -244,8 +258,8 @@ func buildInternalTargetsFromPolicies(config *Config, ps []policies.Policy, defa
 
 		envVars := make([]corev1.EnvVar, len(p.Outcome.TracerConfigs))
 		for j, tc := range p.Outcome.TracerConfigs {
-			if !strings.HasPrefix(tc.Name, "DD_") {
-				return nil, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+			if !hasAllowedTracerConfigPrefix(tc.Name) {
+				return nil, fmt.Errorf("tracer config %q does not start with DD_ or OTEL_", tc.Name)
 			}
 			envVars[j] = corev1.EnvVar{Name: tc.Name, Value: tc.Value}
 		}
@@ -653,10 +667,10 @@ func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
 
 	envVars := make([]corev1.EnvVar, 0, len(tracerConfigs))
 	for _, tc := range tracerConfigs {
-		// Match the validation applied to config-based ddTraceConfigs: only allow DD_ prefixed names
-		// so this cannot be used as a generic env var injector.
-		if !strings.HasPrefix(tc.Name, "DD_") {
-			log.Errorf("tracer config %q from %q annotation does not start with DD_, skipping", tc.Name, annotation.TracerConfigs)
+		// Match the validation applied to config-based ddTraceConfigs: only allow DD_ or OTEL_
+		// prefixed names so this cannot be used as a generic env var injector.
+		if !hasAllowedTracerConfigPrefix(tc.Name) {
+			log.Errorf("tracer config %q from %q annotation does not start with DD_ or OTEL_, skipping", tc.Name, annotation.TracerConfigs)
 			continue
 		}
 		envVars = append(envVars, tc.AsEnvVar())
