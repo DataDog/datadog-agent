@@ -21,7 +21,7 @@ import (
 var (
 	apmPolicyIDPattern           = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
 	apmPolicyPrefixPattern       = regexp.MustCompile(`^(\d+)\.`)
-	apmPolicyKubernetesIDPattern = regexp.MustCompile(`^\d+\.kubernetes`)
+	apmPolicyKubernetesIDPattern = regexp.MustCompile(`^\d+\.kubernetes(?:\.|$)`)
 )
 
 // sortRemotePolicyPaths preserves the numeric-prefix ordering used by the
@@ -95,40 +95,46 @@ func (m *TargetMutator) onRemoteConfigUpdate(updates map[string]state.RawConfig,
 		paths = append(paths, path)
 	}
 	sortRemotePolicyPaths(paths)
-	reportApplyError := func(err error) {
+
+	var kept []string
+	for _, path := range paths {
+		if isKubernetesRemotePolicyPath(path) {
+			kept = append(kept, path)
+			continue
+		}
+		log.Debugf("auto-instrumentation: ignoring remote config %q (not a kubernetes APM_POLICIES id)", path)
+	}
+
+	reportStatuses := func(err error) {
 		for _, path := range paths {
-			applyStateCallback(path, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
+			if err != nil && isKubernetesRemotePolicyPath(path) {
+				applyStateCallback(path, state.ApplyStatus{
+					State: state.ApplyStateError,
+					Error: err.Error(),
+				})
+				continue
+			}
+			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
 	}
 
 	var allPolicies []policies.Policy
-	kept := 0
-	for _, path := range paths {
-		if !isKubernetesRemotePolicyPath(path) {
-			log.Debugf("auto-instrumentation: ignoring remote config %q (not a kubernetes APM_POLICIES id)", path)
-			continue
-		}
+	for _, path := range kept {
 		parsed, err := policies.ParsePolicies(updates[path].Config)
 		if err != nil {
-			reportApplyError(err)
+			reportStatuses(err)
 			log.Errorf("failed to parse SSI policies from remote config %q: %v", path, err)
 			return
 		}
 		allPolicies = append(allPolicies, parsed...)
-		kept++
 	}
 
 	if err := m.SetRemotePolicies(allPolicies); err != nil {
-		reportApplyError(err)
+		reportStatuses(err)
 		log.Errorf("failed to apply SSI remote policies: %v", err)
 		return
 	}
 
-	log.Infof("auto-instrumentation: applied %d SSI policies from %d remote config(s)", len(allPolicies), kept)
-	for path := range updates {
-		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-	}
+	log.Infof("auto-instrumentation: applied %d SSI policies from %d remote config(s)", len(allPolicies), len(kept))
+	reportStatuses(nil)
 }

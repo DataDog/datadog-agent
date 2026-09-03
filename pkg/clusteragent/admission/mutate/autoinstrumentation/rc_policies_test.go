@@ -271,14 +271,16 @@ func TestOnRemoteConfigUpdate_KeepsOnlyKubernetesPolicyIDs(t *testing.T) {
 	applied := make(map[string]state.ApplyStatus)
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{
 		"datadog/2/APM_POLICIES/1.linux/config":         {Config: []byte(linux)},
+		"datadog/2/APM_POLICIES/1.kubernetesfoo/config": {Config: []byte(linux)},
 		"datadog/2/APM_POLICIES/2.kubernetes/config":    {Config: []byte(k8s)},
 		"datadog/2/APM_POLICIES/3.windows.block/config": {Config: []byte(linux)},
 		"datadog/2/APM_POLICIES/policy-1/config":        {Config: []byte(linux)},
 	}, func(path string, status state.ApplyStatus) { applied[path] = status })
 
-	require.Len(t, applied, 4)
+	require.Len(t, applied, 5)
 	for _, path := range []string{
 		"datadog/2/APM_POLICIES/1.linux/config",
+		"datadog/2/APM_POLICIES/1.kubernetesfoo/config",
 		"datadog/2/APM_POLICIES/2.kubernetes/config",
 		"datadog/2/APM_POLICIES/3.windows.block/config",
 		"datadog/2/APM_POLICIES/policy-1/config",
@@ -321,10 +323,11 @@ func TestOnRemoteConfigUpdate_InvalidPayloadKeepsBaseline(t *testing.T) {
 
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{
 		"datadog/2/APM_POLICIES/1.kubernetes.valid/config": {Config: []byte(validDeny)},
+		"datadog/2/APM_POLICIES/1.linux/config":            {Config: []byte(validDeny)},
 		"datadog/2/APM_POLICIES/2.kubernetes.bad/config":   {Config: []byte("{")},
 	}, apply)
 
-	require.Len(t, applied, 2)
+	require.Len(t, applied, 3)
 	for _, path := range []string{
 		"datadog/2/APM_POLICIES/1.kubernetes.valid/config",
 		"datadog/2/APM_POLICIES/2.kubernetes.bad/config",
@@ -332,6 +335,7 @@ func TestOnRemoteConfigUpdate_InvalidPayloadKeepsBaseline(t *testing.T) {
 		require.Equal(t, state.ApplyStateError, applied[path].State)
 		require.NotEmpty(t, applied[path].Error)
 	}
+	require.Equal(t, state.ApplyStateAcknowledged, applied["datadog/2/APM_POLICIES/1.linux/config"].State)
 
 	// Baseline is untouched.
 	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
