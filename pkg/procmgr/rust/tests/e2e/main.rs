@@ -15,6 +15,7 @@ mod ddot;
 mod describe;
 mod env_files;
 mod fixtures;
+mod identity;
 mod process_control;
 mod reload;
 mod restart_burst;
