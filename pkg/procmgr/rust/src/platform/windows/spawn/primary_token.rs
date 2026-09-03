@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use std::mem;
 use std::os::windows::ffi::OsStrExt;
 use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
@@ -56,7 +56,11 @@ pub(super) fn spawn_as_primary_token(
 
     let primary_token_guard = TokenHandle::new(credential.duplicate_primary_token(process_name)?);
 
-    let profile_guard = if credential.account().inherits_supervisor_token() {
+    let profile_guard = if credential
+        .account()
+        .spawns_with_supervisor_token()
+        .with_context(|| format!("[{process_name}] compare spawn account to supervisor token"))?
+    {
         None
     } else {
         Some(UserProfileGuard::load(

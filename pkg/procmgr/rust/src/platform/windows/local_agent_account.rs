@@ -5,7 +5,6 @@
 
 #[cfg(not(test))]
 use anyhow::bail;
-#[cfg(not(test))]
 use anyhow::{Context, Result};
 #[cfg(not(test))]
 use log::info;
@@ -14,14 +13,16 @@ use windows_sys::Win32::Security::{
 };
 
 use super::account_name::AccountName;
+use super::agent_service_sid::lookup_installed_user_sid;
 #[cfg(not(test))]
 use super::agent_service_sid::{
-    DATADOG_AGENT_SERVICE, lookup_installed_user_sid, service_runs_as_agent_user,
+    DATADOG_AGENT_SERVICE, service_runs_as_agent_user,
 };
 use super::local_account::is_local_account;
 #[cfg(not(test))]
 use super::scm_lsa_secret::read_scm_service_password;
 use super::sid::lookup_account_sid;
+use super::token_identity::current_process_sid_matches;
 #[cfg(not(test))]
 use super::{open_datadog_agent_key, registry_nonempty_string};
 
@@ -58,6 +59,20 @@ impl std::fmt::Debug for AgentAccount {
 impl AgentAccount {
     pub(crate) fn inherits_supervisor_token(&self) -> bool {
         matches!(self, AgentAccount::LocalSystem)
+    }
+
+    pub(crate) fn spawns_with_supervisor_token(&self) -> Result<bool> {
+        if self.inherits_supervisor_token() {
+            return Ok(true);
+        }
+        let AgentAccount::PasswordLogon { domain, user, .. } = self else {
+            return Ok(false);
+        };
+        let sid = lookup_account_sid(domain, user)
+            .or_else(|_| lookup_installed_user_sid(domain, user))
+            .with_context(|| format!("lookup SID for {}", self.display_name()))?;
+        current_process_sid_matches(&sid)
+            .with_context(|| format!("compare supervisor token to {}", self.display_name()))
     }
 
     pub(crate) fn display_name(&self) -> String {
@@ -120,6 +135,20 @@ fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Resu
         is_local_account(sid).with_context(|| format!("classify local account for {display}"))?;
     if !is_local {
         bail!("domain agent account {display} is not supported");
+    }
+
+    if current_process_sid_matches(sid)
+        .with_context(|| format!("compare supervisor token to installed agent account {display}"))?
+    {
+        info!(
+            "dd-procmgrd runs as installed agent account {display}; \
+             agent spawn will inherit the supervisor token until LocalSystem migration"
+        );
+        return Ok(AgentAccount::PasswordLogon {
+            domain,
+            user,
+            password: String::new(),
+        });
     }
 
     let scm_service_matches_agent =
