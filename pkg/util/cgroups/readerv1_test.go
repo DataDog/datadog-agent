@@ -46,7 +46,7 @@ func TestReaderV1(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, r)
 
-	cgroups, err := r.parseCgroups()
+	cgroups, _, err := r.parseCgroups()
 	assert.NoError(t, err)
 
 	expected := map[string]Cgroup{
