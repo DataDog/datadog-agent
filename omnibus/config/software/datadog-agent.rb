@@ -158,6 +158,15 @@ build do
   if linux_target? and !heroku_target?
     command "dda inv -- -e installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
+  elsif osx_target?
+    # macOS has a single install root, so there is no --run-path to give: the daemon resolves its
+    # run directory from pkg/fleet/installer/paths, which names the run directory inside it.
+    #
+    # cgo stays enabled, as it is for the Windows installer below. pkg/inventory/systeminfo reaches
+    # IOKit through Objective-C on darwin and has no pure-Go fallback there, so a --no-cgo build
+    # drops its collect() and fails to link.
+    command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"

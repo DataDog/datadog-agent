@@ -8,6 +8,8 @@ go_library(
         "bootstrapper.go",
         "command.go",
         "command_mock.go",
+        "daemon_darwin.go",
+        "daemon_default.go",
         "hooks.go",
         "status.go",
         "umask_nix.go",

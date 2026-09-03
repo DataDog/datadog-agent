@@ -6,8 +6,9 @@
 
 # Datadog Agent uninstall script for macOS.
 # Paired with install_mac_os.sh (Agent 7.79.0+). Removes the system-wide
-# components installed by the DMG: LaunchDaemons (agent, sysprobe, data-plane),
-# GUI LaunchAgent, /Applications app, /opt/datadog-agent tree, and symlinks.
+# components installed by the DMG: LaunchDaemons (agent, sysprobe, data-plane,
+# installer), GUI LaunchAgent, /Applications app, /opt/datadog-agent and
+# /opt/datadog-packages trees, and symlinks.
 set -eu
 
 if [ -t 1 ]; then
@@ -52,6 +53,11 @@ printf "${BLUE}\n    - Stopping system services...\n${NC}"
 $sudo_cmd launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
+$sudo_cmd launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
+# The -exp jobs only exist while a configuration experiment is running.
+$sudo_cmd launchctl bootout system/com.datadoghq.agent-exp 2>/dev/null || true
+$sudo_cmd launchctl bootout system/com.datadoghq.sysprobe-exp 2>/dev/null || true
+$sudo_cmd launchctl bootout system/com.datadoghq.data-plane-exp 2>/dev/null || true
 
 printf "${BLUE}\n    - Stopping GUI for logged-in users...\n${NC}"
 for logged_user in $(who | awk '{print $1}' | sort -u); do
@@ -68,6 +74,10 @@ printf "${BLUE}\n    - Removing launchd plists...\n${NC}"
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist
+$sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.installer.plist
+$sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
+$sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe-exp.plist
+$sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.data-plane-exp.plist
 $sudo_cmd rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
 $sudo_cmd rm -f "/Library/LaunchAgents/$ai_usage_desktop_monitor_label.plist"
 $sudo_cmd rm -f "/Library/LaunchAgents/$old_ai_usage_desktop_monitor_label.plist"
@@ -75,9 +85,13 @@ $sudo_cmd rm -f "/Library/LaunchAgents/$old_ai_usage_desktop_monitor_label.plist
 printf "${BLUE}\n    - Removing application and install directory...\n${NC}"
 $sudo_cmd rm -rf "/Applications/Datadog Agent.app"
 $sudo_cmd rm -rf /opt/datadog-agent
+# The installer registers the Agent as a package here and keeps its state
+# alongside; macOS stores nothing else under this root.
+$sudo_cmd rm -rf /opt/datadog-packages
 
 printf "${BLUE}\n    - Removing symlinks and staging data...\n${NC}"
 $sudo_cmd rm -f /usr/local/bin/datadog-agent
+$sudo_cmd rm -f /usr/local/bin/datadog-installer
 # /var/log/datadog is a symlink to /opt/datadog-agent/logs created by preinst.
 $sudo_cmd rm -f /var/log/datadog
 # Staging dir may be left behind by an interrupted install (normally cleaned

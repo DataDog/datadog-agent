@@ -47,6 +47,11 @@ func generate(outputDir string) error {
 			return err
 		}
 	}
+	for _, lay := range launchdEmbeddedLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -67,6 +72,41 @@ type templateData struct {
 	installerTemplateData
 	AmbiantCapabilitiesSupported bool
 	Procmgr                      bool
+}
+
+// launchdTemplateData parameterises a launchd job definition.
+//
+// The stable and the -exp job sets are rendered from the same templates, which is what keeps
+// them from drifting: a change to a job is one edit and both sets pick it up. They differ only
+// in the fields below.
+type launchdTemplateData struct {
+	// LabelSuffix is appended to the job label and to its log file name: empty for the stable
+	// set, "-exp" for the experiment set.
+	LabelSuffix string
+	// ProgramDir is the install root the job's program is resolved under. Both sets name the
+	// same root: a configuration experiment does not change which binaries run.
+	ProgramDir string
+	// EtcDir is the configuration directory the job reads. launchd cannot supply a
+	// configuration path at load time, so the definition names it itself.
+	EtcDir string
+	// FleetPoliciesDir is the Fleet-managed policy directory. Its trailing stable/experiment
+	// segment is unrelated to the pool link of the same name and is the same for both sets:
+	// an -exp job swaps the etc prefix and leaves that segment alone.
+	FleetPoliciesDir string
+	// Supervised reports whether launchd relaunches the job on an unsuccessful exit. The -exp
+	// set omits KeepAlive entirely, which is what makes an experiment's exit terminal rather
+	// than one iteration of a respawn loop.
+	Supervised bool
+	// Stable distinguishes the two sets for everything that is neither supervision nor a path,
+	// such as the experiment-only environment variables.
+	Stable bool
+
+	// The remaining fields are the fixed state root. State is singular: one pidfile, one run
+	// directory, one log directory, whichever job set is loaded.
+	RunDir     string
+	LogDir     string
+	AgentUser  string
+	AgentGroup string
 }
 
 type embeddedLayout struct {
@@ -110,6 +150,32 @@ func mustReadUnit(name string, data installerTemplateData, ambiantCapabilitiesSu
 
 func mustRenderYAMLConfig(name string, data installerTemplateData) []byte {
 	return mustRenderTemplate(name+".tmpl", data, false, true)
+}
+
+func mustRenderLaunchdJob(name string, data launchdTemplateData) []byte {
+	tmpl, err := template.ParseFS(embedded, name+".tmpl")
+	if err != nil {
+		panic(err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}
+
+// jobSetLaunchd renders both launchd job sets. The installer daemon has no -exp variant: it is
+// the process that supervises an experiment, so it is never part of one.
+func jobSetLaunchd(stableData, expData launchdTemplateData) map[string][]byte {
+	return map[string][]byte{
+		"com.datadoghq.installer.plist":      mustRenderLaunchdJob("com.datadoghq.installer.plist", stableData),
+		"com.datadoghq.agent.plist":          mustRenderLaunchdJob("com.datadoghq.agent.plist", stableData),
+		"com.datadoghq.agent-exp.plist":      mustRenderLaunchdJob("com.datadoghq.agent.plist", expData),
+		"com.datadoghq.sysprobe.plist":       mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", stableData),
+		"com.datadoghq.sysprobe-exp.plist":   mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", expData),
+		"com.datadoghq.data-plane.plist":     mustRenderLaunchdJob("com.datadoghq.data-plane.plist", stableData),
+		"com.datadoghq.data-plane-exp.plist": mustRenderLaunchdJob("com.datadoghq.data-plane.plist", expData),
+	}
 }
 
 func unitSetSystemd(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
@@ -228,10 +294,42 @@ var (
 		{subdir: "pm/debrpm-nc", units: unitSetProcmgr(stableDataDebRpm, expDataDebRpm, false)},
 		{subdir: "pm/processes.d", units: yamlSet()},
 	}
+	// macOS has a single install root: /opt/datadog-agent holds the binaries alongside etc,
+	// etc-exp, run and logs. A configuration experiment changes only which configuration
+	// directory the Agent reads, so both job sets run the very same binaries and differ in
+	// EtcDir, FleetPoliciesDir, the label suffix and whether launchd keeps them alive.
+	stableDataLaunchd = launchdTemplateData{
+		LabelSuffix:      "",
+		ProgramDir:       "/opt/datadog-agent",
+		EtcDir:           "/opt/datadog-agent/etc",
+		FleetPoliciesDir: "/opt/datadog-agent/etc/managed/datadog-agent/stable",
+		Supervised:       true,
+		Stable:           true,
+		RunDir:           "/opt/datadog-agent/run",
+		LogDir:           "/opt/datadog-agent/logs",
+		AgentUser:        "_dd-agent",
+		AgentGroup:       "daemon",
+	}
+	expDataLaunchd = launchdTemplateData{
+		LabelSuffix:      "-exp",
+		ProgramDir:       "/opt/datadog-agent",
+		EtcDir:           "/opt/datadog-agent/etc-exp",
+		FleetPoliciesDir: "/opt/datadog-agent/etc-exp/managed/datadog-agent/stable",
+		Supervised:       false,
+		Stable:           false,
+		RunDir:           "/opt/datadog-agent/run",
+		LogDir:           "/opt/datadog-agent/logs",
+		AgentUser:        "_dd-agent",
+		AgentGroup:       "daemon",
+	}
+
 	windowsEmbeddedLayouts = []embeddedLayout{
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action.yaml", "datadog-agent-action-windows.yaml", windowsPARCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-executor.yaml", "datadog-agent-action-executor-windows.yaml", windowsPARCodegenData)},
+	}
+	launchdEmbeddedLayouts = []embeddedLayout{
+		{subdir: "darwin", units: jobSetLaunchd(stableDataLaunchd, expDataLaunchd)},
 	}
 )

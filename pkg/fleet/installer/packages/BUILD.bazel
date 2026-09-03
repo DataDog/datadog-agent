@@ -7,6 +7,8 @@ go_library(
         "apm_inject_linux.go",
         "apm_inject_windows.go",
         "apm_library_dotnet_windows.go",
+        "config_experiment_darwin.go",
+        "datadog_agent_darwin.go",
         "datadog_agent_ddot_linux.go",
         "datadog_agent_ddot_windows.go",
         "datadog_agent_eudm_windows.go",
@@ -16,6 +18,7 @@ go_library(
         "datadog_agent_windows.go",
         "otel_config_common.go",
         "packages.go",
+        "packages_darwin.go",
         "packages_default.go",
         "packages_linux.go",
         "packages_windows.go",
@@ -48,6 +51,20 @@ go_library(
             "//pkg/fleet/installer/packages/service/systemd",
             "//pkg/fleet/installer/packages/service/sysvinit",
             "//pkg/fleet/installer/packages/service/upstart",
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/installinfo",
+            "//pkg/fleet/installer/packages/embedded",
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/packages/launchd",
+            "//pkg/fleet/installer/packages/user",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/installinfo",
+            "//pkg/fleet/installer/packages/embedded",
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/packages/user",
         ],
         "@rules_go//go/platform:linux": [
@@ -89,6 +106,8 @@ dd_agent_go_test(
     name = "packages_test",
     srcs = [
         "apm_inject_windows_test.go",
+        "config_experiment_darwin_test.go",
+        "datadog_agent_darwin_test.go",
         "datadog_agent_eudm_windows_test.go",
         "datadog_agent_extensions_test.go",
         "datadog_agent_windows_test.go",
@@ -101,6 +120,16 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/packages/launchd",
+            "//pkg/fleet/installer/repository",
+            "//pkg/version",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/packages/launchd",
+            "//pkg/fleet/installer/repository",
+            "//pkg/version",
+        ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/setup/config",

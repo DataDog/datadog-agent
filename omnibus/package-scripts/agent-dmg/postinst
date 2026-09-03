@@ -261,34 +261,23 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
 
-# Install agent as system-wide LaunchDaemon
-echo "# Installing agent as system-wide LaunchDaemon"
-cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" /Library/LaunchDaemons/com.datadoghq.agent.plist
-chown root:wheel /Library/LaunchDaemons/com.datadoghq.agent.plist
-chmod 644 /Library/LaunchDaemons/com.datadoghq.agent.plist
-launchctl enable system/com.datadoghq.agent 2>/dev/null || true
-if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.agent.plist 2>&1; then
-    echo "WARNING: Failed to bootstrap agent service."
-fi
-
-# Install system-probe as system-wide LaunchDaemon
-echo "# Installing system-probe as system-wide LaunchDaemon"
-cp -vf "$CONF_DIR/com.datadoghq.sysprobe.plist.example" /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-chown root:wheel /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-chmod 644 /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-launchctl enable system/com.datadoghq.sysprobe 2>/dev/null || true
-if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.sysprobe.plist 2>&1; then
-    echo "WARNING: Failed to bootstrap system-probe service."
-fi
-
-# Install Agent Data Plane as system-wide LaunchDaemon
-echo "# Installing Agent Data Plane as system-wide LaunchDaemon"
-cp -vf "$CONF_DIR/com.datadoghq.data-plane.plist.example" /Library/LaunchDaemons/com.datadoghq.data-plane.plist
-chown root:wheel /Library/LaunchDaemons/com.datadoghq.data-plane.plist
-chmod 644 /Library/LaunchDaemons/com.datadoghq.data-plane.plist
-launchctl enable system/com.datadoghq.data-plane 2>/dev/null || true
-if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.data-plane.plist 2>&1; then
-    echo "WARNING: Failed to bootstrap Agent Data Plane service."
+# Install agent, system-probe, Agent Data Plane and the Fleet installer daemon as system-wide
+# LaunchDaemons.
+#
+# None of their launchd definitions are shipped as .plist.example files: install-stable-jobs
+# writes and loads every one of them from the copy embedded in this same binary -- the identical
+# code path a Fleet configuration experiment uses to swap job sets later -- so the two cannot drift
+# apart. The installer daemon's job exits cleanly when remote_updates is disabled, and launchd does
+# not relaunch a clean exit, so loading it unconditionally costs nothing.
+echo "# Installing agent, system-probe, Agent Data Plane and the installer daemon as system-wide LaunchDaemons"
+INSTALLER_BIN="$INSTALL_DIR/embedded/bin/installer"
+if [ -x "$INSTALLER_BIN" ]; then
+    if ! "$INSTALLER_BIN" install-stable-jobs 2>&1; then
+        echo "WARNING: Failed to install the stable launchd jobs; the Agent and remote configuration management will be unavailable."
+    fi
+    ln -vsf "$INSTALLER_BIN" /usr/local/bin/datadog-installer
+else
+    echo "WARNING: $INSTALLER_BIN missing; skipping LaunchDaemon setup"
 fi
 
 # Install GUI LaunchAgent for all users (system-wide)
