@@ -1576,6 +1576,52 @@ func TestAWSSecurityCredentialsScopedToProcess(t *testing.T) {
 	assert.Empty(t, parentCreds, "ancestors must not report the requesting process's credentials")
 }
 
+// TestAWSSecurityCredentialsSkipsPodIdentityAgent ensures the EKS Pod Identity
+// Agent's own process never gets attributed the credentials it serves.
+func TestAWSSecurityCredentialsSkipsPodIdentityAgent(t *testing.T) {
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	agent := newFakeForkEvent(0, 3, 123, resolver)
+	agent.ProcessCacheEntry.FileEvent.SetPathnameStr("/eks-pod-identity-agent")
+	resolver.AddForkEntry(agent, model.CGroupContext{}, nil)
+
+	agent.IMDS.CredentialSource = model.CredentialSourceEKSPodIdentityStr
+	agent.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
+		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
+		Expiration:  time.Now().Add(time.Hour),
+	}
+	resolver.UpdateAWSSecurityCredentials(agent.ProcessCacheEntry.Pid, agent)
+
+	creds := resolver.FetchAWSSecurityCredentials(agent, &agent.ProcessCacheEntry.Process)
+	assert.Empty(t, creds, "the agent's own process must not be attributed its own response")
+}
+
+// TestAWSSecurityCredentialsPodIdentityRequester ensures a regular process is
+// still attributed its own Pod Identity credentials.
+func TestAWSSecurityCredentialsPodIdentityRequester(t *testing.T) {
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	proc := newFakeForkEvent(0, 3, 123, resolver)
+	proc.ProcessCacheEntry.FileEvent.SetPathnameStr("/usr/bin/my-app")
+	resolver.AddForkEntry(proc, model.CGroupContext{}, nil)
+
+	proc.IMDS.CredentialSource = model.CredentialSourceEKSPodIdentityStr
+	proc.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
+		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
+		Expiration:  time.Now().Add(time.Hour),
+	}
+	resolver.UpdateAWSSecurityCredentials(proc.ProcessCacheEntry.Pid, proc)
+
+	creds := resolver.FetchAWSSecurityCredentials(proc, &proc.ProcessCacheEntry.Process)
+	assert.Len(t, creds, 1, "the requesting process should still report its credentials")
+}
+
 // TestAWSSecurityCredentialsExpiration ensures expired credentials are pruned
 // from the owning process on fetch.
 func TestAWSSecurityCredentialsExpiration(t *testing.T) {
