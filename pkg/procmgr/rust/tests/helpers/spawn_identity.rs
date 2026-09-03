@@ -68,7 +68,7 @@ fn runtime_user_oracle(pid: u32) -> Option<String> {
 
 #[cfg(target_os = "linux")]
 fn parse_effective_uid<R: std::io::BufRead>(reader: R) -> Option<u32> {
-    for line in reader.lines().filter_map(Result::ok) {
+    for line in reader.lines().map_while(Result::ok) {
         if let Some(rest) = line.strip_prefix("Uid:") {
             let effective = rest.split_whitespace().nth(1)?;
             return effective.parse().ok();
