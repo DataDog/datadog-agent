@@ -1,7 +1,9 @@
 # Milestone 1 plan — `e2ectl`: EC2 VM + install-script agent + fakeintake
 
 > Implementation plan for the first concrete slice of the QA experience vision.
-> Companion docs: `qa-vision-confluence-update.md` (vision), `qa-vision-onepager.md` (pitch).
+> Companion docs: `qa-vision-confluence-update.md` (vision), `qa-vision-onepager.md` (pitch),
+> and `qa-e2ectl-m1-design.md` — the detailed engineering design (exact code layout,
+> integration symbols, config validation pipeline, week-1 experiments).
 > The binary name is still being chosen — `e2ectl` is a placeholder throughout.
 
 ## Goal
