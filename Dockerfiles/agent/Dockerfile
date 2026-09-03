@@ -216,9 +216,9 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && install -o dd-agent -g root -m 0440 /dev/null /opt/datadog-agent/.dd-agent-identity \
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
-  && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
-  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
-  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
+  && rm /var/run && mkdir -p /var/run/s6 /var/run/datadog /var/run/datadog-procmgrd /opt/datadog-agent/run \
+  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /var/run/datadog-procmgrd/ /opt/datadog-agent/run \
+  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /var/run/datadog-procmgrd/ /opt/datadog-agent/run \
   && chmod 755 /probe.sh /initlog.sh \
   && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
   && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
