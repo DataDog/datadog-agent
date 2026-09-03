@@ -22,6 +22,24 @@ instances:
       #
       product: auto
 
+    ## @param collect_user_tags - boolean - optional - default: true
+    ## Attach the authenticated `vdi_connection_user` to connection-scoped metrics.
+    ## This identifies the remote user of a specific connection, which is not necessarily
+    ## the Windows session user or the user a process runs as.
+    #
+    collect_user_tags: true
+
+    ## @param collect_session_tags - boolean - optional - default: true
+    ## Attach provider-neutral VDI session and connection identifiers to applicable metrics.
+    #
+    collect_session_tags: true
+
+    ## @param inventory_stale_ttl - integer - optional - default: 300
+    ## Seconds before unavailable privileged session inventory is reported as critical.
+    ## Cached identities are never attached after an inventory refresh failure.
+    #
+    inventory_stale_ttl: 300
+
     ## @param tags - list of strings - optional
     ## Tags to attach to every metric and service check emitted by this instance.
     #
