@@ -326,10 +326,13 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.Raw
 			if err != nil {
 				log.Errorf("could not execute request: %s", err)
 				applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-				// Report the failure against this request and carry on with the rest of the
-				// set. A method the platform declines must not suppress the requests beside
-				// it, which returning here would do.
-				continue
+				// TODO: returning here stops processing the rest of the set, so the other
+				// requests never get an applyStateCallback this pass (they're only retried on
+				// the next RC update, with no guarantee of promptness). Check whether that's the
+				// expected behaviour, e.g. for a method the platform declines. Until that is
+				// settled the behaviour is pinned by TestDeclinedRequestAbortsTheRestOfTheSet
+				// and TestFailedRequestAbortsTheRestOfTheSet in method_gate_test.go.
+				return
 			}
 			applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}

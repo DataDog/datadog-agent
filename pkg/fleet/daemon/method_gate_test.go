@@ -112,11 +112,15 @@ func TestSupportedMethodPassesTheGate(t *testing.T) {
 	assert.Len(t, daemon.requests, 1)
 }
 
-// TestDeclinedRequestDoesNotSuppressTheRestOfTheSet covers a task set carrying a mix of methods:
-// declining one must not cost the backend an answer about the others.
-func TestDeclinedRequestDoesNotSuppressTheRestOfTheSet(t *testing.T) {
-	declined := requestJSON(t, "declined", methodStartExperiment)
-	supported := requestJSON(t, "supported", methodStartConfigExperiment)
+// TestDeclinedRequestAbortsTheRestOfTheSet pins the batch semantics handleUpdaterTaskUpdate has
+// always had: the first request that does not go through ends the pass, so the requests behind it
+// get no applyStateCallback and are only reconsidered on the next remote-config update.
+//
+// Both requests here carry a declined method, because handleUpdaterTaskUpdate walks a map: with a
+// mixed set it is the iteration order, not the gate, that decides how many requests are reached.
+func TestDeclinedRequestAbortsTheRestOfTheSet(t *testing.T) {
+	first := requestJSON(t, "first", methodStartExperiment)
+	second := requestJSON(t, "second", methodStartExperiment)
 
 	daemon := &daemonImpl{
 		gate:     supportedMethods{methodStartConfigExperiment: true},
@@ -126,26 +130,30 @@ func TestDeclinedRequestDoesNotSuppressTheRestOfTheSet(t *testing.T) {
 	statuses := map[string]state.ApplyStatus{}
 	handler := handleUpdaterTaskUpdate(daemon.scheduleRemoteAPIRequest)
 	handler(map[string]state.RawConfig{
-		"declined":  {Config: declined},
-		"supported": {Config: supported},
+		"first":  {Config: first},
+		"second": {Config: second},
 	}, func(id string, status state.ApplyStatus) {
 		statuses[id] = status
 	})
 
-	require.Len(t, statuses, 2, "the declined request suppressed the rest of the set")
-	assert.Equal(t, state.ApplyStateError, statuses["declined"].State)
-	assert.Equal(t, state.ApplyStateAcknowledged, statuses["supported"].State)
-	assert.Len(t, daemon.requests, 1)
+	require.Len(t, statuses, 1, "the pass continued past the declined request")
+	for id, status := range statuses {
+		assert.Equal(t, state.ApplyStateError, status.State, "request %s", id)
+		assert.Contains(t, status.Error, methodStartExperiment, "request %s", id)
+	}
+	assert.Empty(t, daemon.requests, "a declined request was queued for dispatch")
 }
 
-// TestFailedRequestDoesNotSuppressTheRestOfTheSet is the same property for an ordinary failure,
-// which shares the code path the decline takes.
-func TestFailedRequestDoesNotSuppressTheRestOfTheSet(t *testing.T) {
+// TestFailedRequestAbortsTheRestOfTheSet is the same property for an ordinary failure, which shares
+// the code path the decline takes.
+func TestFailedRequestAbortsTheRestOfTheSet(t *testing.T) {
 	first := requestJSON(t, "first", methodStartExperiment)
 	second := requestJSON(t, "second", methodStartExperiment)
 
+	executed := 0
 	statuses := map[string]state.ApplyStatus{}
 	handler := handleUpdaterTaskUpdate(func(remoteAPIRequest) error {
+		executed++
 		return errors.New("boom")
 	})
 	handler(map[string]state.RawConfig{
@@ -155,9 +163,11 @@ func TestFailedRequestDoesNotSuppressTheRestOfTheSet(t *testing.T) {
 		statuses[id] = status
 	})
 
-	require.Len(t, statuses, 2)
+	assert.Equal(t, 1, executed, "the pass continued past the failed request")
+	require.Len(t, statuses, 1)
 	for id, status := range statuses {
 		assert.Equal(t, state.ApplyStateError, status.State, "request %s", id)
+		assert.Equal(t, "boom", status.Error, "request %s", id)
 	}
 }
 
