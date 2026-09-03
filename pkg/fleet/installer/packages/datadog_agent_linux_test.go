@@ -32,11 +32,13 @@ func TestPrivilegedRshellPolicyDirectoryPermissions(t *testing.T) {
 
 func TestPrivilegedRshellPackagePermissionsProtectParentDirectories(t *testing.T) {
 	assert.Equal(t, installerFile.Permissions{
-		{Path: ".", Owner: "root", Group: "root", Mode: 0755},
 		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},
 		{Path: "embedded/bin", Owner: "root", Group: "root", Mode: 0755},
 		{Path: privilegedRshellBinaryRelPath, Owner: "root", Group: "root", Mode: 0755},
 	}, privilegedRshellPackagePermissions)
+	for _, permission := range privilegedRshellPackagePermissions {
+		assert.NotEqual(t, ".", permission.Path, "the package root must keep dd-agent ownership")
+	}
 }
 
 func TestEnsurePrivilegedRshellPermissionsRejectsSymlink(t *testing.T) {
@@ -86,4 +88,30 @@ func TestInstallableUnitsFiltersPrivilegedRshell(t *testing.T) {
 
 	assert.Equal(t, []string{"datadog-agent.service", "datadog-agent-action.service"}, installableUnits(t.TempDir(), units))
 	assert.Len(t, units, 4, "filtering must not mutate the lifecycle cleanup list")
+}
+
+func TestExperimentStartUnits(t *testing.T) {
+	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
+		t.Skip("privileged rshell is supported only on amd64 and arm64")
+	}
+
+	packagePath := t.TempDir()
+	binaryPath := filepath.Join(packagePath, privilegedRshellBinaryRelPath)
+	require.NoError(t, os.MkdirAll(filepath.Dir(binaryPath), 0755))
+	require.NoError(t, os.WriteFile(binaryPath, []byte("rshell"), 0755))
+
+	originalGetLandlockABIVersion := getLandlockABIVersion
+	t.Cleanup(func() { getLandlockABIVersion = originalGetLandlockABIVersion })
+
+	getLandlockABIVersion = func() (int, error) { return privilegedRshellMinLandlockABI, nil }
+	assert.Equal(t,
+		[]string{"datadog-agent-exp.service", privilegedRshellSocketExp},
+		experimentStartUnits(packagePath, "datadog-agent-exp.service"),
+	)
+
+	getLandlockABIVersion = func() (int, error) { return 0, errors.New("landlock unavailable") }
+	assert.Equal(t,
+		[]string{"datadog-agent-exp.service"},
+		experimentStartUnits(packagePath, "datadog-agent-exp.service"),
+	)
 }

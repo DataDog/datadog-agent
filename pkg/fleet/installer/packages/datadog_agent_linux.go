@@ -100,12 +100,10 @@ var (
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
 	}
 
-	// privilegedRshellPackagePermissions protects every directory entry between
-	// the package root and the privileged helper. Protecting only the binary is
-	// insufficient because dd-agent could replace it by renaming a writable
-	// parent directory.
+	// privilegedRshellPackagePermissions protects the directories below the
+	// package root that contain the privileged helper. The package root keeps
+	// the ownership established by agentPackagePermissions.
 	privilegedRshellPackagePermissions = file.Permissions{
-		{Path: ".", Owner: "root", Group: "root", Mode: 0755},
 		{Path: "embedded", Owner: "root", Group: "root", Mode: 0755},
 		{Path: "embedded/bin", Owner: "root", Group: "root", Mode: 0755},
 		{Path: privilegedRshellBinaryRelPath, Owner: "root", Group: "root", Mode: 0755},
@@ -710,6 +708,14 @@ func installableUnits(packagePath string, units []string) []string {
 	return withoutPrivilegedRshellUnits(units)
 }
 
+func experimentStartUnits(packagePath, mainUnit string) []string {
+	units := []string{mainUnit}
+	if privilegedRshellSupported(packagePath) {
+		units = append(units, privilegedRshellSocketExp)
+	}
+	return units
+}
+
 func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType, service.ProcmgrType:
@@ -883,13 +889,11 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		if err := systemd.StartUnit(ctx, s.SystemdMainUnitExp); err != nil {
-			return err
-		}
+		units := experimentStartUnits(ctx.PackagePath, s.SystemdMainUnitExp)
+		return systemd.StartUnit(ctx, units[0], units[1:]...)
 	case service.ProcmgrType:
-		if err := systemd.StartUnit(ctx, s.ProcmgrMainUnitExp); err != nil {
-			return err
-		}
+		units := experimentStartUnits(ctx.PackagePath, s.ProcmgrMainUnitExp)
+		return systemd.StartUnit(ctx, units[0], units[1:]...)
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
@@ -897,10 +901,6 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	default:
 		return errors.New("unsupported service manager")
 	}
-	if privilegedRshellSupported(ctx.PackagePath) {
-		return systemd.StartUnit(ctx, privilegedRshellSocketExp)
-	}
-	return nil
 }
 
 // StopExperiment stops the experiment units
