@@ -31,6 +31,7 @@ const (
 	DDInfraDefaultVPCIDParamName               = "aws/defaultVPCID"
 	DDInfraDefaultSubnetsParamName             = "aws/defaultSubnets"
 	DDInfraDefaultSecurityGroupsParamName      = "aws/defaultSecurityGroups"
+	DDInfraNoInternetSecurityGroupNamesParamName = "aws/noInternetSecurityGroupNames"
 	DDInfraDefaultInstanceTypeParamName        = "aws/defaultInstanceType"
 	DDInfraDefaultInstanceProfileParamName     = "aws/defaultInstanceProfile"
 	DDInfraDefaultARMInstanceTypeParamName     = "aws/defaultARMInstanceType"
@@ -44,6 +45,7 @@ const (
 	DDInfraDefaultInternalRegistry             = "aws/defaultInternalRegistry"
 	DDInfraDefaultInternalDockerhubMirror      = "aws/defaultInternalDockerhubMirror"
 	DDInfraUseMacosCompatibleSubnets           = "aws/useMacosCompatibleSubnets"
+	DDInfraDefaultLeaseBucket                  = "aws/defaultLeaseBucket"
 
 	// AWS ECS
 	DDInfraEcsExecKMSKeyID                  = "aws/ecs/execKMSKeyID"
@@ -258,6 +260,14 @@ func (e *Environment) DefaultSecurityGroups() []string {
 	return e.GetStringListWithDefault(e.InfraConfig, DDInfraDefaultSecurityGroupsParamName, e.envDefault.ddInfra.defaultSecurityGroups)
 }
 
+// NoInternetSecurityGroupNames returns the names of security groups to attach to a VM instead of
+// the account's default security groups when internet access must be blocked. The groups are
+// resolved to IDs at provisioning time via LookupSecurityGroup; they must already exist in the
+// account's VPC and be configured accordingly.
+func (e *Environment) NoInternetSecurityGroupNames() []string {
+	return e.GetStringListWithDefault(e.InfraConfig, DDInfraNoInternetSecurityGroupNamesParamName, e.envDefault.ddInfra.noInternetSecurityGroupNames)
+}
+
 func (e *Environment) DefaultInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInstanceTypeParamName, e.envDefault.ddInfra.defaultInstanceType)
 }
@@ -298,6 +308,10 @@ func (e *Environment) DefaultInstanceStorageSize() int {
 // shutdown behavior can be 'terminate' or 'stop'
 func (e *Environment) DefaultShutdownBehavior() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultShutdownBehavior, e.envDefault.ddInfra.defaultShutdownBehavior)
+}
+
+func (e *Environment) DefaultLeaseBucket() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultLeaseBucket, e.envDefault.ddInfra.leaseBucket)
 }
 
 func (e *Environment) UseMacosCompatibleSubnets() bool {

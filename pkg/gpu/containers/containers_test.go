@@ -26,10 +26,10 @@ import (
 
 func TestMatchContainerDevices(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t, testutil.WithDefaultMIGDevices())
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("ContainerWithNvidiaGPU", func(t *testing.T) {
 		container := &workloadmeta.Container{
@@ -49,6 +49,26 @@ func TestMatchContainerDevices(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 1)
 		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
+	t.Run("ContainerWithNvidiaDRAGPU", func(t *testing.T) {
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-dra-container",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaDRA),
+					ID:   "gpu-2",
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[2], filteredDevices[0])
 	})
 
 	t.Run("ContainerWithMultipleNvidiaGPUs", func(t *testing.T) {
@@ -186,7 +206,7 @@ func TestMatchContainerDevices(t *testing.T) {
 
 	t.Run("KubernetesDevicesOrderIsCorrect", func(t *testing.T) {
 		// Get test devices with different indices
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2, 3, 4)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2, 3, 4)
 
 		// Test with resources in reverse order (highest index first)
 		container := &workloadmeta.Container{
@@ -232,7 +252,7 @@ func TestMatchContainerDevices(t *testing.T) {
 
 	t.Run("KubernetesDevicesSortedByIndexWithMixedResourceTypes", func(t *testing.T) {
 		// Get test devices with different indices
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2, 3, 4)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2, 3, 4)
 
 		// Test with mixed resource types (GKE and NVIDIA device plugin formats)
 		container := &workloadmeta.Container{
@@ -278,7 +298,7 @@ func TestMatchContainerDevices(t *testing.T) {
 
 	t.Run("KubernetesContainerWithMIGDevices", func(t *testing.T) {
 		// Get test devices with MIG enabled
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, testutil.DefaultDevicesWithMIGChildren()...)
 
 		// Test with MIG devices
 		container := &workloadmeta.Container{
@@ -323,6 +343,26 @@ func TestMatchContainerDevices(t *testing.T) {
 		require.Len(t, filteredDevices, 4)
 		assert.ElementsMatch(t, filteredDevices, expectedDevices)
 	})
+
+	t.Run("KubernetesContainerWithDRAMIGDevice", func(t *testing.T) {
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, testutil.DefaultDevicesWithMIGChildren()...)
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-dra-mig-container",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaDRA),
+					ID:   "gpu-0",
+				},
+			},
+		}
+
+		_, err := MatchContainerDevices(container, devices)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "MIG devices are not supported for DRA index matching")
+	})
 }
 
 func useFakeProcfsWithNvidiaVisibleDevices(t *testing.T, pid int, visibleDevices string) {
@@ -340,10 +380,10 @@ func useFakeProcfsWithNvidiaVisibleDevices(t *testing.T, pid int, visibleDevices
 
 func TestFindDeviceForResourceName(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t, testutil.WithDefaultMIGDevices())
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("NvidiaDevicePluginUUID", func(t *testing.T) {
 		// Test with NVIDIA device plugin format (UUID)
@@ -375,7 +415,7 @@ func TestFindDeviceForResourceName(t *testing.T) {
 
 	t.Run("UUIDBasedMIGDevice", func(t *testing.T) {
 		// Test with MIG device
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, testutil.DefaultDevicesWithMIGChildren()...)
 		device, err := findDeviceForResourceName(devices, testutil.MIGChildrenUUIDs[5][0])
 		require.NoError(t, err)
 		require.Equal(t, device.GetDeviceInfo().UUID, testutil.MIGChildrenUUIDs[5][0])
@@ -383,18 +423,35 @@ func TestFindDeviceForResourceName(t *testing.T) {
 
 	t.Run("GKEWithMIGDevice", func(t *testing.T) {
 		// Test with MIG device
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, testutil.DefaultDevicesWithMIGChildren()...)
 		_, err := findDeviceForResourceName(devices, "nvidia3")
 		require.Error(t, err)
+	})
+
+	t.Run("DRADeviceIndex", func(t *testing.T) {
+		device, err := findDeviceForDRAResourceName(devices, "gpu-2")
+		require.NoError(t, err)
+		assert.Equal(t, devices[2], device)
+	})
+
+	t.Run("DRADeviceNameIsInvalid", func(t *testing.T) {
+		_, err := findDeviceForDRAResourceName(devices, "gpu-two")
+		require.ErrorIs(t, err, ErrCannotMatchDevice)
+	})
+
+	t.Run("DRAWithMIGDevice", func(t *testing.T) {
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, testutil.DefaultDevicesWithMIGChildren()...)
+		_, err := findDeviceForDRAResourceName(devices, "gpu-0")
+		require.ErrorContains(t, err, "MIG devices are not supported for DRA index matching")
 	})
 }
 
 func TestFindDeviceByUUID(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("ValidUUID", func(t *testing.T) {
 		device, err := findDeviceByUUID(devices, testutil.GPUUUIDs[1])
@@ -437,10 +494,10 @@ func TestFindDeviceByUUID(t *testing.T) {
 
 func TestFindDeviceByUUIDWithMIG(t *testing.T) {
 	// Setup mock NVML with MIG enabled for some devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	nvmlMock := nvmltestutil.SetupMockNVML(t, testutil.WithDefaultMIGDevices())
 
 	// Get test devices including MIG children
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2, 3, 4, 5, 6)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2, 3, 4, 5, 6)
 
 	t.Run("PhysicalDeviceUUID", func(t *testing.T) {
 		device, err := findDeviceByUUID(devices, testutil.GPUUUIDs[0])
@@ -474,10 +531,10 @@ func TestFindDeviceByUUIDWithMIG(t *testing.T) {
 
 func TestFindDeviceByIndex(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("ValidIndex", func(t *testing.T) {
 		device, err := findDeviceByIndex(devices, "1")
@@ -526,10 +583,10 @@ func TestFindDeviceByIndex(t *testing.T) {
 
 func TestMatchByGPUDeviceIDs(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("SingleUUID", func(t *testing.T) {
 		gpuDeviceIDs := []string{testutil.GPUUUIDs[1]}
@@ -577,10 +634,10 @@ func TestMatchByGPUDeviceIDs(t *testing.T) {
 
 func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("ContainerWithGPUDeviceIDsUUID", func(t *testing.T) {
 		// Simulates ECS GPU container with UUID in GPUDeviceIDs
@@ -623,10 +680,10 @@ func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 
 func TestMatchContainerDevicesWithErrors(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("ContainerWithValidAndInvalidGPUs", func(t *testing.T) {
 		container := &workloadmeta.Container{

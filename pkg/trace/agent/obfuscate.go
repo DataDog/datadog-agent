@@ -167,7 +167,7 @@ func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 		oq, err := obfuscateSQLSpan(o, span)
 		if err != nil {
 			// we have an error, discard the SQL to avoid polluting user resources.
-			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
+			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource())
 			return
 		}
 		if oq == nil {
@@ -263,8 +263,16 @@ func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 }
 
 func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue) {
+	// The attribute may declare ARRAY_VALUE while carrying a nil ArrayValue,
+	// since Type and ArrayValue are independent fields rather than a real oneof.
+	if v.ArrayValue == nil {
+		return
+	}
 	var arrStrValue string
 	for _, vElement := range v.ArrayValue.Values {
+		if vElement == nil {
+			continue
+		}
 		switch vElement.Type {
 		case pb.AttributeArrayValue_STRING_VALUE:
 			arrStrValue = vElement.StringValue

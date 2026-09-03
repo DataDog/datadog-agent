@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -151,6 +152,19 @@ func TestGetAPIDomain(t *testing.T) {
 			want:     "https://api.datadoghq.com.",
 		},
 		{
+			// Regression test: hostOnly must use url.URL.Hostname() (which strips a port),
+			// not the raw Host field, or domainURLRegexp never matches and the endpoint is
+			// returned unchanged - sending the key exchange to the wrong host/port.
+			name:     "production intake domain with explicit port",
+			endpoint: "https://agent.datadoghq.com:443",
+			want:     "https://api.datadoghq.com",
+		},
+		{
+			name:     "production intake domain with uppercase hostname",
+			endpoint: "https://agent.DATADOGHQ.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
 			name:     "production EU domain",
 			endpoint: "https://agent.datadoghq.eu",
 			want:     "https://api.datadoghq.eu",
@@ -164,6 +178,61 @@ func TestGetAPIDomain(t *testing.T) {
 			name:     "production regional EU1 domain",
 			endpoint: "https://metrics.eu1.datadoghq.com",
 			want:     "https://api.eu1.datadoghq.com",
+		},
+		{
+			name:     "multi-label subdomain (APM intake)",
+			endpoint: "https://trace.agent.datadoghq.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
+			name:     "multi-label subdomain (logs/EVP intake)",
+			endpoint: "https://agent-http-intake.logs.datadoghq.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
+			name:     "multi-label subdomain with regional prefix",
+			endpoint: "https://agent-http-intake.logs.us3.datadoghq.com",
+			want:     "https://api.us3.datadoghq.com",
+		},
+		// Regression: a bare regional site (no leading subdomain label) must keep its regional
+		// prefix - the regex's leading-subdomain group is optional, so "us5." is captured as the
+		// regional prefix rather than swallowed as a subdomain.
+		{
+			name:     "bare regional site US5",
+			endpoint: "https://us5.datadoghq.com",
+			want:     "https://api.us5.datadoghq.com",
+		},
+		{
+			name:     "bare regional site AP1",
+			endpoint: "https://ap1.datadoghq.com",
+			want:     "https://api.ap1.datadoghq.com",
+		},
+		{
+			name:     "bare regional site without scheme",
+			endpoint: "us5.datadoghq.com",
+			want:     "https://api.us5.datadoghq.com",
+		},
+		// Regression: a bare Datadog domain (no subdomain at all) must match rather than being
+		// returned unchanged, which would produce a malformed token URL (no scheme, no api. prefix).
+		{
+			name:     "bare production domain",
+			endpoint: "https://datadoghq.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
+			name:     "bare production domain without scheme",
+			endpoint: "datadoghq.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
+			name:     "bare gov domain",
+			endpoint: "ddog-gov.com",
+			want:     "https://api.ddog-gov.com",
+		},
+		{
+			name:     "bare staging domain",
+			endpoint: "datad0g.com",
+			want:     "https://api.datad0g.com",
 		},
 		// Staging/internal domains (datad0g.com)
 		{
@@ -224,12 +293,88 @@ func TestGetAPIDomain(t *testing.T) {
 			endpoint: "https://agent.datadoghq.com/",
 			want:     "https://api.datadoghq.com",
 		},
+		// Regression: map-shaped additional_endpoints entries can be full URLs with a path (e.g.
+		// apm_config.profiling_additional_endpoints uses the full intake URL, path included, as
+		// its map key). The regex must be matched against the host only, not the whole URL.
+		{
+			name:     "path-shaped endpoint (profiling intake URL)",
+			endpoint: "https://intake.profile.datadoghq.eu/api/v2/profile",
+			want:     "https://api.datadoghq.eu",
+		},
+		{
+			name:     "path-shaped endpoint with regional prefix",
+			endpoint: "https://agent-http-intake.logs.us3.datadoghq.com/v1/input",
+			want:     "https://api.us3.datadoghq.com",
+		},
+		{
+			name:     "custom domain with path unchanged",
+			endpoint: "https://custom.example.com/some/path",
+			want:     "https://custom.example.com/some/path",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getAPIDomain(tt.endpoint)
+			got := getAPIDomain(tt.endpoint, true)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestResolveTokenURL(t *testing.T) {
+	// Regression test: dual-shipping additional_endpoints instances must exchange their proof
+	// against their OWN target site, not the agent's primary dd_url/site - those are very often
+	// different sites (e.g. staging ships to datad0g.com + datadoghq.com, but dd_url only names
+	// one of them).
+	cfg := mock.NewFromYAML(t, `dd_url: "https://agent.datadoghq.com"`)
+
+	t.Run("empty targetSite falls back to the agent's primary site", func(t *testing.T) {
+		got := resolveTokenURL(cfg, "")
+		assert.Equal(t, "https://api.datadoghq.com/api/v2/intake-key", got)
+	})
+
+	t.Run("non-empty targetSite overrides the primary site", func(t *testing.T) {
+		got := resolveTokenURL(cfg, "https://agent.datad0g.com")
+		assert.Equal(t, "https://api.datad0g.com/api/v2/intake-key", got)
+	})
+
+	// Regression test: a supported HTTP proxy dd_url legitimately doesn't match the known-Datadog
+	// domain pattern, so it must not be treated the same as an unrecognized delegated-auth target
+	// site (which gets a Warnf since a signed proof is being sent there). Falling back to the
+	// primary site via an empty targetSite must stay silent (Debugf) regardless of whether that
+	// site happens to match the pattern.
+	t.Run("empty targetSite falling back to an unrecognized primary site (e.g. a proxy) still resolves", func(t *testing.T) {
+		proxyCfg := mock.NewFromYAML(t, `dd_url: "https://my-proxy.internal"`)
+		got := resolveTokenURL(proxyCfg, "")
+		assert.Equal(t, "https://my-proxy.internal/api/v2/intake-key", got)
+	})
+}
+
+func TestErrorDetail(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "json:api detail",
+			body: `{"errors":[{"status":"401","title":"Unauthorized","detail":"Authenticated as arn:aws:sts::123:assumed-role/R/s but no identity mapping was found."}]}`,
+			want: ": Authenticated as arn:aws:sts::123:assumed-role/R/s but no identity mapping was found.",
+		},
+		{name: "title only when no detail", body: `{"errors":[{"title":"Unauthorized"}]}`, want: ": Unauthorized"},
+		{name: "multiple errors joined", body: `{"errors":[{"detail":"a"},{"detail":"b"}]}`, want: ": a; b"},
+		{name: "non-json body yields nothing", body: `<html>502 Bad Gateway</html>`, want: ""},
+		{name: "empty errors array yields nothing", body: `{"errors":[]}`, want: ""},
+		{name: "empty body yields nothing", body: ``, want: ""},
+		// A success-shaped body must never be surfaced (defense-in-depth: the API key lives here on 200,
+		// but errorDetail only runs on non-200 and reads only errors[].title/detail).
+		{name: "success-shaped body yields nothing", body: `{"data":{"attributes":{"api_key":"SECRETKEY"}}}`, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := errorDetail([]byte(tt.body))
+			assert.Equal(t, tt.want, got)
+			assert.NotContains(t, got, "SECRETKEY")
 		})
 	}
 }

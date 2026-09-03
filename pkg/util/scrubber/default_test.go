@@ -1069,3 +1069,18 @@ func TestHideKeyExceptLastChars(t *testing.T) {
 		})
 	}
 }
+
+func TestDontScrubNonMapping(t *testing.T) {
+	assertClean(t,
+		`mysql_password:password`,
+		`mysql_password:password`)
+	assertClean(t,
+		`- mysql_password:password`,
+		`- mysql_password:password`)
+	assertClean(t,
+		`"mysql_password:password"`,
+		`"mysql_password:password"`)
+	assertClean(t,
+		`- "mysql_password:password"`,
+		`- "mysql_password:password"`)
+}

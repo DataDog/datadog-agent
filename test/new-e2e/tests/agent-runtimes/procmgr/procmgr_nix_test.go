@@ -59,6 +59,9 @@ var linuxPlatform = platformConfig{
 	checkSvcRunning:   "systemctl is-active datadog-agent-procmgr",
 	svcRunningOutput:  "active",
 	cliCmd:            func(args string) string { return linuxCLIBin + " " + args },
+	killPIDCmd: func(pid uint32) string {
+		return fmt.Sprintf("sudo kill -9 %d", pid)
+	},
 }
 
 type procmgrLinuxSuite struct {
@@ -68,6 +71,8 @@ type procmgrLinuxSuite struct {
 
 func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 	t.Parallel()
+	ddotConfig, err := embedded.GetProcmgrProcess("datadog-agent-ddot.yaml")
+	require.NoError(t, err)
 	s := &procmgrLinuxSuite{}
 	s.platform = linuxPlatform
 	e2e.Run(t, s, e2e.WithProvisioner(
@@ -75,7 +80,7 @@ func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 			awshost.WithRunOptions(
 				scenec2.WithAgentOptions(
 					agentparams.WithFile(linuxConfigDir+"/test-sleep.yaml", linuxTestProcessConfig, true),
-					agentparams.WithFile(linuxConfigDir+"/datadog-agent-ddot.yaml", embedded.DDOTProcessConfig, true),
+					agentparams.WithFile(linuxConfigDir+"/datadog-agent-ddot.yaml", string(ddotConfig), true),
 					agentparams.WithFile(linuxConfigDir+"/missing-binary.yaml", linuxMissingBinaryConfig, true),
 				),
 			),

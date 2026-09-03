@@ -23,6 +23,12 @@ tags:
     regex: "^[a-z0-9_-]+$"
   gpu_parent_uuid:
     regex: "^(gpu|mig)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+  gpu_pci_bus_id:
+    regex: "^[0-9a-f]{4,8}:[0-9a-f]{2}:[0-9a-f]{2}\\.0$"
+  gpu_nvlink_version:
+    regex: "^(1\\.0|2\\.0|2\\.2|3\\.0|3\\.1|4\\.0|5\\.0|unknown(_-?\\d+)?|not_nvlink_capable)$"
+  gpu_nvlink_capable:
+    regex: "^(true|false)$"
   gpu_host:
     regex: "^true$"
   pid:
@@ -35,12 +41,17 @@ tags:
     regex: "^\\d+$"
   kube_container_name: {}
   memory_location:
-    regex: "^(l1_cache|l2_cache|device_memory|register_file|texture_memory|texture_\
+    regex:
+      "^(l1_cache|l2_cache|device_memory|register_file|texture_memory|texture_\
       shm|cbu|sram|sm|pcie|microcontroller|other)$"
   error_subtype:
     regex: "^(parity|secded)$"
   nvlink_port:
     regex: "^\\d+$"
+  recovery_action:
+    regex: "^(none|reset|reboot|drain|drain_and_reset|unknown_-?\\d+)$"
+  throttle_reason:
+    regex: "^(applications_clocks_setting|sw_power_cap|hw_slowdown|sync_boost|sw_thermal_slowdown|hw_thermal_slowdown|hw_power_brake_slowdown|display_clock_setting|not_throttled)$"
 
 tagsets:
   container:
@@ -58,6 +69,9 @@ tagsets:
       - gpu_slicing_mode
       - gpu_type
       - gpu_parent_uuid
+      - gpu_pci_bus_id
+      - gpu_nvlink_version
+      - gpu_nvlink_capable
       - gpu_host
   nvlink:
     tags:

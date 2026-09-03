@@ -9,10 +9,11 @@ files_inventory_check:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   variables:
-    GIT_DEPTH: 0
-    OVERRIDE_GIT_STRATEGY: clone
+    GIT_DEPTH: 0  # Full history: files-inventory.check uses git merge-base
+    GIT_STRATEGY: clone
   needs:
     - agent_deb-x64-a7
+    - iot_agent_deb-x64
   before_script:
     - !reference [.setup_github_token_comment_pr]
   script:

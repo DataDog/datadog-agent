@@ -35,6 +35,12 @@ default_path = {
         "${run_path}": "/opt/datadog-agent/run",
         "${log_path}": "/opt/datadog-agent/logs",
     },
+    "aix": {
+        "${conf_path}": "/etc/datadog-agent",
+        "${install_path}": "/opt/datadog-agent",
+        "${run_path}": "/opt/datadog-agent/run",
+        "${log_path}": "/var/log/datadog",
+    },
 }
 
 # Maps env_parser schema values to their human-readable env var type descriptions.
@@ -66,7 +72,7 @@ def _env_type_for_json(node):
 
 
 build_type_to_section = {
-    "agent-py3": [
+    "datadog-agent": [
         "Common",
         "Agent",
         "CoreAgent",
@@ -132,6 +138,9 @@ VALID_OS_TARGETS = list(default_path.keys())
 CORE_SCHEMA_FILE = "./pkg/config/schema/yaml/core_schema.yaml"
 SYSPROBE_SCHEMA_FILE = "./pkg/config/schema/yaml/system-probe_schema.yaml"
 
+# Destination for the templates rendered by `schema.template-all`.
+TEMPLATE_OUTPUT_DIR = "./pkg/config/example"
+
 # build_types that use the core schema vs the system-probe schema
 _SYSPROBE_BUILD_TYPES = {"system-probe"}
 
@@ -141,7 +150,7 @@ def _is_node_section(node):
 
 
 def _should_render(build_type, node):
-    for t in node["tags"]:
+    for t in node.get("tags", []):
         if t.startswith("template_section:"):
             section = t.split(":")[1]
             return section in build_type_to_section[build_type]
@@ -219,7 +228,7 @@ def _get_node_types_and_default(full_name, node, os_target):
             yaml_type, env_type = "list of strings", "space-separated list of strings"
         elif node["items"]["type"] == "object":
             yaml_type, env_type = "list of object", "JSON list of object"
-        elif node["items"]["type"] == "number":
+        elif node["items"]["type"] in ["number", "integer"]:
             yaml_type, env_type = "list of integers", "JSON array of numbers or space-separated list of integers"
         else:
             raise Exception(f"unknown array of type: {node['items']['type']}")
@@ -413,20 +422,22 @@ def template(ctx, schema, build_type, os_target, output):
 
 @task(
     help={
-        "core_schema": "Path to the enriched core agent schema YAML file (mandatory).",
-        "sysprobe_schema": "Path to the enriched system-probe schema YAML file (mandatory).",
-        "output_dir": "Directory where all generated templates will be written.",
+        "core_schema": f"Path to the enriched core agent schema YAML file. Defaults to {CORE_SCHEMA_FILE}.",
+        "sysprobe_schema": f"Path to the enriched system-probe schema YAML file. Defaults to {SYSPROBE_SCHEMA_FILE}.",
     }
 )
-def template_all(ctx, core_schema, sysprobe_schema, output_dir):
+def template_all(ctx, core_schema=CORE_SCHEMA_FILE, sysprobe_schema=SYSPROBE_SCHEMA_FILE):
     """
     Generate all config templates (all build types x all OS targets) from the enriched schema files.
+
+    Templates are written to TEMPLATE_OUTPUT_DIR.
     """
     for path, label in [(core_schema, "core_schema"), (sysprobe_schema, "sysprobe_schema")]:
         if not os.path.isfile(path):
             raise Exit(f"Schema file not found for {label}: {path}", code=1)
 
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(TEMPLATE_OUTPUT_DIR, exist_ok=True)
+    print(f"Writing templates to {TEMPLATE_OUTPUT_DIR}")
 
     schema_for_build_type = {
         build_type: sysprobe_schema if build_type in _SYSPROBE_BUILD_TYPES else core_schema
@@ -435,7 +446,7 @@ def template_all(ctx, core_schema, sysprobe_schema, output_dir):
 
     for build_type, schema in schema_for_build_type.items():
         for os_target in VALID_OS_TARGETS:
-            dest = os.path.join(output_dir, f"{build_type}_{os_target}.yaml")
+            dest = os.path.join(TEMPLATE_OUTPUT_DIR, f"{build_type}_{os_target}.yaml.example")
             generate_template(schema, dest, build_type, os_target)
             print(f"  {dest}")
 

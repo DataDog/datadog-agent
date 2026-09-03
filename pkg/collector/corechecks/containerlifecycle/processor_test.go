@@ -75,7 +75,7 @@ func TestProcessQueues(t *testing.T) {
 				tasksQueue:      tt.tasksQueue,
 			}
 
-			sender := mocksender.NewMockSender(checkid.ID(tt.name))
+			sender := mocksender.NewMockSender(t, checkid.ID(tt.name))
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 			p.sender = sender
 
@@ -140,7 +140,7 @@ func TestProcessContainer(t *testing.T) {
 			{Type: workloadmeta.EventTypeUnset, Entity: &podContainer},
 			{Type: workloadmeta.EventTypeUnset, Entity: &taskContainer},
 		},
-	})
+	}, workloadmeta.SourceRuntime)
 
 	hostName, _ := hostname.Get(context.TODO())
 

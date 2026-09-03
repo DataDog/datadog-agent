@@ -8,10 +8,13 @@
 package workloadmetaimpl
 
 import (
+	"context"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -38,7 +41,7 @@ func newWorkloadmetaObject(t *testing.T) *workloadmeta {
 		Params: wmdef.NewParams(),
 	}
 
-	return NewWorkloadMeta(deps).Comp.(*workloadmeta)
+	return NewComponent(deps).Comp.(*workloadmeta)
 }
 
 func TestHandleEvents(t *testing.T) {
@@ -128,10 +131,10 @@ func TestSubscribe(t *testing.T) {
 		},
 	}
 
-	testNodeMetadata := wmdef.KubernetesMetadata{
+	testNodeMetadata := wmdef.KubernetesNode{
 		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesMetadata,
-			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "test-node")),
+			Kind: wmdef.KindKubernetesNode,
+			ID:   "test-node",
 		},
 		EntityMeta: wmdef.EntityMeta{
 			Name: "test-node",
@@ -141,10 +144,6 @@ func TestSubscribe(t *testing.T) {
 			Annotations: map[string]string{
 				"test-annotation": "test-value",
 			},
-		},
-		GVR: &schema.GroupVersionResource{
-			Version:  "v1",
-			Resource: "nodes",
 		},
 	}
 
@@ -638,24 +637,16 @@ func TestSubscribe(t *testing.T) {
 						Source: fooSource,
 						// Notice that this unset event does not contain the
 						// full entity.
-						Entity: &wmdef.KubernetesMetadata{
+						Entity: &wmdef.KubernetesNode{
 							EntityID: wmdef.EntityID{
-								Kind: wmdef.KindKubernetesMetadata,
+								Kind: wmdef.KindKubernetesNode,
 								ID:   testNodeMetadata.ID,
 							},
 						},
 					},
 				},
 			},
-			filter: wmdef.NewFilterBuilder().AddKindWithEntityFilter(
-				wmdef.KindKubernetesMetadata,
-				func(entity wmdef.Entity) bool {
-					metadata := entity.(*wmdef.KubernetesMetadata)
-					// Notice that this filter relies on data that is not
-					// available in the unset event.
-					return wmdef.IsNodeMetadata(metadata)
-				},
-			).Build(),
+			filter: wmdef.NewFilterBuilder().AddKind(wmdef.KindKubernetesNode).Build(),
 			expected: []wmdef.EventBundle{
 				{},
 				{
@@ -1806,22 +1797,6 @@ func TestGetKubernetesNodeByName(t *testing.T) {
 func TestListKubernetesMetadata(t *testing.T) {
 	wmeta := newWorkloadmetaObject(t)
 
-	nodeMetadata := wmdef.KubernetesMetadata{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesMetadata,
-			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "node1")),
-		},
-		EntityMeta: wmdef.EntityMeta{
-			Name:        "node1",
-			Annotations: map[string]string{"a1": "v1"},
-			Labels:      map[string]string{"l1": "v2"},
-		},
-		GVR: &schema.GroupVersionResource{
-			Version:  "v1",
-			Resource: "nodes",
-		},
-	}
-
 	deploymentMetadata := wmdef.KubernetesMetadata{
 		EntityID: wmdef.EntityID{
 			Kind: wmdef.KindKubernetesMetadata,
@@ -1840,11 +1815,23 @@ func TestListKubernetesMetadata(t *testing.T) {
 		},
 	}
 
+	nodeEntity := wmdef.KubernetesNode{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesNode,
+			ID:   "node1",
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node1",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+	}
+
 	wmeta.handleEvents([]wmdef.CollectorEvent{
 		{
 			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
-			Entity: &nodeMetadata,
+			Entity: &nodeEntity,
 		},
 		{
 			Type:   wmdef.EventTypeSet,
@@ -1853,7 +1840,8 @@ func TestListKubernetesMetadata(t *testing.T) {
 		},
 	})
 
-	assert.ElementsMatch(t, []*wmdef.KubernetesMetadata{&nodeMetadata}, wmeta.ListKubernetesMetadata(wmdef.IsNodeMetadata))
+	assert.ElementsMatch(t, []*wmdef.KubernetesNode{&nodeEntity}, wmeta.ListKubernetesNodes())
+	assert.ElementsMatch(t, []*wmdef.KubernetesMetadata{&deploymentMetadata}, wmeta.ListKubernetesMetadata(nil))
 }
 
 func TestReset(t *testing.T) {
@@ -2256,4 +2244,91 @@ func TestHandleEvents_completeness(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, actual)
+}
+
+// failingCollector is a workloadmeta collector that always fails to start with a
+// non-retriable error, simulating a collector that is not applicable to the
+// current environment (e.g. docker/containerd when no socket is present).
+type failingCollector struct {
+	id string
+}
+
+func (c *failingCollector) Start(context.Context, wmdef.Component) error {
+	return errors.NewDisabled(c.id, "not applicable to this environment")
+}
+
+func (c *failingCollector) Pull(context.Context) error { return nil }
+
+func (c *failingCollector) GetID() string { return c.id }
+
+func (c *failingCollector) GetTargetCatalog() wmdef.AgentType { return wmdef.NodeAgent }
+
+func newWorkloadmetaWithCollectors(t *testing.T, collectors ...wmdef.Collector) *workloadmeta {
+	deps := Dependencies{
+		Lc:      compdef.NewTestLifecycle(t),
+		Log:     logmock.New(t),
+		Config:  config.NewMock(t),
+		Params:  wmdef.NewParams(),
+		Catalog: wmdef.CollectorList(collectors),
+	}
+	return NewComponent(deps).Comp.(*workloadmeta)
+}
+
+// TestStartCandidatesWithRetryClosesFirstCollectorReadyWhenNoneStart verifies
+// that when all candidates fail to start with non-retriable errors (i.e. no
+// collector is applicable to the environment), startCandidatesWithRetry unblocks
+// the pull goroutine by closing firstCollectorReady instead of leaving it to
+// wait for firstPullWaitTimeout.
+func TestStartCandidatesWithRetryClosesFirstCollectorReadyWhenNoneStart(t *testing.T) {
+	w := newWorkloadmetaWithCollectors(t,
+		&failingCollector{id: "docker"},
+		&failingCollector{id: "containerd"},
+		&failingCollector{id: "kubelet"},
+	)
+	w.firstCollectorReady = make(chan struct{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	require.NoError(t, w.startCandidatesWithRetry(ctx))
+
+	select {
+	case <-w.firstCollectorReady:
+		// expected: pull goroutine is unblocked even though no collector started
+	case <-time.After(5 * time.Second):
+		t.Fatal("firstCollectorReady was not closed when all candidates failed non-retriably")
+	}
+}
+
+// TestStartSignalsInitializedWhenNoCollectorApplicable verifies the end-to-end
+// behavior: when no collector is applicable, the store becomes initialized
+// quickly (well before firstPullWaitTimeout), so autodiscovery does not log a
+// spurious "Workloadmeta collectors are not ready" error on every startup.
+func TestStartSignalsInitializedWhenNoCollectorApplicable(t *testing.T) {
+	w := newWorkloadmetaWithCollectors(t,
+		&failingCollector{id: "docker"},
+		&failingCollector{id: "containerd"},
+	)
+	w.firstCollectorReady = make(chan struct{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	require.NoError(t, w.startCandidatesWithRetry(ctx))
+
+	// Deterministic signal: firstCollectorReady is closed when no collector
+	// is applicable, unblocking the pull goroutine so it proceeds with the
+	// first (empty) pull instead of waiting for firstPullWaitTimeout.
+	select {
+	case <-w.firstCollectorReady:
+	case <-time.After(5 * time.Second):
+		t.Fatal("firstCollectorReady was not closed when no collector is applicable")
+	}
+
+	// The pull goroutine reacts to the closed signal by running the first
+	// (empty) pull and marking the store initialized. Drive those steps
+	// deterministically to verify the store becomes initialized.
+	w.pull(ctx)
+	w.updateCollectorStatus(wmdef.CollectorsInitialized)
+	require.True(t, w.IsInitialized())
 }

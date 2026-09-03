@@ -10,9 +10,10 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
-	"time"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 // Note: stateView is defined in stateview.go and provides read-only access
@@ -20,10 +21,136 @@ import (
 
 // anomalyDedupKey is a map key for O(1) anomaly deduplication.
 type anomalyDedupKey struct {
-	sourceKey    string // SeriesDescriptor.Key()
-	detectorName string
-	timestamp    int64
-	title        string
+	sourceRef       observerdef.SeriesRef
+	sourceAggregate observerdef.Aggregate
+	sourceKey       string // SeriesDescriptor.Key(), only for anomalies without a storage ref
+	hasSourceRef    bool
+	detectorName    string
+	timestamp       int64
+	title           string
+}
+
+const (
+	maxLiveAnomalyDedupEntries          = 5_000
+	anomalyDedupEvictionReasonCapacity  = "capacity"
+	anomalyDedupEvictionReasonSeries    = "series_evicted"
+	anomalyDedupEvictionReasonRetention = "retention"
+)
+
+type anomalyDedupEntry struct {
+	// expiresAt is expressed in data time. Zero disables time-based expiry.
+	expiresAt int64
+}
+
+// anomalyDeduper suppresses detector outputs that are re-emitted across
+// consecutive advances. Live mode uses a fixed-size LRU; testbench history mode
+// intentionally uses an unbounded map for finite replays.
+type anomalyDeduper struct {
+	live       *simplelru.LRU[anomalyDedupKey, anomalyDedupEntry]
+	replay     map[anomalyDedupKey]struct{}
+	nextExpiry int64
+}
+
+func newAnomalyDeduper(maxEntries int) anomalyDeduper {
+	if maxEntries == 0 {
+		return anomalyDeduper{replay: make(map[anomalyDedupKey]struct{})}
+	}
+	cache, err := simplelru.NewLRU[anomalyDedupKey, anomalyDedupEntry](maxEntries, nil)
+	if err != nil {
+		panic(err) // maxEntries is always a positive constant in live mode
+	}
+	return anomalyDeduper{live: cache}
+}
+
+func anomalyDedupCapacity(trackHistory bool) int {
+	if trackHistory {
+		return 0
+	}
+	return maxLiveAnomalyDedupEntries
+}
+
+func anomalyDedupKeyFor(anomaly observerdef.Anomaly) anomalyDedupKey {
+	key := anomalyDedupKey{
+		detectorName: anomaly.DetectorName,
+		timestamp:    anomaly.Timestamp,
+		title:        anomaly.Title,
+	}
+	if anomaly.SourceRef != nil {
+		key.sourceRef = anomaly.SourceRef.Ref
+		key.sourceAggregate = anomaly.SourceRef.Aggregate
+		key.hasSourceRef = true
+	} else {
+		key.sourceKey = anomaly.Source.Key()
+	}
+	return key
+}
+
+func (d *anomalyDeduper) accept(key anomalyDedupKey, expiresAt int64) (accepted bool, capacityEvicted int) {
+	if d.live == nil {
+		if _, duplicate := d.replay[key]; duplicate {
+			return false, 0
+		}
+		d.replay[key] = struct{}{}
+		return true, 0
+	}
+	if _, duplicate := d.live.Get(key); duplicate {
+		return false, 0
+	}
+	if expiresAt > 0 && (d.nextExpiry == 0 || expiresAt < d.nextExpiry) {
+		d.nextExpiry = expiresAt
+	}
+	if d.live.Add(key, anomalyDedupEntry{expiresAt: expiresAt}) {
+		return true, 1
+	}
+	return true, 0
+}
+
+// removeExpired discards live dedup entries after their source series can no
+// longer retain the point that produced them. Replay mode keeps complete history.
+func (d *anomalyDeduper) removeExpired(dataTime int64) int {
+	if d.live == nil || d.nextExpiry == 0 || dataTime <= d.nextExpiry {
+		return 0
+	}
+	removed := 0
+	nextExpiry := int64(0)
+	for _, key := range d.live.Keys() {
+		entry, exists := d.live.Peek(key)
+		if !exists || entry.expiresAt == 0 {
+			continue
+		}
+		if dataTime > entry.expiresAt {
+			d.live.Remove(key)
+			removed++
+			continue
+		}
+		if nextExpiry == 0 || entry.expiresAt < nextExpiry {
+			nextExpiry = entry.expiresAt
+		}
+	}
+	d.nextExpiry = nextExpiry
+	return removed
+}
+
+// removeSourceRefs discards live dedup entries for storage series that no longer
+// exist. The scan is bounded by maxLiveAnomalyDedupEntries and happens only when
+// storage evicts series. Replay mode retains complete dedup history.
+func (d *anomalyDeduper) removeSourceRefs(refs []observerdef.SeriesRef) int {
+	if d.live == nil || len(refs) == 0 {
+		return 0
+	}
+	removedRefs := make(map[observerdef.SeriesRef]struct{}, len(refs))
+	for _, ref := range refs {
+		removedRefs[ref] = struct{}{}
+	}
+	removed := 0
+	for _, key := range d.live.Keys() {
+		if _, exists := removedRefs[key.sourceRef]; key.hasSourceRef && exists {
+			if d.live.Remove(key) {
+				removed++
+			}
+		}
+	}
+	return removed
 }
 
 // engine is the shared orchestration core for the observer pipeline.
@@ -33,9 +160,9 @@ type anomalyDedupKey struct {
 // The engine does not own reporters or scheduling policy. It accepts explicit
 // Advance calls and returns results that callers route to their own outputs.
 type engine struct {
-	// mu protects detectors, correlators, scorers, extractors, logObservers,
+	// mu protects detectors, correlators, extractors, logObservers,
 	// lastAnalyzedDataTime, and latestDataTime from concurrent access.
-	// Writers (Advance, Reset, SetDetectors, SetCorrelators, SetScorers, SetExtractors)
+	// Writers (Advance, Reset, SetDetectors, SetCorrelators, SetExtractors)
 	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
@@ -43,7 +170,12 @@ type engine struct {
 	extractors  []observerdef.LogMetricsExtractor
 	detectors   []observerdef.Detector
 	correlators []observerdef.Correlator
-	scorers     []observerdef.AnomalyScorer
+	logCounts   *materializedLogCountBucketizer
+
+	// scorer is a typed pointer to the anomaly scorer (when present).
+	// It is also included in correlators for processing; this pointer is used
+	// only for ScoreState() introspection without a type assertion at read time.
+	scorer *anomalyScorer
 
 	// scheduler decides when the engine should advance analysis.
 	scheduler schedulerPolicy
@@ -58,33 +190,44 @@ type engine struct {
 	// latestDataTime is the latest data timestamp seen across all ingested observations.
 	latestDataTime int64
 
-	// Raw anomaly tracking (for telemetry and testbench display).
-	rawAnomalies         []observerdef.Anomaly
-	rawAnomalyIndex      map[anomalyDedupKey]int // O(1) dedup lookup
-	rawAnomalyMu         sync.RWMutex
-	rawAnomalyWindow     int64           // seconds to keep (0 = unlimited)
-	maxRawAnomalies      int             // max count to keep (0 = unlimited)
-	currentDataTime      int64           // latest anomaly timestamp seen
-	totalAnomalyCount    int             // total count ever (no cap)
-	uniqueAnomalySources map[string]bool // unique sources that had anomalies (keyed by SeriesDescriptor.Key())
+	// inactiveSeriesEvictionChecked tracks the advance timestamp of the last
+	// inactivity scan. It is engine-goroutine owned, like storage mutation.
+	inactiveSeriesEvictionChecked   bool
+	lastInactiveSeriesEvictionCheck int64
 
-	// Accumulated correlations from all advance cycles.
+	// Cross-advance detector deduplication is always active. Full anomaly history
+	// and its introspection indexes are populated only for testbench/replay.
+	anomalyDeduper       anomalyDeduper
+	trackAnomalyHistory  bool
+	rawAnomalies         []observerdef.Anomaly
+	rawAnomalyMu         sync.RWMutex
+	totalAnomalyCount    int             // total count ever (no cap)
+	uniqueAnomalySources map[string]bool // testbench-only, capped unique source set
+
+	// Accumulated correlations — populated only when trackCorrelationHistory is true.
 	// Correlators maintain sliding windows that evict old state, but for
 	// testbench/replay we want the full history. This map accumulates
 	// every correlation ever seen, keyed by Pattern string, updating
 	// existing entries when the correlator reports a newer version.
+	// In live production mode this field is nil and accumulateCorrelations is a no-op,
+	// so the map write + eviction scan on every Advance is avoided.
 	accumulatedCorrelations map[string]observerdef.ActiveCorrelation
 	correlationMu           sync.RWMutex
+	// maxCorrelations caps accumulatedCorrelations. 0 = built-in default (500),
+	// -1 = unlimited (testbench replay). Only meaningful when trackCorrelationHistory.
+	maxCorrelations int
+	// trackCorrelationHistory gates accumulateCorrelations calls. Set from
+	// StorageConfig.TrackCorrelationHistory in ResetForReplay; never set in the
+	// live agent path (newEngine in observer.go).
+	trackCorrelationHistory bool
 
 	// Optional callbacks for direct telemetry emission.
 	onStorageSeriesEvicted func(reason string, count int)
 	onStorageCapacityHit   func()
+	onAnomalyDedupEvicted  func(reason string, count int)
 	onAdvanceSkipped       func(reason string)
 	onProcessingTime       func(detectorTag string, durationNs float64)
-	onScorerEWMA           func(scorerName string, score float64)
-
-	// detectorTags caches "detector:<name>" strings, rebuilt when components change.
-	detectorTags map[string]string
+	onDetectorEmission     func(detector, severity string)
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -115,6 +258,9 @@ type engine struct {
 	// confined to the engine run loop. Lock-free via atomic.Pointer to a
 	// copy-on-write map so we don't add a mutex to the hot path.
 	sourceTagCache atomic.Pointer[map[string]string]
+
+	// baseline is accessed only from the engine run goroutine.
+	baseline *baselineController
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -123,12 +269,20 @@ type engineConfig struct {
 	extractors  []observerdef.LogMetricsExtractor
 	detectors   []observerdef.Detector
 	correlators []observerdef.Correlator
-	scorers     []observerdef.AnomalyScorer
+	// scorer is the optional unified anomaly scorer. When non-nil, it is also
+	// appended to correlators so it participates in the normal correlator loop.
+	scorer *anomalyScorer
 	// scheduler is the scheduling policy. If nil, defaults to currentBehaviorPolicy.
 	scheduler schedulerPolicy
 
-	rawAnomalyWindow int64
-	maxRawAnomalies  int
+	// trackAnomalyHistory enables full raw anomaly history for testbench replay.
+	// Live production engines leave this false and retain only bounded dedup state.
+	trackAnomalyHistory bool
+	// trackCorrelationHistory enables the accumulated-correlations map.
+	// Only used in tests and testbench replay; live production engines leave this false.
+	trackCorrelationHistory bool
+	baseline                BaselineConfig
+	logCountBuckets         LogCountBucketConfig
 }
 
 // newEngine creates an engine with the given configuration.
@@ -139,17 +293,29 @@ func newEngine(cfg engineConfig) *engine {
 	}
 	validateUniqueExtractorNames(cfg.extractors)
 
+	// Include the scorer in correlators so it participates in the normal loop.
+	correlators := cfg.correlators
+	if cfg.scorer != nil {
+		correlators = append(correlators, cfg.scorer)
+	}
+
 	e := &engine{
 		storage:     cfg.storage,
 		extractors:  cfg.extractors,
 		detectors:   cfg.detectors,
-		correlators: cfg.correlators,
-		scorers:     cfg.scorers,
+		correlators: correlators,
+		scorer:      cfg.scorer,
 		scheduler:   sched,
 
-		rawAnomalyWindow: cfg.rawAnomalyWindow,
-		maxRawAnomalies:  cfg.maxRawAnomalies,
-		rawAnomalyIndex:  make(map[anomalyDedupKey]int),
+		anomalyDeduper:          newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory)),
+		trackAnomalyHistory:     cfg.trackAnomalyHistory,
+		trackCorrelationHistory: cfg.trackCorrelationHistory,
+	}
+	if cfg.logCountBuckets.Enabled {
+		e.logCounts = newMaterializedLogCountBucketizer(cfg.logCountBuckets)
+	}
+	if cfg.baseline.Enabled {
+		e.baseline = newBaselineController(cfg.baseline, detectorNames(cfg.detectors))
 	}
 
 	// Cache log observers from detectors.
@@ -160,38 +326,6 @@ func newEngine(cfg engineConfig) *engine {
 	}
 
 	return e
-}
-
-// rebuildDetectorTags rebuilds the cached "detector:<name>" tag strings from
-// the current extractors, detectors, logObservers, and correlators.
-// Called on construction and whenever the component sets change.
-func (e *engine) rebuildDetectorTags() {
-	tags := make(map[string]string)
-	for _, ext := range e.extractors {
-		tags[ext.Name()] = "detector:" + ext.Name()
-	}
-	for _, d := range e.detectors {
-		tags[d.Name()] = "detector:" + d.Name()
-	}
-	for _, lo := range e.logObservers {
-		tags[lo.Name()] = "detector:" + lo.Name()
-	}
-	for _, c := range e.correlators {
-		tags[c.Name()] = "detector:" + c.Name()
-	}
-	for _, sc := range e.scorers {
-		tags[sc.Name()] = "detector:" + sc.Name()
-	}
-	e.detectorTags = tags
-}
-
-// detectorTag returns the cached "detector:<name>" tag string. Falls back to
-// concatenation if the name is not cached (should not happen in practice).
-func (e *engine) detectorTag(name string) string {
-	if tag, ok := e.detectorTags[name]; ok {
-		return tag
-	}
-	return "detector:" + name
 }
 
 // enableDetectDigestRecording sets a callback invoked after each Detect() call
@@ -323,7 +457,26 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				copy(newTags, tags)
 				tags = append(newTags, sourceTag)
 			}
-			res := e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
+			// Always canonicalize so the hash computed here matches storage's
+			// seriesKeyHash, and storage.Add hits the tagsSorted fast path.
+			tags = canonicalizeTags(tags)
+			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
+				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, tags)]; ok {
+					continue
+				}
+			}
+			timestamp := l.timestampMs / 1000
+			if e.logCounts != nil && e.logCounts.handlesMetric(m.Name) {
+				if !e.logCounts.observe(extractor.Name(), m, timestamp, tags) {
+					e.latePoints.Add(1)
+					if e.latePointsBySource == nil {
+						e.latePointsBySource = make(map[string]int64)
+					}
+					e.latePointsBySource[source]++
+				}
+				continue
+			}
+			res := e.storage.Add(extractor.Name(), m.Name, m.Value, timestamp, tags)
 			if m.Context != nil && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
@@ -333,7 +486,6 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 		lo.ProcessLog(view)
 	}
 	dataTimeSec := l.timestampMs / 1000
-	e.storage.RecordObservationTime(dataTimeSec)
 	e.trackLatestDataTime(dataTimeSec)
 	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
 }
@@ -350,16 +502,20 @@ func sliceContains(items []string, want string) bool {
 // removeEvictedMetricSeries removes all storage series for the given metric
 // names in namespace. Called when an extractor GC/LRU evicts a pattern cluster.
 func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []string) {
+	var freedAll []observerdef.SeriesRef
 	for _, name := range evictedNames {
 		if name == "" {
 			continue
 		}
-		freed := e.storage.RemoveSeriesByMetricName(namespace, name)
-		if len(freed) > 0 && e.onStorageSeriesEvicted != nil {
-			e.onStorageSeriesEvicted("extractor", len(freed))
+		if e.logCounts != nil {
+			e.logCounts.removeMetricName(namespace, name)
 		}
-		e.fanOutSeriesRemoval(freed)
+		freedAll = append(freedAll, e.storage.RemoveSeriesByMetricName(namespace, name)...)
 	}
+	if len(freedAll) > 0 && e.onStorageSeriesEvicted != nil {
+		e.onStorageSeriesEvicted("extractor", len(freedAll))
+	}
+	e.fanOutSeriesRemoval(freedAll)
 }
 
 // fanOutSeriesRemoval notifies every detector that implements the optional
@@ -382,10 +538,18 @@ func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []stri
 // taking their own locks. Adding a new caller of this function from a
 // different goroutine would break that invariant for every detector.
 func (e *engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
-	if len(refs) == 0 || len(e.detectors) == 0 {
+	e.removeAnomalyDedupSourceRefs(refs)
+	e.mu.RLock()
+	detectors := e.detectors
+	e.mu.RUnlock()
+	fanOutSeriesRemoval(detectors, refs)
+}
+
+func fanOutSeriesRemoval(detectors []observerdef.Detector, refs []observerdef.SeriesRef) {
+	if len(refs) == 0 || len(detectors) == 0 {
 		return
 	}
-	for _, d := range e.detectors {
+	for _, d := range detectors {
 		if remover, ok := d.(observerdef.SeriesRemover); ok {
 			remover.RemoveSeries(refs)
 		}
@@ -411,7 +575,8 @@ func (e *engine) schedulerState() schedulerState {
 
 // advanceResult holds the outputs from an Advance call.
 type advanceResult struct {
-	anomalies []observerdef.Anomaly
+	anomalies        []observerdef.Anomaly
+	correlatorEvents []observerdef.CorrelatorEvent
 }
 
 // Advance runs detectors and correlators up to the given event time.
@@ -437,7 +602,6 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	}
 	detectors := e.detectors
 	correlators := e.correlators
-	scorers := e.scorers
 	e.lastAnalyzedDataTime = upToSec
 	e.mu.Unlock()
 
@@ -471,10 +635,28 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		})
 	}
 
-	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators, scorers)
+	if e.baseline != nil {
+		e.baseline.start(upToSec)
+		// Complete windows before detecting at their exact end. This removes
+		// series globally before a slower detector can process them again.
+		e.completeDueBaselines(upToSec)
+	}
+	if e.logCounts != nil {
+		e.logCounts.flush(e.storage, upToSec)
+	}
+	// Inactivity eviction happens after materialized log-count buckets have
+	// restored their real last-observation activity time, and before detectors
+	// can recreate state for series that are no longer relevant.
+	e.evictInactiveSeries(upToSec, detectors)
+	e.removeExpiredAnomalyDedup(upToSec)
+
+	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
 	// Evict series beyond the storage cap and fan freed refs to detectors.
 	if freed := e.storage.EvictDefault(); len(freed) > 0 {
+		if e.logCounts != nil {
+			e.logCounts.removeSeriesByRefs(freed)
+		}
 		if e.onStorageCapacityHit != nil {
 			e.onStorageCapacityHit()
 		}
@@ -488,14 +670,44 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		kind:      eventAdvanceCompleted,
 		timestamp: upToSec,
 		advanceCompleted: &advanceCompletedEvent{
-			advancedToSec: upToSec,
-			reason:        reason,
-			anomalyCount:  len(result.anomalies),
-			anomalies:     result.anomalies,
+			advancedToSec:    upToSec,
+			reason:           reason,
+			anomalyCount:     len(result.anomalies),
+			anomalies:        result.anomalies,
+			correlatorEvents: result.correlatorEvents,
 		},
 	})
 
 	return result
+}
+
+func (e *engine) evictInactiveSeries(upToSec int64, detectors []observerdef.Detector) {
+	e.mu.Lock()
+	cfg := e.storage.cfg
+	if cfg.InactiveSeriesTTLSeconds <= 0 || cfg.InactiveSeriesCheckIntervalSeconds <= 0 {
+		e.mu.Unlock()
+		return
+	}
+	if e.inactiveSeriesEvictionChecked && upToSec-e.lastInactiveSeriesEvictionCheck < cfg.InactiveSeriesCheckIntervalSeconds {
+		e.mu.Unlock()
+		return
+	}
+	e.inactiveSeriesEvictionChecked = true
+	e.lastInactiveSeriesEvictionCheck = upToSec
+	e.mu.Unlock()
+
+	freed := e.storage.EvictInactiveBefore(upToSec - cfg.InactiveSeriesTTLSeconds)
+	if len(freed) == 0 {
+		return
+	}
+	if e.logCounts != nil {
+		e.logCounts.removeSeriesByRefs(freed)
+	}
+	if e.onStorageSeriesEvicted != nil {
+		e.onStorageSeriesEvicted("inactive", len(freed))
+	}
+	e.removeAnomalyDedupSourceRefs(freed)
+	fanOutSeriesRemoval(detectors, freed)
 }
 
 // runDetectorsAndCorrelatorsSnapshot runs the given detectors and correlators.
@@ -507,8 +719,15 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 // correlators to upTo after processing would evict just-formed clusters before
 // they can be accumulated. We accumulate correlations BEFORE advancing so
 // clusters are captured while still alive.
-func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator, scorers []observerdef.AnomalyScorer) advanceResult {
+func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
+	var severityConfig observerdef.AnomalyScorerConfig
+	if e.onDetectorEmission != nil {
+		severityConfig = DefaultAnomalyScorerConfig().AnomalyScorerConfig
+		if e.scorer != nil {
+			severityConfig = e.scorer.config.AnomalyScorerConfig
+		}
+	}
 
 	// Detect, deduplicate, and feed anomalies to correlators.
 	for _, detector := range detectors {
@@ -521,6 +740,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 
 		result := detector.Detect(storageForDetect, upTo)
+		if e.baseline != nil && detector.Ready() {
+			e.baseline.ready(detector.Name(), upTo)
+		}
 
 		// Emit detect digest (captures raw result BEFORE dedup).
 		if e.onDetectDigest != nil {
@@ -546,8 +768,31 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 
 		for _, anomaly := range result.Anomalies {
 			e.enrichAnomaly(&anomaly)
-			if !e.captureRawAnomaly(anomaly) {
+			// Baseline gate must precede acceptAnomaly: scan detectors re-emit
+			// the same anomaly (same {source,detector,ts,title}) on consecutive advances,
+			// so acceptAnomaly would return false (duplicate) before we could mark it.
+			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
+			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
+				if anomaly.SourceRef != nil {
+					e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags))
+				}
+				continue
+			}
+			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
+				h := seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags)
+				if _, muted := e.baseline.mutedHashes[h]; muted {
+					continue
+				}
+			}
+			if !e.acceptAnomaly(anomaly) {
 				continue // duplicate
+			}
+			if e.onDetectorEmission != nil {
+				detectorName := anomaly.DetectorName
+				if detectorName == "" {
+					detectorName = detector.Name()
+				}
+				e.onDetectorEmission(detectorName, anomalySeverityLabel(anomalyLevel(anomaly, severityConfig)))
 			}
 			e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
@@ -561,11 +806,30 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 	}
 
-	// Accumulate correlations before advancing — captures clusters formed from
-	// historical-timestamp anomalies before Advance(upTo) evicts them.
+	// Advance correlators and collect pending events.
+	// accumulateCorrelations is called only in testbench mode (trackCorrelationHistory=true)
+	// to avoid map writes + eviction scans on every live Advance.
+	//
+	// Two accumulation paths:
+	//  1. ActiveCorrelations() before Advance — captures currently-open episodes and
+	//     live cluster state (works for all correlators including the scorer's open episode).
+	//  2. EpisodeStarted/EpisodeEnded PendingEvents after Advance — captures scorer
+	//     episodes that closed during this tick (closedEpisodes no longer buffered in scorer).
+	var allCorrelatorEvents []observerdef.CorrelatorEvent
 	for _, correlator := range correlators {
-		e.accumulateCorrelations(correlator.ActiveCorrelations())
+		if e.trackCorrelationHistory {
+			e.accumulateCorrelations(correlator.ActiveCorrelations())
+		}
 		correlator.Advance(upTo)
+		evts := correlator.PendingEvents()
+		if e.trackCorrelationHistory {
+			for _, ce := range evts {
+				if ce.Kind == observerdef.CorrelatorEventEpisodeStarted || ce.Kind == observerdef.CorrelatorEventEpisodeEnded {
+					e.accumulateCorrelations([]observerdef.ActiveCorrelation{ce.Correlation})
+				}
+			}
+		}
+		allCorrelatorEvents = append(allCorrelatorEvents, evts...)
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,
@@ -575,20 +839,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		})
 	}
 
-	// Advance scorers once per second tick, after all anomalies have been processed.
-	for _, scorer := range scorers {
-		advanceStart := time.Now()
-		scorer.Advance(upTo)
-		if e.onProcessingTime != nil {
-			e.onProcessingTime(e.detectorTag(scorer.Name()), float64(time.Since(advanceStart).Nanoseconds()))
-		}
-		if e.onScorerEWMA != nil {
-			e.onScorerEWMA(scorer.Name(), scorer.LastScore())
-		}
-	}
-
 	return advanceResult{
-		anomalies: allAnomalies,
+		anomalies:        allAnomalies,
+		correlatorEvents: allCorrelatorEvents,
 	}
 }
 
@@ -606,92 +859,75 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 	a.Context = ctx
 }
 
-// processAnomaly sends an anomaly to all registered correlators and scorers.
+// processAnomaly sends an anomaly to all registered correlators.
 func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 	for _, correlator := range e.correlators {
 		correlator.ProcessAnomaly(anomaly)
 	}
-	for _, scorer := range e.scorers {
-		processingStartTime := time.Now()
-		scorer.ProcessAnomaly(anomaly)
-		if e.onProcessingTime != nil {
-			e.onProcessingTime(e.detectorTag(scorer.Name()), float64(time.Since(processingStartTime).Nanoseconds()))
-		}
-	}
 }
 
-// captureRawAnomaly stores a raw anomaly for telemetry and testbench display.
-// Deduplicates by Source+DetectorName+Timestamp+Title.
+// acceptAnomaly deduplicates by Source+DetectorName+Timestamp+Title and,
+// when testbench history is enabled, stores the accepted anomaly for display.
 // Returns true if the anomaly was new, false if it was a duplicate.
-func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
+func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly) bool {
+	expiresAt := e.anomalyDedupExpiry(anomaly)
 	e.rawAnomalyMu.Lock()
-	defer e.rawAnomalyMu.Unlock()
-
 	e.totalAnomalyCount++
 
-	if e.uniqueAnomalySources == nil {
-		e.uniqueAnomalySources = make(map[string]bool)
-	}
-	const maxUniqueSources = 500
-	if len(e.uniqueAnomalySources) < maxUniqueSources {
-		e.uniqueAnomalySources[anomaly.Source.Key()] = true
-	}
-
-	if anomaly.Timestamp > e.currentDataTime {
-		e.currentDataTime = anomaly.Timestamp
-	}
-
-	// Deduplicate by Source+DetectorName+Timestamp+Title
-	key := anomalyDedupKey{
-		sourceKey:    anomaly.Source.Key(),
-		detectorName: anomaly.DetectorName,
-		timestamp:    anomaly.Timestamp,
-		title:        anomaly.Title,
-	}
-	if _, ok := e.rawAnomalyIndex[key]; ok {
-		return false // exact duplicate
-	}
-	e.rawAnomalyIndex[key] = len(e.rawAnomalies)
-	e.rawAnomalies = append(e.rawAnomalies, anomaly)
-
-	// Evict old anomalies if window is set
-	needsReindex := false
-	if e.rawAnomalyWindow > 0 {
-		cutoff := e.currentDataTime - e.rawAnomalyWindow
-		newBuffer := e.rawAnomalies[:0]
-		for _, a := range e.rawAnomalies {
-			if a.Timestamp >= cutoff {
-				newBuffer = append(newBuffer, a)
-			}
+	accepted, capacityEvicted := e.anomalyDeduper.accept(anomalyDedupKeyFor(anomaly), expiresAt)
+	if accepted && e.trackAnomalyHistory {
+		if e.uniqueAnomalySources == nil {
+			e.uniqueAnomalySources = make(map[string]bool)
 		}
-		if len(newBuffer) != len(e.rawAnomalies) {
-			needsReindex = true
+		const maxUniqueSources = 500
+		if len(e.uniqueAnomalySources) < maxUniqueSources {
+			e.uniqueAnomalySources[anomaly.Source.Key()] = true
 		}
-		e.rawAnomalies = newBuffer
+		e.rawAnomalies = append(e.rawAnomalies, anomaly)
 	}
+	e.rawAnomalyMu.Unlock()
 
-	// Cap at maxRawAnomalies if set
-	if e.maxRawAnomalies > 0 && len(e.rawAnomalies) > e.maxRawAnomalies {
-		e.rawAnomalies = e.rawAnomalies[len(e.rawAnomalies)-e.maxRawAnomalies:]
-		needsReindex = true
-	}
-
-	// Rebuild index after eviction changes indices.
-	if needsReindex {
-		e.rawAnomalyIndex = make(map[anomalyDedupKey]int, len(e.rawAnomalies))
-		for i, a := range e.rawAnomalies {
-			e.rawAnomalyIndex[anomalyDedupKey{
-				sourceKey:    a.Source.Key(),
-				detectorName: a.DetectorName,
-				timestamp:    a.Timestamp,
-				title:        a.Title,
-			}] = i
-		}
-	}
-	return true
+	e.recordAnomalyDedupEviction(anomalyDedupEvictionReasonCapacity, capacityEvicted)
+	return accepted
 }
 
-// RawAnomalies returns a copy of currently tracked raw anomalies.
+func (e *engine) anomalyDedupExpiry(anomaly observerdef.Anomaly) int64 {
+	ref := observerdef.SeriesRef(-1)
+	if anomaly.SourceRef != nil {
+		ref = anomaly.SourceRef.Ref
+	}
+	retentionSecs := e.storage.pointRetentionForSeries(ref)
+	if retentionSecs <= 0 {
+		return 0
+	}
+	return anomaly.Timestamp + retentionSecs
+}
+
+func (e *engine) removeExpiredAnomalyDedup(dataTime int64) {
+	e.rawAnomalyMu.Lock()
+	removed := e.anomalyDeduper.removeExpired(dataTime)
+	e.rawAnomalyMu.Unlock()
+	e.recordAnomalyDedupEviction(anomalyDedupEvictionReasonRetention, removed)
+}
+
+func (e *engine) removeAnomalyDedupSourceRefs(refs []observerdef.SeriesRef) {
+	if len(refs) == 0 {
+		return
+	}
+	e.rawAnomalyMu.Lock()
+	removed := e.anomalyDeduper.removeSourceRefs(refs)
+	e.rawAnomalyMu.Unlock()
+	e.recordAnomalyDedupEviction(anomalyDedupEvictionReasonSeries, removed)
+}
+
+func (e *engine) recordAnomalyDedupEviction(reason string, count int) {
+	if count > 0 && e.onAnomalyDedupEvicted != nil {
+		e.onAnomalyDedupEvicted(reason, count)
+	}
+}
+
+// RawAnomalies returns replay/debug history when anomaly history is enabled.
+// Live production mode returns an empty slice.
 func (e *engine) RawAnomalies() []observerdef.Anomaly {
 	e.rawAnomalyMu.RLock()
 	defer e.rawAnomalyMu.RUnlock()
@@ -733,8 +969,12 @@ func (e *engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) 
 		}
 	}
 
-	// Evict oldest entries if over cap.
-	for len(e.accumulatedCorrelations) > maxAccumulatedCorrelations {
+	// Evict oldest entries if over cap. cap=-1 means unlimited (testbench).
+	cap := e.maxCorrelations
+	if cap == 0 {
+		cap = maxAccumulatedCorrelations
+	}
+	for cap > 0 && len(e.accumulatedCorrelations) > cap {
 		var oldestKey string
 		var oldestTime int64 = math.MaxInt64
 		for k, ac := range e.accumulatedCorrelations {
@@ -757,6 +997,78 @@ func (e *engine) AccumulatedCorrelations() []observerdef.ActiveCorrelation {
 		result = append(result, ac)
 	}
 	return result
+}
+
+// completeDueBaselines closes every detector window due at dataSec. It is
+// called before detection so a series muted by one detector is immediately
+// removed from storage and every other detector's local state.
+func (e *engine) completeDueBaselines(dataSec int64) {
+	names := e.baseline.due(dataSec)
+	sort.Strings(names)
+	for _, name := range names {
+		e.completeBaseline(name, dataSec)
+	}
+}
+
+func (e *engine) completeBaseline(detectorName string, upToSec int64) {
+	newHashes, snapshotChanged, windowAnomalyCount, allComplete := e.baseline.complete(detectorName)
+	if e.logCounts != nil && e.baseline.config.MuteNoisyMetrics && len(newHashes) > 0 {
+		e.logCounts.removeSeriesByHashes(newHashes)
+	}
+
+	needRefs := e.baseline.config.MuteNoisyMetrics || e.baseline.config.Verbose
+	var refs []observerdef.SeriesRef
+	if needRefs && len(newHashes) > 0 {
+		refs = e.storage.FindRefsByHashes(newHashes)
+	}
+
+	// Collect display names before removal (GetSeriesMeta returns nil after RemoveSeriesByRefs).
+	var displayNames []string
+	if e.baseline.config.Verbose {
+		for _, ref := range refs {
+			if meta := e.storage.GetSeriesMeta(ref); meta != nil {
+				displayNames = append(displayNames, seriesKey(meta.Namespace, meta.Name, meta.Tags))
+			}
+		}
+		sort.Strings(displayNames)
+		e.baseline.recordMutedNames(displayNames)
+	}
+
+	totalSeries := e.storage.TotalSeriesCount()
+
+	// Emit before removal so testbench sinks can read metadata. The controller
+	// uses copy-on-write snapshots, so this immutable union can be published to
+	// concurrent ingress handlers without another full-map copy.
+	e.emit(engineEvent{
+		kind:      eventBaselineCompleted,
+		timestamp: upToSec,
+		baselineCompleted: &baselineCompletedEvent{
+			detectorName:    detectorName,
+			mutedHashes:     e.baseline.mutedHashes,
+			snapshotChanged: snapshotChanged,
+			mutedRefs:       refs,
+			allComplete:     allComplete,
+		},
+	})
+
+	if e.baseline.config.MuteNoisyMetrics && len(refs) > 0 {
+		freed := e.storage.RemoveSeriesByRefs(refs)
+		if len(freed) > 0 {
+			e.fanOutSeriesRemoval(freed)
+		}
+	}
+
+	logging.Debugf("baseline %d/%d ended for detector %q: %d new series muted (%d anomalies seen)",
+		e.baseline.completedCount(), len(e.baseline.detectors), detectorName, len(newHashes), windowAnomalyCount)
+
+	if allComplete {
+		logging.Infof("all baseline windows ended: %d/%d series muted from anomaly detection", len(e.baseline.mutedHashes), totalSeries)
+	}
+	if allComplete && e.baseline.config.Verbose {
+		for _, name := range e.baseline.takeMutedDisplayNames() {
+			logging.Infof("baseline muted: %s", name)
+		}
+	}
 }
 
 // Storage returns the engine's storage.
@@ -787,15 +1099,6 @@ func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
 	e.correlators = correlators
 }
 
-// SetScorers replaces the engine's scorers.
-func (e *engine) SetScorers(scorers []observerdef.AnomalyScorer) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	e.scorers = scorers
-	e.rebuildDetectorTags()
-}
-
 // SetExtractors replaces the engine's log-metrics extractors. Used when
 // testbench components are toggled so that replayed log ingestion uses
 // only the currently-enabled extractors.
@@ -815,6 +1118,8 @@ func (e *engine) Reset() {
 
 	e.lastAnalyzedDataTime = 0
 	e.latestDataTime = 0
+	e.inactiveSeriesEvictionChecked = false
+	e.lastInactiveSeriesEvictionCheck = 0
 
 	for _, detector := range e.detectors {
 		if resetter, ok := detector.(interface{ Reset() }); ok {
@@ -826,16 +1131,18 @@ func (e *engine) Reset() {
 		correlator.Reset()
 	}
 
-	for _, scorer := range e.scorers {
-		scorer.Reset()
-	}
-
 	for _, extractor := range e.extractors {
 		if resetter, ok := extractor.(interface{ Reset() }); ok {
 			resetter.Reset()
 		}
 	}
+	if e.logCounts != nil {
+		e.logCounts.reset()
+	}
 
+	if e.baseline != nil {
+		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))
+	}
 }
 
 // resetRawAnomalies clears the raw anomaly tracking state.
@@ -843,11 +1150,21 @@ func (e *engine) resetRawAnomalies() {
 	e.rawAnomalyMu.Lock()
 	defer e.rawAnomalyMu.Unlock()
 
+	e.anomalyDeduper = newAnomalyDeduper(anomalyDedupCapacity(e.trackAnomalyHistory))
 	e.rawAnomalies = nil
-	e.rawAnomalyIndex = make(map[anomalyDedupKey]int)
 	e.totalAnomalyCount = 0
 	e.uniqueAnomalySources = nil
-	e.currentDataTime = 0
+}
+
+func (e *engine) configureAnomalyTracking(trackHistory bool) {
+	e.rawAnomalyMu.Lock()
+	defer e.rawAnomalyMu.Unlock()
+
+	e.anomalyDeduper = newAnomalyDeduper(anomalyDedupCapacity(trackHistory))
+	e.trackAnomalyHistory = trackHistory
+	e.rawAnomalies = nil
+	e.totalAnomalyCount = 0
+	e.uniqueAnomalySources = nil
 }
 
 // resetCorrelations clears accumulated correlation history.
@@ -874,6 +1191,8 @@ func (e *engine) resetAnalysisState() {
 	e.mu.Lock()
 	e.lastAnalyzedDataTime = 0
 	e.latestDataTime = 0
+	e.inactiveSeriesEvictionChecked = false
+	e.lastInactiveSeriesEvictionCheck = 0
 	e.mu.Unlock()
 
 	for _, detector := range e.detectors {
@@ -884,11 +1203,12 @@ func (e *engine) resetAnalysisState() {
 	for _, correlator := range e.correlators {
 		correlator.Reset()
 	}
-	for _, scorer := range e.scorers {
-		scorer.Reset()
-	}
 	// Extractors are intentionally NOT reset: their state was built during
 	// log ingestion and is needed by enrichAnomaly during replay.
+
+	if e.baseline != nil {
+		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))
+	}
 
 	e.resetRawAnomalies()
 	e.resetCorrelations()
@@ -897,15 +1217,35 @@ func (e *engine) resetAnalysisState() {
 // ResetForReplay reconfigures with new components, clears all state, and replaces storage.
 // The caller supplies storageCfg so it owns any non-default retention policy
 // (e.g. the testbench passes PointRetentionSecs=0 for unbounded replay storage).
-func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, scorers []observerdef.AnomalyScorer, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig) {
+// If scorer is non-nil it is appended to correlators so it participates in
+// the normal correlator loop.
+func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, scorer *anomalyScorer, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig, baselineCfg BaselineConfig) {
 	e.SetDetectors(detectors)
-	e.SetCorrelators(correlators)
-	e.SetScorers(scorers)
+	allCorrelators := correlators
+	if scorer != nil {
+		allCorrelators = append(allCorrelators, scorer)
+	}
+	e.SetCorrelators(allCorrelators)
+	e.mu.Lock()
+	e.scorer = scorer
+	e.mu.Unlock()
 	e.SetExtractors(extractors)
 	e.resetFull()
+	e.replayTimestampsDone.Store(0)
+	e.replayTimestampsTotal.Store(0)
+	e.replayAdvances.Store(0)
+	e.replayAnomalies.Store(0)
 	e.mu.Lock()
 	e.storage = newTimeSeriesStorageWith(storageCfg)
+	e.maxCorrelations = storageCfg.MaxCorrelations
+	e.trackCorrelationHistory = storageCfg.TrackCorrelationHistory
 	e.mu.Unlock()
+	e.configureAnomalyTracking(storageCfg.TrackAnomalyHistory)
+	if baselineCfg.Enabled {
+		e.baseline = newBaselineController(baselineCfg, detectorNames(detectors))
+	} else {
+		e.baseline = nil
+	}
 }
 
 // ExtractorCount returns the number of extractors currently registered.
@@ -985,6 +1325,26 @@ func (e *engine) ReplayStoredData() advanceResult {
 	return advanceResult{
 		anomalies: allAnomalies,
 	}
+}
+
+// FinishReplayStream flushes analysis through the latest observed data time.
+// Unlike ReplayStoredData, it does not reset analysis or walk storage: callers
+// have already advanced analysis synchronously as observations arrived.
+func (e *engine) FinishReplayStream() advanceResult {
+	var allAnomalies []observerdef.Anomaly
+
+	e.replayPhase.Store("detecting")
+	endRequests := e.scheduler.onReplayEnd(e.schedulerState())
+	for _, req := range endRequests {
+		result := e.advanceWithReason(req.upToSec, req.reason)
+		allAnomalies = append(allAnomalies, result.anomalies...)
+	}
+
+	e.replayAdvances.Add(int64(len(endRequests)))
+	e.replayAnomalies.Store(int64(e.TotalAnomalyCount()))
+	e.replayPhase.Store("done")
+
+	return advanceResult{anomalies: allAnomalies}
 }
 
 // ReplayWithLiveSchedule replays stored data but only advances at the timestamps

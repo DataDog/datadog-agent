@@ -13,10 +13,11 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/confmap/xconfmap"
+	"go.opentelemetry.io/collector/confmap"
 	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
 	ebpfconfig "go.opentelemetry.io/ebpf-profiler/collector/config"
-	"go.opentelemetry.io/ebpf-profiler/tracer/types"
+	"go.opentelemetry.io/ebpf-profiler/interpreter"
+	"go.opentelemetry.io/ebpf-profiler/interpreter/interpreterconfig"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
 )
@@ -33,7 +34,7 @@ type Config struct {
 // The order indicates which environment variable takes precedence.
 var defaultEnvVars = []string{"DD_SERVICE", "OTEL_SERVICE_NAME", "DD_ENV", "DD_VERSION"}
 
-var _ xconfmap.Validator = (*Config)(nil)
+var _ confmap.Validator = (*Config)(nil)
 
 func errSymbolEndpointsRequired() error {
 	return errors.New("symbol_endpoints is required")
@@ -46,18 +47,13 @@ func errSymbolEndpointsAPIKeyRequired() error {
 }
 
 // Validate validates the config.
-// This is automatically called by the config parser as it implements the xconfmap.Validator interface.
+// This is automatically called by the config parser as it implements the confmap.Validator interface.
 func (c *Config) Validate() error {
 	if err := c.EbpfCollectorConfig.Validate(); err != nil {
 		return err
 	}
 	if c.CollectContext {
-		includeTracers, err := types.Parse(c.EbpfCollectorConfig.Tracers)
-		if err != nil {
-			return err
-		}
-		includeTracers.Enable(types.Labels)
-		c.EbpfCollectorConfig.Tracers = includeTracers.String()
+		c.EbpfCollectorConfig.Interpreters.Go.Labels.Disabled = false
 	}
 
 	includeEnvVars := append([]string{}, defaultEnvVars...)
@@ -85,7 +81,7 @@ func (c *Config) Validate() error {
 // This is the default config for the profiles receiver
 func defaultConfig(profilerName string) component.Config {
 	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfconfig.Config)
-	cfg.Tracers = getDefaultTracersString()
+	cfg.Interpreters = defaultInterpretersConfig()
 	// 60s batches more samples per report, improving compression and reducing upload bandwidth
 	cfg.ReporterInterval = 60 * time.Second
 	// Default jitter is 20%, which makes sense for 5s intervals (~1s variation).
@@ -100,14 +96,16 @@ func defaultConfig(profilerName string) component.Config {
 	}
 }
 
-func getDefaultTracersString() string {
-	tracers := types.AllTracers()
-
-	// Disable Go interpreter by default because we are doing Go symbolization remotely.
-	tracers.Disable(types.GoTracer)
-
-	// Disable Labels by default. It will be enabled if ReporterConfig.CollectContext is true.
-	tracers.Disable(types.Labels)
-
-	return tracers.String()
+func defaultInterpretersConfig() interpreterconfig.Config {
+	cfg := interpreterconfig.AllInterpreters()
+	// Disable Go symbolization by default because we do Go symbolization remotely.
+	cfg.Go.Symbolization = interpreter.BaseConfig{Disabled: true}
+	//  Disable Labels by default. It will be enabled if ReporterConfig.CollectContext is true.
+	cfg.Go.Labels = interpreter.BaseConfig{Disabled: true}
+	// CRuby has lots of Ruby->native->Ruby transitions which runs out of ebpf tail calls very fast
+	// and captures only a small part of the stack. This config fixes this by skipping native frames
+	// (and tail calls) for Ruby methods implemented in C. Leaf native frames are still captured.
+	// See https://github.com/open-telemetry/opentelemetry-ebpf-profiler/pull/1335
+	cfg.Ruby.SkipNativeResume = true
+	return cfg
 }

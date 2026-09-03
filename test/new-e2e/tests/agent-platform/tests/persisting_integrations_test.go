@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -82,7 +82,7 @@ func TestPersistingIntegrations(t *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", osDesc.String())
 
-			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
+			vmOpts = append(vmOpts, ec2.WithOS(osDesc), ec2.WithInternetAccess())
 
 			// To avoid stack name too long
 			simpleFlavorName := *flavorName

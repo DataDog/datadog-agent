@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -109,7 +110,7 @@ func TestGetWithoutEUDM(t *testing.T) {
 
 	hostTags := Get(ctx, false, mockConfig)
 	for _, tag := range hostTags.System {
-		assert.NotContains(t, tag, "infrastructure_mode:")
+		assert.NotContains(t, tag, "infra_mode:")
 		assert.NotContains(t, tag, "os_name:")
 		assert.NotContains(t, tag, "os_version:")
 		assert.NotContains(t, tag, "cpu_model:")
@@ -135,7 +136,7 @@ func TestGetWithEUDM(t *testing.T) {
 	}
 
 	hostTags := Get(ctx, false, mockConfig)
-	assert.Contains(t, hostTags.System, "infrastructure_mode:end_user_device")
+	assert.Contains(t, hostTags.System, "infra_mode:end_user_device")
 	assert.Contains(t, hostTags.System, "os_name:darwin")
 	assert.Contains(t, hostTags.System, "os_version:23.5.0")
 	assert.Contains(t, hostTags.System, "cpu_model:Apple_M1_Pro")
@@ -145,14 +146,14 @@ func TestGetWithEUDM(t *testing.T) {
 
 func TestEUDMTagsOnUnsupportedOS(t *testing.T) {
 	// collectEUDMHardwareTags should return nil on non-darwin/windows so the
-	// only EUDM tag emitted on Linux is the infrastructure_mode marker.
+	// only EUDM tag emitted on Linux is the infra_mode marker.
 	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
 		t.Skip("test asserts behavior on non-darwin/non-windows hosts")
 	}
 	assert.Nil(t, collectEUDMHardwareTags())
 
 	tags := getEUDMTags()
-	assert.Equal(t, []string{"infrastructure_mode:end_user_device"}, tags)
+	assert.Equal(t, []string{"infra_mode:end_user_device"}, tags)
 }
 
 func TestBytesToGB(t *testing.T) {
@@ -167,6 +168,30 @@ func TestSanitizeEUDMTagValue(t *testing.T) {
 	assert.Equal(t, "Apple_M1_Pro", sanitizeEUDMTagValue("Apple M1 Pro"))
 	assert.Equal(t, "MacBookPro18,3", sanitizeEUDMTagValue("MacBookPro18,3"))
 	assert.Equal(t, "trim_me", sanitizeEUDMTagValue("  trim me  "))
+}
+
+func TestGetProvidersDefinitionsSkipsKubernetesNodeTagsOnCLCRunner(t *testing.T) {
+	mockConfig, _ := setupTest(t)
+	env.SetFeatures(t, env.Kubernetes)
+
+	mockConfig.SetInTest("clc_runner_enabled", true)
+	mockConfig.SetInTest("config_providers", []map[string]interface{}{{"name": "clusterchecks"}})
+
+	providers := getProvidersDefinitions(mockConfig)
+	_, hasKubernetesNodeTags := providers["kubernetes"]
+	assert.False(t, hasKubernetesNodeTags, "kubernetes node-tags provider should be skipped on Cluster Checks Runners, which have no reachable local Kubelet")
+
+	_, hasClusterAgentTags := providers["kubernetes_cluster_agent_tags"]
+	assert.True(t, hasClusterAgentTags, "kubernetes_cluster_agent_tags provider should still be registered on Cluster Checks Runners")
+}
+
+func TestGetProvidersDefinitionsIncludesKubernetesNodeTagsOnNodeAgent(t *testing.T) {
+	mockConfig, _ := setupTest(t)
+	env.SetFeatures(t, env.Kubernetes)
+
+	providers := getProvidersDefinitions(mockConfig)
+	_, hasKubernetesNodeTags := providers["kubernetes"]
+	assert.True(t, hasKubernetesNodeTags, "kubernetes node-tags provider should be registered on a regular node Agent")
 }
 
 func TestHostTagsCache(t *testing.T) {

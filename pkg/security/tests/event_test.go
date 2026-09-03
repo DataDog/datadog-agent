@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -241,7 +241,7 @@ func TestEventIteratorRegister(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_register_1",
-			Expression: `open.file.path == "{{.Root}}/test-register" && process.ancestors[A].name == "syscall_tester" && process.ancestors[A].argv in ["span-exec"]`,
+			Expression: `open.file.path == "{{.Root}}/test-register" && process.ancestors[A].name == "syscall_tester" && process.ancestors[A].argv in ["self-exec"]`,
 		},
 		{
 			ID:         "test_register_2",
@@ -274,7 +274,7 @@ func TestEventIteratorRegister(t *testing.T) {
 
 	t.Run("std", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "span-exec", "123", "456", "/usr/bin/touch", testFile)
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "self-exec", "self-exec", "open", testFile)
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_1")
 		}, "test_register_1")
@@ -341,7 +341,7 @@ func TestEventProductTags(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		err = retry.Do(func() error {
+		err = retry(t, func() error {
 			msg := test.msgSender.getMsg("rule_tags_match")
 			if msg == nil {
 				return errors.New("not found")
@@ -350,7 +350,7 @@ func TestEventProductTags(t *testing.T) {
 			assert.Contains(t, msg.Tags, "tag:match")
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(30))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -446,6 +446,10 @@ func cleanupABottomUp(path string) {
 		path = filepath.Dir(path)
 	}
 }
+
+// The two subtests deliberately build different modules, one per dentry
+// resolution path, so this test cannot share one with anybody.
+var _ = declareInlineConfig(TestEventTruncatedParents)
 
 func TestEventTruncatedParents(t *testing.T) {
 	SkipIfNotAvailable(t)

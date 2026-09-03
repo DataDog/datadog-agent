@@ -141,6 +141,7 @@ kmt_setup_env_sysprobe_x64:
     TEST_COMPONENT: system-probe
 
 .upload_sysprobe_tests:
+  extends: .bazel:defs:cache:progressive
   stage: kernel_matrix_testing_prepare
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   before_script:
@@ -149,6 +150,7 @@ kmt_setup_env_sysprobe_x64:
     - !reference [.write_ssh_key_file]
   script:
     # copy system probe tests
+    - bazel --batch run //internal/tools:install_gotestsum_linux_$ARCH -- --destdir=$CI_PROJECT_DIR/kmt-deps/ci/$ARCH/opt/testing-tools/go/bin
     - pushd $CI_PROJECT_DIR/kmt-deps/ci/$ARCH
     - tar czvf $TEST_ARCHIVE_NAME opt
     - popd
@@ -234,6 +236,7 @@ kmt_run_sysprobe_tests_x64:
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_9"
@@ -274,6 +277,7 @@ kmt_run_sysprobe_tests_arm64:
           - "amazon_5.4"
           - "amazon_5.10"
           - "amazon_2023"
+          - "amazon_6.12"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"

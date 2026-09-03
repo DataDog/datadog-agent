@@ -69,11 +69,13 @@
     },
     "redhat": {
         "arm64": {
+            "8": "ami-0238411fb452f8275",
             "86": "ami-0238411fb452f8275",
             "9": "ami-06e9fb75e4dff1382",
             "9-e2e": "ami-061886944cc960ff4"
         },
         "x86_64": {
+            "8": "ami-031eff1ae75bb87e4",
             "86": "ami-031eff1ae75bb87e4",
             "86-fips": "ami-0d0fb96b595c56e03",
             "9": "ami-0d424760e95da7d14",
@@ -126,9 +128,13 @@
     "windows-server": {
         "x86_64": {
             "2016": "ami-02d12824a464a28ae",
+            "2016-e2e": "ami-04768ca6b914ca911",
             "2019": "ami-0cd77a1bbde0488e2",
+            "2019-e2e": "ami-0850d92fe7ed199a7",
             "2022": "ami-0fcc930391c87ec7b",
-            "2025": "ami-0d03f0a2f81ced53e"
+            "2022-e2e": "ami-0979cd4acf7874ba9",
+            "2025": "ami-0d03f0a2f81ced53e",
+            "2025-e2e": "ami-004c3c6126a26e23d"
         }
     }
 }

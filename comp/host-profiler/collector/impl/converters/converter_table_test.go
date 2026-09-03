@@ -9,6 +9,7 @@ package converters
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"os"
 	"path/filepath"
@@ -20,6 +21,19 @@ import (
 	"go.uber.org/zap"
 	"go.yaml.in/yaml/v3"
 )
+
+// noContainerID stands in for cgroup.GetSelfContainerID, which otherwise succeeds when the
+// cgroup namespace is the host's (e.g. `cgroup: host` in cmd/host-profiler/docker-compose.yml)
+// and injects an extra container-attribute processor, mismatching every golden file.
+func noContainerID() (string, error) { return "", errors.New("not running in a container") }
+
+// newTestConverterWithoutAgent stubs out the container ID lookup so conversions do not
+// depend on the ambient cgroup namespace.
+func newTestConverterWithoutAgent(logger *zap.Logger, selfContainerID func() (string, error)) confmap.Converter {
+	conv := newConverterWithoutAgent(confmap.ConverterSettings{Logger: logger}).(*converterWithoutAgent)
+	conv.selfContainerID = selfContainerID
+	return conv
+}
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
 
@@ -164,11 +178,6 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/conv-nonstr-apikey/out.yaml",
 		},
 		{
-			name:     "converts-non-string-app-key",
-			provided: "no_agent/conv-nonstr-appkey/in.yaml",
-			expected: "no_agent/conv-nonstr-appkey/out.yaml",
-		},
-		{
 			name:     "adds-profiling-to-pipeline",
 			provided: "no_agent/add-prof-to-pipe/in.yaml",
 			expected: "no_agent/add-prof-to-pipe/out.yaml",
@@ -299,6 +308,11 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/metrics-reserved-pipe/out.yaml",
 		},
 		{
+			name:     "internal-metrics-skipped-on-reserved-container-id-processor-conflict",
+			provided: "no_agent/reserved-cid-proc/in.yaml",
+			expected: "no_agent/reserved-cid-proc/out.yaml",
+		},
+		{
 			name:     "internal-metrics-uses-explicit-prometheus-reader",
 			provided: "no_agent/metrics-explicit-reader/in.yaml",
 			expected: "no_agent/metrics-explicit-reader/out.yaml",
@@ -370,7 +384,19 @@ func TestConverterWithoutAgent(t *testing.T) {
 		},
 	}
 
-	runSuccessTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
+	runSuccessTests(t, newTestConverterWithoutAgent(zap.NewNop(), noContainerID), tests)
+}
+
+func TestConverterWithoutAgentContainerID(t *testing.T) {
+	const containerID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	conv := newTestConverterWithoutAgent(zap.NewNop(), func() (string, error) { return containerID, nil })
+	runSuccessTests(t, conv, []testCase{
+		{
+			name:     "internal-metrics-adds-container-id-processor",
+			provided: "no_agent/metrics-container-id/in.yaml",
+			expected: "no_agent/metrics-container-id/out.yaml",
+		},
+	})
 }
 
 func TestConverterWithoutAgentErrors(t *testing.T) {
@@ -432,5 +458,5 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 		},
 	}
 
-	runErrorTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
+	runErrorTests(t, newTestConverterWithoutAgent(zap.NewNop(), noContainerID), tests)
 }

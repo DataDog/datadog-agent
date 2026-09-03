@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "host",
+    srcs = [
+        "fixtures.go",
+        "host.go",
+        "systemd.go",
+    ],
+    data = [
+        "fixtures/exit0.sh",
+        "fixtures/exit1.sh",
+        "fixtures/http_server.py",
+        "fixtures/run_http_server.sh",
+        "fixtures/squid.conf",
+        "fixtures/stop_with_sigkill.sh",
+        "fixtures/stop_with_sigterm.sh",
+        "fixtures/stop_with_sigterm_exit0.sh",
+    ],
+    embedsrcs = [
+        "fixtures/exit0.sh",
+        "fixtures/exit1.sh",
+        "fixtures/http_server.py",
+        "fixtures/run_http_server.sh",
+        "fixtures/squid.conf",
+        "fixtures/stop_with_sigkill.sh",
+        "fixtures/stop_with_sigterm.sh",
+        "fixtures/stop_with_sigterm_exit0.sh",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "host_test",
+    srcs = ["host_test.go"],
+    embed = [":host"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

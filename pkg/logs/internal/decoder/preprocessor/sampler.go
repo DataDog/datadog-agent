@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -21,7 +22,9 @@ import (
 // tokens are the tokenized first line of the message, used to identify its pattern.
 type Sampler interface {
 	// Process handles a completed log message and returns it, or nil to drop it.
-	Process(msg *message.Message, tokens []Token) *message.Message
+	// tokens are a borrowed view (see BorrowedTokens), valid only for the duration
+	// of the call; a sampler that retains them must Clone first.
+	Process(msg *message.Message, tokens BorrowedTokens) *message.Message
 
 	// Flush flushes any buffered state and returns a pending message, or nil if empty.
 	Flush() *message.Message
@@ -37,7 +40,7 @@ func NewNoopSampler() *NoopSampler {
 }
 
 // Process returns the message unchanged.
-func (s *NoopSampler) Process(msg *message.Message, _ []Token) *message.Message {
+func (s *NoopSampler) Process(msg *message.Message, _ BorrowedTokens) *message.Message {
 	return msg
 }
 
@@ -47,25 +50,28 @@ func (s *NoopSampler) Flush() *message.Message {
 }
 
 var tlmAdaptiveSamplerDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "dropped",
-	[]string{"source", "detection_only"}, "Number of log messages dropped by the adaptive sampler, or that would be dropped when detection_only is true")
+	[]string{"log_source", "detection_only"}, "Number of log messages dropped by the adaptive sampler, or that would be dropped when detection_only is true")
 
 var tlmAdaptiveSamplerBytesDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "bytes_dropped",
-	[]string{"source", "detection_only"}, "Number of bytes dropped by the adaptive sampler, or that would be dropped when detection_only is true")
+	[]string{"log_source", "detection_only"}, "Number of bytes dropped by the adaptive sampler, or that would be dropped when detection_only is true")
 
 var tlmAdaptiveSamplerKept = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "kept",
-	[]string{"source"}, "Number of log messages emitted by the adaptive sampler")
+	[]string{"log_source"}, "Number of log messages emitted by the adaptive sampler")
+
+var tlmAdaptiveSamplerOutcomes = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "outcomes",
+	[]string{"severity", "outcome"}, "Adaptive sampler keep/drop decisions while an anomaly severity profile is applied")
 
 var tlmAdaptiveSamplerNewPatterns = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "new_patterns",
-	[]string{"source"}, "Number of new log patterns added to the adaptive sampler pattern table")
+	[]string{"log_source"}, "Number of new log patterns added to the adaptive sampler pattern table")
 
 var tlmAdaptiveSamplerEvictions = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "evictions",
-	[]string{"source"}, "Number of pattern table evictions performed by the adaptive sampler")
+	[]string{"log_source"}, "Number of pattern table evictions performed by the adaptive sampler")
 
 var tlmAdaptiveSamplerProtected = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "protected",
-	[]string{"source"}, "Number of important log messages that bypassed adaptive sampling")
+	[]string{"log_source"}, "Number of important log messages that bypassed adaptive sampling")
 
 var tlmAdaptiveSamplerTagBytesDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "tag_bytes_dropped",
-	[]string{"source", "detection_only"}, "Estimated pre-tailer tag metadata bytes for logs dropped by the adaptive sampler, or that would be dropped when detection_only is true")
+	[]string{"log_source", "detection_only"}, "Estimated pre-tailer tag metadata bytes for logs dropped by the adaptive sampler, or that would be dropped when detection_only is true")
 
 func adaptiveSamplerSampledCountTag(count int64) string {
 	return "adaptive_sampler_sampled_count:" + strconv.FormatInt(count, 10)
@@ -112,6 +118,34 @@ type AdaptiveSamplerConfig struct {
 	// Exclude makes matching messages bypass adaptive sampling. Exclude takes
 	// precedence over Include.
 	Exclude []AdaptiveSamplerFilter
+	// IsSourceDisabled is called per-message to check whether the current source
+	// is in the disabled_sources list. When it returns true the sampler passes the
+	// message through without rate-limiting. Using a closure lets the check track
+	// ReplaceableSource swaps and future Remote Config updates.
+	IsSourceDisabled func() bool
+	// PassThrough temporarily disables adaptive sampling for matched messages.
+	// When it turns back off, the sampler resumes from the current profile's
+	// BurstSize after existing entries are reseeded.
+	PassThrough bool
+	// SmartSeverityProfilesEnabled switches RateLimit/BurstSize based on the level
+	// read from SeverityProvider (see Profiles). Profiles[SeverityLow] must match
+	// RateLimit/BurstSize above.
+	SmartSeverityProfilesEnabled bool
+	// Profiles holds the RateLimit/BurstSize pair per SeverityLevel.
+	// Only consulted when SmartSeverityProfilesEnabled is true.
+	Profiles [severityeventsdef.NumSeverityLevels]SamplerProfile
+	// SeverityProvider returns the current anomaly-detection severity level, or false
+	// when no reader is registered yet. Only consulted when SmartSeverityProfilesEnabled
+	// is true. Left nil in tests that don't exercise smart severity profiles.
+	SeverityProvider func() (severityeventsdef.SeverityLevel, bool)
+}
+
+// SamplerProfile is a RateLimit/BurstSize pair for one SeverityLevel.
+type SamplerProfile struct {
+	RateLimit float64
+	BurstSize float64
+	// PassThrough skips adaptive-sampler drops while this profile is active.
+	PassThrough bool
 }
 
 // AdaptiveSamplerFilter matches messages by raw-content regex, structural sample,
@@ -140,36 +174,49 @@ type samplerEntry struct {
 type AdaptiveSampler struct {
 	entries           []samplerEntry
 	config            AdaptiveSamplerConfig
-	source            string // used as a telemetry tag
+	sourceTag         func() string // resolves the log_source telemetry tag
 	now               func() time.Time
 	baseBytesEstimate int
+
+	// appliedLevel tracks the last severity profile applied by
+	// applyProfileIfChanged. appliedLevelInitialized stays false until a real
+	// reader is registered, so the sampler does not treat the no-reader case as
+	// an implicit Low profile.
+	appliedLevel            severityeventsdef.SeverityLevel
+	appliedLevelInitialized bool
 }
 
+// UnknownSourceTag is the log_source telemetry tag value used when the source
+// cannot be resolved, so the series stays readable instead of carrying an empty tag.
+const UnknownSourceTag = "unknown"
+
 // NewAdaptiveSampler creates a new AdaptiveSampler.
-// source is the log source name used for telemetry tagging.
+// sourceTag resolves the value of the log_source telemetry tag. It is called once
+// per message rather than captured up front so that source swaps (e.g. a
+// ReplaceableSource replaced on file rotation) are picked up. It must return a
+// low-cardinality value — see buildSourceTag in the decoder package.
 // baseBytesEstimate is the static portion of the ddtags byte count (source config
 // tags + sourcecategory), computed once at decoder construction time.
-func NewAdaptiveSampler(config AdaptiveSamplerConfig, source string, baseBytesEstimate int) *AdaptiveSampler {
+func NewAdaptiveSampler(config AdaptiveSamplerConfig, sourceTag func() string, baseBytesEstimate int) *AdaptiveSampler {
 	return &AdaptiveSampler{
 		entries:           make([]samplerEntry, 0, config.MaxPatterns),
 		config:            config,
-		source:            source,
+		sourceTag:         sourceTag,
 		now:               time.Now,
 		baseBytesEstimate: baseBytesEstimate,
 	}
 }
 
-// isImportant reports whether the token sequence contains a critical severity keyword.
-// Logs matching this check are exempt from adaptive sampling and always passed through.
-func isImportant(tokens []Token) bool {
-	for _, t := range tokens {
-		switch t {
-		case Fatal, Error, Panic, Alert, Severe, Critical, Emergency, Warn,
-			Exception, Crash, Failure, Deadlock, Timeout:
-			return true
-		}
+// resolveSourceTag returns the log_source telemetry tag value for the current
+// message, normalizing a missing or empty source to UnknownSourceTag.
+func (s *AdaptiveSampler) resolveSourceTag() string {
+	if s.sourceTag == nil {
+		return UnknownSourceTag
 	}
-	return false
+	if src := s.sourceTag(); src != "" {
+		return src
+	}
+	return UnknownSourceTag
 }
 
 func (f AdaptiveSamplerFilter) matches(msg *message.Message, tokens []Token, matchThreshold float64) bool {
@@ -214,33 +261,103 @@ func (s *AdaptiveSampler) appendPatternHashTagIfEnabled(msg *message.Message, to
 	}
 }
 
+// applyProfileIfChanged switches RateLimit/BurstSize to the currently published
+// level, when SmartSeverityProfilesEnabled is set. Escalation grants every
+// pattern a fresh burst immediately. The first available Medium/High level is
+// also treated as an escalation from the base Low profile. De-escalation leaves
+// credits untouched, letting the refill-time clamp in processMatchedEntry
+// shrink them naturally.
+func (s *AdaptiveSampler) applyProfileIfChanged() {
+	if s.config.SeverityProvider == nil {
+		return
+	}
+	level, ok := s.config.SeverityProvider()
+	if !ok {
+		return
+	}
+	if s.appliedLevelInitialized && level == s.appliedLevel {
+		return
+	}
+
+	wasInitialized := s.appliedLevelInitialized
+	previousLevel := s.appliedLevel
+	profile := s.config.Profiles[level]
+	escalation := (wasInitialized && level > previousLevel) ||
+		(!wasInitialized && level > severityeventsdef.SeverityLow)
+	leavingPassThrough := wasInitialized && s.config.PassThrough && !profile.PassThrough
+	s.config.RateLimit = profile.RateLimit
+	s.config.BurstSize = profile.BurstSize
+	s.config.PassThrough = profile.PassThrough
+
+	if escalation || leavingPassThrough {
+		for i := range s.entries {
+			s.entries[i].credits = s.config.BurstSize
+			if leavingPassThrough {
+				s.entries[i].sampled = 0
+			}
+		}
+	}
+
+	s.appliedLevel = level
+	s.appliedLevelInitialized = true
+}
+
+// recordSmartSeverityOutcome records a decision made under the severity profile
+// that is currently applied to this sampler. Until the severity provider has
+// supplied a level, the sampler is using its base settings rather than an AAD
+// profile, so no collaboration telemetry is emitted.
+func (s *AdaptiveSampler) recordSmartSeverityOutcome(outcome string) {
+	if !s.config.SmartSeverityProfilesEnabled || !s.appliedLevelInitialized {
+		return
+	}
+	tlmAdaptiveSamplerOutcomes.Inc(s.appliedLevel.String(), outcome)
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
-func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
-	if !s.shouldSample(msg, tokens) {
-		tlmAdaptiveSamplerKept.Inc(s.source)
+func (s *AdaptiveSampler) Process(msg *message.Message, tokens BorrowedTokens) *message.Message {
+	// tailers skip no-content messages via HasContent() before the processor, don't use
+	// space in the pattern table for them.
+	if !msg.HasContent() {
 		return msg
 	}
-	if s.config.ProtectImportantLogs && isImportant(tokens) {
-		tlmAdaptiveSamplerKept.Inc(s.source)
-		tlmAdaptiveSamplerProtected.Inc(s.source)
+	if s.config.SmartSeverityProfilesEnabled {
+		s.applyProfileIfChanged()
+	}
+	if s.config.IsSourceDisabled != nil && s.config.IsSourceDisabled() {
+		return msg
+	}
+	// raw is borrowed: used only for synchronous reads below. trackNewPattern
+	// clones before storing.
+	raw := tokens.Borrow()
+	// Resolve once per message: the closure reads through a lock, and every
+	// counter below tags with the same value.
+	sourceTag := s.resolveSourceTag()
+	if !s.shouldSample(msg, raw) {
+		tlmAdaptiveSamplerKept.Inc(sourceTag)
+		return msg
+	}
+	if s.config.ProtectImportantLogs && isImportant(raw) {
+		tlmAdaptiveSamplerKept.Inc(sourceTag)
+		tlmAdaptiveSamplerProtected.Inc(sourceTag)
 		return msg
 	}
 	now := s.now()
 	detectionOnly := s.config.DetectionOnly
+	passThrough := s.config.PassThrough
 
 	for i := range s.entries {
-		if IsMatch(s.entries[i].tokens, tokens, s.config.MatchThreshold) {
-			return s.processMatchedEntry(i, msg, now, detectionOnly)
+		if IsMatch(s.entries[i].tokens, raw, s.config.MatchThreshold) {
+			return s.processMatchedEntry(i, msg, now, sourceTag, detectionOnly, passThrough)
 		}
 	}
-	return s.trackNewPattern(msg, tokens, now)
+	return s.trackNewPattern(msg, tokens, now, sourceTag)
 }
 
 // processMatchedEntry handles a log that matched the pattern at index i: it refills
 // and spends credits, updates tags and counters, re-sorts the pattern table, and
 // returns the message when emitted or nil when dropped.
-func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now time.Time, detectionOnly bool) *message.Message {
+func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now time.Time, sourceTag string, detectionOnly, passThrough bool) *message.Message {
 	e := &s.entries[i]
 	matchedTokens := e.tokens
 
@@ -253,8 +370,8 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 	e.lastSeen = now
 	e.matchCount++
 
-	allow := e.credits >= 1.0
-	if allow {
+	allow := passThrough || e.credits >= 1.0
+	if allow && !passThrough {
 		e.credits--
 	}
 
@@ -276,29 +393,33 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 	}
 
 	if allow {
-		tlmAdaptiveSamplerKept.Inc(s.source)
+		tlmAdaptiveSamplerKept.Inc(sourceTag)
+		s.recordSmartSeverityOutcome("kept")
 		return msg
 	}
-	return s.recordDrop(msg, tb, detectionOnly)
+	s.recordSmartSeverityOutcome("dropped")
+	return s.recordDrop(msg, tb, sourceTag, detectionOnly)
 }
 
 // trackNewPattern records a never-before-seen pattern, evicting the
 // least-frequently-matched entry when the table is full, and emits the message.
-func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens []Token, now time.Time) *message.Message {
-	tlmAdaptiveSamplerNewPatterns.Inc(s.source)
+func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens BorrowedTokens, now time.Time, sourceTag string) *message.Message {
+	tlmAdaptiveSamplerNewPatterns.Inc(sourceTag)
 	if len(s.entries) >= s.config.MaxPatterns {
-		tlmAdaptiveSamplerEvictions.Inc(s.source)
+		tlmAdaptiveSamplerEvictions.Inc(sourceTag)
 		s.entries = s.entries[:len(s.entries)-1]
 	}
 	// New patterns start with matchCount=1 and belong at the end of the sorted list.
+	// The entry outlives this call, so it must own the tokens.
 	s.entries = append(s.entries, samplerEntry{
-		tokens:     tokens,
+		tokens:     tokens.Clone(),
 		credits:    s.config.BurstSize - 1,
 		lastSeen:   now,
 		matchCount: 1,
 		sampled:    0,
 	})
-	tlmAdaptiveSamplerKept.Inc(s.source)
+	tlmAdaptiveSamplerKept.Inc(sourceTag)
+	s.recordSmartSeverityOutcome("kept")
 	return msg
 }
 
@@ -336,15 +457,15 @@ func (s *AdaptiveSampler) updateForMatchedPattern(e *samplerEntry, msg *message.
 // It records drop projection metrics (bytes + optional tag-byte estimate), with the
 // detection_only series tag distinguishing detection-only runs from real drops, then resolves
 // outcome: msg when DetectionOnly still forwards the line, nil on real drop.
-func (s *AdaptiveSampler) recordDrop(msg *message.Message, tb int, detectionOnly bool) *message.Message {
+func (s *AdaptiveSampler) recordDrop(msg *message.Message, tb int, sourceTag string, detectionOnly bool) *message.Message {
 	detectionTag := strconv.FormatBool(detectionOnly)
-	tlmAdaptiveSamplerDropped.Add(1, s.source, detectionTag)
-	tlmAdaptiveSamplerBytesDropped.Add(float64(msg.RawDataLen), s.source, detectionTag)
+	tlmAdaptiveSamplerDropped.Add(1, sourceTag, detectionTag)
+	tlmAdaptiveSamplerBytesDropped.Add(float64(msg.RawDataLen), sourceTag, detectionTag)
 	if tb > 0 {
-		tlmAdaptiveSamplerTagBytesDropped.Add(float64(tb), s.source, detectionTag)
+		tlmAdaptiveSamplerTagBytesDropped.Add(float64(tb), sourceTag, detectionTag)
 	}
 	if detectionOnly {
-		tlmAdaptiveSamplerKept.Inc(s.source)
+		tlmAdaptiveSamplerKept.Inc(sourceTag)
 		return msg
 	}
 	return nil

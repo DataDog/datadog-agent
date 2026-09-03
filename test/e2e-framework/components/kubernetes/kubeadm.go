@@ -24,6 +24,18 @@ import (
 // unchanged on RHEL 10 and avoids depending on a release that may be missing.
 const kubeadmContainerdRepoReleasever = "9"
 
+// kubeadmFlannelVersion pins the flannel CNI manifest to a known-good release.
+// The manifest was previously fetched from the floating
+// .../releases/latest/download/kube-flannel.yml URL, which broke cluster
+// provisioning (HTTP 404) when the upstream latest release stopped publishing
+// that asset. Pin an explicit tag so the CNI apply does not depend on whatever
+// the current upstream latest release happens to ship.
+const kubeadmFlannelVersion = "v0.28.5"
+
+// kubeadmMinorFile carries the Kubernetes minor from the CRI-O install step to
+// the kubelet install step, which run as separate remote commands on the node.
+const kubeadmMinorFile = "/etc/kubeadm-e2e-k8s-minor"
+
 // ContainerRuntime selects the CRI installed on the kubeadm node. The Agent
 // produces identical SBOMs across runtimes; only the install steps and the CRI
 // socket differ.
@@ -143,6 +155,12 @@ systemctl restart containerd`, kubeadmContainerdRepoReleasever)
 			// newest stream that exists. The repo is $basearch (no $releasever), so
 			// one repo serves RHEL 9 and 10, and CRI-O defaults to the systemd
 			// cgroup driver, matching the kubelet.
+			//
+			// CRI-O releases track the Kubernetes minor they ship for, so the stream
+			// that was found also decides the cluster version: it is recorded in
+			// kubeadmMinorFile for the kubelet install below, which keeps the pair on
+			// one minor. A kubelet talking to a CRI-O two minors older brings pods up
+			// as far as Init:ImagePullBackOff and no further.
 			runtimeScript = fmt.Sprintf(`kmaj=$(echo %[1]s | cut -d. -f1); kmin=$(echo %[1]s | cut -d. -f2)
 crio_ver=""
 for d in 0 1 2 3 4; do
@@ -150,6 +168,8 @@ for d in 0 1 2 3 4; do
   if curl -fsSL -o /dev/null "https://pkgs.k8s.io/addons:/cri-o:/stable:/${cand}/rpm/repodata/repomd.xml"; then crio_ver="$cand"; break; fi
 done
 test -n "$crio_ver" || { echo "no CRI-O stable stream available at or below v%[1]s"; exit 1; }
+printf '%%s' "${crio_ver#v}" >%[2]s
+echo "CRI-O ${crio_ver} selected, pinning Kubernetes to ${crio_ver#v}"
 cat >/etc/yum.repos.d/cri-o.repo <<EOF
 [cri-o]
 name=CRI-O
@@ -170,7 +190,7 @@ location = "mirror.gcr.io"
 EOF
 # Drop CRI-O's packaged CNI bridge so flannel owns pod networking (the containerd path has none).
 rm -f /etc/cni/net.d/*crio* || true
-systemctl enable --now crio`, minor)
+systemctl enable --now crio`, minor, kubeadmMinorFile)
 		}
 
 		runtimeInstall, err := runner.Command(namer.ResourceName(runtimeName), &command.Args{
@@ -183,17 +203,22 @@ systemctl enable --now crio`, minor)
 
 		tools, err := runner.Command(namer.ResourceName("kubeadm-tools"), &command.Args{
 			Sudo: true,
-			Create: rootScript(fmt.Sprintf(`cat >/etc/yum.repos.d/kubernetes.repo <<'EOF'
+			// The CRI-O install pins the minor it found in kubeadmMinorFile, so the
+			// kubelet follows the runtime onto one minor. The containerd path writes
+			// no such file and installs the requested minor.
+			Create: rootScript(fmt.Sprintf(`minor=%[1]s
+if [ -s %[2]s ]; then minor=$(cat %[2]s); fi
+cat >/etc/yum.repos.d/kubernetes.repo <<EOF
 [kubernetes]
 name=Kubernetes
-baseurl=https://pkgs.k8s.io/core:/stable:/v%[1]s/rpm/
+baseurl=https://pkgs.k8s.io/core:/stable:/v${minor}/rpm/
 enabled=1
 gpgcheck=1
-gpgkey=https://pkgs.k8s.io/core:/stable:/v%[1]s/rpm/repodata/repomd.xml.key
+gpgkey=https://pkgs.k8s.io/core:/stable:/v${minor}/rpm/repodata/repomd.xml.key
 exclude=kubelet kubeadm kubectl cri-tools
 EOF
 dnf install -y kubelet kubeadm kubectl cri-tools --disableexcludes=kubernetes
-systemctl enable --now kubelet`, minor)),
+systemctl enable --now kubelet`, minor, kubeadmMinorFile)),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(runtimeInstall))...)
 		if err != nil {
 			return err
@@ -214,10 +239,13 @@ kubeadm init \
 		}
 
 		// Flannel's default network is 10.244.0.0/16, matching --pod-network-cidr above.
+		// Pin the manifest to a specific flannel release (see kubeadmFlannelVersion)
+		// rather than the floating latest release, whose kube-flannel.yml asset can
+		// disappear and 404 the CNI apply.
 		cni, err := runner.Command(namer.ResourceName("kubeadm-cni"), &command.Args{
 			Sudo: true,
-			Create: rootScript(`export KUBECONFIG=/etc/kubernetes/admin.conf
-kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml`),
+			Create: rootScript(fmt.Sprintf(`export KUBECONFIG=/etc/kubernetes/admin.conf
+kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/%s/Documentation/kustomization/kube-flannel/kube-flannel.yml`, kubeadmFlannelVersion)),
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(initCluster))...)
 		if err != nil {
 			return err

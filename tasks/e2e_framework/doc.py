@@ -10,7 +10,6 @@ install_workload: str = f"Install test workload (default {tool.get_default_workl
 pipeline_id: str = (
     "The pipeline id of the custom Agent build for example '16497585' (may be taken form the gitlab url)'"
 )
-job_name: str = "Name of the job within the agent pipeline for example 'deploy_deb_testing-a7_x64'"
 agent_version: str = "The version of the Agent for example '7.42.0~rc.1-1' or '6.39.0 (default `latest`)'"
 container_agent_version: str = "The container version of the Agent for example '7.45.0-rc.3' (default `latest`)'"
 stack_name: str = "An optional name for the stack. This parameter is useful when you need to create several environments. Note: 'invoke destroy' may not work properly"
@@ -27,7 +26,7 @@ interactive: str = "Enable interactive mode, if set to False notifications and c
 config_path: str = "Specify a custom config path to use"
 with_azure: str = "Also configure the Azure provider (default False). Adds Azure CLI prereq and an SSH key prompt."
 with_gcp: str = "Also configure the GCP provider (default False). Adds gcloud CLI prereq and SSH/pull-secret prompts."
-account: str = "AWS account to provision against. Default 'agent-sandbox'."
+account: str = "AWS/GKE account to provision against. Default 'agent-sandbox'."
 force: str = "Delete the existing config file and all auto-generated SSH keys (locally and from AWS), then start fresh."
 use_loadBalancer: str = "Use a loadBalancer to instantiate the fakeintake (default False)"
 clean_known_hosts: str = "Clean the host from ssh known_hosts file after destroying the VM (default True)"
@@ -47,3 +46,5 @@ pull_secret_path: str = "Path to the OpenShift pull secret file (required for Op
 local_chart_path: str = "Path to a local helm chart to install the Datadog Agent."
 latest_ami: str = "Use the latest AMI for the OS and architecture (default False)."
 kubernetes_version: str = "Kubernetes version to use (format <major>.<minor> example 1.34)"
+autopilot: str = "Use autopilot mode for GKE (default False)"
+node_count: str = "Number of nodes to use for GKE (default 1)"

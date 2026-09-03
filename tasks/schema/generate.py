@@ -2,55 +2,36 @@
 Schema generation tasks
 """
 
-import json
 import os
+import sys
 import tempfile
 
 import yaml
 from invoke import task
-from invoke.exceptions import Exit
+from invoke.context import Context
 
 from tasks.libs.build.bazel import bazel
-from tasks.schema.add_comments import add_comments
-from tasks.schema.fixes import fix_schema
-from tasks.schema.settings_source_analyzer import extract_imperative_code_hints
-from tasks.schema.template_parser import parse_template
+from tasks.schema.codegen_init_settings import run_codegen, run_constants_codegen, run_core_constant_codegen
+from tasks.schema.merge_schema import resolve_schema
+from tasks.schema.produce_byproduct import produce_byproduct
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema", "yaml")
 COMPRESS_DIR = os.path.join("pkg", "config", "schema")
-CORE_TEMPLATE = os.path.join("pkg", "config", "config_template.yaml")
-SYSPROBE_TEMPLATE = os.path.join("pkg", "config", "system-probe_template.yaml")
+SETUP_INIT_DIR = os.path.join("pkg", "config", "setup")
+CORE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "core_schema.yaml")
+SYSTEM_PROBE_SCHEMA_MAIN_FILE = os.path.join(SCHEMA_DIR, "system-probe_schema.yaml")
+
+# Schema entry points published as pure JSON Schema, keyed by the name of the
+# config file each one validates: the generated files are named after that
+# config file (datadog.json, system-probe.json) since that is what external
+# consumers (e.g. SchemaStore) match against.
+JSON_SCHEMA_ENTRY_POINTS = {
+    "datadog": CORE_SCHEMA_MAIN_FILE,
+    "system-probe": SYSTEM_PROBE_SCHEMA_MAIN_FILE,
+}
+
 
 _SCRIPTS_DIR = os.path.dirname(__file__)
-
-# Top-level sections of the core schema that get split into their own YAML
-# file. Each entry in this list becomes a sibling file `yaml/<name>.yaml` in
-# the same directory as yaml/core_schema.yaml, and the top file's entry is
-# replaced with `{$ref: "<name>.yaml"}`. The list is the set of top-level
-# entries with at least 8 children (chosen at the time of the split).
-CORE_SPLIT_SECTIONS = [
-    "logs_config",
-    "apm_config",
-    "sbom",
-    "process_config",
-    "cluster_agent",
-    "admission_controller",
-    "agent_telemetry",
-    "container_image",
-    "container_lifecycle",
-    "external_metrics_provider",
-    "private_action_runner",
-    "orchestrator_explorer",
-    "remote_configuration",
-    "cluster_checks",
-    "compliance_config",
-    "snmp_listener",
-    "internal_profiling",
-    "multi_region_failover",
-    "gpu",
-    "otelcollector",
-    "runtime_security_config",
-]
 
 
 def str_presenter(dumper, data):
@@ -64,7 +45,48 @@ yaml.add_representer(str, str_presenter)
 
 @task
 def compress(ctx, output_dir=COMPRESS_DIR):
-    bazel(ctx, "run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
+    """
+    Compress the schema files for embedding into the Go binary.
+
+    Uses bazel, except on AIX build hosts, which don't have bazel: there,
+    transparently falls back to `_compress_no_bazel`.
+    """
+    if sys.platform == "aix":
+        _compress_no_bazel(ctx, output_dir)
+        return
+    bazel("run", "//pkg/config/schema:install_compressed", "--", f"--destdir={os.path.abspath(output_dir)}")
+
+
+# Must match the ZSTD_ARGS in pkg/config/schema/BUILD.bazel: --no-check to
+# match DataDog/zstd Go library behavior (no XXH64 frame checksum), -5 to
+# match DataDog/zstd's DefaultCompression.
+_ZSTD_ARGS = "--no-check -5"
+
+
+def _compress_no_bazel(ctx, output_dir=COMPRESS_DIR):
+    """
+    Compress the schema files without bazel.
+
+    Reimplements the pipeline in pkg/config/schema/BUILD.bazel (inline $refs,
+    strip build-time-only keys, zstd-compress) by calling the same helpers
+    bazel wraps as py_binary tools, plus a system `zstd` binary. Used on
+    build hosts that cannot run bazel (e.g. AIX).
+    """
+    compressed_dir = os.path.join(output_dir, "compressed")
+    os.makedirs(compressed_dir, exist_ok=True)
+
+    for name, top_schema in (
+        ("core_schema", CORE_SCHEMA_MAIN_FILE),
+        ("system-probe_schema", SYSTEM_PROBE_SCHEMA_MAIN_FILE),
+    ):
+        embedded_fd, embedded_path = tempfile.mkstemp(suffix=".yaml")
+        os.close(embedded_fd)
+        try:
+            produce_byproduct("embedded", top_schema, embedded_path)
+            out_path = os.path.join(compressed_dir, f"{name}.yaml.zstd")
+            ctx.run(f"zstd --force {_ZSTD_ARGS} {embedded_path} -o {out_path}")
+        finally:
+            os.remove(embedded_path)
 
 
 _SUBSCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
@@ -87,134 +109,64 @@ def _prepend_header(schema, schema_id, title=None, description=None):
     return {**header, **{k: v for k, v in schema.items() if k not in header}}
 
 
-def split_and_write_schema(schema, output_dir, sections, name):
-    """Optionally split named top-level sections out of *schema* into sibling
-    YAML files, then write the (possibly-mutated) top schema to
-    ``<output_dir>/<name>.yaml``.
-
-    If *sections* is falsy (None or empty), no splitting happens — the schema
-    is written as-is (used for system-probe). Otherwise, for each section
-    name in *sections* that exists at ``schema["properties"][<section>]``,
-    the section's content is written to ``<output_dir>/<section>.yaml`` and
-    the entry in the in-memory schema is replaced with
-    ``{"$ref": "<section>.yaml"}``. Sections not present in the schema are
-    silently skipped.
-
-    Each sub-file is written with a JSON-schema header (``$schema``, ``$id``)
-    so it is a self-contained, navigable schema document. The companion
-    ``merge_schema.resolve_schema`` strips these fields when inlining so they
-    do not pollute the merged form.
+@task
+def produce_embedded(ctx, input_path, output_path):
     """
-    if sections:
-        properties = schema.get("properties") or {}
-        for section in sections:
-            if section not in properties:
-                continue
-            sub_path = os.path.join(output_dir, f"{section}.yaml")
-            body = _prepend_header(
-                properties[section],
-                schema_id=f"{_SUBSCHEMA_ID_PREFIX}{section}.yaml.schema.json",
-            )
-            with open(sub_path, "w") as f:
-                yaml.dump(body, f, sort_keys=False)
-            properties[section] = {"$ref": f"{section}.yaml"}
+    Produce the "embedded" schema byproduct from a (merged) schema.
 
-    top_path = os.path.join(output_dir, f"{name}.yaml")
-    with open(top_path, "w") as f:
-        yaml.dump(schema, f, sort_keys=False)
+    Trims build-time-only data (documentation strings, ...) so the artifact that
+    gets compressed and embedded into the Go binary stays small. Output is YAML.
+    """
+    produce_byproduct("embedded", input_path, output_path)
 
 
 @task
-def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
+def produce_jsonschema(ctx, output_dir):
     """
-    Generate the enriched schema files for the core agent and system-probe.
+    Produce the pure JSON Schema byproducts for every Agent config file.
 
-    Steps:
-    1. Run the agent binary to generate the base schemas (core_schema.yaml, system-probe_schema.yaml)
-    2. Enrich the schemas with documentation from config_template.yaml
-    3. Apply OS-specific fixes to the enriched schemas
+    The schema entry points are known (core -> datadog.yaml, system-probe ->
+    system-probe.yaml), so the task only needs an output directory: it writes
+    one <config-file-name>.json per entry point into it.
+
+    Strips every Agent-specific extension so the result is 100% compatible with
+    https://json-schema.org/ and validates with any conforming library. Output
+    is JSON, for external consumers (e.g. SchemaStore).
     """
-    if not os.path.isfile(agent_bin):
-        raise Exit(
-            f"Agent binary not found at {agent_bin}. Build the agent first with: dda inv agent.build",
-            code=1,
-        )
-
     os.makedirs(output_dir, exist_ok=True)
+    for config_name, top_schema in JSON_SCHEMA_ENTRY_POINTS.items():
+        out_path = os.path.join(output_dir, f"{config_name}.json")
+        produce_byproduct("json_schema", top_schema, out_path)
+        print(f"wrote {out_path}")
 
-    # Step 1: Generate base schema using the agent binary.
-    # The createschema command writes output files to the current directory,
-    # so we cd into the output dir and use an absolute path for the binary.
-    print("Generating base schema files...")
-    agent_bin_abs = os.path.abspath(agent_bin)
-    with ctx.cd(output_dir):
-        core_schema = ctx.run(
-            f"{agent_bin_abs} createschema --target core", env={"DD_CREATE_SCHEMA": "true"}, hide=True
-        ).stdout
-        sysprobe_schema = ctx.run(
-            f"{agent_bin_abs} createschema --target system-probe", env={"DD_CREATE_SCHEMA": "true"}, hide=True
-        ).stdout
 
-    core_schema = yaml.safe_load(core_schema)
-    sysprobe_schema = yaml.safe_load(sysprobe_schema)
+def schema_codegen(ctx):
+    """
+    Code generator for config schema.
 
-    print("Enriching schemas with documentation from config_template.yaml...")
-    core_schema = parse_template(CORE_TEMPLATE, core_schema)
-    sysprobe_schema = parse_template(SYSPROBE_TEMPLATE, sysprobe_schema)
+    Writes the generated files straight into SETUP_INIT_DIR.
+    """
 
-    print("Applying OS-specific fixes...")
-    core_schema, sysprobe_schema = fix_schema(core_schema, sysprobe_schema)
+    # Some test run tasks command with a 'unittest.mock.MagicMock' instead of a Context
+    if not isinstance(ctx, Context):
+        return
 
-    comments_info = extract_comments(ctx)
-    add_comments(core_schema, comments_info)
+    core_schema = resolve_schema(CORE_SCHEMA_MAIN_FILE)
+    system_probe_schema = resolve_schema(SYSTEM_PROBE_SCHEMA_MAIN_FILE)
 
-    # Add the JSON-schema header at the *top* of each file. Dict insertion
-    # order is preserved by yaml.dump(sort_keys=False), so listing $schema /
-    # $id / title / description before the schema body puts them first.
-    core_schema = _prepend_header(
-        core_schema,
-        schema_id="https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.yaml.schema.json",
-        title="DataDog Agent configuration schema",
-        description="The schema to validate the datadog.yaml configuration for the DataDog Agent",
-    )
-    sysprobe_schema = _prepend_header(
-        sysprobe_schema,
-        schema_id="https://raw.githubusercontent.com/DataDog/schema/main/agent/system-probe.yaml.schema.json",
-        title="System Probe configuration schema",
-        description="The schema to validate the system-probe.yaml configuration for the DataDog Agent",
-    )
-
-    # Split large sections out of the core schema into sibling files; the top
-    # file references each via `$ref`. The Go embed and Python consumers
-    # transparently merge these back at load time. system-probe is written
-    # as a single file (no splitting).
-    split_and_write_schema(core_schema, output_dir, CORE_SPLIT_SECTIONS, "core_schema")
-    split_and_write_schema(sysprobe_schema, output_dir, None, "system-probe_schema")
-
-    print("Schema generation complete.")
+    run_codegen(core_schema, SETUP_INIT_DIR)
+    run_codegen(system_probe_schema, SETUP_INIT_DIR, sysprobe=True)
+    run_core_constant_codegen(core_schema, SETUP_INIT_DIR)
+    run_constants_codegen(core_schema, system_probe_schema, os.path.join(SETUP_INIT_DIR, "constants"))
 
 
 @task
-def hints(ctx):
-    # Extract hints, dump them to a temporary directory for debugging purposes
-    hints = extract_imperative_code_hints()
-    hints_tmp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, delete_on_close=False)
-    hints_tmp_file.file.write(json.dumps(hints))
-    print(f"hints file = {hints_tmp_file.name}")
+def codegen(ctx):
+    """
+    Generate the pkg/config/setup Go files that register the settings from the schema.
 
-
-def extract_comments(ctx):
-    # Extract hints object
-    hints = extract_imperative_code_hints()
-
-    # Collect comments per setting
-    comment_assoc_map = {}
-
-    for setting_group in hints:
-        for setting in setting_group['settings']:
-            (setting_name, _unused, comment) = setting
-            if comment == '':
-                continue
-            comment_assoc_map[setting_name] = comment
-
-    return comment_assoc_map
+    The generated files are written directly into pkg/config/setup.
+    """
+    # Some test panic if a @task is called from a 'unittest.mock.MagicMock' which is done often.
+    # Codegen call schema_codegen where we check for MagicMock
+    return schema_codegen(ctx)

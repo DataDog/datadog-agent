@@ -420,33 +420,9 @@ func TestProcessEvents(t *testing.T) {
 					},
 				},
 			},
+			// A single SBOM is emitted: the store already knows about the
+			// running container when the image event is processed.
 			expectedSBOMs: []*model.SBOMEntity{
-				{
-					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
-					Id:   "datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-					DdTags: []string{
-						"image_id:datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
-						"image_name:datadog/agent",
-						"short_image:agent",
-						"image_tag:7-rc",
-					},
-					RepoTags: []string{
-						"7-rc",
-					},
-					RepoDigests: []string{
-						"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
-					},
-					InUse:              false,
-					GeneratedAt:        timestamppb.New(sbomGenerationTime),
-					GenerationDuration: durationpb.New(10 * time.Second),
-					Sbom: &model.SBOMEntity_Cyclonedx{
-						Cyclonedx: &cyclonedx_v1_4.Bom{
-							SpecVersion: "1.4",
-							Version:     pointer.Ptr(int32(42)),
-						},
-					},
-					Status: model.SBOMStatus_SUCCESS,
-				},
 				{
 					Type: model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 					Id:   "datadog/agent@sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
@@ -696,7 +672,7 @@ func TestProcessEvents(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			sender := mocksender.NewMockSender("")
+			sender := mocksender.NewMockSender(t, "")
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 				SBOMsSent.Inc()
 			})
@@ -750,13 +726,20 @@ func TestProcessEvents(t *testing.T) {
 	}
 }
 
-// TestInUseFlagAccuracy covers three scenarios that previously caused incorrect inUse values:
-//  1. Event ordering: container removal and image SBOM update arrive in the same bundle.
+// TestInUseFlagAccuracy covers scenarios that previously caused incorrect inUse values:
+//  1. Same bundle: a container removal and an image SBOM update arrive together.
 //     The SBOM should be emitted with inUse=false because the container was removed.
 //  2. Container stopped (not yet removed): a container transitions to Running=false and
 //     then a new SBOM update arrives. The SBOM should reflect inUse=false.
 //  3. Containerd-style image ID: ctr.Image.ID is the raw image config digest rather than
 //     a repo digest. The image should still be reported as inUse=true when a container runs it.
+//  4. Image ID changing shape: a container is first described by the runtime alone, which
+//     names its image by config digest, then also by the kubelet, which names it by repo
+//     digest. Both spellings must stop being in use when the container stops.
+//  5. Missed event: the container disappears from the store without the check being told.
+//     The next SBOM must still report inUse=false.
+//  6. Periodic refresh reporting inUse=false: a container starting the image again must
+//     be reported, rather than taken for one that changes nothing.
 func TestInUseFlagAccuracy(t *testing.T) {
 	const (
 		imageID     = "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd"
@@ -765,23 +748,31 @@ func TestInUseFlagAccuracy(t *testing.T) {
 	)
 	sbomTime := time.Now()
 
-	imageEntity := &workloadmeta.ContainerImageMetadata{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainerImageMetadata,
-			ID:   imageID,
-		},
-		RepoTags:    []string{"datadog/agent:7-rc"},
-		RepoDigests: []string{repoDigest},
-		SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
-			CycloneDXBOM: &cyclonedx_v1_4.Bom{
-				SpecVersion: cyclonedx.SpecVersion1_4.String(),
-				Version:     pointer.Ptr(int32(1)),
+	// The SBOM version tells the payloads emitted for the initial image apart
+	// from those emitted after it is rescanned, so that an assertion on the
+	// second cannot be satisfied by the first.
+	imageWithSBOMVersion := func(version int32) *workloadmeta.ContainerImageMetadata {
+		return &workloadmeta.ContainerImageMetadata{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainerImageMetadata,
+				ID:   imageID,
 			},
-			GenerationTime:     sbomTime,
-			GenerationDuration: time.Second,
-			Status:             workloadmeta.Success,
-		}),
+			RepoTags:    []string{"datadog/agent:7-rc"},
+			RepoDigests: []string{repoDigest},
+			SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
+				CycloneDXBOM: &cyclonedx_v1_4.Bom{
+					SpecVersion: cyclonedx.SpecVersion1_4.String(),
+					Version:     pointer.Ptr(version),
+				},
+				GenerationTime:     sbomTime,
+				GenerationDuration: time.Second,
+				Status:             workloadmeta.Success,
+			}),
+		}
 	}
+
+	imageEntity := imageWithSBOMVersion(1)
+	rescannedImageEntity := imageWithSBOMVersion(2)
 
 	runningContainer := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
@@ -794,7 +785,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 		State:    workloadmeta.ContainerState{Running: false},
 	}
 
-	makeExpectedSBOM := func(inUse bool) *model.SBOMEntity {
+	makeExpectedSBOM := func(inUse bool, version int32) *model.SBOMEntity {
 		return &model.SBOMEntity{
 			Type:               model.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 			Id:                 "datadog/agent@" + imageID,
@@ -806,7 +797,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 			GenerationDuration: durationpb.New(time.Second),
 			Sbom: &model.SBOMEntity_Cyclonedx{Cyclonedx: &cyclonedx_v1_4.Bom{
 				SpecVersion: "1.4",
-				Version:     pointer.Ptr(int32(1)),
+				Version:     pointer.Ptr(version),
 			}},
 			Status: model.SBOMStatus_SUCCESS,
 		}
@@ -818,6 +809,23 @@ func TestInUseFlagAccuracy(t *testing.T) {
 		"sbom.container_image.enabled":                  true,
 		"sbom.container_image.allow_missing_repodigest": true,
 	})
+
+	assertSBOMSent := func(t *testing.T, sender *mocksender.MockSender, entity *model.SBOMEntity) {
+		t.Helper()
+
+		hname, _ := hostname.Get(context.TODO())
+		envVarEnv := cfg.GetString("env")
+		encoded, err := proto.Marshal(&model.SBOMPayload{
+			Version:  1,
+			Host:     hname,
+			Source:   &sourceAgent,
+			Entities: []*model.SBOMEntity{entity},
+			DdEnv:    &envVarEnv,
+		})
+		assert.Nil(t, err)
+		sender.AssertEventPlatformEvent(t, encoded, eventplatform.EventTypeContainerSBOM)
+	}
+
 	if sbomscanner.GetGlobalScanner() == nil {
 		wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 			core.MockBundle(),
@@ -840,7 +848,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		))
 		counter := atomic.NewInt32(0)
-		sender := mocksender.NewMockSender("")
+		sender := mocksender.NewMockSender(t, "")
 		sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 			counter.Inc()
 		})
@@ -853,7 +861,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 	}
 
 	// Test 1: container removal and image SBOM update in the same bundle
-	t.Run("event ordering: container removal before image SBOM emission", func(t *testing.T) {
+	t.Run("container removed in the same bundle as the image SBOM", func(t *testing.T) {
 		p, sender, counter, store := newTestSetup(t)
 
 		// Establish initial state: running container.
@@ -863,78 +871,57 @@ func TestInUseFlagAccuracy(t *testing.T) {
 			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
 			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
 		))
-		// Wait for the two SBOMs from the setup phase (inUse=false, then inUse=true).
-		assert.Eventually(t, func() bool { return counter.Load() == 2 }, time.Second, 5*time.Millisecond)
+		// Wait for the single SBOM from the setup phase (inUse=true).
+		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
 		counter.Store(0)
 
 		// The container is removed AND a fresh SBOM arrives in the same bundle.
-		// Without the event-ordering fix the SBOM would be emitted with inUse=true
-		// because the image Set was processed before the container Unset.
+		// The order the two events are handled in must not matter: the store
+		// has already dropped the container by the time the bundle arrives.
 		store.Unset(runningContainer)
-		store.Set(imageEntity)
+		store.Set(rescannedImageEntity)
 		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
 			workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: runningContainer},
 		))
 		p.stop()
 
 		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
 
-		hname, _ := hostname.Get(context.TODO())
-		envVarEnv := cfg.GetString("env")
-		encoded, err := proto.Marshal(&model.SBOMPayload{
-			Version:  1,
-			Host:     hname,
-			Source:   &sourceAgent,
-			Entities: []*model.SBOMEntity{makeExpectedSBOM(false)},
-			DdEnv:    &envVarEnv,
-		})
-		assert.Nil(t, err)
-		sender.AssertEventPlatformEvent(t, encoded, eventplatform.EventTypeContainerSBOM)
+		assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
 	})
 
 	// Test 2: container transitions stopped then image SBOM updates
 	t.Run("stopped container does not keep inUse=true", func(t *testing.T) {
 		p, sender, counter, store := newTestSetup(t)
 
-		// Step 1: image + running container → two SBOMs (inUse=false then inUse=true).
+		// Step 1: image + running container → one SBOM with inUse=true.
 		store.Set(imageEntity)
 		store.Set(runningContainer)
 		p.processContainerImagesEvents(makeBundle(
 			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
 			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
 		))
-		assert.Eventually(t, func() bool { return counter.Load() == 2 }, time.Second, 5*time.Millisecond)
+		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
 		counter.Store(0)
 
 		// Step 2: container stops (Running=false) and a new image SBOM arrives.
-		// Without the registerContainer fix the container remains in imageUsers and
-		// the SBOM is incorrectly emitted with inUse=true.
+		// The stopped container must no longer count as a user of the image.
 		store.Set(stoppedContainer)
-		store.Set(imageEntity)
+		store.Set(rescannedImageEntity)
 		p.processContainerImagesEvents(makeBundle(
 			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: stoppedContainer},
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
 		))
 		p.stop()
 
 		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
 
-		hname, _ := hostname.Get(context.TODO())
-		envVarEnv := cfg.GetString("env")
-		encoded, err := proto.Marshal(&model.SBOMPayload{
-			Version:  1,
-			Host:     hname,
-			Source:   &sourceAgent,
-			Entities: []*model.SBOMEntity{makeExpectedSBOM(false)},
-			DdEnv:    &envVarEnv,
-		})
-		assert.Nil(t, err)
-		sender.AssertEventPlatformEvent(t, encoded, eventplatform.EventTypeContainerSBOM)
+		assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
 	})
 
 	// Test 3: containerd-style image ID (raw sha256, not repo digest)
-	t.Run("containerd image ID key fallback", func(t *testing.T) {
+	t.Run("container names its image by config digest", func(t *testing.T) {
 		p, sender, counter, store := newTestSetup(t)
 
 		// Container uses the raw image config digest as its Image.ID (containerd style).
@@ -952,22 +939,186 @@ func TestInUseFlagAccuracy(t *testing.T) {
 		))
 		p.stop()
 
-		// Expect two SBOMs: first from image Set (inUse=false, no containers yet),
-		// second from registerContainer (inUse=true via img.ID fallback).
-		assert.Eventually(t, func() bool { return counter.Load() == 2 }, time.Second, 5*time.Millisecond)
+		// The image is matched by its ID rather than by a repo digest.
+		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
 
-		hname, _ := hostname.Get(context.TODO())
-		envVarEnv := cfg.GetString("env")
-		encoded, err := proto.Marshal(&model.SBOMPayload{
-			Version:  1,
-			Host:     hname,
-			Source:   &sourceAgent,
-			Entities: []*model.SBOMEntity{makeExpectedSBOM(true)},
-			DdEnv:    &envVarEnv,
-		})
-		assert.Nil(t, err)
-		sender.AssertEventPlatformEvent(t, encoded, eventplatform.EventTypeContainerSBOM)
+		assertSBOMSent(t, sender, makeExpectedSBOM(true, 1))
 	})
+
+	// Test 4: on Kubernetes the merged container entity names its image by
+	// config digest while the runtime is its only source, then by repo digest
+	// once the kubelet describes it too. A check tracking container events
+	// registers the container under both spellings but only ever removes it
+	// from the last one, leaving the image in use forever.
+	t.Run("image ID changing shape does not leave the image in use", func(t *testing.T) {
+		p, sender, counter, store := newTestSetup(t)
+
+		// The runtime is the only source: Image.ID is the config digest.
+		runtimeOnly := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			Image:    workloadmeta.ContainerImage{ID: imageID},
+			State:    workloadmeta.ContainerState{Running: true},
+		}
+
+		store.Set(imageEntity)
+		store.Set(runtimeOnly)
+		p.processContainerImagesEvents(makeBundle(
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runtimeOnly},
+		))
+
+		// The kubelet describes the container too and wins the merge, so
+		// Image.ID becomes the repo digest.
+		store.Set(runningContainer)
+		p.processContainerImagesEvents(makeBundle(
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
+		))
+
+		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+		counter.Store(0)
+
+		// The container goes away and a fresh SBOM arrives for the image.
+		store.Unset(runningContainer)
+		store.Set(rescannedImageEntity)
+		p.processContainerImagesEvents(makeBundle(
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
+			workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: runningContainer},
+		))
+		p.stop()
+
+		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+
+		assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+	})
+
+	// Test 5: workloadmeta drops a whole event bundle when a subscriber is too
+	// slow to read it, so the container removal is never delivered. The state
+	// of the store is still the truth.
+	t.Run("missed container event does not leave the image in use", func(t *testing.T) {
+		p, sender, counter, store := newTestSetup(t)
+
+		store.Set(imageEntity)
+		store.Set(runningContainer)
+		p.processContainerImagesEvents(makeBundle(
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
+		))
+		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+		counter.Store(0)
+
+		// The container is removed but the event never reaches the check.
+		store.Unset(runningContainer)
+		store.Set(rescannedImageEntity)
+		p.processContainerImagesEvents(makeBundle(
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
+		))
+		p.stop()
+
+		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+
+		assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+	})
+
+	// Test 6: a periodic refresh emits SBOMs without an event bundle behind it,
+	// so it is the only thing that tells the back end an image whose container
+	// stop was never delivered is no longer in use. The set of images last
+	// reported in use has to follow, or the container that starts the image
+	// again looks like one that changes nothing and is never reported.
+	t.Run("container starting an image a refresh reported idle is reported", func(t *testing.T) {
+		p, sender, counter, store := newTestSetup(t)
+
+		store.Set(imageEntity)
+		store.Set(runningContainer)
+		p.processContainerImagesEvents(makeBundle(
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
+		))
+		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+		counter.Store(0)
+
+		// The container goes away and the bundle saying so is dropped, so the
+		// refresh is what reports inUse=false. It is rescanned meanwhile, which
+		// tells the payloads emitted before and after this point apart.
+		store.Unset(runningContainer)
+		store.Set(rescannedImageEntity)
+
+		refresher := newBatchRefresher(time.Hour, store, p)
+		defer refresher.stop()
+		refresher.step()
+
+		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+		assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+		counter.Store(0)
+
+		// A container starts the image again.
+		store.Set(runningContainer)
+		p.processContainerImagesEvents(makeBundle(
+			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
+		))
+		p.stop()
+
+		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+
+		assertSBOMSent(t, sender, makeExpectedSBOM(true, 2))
+	})
+}
+
+// TestCorruptedSBOM checks that an image whose stored SBOM cannot be
+// uncompressed is skipped. Uncompressing returns no SBOM alongside its error,
+// so reading the SBOM anyway panicked, and the check runs on a goroutine that
+// nothing recovers.
+func TestCorruptedSBOM(t *testing.T) {
+	imageEntity := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+		},
+		RepoTags:    []string{"datadog/agent:7-rc"},
+		RepoDigests: []string{"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409"},
+		SBOM: &workloadmeta.CompressedSBOM{
+			Bom:    []byte("not a gzip stream"),
+			Status: workloadmeta.Success,
+		},
+	}
+
+	cacheDir := t.TempDir()
+	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
+		"sbom.cache_directory":         cacheDir,
+		"sbom.container_image.enabled": true,
+	})
+	if sbomscanner.GetGlobalScanner() == nil {
+		wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
+			core.MockBundle(),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		))
+		_, err := sbomscanner.CreateGlobalScanner(cfg, wmeta)
+		assert.Nil(t, err)
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	sent := atomic.NewInt32(0)
+	sender := mocksender.NewMockSender(t, "")
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
+		sent.Inc()
+	})
+
+	p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), sender, taggerfxmock.SetupFakeTagger(t), cfg, 1, 50*time.Millisecond, time.Second)
+	assert.Nil(t, err)
+
+	store.Set(imageEntity)
+	p.processContainerImagesEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: imageEntity}},
+		Ch:     make(chan struct{}),
+	})
+	p.stop()
+
+	assert.Never(t, func() bool { return sent.Load() > 0 }, 100*time.Millisecond, 5*time.Millisecond)
 }
 
 func mustCompressSBOM(t *testing.T, sbom *workloadmeta.SBOM) *workloadmeta.CompressedSBOM {

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "util",
@@ -9,7 +10,9 @@ go_library(
         "http_retry.go",
         "jwt.go",
         "keys.go",
+        "limitedwriter.go",
         "response_parser.go",
+        "stringops.go",
         "urn.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util",
@@ -17,20 +20,21 @@ go_library(
     deps = [
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
-        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_go_jose_go_jose_v4//:go-jose",
         "@com_github_golang_jwt_jwt_v5//:jwt",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "util_test",
     srcs = [
         "http_retry_test.go",
         "keys_test.go",
+        "limitedwriter_test.go",
+        "stringops_test.go",
     ],
     embed = [":util"],
-    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -29,7 +29,7 @@ var (
 	defaultLibraryVersions = map[string]string{
 		common.DatadogAPMLibraryJavaPackage:   "1",
 		common.DatadogAPMLibraryRubyPackage:   "2",
-		common.DatadogAPMLibraryJSPackage:     "5",
+		common.DatadogAPMLibraryJSPackage:     "6",
 		common.DatadogAPMLibraryDotNetPackage: "3",
 		common.DatadogAPMLibraryPythonPackage: "3",
 		common.DatadogAPMLibraryPHPPackage:    "1",
@@ -52,6 +52,7 @@ var (
 	supportedEnvVars = []string{
 		"DD_ENV",
 		"DD_SITE",
+		"DD_LOG_LEVEL",
 		"DD_TAGS",
 		"DD_HOST_TAGS",
 		"DD_URL",

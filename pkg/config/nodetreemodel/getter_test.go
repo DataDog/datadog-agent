@@ -14,25 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetKnownKeysLowercased(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
-	cfg.SetDefault("a", 1234)
-	cfg.SetDefault("b.C", "test")
-	cfg.SetKnown("d.E.f") //nolint:forbidigo // testing behavior
-	cfg.BuildSchema()
-
-	assert.Equal(t,
-		map[string]interface{}{
-			"a":     struct{}{},
-			"b":     struct{}{},
-			"b.c":   struct{}{},
-			"d":     struct{}{},
-			"d.e":   struct{}{},
-			"d.e.f": struct{}{},
-		},
-		cfg.GetKnownKeysLowercased())
-}
-
 func TestGet(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "", nil)
 	cfg.SetDefault("a", 1234)
@@ -52,8 +33,8 @@ func TestGet(t *testing.T) {
 
 func TestGetDefaultType(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "", nil)
-	cfg.SetKnown("a") //nolint:forbidigo // testing behavior
-	cfg.SetKnown("b") //nolint:forbidigo // testing behavior
+	cfg.BindEnvAndSetDefault("a", map[string]interface{}{})
+	cfg.BindEnvAndSetDefault("b", map[string]interface{}{})
 	cfg.BuildSchema()
 
 	cfg.ReadConfig(strings.NewReader(`---

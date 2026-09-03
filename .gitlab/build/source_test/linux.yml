@@ -7,10 +7,7 @@
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   script:
-    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-    - dda inv -- -e rtloader.install
-    - dda inv -- -e rtloader.format --raise-if-changed
-    - dda inv -- -e rtloader.test
+    - bazel test //rtloader/...
 
 .linux_tests:
   stage: source_test
@@ -21,9 +18,10 @@
     - !reference [.fast_on_dev_branch_only]
   variables:
     FLAVORS: '--flavor base'
+    GIT_DEPTH: 0  # Full history: --only-impacted-packages and coverage cache use merge-base
     KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: 24Gi
-    KUBERNETES_MEMORY_LIMIT: 24Gi
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
     TEST_OUTPUT_FILE: test_output
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
@@ -34,7 +32,7 @@
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
     - dda inv -- -e agent.build
-    - dda inv -- -e test $FLAVORS --race --profile --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --result-json ${TEST_OUTPUT_FILE}.json --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
+    - dda inv -- -e test $FLAVORS --race --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --result-json ${TEST_OUTPUT_FILE}.json --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -58,65 +56,34 @@ tests_linux-x64-py3:
     - .linux_x64
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
     - !reference [.upload_coverage_datadog]
   variables:
     CONDA_ENV: ddpy3
 
-tests_linux-x64-py3_hybrid:
+.linux_flavor_tests:
   extends:
-    - .bazel:runner:linux-arm64
     - .linux_tests
     - .linux_x64
   after_script:
-    # In the hybrid test, bazel gets run, and that leaves a symlink to junit-out-base.xml. The uploader chokes on symlinks.
-    - find $(bazel info execution_root) -type l -name 'junit-*.xml' -delete
     - !reference [.upload_junit_source]
-    # skip coverage upload for several reasons
-    # 1. It would conflate with coverate from the regular job
-    # 2. the bazel tests are not doing coverage yet
-    # 3. when bazel starts it makes the symlink .cache/bazel/…/execroot/_main/junit-out-AgentFlavor.base.xml
-    #    pointing to <top>/junit-out-AgentFlavor.base.xml. Then the coverage uploader fails on the symlink.
-    #    A possible fix for that is to change `datadog-ci coverage upload` so that it can gracefully
-    #    skip symlinks rather than choking. Or, we move XDG_CACHE out of the CI root.
+    - !reference [.upload_coverage_datadog]
   variables:
     CONDA_ENV: ddpy3
-    EXPERIMENTAL_USE_BAZEL_TESTS: "1"
-  allow_failure: true  # This is for measurement during migration. It is not the actual test job.
-  retry: 0  # allowed to fail, ~35 min exec time
-  rules:
-    - !reference [.except_mergequeue]  # allowed to fail, not a gate at this stage
-    - !reference [.except_disable_unit_tests]
-    - !reference [.fast_on_dev_branch_only]
 
 tests_flavor_iot_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
+  extends: .linux_flavor_tests
   variables:
-    CONDA_ENV: ddpy3
     FLAVORS: '--flavor iot'
 
 tests_flavor_dogstatsd_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
+  extends: .linux_flavor_tests
   variables:
-    CONDA_ENV: ddpy3
     FLAVORS: '--flavor dogstatsd'
 
 tests_flavor_heroku_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
+  extends: .linux_flavor_tests
   variables:
-    CONDA_ENV: ddpy3
     FLAVORS: '--flavor heroku'
 
 tests_linux-arm64-py3:
@@ -128,7 +95,7 @@ tests_linux-arm64-py3:
     - !reference [.retrieve_linux_go_tools_deps_arm64]
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
     - !reference [.upload_coverage_datadog]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
@@ -162,7 +129,9 @@ tests_serverless-init:
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
-    - go test -tags "serverless otlp test" ./cmd/serverless-init/.
+    # TODO: remove once Bazel is used to test the Agent
+    - dda inv -- -e schema.codegen
+    - go test -tags "serverless,otlp,test" ./cmd/serverless-init/.
 
 tests_serverless-init-logs:
   extends: .linux_x64
@@ -174,7 +143,9 @@ tests_serverless-init-logs:
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
-    - go test -tags "serverless otlp test" ./comp/logs/agent/impl/.
+    # TODO: remove once Bazel is used to test the Agent
+    - dda inv -- -e schema.codegen
+    - go test -tags "serverless,otlp,test" ./comp/logs/agent/impl/.
 
 # Check consistency of go.mod file with project imports
 go_mod_tidy_check:
@@ -221,6 +192,7 @@ new-e2e-unit-tests:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
+    GIT_DEPTH: 1  # Overrides .linux_tests: this job does not use --only-impacted-packages or coverage cache
   timeout: 20m  # Not less than 20m because job startup can take time.
 
 tests_gpu:
@@ -235,13 +207,12 @@ tests_gpu:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    - dda inv -- -e gpu.download-gpu-burner --output-path "$CI_PROJECT_DIR"
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
     - !reference [.upload_coverage_datadog]
   variables:
     FLAVORS: ''
     EXTRA_OPTS: '--targets=./pkg/gpu/integrationtests,./pkg/collector/corechecks/gpu/integrationtests'
     KUBERNETES_CPU_REQUEST: 4
-    KUBERNETES_MEMORY_REQUEST: 8Gi
-    KUBERNETES_MEMORY_LIMIT: 8Gi

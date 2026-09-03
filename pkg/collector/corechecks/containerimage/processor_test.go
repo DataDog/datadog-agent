@@ -253,6 +253,110 @@ func TestProcessEvents(t *testing.T) {
 			},
 		},
 		{
+			// Registry hosts that include a port (e.g. `artifactory.local:443/...`)
+			// must not be split on the first colon, otherwise the registry host
+			// becomes the image name and the port becomes part of the tag.
+			name: "registry with port in repo tag",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						},
+						RepoTags: []string{
+							"artifactory.local:443/team/service:2.54.3",
+						},
+						RepoDigests: []string{
+							"artifactory.local:443/team/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						},
+						SizeBytes:    42,
+						OS:           "linux",
+						OSVersion:    "1",
+						Architecture: "amd64",
+					},
+				},
+			},
+			expectedImages: []*model.ContainerImage{
+				{
+					Id: "artifactory.local:443/team/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+					DdTags: []string{
+						"image_id:artifactory.local:443/team/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						"image_name:artifactory.local:443/team/service",
+						"short_image:service",
+						"image_tag:2.54.3",
+					},
+					Name:      "artifactory.local:443/team/service",
+					Registry:  "artifactory.local:443",
+					ShortName: "service",
+					RepoTags: []string{
+						"2.54.3",
+					},
+					Digest:      "sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+					Size:        42,
+					RepoDigests: []string{"artifactory.local:443/team/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6"},
+					Os: &model.ContainerImage_OperatingSystem{
+						Name:         "linux",
+						Version:      "1",
+						Architecture: "amd64",
+					},
+				},
+			},
+		},
+		{
+			// A registry host with a port followed by a single path component
+			// (e.g. `localhost:5000/service`) is still a registry, even though the
+			// repo name only has two slash-separated components.
+			name: "registry with port and single path component",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						},
+						RepoTags: []string{
+							"localhost:5000/service:1",
+						},
+						RepoDigests: []string{
+							"localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						},
+						SizeBytes:    42,
+						OS:           "linux",
+						OSVersion:    "1",
+						Architecture: "amd64",
+					},
+				},
+			},
+			expectedImages: []*model.ContainerImage{
+				{
+					Id: "localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+					DdTags: []string{
+						"image_id:localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+						"image_name:localhost:5000/service",
+						"short_image:service",
+						"image_tag:1",
+					},
+					Name:      "localhost:5000/service",
+					Registry:  "localhost:5000",
+					ShortName: "service",
+					RepoTags: []string{
+						"1",
+					},
+					Digest:      "sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6",
+					Size:        42,
+					RepoDigests: []string{"localhost:5000/service@sha256:ff5c1c9a1d939df9ef782c329eb88db50f3c5a80e7c9f90a30e549da6000adb6"},
+					Os: &model.ContainerImage_OperatingSystem{
+						Name:         "linux",
+						Version:      "1",
+						Architecture: "amd64",
+					},
+				},
+			},
+		},
+		{
 			// In containerd some images are created without a repo digest, and it's
 			// also possible to remove repo digests manually. To test that scenario, in
 			// this test, we define an image with 2 repo tags: one for the gcr.io
@@ -418,7 +522,7 @@ func TestProcessEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			imagesSent := atomic.NewInt32(0)
 
-			sender := mocksender.NewMockSender("")
+			sender := mocksender.NewMockSender(t, "")
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
 				imagesSent.Inc()
 			})

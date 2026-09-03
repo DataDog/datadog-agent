@@ -8,6 +8,7 @@
 package workload
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -27,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
 	clock "k8s.io/utils/clock/testing"
@@ -36,6 +39,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -55,7 +59,7 @@ type fixture struct {
 const testMaxAutoscalerObjects int = 2
 
 func newFixture(t *testing.T, testTime time.Time) *fixture {
-	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 
 	clock := clock.NewFakeClock(testTime)
 	recorder := record.NewFakeRecorder(100)
@@ -146,7 +150,7 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 		UpstreamCR:                     dpaTyped,
 		CustomRecommenderConfiguration: nil,
 	}
-	dpaInternal, found := f.store.Get("default/dpa-0")
+	dpaInternal, found := f.store.Peek("default/dpa-0")
 	assert.True(t, found)
 	model.AssertPodAutoscalersEqual(t, expectedDPAInternal, dpaInternal)
 
@@ -155,7 +159,7 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 	f.Objects = nil
 
 	f.RunControllerSync(true, "default/dpa-0")
-	assert.Len(t, f.store.GetAll(), 0)
+	assert.Len(t, f.store.List(nil), 0)
 
 	// Re-create object
 	f.InformerObjects = append(f.InformerObjects, dpa)
@@ -186,7 +190,10 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 		Name:      "dpa-0",
 		Spec:      &dpaSpec,
 	}
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 
 	// Should create object in Kubernetes
 	expectedDPA := &datadoghq.DatadogPodAutoscaler{
@@ -218,21 +225,24 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 
 	// We flag the object as deleted in the store, we expect delete operation in Kubernetes
 	dpaInternal.Deleted = true
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 	f.InformerObjects = append(f.InformerObjects, expectedUnstructured)
 	f.Objects = append(f.Objects, expectedDPA)
 	f.Actions = nil
 
 	f.ExpectDeleteAction("default", "dpa-0")
 	f.RunControllerSync(true, "default/dpa-0")
-	assert.Len(t, f.store.GetAll(), 1) // Still in store
+	assert.Len(t, f.store.List(nil), 1) // Still in store
 
 	// Next reconcile the controller is going to remove the object from the store
 	f.InformerObjects = nil
 	f.Objects = nil
 	f.Actions = nil
 	f.RunControllerSync(true, "default/dpa-0")
-	assert.Len(t, f.store.GetAll(), 0)
+	assert.Len(t, f.store.List(nil), 0)
 }
 
 func TestLeaderCreateDeleteRemoteDefaultedSpec(t *testing.T) {
@@ -255,7 +265,10 @@ func TestLeaderCreateDeleteRemoteDefaultedSpec(t *testing.T) {
 		Name:      "dpa-0",
 		Spec:      &dpaSpec,
 	}
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 
 	// Should create object in Kubernetes
 	expectedDPA := &datadoghq.DatadogPodAutoscaler{
@@ -392,7 +405,7 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 			f.Objects = append(f.Objects, dpaTyped)
 
 			f.RunControllerSync(true, id)
-			_, found := f.store.Get(id)
+			_, found := f.store.Peek(id)
 			assert.True(t, found)
 
 			// Test that object gets updated with correct error status
@@ -432,8 +445,8 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 
 			f.ExpectUpdateStatusAction(mustUnstructured(t, expectedDPAError))
 			f.RunControllerSync(true, id)
-			assert.Len(t, f.store.GetAll(), 1)
-			pai, found := f.store.Get(id)
+			assert.Len(t, f.store.List(nil), 1)
+			pai, found := f.store.Peek(id)
 			assert.Truef(t, found, "Expected to find DatadogPodAutoscaler in store")
 			assert.EqualError(t, pai.Error(), "Autoscaling target cannot be set to the cluster agent")
 		})
@@ -531,7 +544,10 @@ func TestPodAutoscalerClearStatusOnScalingModeChange(t *testing.T) {
 			Version: "abc123",
 		},
 	}
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 
 	// Check generated status based on current state (both directions activated)
 	cpuReqSum, memReqSum := dpaInternal.MainScalingValues.Vertical.SumCPUMemoryRequests()
@@ -716,7 +732,7 @@ func TestPodAutoscalerLocalOwnerObjectsLimit(t *testing.T) {
 		},
 	}
 	f.ExpectUpdateStatusAction(mustUnstructured(t, dpaStatusUpdate))
-	assert.Len(t, f.store.GetAll(), 2)
+	assert.Len(t, f.store.List(nil), 2)
 	f.InformerObjects = append(f.InformerObjects, dpa2)
 	f.Objects = append(f.Objects, dpaTyped2)
 	f.RunControllerSync(true, dpa2ID)
@@ -766,21 +782,30 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 		Name:      "dpa-0",
 		Spec:      &dpaSpec,
 	}
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 
 	dpaInternal1 := model.FakePodAutoscalerInternal{
 		Namespace: "default",
 		Name:      "dpa-1",
 		Spec:      &dpa1Spec,
 	}
-	f.store.Set("default/dpa-1", dpaInternal1.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-1")
+		item.Upsert(dpaInternal1.Build(), controllerID)
+	}
 
 	dpaInternal2 := model.FakePodAutoscalerInternal{
 		Namespace: "default",
 		Name:      "dpa-2",
 		Spec:      &dpa2Spec,
 	}
-	f.store.Set("default/dpa-2", dpaInternal2.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-2")
+		item.Upsert(dpaInternal2.Build(), controllerID)
+	}
 
 	// Should create object in Kubernetes
 	expectedStatus := datadoghqcommon.DatadogPodAutoscalerStatus{
@@ -808,7 +833,7 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	f.Actions = nil
 	f.ExpectCreateAction(expectedUnstructured2)
 	f.RunControllerSync(true, "default/dpa-2")
-	assert.Len(t, f.store.GetAll(), 3)
+	assert.Len(t, f.store.List(nil), 3)
 
 	dpaTime := testTime.Add(-1 * time.Hour)
 	dpa1Time := testTime
@@ -896,11 +921,14 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 
 	// Check that when object (dpa1) is deleted, heap is updated accordingly
 	dpaInternal1.Deleted = true
-	f.store.Set("default/dpa-1", dpaInternal1.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-1")
+		item.Upsert(dpaInternal1.Build(), controllerID)
+	}
 	f.Actions = nil
 	f.ExpectDeleteAction("default", "dpa-1")
 	f.RunControllerSync(true, "default/dpa-1")
-	assert.Len(t, f.store.GetAll(), 3)
+	assert.Len(t, f.store.List(nil), 3)
 
 	f.InformerObjects = nil
 	f.Objects = nil
@@ -916,7 +944,7 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	f.Objects = append(f.Objects, expectedDPAError)
 
 	f.RunControllerSync(true, "default/dpa-2")
-	assert.Len(t, f.store.GetAll(), 2)
+	assert.Len(t, f.store.List(nil), 2)
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-0"], "Expected dpa-0 to be in heap")
 	assert.Falsef(t, f.autoscalingHeap.Keys["default/dpa-1"], "Expected dpa-1 to not be in heap")
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-2"], "Expected dpa-2 to be in heap")
@@ -1205,7 +1233,10 @@ func TestVerticalConstraintsIdempotent(t *testing.T) {
 			},
 		},
 	}
-	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
+	{
+		item, _ := f.store.Get("default/dpa-0")
+		item.Upsert(dpaInternal.Build(), controllerID)
+	}
 
 	// Pods already on the constrained hash (steady state after first patch).
 	f.podWatcher.mockGetPodsForOwner(NamespacedPodOwner{
@@ -1297,7 +1328,10 @@ func TestProfileManagedDPA(t *testing.T) {
 			Spec:        &dpaSpec,
 			ProfileName: "high-cpu",
 		}
-		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
 
 		expectedDPA := &datadoghq.DatadogPodAutoscaler{
 			TypeMeta: podAutoscalerMeta,
@@ -1342,7 +1376,10 @@ func TestProfileManagedDPA(t *testing.T) {
 			ProfileName: "high-cpu",
 			Deleted:     true,
 		}
-		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
 
 		dpa, dpaTyped := newFakePodAutoscaler("prod", "web-app-a1b2c3d4", 1, testTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
 		dpaTyped.Labels = map[string]string{model.ProfileLabelKey: "high-cpu"}
@@ -1372,11 +1409,14 @@ func TestProfileManagedDPA(t *testing.T) {
 			ProfileName: "high-cpu",
 			Deleted:     true,
 		}
-		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
 
 		// K8s object gone, store entry flagged deleted → should clean store.
 		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
-		assert.Len(t, f.store.GetAll(), 0)
+		assert.Len(t, f.store.List(nil), 0)
 	})
 
 	t.Run("Orphan when profile label removed from K8s object", func(t *testing.T) {
@@ -1398,7 +1438,10 @@ func TestProfileManagedDPA(t *testing.T) {
 			ProfileName: "high-cpu",
 			Generation:  1,
 		}
-		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
 
 		// K8s object exists but customer removed the profile label.
 		dpa, dpaTyped := newFakePodAutoscaler("prod", "web-app-a1b2c3d4", 2, testTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
@@ -1429,7 +1472,7 @@ func TestProfileManagedDPA(t *testing.T) {
 		f.ExpectUpdateStatusAction(mustUnstructured(t, expectedStatus))
 		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
 
-		pai, found := f.store.Get("prod/web-app-a1b2c3d4")
+		pai, found := f.store.Peek("prod/web-app-a1b2c3d4")
 		require.True(t, found)
 		assert.False(t, pai.IsProfileManaged(), "DPA should no longer be profile-managed after label removal")
 		assert.Empty(t, pai.ProfileName(), "Profile name should be cleared")
@@ -1464,7 +1507,7 @@ func TestProfileManagedDPA(t *testing.T) {
 
 		f.RunControllerSync(true, "prod/web-app-a1b2c3d4")
 
-		pai, found := f.store.Get("prod/web-app-a1b2c3d4")
+		pai, found := f.store.Peek("prod/web-app-a1b2c3d4")
 		require.True(t, found)
 		assert.Equal(t, "high-cpu", pai.ProfileName())
 		assert.True(t, pai.IsProfileManaged())
@@ -1495,7 +1538,10 @@ func TestProfileManagedDPA(t *testing.T) {
 				Spec: dpaSpec,
 			},
 		}
-		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
 
 		expectedDPA := &datadoghq.DatadogPodAutoscaler{
 			TypeMeta: podAutoscalerMeta,
@@ -1566,7 +1612,10 @@ func TestProfileManagedDPA(t *testing.T) {
 				Spec: dpaSpec,
 			},
 		}
-		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
 
 		expectedUpdate := &datadoghq.DatadogPodAutoscaler{
 			TypeMeta: podAutoscalerMeta,
@@ -1628,7 +1677,10 @@ func TestProfileManagedDPA(t *testing.T) {
 				Spec: dpaSpec,
 			},
 		}
-		f.store.Set("prod/web-app-a1b2c3d4", dpaInternal.Build(), "pw")
+		{
+			item, _ := f.store.Get("prod/web-app-a1b2c3d4")
+			item.Upsert(dpaInternal.Build(), "pw")
+		}
 
 		expectedUpdate := &datadoghq.DatadogPodAutoscaler{
 			TypeMeta: podAutoscalerMeta,
@@ -1664,4 +1716,100 @@ func condition(conditionType datadoghqcommon.DatadogPodAutoscalerConditionType, 
 		Message:            message,
 		LastTransitionTime: metav1.NewTime(transitionTime),
 	}
+}
+
+// newStatusTestController builds a workload Controller wired to a fake dynamic
+// client for directly exercising the status-write / upsert helpers, bypassing the
+// full reconcile/action-assertion machinery.
+func newStatusTestController(t *testing.T, testTime time.Time, objects ...runtime.Object) (*Controller, *fake.FakeDynamicClient) {
+	t.Helper()
+	require.NoError(t, datadoghq.AddToScheme(kscheme.Scheme))
+
+	fakeClient := fake.NewSimpleDynamicClient(kscheme.Scheme, objects...)
+	informer := dynamicinformer.NewDynamicSharedInformerFactory(fakeClient, 0)
+	dpaStore := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
+	hashHeap := autoscaling.NewHashHeap(testMaxAutoscalerObjects, dpaStore, (*model.PodAutoscalerInternal).CreationTimestamp)
+
+	c, err := NewController(
+		clock.NewFakeClock(testTime),
+		"cluster-id1",
+		record.NewFakeRecorder(100),
+		nil, nil, nil,
+		fakeClient,
+		informer,
+		func() bool { return true },
+		dpaStore,
+		newFakePodWatcher(),
+		nil,
+		hashHeap,
+		nil,
+	)
+	require.NoError(t, err)
+	return c, fakeClient
+}
+
+func statusTestSpec() datadoghq.DatadogPodAutoscalerSpec {
+	return datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: autoscalingv2.CrossVersionObjectReference{
+			Kind:       "Deployment",
+			Name:       "app-0",
+			APIVersion: "apps/v1",
+		},
+		Owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+	}
+}
+
+// TestUpdateAutoscalerStatusAndUpsertRequeuesOnConflict reproduces the reported
+// scenario: the status write hits a 409 because the resourceVersion carried from the
+// informer cache is stale. The reconcile must requeue (and surface the error) so a
+// subsequent pass restarts the full process with a fresh object from the cache,
+// instead of silently dropping the update.
+func TestUpdateAutoscalerStatusAndUpsertRequeuesOnConflict(t *testing.T) {
+	testTime := time.Now()
+	ns, name := "default", "dpa-0"
+	key := ns + "/" + name
+	spec := statusTestSpec()
+	_, dpaTyped := newFakePodAutoscaler(ns, name, 1, testTime, spec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+
+	c, fakeClient := newStatusTestController(t, testTime, dpaTyped)
+	fakeClient.PrependReactor("update", "datadogpodautoscalers", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		if action.GetSubresource() != "status" {
+			return false, nil, nil
+		}
+		return true, nil, k8serrors.NewConflict(podAutoscalerGVR.GroupResource(), name, errors.New("stale resourceVersion"))
+	})
+
+	internal := model.FakePodAutoscalerInternal{Namespace: ns, Name: name, Spec: &spec}.Build()
+	item, _ := c.store.Get(key)
+	defer item.Release()
+
+	result, err := c.updateAutoscalerStatusAndUpsert(context.Background(), item, ns, name, nil, internal, dpaTyped)
+
+	require.Error(t, err, "the status conflict must be surfaced so Process() counts the retry")
+	assert.True(t, result.ShouldRequeue(), "a status-update conflict must requeue the reconcile")
+	// The latest recommendation is still persisted to the store despite the failed
+	// status write, so scaling keeps honoring the configured metric.
+	_, found := c.store.Peek(key)
+	assert.True(t, found, "internal state should be upserted even when the status write fails")
+}
+
+// TestUpdateAutoscalerStatusAndUpsertNoConflict verifies that a successful (or no-op)
+// status write does not requeue, preserving the steady-state behavior.
+func TestUpdateAutoscalerStatusAndUpsertNoConflict(t *testing.T) {
+	testTime := time.Now()
+	ns, name := "default", "dpa-0"
+	key := ns + "/" + name
+	spec := statusTestSpec()
+	_, dpaTyped := newFakePodAutoscaler(ns, name, 1, testTime, spec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+
+	c, _ := newStatusTestController(t, testTime, dpaTyped)
+
+	internal := model.FakePodAutoscalerInternal{Namespace: ns, Name: name, Spec: &spec}.Build()
+	item, _ := c.store.Get(key)
+	defer item.Release()
+
+	result, err := c.updateAutoscalerStatusAndUpsert(context.Background(), item, ns, name, nil, internal, dpaTyped)
+
+	require.NoError(t, err)
+	assert.False(t, result.ShouldRequeue(), "a successful status write must not requeue")
 }

@@ -16,9 +16,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
@@ -57,6 +60,7 @@ func TestConfigMgr_DiscoveryTemplate_NoPythonNeverSchedules(t *testing.T) {
 		cmServiceLookup{cm},
 		cm.onDiscoveryResult,
 		discoverer.Config{MaxAttempts: fastWorkerMaxAttempts, RetryDelay: 10 * time.Millisecond},
+		nil,
 	)
 	cm.discoveryWorker.Start()
 
@@ -87,13 +91,123 @@ func TestConfigMgr_DiscoveryTemplate_NoPythonNeverSchedules(t *testing.T) {
 // TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer verifies the full
 // end-to-end path: the configmgr enqueues a probe instead of resolving the
 // template, the worker calls the stub, and the resolved config is delivered
-// via discoveredChanges() to be applied by AutoConfig.
+// via discoveredChanges() to be applied by AutoConfig. It covers both a
+// container and a process service, which should get distinct
+// discovery-specific Source prefixes.
 func TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer(t *testing.T) {
+	tests := []struct {
+		name       string
+		svcID      string
+		wantSource string
+	}{
+		{
+			name:       "container service",
+			svcID:      "docker://k1",
+			wantSource: names.ADContainerDiscovery + ":/etc/datadog-agent/conf.d/krakend.d/auto_conf.yaml",
+		},
+		{
+			name:       "process service",
+			svcID:      "process://1234",
+			wantSource: names.ADProcessDiscovery + ":/etc/datadog-agent/conf.d/krakend.d/auto_conf.yaml",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockResolver := MockSecretResolver{}
+			disco := newStubDiscoverer(func(_, _ string) (string, error) {
+				return `[{"instances":[{"openmetrics_endpoint":"http://%%host%%:8080/metrics"}]}]`, nil
+			})
+			cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
+			cm.start()
+			defer cm.stop()
+
+			tpl := integration.Config{
+				Name:          "krakend",
+				ADIdentifiers: []string{"krakend"},
+				Discovery:     &integration.DiscoveryConfig{},
+				Source:        "file:/etc/datadog-agent/conf.d/krakend.d/auto_conf.yaml",
+				Provider:      names.File,
+			}
+			svc := &dummyService{
+				ID:            tc.svcID,
+				ADIdentifiers: []string{"krakend"},
+				Hosts:         map[string]string{"main": "10.0.0.1"},
+			}
+
+			// processNewConfig + processNewService should NOT schedule synchronously
+			// — the template goes through the discovery path instead.
+			_, _ = cm.processNewConfig(tpl)
+			changes := cm.processNewService(svc)
+			assertConfigsMatch(t, changes.Schedule)
+			assertConfigsMatch(t, changes.Unschedule)
+
+			// Drain the discovered-changes channel for up to one second.
+			ch := cm.discoveredChanges()
+			require.NotNil(t, ch)
+			select {
+			case discovered := <-ch:
+				assertConfigsMatch(t, discovered.Schedule, matchName("krakend"))
+				require.Len(t, discovered.Schedule, 1)
+				// %%host%% in the discovered config should have been resolved
+				// through the normal configresolver path against the live service.
+				assert.Contains(t, string(discovered.Schedule[0].Instances[0]), "10.0.0.1",
+					"discovered instance config should have %%host%% resolved via the configresolver path")
+				assert.Equal(t, tc.wantSource, discovered.Schedule[0].Source,
+					"discovered config's Source should be tagged with the discovery provider")
+				assert.Contains(t, string(discovered.Schedule[0].Instances[0]), configDiscoveryTag,
+					"discovered instance config should carry the configuration-discovery marker tag")
+			case <-time.After(2 * time.Second):
+				t.Fatalf("timed out waiting for discovered changes")
+			}
+
+			assert.GreaterOrEqual(t, int(disco.called.Load()), 1, "stub discoverer should have been called")
+		})
+	}
+}
+
+// countTag returns how many times tag appears in tags.
+func countTag(tags []string, tag string) int {
+	n := 0
+	for _, t := range tags {
+		if t == tag {
+			n++
+		}
+	}
+	return n
+}
+
+// instanceTags unmarshals the `tags` field of a resolved instance for
+// precise assertions (exact membership/count), rather than substring
+// matching on the raw YAML.
+func instanceTags(t *testing.T, instance integration.Data) []string {
+	t.Helper()
+	var parsed struct {
+		Tags []string `yaml:"tags"`
+	}
+	require.NoError(t, yaml.Unmarshal(instance, &parsed))
+	return parsed.Tags
+}
+
+// TestConfigMgr_DiscoveryTemplate_TagsAllInstances verifies that the
+// configuration-discovery marker tag is added exactly once to every instance of
+// a discovered config, is merged alongside any tags the discovered instance
+// already carries rather than replacing them, and is still added even when the
+// discovered config opts out of ordinary autodiscovery service tags via
+// ignore_autodiscovery_tags (which must still suppress the service's own tags,
+// proving the marker tag is applied independently of that mechanism).
+func TestConfigMgr_DiscoveryTemplate_TagsAllInstances(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	disco := newStubDiscoverer(func(_, _ string) (string, error) {
-		return `[{"instances":[{"openmetrics_endpoint":"http://%%host%%:8080/metrics"}]}]`, nil
+		return `[{
+			"instances": [
+				{"openmetrics_endpoint": "http://%%host%%:8080/metrics", "tags": ["custom:tag"]},
+				{"openmetrics_endpoint": "http://%%host%%:8081/metrics"}
+			],
+			"ignore_autodiscovery_tags": true
+		}]`, nil
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
 	cm.start()
 	defer cm.stop()
 
@@ -101,6 +215,58 @@ func TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer(t *testing.T) {
 		Name:          "krakend",
 		ADIdentifiers: []string{"krakend"},
 		Discovery:     &integration.DiscoveryConfig{},
+		Source:        "file:/etc/datadog-agent/conf.d/krakend.d/auto_conf.yaml",
+		Provider:      names.File,
+	}
+	svc := &dummyService{
+		ID:            "docker://k1",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+		Tags:          []string{"service:tag"},
+	}
+
+	_, _ = cm.processNewConfig(tpl)
+	changes := cm.processNewService(svc)
+	assertConfigsMatch(t, changes.Schedule)
+	assertConfigsMatch(t, changes.Unschedule)
+
+	ch := cm.discoveredChanges()
+	require.NotNil(t, ch)
+	select {
+	case discovered := <-ch:
+		require.Len(t, discovered.Schedule, 1)
+		require.Len(t, discovered.Schedule[0].Instances, 2)
+
+		firstTags := instanceTags(t, discovered.Schedule[0].Instances[0])
+		assert.Equal(t, 1, countTag(firstTags, configDiscoveryTag),
+			"marker tag should appear exactly once on the first instance, got %v", firstTags)
+		assert.Contains(t, firstTags, "custom:tag",
+			"first instance's own tag should be preserved alongside the marker tag")
+		assert.NotContains(t, firstTags, "service:tag",
+			"ignore_autodiscovery_tags should still suppress ordinary service tags")
+
+		secondTags := instanceTags(t, discovered.Schedule[0].Instances[1])
+		assert.Equal(t, 1, countTag(secondTags, configDiscoveryTag),
+			"marker tag should appear exactly once on the second instance, got %v", secondTags)
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for discovered changes")
+	}
+}
+
+// TestConfigMgr_DiscoveryTemplate_TagPersistsAcrossRediscovery verifies that
+// a second discovery result for the same service+template (e.g. the
+// integration's discover_config returning updated instance data on a later
+// probe) still carries exactly one configDiscoveryTag on the replacement
+// config, rather than accumulating duplicates or losing the tag across
+// re-resolution.
+func TestConfigMgr_DiscoveryTemplate_TagPersistsAcrossRediscovery(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.DiscoveryConfig{},
+		Source:        "file:/etc/datadog-agent/conf.d/krakend.d/auto_conf.yaml",
+		Provider:      names.File,
 	}
 	svc := &dummyService{
 		ID:            "docker://k1",
@@ -108,29 +274,35 @@ func TestConfigMgr_DiscoveryTemplate_RoutesThroughDiscoverer(t *testing.T) {
 		Hosts:         map[string]string{"main": "10.0.0.1"},
 	}
 
-	// processNewConfig + processNewService should NOT schedule synchronously
-	// — the template goes through the discovery path instead.
+	// The discovery worker is never started: this test drives
+	// applyDiscoveredConfigsLocked directly (as the worker's callback would),
+	// so no discoverer or running goroutine is needed.
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, nil, nil).(*reconcilingConfigManager)
 	_, _ = cm.processNewConfig(tpl)
-	changes := cm.processNewService(svc)
-	assertConfigsMatch(t, changes.Schedule)
-	assertConfigsMatch(t, changes.Unschedule)
+	_ = cm.processNewService(svc)
 
-	// Drain the discovered-changes channel for up to one second.
-	ch := cm.discoveredChanges()
-	require.NotNil(t, ch)
-	select {
-	case discovered := <-ch:
-		assertConfigsMatch(t, discovered.Schedule, matchName("krakend"))
-		require.Len(t, discovered.Schedule, 1)
-		// %%host%% in the discovered config should have been resolved
-		// through the normal configresolver path against the live service.
-		assert.Contains(t, string(discovered.Schedule[0].Instances[0]), "10.0.0.1",
-			"discovered instance config should have %%host%% resolved via the configresolver path")
-	case <-time.After(2 * time.Second):
-		t.Fatalf("timed out waiting for discovered changes")
-	}
+	tplDigest := tpl.Digest()
+	firstConfigs := []integration.Config{{
+		Instances: []integration.Data{integration.Data(`openmetrics_endpoint: http://%%host%%:8080/metrics`)},
+	}}
+	cm.m.Lock()
+	changes := cm.applyDiscoveredConfigsLocked(svc.ID, tplDigest, firstConfigs)
+	cm.m.Unlock()
+	require.Len(t, changes.Schedule, 1)
+	firstTags := instanceTags(t, changes.Schedule[0].Instances[0])
+	require.Equal(t, 1, countTag(firstTags, configDiscoveryTag))
 
-	assert.GreaterOrEqual(t, int(disco.called.Load()), 1, "stub discoverer should have been called")
+	secondConfigs := []integration.Config{{
+		Instances: []integration.Data{integration.Data(`openmetrics_endpoint: http://%%host%%:9090/metrics`)},
+	}}
+	cm.m.Lock()
+	changes = cm.applyDiscoveredConfigsLocked(svc.ID, tplDigest, secondConfigs)
+	cm.m.Unlock()
+	require.Len(t, changes.Schedule, 1, "rediscovery should schedule the replacement config")
+	require.Len(t, changes.Unschedule, 1, "rediscovery should unschedule the previous config")
+	secondTags := instanceTags(t, changes.Schedule[0].Instances[0])
+	assert.Equal(t, 1, countTag(secondTags, configDiscoveryTag),
+		"marker tag should appear exactly once on the re-discovered config, got %v", secondTags)
 }
 
 // TestConfigMgr_DiscoveryTemplate_ServiceDeletionCancels confirms that
@@ -142,7 +314,7 @@ func TestConfigMgr_DiscoveryTemplate_ServiceDeletionCancels(t *testing.T) {
 		// forgotten.
 		return "", assert.AnError
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
 	cm.start()
 	defer cm.stop()
 
@@ -173,6 +345,197 @@ func TestConfigMgr_DiscoveryTemplate_ServiceDeletionCancels(t *testing.T) {
 		"no further probes should fire after the service is removed (started at %d)", settled)
 }
 
+// midFlightDiscoverySuppressionHarness sets up a configmgr with a "krakend"
+// discovery template + service whose probe is blocked on a channel, so tests
+// can deterministically inject a conflicting config while the probe is in
+// flight and then verify the (stale) result gets suppressed once released.
+// Used by the DSCVR-626 regression tests below.
+type midFlightDiscoverySuppressionHarness struct {
+	cm        *reconcilingConfigManager
+	release   chan struct{}
+	processed chan struct{}
+}
+
+// newMidFlightDiscoverySuppressionHarness builds the harness, installs
+// filterTemplates on the service (it should mirror whichever
+// filterTemplatesDiscovery rule the test wants to exercise), and blocks until
+// the probe has actually started.
+func newMidFlightDiscoverySuppressionHarness(t *testing.T, staticConfigIndex *listeners.StaticConfigIndex, filterTemplates func(map[string]integration.Config)) *midFlightDiscoverySuppressionHarness {
+	t.Helper()
+	mockResolver := MockSecretResolver{}
+
+	probeStarted := make(chan struct{})
+	release := make(chan struct{})
+	disco := newStubDiscoverer(func(_, _ string) (string, error) {
+		close(probeStarted)
+		<-release
+		return `[{"instances":[{"openmetrics_endpoint":"http://%%host%%:8080/metrics"}]}]`, nil
+	})
+	cm := newReconcilingConfigManager(&mockResolver, nil, staticConfigIndex, disco, nil).(*reconcilingConfigManager)
+	cm.start()
+	t.Cleanup(cm.stop)
+
+	// Wrap the worker callback so the test can wait deterministically for the
+	// released probe result to be fully processed (scheduled or dropped)
+	// before checking discoveredChanges() — a fixed sleep could pass even if
+	// the callback hadn't run yet under a slow/stalled scheduler.
+	processed := make(chan struct{})
+	cm.discoveryWorker.Stop()
+	cm.discoveryWorker = discoverer.NewWorker(
+		disco,
+		cmServiceLookup{cm},
+		func(svcID, tplDigest string, configs []integration.Config) {
+			cm.onDiscoveryResult(svcID, tplDigest, configs)
+			close(processed)
+		},
+		discoverer.Config{},
+		nil,
+	)
+	cm.discoveryWorker.Start()
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.DiscoveryConfig{},
+	}
+	svc := &dummyService{
+		ID:            "docker://k1",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+	svc.filterTemplates = filterTemplates
+
+	_, _ = cm.processNewConfig(tpl)
+	_ = cm.processNewService(svc)
+
+	select {
+	case <-probeStarted:
+	case <-time.After(time.Second):
+		t.Fatal("probe never started")
+	}
+
+	return &midFlightDiscoverySuppressionHarness{cm: cm, release: release, processed: processed}
+}
+
+// releaseAndAssertSuppressed unblocks the in-flight probe and asserts that
+// its result never reaches discoveredChanges(). It waits deterministically
+// for the wrapped callback to finish (see newMidFlightDiscoverySuppressionHarness)
+// before checking the channel, rather than sleeping a fixed duration.
+func (h *midFlightDiscoverySuppressionHarness) releaseAndAssertSuppressed(t *testing.T) {
+	t.Helper()
+	close(h.release)
+	select {
+	case <-h.processed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("discovery callback never processed the released probe result")
+	}
+
+	select {
+	case discovered := <-h.cm.discoveredChanges():
+		t.Fatalf("krakend discovery should have been suppressed by the conflicting config that arrived mid-flight, got: %+v", discovered)
+	default:
+	}
+}
+
+// TestConfigMgr_Discovery_StaleProbeResultSuppressedByMidFlightConflict
+// reproduces the DSCVR-626 race: FilterTemplates only runs synchronously
+// inside reconcileService, so it can't affect a probe that's already in
+// flight. Without a re-check immediately before applying the probe result, a
+// conflicting generic-integration config that arrives for the same service
+// or host *after* the probe was enqueued but *before* it completes would
+// still get scheduled on top of it, defeating the point of the filtering.
+//
+// Both subtests below end up dropping the discovery digest for the same
+// (test-local, faked) reason — that part is deliberately trivial. What
+// actually differs, and is the point of having two cases, is *how* the
+// conflicting config reaches the config manager, which exercises two
+// different branches of processNewConfig:
+//
+//   - "sibling template arrives": the conflict has AD identifiers, so it IS
+//     a template. This DOES trigger a synchronous reconcileService for the
+//     affected service — but that alone changes nothing, because a
+//     discovery digest is never recorded in existingResolutions while its
+//     probe is pending, so reconcileService has nothing to unschedule. This
+//     proves the apply-time re-check matters even when reconcile does run.
+//   - "static config arrives host-wide": the conflict has no AD
+//     identifiers, so it's non-template. This NEVER triggers
+//     reconcileService for any already-active service at all (see the TODO
+//     in processNewConfig) — it only updates the shared StaticConfigIndex.
+//     This proves the apply-time re-check is the *only* thing that can catch
+//     this case; there's no reconcile to even race against.
+//
+// In both cases, applyDiscoveredConfigsLocked must re-validate against live
+// filtering state before scheduling the (stale) probe result.
+func TestConfigMgr_Discovery_StaleProbeResultSuppressedByMidFlightConflict(t *testing.T) {
+	t.Run("sibling template arrives for the same service", func(t *testing.T) {
+		// Mirrors filterTemplatesDiscovery's generic-integration-sibling rule:
+		// drop every discovery template while an openmetrics/prometheus
+		// sibling is present, regardless of Name.
+		filterTemplates := func(configs map[string]integration.Config) {
+			hasGenericSibling := false
+			for _, cfg := range configs {
+				if cfg.Discovery == nil && len(cfg.Instances) > 0 && (cfg.Name == "openmetrics" || cfg.Name == "prometheus") {
+					hasGenericSibling = true
+				}
+			}
+			if !hasGenericSibling {
+				return
+			}
+			for digest, cfg := range configs {
+				if cfg.Discovery != nil {
+					delete(configs, digest)
+				}
+			}
+		}
+		h := newMidFlightDiscoverySuppressionHarness(t, nil, filterTemplates)
+
+		// While the probe is in flight, a sibling openmetrics config for the
+		// same service arrives. Having AD identifiers makes this a template,
+		// so it triggers a real (but ultimately inconsequential)
+		// reconcileService for the service.
+		sibling := integration.Config{
+			Name:          "openmetrics",
+			ADIdentifiers: []string{"krakend"},
+			Instances:     []integration.Data{[]byte("openmetrics_endpoint: http://10.0.0.1:9091/metrics")},
+		}
+		changes, _ := h.cm.processNewConfig(sibling)
+		assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
+
+		h.releaseAndAssertSuppressed(t)
+	})
+
+	t.Run("static config arrives host-wide", func(t *testing.T) {
+		idx := listeners.NewStaticConfigIndex()
+		// Mirrors filterTemplatesDiscovery's static-index rule: drop every
+		// discovery template while a host-wide generic-integration static
+		// config is present in the shared index.
+		filterTemplates := func(configs map[string]integration.Config) {
+			if !idx.Has("openmetrics") && !idx.Has("prometheus") {
+				return
+			}
+			for digest, cfg := range configs {
+				if cfg.Discovery != nil {
+					delete(configs, digest)
+				}
+			}
+		}
+		h := newMidFlightDiscoverySuppressionHarness(t, idx, filterTemplates)
+
+		// A static openmetrics config arrives while the probe is in flight.
+		// It has no AD identifiers, so it's non-template and never touches
+		// reconcileService — only the shared index.
+		staticOpenmetrics := integration.Config{
+			Name:      "openmetrics",
+			Instances: []integration.Data{[]byte("openmetrics_endpoint: http://10.0.0.2:9091/metrics")},
+		}
+		changes, _ := h.cm.processNewConfig(staticOpenmetrics)
+		assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
+		assert.True(t, idx.Has("openmetrics"))
+
+		h.releaseAndAssertSuppressed(t)
+	})
+}
+
 // makeDiscoveryCM is a small constructor used by the lifecycle tests below.
 // It wires up a reconcilingConfigManager with a stub discoverer that returns
 // the supplied JSON for every call, starts the worker, and registers a
@@ -181,7 +544,7 @@ func makeDiscoveryCM(t *testing.T, payload string) (*reconcilingConfigManager, *
 	t.Helper()
 	mockResolver := MockSecretResolver{}
 	disco := newStubDiscoverer(func(_, _ string) (string, error) { return payload, nil })
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
 	return cm, disco
@@ -332,6 +695,7 @@ func TestConfigMgr_Lifecycle_EmptyDiscoveryResult(t *testing.T) {
 		cmServiceLookup{cm},
 		cm.onDiscoveryResult,
 		discoverer.Config{MaxAttempts: fastWorkerMaxAttempts, RetryDelay: 5 * time.Millisecond},
+		nil,
 	)
 	cm.discoveryWorker.Start()
 
@@ -396,7 +760,7 @@ func TestConfigMgr_Lifecycle_HostPortsPassedToDiscoverer(t *testing.T) {
 		capturedJSON.Store(serviceJSON)
 		return `[{"instances":[{"port":8080}]}]`, nil
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
 
@@ -449,7 +813,7 @@ func TestConfigMgr_Lifecycle_HostMultiNetworkBridge(t *testing.T) {
 		capturedJSON.Store(serviceJSON)
 		return `[{"instances":[{"port":8080}]}]`, nil
 	})
-	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil, disco, nil).(*reconcilingConfigManager)
 	cm.start()
 	t.Cleanup(cm.stop)
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package module
 
@@ -134,7 +134,7 @@ func newSymdbManager(
 	if cacheDir != "" {
 		cache, err := newPersistentUploadCache(cacheDir, cfg.testingKnobs.cacheOptions...)
 		if err != nil {
-			log.Errorf("Failed to create persistent upload cache dir %s: %v", cacheDir, err)
+			log.Errorf("Failed to initialize persistent upload cache at %s: %v", cacheDir, err)
 		} else {
 			m.persistentCache = cache
 		}

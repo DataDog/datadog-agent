@@ -12,10 +12,11 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
@@ -23,8 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -187,9 +187,12 @@ func httpSender(
 		// worker counts low.
 		queueCount = sender.DefaultQueuesCount
 		workersPerQueue = sender.DefaultWorkersPerQueue
-		minSenderConcurrency = numberOfPipelines
-		maxSenderConcurrency = numberOfPipelines * maxConcurrencyPerPipeline
-		if endpoints.BatchMaxConcurrentSend != pkgconfigsetup.DefaultBatchMaxConcurrentSend {
+		// RTT fairness is retired: run a fixed sender concurrency (min == max, so the worker
+		// pool never scales with latency) instead of dynamically scaling with it. Operators who
+		// need to control the connection count should set the endpoint's batch_max_concurrent_send.
+		minSenderConcurrency = numberOfPipelines * maxConcurrencyPerPipeline
+		maxSenderConcurrency = minSenderConcurrency
+		if endpoints.BatchMaxConcurrentSend != constants.DefaultBatchMaxConcurrentSend {
 			// If the BatchMaxConcurrentSend parameter is set, we use it to control the concurrency of the destination.
 			// Legacy behavior ran numberOfPipelines senders, each with a concurrency of BatchMaxConcurrentSend, so
 			// we mimic that behavior here.

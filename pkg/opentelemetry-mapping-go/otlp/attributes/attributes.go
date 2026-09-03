@@ -31,8 +31,10 @@ import (
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
-// customContainerTagPrefix defines the prefix for custom container tags.
-const customContainerTagPrefix = "datadog.container.tag."
+// CustomContainerTagPrefix defines the prefix for custom container tags.
+// Resource attributes with this prefix are promoted (with the prefix stripped)
+// into `_dd.tags.container` by the Datadog exporter / trace-agent.
+const CustomContainerTagPrefix = "datadog.container.tag."
 
 var (
 	// coreMapping defines the mapping between OpenTelemetry semantic conventions
@@ -44,6 +46,7 @@ var (
 		string(semconv1_27.ServiceNameKey):               "service",
 		string(semconv1_27.ServiceVersionKey):            "version",
 		string(semconv1_27.DeploymentEnvironmentNameKey): "env",
+		string(semconv1_27.ServiceNamespaceKey):          "service.namespace",
 		// Required for OTel traffic metrics on Datadog Fleet Automation.
 		string(semconv1_27.ServiceInstanceIDKey): "service.instance.id",
 	}
@@ -84,6 +87,7 @@ var (
 		string(semconv1_27.K8SCronJobNameKey):     "kube_cronjob",
 		string(semconv1_27.K8SNamespaceNameKey):   "kube_namespace",
 		string(semconv1_27.K8SPodNameKey):         "pod_name",
+		string(semconv1_27.K8SNodeNameKey):        "kube_node",
 	}
 
 	containerDDTags = (func() map[string]struct{} {
@@ -108,16 +112,19 @@ var (
 		"app.kubernetes.io/name":       "kube_app_name",
 		"app.kubernetes.io/instance":   "kube_app_instance",
 		"app.kubernetes.io/version":    "kube_app_version",
-		"app.kuberenetes.io/component": "kube_app_component",
+		"app.kubernetes.io/component":  "kube_app_component",
 		"app.kubernetes.io/part-of":    "kube_app_part_of",
 		"app.kubernetes.io/managed-by": "kube_app_managed_by",
 	}
 
-	// Kubernetes out of the box Datadog tags
+	// KubernetesDDTags lists Datadog-format keys recognized as container tags
+	// when present on a resource attribute. Used by both this package and the
+	// infra-attributes processor (to avoid double-prefixing keys that already
+	// get promoted to `_dd.tags.container` via their canonical name).
 	// https://docs.datadoghq.com/containers/kubernetes/tag/?tab=containerizedagent#out-of-the-box-tags
 	// https://github.com/DataDog/datadog-agent/blob/d33d042d6786e8b85f72bb627fbf06ad8a658031/comp/core/tagger/taggerimpl/collectors/workloadmeta_extract.go
 	// Note: if any OTel semantics happen to overlap with these tag names, they will also be added as Datadog tags.
-	kubernetesDDTags = map[string]struct{}{
+	KubernetesDDTags = map[string]struct{}{
 		"architecture":                {},
 		"availability-zone":           {},
 		"chronos_job":                 {},
@@ -245,7 +252,7 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 		}
 
 		// Kubernetes DD tags
-		if _, found := kubernetesDDTags[key]; found {
+		if _, found := KubernetesDDTags[key]; found {
 			tags = append(tags, fmt.Sprintf("%s:%s", key, value.Str()))
 		}
 		return true
@@ -292,7 +299,7 @@ func ContainerTagsFromResourceAttributes(attrs pcommon.Map) map[string]string {
 			ddtags[datadogKey] = value.Str()
 		}
 		// Custom (datadog.container.tag namespace)
-		if after, ok := strings.CutPrefix(key, customContainerTagPrefix); ok {
+		if after, ok := strings.CutPrefix(key, CustomContainerTagPrefix); ok {
 			customKey := after
 			if customKey != "" && value.Str() != "" {
 				// Do not replace if set via semantic conventions mappings.
@@ -351,9 +358,9 @@ func ConsumeContainerTagsFromResource(res pcommon.Resource) (map[string]string, 
 		}
 
 		// Custom (datadog.container.tag namespace)
-		if strings.HasPrefix(key, customContainerTagPrefix) {
+		if strings.HasPrefix(key, CustomContainerTagPrefix) {
 			tagSource = containerTagSourceCustom
-			mappedKey = strings.TrimPrefix(key, customContainerTagPrefix)
+			mappedKey = strings.TrimPrefix(key, CustomContainerTagPrefix)
 		}
 
 		// Pre-mapped Datadog-convention container tag

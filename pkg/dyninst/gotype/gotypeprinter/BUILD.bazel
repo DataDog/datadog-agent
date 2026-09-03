@@ -4,9 +4,17 @@ go_library(
     name = "gotypeprinter",
     srcs = ["printer.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gotype/gotypeprinter",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/gotype",
-        "@in_yaml_go_yaml_v3//:yaml",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/gotype",
+            "@in_yaml_go_yaml_v3//:yaml",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/gotype",
+            "@in_yaml_go_yaml_v3//:yaml",
+        ],
+        "//conditions:default": [],
+    }),
 )

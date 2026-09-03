@@ -31,6 +31,10 @@ func TestOTLPEnabled(t *testing.T) {
 
 	ctx := context.Background()
 	conf := configmock.New(t)
+	// Disable cloud provider metadata detection to avoid real HTTP calls to
+	// EC2 IMDS / GCP / Azure metadata endpoints, which each take up to the
+	// ec2_metadata_timeout (300ms default) to fail on non-cloud hosts.
+	conf.SetInTest("cloud_provider_metadata", []string{})
 
 	defer func(orig func(cfg model.Reader) bool) { otlpIsEnabled = orig }(otlpIsEnabled)
 
@@ -57,15 +61,15 @@ func TestGetLogsMeta(t *testing.T) {
 
 	status.SetCurrentTransport("")
 	meta := getLogsMeta(conf)
-	assert.Equal(t, &LogsMeta{Transport: "", AutoMultilineEnabled: false}, meta)
+	assert.Equal(t, &LogsMeta{Transport: "", AutoMultilineEnabled: true}, meta)
 
 	status.SetCurrentTransport(status.TransportTCP)
 	meta = getLogsMeta(conf)
-	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: false}, meta)
-
-	conf.SetInTest("logs_config.auto_multi_line_detection", true)
-	meta = getLogsMeta(conf)
 	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: true}, meta)
+
+	conf.SetInTest("logs_config.auto_multi_line_detection", false)
+	meta = getLogsMeta(conf)
+	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: false}, meta)
 }
 
 func TestGetInstallMethod(t *testing.T) {
@@ -93,6 +97,16 @@ func TestGetInstallMethod(t *testing.T) {
 	assert.Equal(t, "chef-15", installMethod.ToolVersion)
 	assert.Equal(t, "chef", *installMethod.Tool)
 	assert.Equal(t, "datadog-cookbook-4.2.1", *installMethod.InstallerVersion)
+}
+
+func TestIsFipsProxyEnabled(t *testing.T) {
+	conf := configmock.New(t)
+
+	conf.SetInTest("fips.enabled", false)
+	assert.False(t, isFipsProxyEnabled(conf))
+
+	conf.SetInTest("fips.enabled", true)
+	assert.Equal(t, !getFipsMode(), isFipsProxyEnabled(conf))
 }
 
 func TestGetProxyMeta(t *testing.T) {
@@ -123,6 +137,7 @@ func TestGetPayload(t *testing.T) {
 
 	ctx := context.Background()
 	conf := configmock.New(t)
+	conf.SetInTest("cloud_provider_metadata", []string{})
 
 	_, found := cache.Cache.Get(hostCacheKey)
 	assert.False(t, found)

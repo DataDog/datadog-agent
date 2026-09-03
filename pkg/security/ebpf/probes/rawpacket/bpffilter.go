@@ -37,6 +37,9 @@ const (
 	PolicyDrop
 )
 
+// MaxDropActionFilters is the maximum number of network drop action filters tracked in kernel.
+const MaxDropActionFilters = 256
+
 // ToTCAct converts a policy to a TCAct
 func (p Policy) ToTCAct() TCAct {
 	switch p {
@@ -54,16 +57,6 @@ func (p Policy) String() string {
 		return "drop"
 	default:
 		return "allow"
-	}
-}
-
-// Parse parses a string and sets the policy
-func (p *Policy) Parse(str string) {
-	switch str {
-	case "drop":
-		*p = PolicyDrop
-	default:
-		*p = PolicyAllow
 	}
 }
 

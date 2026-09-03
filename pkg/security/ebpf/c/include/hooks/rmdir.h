@@ -5,6 +5,7 @@
 #include "helpers/approvers.h"
 #include "helpers/events_predicates.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
@@ -28,6 +29,15 @@ HOOK_SYSCALL_ENTRY1(rmdir, const char *, filename) {
 
 HOOK_ENTRY("do_rmdir")
 int hook_do_rmdir(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
+    if (!syscall) {
+        return trace__sys_rmdir(ctx, ASYNC_SYSCALL, NULL);
+    }
+    return 0;
+}
+
+HOOK_ENTRY("filename_rmdir")
+int hook_filename_rmdir(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return trace__sys_rmdir(ctx, ASYNC_SYSCALL, NULL);
@@ -131,7 +141,7 @@ TAIL_CALL_FNC(dr_security_inode_rmdir_callback, ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
+int __attribute__((always_inline)) sys_rmdir_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall_with(rmdir_predicate);
     if (!syscall) {
         return 0;
@@ -146,31 +156,45 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
         monitor_discarded(EVENT_RMDIR);
     }
 
-    if (syscall->state != DISCARDED) {
-        struct rmdir_event_t event = {
-            .syscall.retval = retval,
-            .syscall_ctx.id = syscall->ctx_id,
-            .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
-                           (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
-            .file = syscall->rmdir.file,
-        };
-
-        struct proc_cache_t *entry = fill_process_context(&event.process);
-        fill_cgroup_context(entry, &event.cgroup);
-        fill_span_context(&event.span);
-
-        send_event(ctx, EVENT_RMDIR, event);
-    }
-
+    // expire_inode_discarders is hoisted above the event emission: the emission
+    // ends in a tail call (span_fill_tail_call), which never returns, so any work
+    // that must run regardless has to happen first.
     if (retval >= 0) {
         expire_inode_discarders(syscall->rmdir.file.path_key.mount_id, syscall->rmdir.file.path_key.ino);
+    }
+
+    if (syscall->state != DISCARDED) {
+        struct rmdir_event_t *event = SPAN_FILL_EVENT(struct rmdir_event_t, EVENT_RMDIR);
+        if (!event) {
+            return 0;
+        }
+        event->syscall.retval = retval;
+        event->syscall_ctx.id = syscall->ctx_id;
+        event->event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
+                             (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0);
+        event->file = syscall->rmdir.file;
+
+        struct proc_cache_t *entry = fill_process_context(&event->process);
+        fill_cgroup_context(entry, &event->cgroup);
+
+        span_fill_tail_call(ctx, prog_type);
     }
 
     return 0;
 }
 
+int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
+    return sys_rmdir_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
+}
+
 HOOK_EXIT("do_rmdir")
 int rethook_do_rmdir(ctx_t *ctx) {
+    int retval = CTX_PARMRET(ctx);
+    return sys_rmdir_ret(ctx, retval);
+}
+
+HOOK_EXIT("filename_rmdir")
+int rethook_filename_rmdir(ctx_t *ctx) {
     int retval = CTX_PARMRET(ctx);
     return sys_rmdir_ret(ctx, retval);
 }
@@ -181,7 +205,7 @@ HOOK_SYSCALL_EXIT(rmdir) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_rmdir_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_rmdir_ret(args, args->ret);
+    return sys_rmdir_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 #endif

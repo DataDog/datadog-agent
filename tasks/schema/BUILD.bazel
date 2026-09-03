@@ -14,12 +14,36 @@ py_binary(
 # Used by //pkg/config/schema to derive processed variants of the schema (e.g.
 # the "embedded" output, trimmed of build-time-only data before it is compressed
 # and embedded into the Go binary). What each output keeps or drops is decided in
-# process_schema.py; it never touches the YAML source files.
+# produce_byproduct.py; it never touches the YAML source files.
 py_binary(
-    name = "process_schema",
-    srcs = ["process_schema.py"],
+    name = "produce_byproduct",
+    srcs = [
+        "merge_schema.py",  # produce_byproduct imports resolve_schema to inline $refs
+        "produce_byproduct.py",
+    ],
+    main = "produce_byproduct.py",
     visibility = ["//pkg/config/schema:__pkg__"],
     deps = ["@py_dev_requirements//pyyaml"],
+)
+
+# Used by //pkg/config/setup:codegen_settings and
+# //pkg/config/setup/constants:codegen_constants to generate *_settings.go /
+# constants source files from the merged schema.  Mirrors what
+# `dda inv schema.codegen` does but writes to a caller-supplied output
+# directory instead of the source tree, so it can run as a Bazel action.
+py_binary(
+    name = "codegen_settings_main",
+    srcs = [
+        "codegen_init_settings.py",
+        "codegen_settings_main.py",
+        "merge_schema.py",
+    ],
+    main = "codegen_settings_main.py",
+    visibility = ["//pkg/config/setup:__subpackages__"],
+    deps = [
+        "//tasks/libs/types:version",
+        "@py_dev_requirements//pyyaml",
+    ],
 )
 
 # Used by //pkg/config/schema:template.bzl (schema_template_config) to

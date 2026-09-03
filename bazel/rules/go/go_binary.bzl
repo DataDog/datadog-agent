@@ -11,6 +11,9 @@ Version string strategy (mirrors package_naming.bzl):
   AgentVersionURLSafe uses this directly; AgentVersion converts it back to standard
   SemVer form with '+' via _url_safe_to_standard().
 - Locally: fall back to release_json current_milestone + "-localbuild" for both.
+- The agent_version parameter, when passed, overrides both AgentVersion and AgentVersionURLSafe
+  so the two stay in sync. Used by callers that compute their own version outside of
+  PACKAGE_VERSION, e.g. host-profiler's nightly/dev-branch build.
 
 Run-path strategy, selected via //:linux_and_release and @platforms//os:linux:
 - Linux + release (//:linux_and_release): /opt/datadog-packages/run
@@ -30,6 +33,15 @@ load("@agent_volatile//:env_vars.bzl", "env_vars")
 load("@dd_release_json//:release_json.bzl", "release_json")
 load("@rules_go//go:def.bzl", "go_binary")
 load("//tasks:agent_payload_version.bzl", "AGENT_PAYLOAD_VERSION")
+load(
+    "//tasks:build_tags.bzl",
+    "COMMON_TAGS",
+    "DARWIN_EXCLUDED_TAGS",
+    "FIPS_TAGS",
+    "LINUX_ONLY_TAGS",
+    "WINDOWS_EXCLUDED_TAGS",
+    "WINDOWS_INCLUDED_TAGS",
+)
 
 _REPO = "github.com/DataDog/datadog-agent"
 _VERSION_PKG = _REPO + "/pkg/version"
@@ -55,6 +67,23 @@ def _url_safe_to_standard(url_safe):
         return url_safe
     return url_safe[:idx] + "+git." + url_safe[idx + 5:]
 
+def _standard_to_url_safe(standard):
+    """Convert a standard SemVer agent version string to the URL-safe form.
+
+    Mirrors _url_safe_to_standard(): only the SemVer '+' build-metadata
+    separator is replaced with '.', matching the convention used by
+    `dda inv agent.version --url-safe`. No other character is touched.
+
+    Examples:
+      "7.81.0-devel+git.635.e3326d4.pipeline.1" -> "7.81.0-devel.git.635.e3326d4.pipeline.1"
+      "7.81.0-rc.1+git.635.e3326d4"             -> "7.81.0-rc.1.git.635.e3326d4"
+      "7.81.0"                                   -> "7.81.0"  (clean release, no change)
+    """
+    idx = standard.find("+git.")
+    if idx < 0:
+        return standard
+    return standard[:idx] + ".git." + standard[idx + 5:]
+
 def _make_agent_version_url_safe():
     """Return the URL-safe agent version string.
 
@@ -66,44 +95,66 @@ def _make_agent_version_url_safe():
         return env_vars.PACKAGE_VERSION
     return release_json.get("current_milestone") + "-localbuild"
 
-def dd_agent_go_binary(name, **kwargs):
+def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = None, agent_version = None, **kwargs):
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
     Accepts all go_binary attributes.  x_defs and gc_linkopts are merged with
-    the version/run-path definitions; caller-supplied values take precedence
-    over the defaults provided here.
+    the version/run-path/strip definitions; caller-supplied values take
+    precedence over the defaults provided here.
+
+    Defaults applied automatically (override by passing the attribute explicitly):
+      cgo: True on Windows (required to link .syso resource files), False elsewhere.
 
     Args:
       name: target name
+      gc_linkopts: Base set of link opts. rpath and stripping options are
+                   automatically added to these.
+                   On linux: add RPATH
+                   On release builds: add -s -w (strip symbol table and DWARF)
+      gotags: Base set of gotags for this binary. COMMON tags are added, and
+              per-platform adjustments are made.
+      exact_gotags: Like gotags, but if this is specified, no other tag sets are added.
+      agent_version: overrides pkg/version.AgentVersion and AgentVersionURLSafe (URL-safe
+                     encoded) instead of deriving them from PACKAGE_VERSION/release.json.
       **kwargs: arguments to be forwarded to go_binary
     """
-    agent_version_url_safe = _make_agent_version_url_safe()
-
     # TODO: When --stamp support is in place, also inject:
     #   _VERSION_PKG + ".Commit": "{STABLE_GIT_COMMIT}",
     # The value must come from a stamp file produced by a git_info repository
     # rule (planned: bazel/repo/git_info.bzl).
 
-    existing_x_defs = kwargs.pop("x_defs", {})
-    existing_linkopts = kwargs.pop("gc_linkopts", [])
-
     # Build two complete x_defs dicts — one per //:is_release branch.
     # string_dict attributes do not support per-value select(); the select()
     # must wrap the whole dict.
+    if agent_version:
+        agent_version_url_safe = _standard_to_url_safe(agent_version)
+    else:
+        agent_version_url_safe = _make_agent_version_url_safe()
+        agent_version = _url_safe_to_standard(agent_version_url_safe)
     release_x_defs = {
         _VERSION_PKG + ".AgentPayloadVersion": AGENT_PAYLOAD_VERSION,
-        _VERSION_PKG + ".AgentVersion": _url_safe_to_standard(agent_version_url_safe),
+        _VERSION_PKG + ".AgentVersion": agent_version,
         _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
         _SETUP_PKG + ".defaultRunPath": _RUN_PATH_RELEASE,
     }
     dev_x_defs = {
         _VERSION_PKG + ".AgentPayloadVersion": AGENT_PAYLOAD_VERSION,
-        _VERSION_PKG + ".AgentVersion": _url_safe_to_standard(agent_version_url_safe),
+        _VERSION_PKG + ".AgentVersion": agent_version,
         _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
         _SETUP_PKG + ".defaultRunPath": _RUN_PATH_DEV,
     }
+    existing_x_defs = kwargs.pop("x_defs", {})
     release_x_defs.update(existing_x_defs)
     dev_x_defs.update(existing_x_defs)
+
+    # cgo must be enabled on Windows to link the .syso resource file produced
+    # by win_resource().  Callers that need additional conditions (e.g. FIPS)
+    # should pass an explicit cgo = select({...}) which replaces this default.
+    if "cgo" not in kwargs:
+        kwargs["cgo"] = select({
+            "@platforms//os:windows": True,
+            "//conditions:default": False,
+        })
 
     # "-r <path>" embeds the ELF RPATH so shared libraries under the run path
     # are found at runtime.  This flag is Linux-specific; non-Linux targets get
@@ -117,9 +168,29 @@ def dd_agent_go_binary(name, **kwargs):
         "//conditions:default": [],
     })
 
+    # Strip the symbol table and DWARF debug info in release builds to reduce
+    # binary size.  Dev builds keep symbols for debugger and profiler use.
+    strip_linkopts = select({
+        "//:is_release": ["-s", "-w"],
+        "//conditions:default": [],
+    })
+
+    if exact_gotags:
+        # this might be select()'ed by platform. It is up to the user to sort it.
+        kwargs["gotags"] = exact_gotags
+    else:
+        gotags = gotags or set()
+        kwargs["gotags"] = select({
+            "@platforms//os:macos": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
+            "//packages/agent:linux_fips": sorted(COMMON_TAGS | gotags | FIPS_TAGS),
+            "//packages/agent:windows_x86_64_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS | WINDOWS_INCLUDED_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//:windows_x86_64": sorted((COMMON_TAGS | gotags | WINDOWS_INCLUDED_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//conditions:default": sorted(COMMON_TAGS | gotags),
+        })
+
     go_binary(
         name = name,
-        gc_linkopts = existing_linkopts + run_path_linkopts,
+        gc_linkopts = (gc_linkopts or []) + run_path_linkopts + strip_linkopts,
         x_defs = select({
             "//:is_release": release_x_defs,
             "//conditions:default": dev_x_defs,

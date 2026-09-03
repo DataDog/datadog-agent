@@ -10,6 +10,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,6 +52,7 @@ const (
 )
 
 var (
+	defaultsOnce       sync.Once
 	defaultAggregates  = []string(nil)
 	defaultPercentiles = []int(nil)
 )
@@ -80,15 +82,13 @@ func ParsePercentiles(percentiles []string) []int {
 // NewHistogram returns a newly initialized histogram
 func NewHistogram(interval int64, config pkgconfigmodel.Config) *Histogram {
 	// we initialize default value on the first histogram creation
-	if defaultAggregates == nil {
+	defaultsOnce.Do(func() {
 		defaultAggregates = config.GetStringSlice("histogram_aggregates")
-	}
 
-	if defaultPercentiles == nil {
-		c := config.GetStringSlice("histogram_percentiles")
-		defaultPercentiles = ParsePercentiles(c)
-		sort.Ints(defaultPercentiles)
-	}
+		percentiles := ParsePercentiles(config.GetStringSlice("histogram_percentiles"))
+		sort.Ints(percentiles)
+		defaultPercentiles = percentiles
+	})
 
 	return &Histogram{
 		interval:    interval,
@@ -195,7 +195,6 @@ func (h *Histogram) sampleSum() float64 {
 	return (s + (c + cNeg + cPos)) * h.sharedWeight
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (h *Histogram) addSample(sample *MetricSample, _ float64) {
 	rate := sample.SampleRate
 	if rate == 0 {

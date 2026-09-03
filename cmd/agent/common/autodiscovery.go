@@ -24,7 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -60,19 +62,19 @@ func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cf
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig(cfg)
 
-	var extraEnvProviders []pkgconfigsetup.ConfigurationProviders
+	var extraEnvProviders []constants.ConfigurationProviders
 	var extraEnvListeners []pkgconfigsetup.Listeners
-	if pkgconfigenv.IsAutoconfigEnabled(cfg) && !pkgconfigsetup.IsCLCRunner(cfg) {
+	if pkgconfigenv.IsAutoconfigEnabled(cfg) && !helper.IsCLCRunner(cfg) {
 		extraEnvProviders, extraEnvListeners = confad.DiscoverComponentsFromEnv(cfg)
 	}
 
 	// Register additional configuration providers
-	var configProviders []pkgconfigsetup.ConfigurationProviders
-	var uniqueConfigProviders map[string]pkgconfigsetup.ConfigurationProviders
+	var configProviders []constants.ConfigurationProviders
+	var uniqueConfigProviders map[string]constants.ConfigurationProviders
 	err := structure.UnmarshalKey(cfg, "config_providers", &configProviders)
 
 	if err == nil {
-		uniqueConfigProviders = make(map[string]pkgconfigsetup.ConfigurationProviders, len(configProviders)+len(extraEnvProviders)+len(configProviders))
+		uniqueConfigProviders = make(map[string]constants.ConfigurationProviders, len(configProviders)+len(extraEnvProviders)+len(configProviders))
 		for _, provider := range configProviders {
 			uniqueConfigProviders[provider.Name] = provider
 		}
@@ -80,7 +82,7 @@ func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cf
 		// Add extra config providers
 		for _, name := range cfg.GetStringSlice("extra_config_providers") {
 			if _, found := uniqueConfigProviders[name]; !found {
-				uniqueConfigProviders[name] = pkgconfigsetup.ConfigurationProviders{Name: name, Polling: true}
+				uniqueConfigProviders[name] = constants.ConfigurationProviders{Name: name, Polling: true}
 			} else {
 				log.Infof("Duplicate AD provider from extra_config_providers discarded as already present in config_providers: %s", name)
 			}
@@ -95,7 +97,7 @@ func setupAutoDiscovery(confSearchPaths []string, ac autodiscovery.Component, cf
 		}
 
 		if enableContainerProvider {
-			uniqueConfigProviders[names.KubeContainer] = pkgconfigsetup.ConfigurationProviders{Name: names.KubeContainer}
+			uniqueConfigProviders[names.KubeContainer] = constants.ConfigurationProviders{Name: names.KubeContainer}
 		}
 
 		for _, provider := range extraConfigProviders {
@@ -218,7 +220,8 @@ func WaitForConfigsFromAD(ctx context.Context,
 	checkNames []string,
 	discoveryMinInstances int,
 	instanceFilter string,
-	ac autodiscovery.Component) (configs []integration.Config, lastError error) {
+	ac autodiscovery.Component,
+) (configs []integration.Config, lastError error) {
 	return waitForConfigsFromAD(ctx, false, checkNames, discoveryMinInstances, instanceFilter, ac)
 }
 
@@ -246,7 +249,8 @@ func waitForConfigsFromAD(ctx context.Context,
 	checkNames []string,
 	discoveryMinInstances int,
 	instanceFilter string,
-	ac autodiscovery.Component) (configs []integration.Config, returnErr error) {
+	ac autodiscovery.Component,
+) (configs []integration.Config, returnErr error) {
 	configChan := make(chan integration.Config)
 
 	// signal to the scheduler when we are no longer waiting, so we do not continue

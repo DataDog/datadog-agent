@@ -19,7 +19,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
@@ -50,6 +50,12 @@ type TimeSampler struct {
 	// observerHandle is set when the observer component is wired in.
 	// Nil when the feature is disabled or the observer is not included in the binary.
 	observerHandle observer.Handle
+
+	// dogStatsDLookback is set when metric lookback is wired in. Nil when the
+	// feature is disabled, so default DogStatsD hot-path overhead is zero.
+	dogStatsDLookback DogStatsDLookback
+
+	finalDogStatsDSerieObservers []FinalDogStatsDSerieObserver
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
@@ -101,7 +107,9 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 
 	switch metricSample.Mtype {
 	case metrics.DistributionType:
-		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value, metricSample.SampleRate)
+		if !s.sketchMap.insert(bucketStart, contextKey, metricSample.Value, metricSample.SampleRate) {
+			return
+		}
 	default:
 		// If it's a new bucket, initialize it
 		bucketMetrics, ok := s.metricsByTimestamp[bucketStart]
@@ -112,8 +120,33 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 		// Add sample to bucket
 		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil, pkgconfigsetup.Datadog()); err != nil {
 			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
+			return
 		}
 	}
+
+	s.observeDogStatsDLookback(metricSample, timestamp, contextKey)
+}
+
+func (s *TimeSampler) observeDogStatsDLookback(metricSample *metrics.MetricSample, timestamp float64, contextKey ckey.ContextKey) {
+	lookback := s.dogStatsDLookback
+	if lookback == nil || !lookback.WantsDogStatsDMetric(metricSample.Name) {
+		return
+	}
+
+	context, ok := s.contextResolver.get(contextKey)
+	if !ok {
+		log.Errorf("TimeSampler #%d Ignoring metric lookback sample on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, contextKey)
+		return
+	}
+
+	lookback.ObserveDogStatsDSample(metricSample, timestamp, DogStatsDLookbackContext{
+		ContextKey: contextKey,
+		Name:       context.Name,
+		Host:       context.Host,
+		Tags:       context.Tags().UnsafeToReadOnlySliceString(),
+		NoIndex:    context.noIndex,
+		Source:     context.source,
+	})
 }
 
 func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
@@ -123,19 +156,21 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	}
 
 	ss := &metrics.SketchSeries{
-		Name:     ctx.Name,
-		Tags:     ctx.Tags(),
-		Host:     ctx.Host,
-		Interval: s.interval,
-		Points:   points,
-		Source:   ctx.source,
-		NoIndex:  ctx.noIndex,
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name:     ctx.Name,
+			Tags:     ctx.Tags(),
+			Host:     ctx.Host,
+			Interval: s.interval,
+			Source:   ctx.source,
+			NoIndex:  ctx.noIndex,
+		},
+		Points: points,
 	}
 
 	return ss
 }
 
-func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, filterList *utilstrings.Matcher, forceFlushAll bool) {
+func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, filterList *metricname.Matcher, forceFlushAll bool) {
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
 
@@ -175,7 +210,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	rawSeries []*metrics.Serie,
 	serieSink metrics.SerieSink,
 	serieBySignature map[SerieSignature]*metrics.Serie,
-	filterList *utilstrings.Matcher,
+	filterList *metricname.Matcher,
 ) {
 	// clear the map. Reuse serieBySignature
 	for k := range serieBySignature {
@@ -214,7 +249,14 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 			tlmDogstatsdFilteredMetrics.Inc()
 			continue
 		}
+		s.observeFinalDogStatsDSerie(serie)
 		serieSink.Append(serie)
+	}
+}
+
+func (s *TimeSampler) observeFinalDogStatsDSerie(serie *metrics.Serie) {
+	for _, observer := range s.finalDogStatsDSerieObservers {
+		observer.ObserveFinalDogStatsDSerie(serie)
 	}
 }
 
@@ -242,12 +284,15 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 	}
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, filterList *utilstrings.Matcher, forceFlushAll bool) {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, filterList *metricname.Matcher, forceFlushAll bool) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
 	s.flushSeries(cutoffTime, series, filterList, forceFlushAll)
 	s.flushSketches(cutoffTime, sketches, forceFlushAll)
+	if s.dogStatsDLookback != nil {
+		s.dogStatsDLookback.FlushDogStatsDBuckets(timestamp, forceFlushAll)
+	}
 	// expiring contexts
 	s.contextResolver.expireContexts(int64(timestamp))
 	s.lastCutOffTime = cutoffTime

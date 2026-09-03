@@ -41,8 +41,9 @@ func TestDump(t *testing.T) {
 
 	dpai := createFakePodAutoscaler(testTime)
 
-	f.store.Set("default/dpa-0", dpai.Build(), "")
-	_, found := f.store.Get("default/dpa-0")
+	item, _ := f.store.Get("default/dpa-0")
+	item.Upsert(dpai.Build(), "")
+	_, found := f.store.Peek("default/dpa-0")
 	assert.True(t, found)
 
 	dump := Dump()

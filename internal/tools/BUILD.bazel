@@ -1,4 +1,65 @@
-# Tools-only module (//go:build tools tracker for `go install` dependencies).
-# No Bazel targets are generated; the empty BUILD.bazel keeps bazelify_go_work
-# happy without compiling anything.
-# gazelle:ignore
+load("@bazel_lib//lib:transitions.bzl", "platform_transition_filegroup")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("//bazel/rules/go_shim:defs.bzl", "go_shim")
+
+go_shim(
+    name = "golangci-lint",
+    tool = "@com_github_golangci_golangci_lint_v2//cmd/golangci-lint",
+)
+
+go_shim(
+    name = "gotestsum",
+    tool = "@tools_gotest_gotestsum//:gotestsum",
+)
+
+pkg_files(
+    name = "gotestsum_exe",
+    srcs = ["@tools_gotest_gotestsum//:gotestsum"],
+    attributes = pkg_attributes(mode = "0755"),
+)
+
+pkg_install(
+    name = "install_gotestsum",
+    srcs = [":gotestsum_exe"],
+)
+
+platform_transition_filegroup(
+    name = "gotestsum_linux_arm64",
+    srcs = ["@tools_gotest_gotestsum//:gotestsum"],
+    tags = ["manual"],
+    target_platform = "//bazel/platforms:linux_arm64",
+)
+
+pkg_files(
+    name = "gotestsum_linux_arm64_exe",
+    srcs = [":gotestsum_linux_arm64"],
+    attributes = pkg_attributes(mode = "0755"),
+    tags = ["manual"],
+)
+
+pkg_install(
+    name = "install_gotestsum_linux_arm64",
+    srcs = [":gotestsum_linux_arm64_exe"],
+    tags = ["manual"],
+)
+
+platform_transition_filegroup(
+    name = "gotestsum_linux_x86_64",
+    srcs = ["@tools_gotest_gotestsum//:gotestsum"],
+    tags = ["manual"],
+    target_platform = "//bazel/platforms:linux_x86_64",
+)
+
+pkg_files(
+    name = "gotestsum_linux_x86_64_exe",
+    srcs = [":gotestsum_linux_x86_64"],
+    attributes = pkg_attributes(mode = "0755"),
+    tags = ["manual"],
+)
+
+pkg_install(
+    name = "install_gotestsum_linux_x86_64",
+    srcs = [":gotestsum_linux_x86_64_exe"],
+    tags = ["manual"],
+)

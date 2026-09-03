@@ -7,7 +7,6 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -15,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	osexec "os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -27,15 +25,18 @@ import (
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/procmgr/coat"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -101,6 +102,8 @@ type daemonImpl struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 
+	procmgrCollector procmgrSnapshotCollector
+
 	secretsPubKey, secretsPrivKey *[32]byte
 }
 
@@ -153,6 +156,9 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		IsCentos6:            env.DetectCentos6(),
 		IsFromDaemon:         true,
 		ConfigID:             configID,
+		// The daemon builds its env by hand rather than via env.FromEnv, so mirror
+		// the same FIPS detection: FIPS build flavor or explicit DD_FIPS_MODE=true.
+		FIPSMode: pkgfips.BuiltForFIPS() || strings.ToLower(os.Getenv("DD_FIPS_MODE")) == "true",
 	}
 	installer := newInstaller(installerBin)
 	refreshInterval := config.GetDuration("installer.refresh_interval")
@@ -163,7 +169,9 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		return nil, fmt.Errorf("could not generate box key: %w", err)
 	}
 
-	return newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval, secretsPubKey, secretsPrivKey), nil
+	d := newDaemon(rc, installer, env, taskDB, refreshInterval, gcInterval, secretsPubKey, secretsPrivKey)
+	d.procmgrCollector = coat.NewCLICollector()
+	return d, nil
 }
 
 func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration, secretsPubKey, secretsPrivKey *[32]byte) *daemonImpl {
@@ -223,37 +231,13 @@ func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err err
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	// Host is instrumented if the ld.so.preload file contains the apm injector
-	ldPreloadContent, err := os.ReadFile("/etc/ld.so.preload")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return status, fmt.Errorf("could not read /etc/ld.so.preload: %w", err)
+	ssiStatus, err := ssi.GetInstrumentationStatus()
+	if err != nil {
+		return status, err
 	}
-	if bytes.Contains(ldPreloadContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
-		status.HostInstrumented = true
-	}
-
-	// Docker is installed if the docker binary is in the PATH
-	_, err = osexec.LookPath("docker")
-	if err != nil && errors.Is(err, osexec.ErrNotFound) {
-		return status, nil
-	} else if err != nil {
-		return status, fmt.Errorf("could not check if docker is installed: %w", err)
-	}
-	status.DockerInstalled = true
-
-	// Docker is instrumented if there is the injector runtime in its configuration
-	// We're not retrieving the default runtime from the docker daemon as we are not
-	// root
-	dockerConfigContent, err := os.ReadFile("/etc/docker/daemon.json")
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return status, fmt.Errorf("could not read /etc/docker/daemon.json: %w", err)
-	} else if errors.Is(err, os.ErrNotExist) {
-		return status, nil
-	}
-	if bytes.Contains(dockerConfigContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
-		status.DockerInstrumented = true
-	}
-
+	status.HostInstrumented = ssiStatus.HostInstrumented
+	status.DockerInstalled = ssiStatus.DockerInstalled
+	status.DockerInstrumented = ssiStatus.DockerInstrumented
 	return status, nil
 }
 
@@ -832,6 +816,10 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	runningConfigVersions := map[string]string{
 		"datadog-agent": d.env.ConfigID,
 	}
+	var ddotProcessState string
+	if _, ok := configAndPackageStates.States["datadog-agent"]; ok {
+		ddotProcessState = d.ddotProcessState(ctx)
+	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.States {
 		p := &pbgo.PackageState{
@@ -843,6 +831,11 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			RunningVersion:          runningVersions[pkg],
 			RunningConfigVersion:    runningConfigVersions[pkg],
 			HeartbeatTimestamp:      uint64(time.Now().Unix()),
+		}
+		if pkg == "datadog-agent" {
+			p.ProcessStates = map[string]string{
+				coat.ServiceIDDDOT: ddotProcessState,
+			}
 		}
 
 		requestState, ok := tasksState[pkg]

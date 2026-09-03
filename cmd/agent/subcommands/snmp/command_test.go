@@ -7,6 +7,7 @@ package snmp
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,11 +37,28 @@ func TestScanCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"snmp", "scan", "1.2.3.4", "-v", "3", "-r", "10"},
 		scanDevice,
-		func(cliParams *snmpparse.SNMPConfig, args argsType) {
+		func(cliParams *snmpparse.SNMPConfig, args argsType, scanOpts *scanFlags) {
 			require.Equal(t, argsType{"1.2.3.4"}, args)
 			require.Equal(t, "3", cliParams.Version)
 			require.Equal(t, 10, cliParams.Retries)
 			require.True(t, cliParams.UseUnconnectedUDPSocket)
+			// scan tuning flags default to GetBulk; batch size 0 means the scan
+			// falls back to its configured default.
+			require.True(t, scanOpts.useGetBulk)
+			require.Equal(t, uint32(0), scanOpts.bulkBatchSize)
+		})
+}
+
+func TestScanCommandTuningFlags(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"snmp", "scan", "1.2.3.4", "--use-getbulk=false", "--bulk-batch-size", "7", "--flush-every-n-oids", "50", "--flush-interval", "30s"},
+		scanDevice,
+		func(_ *snmpparse.SNMPConfig, _ argsType, scanOpts *scanFlags) {
+			require.False(t, scanOpts.useGetBulk)
+			require.Equal(t, uint32(7), scanOpts.bulkBatchSize)
+			require.Equal(t, 50, scanOpts.flushEveryNOIDs)
+			require.Equal(t, 30*time.Second, scanOpts.flushInterval)
 		})
 }
 

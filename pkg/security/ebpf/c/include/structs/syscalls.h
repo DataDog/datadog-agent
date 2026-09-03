@@ -38,6 +38,7 @@ struct syscall_cache_t {
     struct dentry_resolver_input_t resolver;
     s64 retval;
     enum TAIL_CALL_PROG_TYPE prog_type;
+    u32 sample_cookie;
 
     union {
         struct {
@@ -118,6 +119,7 @@ struct syscall_cache_t {
             int clone_mnt_ctr;
             int source;
             u64 ns_inum;
+            u64 unshare_flags;
         } mount;
 
         struct {
@@ -147,6 +149,7 @@ struct syscall_cache_t {
             struct args_envs_t envs;
             struct args_envs_parsing_context_t args_envs_ctx;
             struct span_context_t span_context;
+            struct go_labels_context_t go_labels;
             struct linux_binprm_t linux_binprm;
             u32 is_through_symlink;
         } exec;
@@ -224,6 +227,7 @@ struct syscall_cache_t {
             u32 file_found;
             u32 pipe_entry_flag;
             u32 pipe_exit_flag;
+            u64 pid_tgid;
         } splice;
 
         struct {
@@ -240,6 +244,7 @@ struct syscall_cache_t {
             u16 port;
             u16 protocol;
             u64 pid_tgid;
+            struct sock *sk;
         } connect;
 
          struct {
@@ -252,6 +257,7 @@ struct syscall_cache_t {
             u16 domain;
             u16 type;
             u16 protocol;
+            u64 pid_tgid;
         } socket;
 
         struct {

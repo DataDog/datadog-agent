@@ -6,8 +6,12 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
+
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -15,6 +19,10 @@ import (
 
 const (
 	cacheBucketURL = "s3://agent-e2e-s3-bucket"
+
+	// awsS3CopyRetries accounts for a flaky AWS network on the test host.
+	awsS3CopyRetries = 3
+	awsRetryInterval = 5 * time.Second
 )
 
 type unimplementedHostCache struct{}
@@ -27,7 +35,7 @@ func hostArtifactsClientFactory(sshExecutor *sshExecutor, osFlavor oscomp.Flavor
 	switch cloudProvider {
 	case components.CloudProviderAWS:
 		switch osFlavor {
-		case oscomp.Debian, oscomp.Ubuntu, oscomp.AmazonLinux, oscomp.CentOS, oscomp.RedHat, oscomp.RockyLinux, oscomp.Fedora, oscomp.Suse:
+		case oscomp.Debian, oscomp.Ubuntu, oscomp.AmazonLinux, oscomp.CentOS, oscomp.RedHat, oscomp.RockyLinux, oscomp.Fedora, oscomp.Suse, oscomp.AlmaLinux:
 			return &hostArtifactsClient{
 				cli: &unixAWSCLI{sshExecutor: sshExecutor},
 			}
@@ -55,25 +63,11 @@ type windowsAWSCLI struct {
 	sshExecutor *sshExecutor
 }
 
-// ensureInstalled installs AWS CLI v2 if it isn't already present on the host.
-//
-// TEMPORARY: Linux e2e AMIs have AWS CLI v2 pre-baked, but the Windows Server
-// AMIs we use have not yet been re-baked with it. Once ami-builder ships
-// Windows e2e AMI variants with AWS CLI pre-installed, delete this method and
-// the call from download() below. Tracked in ACIX-1305.
-func (c *windowsAWSCLI) ensureInstalled() error {
-	if _, err := c.sshExecutor.Execute("& \"c:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" --version"); err == nil {
-		return nil
-	}
-	_, err := c.sshExecutor.Execute("Start-Process msiexec.exe -Wait -ArgumentList \"/i https://awscli.amazonaws.com/AWSCLIV2.msi /qn /norestart /L*V ./awscli-install.log\" ")
-	return err
-}
-
 func (c *windowsAWSCLI) download(path string, destPath string) error {
-	if err := c.ensureInstalled(); err != nil {
-		return err
-	}
-	_, err := c.sshExecutor.Execute(fmt.Sprintf("& \"c:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" s3 cp \"%s\" \"%s\"", path, destPath))
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
+		_, err := c.sshExecutor.Execute(fmt.Sprintf("& \"c:\\Program Files\\Amazon\\AWSCLIV2\\aws.exe\" s3 cp \"%s\" \"%s\"", path, destPath))
+		return nil, err
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(awsRetryInterval)), backoff.WithMaxTries(awsS3CopyRetries))
 	return err
 }
 

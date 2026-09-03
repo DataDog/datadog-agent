@@ -102,6 +102,10 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 
 		for _, pod := range linuxPods.Items {
 			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Pod %s:\n", pod.Name))
+			if podRejectsExec(pod) {
+				diagnoseOutput = append(diagnoseOutput, gkeAutopilotNoFlareMessage)
+				continue
+			}
 			flarePath, err := e.generateAndDownloadAgentFlare("agent", pod, "agent", outputDir)
 			if err != nil {
 				diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to generate and download agent flare: %s\n", err.Error()))
@@ -146,6 +150,10 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 
 		for _, pod := range cluserAgentPods.Items {
 			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Pod %s:\n", pod.Name))
+			if podRejectsExec(pod) {
+				diagnoseOutput = append(diagnoseOutput, gkeAutopilotNoFlareMessage)
+				continue
+			}
 			flarePath, err := e.generateAndDownloadAgentFlare("datadog-cluster-agent", pod, "cluster-agent", outputDir)
 			if err != nil {
 				diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to generate and download cluster agent flare: %s\n", err.Error()))
@@ -156,6 +164,20 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 	}
 
 	return strings.Join(diagnoseOutput, "\n"), nil
+}
+
+// gkeAutopilotNoConnectAnnotation is set by GKE Autopilot on allowlisted Datadog pods. When
+// present, GKE Warden denies exec/connect to the pod, so the flare command (run via PodExec)
+// cannot succeed.
+const gkeAutopilotNoConnectAnnotation = "autopilot.gke.io/no-connect"
+
+// gkeAutopilotNoFlareMessage replaces the (always-failing) flare error for such pods.
+const gkeAutopilotNoFlareMessage = "Skipping flare: GKE Autopilot blocks exec into this pod (" + gkeAutopilotNoConnectAnnotation + "=true)\n"
+
+// podRejectsExec reports whether GKE Autopilot blocks exec/connect to the pod, which makes
+// flare generation impossible.
+func podRejectsExec(pod v1.Pod) bool {
+	return pod.Annotations[gkeAutopilotNoConnectAnnotation] == "true"
 }
 
 func (e *Kubernetes) generateAndDownloadAgentFlare(agentBinary string, pod v1.Pod, container string, outputDir string) (string, error) {

@@ -31,31 +31,53 @@ char *as_string(PyObject *object)
         return NULL;
     }
 
-    char *retval = NULL;
-
-    PyObject *temp_bytes = NULL;
-
     if (PyBytes_Check(object)) {
-        // We already have an encoded string, we suppose it has the correct encoding (UTF-8)
-        temp_bytes = object;
-        Py_INCREF(temp_bytes);
+        // Already encoded; we assume the correct encoding (UTF-8). PyBytes_AS_STRING borrows the
+        // internal buffer, which stays valid while the caller holds a reference to `object`.
+        return strdupe(PyBytes_AS_STRING(object));
     } else if (PyUnicode_Check(object)) {
-        // Encode the Unicode string that was given
-        temp_bytes = PyUnicode_AsEncodedString(object, "UTF-8", "strict");
-        if (temp_bytes == NULL) {
-            // PyUnicode_AsEncodedString might raise an error if the codec raised an
-            // exception
+        // PyUnicode_AsUTF8 returns a borrowed, NUL-terminated UTF-8 buffer cached on the unicode
+        // object. It uses strict error handling, so strings that cannot be encoded as UTF-8
+        // (e.g. lone surrogates) return NULL.
+        const char *utf8 = PyUnicode_AsUTF8(object);
+        if (utf8 == NULL) {
             PyErr_Clear();
             return NULL;
         }
-    } else {
+        return strdupe(utf8);
+    }
+
+    return NULL;
+}
+
+/**
+ * Like as_string, but unencodable Unicode (e.g. lone surrogates) is escaped instead of
+ * returning NULL. Intended for diagnostic paths such as exception formatting, where a
+ * missing conversion must not crash the Agent.
+ *
+ * The returned pointer is allocated from the heap and must be deallocated by the caller.
+ */
+char *as_string_lossy(PyObject *object)
+{
+    if (object == NULL) {
         return NULL;
     }
 
-    retval = strdupe(PyBytes_AS_STRING(temp_bytes));
-    Py_XDECREF(temp_bytes);
+    if (!PyUnicode_Check(object)) {
+        return as_string(object);
+    }
 
-    return retval;
+    // backslashreplace turns non-UTF-8 code points into \\uXXXX / \\UXXXXXXXX so this
+    // only fails on allocation errors, not on lone surrogates.
+    PyObject *utf8 = PyUnicode_AsEncodedString(object, "utf-8", "backslashreplace");
+    if (utf8 == NULL) {
+        PyErr_Clear();
+        return NULL;
+    }
+
+    char *ret = strdupe(PyBytes_AS_STRING(utf8));
+    Py_DECREF(utf8);
+    return ret;
 }
 
 int init_stringutils(void) {

@@ -9,7 +9,7 @@
 // /health-platform/issues HTTP endpoint.
 package store
 
-// team: agent-health
+// team: fleet-remediation
 
 import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -62,4 +62,11 @@ type Component interface {
 	// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
 	// with the given IssueName (e.g. "Docker File Tailing Disabled").
 	GetActiveIssueIDsByIssueName(issueName string) []string
+
+	// IssueDiscriminator returns the identifier issue ids should be scoped by:
+	// this agent's Kubernetes DaemonSet UID when resolvable, so that per-host
+	// issues caused by the same cluster-distributed template collapse into one
+	// backend issue, or hostID as a fallback for non-Kubernetes agents. It never
+	// returns "" unless hostID is empty and the OS hostname is unavailable.
+	IssueDiscriminator(hostID string) string
 }

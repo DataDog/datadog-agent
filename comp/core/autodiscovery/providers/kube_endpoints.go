@@ -24,8 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,6 +48,7 @@ type kubeEndpointsConfigProvider struct {
 	monitoredEndpoints map[string]bool
 	configErrors       map[string]types.ErrorMsgSet
 	telemetryStore     *telemetry.Store
+	healthPlatform     healthplatformdef.Component
 }
 
 // configInfo contains an endpoint check config template with its name and namespace
@@ -58,7 +61,7 @@ type configInfo struct {
 
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointsConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeEndpointsConfigProvider(_ *constants.ConfigurationProviders, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -75,6 +78,7 @@ func NewKubeEndpointsConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, te
 		monitoredEndpoints: make(map[string]bool),
 		configErrors:       make(map[string]types.ErrorMsgSet),
 		telemetryStore:     telemetryStore,
+		healthPlatform:     hp,
 	}
 
 	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -178,9 +182,14 @@ func (k *kubeEndpointsConfigProvider) invalidateOnServiceDelete(obj interface{})
 	k.Lock()
 	defer k.Unlock()
 
-	if _, wasMonitored := k.monitoredEndpoints[endpointsID]; wasMonitored {
-		log.Tracef("Invalidating configs on deleted monitored service, endpoints entity: %s", endpointsID)
+	_, wasMonitored := k.monitoredEndpoints[endpointsID]
+	if wasMonitored {
 		delete(k.monitoredEndpoints, endpointsID)
+	}
+
+	// Check annotations too: a service with unparseable annotations is never monitored but may have a reported issue to resolve.
+	if wasMonitored || hasEndpointAnnotations(castedObj) {
+		log.Tracef("Invalidating configs on deleted service, endpoints entity: %s", endpointsID)
 		k.upToDate = false
 	}
 }
@@ -270,6 +279,11 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 
 	setEndpointIDs := map[string]struct{}{}
 
+	previousErrorIDs := make(map[string]struct{}, len(k.configErrors))
+	for endpointsID := range k.configErrors {
+		previousErrorIDs[endpointsID] = struct{}{}
+	}
+
 	for _, svc := range services {
 		if svc == nil || svc.ObjectMeta.UID == "" {
 			log.Debug("Ignoring a nil service")
@@ -279,7 +293,8 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 		endpointsID := apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
 		setEndpointIDs[endpointsID] = struct{}{}
 
-		endptConf, errors := utils.ExtractTemplatesFromAnnotations(endpointsID, svc.GetAnnotations(), kubeEndpointID)
+		hybridIgnoreADTags := cfg.GetBool("cluster_checks.support_hybrid_ignore_ad_tags")
+		endptConf, errors := utils.ExtractTemplatesFromAnnotations(endpointsID, svc.GetAnnotations(), kubeEndpointID, hybridIgnoreADTags)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s/%s: %s", svc.Namespace, svc.Name, err)
 		}
@@ -291,6 +306,7 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 				errMsgSet[err.Error()] = struct{}{}
 			}
 			k.configErrors[endpointsID] = errMsgSet
+			reportConfigurationError(k.healthPlatform, endpointsID, errMsgSet, types.KubeEndpointAnnotationSource)
 		} else {
 			delete(k.configErrors, endpointsID)
 		}
@@ -316,6 +332,12 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 	}
 
 	k.cleanErrorsOfDeletedEndpoints(setEndpointIDs)
+
+	for endpointsID := range previousErrorIDs {
+		if _, stillErroring := k.configErrors[endpointsID]; !stillErroring {
+			clearConfigurationErrors(k.healthPlatform, endpointsID)
+		}
+	}
 
 	if k.telemetryStore != nil {
 		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeEndpoints)

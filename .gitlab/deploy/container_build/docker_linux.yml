@@ -81,8 +81,9 @@
         DOCKER_NO_CACHE=""
       fi
     # Build image, use target none label to avoid replication
+    # Force Docker media types to prevent buildx from switching to OCI manifests (#incident-59848)
     - |-
-      docker buildx build --push --pull --platform linux/$ARCH \
+      docker buildx build --output=type=image,push=true,oci-mediatypes=false --pull --platform linux/$ARCH \
         ${CACHE_SOURCE} \
         ${DOCKER_NO_CACHE} \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
@@ -288,6 +289,7 @@ docker_build_base_image_arm64:
     - cp bin/host-profiler/host-profiler $BUILD_CONTEXT/
     - cp cmd/host-profiler/dist/host-profiler-config.yaml $BUILD_CONTEXT/
     - cp cmd/host-profiler/deploy/seccomp-profile.json $BUILD_CONTEXT/
+    - "jq '. + {flags: [\"SECCOMP_FILTER_FLAG_LOG\"]}' cmd/host-profiler/deploy/seccomp-profile.json > $BUILD_CONTEXT/logging-seccomp.json"
     - ls -l $BUILD_CONTEXT/
   rules:
     - when: on_success

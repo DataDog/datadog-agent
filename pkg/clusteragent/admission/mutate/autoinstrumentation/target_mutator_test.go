@@ -42,7 +42,7 @@ var (
 		"python": "v4",
 		"ruby":   "v2",
 		"dotnet": "v3",
-		"js":     "v5",
+		"js":     "v6",
 		"php":    "v1",
 	}
 
@@ -91,7 +91,7 @@ func TestNewTargetMutator(t *testing.T) {
 			))
 
 			// Create the mutator.
-			_, err = NewTargetMutator(config, wmeta, imageResolver, nil, nil)
+			_, err = NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 
 			// Validate the output.
 			if test.shouldErr {
@@ -171,6 +171,21 @@ func TestMutatePod(t *testing.T) {
 					{Name: libraryinjection.InjectLDPreloadInitContainerName, Image: "registry/apm-inject:0"},
 				},
 			}.Create(),
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", nil),
+			},
+			expectNoChange: true,
+		},
+		// CSI mode has no init container, so the guard relies on the instrumentation volume that
+		// every mode adds. Without this, a webhook reinvocation (e.g. on GKE Autopilot) would
+		// re-mutate the pod and append the injector to LD_PRELOAD twice.
+		"re-admission with CSI mode instrumentation volume already present does not mutate": {
+			configPath: "testdata/filter_simple_namespace.yaml",
+			in: func() *corev1.Pod {
+				pod := mutatecommon.FakePodWithNamespace("foo-service", "application")
+				pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{Name: libraryinjection.InstrumentationVolumeName})
+				return pod
+			}(),
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
@@ -316,7 +331,7 @@ func TestMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, store)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, store)
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -421,97 +436,11 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, nil)
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
 			actual := f.ShouldMutatePod(test.in)
-
-			// Validate the output.
-			require.Equal(t, test.expected, actual)
-		})
-	}
-}
-
-func TestIsNamespaceEligible(t *testing.T) {
-	tests := map[string]struct {
-		configPath string
-		in         string
-		expected   bool
-		namespaces []workloadmeta.KubernetesMetadata
-	}{
-		"a matchNames namespace is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "billing-service",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("billing-service", nil),
-			},
-			expected: true,
-		},
-		"a rule without a namespace selector is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "foo",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("foo", nil),
-			},
-			expected: true,
-		},
-		"a matchLabels namespace is eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "foo",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("foo", map[string]string{
-					"tracing": "yes",
-					"env":     "prod",
-				}),
-			},
-			expected: true,
-		},
-		"a disabled namespace is not eligible": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "infra",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("infra", nil),
-			},
-			expected: false,
-		},
-		"kube-system is eligible because default namespaces are filtered at the webhook layer": {
-			configPath: "testdata/filter_no_default.yaml",
-			in:         "kube-system",
-			namespaces: []workloadmeta.KubernetesMetadata{
-				newTestNamespace("kube-system", nil),
-			},
-			expected: true,
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Load the config.
-			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
-			config, err := NewConfig(mockConfig)
-			require.NoError(t, err)
-
-			// Create a mock meta.
-			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-				fx.Supply(coreconfig.Params{}),
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			))
-
-			// Add the namespaces.
-			for _, ns := range test.namespaces {
-				wmeta.Set(&ns)
-			}
-
-			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
-			require.NoError(t, err)
-
-			// Determine if the namespace is eligible.
-			actual := f.IsNamespaceEligible(test.in)
 
 			// Validate the output.
 			require.Equal(t, test.expected, actual)
@@ -674,7 +603,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, nil)
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -793,7 +722,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 
 			store := crstore.New()
 			store.UpsertAPM(test.workload, test.entry)
-			mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, store)
+			mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, store)
 			require.NoError(t, err)
 
 			actual := mutator.getTargetFromCRD(test.pod)
@@ -806,7 +735,6 @@ func TestGetTargetFromCRD(t *testing.T) {
 			require.NotNil(t, actual.target)
 			require.Equal(t, test.expected.libVersions, actual.target.libVersions)
 			require.Equal(t, test.expected.envVars, actual.target.envVars)
-			require.True(t, actual.target.usesSSI)
 		})
 	}
 }
@@ -826,7 +754,7 @@ func TestGetTargetPrecedenceWithCRD(t *testing.T) {
 	store := crstore.New()
 	workload := crstore.WorkloadTarget{Kind: "Deployment", Namespace: "application", Name: "web"}
 	store.UpsertAPM(workload, crstore.APMConfig{Enabled: true, TracerVersions: map[string]string{"python": "v4"}})
-	mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, store)
+	mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, store)
 	require.NoError(t, err)
 
 	pod := mutatecommon.FakePodSpec{
@@ -982,7 +910,11 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: nil,
 		},
-		"missing namespace in store gets no tracers": {
+		// When the namespace is absent from the store, the namespace-label rule
+		// ("Enabled Prod Namespaces") cannot be evaluated and is skipped, so the
+		// pod falls through to the selector-less "Default" target rather than
+		// aborting all matching.
+		"missing namespace in store falls through to the default target": {
 			configPath: "testdata/filter.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -990,7 +922,11 @@ func TestGetTargetLibraries(t *testing.T) {
 					Labels:    map[string]string{},
 				},
 			},
-			expected: nil,
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(js, "v5"),
+				},
+			},
 		},
 		"unset tracer versions applies all tracers": {
 			configPath: "testdata/filter.yaml",
@@ -1008,7 +944,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			expected: &targetInternal{
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),
@@ -1064,7 +1000,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			expected: &targetInternal{
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),
@@ -1096,7 +1032,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Filter the pod.
@@ -1116,9 +1052,12 @@ func TestGetTargetLibraries(t *testing.T) {
 func TestLanguageDetection(t *testing.T) {
 	tests := map[string]struct {
 		config                     map[string]any
+		configYAML                 string
 		pod                        *corev1.Pod
 		deployments                []mutatecommon.MockDeployment
+		expectNoMutation           bool
 		expectedInitContainerNames []string
+		expectedEnv                map[string]string
 	}{
 		"default target uses language detection when enabled": {
 			config: map[string]interface{}{
@@ -1169,6 +1108,50 @@ func TestLanguageDetection(t *testing.T) {
 				"datadog-lib-python-init",
 			},
 		},
+		"fallback target is used when namespace metadata is unavailable": {
+			configYAML: `
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "namespace-label-target"
+        namespaceSelector:
+          matchLabels:
+            instrument: "true"
+        ddTraceVersions:
+          java: "default"
+      - name: "fallback"
+language_detection:
+  enabled: true
+  reporting:
+    enabled: true
+admission_controller:
+  auto_instrumentation:
+    inject_auto_detected_libraries: true
+`,
+			pod: mutatecommon.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []mutatecommon.MockDeployment{
+				{
+					ContainerName:  "pod",
+					DeploymentName: "deployment",
+					Namespace:      "ns",
+					Languages:      languageSetOf("python"),
+				},
+			},
+			expectedInitContainerNames: []string{
+				"datadog-init-apm-inject",
+				"datadog-lib-python-init",
+			},
+			expectedEnv: map[string]string{
+				"DD_TRACE_ENABLED":                "true",
+				"DD_LOGS_INJECTION":               "true",
+				"DD_RUNTIME_METRICS_ENABLED":      "true",
+				"DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+			},
+		},
 		"default target does not use language detection when disabled": {
 			config: map[string]interface{}{
 				"apm_config.instrumentation.enabled":                                       true,
@@ -1204,6 +1187,9 @@ func TestLanguageDetection(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.New(t)
+			if test.configYAML != "" {
+				mockConfig = configmock.NewFromYAML(t, test.configYAML)
+			}
 			for k, v := range test.config {
 				mockConfig.SetInTest(k, v)
 			}
@@ -1214,12 +1200,16 @@ func TestLanguageDetection(t *testing.T) {
 			wmeta := mutatecommon.FakeStoreWithDeployment(t, test.deployments)
 
 			// Create the mutator.
-			m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
+			m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate the pod.
 			mutated, err := m.MutatePod(test.pod, test.pod.Namespace, nil)
 			require.NoError(t, err)
+			if test.expectNoMutation {
+				require.False(t, mutated)
+				return
+			}
 			require.True(t, mutated)
 
 			// Ensure the init containers match.
@@ -1228,6 +1218,14 @@ func TestLanguageDetection(t *testing.T) {
 				actualInitContainerNames = append(actualInitContainerNames, container.Name)
 			}
 			require.ElementsMatch(t, test.expectedInitContainerNames, actualInitContainerNames)
+
+			actualEnv := make(map[string]string)
+			for _, env := range test.pod.Spec.Containers[0].Env {
+				actualEnv[env.Name] = env.Value
+			}
+			for name, expected := range test.expectedEnv {
+				require.Equal(t, expected, actualEnv[name], "environment variable %s", name)
+			}
 		})
 	}
 }

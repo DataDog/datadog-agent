@@ -35,10 +35,10 @@ const (
 	reasonAPMUnsupportedLang = "UnsupportedLanguage"
 	reasonAPMInvalidConfig   = "InvalidTracerConfig"
 
-	reasonAPMRolloutTriggered  = "RolloutTriggered"
-	reasonAPMRolloutCurrent    = "RolloutCurrent"
-	reasonAPMRolloutSkipped    = "RolloutSkipped"
-	reasonAPMRolloutFailed     = "RolloutFailed"
+	reasonAPMRolloutTriggered = "RolloutTriggered"
+	reasonAPMRolloutCurrent   = "RolloutCurrent"
+	reasonAPMRolloutSkipped   = "RolloutSkipped"
+	reasonAPMRolloutFailed    = "RolloutFailed"
 )
 
 var supportedAPMLanguages = map[string]struct{}{

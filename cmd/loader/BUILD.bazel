@@ -1,16 +1,20 @@
 """The trace loader."""
 
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
     "pkg_files",
 )
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+load("//tasks:build_tags.bzl", "LOADER_TAGS")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
 pkg_files(
-    name = "trace_loader",
+    name = "trace_loader_all_files",
+    # Temporary: Point to prebuilt trace_loader. When we can stamp module deps
+    # in the file, swap to :loader and rename that as trace-loader.
     srcs = select({
         "//packages/agent:linux_default": [
             "@trace_loader_binary//:trace_loader",
@@ -23,6 +27,9 @@ pkg_files(
         "//packages/agent:linux_heroku": [
             "main_noop.sh",
         ],
+        "@platforms//os:macos": [
+            "@trace_loader_binary//:trace_loader",
+        ],
         "//conditions:default": [],
     }),
     attributes = pkg_attributes(mode = "755"),
@@ -31,7 +38,6 @@ pkg_files(
         "//packages/agent:linux_heroku": {":main_noop.sh": "trace-loader"},
         "//conditions:default": {},
     }),
-    target_compatible_with = ["@platforms//os:linux"],
 )
 
 go_library(
@@ -108,10 +114,15 @@ go_library(
     }),
 )
 
-go_binary(
+# TODO(ABLD-294): Rename to trace-loader and use this instead of @trace_loader_binary//:trace_loader
+dd_agent_go_binary(
     name = "loader",
     embed = [":loader_lib"],
-    # keep
+    # LOADER_TAGS is actually empty. We're including it to keep a consistent style.
+    exact_gotags = list(LOADER_TAGS) + select({
+        "@platforms//os:linux": ["bpf"],
+        "//conditions:default": [],
+    }),
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],

@@ -21,8 +21,8 @@ import (
 func NewFakeLabelSelector() *autoinstrumentation.LabelSelectors {
 	return autoinstrumentation.NewLabelSelectors(&autoinstrumentation.LabelSelectorsConfig{
 		Enabled:            false,
+		OnDemand:           false,
 		MutateUnlabelled:   false,
-		AddAksSelectors:    false,
 		DisabledNamespaces: []string{},
 	})
 }
@@ -35,8 +35,8 @@ func TestLabelSelectorsConfig(t *testing.T) {
 		"default values match expected": {
 			expected: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:            false,
+				OnDemand:           true,
 				MutateUnlabelled:   false,
-				AddAksSelectors:    false,
 				DisabledNamespaces: []string{},
 				CRDEnabled:         false,
 			},
@@ -44,6 +44,7 @@ func TestLabelSelectorsConfig(t *testing.T) {
 		"overridden values match expected": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled":             true,
+				"apm_config.instrumentation.on_demand":           false,
 				"admission_controller.mutate_unlabelled":         true,
 				"admission_controller.add_aks_selectors":         true,
 				"apm_config.instrumentation.disabled_namespaces": []string{"foo"},
@@ -51,8 +52,8 @@ func TestLabelSelectorsConfig(t *testing.T) {
 			},
 			expected: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:            true,
+				OnDemand:           false,
 				MutateUnlabelled:   true,
-				AddAksSelectors:    true,
 				DisabledNamespaces: []string{"foo"},
 				CRDEnabled:         true,
 			},
@@ -123,6 +124,7 @@ func TestLabelSelectors(t *testing.T) {
 		"when instrumentation is disabled and mutate unlabelled is also disabled, only enable labels should be selected": {
 			config: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:          false,
+				OnDemand:         false,
 				MutateUnlabelled: false,
 			},
 			useNamespaceSelector: false,
@@ -138,6 +140,32 @@ func TestLabelSelectors(t *testing.T) {
 			expectedObjectSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					common.EnabledLabelKey: "true",
+				},
+			},
+		},
+		"when on-demand instrumentation is enabled, everything except explicit opt-outs should be selected": {
+			config: &autoinstrumentation.LabelSelectorsConfig{
+				Enabled:          false,
+				OnDemand:         true,
+				MutateUnlabelled: false,
+			},
+			useNamespaceSelector: false,
+			expectedNamespaceSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      common.NamespaceLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   mutatecommon.DefaultDisabledNamespaces(),
+					},
+				},
+			},
+			expectedObjectSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      common.EnabledLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"false"},
+					},
 				},
 			},
 		},
@@ -215,31 +243,6 @@ func TestLabelSelectors(t *testing.T) {
 				},
 			},
 		},
-		"when add aks selectors is true, the additional selectors should be added": {
-			config: &autoinstrumentation.LabelSelectorsConfig{
-				Enabled:         true,
-				AddAksSelectors: true,
-			},
-			useNamespaceSelector: false,
-			expectedNamespaceSelector: &metav1.LabelSelector{
-				MatchExpressions: append([]metav1.LabelSelectorRequirement{
-					{
-						Key:      common.NamespaceLabelKey,
-						Operator: metav1.LabelSelectorOpNotIn,
-						Values:   mutatecommon.DefaultDisabledNamespaces(),
-					},
-				}, common.AzureAKSLabelSelectorRequirement()...),
-			},
-			expectedObjectSelector: &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      common.EnabledLabelKey,
-						Operator: metav1.LabelSelectorOpNotIn,
-						Values:   []string{"false"},
-					},
-				},
-			},
-		},
 	}
 
 	for name, test := range tests {
@@ -248,6 +251,44 @@ func TestLabelSelectors(t *testing.T) {
 			actualNamesapaceSelector, actualObjectSelector := labelSelectors.Get(test.useNamespaceSelector)
 			require.Equal(t, test.expectedNamespaceSelector, actualNamesapaceSelector, "namespace selector does not match expected")
 			require.Equal(t, test.expectedObjectSelector, actualObjectSelector, "object selector does not match expected")
+		})
+	}
+}
+
+func TestWebhookAKSSelectors(t *testing.T) {
+	tests := map[string]struct {
+		addAKSSelectors bool
+	}{
+		"AKS selectors disabled: no AKS-specific requirements on the registered webhook": {
+			addAKSSelectors: false,
+		},
+		"AKS selectors enabled: the registered webhook carries the AKS-required exclusions": {
+			addAKSSelectors: true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := mutatecommon.FakeConfigWithValues(t, map[string]any{
+				"apm_config.instrumentation.enabled":     true,
+				"admission_controller.add_aks_selectors": test.addAKSSelectors,
+			})
+
+			webhookConfig := autoinstrumentation.NewWebhookConfig(mockConfig)
+			labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(mockConfig))
+			webhook, err := autoinstrumentation.NewWebhook(webhookConfig, nil, labelSelectors)
+			require.NoError(t, err)
+
+			namespaceSelector, _ := webhook.LabelSelectors(false)
+			finalSelector := common.EnsureAKSSelectors(namespaceSelector)
+
+			for _, req := range common.AzureAKSLabelSelectorRequirement() {
+				if test.addAKSSelectors {
+					require.Contains(t, finalSelector.MatchExpressions, req)
+				} else {
+					require.NotContains(t, finalSelector.MatchExpressions, req)
+				}
+			}
 		})
 	}
 }

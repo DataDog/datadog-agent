@@ -84,6 +84,16 @@ type MessageMetadata struct {
 	// This is also used to track the original content size before the message is processed and encoded later
 	// in the pipeline.
 	RawDataLen int
+	// checkpointRawDataLen is the number of source bytes that may be included
+	// when advancing a file tailer's checkpoint after this message. It differs
+	// from RawDataLen when partial records from multiple streams are interleaved:
+	// a completed message can be sent while an earlier record remains buffered,
+	// but it must not move the restart position past that record.
+	//
+	// The companion boolean distinguishes the default behavior (use RawDataLen)
+	// from an explicit zero that holds the checkpoint at its prior value.
+	checkpointRawDataLen    int
+	hasCheckpointRawDataLen bool
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -161,36 +171,7 @@ func (m *MessageContent) GetStructuredAttribute(path string) (string, bool) {
 	if m.State != StateStructured {
 		return "", false
 	}
-	bsc, ok := m.structuredContent.(*BasicStructuredContent)
-	if !ok || bsc == nil {
-		return "", false
-	}
-
-	parts := splitEscapedPath(path)
-	var current interface{} = bsc.Data
-	for _, key := range parts {
-		obj, ok := current.(map[string]interface{})
-		if !ok {
-			return "", false
-		}
-		current, ok = obj[key]
-		if !ok {
-			return "", false
-		}
-	}
-
-	switch v := current.(type) {
-	case string:
-		return v, true
-	case int:
-		return strconv.Itoa(v), true
-	case float64:
-		return strconv.FormatFloat(v, 'g', -1, 64), true
-	case bool:
-		return strconv.FormatBool(v), true
-	default:
-		return "", false
-	}
+	return m.structuredContent.GetAttribute(path)
 }
 
 // splitEscapedPath splits a dot-delimited attribute path while respecting
@@ -282,13 +263,22 @@ func (m *MessageContent) SetEncoded(content []byte) {
 // E.g. Timestamp is used by the docker parsers to transmit a tailing offset.
 type ParsingExtra struct {
 	// Used by docker parsers to transmit an offset.
-	Timestamp   string
+	Timestamp string
+	// Stream identifies the container output stream used to reassemble partial lines.
+	Stream      string
 	IsPartial   bool
 	IsTruncated bool
 	IsMultiLine bool
 	IsMRFAllow  bool
 	Tags        []string
 }
+
+const (
+	// StreamStdout identifies a container log record emitted on stdout.
+	StreamStdout = "stdout"
+	// StreamStderr identifies a container log record emitted on stderr.
+	StreamStderr = "stderr"
+)
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.
 type ServerlessExtra struct {
@@ -401,6 +391,9 @@ type StructuredContent interface {
 	Render() ([]byte, error)
 	GetContent() []byte
 	SetContent([]byte)
+	// GetAttribute retrieves a dot-delimited attribute (e.g. "syslog.hostname").
+	// Returns the string value and true if found, or ("", false) otherwise.
+	GetAttribute(path string) (string, bool)
 }
 
 // BasicStructuredContent is used by tailers creating structured logs
@@ -432,6 +425,35 @@ func (m *BasicStructuredContent) SetContent(content []byte) {
 	// we want to store it typed as a string for the json
 	// marshaling to properly marshal it as a string.
 	m.Data["message"] = string(content)
+}
+
+// GetAttribute walks a dot-delimited path through the nested Data map.
+// Non-string leaf types (int, float64, bool) are converted to strings.
+func (m *BasicStructuredContent) GetAttribute(path string) (string, bool) {
+	parts := splitEscapedPath(path)
+	var current interface{} = m.Data
+	for _, key := range parts {
+		obj, ok := current.(map[string]interface{})
+		if !ok {
+			return "", false
+		}
+		current, ok = obj[key]
+		if !ok {
+			return "", false
+		}
+	}
+	switch v := current.(type) {
+	case string:
+		return v, true
+	case int:
+		return strconv.Itoa(v), true
+	case float64:
+		return strconv.FormatFloat(v, 'g', -1, 64), true
+	case bool:
+		return strconv.FormatBool(v), true
+	default:
+		return "", false
+	}
 }
 
 // GetStatus gets the status of the message.
@@ -466,6 +488,22 @@ func (m *MessageMetadata) Count() int64 {
 // Size returns the size of the message.
 func (m *MessageMetadata) Size() int64 {
 	return int64(m.RawDataLen)
+}
+
+// RawDataLenForCheckpoint returns the number of source bytes that a file
+// tailer may safely include when advancing its checkpoint for this message.
+func (m *MessageMetadata) RawDataLenForCheckpoint() int {
+	if !m.hasCheckpointRawDataLen {
+		return m.RawDataLen
+	}
+	return m.checkpointRawDataLen
+}
+
+// SetRawDataLenForCheckpoint overrides the source byte count used to advance a
+// file tailer's checkpoint. Passing zero explicitly holds the prior checkpoint.
+func (m *MessageMetadata) SetRawDataLenForCheckpoint(rawDataLen int) {
+	m.checkpointRawDataLen = rawDataLen
+	m.hasCheckpointRawDataLen = true
 }
 
 // RecordProcessingRule records the application of a processing rule to a message.

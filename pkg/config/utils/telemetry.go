@@ -51,3 +51,10 @@ func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 	}
 	return cfg.GetBool("agent_telemetry.enabled")
 }
+
+// IsErrorTrackingEnabled returns true when both the parent agent-telemetry gate
+// and the errortracking feature flag are enabled. The gov/FIPS exclusion from
+// IsAgentTelemetryEnabled applies automatically.
+func IsErrorTrackingEnabled(cfg pkgconfigmodel.Reader) bool {
+	return IsAgentTelemetryEnabled(cfg) && cfg.GetBool("agent_telemetry.errortracking.enabled")
+}

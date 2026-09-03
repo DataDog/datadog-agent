@@ -21,13 +21,56 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// FileInfo is a slim, profile-local subset of model.FileEvent.
+type FileInfo struct {
+	model.FileFields
+
+	PathnameStr string
+	BasenameStr string
+	Filesystem  string
+
+	PkgName       string
+	PkgVersion    string
+	PkgEpoch      int
+	PkgRelease    string
+	PkgSrcVersion string
+	PkgSrcEpoch   int
+	PkgSrcRelease string
+
+	HashState model.HashState
+	Hashes    []string
+}
+
+// newFileInfo builds the slim FileInfo from a model.FileEvent, keeping only the fields
+// serialized into the profile or read back while building/rendering the tree.
+func newFileInfo(fe *model.FileEvent) *FileInfo {
+	if fe == nil {
+		return nil
+	}
+	return &FileInfo{
+		FileFields:    fe.FileFields,
+		PathnameStr:   fe.PathnameStr,
+		BasenameStr:   fe.BasenameStr,
+		Filesystem:    fe.Filesystem,
+		PkgName:       fe.PkgName,
+		PkgVersion:    fe.PkgVersion,
+		PkgEpoch:      fe.PkgEpoch,
+		PkgRelease:    fe.PkgRelease,
+		PkgSrcVersion: fe.PkgSrcVersion,
+		PkgSrcEpoch:   fe.PkgSrcEpoch,
+		PkgSrcRelease: fe.PkgSrcRelease,
+		HashState:     fe.HashState,
+		Hashes:        fe.Hashes,
+	}
+}
+
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	Name           string
 	IsPattern      bool
-	File           *model.FileEvent
+	File           *FileInfo
 	GenerationType NodeGenerationType
 	Open           *OpenNode
 
@@ -47,7 +90,7 @@ func (fn *FileNode) size() int64 {
 	s += seenBytes(fn.NodeBase)
 	s += int64(len(fn.Name))
 	if fn.File != nil {
-		s += fileEventStringsBytes(fn.File)
+		s += fileInfoStringsBytes(fn.File)
 	}
 	if fn.Open != nil {
 		s += int64(unsafe.Sizeof(*fn.Open))
@@ -75,8 +118,7 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		fan.AppendImageTagID(imageTagID, event.ResolveEventTime())
 	}
 	if fileEvent != nil {
-		fileEventTmp := *fileEvent
-		fan.File = &fileEventTmp
+		fan.File = newFileInfo(fileEvent)
 		fan.File.PathnameStr = reducedFilePath
 		fan.File.BasenameStr = name
 	}
@@ -161,9 +203,9 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 	}
 }
 
-// InsertFileEvent inserts an event in a FileNode. This function returns true if a new entry was added, false if
-// the event was dropped.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) bool {
+// InsertFileEvent inserts an event in a FileNode. Returns whether a new entry was added and
+// the NodeBase of the leaf FileNode reached or created.
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTagID uint64, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) (bool, *NodeBase) {
 	currentFn := fn
 	currentPath := remainingPath
 	newEntry := false
@@ -185,7 +227,6 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			continue
 		}
 
-		// create new child
 		newEntry = true
 		if dryRun {
 			break
@@ -195,6 +236,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			currentFn.Children[parent] = leafNode
 			stats.FileNodes++
 			stats.SizeBytes += leafNode.size()
+			currentFn = leafNode
 			break
 		}
 		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
@@ -203,7 +245,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		currentFn = newChild
 		currentPath = currentPath[nextParentIndex:]
 	}
-	return newEntry
+	return newEntry, &currentFn.NodeBase
 }
 
 func (fn *FileNode) tagAllNodes(imageTagID uint64, timestamp time.Time) {

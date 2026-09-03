@@ -73,19 +73,63 @@ static void __attribute__((always_inline)) monitor_event_sample_sampled(u64 even
 }
 
 
-static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32 pid, u16 family, u16 port, u16 protocol, u64 *addr) {
+static __always_inline u8 sampling_admission_check(u32 limiter_key, u16 rate, u8 threshold) {
+    u64 dynamic_sampling_enabled = 0;
+    LOAD_CONSTANT("dynamic_sampling_enabled", dynamic_sampling_enabled);
+    if (!dynamic_sampling_enabled) {
+        return (rate == 0) || global_limiter_allow(limiter_key, rate, 1);
+    }
+
+#if USE_RING_BUFFER == 1
+    u64 use_ring_buffer;
+    LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);
+    if (use_ring_buffer) {
+        u64 usage = bpf_ringbuf_query(&events, 0);
+        u64 ring_buffer_size = 0;
+        LOAD_CONSTANT("ring_buffer_size", ring_buffer_size);
+
+        if (ring_buffer_size > 0) {
+            u8 pressure_pct = (u8)(usage * 100 / ring_buffer_size);
+
+            // per-cpu map, so a plain store is enough. An atomic cmpxchg here would
+            // emit a BPF_ATOMIC instruction that kernels older than 5.12 reject.
+            struct event_sample_stats_t *stats = get_active_event_sample_stats(0);
+            if (stats != NULL && (u64)pressure_pct > stats->max_pressure) {
+                stats->max_pressure = (u64)pressure_pct;
+            }
+
+            if (pressure_pct > SAMPLING_PRESSURE_CRITICAL) {
+                return 0;
+            }
+            if (pressure_pct < threshold) {
+                return 1;
+            }
+        }
+    }
+#endif
+
+    return (rate == 0) || global_limiter_allow(limiter_key, rate, 1);
+}
+
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(struct bind_connect_sample_key_t *key, u32 *out_cookie, u32 *out_refresh_needed) {
     u64 event_sampling_bind_enabled = 0;
     LOAD_CONSTANT("event_sampling_bind_enabled", event_sampling_bind_enabled);
     u64 event_sampling_bind_rate = 0;
     LOAD_CONSTANT("event_sampling_bind_rate", event_sampling_bind_rate);
+    u64 event_sampling_bind_threshold = 60;
+    LOAD_CONSTANT("event_sampling_bind_threshold", event_sampling_bind_threshold);
+    u64 sample_refresh_period_ns = 0;
+    LOAD_CONSTANT("sample_refresh_period_ns", sample_refresh_period_ns);
 
     if (!event_sampling_bind_enabled) {
         return DISCARDED;
     }
 
-    if (family != AF_INET && family != AF_INET6) {
+    if (key->family != AF_INET && key->family != AF_INET6) {
         return DISCARDED;
     }
+
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
 
     // ignore kworkers
     if (IS_KERNEL_THREAD(pid)) {
@@ -94,23 +138,49 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(u32
 
     monitor_event_sample_total(EVENT_BIND);
 
-    struct bind_connect_sample_key_t key;
-    __builtin_memset(&key, 0, sizeof(key));
-    key.pid = pid;
-    key.family = family;
-    key.port = port;
-    key.protocol = protocol;
-    key.addr[0] = addr[0];
-    key.addr[1] = addr[1];
+    u64 now = bpf_ktime_get_ns();
+    struct sample_entry_t new_entry;
+    __builtin_memset(&new_entry, 0, sizeof(new_entry));
+    new_entry.cookie = bpf_get_prandom_u32() | 1;
+    new_entry.last_refresh_ns = now;
 
-    u8 value = 0;
-    if (bpf_map_update_elem(&bind_samples, &key, &value, BPF_NOEXIST) < 0) {
+    if (bpf_map_update_elem(&bind_samples, key, &new_entry, BPF_NOEXIST) < 0) {
+        if (sample_refresh_period_ns > 0 && out_cookie != NULL && out_refresh_needed != NULL) {
+            struct sample_entry_t *existing = bpf_map_lookup_elem(&bind_samples, key);
+            if (existing != NULL) {
+                if (existing->cookie == 0) {
+                    // Never delivered (rate-limited on first attempt). Retry.
+                    if (!sampling_admission_check(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, (u8)event_sampling_bind_threshold)) {
+                        return DISCARDED;
+                    }
+                    existing->cookie = bpf_get_prandom_u32() | 1;
+                    existing->last_refresh_ns = now;
+                    *out_cookie = existing->cookie;
+                    monitor_event_sample_sampled(EVENT_BIND);
+                    return SAMPLED;
+                }
+                // Already delivered: send a refresh if the period has elapsed
+                if ((now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
+                    existing->last_refresh_ns = now;
+                    *out_cookie = existing->cookie;
+                    *out_refresh_needed = 1;
+                }
+            }
+        }
         return DISCARDED;
     }
 
-    if (event_sampling_bind_rate > 0 && !global_limiter_allow(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, 1)) {
-        bpf_map_delete_elem(&bind_samples, &key);
+    if (!sampling_admission_check(BIND_SAMPLE_LIMITER, event_sampling_bind_rate, (u8)event_sampling_bind_threshold)) {
+        // Keep entry but mark as not yet delivered so we can retry later
+        struct sample_entry_t *entry = bpf_map_lookup_elem(&bind_samples, key);
+        if (entry != NULL) {
+            entry->cookie = 0;
+        }
         return DISCARDED;
+    }
+
+    if (out_cookie != NULL) {
+        *out_cookie = new_entry.cookie;
     }
 
     monitor_event_sample_sampled(EVENT_BIND);
@@ -122,6 +192,8 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 
     LOAD_CONSTANT("event_sampling_dns_enabled", event_sampling_dns_enabled);
     u64 event_sampling_dns_rate = 0;
     LOAD_CONSTANT("event_sampling_dns_rate", event_sampling_dns_rate);
+    u64 event_sampling_dns_threshold = 60;
+    LOAD_CONSTANT("event_sampling_dns_threshold", event_sampling_dns_threshold);
 
     if (!event_sampling_dns_enabled) {
         return DISCARDED;
@@ -134,7 +206,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 
 
     monitor_event_sample_total(EVENT_DNS);
 
-    if (event_sampling_dns_rate > 0 && !global_limiter_allow(DNS_SAMPLE_LIMITER, event_sampling_dns_rate, 1)) {
+    if (!sampling_admission_check(DNS_SAMPLE_LIMITER, event_sampling_dns_rate, (u8)event_sampling_dns_threshold)) {
         return DISCARDED;
     }
 
@@ -142,19 +214,25 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 
     return SAMPLED;
 }
 
-static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(u32 pid, u16 family, u16 port, u16 protocol, u64 *addr) {
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(struct bind_connect_sample_key_t *key, struct syscall_cache_t *syscall) {
     u64 event_sampling_connect_enabled = 0;
     LOAD_CONSTANT("event_sampling_connect_enabled", event_sampling_connect_enabled);
     u64 event_sampling_connect_rate = 0;
     LOAD_CONSTANT("event_sampling_connect_rate", event_sampling_connect_rate);
+    u64 event_sampling_connect_threshold = 40;
+    LOAD_CONSTANT("event_sampling_connect_threshold", event_sampling_connect_threshold);
+    u64 sample_refresh_period_ns = 0;
+    LOAD_CONSTANT("sample_refresh_period_ns", sample_refresh_period_ns);
 
     if (!event_sampling_connect_enabled) {
         return DISCARDED;
     }
 
-    if (family != AF_INET && family != AF_INET6) {
+    if (key->family != AF_INET && key->family != AF_INET6) {
         return DISCARDED;
     }
+
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
 
     // ignore kworkers
     if (IS_KERNEL_THREAD(pid)) {
@@ -163,23 +241,49 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(
 
     monitor_event_sample_total(EVENT_CONNECT);
 
-    struct bind_connect_sample_key_t key;
-    __builtin_memset(&key, 0, sizeof(key));
-    key.pid = pid;
-    key.family = family;
-    key.port = port;
-    key.protocol = protocol;
-    key.addr[0] = addr[0];
-    key.addr[1] = addr[1];
+    u64 now = bpf_ktime_get_ns();
+    struct sample_entry_t new_entry;
+    __builtin_memset(&new_entry, 0, sizeof(new_entry));
+    new_entry.cookie = bpf_get_prandom_u32() | 1;
+    new_entry.last_refresh_ns = now;
 
-    u8 value = 0;
-    if (bpf_map_update_elem(&connect_samples, &key, &value, BPF_NOEXIST) < 0) {
+    if (bpf_map_update_elem(&connect_samples, key, &new_entry, BPF_NOEXIST) < 0) {
+        if (sample_refresh_period_ns > 0 && syscall != NULL) {
+            struct sample_entry_t *existing = bpf_map_lookup_elem(&connect_samples, key);
+            if (existing != NULL) {
+                if (existing->cookie == 0) {
+                    // Never delivered (rate-limited on first attempt). Retry.
+                    if (!sampling_admission_check(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, (u8)event_sampling_connect_threshold)) {
+                        return DISCARDED;
+                    }
+                    existing->cookie = bpf_get_prandom_u32() | 1;
+                    existing->last_refresh_ns = now;
+                    syscall->sample_cookie = existing->cookie;
+                    monitor_event_sample_sampled(EVENT_CONNECT);
+                    return SAMPLED;
+                }
+                // Already delivered: send a refresh if the period has elapsed
+                if ((now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
+                    existing->last_refresh_ns = now;
+                    syscall->sample_cookie = existing->cookie;
+                    syscall->resolver.flags |= SAMPLE_REFRESH_NEEDED;
+                }
+            }
+        }
         return DISCARDED;
     }
 
-    if (event_sampling_connect_rate > 0 && !global_limiter_allow(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, 1)) {
-        bpf_map_delete_elem(&connect_samples, &key);
+    if (!sampling_admission_check(CONNECT_SAMPLE_LIMITER, event_sampling_connect_rate, (u8)event_sampling_connect_threshold)) {
+        // Keep entry but mark as not yet delivered so we can retry later
+        struct sample_entry_t *entry = bpf_map_lookup_elem(&connect_samples, key);
+        if (entry != NULL) {
+            entry->cookie = 0;
+        }
         return DISCARDED;
+    }
+
+    if (syscall != NULL) {
+        syscall->sample_cookie = new_entry.cookie;
     }
 
     monitor_event_sample_sampled(EVENT_CONNECT);
@@ -440,12 +544,17 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(s
     return DISCARDED;
 }
 
-static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file) {
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file, struct syscall_cache_t *syscall) {
     u64 event_sampling_open_enabled = 0;
     LOAD_CONSTANT("event_sampling_open_enabled", event_sampling_open_enabled);
 
     u64 event_sampling_open_rate = 0;
     LOAD_CONSTANT("event_sampling_open_rate", event_sampling_open_rate);
+    u64 event_sampling_open_threshold = 80;
+    LOAD_CONSTANT("event_sampling_open_threshold", event_sampling_open_threshold);
+
+    u64 sample_refresh_period_ns = 0;
+    LOAD_CONSTANT("sample_refresh_period_ns", sample_refresh_period_ns);
 
     if (!event_sampling_open_enabled) {
         return DISCARDED;
@@ -483,14 +592,49 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
         .file_path_key = file->path_key,
     };
 
-    u8 value = 0;
-    if (bpf_map_update_elem(&open_samples, &key, &value, BPF_NOEXIST) < 0) {
+    u64 now = bpf_ktime_get_ns();
+    struct sample_entry_t new_entry;
+    __builtin_memset(&new_entry, 0, sizeof(new_entry));
+    new_entry.cookie = bpf_get_prandom_u32() | 1;
+    new_entry.last_refresh_ns = now;
+
+    if (bpf_map_update_elem(&open_samples, &key, &new_entry, BPF_NOEXIST) < 0) {
+        if (sample_refresh_period_ns > 0 && syscall != NULL) {
+            struct sample_entry_t *existing = bpf_map_lookup_elem(&open_samples, &key);
+            if (existing != NULL) {
+                if (existing->cookie == 0) {
+                    // Never delivered (rate-limited on first attempt). Retry.
+                    if (!sampling_admission_check(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, (u8)event_sampling_open_threshold)) {
+                        return DISCARDED;
+                    }
+                    existing->cookie = bpf_get_prandom_u32() | 1;
+                    existing->last_refresh_ns = now;
+                    syscall->sample_cookie = existing->cookie;
+                    monitor_event_sample_sampled(EVENT_OPEN);
+                    return SAMPLED;
+                }
+                // Already delivered: send a refresh if the period has elapsed
+                if ((now - existing->last_refresh_ns) >= sample_refresh_period_ns) {
+                    existing->last_refresh_ns = now;
+                    syscall->sample_cookie = existing->cookie;
+                    syscall->resolver.flags |= SAMPLE_REFRESH_NEEDED;
+                }
+            }
+        }
         return DISCARDED;
     }
 
-    if (event_sampling_open_rate > 0 && !global_limiter_allow(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, 1)) {
-        bpf_map_delete_elem(&open_samples, &key);
+    if (!sampling_admission_check(OPEN_SAMPLE_LIMITER, event_sampling_open_rate, (u8)event_sampling_open_threshold)) {
+        // Keep entry but mark as not yet delivered so we can retry later
+        struct sample_entry_t *entry = bpf_map_lookup_elem(&open_samples, &key);
+        if (entry != NULL) {
+            entry->cookie = 0;
+        }
         return DISCARDED;
+    }
+
+    if (syscall != NULL) {
+        syscall->sample_cookie = new_entry.cookie;
     }
 
     // Track open events that were sampled
@@ -512,7 +656,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct s
         state = approve_by_in_upper_layer(EVENT_OPEN, &syscall->open.file);
     }
 
-    if (state == DISCARDED && approve_open_sample(syscall->open.dentry, &syscall->open.file) == SAMPLED) {
+    if (state == DISCARDED && approve_open_sample(syscall->open.dentry, &syscall->open.file, syscall) == SAMPLED) {
         return SAMPLED;
     }
 
@@ -632,7 +776,16 @@ static enum SYSCALL_STATE __attribute__((always_inline)) connect_approvers(struc
 
     if (state == DISCARDED) {
         u32 pid = bpf_get_current_pid_tgid() >> 32;
-        if (approve_connect_sample(pid, syscall->connect.family, syscall->connect.port, syscall->connect.protocol, syscall->connect.addr) == SAMPLED) {
+        struct bind_connect_sample_key_t conn_key;
+        __builtin_memset(&conn_key, 0, sizeof(conn_key));
+        conn_key.pid = pid;
+        conn_key.family = syscall->connect.family;
+        conn_key.port = syscall->connect.port;
+        conn_key.protocol = syscall->connect.protocol;
+        conn_key.addr[0] = syscall->connect.addr[0];
+        conn_key.addr[1] = syscall->connect.addr[1];
+
+        if (approve_connect_sample(&conn_key, syscall) == SAMPLED) {
             return SAMPLED;
         }
     }
@@ -696,6 +849,21 @@ static enum SYSCALL_STATE __attribute__((always_inline)) socket_approvers(struct
         state = approve_socket_by_protocol(syscall);
     }
     return state;
+}
+
+static enum SYSCALL_STATE __attribute__((always_inline)) unshare_approvers(struct syscall_cache_t *syscall) {
+    u32 flags = 0;
+
+    int exists = lookup_u32_flags(&unshare_flags_approvers, &flags);
+    if (!exists) {
+        return DISCARDED;
+    }
+
+    if ((flags == 0 && syscall->mount.unshare_flags == 0) || (syscall->mount.unshare_flags & flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
+        return APPROVED;
+    }
+    return DISCARDED;
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 tgid, struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {

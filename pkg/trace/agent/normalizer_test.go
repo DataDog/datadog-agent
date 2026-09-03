@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -700,6 +701,36 @@ func TestTagDecisionMaker(t *testing.T) {
 	assert.Equal("right", chunk.Spans[1].Meta[tagDecisionMaker])
 }
 
+// TestTagDecisionMakerNilChunkTags covers a v0.7 payload that omits the chunk
+// "tags" key entirely: the decoder leaves Tags nil, and promoting the span-level
+// decision maker into it must not panic.
+func TestTagDecisionMakerNilChunkTags(t *testing.T) {
+	assert := assert.New(t)
+	var chunk pb.TraceChunk
+	// Encode a chunk map without a "tags" field, so UnmarshalMsg never
+	// allocates chunk.Tags.
+	var b []byte
+	b = msgp.AppendMapHeader(b, 2)
+	b = msgp.AppendString(b, "priority")
+	b = msgp.AppendInt32(b, int32(sampler.PriorityAutoKeep))
+	b = msgp.AppendString(b, "spans")
+	b = msgp.AppendArrayHeader(b, 1)
+	b = msgp.AppendMapHeader(b, 1)
+	b = msgp.AppendString(b, "meta")
+	b = msgp.AppendMapHeader(b, 1)
+	b = msgp.AppendString(b, tagDecisionMaker)
+	b = msgp.AppendString(b, "-4")
+
+	left, err := chunk.UnmarshalMsg(b)
+	require.NoError(t, err)
+	require.Empty(t, left)
+	require.Nil(t, chunk.Tags)
+	require.Len(t, chunk.Spans, 1)
+
+	setChunkAttributes(&chunk, chunk.Spans[0])
+	assert.Equal("-4", chunk.Tags[tagDecisionMaker])
+}
+
 func BenchmarkNormalization(b *testing.B) {
 	a := &Agent{conf: config.New()}
 	b.ReportAllocs()
@@ -1006,9 +1037,47 @@ func TestNormalizeSpanLinkNameV1(t *testing.T) {
 	assert.Equal(t, linkName, "valid_name")
 }
 
+// TestNormalizeTraceChunkV1TraceIDLength verifies that normalizeTraceChunkV1
+// coerces a chunk TraceID to exactly 16 bytes, so downstream fixed-offset slices
+// (LegacyTraceID's TraceID[8:], the probabilistic sampler's TraceID[:8]) cannot
+// panic on a malformed/truncated v1.0 payload. A short ID is right-aligned
+// (big-endian zero-pad), an over-long ID keeps its low-order 16 bytes.
+func TestNormalizeTraceChunkV1TraceIDLength(t *testing.T) {
+	cases := []struct {
+		name string
+		tid  []byte
+		want []byte
+	}{
+		{"empty", []byte{}, make([]byte, 16)},
+		{"short", []byte{1, 2, 3, 4}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4}},
+		{"exact", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}},
+		{"overlong", []byte{99, 99, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &Agent{conf: config.New()}
+			ts := newTagStats()
+			st := idx.NewStringTable()
+			chunk := &idx.InternalTraceChunk{
+				Strings: st,
+				TraceID: tc.tid,
+				Spans:   []*idx.InternalSpan{newTestSpanV1(st)},
+			}
+			require.NoError(t, a.normalizeTraceChunkV1(ts, chunk))
+			assert.Len(t, chunk.TraceID, 16)
+			assert.Equal(t, tc.want, chunk.TraceID)
+			// Downstream fixed-offset slices must not panic after normalization.
+			assert.NotPanics(t, func() {
+				_ = chunk.LegacyTraceID()
+				_ = chunk.TraceID[:8]
+			})
+		})
+	}
+}
+
 func TestNormalizeUsesLiveRegistry(t *testing.T) {
 	// Custom registry: ConceptDDEnv maps to "x.test.env" instead of "env".
-	customJSON := `{"version":"test","concepts":{"env":{"canonical":"env","fallbacks":[{"name":"x.test.env","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test","metadata":{"content_hash":"hash-a"},"concepts":{"env":{"canonical":"env","fallbacks":[{"name":"x.test.env","provider":"datadog","type":"string"}]}}}`
 	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 	original, err := semantics.NewEmbeddedRegistry()

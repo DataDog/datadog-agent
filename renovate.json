@@ -5,6 +5,8 @@
     "updateNotScheduled": false,
     "ignorePaths": [],
     "minimumReleaseAge": "7 days",
+    "internalChecksFilter": "strict",
+    "prCreation": "not-pending",
     "prConcurrentLimit": 20,
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
@@ -68,7 +70,7 @@
       },
       {
         "matchManagers": ["cargo"],
-        "labels": ["dependencies", "dependencies-cargo", "changelog/no-changelog", "qa/no-code-change"],
+        "labels": ["dependencies", "dependencies-cargo", "changelog/no-changelog", "qa/no-code-change"]
       },
       {
         "matchManagers": ["cargo"],
@@ -82,6 +84,12 @@
       {
         "matchManagers": ["gomod"],
         "labels": ["dependencies", "dependencies-go", "changelog/no-changelog", "qa/no-code-change"]
+      },
+      {
+        "description": "Require Dependency Dashboard approval for major Go dependency updates",
+        "matchManagers": ["gomod"],
+        "matchUpdateTypes": ["major"],
+        "dependencyDashboardApproval": true
       },
       {
         "matchManagers": ["gomod"],
@@ -131,6 +139,11 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchDepNames": ["istio.io/**"],
+        "groupName": "istio"
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["k8s.io/**"],
         "matchUpdateTypes": ["patch"],
         "groupName": "k8s-io"
@@ -146,7 +159,7 @@
       },
       {
         "matchManagers": ["bazelisk"],
-        "matchUpdateTypes": ["major"],
+        "matchDepNames": ["*"],
         "enabled": false
       },
       {
@@ -165,8 +178,22 @@
       },
       {
         "matchManagers": ["bazel-module"],
-        "matchDepTypes": ["git_override"],
+        "matchDepTypes": ["archive_override", "git_override", "git_repository", "local_path_override"],
         "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
+        "matchPackageNames": [
+          "package_metadata",
+          "rules_license",
+          "supply_chain_tools"
+        ],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["bazel-module"],
+        "matchDepNames": ["rules_rust", "rules_rust_prost"],
+        "groupName": "rules_rust"
       },
       {
         "matchManagers": ["bundler"],
@@ -230,6 +257,15 @@
       },
       {
         "customType": "regex",
+        "managerFilePatterns": ["test/regression/config.yaml"],
+        "matchStrings": [
+          "  version: (?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "DataDog/lading",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
         "managerFilePatterns": [
           "Dockerfiles/agent-ddot/Dockerfile.agent-otel"
         ],
@@ -262,6 +298,74 @@
         "packageNameTemplate": "https://github.com/DataDog/integrations-core",
         "datasourceTemplate": "git-refs",
         "registryUrlTemplate": ""
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["tasks/gpu.py"],
+        "matchStrings": [
+          "GPU_BURNER_VERSION = \"(?<currentDigest>[a-f0-9]{8})\""
+        ],
+        "autoReplaceStringTemplate": "GPU_BURNER_VERSION = \"{{{replace '^(.{8}).*$' '$1' newDigest}}}\"",
+        "currentValueTemplate": "main",
+        "depNameTemplate": "gpu-burner",
+        "packageNameTemplate": "https://github.com/DataDog/gpu-burner",
+        "datasourceTemplate": "git-refs",
+        "registryUrlTemplate": ""
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [
+          "test/new-e2e/tests/installer/unix/package_definitions.go"
+        ],
+        "matchStrings": [
+          "func pinnedApmInjectVersion\\(\\) string \\{[\\s\\S]*?\\n\\s*return \"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+)\""
+        ],
+        "depNameTemplate": "DataDog/dd-apm-inject",
+        "datasourceTemplate": "custom.dd-apm-inject",
+        "versioningTemplate": "loose"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [
+          "test/new-e2e/tests/installer/unix/package_definitions.go"
+        ],
+        "matchStrings": [
+          "func pinnedApmLibraryPythonVersion\\(\\) string \\{[\\s\\S]*?\\n\\s*return \"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
+        ],
+        "depNameTemplate": "DataDog/dd-apm-library-python",
+        "datasourceTemplate": "custom.dd-apm-library-python",
+        "versioningTemplate": "semver"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [
+          "test/new-e2e/tests/installer/unix/all_packages_test.go"
+        ],
+        "matchStrings": [
+          "collectionVersion = \"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
+        ],
+        "depNameTemplate": "datadog.dd",
+        "datasourceTemplate": "custom.ansible-galaxy-datadog-dd",
+        "versioningTemplate": "semver"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["mise.toml"],
+        "matchStrings": [
+          "\"npm:(?<depName>[^\"]+)\"\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+        ],
+        "datasourceTemplate": "npm",
+        "versioningTemplate": "npm"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["mise.toml"],
+        "matchStrings": [
+          "\\bnode\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+        ],
+        "depNameTemplate": "node",
+        "datasourceTemplate": "node",
+        "versioningTemplate": "node"
       }
     ],
     "customDatasources": {
@@ -275,6 +379,24 @@
         "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-windows_x64/tags",
         "transformTemplates": [
           "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
+        ]
+      },
+      "dd-apm-inject": {
+        "defaultRegistryUrlTemplate": "https://api.github.com/repos/DataDog/dd-apm-inject/releases",
+        "transformTemplates": [
+          "{\"releases\": $map($, function($v) { {\"version\": $replace($v.tag_name, /^v/, \"\") & \"-1\", \"releaseTimestamp\": $v.published_at, \"isStable\": $not($v.prerelease) } }) }"
+        ]
+      },
+      "ansible-galaxy-datadog-dd": {
+        "defaultRegistryUrlTemplate": "https://galaxy.ansible.com/api/v3/plugin/ansible/content/published/collections/index/datadog/dd/versions/?limit=50",
+        "transformTemplates": [
+          "{\"releases\": $map(data, function($v) { {\"version\": $v.version, \"releaseTimestamp\": $v.created_at } }) }"
+        ]
+      },
+      "dd-apm-library-python": {
+        "defaultRegistryUrlTemplate": "https://api.github.com/repos/DataDog/dd-trace-py/releases",
+        "transformTemplates": [
+          "{\"releases\": $map($, function($v) { {\"version\": $replace($v.tag_name, /^v/, \"\"), \"releaseTimestamp\": $v.published_at, \"isStable\": $not($v.prerelease) } }) }"
         ]
       }
     }

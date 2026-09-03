@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "msi",
@@ -17,7 +18,7 @@ go_library(
             "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/winutil",
-            "@com_github_cenkalti_backoff_v5//:backoff",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
             "@org_golang_x_text//encoding/unicode",
@@ -26,7 +27,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "msi_test",
     srcs = [
         "msiexec_test.go",
@@ -40,18 +41,15 @@ go_test(
             "testdata/invalid_credentials.log",
             "testdata/missing_password_for_dc.log",
             "testdata/service_marked_for_deletion.log",
+            "testdata/untrusted_config_root.log",
             "testdata/wixfailwhendeferred.log",
         ],
         "//conditions:default": [],
     }),
-    gotags = [
-        "test",
-        "windows",
-    ],
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "@com_github_cenkalti_backoff_v5//:backoff",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",

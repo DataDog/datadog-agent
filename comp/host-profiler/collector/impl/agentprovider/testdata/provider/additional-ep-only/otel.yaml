@@ -6,6 +6,7 @@ exporters:
             dd-api-key: eu_key_1
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
+            dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 extensions:
     hpflare:
         endpoint: localhost:7778

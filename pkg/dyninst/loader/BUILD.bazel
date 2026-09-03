@@ -1,15 +1,18 @@
-# gazelle:ignore
-
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
+# gazelle:go_test file
+
+# keep
 exports_files([
     "types_linux.go",
     "types_linux_test.go",
 ])
 
-# Source files all carry //go:build linux_bpf, so callers must propagate the
-# linux_bpf tag (e.g. via gotags on a go_library/go_test) to compile in this
+# Source files all carry //go:build bpf, so callers must propagate the
+# bpf tag (e.g. via gotags on a go_library/go_test) to compile in this
 # package.
 go_library(
     name = "loader",
@@ -18,24 +21,88 @@ go_library(
         "serialize.go",
         "types_linux.go",
     ],
+    cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/loader",
+    tags = ["manual"],  # keep
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/compiler",
-        "//pkg/dyninst/ir",
-        "//pkg/ebpf/bytecode",
-        "//pkg/util/kernel",
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_cilium_ebpf//asm",
-        "@com_github_cilium_ebpf//btf",
-        "@com_github_cilium_ebpf//features",
-        "@com_github_cilium_ebpf//ringbuf",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/compiler",
+            "//pkg/dyninst/ir",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//btf",
+            "@com_github_cilium_ebpf//features",
+            "@com_github_cilium_ebpf//ringbuf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/compiler",
+            "//pkg/dyninst/ir",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//btf",
+            "@com_github_cilium_ebpf//features",
+            "@com_github_cilium_ebpf//ringbuf",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
+# keep
 cgo_godefs(
     name = "types_godefs",
     src = "types.go",
     hdrs = ["//pkg/dyninst/ebpf:dyninst_ebpf_headers"],
     visibility = ["//visibility:public"],
+)
+
+# keep
+dd_agent_go_test(
+    name = "relocations_test",
+    srcs = ["relocations_test.go"],
+    embed = [":loader"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = [
+        "//pkg/ebpf",
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_cilium_ebpf//btf",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+# keep
+dd_agent_go_test(
+    name = "stats_test",
+    srcs = ["stats_test.go"],
+    embed = [":loader"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    deps = ["@com_github_stretchr_testify//require"],
+)
+
+# keep
+dd_agent_go_test(
+    name = "types_linux_test",
+    srcs = ["types_linux_test.go"],
+    embed = [":loader"],
+    gotags_sets = [["bpf"]],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest:cgo_align",
+        ],
+        "//conditions:default": [],
+    }),
 )

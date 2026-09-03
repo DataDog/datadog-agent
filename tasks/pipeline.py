@@ -2,10 +2,11 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import yaml
 from gitlab import GitlabError
+from gitlab.exceptions import GitlabGetError
 from gitlab.v4.objects import Project
 from invoke import task
 from invoke.exceptions import Exit
@@ -100,11 +101,13 @@ def auto_cancel_previous_pipelines(ctx):
     if git_ref == "":
         raise Exit("CI_COMMIT_REF_NAME is empty, skipping pipeline cancellation", 0)
 
-    git_sha = os.getenv("CI_COMMIT_SHA")
+    current_pipeline_id = int(os.environ["CI_PIPELINE_ID"])
 
     repo = get_gitlab_repo()
     pipelines = get_running_pipelines_on_same_ref(repo, git_ref)
-    pipelines_without_current = [p for p in pipelines if p.sha != git_sha]
+    # A pipeline with a lower id than the current one was necessarily created earlier, so it is
+    # superseded by the current pipeline and can be cancelled, regardless of commit ancestry.
+    older_pipelines = [p for p in pipelines if p.id < current_pipeline_id]
     force_cancel_stages = [
         "package_build",
         # We want to cancel all KMT jobs to ensure proper cleanup of the KMT EC2 instances.
@@ -118,29 +121,9 @@ def auto_cancel_previous_pipelines(ctx):
         "kernel_matrix_testing_security_agent",
     ]
 
-    for pipeline in pipelines_without_current:
-        # We cancel pipeline only if it correspond to a commit that is an ancestor of the current commit
-        is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline.sha} {git_sha}', warn=True, hide="both")
-        if is_ancestor.exited == 0:
-            print(f'Gracefully canceling jobs that are not canceled on pipeline {pipeline.id} ({pipeline.web_url})')
-            gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=force_cancel_stages)
-        elif is_ancestor.exited == 1:
-            print(f'{pipeline.sha} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline.id}')
-        elif is_ancestor.exited == 128:
-            min_time_before_cancel = 5
-            print(
-                f'Could not determine if {pipeline.sha} is an ancestor of {git_sha}, probably because it has been deleted from the history because of force push'
-            )
-            if datetime.strptime(pipeline.created_at, "%Y-%m-%dT%H:%M:%S.%fZ") < datetime.now() - timedelta(
-                minutes=min_time_before_cancel
-            ):
-                print(
-                    f'Pipeline started earlier than {min_time_before_cancel} minutes ago, gracefully canceling pipeline {pipeline.id}'
-                )
-                gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=force_cancel_stages)
-        else:
-            print(is_ancestor.stderr)
-            raise Exit(code=1)
+    for pipeline in older_pipelines:
+        print(f'Canceling eligible jobs on older pipeline {pipeline.id} ({pipeline.web_url})')
+        gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=force_cancel_stages)
 
 
 @task
@@ -261,7 +244,7 @@ def run(
 
 
 @task
-def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent"):
+def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent", force: bool = False):
     """
     Follow a pipeline's progress in the CLI.
     Use --here to follow the latest pipeline on your current branch.
@@ -274,6 +257,30 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     dda inv pipeline.follow --here
     dda inv pipeline.follow --id 1234567
     """
+    if not force:
+        different_repo = '' if project_name == 'DataDog/datadog-agent' else f"cd {project_name.split('/')[-1]} && "
+        if id is not None:
+            # `--follow` rebinds to newer pipelines on a ref, which contradicts pinning one by ID.
+            selector = f" --pipeline {id}"
+            follow_hint = ""
+        else:
+            # `ddgl attach` resolves the current branch on its own, which is what --here did.
+            selector = f" --ref {git_ref}" if git_ref is not None else ""
+            selector = f" --follow{selector}"
+            follow_hint = (
+                "`--follow` rebinds to a newer pipeline if one appears for the ref, which this task cannot do.\n"
+            )
+        text = (
+            "WARNING: This task has been deprecated, and will be removed on Oct 05 2026.\n"
+            + "Please use `ddgl` (https://github.com/DataDog/ddgl-cli) instead:\n"
+            + f"     {different_repo}ddgl attach{selector}     \n"
+            + follow_hint
+            + "If `ddgl` is not available, either install it manually or run it in a dev env\n"
+            + "by prefixing with `dda env dev run --`.\n"
+            + "Re-run with `--force` to force execution of this task."
+        )
+        print(color_message(text, Color.ORANGE))
+        return
 
     repo = get_gitlab_repo(project_name)
 
@@ -717,8 +724,14 @@ def compare_to_itself(ctx):
         for attempt in range(max_attempts):
             print(f"[{datetime.now()}] Waiting 10s for the branch to be created {attempt + 1}/{max_attempts}")
             time.sleep(10)
-            if agent.branches.get(new_branch, raise_exception=False):
-                break
+            try:
+                if agent.branches.get(new_branch):
+                    break
+            except GitlabGetError as e:
+                if e.response_code != 404:
+                    raise
+                # Branch not mirrored to GitLab yet, keep waiting.
+                continue
         else:
             print(f"{color_message('ERROR', Color.RED)}: Branch {new_branch} not created", file=sys.stderr)
             raise RuntimeError(f"No branch found for {new_branch}")

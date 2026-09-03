@@ -9,14 +9,15 @@
 package ddflareextensionimpl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/extension"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -25,7 +26,7 @@ func getTestFactory(t *testing.T) extension.Factory {
 	factories, err := components()
 	assert.NoError(t, err)
 
-	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false), option.None[ipc.Component](), false)
+	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false), option.New[ipc.Component](ipcmock.New(t)), false)
 }
 
 func TestNewFactoryForAgent(t *testing.T) {
@@ -35,9 +36,13 @@ func TestNewFactoryForAgent(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 	require.NotNil(t, cfg)
 
-	ext, err := factory.Create(context.Background(), extension.Settings{}, cfg)
+	settings := extension.Settings{TelemetrySettings: componenttest.NewNopTelemetrySettings()}
+	ext, err := factory.Create(t.Context(), settings, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, ext)
+	t.Cleanup(func() {
+		require.NoError(t, ext.Shutdown(t.Context()))
+	})
 
 	_, ok := ext.(*ddExtension)
 	assert.True(t, ok)

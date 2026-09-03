@@ -142,6 +142,20 @@ type PipelineConfig struct {
 	LogsEnabled bool
 	// Enable/disable InfraAttributes processor for Traces pipeline
 	TracesInfraAttributesEnabled bool
+	// TracesContainerTagPromotion controls how the InfraAttributes processor promotes
+	// custom container tags into `_dd.tags.container` for the Traces pipeline.
+	// Valid values: "off", "duplicate", "rename" (empty is treated as "off").
+	TracesContainerTagPromotion string
+	// LogsTagsAsDDTags controls whether the InfraAttributes processor writes custom
+	// tags (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) as a
+	// `ddtags` log record attribute (real Datadog log tags) instead of resource
+	// attributes (log attributes) for the Logs pipeline.
+	LogsTagsAsDDTags bool
+	// MetricsInfraAttrsAsTags controls whether the InfraAttributes processor promotes
+	// custom tags (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) so they
+	// survive the metrics translator's allowlist and become metric tags for the Metrics
+	// pipeline. Without it, custom tags that are not known DD/OTel conventions are dropped.
+	MetricsInfraAttrsAsTags bool
 	// Logs contains configuration options for the logs
 	Logs map[string]interface{}
 	// Debug contains debug configurations.
@@ -152,12 +166,16 @@ type PipelineConfig struct {
 	MetricsBatch map[string]interface{}
 }
 
-// shouldSetLoggingSection returns whether debug logging is enabled.
-// Debug logging is enabled when verbosity is set to a valid value except for "none", or left unset.
+// shouldSetLoggingSection reports whether the debug exporter should be attached to
+// the OTLP ingest pipelines. FromAgentConfig populates Debug["verbosity"] whenever the
+// user configures the otlp_config.debug section (defaulting it when the section is
+// declared without a verbosity), so a missing verbosity here means the section was not
+// configured and the exporter is not attached. An explicit "none" also leaves it
+// detached. As a result, no per-batch debug logs are emitted unless the user opts in.
 func (p *PipelineConfig) shouldSetLoggingSection() bool {
 	v, ok := p.Debug["verbosity"]
 	if !ok {
-		return true
+		return false
 	}
 	s, ok := v.(string)
 	if !ok {

@@ -16,9 +16,7 @@ py_binary(
     visibility = ["//visibility:private"],
 )
 
-# Generate tags.go (the FlavorUnitTestTags map) from tasks/build_tags.bzl, the
-# single source of truth, so the Go extension and the flavor_gotags() macro
-# share one tag definition.
+# Generate flavorless test-tag data from tasks/build_tags.bzl.
 run_binary(
     name = "gen_tags_go_src",
     srcs = ["//tasks:build_tags.bzl"],
@@ -60,12 +58,15 @@ go_library(
 
 go_test(
     name = "gazelle_extension_test",
-    srcs = [":gazelle_extension_test_src"],
+    srcs = [
+        ":gazelle_extension_test_src",
+    ],
     embed = [":gazelle_extension"],
     deps = [
         "@@gazelle++go_deps+com_github_bazelbuild_buildtools//build",
         "@gazelle//config",
         "@gazelle//language",
+        "@gazelle//merger",
         "@gazelle//rule",
     ],
 )

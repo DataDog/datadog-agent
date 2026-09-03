@@ -19,13 +19,19 @@ type mockTokenCapturingHeuristic struct {
 }
 
 func (m *mockTokenCapturingHeuristic) ProcessAndContinue(ctx *messageContext) bool {
-	m.capturedTokens = ctx.tokens
-	m.capturedIndices = ctx.tokenIndicies
+	m.capturedTokens = ctx.tokens.Borrow()
+	m.capturedIndices = ctx.tokens.Indices()
 	return true
 }
 
-// TestLabelerReceivesTokens verifies that heuristics receive the tokens forwarded
-// by the Preprocessor (i.e. the Labeler passes them through to the context).
+// TestLabelerReceivesTokens anchors:
+//
+//	surface AutoMultilineLabeling (auto_multiline_labeler.allium)
+//	    @guidance step 1 — tokens = tokens, token_indices = token_indices
+//
+// The pre-computed tokens and token_indices passed to Label are
+// forwarded verbatim into the HeuristicContext that each heuristic
+// sees. The heuristics do not re-tokenise.
 func TestLabelerReceivesTokens(t *testing.T) {
 	tok := NewTokenizer(1000)
 	content := []byte("2024-01-01 12:00:00 INFO Test message")
@@ -34,24 +40,40 @@ func TestLabelerReceivesTokens(t *testing.T) {
 
 	h := &mockTokenCapturingHeuristic{}
 	labeler := NewLabeler([]Heuristic{h}, nil)
-	labeler.Label(content, tokens, tokenIndices)
+	labeler.Label(content, newBorrowedTokens(tokens, tokenIndices))
 
 	assert.Equal(t, tokens, h.capturedTokens, "Heuristic should receive the pre-computed tokens")
 	assert.Equal(t, tokenIndices, h.capturedIndices, "Heuristic should receive the pre-computed token indices")
 }
 
-// TestLabelerEmptyContentProducesNoTokens verifies that when no tokens are passed in,
-// the heuristic sees nil/empty tokens.
+// TestLabelerEmptyContentProducesNoTokens anchors:
+//
+//	surface AutoMultilineLabeling (auto_multiline_labeler.allium)
+//	    @guidance step 1 — tokens = tokens
+//
+// value HeuristicContext (labeler.allium)
+//
+//	tokens: may be the empty sequence if tokenization has not yet
+//	been performed; heuristics must handle the empty case.
+//
+// When the caller passes nil tokens, heuristics see the empty
+// sequence — the labeller does not fabricate or default tokens.
 func TestLabelerEmptyContentProducesNoTokens(t *testing.T) {
 	h := &mockTokenCapturingHeuristic{}
 	labeler := NewLabeler([]Heuristic{h}, nil)
-	labeler.Label([]byte(""), nil, nil)
+	labeler.Label([]byte(""), BorrowedTokens{})
 
 	assert.Empty(t, h.capturedTokens, "Heuristic should see no tokens when none are passed")
 }
 
-// TestLabelConvertsTokensCorrectly verifies that the tokens passed to Label are
-// forwarded unchanged to the heuristic context.
+// TestLabelConvertsTokensCorrectly anchors:
+//
+//	surface AutoMultilineLabeling (auto_multiline_labeler.allium)
+//	    @guidance step 1 — tokens = tokens (forwarded unchanged)
+//
+// Sanity check that the labeller forwards a non-trivial token
+// sequence (a 4-digit run tokenised as D4 followed by punctuation)
+// through to the heuristic context byte-for-byte.
 func TestLabelConvertsTokensCorrectly(t *testing.T) {
 	tok := NewTokenizer(1000)
 	content := []byte("2024-01-01")
@@ -62,7 +84,7 @@ func TestLabelConvertsTokensCorrectly(t *testing.T) {
 
 	h := &mockTokenCapturingHeuristic{}
 	labeler := NewLabeler([]Heuristic{h}, nil)
-	labeler.Label(content, tokens, tokenIndices)
+	labeler.Label(content, newBorrowedTokens(tokens, tokenIndices))
 
 	assert.Equal(t, tokens, h.capturedTokens)
 }

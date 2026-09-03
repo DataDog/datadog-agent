@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "metrics",
@@ -8,6 +9,7 @@ go_library(
         "context_metrics_flusher.go",
         "count.go",
         "counter.go",
+        "distribution.go",
         "gauge.go",
         "histogram.go",
         "histogram_bucket.go",
@@ -39,12 +41,13 @@ go_library(
         "//pkg/tagset",
         "//pkg/util/buf",
         "//pkg/util/log",
+        "//pkg/util/quantile",
         "@com_github_stretchr_testify//assert",
         "@org_uber_go_atomic//:atomic",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "metrics_test",
     srcs = [
         "check_metrics_test.go",
@@ -59,6 +62,7 @@ go_test(
         "metric_sample_test.go",
         "metric_test.go",
         "metric_with_timestamp_test.go",
+        "metricsource_test.go",
         "monotonic_count_test.go",
         "rate_test.go",
         "set_test.go",
@@ -66,7 +70,6 @@ go_test(
         "test_helper_test.go",
     ],
     embed = [":metrics"],
-    gotags = ["test"],
     deps = [
         "//pkg/aggregator/ckey",
         "//pkg/config/mock",

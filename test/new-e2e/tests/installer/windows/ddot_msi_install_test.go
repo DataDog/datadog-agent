@@ -12,11 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/ddot"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -60,7 +59,7 @@ func (s *testDDOTExtensionMSI) TestInstallAndUninstallDDOTExtension() {
 	// Extension DDOT runs under dd-procmgr-service (OCI processes.d); legacy SCM datadog-otel-agent must stay stopped.
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	ddot.AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
 
 	// Act: uninstall the Agent MSI (purges OCI packages including extensions)
 	s.Require().NoError(s.Installer().Uninstall(
@@ -97,7 +96,7 @@ func (s *testDDOTExtensionMSI) TestUpgradeEnablesDDOTExtension() {
 	// Extension DDOT runs under dd-procmgr-service (OCI processes.d); legacy SCM datadog-otel-agent must stay stopped.
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	ddot.AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
 }
 
 func (s *testDDOTExtensionMSI) installPreviousAgentVersion(opts ...MsiOption) {
@@ -190,5 +189,5 @@ func (s *testDDOTExtensionMSIUpgrade) TestUpgradePreservesDDOTExtension() {
 	// After upgrade to current OCI layout, DDOT is supervised by dd-procmgr-service; legacy SCM datadog-otel-agent must stay stopped.
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	ddot.AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
 }

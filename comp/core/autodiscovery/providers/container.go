@@ -11,11 +11,9 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"sort"
 	"strings"
 	"sync"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -24,9 +22,8 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,7 +41,7 @@ type ContainerConfigProvider struct {
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewContainerConfigProvider(_ *constants.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	return &ContainerConfigProvider{
 		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),
@@ -113,10 +110,10 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 
 			if err != nil {
 				k.configErrors[entityName] = err
-				k.reportConfigurationError(entityName, err, errorSource)
+				reportConfigurationError(k.healthPlatform, entityName, err, errorSource)
 			} else {
 				delete(k.configErrors, entityName)
-				k.clearConfigurationErrors(entityName)
+				clearConfigurationErrors(k.healthPlatform, entityName)
 			}
 
 			configCache, ok := k.configCache[entityName]
@@ -154,7 +151,7 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 				changes.UnscheduleConfig(oldConfig)
 			}
 
-			k.clearConfigurationErrors(entityName)
+			clearConfigurationErrors(k.healthPlatform, entityName)
 			delete(k.configCache, entityName)
 			delete(k.configErrors, entityName)
 
@@ -236,6 +233,8 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 				containerEntity,
 				entity.Annotations,
 				adIdentifier,
+				// Pod annotations do not support the hybrid ignore_autodiscovery_tags overlay.
+				false,
 			)
 
 			// container_collect_all configs must be added after
@@ -305,57 +304,6 @@ func (k *ContainerConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet
 	maps.Copy(errors, k.configErrors)
 
 	return errors
-}
-
-// adAnnotationIssueID returns the health-platform issue id for an AD annotation
-// error on the given entity. The build and resolve paths must use the same id,
-// so both call this helper rather than inlining the string.
-func adAnnotationIssueID(entityName string) string {
-	return "ad-annotation:" + entityName
-}
-
-// reportConfigurationError reports the AD configuration errors to the health platform.
-func (k *ContainerConfigProvider) reportConfigurationError(entityName string, errMsgSet types.ErrorMsgSet, errorSource types.ErrorSource) {
-	if k.healthPlatform == nil {
-		return
-	}
-
-	// Sort error messages for stable checkID assignment
-	errMsgs := make([]string, 0, len(errMsgSet))
-	for msg := range errMsgSet {
-		errMsgs = append(errMsgs, msg)
-	}
-	sort.Strings(errMsgs)
-	errorMsg := strings.Join(errMsgs, ", ")
-
-	issueID := adAnnotationIssueID(entityName)
-	context := map[string]string{
-		"entityName":   entityName,
-		"errorMessage": errorMsg,
-		"errorSource":  string(errorSource),
-	}
-	issue, buildErr := admisconfig.NewADMisconfigurationIssue().BuildIssue(context)
-	if buildErr != nil {
-		issue = &healthplatformpayload.Issue{
-			Id:        issueID,
-			IssueName: healthplatformdef.ADMisconfigurationIssueName,
-			Title:     "Autodiscovery Misconfiguration on '" + entityName + "'",
-			Source:    healthplatformdef.ADMisconfigurationSource,
-		}
-	} else {
-		issue.Id = issueID
-	}
-	if err := k.healthPlatform.ReportIssue(issue); err != nil {
-		log.Debugf("Failed to report AD annotation issue for %s: %v", entityName, err)
-	}
-}
-
-// clearConfigurationErrors clears all previously reported configuration errors for the given entity.
-func (k *ContainerConfigProvider) clearConfigurationErrors(entityName string) {
-	if k.healthPlatform == nil {
-		return
-	}
-	k.healthPlatform.ResolveIssue(adAnnotationIssueID(entityName))
 }
 
 // buildEntityName is also used as display key in `agent status` "Configuration Errors" display.

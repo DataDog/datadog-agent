@@ -20,6 +20,7 @@ type InstallAgentParams struct {
 	Site              string `installer_arg:"SITE"`
 	InstallPath       string `installer_arg:"PROJECTLOCATION"`
 	InstallLogFile    string `installer_arg:"/log"`
+	LogLevel          string `installer_arg:"DD_LOG_LEVEL"`
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -28,11 +29,12 @@ type InstallAgentOption = func(*InstallAgentParams)
 // NewInstallParams instantiates a new InstallAgentParams and runs all the given InstallAgentOption
 // Example usage:
 //
-//	awshost.WithAgentOptions(
-//	  agentparams.WithAdditionalInstallParameters(
-//		msiparams.NewInstallParams(
-//			msiparams.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
-//			msiparams.WithAgentUserPassword(TestPassword)))),
+//	winawshost.WithRunOptions(
+//		windows.WithAgentOptions(
+//			agentparams.WithAdditionalInstallParameters(
+//				msiparams.NewInstallParams(
+//					msiparams.WithAgentUser(fmt.Sprintf("%s\\%s", TestDomain, TestUser)),
+//					msiparams.WithAgentUserPassword(TestPassword))))),
 func NewInstallParams(msiInstallParams ...InstallAgentOption) []string {
 	msiInstallAgentParams := &InstallAgentParams{}
 	for _, o := range msiInstallParams {
@@ -106,5 +108,12 @@ func WithFakeIntake(fakeIntake *fakeintake.FakeintakeOutput) InstallAgentOption 
 func WithCustomInstallPath(installPath string) InstallAgentOption {
 	return func(i *InstallAgentParams) {
 		i.InstallPath = installPath
+	}
+}
+
+// WithLogLevel specifies the DD_LOG_LEVEL parameter.
+func WithLogLevel(logLevel string) InstallAgentOption {
+	return func(i *InstallAgentParams) {
+		i.LogLevel = logLevel
 	}
 }

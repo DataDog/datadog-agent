@@ -32,17 +32,17 @@ func main() {
 }
 
 func generate(outputDir string) error {
-	for _, lay := range windowsProcmgrLayouts {
-		if err := lay.writeFilesToSubdir(outputDir); err != nil {
-			return err
-		}
-	}
-	for _, lay := range linuxProcmgrYAMLLayouts {
-		if err := lay.writeFilesToSubdir(outputDir); err != nil {
-			return err
-		}
-	}
 	for _, lay := range systemdEmbeddedLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
+		}
+	}
+	for _, lay := range procmgrEmbeddedLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
+		}
+	}
+	for _, lay := range windowsEmbeddedLayouts {
 		if err := lay.writeFilesToSubdir(outputDir); err != nil {
 			return err
 		}
@@ -56,17 +56,17 @@ func generate(outputDir string) error {
 var embedded embed.FS
 
 type installerTemplateData struct {
-	InstallDir                   string
-	EtcDir                       string
-	FleetPoliciesDir             string
-	PIDDir                       string
-	Stable                       bool
-	AmbiantCapabilitiesSupported bool
+	InstallDir       string
+	EtcDir           string
+	FleetPoliciesDir string
+	PIDDir           string
+	Stable           bool
 }
 
 type templateData struct {
 	installerTemplateData
 	AmbiantCapabilitiesSupported bool
+	Procmgr                      bool
 }
 
 type embeddedLayout struct {
@@ -88,7 +88,7 @@ func (l embeddedLayout) writeFilesToSubdir(root string) error {
 	return nil
 }
 
-func mustRenderTemplate(name string, data installerTemplateData, ambiantCapabilitiesSupported bool) []byte {
+func mustRenderTemplate(name string, data installerTemplateData, ambiantCapabilitiesSupported bool, procmgr bool) []byte {
 	tmpl, err := template.ParseFS(embedded, name)
 	if err != nil {
 		panic(err)
@@ -97,55 +97,69 @@ func mustRenderTemplate(name string, data installerTemplateData, ambiantCapabili
 	if err := tmpl.Execute(&buf, templateData{
 		installerTemplateData:        data,
 		AmbiantCapabilitiesSupported: ambiantCapabilitiesSupported,
+		Procmgr:                      procmgr,
 	}); err != nil {
 		panic(err)
 	}
 	return buf.Bytes()
 }
 
-func mustReadSystemdUnit(name string, data installerTemplateData, ambiantCapabilitiesSupported bool) []byte {
-	return mustRenderTemplate(name+".tmpl", data, ambiantCapabilitiesSupported)
+func mustReadUnit(name string, data installerTemplateData, ambiantCapabilitiesSupported bool, procmgr bool) []byte {
+	return mustRenderTemplate(name+".tmpl", data, ambiantCapabilitiesSupported, procmgr)
 }
 
 func mustRenderYAMLConfig(name string, data installerTemplateData) []byte {
-	return mustRenderTemplate(name+".tmpl", data, false)
+	return mustRenderTemplate(name+".tmpl", data, false, true)
 }
 
-func systemdUnits(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+func unitSetSystemd(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+	units := map[string][]byte{
+		"datadog-agent.service":                mustReadUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-exp.service":            mustReadUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-installer.service":      mustReadUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-installer-exp.service":  mustReadUnit("datadog-agent-installer.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-data-plane.service":     mustReadUnit("datadog-agent-data-plane.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-data-plane-exp.service": mustReadUnit("datadog-agent-data-plane.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-trace.service":          mustReadUnit("datadog-agent-trace.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-trace-exp.service":      mustReadUnit("datadog-agent-trace.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-process.service":        mustReadUnit("datadog-agent-process.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-process-exp.service":    mustReadUnit("datadog-agent-process.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-security.service":       mustReadUnit("datadog-agent-security.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-security-exp.service":   mustReadUnit("datadog-agent-security.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-sysprobe.service":       mustReadUnit("datadog-agent-sysprobe.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-sysprobe-exp.service":   mustReadUnit("datadog-agent-sysprobe.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-action.service":         mustReadUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-action-exp.service":     mustReadUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-ddot.service":           mustReadUnit("datadog-agent-ddot.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-ddot-exp.service":       mustReadUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported, false),
+	}
+	return units
+}
+
+// For memory efficiency, procmgr units only defines the units that are different from the systemd units.
+// Getting the procmgr units will fallback to the systemd units if not find.
+func unitSetProcmgr(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+	units := map[string][]byte{
+		"datadog-agent.service":             mustReadUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-exp.service":         mustReadUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-procmgr.service":     mustReadUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-procmgr-exp.service": mustReadUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported, true),
+	}
+	return units
+}
+
+func yamlSet() map[string][]byte {
 	return map[string][]byte{
-		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-installer.service":      mustReadSystemdUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-installer-exp.service":  mustReadSystemdUnit("datadog-agent-installer.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-data-plane.service":     mustReadSystemdUnit("datadog-agent-data-plane.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-data-plane-exp.service": mustReadSystemdUnit("datadog-agent-data-plane.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-trace.service":          mustReadSystemdUnit("datadog-agent-trace.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-trace-exp.service":      mustReadSystemdUnit("datadog-agent-trace.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-process.service":        mustReadSystemdUnit("datadog-agent-process.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-process-exp.service":    mustReadSystemdUnit("datadog-agent-process.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-security.service":       mustReadSystemdUnit("datadog-agent-security.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-security-exp.service":   mustReadSystemdUnit("datadog-agent-security.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-sysprobe.service":       mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-sysprobe-exp.service":   mustReadSystemdUnit("datadog-agent-sysprobe.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-ddot.service":           mustReadSystemdUnit("datadog-agent-ddot.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-ddot-exp.service":       mustReadSystemdUnit("datadog-agent-ddot.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-action.service":         mustReadSystemdUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-action-exp.service":     mustReadSystemdUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-procmgr.service":        mustReadSystemdUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-procmgr-exp.service":    mustReadSystemdUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported),
+		// The files are always the same, nothing to resolve from the template
+		"datadog-agent-ddot.yaml":            mustRenderYAMLConfig("datadog-agent-ddot.yaml", installerTemplateData{}),
+		"datadog-agent-action-executor.yaml": mustRenderYAMLConfig("datadog-agent-action-executor.yaml", installerTemplateData{}),
+		"datadog-agent-par-control.yaml":     mustRenderYAMLConfig("datadog-agent-par-control.yaml", installerTemplateData{}),
 	}
 }
 
-func linuxProcmgrYAMLFiles(stableData, expData installerTemplateData) map[string][]byte {
+func windowsProcmgrYAMLFile(yamlFile, windowsFile string, codegen installerTemplateData) map[string][]byte {
 	return map[string][]byte{
-		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
-		"datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
-	}
-}
-
-func windowsProcmgrYAMLFiles(codegenData installerTemplateData) map[string][]byte {
-	return map[string][]byte{
-		"datadog-agent-ddot.yaml": mustRenderYAMLConfig("datadog-agent-ddot-windows.yaml", codegenData),
+		yamlFile: mustRenderYAMLConfig(windowsFile, codegen),
 	}
 }
 
@@ -185,19 +199,40 @@ var (
 		PIDDir:           "",
 		Stable:           true,
 	}
-	windowsProcmgrLayouts = []embeddedLayout{
-		{subdir: "windows", units: windowsProcmgrYAMLFiles(windowsDDOTCodegenData)},
+	windowsADPCodegenData = installerTemplateData{
+		InstallDir:       "__ADP_INSTALL_ROOT__",
+		EtcDir:           "__ADP_ETC_ROOT__",
+		FleetPoliciesDir: "__ADP_FLEET_POLICIES_DIR__",
+		Stable:           true,
 	}
-	linuxProcmgrYAMLLayouts = []embeddedLayout{
-		{subdir: "oci", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
-		{subdir: "oci-nocap", units: linuxProcmgrYAMLFiles(stableDataOCI, expDataOCI)},
-		{subdir: "debrpm", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
-		{subdir: "debrpm-nocap", units: linuxProcmgrYAMLFiles(stableDataDebRpm, expDataDebRpm)},
+	windowsPARCodegenData = installerTemplateData{
+		InstallDir:       "__PAR_INSTALL_ROOT__",
+		EtcDir:           "__PAR_ETC_ROOT__",
+		FleetPoliciesDir: "__PAR_FLEET_POLICIES_DIR__",
+		PIDDir:           "",
+		Stable:           true,
 	}
+
+	// Ideally the folder names would be systemd and procmgr (instead of sd and pm)
+	// and -nocap (instead of -nc)
+	// but windows has a limit of file path length, so we use shorter names
 	systemdEmbeddedLayouts = []embeddedLayout{
-		{subdir: "oci", units: systemdUnits(stableDataOCI, expDataOCI, true)},
-		{subdir: "debrpm", units: systemdUnits(stableDataDebRpm, expDataDebRpm, true)},
-		{subdir: "oci-nocap", units: systemdUnits(stableDataOCI, expDataOCI, false)},
-		{subdir: "debrpm-nocap", units: systemdUnits(stableDataDebRpm, expDataDebRpm, false)},
+		{subdir: "sd/oci", units: unitSetSystemd(stableDataOCI, expDataOCI, true)},
+		{subdir: "sd/debrpm", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "sd/oci-nc", units: unitSetSystemd(stableDataOCI, expDataOCI, false)},
+		{subdir: "sd/debrpm-nc", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, false)},
+	}
+	procmgrEmbeddedLayouts = []embeddedLayout{
+		{subdir: "pm/oci", units: unitSetProcmgr(stableDataOCI, expDataOCI, true)},
+		{subdir: "pm/debrpm", units: unitSetProcmgr(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "pm/oci-nc", units: unitSetProcmgr(stableDataOCI, expDataOCI, false)},
+		{subdir: "pm/debrpm-nc", units: unitSetProcmgr(stableDataDebRpm, expDataDebRpm, false)},
+		{subdir: "pm/processes.d", units: yamlSet()},
+	}
+	windowsEmbeddedLayouts = []embeddedLayout{
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action.yaml", "datadog-agent-action-windows.yaml", windowsPARCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-executor.yaml", "datadog-agent-action-executor-windows.yaml", windowsPARCodegenData)},
 	}
 )

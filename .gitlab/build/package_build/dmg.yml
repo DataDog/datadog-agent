@@ -25,7 +25,7 @@
 .agent_dmg:
   extends: .bazel:defs:cache:macos
   stage: package_build
-  needs: ["go_deps", "go_mod_tidy_check"]
+  needs: ["go_mod_tidy_check"]
   rules:
      - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
        variables:
@@ -50,8 +50,6 @@
       aud: ci-identities
   variables:
     KEYCHAIN_NAME: "build.keychain"
-    INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
-    INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
     S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
     NOTARIZATION_TIMEOUT: 15m
     NOTARIZATION_ATTEMPTS: 3
@@ -63,18 +61,20 @@
   before_script:
     # Since there is no virtualization on the macOS runners, we need to unmount the Agent dmg volume to avoid conflicts
     - sudo umount /Volumes/Agent || true
-    - rm -rf "$OMNIBUS_GIT_CACHE_DIR" || true
   after_script:
     - sudo umount /Volumes/Agent || true
   script:
     - set -eo pipefail
-    - !reference [.vault_login]
     - !reference [.macos_setup_python]
     - !reference [.macos_setup_go]
     # List Python and Go existing environments and their disk space
     - !reference [.macos_runner_maintenance]
     - !reference [.macos_setup_cache]
-    - !reference [.retrieve_linux_go_deps]
+    - !reference [.sanitize_goproxy]
+    - !reference [.bazel:recover_from_canceled_job]
+    # Populate AWS_SHARED_CREDENTIALS_FILE via CI Identities (no macOS IAM instance role needed);
+    # must run before build_agent_dmg.sh since Omnibus reads it for S3 cache access during the build.
+    - ci-identities-gitlab-job-client assume-role
     - bash .gitlab/build/package_build/build_agent_dmg.sh
     - !reference [.upload_sbom_artifacts]
 

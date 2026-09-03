@@ -150,6 +150,54 @@ func TestToNetpathConfig(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "UDP request without timeout falls back to 60s default",
+			input: common.SyntheticsTestConfig{
+				Config: struct {
+					Assertions []common.Assertion   `json:"assertions"`
+					Request    common.ConfigRequest `json:"request"`
+				}{
+					Request: common.UDPConfigRequest{
+						Host: "dns.example.com",
+						Port: &udpPort,
+						NetworkConfigRequest: common.NetworkConfigRequest{
+							MaxTTL: &udpTTL,
+							// Timeout intentionally absent — API may omit it
+						},
+					},
+				},
+			},
+			expect: config.Config{
+				Protocol:     payload.ProtocolUDP,
+				DestHostname: "dns.example.com",
+				DestPort:     uint16(udpPort),
+				MaxTTL:       uint8(udpTTL),
+				Timeout:      time.Duration(float64(defaultTestTimeoutSeconds) * 0.9 / float64(udpTTL) * float64(time.Second)),
+				ReverseDNS:   true,
+			},
+			expectError: false,
+		},
+		{
+			name: "UDP request without timeout or maxTTL falls back to defaults",
+			input: common.SyntheticsTestConfig{
+				Config: struct {
+					Assertions []common.Assertion   `json:"assertions"`
+					Request    common.ConfigRequest `json:"request"`
+				}{
+					Request: common.UDPConfigRequest{
+						Host: "dns.example.com",
+					},
+				},
+			},
+			expect: config.Config{
+				Protocol:     payload.ProtocolUDP,
+				DestHostname: "dns.example.com",
+				MaxTTL:       config.DefaultMaxTTL,
+				Timeout:      time.Duration(float64(defaultTestTimeoutSeconds) * 0.9 / float64(config.DefaultMaxTTL) * float64(time.Second)),
+				ReverseDNS:   true,
+			},
+			expectError: false,
+		},
+		{
 			name: "Unsupported subtype",
 			input: common.SyntheticsTestConfig{
 				Config: struct {
@@ -432,6 +480,10 @@ func TestNetworkPathToTestResult(t *testing.T) {
 		},
 	}
 
+	for i := range tests {
+		tests[i].worker.testCfg.cfg.RunType = string(payload.TestRunTypeScheduled)
+	}
+
 	sched := &syntheticsTestScheduler{
 		generateTestResultID: func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
 			return "test-result-id-123", nil
@@ -477,7 +529,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 	}
 }
 
-func TestNetworkPathToTestResult_UsesBackendResultID(t *testing.T) {
+func TestNetworkPathToTestResult_UsesRequestResultIDAndMapsSyntheticsRunType(t *testing.T) {
 	src := "frontend"
 	dst := "backend"
 	icmpTTL := 5
@@ -492,8 +544,9 @@ func TestNetworkPathToTestResult_UsesBackendResultID(t *testing.T) {
 	worker := workerResult{
 		testCfg: SyntheticsTestCtx{
 			cfg: common.SyntheticsTestConfig{
-				PublicID: "pub-on-demand",
+				PublicID: "pub-triggered",
 				ResultID: "backend-result-id",
+				RunType:  string(payload.TestRunTypeTriggered),
 				Type:     "network",
 				Config: struct {
 					Assertions []common.Assertion   `json:"assertions"`
@@ -514,9 +567,94 @@ func TestNetworkPathToTestResult_UsesBackendResultID(t *testing.T) {
 		hostname: "agent-host",
 	}
 
-	got, err := sched.networkPathToTestResult(&worker)
-	require.NoError(t, err)
-	require.Equal(t, "backend-result-id", got.Result.ID)
+	testCases := []struct {
+		name     string
+		runType  string
+		expected payload.TestRunType
+	}{
+		{name: "scheduled", runType: common.RunTypeScheduled, expected: payload.TestRunTypeScheduled},
+		{name: "triggered", runType: common.RunTypeTriggered, expected: payload.TestRunTypeTriggered},
+		{name: "fast", runType: common.RunTypeFast, expected: payload.TestRunTypeFast},
+		{name: "ci", runType: common.RunTypeCI, expected: payload.TestRunTypeTriggered},
+		{name: "unknown", runType: "unknown", expected: payload.TestRunTypeTriggered},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			worker.testCfg.cfg.RunType = tt.runType
+
+			got, err := sched.networkPathToTestResult(&worker)
+			require.NoError(t, err)
+			require.Equal(t, "backend-result-id", got.Result.ID)
+			require.Equal(t, tt.expected, got.Result.Netpath.TestRunType)
+		})
+	}
+}
+
+func TestNetworkPathToTestResult_Namespace(t *testing.T) {
+	override := "prod-namespace"
+
+	tests := []struct {
+		name              string
+		schedulerNS       string
+		requestNamespace  *string
+		expectedNamespace string
+	}{
+		{
+			name:              "falls back to agent default namespace",
+			schedulerNS:       "default",
+			requestNamespace:  nil,
+			expectedNamespace: "default",
+		},
+		{
+			name:              "empty test namespace falls back to agent default",
+			schedulerNS:       "default",
+			requestNamespace:  func() *string { s := ""; return &s }(),
+			expectedNamespace: "default",
+		},
+		{
+			name:              "test namespace overrides agent default",
+			schedulerNS:       "default",
+			requestNamespace:  &override,
+			expectedNamespace: "prod-namespace",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sched := &syntheticsTestScheduler{
+				namespace: tt.schedulerNS,
+				generateTestResultID: func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
+					return "generated-id", nil
+				},
+			}
+
+			worker := workerResult{
+				testCfg: SyntheticsTestCtx{
+					cfg: common.SyntheticsTestConfig{
+						PublicID: "pub-ns",
+						Type:     "network",
+						Config: struct {
+							Assertions []common.Assertion   `json:"assertions"`
+							Request    common.ConfigRequest `json:"request"`
+						}{
+							Request: common.ICMPConfigRequest{
+								Host: "8.8.8.8",
+								NetworkConfigRequest: common.NetworkConfigRequest{
+									Namespace: tt.requestNamespace,
+								},
+							},
+						},
+					},
+				},
+				hostname: "agent-host",
+			}
+
+			got, err := sched.networkPathToTestResult(&worker)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedNamespace, got.Result.Netpath.Namespace)
+		})
+	}
 }
 
 func TestGenerateRandomStringUInt63(t *testing.T) {

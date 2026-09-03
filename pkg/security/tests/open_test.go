@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -381,6 +382,69 @@ func TestOpen(t *testing.T) {
 		}, "test_rule")
 	})
 
+	t.Run("io_uring_ftruncate", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
+		checkKernelCompatibility(t, "io_uring ftruncate needs Linux 6.9", func(kv *kernel.Version) bool {
+			return kv.Code < kernel.Kernel6_9
+		})
+
+		f, err := os.OpenFile(testFileTrunc, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := f.Write([]byte("this data will soon be truncated\n")); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Sync(); err != nil {
+			t.Fatal(err)
+		}
+
+		defer os.Remove(testFileTrunc)
+		defer f.Close()
+
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		prepRequest := ioUringPrepFtruncate(int(f.Fd()), 4)
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignalFromRule(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			ret, err := ioUringResult(result)
+			if err != nil {
+				return fmt.Errorf("io_uring error: %w", err)
+			}
+
+			if ret < 0 {
+				// On a supported kernel a negative result is a real failure, not a skip:
+				// a malformed SQE would also return a negative errno and hide the gap.
+				return fmt.Errorf("failed to ftruncate with io_uring: %d", ret)
+			}
+
+			return nil
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
+			assert.Equal(t, getInode(t, testFileTrunc), event.Open.File.Inode, "wrong inode")
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, true, value.(bool), "io_uring ftruncate event should be async")
+		}, "test_rule_truncate")
+	})
+
 	_ = os.Remove(testFile)
 }
 
@@ -543,8 +607,10 @@ func openMountByID(mountID int) (f *os.File, err error) {
 	return nil, errors.New("mountID not found")
 }
 
-func benchmarkOpenSameFile(b *testing.B, disableFilters bool, rules ...*rules.RuleDefinition) {
-	test, err := newTestModule(b, nil, rules, withStaticOpts(testOpts{disableFilters: disableFilters}))
+// benchmarkOpenSameFile benchmarks repeated opens of one file, with or without
+// filters depending on what its caller declared.
+func benchmarkOpenSameFile(b *testing.B, rules ...*rules.RuleDefinition) {
+	test, err := newTestModule(b, nil, rules)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -569,26 +635,32 @@ func benchmarkOpenSameFile(b *testing.B, disableFilters bool, rules ...*rules.Ru
 	}
 }
 
+var _ = declare(BenchmarkOpenNoApprover, testOpts{disableFilters: true})
+
 func BenchmarkOpenNoApprover(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
 
-	benchmarkOpenSameFile(b, true, rule)
+	benchmarkOpenSameFile(b, rule)
 }
 
+// BenchmarkOpenWithApprover keeps filters on, which is the default config, so it
+// needs no declaration.
 func BenchmarkOpenWithApprover(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
 
-	benchmarkOpenSameFile(b, false, rule)
+	benchmarkOpenSameFile(b, rule)
 }
 
+var _ = declare(BenchmarkOpenNoKprobe, testOpts{disableFilters: true})
+
 func BenchmarkOpenNoKprobe(b *testing.B) {
-	benchmarkOpenSameFile(b, true)
+	benchmarkOpenSameFile(b)
 }
 
 func createFolder(current string, filesPerFolder, maxDepth int) error {

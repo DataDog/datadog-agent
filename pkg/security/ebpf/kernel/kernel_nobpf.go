@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !linux_bpf
+//go:build linux && !bpf
 
 // Package kernel holds kernel related files
 package kernel
@@ -17,6 +17,11 @@ func (k *Version) SupportCORE() bool {
 // HasSKStorage returns true if the kernel supports SK_STORAGE maps
 // here it's not, since we are built without eBPF support
 func (k *Version) HasSKStorage() bool {
+	return false
+}
+
+// HaveIOURing returns whether the kernel supports io-uring.
+func (k *Version) HaveIOURing() bool {
 	return false
 }
 
@@ -83,6 +88,21 @@ func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
 // HasBpfGetCurrentCgroupIDForSchedCLS returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type
 // https://github.com/torvalds/linux/commit/c501bf55c88b834adefda870c7c092ec9052a437
 func (k *Version) HasBpfGetCurrentCgroupIDForSchedCLS() bool {
+	return false
+}
+
+// HasSkLookupForSchedCLS returns true if the kernel supports bpf_sk_lookup_tcp/udp for the Sched CLS program type
+func (k *Version) HasSkLookupForSchedCLS() bool {
+	return false
+}
+
+// HasSKStorageInSchedCLS returns true if the kernel supports bpf_sk_storage_get in Sched CLS programs
+func (k *Version) HasSKStorageInSchedCLS() bool {
+	return false
+}
+
+// HasSKStorageInCgroupSock returns true if the kernel supports bpf_sk_storage_get in cgroup/sock programs
+func (k *Version) HasSKStorageInCgroupSock() bool {
 	return false
 }
 

@@ -570,6 +570,18 @@ func TestStartConfiguration(t *testing.T) {
 			},
 			expectedError: errors.NewDisabled(componentName, "process collection, service discovery, language collection, and GPU monitoring are disabled"),
 		},
+		{
+			description: "service discovery enabled but disabled on CLC runner",
+			configOverrides: map[string]interface{}{
+				"process_config.process_collection.enabled": false,
+				"clc_runner_enabled":                        true,
+				"config_providers":                          []map[string]interface{}{{"name": "clusterchecks"}},
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			expectedError: errors.NewDisabled(componentName, "process collection, service discovery, language collection, and GPU monitoring are disabled"),
+		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)

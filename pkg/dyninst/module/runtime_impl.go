@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package module
 
@@ -170,6 +170,7 @@ func (rt *runtimeImpl) Load(
 	if opts.SkipRuntimeRecoveryProbe {
 		irgenOpts = append(irgenOpts, irgen.WithSkipRuntimeRecoveryProbe(true))
 	}
+	irgenOpts = append(irgenOpts, irgen.WithRedaction(redactionConfigForPID(processID.PID)))
 	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes, irgenOpts...)
 	if err != nil {
 		return nil, &irGenFailedError{err: err}

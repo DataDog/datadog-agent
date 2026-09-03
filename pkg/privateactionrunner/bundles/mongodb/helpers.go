@@ -12,11 +12,29 @@ import (
 	"net/url"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
 
 	"github.com/DataDog/datadog-agent/pkg/util/hostport"
 )
+
+// optionsLister mirrors mongoutil.OptionsLister[T], which lives in an
+// internal package we can't import.
+type optionsLister[T any] struct {
+	opts *T
+}
+
+func (l optionsLister[T]) List() []func(*T) error {
+	if l.opts == nil {
+		return nil
+	}
+	return []func(*T) error{
+		func(t *T) error {
+			*t = *l.opts
+			return nil
+		},
+	}
+}
 
 func createMongoClientOptions(ctx context.Context, credentialTokens map[string]string) (*options.ClientOptions, *connstring.ConnString, error) {
 	connectionUri, err := getConnectionUri(credentialTokens)
@@ -37,25 +55,21 @@ func createMongoClientOptions(ctx context.Context, credentialTokens map[string]s
 func getConnectionUri(credentialTokens map[string]string) (string, error) {
 	username, userOk := credentialTokens["username"]
 	password, passOk := credentialTokens["password"]
-	srvHost, srvHostOk := credentialTokens["srvHost"]
 	host, hostOk := credentialTokens["host"]
 	port, portOk := credentialTokens["port"]
 	database := credentialTokens["database"]
 	authSource := credentialTokens["authSource"]
 	authMechanism := credentialTokens["authMechanism"]
+	tls := credentialTokens["tls"]
+	if tls == "" {
+		tls = "true"
+	}
 
 	if !userOk || username == "" {
 		return "", errors.New("invalid username: Username cannot be empty")
 	}
 	if !passOk || password == "" {
 		return "", errors.New("invalid password: Password cannot be empty")
-	}
-
-	if srvHostOk {
-		if srvHost == "" {
-			return "", errors.New("invalid SRV host: SRV host cannot be empty")
-		}
-		return buildSRVConnectionURI(username, password, srvHost, database, authSource)
 	}
 
 	if !hostOk || host == "" {
@@ -65,30 +79,10 @@ func getConnectionUri(credentialTokens map[string]string) (string, error) {
 		return "", errors.New("invalid port: Port cannot be empty")
 	}
 
-	return buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism)
+	return buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism, tls)
 }
 
-func buildSRVConnectionURI(username, password, srvHost, database, authSource string) (string, error) {
-	escapedUsername := url.QueryEscape(username)
-	escapedPassword := url.QueryEscape(password)
-	escapedSrvHost := url.QueryEscape(srvHost)
-	escapedDatabase := url.QueryEscape(database)
-
-	connectionUri := fmt.Sprintf("mongodb+srv://%v:%v@%v", escapedUsername, escapedPassword, escapedSrvHost)
-	params := []string{}
-	if database != "" {
-		connectionUri = fmt.Sprintf("%s/%s", connectionUri, escapedDatabase)
-	}
-	if authSource != "" {
-		params = append(params, "authSource="+url.QueryEscape(authSource))
-	}
-	if len(params) > 0 {
-		connectionUri = fmt.Sprintf("%s?%s", connectionUri, strings.Join(params, "&"))
-	}
-	return connectionUri, nil
-}
-
-func buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism string) (string, error) {
+func buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism, tls string) (string, error) {
 	escapedUsername := url.QueryEscape(username)
 	escapedPassword := url.QueryEscape(password)
 	hostPort := hostport.Join(host, port)
@@ -105,7 +99,13 @@ func buildStandardConnectionURI(username, password, host, port, database, authSo
 	if authMechanism != "" {
 		params = append(params, "authMechanism="+url.QueryEscape(authMechanism))
 	}
+	if tls != "" {
+		params = append(params, "tls="+url.QueryEscape(tls))
+	}
 	if len(params) > 0 {
+		if database == "" {
+			connectionUri += "/"
+		}
 		connectionUri = fmt.Sprintf("%s?%s", connectionUri, strings.Join(params, "&"))
 	}
 	return connectionUri, nil

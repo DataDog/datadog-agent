@@ -1,5 +1,6 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
@@ -45,80 +46,55 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/http",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/ebpf",
-        "//pkg/network/config",
-        "//pkg/network/ebpf",
         "//pkg/network/protocols",
-        "//pkg/network/protocols/events",
         "//pkg/network/types",
-        "//pkg/network/usm/buildmode",
-        "//pkg/network/usm/config",
-        "//pkg/network/usm/utils",
         "//pkg/process/util",
         "//pkg/util/common",
         "//pkg/util/intern",
-        "//pkg/util/kernel",
         "//pkg/util/log",
         "//pkg/util/sync",
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
         "@com_github_datadog_sketches_go//ddsketch",
-        "@com_github_davecgh_go_spew//spew",
     ] + select({
-        "@rules_go//go/platform:aix": [
-            "//pkg/network/protocols/telemetry",
-        ],
         "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+            "//pkg/network/config",
+            "//pkg/network/ebpf",
+            "//pkg/network/protocols/events",
             "//pkg/network/protocols/telemetry",
             "//pkg/network/protocols/tls",
-        ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/network/protocols/telemetry",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "//pkg/network/protocols/telemetry",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "//pkg/network/protocols/telemetry",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "//pkg/network/protocols/telemetry",
-        ],
-        "@rules_go//go/platform:ios": [
-            "//pkg/network/protocols/telemetry",
-        ],
-        "@rules_go//go/platform:js": [
-            "//pkg/network/protocols/telemetry",
+            "//pkg/network/usm/buildmode",
+            "//pkg/network/usm/config",
+            "//pkg/network/usm/utils",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_davecgh_go_spew//spew",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+            "//pkg/network/config",
+            "//pkg/network/ebpf",
+            "//pkg/network/protocols/events",
             "//pkg/network/protocols/telemetry",
             "//pkg/network/protocols/tls",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "//pkg/network/protocols/telemetry",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "//pkg/network/protocols/telemetry",
-        ],
-        "@rules_go//go/platform:osx": [
-            "//pkg/network/protocols/telemetry",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "//pkg/network/protocols/telemetry",
-        ],
-        "@rules_go//go/platform:qnx": [
-            "//pkg/network/protocols/telemetry",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "//pkg/network/protocols/telemetry",
+            "//pkg/network/usm/buildmode",
+            "//pkg/network/usm/config",
+            "//pkg/network/usm/utils",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_davecgh_go_spew//spew",
         ],
         "@rules_go//go/platform:windows": [
             "//comp/etw/def",
             "//comp/etw/impl",
+            "//pkg/network/config",
             "//pkg/network/driver",
             "//pkg/network/protocols/telemetry",
+            "//pkg/network/usm/utils",
             "//pkg/util/winutil",
             "//pkg/util/winutil/iisconfig",
             "@org_golang_x_sys//windows",
@@ -127,7 +103,7 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "http_test",
     srcs = [
         "etw_iis_cache_test.go",
@@ -144,82 +120,42 @@ go_test(
         "types_linux_test.go",
     ],
     embed = [":http"],
-    gotags = ["test"],
+    gotags_sets = [
+        ["bpf"],
+        ["npm"],
+    ],
     deps = [
-        "//pkg/ebpf",
-        "//pkg/network/config",
-        "//pkg/network/protocols/events",
-        "@com_github_datadog_sketches_go//ddsketch",
         "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
     ] + select({
-        "@rules_go//go/platform:aix": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
-        ],
         "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
             "//pkg/ebpf/ebpftest:cgo_align",
+            "//pkg/network/config",
+            "//pkg/network/protocols/events",
             "//pkg/network/protocols/telemetry",
             "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:ios": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:js": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
+            "//pkg/util/common",
+            "@com_github_datadog_sketches_go//ddsketch",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
             "//pkg/ebpf/ebpftest:cgo_align",
+            "//pkg/network/config",
+            "//pkg/network/protocols/events",
             "//pkg/network/protocols/telemetry",
             "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:osx": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:qnx": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "//pkg/network/protocols/telemetry",
-            "//pkg/process/util",
+            "//pkg/util/common",
+            "@com_github_datadog_sketches_go//ddsketch",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/ebpf/ebpftest:cgo_align",
+            "//pkg/network/config",
             "//pkg/network/driver",
             "//pkg/network/protocols/telemetry",
             "//pkg/process/util",
+            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

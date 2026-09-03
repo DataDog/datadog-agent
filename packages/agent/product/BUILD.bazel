@@ -37,7 +37,6 @@ pkg_filegroup(
         # TODO: sysprobe - windows
         # TODO: systray - windows
         # TODO: installer
-        "//cmd/loader:trace_loader",
         ":dda_built_trace_agent_binary",
         ":dda_built_process_agent_binary",
         ":dda_built_privateactionrunner_binary",
@@ -55,6 +54,7 @@ pkg_filegroup(
     ] + select({
         "//packages/agent:linux_default": [
             "//pkg/discovery/module/rust:all_files",
+            "//pkg/privateactionrunner/par-control:all_files_linux",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [
@@ -62,10 +62,13 @@ pkg_filegroup(
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_heroku": [],
-        "//conditions:default": [
-        ],
+        "//conditions:default": [],
     }) + select({
+        "@platforms//os:linux": [
+            "//cmd/loader:trace_loader_all_files",
+        ],
         "@platforms//os:macos": [
+            "//cmd/loader:trace_loader_all_files",
             "//packages/macos/app:all_files",
             # TODO: systray
         ],

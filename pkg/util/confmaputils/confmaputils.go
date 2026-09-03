@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"reflect"
 	"strings"
+
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
 // AutoConfiguredSuffix is the OTEL component name suffix used for all components
@@ -67,8 +69,7 @@ func Get[T any](c ConfMap, path string) (T, bool) {
 		return zero, false
 	}
 
-	val, ok := obj.(T)
-	return val, ok
+	return GetValue[T](obj)
 }
 
 // ensurePath walks the ConfMap along the given "::" separated path, creating
@@ -152,6 +153,31 @@ func SetDefault[T any](c ConfMap, path string, value T) (bool, error) {
 	}
 	currentMap[target] = value
 	return true, nil
+}
+
+// GetValue resolves the underlying value of a leaf confMap element.
+// This allows for safe retrieval of objects that might be coming from an xconfmap.ExpandedValue which value we still
+// need to check without overwriting it in the map
+func GetValue[T any](obj any) (T, bool) {
+	switch t := obj.(type) {
+	case T:
+		return t, true
+	case xconfmap.ExpandedValue:
+		// For string requests, prefer Original: OTel stores the substituted text there,
+		// while Value may have been parsed into a non-string scalar (int, bool, etc.)
+		// when the env var content looks like a YAML literal (e.g. DD_API_KEY=12345).
+		var zero T
+		if _, isString := any(zero).(string); isString {
+			if s, ok := any(t.Original).(T); ok {
+				return s, true
+			}
+		}
+		val, ok := t.Value.(T)
+		return val, ok
+	default:
+		var zero T
+		return zero, false
+	}
 }
 
 // FilterProcessorConfig returns the configuration for a filter processor that

@@ -14,11 +14,11 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
-// apiCallInfo represents a single NVML API call that can produce one or more metrics.
+// apiCallInfo represents a single NVML API call that can produce one or more samples.
 // It supports both stateless collectors (ignore timestamp) and sampling collectors (use timestamp).
 type apiCallInfo struct {
 	Name    string                                                // Name of the API call for logging/debugging
-	Handler func(ddnvml.Device, uint64) ([]Metric, uint64, error) // Function to handle the API call and return metrics (metrics, newTimestamp, error)
+	Handler func(ddnvml.Device, uint64) ([]Sample, uint64, error) // Function to handle the API call and return samples (samples, newTimestamp, error)
 }
 
 // baseCollector is a unified collector template that consolidates multiple collector types into one instance.
@@ -52,9 +52,9 @@ func newBaseCollector(name CollectorName, device ddnvml.Device, apiCalls []apiCa
 	return c, nil
 }
 
-// DeviceUUID returns the UUID of the device this collector monitors.
-func (c *baseCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *baseCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 // Name returns the name of the collector.
@@ -62,11 +62,11 @@ func (c *baseCollector) Name() CollectorName {
 	return c.name
 }
 
-// Collect executes all supported API calls and returns the collected metrics.
+// Collect executes all supported API calls and returns the collected samples.
 // For stateless collectors, timestamps are ignored (passed as 0, returned timestamp ignored).
 // For sampling collectors, timestamps are maintained per API call.
-func (c *baseCollector) Collect() ([]*Metric, error) {
-	var allMetrics []*Metric
+func (c *baseCollector) Collect() ([]Sample, error) {
+	var allSamples []Sample
 	var multiErr []error
 
 	for _, apiCall := range c.supportedAPIs {
@@ -74,7 +74,7 @@ func (c *baseCollector) Collect() ([]*Metric, error) {
 		lastTimestamp := c.lastTimestamps[apiCall.Name]
 
 		// Execute the API call
-		metrics, newTimestamp, err := apiCall.Handler(c.device, lastTimestamp)
+		samples, newTimestamp, err := apiCall.Handler(c.device, lastTimestamp)
 		if err != nil {
 			multiErr = append(multiErr, fmt.Errorf("%s returned an error: %w", apiCall.Name, err))
 		}
@@ -84,8 +84,8 @@ func (c *baseCollector) Collect() ([]*Metric, error) {
 			c.lastTimestamps[apiCall.Name] = newTimestamp
 		}
 
-		allMetrics = append(allMetrics, metricValuesToPointers(metrics)...)
+		allSamples = append(allSamples, samples...)
 	}
 
-	return allMetrics, errors.Join(multiErr...)
+	return allSamples, errors.Join(multiErr...)
 }

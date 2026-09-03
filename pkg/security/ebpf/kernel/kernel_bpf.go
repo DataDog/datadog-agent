@@ -3,24 +3,55 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && linux_bpf
+//go:build linux && bpf
 
 // Package kernel holds kernel related files
 package kernel
 
 import (
 	"runtime"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
+	"golang.org/x/sys/unix"
+
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 )
 
 // HaveMmapableMaps returns whether the kernel supports mmapable maps.
 func (k *Version) HaveMmapableMaps() bool {
 	return features.HaveMapFlag(features.BPF_F_MMAPABLE) == nil
+}
+
+// ioUringParams mirrors the kernel's struct io_uring_params. Only its size matters here: the kernel
+// writes the submission/completion ring offsets into it during io_uring_setup.
+type ioUringParams struct {
+	sqEntries    uint32
+	cqEntries    uint32
+	flags        uint32
+	sqThreadCPU  uint32
+	sqThreadIdle uint32
+	features     uint32
+	wqFd         uint32
+	resv         [3]uint32
+	sqOff        [10]uint32 // struct io_sqring_offsets
+	cqOff        [10]uint32 // struct io_cqring_offsets
+}
+
+// HaveIOURing returns whether the kernel supports io-uring.
+func (k *Version) HaveIOURing() bool {
+	// probe support by issuing an io_uring_setup(2) syscall directly, avoiding a dedicated io-uring
+	// library dependency in the agent binary
+	var params ioUringParams
+	fd, _, errno := unix.Syscall(unix.SYS_IO_URING_SETUP, 1, uintptr(unsafe.Pointer(&params)), 0)
+	if errno != 0 {
+		return false
+	}
+	_ = unix.Close(int(fd))
+	return true
 }
 
 // HaveRingBuffers returns whether the kernel supports ring buffer.
@@ -171,7 +202,7 @@ func (k *Version) HaveFentryNoDuplicatedWeakSymbols() bool {
 
 // SupportCORE returns is CORE is supported
 func (k *Version) SupportCORE() bool {
-	_, err := btf.LoadKernelSpec()
+	_, err := ddbtf.GetKernelSpec()
 	return err == nil
 }
 
@@ -185,6 +216,22 @@ func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
 // https://github.com/torvalds/linux/commit/c501bf55c88b834adefda870c7c092ec9052a437
 func (k *Version) HasBpfGetCurrentCgroupIDForSchedCLS() bool {
 	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnGetCurrentCgroupId) == nil
+}
+
+// HasSkLookupForSchedCLS returns true if the kernel supports bpf_sk_lookup_tcp/udp for the Sched CLS program type
+// https://github.com/torvalds/linux/commit/6acc9b432e6714d72d7d77ec7c27f6f8358d0c71
+func (k *Version) HasSkLookupForSchedCLS() bool {
+	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnSkLookupTcp) == nil
+}
+
+// HasSKStorageInSchedCLS returns true if the kernel supports bpf_sk_storage_get in Sched CLS programs
+func (k *Version) HasSKStorageInSchedCLS() bool {
+	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnSkStorageGet) == nil
+}
+
+// HasSKStorageInCgroupSock returns true if the kernel supports bpf_sk_storage_get in cgroup/sock programs
+func (k *Version) HasSKStorageInCgroupSock() bool {
+	return features.HaveProgramHelper(ebpf.CGroupSock, asm.FnSkStorageGet) == nil
 }
 
 // HasBpfGetCurrentCgroupID returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type

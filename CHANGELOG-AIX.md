@@ -9,8 +9,37 @@
 ## Unreleased
 
 <!-- Add entries here for changes not yet in a release. -->
-- Remove `sharedlibrarycheck` from the AIX agent build (the shared-library check loader was included but not validated on AIX)
 
+---
+
+## 7.84.0-devel.git.410.f0f79d8-1 (2026-08-24)
+
+- Bundle the `apache` check in the AIX package so operators can monitor Apache HTTP Server (via `mod_status`) without any manual install step.
+- Build the embedded OpenSSL with `-blibpath` pointing at the embedded library directory so the `openssl` CLI works when invoked directly from a plain shell. Previously it failed with `Dependent module /usr/lib/libssl.a(libssl64.so.3) could not be loaded` unless `LIBPATH` was set manually.
+
+---
+
+## 7.83.0-devel.git.909.f7eb778-1 (2026-08-18)
+
+- Populate `datadog.yaml` automatically on first install from `DD_API_KEY`, `DD_SITE`, `DD_HOSTNAME`, `DD_TAGS`, `DD_ENV`, `DD_INFRASTRUCTURE_MODE`, and proxy (`DD_PROXY_HTTP`/`DD_PROXY_HTTPS`/`DD_PROXY_NO_PROXY`, or generic `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`) environment variables, mirroring the Linux install script; set `DD_INSTALL_ONLY` to skip starting the Agent.
+- Fix uninstallation: `unconfig` now uses `rmssys` only to deregister SRC subsystems, dropping the preceding `odmdelete` calls that left stale entries in the live srcmstr daemon
+- Set `NLSPATH` in the agent wrapper so the IBM MQ client library can locate its own message catalogs. Previously, `ibm_mq` check errors and other MQ client errors rendered as unreadable generic text (e.g. `AMQ9211E: Failed to find error message id`) instead of the real message, because the agent process only had AIX's default `NLSPATH` (`/usr/lib/nls/msg/...`), which doesn't include MQ's catalog directory.
+- Bump the embedded Python from 3.13.12 to 3.13.15, matching the version used by the Linux omnibus/bazel build
+- Build embedded OpenSSL with the same hardening flags as the Linux omnibus/bazel build (`no-idea no-mdc2 no-rc5 no-ssl3 no-gost no-filenames`, dynamic zlib loading) — the AIX build previously shipped OpenSSL with default settings, retaining legacy/weak algorithms and the GOST engine that Linux deliberately strips
+- Add a `/usr/bin/datadog-agent` convenience symlink to the agent wrapper on install, matching the Linux packages
+- Fix `/var/log/datadog` permissions: it was left world-readable (default `0755`) after install instead of the restrictive `0750` (owner/group `dd-agent`) used on other platforms
+- Disable Python's `dbm` C-extension backends (`dbm.gnu`/`dbm.ndbm`) to match the Linux omnibus/bazel build, which links no dbm backend either; `gdbm` is no longer staged into the embedded tree
+
+
+---
+
+## 7.83.0-devel.git.104.a0e68a4-1 (2026-07-15)
+
+- Bundle the `process` check in the AIX package so operators can monitor processes by name without any manual install step; the check uses the `psutil` library already included in the embedded Python
+- Fix `ibm_mq` check queue discovery on AIX: patch `pymqi`'s `MQENC_NATIVE` constant from `0x222` (little-endian) to `0x111` (big-endian) after install. The constant is generated from Linux headers and caused `MQRCCF_CFH_LENGTH_ERROR` when the check sent PCF commands to a local MQ queue manager.
+- Build scripts: remove all hardcoded `/opt/datadog-agent` source-tree references — `AGENT_SRC` is now auto-resolved by walking up from the script directory to the nearest `.git` ancestor, so the agent source can live at any path on the build host
+- Remove the obsolete packaged integration constraints artifact from the AIX BFF package
+- Remove `sharedlibrarycheck` from the AIX agent build (the shared-library check loader was included but not validated on AIX)
 - The embedded `python3.13` binary and all Python extension modules now have the correct install-time library search path baked into their XCOFF loader section. Previously, the staging path was baked in, causing `libpython3.13.so could not be loaded` when running pip or python directly (without `LIBPATH` set). Operators can now run `pip install` without setting `LIBPATH` first.
 
 ---

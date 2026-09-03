@@ -15,15 +15,21 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
 	systemdServiceName = "datadog-apm-inject.service"
+	// minimumTmpfsInstallerVersion is the first Agent release containing the
+	// backport of the tmpfs-based ld.so.preload lifecycle.
+	minimumTmpfsInstallerVersion = "7.81.2"
 	// installerPathPlaceholder is replaced in the embedded unit file with the
 	// absolute path to the datadog-installer binary resolved at install time.
 	installerPathPlaceholder = "{{INSTALLER_PATH}}"
@@ -43,9 +49,10 @@ var apmInjectServiceFile []byte
 
 // SystemdServiceManager manages the APM injector systemd service
 type SystemdServiceManager struct {
-	servicePath   string
-	serviceName   string
-	installerPath string
+	servicePath     string
+	serviceName     string
+	installerPath   string
+	tmpfsCompatible bool
 }
 
 // NewSystemdServiceManager builds a manager pointing at the first on-disk
@@ -53,16 +60,19 @@ type SystemdServiceManager struct {
 // subcommands the unit invokes. The resolved path is baked into the unit's
 // ExecStart/ExecStop. installerPath is "" when no supported installer is found
 // (no candidate on disk, or only older ones); callers must then skip rendering
-// the unit and fall back to direct ld.so.preload management.
+// the unit and fall back to direct ld.so.preload management (see
+// setupSystemdPreloadUnit), since the candidate set is not guaranteed in practice.
 func NewSystemdServiceManager() *SystemdServiceManager {
 	installerPath, err := resolveInstallerPath(installerPathCandidates, supportsInstrumentSubcommands)
 	if err != nil {
 		log.Warnf("no datadog-installer supporting `apm instrument-start` found for APM inject service: %v", err)
 	}
+	tmpfsCompatible := installerPath != "" && installerSupportsTmpfs(installerPath)
 	return &SystemdServiceManager{
-		servicePath:   filepath.Join(systemd.UserUnitsPath, systemdServiceName),
-		serviceName:   systemdServiceName,
-		installerPath: installerPath,
+		servicePath:     filepath.Join(systemd.UserUnitsPath, systemdServiceName),
+		serviceName:     systemdServiceName,
+		installerPath:   installerPath,
+		tmpfsCompatible: tmpfsCompatible,
 	}
 }
 
@@ -72,10 +82,14 @@ func (s *SystemdServiceManager) InstallerPath() string {
 	return s.installerPath
 }
 
-// serviceFileExists reports whether the unit file has been written to disk.
-// Used to skip Uninstall (and the systemctl calls it issues) when there is
-// nothing to clean up, avoiding spurious error spans in the trace.
-func (s *SystemdServiceManager) serviceFileExists() bool {
+// TmpfsCompatible reports whether the installer selected for the service
+// contains the tmpfs preload lifecycle.
+func (s *SystemdServiceManager) TmpfsCompatible() bool {
+	return s.tmpfsCompatible
+}
+
+// ServiceFileExists reports whether the unit file has been written to disk.
+func (s *SystemdServiceManager) ServiceFileExists() bool {
 	_, err := os.Stat(s.servicePath)
 	return err == nil
 }
@@ -100,37 +114,88 @@ func supportsInstrumentSubcommands(path string) bool {
 	return supported
 }
 
-// Setup writes the embedded service file and enables it for future boots.
-// It also attempts to start the service immediately, but a start failure is
-// non-fatal: the service is still enabled and will start on the next boot.
-// The caller is expected to call InstrumentLDPreload directly to cover the
-// current boot in case the service did not start.
+func installerSupportsTmpfs(path string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, path, "version").Output()
+	if err != nil {
+		log.Warnf("could not determine APM inject service installer version from %s, disabling tmpfs preload path: %v", path, err)
+		return false
+	}
+	selectedVersion := strings.TrimSpace(string(out))
+	parsedVersion, err := version.New(selectedVersion, "")
+	if err != nil {
+		log.Warnf("could not parse APM inject service installer version %q, disabling tmpfs preload path: %v", selectedVersion, err)
+		return false
+	}
+	comparison, err := parsedVersion.CompareTo(minimumTmpfsInstallerVersion)
+	if err != nil {
+		log.Warnf("could not compare APM inject service installer version %q, disabling tmpfs preload path: %v", selectedVersion, err)
+		return false
+	}
+	if comparison < 0 {
+		log.Infof("APM inject service installer version %q predates tmpfs support in %s, using persistent preload path", selectedVersion, minimumTmpfsInstallerVersion)
+		return false
+	}
+	return true
+}
+
+// RequiresReinstall reports whether the injector was configured with the
+// tmpfs preload path but the installer currently selected for its systemd
+// service predates that lifecycle. Replaying the injector post-install hook
+// repairs this state by switching back to the persistent preload path.
+func RequiresReinstall() bool {
+	mgr := NewSystemdServiceManager()
+	if mgr.InstallerPath() == "" || mgr.TmpfsCompatible() {
+		return false
+	}
+	preload, err := os.ReadFile(ldSoPreloadPath)
+	if err != nil {
+		return false
+	}
+	return requiresReinstallForPreload(string(preload), false)
+}
+
+func requiresReinstallForPreload(preload string, tmpfsCompatible bool) bool {
+	if tmpfsCompatible {
+		return false
+	}
+	tmpfsLauncher := filepath.Join(defaultTmpfsInjectDir, "launcher.preload.so")
+	return slices.Contains(strings.Fields(preload), tmpfsLauncher)
+}
+
+// Setup writes the embedded service file, enables it for future boots, and
+// starts it immediately. Returns an error if any step fails, including the
+// immediate start: a unit that cannot start is removed by the caller.
 func (s *SystemdServiceManager) Setup(ctx context.Context) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "systemd_service_setup")
 	defer func() { span.Finish(err) }()
 	span.SetTag("installer_path", s.installerPath)
 
+	// failed_step records which step failed so the fallback cause (start vs.
+	// write/reload/enable) is visible in the trace without the caller having to
+	// re-derive it from the returned error.
 	if err := s.writeServiceFile(); err != nil {
+		span.SetTag("failed_step", "write_file")
 		return err
 	}
 	log.Infof("Installed systemd service file at %s (installer: %s)", s.servicePath, s.installerPath)
 
 	if err := systemd.Reload(ctx); err != nil {
+		span.SetTag("failed_step", "reload")
 		return fmt.Errorf("failed to reload systemd: %w", err)
 	}
 
 	if err := systemd.EnableUnit(ctx, s.serviceName); err != nil {
+		span.SetTag("failed_step", "enable")
 		return fmt.Errorf("failed to enable systemd service: %w", err)
 	}
 
 	if err := systemd.StartUnit(ctx, s.serviceName); err != nil {
-		// Non-fatal: the service is enabled and will start on next boot.
-		// The caller will fall back to direct ld.so.preload instrumentation
-		// for the current boot.
-		log.Warnf("APM inject service failed to start immediately (will start on next boot): %v", err)
-	} else {
-		log.Infof("APM injector systemd service installed, enabled, and started")
+		span.SetTag("failed_step", "start")
+		return fmt.Errorf("failed to start systemd service: %w", err)
 	}
+	log.Infof("APM injector systemd service installed, enabled, and started")
 	return nil
 }
 

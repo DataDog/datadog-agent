@@ -2,6 +2,7 @@
 #define _HOOKS_SETSOCKOPT_H_
 
 #include "constants/syscall_macro.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "helpers/process.h"
 #include <uapi/linux/filter.h>
@@ -27,7 +28,7 @@ static long __attribute__((always_inline)) trace__sys_setsock_opt(void *ctx, u8 
     return 0;
 }
 
-static int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_set_sock_opt_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SETSOCKOPT);
     if (!syscall) {
         return 0;
@@ -52,14 +53,21 @@ static int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int re
     event->truncated = syscall->setsockopt.truncated;
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
-    fill_span_context(&event->span);
     int size_to_sent = (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE )
         ? MAX_BPF_FILTER_SIZE
         : syscall->setsockopt.filter_size_to_send;
     event->sent_size = size_to_sent;
-    send_event_with_size_ptr(ctx, EVENT_SETSOCKOPT, event, (offsetof(struct setsockopt_event_t, bpf_filters_buffer) + size_to_sent));
-    
+
+    // The span context is attached and the event emitted (with its partial
+    // header+filter size, read back from event->sent_size) by the setsockopt
+    // span-fill program matching this caller's program type.
+    span_fill_tail_call_key(ctx, prog_type, SPAN_FILL_KEY_SETSOCKOPT);
+
     return 0;
+}
+
+static int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
+    return sys_set_sock_opt_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_ENTRY3(setsockopt, int, socket, int, level, int, optname) {
@@ -94,7 +102,9 @@ static int hook_security_socket_setsockopt(ctx_t *ctx) {
     }
     struct socket *sock = (struct socket *)CTX_PARM1(ctx);
     short socket_type;
-    bpf_probe_read(&socket_type, sizeof(socket_type), &sock->type);
+    u64 socket_type_offset;
+    LOAD_CONSTANT("socket_type_offset", socket_type_offset);
+    bpf_probe_read(&socket_type, sizeof(socket_type), (char *)sock + socket_type_offset);
     if (socket_type) {
         syscall->setsockopt.socket_type = socket_type;
     }
@@ -102,7 +112,7 @@ static int hook_security_socket_setsockopt(ctx_t *ctx) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_setsockopt_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_set_sock_opt_ret(args, args->ret);
+    return sys_set_sock_opt_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 HOOK_ENTRY("release_sock")
 static int hook_release_sock(ctx_t *ctx) {

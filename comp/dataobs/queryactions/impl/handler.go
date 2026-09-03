@@ -6,9 +6,16 @@
 package queryactionsimpl
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
+	"net"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -16,23 +23,38 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// A "base config" is a postgres integration.Config emitted by another provider (typically the
-// file provider reading conf.d/postgres.d/conf.yaml) that a DO query action matched against via
-// findPostgresConfig — i.e. the config as it exists before DO touches it. A single base config
-// can bundle several postgres instances. Throughout this file, "base config" always refers to
-// this original, provider-emitted config, as distinct from the DO check config or remainder
-// config that this component derives from it.
+var databaseIdentifierVariablePattern = regexp.MustCompile(`\$\$|\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*`)
 
-// activeConfigEntry stores the scheduled DO check config alongside the base postgres config it
-// was derived from and the host it targets, so reconcileBases can rebuild the set of postgres
-// instances that should keep running independently of any single DO config.
+const (
+	postgresConfigIDPrefix = "do-"
+	mysqlConfigIDPrefix    = "do-mysql-"
+	mssqlConfigIDPrefix    = "do-mssql-"
+	sapHANAConfigIDPrefix  = "do-hana-"
+
+	mysqlPortFallback    = "0"
+	postgresPortFallback = "5432"
+)
+
+// A "base config" is a supported DB integration.Config emitted by another provider that a DO
+// query action matched against. A single base config can bundle several instances. Throughout
+// this file, "base config" always refers to this original, provider-emitted config, as distinct
+// from the DO check config or remainder config that this component derives from it.
+
+// activeConfigEntry stores the scheduled DO check config alongside the base integration config it
+// was derived from and the instance identity it targets, so reconcileBases can rebuild the set of
+// integration instances that should keep running independently of any single DO config.
 type activeConfigEntry struct {
-	checkConfig integration.Config
-	baseCfg     *integration.Config // the original matched postgres config (full, all instances)
-	matchHost   string              // host this DO config targets (DBIdentifier.Host)
+	checkConfig   integration.Config
+	baseCfg       *integration.Config    // the original matched integration config (full, all instances)
+	matchInstance instanceConfigIdentity // exact source instance this DO config targets
 }
 
-// managedBaseEntry tracks a base postgres config that has at least one instance targeted by a
+// instanceConfigIdentity identifies the exact integration.Data entry selected from a base
+// config. Endpoint-derived identities are not sufficient: two instances may share host and port
+// while using different database_identifier templates or tags.
+type instanceConfigIdentity [sha256.Size]byte
+
+// managedBaseEntry tracks a base integration config that has at least one instance targeted by a
 // DO query action. A DO query action only injects data_observability.queries into the targeted
 // instance — every other field, and every other instance, is unchanged. But autodiscovery
 // schedules whole configs (by digest), not single instances, so we cannot patch one instance in
@@ -45,9 +67,50 @@ type managedBaseEntry struct {
 }
 
 // isSupportedIntegration reports whether name is a supported DB integration.
-// Currently only postgres is supported; mysql may be added in the future.
 func isSupportedIntegration(name string) bool {
-	return name == "postgres"
+	return name == "mysql" || name == "postgres" || name == "sap_hana" || name == "sqlserver"
+}
+
+// integrationForConfigID maps the platform-specific prefixes assigned by the DO RC reconciler to
+// Agent integration names. The specific prefixes must be checked before the legacy PostgreSQL
+// prefix because they all begin with "do-".
+func integrationForConfigID(configID string) (string, bool) {
+	switch {
+	case strings.HasPrefix(configID, mysqlConfigIDPrefix):
+		return "mysql", true
+	case strings.HasPrefix(configID, mssqlConfigIDPrefix):
+		return "sqlserver", true
+	case strings.HasPrefix(configID, sapHANAConfigIDPrefix):
+		return "sap_hana", true
+	case strings.HasPrefix(configID, postgresConfigIDPrefix):
+		return "postgres", true
+	default:
+		return "", false
+	}
+}
+
+// instanceHost returns the host/server field for an integration instance,
+// handling the fact that SAP HANA uses "server" while other integrations use "host".
+func instanceHost(instance map[string]any) string {
+	if host, ok := instance["host"].(string); ok && host != "" {
+		return host
+	}
+	server, _ := instance["server"].(string)
+	return server
+}
+
+// azureSQLDatabase returns the database when the instance uses Azure SQL Database.
+func azureSQLDatabase(instance map[string]any) (string, bool) {
+	azure, ok := instance["azure"].(map[string]any)
+	if !ok {
+		return "", false
+	}
+	deploymentType, _ := azure["deployment_type"].(string)
+	if deploymentType != "sql_database" {
+		return "", false
+	}
+	database, _ := instance["database"].(string)
+	return database, true
 }
 
 // instanceHasDOEnabled checks whether a parsed instance map has data_observability.enabled: true.
@@ -94,7 +157,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		// Validate each query spec before paying the cost of finding the postgres config.
+		// Validate each query spec before paying the cost of finding the integration config.
 		// On the first invalid query, reject the entire config — no partial scheduling.
 		var validationErr error
 		for _, q := range payload.Queries {
@@ -109,9 +172,9 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		baseCfg, instance, err := c.findPostgresConfig(&payload.DBIdentifier)
+		baseCfg, instance, matchInstance, err := c.resolveBaseConfig(configID, &payload.DBIdentifier, payload.Queries)
 		if err != nil {
-			c.log.Warnf("No matching postgres config for %s: %v", configID, err)
+			c.log.Warnf("No matching integration config for %s: %v", configID, err)
 			applyStatus(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			c.removeActiveConfig(configID, &changes)
 			continue
@@ -135,9 +198,9 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 
 		c.activeConfigsMu.Lock()
 		c.activeConfigs[configID] = activeConfigEntry{
-			checkConfig: checkConfig,
-			baseCfg:     baseCfg,
-			matchHost:   payload.DBIdentifier.Host,
+			checkConfig:   checkConfig,
+			baseCfg:       baseCfg,
+			matchInstance: matchInstance,
 		}
 		c.activeConfigsMu.Unlock()
 		changes.Schedule = append(changes.Schedule, checkConfig)
@@ -160,7 +223,7 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 		c.removeActiveConfig(configID, &changes)
 	}
 
-	// Reconcile base postgres configs: schedule remainder configs for partially-managed bases
+	// Reconcile base integration configs: schedule remainder configs for partially-managed bases
 	// and restore originals for bases no longer targeted by any DO config.
 	c.reconcileBases(&changes)
 
@@ -186,43 +249,42 @@ func (c *component) removeActiveConfig(configID string, changes *integration.Con
 	changes.Unschedule = append(changes.Unschedule, prev.checkConfig)
 }
 
-// reconcileBases keeps file-provider postgres instances that are NOT targeted by a DO query
+// reconcileBases keeps file-provider integration instances that are NOT targeted by a DO query
 // action scheduled, while preventing the targeted instances from running twice.
 //
 // Autodiscovery schedules whole integration.Configs (keyed by Digest), but a single
-// file-provider postgres config can bundle several instances. When a DO config targets one of
-// them, we cannot simply unschedule the whole base config — that would drop the untargeted
-// sibling instances. Instead, for each base config that currently has at least one active DO
-// config, we unschedule the original and schedule a "remainder" config holding only the
-// instances no DO config targets. Once no DO config targets a base config, the original is
-// restored.
+// file-provider config can bundle several instances. When a DO config targets one of them, we
+// cannot simply unschedule the whole base config — that would drop the untargeted sibling
+// instances. Instead, for each base config that currently has at least one active DO config, we
+// unschedule the original and schedule a "remainder" config holding only the instances no DO
+// config targets. Once no DO config targets a base config, the original is restored.
 //
 // The remainder is computed from the full set of active DO configs, so multiple DO configs
-// targeting different instances of the same base config never cause an instance to be both
-// kept in the remainder and run as a DO check (which would duplicate DBM collection).
+// targeting different instances of the same base config never cause an instance to be both kept
+// in the remainder and run as a DO check (which would duplicate DBM collection).
 func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 	c.activeConfigsMu.Lock()
 	defer c.activeConfigsMu.Unlock()
 
-	// Group the hosts targeted by active DO configs per base config digest.
+	// Group the exact source instances targeted by active DO configs per base config digest.
 	type baseGroup struct {
-		original integration.Config
-		hosts    map[string]bool
+		original  integration.Config
+		instances map[instanceConfigIdentity]bool
 	}
 	desired := make(map[string]*baseGroup)
 	for _, entry := range c.activeConfigs {
 		digest := entry.baseCfg.Digest()
 		g := desired[digest]
 		if g == nil {
-			g = &baseGroup{original: *entry.baseCfg, hosts: make(map[string]bool)}
+			g = &baseGroup{original: *entry.baseCfg, instances: make(map[instanceConfigIdentity]bool)}
 			desired[digest] = g
 		}
-		g.hosts[entry.matchHost] = true
+		g.instances[entry.matchInstance] = true
 	}
 
 	// Newly-managed or changed bases.
 	for digest, g := range desired {
-		remainder := buildRemainder(&g.original, g.hosts)
+		remainder := buildRemainder(&g.original, g.instances)
 		managed, exists := c.managedBases[digest]
 		if !exists {
 			// First DO config to target this base: unschedule the original, schedule the remainder.
@@ -257,23 +319,17 @@ func (c *component) reconcileBases(changes *integration.ConfigChanges) {
 		}
 		changes.Schedule = append(changes.Schedule, managed.original)
 		delete(c.managedBases, digest)
-		c.log.Infof("Restored original postgres config (digest %s); no Data Observability query actions target it", digest)
+		c.log.Infof("Restored original integration config (digest %s); no Data Observability query actions target it", digest)
 	}
 }
 
-// buildRemainder returns a copy of base containing only the instances whose host is NOT in
-// matchedHosts. Returns nil when no instances remain (every instance is DO-managed). Instances
-// whose YAML cannot be parsed are kept, so a config we cannot classify is never silently dropped.
-func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *integration.Config {
+// buildRemainder returns a copy of base containing only instances that were not selected by a DO
+// config. It returns nil when every instance is DO-managed. Matching the exact source YAML entry
+// preserves siblings even when they share an endpoint but render different database identifiers.
+func buildRemainder(base *integration.Config, matchedInstances map[instanceConfigIdentity]bool) *integration.Config {
 	kept := make([]integration.Data, 0, len(base.Instances))
 	for _, instanceData := range base.Instances {
-		var instance map[string]any
-		if err := yaml.Unmarshal(instanceData, &instance); err != nil {
-			kept = append(kept, instanceData)
-			continue
-		}
-		host, _ := instance["host"].(string)
-		if matchedHosts[host] {
+		if matchedInstances[identifyInstanceConfig(instanceData)] {
 			continue
 		}
 		kept = append(kept, instanceData)
@@ -286,6 +342,10 @@ func buildRemainder(base *integration.Config, matchedHosts map[string]bool) *int
 	return &remainder
 }
 
+func identifyInstanceConfig(instanceData integration.Data) instanceConfigIdentity {
+	return sha256.Sum256(instanceData)
+}
+
 // sameConfig reports whether two optional configs are equivalent by autodiscovery digest.
 func sameConfig(a, b *integration.Config) bool {
 	if a == nil || b == nil {
@@ -294,51 +354,438 @@ func sameConfig(a, b *integration.Config) bool {
 	return a.Digest() == b.Digest()
 }
 
-// findPostgresConfig finds a postgres config that matches the given identifier and has
-// data_observability.enabled: true. Returns the matching config and the already-parsed
-// instance map to avoid re-parsing YAML in callers.
-func (c *component) findPostgresConfig(dbID *DBIdentifier) (*integration.Config, map[string]any, error) {
-	cfgs := c.ac.GetUnresolvedConfigs()
+var (
+	errAmbiguousSQLServerInstanceMatch = errors.New("ambiguous SQL Server instance match")
+	errEmptyIdentifierHost             = errors.New("empty db_identifier.host")
+)
 
+// resolveBaseConfig returns the base config a DO check for configID should be derived from.
+//
+// If configID is already active, its previously-resolved base is reused as-is rather than
+// re-derived from the current active set. Once reconcileBases unschedules a base config's
+// targeted instance in favor of a DO check, that instance is no longer present in
+// GetUnresolvedConfigs() (autodiscovery only reports currently-scheduled configs) — so a fresh
+// findMatchingConfig search would instead match the DO component's own previously-scheduled check
+// output, which also satisfies matchesIdentifier and instanceHasDOEnabled. Adopting that as the
+// new "base" corrupts the digest reconcileBases uses to track the true original, causing it to be
+// wrongly restored on this update. Reusing the stored base avoids re-deriving it from a set that
+// may no longer contain it.
+//
+// Falls back to a fresh search if the stored base no longer has an instance matching dbID (e.g.
+// its host genuinely changed between updates).
+func (c *component) resolveBaseConfig(configID string, dbID *DBIdentifier, queries []QuerySpec) (*integration.Config, map[string]any, instanceConfigIdentity, error) {
+	if dbID.Host == "" {
+		return nil, nil, instanceConfigIdentity{}, errEmptyIdentifierHost
+	}
+
+	c.activeConfigsMu.Lock()
+	existing, alreadyActive := c.activeConfigs[configID]
+	c.activeConfigsMu.Unlock()
+
+	expectedIntegration, scopedByConfigID := integrationForConfigID(configID)
+	if alreadyActive && (!scopedByConfigID || existing.baseCfg.Name == expectedIntegration) {
+		instance, identity, err := c.findMatchingInstance(existing.baseCfg, dbID, queries)
+		if instance != nil {
+			return existing.baseCfg, instance, identity, nil
+		}
+		if errors.Is(err, errAmbiguousSQLServerInstanceMatch) {
+			return nil, nil, instanceConfigIdentity{}, err
+		}
+		if err != nil {
+			c.log.Warnf("Stored base config for %s no longer parses cleanly, re-resolving: %v", configID, err)
+		}
+	}
+	return c.findMatchingConfig(configID, dbID, queries)
+}
+
+// findMatchingConfig finds an enabled supported integration instance matching the identifier and
+// queries. Production DO config IDs scope the search to their database integration; unscoped IDs
+// retain the legacy search behavior for compatibility with manually constructed payloads.
+func (c *component) findMatchingConfig(configID string, dbID *DBIdentifier, queries []QuerySpec) (*integration.Config, map[string]any, instanceConfigIdentity, error) {
+	if dbID.Host == "" {
+		return nil, nil, instanceConfigIdentity{}, errEmptyIdentifierHost
+	}
+
+	cfgs := c.ac.GetUnresolvedConfigs()
 	var lastParseErr error
+	expectedIntegration, scopedByConfigID := integrationForConfigID(configID)
+
 	for cfgIdx := range cfgs {
-		cfg := cfgs[cfgIdx]
+		cfg := &cfgs[cfgIdx]
 		if !isSupportedIntegration(cfg.Name) {
 			continue
 		}
+		if scopedByConfigID && cfg.Name != expectedIntegration {
+			continue
+		}
+		instance, identity, err := c.findMatchingInstance(cfg, dbID, queries)
+		if errors.Is(err, errAmbiguousSQLServerInstanceMatch) {
+			return nil, nil, instanceConfigIdentity{}, err
+		}
+		if err != nil {
+			lastParseErr = err
+		}
+		if instance != nil {
+			return cfg, instance, identity, nil
+		}
+	}
+	if lastParseErr != nil {
+		return nil, nil, instanceConfigIdentity{}, fmt.Errorf("no supported integration config found for identifier: type=%s, host=%s; at least one instance had a YAML parse error: %w", dbID.Type, dbID.Host, lastParseErr)
+	}
+	return nil, nil, instanceConfigIdentity{}, fmt.Errorf("no supported integration config found for identifier: type=%s, host=%s", dbID.Type, dbID.Host)
+}
 
-		for _, instanceData := range cfg.Instances {
-			var instance map[string]any
-			if err := yaml.Unmarshal(instanceData, &instance); err != nil {
-				c.log.Warnf("Failed to unmarshal postgres instance data for config %s, skipping: %v", cfg.Name, err)
-				lastParseErr = err
-				continue
-			}
+// findMatchingInstance returns the first enabled match for PostgreSQL and SAP HANA. It rejects
+// multiple SQL Server matches because a host-only identifier could otherwise select an arbitrary
+// local SQL Server instance.
+func (c *component) findMatchingInstance(cfg *integration.Config, dbID *DBIdentifier, queries []QuerySpec) (map[string]any, instanceConfigIdentity, error) {
+	var lastParseErr error
+	var matchedInstance map[string]any
+	var matchedIdentity instanceConfigIdentity
+	for _, instanceData := range cfg.Instances {
+		var instance map[string]any
+		if err := yaml.Unmarshal(instanceData, &instance); err != nil {
+			c.log.Warnf("Failed to unmarshal %s instance data for config %s, skipping: %v", cfg.Name, cfg.Name, err)
+			lastParseErr = err
+			continue
+		}
 
-			if matchesIdentifier(instance, dbID) && instanceHasDOEnabled(instance) {
-				return &cfg, instance, nil
+		match := evaluateInstanceIdentifier(instance, *dbID, cfg.Name, queries)
+		c.log.Debugf(
+			"Evaluated DO query action database identifier: integration=%s instance_host=%q target=%q strategy=%s rendered_database_identifier=%q renderable=%t matched=%t",
+			cfg.Name,
+			instanceHost(instance),
+			dbID.Host,
+			match.strategy,
+			match.renderedIdentifier,
+			match.renderable,
+			match.matched,
+		)
+		if !match.matched || !instanceHasDOEnabled(instance) {
+			continue
+		}
+		if cfg.Name != "sqlserver" {
+			return instance, identifyInstanceConfig(instanceData), nil
+		}
+		if matchedInstance != nil {
+			return nil, instanceConfigIdentity{}, fmt.Errorf("%w for identifier: type=%s, host=%s", errAmbiguousSQLServerInstanceMatch, dbID.Type, dbID.Host)
+		}
+		matchedInstance = instance
+		matchedIdentity = identifyInstanceConfig(instanceData)
+	}
+	return matchedInstance, matchedIdentity, lastParseErr
+}
+
+// matchesIdentifier checks if a Postgres instance matches the given DB identifier. It uses the
+// resolved database_instance value when configured and falls back to the literal host. Per-query
+// dbname fields handle database routing.
+func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
+	return instanceMatchesIdentifier(instance, *dbID, "postgres")
+}
+
+func instanceMatchesIdentifier(instance map[string]any, identifier DBIdentifier, integrationName string) bool {
+	return evaluateInstanceIdentifier(instance, identifier, integrationName, nil).matched
+}
+
+type identifierMatchEvaluation struct {
+	matched            bool
+	strategy           string
+	renderedIdentifier string
+	renderable         bool
+}
+
+// evaluateInstanceIdentifier keeps each integration's identifier contract independent.
+func evaluateInstanceIdentifier(instance map[string]any, identifier DBIdentifier, integrationName string, queries []QuerySpec) identifierMatchEvaluation {
+	if identifier.Host == "" {
+		return identifierMatchEvaluation{strategy: "empty_identifier"}
+	}
+	switch integrationName {
+	case "mysql":
+		return evaluateMySQLIdentifier(instance, identifier)
+	case "postgres":
+		return evaluatePostgresIdentifier(instance, identifier)
+	case "sap_hana":
+		return evaluateSapHanaIdentifier(instance, identifier.Host)
+	case "sqlserver":
+		return evaluateSQLServerIdentifier(instance, identifier.Host, queries)
+	default:
+		return identifierMatchEvaluation{strategy: "unsupported_integration"}
+	}
+}
+
+func evaluateSQLServerIdentifier(instance map[string]any, targetHost string, queries []QuerySpec) identifierMatchEvaluation {
+	match := evaluateEndpointIdentifier(instance, targetHost)
+	if !match.matched {
+		match.strategy = "sqlserver_endpoint"
+		return match
+	}
+	database, isAzureSQLDatabase := azureSQLDatabase(instance)
+	if !isAzureSQLDatabase {
+		return match
+	}
+	match.strategy = "azure_sql_database"
+	if len(queries) == 0 {
+		match.matched = false
+		return match
+	}
+	for _, query := range queries {
+		if !strings.EqualFold(query.DBName, database) {
+			match.matched = false
+			return match
+		}
+	}
+	return match
+}
+
+func evaluateMySQLIdentifier(instance map[string]any, identifier DBIdentifier) (match identifierMatchEvaluation) {
+	if match = evaluateEndpointIdentifier(instance, identifier.Host); match.matched {
+		return
+	}
+
+	match.renderedIdentifier, match.renderable = renderMySQLDatabaseIdentifierWithLookup(
+		instance,
+		identifier.AgentHostname,
+		net.LookupHost,
+	)
+	match.matched = match.renderable && match.renderedIdentifier == identifier.Host
+	match.strategy = "database_identifier"
+	return
+}
+
+func evaluatePostgresIdentifier(instance map[string]any, identifier DBIdentifier) (match identifierMatchEvaluation) {
+	if match = evaluateEndpointIdentifier(instance, identifier.Host); match.matched {
+		return
+	}
+
+	match.renderedIdentifier, match.renderable = renderDatabaseIdentifierWithLookup(
+		instance,
+		identifier.AgentHostname,
+		"$resolved_hostname",
+		postgresPortFallback,
+		nil,
+		net.LookupHost,
+	)
+	match.matched = match.renderable && match.renderedIdentifier == identifier.Host
+	match.strategy = "database_identifier"
+	return
+}
+
+func evaluateSapHanaIdentifier(instance map[string]any, targetHost string) identifierMatchEvaluation {
+	match := evaluateEndpointIdentifier(instance, targetHost)
+	if !match.matched {
+		match.strategy = "sap_hana_endpoint"
+	}
+	return match
+}
+
+// evaluateEndpointIdentifier contains only the host/port mechanics shared by database-specific
+// evaluators. Template and query matching remain owned by each integration's evaluator.
+func evaluateEndpointIdentifier(instance map[string]any, targetHost string) identifierMatchEvaluation {
+	host := instanceHost(instance)
+	if host == targetHost {
+		return identifierMatchEvaluation{matched: true, strategy: "host"}
+	}
+	if port, ok := instancePort(instance); ok {
+		if host+":"+strconv.Itoa(port) == targetHost {
+			return identifierMatchEvaluation{matched: true, strategy: "host_port"}
+		}
+	}
+	return identifierMatchEvaluation{}
+}
+
+// renderMySQLDatabaseIdentifierWithLookup supplies the variables exposed by the Python MySQL
+// check. Its config key is "sock", while the database_identifier template variable is
+// $mysql_sock; both $port and $mysql_sock are populated even when their config keys are absent.
+func renderMySQLDatabaseIdentifierWithLookup(
+	instance map[string]any,
+	agentHostname string,
+	lookupHost func(string) ([]string, error),
+) (string, bool) {
+	mysqlSock, _ := instance["sock"].(string)
+	return renderDatabaseIdentifierWithLookup(
+		instance,
+		agentHostname,
+		"$resolved_hostname",
+		mysqlPortFallback,
+		map[string]string{"mysql_sock": mysqlSock},
+		lookupHost,
+	)
+}
+
+// renderDatabaseIdentifierWithLookup renders a database_identifier template using the shared
+// inputs exposed by the MySQL and Postgres checks. Unknown variables stay in the result, matching
+// Python's safe_substitute.
+func renderDatabaseIdentifierWithLookup(
+	instance map[string]any,
+	agentHostname, defaultTemplate string,
+	portFallback string,
+	integrationValues map[string]string,
+	lookupHost func(string) ([]string, error),
+) (string, bool) {
+	template := defaultTemplate
+	if configuredIdentifier, exists := instance["database_identifier"]; exists {
+		databaseIdentifier, ok := configuredIdentifier.(map[string]any)
+		if !ok {
+			return "", false
+		}
+		if configuredTemplate, exists := databaseIdentifier["template"]; exists {
+			var ok bool
+			template, ok = configuredTemplate.(string)
+			if !ok {
+				return "", false
 			}
 		}
 	}
-
-	if lastParseErr != nil {
-		// Surface the parse error so operators debug the postgres config YAML, not the RC identifier.
-		return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s; at least one postgres instance had a YAML parse error: %w",
-			dbID.Type, dbID.Host, lastParseErr)
+	if template == "" {
+		return "", false
 	}
-	return nil, nil, fmt.Errorf("no postgres config found for identifier: type=%s, host=%s",
-		dbID.Type, dbID.Host)
+
+	values := templateTagValues(instance)
+	for name, value := range integrationValues {
+		values[name] = value
+	}
+	host := instanceHost(instance)
+	values["host"] = host
+	if port, ok := instancePort(instance); ok {
+		values["port"] = strconv.Itoa(port)
+	} else if _, configured := instance["port"]; !configured && portFallback != "" {
+		values["port"] = portFallback
+	}
+
+	var resolvedHostname string
+	if reportedHostname, ok := instance["reported_hostname"].(string); ok && reportedHostname != "" {
+		resolvedHostname = reportedHostname
+	} else {
+		resolvedHostname = resolveDatabaseHostname(host, agentHostname, lookupHost)
+	}
+	values["resolved_hostname"] = resolvedHostname
+
+	return safeSubstitute(template, values), true
 }
 
-// matchesIdentifier checks if an instance matches the given DB identifier.
-// Matching is by host only — per-query dbname fields handle database routing.
-func matchesIdentifier(instance map[string]any, dbID *DBIdentifier) bool {
-	host, _ := instance["host"].(string)
-	return host == dbID.Host
+// resolveDatabaseHostname mirrors the database checks' resolve_db_host behavior used to build
+// $resolved_hostname. Besides local and socket hosts, the check reports the Agent hostname when
+// the database host and Agent hostname resolve to the same IPv4 address.
+func resolveDatabaseHostname(host, agentHostname string, lookupHost func(string) ([]string, error)) string {
+	if strings.HasSuffix(host, ".local") {
+		return host
+	}
+	if isLocalDBHost(host) {
+		if agentHostname != "" {
+			return agentHostname
+		}
+		return host
+	}
+	if agentHostname == "" {
+		return host
+	}
+
+	hostAddresses, err := lookupHost(host)
+	if err != nil {
+		return host
+	}
+	agentAddresses, err := lookupHost(agentHostname)
+	if err != nil {
+		return host
+	}
+	hostIPv4, hostOK := firstIPv4Address(hostAddresses)
+	agentIPv4, agentOK := firstIPv4Address(agentAddresses)
+	if hostOK && agentOK && hostIPv4 == agentIPv4 {
+		return agentHostname
+	}
+	return host
 }
 
-// buildCheckConfig creates a postgres check config with data_observability queries injected.
-// It clones the full matched postgres instance and adds the data_observability section.
+func firstIPv4Address(addresses []string) (string, bool) {
+	for _, address := range addresses {
+		if ip := net.ParseIP(address); ip != nil {
+			if ipv4 := ip.To4(); ipv4 != nil {
+				return ipv4.String(), true
+			}
+		}
+	}
+	return "", false
+}
+
+// templateTagValues exposes each key:value instance tag as a template variable. Duplicate keys
+// are sorted and joined with commas, matching the database checks.
+func templateTagValues(instance map[string]any) map[string]string {
+	var tags []string
+	switch configuredTags := instance["tags"].(type) {
+	case []any:
+		for _, configuredTag := range configuredTags {
+			if tag, ok := configuredTag.(string); ok {
+				tags = append(tags, tag)
+			}
+		}
+	case []string:
+		tags = append(tags, configuredTags...)
+	}
+	sort.Strings(tags)
+
+	values := make(map[string]string)
+	for _, tag := range tags {
+		key, value, found := strings.Cut(tag, ":")
+		if !found {
+			continue
+		}
+		if previous, exists := values[key]; exists {
+			values[key] = previous + "," + value
+		} else {
+			values[key] = value
+		}
+	}
+	return values
+}
+
+// isLocalDBHost matches the local-address cases handled by the database checks' host resolver.
+func isLocalDBHost(host string) bool {
+	if host == "" || host == "localhost" || strings.HasPrefix(host, "/") {
+		return true
+	}
+	if zoneIndex := strings.LastIndex(host, "%"); zoneIndex >= 0 {
+		host = host[:zoneIndex]
+	}
+	ip := net.ParseIP(strings.TrimSpace(host))
+	return ip != nil && ip.IsLoopback()
+}
+
+// safeSubstitute implements Python string.Template's $name, ${name}, and $$ forms. Unknown
+// variables remain unchanged, matching safe_substitute.
+func safeSubstitute(template string, values map[string]string) string {
+	return databaseIdentifierVariablePattern.ReplaceAllStringFunc(template, func(placeholder string) string {
+		if placeholder == "$$" {
+			return "$"
+		}
+		name := strings.TrimSuffix(strings.TrimPrefix(placeholder, "${"), "}")
+		if name == placeholder {
+			name = strings.TrimPrefix(placeholder, "$")
+		}
+		if value, ok := values[name]; ok {
+			return value
+		}
+		return placeholder
+	})
+}
+
+// instancePort returns the port number for an integration instance, if present.
+func instancePort(instance map[string]any) (int, bool) {
+	switch v := instance["port"].(type) {
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case float64:
+		return int(v), true
+	case string:
+		port, err := strconv.Atoi(v)
+		return port, err == nil
+	}
+	return 0, false
+}
+
+// buildCheckConfig creates a check config with data_observability queries injected.
+// It clones the full matched instance and adds the data_observability section.
 // Returns an error if YAML serialization fails; callers must report ApplyStateError to RC.
 func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integration.Config, instance map[string]any, remoteConfigID string) (integration.Config, error) {
 	queries := make([]map[string]any, 0, len(payload.Queries))
@@ -393,7 +840,7 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 	}
 
 	return integration.Config{
-		Name:      "postgres",
+		Name:      baseCfg.Name,
 		Source:    c.String(),
 		Provider:  baseCfg.Provider,
 		NodeName:  baseCfg.NodeName,

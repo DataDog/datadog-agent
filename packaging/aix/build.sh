@@ -16,11 +16,13 @@
 #                   This produces the same version string embedded in the binary.
 #                   The build fails if invoke is unavailable or returns empty.
 #
-# VRMF (installp package version) is X.Y.Z.AGENT_BUILD — the pre/git suffix of
-# AGENT_VERSION is stripped by env.sh.
+# VRMF (installp package version) is X.Y.Z.AGENT_BUILD — derived in env.sh
+# once AGENT_VERSION and AGENT_BUILD are both available.
 # Package filename: datadog-agent-<AGENT_VERSION>-<AGENT_BUILD>.aix.ppc64.bff
 #
-# The agent source with full .git history must be at /opt/datadog-agent.
+# AGENT_SRC is resolved by env.sh: it walks up from the script directory until
+# it finds a .git ancestor (so this build.sh must live inside a checkout of
+# the datadog-agent repo).
 # All intermediate artifacts go under /opt/dd-build/.
 
 set -eu
@@ -28,31 +30,39 @@ set -eu
 PATH=/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
 export PATH
 
+# ── Source shared environment ─────────────────────────────────────────────────
+
 if [ -z "${AGENT_BUILD:-}" ]; then
     printf 'ERROR: AGENT_BUILD must be set (e.g. AGENT_BUILD=1)\n' >&2
     printf '       This is the installp build counter and must increase with each release.\n' >&2
     exit 1
 fi
 
-if [ ! -d /opt/datadog-agent/.git ]; then
-    printf 'ERROR: /opt/datadog-agent/.git not found\n' >&2
-    printf '       The source tree must include full git history.\n' >&2
-    exit 1
-fi
+# dirname "$0" returns a relative path when the script is invoked with
+# a relative path and stage scripts use SCRIPT_DIR after cd calls
+# into build directories, so an absolute path is required.
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=/dev/null
+. "$SCRIPT_DIR/lib/env.sh"
 
-if [ -z "${AGENT_VERSION:-}" ]; then
-    AGENT_VERSION=$(cd /opt/datadog-agent && \
-        python3.12 -m invoke agent.version --url-safe --include-git 2>&1)
-    if [ -z "$AGENT_VERSION" ]; then
-        printf 'ERROR: invoke agent.version returned empty output.\n' >&2
-        exit 1
+# ── Bootstrap embedded symlink ────────────────────────────────────────────────
+# Python binaries (pip, ensurepip, etc.) have their shebangs baked at configure
+# time as #!/opt/datadog-agent/embedded/bin/python3.13. Create a symlink from
+# that path to the actual staging tree so they resolve during the build.
+# Idempotent — only writes if missing or pointing at the wrong target.
+if [ ! -L "$EMBEDDED" ] || [ "$(readlink "$EMBEDDED" 2>/dev/null)" != "$EMBEDDED_DESTDIR" ]; then
+    if [ -e "$EMBEDDED" ] && [ ! -L "$EMBEDDED" ]; then
+        rm -rf "$EMBEDDED"
     fi
-    printf 'INFO: AGENT_VERSION: %s\n' "$AGENT_VERSION" >&2
+    mkdir -p "$(dirname "$EMBEDDED")"
+    ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
 fi
 
-# ── Check required tools ──────────────────────────────────────────────────────
-# Fail early with a clear message if a required build tool is missing.
-
+# ── Build-specific prerequisite: Rust SDK ───────────────────────────────────
+# The host toolchain (gcc, go, git, cmake, protoc, the -devel libs, ...) is
+# provisioned and verified by packaging/aix/setup-host.sh; build.sh assumes
+# it has been run. Fail fast here with a clear message if Rust is missing —
+# the build needs it for stages 05/06/07/08.
 check_tool() {
     _tool=$1; _pkg=${2:-$1}
     if ! command -v "$_tool" >/dev/null 2>&1; then
@@ -61,53 +71,6 @@ check_tool() {
         exit 1
     fi
 }
-
-check_tool git        git
-check_tool curl       curl
-check_tool xz         xz
-check_tool make       make
-check_tool cmake      cmake
-check_tool gcc        gcc
-check_tool python3.12 python3.12
-check_tool go         golang
-check_tool dump       bos.perf.tools
-check_tool mkinstallp bos.adt.insttools
-
-check_tool strip binutils
-
-# Several libraries are taken from AIX Toolbox (source builds fail on AIX).
-# Check that all required -devel packages are installed.
-check_aix_devel() {
-    _hdr=$1; _pkg=$2
-    if [ ! -f "$_hdr" ]; then
-        printf 'ERROR: %s not found (required for build)\n' "$_hdr" >&2
-        printf '       Install with: yum install %s\n' "$_pkg" >&2
-        exit 1
-    fi
-}
-check_aix_devel /opt/freeware/include/ffi.h          libffi-devel
-check_aix_devel /opt/freeware/lib64/libffi.a          libffi-devel
-check_aix_devel /opt/freeware/include/ncurses.h       ncurses-devel
-check_aix_devel /opt/freeware/lib64/libncursesw.a     ncurses-devel
-check_aix_devel /opt/freeware/include/readline/readline.h  readline-devel
-check_aix_devel /opt/freeware/lib64/libreadline.a     readline-devel
-
-check_aix_devel /opt/freeware/include/gdbm.h          gdbm-devel
-check_aix_devel /opt/freeware/lib/libgdbm.a           gdbm-devel
-check_aix_devel /opt/freeware/include/libxslt/xslt.h  libxslt-devel
-check_aix_devel /opt/freeware/lib/libxslt.a           libxslt-devel
-# libexslt ships with libxslt-devel; stage 01 copies it silently if present.
-check_aix_devel /opt/freeware/lib/libexslt.a          libxslt-devel
-
-# ── Source shared environment ─────────────────────────────────────────────────
-
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=/dev/null
-. "$SCRIPT_DIR/lib/env.sh"
-
-# Rust SDK cargo — checked after env.sh so RUST_VERSION is available.
-# Required by stage 05 (cryptography, ~15 min), stage 06 (pydantic-core,
-# ~52 min), and stage 07 (jellyfish). Failing here avoids wasting that time.
 check_tool "/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin/cargo" \
     "rust${RUST_VERSION}.ppc cargo${RUST_VERSION}.ppc rust${RUST_VERSION}-std-static.ppc"
 
@@ -125,12 +88,13 @@ STAGES="
 02-python
 03-rtloader
 04-agent
-05-python-extensions
-06-pydantic
-07-checks-base
-08-integrations
-09-strip-bytecode
-10-assemble
+05-agent-data-plane
+06-python-extensions
+07-pydantic
+08-checks-base
+09-integrations
+10-strip-bytecode
+11-assemble
 "
 
 # ── Helper: run one stage script ──────────────────────────────────────────────

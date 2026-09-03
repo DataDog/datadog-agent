@@ -14,6 +14,10 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RunAsAdmin { get; }
 
+        public ManagedAction EnsureSecureConfigRoot { get; }
+
+        public ManagedAction EnsureSecureConfigRootUI { get; }
+
         public ManagedAction ReadConfig { get; }
 
         public ManagedAction PatchInstaller { get; set; }
@@ -46,7 +50,11 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction CleanupOnRollback { get; }
 
+        public ManagedAction RemoveEmptyInstallDirOnRollback { get; }
+
         public ManagedAction CleanupOnUninstall { get; }
+
+        public ManagedAction CleanupInstallDirAfterUninstall { get; }
 
         public ManagedAction ConfigureUser { get; }
 
@@ -114,6 +122,37 @@ namespace WixSetup.Datadog_Agent
                 Step.AppSearch,
                 Condition.Always,
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence);
+
+            // See PrerequisitesCustomActions.EnsureSecureConfigRoot.
+            //
+            // After InstallValidate so REMOVE is set, and before InstallInitialize so failing here does
+            // not leave a partial installation behind. APPLICATIONDATADIRECTORY is resolved earlier, by
+            // CostFinalize.
+            //
+            // Runs unconditionally, including on uninstall and on removal for an upgrade: this only
+            // asserts (never creates or modifies) the directory, so it cannot leave a partial
+            // installation behind either way. See DDCreateFolders for the part of the check that
+            // creates the directory when missing.
+            EnsureSecureConfigRoot = new CustomAction<CustomActions>(
+                new Id(nameof(EnsureSecureConfigRoot)),
+                CustomActions.EnsureSecureConfigRoot,
+                Return.check,
+                When.After,
+                Step.InstallValidate,
+                Condition.Always,
+                Sequence.InstallExecuteSequence);
+
+            // Same check, run from the Welcome dialog so an interactive install reports the problem
+            // early. It reports the outcome in properties instead of failing, see
+            // PrerequisitesCustomActions.EnsureSecureConfigRoot.
+            EnsureSecureConfigRootUI = new CustomAction<CustomActions>(
+                new Id(nameof(EnsureSecureConfigRootUI)),
+                CustomActions.EnsureSecureConfigRootUI
+            )
+            {
+                // Not run in a sequence, run when Next is clicked on the Welcome dialog
+                Sequence = Sequence.NotInSequence
+            };
 
             ReadInstallState = new CustomAction<CustomActions>(
                 new Id(nameof(ReadInstallState)),
@@ -252,9 +291,10 @@ namespace WixSetup.Datadog_Agent
                     "EC2_USE_WINDOWS_PREFIX_DETECTION=[EC2_USE_WINDOWS_PREFIX_DETECTION]")
                 .HideTarget(true);
 
-            // Cleanup leftover files on rollback
-            // must be before the DecompressPythonDistributions custom action.
-            // That way, if DecompressPythonDistributions fails, this will get executed.
+            // Cleanup leftover files on rollback. DecompressPythonDistributions must be sequenced
+            // after every rollback cleanup action so a decompression failure still runs them all.
+            // Rollback CAs run in reverse install-sequence order, so schedule RemoveEmptyInstallDirOnRollback
+            // before CleanupOnRollback if it should run after fleet/config cleanup on rollback.
             CleanupOnRollback = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnRollback)),
                     CustomActions.CleanupFiles,
@@ -269,6 +309,20 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            RemoveEmptyInstallDirOnRollback = new CustomAction<CustomActions>(
+                    new Id(nameof(RemoveEmptyInstallDirOnRollback)),
+                    CustomActions.RemoveEmptyInstallDirOnRollback,
+                    Return.check,
+                    When.Before,
+                    new Step(CleanupOnRollback.Id),
+                    Conditions.FirstInstall
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             DecompressPythonDistributions = new CustomAction<CustomActions>(
                     new Id(nameof(DecompressPythonDistributions)),
@@ -347,6 +401,20 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            CleanupInstallDirAfterUninstall = new CustomAction<CustomActions>(
+                    new Id(nameof(CleanupInstallDirAfterUninstall)),
+                    CustomActions.RemoveEmptyInstallDirAfterUninstall,
+                    Return.check,
+                    When.After,
+                    Step.RemoveFiles,
+                    Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             RunPreRemovePythonScript = new CustomAction<CustomActions>(
                     new Id(nameof(RunPreRemovePythonScript)),
@@ -504,6 +572,7 @@ namespace WixSetup.Datadog_Agent
             .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]," +
                            "APIKEY=[APIKEY]," +
                            "SITE=[SITE]," +
+                           "DD_LOG_LEVEL=[DD_LOG_LEVEL]," +
                            "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                            "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]," +
@@ -579,7 +648,7 @@ namespace WixSetup.Datadog_Agent
                     Return.ignore,
                     When.After,
                     Step.InstallFinalize,
-                    Conditions.FirstInstall | Conditions.Upgrading
+                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
                 )
                 .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
                 .HideTarget(true);
@@ -718,22 +787,24 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
+            // Scheduled right after InstallInitialize, the earliest a deferred action can run:
+            // the config root must already be secure before any other install/uninstall action
+            // that may rely on its contents.
             DDCreateFolders = new CustomAction<CustomActions>(
                     new Id(nameof(DDCreateFolders)),
                     CustomActions.DDCreateFolders,
                     Return.check,
-                    When.Before,
-                    Step.CreateFolders,
-                    // Run only on FirstInstall.
-                    // In Upgrade/Repair the directory has already been
-                    // created and configured, and this action could leave the directory
-                    // without access for ddagentuser if the installer rolls back.
-                    Conditions.FirstInstall
+                    When.After,
+                    Step.InstallInitialize,
+                    Condition.Always
                     )
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            }.SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+            }.SetProperties(
+                "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                "INSTALLED=[Installed], " +
+                "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED]");
 
             // Installer package hooks (prerm / postinst)
             // These call datadog-installer.exe prerm/postinst, mirroring the deb/rpm maintainer
@@ -759,6 +830,7 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
                                "FLEET_INSTALL=[FLEET_INSTALL], " +
                                "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                               "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
@@ -780,11 +852,13 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
                                "FLEET_INSTALL=[FLEET_INSTALL], " +
+                               "APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
                                "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
                                "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
                                "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD], " +
-                               "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]")
+                               "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED], " +
+                               "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]")
                 .HideTarget(true);
 
             ConfigureAutoLogger = new CustomAction<CustomActions>(
@@ -801,7 +875,8 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID], " +
-                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]");
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
+                               "DD_LOGON_DURATION_AUTOLOGGER=[DD_LOGON_DURATION_AUTOLOGGER]");
 
             ConfigureAutoLoggerRollback = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureAutoLoggerRollback)),
@@ -815,7 +890,8 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.rollback,
                 Impersonate = false
             }
-                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                               "DD_LOGON_DURATION_AUTOLOGGER=[DD_LOGON_DURATION_AUTOLOGGER]");
 
             RemoveAutoLogger = new CustomAction<CustomActions>(
                     new Id(nameof(RemoveAutoLogger)),

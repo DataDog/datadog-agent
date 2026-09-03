@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 )
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
@@ -363,6 +363,14 @@ func WithInfrastructureMode(infrastructureMode string) InstallAgentOption {
 func WithInstallOnly(installOnly string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.InstallOnly = installOnly
+		return nil
+	}
+}
+
+// WithLogLevel specifies the DD_LOG_LEVEL parameter.
+func WithLogLevel(logLevel string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.InstallAgentParams.LogLevel = logLevel
 		return nil
 	}
 }

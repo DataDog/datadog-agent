@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["check.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/def",
+        "//comp/process/processdiscoverycheck/def",
+        "//comp/process/types",
+        "//pkg/process/checks",
+    ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["check_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/sysprobeconfig/mock",
+        "//comp/process/processdiscoverycheck/def",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

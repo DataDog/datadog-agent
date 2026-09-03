@@ -34,8 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -155,7 +155,9 @@ var (
 		[]string{"shard"}, "Size of the aggregator channel")
 	tlmProcessed = telemetryimpl.GetCompatComponent().NewCounter("aggregator", "processed",
 		[]string{"shard", "data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
-	tlmDogstatsdTimeBuckets = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_time_buckets",
+	tlmProcessedMetrics         = tlmProcessed.WithValues("", "metrics")
+	tlmProcessedHistogramBucket = tlmProcessed.WithValues("", "histogram_bucket")
+	tlmDogstatsdTimeBuckets     = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_time_buckets",
 		[]string{"shard"}, "Number of time buckets in the dogstatsd sampler")
 	tlmDogstatsdContexts = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_contexts",
 		[]string{"shard"}, "Count the number of dogstatsd contexts in the aggregator")
@@ -268,7 +270,7 @@ type BufferedAggregator struct {
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
 	flushChan              chan flushTrigger
 
-	stopChan  chan struct{}
+	stopChan  chan chan struct{}
 	health    *health.Handle
 	agentName string // Name of the agent for telemetry metrics
 
@@ -282,8 +284,8 @@ type BufferedAggregator struct {
 	observerHandle observer.Handle
 
 	// use this chan to trigger a filterList reconfiguration
-	filterListChan  chan utilstrings.Matcher
-	flushFilterList utilstrings.Matcher
+	filterListChan  chan metricname.Matcher
+	flushFilterList metricname.Matcher
 
 	tagFilterListChan chan filterlist.TagMatcher
 	tagFilterList     filterlist.TagMatcher
@@ -350,7 +352,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
 		flushChan:                   make(chan flushTrigger),
-		stopChan:                    make(chan struct{}),
+		stopChan:                    make(chan chan struct{}),
 		health:                      health.RegisterLiveness("aggregator"),
 		agentName:                   agentName,
 		tlmContainerTagsEnabled:     pkgconfigsetup.Datadog().GetBool("basic_telemetry_add_container_tags"),
@@ -359,7 +361,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
-		filterListChan:    make(chan utilstrings.Matcher),
+		filterListChan:    make(chan metricname.Matcher),
 		flushFilterList:   filterList.GetMetricFilterList(),
 		tagFilterListChan: make(chan filterlist.TagMatcher),
 		tagFilterList:     filterList.GetTagFilterList(),
@@ -456,7 +458,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 	defer agg.mu.Unlock()
 
 	aggregatorChecksMetricSample.Add(1)
-	tlmProcessed.Inc("", "metrics")
+	tlmProcessedMetrics.Inc()
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
@@ -475,7 +477,7 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 	defer agg.mu.Unlock()
 
 	aggregatorCheckHistogramBucketMetricSample.Add(1)
-	tlmProcessed.Inc("", "histogram_bucket")
+	tlmProcessedHistogramBucket.Inc()
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
 		checkBucket.bucket.Tags = sort.UniqInPlace(checkBucket.bucket.Tags)
@@ -785,9 +787,11 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	agg.updateChecksTelemetry()
 }
 
-// Stop stops the aggregator.
+// Stop stops the aggregator, blocking until the run() goroutine exits.
 func (agg *BufferedAggregator) Stop() {
-	agg.stopChan <- struct{}{}
+	stop := make(chan struct{})
+	agg.stopChan <- stop
+	<-stop
 }
 
 func (agg *BufferedAggregator) run() {
@@ -796,8 +800,10 @@ func (agg *BufferedAggregator) run() {
 
 	for {
 		select {
-		case <-agg.stopChan:
+		case stop := <-agg.stopChan:
 			log.Info("Stopping aggregator")
+			agg.health.Deregister() //nolint:errcheck
+			close(stop)
 			return
 		case trigger := <-agg.flushChan:
 			agg.Flush(trigger)

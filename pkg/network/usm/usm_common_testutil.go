@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build (linux_bpf || (windows && npm)) && test
+//go:build ((linux && bpf) || (windows && npm)) && test
 
 package usm
 
@@ -24,7 +24,7 @@ func NewUSMEmptyConfig() *config.Config {
 	cfg.EnableIstioMonitoring = false
 	cfg.EnableNodeJSMonitoring = false
 	cfg.EnableGoTLSSupport = false
-	cfg.HTTPUseDirectConsumer = false
+	cfg.HTTPUseDirectConsumer = true
 
 	return cfg
 }

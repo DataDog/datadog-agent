@@ -21,6 +21,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	remoteagentregistryStatus "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -29,10 +30,12 @@ import (
 
 // Requires defines the dependencies for the remoteagentregistry component
 type Requires struct {
-	Config    config.Component
-	Ipc       ipc.Component
-	Lifecycle compdef.Lifecycle
-	Telemetry telemetry.Component
+	Config           config.Component
+	Ipc              ipc.Component
+	Lifecycle        compdef.Lifecycle
+	Telemetry        telemetry.Component
+	Secrets          secrets.Component
+	EventSubscribers []*remoteagentregistry.EventSubscriber `group:"remoteAgentEventSubscriber"`
 }
 
 // Provides defines the output of the remoteagentregistry component
@@ -60,6 +63,8 @@ func NewComponent(reqs Requires) Provides {
 
 func newRegistry(reqs Requires) *remoteAgentRegistry {
 	shutdownChan := make(chan struct{})
+	eventSubscribers := append([]*remoteagentregistry.EventSubscriber{}, reqs.EventSubscribers...)
+	eventSubscribers = append(eventSubscribers, newSecretsRefreshEventSubscriber(reqs.Secrets))
 	registry := &remoteAgentRegistry{
 		conf:           reqs.Config,
 		ipc:            reqs.Ipc,
@@ -73,6 +78,7 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 			FlareServiceName:     {},
 			TelemetryServiceName: {},
 		},
+		eventSubscribers: eventSubscribers,
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -87,6 +93,23 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 	})
 
 	return registry
+}
+
+// newSecretsRefreshEventSubscriber creates the subscriber that asks the secrets component to refresh when a remote
+// agent reports that its API key was rejected. Refresh is asynchronous and applies its own configured throttle.
+func newSecretsRefreshEventSubscriber(resolver secrets.Component) *remoteagentregistry.EventSubscriber {
+	return &remoteagentregistry.EventSubscriber{
+		Name: "secrets-refresh",
+		Callback: func(_ remoteagentregistry.RegisteredAgent, events []remoteagentregistry.RemoteAgentEvent) {
+			for _, event := range events {
+				if _, ok := event.Details.(*remoteagentregistry.InvalidAPIKey); ok {
+					// One refresh is sufficient for the whole report; the resolver coalesces and throttles requests.
+					resolver.Refresh()
+					return
+				}
+			}
+		},
+	}
 }
 
 type telemetryStore struct {
@@ -180,6 +203,10 @@ type remoteAgentRegistry struct {
 
 	// Define the services that the remote agent supports
 	remoteAgentServices map[remoteAgentServiceName]struct{}
+
+	// eventSubscribers receive Remote Agent events reported via ReportRemoteAgentEvent. The slice is
+	// set once at construction and is immutable afterwards, so it needs no lock.
+	eventSubscribers []*remoteagentregistry.EventSubscriber
 }
 
 // RegisterRemoteAgent registers a remote agent with the registry.
@@ -221,30 +248,54 @@ func (ra *remoteAgentRegistry) RefreshRemoteAgent(sessionID string) bool {
 	return ok
 }
 
-// ReportRemoteAgentEvent records one or more events reported by a remote agent.
+// ReportRemoteAgentEvent records one or more events reported by a remote agent and broadcasts them to
+// every registered event subscriber.
 //
 // It returns an error if no remote agent is registered with the given session ID.
-//
-// NOTE: This is currently a stub that only logs the reported events. Routing them to telemetry/alerting is future work.
 func (ra *remoteAgentRegistry) ReportRemoteAgentEvent(sessionID string, events []remoteagentregistry.RemoteAgentEvent) error {
 	ra.agentMapMu.Lock()
 	agentClient, ok := ra.agentMap[sessionID]
+	var agent remoteagentregistry.RegisteredAgent
+	if ok {
+		agent = agentClient.RegisteredAgent
+	}
 	ra.agentMapMu.Unlock()
 
 	if !ok {
 		return fmt.Errorf("no remote agent found with session ID %q", sessionID)
 	}
 
-	displayName := agentClient.RegisteredAgent.DisplayName
 	for _, event := range events {
 		eventType := "unknown"
 		if event.Details != nil {
 			eventType = event.Details.EventType()
 		}
-		log.Debugf("Remote agent '%s' reported event (type: %s): %s", displayName, eventType, event.Message)
+		log.Debugf("Remote agent '%s' reported event (type: %s): %s", agent.DisplayName, eventType, event.Message)
+	}
+
+	// For each subscriber, dispatch the events through `dispatchEvents` which provides panic recovery behavior so
+	// that we don't bork the entire gRPC handler.
+	for _, subscriber := range ra.eventSubscribers {
+		if subscriber == nil || subscriber.Callback == nil {
+			continue
+		}
+		ra.dispatchEvents(subscriber, agent, events)
 	}
 
 	return nil
+}
+
+// dispatchEvents invokes a single subscriber's callback, recovering from any panic so that a
+// misbehaving subscriber can neither fail the reporting RPC nor prevent the remaining subscribers from
+// being notified.
+func (ra *remoteAgentRegistry) dispatchEvents(subscriber *remoteagentregistry.EventSubscriber, agent remoteagentregistry.RegisteredAgent, events []remoteagentregistry.RemoteAgentEvent) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Remote Agent event subscriber %q panicked while handling events: %v", subscriber.Name, r)
+		}
+	}()
+
+	subscriber.Callback(agent, events)
 }
 
 // Start starts the remote agent registry, which periodically checks for idle remote agents and deregisters them.
@@ -266,24 +317,18 @@ func (ra *remoteAgentRegistry) start() {
 			case <-ticker.C:
 				ra.agentMapMu.Lock()
 
-				agentsToRemove := make([]string, 0)
 				for sessionID, details := range ra.agentMap {
-					if time.Since(details.RegisteredAgent.LastSeen) > remoteAgentIdleTimeout || details.unhealthy {
-						agentsToRemove = append(agentsToRemove, sessionID)
-					}
-				}
-
-				for _, sessionID := range agentsToRemove {
-					remoteAgentClient, ok := ra.agentMap[sessionID]
-					if ok {
-						if remoteAgentClient.unhealthy {
-							log.Warnf("Remote agent '%s' deregistered: %v", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.unhealthyReason)
+					details.unhealthyMu.Lock()
+					reason := details.unhealthyReason
+					details.unhealthyMu.Unlock()
+					if time.Since(details.RegisteredAgent.LastSeen) > remoteAgentIdleTimeout || reason != nil {
+						if reason != nil {
+							log.Warnf("Remote agent '%s' deregistered: %v", details.RegisteredAgent.DisplayName, reason)
 						} else {
-							log.Infof("Remote agent '%s' deregistered after being idle for %s.", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)
+							log.Infof("Remote agent '%s' deregistered after being idle for %s.", details.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)
 						}
-						ra.telemetryStore.remoteAgentRegistered.Dec(remoteAgentClient.RegisteredAgent.SanitizedDisplayName)
-						// close the remote agent client and remove it from the registry
-						_ = remoteAgentClient.close()
+						ra.telemetryStore.remoteAgentRegistered.Dec(details.RegisteredAgent.SanitizedDisplayName)
+						_ = details.close()
 						delete(ra.agentMap, sessionID)
 					}
 				}

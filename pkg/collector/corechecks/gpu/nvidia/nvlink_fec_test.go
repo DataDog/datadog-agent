@@ -15,6 +15,7 @@ import (
 
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -35,7 +36,7 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
 	require.Equal(t, nvlinkFEC, collector.Name())
-	require.Equal(t, mockDevice.GetDeviceInfo().UUID, collector.DeviceUUID())
+	require.Equal(t, mockDevice.GetDeviceInfo().UUID, collector.Device().GetDeviceInfo().UUID)
 
 	collectedMetrics, err := collector.Collect()
 	require.NoError(t, err)
@@ -44,46 +45,42 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 	expectedLightErrors := 0.0
 	expectedHeavyErrors := 0.0
 	for bucket := range nvlinkFECHistoryFieldIDs {
-		metric := collectedMetrics[bucket]
+		sample, ok := collectedMetrics[bucket].(*HistogramSample)
+		require.True(t, ok)
 		if bucket > 0 && bucket <= defaultNVLinkFECLightErrorThreshold {
 			expectedLightErrors += float64(100 + bucket)
 		} else if bucket > defaultNVLinkFECLightErrorThreshold {
 			expectedHeavyErrors += float64(100 + bucket)
 		}
 
-		require.Equal(t, nvlinkFECHistoryMetricName, metric.Name)
-		require.Equal(t, metrics.HistogramType, metric.Type)
-		require.Equal(t, float64(100+bucket), metric.Value)
-		require.Equal(t, Medium, metric.Priority)
-		require.Contains(t, metric.Tags, "nvlink_port:1")
-		require.NotNil(t, metric.HistogramBucket)
-		require.Equal(t, [2]float64{float64(bucket), float64(bucket + 1)}, metric.HistogramBucket.Bounds)
-		require.True(t, metric.HistogramBucket.Monotonic)
-		require.False(t, metric.HistogramBucket.FlushFirstValue)
+		require.Equal(t, nvlinkFECHistoryMetricName, sample.Name)
+		require.Equal(t, int64(100+bucket), sample.Value)
+		require.Equal(t, Medium, sample.Priority())
+		require.Contains(t, sample.Tags(), "nvlink_port:1")
+		require.Equal(t, [2]float64{float64(bucket), float64(bucket)}, sample.Bounds)
+		require.True(t, sample.Monotonic)
+		require.False(t, sample.FlushFirstValue)
 	}
 
 	require.Equal(t, &Metric{
+		baseSample:          baseSample{priority: Medium, tags: []string{"nvlink_port:1"}},
 		Name:                nvlinkFECNoErrorsMetricName,
 		Type:                metrics.GaugeType,
 		Value:               100,
-		Priority:            Medium,
-		Tags:                []string{"nvlink_port:1"},
 		RateCalculationMode: PerSecondRateCalculation,
 	}, collectedMetrics[len(nvlinkFECHistoryFieldIDs)])
 	require.Equal(t, &Metric{
+		baseSample:          baseSample{priority: Medium, tags: []string{"nvlink_port:1"}},
 		Name:                nvlinkFECLightErrorsMetricName,
 		Type:                metrics.GaugeType,
 		Value:               expectedLightErrors,
-		Priority:            Medium,
-		Tags:                []string{"nvlink_port:1"},
 		RateCalculationMode: PerSecondRateCalculation,
 	}, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+1])
 	require.Equal(t, &Metric{
+		baseSample:          baseSample{priority: Medium, tags: []string{"nvlink_port:1"}},
 		Name:                nvlinkFECHeavyErrorsMetricName,
 		Type:                metrics.GaugeType,
 		Value:               expectedHeavyErrors,
-		Priority:            Medium,
-		Tags:                []string{"nvlink_port:1"},
 		RateCalculationMode: PerSecondRateCalculation,
 	}, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+2])
 }
@@ -112,16 +109,22 @@ func TestNVLinkFECCollectorConfigurableLightErrorThreshold(t *testing.T) {
 	collectedMetrics, err := collector.Collect()
 	require.NoError(t, err)
 	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs)+3)
+	severityMetrics := requireMetrics(t, collectedMetrics[len(nvlinkFECHistoryFieldIDs):])
 
-	require.Equal(t, 0.0, collectedMetrics[len(nvlinkFECHistoryFieldIDs)].Value)
-	require.Equal(t, 3.0, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+1].Value)
-	require.Equal(t, 117.0, collectedMetrics[len(nvlinkFECHistoryFieldIDs)+2].Value)
+	require.Equal(t, 0.0, severityMetrics[0].Value)
+	require.Equal(t, 3.0, severityMetrics[1].Value)
+	require.Equal(t, 117.0, severityMetrics[2].Value)
 }
 
 func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 	fieldValues := fecHistoryFieldValues()
 
-	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(1), testutil.WithFieldValuesFullOverride(fieldValues))
+	mock := nvmltestutil.SetupMockNVML(t,
+		testutil.WithDeviceCount(1),
+		testutil.WithNVLinkLinkCount(1),
+		testutil.WithFieldValuesFullOverride(fieldValues),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mock, 0)
 
 	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
@@ -130,6 +133,7 @@ func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 	// one field not supported, another with invalid value type
 	fieldValues[nvlinkFECHistoryFieldIDs[3]] = testutil.FieldError(nvml.ERROR_NOT_SUPPORTED)
 	fieldValues[nvlinkFECHistoryFieldIDs[7]] = testutil.MockFieldValue{Value: 9999, ValueType: nvml.ValueType(9999), Return: nvml.SUCCESS}
+	mock.Device(0).SetFieldValues(fieldValues)
 
 	collectedMetrics, err := collector.Collect()
 	require.Error(t, err)
@@ -140,7 +144,12 @@ func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 
 func TestNVLinkFECCollectorAllFieldsFail(t *testing.T) {
 	fieldValues := fecHistoryFieldValues()
-	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(1), testutil.WithFieldValuesFullOverride(fieldValues))
+	mock := nvmltestutil.SetupMockNVML(t,
+		testutil.WithDeviceCount(1),
+		testutil.WithNVLinkLinkCount(1),
+		testutil.WithFieldValuesFullOverride(fieldValues),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mock, 0)
 
 	collector, err := newNVLinkFECCollector(mockDevice, nil)
 	require.NoError(t, err)
@@ -148,6 +157,7 @@ func TestNVLinkFECCollectorAllFieldsFail(t *testing.T) {
 	for fieldID := range fieldValues {
 		fieldValues[fieldID] = testutil.FieldError(nvml.ERROR_NOT_SUPPORTED)
 	}
+	mock.Device(0).SetFieldValues(fieldValues)
 
 	collectedMetrics, err := collector.Collect()
 	require.Error(t, err)

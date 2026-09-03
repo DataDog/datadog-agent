@@ -19,16 +19,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 )
+
+var _ = declare(TestSelfTests, testOpts{enableSelfTests: true})
 
 func TestSelfTests(t *testing.T) {
 	SkipIfNotAvailable(t)
 	flake.MarkOnJobName(t, "ubuntu_25.10")
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{enableSelfTests: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +38,7 @@ func TestSelfTests(t *testing.T) {
 
 	test.msgSender.flush()
 
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		msg := test.msgSender.getMsg(events.SelfTestRuleID)
 		if msg == nil {
 			return errors.New("self_test event not found")
@@ -62,7 +64,7 @@ func TestSelfTests(t *testing.T) {
 		})
 
 		return nil
-	}, retry.Attempts(20), retry.Delay(2*time.Second), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithMaxTries(20), backoff.WithBackOff(backoff.NewConstantBackOff(2*time.Second)))
 
 	assert.NoError(t, err)
 }

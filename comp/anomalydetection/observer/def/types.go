@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 )
 
 // Handle is the lightweight observation interface passed to other components.
@@ -77,8 +79,8 @@ type LogObserver interface {
 }
 
 // MetricOutput is a timeseries value derived from log analysis.
-// The storage keeps full summaries (min/max/sum/count) so aggregation
-// is specified at read time, not write time.
+// The storage keeps sum/count summaries so aggregation is specified at read
+// time, not write time.
 type MetricOutput struct {
 	Name    string
 	Value   float64
@@ -146,8 +148,9 @@ func (sd SeriesDescriptor) Key() string {
 }
 
 // SeriesRef is a compact numeric handle for a stored time series.
-// Storage assigns a SeriesRef when a series key is first created;
-// the ref remains stable for the lifetime of the storage instance.
+// Storage assigns a unique SeriesRef when a series key is first created. The
+// ref remains stable while the series is live and is never reused; after
+// eviction it is invalid for the remainder of the storage instance lifetime.
 type SeriesRef int
 
 // QueryHandle pairs a storage series ref with its aggregate, providing
@@ -161,6 +164,15 @@ type QueryHandle struct {
 // CompactID returns the compact series identifier (e.g. "42:avg").
 func (q QueryHandle) CompactID() string {
 	return strconv.Itoa(int(q.Ref)) + ":" + AggregateString(q.Aggregate)
+}
+
+// ScorerContributor is one storage-backed metric contributing to a scorer
+// episode. The reporter resolves Handle to a display name only when the event
+// is rendered.
+type ScorerContributor struct {
+	Handle QueryHandle
+	Weight float64
+	Share  float64
 }
 
 // AnomalyType distinguishes the source type of an anomaly.
@@ -211,19 +223,15 @@ type AnomalyDebugInfo struct {
 	// Baseline statistics
 	BaselineStart  int64   // timestamp of baseline period start
 	BaselineEnd    int64   // timestamp of baseline period end
-	BaselineMean   float64 // mean of baseline (for CUSUM)
+	BaselineMean   float64 // mean of baseline
 	BaselineMedian float64 // median of baseline
-	BaselineStddev float64 // stddev of baseline (for CUSUM)
+	BaselineStddev float64 // stddev of baseline
 	BaselineMAD    float64 // MAD of baseline
 
 	// Detection parameters
 	Threshold      float64 // threshold that was crossed
-	SlackParam     float64 // k parameter (CUSUM only)
 	CurrentValue   float64 // value at detection time
 	DeviationSigma float64 // how many sigmas from baseline
-
-	// For CUSUM: the cumulative sum values leading up to detection
-	CUSUMValues []float64 // S[t] values (may be truncated to last N points)
 }
 
 // ReportOutput is the output model passed to reporters after each advance cycle.
@@ -284,8 +292,49 @@ type DetectionResult struct {
 type SeriesDetector interface {
 	// Name returns the analysis name for debugging.
 	Name() string
+	// Ready reports whether at least one series has reached the detector's
+	// actual scoring condition. It is monotonic until Reset.
+	Ready() bool
 	// Detect examines a series and returns any detected anomalies.
 	Detect(series Series) DetectionResult
+}
+
+// CorrelatorEventKind identifies the type of a correlator lifecycle event.
+type CorrelatorEventKind int
+
+const (
+	// CorrelatorEventEpisodeStarted fires when the scorer enters its configured episode threshold.
+	CorrelatorEventEpisodeStarted CorrelatorEventKind = iota + 1
+	// CorrelatorEventEpisodeEnded fires when the scorer leaves its configured episode threshold.
+	CorrelatorEventEpisodeEnded
+	// CorrelatorEventCorrelationDetected fires when a correlator observes a
+	// pattern for the first time (or after it has gone inactive and recurred).
+	CorrelatorEventCorrelationDetected
+)
+
+// CorrelatorEvent is a typed lifecycle event produced by a correlator during Advance.
+// Reporters receive these via ReportOutput.CorrelatorEvents and can emit backend
+// notifications without relying on the one-shot dedup logic in ActiveCorrelations.
+// Correlators own recurrence detection and produce CorrelationDetected events via
+// a shared emitter; scorer-type correlators produce EpisodeStarted/EpisodeEnded.
+type CorrelatorEvent struct {
+	Kind CorrelatorEventKind
+	// CorrelatorName identifies the correlator that produced this event.
+	CorrelatorName string
+	// Timestamp is the data time (unix seconds) when the event occurred.
+	Timestamp int64
+	// Correlation is the pattern associated with this event.
+	// For EpisodeStarted: the newly opened episode (no end time yet).
+	// For EpisodeEnded: the closed episode with the final LastUpdated.
+	// For CorrelationDetected: the full active correlation at first-seen time.
+	Correlation ActiveCorrelation
+	// FromLevel and ToLevel carry the scorer severity transition.
+	// Populated only for EpisodeStarted/EpisodeEnded; zero for CorrelationDetected.
+	FromLevel severityeventsdef.SeverityLevel
+	ToLevel   severityeventsdef.SeverityLevel
+	// Contributors is the scorer's short-lived contributor snapshot. It is
+	// populated only for EpisodeStarted events.
+	Contributors []ScorerContributor
 }
 
 // Correlator accumulates anomaly events and produces correlated patterns.
@@ -305,12 +354,17 @@ type Correlator interface {
 	Advance(dataTime int64)
 	// ActiveCorrelations returns currently detected correlation patterns.
 	ActiveCorrelations() []ActiveCorrelation
+	// PendingEvents returns and drains typed lifecycle events accumulated during
+	// the last Advance call. The caller owns the returned slice; the correlator
+	// discards it after this call. Returns nil when no events are pending.
+	// Correlators with no lifecycle events (e.g. time-cluster) always return nil.
+	PendingEvents() []CorrelatorEvent
 	// Reset clears all internal state for reanalysis.
 	Reset()
 }
 
-// ScorerConfig holds the tunable parameters for the anomaly scoring pipeline.
-type ScorerConfig struct {
+// AnomalyScorerConfig holds the tunable parameters for the anomaly scoring pipeline.
+type AnomalyScorerConfig struct {
 	// Alpha is the EWMA smoothing factor (0 < α ≤ 1). Lower = smoother.
 	Alpha float64 `json:"alpha"`
 	// SaturationK is the saturation constant k: saturation = 1−exp(−n/k).
@@ -332,11 +386,16 @@ type ScorerConfig struct {
 	// specific detector names. Each entry is [low, medium, high, xhigh] thresholds.
 	// Detectors not in this map default to level 2 (Medium) regardless of their score.
 	DetectorThresholds map[string][4]float64 `json:"detector_thresholds,omitempty"`
+	// MaxBuckets overrides the number of AnomalyScoreBucket entries retained in
+	// ScoreState(). 0 (default) means "cap at WindowSecs", which is the
+	// correct behaviour for the live agent. Set to a large positive value
+	// (e.g. math.MaxInt64) to keep an unlimited history for offline replay.
+	MaxBuckets int64 `json:"max_buckets,omitempty"`
 }
 
-// ScoreBucket is the per-second telemetry unit emitted by the scorer.
+// AnomalyScoreBucket is the per-second telemetry unit emitted by the scorer.
 // One bucket is produced for every 1-second tick, even if it has no anomalies.
-type ScoreBucket struct {
+type AnomalyScoreBucket struct {
 	// Second is the Unix timestamp (floor) for this bucket.
 	Second int64 `json:"second"`
 	// Bins[L] is the number of deduplicated anomalies at level L (0=VeryLow … 4=XHigh).
@@ -349,102 +408,10 @@ type ScoreBucket struct {
 	Ewma float64 `json:"ewma"`
 }
 
-// SeverityLevel represents one of three severity states: Low, Medium, High.
-type SeverityLevel int
-
-const (
-	SeverityLow    SeverityLevel = 0
-	SeverityMedium SeverityLevel = 1
-	SeverityHigh   SeverityLevel = 2
-)
-
-// ScorerEventDirection describes whether a severity transition is an
-// escalation or de-escalation.
-type ScorerEventDirection int
-
-const (
-	// ScorerEventBoth delivers transitions in either direction (default zero value).
-	ScorerEventBoth ScorerEventDirection = 0
-	// ScorerEventEscalation delivers only transitions where ToLevel > FromLevel.
-	ScorerEventEscalation ScorerEventDirection = 1
-	// ScorerEventDeescalation delivers only transitions where ToLevel < FromLevel.
-	ScorerEventDeescalation ScorerEventDirection = 2
-)
-
-// SeverityEvent records a severity state-machine transition.
-type SeverityEvent struct {
-	// Timestamp is the data time (unix seconds) when the transition occurred.
-	Timestamp int64 `json:"timestamp"`
-	// FromLevel is the state before the transition.
-	FromLevel SeverityLevel `json:"from_level"`
-	// ToLevel is the state after the transition.
-	ToLevel SeverityLevel `json:"to_level"`
-	// Direction is ScorerEventEscalation when ToLevel > FromLevel, and
-	// ScorerEventDeescalation when ToLevel < FromLevel.
-	Direction ScorerEventDirection `json:"direction"`
-}
-
-// ScorerListener receives severity state-machine transitions from the scorer.
-type ScorerListener interface {
-	OnSeverityTransition(event SeverityEvent)
-}
-
-// ScorerEventFilter selects which SeverityEvents are delivered to a listener.
-// All conditions are ANDed; a nil or empty slice means "any value".
-// The zero value ScorerEventFilter{} matches every transition.
-type ScorerEventFilter struct {
-	// FromLevels restricts to events whose FromLevel is in the set.
-	FromLevels []SeverityLevel
-	// ToLevels restricts to events whose ToLevel is in the set.
-	ToLevels []SeverityLevel
-	// Direction restricts by escalation or de-escalation.
-	Direction ScorerEventDirection
-}
-
-// AnomalyScorerConfiguration is the single object passed to SubscribeScorer
-// when registering a listener. It bundles who to call (Listener), which
-// transitions to deliver (Filter), and per-subscription state-machine tuning.
-type AnomalyScorerConfiguration struct {
-	// Listener is called for each matching severity transition. Required.
-	Listener ScorerListener
-	// Filter controls which transitions are delivered.
-	// Zero value ScorerEventFilter{} delivers all transitions.
-	Filter ScorerEventFilter
-	// CooldownSecs is the minimum number of seconds that must elapse after a
-	// delivered transition before a downward (de-escalation) transition can be
-	// delivered again.
-	// Zero means no cooldown (every matching transition is delivered).
-	CooldownSecs int64
-}
-
-// ScoreState is the accumulated telemetry snapshot from the scorer.
-type ScoreState struct {
-	Buckets []ScoreBucket `json:"buckets"`
-	Config  ScorerConfig  `json:"config"`
-}
-
-// AnomalyScorer computes a smoothed anomaly intensity signal (EWMA) from the
-// stream of anomalies produced by the detection pipeline. It mirrors the
-// Correlator lifecycle: ProcessAnomaly → Advance (once per second tick) → ScoreState → Reset.
-type AnomalyScorer interface {
-	// Name returns the scorer name for debugging.
-	Name() string
-	// ProcessAnomaly feeds a raw anomaly into the scorer's current-second buffer.
-	ProcessAnomaly(a Anomaly)
-	// Advance finalises the bucket at dataTime (unix seconds) and runs the
-	// EWMA + state-machine update for that second. Callers must invoke this
-	// after each 1-second detection cycle.
-	Advance(dataTime int64)
-	// LastScore returns the most recently computed EWMA score. Returns 0
-	// before the first Advance call.
-	LastScore() float64
-	// ScoreState returns the accumulated telemetry (all buckets + events so far).
-	ScoreState() ScoreState
-	// Reset clears all internal state for reanalysis.
-	Reset()
-	// Subscribe registers a listener to receive severity transitions matching
-	// cfg.Filter. Returns an unsubscribe function. Safe to call concurrently.
-	Subscribe(cfg AnomalyScorerConfiguration) func()
+// AnomalyScoreState is the accumulated telemetry snapshot from the scorer.
+type AnomalyScoreState struct {
+	Buckets []AnomalyScoreBucket `json:"buckets"`
+	Config  AnomalyScorerConfig  `json:"config"`
 }
 
 // Reporter receives reports and displays or delivers them.
@@ -469,13 +436,18 @@ type ActiveCorrelation struct {
 // RawAnomalyState provides read access to raw anomalies before correlation processing.
 // Used by test bench reporters to display individual detector outputs.
 type RawAnomalyState interface {
-	// RawAnomalies returns all anomalies detected by detector implementations.
+	// RawAnomalies returns retained detector output when replay/debug history is enabled.
+	// Live production observers deliberately retain no full anomaly history.
 	RawAnomalies() []Anomaly
 }
 
 // TelemetryNamespace is the storage namespace used for observer-internal debug
 // metrics (e.g. testbench UI charts). Detectors must not treat it as workload data.
 const TelemetryNamespace = "telemetry"
+
+// AgentNamespace is the storage namespace used for internal agent telemetry
+// while normalizing datadog.* metrics before they are dropped.
+const AgentNamespace = "agent"
 
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {
@@ -511,8 +483,6 @@ const (
 	AggregateAverage
 	AggregateSum
 	AggregateCount
-	AggregateMin
-	AggregateMax
 )
 
 // AggregateString returns a short string label for the aggregation type.
@@ -526,10 +496,6 @@ func AggregateString(agg Aggregate) string {
 		return "sum"
 	case AggregateCount:
 		return "count"
-	case AggregateMin:
-		return "min"
-	case AggregateMax:
-		return "max"
 	default:
 		return "unknown"
 	}
@@ -572,6 +538,14 @@ type MetricContext struct {
 type StorageReader interface {
 	// ListSeries returns metadata for all series matching the filter.
 	ListSeries(filter SeriesFilter) []SeriesMeta
+
+	// GetSeriesMeta returns metadata for one series ref, or nil if the series
+	// has been evicted.
+	GetSeriesMeta(ref SeriesRef) *SeriesMeta
+
+	// GetContext returns the optional context associated with a series, or nil
+	// if the series has been evicted or has no context.
+	GetContext(ref SeriesRef) *MetricContext
 
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
@@ -616,10 +590,31 @@ type StorageReader interface {
 type Detector interface {
 	Name() string
 
+	// Ready reports whether at least one series has reached the detector's
+	// actual scoring condition. It is monotonic until Reset.
+	Ready() bool
+
 	// Detect is called periodically by the scheduler.
 	// The detector queries storage for whatever data it needs.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
 	Detect(storage StorageReader, dataTime int64) DetectionResult
+}
+
+// DetectorPointWindow bounds a detector's raw-observation history.
+type DetectorPointWindow struct {
+	// MinPoints is the visible-history threshold for a cold series. On first
+	// activation, the detector replays retained points, including earlier ones.
+	// Active state continues even if visible history later drops below it.
+	MinPoints int
+	// MaxPoints limits raw history, not detector-state lifetime. It must be at
+	// least MinPoints; storage keeps an additional scheduler pending bucket.
+	MaxPoints int
+}
+
+// DetectorPointWindowRequirement is an optional Detector capability. The
+// observer derives retention from the maximum MaxPoints of enabled detectors.
+type DetectorPointWindowRequirement interface {
+	DetectorPointWindow() DetectorPointWindow
 }
 
 // SeriesRemover is an optional interface that Detector implementations can
@@ -629,11 +624,11 @@ type Detector interface {
 // segment buffers, ScanWelch posterior, the seriesDetectorAdapter visible
 // point count map, etc.) keyed by SeriesRef. Storage frees the series
 // payload itself when extractors evict their LRU contexts and the engine
-// calls RemoveSeriesByKeys, but without this hook the detector-side maps
+// calls its series-removal methods, but without this hook the detector-side maps
 // keep growing unbounded with the cumulative number of series ever
 // observed. The engine fans the freed refs out to every detector that
-// implements this interface immediately after RemoveSeriesByKeys returns
-// them, keeping detector state symmetric with storage state.
+// implements this interface immediately after storage returns them, keeping
+// detector state symmetric with storage state.
 //
 // Implementations should be cheap (a handful of map deletes) and tolerant
 // of refs they have never seen — adapters routinely receive refs for

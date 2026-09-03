@@ -24,8 +24,10 @@ import (
 )
 
 const (
-	composeVersion = "v2.27.0"
-	defaultTimeout = 300
+	composeVersion                      = "v2.27.0"
+	redHatFamilyDockerCEInstallVersion  = "3:29.6.2-1.el9"
+	redHatFamilyDockerCLIInstallVersion = "1:29.6.2-1.el9"
+	defaultTimeout                      = 300
 )
 
 type ManagerOutput struct {
@@ -193,12 +195,13 @@ func (d *Manager) install() (command.Command, error) {
 	// Red Hat family flavors have no distro "docker" package, so install Docker CE
 	// from Docker's repo first; the generic Ensure below then no-ops (command -v
 	// docker succeeds). The el9 repo is reused because RHEL 10 ($releasever=10) is
-	// not served by Docker yet.
+	// not served by Docker yet. Keep the engine version pinned while this runtime
+	// install exists, as upstream Docker CE releases can break provisioning.
 	switch d.Host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux:
+	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux:
 		dockerCEInstall, err := d.Host.OS.Runner().Command(d.namer.ResourceName("docker-ce-install"), &command.Args{
 			Sudo: true,
-			Create: pulumi.String(`bash <<'EOF'
+			Create: pulumi.String(fmt.Sprintf(`bash <<'EOF'
 set -euxo pipefail
 # Single-node e2e box: relax SELinux and firewalld (mirrors the kubeadm box) so
 # the agent container can read host bind mounts without extra rules.
@@ -207,7 +210,7 @@ sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config || true
 systemctl disable --now firewalld || true
 curl -fsSL https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo
 sed -i 's/\$releasever/9/g' /etc/yum.repos.d/docker-ce.repo
-dnf install -y docker-ce docker-ce-cli containerd.io
+dnf install -y docker-ce-%[1]s docker-ce-cli-%[2]s containerd.io
 # RHEL 10 dropped the legacy iptables kernel module, so docker 29 must use its
 # nftables firewall backend or the daemon cannot program bridge NAT. Set it
 # before the first start (the full daemon.json follows); surface logs on failure.
@@ -215,7 +218,7 @@ mkdir -p /etc/docker && printf '{"firewall-backend": "nftables", "storage-driver
 # docker needs IPv4 forwarding to create its default bridge network.
 echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-docker.conf && sysctl -w net.ipv4.ip_forward=1
 systemctl enable --now docker || { journalctl -xeu docker.service --no-pager | tail -80; exit 1; }
-EOF`),
+EOF`, redHatFamilyDockerCEInstallVersion, redHatFamilyDockerCLIInstallVersion)),
 		}, opts...)
 		if err != nil {
 			return nil, err
@@ -223,6 +226,25 @@ EOF`),
 		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerCEInstall))
 
 		dockerInstall, err := d.Host.OS.PackageManager().Ensure("docker", nil, "docker", os.WithPulumiResourceOptions(opts...))
+		if err != nil {
+			return nil, err
+		}
+		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerInstall))
+	case os.AmazonLinux:
+		// Amazon Linux ships Docker in its own repos (no docker-ce repo); install it
+		// directly. Temporary runtime install like the Red Hat family above, until a
+		// pre-baked -e2e AMI exists.
+		dockerInstall, err := d.Host.OS.Runner().Command(d.namer.ResourceName("docker-install"), &command.Args{
+			Sudo: true,
+			Create: pulumi.String(`bash <<'EOF'
+set -euxo pipefail
+setenforce 0 || true
+systemctl disable --now firewalld || true
+dnf install -y docker
+echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-docker.conf && sysctl -w net.ipv4.ip_forward=1
+systemctl enable --now docker || { journalctl -xeu docker.service --no-pager | tail -80; exit 1; }
+EOF`),
+		}, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -235,7 +257,7 @@ EOF`),
 	// its nftables firewall backend or the daemon cannot program bridge NAT.
 	daemonOpts := `"storage-driver": "overlay2", "registry-mirrors": ["https://mirror.gcr.io"], "bip": "192.168.16.1/24", "default-address-pools":[{"base":"192.168.32.0/24", "size":24}], "max-download-attempts": 10`
 	switch d.Host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux:
+	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux:
 		daemonOpts += `, "firewall-backend": "nftables"`
 	}
 	daemonPatch, err := d.Host.OS.Runner().Command(d.namer.ResourceName("daemon-patch"), &command.Args{
@@ -294,7 +316,7 @@ func (d *Manager) assertCompose() (command.Command, error) {
 	// the SBOM/RHEL10 work in #51486); migrated OSes assume docker-compose is
 	// pre-baked and hard-fail below if it is missing.
 	switch d.Host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux:
+	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux, os.AmazonLinux, os.AmazonLinuxECS:
 		return InstallCompose(d.Host, opts...)
 	}
 

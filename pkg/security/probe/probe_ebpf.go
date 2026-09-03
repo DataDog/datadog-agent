@@ -27,6 +27,8 @@ import (
 	"github.com/google/gopacket/layers"
 
 	lib "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
@@ -37,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
-	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -100,6 +101,7 @@ var (
 		model.ExecEventType.String(),
 		model.ExitEventType.String(),
 		model.TracerMemfdSealEventType.String(),
+		model.OTelProcessCtxEventType.String(),
 	}
 )
 
@@ -187,6 +189,8 @@ type EBPFProbe struct {
 
 	// raw packet filter for actions
 	rawPacketActionFilters []rawpacket.Filter
+	dropActionRuleIDs      map[uint32]string
+	dropActionRuleIDsLock  sync.RWMutex
 
 	// remediation tracking
 	activeRemediations     map[string]*Remediation
@@ -202,6 +206,12 @@ type EBPFProbe struct {
 	relatedEvents  []*model.Event
 	onNewPCE       func(*model.ProcessCacheEntry, error)
 	onCgroupUpdate func(*model.ProcessCacheEntry)
+
+	// kernelTracksCGroupID mirrors get_current_cgroup_id() in ebpf/c/include/helpers/cgroup.h:
+	// the kernel only refreshes proc_cache's cgroup inode when bpf_get_current_cgroup_id() is
+	// usable, which requires kernel >= 4.18 and a pure cgroup v2 hierarchy. Cached because it
+	// is read on the event hot path.
+	kernelTracksCGroupID bool
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -382,6 +392,15 @@ func (p *EBPFProbe) sanityChecks() error {
 	if p.config.Probe.NetworkFlowMonitorEnabled && p.isNetworkFlowMonitorNotSupported() {
 		seclog.Warnf("The network flow monitor feature of CWS requires a more recent kernel (at least 5.13) with support for the bpf_for_each_elem map helper, setting event_monitoring_config.network.flow_monitor.enabled to false")
 		p.config.Probe.NetworkFlowMonitorEnabled = false
+	}
+
+	if p.config.Probe.NetworkSkLookupPidResolutionEnabled && !p.config.Probe.NetworkEnabled {
+		p.config.Probe.NetworkSkLookupPidResolutionEnabled = false
+	}
+
+	if p.config.Probe.NetworkSkLookupPidResolutionEnabled && !p.IsSkLookupPidResolutionSupported() {
+		seclog.Warnf("The sk_lookup based network pid resolution feature of CWS isn't supported on this kernel version, setting event_monitoring_config.network.sk_lookup_pid_resolution.enabled to false")
+		p.config.Probe.NetworkSkLookupPidResolutionEnabled = false
 	}
 
 	if p.config.RuntimeSecurity.IsSysctlEventEnabled() && p.isCgroupSysCtlNotSupported() {
@@ -783,9 +802,24 @@ func (p *EBPFProbe) setupRawPacketFiltersOnNewRuleset(rs *rules.RuleSet) error {
 func (p *EBPFProbe) applyRawPacketActionFilters(applyFromRuleset bool) error {
 	// TODO check cgroupv2
 
+	// if we add a new filter, we must reset the stats since the filter order can change
+	// if the apply is from a ruleset, we already have reset the stats
+	if !applyFromRuleset {
+		if err := p.resetRawPacketDropStats(); err != nil {
+			seclog.Debugf("failed to reset raw packet drop stats: %s", err)
+		}
+	}
+	// then we can rebuild the map between rule IDs and filter indexes
+	// the monitor will use this map to map rule IDs to filter indexes
+	p.rebuildDropActionRuleIDs()
+
 	opts := rawpacket.DefaultProgOpts()
 	opts.WithProgPrefix("raw_packet_drop_action_")
 	opts.WithGetCurrentCgroupID(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS())
+
+	if droppedPacketsMap, err := managerhelper.Map(p.Manager, "dropped_packets"); err == nil {
+		opts.WithDropStatsMapFd(droppedPacketsMap.FD())
+	}
 
 	// adapt max instruction limits depending of the kernel version
 	if p.kernelVersion.Code >= kernel.Kernel5_2 {
@@ -831,6 +865,55 @@ func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) erro
 	return p.applyRawPacketActionFilters(false)
 }
 
+func (p *EBPFProbe) rebuildDropActionRuleIDs() {
+	ruleIDs := make(map[uint32]string, len(p.rawPacketActionFilters))
+	for i, filter := range p.rawPacketActionFilters {
+		if i >= rawpacket.MaxDropActionFilters {
+			seclog.Errorf("too many drop action filters, stop adding them is ruleID mapping, max is %d", rawpacket.MaxDropActionFilters)
+			break
+		}
+		ruleIDs[uint32(i)] = string(filter.RuleID)
+	}
+
+	p.dropActionRuleIDsLock.Lock()
+	p.dropActionRuleIDs = ruleIDs
+	p.dropActionRuleIDsLock.Unlock()
+}
+
+// function to get the drop action rule IDs up to date for the monitor
+func (p *EBPFProbe) getDropActionRuleIDs() map[uint32]string {
+	p.dropActionRuleIDsLock.RLock()
+	defer p.dropActionRuleIDsLock.RUnlock()
+
+	out := make(map[uint32]string, len(p.dropActionRuleIDs))
+	for index, ruleID := range p.dropActionRuleIDs {
+		out[index] = ruleID
+	}
+	return out
+}
+
+func (p *EBPFProbe) clearDroppedPacketsMap(droppedPacketsMap *lib.Map) {
+	zero := make([]uint32, p.numCPU)
+	for i := uint32(0); i < rawpacket.MaxDropActionFilters; i++ {
+		_ = droppedPacketsMap.Put(i, zero)
+	}
+}
+
+func (p *EBPFProbe) resetRawPacketDropStats() error {
+	if err := p.monitors.FlushRawPacketDropStats(); err != nil {
+		return err
+	}
+
+	droppedPacketsMap, err := managerhelper.Map(p.Manager, "dropped_packets")
+	if err != nil {
+		return err
+	}
+
+	p.clearDroppedPacketsMap(droppedPacketsMap)
+	p.monitors.ResetRawPacketDropCounters()
+	return nil
+}
+
 // Start the probe
 func (p *EBPFProbe) Start() error {
 	// Apply rules to the already stored data before starting the event stream to avoid concurrency issues
@@ -858,10 +941,19 @@ func (p *EBPFProbe) ReplayEvents() {
 	}
 }
 
+// replayEntry is a process event to replay, along with the memory-mapped files
+// to replay right after it. The open events are built during the dispatch loop
+// rather than upfront: materializing them all would hold one pooled event per
+// (process, mmaped file) pair, which the pool never gets to recycle.
+type replayEntry struct {
+	event       *model.Event
+	mmapedFiles []procfs.MmapedFile
+}
+
 func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	seclog.Debugf("playing the snapshot")
 
-	var events []*model.Event
+	var entries []replayEntry
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
 		event := p.newEBPFPooledEventFromPCE(entry)
@@ -873,38 +965,30 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 		event.AddToFlags(model.EventFlagsFromReplay)
 
-		events = append(events, event)
+		var mmapedFiles []procfs.MmapedFile
 
 		// Replay mmaped files (only needed if SBOM resolver is enabled)
 		if p.config.RuntimeSecurity.SBOMResolverEnabled {
-			proc, err := gopsutilprocess.NewProcess(int32(entry.Pid))
-			if err != nil {
-				return
-			}
-
-			mmapedFiles, err := procfs.GetMmapedFiles(proc)
-			if err != nil {
+			var err error
+			if mmapedFiles, err = procfs.GetMmapedFiles(entry.Pid); err != nil {
 				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
-				return
-			}
-
-			for _, f := range mmapedFiles {
-				openEvent := p.newOpenEventFromReplay(entry, f)
-				openEvent.Source = model.EventSourceReplay
-				events = append(events, openEvent)
 			}
 		}
+
+		entries = append(entries, replayEntry{event: event, mmapedFiles: mmapedFiles})
 	}
 
 	p.Walk(entryToEvent)
 
 	// replay synthetic load_module events for every entry in /proc/modules.
-	events = append(events, p.snapshotLoadedModules()...)
+	for _, event := range p.snapshotLoadedModules() {
+		entries = append(entries, replayEntry{event: event})
+	}
 
 	// order events so that they're dispatched in creation time order
-	sort.Slice(events, func(i, j int) bool {
-		eventA := events[i]
-		eventB := events[j]
+	sort.Slice(entries, func(i, j int) bool {
+		eventA := entries[i].event
+		eventB := entries[j].event
 
 		tsA := eventA.ProcessContext.ExecTime
 		tsB := eventB.ProcessContext.ExecTime
@@ -915,9 +999,17 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		return tsA.Before(tsB)
 	})
 
-	for _, event := range events {
-		p.DispatchEvent(event, notifyConsumers)
-		p.putBackPoolEvent(event)
+	for _, re := range entries {
+		p.DispatchEvent(re.event, notifyConsumers)
+
+		for _, file := range re.mmapedFiles {
+			openEvent := p.newOpenEventFromReplay(re.event.ProcessCacheEntry, file)
+			openEvent.Source = model.EventSourceReplay
+			p.DispatchEvent(openEvent, notifyConsumers)
+			p.putBackPoolEvent(openEvent)
+		}
+
+		p.putBackPoolEvent(re.event)
 	}
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()
@@ -1099,7 +1191,7 @@ func (p *EBPFProbe) EventMarshallerCtorWithRule(event *model.Event, rule *rules.
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupContext *model.CGroupContext) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, cgroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.GoLabels, cgroupContext)
 	if err != nil {
 		return 0, err
 	}
@@ -1223,7 +1315,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// If the kernel reports a different SID than the one in our
 			// cache, the process called setsid(). Update the cache entry.
 			if event.PIDContext.SID != 0 {
-				entry.SID = event.PIDContext.SID
+				p.Resolvers.ProcessResolver.UpdateSID(entry, event.PIDContext.SID)
 			}
 
 			if _, err := entry.HasValidLineage(); err != nil {
@@ -1235,7 +1327,13 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// cache_syscall); a divergence here means the process migrated cgroups
 			// since the cache entry was created, so refresh both resolvers from the
 			// authoritative event-time cgroupContext.
-			if entry.CGroup.CGroupPathKey.Inode != cgroupContext.CGroupPathKey.Inode && event.PIDContext.Pid != p.pid {
+			//
+			// Only when the kernel actually maintains that inode: without
+			// bpf_get_current_cgroup_id() (cgroup v1, or kernel < 4.18) the kernel side is
+			// stale by design while the cached side comes from procfs, so the two never
+			// match and every process would look like it just migrated. Nothing is lost on
+			// those hosts: this backstops CLONE_INTO_CGROUP, which is cgroup v2 only.
+			if p.kernelTracksCGroupID && entry.CGroup.CGroupPathKey.Inode != cgroupContext.CGroupPathKey.Inode && event.PIDContext.Pid != p.pid {
 				if cacheEntry := p.Resolvers.CGroupResolver.AddPID(entry.Pid, cgroupContext); cacheEntry == nil {
 					seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", entry.Pid, cgroupContext.CGroupPathKey)
 				} else {
@@ -1358,6 +1456,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// resolve process context
 	if !p.setProcessContext(eventType, event, cgroupContext) {
 		return
+	}
+
+	// fork and exec persist their span context on the process cache entry they
+	// created.
+	if eventType == model.ForkEventType || eventType == model.ExecEventType {
+		p.fieldHandlers.ResolveSpanContext(event)
 	}
 
 	// handle regular events
@@ -1805,6 +1909,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			return false
 		}
 		event.Setrlimit.Target = resolveTargetProcessContext(event.Setrlimit.TargetPid, p)
+	case model.UnshareEventType:
+		if !p.regularUnmarshalEvent(&event.Unshare, eventType, offset, dataLen, data) {
+			return false
+		}
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false
@@ -1869,6 +1977,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, offset int, dataLen uint64, cgroupContext model.CGroupContext) bool {
 	var err error
 	eventType := event.GetEventType()
+
 	switch eventType {
 	case model.ForkEventType:
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
@@ -1902,6 +2011,18 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
+	case model.SampleRefreshEventType:
+		var ev model.SampleRefreshEvent
+		if _, err := ev.UnmarshalBinary(data[offset:]); err == nil {
+			p.profileManager.HandleSampleRefresh(ev.Cookie)
+		}
+		return false
+	case model.OTelProcessCtxEventType:
+		var ev model.OTelProcessCtxEvent
+		if _, err := ev.UnmarshalBinary(data[offset:]); err == nil {
+			p.Resolvers.ProcessResolver.ResolveOTelProcessContext(ev.Pid)
+		}
+		return false
 	case model.NopEventType:
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
@@ -1978,7 +2099,10 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe) bool {
 	if event.PTrace.Request == unix.PTRACE_TRACEME { // pid can be 0 for a PTRACE_TRACEME request
 		pce = newPlaceholderProcessCacheEntryPTraceMe()
 	} else if event.PTrace.PID == 0 && event.PTrace.NSPID == 0 {
-		seclog.Errorf("ptrace event without any PID to resolve")
+		seclog.Errorf("ptrace event without any PID to resolve for process %s: request=%d retval=%d",
+			event.ProcessContext.Process.FileEvent.PathnameStr,
+			event.PTrace.Request,
+			event.PTrace.Retval)
 		return false
 	} else {
 		pidToResolve := event.PTrace.PID
@@ -2244,6 +2368,8 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 		return p.probe.IsNetworkFlowMonitorEnabled()
 	case model.SyscallsEventType.String():
 		return p.config.RuntimeSecurity.IsSysctlEventEnabled()
+	case model.OTelProcessCtxEventType.String():
+		return p.config.Probe.SpanTrackingEnabled
 	}
 	return true
 }
@@ -2268,12 +2394,19 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 
 	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
+	// Network interface and socket tracking probes are required independently of the current ruleset or
+	// network filter actions as these are used to track resources that are needed if we later
+	// dynamically load network rules or network filter actions.
+	if p.config.Probe.NetworkEnabled {
+		activatedProbes = append(activatedProbes, probes.GetNetworkSelectors(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(), p.kernelVersion.HaveIOURing())...)
+	}
+
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
 		activatedProbes = append(activatedProbes, probes.GetCapabilitiesMonitoringSelectors()...)
 	}
 
 	// extract probe to activate per the event types
-	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket()) {
+	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HaveIOURing()) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
 			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
@@ -2498,6 +2631,11 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 		case <-ticker.C:
 			// create the sysctl snapshot
 			event, err := sysctl.NewSnapshotEvent(p.config.RuntimeSecurity.SysCtlSnapshotIgnoredBaseNames, p.config.RuntimeSecurity.SysCtlSnapshotKernelCompilationFlags)
+			if errors.Is(err, sysctl.ErrRequiredSysctlSnapshotFileNotFound) {
+				p.config.RuntimeSecurity.SysCtlSnapshotEnabled = false
+				seclog.Infof("disabling sysctl snapshots: %v", err)
+				return
+			}
 			if err != nil {
 				seclog.Warnf("sysctl snapshot failed: %v", err)
 				continue
@@ -2704,6 +2842,10 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 
 		// reset action filter
 		if p.config.RuntimeSecurity.EnforcementEnabled {
+			// we reset before the new packets filters are loaded in the kernel
+			if err := p.resetRawPacketDropStats(); err != nil {
+				seclog.Debugf("failed to reset raw packet drop stats: %s", err)
+			}
 			p.rawPacketActionFilters = p.rawPacketActionFilters[0:0]
 			if err := p.applyRawPacketActionFilters(true); err != nil {
 				seclog.Errorf("unable to load raw packet action programs: %v", err)
@@ -2804,8 +2946,16 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: getDoDentryOpenWithoutInode(p.kernelVersion),
 		},
 		manager.ConstantEditor{
+			Name:  "exit_itimers_takes_task_struct",
+			Value: getExitItimersTakesTaskStruct(p.kernelVersion),
+		},
+		manager.ConstantEditor{
 			Name:  "has_usernamespace_first_arg",
 			Value: getHasUsernamespaceFirstArg(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  "do_truncate_has_idmap_arg",
+			Value: getDoTruncateHasIdmapArg(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "ovl_path_in_ovl_inode",
@@ -2864,6 +3014,14 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.Probe.NetworkFlowMonitorEnabled),
 		},
 		manager.ConstantEditor{
+			Name:  "is_span_tracking_enabled",
+			Value: utils.BoolTouint64(p.config.Probe.SpanTrackingEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "has_task_pt_regs_helper",
+			Value: utils.BoolTouint64(hasTaskPtRegsHelper()),
+		},
+		manager.ConstantEditor{
 			Name:  "send_signal",
 			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
 		},
@@ -2915,6 +3073,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentPidTgidForSchedCLS()),
 		},
 		manager.ConstantEditor{
+			Name:  "sk_lookup_pid_enabled",
+			Value: utils.BoolTouint64(p.config.Probe.NetworkSkLookupPidResolutionEnabled),
+		},
+		manager.ConstantEditor{
 			Name:  "sched_cls_has_current_cgroup_id_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupIDForSchedCLS()),
 		},
@@ -2940,12 +3102,20 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_open_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_connect_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingConnectEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_connect_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_connect_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_bind_enabled",
@@ -2956,12 +3126,37 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_bind_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
+		},
+		manager.ConstantEditor{
+			Name:  "sample_refresh_period_ns",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_dns_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDNSEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_dns_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_dns_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
+		},
+		manager.ConstantEditor{
+			Name:  "dynamic_sampling_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
+		},
+		manager.ConstantEditor{
+			Name: "ring_buffer_size",
+			Value: func() uint64 {
+				if p.config.Probe.EventStreamBufferSize != 0 {
+					return uint64(p.config.Probe.EventStreamBufferSize)
+				}
+				return uint64(probes.ComputeDefaultEventsRingBufferSize())
+			}(),
 		},
 		manager.ConstantEditor{
 			Name:  "capabilities_monitoring_enabled",
@@ -3000,6 +3195,18 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 	}
 }
 
+// hasTaskPtRegsHelper reports whether the running kernel can resolve a task's
+// entry pt_regs from eBPF.
+func hasTaskPtRegsHelper() bool {
+	for _, fn := range []asm.BuiltinFunc{asm.FnGetCurrentTaskBtf, asm.FnTaskPtRegs} {
+		if err := features.HaveProgramHelper(lib.Kprobe, fn); err != nil {
+			seclog.Debugf("%s unavailable, Go pprof labels will not use the g register: %v", fn, err)
+			return false
+		}
+	}
+	return true
+}
+
 func (p *EBPFProbe) isSKStorageSupported() bool {
 	if !p.config.Probe.NetworkFlowMonitorSKStorageEnabled {
 		return false
@@ -3013,6 +3220,20 @@ func (p *EBPFProbe) isSKStorageSupported() bool {
 	return p.kernelVersion.HasSKStorageInTracingPrograms()
 }
 
+// IsSkLookupPidResolutionSupported reports whether the TC classifiers can resolve packet pids via
+// bpf_sk_lookup + sk-local storage (populated by the cgroup/socket hooks) instead of the
+// flow_pid map. Requires cgroup v2, the cgroup socket hooks, and bpf_sk_lookup / sk-local storage.
+func (p *EBPFProbe) IsSkLookupPidResolutionSupported() bool {
+	// the cgroup/sock_create hook that populates sk_storage_pid is attached at the cgroup v2 mount point
+	if len(p.cgroup2MountPath) == 0 || !p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket() {
+		return false
+	}
+
+	return p.kernelVersion.HasSkLookupForSchedCLS() &&
+		p.kernelVersion.HasSKStorageInSchedCLS() &&
+		p.kernelVersion.HasSKStorageInCgroupSock()
+}
+
 // initManagerOptionsMaps initializes the eBPF manager map spec editors and map reader startup
 func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 	opts := probes.MapSpecEditorOpts{
@@ -3024,6 +3245,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SecurityProfileMaxCount:       p.config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled:     p.config.Probe.NetworkFlowMonitorEnabled,
 		NetworkSkStorageEnabled:       p.isSKStorageSupported(),
+		NetworkSkLookupPidEnabled:     p.config.Probe.NetworkSkLookupPidResolutionEnabled,
 		SpanTrackMaxCount:             1,
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
@@ -3177,6 +3399,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		MetricNameTruncated:  atomic.NewUint64(0),
 		activeRemediations:   make(map[string]*Remediation),
 		pid:                  utils.Getpid(),
+		dropActionRuleIDs:    make(map[uint32]string),
 	}
 
 	p.onNewPCE = func(pce *model.ProcessCacheEntry, err error) {
@@ -3194,6 +3417,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	}
 
 	p.initCgroup2MountPath()
+	p.kernelTracksCGroupID = utils.IsPureCGroupV2Available() && p.kernelVersion.HasBpfGetCurrentCgroupID()
 
 	if err := p.sanityChecks(); err != nil {
 		return nil, err
@@ -3252,7 +3476,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 			}
 		}
 		return nil
-	}, p.Resolvers.CGroupResolver)
+	}, p.Resolvers.CGroupResolver, config.RuntimeSecurity.EnforcementCgroupKillEnabled)
 	processKiller, err := NewProcessKiller(config, pkos)
 	if err != nil {
 		return nil, err
@@ -3349,6 +3573,41 @@ func getDoForkInput(kernelVersion *kernel.Version) uint64 {
 
 func getDoDentryOpenWithoutInode(kernelversion *kernel.Version) uint64 {
 	if kernelversion.Code != 0 && kernelversion.Code >= kernel.Kernel6_10 {
+		return 1
+	}
+	return 0
+}
+
+// getDoTruncateHasIdmapArg reports whether do_truncate takes an idmap/user_namespace first argument,
+// which shifts the filp argument from the 4th to the 5th position. This is do_truncate-specific: the
+// idmapped-mounts series added it in 5.12, independently of when other hooks gained an idmap argument.
+func getDoTruncateHasIdmapArg(kernelVersion *kernel.Version) uint64 {
+	// do_truncate is an exported symbol, so prefer its actual BTF prototype: the legacy signature has
+	// 4 arguments (dentry, length, time_attrs, filp) while the idmapped one has 5
+	if count, err := constantfetch.GetBTFFunctionArgCount("do_truncate"); err == nil {
+		if count >= 5 {
+			return 1
+		}
+		return 0
+	}
+
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_12 {
+		return 1
+	}
+	return 0
+}
+
+func getExitItimersTakesTaskStruct(kernelVersion *kernel.Version) uint64 {
+	// prefer the actual BTF prototype, as the exit_itimers(struct task_struct *) signature was
+	// backported to stable kernels (e.g. 5.10.y, 5.15.y) below the 5.19 mainline cut-off
+	if val, err := constantfetch.GetExitItimersTakesTaskStructWithBtf(); err == nil {
+		if val {
+			return 1
+		}
+		return 0
+	}
+
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_19 {
 		return 1
 	}
 	return 0
@@ -3467,12 +3726,22 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryStructDSB, "struct dentry", "d_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name")
+	// since kernel 5.19, exit_itimers takes a struct task_struct* so we need the offset of its signal field
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructSignal, "struct task_struct", "signal")
+	// since kernel 6.13, override_creds/revert_creds are inlined; we detect credential overrides by
+	// comparing task_struct->cred and task_struct->real_cred in the capabilities hooks
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructCred, "struct task_struct", "cred")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealCred, "struct task_struct", "real_cred")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUID, "struct cred", "uid")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructCapInheritable, "struct cred", "cap_inheritable")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructFilename, "struct linux_binprm", "filename")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameLinuxBinprmStructInterp, "struct linux_binprm", "interp")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMStart, "struct vm_area_struct", "vm_start")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVMAreaStructVMEnd, "struct vm_area_struct", "vm_end")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFinode, "struct file", "f_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFpath, "struct file", "f_path")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
@@ -3481,10 +3750,16 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountParent, "struct mount", "mnt_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMountpoint, "struct mount", "mnt_mp")
 
+	// setsockopt offsets
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSocketType, "struct socket", "type")
+
 	if kv.Code >= kernel.Kernel3_19 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
 	}
+
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyMntNs, "struct nsproxy", "mnt_ns")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyNetNs, "struct nsproxy", "net_ns")
 
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
@@ -3538,6 +3813,18 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
 
+	if kv.Code >= kernel.Kernel4_7 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructThread, "struct task_struct", "thread")
+		// The field holding the TLS thread pointer is arch-exclusive, so only one
+		// of these resolves on any given kernel: fsbase on x86_64, uw.tp_value on
+		// arm64 (tp_value is the first member of uw, so uw's offset is tp_value's).
+		constantFetcher.AppendOffsetofRequestWithFallbacks(constantfetch.OffsetNameThreadStructTp,
+			constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "fsbase"},
+			constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "uw"},
+			constantfetch.TypeFieldPair{TypeName: "struct thread_struct", FieldName: "tp_value"},
+		)
+	}
+
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePipeInodeInfoStructBufs, "struct pipe_inode_info", "bufs")
@@ -3564,6 +3851,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSocketStructSK, "struct socket", "sk")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockCommonStructSKCNum, "struct sock_common", "skc_num")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockStructSKProtocol, "struct sock", "sk_protocol")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 	constantFetcher.AppendOffsetofRequestWithFallbacks(
 		constantfetch.OffsetNameFlowI4StructProto,
 		constantfetch.TypeFieldPair{
@@ -3592,6 +3880,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	if !kv.IsRH7Kernel() {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructCTNet, "struct nf_conn", "ct_net")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNFConnStructTuplehash, "struct nf_conn", "tuplehash")
 	}
 
 	if getNetStructType(kv) == netStructHasProcINum {
@@ -3603,6 +3892,14 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// iouring
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoKiocbStructOpcode, "struct io_kiocb", "opcode")
+	}
+
+	// IORING_OP_SOCKET (struct io_socket) was added in 5.19
+	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_19) {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructDomain, "struct io_socket", "domain")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructType, "struct io_socket", "type")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIoSocketStructProtocol, "struct io_socket", "protocol")
 	}
 
 	// inode
@@ -3634,11 +3931,19 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		},
 	)
 
+	// module
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameModuleName, "struct module", "name")
+
+	// cgroup
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameKernfsOpenFileFile, "struct kernfs_open_file", "file")
+
 	// fs
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSbDev, "struct super_block", "s_dev")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSuperblockSType, "struct super_block", "s_type")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrName, "struct qstr", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDParent, "struct dentry", "d_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathDentry, "struct path", "dentry")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathMnt, "struct path", "mnt")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameInodeSuperblock, "struct inode", "i_sb")
@@ -3647,7 +3952,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntFlags, "struct vfsmount", "mnt_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 }
 
 // HandleActions handles the rule actions
@@ -3711,7 +4015,13 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			}
 
 			var policy rawpacket.Policy
-			policy.Parse(action.Def.NetworkFilter.Policy)
+			switch action.Def.NetworkFilter.Policy {
+			case "drop":
+				policy = rawpacket.PolicyDrop
+			default:
+				policy = rawpacket.PolicyAllow
+			}
+
 			var reportStatus RawPacketActionStatus
 			if policy == rawpacket.PolicyDrop {
 				dropActionFilter := rawpacket.Filter{
@@ -3724,6 +4034,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 					dropActionFilter.CGroupPathKey = ev.ProcessContext.Process.CGroup.CGroupPathKey
 				} else {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
+					if action.Def.NetworkFilter.Scope != "process" {
+						seclog.Warnf("unsupported scope '%s' for rule '%s'", action.Def.NetworkFilter.Scope, rule.ID)
+					}
 				}
 				if err := p.addRawPacketActionFilter(dropActionFilter); err != nil {
 					seclog.Errorf("failed to setup raw packet action programs: %s", err)
@@ -3738,6 +4051,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				Policy: policy.String(),
 				rule:   rule,
 				Status: reportStatus,
+				Scope:  action.Def.NetworkFilter.Scope,
 			}
 
 			ev.ActionReports = append(ev.ActionReports, report)
@@ -3808,7 +4122,7 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 	event.LoadModule.File.SetPathnameStr(modulePath)
 	event.LoadModule.File.SetBasenameStr(filepath.Base(modulePath))
 
-	// Best-effort file metadata (mirrors newOpenEventFromReplay).
+	// Best-effort file metadata.
 	var fileStats unix.Statx_t
 	if err := unix.Statx(unix.AT_FDCWD, modulePath, 0, unix.STATX_ALL, &fileStats); err == nil {
 		event.LoadModule.File.FileFields.Mode = uint16(fileStats.Mode)
@@ -3828,7 +4142,7 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 }
 
 // newOpenEventFromReplay returns a new open event for a memory-mapped file with a process context
-func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile model.SnapshottedMmapedFile) *model.Event {
+func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snapshottedFile procfs.MmapedFile) *model.Event {
 	event := p.getPoolEvent()
 	event.Timestamp = time.Now()
 	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
@@ -3842,24 +4156,7 @@ func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snaps
 	event.Open.File.IsPathnameStrResolved = true
 	event.Open.File.BasenameStr = filepath.Base(snapshottedFile.Path)
 	event.Open.File.IsBasenameStrResolved = true
-
-	// Try to stat the file to get basic metadata (best effort)
-	// This helps with file resolution and enrichment
-	var fileStats unix.Statx_t
-	fullPath := utils.ProcRootFilePath(entry.Pid, snapshottedFile.Path)
-	if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err == nil {
-		event.Open.File.FileFields.Mode = uint16(fileStats.Mode)
-		event.Open.File.FileFields.Inode = fileStats.Ino
-		event.Open.File.FileFields.UID = fileStats.Uid
-		event.Open.File.FileFields.GID = fileStats.Gid
-		event.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-		event.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
-		event.Open.File.Mode = fileStats.Mode
-		event.Open.File.Inode = fileStats.Ino
-		event.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
-		event.Open.File.NLink = fileStats.Nlink
-		event.Open.File.MountID = uint32(fileStats.Mnt_id)
-	}
+	event.Open.File.FileFields = snapshottedFile.FileFields
 
 	return event
 }

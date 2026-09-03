@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/multi_region_failover.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/multi_region_failover.yaml
 node_type: section
 type: object
 properties:
@@ -93,7 +93,7 @@ properties:
         - golang_type:duration
       refresh_interval:
         node_type: setting
-        type: number
+        type: string
         default: 0s
         format: duration
         tags:

@@ -70,24 +70,28 @@ default but could be change by the users. For example, the default configuration
 
 Path are all express using `/` and will be translated to the correct OS version.
 
-Existing variagbles:
+Existing variables:
 
 - Configuration directory (`${conf_path}`):
   - `windows`: `c:/programdata/datadog`
-  - `linux`; `/etc/datadog-agent`
+  - `linux`: `/etc/datadog-agent`
   - `darwin`: `/opt/datadog-agent/etc`
+  - `aix`: `/etc/datadog-agent`
 - Installation directory (`${install_path}`):
   - `windows`: `c:/program files/datadog/datadog agent`
-  - `linux`; `/opt/datadog-agent`
+  - `linux`: `/opt/datadog-agent`
   - `darwin`: `/opt/datadog-agent`
+  - `aix`: `/opt/datadog-agent`
 - Log directory (`${log_path}`):
   - `windows`: `c:/programdata/datadog/logs`
-  - `linux`; `/var/log/datadog`
+  - `linux`: `/var/log/datadog`
   - `darwin`: `/opt/datadog-agent/logs`
+  - `aix`: `/var/log/datadog`
 - Run directory, where the Agent starts from (`${run_path}`):
-  - `windows`: `/opt/datadog-agent/run`
-  - `linux`; `c:/programdata/datadog/run`
+  - `windows`: `c:/programdata/datadog/run`
+  - `linux`: `/opt/datadog-agent/run`
   - `darwin`: `/opt/datadog-agent/run`
+  - `aix`: `/opt/datadog-agent/run`
 
 
 The above variables are available for `default` and `platform_default` keywords.
@@ -318,16 +322,20 @@ Sets per-platform default value overrides. Mutually exclusive with `default` (On
 
 - **Available on:** setting nodes only.
 - **Mandatory:** yes, unless `default` is specified. `platform_default` must cover every platform — either by listing
-  `linux`, `windows`, and `darwin` explicitly, or by including an `other` catch-all.
+  `linux`, `windows`, `darwin`, and `aix` explicitly, or by including an `other` catch-all.
 - **Validation:** values must match the `type` of the setting.
 
-Supported platform keys: `linux`, `windows`, `darwin`, `container`, `other`.
+Supported platform keys: `linux`, `windows`, `darwin`, `aix`, `container`, `fargate`, `other`.
+
+As much as possible, avoid assuming all platforms are known, and don't use `other` for a value which is specific to
+a given OS just because the other OSes have been set explicitly.
 
 **Container fallback logic:** because container environments currently share many
-defaults with Linux, `container` is optional. When resolving the default for a
-container, the Agent applies the following fallback chain:
+defaults with Linux, `container`/`fargate` is optional. When resolving the default for a
+setting, the Agent applies the following fallback chain:
 
-1. Use `container` if present.
+1. Use `fargate` if present and running on ECS Farget.
+1. Fall back to `container` if present running in a container.
 2. Fall back to `linux` if present.
 3. Fall back to `other` if present.
 
@@ -340,6 +348,7 @@ confd_path:
     windows: "C:\\ProgramData\\Datadog\\conf.d"
     linux: "/etc/datadog-agent/conf.d"
     darwin: "/opt/datadog-agent/etc/conf.d"
+    aix: "/etc/datadog-agent/conf.d"
     container: "/conf.d"
 
 # Using 'other' as a catch-all:
@@ -347,8 +356,9 @@ gui_port:
   node_type: setting
   type: number
   platform_default:
-    linux: -1
-    other: 5002             # covers windows and darwin
+    darwin: 5002
+    windows: 5002
+    other: -1             # currently covers linux and aix
 ```
 
 > **Note**: [Relative Path](keywords.md#relative-defaults) is also available for `platform_default`.
@@ -478,31 +488,63 @@ tags:
 
 ### `renamed_from`
 
-> **Note:** [WIP] Not yet implemented. The migration behaviour described below is planned.
-
-Lists previous names this setting was known by.
+Maps every previous name this setting was known by to the Agent version that deprecated that name. Each key is a former
+**fully qualified** name (dotted full path from the root of the config).
 
 - **Available on:** setting nodes only.
 - **Mandatory:** no.
-- **Validation:** must be a list of strings.
+- **Validation:** must be a non-empty mapping. Keys are non-empty strings; values are quoted, full semantic Agent
+  versions (for example `"7.71.0"`). Two former names of the same setting cannot share a version.
 
-When a setting has `renamed_from`, the config system looks for any of the
-previous names and migrates the value automatically. Previous names take
-priority over the canonical name when both are present. A deprecation warning
-is emitted at runtime whenever a previous name is used.
+When a setting has `renamed_from`, the config system looks for any of the previous names in YAML and env vars and
+migrates the value to the new name automatically. Previous names take priority over the canonical name when both are
+present. A deprecation warning is emitted at runtime whenever a previous name is used. Previous names are sorted by
+Agent version in which they were deprecated (oldest to newest).
 
-This provides a single, consistent mechanism for setting renames across all
-teams, replacing ad-hoc solutions that previously produced inconsistent
-behaviour.
+The code base **MUST** use the new name only. The old name is no longer accessible through the config but can still be
+used by customer in their configuration or env vars.
+
+This provides a single, consistent mechanism for setting renames across all teams, replacing ad-hoc solutions that
+previously produced inconsistent behaviour.
 
 ```yaml
-target_traces_per_second:
-  node_type: setting
-  type: number
-  default: 10
-  renamed_from:
-    - max_traces_per_second
+apm_config:
+  node_type: section
+  type: object
+  properties:
+
+    target_traces_per_second:
+      node_type: setting
+      type: number
+      default: 10
+      renamed_from:
+        apm_config.max_traces_per_second: "7.71.0"
 ```
+
+A setting renamed more than once lists every former name with the version that deprecated it:
+
+```yaml
+    target_traces_per_second:
+      node_type: setting
+      type: number
+      default: 10
+      renamed_from:
+
+        # Settings can be moved from one section into another
+        # Here the setting was moved from 'experimental.apm_config' into 'apm_config'
+        experimental.apm_config.max_traces_per_second: "7.60.0"
+
+        # Even if the settting stays in the same section the full
+        # dotted name must be used
+        apm_config.max_tps: "7.71.0"
+```
+
+> **Note:** if no `env_vars` are specified the agent will generate the correct ones from
+> the name and all the deprecated ones. A warning will be emited if any deprecated env vars are used.
+>
+> But, similar to BindEnvAndSetDefault, if `env_vars` is set for a setting, no extra env vars are generated and no warning will be
+> emited. When renaming a setting with `env_vars` you **MUST** properly maintain the `env_vars` list. Remember that
+> `env_vars` are sorted from highest to lowest priority.
 
 ---
 
@@ -530,11 +572,37 @@ Existing tags:
 - `golang_type`: flag that this setting should use a different type when generating go code. Usage of `golang_type` tag
   is often a sign of an issue. The agent code should be easily configurable from YAML types.
   - `golang_type:duration`: will use a `time.duration`.
-  - `golang_type:float64`: will use a `float64`.
+  - `golang_type:int64`: will use a `int64` (only available for `type: integer`).
   - `golang_type:map[string]float64`: will used a `map[string]float64{}`.
   - `golang_type:map[string]interface{}`: will used a `golang_type:map[string]interface{}{}`.
-  - `golang_type:nil`: will use `nil` from Go (should not be used for any new setting).
 - `no-env`: mark the settings as not configurable through en vars (should not be used by new settings).
+- `generate_const:<name>`: generate a Go constant from this setting's default value.
 
-> **Note**: except from `template_section`, all the other tags exists to support legacy behavior and should not be used
-> for new settings.
+  Adding `generate_const:<name>` to a setting tells the code generator to emit a Go constant named
+  `<name>` in the `pkg/config/setup/constants` package (in `constants/generated.go`) whose value is
+  this setting's default. Reference that constant from your Go code instead of hardcoding the value,
+  so the constant and the setting default can never drift apart — the schema stays the single source
+  of truth.
+
+  Use it when a Go constant in the Agent must always equal a setting's default (for example, a default
+  port, timeout, or path that other code needs to read directly).
+
+  - `<name>` is the Go constant name and must contain only letters (upper or lower case) and digits.
+  - Only valid on **setting** nodes, never on sections.
+  - The same `<name>` may be reused on several settings, but they must all share the same default — a
+    constant can only have one value.
+
+  ```yaml
+  security_agent:
+    node_type: section
+    properties:
+      cmd_port:
+        node_type: setting
+        type: integer
+        default: 5010
+        tags:
+          - generate_const:DefaultSecurityAgentCmdPort   # emits: DefaultSecurityAgentCmdPort = 5010
+  ```
+
+> **Note**: except from `template_section` and `generate_const`, all the other tags exists to support legacy behavior
+> and should not be used for new settings.

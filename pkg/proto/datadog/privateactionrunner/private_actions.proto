@@ -50,13 +50,35 @@ message PrivateActionTask {
   ConnectionInfo connection_info = 10;
   google.protobuf.Timestamp expiration_time = 11;
   actionsclient.Client client = 12;
+  SystemInputs system_inputs = 13;
+}
+
+message SystemInputs {
+  oneof input {
+    RemoteAction remote_action = 1;
+  }
+}
+
+message RemoteAction {
+  // These fields carry the rshell allowlists resolved for remote-action tasks.
+  // They are empty for non-remote-action tasks. allowed_commands is the flat,
+  // namespaced ("rshell:<command>") command allowlist; allowed_paths is the
+  // flat path allowlist rshell may operate on; system_services maps each
+  // service to its action grants.
+  repeated string allowed_commands = 1;
+  repeated string allowed_paths = 2;
+  map<string, google.protobuf.ListValue> system_services = 3
+      [json_name = "system_services"];
 }
 
 message ConnectionInfo {
   string connection_id = 1;
+  // Legacy format with inline and file-backed values.
   repeated ConnectionToken tokens = 2;
   CredentialsType credentials_type = 3;
   string runner_id = 4;
+  // Connection tokens consumed by the private actions runner.
+  repeated ConnectionTokenV2 tokens_v2 = 5;
 }
 
 // The ConnectionToken is similar to connectionpb.ConnectionToken, but is specifically limited to data pertinent to private actions.
@@ -87,9 +109,29 @@ message ConnectionToken {
   }
 }
 
+// Connection tokens with inline values or runner-resolved secrets.
+message ConnectionTokenV2 {
+  repeated string name_segments = 1;
+
+  oneof source {
+    PlainText plain_text = 2;
+    DatadogAgentSecret datadog_agent_secret = 4;
+  }
+
+  message PlainText {
+    string value = 1;
+  }
+
+  message DatadogAgentSecret {
+    string handle = 1;
+  }
+}
+
 enum CredentialsType {
   UNSPECIFIED = 0;
   TOKEN_AUTH = 1;
   BASIC_AUTH = 2;
   OAUTH2 = 3;
+  // Credentials are encoded in tokens_v2.
+  CONNECTION_TOKENS_V2 = 5;
 }

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "enrollment",
@@ -15,6 +16,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/config/utils",
+        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/privateactionrunner/adapters/regions",
@@ -32,15 +34,23 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "enrollment_test",
     srcs = [
         "enrollment_test.go",
         "k8s_secret_test.go",
     ],
     embed = [":enrollment"],
-    gotags = ["test"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
     deps = [
+        "//pkg/config/mock",
+        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

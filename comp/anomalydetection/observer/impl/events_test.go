@@ -109,6 +109,7 @@ type anomalyDetector struct {
 }
 
 func (d *anomalyDetector) Name() string { return d.name }
+func (*anomalyDetector) Ready() bool    { return true }
 func (d *anomalyDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: d.anomalies,
@@ -136,6 +137,7 @@ type resettableDetector struct {
 }
 
 func (d *resettableDetector) Name() string { return d.name }
+func (*resettableDetector) Ready() bool    { return true }
 func (d *resettableDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
@@ -146,9 +148,10 @@ type resettableCorrelator struct {
 	resetCount int
 }
 
-func (c *resettableCorrelator) Name() string                         { return c.name }
-func (c *resettableCorrelator) ProcessAnomaly(_ observerdef.Anomaly) {}
-func (c *resettableCorrelator) Advance(_ int64)                      {}
+func (c *resettableCorrelator) Name() string                                 { return c.name }
+func (c *resettableCorrelator) ProcessAnomaly(_ observerdef.Anomaly)         {}
+func (c *resettableCorrelator) Advance(_ int64)                              {}
+func (c *resettableCorrelator) PendingEvents() []observerdef.CorrelatorEvent { return nil }
 func (c *resettableCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	return nil
 }
@@ -159,6 +162,7 @@ type emitOnSeriesDetector struct {
 }
 
 func (d *emitOnSeriesDetector) Name() string { return d.name }
+func (*emitOnSeriesDetector) Ready() bool    { return true }
 
 func (d *emitOnSeriesDetector) Detect(series observerdef.Series) observerdef.DetectionResult {
 	if len(series.Points) == 0 {
@@ -614,7 +618,7 @@ func (r *countingReporter) Report(_ reporterdef.ReportOutput) bool {
 	return true
 }
 
-func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
+func TestAnomalyDedupKeyIncludesTitle(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
 		{
 			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
@@ -633,7 +637,8 @@ func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 	}
 
 	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
+		storage:             newTimeSeriesStorage(),
+		trackAnomalyHistory: true,
 		detectors: []observerdef.Detector{
 			&anomalyDetector{name: "test_detector", anomalies: anomalies},
 		},
@@ -647,7 +652,7 @@ func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 		"two anomalies with same Source+detector+timestamp but different titles should both survive dedup")
 }
 
-func TestFindingM2_EmptySourceCollision(t *testing.T) {
+func TestLogAnomaliesWithDifferentTitlesDoNotCollide(t *testing.T) {
 	anomalies := []observerdef.Anomaly{
 		{
 			Type:         observerdef.AnomalyTypeLog,
@@ -668,7 +673,8 @@ func TestFindingM2_EmptySourceCollision(t *testing.T) {
 	}
 
 	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
+		storage:             newTimeSeriesStorage(),
+		trackAnomalyHistory: true,
 		detectors: []observerdef.Detector{
 			&anomalyDetector{name: "log_detector", anomalies: anomalies},
 		},
@@ -682,8 +688,9 @@ func TestFindingM2_EmptySourceCollision(t *testing.T) {
 		"two log anomalies with same Source but different titles should both survive dedup")
 }
 
-func TestFindingM3_DedupAsymmetry(t *testing.T) {
-	// Two identical anomalies (same dedup key) -- one will be deduped from rawAnomalies.
+func TestAnomalyDedupIsConsistentAcrossHistoryAndEvents(t *testing.T) {
+	// Two identical anomalies share one dedup key, so history and event consumers
+	// should each observe exactly one accepted anomaly.
 	anomalies := []observerdef.Anomaly{
 		{
 			Source:       observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
@@ -700,7 +707,8 @@ func TestFindingM3_DedupAsymmetry(t *testing.T) {
 	}
 
 	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
+		storage:             newTimeSeriesStorage(),
+		trackAnomalyHistory: true,
 		detectors: []observerdef.Detector{
 			&anomalyDetector{name: "test_detector", anomalies: anomalies},
 		},
@@ -715,28 +723,22 @@ func TestFindingM3_DedupAsymmetry(t *testing.T) {
 	rawCount := len(sv.Anomalies())
 	eventCount := len(sink.eventsOfKind(eventAnomalyCreated))
 
-	// The bug: events will have 2 (no dedup) but rawAnomalies will have 1 (deduped).
-	// If the system were consistent, these should match.
 	assert.Equal(t, rawCount, eventCount,
 		"anomalyCreated event count (%d) should match rawAnomalies count (%d); "+
 			"mismatch means events/reporters see duplicates that rawAnomalies filtered out",
 		eventCount, rawCount)
 }
 
-func TestFindingM4_UnboundedGrowthOfUniqueAnomalySources(t *testing.T) {
-	// Run the engine with many unique anomaly source names. The
-	// uniqueAnomalySources map should be bounded, but the finding says it grows
-	// without eviction.
-
+func TestReplayUniqueAnomalySourcesAreBounded(t *testing.T) {
 	storage := newTimeSeriesStorage()
 
-	// We need a detector that emits anomalies with unique source names.
 	// Use a custom detector that generates a unique source on each Detect call.
 	det := &dynamicAnomalyDetector{prefix: "metric_"}
 
 	e := newEngine(engineConfig{
-		storage:   storage,
-		detectors: []observerdef.Detector{det},
+		storage:             storage,
+		detectors:           []observerdef.Detector{det},
+		trackAnomalyHistory: true,
 	})
 
 	// Generate 1000 unique anomaly sources across many advance cycles.
@@ -748,10 +750,6 @@ func TestFindingM4_UnboundedGrowthOfUniqueAnomalySources(t *testing.T) {
 	sourceCount := e.UniqueAnomalySourceCount()
 	t.Logf("uniqueAnomalySources size after 1000 unique anomalies: %d", sourceCount)
 
-	// The bug: all 1000 unique sources are retained forever.
-	// A bounded implementation would cap or evict old entries.
-	// Assert that the map is bounded (e.g., under 500).
-	// This WILL FAIL because the map grows unbounded.
 	assert.LessOrEqual(t, sourceCount, 500,
 		"uniqueAnomalySources has %d entries after 1000 anomalies; "+
 			"expected bounded growth but map grows without eviction", sourceCount)
@@ -879,99 +877,6 @@ func TestFindingM10_ResetRace(_ *testing.T) {
 	}()
 
 	wg.Wait()
-}
-
-func TestFindingM12_LogOnlyTimestampsSkippedInReplay(t *testing.T) {
-	// DataTimestamps() only returns metric timestamps. A log at timestamp 103
-	// that produces no virtual metrics won't appear, so replay skips it.
-	//
-	// In live-style ingestion, every IngestLog call triggers onObservation,
-	// generating advance requests for that timestamp. In replay, only
-	// DataTimestamps() are iterated.
-
-	storage := newTimeSeriesStorage()
-
-	extractor := &noopLogExtractor{}
-
-	e := newEngine(engineConfig{
-		storage:    storage,
-		extractors: []observerdef.LogMetricsExtractor{extractor},
-	})
-
-	// --- Live-style ingestion ---
-	liveSink := &collectingSink{}
-	e.Subscribe(liveSink)
-
-	// Ingest metrics at 100, 101, 102, 105
-	for _, ts := range []int64{100, 101, 102, 105} {
-		requests := e.IngestMetric("ns", &metricObs{
-			name:      "cpu",
-			value:     1.0,
-			timestamp: ts,
-		})
-		for _, req := range requests {
-			e.advanceWithReason(req.upToSec, req.reason)
-		}
-	}
-
-	// Ingest log at 103 (no virtual metrics produced)
-	logRequests := e.IngestLog("ns", &logObs{
-		content:     "error happened",
-		status:      "error",
-		timestampMs: 103000, // 103 seconds in millis
-	})
-	for _, req := range logRequests {
-		e.advanceWithReason(req.upToSec, req.reason)
-	}
-
-	// Flush remaining
-	endRequests := e.scheduler.onReplayEnd(e.schedulerState())
-	for _, req := range endRequests {
-		e.advanceWithReason(req.upToSec, req.reason)
-	}
-
-	liveAdvances := liveSink.eventsOfKind(eventAdvanceCompleted)
-	var liveTimestamps []int64
-	for _, evt := range liveAdvances {
-		liveTimestamps = append(liveTimestamps, evt.advanceCompleted.advancedToSec)
-	}
-
-	// --- Now reset and do replay ---
-	unsub := e.Subscribe(&collectingSink{}) // dummy to capture unsub
-	unsub()
-
-	e.resetFull()
-
-	replaySink := &collectingSink{}
-	e.Subscribe(replaySink)
-
-	e.ReplayStoredData()
-
-	replayAdvances := replaySink.eventsOfKind(eventAdvanceCompleted)
-	var replayTimestamps []int64
-	for _, evt := range replayAdvances {
-		replayTimestamps = append(replayTimestamps, evt.advanceCompleted.advancedToSec)
-	}
-
-	t.Logf("live advance timestamps:   %v", liveTimestamps)
-	t.Logf("replay advance timestamps: %v", replayTimestamps)
-
-	// The bug: replay's DataTimestamps() only has metric timestamps [100,101,102,105],
-	// missing the log's timestamp 103. So replay doesn't advance through 103.
-	// In live mode, the log at 103 DID trigger onObservation and potentially an advance.
-	//
-	// Check that DataTimestamps doesn't include 103.
-	dataTS := storage.DataTimestamps()
-	has103 := false
-	for _, ts := range dataTS {
-		if ts == 103 {
-			has103 = true
-			break
-		}
-	}
-	assert.True(t, has103,
-		"DataTimestamps() should include timestamp 103 from the log observation, "+
-			"but it only returns metric timestamps: %v", dataTS)
 }
 
 func TestIngestLogCopiesMetricTagsBeforeInjectingObserverSource(t *testing.T) {

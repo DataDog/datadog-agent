@@ -112,7 +112,7 @@
 //			// Sub test 2
 //		})
 //
-//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug"))))
+//		v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")))))
 //
 //		// Second group of subsets
 //		suite.T().Run("MySubTest3", func(t *testing.T) {
@@ -129,7 +129,7 @@
 //			// Sub test 2
 //		})
 //
-//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
+//		v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig("log_level: info")))))
 //
 //		// Second group of subsets
 //		suite.T().Run("MySubTest3", func(t *testing.T) {
@@ -154,13 +154,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2/pool"
+	testingcomponents "github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -496,6 +498,24 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 		return fmt.Errorf("unable to build env: %T from resources for stack: %s, err: %v", newEnv, bs.params.stackName, err)
 	}
 
+	// From here on newEnv may hold a live pool lease that teardown cannot see yet, because
+	// bs.env is only assigned on success below. Release it on any error path, or the
+	// member stays in-use forever -- there is no staleness reclaim. Armed before
+	// registration so a partial multi-host registration is also rolled back.
+	releaseOnFailure := true
+	defer func() {
+		if releaseOnFailure {
+			bs.releasePoolInstanceForEnv(newEnv)
+		}
+	}()
+
+	// Publish the first lease of any macOS pool member this run just created, before
+	// Init builds clients against it. Unlike the release at teardown, a failure here
+	// aborts: a registered-but-unleased instance is undiscoverable by every later run.
+	if err := bs.registerPoolInstanceIfNeeded(newEnv); err != nil {
+		return fmt.Errorf("unable to register macOS pool instance: %w", err)
+	}
+
 	// If env implements Initializable, we call Init
 	if initializable, ok := any(newEnv).(common.Initializable); ok {
 		if err := initializable.Init(bs); err != nil {
@@ -505,6 +525,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 
 	// On success we update the current environment
 	// We need top copy provisioners to protect against external modifications
+	releaseOnFailure = false
 	bs.currentProvisioners = provisioners.CopyProvisioners(targetProvisioners)
 	bs.env = newEnv
 	return nil
@@ -682,6 +703,11 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	bs.cleanupCalled = true
 	bs.endTime = time.Now()
 
+	// Runs via defer, not inline, so it still executes across the devMode/initOnly
+	// early returns below and across the FailNow()/runtime.Goexit() branch further
+	// down — the same Goexit-safety reasoning as the t.Cleanup hook in SetupSuite.
+	defer bs.releasePoolInstanceIfAny()
+
 	if bs.params.devMode {
 		return
 	}
@@ -759,12 +785,110 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 				}
 			} else {
 				utils.Logf(bs.T(), "Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
+				utils.Logf(bs.T(), "Stack cleaner trigger output: %s", out)
 			}
 		} else {
 			utils.Logf(bs.T(), "Destroying stack %s with provisioner %s", bs.params.stackName, id)
 			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
 				utils.Errorf(bs.T(), "unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			}
+		}
+	}
+}
+
+// registerPoolInstanceIfNeeded publishes the first lease of any macOS pool member that
+// env just created, and stores the resulting token on the host so teardown can release
+// it. A member awaiting registration has a PoolInstanceID but no PoolLeaseToken.
+func (bs *BaseSuite[Env]) registerPoolInstanceIfNeeded(env *Env) error {
+	if env == nil {
+		return nil
+	}
+
+	v := reflect.ValueOf(env)
+	if v.Kind() != reflect.Ptr || v.IsNil() {
+		return nil
+	}
+	v = v.Elem()
+	if v.Kind() != reflect.Struct {
+		return nil
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanInterface() {
+			continue
+		}
+		remoteHost, ok := field.Interface().(*testingcomponents.RemoteHost)
+		if !ok || remoteHost == nil {
+			continue
+		}
+		if remoteHost.PoolInstanceID == "" || remoteHost.PoolLeaseToken != "" {
+			continue // not a pool member, or already leased
+		}
+		if remoteHost.PoolBaselineImageID == "" {
+			return fmt.Errorf("macOS pool instance %s has no baseline image to register", remoteHost.PoolInstanceID)
+		}
+
+		ctx, cancel := bs.providerContext(deleteTimeout)
+		token, err := pool.PublishInitialLease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolLeaseBucket,
+			remoteHost.PoolInstanceID, remoteHost.PoolBaselineImageID, remoteHost.PoolStackID)
+		if errors.Is(err, pool.ErrLeaseAlreadyExists) {
+			// Expected when UpdateEnv re-enters reconcileEnv: adopt the live lease
+			// rather than failing.
+			token, err = pool.CurrentLeaseToken(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolLeaseBucket, remoteHost.PoolInstanceID)
+		}
+		cancel()
+		if err != nil {
+			return fmt.Errorf("instance %s: %w", remoteHost.PoolInstanceID, err)
+		}
+
+		// Teardown reads this field, so writing it here is what wires release up.
+		remoteHost.PoolLeaseToken = token
+	}
+	return nil
+}
+
+// releasePoolInstanceIfAny reverts and releases any macOS EC2 pool instance backing
+// bs.env, so pool leases are freed regardless of dev mode or destroy success. It is
+// a no-op when the environment never went through the macOS pool path.
+func (bs *BaseSuite[Env]) releasePoolInstanceIfAny() {
+	bs.releasePoolInstanceForEnv(bs.env)
+}
+
+// releasePoolInstanceForEnv reverts and releases any macOS EC2 pool instance backing env.
+// Errors are logged, never propagated: it runs on teardown and on setup-failure rollback,
+// where a hard failure would mask the original error.
+func (bs *BaseSuite[Env]) releasePoolInstanceForEnv(env *Env) {
+	if env == nil {
+		return
+	}
+
+	v := reflect.ValueOf(env)
+	if v.Kind() != reflect.Ptr || v.IsNil() {
+		return
+	}
+	v = v.Elem()
+	if v.Kind() != reflect.Struct {
+		return
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanInterface() {
+			continue
+		}
+		remoteHost, ok := field.Interface().(*testingcomponents.RemoteHost)
+		if !ok || remoteHost == nil || remoteHost.PoolInstanceID == "" {
+			continue
+		}
+
+		ctx, cancel := bs.providerContext(deleteTimeout)
+		err := pool.RevertAndRelease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolLeaseBucket, remoteHost.PoolInstanceID, remoteHost.PoolLeaseToken, bs.params.devMode)
+		cancel()
+		if err != nil {
+			utils.Errorf(bs.T(), "unable to revert/release macOS pool instance %s: %v", remoteHost.PoolInstanceID, err)
+		} else {
+			utils.Logf(bs.T(), "reverted and released macOS pool instance %s successfully", remoteHost.PoolInstanceID)
 		}
 	}
 }

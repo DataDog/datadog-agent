@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build linux && !linux_bpf
+//go:build linux && !bpf
 
 // Package constantfetch holds constantfetch related files
 package constantfetch
@@ -35,6 +35,11 @@ func GetAvailableConstantFetchers(_ *config.Config, kv *kernel.Version) []Consta
 
 // GetHasUsernamespaceFirstArgWithBtf not available
 func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
+	return false, errors.New("unsupported BTF request")
+}
+
+// GetExitItimersTakesTaskStructWithBtf not available
+func GetExitItimersTakesTaskStructWithBtf() (bool, error) {
 	return false, errors.New("unsupported BTF request")
 }
 

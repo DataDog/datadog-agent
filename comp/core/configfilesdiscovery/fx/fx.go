@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build docker || (cri && containerd) || test
+
 // Package fx provides fx wiring for the config files discovery component.
 package fx
 
@@ -13,8 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configfilesdiscovery "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/def"
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
+	"github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -35,7 +40,9 @@ type Requires struct {
 	Lifecycle     compdef.Lifecycle
 	Config        config.Component
 	Autodiscovery autodiscovery.Component
+	Hostname      hostname.Component
 	WorkloadMeta  workloadmeta.Component
+	EventPlatform eventplatform.Component
 }
 
 // Provides defines the optional output of the config files discovery fx module.
@@ -52,8 +59,16 @@ func newOptionalComponent(reqs Requires) Provides {
 
 	provides := configfilesdiscoveryimpl.NewComponent(configfilesdiscoveryimpl.Requires{
 		Lifecycle:     reqs.Lifecycle,
+		Config:        reqs.Config,
 		Autodiscovery: reqs.Autodiscovery,
+		Hostname:      reqs.Hostname,
 		WorkloadMeta:  reqs.WorkloadMeta,
+		EventPlatform: reqs.EventPlatform,
+		Collectors: map[string]configfilesdiscoveryimpl.ConfigCollector{
+			collectors.KafkaIntegrationName:    collectors.NewKafka(),
+			collectors.PostgresIntegrationName: collectors.NewPostgres(),
+			collectors.RedisIntegrationName:    collectors.NewRedis(),
+		},
 	})
 	return Provides{Comp: option.New(provides.Comp)}
 }

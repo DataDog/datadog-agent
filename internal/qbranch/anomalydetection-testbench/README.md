@@ -15,7 +15,7 @@ dda inv -- anomalydetection.launch-testbench
 dda inv -- anomalydetection.launch-testbench --scenarios-dir /path/to/scenarios
 ```
 
-Then open http://localhost:5173 in your browser.
+Then open `http://localhost:5173` in your browser.
 
 The `--build` flag rebuilds the binary before launching. Omit it after the first run to skip the build step.
 
@@ -73,6 +73,8 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | `--output` | _(empty)_ | Path for observer JSON output |
 | `--verbose` | `false` | Include full detail in JSON output (titles, member series, individual anomalies) |
 | `--memprofile` | _(empty)_ | Write a heap profile to this file after the run |
+| `--cpuprofile` | _(empty)_ | Write a CPU profile covering the scenario replay to this file |
+| `--retain-parquet` | `false` | Retain and sort all parquet rows in headless mode. Use for unordered local recordings; headless runs stream by default. |
 
 ## Components
 
@@ -82,7 +84,6 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 |------|---------|-------------|
 | `bocpd` | enabled | Bayesian Online Change Point Detection — streaming, per-series changepoint detector |
 | `rrcf` | enabled | Robust Random Cut Forest — multivariate anomaly detection over system metrics |
-| `cusum` | disabled | CUSUM change-point detector |
 | `scanmw` | disabled | Mann-Whitney scan statistic detector |
 | `scanwelch` | disabled | Welch t-test scan statistic detector |
 
@@ -90,9 +91,9 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 
 | Name | Default | Description |
 |------|---------|-------------|
-| `time_cluster` | enabled | Groups anomalies that occur close together in time |
-| `cross_signal` | disabled | Cross-signal pattern correlator (fixed known patterns) |
-| `passthrough` | disabled | Passes every anomaly through as its own correlation (for TP metric scoring) |
+| `anomaly_scorer` | enabled | Produces anomaly periods from the EWMA anomaly-severity score |
+| `time_cluster` | disabled | Groups anomalies that occur close together in time |
+| `passthrough` | disabled | Testbench-only adapter that serializes every raw anomaly as its own evaluation period |
 
 ### Extractors
 
@@ -107,14 +108,11 @@ Extractors are always enabled and convert raw observations into timeseries:
 ## Examples
 
 ```bash
-# Run with all defaults (bocpd + rrcf + time_cluster)
+# Run with all defaults (bocpd + rrcf + anomaly_scorer)
 dda inv -- anomalydetection.launch-testbench
 
 # Only BOCPD + TimeCluster
 dda inv -- anomalydetection.launch-testbench --only bocpd,time_cluster
-
-# Enable CUSUM on top of defaults
-dda inv -- anomalydetection.launch-testbench --enable cusum
 
 # Run on a different port
 dda inv -- anomalydetection.launch-testbench --http :9090
@@ -131,13 +129,21 @@ Run a scenario without the HTTP server — load data, run the full detector→co
 # Via invoke (builds automatically with --build)
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name>
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --headless-output /tmp/out.json
-dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --profile  # write heap profile
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --mem-profile  # write heap profile
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --cpu-profile  # write CPU profile
 
 # Direct binary
 ./bin/anomalydetection-testbench \
   --headless <scenario-name> \
   --output results.json \
   --scenarios-dir ./comp/anomalydetection/observer/scenarios
+
+# Capture a CPU profile for the scenario replay
+./bin/anomalydetection-testbench \
+  --headless <scenario-name> \
+  --cpuprofile /tmp/observer.cpu.pprof \
+  --scenarios-dir ./comp/anomalydetection/observer/scenarios
+go tool pprof /tmp/observer.cpu.pprof
 
 # Same, but only ingest logs from parquet (ignore metrics and trace stats)
 ./bin/anomalydetection-testbench \
@@ -147,6 +153,9 @@ dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name>
   --scenarios-dir ./comp/anomalydetection/observer/scenarios
 
 dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --logs-only
+
+# Fall back to retained loading and global sorting for unordered local recordings
+dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name> --retain-parquet
 
 # Verbose output (includes anomaly detail, member series, titles)
 ./bin/anomalydetection-testbench \
@@ -249,7 +258,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
       "threshold_sigma": 2.5,
       "tree_size": 128
     },
-    "cusum": { "enabled": false },
     "time_cluster": {
       "enabled": true,
       "proximity_seconds": 15,
@@ -275,15 +283,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 | `prior_variance_scale` | 10.0 | Diffuseness of prior over the mean |
 | `min_variance` | 1.0 | Variance floor (numerical stability) |
 | `recovery_points` | 10 | Consecutive quiet points needed to exit alert state |
-
-#### `cusum`
-
-| Param | Default | Description |
-|-------|---------|-------------|
-| `min_points` | 5 | Minimum data points required |
-| `baseline_fraction` | 0.25 | Fraction of data used for baseline estimation |
-| `slack_factor` | 0.5 | k = slack_factor × stddev (slack parameter) |
-| `threshold_factor` | 4.0 | h = threshold_factor × stddev (detection threshold) |
 
 #### `rrcf`
 
@@ -315,22 +314,36 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 | `cluster_time_to_live_sec` | 14400 | Clusters with no matching log for this many seconds are removed during GC. `0` disables cluster garbage collection. |
 | `garbage_collection_interval_sec` | 3600 | Minimum seconds between GC passes when cluster TTL is enabled (nonzero `cluster_time_to_live_sec`) |
 
-#### `cross_signal`
-
-| Param | Default | Description |
-|-------|---------|-------------|
-| `window_seconds` | 30 | Time window for clustering anomalies |
-
 ## Architecture
 
-### Replay pipeline
+### Replay pipelines
 
-The testbench feeds historical data through the observer engine in two phases:
+Headless runs stream by default. Metric and log parquet readers are merged into
+one timestamp-ordered observation stream. Each observation is ingested
+synchronously, detector/correlator analysis advances with the same scheduler as
+the live Observer, and an end-of-input flush analyzes the final timestamp. The
+stream uses the production storage limits, including the default 120-second
+point-retention window, so observation memory is bounded by the active window
+and series cardinality rather than total scenario length.
 
-1. **Pre-load** — parquet rows are ingested via `IngestLogNoAdvance` / `IngestMetricSync`. The engine accumulates extractor state and writes time-series points, but no detector or correlator advances are triggered.
-2. **Replay** — `ReplayStoredData` walks through the in-memory storage in chronological order and drives the full detector→correlator pipeline tick by tick, as if data were arriving live.
+Headless output still retains anomaly and correlation history because the
+evaluator consumes the complete result set. Pathological runs that emit an
+extreme number of results can therefore still require significant memory.
 
-Because all points are pre-loaded before replay starts, the engine storage is configured with **no point-retention window** (`PointRetentionSecs = 0`). This is intentional and testbench-specific: the production observer uses a bounded retention window (120 s by default). The unbounded config is constructed in `bench.go` and passed explicitly to `DebugView.Reset` — the shared engine code never hard-codes it.
+Streaming keeps metric rows in a bounded five-second reorder window because
+concurrent GenSim collection can write slightly late samples. Log ordering is
+validated at the Observer's one-second scheduling resolution. Recordings with
+disorder beyond those bounds fail descriptively instead of silently producing
+late points.
+
+Interactive runs, and headless runs with `--retain-parquet`, use the retained
+replay pipeline:
+
+1. **Pre-load** — parquet rows build extractor state and unbounded time-series storage.
+2. **Replay** — `ReplayStoredData` resets analysis state and walks every stored timestamp.
+
+The retained path supports interactive component toggles and remains available
+as a compatibility fallback, but its memory scales with the full scenario.
 
 ### Reporter and UI updates
 
@@ -389,7 +402,7 @@ These endpoints are available in interactive mode (not headless).
 - **Scenario Selection**: Load different scenarios from the sidebar
 - **Component Toggles**: Enable/disable detectors and correlators live
 - **Series Tree**: Browse and select time series to visualize
-- **Aggregation Types**: Switch between avg, count, sum, min, max views
+- **Aggregation Types**: Switch between avg, count, and sum views
 - **Time Clusters**: View correlated anomaly groups
 - **Zoom/Pan**: Drag to zoom, middle-drag to pan on charts
 - **Split by Tag**: Split series by tag values for comparison

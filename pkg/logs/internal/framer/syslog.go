@@ -5,6 +5,12 @@
 
 package framer
 
+import (
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+)
+
 // syslogFrameMatcher implements FrameMatcher for syslog TCP streams per
 // RFC 6587. Two framing methods are supported with automatic per-frame
 // detection:
@@ -20,41 +26,296 @@ package framer
 // Detection: the first byte of each frame determines the method — a digit
 // ('1'-'9') selects octet counting, '<' (start of PRI) selects
 // non-transparent framing. Stray whitespace/NUL between frames is consumed.
+// overflowKind identifies how the continuation bytes of an oversized frame
+// must be consumed. Once a frame exceeds contentLenLimit, its remaining bytes
+// are emitted as raw continuation chunks instead of being re-run through frame
+// detection — otherwise message content (e.g. an embedded "<134>" or "3 <")
+// would be misread as framing and corrupt message boundaries.
+type overflowKind int
+
+const (
+	overflowNone overflowKind = iota
+	// overflowOctet: remaining length is known from MSG-LEN; see octetRemaining.
+	overflowOctet
+	// overflowNonTransparent: consume raw until the LF/NUL delimiter.
+	overflowNonTransparent
+	// overflowMalformed: consume raw until the next frame-start sync point.
+	overflowMalformed
+)
+
 type syslogFrameMatcher struct {
 	contentLenLimit int
+
+	// overflow tracks an in-progress oversized frame whose continuation bytes
+	// must be emitted raw. octetRemaining holds the number of declared body
+	// bytes still owed while overflow == overflowOctet.
+	overflow       overflowKind
+	octetRemaining int
+
+	malformedBytes  *status.CountInfo
+	oversizedFrames *status.CountInfo
 }
 
 // FindFrame implements FrameMatcher. It looks for a complete syslog frame
 // at the start of buf. The seen argument indicates how many bytes of buf
 // were present on the last call (used to avoid rescanning).
+//
+// When the leading byte is not a valid syslog frame start ('<' or digit),
+// the matcher scans forward for the next probable frame start — either a
+// PRI header (<[0-9]{1,3}>) or an octet-counting prefix (digit+ SP PRI).
+// Everything before that sync point is emitted as a single malformed frame
+// so the downstream parser can log it coherently rather than producing one
+// empty message per byte.
 func (m *syslogFrameMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool) {
 	if len(buf) == 0 {
 		return nil, 0, false
 	}
 
+	// Continuation of an oversized frame: emit the remaining bytes as raw
+	// chunks without re-detecting frame type, so message content cannot be
+	// misread as framing.
+	switch m.overflow {
+	case overflowOctet:
+		return m.emitOctetContinuation(buf)
+	case overflowNonTransparent:
+		return m.scanNonTransparent(buf, 0, true /* continuation */)
+	case overflowMalformed:
+		// If the malformed run ended exactly at the previous chunk boundary,
+		// the next byte begins a real frame (or is a stray delimiter): clear
+		// overflow and fall through to normal detection.
+		if isSyslogFrameStart(buf, 0) || buf[0] == '\n' || buf[0] == '\r' || buf[0] == 0 {
+			m.overflow = overflowNone
+		} else {
+			return m.scanMalformed(buf, seen, true /* continuation */)
+		}
+	}
+
 	b := buf[0]
 	switch {
 	case b >= '1' && b <= '9':
-		return m.findOctetCounted(buf)
+		// A leading digit alone does not mean octet counting: plenty of log
+		// lines simply start with a number followed by a space. A sender that
+		// omits the PRI produces them routinely — rsyslog's file templates drop
+		// it, so anything relaying such a rendering arrives as a bare timestamp
+		// — as do epoch prefixes and thread ids ("54 [main] INFO ...").
+		// classifyOctetPrefix demands the full MSG-LEN SP PRI signature before
+		// any of those bytes are read as a length.
+		switch classifyOctetPrefix(buf) {
+		case octetPrefixYes:
+			return m.findOctetCounted(buf, seen)
+		case octetPrefixNo:
+			return m.scanMalformed(buf, seen, false /* continuation */)
+		default: // octetPrefixNeedMore
+			return nil, 0, false
+		}
 
 	case b == '<':
 		return m.findNonTransparent(buf, seen)
 
 	case b == '\n' || b == '\r' || b == 0:
-		// Stray delimiter between frames — consume one byte, return empty
-		// content. The Framer skips zero-length content (the parser never
-		// sees it), so this effectively advances past inter-frame junk.
-		return buf[:0], 1, false
+		// Stray delimiter between frames: consume it, emit nothing.
+		return nil, 1, false
 
 	default:
-		// Unexpected leading byte — consume it to avoid infinite loops.
-		return buf[:0], 1, false
+		return m.scanMalformed(buf, seen, false /* continuation */)
 	}
 }
 
+// maxFrameStartLookbehind bounds how far scanMalformed rewinds behind the
+// already-scanned prefix (seen) before resuming its search for the next frame
+// start, so a signature whose tail only arrives in the current read is still
+// found. It is the longest such signature: MSG-LEN SP PRI. Anything beginning
+// further back fitted entirely within the previous read and was decided then.
+const maxFrameStartLookbehind = maxOctetLenDigits + 1 + maxPRIDigits + 2
+
+// scanMalformed consumes bytes that do not start a valid syslog frame. buf[0]
+// is known malformed (the FindFrame dispatch handles frame starts and stray
+// delimiters), so it scans from index 1 for the next probable frame start (PRI
+// header or octet-counting prefix), newline, or NUL and emits everything before
+// it as a single malformed frame so the downstream parser can log it coherently
+// rather than producing one empty message per byte. If no sync point is found
+// and the buffer has not yet reached contentLenLimit, it returns nil to wait
+// for more data. Malformed bytes are counted per emitted chunk so a run is
+// never double-counted.
+//
+// A run longer than contentLenLimit is emitted in bounded chunks: the matcher
+// emits contentLenLimit bytes, enters (or stays in) overflowMalformed, and the
+// remainder returns here on the next call. The continuation flag distinguishes
+// the first chunk of a fresh run (counts the oversized frame once) from a
+// continuation chunk (already counted). Truncation follows "never the last": a
+// bounded chunk emitted before the sync point is truncated, while the chunk
+// that reaches the sync point (the final segment of the run) is not.
+//
+// seen is how many bytes of buf were already present (and scanned) on the
+// previous call. The scan resumes at seen minus a bounded look-behind rather
+// than restarting at index 1, so a delimiter-less malformed run delivered in
+// many small reads is not re-scanned from the start every call (which would be
+// quadratic in the run length). The look-behind re-examines the few bytes
+// adjacent to the previous boundary so a frame-start signature split across
+// reads is still found.
+func (m *syslogFrameMatcher) scanMalformed(buf []byte, seen int, continuation bool) ([]byte, int, bool) {
+	start := seen - maxFrameStartLookbehind
+	if start < 1 {
+		start = 1
+	}
+	for i := start; i < len(buf); i++ {
+		if isSyslogFrameStart(buf, i) || buf[i] == '\n' || buf[i] == 0 {
+			content := buf[:i]
+			rawDataLen := i
+			if buf[i] == '\n' || buf[i] == 0 {
+				rawDataLen = i + 1
+			}
+			if len(content) > m.contentLenLimit {
+				m.recordMalformed(int64(m.contentLenLimit))
+				if !continuation {
+					m.recordOversized()
+				}
+				m.overflow = overflowMalformed
+				return buf[:m.contentLenLimit], m.contentLenLimit, true
+			}
+			m.recordMalformed(int64(len(content)))
+			m.overflow = overflowNone
+			// Reaching the sync point ends the malformed run, so this is its
+			// final segment: never truncated ("never the last"). A whole
+			// sub-limit run likewise emits untruncated.
+			return content, rawDataLen, false
+		}
+	}
+	// No sync point yet. If the run already fills a chunk, emit it now and
+	// enter overflow rather than waiting (which would let the Framer guard
+	// chop blindly and re-detect the continuation).
+	if len(buf) >= m.contentLenLimit {
+		m.recordMalformed(int64(m.contentLenLimit))
+		if !continuation {
+			m.recordOversized()
+		}
+		m.overflow = overflowMalformed
+		return buf[:m.contentLenLimit], m.contentLenLimit, true
+	}
+	return nil, 0, false
+}
+
+// isSyslogFrameStart returns true if buf[i] looks like the start of a valid
+// syslog frame. Two patterns are recognized:
+//
+//   - Non-transparent PRI header: <[0-9]{1,3}> (e.g. "<134>...")
+//   - Octet-counting prefix: [1-9][0-9]* SP <[0-9]{1,3}> (e.g. "62 <134>...")
+//
+// Both are delegated — to priLen and classifyOctetPrefix — so that
+// resynchronizing applies exactly the tests that admit a frame in the first
+// place, and a malformed run cannot be cut short at something the reader would
+// then reject. An incomplete signature is not a sync point: unlike the caller
+// that reads frames, a resync can wait for the scan to reach a later candidate
+// instead of having to decide on the bytes in hand.
+func isSyslogFrameStart(buf []byte, i int) bool {
+	b := buf[i]
+	if b == '<' {
+		n, _ := priLen(buf[i:])
+		return n > 0
+	}
+	if b >= '1' && b <= '9' {
+		return classifyOctetPrefix(buf[i:]) == octetPrefixYes
+	}
+	return false
+}
+
+// maxOctetLenDigits caps how many digits a MSG-LEN may have. A longer run is
+// not a plausible length, so the leading bytes are not an octet-counting header.
+const maxOctetLenDigits = 10
+
+// maxPRIDigits is the widest PRIVAL RFC 5424 §6.2.1 allows, "<191>" being the
+// largest valid PRI.
+const maxPRIDigits = 3
+
+// octetPrefixVerdict is the result of testing whether buf begins an RFC 6587
+// octet-counted frame. It is three-way rather than boolean: a TCP read can split
+// anywhere, so when the signature is still incomplete at the end of buf neither
+// answer is safe and the caller must wait for more bytes. Treating an incomplete
+// signature as "no" would misclassify a valid frame whose length prefix straddles
+// a read boundary (e.g. "93" arriving before "7 <134>...").
+type octetPrefixVerdict int
+
+const (
+	octetPrefixNeedMore octetPrefixVerdict = iota
+	octetPrefixYes
+	octetPrefixNo
+)
+
+// classifyOctetPrefix reports whether buf starts an octet-counted frame:
+// MSG-LEN SP SYSLOG-MSG, where SYSLOG-MSG begins with a whole PRI because
+// RFC 6587 §3.4.1 carries RFC 5424 messages. buf[0] is known to be '1'-'9'.
+//
+// Nothing less than the whole signature will do; see priLen.
+func classifyOctetPrefix(buf []byte) octetPrefixVerdict {
+	i := 0
+	for i < len(buf) && buf[i] >= '0' && buf[i] <= '9' {
+		i++
+		if i > maxOctetLenDigits {
+			return octetPrefixNo
+		}
+	}
+	if i == len(buf) {
+		// The digit run may continue in the next read.
+		return octetPrefixNeedMore
+	}
+	if buf[i] != ' ' {
+		return octetPrefixNo
+	}
+	// What follows the SP must be a whole PRI.
+	n, needMore := priLen(buf[i+1:])
+	switch {
+	case needMore:
+		return octetPrefixNeedMore
+	case n == 0:
+		return octetPrefixNo
+	}
+	return octetPrefixYes
+}
+
+// priLen returns the length of a complete PRI — "<", a 1-3 digit PRIVAL, ">" —
+// at the start of buf, or 0 if buf does not begin with one. needMore reports
+// that buf ended before the PRI could be decided, which only the caller knows
+// how to handle: a reader that must commit now has to wait, while a scan
+// looking for the next frame start can carry on and pick it up next read.
+//
+// The closing ">" is what makes this worth checking in full. "<" and a digit
+// alone also open ordinary prose ("54 <1 minute elapsed"), and accepting that
+// is enough for the digits ahead of it to be read as a MSG-LEN. Because
+// MSG-LEN is the authoritative frame boundary and the body it declares is
+// never re-scanned, that body then runs past the newline and swallows the
+// frames behind it.
+func priLen(buf []byte) (n int, needMore bool) {
+	if len(buf) == 0 {
+		return 0, true
+	}
+	if buf[0] != '<' {
+		return 0, false
+	}
+	i := 1
+	for i < len(buf) && i-1 < maxPRIDigits && buf[i] >= '0' && buf[i] <= '9' {
+		i++
+	}
+	if i == len(buf) {
+		return 0, true
+	}
+	if i == 1 || buf[i] != '>' {
+		return 0, false
+	}
+	return i + 1, false
+}
+
 // findOctetCounted parses MSG-LEN SP SYSLOG-MSG from the beginning of buf.
-// Returns nil if the buffer does not yet contain a complete frame.
-func (m *syslogFrameMatcher) findOctetCounted(buf []byte) ([]byte, int, bool) {
+// Returns nil if the buffer does not yet contain enough data.
+//
+// The MSG-LEN SP header is transport framing and is stripped from emitted
+// content. When the frame cannot be held whole under contentLenLimit — the
+// declared body exceeds the limit, or the header pushes an otherwise sub-limit
+// body past it before the body fully arrives — the matcher does NOT buffer the
+// whole declared body; instead it emits a bounded first chunk, records the
+// remainder in octetRemaining, and enters overflowOctet. MSG-LEN stays the
+// authoritative boundary (RFC 6587 §3.4.1): the remaining declared bytes are
+// emitted as raw continuation, never re-detected.
+func (m *syslogFrameMatcher) findOctetCounted(buf []byte, seen int) ([]byte, int, bool) {
 	// Parse the decimal length prefix.
 	msgLen := 0
 	i := 0
@@ -64,14 +325,19 @@ func (m *syslogFrameMatcher) findOctetCounted(buf []byte) ([]byte, int, bool) {
 			i++ // consume the space
 			break
 		}
+		// A non-digit before the SP terminator, or a prefix longer than any
+		// plausible length (>10 digits), means these leading bytes are not an
+		// octet-counting header after all — buf[0] was a digit, which is the
+		// only reason we are here. Hand the whole run to scanMalformed so it is
+		// emitted as one coherent malformed frame and counted once, rather than
+		// silently dropping the digit prefix byte-by-byte while the remainder
+		// is later emitted as malformed.
 		if b < '0' || b > '9' {
-			// Malformed length — skip this byte to avoid getting stuck.
-			return buf[:0], 1, false
+			return m.scanMalformed(buf, seen, false /* continuation */)
 		}
 		i++
-		if i > 10 {
-			// Length has too many digits — skip the first byte.
-			return buf[:0], 1, false
+		if i > maxOctetLenDigits {
+			return m.scanMalformed(buf, seen, false /* continuation */)
 		}
 		msgLen = msgLen*10 + int(b-'0')
 	}
@@ -82,66 +348,195 @@ func (m *syslogFrameMatcher) findOctetCounted(buf []byte) ([]byte, int, bool) {
 	}
 
 	if msgLen == 0 {
-		// "0 " is not a valid octet-counted frame — skip the prefix.
-		return buf[:0], i, false
+		// "0 " is not a valid octet-counted frame — skip the prefix, emit nothing.
+		return nil, i, false
 	}
 
 	headerLen := i // digits + SP
 	totalLen := headerLen + msgLen
 
-	// Not enough data yet for the full message body.
-	if len(buf) < totalLen {
+	// Common case: the whole frame is buffered and its body fits the limit.
+	// Strip the MSG-LEN SP header and emit the body whole.
+	if msgLen <= m.contentLenLimit && len(buf) >= totalLen {
+		return buf[headerLen:totalLen], totalLen, false
+	}
+
+	// Otherwise the frame cannot be held whole under the limit: either the
+	// declared body genuinely exceeds contentLenLimit, or the buffer filled to
+	// the limit before the full body arrived (only reachable in the
+	// pathological near-limit band, since real syslog lines are far below the
+	// limit). Wait while still under the limit so the first chunk is as large
+	// as the limit allows, then emit a bounded first chunk with the header
+	// stripped and consume the declared remainder as raw continuation. MSG-LEN
+	// stays the authoritative boundary (RFC 6587 §3.4.1). Such frames are
+	// flagged truncated; any framing-level truncation signals a severe upstream
+	// error, since syslog lines are conventionally far below the framer limit.
+	if len(buf) < m.contentLenLimit {
 		return nil, 0, false
 	}
-
-	content := buf[headerLen:totalLen]
-	if len(content) > m.contentLenLimit {
-		return buf[:m.contentLenLimit], m.contentLenLimit, true
+	emit := len(buf) - headerLen
+	if emit > m.contentLenLimit {
+		emit = m.contentLenLimit
 	}
-
-	return content, totalLen, false
+	m.recordOversized()
+	m.octetRemaining = msgLen - emit
+	m.overflow = overflowOctet
+	return buf[headerLen : headerLen+emit], headerLen + emit, true
 }
 
-// findNonTransparent scans for a LF or NUL delimiter starting from seen.
-// Trailing CR+LF and NUL are stripped from the returned content.
+// emitOctetContinuation emits the next bounded chunk of an octet-counted
+// frame's remaining declared body. Continuation chunks carry no header. Every
+// chunk is flagged truncated except the one that completes the declared length:
+// per the "never the last" contract, the final segment of the split frame is
+// not truncated (it carries no trailing marker — MSG-LEN is the authoritative
+// boundary, so the matcher knows when the body is complete). The matcher waits
+// only for a single chunk's worth of bytes, so the buffer never exceeds the
+// limit.
+func (m *syslogFrameMatcher) emitOctetContinuation(buf []byte) ([]byte, int, bool) {
+	chunk := m.octetRemaining
+	if chunk > m.contentLenLimit {
+		chunk = m.contentLenLimit
+	}
+	if len(buf) < chunk {
+		return nil, 0, false
+	}
+	m.octetRemaining -= chunk
+	if m.octetRemaining <= 0 {
+		m.octetRemaining = 0
+		m.overflow = overflowNone
+	}
+	// Truncated unless this chunk completed the declared body (the last
+	// segment is never truncated).
+	return buf[:chunk], chunk, m.overflow == overflowOctet
+}
+
+// findNonTransparent scans a fresh non-transparent frame for its LF/NUL
+// delimiter, skipping the bytes already scanned on a prior call (seen).
 func (m *syslogFrameMatcher) findNonTransparent(buf []byte, seen int) ([]byte, int, bool) {
 	start := seen
 	if start < 0 {
 		start = 0
 	}
+	return m.scanNonTransparent(buf, start, false)
+}
 
+// scanNonTransparent finds the LF/NUL delimiter that terminates a
+// non-transparent frame and emits the trailer-trimmed content (CR+LF and NUL
+// stripped). A non-transparent frame's length is unknown until its delimiter
+// arrives, so an oversized frame is emitted in bounded chunks: the matcher
+// emits contentLenLimit bytes as soon as the buffer reaches the limit without a
+// delimiter (rather than waiting and letting the Framer guard chop blindly),
+// enters (or stays in) overflowNonTransparent, and the remainder returns here
+// on the next call. start lets a fresh frame skip already-scanned bytes.
+//
+// The continuation flag distinguishes the first chunk of a fresh frame (counts
+// the oversized frame once) from a continuation chunk (already counted, and a
+// delimiter that lands exactly at the chunk boundary is consumed without
+// emitting an empty frame). Truncation follows "never the last": a chunk
+// emitted because the buffer filled before the delimiter arrived is truncated,
+// while the chunk that reaches the delimiter (the final segment) is not.
+func (m *syslogFrameMatcher) scanNonTransparent(buf []byte, start int, continuation bool) ([]byte, int, bool) {
 	for i := start; i < len(buf); i++ {
 		if buf[i] == '\n' || buf[i] == 0 {
 			content := syslogTrimTrailer(buf[:i])
-			rawDataLen := i + 1 // include the delimiter
-
 			if len(content) > m.contentLenLimit {
+				// Delimiter is beyond this chunk; emit a bounded raw piece.
+				if !continuation {
+					m.recordOversized()
+				}
+				m.overflow = overflowNonTransparent
 				return buf[:m.contentLenLimit], m.contentLenLimit, true
 			}
-
-			return content, rawDataLen, false
+			m.overflow = overflowNone
+			if continuation && len(content) == 0 {
+				// Prior continuation chunks already drained the whole body
+				// (body length was an exact multiple of contentLenLimit), so
+				// the delimiter now sits at the buffer head. Consume it without
+				// emitting an empty frame; otherwise a blank log would be
+				// forwarded.
+				return nil, i + 1, false
+			}
+			// The delimiter terminates the frame, so this is its final
+			// segment: never truncated ("never the last"). A whole sub-limit
+			// frame likewise emits untruncated.
+			return content, i + 1, false // include the delimiter
 		}
 	}
-
-	// No delimiter found yet — wait for more data.
+	// No delimiter yet. If the frame already fills a chunk, emit it now and
+	// enter overflow rather than waiting.
+	if len(buf) >= m.contentLenLimit {
+		if !continuation {
+			m.recordOversized()
+		}
+		m.overflow = overflowNonTransparent
+		return buf[:m.contentLenLimit], m.contentLenLimit, true
+	}
 	return nil, 0, false
 }
 
-// FlushFrame implements FrameMatcher. At end-of-stream, emit any remaining
-// bytes in bounded chunks. The caller (Framer.Flush) loops until the buffer
-// is drained.
+// FlushFrame implements FrameMatcher. At end-of-stream it emits whatever
+// unframed bytes remain as a single final frame. The Framer only ever leaves a
+// remainder smaller than contentLenLimit buffered (Process emits a bounded
+// chunk the moment the buffer reaches the limit), so there is nothing to chunk
+// here — flush is always a straight dump of the trailing bytes.
+//
+// The flushed bytes are always the terminal segment of their logical line, so
+// the frame is never reported as truncated ("never the last"): if its frame
+// was split during Process, the leading "...TRUNCATED..." marker is added
+// downstream by the line handler's carry-over, and no trailing marker belongs
+// on the final piece. Trailing LF/CR/NUL delimiters are stripped; a remainder
+// that is only delimiters (or empty) emits nothing rather than a blank frame.
+// Malformed-overflow bytes are counted as malformed so the telemetry total
+// stays accurate.
 func (m *syslogFrameMatcher) FlushFrame(buf []byte) ([]byte, int) {
-	if len(buf) == 0 {
-		return nil, 0
-	}
 	content := syslogTrimTrailer(buf)
 	if len(content) == 0 {
+		m.overflow = overflowNone
 		return nil, 0
 	}
-	if len(content) > m.contentLenLimit {
-		return content[:m.contentLenLimit], m.contentLenLimit
+	if m.overflow == overflowMalformed {
+		m.recordMalformed(int64(len(content)))
 	}
+	m.overflow = overflowNone
 	return content, len(buf)
+}
+
+// recordMalformed increments both the global telemetry counter and the
+// per-tailer status counter for malformed bytes.
+func (m *syslogFrameMatcher) recordMalformed(n int64) {
+	metrics.TlmSyslogMalformedBytes.Add(float64(n))
+	if m.malformedBytes != nil {
+		m.malformedBytes.Add(n)
+	}
+}
+
+// recordOversized increments both the global telemetry counter and the
+// per-tailer status counter for oversized frame splits.
+func (m *syslogFrameMatcher) recordOversized() {
+	metrics.TlmSyslogOversizedFrames.Inc()
+	if m.oversizedFrames != nil {
+		m.oversizedFrames.Add(1)
+	}
+}
+
+// NewSyslogFramer creates a Framer with RFC 6587 syslog framing and registers
+// a "Syslog Malformed Bytes" counter in tailerInfo for status display.
+func NewSyslogFramer(
+	outputFn func(*message.Message, int),
+	contentLenLimit int,
+	tailerInfo *status.InfoRegistry,
+) *Framer {
+	malformedBytes := status.NewCountInfo("Syslog Malformed Bytes")
+	tailerInfo.Register(malformedBytes)
+	oversizedFrames := status.NewCountInfo("Syslog Oversized Frames")
+	tailerInfo.Register(oversizedFrames)
+
+	matcher := &syslogFrameMatcher{
+		contentLenLimit: contentLenLimit,
+		malformedBytes:  malformedBytes,
+		oversizedFrames: oversizedFrames,
+	}
+	return newFramer(outputFn, matcher, contentLenLimit, false)
 }
 
 // syslogTrimTrailer removes trailing non-transparent frame delimiters

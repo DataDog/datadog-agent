@@ -7,7 +7,6 @@ package privateactionrunner
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -31,12 +30,18 @@ const (
 	// (helm-charts PR #2517). Drop this override once the e2e framework's global HelmVersion
 	// default is bumped to at least this value.
 	minHelmChartVersion = "3.197.2"
+
+	systemServiceOverlap        = "par-e2e.service"
+	systemServiceBackendOnly    = "par-e2e-backend-only.service"
+	systemServiceOperatorOnly   = "par-e2e-operator-only.service"
+	systemServiceOperatorPolicy = `{"par-e2e-operator-only.service":["read"],"par-e2e.service":["read"]}`
 )
 
 // parHelmValuesTemplate configures the agent with PAR enabled.
-// Fakeintake URL wiring (DD_DD_URL, DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION) is handled
-// automatically by the e2e framework's configureFakeintake when fakeintake is present.
-// %s parameters: clusterName, runnerURN, privateKeyB64
+// Fakeintake URL wiring (DD_DD_URL) is handled automatically by the e2e framework's
+// configureFakeintake when fakeintake is present. See SetupPARTaskSigning for the
+// signing identity dequeued tasks need to pass verification.
+// %s parameters: clusterName, runnerURN, privateKeyB64, systemServiceOperatorPolicy
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
@@ -52,7 +57,11 @@ agents:
   containers:
     privateActionRunner:
       envDict:
+        DD_HOSTNAME: "par-rshell-e2e"
         DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST: "com.datadoghq.remoteaction.rshell.runCommand,com.datadoghq.remoteaction.rshell.runRemediationCommand"
+        DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS: '["rshell:cat","rshell:echo","rshell:find","rshell:grep","rshell:help"]'
+        DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_PATHS: '["/host/var/log/par-e2e-allowed","/tmp:rw","/var/tmp:ro"]'
+        DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_SYSTEM_SERVICES: '%s'
 `
 
 // parK8sProvisioner provisions a Kind-on-EC2 cluster with:
@@ -70,13 +79,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			// 1. Deploy fakeintake as ECS Fargate (HTTP, no load balancer).
 			// PAR inside the Kind cluster reaches it at fakeintake's private VPC IP.
 			// The test process also calls fakeintake directly for control operations (enqueue/result).
-			// FAKEINTAKE_IMAGE_OVERRIDE allows using a locally-built image during development
-			// (same pattern used by CI and docker_test.go).
-			var fiOpts []awsFakeintake.Option
-			if img := os.Getenv("FAKEINTAKE_IMAGE_OVERRIDE"); img != "" {
-				fiOpts = append(fiOpts, awsFakeintake.WithImageURL(img))
-			}
-			fi, err := awsFakeintake.NewECSFargateInstance(awsEnv, name, fiOpts...)
+			fi, err := awsFakeintake.NewECSFargateInstance(awsEnv, name)
 			if err != nil {
 				return fmt.Errorf("fakeintake.NewECSFargateInstance: %w", err)
 			}
@@ -116,12 +119,12 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("kubernetes.NewProvider: %w", err)
 			}
 
-			// 4. Plant test data file on the Kind node (accessible to PAR at /host/var/log/)
+			// 4. Plant allowed and operator-blocked test data on the Kind node.
 			_, err = host.OS.Runner().Command(
 				awsEnv.CommonNamer().ResourceName("plant-testdata"),
 				&command.Args{
 					Create: pulumi.Sprintf(
-						`kind get nodes --name %s | xargs -I{} docker exec {} bash -c "echo 'PAR_E2E_VALUE=hello_from_rshell' > /var/log/par-e2e-testdata.txt"`,
+						`kind get nodes --name %s | xargs -I{} docker exec {} bash -c "mkdir -p /var/log/par-e2e-allowed /var/log/par-e2e-blocked && echo 'PAR_E2E_VALUE=hello_from_rshell' > /var/log/par-e2e-allowed/testdata.txt && echo 'PAR_E2E_BLOCKED_VALUE=operator_path_must_block' > /var/log/par-e2e-blocked/testdata.txt"`,
 						kindCluster.ClusterName,
 					),
 				},
@@ -132,11 +135,17 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			}
 
 			// 5. Deploy Datadog agent via Helm with PAR enabled.
-			// DD_DD_URL and DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION for the PAR container are
-			// injected automatically by the e2e framework's configureFakeintake.
+			// DD_DD_URL for the PAR container is injected automatically by the e2e
+			// framework's configureFakeintake.
 			agent, err := helm.NewKubernetesAgent(&awsEnv, name, kubeProvider,
 				kubernetesagentparams.WithFakeintake(fi),
-				kubernetesagentparams.WithHelmValues(fmt.Sprintf(parHelmValuesTemplate, ctx.Stack(), runnerURN, privateKeyB64)),
+				kubernetesagentparams.WithHelmValues(fmt.Sprintf(
+					parHelmValuesTemplate,
+					ctx.Stack(),
+					runnerURN,
+					privateKeyB64,
+					systemServiceOperatorPolicy,
+				)),
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
 				kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
 				kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),

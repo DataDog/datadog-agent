@@ -1,5 +1,6 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
@@ -48,20 +49,20 @@ go_library(
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/network/ebpf",
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/ebpf/bytecode",
-    ] + select({
+    deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/ebpf/bytecode",
             "//pkg/process/util",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/bytecode",
             "//pkg/process/util",
         ],
         "//conditions:default": [],
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "ebpf_test",
     srcs = [
         "conntrack_types_linux_test.go",
@@ -69,7 +70,7 @@ go_test(
         "tuple_types_linux_test.go",
     ],
     embed = [":ebpf"],
-    gotags = ["test"],
+    gotags_sets = [["bpf"]],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf/ebpftest:cgo_align",

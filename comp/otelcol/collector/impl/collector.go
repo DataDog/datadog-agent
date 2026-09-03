@@ -42,6 +42,7 @@ import (
 	ddprofilingextension "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	dogtelextension "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl"
 	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
@@ -53,8 +54,6 @@ import (
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
-
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/apmstats"
 )
 
 type collectorImpl struct {
@@ -105,6 +104,7 @@ type RequiresNoAgent struct {
 	Converter        confmap.Converter
 	Tagger           tagger.Component
 	Hostname         hostnameinterface.Component
+	Ipc              ipc.Component
 }
 
 // Provides declares the output types from the constructor
@@ -194,12 +194,12 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	}
 
 	if v, ok := reqs.LogsAgent.Get(); ok {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store, reqs.Config)
 	} else {
-		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store)
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper, gatewayUsage, store, reqs.Config)
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
-	factories.Connectors[datadogConnectorType] = apmstats.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
+	factories.Connectors[datadogConnectorType] = datadogconnector.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), byoc)
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
 	factories.Extensions[dogtelextension.Type] = dogtelextension.NewFactoryForAgent(
@@ -216,7 +216,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 }
 
 var buildInfo = component.BuildInfo{
-	Version:     "v0.154.0",
+	Version:     "v0.159.0",
 	Command:     filepath.Base(os.Args[0]),
 	Description: "Datadog Agent OpenTelemetry Collector",
 }
@@ -251,6 +251,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 			return factories, nil
 		},
 		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled),
+		// grpclog.SetLoggerV2 is not mutex-protected; skip it to avoid racing with other gRPC clients in-process.
+		SkipSettingGRPCLogger: true,
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
@@ -274,15 +276,20 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}, nil
 }
 
-// NewComponentNoAgent returns a new instance of the collector component with no Agent functionalities.
+// NewComponentNoAgent returns a new instance of the collector component without the
+// Datadog exporter pipeline (serializer, trace-agent, logs-agent, forwarder).
 // It is used when there is no Datadog exporter in the OTel Agent config.
+//
+// Note this does not mean the collector runs without a core Agent: this path still talks
+// to it over IPC for config sync, remote tagger and remote hostname, and the ddflare
+// extension uses the same IPC component to authenticate its endpoint.
 func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 	factories, err := reqs.CollectorContrib.OTelComponentFactories()
 	if err != nil {
 		return Provides{}, err
 	}
-	factories.Connectors[datadogConnectorType] = apmstats.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
-	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.None[ipc.Component](), false)
+	factories.Connectors[datadogConnectorType] = datadogconnector.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
+	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), false)
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
@@ -292,6 +299,7 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 			return factories, nil
 		},
 		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled),
+		SkipSettingGRPCLogger:  true, // see comment in NewComponent
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {

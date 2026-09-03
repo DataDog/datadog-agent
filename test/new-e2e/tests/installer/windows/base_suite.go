@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -268,7 +268,7 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.Require().NoError(os.MkdirAll(outputDir, 0755))
 
 	s.installer = NewDatadogInstaller(s.Env(), s.CurrentAgentVersion().MSIPackage().URL, outputDir)
-	s.installScriptImpl = NewDatadogInstallScript(s.Env().RemoteHost)
+	s.installScriptImpl = NewDatadogInstallExe(s.Env().RemoteHost)
 
 	// clear the event logs before each test
 	for _, logName := range []string{"System", "Application"} {
@@ -477,6 +477,11 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 
 	// Arrange
 	agentVersion := s.StableAgentVersion().Version()
+
+	// xperf covers the full experiment window: from daemon restart through installer
+	// service startup, capturing the SCM service start sequence on failure.
+	s.startxperf()
+	defer s.collectxperf()
 
 	// Act
 	s.WaitForDaemonToStop(func() {
@@ -689,6 +694,11 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	// Arrange
 	agentVersion := s.CurrentAgentVersion().Version()
 
+	// xperf covers the full experiment window: from daemon restart through installer
+	// service startup, capturing the SCM service start sequence on failure.
+	s.startxperf()
+	defer s.collectxperf()
+
 	// Act
 	s.WaitForDaemonToStop(func() {
 		_, err := s.StartExperimentCurrentVersion()
@@ -824,9 +834,6 @@ func (s *BaseSuite) WaitForDaemonToStop(f func(), opts ...backoff.RetryOption) {
 
 	originalStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, originalPID)
 	s.Require().NoError(err)
-
-	s.startxperf()
-	defer s.collectxperf()
 
 	f()
 

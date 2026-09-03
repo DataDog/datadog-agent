@@ -6,11 +6,63 @@
 package payload
 
 import (
+	"encoding/json"
 	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestNetworkPathTestConfigSourceJSON(t *testing.T) {
+	tests := []struct {
+		name        string
+		source      TestConfigSource
+		expectField bool
+	}{
+		{name: "unset", expectField: false},
+		{name: "remote", source: TestConfigSourceRemote, expectField: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw, err := json.Marshal(NetworkPath{TestConfigSource: tt.source})
+			require.NoError(t, err)
+
+			var decoded map[string]any
+			require.NoError(t, json.Unmarshal(raw, &decoded))
+			if !tt.expectField {
+				require.NotContains(t, decoded, "test_config_source")
+				return
+			}
+			require.Equal(t, string(tt.source), decoded["test_config_source"])
+		})
+	}
+}
+
+func TestNetworkPathDynamicTestProfileJSON(t *testing.T) {
+	tests := []struct {
+		name        string
+		profile     DynamicTestProfile
+		expectField bool
+	}{
+		{name: "unset", expectField: false},
+		{name: "basic", profile: DynamicTestProfileBasic, expectField: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw, err := json.Marshal(NetworkPath{DynamicTestProfile: tt.profile})
+			require.NoError(t, err)
+
+			var decoded map[string]any
+			require.NoError(t, json.Unmarshal(raw, &decoded))
+			if !tt.expectField {
+				require.NotContains(t, decoded, "dynamic_test_profile")
+				return
+			}
+			require.Equal(t, string(tt.profile), decoded["dynamic_test_profile"])
+		})
+	}
+}
 
 func TestICMPMode(t *testing.T) {
 	require.True(t, ICMPModeNone.ShouldUseICMP(ProtocolICMP))

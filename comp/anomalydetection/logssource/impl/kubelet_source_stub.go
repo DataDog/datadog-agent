@@ -8,13 +8,13 @@
 package logssourceimpl
 
 import (
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-// registerKubeletJournaldSource is a no-op when either kubelet support or
-// systemd is not compiled in: the kubelet journald source can only do useful
-// work when both tags are set.
-func registerKubeletJournaldSource(_ *sources.LogSources, logger log.Component) {
-	logger.Debugf("[observer/logssource] kubelet journald source not registered: requires kubelet+systemd build tags")
+// registerKubeletJournaldSource is a no-op stub; journald tailing requires
+// both kubelet and systemd build tags. Returns nil (no source created).
+func registerKubeletJournaldSource(_ *sources.LogSources) *sources.LogSource {
+	logging.Debugf("logssource kubelet journald source not registered: requires kubelet+systemd build tags")
+	return nil
 }

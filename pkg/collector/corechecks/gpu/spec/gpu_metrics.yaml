@@ -177,6 +177,54 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  clock.throttle_reasons.hw_power_brake_slowdown:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled due to an external power brake assertion
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  clock.throttle_reasons.hw_slowdown:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled by hardware slowdown
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  clock.throttle_reasons.hw_thermal_slowdown:
+    metadata:
+      metric_type: gauge
+      description: GPU clocks that are throttled by hardware thermal slowdown
+      aggregation: sensor_data
+    tagsets:
+      - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   clock.throttle_reasons.none:
     metadata:
       metric_type: gauge
@@ -234,6 +282,24 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures:
+        - fermi
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  clock.throttled_while_active:
+    metadata:
+      metric_type: gauge
+      description: Whether the GPU clock is throttled for a reason other than the GPU being idle
+      aggregation: sensor_data
+    tagsets:
+      - device
+    custom_tags:
+      - throttle_reason
     validator:
       values: [0, 1]
     support:
@@ -361,6 +427,23 @@ metrics:
         mig: false
         physical: true
         vgpu: true
+  errors.ecc.corrected.volatile:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Corrected ECC (Error Correcting Code) errors since the last driver load
+        or device reset. Recurring corrected errors can be an early sign of
+        degrading memory or underlying hardware issues.
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: true
   errors.ecc.uncorrected.total:
     metadata:
       metric_type: gauge
@@ -371,6 +454,23 @@ metrics:
         to data corruption, application crashes, or incorrect computation
         results. The counter reports errors seen for the entire lifetime of the device.
       aggregation: lifetime_error
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: true
+  errors.ecc.uncorrected.volatile:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Uncorrectable ECC (Error Correcting Code) errors since the last driver
+        load or device reset. These errors can lead to data corruption,
+        application crashes, or incorrect computation results.
     tagsets:
       - device
     custom_tags:
@@ -422,6 +522,29 @@ metrics:
         mig: false
         physical: true
         vgpu: true
+  errors.ecc.sram.uncorrected_by_subtype.volatile:
+    metadata:
+      metric_type: gauge
+      description: >-
+        SRAM uncorrectable ECC errors since the last driver load or device reset,
+        split by subtype.
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+      - error_subtype
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: true
   ecc.repair_pending.channel:
     metadata:
       metric_type: gauge
@@ -448,6 +571,26 @@ metrics:
         - pascal
         - volta
         - turing
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  errors.xid:
+    metadata:
+      metric_type: counter
+      description: >-
+        XID errors received during the last collection interval. XID errors are
+        NVIDIA driver error codes that indicate GPU hardware or software issues
+        like thermal throttling to hardware defects. Investigate these errors
+        immediately as they often precede total GPU failures.
+      aggregation: interval_count
+    tagsets:
+      - device
+    custom_tags:
+      - origin
+      - type
+    support:
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
@@ -741,6 +884,25 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  device.needs_recovery:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the GPU requires a recovery action (e.g. reset or reboot) as
+        reported by NVML's GPU recovery action field. 0 means no action is
+        needed, 1 means a recovery action is required. The recovery_action tag
+        indicates the specific action.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    custom_tags:
+      - recovery_action
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   nvlink.count.active:
     metadata:
       metric_type: gauge
@@ -753,7 +915,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       capabilities_required:
         nvlink: 1
   nvlink.count.inactive:
@@ -768,7 +930,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       capabilities_required:
         nvlink: 1
   nvlink.count.total:
@@ -783,7 +945,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       capabilities_required:
         nvlink: 1
   nvlink.ber.effective:
@@ -801,7 +963,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.ber.symbol:
     metadata:
       metric_type: gauge
@@ -816,7 +978,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.crc.data:
     metadata:
       metric_type: gauge
@@ -876,7 +1038,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.ecc:
     metadata:
       metric_type: gauge
@@ -916,7 +1078,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.local.link.integrity:
     metadata:
       metric_type: gauge
@@ -933,7 +1095,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.malformed.packet:
     metadata:
       metric_type: gauge
@@ -950,7 +1112,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.recovery:
     metadata:
       metric_type: gauge
@@ -1010,7 +1172,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.rx.general:
     metadata:
       metric_type: gauge
@@ -1027,7 +1189,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.rx.remote:
     metadata:
       metric_type: gauge
@@ -1044,7 +1206,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.symbol:
     metadata:
       metric_type: gauge
@@ -1061,7 +1223,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.nvswitch_connected:
     metadata:
       metric_type: gauge
@@ -1080,7 +1242,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 3
+        nvlink: 4
   nvlink.plr.codes_loss:
     metadata:
       metric_type: gauge
@@ -1096,7 +1258,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.rx.code_err:
     metadata:
       metric_type: gauge
@@ -1111,7 +1273,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.rx.codes:
     metadata:
       metric_type: gauge
@@ -1126,7 +1288,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.rx.uncorrectable_code:
     metadata:
       metric_type: gauge
@@ -1141,7 +1303,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.sync_events:
     metadata:
       metric_type: gauge
@@ -1156,7 +1318,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.codes:
     metadata:
       metric_type: gauge
@@ -1171,7 +1333,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.retry_codes:
     metadata:
       metric_type: gauge
@@ -1186,7 +1348,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.retry_events:
     metadata:
       metric_type: gauge
@@ -1201,7 +1363,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.retry_events_within_t_sec_max:
     metadata:
       metric_type: gauge
@@ -1217,7 +1379,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec:
     metadata:
       metric_type: histogram
@@ -1235,7 +1397,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec.heavy:
     metadata:
       metric_type: gauge
@@ -1253,7 +1415,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec.light:
     metadata:
       metric_type: gauge
@@ -1271,7 +1433,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec.none:
     metadata:
       metric_type: gauge
@@ -1286,7 +1448,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.speed:
     metadata:
       metric_type: gauge
@@ -1325,7 +1487,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.recovery.events.successful:
     metadata:
       metric_type: gauge
@@ -1343,7 +1505,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.rx.packets:
     metadata:
       metric_type: gauge
@@ -1358,7 +1520,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.throughput.data.rx:
     metadata:
       metric_type: gauge
@@ -1542,7 +1704,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.tx.packets:
     metadata:
       metric_type: gauge
@@ -1557,7 +1719,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   c2c.errors.interrupt:
     metadata:
       metric_type: gauge

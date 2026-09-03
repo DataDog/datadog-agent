@@ -1,11 +1,11 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "ptracer",
     srcs = [
         "container_context.go",
         "cws.go",
-        "erpc.go",
         "exec.go",
         "fim_handlers.go",
         "hooks.go",
@@ -15,7 +15,6 @@ go_library(
         "process.go",
         "process_handlers.go",
         "ptracer.go",
-        "span.go",
         "state.go",
         "syscalls_amd64.go",
         "syscalls_arm64.go",
@@ -29,10 +28,9 @@ go_library(
             "//pkg/security/proto/ebpfless",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
-            "//pkg/security/secl/model/utils",
             "//pkg/security/utils/cgroup",
             "//pkg/util/safeelf",
-            "@com_github_avast_retry_go_v4//:retry-go",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_elastic_go_seccomp_bpf//:go-seccomp-bpf",
             "@com_github_elastic_go_seccomp_bpf//arch",
             "@com_github_shirou_gopsutil_v4//process",
@@ -45,10 +43,9 @@ go_library(
             "//pkg/security/proto/ebpfless",
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
-            "//pkg/security/secl/model/utils",
             "//pkg/security/utils/cgroup",
             "//pkg/util/safeelf",
-            "@com_github_avast_retry_go_v4//:retry-go",
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_elastic_go_seccomp_bpf//:go-seccomp-bpf",
             "@com_github_elastic_go_seccomp_bpf//arch",
             "@com_github_shirou_gopsutil_v4//process",
@@ -110,11 +107,10 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "ptracer_test",
     srcs = ["ptracer_test.go"],
     embed = [":ptracer"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_kraken_hpc_go_fork//:go-fork",

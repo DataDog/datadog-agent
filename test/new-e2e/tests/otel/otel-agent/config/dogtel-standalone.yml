@@ -17,6 +17,13 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
+  # Collects Kubernetes objects (pods) and emits them as logs. Feeds the
+  # orchestrator (Kubernetes Resources) path of the datadog exporter.
+  k8sobjects:
+    objects:
+      - name: pods
+        mode: pull
+        interval: 30s
 
 exporters:
   datadog:
@@ -26,10 +33,25 @@ exporters:
       key: ${env:DD_API_KEY}
     sending_queue:
       batch:
+    # Route k8sobjects logs to the orchestrator intake. Only takes effect in
+    # standalone mode (DD_OTEL_STANDALONE=true). The endpoint is injected by the
+    # E2E deployment so manifests are captured by fakeintake.
+    orchestrator_explorer:
+      enabled: true
 
 processors:
   infraattributes:
     cardinality: 2
+  # TranslateK8sObjects drops any resource missing k8s.cluster.uid / k8s.cluster.name,
+  # and the stock k8sobjects receiver does not emit them, so inject them here.
+  resource/k8smeta:
+    attributes:
+      - key: k8s.cluster.uid
+        value: "dogtel-standalone-e2e"
+        action: upsert
+      - key: k8s.cluster.name
+        value: "dogtel-standalone-e2e"
+        action: upsert
 
 connectors:
   datadog/connector:
@@ -56,4 +78,8 @@ service:
     logs:
       receivers: [otlp]
       processors: [infraattributes]
+      exporters: [datadog]
+    logs/orchestrator:
+      receivers: [k8sobjects]
+      processors: [resource/k8smeta]
       exporters: [datadog]

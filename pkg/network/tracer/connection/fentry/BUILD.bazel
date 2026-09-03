@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fentry",
+    srcs = [
+        "manager.go",
+        "probes.go",
+        "tracer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/features",
+            "//pkg/ebpf/perf",
+            "//pkg/ebpf/telemetry",
+            "//pkg/network/config",
+            "//pkg/network/ebpf",
+            "//pkg/network/ebpf/probes",
+            "//pkg/network/filter",
+            "//pkg/network/tracer/connection/ssl-uprobes",
+            "//pkg/network/tracer/connection/util",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/features",
+            "//pkg/ebpf/perf",
+            "//pkg/ebpf/telemetry",
+            "//pkg/network/config",
+            "//pkg/network/ebpf",
+            "//pkg/network/ebpf/probes",
+            "//pkg/network/filter",
+            "//pkg/network/tracer/connection/ssl-uprobes",
+            "//pkg/network/tracer/connection/util",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "//conditions:default": [],
+    }),
+)

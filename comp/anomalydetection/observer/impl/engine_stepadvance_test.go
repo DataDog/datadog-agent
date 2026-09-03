@@ -18,7 +18,25 @@ type fixedDetector struct {
 	fired     bool
 }
 
+type inactiveEvictionDetector struct {
+	seenSeries int
+	removed    []observer.SeriesRef
+}
+
+func (*inactiveEvictionDetector) Name() string { return "inactive_eviction" }
+func (*inactiveEvictionDetector) Ready() bool  { return true }
+
+func (d *inactiveEvictionDetector) Detect(storage observer.StorageReader, _ int64) observer.DetectionResult {
+	d.seenSeries = len(storage.ListSeries(observer.WorkloadSeriesFilter()))
+	return observer.DetectionResult{}
+}
+
+func (d *inactiveEvictionDetector) RemoveSeries(refs []observer.SeriesRef) {
+	d.removed = append(d.removed, refs...)
+}
+
 func (d *fixedDetector) Name() string { return "fixed" }
+func (*fixedDetector) Ready() bool    { return true }
 
 func (d *fixedDetector) Detect(_ observer.StorageReader, _ int64) observer.DetectionResult {
 	if d.fired {
@@ -38,7 +56,12 @@ func makeTestAnomaly(name string, ts int64) observer.Anomaly {
 }
 
 func makeEngine(anomalies []observer.Anomaly) (*engine, *TimeClusterCorrelator) {
-	storage := newTimeSeriesStorage()
+	storageCfg := DefaultStorageConfig()
+	// These tests intentionally detect anomalies more than 120 seconds behind
+	// the advance time. Keep their source points for the whole fixture, matching
+	// the detector-derived retention used by the live Observer.
+	storageCfg.PointRetentionSecs = 400
+	storage := newTimeSeriesStorageWith(storageCfg)
 	for sec := int64(0); sec < 400; sec++ {
 		storage.Add("ns", "metric_a", 100.0, sec, nil)
 		storage.Add("ns", "metric_b", 100.0, sec, nil)
@@ -48,9 +71,10 @@ func makeEngine(anomalies []observer.Anomaly) (*engine, *TimeClusterCorrelator) 
 	detector := &fixedDetector{anomalies: anomalies}
 
 	e := newEngine(engineConfig{
-		storage:     storage,
-		detectors:   []observer.Detector{detector},
-		correlators: []observer.Correlator{correlator},
+		storage:                 storage,
+		detectors:               []observer.Detector{detector},
+		correlators:             []observer.Correlator{correlator},
+		trackCorrelationHistory: true, // tests that call AccumulatedCorrelations need this
 	})
 	return e, correlator
 }
@@ -78,6 +102,29 @@ func TestStepAdvance_SingleTimestampGroupFarBehindUpTo(t *testing.T) {
 	if len(accumulated) > 0 {
 		assert.Equal(t, 2, len(accumulated[0].Anomalies), "cluster should contain both anomalies")
 	}
+}
+
+func TestEngineRecordsDeduplicatedDetectorEmissionsBeforeCorrelation(t *testing.T) {
+	e, _ := makeEngine([]observer.Anomaly{
+		makeTestAnomaly("metric_a", 100),
+		makeTestAnomaly("metric_b", 100),
+	})
+
+	var got []struct{ detector, severity string }
+	e.onDetectorEmission = func(detector, severity string) {
+		got = append(got, struct{ detector, severity string }{detector, severity})
+	}
+
+	e.Advance(310)
+	// The fixture emits score-less ScanMW anomalies, which the scorer classifies
+	// as xlow using ScanMW's configured score thresholds.
+	assert.Equal(t, []struct{ detector, severity string }{{"scanmw", "xlow"}, {"scanmw", "xlow"}}, got)
+
+	// Re-emit the same raw output. It is still a detector result, but it is a
+	// duplicate and therefore must not inflate the scorer-facing metric.
+	e.detectors[0].(*fixedDetector).fired = false
+	e.Advance(311)
+	assert.Len(t, got, 2)
 }
 
 // TestStepAdvance_MultipleTimestampGroupsFarBehindUpTo tests that clusters from
@@ -125,9 +172,10 @@ func TestStepAdvance_SuccessiveAdvanceCallsPreserveClusters(t *testing.T) {
 	correlator := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
 
 	e := newEngine(engineConfig{
-		storage:     storage,
-		detectors:   []observer.Detector{detector},
-		correlators: []observer.Correlator{correlator},
+		storage:                 storage,
+		detectors:               []observer.Detector{detector},
+		correlators:             []observer.Correlator{correlator},
+		trackCorrelationHistory: true,
 	})
 
 	// First advance: detects anomalies at ts=100, upTo=310.
@@ -161,4 +209,59 @@ func TestStepAdvance_SingleGroupWithinWindow(t *testing.T) {
 	accumulated := e.AccumulatedCorrelations()
 	t.Logf("Accumulated: %d correlations", len(accumulated))
 	assert.NotEmpty(t, accumulated, "cluster within window should always be accumulated")
+}
+
+func TestEngine_EvictsInactiveSeriesBeforeDetectionAtConfiguredCadence(t *testing.T) {
+	storageCfg := DefaultStorageConfig()
+	storageCfg.PointRetentionSecs = 0
+	storageCfg.MaxSeries = 0
+	storageCfg.InactiveSeriesTTLSeconds = 1_200
+	storageCfg.InactiveSeriesCheckIntervalSeconds = 300
+	storage := newTimeSeriesStorageWith(storageCfg)
+	old := storage.Add("ns", "old", 1, 100, nil).Ref
+	active := storage.Add("ns", "active", 1, 101, nil).Ref
+	detector := &inactiveEvictionDetector{}
+	e := newEngine(engineConfig{storage: storage, detectors: []observer.Detector{detector}})
+
+	var evictionReasons []string
+	e.onStorageSeriesEvicted = func(reason string, _ int) {
+		evictionReasons = append(evictionReasons, reason)
+	}
+
+	// The first advance always scans. At this exact cutoff old is stale while
+	// active remains; the detector must only see active.
+	e.Advance(1_300)
+	assert.Nil(t, storage.GetSeriesMeta(old))
+	assert.NotNil(t, storage.GetSeriesMeta(active))
+	assert.Equal(t, 1, detector.seenSeries)
+	assert.Equal(t, []observer.SeriesRef{old}, detector.removed)
+	assert.Equal(t, []string{"inactive"}, evictionReasons)
+
+	// Add an already-stale series after the first scan. It is retained until
+	// the full 5-minute advance interval elapses.
+	pending := storage.Add("ns", "pending", 1, 200, nil).Ref
+	e.Advance(1_599)
+	assert.NotNil(t, storage.GetSeriesMeta(pending))
+	assert.Len(t, detector.removed, 1)
+
+	// At the exact interval boundary the next scan removes both remaining
+	// stale series and notifies the detector.
+	e.Advance(1_600)
+	assert.Nil(t, storage.GetSeriesMeta(active))
+	assert.Nil(t, storage.GetSeriesMeta(pending))
+	assert.ElementsMatch(t, []observer.SeriesRef{old, active, pending}, detector.removed)
+	assert.Equal(t, []string{"inactive", "inactive"}, evictionReasons)
+}
+
+func TestEngine_InactiveSeriesEvictionDisabled(t *testing.T) {
+	storageCfg := DefaultStorageConfig()
+	storageCfg.PointRetentionSecs = 0
+	storageCfg.InactiveSeriesTTLSeconds = 0
+	storage := newTimeSeriesStorageWith(storageCfg)
+	ref := storage.Add("ns", "old", 1, 0, nil).Ref
+	e := newEngine(engineConfig{storage: storage})
+
+	e.Advance(10_000)
+
+	assert.NotNil(t, storage.GetSeriesMeta(ref))
 }

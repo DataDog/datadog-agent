@@ -43,14 +43,14 @@ func CreatePod(pod *workloadmeta.KubernetesPod) *workloadfilter.Pod {
 			Name:        pod.Name,
 			Namespace:   pod.Namespace,
 			Annotations: pod.Annotations,
-			Rootowner:   resolveRootOwner(pod.Owners),
+			Rootowner:   resolveRootOwner(pod.Owners, pod.Labels),
 		},
 	}
 }
 
 // resolveRootOwner determines the root owner of a pod by walking the owner chain.
 // For example, a pod owned by a ReplicaSet resolves to the parent Deployment.
-func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner) *core.FilterRootOwner {
+func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner, podLabels map[string]string) *core.FilterRootOwner {
 	if len(owners) == 0 {
 		return nil
 	}
@@ -65,6 +65,15 @@ func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner) *core.FilterRoot
 
 	switch owner.Kind {
 	case kubernetes.ReplicaSetKind:
+		// Argo Rollouts manage ReplicaSets named like Deployment ones (`<owner>-<hash>`),
+		// so the rollout pod label is the only way to tell the two apart here. A real
+		// Rollout always sets a non-empty hash, so an empty value is not one.
+		if podLabels[kubernetes.ArgoRolloutLabelKey] != "" {
+			if rollout := kubernetes.ParseDeploymentForReplicaSet(owner.Name); rollout != "" {
+				return &core.FilterRootOwner{Kind: kubernetes.RolloutKind, Name: rollout}
+			}
+			return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
+		}
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name); deployment != "" {
 			return &core.FilterRootOwner{Kind: kubernetes.DeploymentKind, Name: deployment}
 		}
@@ -74,7 +83,7 @@ func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner) *core.FilterRoot
 			return &core.FilterRootOwner{Kind: kubernetes.CronJobKind, Name: cronjob}
 		}
 		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
-	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind:
+	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.StrimziPodSetKind:
 		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
 	default:
 		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}

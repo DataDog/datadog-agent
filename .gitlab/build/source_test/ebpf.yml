@@ -11,23 +11,22 @@
 .tests_linux_ebpf:
   stage: source_test
   extends: .unit_test_base
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["go_deps"]
   variables:
-    KUBERNETES_MEMORY_REQUEST: "16Gi"
-    KUBERNETES_MEMORY_LIMIT: "16Gi"
-    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_REQUEST: "24Gi"
+    KUBERNETES_MEMORY_LIMIT: "24Gi"
+    KUBERNETES_CPU_REQUEST: 8
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
   script:
     - dda inv -- -e system-probe.object-files
-    - dda inv -- -e linter.go --build system-probe-unit-tests --cpus 4 --targets ./pkg
+    - dda inv -- -e linter.go --build system-probe-unit-tests --cpus $KUBERNETES_CPU_REQUEST --targets ./pkg
     - dda inv -- -e security-agent.run-ebpf-unit-tests --verbose
     # Run a subset of the dyninst tests that will at least exercise analysis of
     # the test programs to try to prevent skew between concurrent changes.
-    - dda inv -- -e system-probe.build-dyninst-test-programs
+    - dda inv -- -e system-probe.build-dyninst-test-programs --ci
     - dda inv -- -e system-probe.test --packages='pkg/dyninst/irgen pkg/dyninst/symdb' --extra-arguments=--short --skip-object-files
-    - dda inv -- -e linter.go --targets=./pkg/security/tests --cpus 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata"
+    - dda inv -- -e linter.go --targets=./pkg/security/tests --cpus $KUBERNETES_CPU_REQUEST --build-tags="functionaltests,stresstests,trivy,containerd,bpf,ebpf_bindata"
 
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
@@ -40,12 +39,9 @@ tests_ebpf_x64:
 
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
+  timeout: 25m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
-  needs: ["go_deps", "go_tools_deps_arm64"]
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps_arm64]
   variables:
     ARCH: arm64
     TASK_ARCH: arm64
@@ -78,8 +74,8 @@ prepare_sysprobe_ebpf_functional_tests_arm64:
   tags: ["arch:arm64", "specific:true"]
   variables:
     ARCH: arm64
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 prepare_sysprobe_ebpf_functional_tests_x64:
   extends: .prepare_sysprobe_ebpf_functional_tests
@@ -87,8 +83,8 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   tags: ["arch:amd64", "specific:true"]
   variables:
     ARCH: amd64
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"
 
 .prepare_secagent_ebpf_functional_tests:
   extends: .bazel:defs:cache:progressive
@@ -101,6 +97,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
     KUBERNETES_CPU_REQUEST: 4
     KUBERNETES_MEMORY_REQUEST: "12Gi"
     KUBERNETES_MEMORY_LIMIT: "12Gi"
+    GIT_DEPTH: 0  # Full history: kmt.prepare embeds git merge-base in the testsuite binary
   artifacts:
     when: always
     paths:
@@ -119,8 +116,8 @@ prepare_secagent_ebpf_functional_tests_arm64:
   tags: ["arch:arm64", "specific:true"]
   variables:
     ARCH: arm64
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 prepare_secagent_ebpf_functional_tests_x64:
   extends: .prepare_secagent_ebpf_functional_tests
@@ -128,5 +125,5 @@ prepare_secagent_ebpf_functional_tests_x64:
   tags: ["arch:amd64", "specific:true"]
   variables:
     ARCH: amd64
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"

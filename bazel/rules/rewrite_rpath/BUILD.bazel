@@ -1,4 +1,3 @@
-exports_files([
-    "macos.sh",
-    "macos_dir.sh",
-])
+load(":rewrite_rpath_test.bzl", "rewrite_rpath_test_suite")
+
+rewrite_rpath_test_suite(name = "rewrite_rpath_tests")

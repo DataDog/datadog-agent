@@ -8,17 +8,19 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import ALLOWED_REPO_NIGHTLY_BRANCHES
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.libs.releasing.json import get_current_milestone
 from tasks.libs.releasing.version import query_version
+from tasks.schema.generate import schema_codegen
 
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
 CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
 PPROFILE_MODULE = "go.opentelemetry.io/collector/pdata/pprofile"
-PPROFILE_MAX_VERSION = "v0.154.0"
+PPROFILE_MAX_VERSION = "v0.159.0"
 
 BIN_NAME = "host-profiler"
 BIN_DIR = os.path.join(".", "bin", "host-profiler")
@@ -61,7 +63,7 @@ def _get_profiler_agent_version(ctx):
 
 
 @task
-def build(ctx):
+def build(ctx, enable_bazel=False):
     """
     Build the host profiler
     """
@@ -69,30 +71,31 @@ def build(ctx):
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
-    env = {"GO111MODULE": "on"}
-    build_tags = get_default_build_tags(build="host-profiler")
-    ldflags = get_version_ldflags(ctx)
-    if profiler_version := _get_profiler_agent_version(ctx):
-        ldflags += f" -X {REPO_PATH}/pkg/version.AgentVersion={profiler_version}"
-    if os.environ.get("DELVE"):
-        gcflags = "all=-N -l"
-    else:
-        gcflags = ""
-
     # generate windows resources
     if sys.platform == 'win32':
         raise Exit("Windows is not supported for host-profiler")
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/host-profiler",
-        mod="readonly",
-        build_tags=build_tags,
-        ldflags=ldflags,
-        gcflags=gcflags,
-        bin_path=BIN_PATH,
-        env=env,
-    )
+    if enable_bazel:
+        args = []
+        if profiler_version := _get_profiler_agent_version(ctx):
+            args.append(f"--repo_env=FORCE_AGENT_VERSION={profiler_version}")
+        build_binary_with_bazel("//cmd/host-profiler:host-profiler", args=args, bin_path=BIN_PATH)
+    else:
+        build_tags = get_default_build_tags(build="host-profiler")
+        ldflags, gcflags, env = get_build_flags(ctx)
+        if profiler_version := _get_profiler_agent_version(ctx):
+            ldflags += f" -X {REPO_PATH}/pkg/version.AgentVersion={profiler_version}"
+
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/host-profiler",
+            mod="readonly",
+            build_tags=build_tags,
+            ldflags=ldflags,
+            gcflags=gcflags,
+            bin_path=BIN_PATH,
+            env=env,
+        )
 
     dist_folder = os.path.join(BIN_DIR, "dist")
     if os.path.exists(dist_folder):
@@ -111,6 +114,9 @@ def update_golden_tests(ctx):
     Update golden test files for host-profiler converters
     """
     print("Updating golden test files...")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
 
     test_paths = ["comp/host-profiler/collector/impl/converters", "comp/host-profiler/collector/impl/agentprovider"]
     for path in test_paths:
@@ -146,12 +152,12 @@ def _get_agent_module_version(ctx: Context, module: str) -> str:
 
 
 def _parse_semver(version: str) -> tuple[int, ...]:
-    """Parse a release semver string (e.g. 'v0.150.0') into a tuple of ints.
+    """Parse a semver string (e.g. 'v0.150.0' or pseudo-versions) into a tuple of ints.
 
-    Only handles clean major.minor.patch tags — pseudo-versions or pre-release
-    suffixes will raise Exit with a clear message.
+    Strips any pre-release suffix (everything from the first '-' onward) before
+    parsing, so pseudo-versions like 'v0.155.1-0.20260625...' are handled correctly.
     """
-    v = version.lstrip("v")
+    v = version.lstrip("v").split("-")[0]
     parts = v.split(".")
     try:
         return tuple(int(p) for p in parts)

@@ -1,10 +1,18 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "process",
     srcs = [
+        "go_labels.go",
+        "go_labels_tls_amd64.go",
+        "go_labels_tls_arm64.go",
+        "go_labels_tls_unsupported.go",
         "opts_linux.go",
         "opts_windows.go",
+        "otel_tls.go",
+        "otel_tls_upstream_access.go",
+        "otel_tls_upstream_pfelf.go",
         "resolver_ebpf.go",
         "resolver_ebpf_test_helpers.go",
         "resolver_ebpfless.go",
@@ -16,10 +24,13 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/model",
             "//pkg/security/ebpf",
             "//pkg/security/metrics",
+            "//pkg/security/otelprocessctx",
             "//pkg/security/probe/config",
             "//pkg/security/probe/managerhelper",
+            "//pkg/security/probe/procfs",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/envvars",
             "//pkg/security/resolvers/mount",
@@ -33,19 +44,26 @@ go_library(
             "//pkg/security/utils",
             "//pkg/util/kernel",
             "//pkg/util/ktime",
+            "//pkg/util/safeelf",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_hashicorp_golang_lru_v2//simplelru",
             "@com_github_shirou_gopsutil_v4//process",
+            "@io_opentelemetry_go_ebpf_profiler//libc",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfbufio",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfunsafe",
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/discovery/tracermetadata",
+            "//pkg/discovery/tracermetadata/model",
             "//pkg/security/ebpf",
             "//pkg/security/metrics",
+            "//pkg/security/otelprocessctx",
             "//pkg/security/probe/config",
             "//pkg/security/probe/managerhelper",
+            "//pkg/security/probe/procfs",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/envvars",
             "//pkg/security/resolvers/mount",
@@ -59,11 +77,15 @@ go_library(
             "//pkg/security/utils",
             "//pkg/util/kernel",
             "//pkg/util/ktime",
+            "//pkg/util/safeelf",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_hashicorp_golang_lru_v2//simplelru",
             "@com_github_shirou_gopsutil_v4//process",
+            "@io_opentelemetry_go_ebpf_profiler//libc",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfbufio",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfunsafe",
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:windows": [
@@ -77,14 +99,92 @@ go_library(
             "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "//conditions:default": [],
+    }) + select({
+        "@rules_go//go/platform:android_386": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:android_amd64": [
+            "@io_opentelemetry_go_ebpf_profiler//asm/amd",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@io_opentelemetry_go_ebpf_profiler//nativeunwind/elfunwindinfo",
+        ],
+        "@rules_go//go/platform:android_arm": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:android_arm64": [
+            "@io_opentelemetry_go_ebpf_profiler//asm/arm",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@io_opentelemetry_go_ebpf_profiler//nativeunwind/elfunwindinfo",
+            "@org_golang_x_arch//arm64/arm64asm",
+        ],
+        "@rules_go//go/platform:linux_386": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux_amd64": [
+            "@io_opentelemetry_go_ebpf_profiler//asm/amd",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@io_opentelemetry_go_ebpf_profiler//nativeunwind/elfunwindinfo",
+        ],
+        "@rules_go//go/platform:linux_arm": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux_arm64": [
+            "@io_opentelemetry_go_ebpf_profiler//asm/arm",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+            "@io_opentelemetry_go_ebpf_profiler//nativeunwind/elfunwindinfo",
+            "@org_golang_x_arch//arm64/arm64asm",
+        ],
+        "@rules_go//go/platform:linux_mips": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux_mips64": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux_mips64le": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux_mipsle": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux_ppc64": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux_ppc64le": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux_riscv64": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux_s390x": [
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "//conditions:default": [],
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "process_test",
-    srcs = ["resolver_test.go"],
+    srcs = [
+        "go_labels_test.go",
+        "resolver_test.go",
+    ],
     embed = [":process"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/probe/config",
@@ -93,8 +193,11 @@ go_test(
             "//pkg/security/resolvers/usergroup",
             "//pkg/security/secl/model",
             "//pkg/util/ktime",
+            "//pkg/util/safeelf",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/probe/config",
@@ -103,8 +206,11 @@ go_test(
             "//pkg/security/resolvers/usergroup",
             "//pkg/security/secl/model",
             "//pkg/util/ktime",
+            "//pkg/util/safeelf",
             "@com_github_datadog_datadog_go_v5//statsd",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
         ],
         "//conditions:default": [],
     }),

@@ -195,8 +195,25 @@ func (nc *NetworkContext) IsZero() bool {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64        `field:"-"`
-	TraceID utils.TraceID `field:"-"`
+	SpanID        uint64            `field:"-"`
+	TraceID       utils.TraceID     `field:"-"`
+	HasExtraAttrs bool              `field:"-"`
+	ExtraAttrsID  uint64            `field:"-"`
+	Attributes    map[string]string `field:"-"`
+}
+
+// Tracer bundles the per-process APM tracer state: static metadata captured
+// from the tracer-info memfd, plus the most recent span context observed for
+// this process. Cross-platform so the model.go-level accessors compile on
+// both Linux and Windows builds.
+type Tracer struct {
+	Metadata tracermetadata.TracerMetadata
+	Trace    SpanContext
+	// ThreadlocalAttributeKeys is the ordered list of attribute key names the
+	// process published in its OTel process context (OTEP 4947). The key indices
+	// of a thread context record index into it to resolve the full attribute
+	// name.
+	ThreadlocalAttributeKeys []string
 }
 
 // RuleContext defines a rule context
@@ -398,7 +415,7 @@ func (e *Event) GetProcessTracerMetadata() tracermetadata.TracerMetadata {
 	if e.BaseEvent.ProcessContext == nil {
 		return tracermetadata.TracerMetadata{}
 	}
-	return e.BaseEvent.ProcessContext.Process.TracerMetadata
+	return e.BaseEvent.ProcessContext.Process.Tracer.Metadata
 }
 
 // UserSessionContext describes the user session context
@@ -559,11 +576,6 @@ type SnapshottedBoundSocket struct {
 	Port     uint16
 	Family   uint16
 	Protocol uint16
-}
-
-// SnapshottedMmapedFile represents a snapshotted memory-mapped file
-type SnapshottedMmapedFile struct {
-	Path string
 }
 
 // ProcessCacheEntry this struct holds process context kept in the process tree
@@ -738,8 +750,8 @@ type AWSIMDSEvent struct {
 // AWSSecurityCredentials is used to parse the fields that are none to be free of credentials or secrets
 type AWSSecurityCredentials struct {
 	Code        string    `field:"-" json:"Code"`
-	Type        string    `field:"type" json:"Type"` // SECLDoc[type] Definition:`the security credentials type`
-	AccessKeyID string    `field:"-" json:"AccessKeyId"`
+	Type        string    `field:"type" json:"Type"`                 // SECLDoc[type] Definition:`The security credentials type`
+	AccessKeyID string    `field:"access_key_id" json:"AccessKeyId"` // SECLDoc[access_key_id] Definition:`The access key ID of the security credentials in the IMDS answer`
 	LastUpdated string    `field:"-" json:"LastUpdated"`
 	Expiration  time.Time `field:"-"`
 

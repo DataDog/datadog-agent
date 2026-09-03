@@ -61,6 +61,10 @@ The payload is a JSON dict with the following fields
      (see: `process_config.container_collection.enabled`)
   - `feature_networks_enabled` - **bool**: True if the Network Performance Monitoring is enabled (see:
     `network_config.enabled` config option in `system-probe.yaml`).
+  - `feature_network_path_remote_config_enabled` - **bool**: True if Remote Config is enabled for Network Path (see:
+    `network_path.remote_config.enabled` config option).
+  - `feature_network_path_connections_monitoring_enabled` - **bool**: True if connections monitoring is enabled for Network Path (see:
+    `network_path.connections_monitoring.enabled` config option).
   - `feature_traceroute_enabled` - **bool**: True if the Traceroute module is enabled in the System Probe (see: `traceroute.enabled` config option in `system-probe.yaml`).
   - `feature_oom_kill_enabled` - **bool**: True if the OOM Kill check is enabled for System Probe (see: `system_probe_config.enable_oom_kill` config option in `system-probe.yaml`).
   - `feature_synthetics_collector_enabled` - **bool**: True if Synthetics Test module is enabled.
@@ -132,7 +136,7 @@ The payload is a JSON dict with the following fields
   - `config_id` -- **string**: the Fleet Config ID, the configuration value `config_id`.
   - `auto_instrumentation_modes` -- **array of string**: The injection types enabled for APM Auto-Instrumentation.
   - `infrastructure_mode` -- **string**: The monitoring mode the agent is configured in, each mode offers different
-    amount of feature (default is `full`, other potential values are `end_user_device` or `basic`).
+    amount of feature (default is `full`; other values include `end_user_device`, `basic`, `cloud_cost_only`, and `none`).
   - `application_monitoring_config` -- **string**: the Application Monitoring configuration, as a YAML string.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
@@ -162,6 +166,8 @@ Here an example of an inventory payload:
         "feature_cws_enabled": false,
         "feature_logs_enabled": true,
         "feature_networks_enabled": false,
+        "feature_network_path_remote_config_enabled": false,
+        "feature_network_path_connections_monitoring_enabled": false,
         "feature_traceroute_enabled": false,
         "feature_synthetics_collector_enabled": false,
         "feature_process_enabled": false,

@@ -9,23 +9,28 @@ package ksm
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
 	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
+	ksmutil "k8s.io/kube-state-metrics/v2/pkg/util"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -740,7 +745,7 @@ func TestProcessMetrics(t *testing.T) {
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
-		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
+		mocked := mocksender.NewMockSender(t, kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
 
 		if _, ok := test.metricsToProcess["kube_customresource_metric_info"]; ok {
@@ -1000,7 +1005,7 @@ func TestSendTelemetry(t *testing.T) {
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
-		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
+		mocked := mocksender.NewMockSender(t, kubeStateMetricsSCheck.ID())
 		mocked.SetupAcceptAll()
 
 		kubeStateMetricsSCheck.telemetry = test.cache
@@ -1325,6 +1330,95 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 	}
 }
 
+func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
+	tests := []struct {
+		name             string
+		ownerKind        string
+		ownerName        string
+		argoRolloutLabel string
+		expectedTags     []string
+	}{
+		{
+			name:             "Argo Rollout pod",
+			ownerKind:        kubernetes.ReplicaSetKind,
+			ownerName:        "my-rollout-7f59c78c9b",
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-rollout-7f59c78c9b",
+				"kube_deployment:my-rollout",
+				"kube_argo_rollout:my-rollout",
+			},
+		},
+		{
+			name:      "Deployment pod",
+			ownerKind: kubernetes.ReplicaSetKind,
+			ownerName: "my-deployment-7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-deployment-7f59c78c9b",
+				"kube_deployment:my-deployment",
+			},
+		},
+		{
+			name:             "non-ReplicaSet Argo-labeled pod",
+			ownerKind:        kubernetes.DaemonSetKind,
+			ownerName:        "my-daemonset",
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_daemon_set:my-daemonset",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const (
+				namespace = "default"
+				podName   = "my-rollout-7f59c78c9b-abcde"
+			)
+
+			config := &KSMConfig{
+				LabelsMapper: defaultLabelsMapper(),
+				LabelJoins:   defaultLabelJoins(),
+			}
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			check := newKSMCheck(core.NewCheckBase(CheckName), config, fakeTagger, nil)
+			check.processLabelJoins()
+
+			labelJoiner := newLabelJoiner(config.labelJoins)
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_pod_labels",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:         namespace,
+					"pod":                podName,
+					argoRolloutLabelName: tt.argoRolloutLabel,
+				}}},
+			})
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_pod_info",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:     namespace,
+					"pod":            podName,
+					createdByKindKey: tt.ownerKind,
+					createdByNameKey: tt.ownerName,
+				}}},
+			})
+
+			_, actualTags := check.hostnameAndTags(map[string]string{
+				namespaceKey: namespace,
+				"pod":        podName,
+			}, labelJoiner, nil)
+
+			assert.ElementsMatch(t, tt.expectedTags, actualTags)
+		})
+	}
+}
+
 func TestKSMCheck_processLabelsAsTags(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -1503,6 +1597,27 @@ func TestKSMCheck_processAnnotationsAsTags(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Regression test: a wildcard on the "namespace" kind must not
+			// duplicate the "namespace" entry in labelsToMatch, or insertMetric panics
+			// (`makeslice: cap out of range`) on any un-annotated namespace.
+			name: "With wildcard template on namespace kind",
+			config: &KSMConfig{
+				labelJoins:   map[string]*joinsConfig{},
+				LabelsMapper: map[string]string{},
+				AnnotationsAsTags: map[string]map[string]string{
+					"namespace": {"*": "%%annotation%%"},
+				},
+			},
+			expectedJoins: map[string]*joinsConfig{
+				"kube_namespace_annotations": {
+					labelsToMatch:    []string{"namespace"},
+					labelsToGet:      map[string]string{},
+					getAllLabels:     true,
+					wildcardTemplate: "%%annotation%%",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1551,6 +1666,54 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 			k := &KSMCheck{instance: tt.config}
 			k.mergeLabelsMapper(tt.extra)
 			assert.True(t, reflect.DeepEqual(tt.expected, k.instance.LabelsMapper))
+		})
+	}
+}
+
+func TestKSMCheck_ensureArgoRolloutLabelJoin(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *KSMConfig
+		expected []string
+	}{
+		{
+			name:     "no kube_pod_labels join configured",
+			config:   &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{}},
+			expected: nil,
+		},
+		{
+			name: "user-defined kube_pod_labels join missing the argo label",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {LabelsToGet: []string{"label_team"}},
+			}},
+			expected: []string{"label_team", argoRolloutLabelName},
+		},
+		{
+			name: "user-defined kube_pod_labels join already has the argo label",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {LabelsToGet: []string{argoRolloutLabelName}},
+			}},
+			expected: []string{argoRolloutLabelName},
+		},
+		{
+			name: "user-defined kube_pod_labels join uses get_all_labels",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {GetAllLabels: true},
+			}},
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{instance: tt.config}
+			k.ensureArgoRolloutLabelJoin()
+
+			podLabelJoin, found := k.instance.LabelJoins["kube_pod_labels"]
+			if !found {
+				assert.Nil(t, tt.expected)
+				return
+			}
+			assert.Equal(t, tt.expected, podLabelJoin.LabelsToGet)
 		})
 	}
 }
@@ -1920,16 +2083,18 @@ func TestKSMCheckInitTags(t *testing.T) {
 
 func TestOwnerTags(t *testing.T) {
 	tests := []struct {
-		tc   string
-		kind string
-		name string
-		want []string
+		tc             string
+		kind           string
+		name           string
+		want           []string
+		wantDeployment string
 	}{
 		{
-			tc:   "rs + deploy",
-			kind: "ReplicaSet",
-			name: "foo-6768ddc4d",
-			want: []string{"kube_replica_set:foo-6768ddc4d", "kube_deployment:foo"},
+			tc:             "rs + deploy",
+			kind:           "ReplicaSet",
+			name:           "foo-6768ddc4d",
+			want:           []string{"kube_replica_set:foo-6768ddc4d", "kube_deployment:foo"},
+			wantDeployment: "foo",
 		},
 		{
 			tc:   "rs only",
@@ -1970,7 +2135,9 @@ func TestOwnerTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.tc, func(t *testing.T) {
-			assert.EqualValues(t, tt.want, ownerTags(tt.kind, tt.name))
+			actualTags, actualDeployment := ownerTags(tt.kind, tt.name)
+			assert.EqualValues(t, tt.want, actualTags)
+			assert.Equal(t, tt.wantDeployment, actualDeployment)
 		})
 	}
 }
@@ -1979,14 +2146,189 @@ func BenchmarkOwnerTags(b *testing.B) {
 	b.Run("ReplicaSet", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = ownerTags("ReplicaSet", "foo-6768ddc4d")
+			_, _ = ownerTags("ReplicaSet", "foo-6768ddc4d")
 		}
 	})
 
 	b.Run("Job", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = ownerTags("Job", "foo-1627309500")
+			_, _ = ownerTags("Job", "foo-1627309500")
 		}
 	})
+}
+
+func TestProcessMetrics_SuppressModeMatrix(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	sourceMetric := map[string][]ksmstore.DDMetricsFam{
+		"kube_pod_container_resource_with_owner_tag_requests": {{
+			Name: "kube_pod_container_resource_with_owner_tag_requests",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"},
+				Val:    0.1,
+			}},
+		}},
+		// A non-.total aggregator source (pod.count) must not double-count in aggregatesOnly mode.
+		"kube_pod_info": {{
+			Name: "kube_pod_info",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"},
+				Val:    1,
+			}},
+		}},
+	}
+
+	hasTotalGauge := func(s *mocksender.MockSender) bool {
+		for _, call := range s.Mock.Calls {
+			if call.Method == "Gauge" {
+				if name, ok := call.Arguments.Get(0).(string); ok && strings.Contains(name, ".total") {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	tests := []struct {
+		name         string
+		mode         podCollectionMode
+		flagEnabled  bool
+		wantSuppress bool // node should NOT emit .total when true
+		wantHasTotal bool // node SHOULD emit .total when true
+	}{
+		{
+			name: "node_kubelet + flag=true → suppress (DCA is authoritative)",
+			mode: nodeKubeletPodCollection, flagEnabled: true,
+			wantSuppress: true, wantHasTotal: false,
+		},
+		{
+			name: "node_kubelet + flag=false → emit (safe rollout, DCA not ready)",
+			mode: nodeKubeletPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "cluster_unassigned + flag=true → suppress",
+			mode: clusterUnassignedPodCollection, flagEnabled: true,
+			wantSuppress: true, wantHasTotal: false,
+		},
+		{
+			name: "cluster_unassigned + flag=false → emit",
+			mode: clusterUnassignedPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "default + flag=true → emit (single full-pod check is authoritative, design goal #5)",
+			mode: defaultPodCollection, flagEnabled: true,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "default + flag=false → emit (backwards-compat: feature off, no change)",
+			mode: defaultPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: tt.mode, ClusterAggregatesEnabled: tt.flagEnabled}, fakeTagger, nil)
+
+			s := mocksender.NewMockSender(t, k.ID())
+			s.SetupAcceptAll()
+
+			k.processMetrics(s, sourceMetric, newLabelJoiner(nil), time.Now())
+			for _, agg := range k.metricAggregators {
+				agg.flush(s, k, newLabelJoiner(nil))
+			}
+
+			if tt.wantSuppress {
+				for _, call := range s.Mock.Calls {
+					if call.Method == "Gauge" {
+						name, _ := call.Arguments.Get(0).(string)
+						assert.NotContains(t, name, ".total", "mode=%s flag=%v must suppress .total", tt.mode, tt.flagEnabled)
+					}
+				}
+			}
+			if tt.wantHasTotal {
+				assert.True(t, hasTotalGauge(s), "mode=%s flag=%v must emit .total", tt.mode, tt.flagEnabled)
+			}
+		})
+	}
+}
+
+func TestProcessMetrics_ClusterAggregatesOnly_EmitsOnlyTotalFamily(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: clusterAggregatesOnlyPodCollection, ClusterAggregatesEnabled: true}, fakeTagger, nil)
+
+	metrics := map[string][]ksmstore.DDMetricsFam{
+		"kube_pod_container_resource_with_owner_tag_requests": {{
+			Name: "kube_pod_container_resource_with_owner_tag_requests",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"},
+				Val:    0.1,
+			}},
+		}},
+		// pod.count source: must NOT be accumulated (double-count prevention)
+		"kube_pod_info": {{
+			Name: "kube_pod_info",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"},
+				Val:    1,
+			}},
+		}},
+	}
+
+	s := mocksender.NewMockSender(t, k.ID())
+	s.SetupAcceptAll()
+
+	k.processMetrics(s, metrics, newLabelJoiner(nil), time.Now())
+	for _, agg := range k.metricAggregators {
+		agg.flush(s, k, newLabelJoiner(nil))
+	}
+
+	for _, call := range s.Mock.Calls {
+		if call.Method == "Gauge" {
+			name, _ := call.Arguments.Get(0).(string)
+			// Only .total metrics should be emitted
+			assert.True(t, strings.HasSuffix(name, ".total") || strings.HasPrefix(name, "kubernetes_state.telemetry"),
+				"cluster_aggregates_only must not emit non-.total metric %q", name)
+			// pod.count must not appear (it's a non-.total aggregator)
+			assert.NotContains(t, name, "pod.count")
+		}
+	}
+}
+
+// TestDiscoverCustomResources_ClusterAggregatesOnly guards the wiring that makes
+// cluster_aggregates_only build ONLY the extended pod store: discoverCustomResources
+// must return exactly the extended pods GVR key (not the plain "pods" collector, and
+// not nil). If this regresses, the aggregate pod store is never built and the .total
+// family silently disappears.
+func TestDiscoverCustomResources_ClusterAggregatesOnly(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: clusterAggregatesOnlyPodCollection}, fakeTagger, nil)
+	c := &apiserver.APIClient{Cl: fakeclientset.NewSimpleClientset()}
+
+	cr := k.discoverCustomResources(c, []string{"pods"}, nil)
+
+	assert.Equal(t, []string{extendedCollectors["pods"]}, cr.collectors,
+		"cluster_aggregates_only must enable ONLY the extended pods store, not the standard 'pods' collector")
+	assert.NotContains(t, cr.collectors, "pods",
+		"the standard pods collector must not be enabled in cluster_aggregates_only mode")
+	assert.Len(t, cr.factories, 1, "cluster_aggregates_only should register exactly the extended pod factory")
+}
+
+// TestExtendedPodsCollectorKeyMatchesFactory guards the invariant the whole
+// cluster_aggregates_only fix hinges on: extendedCollectors["pods"] must be byte-for-byte
+// equal to the GVR key the extended pod factory registers under
+// (util.GVRFromType(factory.Name(), factory.ExpectedType())). If either side drifts,
+// enabledResources won't match availableStores, no pod store is built, and .total vanishes.
+func TestExtendedPodsCollectorKeyMatchesFactory(t *testing.T) {
+	f := customresources.NewExtendedPodFactoryForKubelet() // same Name()/ExpectedType() as NewExtendedPodFactory
+	gvr, err := ksmutil.GVRFromType(f.Name(), f.ExpectedType())
+	require.NoError(t, err)
+	require.NotNil(t, gvr)
+	assert.Equal(t, extendedCollectors["pods"], gvr.String(),
+		"extendedCollectors[\"pods\"] must equal the extended pod factory's registered GVR key; "+
+			"if these drift, cluster_aggregates_only builds no pod store and .total disappears")
 }

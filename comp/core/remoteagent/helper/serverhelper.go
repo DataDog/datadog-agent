@@ -8,6 +8,7 @@ package helper
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -17,13 +18,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -76,8 +77,18 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		return nil, errors.New("displayName is required")
 	}
 
-	// create the listener at a random port
-	ral, err := buildRemoteAgentListener("https://127.0.0.1:0")
+	// create the listener at a random port. On vsock-enabled (kata/microVM) clusters, the
+	// remote agent runs in a separate guest VM from the core agent, so the callback listener
+	// (used for status/flare/telemetry pulls) must also be reachable over AF_VSOCK.
+	listenURI := "https://127.0.0.1:0"
+	if vsockAddr := config.GetString("vsock_addr"); vsockAddr != "" {
+		cid, err := discoverLocalVSockCID(vsockAddr, agentIpcAddress)
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine local vsock context ID: %w", err)
+		}
+		listenURI = fmt.Sprintf("vsock://%d:0", cid)
+	}
+	ral, err := buildRemoteAgentListener(listenURI)
 	if err != nil {
 		return nil, err
 	}
@@ -116,8 +127,9 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		if sessionID == "" {
 			return nil, errors.New("remote agent is not registered yet")
 		}
-		err = grpc.SetHeader(ctx, metadata.New(map[string]string{"session_id": sessionID}))
-		if err != nil {
+		// Use a local err so concurrent RPCs (this interceptor runs per request) don't
+		// race on the outer err captured from NewUnimplementedRemoteAgentServer.
+		if err := grpc.SetHeader(ctx, metadata.New(map[string]string{"session_id": sessionID})); err != nil {
 			return nil, err
 		}
 		return handler(ctx, req)
@@ -266,6 +278,37 @@ type remoteAgentListener struct {
 	cleanupSocketPath string
 }
 
+// discoverLocalVSockCID learns our own vsock context ID without opening /dev/vsock. AF_VSOCK's
+// CID is fixed per-VM, so a successful outbound connection to the core agent (which we need to
+// reach anyway to register) reports our real CID via getsockname() on the resulting *vsock.Conn.
+func discoverLocalVSockCID(vsockAddr, agentIpcAddress string) (uint32, error) {
+	peerCID, err := socket.ParseVSockAddress(vsockAddr)
+	if err != nil {
+		return 0, err
+	}
+
+	_, portStr, err := net.SplitHostPort(agentIpcAddress)
+	if err != nil {
+		return 0, err
+	}
+	port, err := strconv.ParseUint(portStr, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid vsock port %q: %w", portStr, err)
+	}
+
+	conn, err := vsock.Dial(peerCID, uint32(port), &vsock.Config{})
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	addr, ok := conn.LocalAddr().(*vsock.Addr)
+	if !ok {
+		return 0, fmt.Errorf("unexpected vsock local address type %T", conn.LocalAddr())
+	}
+	return addr.ContextID, nil
+}
+
 // buildRemoteAgentListener creates the inbound listener for a remote agent and computes
 // the api_endpoint_uri that should be advertised to the Core Agent.
 //
@@ -308,6 +351,32 @@ func buildRemoteAgentListener(listenURI string) (*remoteAgentListener, error) {
 		// http:// is permitted by the protocol but the helper itself always serves TLS,
 		// so we refuse to set up a server that advertises plaintext to the registry.
 		return nil, errors.New("http:// scheme is not supported on the remote agent server side (use https:// or unix://)")
+	case "vsock":
+		cidStr, portStr, err := net.SplitHostPort(rest)
+		if err != nil {
+			return nil, fmt.Errorf("invalid vsock listen URI %q: %w", listenURI, err)
+		}
+		cid, err := strconv.ParseUint(cidStr, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid vsock listen URI %q: invalid context ID: %w", listenURI, err)
+		}
+		port, err := strconv.ParseUint(portStr, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid vsock listen URI %q: invalid port: %w", listenURI, err)
+		}
+		// ListenContextID with an explicit CID never opens /dev/vsock (unlike Listen, which
+		// auto-detects the CID via that device); the CID here is the caller's real, already
+		// known context ID, obtained by discoverLocalVSockCID.
+		l, err := vsock.ListenContextID(uint32(cid), uint32(port), &vsock.Config{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to listen on vsock cid %d port %d: %w", cid, port, err)
+		}
+		addr, ok := l.Addr().(*vsock.Addr)
+		if !ok {
+			_ = l.Close()
+			return nil, fmt.Errorf("unexpected vsock listener address type %T", l.Addr())
+		}
+		return &remoteAgentListener{listener: l, apiEndpointURI: fmt.Sprintf("vsock://%d:%d", addr.ContextID, addr.Port)}, nil
 	default:
 		return nil, fmt.Errorf("unsupported remote agent listen URI scheme %q", scheme)
 	}
@@ -346,12 +415,31 @@ func removeStaleSocket(socketPath string) error {
 }
 
 func newRemoteAgentClient(ipcComp ipc.Component, agentIpcAddress string, cfg config.Component, log log.Component) (pbcore.RemoteAgentClient, error) {
+	conn, err := dialCoreAgent(agentIpcAddress, ipcComp.GetAuthToken(), ipcComp.GetTLSClientConfig(), cfg.GetString("vsock_addr"), log)
+	if err != nil {
+		return nil, err
+	}
+	return pbcore.NewRemoteAgentClient(conn), nil
+}
+
+// NewAgentSecureClient dials the core agent for pre-FX consumers that don't yet
+// have an ipc.Component / config.Component. The returned ClientConn is owned by
+// the caller. vsockAddr non-empty switches to vsock.
+func NewAgentSecureClient(agentIpcAddress, authToken string, tlsConfig *tls.Config, vsockAddr string, log log.Component) (pbcore.AgentSecureClient, *grpc.ClientConn, error) {
+	conn, err := dialCoreAgent(agentIpcAddress, authToken, tlsConfig, vsockAddr, log)
+	if err != nil {
+		return nil, nil, err
+	}
+	return pbcore.NewAgentSecureClient(conn), conn, nil
+}
+
+func dialCoreAgent(agentIpcAddress, authToken string, tlsConfig *tls.Config, vsockAddr string, log log.Component) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())),
-		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(ipcComp.GetAuthToken())),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(authToken)),
 	}
 
-	if vsockAddr := cfg.GetString("vsock_addr"); vsockAddr != "" {
+	if vsockAddr != "" {
 		cid, err := socket.ParseVSockAddress(vsockAddr)
 		if err != nil {
 			return nil, err
@@ -377,12 +465,42 @@ func newRemoteAgentClient(ipcComp ipc.Component, agentIpcAddress string, cfg con
 		}))
 	}
 
-	conn, err := grpc.NewClient(agentIpcAddress, opts...)
+	return grpc.NewClient(agentIpcAddress, opts...)
+}
+
+// RegistrationRequest is the input for RegisterRemoteAgent.
+type RegistrationRequest struct {
+	Flavor         string
+	DisplayName    string
+	APIEndpointURI string
+	Services       []string
+}
+
+// RegisterRemoteAgent calls RegisterRemoteAgent on the core agent. If the
+// core's recommended refresh interval is 0, defaultRefreshInterval is used.
+func RegisterRemoteAgent(ctx context.Context, client pbcore.AgentSecureClient, req RegistrationRequest, queryTimeout, defaultRefreshInterval time.Duration, log log.Component) (string, time.Duration, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
+	resp, err := client.RegisterRemoteAgent(ctx, &pbcore.RegisterRemoteAgentRequest{
+		Flavor:         req.Flavor,
+		DisplayName:    req.DisplayName,
+		ApiEndpointUri: req.APIEndpointURI,
+		Services:       req.Services,
+	})
 	if err != nil {
-		return nil, err
+		log.Debugf("failed to register remote agent: %v", err)
+		return "", 0, err
 	}
 
-	return pbcore.NewRemoteAgentClient(conn), nil
+	log.Infof("Registered with Remote Agent Registry (session_id=%s). Recommended refresh interval: %d seconds.", resp.SessionId, resp.RecommendedRefreshIntervalSecs)
+
+	refreshInterval := time.Duration(resp.RecommendedRefreshIntervalSecs) * time.Second
+	if resp.RecommendedRefreshIntervalSecs == 0 {
+		log.Warnf("Recommended refresh interval is 0 seconds, using default refresh interval of %s", defaultRefreshInterval)
+		refreshInterval = defaultRefreshInterval
+	}
+	return resp.SessionId, refreshInterval, nil
 }
 
 // registerWithAgent handles the registration logic with the Core Agent

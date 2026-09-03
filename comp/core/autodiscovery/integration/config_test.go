@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"testing"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/stretchr/testify/assert"
 	yaml "go.yaml.in/yaml/v2"
 )
@@ -267,6 +268,40 @@ func TestDigestIncludesDiscovery(t *testing.T) {
 		"Discovery field must change the config digest so a discovery template and its non-discovery counterpart are distinct")
 	assert.NotEqual(t, withoutDiscovery.FastDigest(), withDiscovery.FastDigest(),
 		"Discovery field must change FastDigest as well")
+
+	withMetricsPrefixA := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Discovery:  &DiscoveryConfig{MetricsPrefix: "a"},
+	}
+	withMetricsPrefixB := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Discovery:  &DiscoveryConfig{MetricsPrefix: "b"},
+	}
+	assert.NotEqual(t, withMetricsPrefixA.Digest(), withMetricsPrefixB.Digest(),
+		"a change to Discovery.MetricsPrefix alone must change the digest, or an auto_conf.yaml update that only adds/changes it would be silently treated as an already-tracked config")
+	assert.NotEqual(t, withMetricsPrefixA.FastDigest(), withMetricsPrefixB.FastDigest(),
+		"a change to Discovery.MetricsPrefix alone must change FastDigest as well")
+}
+
+func TestDigestIncludesCELSelector(t *testing.T) {
+	withoutSelector := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+	}
+	withSelector := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		CELSelector: workloadfilter.Rules{
+			Containers: []string{`container.name == "app"`},
+		},
+	}
+
+	assert.NotEqual(t, withoutSelector.Digest(), withSelector.Digest(),
+		"CELSelector must change the config digest so different cel configs are distinct")
+	assert.NotEqual(t, withoutSelector.FastDigest(), withSelector.FastDigest(),
+		"CELSelector must change FastDigest")
 }
 
 func TestGetNameForInstance(t *testing.T) {

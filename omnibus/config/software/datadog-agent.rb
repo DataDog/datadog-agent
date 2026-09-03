@@ -10,15 +10,6 @@ require 'pathname'
 
 name 'datadog-agent'
 
-# Flavor flag for bazel actions
-flavor_flag = ""
-if heroku_target?
-  flavor_flag = "--//packages/agent:flavor=heroku"
-elsif fips_mode?
-  flavor_flag = "--//packages/agent:flavor=fips"
-end
-bazel_flags = "#{flavor_flag} --//:install_dir='#{install_dir}'"
-
 # We don't want to build any dependencies in "repackaging mode" so all usual dependencies
 # need to go under this guard.
 unless do_repackage?
@@ -26,13 +17,32 @@ unless do_repackage?
   dependency 'datadog-agent-prepare'
 
   dependency "python3"
+  dependency 'datadog-agent-integrations-py3'
 
-  dependency 'datadog-agent-dependencies'
+  build do
+      command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
+          :live_stream => Omnibus.logger.live_stream(:info)
+  end
+  build do
+      # Delete empty folders that can still be present when building
+      # without the omnibus cache.
+      # When the cache gets used, git will transparently remove empty dirs for us
+      # We do this here since we are done building our dependencies, but haven't
+      # started creating the agent directories, which might be empty but that we
+      # still want to keep
+      command "find #{install_dir} -type d -empty -delete"
+  end
 end
 
 source path: '..',
        options: {
-         exclude: ["**/.cache/**/*", "**/testdata/**/*"],
+         exclude: [
+           "**/.cache/**/*",
+           "**/testdata/**/*",
+           # Git's fsmonitor daemon creates a Unix socket that breaks builds both
+           # on the host and in a container with a bind-mounted repo.
+           "**/.git/fsmonitor--daemon.ipc",
+         ],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -77,20 +87,20 @@ build do
     if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir=\"#{install_dir}",
+    command "bazel run #{omnibazel_flags} -- //rtloader:install --destdir=\"#{install_dir}",
       :live_stream => Omnibus.logger.live_stream(:info)
     # Put the static rtloader library where it gets picked up by the go build linking to it
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\"",
+    command "bazel run #{omnibazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\"",
       :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //rtloader:install --destdir='#{install_dir}'",
+    command "bazel run #{omnibazel_flags} -- //rtloader:install --destdir='#{install_dir}'",
       :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
-  command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
+  command "bazel run #{omnibazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
 
   # TODO: dda inv agent.build also builds datadog.yaml. We need to work with the
   # config team to find out if removing that will break their workflow.  If not,
@@ -102,6 +112,14 @@ build do
     conf_dir = "#{install_dir}/etc"
   else
     conf_dir = "#{install_dir}/etc/datadog-agent"
+  end
+
+  # Stage Rust shared-library checks into checks.d (Linux only). Enabled checks
+  # are listed in ENABLED_CHECKS in the rustchecks BUILD.bazel.
+  if linux_target?
+    command "bazel run #{omnibazel_flags} //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=\"#{conf_dir}\"",
+      env: env,
+      :live_stream => Omnibus.logger.live_stream(:info)
   end
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
   # dda inv agent.build  leaves many files in bin/agen/dist/conf.d
@@ -187,6 +205,10 @@ build do
     elsif not heroku_target?
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
     end
+
+    if linux_target?
+      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/par-control:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    end
   end
 
   # System-probe
@@ -237,14 +259,14 @@ build do
 
   end
 
-  # system-probe-lite (service discovery agent)
+  # sd-agent (service discovery agent)
   if linux_target? and !heroku_target?
-    command_on_repo_root "bazelisk run #{bazel_flags} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} //pkg/discovery/module/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # dd-procmgrd (process manager daemon)
   if (linux_target? || windows_target?) && !heroku_target?
-    command_on_repo_root "bazelisk run #{bazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # Security agent
@@ -279,9 +301,9 @@ build do
   end
 
   if osx_target?
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
 
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
@@ -292,15 +314,6 @@ build do
     command "swiftc -O -swift-version \"5\" -target \"#{target}\" -Xlinker '-rpath' -Xlinker '@executable_path/../Frameworks' Sources/*.swift -o gui", cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
-  end
-
-  if windows_target?
-    # AI usage Chrome native messaging host (Rust). Mirrors the macOS osx_target? branch above:
-    # the Bazel target installs the .exe into bin/agent (Windows convention; see
-    # //pkg/procmgr/rust:install for the same Linux-vs-Windows prefix split). The final Chrome
-    # Native Messaging Host manifest is staged under bin/agent/dist so the MSI owns the file
-    # during rollback/uninstall. The MSI custom action rewrites it with the final installation path.
-    command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   # APM Hands Off config file

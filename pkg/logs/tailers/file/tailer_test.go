@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -180,6 +180,33 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
+}
+
+func (suite *TailerTestSuite) TestInterleavedPartialStreamsAdvanceOnlySafeCheckpoint() {
+	lines := []string{
+		"2024-01-01T00:00:00.000000000Z stderr P stderr part 1\n",
+		"2024-01-01T00:00:00.000000001Z stdout F stdout full\n",
+		"2024-01-01T00:00:00.000000002Z stderr F stderr part 2\n",
+	}
+
+	suite.source.UnderlyingSource().SetSourceType(sources.KubernetesSourceType)
+	suite.tailer = NewTailer(suite.createTailerOptions(nil))
+
+	_, err := suite.testFile.WriteString(strings.Join(lines, ""))
+	suite.Require().NoError(err)
+	suite.Require().NoError(suite.tailer.StartFromBeginning())
+
+	stdout := <-suite.outputChan
+	suite.Equal("stdout full", string(stdout.GetContent()))
+	// stderr began first and is still buffered. Persisting an offset inside its
+	// source range could skip it after a crash, so retain the previous checkpoint.
+	suite.Equal(0, toInt(stdout.Origin.Offset))
+
+	stderr := <-suite.outputChan
+	suite.Equal("stderr part 1stderr part 2", string(stderr.GetContent()))
+	totalLen := len(lines[0]) + len(lines[1]) + len(lines[2])
+	suite.Equal(totalLen, toInt(stderr.Origin.Offset))
+	suite.Equal(totalLen, int(suite.tailer.decodedOffset.Load()))
 }
 
 func (suite *TailerTestSuite) TestTailFromEnd() {
@@ -372,7 +399,7 @@ func (suite *TailerTestSuite) TestTruncatedTagAutoMultilineHandler() {
 	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false) // Disable detection-only
 	// Instead, enable full auto multiline on the source itself
 
-	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", constants.DefaultMaxMessageSizeBytes)
 	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
 	defer mockConfig.SetInTest("logs_config.tag_multi_line_logs", false)
 
@@ -425,7 +452,7 @@ func (suite *TailerTestSuite) TestTruncatedTagSingleLineHandler() {
 	mockConfig.SetInTest("logs_config.max_message_size_bytes", 3)
 	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)
 	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false)
-	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", constants.DefaultMaxMessageSizeBytes)
 	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
 	defer mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", true)
 
@@ -515,10 +542,19 @@ func TestStructuredMessagePreserved(t *testing.T) {
 	defer f.Close()
 
 	outputChan := make(chan *message.Message, chanSize)
+	// attribute_parsing gates whether the syslog parser is installed at all
+	// (IsAttributeParsingEnabled); without it the decoder uses the noop parser
+	// and the message stays StateUnstructured. debug_attr_parsing gates the
+	// structured JSON envelope so the parser renders the "message"/"syslog"
+	// object this test asserts on.
+	attributeParsing := true
+	debugAttrParsing := true
 	source := sources.NewReplaceableSource(sources.NewLogSource("syslog-test", &config.LogsConfig{
-		Type:   config.FileType,
-		Path:   testPath,
-		Format: config.SyslogFormat,
+		Type:             config.FileType,
+		Path:             testPath,
+		Format:           config.SyslogFormat,
+		AttributeParsing: &attributeParsing,
+		DebugAttrParsing: &debugAttrParsing,
 	}))
 	info := status.NewInfoRegistry()
 

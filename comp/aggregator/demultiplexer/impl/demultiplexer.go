@@ -18,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -32,24 +33,27 @@ import (
 // Module defines the fx options for this component.
 func Module(params Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newDemultiplexer),
+		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Supply(params))
 }
 
-type dependencies struct {
-	fx.In
-	Lc                     fx.Lifecycle
-	Config                 config.Component
-	Log                    log.Component
-	SharedForwarder        defaultforwarder.Component
-	OrchestratorForwarder  orchestratorforwarder.Component
-	EventPlatformForwarder eventplatform.Component
-	HaAgent                haagent.Component
-	Compressor             compression.Component
-	Tagger                 tagger.Component
-	Hostname               hostnameinterface.Component
-	FilterList             filterlist.Component
-	Observer               observer.Component `optional:"true"`
+// Dependencies defines the dependencies required by the demultiplexer component.
+type Dependencies struct {
+	compdef.In
+	Lc                           compdef.Lifecycle
+	Config                       config.Component
+	Log                          log.Component
+	SharedForwarder              defaultforwarder.Component
+	OrchestratorForwarder        orchestratorforwarder.Component
+	EventPlatformForwarder       eventplatform.Component
+	HaAgent                      haagent.Component
+	Compressor                   compression.Component
+	Tagger                       tagger.Component
+	Hostname                     hostnameinterface.Component
+	FilterList                   filterlist.Component
+	Observer                     observer.Component                       `optional:"true"`
+	DogStatsDLookbackFactory     aggregator.DogStatsDLookbackFactory      `optional:"true"`
+	FinalDogStatsDSerieObservers []aggregator.FinalDogStatsDSerieObserver `group:"dogstatsd_final_serie_observers"`
 
 	Params Params
 }
@@ -58,8 +62,9 @@ type demultiplexer struct {
 	*aggregator.AgentDemultiplexer
 }
 
-type provides struct {
-	fx.Out
+// Provides defines the values provided by the demultiplexer component.
+type Provides struct {
+	compdef.Out
 	Comp demultiplexerComp.Component
 
 	SenderManager           sender.SenderManager
@@ -67,17 +72,18 @@ type provides struct {
 	AggregatorDemultiplexer aggregator.Demultiplexer
 }
 
-func newDemultiplexer(deps dependencies) (provides, error) {
+// NewComponent creates a new demultiplexer component.
+func NewComponent(deps Dependencies) (Provides, error) {
 	hostnameDetected, err := deps.Hostname.Get(context.TODO())
 	if err != nil {
 		if deps.Params.continueOnMissingHostname {
 			deps.Log.Warnf("Error getting hostname: %s", err)
 			hostnameDetected = ""
 		} else {
-			return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
+			return Provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
-	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
+	options := createAgentDemultiplexerOptions(deps.Config, deps.Params, deps.DogStatsDLookbackFactory, deps.FinalDogStatsDSerieObservers)
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
@@ -94,12 +100,12 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
 	}
-	deps.Lc.Append(fx.Hook{OnStop: func(_ context.Context) error {
+	deps.Lc.Append(compdef.Hook{OnStop: func(_ context.Context) error {
 		agentDemultiplexer.Stop()
 		return nil
 	}})
 
-	return provides{
+	return Provides{
 		Comp:          demultiplexer,
 		SenderManager: demultiplexer,
 		StatusProvider: status.NewInformationProvider(demultiplexerStatus{
@@ -109,7 +115,12 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	}, nil
 }
 
-func createAgentDemultiplexerOptions(config config.Component, params Params) aggregator.AgentDemultiplexerOptions {
+func createAgentDemultiplexerOptions(
+	config config.Component,
+	params Params,
+	dogStatsDLookbackFactory aggregator.DogStatsDLookbackFactory,
+	finalDogStatsDSerieObservers []aggregator.FinalDogStatsDSerieObserver,
+) aggregator.AgentDemultiplexerOptions {
 	options := aggregator.DefaultAgentDemultiplexerOptions()
 	if params.useDogstatsdNoAggregationPipelineConfig {
 		if config.GetBool("dogstatsd_no_aggregation_pipeline") {
@@ -119,6 +130,9 @@ func createAgentDemultiplexerOptions(config config.Component, params Params) agg
 			}
 		}
 	}
+
+	options.DogStatsDLookbackFactory = dogStatsDLookbackFactory
+	options.FinalDogStatsDSerieObservers = finalDogStatsDSerieObservers
 
 	// Override FlushInterval only if flushInterval is set by the user
 	if v, ok := params.flushInterval.Get(); ok {

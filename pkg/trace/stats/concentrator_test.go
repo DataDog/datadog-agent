@@ -136,6 +136,59 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 	})
 }
 
+func TestConcentratorRefreshesPeerTagsForChangedMappingsWithSameContentHash(t *testing.T) {
+	original := semantics.DefaultRegistry()
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	const oldJSON = `{"version":"old","metadata":{"content_hash":"same-hash"},"concepts":{"peer.service":{"fallbacks":[{"name":"peer.old","provider":"datadog","type":"string"}]}}}`
+	oldRegistry, err := semantics.NewRegistryFromJSON([]byte(oldJSON))
+	require.NoError(t, err)
+	semantics.UpdateRegistry(oldRegistry)
+
+	cfg := config.AgentConfig{
+		BucketInterval:      time.Duration(testBucketInterval),
+		PeerTagsAggregation: true,
+	}
+	c := NewTestConcentratorWithCfg(time.Now(), &cfg)
+	require.Contains(t, c.getPeerTagKeys(), "peer.old")
+
+	const newJSON = `{"version":"new","metadata":{"content_hash":"same-hash"},"concepts":{"peer.service":{"fallbacks":[{"name":"peer.new","provider":"datadog","type":"string"}]}}}`
+	newRegistry, err := semantics.NewRegistryFromJSON([]byte(newJSON))
+	require.NoError(t, err)
+	semantics.UpdateRegistry(newRegistry)
+
+	assert.Equal(t, []string{"peer.new"}, c.getPeerTagKeys())
+}
+
+func TestConcentratorRebuildsPeerTagCacheForMetadataOnlyRegistrySwap(t *testing.T) {
+	original := semantics.DefaultRegistry()
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	const oldJSON = `{"version":"old","metadata":{"content_hash":"old-hash"},"concepts":{"peer.service":{"fallbacks":[{"name":"peer.same","provider":"datadog","type":"string"}]}}}`
+	oldRegistry, err := semantics.NewRegistryFromJSON([]byte(oldJSON))
+	require.NoError(t, err)
+	semantics.UpdateRegistry(oldRegistry)
+
+	cfg := config.AgentConfig{
+		BucketInterval:      time.Duration(testBucketInterval),
+		PeerTagsAggregation: true,
+	}
+	c := NewTestConcentratorWithCfg(time.Now(), &cfg)
+	cached := c.peerTagsCache.Load()
+	require.NotNil(t, cached)
+
+	const newJSON = `{"version":"new","metadata":{"content_hash":"new-hash"},"concepts":{"peer.service":{"fallbacks":[{"name":"peer.same","provider":"datadog","type":"string"}]}}}`
+	newRegistry, err := semantics.NewRegistryFromJSON([]byte(newJSON))
+	require.NoError(t, err)
+	require.NotEqual(t, oldRegistry.Fingerprint(), newRegistry.Fingerprint())
+	semantics.UpdateRegistry(newRegistry)
+
+	assert.Equal(t, []string{"peer.same"}, c.getPeerTagKeys())
+	// A metadata-only payload change deliberately rebuilds this cheap cache so
+	// every payload change is guaranteed to invalidate registry-derived state.
+	assert.NotSame(t, cached, c.peerTagsCache.Load())
+}
+
 func TestNewConcentratorAdditionalMetricTagsValueLengthCapUsesAgentSentinel(t *testing.T) {
 	cfg := config.AgentConfig{
 		BucketInterval: time.Duration(testBucketInterval),
@@ -169,7 +222,7 @@ func TestNewConcentratorAdditionalMetricTagsCardinalityLimitUsesAgentSentinel(t 
 		Hostname:       "hostname",
 	}
 	c := NewConcentrator(&cfg, noopStatsWriter{}, time.Unix(0, 0), &statsd.NoOpClient{})
-	c.spanConcentrator.additionalTagsCardinalityLimit = 1
+	c.spanConcentrator.cardinalityLimits.AdditionalTags = 1
 	aggKey := PayloadAggregationKey{Env: "prod", Hostname: "host"}
 
 	admitted := newAdditionalMetricTagStatSpan("admitted")
@@ -181,14 +234,14 @@ func TestNewConcentratorAdditionalMetricTagsCardinalityLimitUsesAgentSentinel(t 
 	c.spanConcentrator.addSpan(blocked, aggKey, infraTags{}, "", 1)
 
 	assert.Equal(t, []string{"customer_id:admitted"}, admitted.matchingAdditionalMetricTags)
-	assert.Equal(t, []string{"customer_id:agent_blocked_value"}, blocked.matchingAdditionalMetricTags)
+	assert.Equal(t, []string{"customer_id:blocked"}, blocked.matchingAdditionalMetricTags)
 	assert.Equal(t, BlockCounts{CapBlocks: 1}, c.spanConcentrator.DrainBlockCounts())
 }
 
 // TestConcentrator_PeerTagKeysFollowRegistry verifies that getPeerTagKeys
 // rebuilds the cached peer-tag set when the live semantic registry has been
 // swapped (e.g. by an RC update) — driven entirely by the registry's
-// Version() string, with no explicit notification from the RC handler.
+// fingerprint, with no explicit notification from the RC handler.
 func TestConcentrator_PeerTagKeysFollowRegistry(t *testing.T) {
 	original, err := semantics.NewEmbeddedRegistry()
 	require.NoError(t, err)
@@ -206,14 +259,14 @@ func TestConcentrator_PeerTagKeysFollowRegistry(t *testing.T) {
 	assert.Contains(t, originalKeys, "peer.service", "embedded registry maps peer.service concept")
 
 	// Install a registry with a different Version() and a remapped peer.service concept.
-	customJSON := `{"version":"test-custom-1","concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
+	customJSON := `{"version":"test-custom-1","metadata":{"content_hash":"hash-a"},"concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
 	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
 	require.NoError(t, err)
 	semantics.UpdateRegistry(custom)
 
 	refreshedKeys := c.getPeerTagKeys()
 	assert.Contains(t, refreshedKeys, "x.custom.peer", "getPeerTagKeys must pick up the new peer-tag mapping after the registry was swapped")
-	assert.NotContains(t, refreshedKeys, "peer.service", "the old peer.service mapping must be gone after the version-keyed cache invalidates")
+	assert.NotContains(t, refreshedKeys, "peer.service", "the old peer.service mapping must be gone after the fingerprint-keyed cache invalidates")
 }
 
 // TestTracerHostname tests if `Concentrator` uses the tracer hostname rather than agent hostname, if there is one.
@@ -890,10 +943,10 @@ func TestPeerTags(t *testing.T) {
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
 		c := NewTestConcentrator(now)
 		// Inject a peer-tag key set directly, keyed by the live registry's
-		// version so getPeerTagKeys returns it without rebuilding from conf.
+		// fingerprint so getPeerTagKeys returns it without rebuilding from conf.
 		c.peerTagsCache.Store(&config.PeerTagsCache{
-			Version: semantics.DefaultRegistry().Version(),
-			Keys:    []string{"db.instance", "db.system", "peer.service"},
+			Fingerprint: semantics.DefaultRegistry().Fingerprint(),
+			Keys:        []string{"db.instance", "db.system", "peer.service"},
 		})
 		c.addNow(testTrace, infraTags{})
 		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)

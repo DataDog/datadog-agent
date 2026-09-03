@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,8 +23,6 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/mock/gomock"
 
-	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -31,6 +30,8 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpuenvironment"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -40,6 +41,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
@@ -121,7 +123,7 @@ func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			senderManager := mocksender.CreateDefaultDemultiplexer()
+			senderManager := mocksender.CreateDefaultDemultiplexer(t)
 			checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
 			check, ok := checkGeneric.(*Check)
 			require.True(t, ok)
@@ -157,36 +159,22 @@ func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 
 func TestEmitNvmlMetrics(t *testing.T) {
 	// Create a mock sender
-	mockSender := mocksender.NewMockSender("gpu")
+	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
-	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(), nil)
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
 
 	device1UUID := "gpu-uuid-1"
 	device2UUID := "gpu-uuid-2"
 
 	// create mock library returning just the 2 test devices
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
-	device1 := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions(), func(d *nvmlmock.Device) {
-		d.GetUUIDFunc = func() (string, nvml.Return) { return device1UUID, nvml.SUCCESS }
-	})
-	device2 := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions(), func(d *nvmlmock.Device) {
-		d.GetUUIDFunc = func() (string, nvml.Return) { return device2UUID, nvml.SUCCESS }
-	})
-	ddnvml.WithMockNVML(t, nvmlMock)
-	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-		switch index {
-		case 0:
-			return device1, nvml.SUCCESS
-		case 1:
-			return device2, nvml.SUCCESS
-		default:
-			return nil, nvml.ERROR_INVALID_ARGUMENT
-		}
-	}
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithPhysicalDeviceUUIDs([]string{device1UUID, device2UUID}),
+		testutil.WithMockAllFunctions(),
+	)
 
 	// Create mock collectors
 	for i, deviceUUID := range []string{device1UUID, device2UUID} {
@@ -195,18 +183,18 @@ func TestEmitNvmlMetrics(t *testing.T) {
 		check.collectors = append(check.collectors, &mockCollector{
 			name:       "device",
 			deviceUUID: deviceUUID,
-			metrics: []*nvidia.Metric{
-				{Name: "metric1", Value: float64(metricValueBase + 1), Type: ddmetrics.GaugeType, Priority: 0},
-				{Name: "metric2", Value: float64(metricValueBase + 2), Type: ddmetrics.GaugeType, Priority: 0},
+			samples: []nvidia.Sample{
+				nvidia.NewMetric("metric1", float64(metricValueBase+1), ddmetrics.GaugeType, 0, nil, nil),
+				nvidia.NewMetric("metric2", float64(metricValueBase+2), ddmetrics.GaugeType, 0, nil, nil),
 			},
 		})
 
 		check.collectors = append(check.collectors, &mockCollector{
 			name:       "fields",
 			deviceUUID: deviceUUID,
-			metrics: []*nvidia.Metric{
-				{Name: "metric2", Value: float64(metricValueBase + 2), Type: ddmetrics.GaugeType, Priority: 1},
-				{Name: "metric3", Value: float64(metricValueBase + 3), Type: ddmetrics.GaugeType, Priority: 1},
+			samples: []nvidia.Sample{
+				nvidia.NewMetric("metric2", float64(metricValueBase+2), ddmetrics.GaugeType, 1, nil, nil),
+				nvidia.NewMetric("metric3", float64(metricValueBase+3), ddmetrics.GaugeType, 1, nil, nil),
 			},
 		})
 	}
@@ -279,14 +267,12 @@ func TestEmitNvmlMetrics(t *testing.T) {
 func TestRunDoesNotError(t *testing.T) {
 	// Tests for the specific output are above, this only ensures that the run function does not error
 	// even if things are not correctly setup
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	ddnvml.WithMockNVML(t,
-		testutil.GetBasicNvmlMockWithOptions(
-			testutil.WithMockAllFunctions(),
-			testutil.WithProcessData(nil, nvml.SUCCESS),
-		),
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithProcessData(nil, nvml.SUCCESS),
 	)
 	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 
@@ -312,23 +298,49 @@ func TestRunDoesNotError(t *testing.T) {
 	require.NoError(t, check.Run())
 }
 
+func TestSyncNvmlHealthIssue(t *testing.T) {
+	healthStore := healthplatformmock.New(t)
+	check := &Check{}
+	check.SetIssueReporter(healthStore)
+
+	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
+
+	check.syncNvmlHealthIssue(true, false)
+	issue := healthStore.GetIssue(issueID)
+	require.NotNil(t, issue)
+	assert.Equal(t, gpuenvironment.IssueName, issue.IssueName)
+	assert.Equal(t, issueID, issue.Id)
+
+	check.syncNvmlHealthIssue(false, false)
+	assert.NotNil(t, healthStore.GetIssue(issueID))
+
+	check.syncNvmlHealthIssue(false, true)
+	assert.Nil(t, healthStore.GetIssue(issueID))
+}
+
+func TestSyncNvmlHealthIssueWithNilReporter(t *testing.T) {
+	check := &Check{}
+
+	require.NotPanics(t, func() {
+		check.syncNvmlHealthIssue(true, false)
+	})
+}
+
 func TestCollectorsOnDeviceChanges(t *testing.T) {
 	numSupportedCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr, which is not supported by the basic mock
 
 	// mock up device count so that we can check when check collectors are created/destroyed
 	curDeviceCount := atomic.Int32{}
 	curDeviceCount.Store(int32(len(testutil.GPUUUIDs)) - 2)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithMockAllFunctions(),
 		testutil.WithProcessData(nil, nvml.SUCCESS),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
-		testutil.WithMIGDisabled(),
 		testutil.WithArchitecture("blackwell"),
 		testutil.WithDeviceCountFunc(func() int {
 			return int(curDeviceCount.Load())
 		}),
 	)
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	// assert function to be used below, checking that the created collectors map to the current devices
 	assertCollectors := func(collectors []nvidia.Collector) {
@@ -342,7 +354,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 		actualUUIDs := map[string]int{}
 		for _, c := range collectors {
-			actualUUIDs[c.DeviceUUID()]++
+			actualUUIDs[c.Device().GetDeviceInfo().UUID]++
 		}
 
 		assert.Equal(t, expectedUUIDs, actualUUIDs)
@@ -352,7 +364,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		t,
 		taggerfxmock.SetupFakeTagger(t),
 		testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
-		mocksender.CreateDefaultDemultiplexer(),
+		mocksender.CreateDefaultDemultiplexer(t),
 		nil,
 	)
 	require.Empty(t, check.collectors)
@@ -378,45 +390,51 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// PLR is not supported by this mock, so it is filtered out during collector creation.
-	numSupportedCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr, which is not supported by MIG
+	parentCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr
+	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
+	migCollectorTypes := parentCollectorTypes - 3
 
-	// Track the number of MIG children dynamically
-	migChildrenUUIDs := make(map[int]map[int]string)
+	// Track the number of visible MIG children dynamically.
+	migDeviceCount := 0
 	migChildren := make(map[int]string)
-	migChildrenUUIDs[0] = migChildren
 
 	// Setup NVML mock with single parent device
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithMockAllFunctions(),
 		testutil.WithProcessData(nil, nvml.SUCCESS),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithArchitecture("blackwell"),
-		testutil.WithMIGChildUUIDs(migChildrenUUIDs),
+		testutil.WithDeviceOptions(0,
+			testutil.WithMIGEnabled(),
+			testutil.WithMIGChildUUIDs(map[int]string{
+				0: testutil.MIGUUIDs[0], 1: testutil.MIGUUIDs[1],
+			}),
+		),
+		testutil.WithMIGDeviceCountCallback(func(int) int { return migDeviceCount }),
 		testutil.WithDeviceCount(1),
 	)
-	ddnvml.WithMockNVML(t, nvmlMock)
 	parentUUID := testutil.GPUUUIDs[0] // First device is used as the parent
 
 	// Assert function to check collectors match current device state
 	assertCollectors := func(collectors []nvidia.Collector) {
 		migCount := len(migChildren)
-		expectedCollectorCount := numSupportedCollectorTypes + (migCount * numSupportedCollectorTypes)
+		expectedCollectorCount := parentCollectorTypes + (migCount * migCollectorTypes)
 		assert.Len(t, collectors, expectedCollectorCount,
 			"Expected %d collectors (1 parent*%d + %d mig*%d), got %d",
-			expectedCollectorCount, numSupportedCollectorTypes, migCount, numSupportedCollectorTypes, len(collectors))
+			expectedCollectorCount, parentCollectorTypes, migCount, migCollectorTypes, len(collectors))
 
 		// Count collectors by UUID
 		actualUUIDs := map[string]int{}
 		for _, c := range collectors {
-			actualUUIDs[c.DeviceUUID()]++
+			actualUUIDs[c.Device().GetDeviceInfo().UUID]++
 		}
 
 		// Build expected UUIDs
 		expectedUUIDs := map[string]int{
-			parentUUID: numSupportedCollectorTypes,
+			parentUUID: parentCollectorTypes,
 		}
 		for _, migUUID := range migChildren {
-			expectedUUIDs[migUUID] = numSupportedCollectorTypes
+			expectedUUIDs[migUUID] = migCollectorTypes
 		}
 
 		assert.Equal(t, expectedUUIDs, actualUUIDs)
@@ -426,7 +444,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		t,
 		taggerfxmock.SetupFakeTagger(t),
 		testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
-		mocksender.CreateDefaultDemultiplexer(),
+		mocksender.CreateDefaultDemultiplexer(t),
 		map[int]string{},
 	)
 	require.Empty(t, check.collectors)
@@ -440,43 +458,47 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	assertCollectors(check.collectors)
 
 	// Enable MIG with 1 child
+	migDeviceCount = 1
 	migChildren[0] = testutil.MIGUUIDs[0]
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 
-	// Increase MIG children count to 2 (max for device index 5)
+	// Increase MIG children count to 2 (max for the configured parent)
+	migDeviceCount = 2
 	migChildren[1] = testutil.MIGUUIDs[1]
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 
 	// Decrease MIG children count back to 1
+	migDeviceCount = 1
 	delete(migChildren, 1)
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 
 	// Disable MIG completely
+	migDeviceCount = 0
 	delete(migChildren, 0)
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 }
 
 func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
-	mockSender := mocksender.NewMockSender("gpu")
+	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
 	check := newConfiguredGPUCheck(
 		t,
 		taggerfxmock.SetupFakeTagger(t),
 		testutil.GetWorkloadMetaMock(t),
-		mocksender.CreateDefaultDemultiplexer(),
+		mocksender.CreateDefaultDemultiplexer(t),
 		nil,
 	)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	check.parallelCollectors = true
+
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(1),
-		testutil.WithMIGDisabled(),
 	)
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	const collectorCount = 3
 	deviceUUID := testutil.GPUUUIDs[0]
@@ -490,7 +512,7 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 		check.collectors = append(check.collectors, &mockCollector{
 			name:       collectorName,
 			deviceUUID: deviceUUID,
-			collectFunc: func() ([]*nvidia.Metric, error) {
+			collectFunc: func() ([]nvidia.Sample, error) {
 				if started.Add(1) == collectorCount {
 					close(allStarted)
 				}
@@ -501,8 +523,8 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 					return nil, fmt.Errorf("collector %s timed out waiting for other collectors", collectorName)
 				}
 
-				return []*nvidia.Metric{
-					{Name: metricName, Value: metricValue, Type: ddmetrics.GaugeType},
+				return []nvidia.Sample{
+					&nvidia.Metric{Name: metricName, Value: metricValue, Type: ddmetrics.GaugeType},
 				}, nil
 			},
 		})
@@ -513,11 +535,11 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 	require.Equal(t, int32(collectorCount), started.Load())
 }
 
-func TestCollectMetricsDoesNotCrashWhenCollectorPanics(t *testing.T) {
-	results := collectMetrics([]nvidia.Collector{
+func TestCollectSamplesDoesNotCrashWhenCollectorPanics(t *testing.T) {
+	results := collectSamples([]nvidia.Collector{
 		&mockCollector{
 			name: "panicking-collector",
-			collectFunc: func() ([]*nvidia.Metric, error) {
+			collectFunc: func() ([]nvidia.Sample, error) {
 				panic("boom")
 			},
 		},
@@ -530,7 +552,7 @@ func TestCollectMetricsDoesNotCrashWhenCollectorPanics(t *testing.T) {
 }
 
 func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *testing.T) {
-	mockSender := mocksender.NewMockSender("gpu")
+	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
 	checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
@@ -540,16 +562,14 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 	WithGPUConfigEnabled(t)
 	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", false)
 	check.containerProvider = newMockContainerProvider(t, nil)
-	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	t.Cleanup(func() { check.Cancel() })
 
 	pkgconfigsetup.Datadog().SetInTest("gpu.parallel_collectors", true)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithMockAllFunctions(),
 		testutil.WithDeviceCount(1),
-		testutil.WithMIGDisabled(),
 	)
-	ddnvml.WithMockNVML(t, nvmlMock)
 
 	started := make(chan struct{})
 	secondStarted := make(chan struct{})
@@ -559,25 +579,25 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 		&mockCollector{
 			name:       "serial-0",
 			deviceUUID: deviceUUID,
-			collectFunc: func() ([]*nvidia.Metric, error) {
+			collectFunc: func() ([]nvidia.Sample, error) {
 				close(started)
 				select {
 				case <-releaseFirstCollector:
 				case <-time.After(time.Second):
 					return nil, errors.New("collector timed out waiting for release")
 				}
-				return []*nvidia.Metric{
-					{Name: "serial.metric0", Value: 0, Type: ddmetrics.GaugeType},
+				return []nvidia.Sample{
+					&nvidia.Metric{Name: "serial.metric0", Value: 0, Type: ddmetrics.GaugeType},
 				}, nil
 			},
 		},
 		&mockCollector{
 			name:       "serial-1",
 			deviceUUID: deviceUUID,
-			collectFunc: func() ([]*nvidia.Metric, error) {
+			collectFunc: func() ([]nvidia.Sample, error) {
 				close(secondStarted)
-				return []*nvidia.Metric{
-					{Name: "serial.metric1", Value: 1, Type: ddmetrics.GaugeType},
+				return []nvidia.Sample{
+					&nvidia.Metric{Name: "serial.metric1", Value: 1, Type: ddmetrics.GaugeType},
 				}, nil
 			},
 		},
@@ -622,23 +642,26 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 type mockCollector struct {
 	name        nvidia.CollectorName
 	deviceUUID  string
-	metrics     []*nvidia.Metric
-	collectFunc func() ([]*nvidia.Metric, error)
+	samples     []nvidia.Sample
+	collectFunc func() ([]nvidia.Sample, error)
 }
 
-func (m *mockCollector) Collect() ([]*nvidia.Metric, error) {
+func (m *mockCollector) Collect() ([]nvidia.Sample, error) {
 	if m.collectFunc != nil {
 		return m.collectFunc()
 	}
-	return m.metrics, nil
+
+	return m.samples, nil
 }
 
 func (m *mockCollector) Name() nvidia.CollectorName {
 	return m.name
 }
 
-func (m *mockCollector) DeviceUUID() string {
-	return m.deviceUUID
+func (m *mockCollector) Device() ddnvml.Device {
+	return &ddnvml.PhysicalDevice{
+		DeviceInfo: ddnvml.DeviceInfo{UUID: m.deviceUUID},
+	}
 }
 
 func mockMatchesTags(expectedTags []string) interface{} {
@@ -650,30 +673,20 @@ func mockMatchesTags(expectedTags []string) interface{} {
 	})
 }
 
-func TestEmitSingleMetricDoesNotAliasDeviceTags(t *testing.T) {
-	mockSender := mocksender.NewMockSender("gpu")
+func TestEmitSampleDoesNotAliasDeviceTags(t *testing.T) {
+	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
 	check := &Check{}
 	deviceTags := make([]string, 1, 4)
 	deviceTags[0] = "gpu_uuid:gpu-1"
 
-	firstMetric := &nvidia.Metric{
-		Name:  "utilization",
-		Value: 1,
-		Type:  ddmetrics.GaugeType,
-		Tags:  []string{"source:first"},
-	}
-	secondMetric := &nvidia.Metric{
-		Name:  "utilization",
-		Value: 2,
-		Type:  ddmetrics.GaugeType,
-		Tags:  []string{"source:second"},
-	}
+	firstMetric := nvidia.NewMetric("utilization", 1, ddmetrics.GaugeType, 0, []string{"source:first"}, nil)
+	secondMetric := nvidia.NewMetric("utilization", 2, ddmetrics.GaugeType, 0, []string{"source:second"}, nil)
 
 	now := time.Now()
-	require.NoError(t, check.emitSingleMetric(firstMetric, mockSender, now, nil, deviceTags))
-	require.NoError(t, check.emitSingleMetric(secondMetric, mockSender, now, nil, deviceTags))
+	require.NoError(t, check.emitSample(firstMetric, mockSender, now, nil, deviceTags))
+	require.NoError(t, check.emitSample(secondMetric, mockSender, now, nil, deviceTags))
 
 	require.Len(t, mockSender.Mock.Calls, 2)
 
@@ -682,13 +695,13 @@ func TestEmitSingleMetricDoesNotAliasDeviceTags(t *testing.T) {
 	secondTags, ok := mockSender.Mock.Calls[1].Arguments.Get(3).([]string)
 	require.True(t, ok)
 
-	require.Equal(t, []string{"gpu_uuid:gpu-1", "source:first"}, firstTags)
-	require.Equal(t, []string{"gpu_uuid:gpu-1", "source:second"}, secondTags)
+	require.ElementsMatch(t, []string{"gpu_uuid:gpu-1", "source:first"}, firstTags)
+	require.ElementsMatch(t, []string{"gpu_uuid:gpu-1", "source:second"}, secondTags)
 	require.Equal(t, []string{"gpu_uuid:gpu-1"}, deviceTags)
 }
 
-func TestEmitSingleMetricHistogramBucket(t *testing.T) {
-	mockSender := mocksender.NewMockSender("gpu")
+func TestEmitSampleHistogramBucket(t *testing.T) {
+	mockSender := mocksender.NewMockSender(t, "gpu")
 
 	value := float64(7)
 	upperBound := 14.0
@@ -698,20 +711,10 @@ func TestEmitSingleMetricHistogramBucket(t *testing.T) {
 	gpuTag := "gpu_uuid:gpu-1"
 
 	check := &Check{}
-	metric := &nvidia.Metric{
-		Name:  metricName,
-		Type:  ddmetrics.HistogramType,
-		Value: value,
-		Tags:  []string{portTag},
-		HistogramBucket: &nvidia.Bucket{
-			Bounds:          [2]float64{lowerBound, upperBound},
-			Monotonic:       true,
-			FlushFirstValue: false,
-		},
-	}
-	mockSender.On("HistogramBucket", "gpu."+metricName, int64(value), lowerBound, upperBound, true, "", []string{gpuTag, portTag}, false).Return()
+	sample := nvidia.NewHistogramSample(metricName, int64(value), [2]float64{lowerBound, upperBound}, true, false, 0, []string{portTag}, nil)
+	mockSender.On("HistogramBucket", "gpu."+metricName, int64(value), lowerBound, upperBound, true, "", mockMatchesTags([]string{gpuTag, portTag}), false).Return()
 
-	err := check.emitSingleMetric(metric, mockSender, time.Now(), nil, []string{gpuTag})
+	err := check.emitSample(sample, mockSender, time.Now(), nil, []string{gpuTag})
 	require.NoError(t, err)
 
 	mockSender.AssertExpectations(t)
@@ -719,22 +722,21 @@ func TestEmitSingleMetricHistogramBucket(t *testing.T) {
 
 func TestTagsChangeBetweenRuns(t *testing.T) {
 	// Create a mock sender
-	mockSender := mocksender.NewMockSender("gpu")
+	mockSender := mocksender.NewMockSender(t, "gpu")
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	check := newConfiguredGPUCheck(t, fakeTagger, testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(), nil)
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1), testutil.WithMIGDisabled())
-	ddnvml.WithMockNVML(t, nvmlMock)
+	check := newConfiguredGPUCheck(t, fakeTagger, testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1))
 
 	// Create mock collector
 	deviceUUID := testutil.GPUUUIDs[0]
 	check.collectors = []nvidia.Collector{&mockCollector{
 		name:       "device",
 		deviceUUID: deviceUUID,
-		metrics: []*nvidia.Metric{
-			{Name: "test_metric", Value: 42.0, Type: ddmetrics.GaugeType, Priority: 0},
+		samples: []nvidia.Sample{
+			nvidia.NewMetric("test_metric", 42.0, ddmetrics.GaugeType, 0, nil, nil),
 		},
 	}}
 
@@ -777,10 +779,9 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 func TestRunEmitsCorrectTags(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2), testutil.WithMIGDisabled())
-	ddnvml.WithMockNVML(t, nvmlMock)
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
 
 	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, senderManager, nil)
 	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
@@ -830,7 +831,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, layout.deviceUUID), "foo", deviceTags, nil, nil, nil)
 		wmetaMock.Set(device)
 
-		var metricsToSend []*nvidia.Metric
+		var samplesToSend []nvidia.Sample
 		for i := 0; i < layout.numContainers; i++ {
 			container := &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
@@ -871,7 +872,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 			wmetaMock.Set(container)
 
 			callCount++
-			metricsToSend = append(metricsToSend, &nvidia.Metric{Name: "workload_metric", Value: float64(callCount), Type: ddmetrics.GaugeType, Priority: 0, AssociatedWorkloads: []workloadmeta.EntityID{process.EntityID}})
+			samplesToSend = append(samplesToSend, nvidia.NewMetric("workload_metric", float64(callCount), ddmetrics.GaugeType, 0, nil, []workloadmeta.EntityID{process.EntityID}))
 
 			expectedTags := append(deviceTags, processTags...)
 			expectedTags = append(expectedTags, containerTags...)
@@ -879,13 +880,13 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 		}
 
 		callCount++
-		metricsToSend = append(metricsToSend, &nvidia.Metric{Name: "no_workload_metric", Value: float64(callCount), Type: ddmetrics.GaugeType, Priority: 0})
+		samplesToSend = append(samplesToSend, nvidia.NewMetric("no_workload_metric", float64(callCount), ddmetrics.GaugeType, 0, nil, nil))
 		noWorkloadTags := append(deviceTags, allContainerTags...)
 		mockSender.On("GaugeWithTimestamp", "gpu.no_workload_metric", float64(callCount), "", mockMatchesTags(noWorkloadTags), mock.Anything).Return()
 
 		callCount++
 		// Use a Count metric just to make it easier to distinguish mock calls
-		metricsToSend = append(metricsToSend, &nvidia.Metric{Name: "all_workload_metric", Value: float64(callCount), Type: ddmetrics.CountType, Priority: 0, AssociatedWorkloads: allProcessEntityIDs})
+		samplesToSend = append(samplesToSend, nvidia.NewMetric("all_workload_metric", float64(callCount), ddmetrics.CountType, 0, nil, allProcessEntityIDs))
 		allWorkloadTags := append(deviceTags, allContainerTags...)
 		allWorkloadTags = append(allWorkloadTags, allProcessTags...)
 		mockSender.On("CountWithTimestamp", "gpu.all_workload_metric", float64(callCount), "", mockMatchesTags(allWorkloadTags), mock.Anything).Return()
@@ -893,7 +894,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 		check.collectors = append(check.collectors, &mockCollector{
 			name:       "mockCollector",
 			deviceUUID: layout.deviceUUID,
-			metrics:    metricsToSend,
+			samples:    samplesToSend,
 		})
 	}
 
@@ -908,7 +909,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 // when the GPU is idle (no running processes), the stateless collector downgrades
 // memory.limit to Low priority (because allWorkloadIDs is empty). The eBPF
 // collector also emits memory.limit at Low priority but may still carry cached
-// inactive PIDs as AssociatedWorkloads. Because RemoveDuplicateMetrics resolves
+// inactive PIDs as AssociatedWorkloads. Because RemoveDuplicateSamples resolves
 // same-priority ties by map iteration order, the winner—and therefore the tag
 // set on gpu.memory.limit—flips between PID-scoped and device-wide tagging
 // across runs, creating unstable timeseries cardinality.
@@ -918,15 +919,13 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 	var procInfo testutil.MockProcessInfoList
 
 	// Mock NVML: single device, no running processes (idle GPU).
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
-		testutil.WithMIGDisabled(),
+	nvmltestutil.SetupMockNVML(t,
 		testutil.WithDeviceCount(1),
 		testutil.WithMockAllFunctions(),
 		testutil.WithProcessDataCallback(func(_ string) (testutil.MockProcessInfoList, nvml.Return) {
 			return procInfo, nvml.SUCCESS
 		}),
 	)
-	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache := ddnvml.NewDeviceCache()
 	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
@@ -968,18 +967,20 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 		procInfo = slices.Clone(procData)
 
 		// Collect from the real collectors and group by collector name.
-		collectorMetrics := make(map[nvidia.CollectorName][]*nvidia.Metric)
+		collectorSamples := make(map[nvidia.CollectorName][]nvidia.Sample)
 		for _, c := range collectors {
-			m, _ := c.Collect() // errors expected from unsupported APIs, ignore
-			collectorMetrics[c.Name()] = m
+			samples, _ := c.Collect() // errors expected from unsupported APIs, ignore
+			collectorSamples[c.Name()] = samples
 		}
 
 		// Part 1 (deterministic): the two collectors must NOT emit memory.limit
 		// at the same priority. Equal priorities let map-iteration order decide
 		// the dedup winner, which is non-deterministic.
 		memLimitMetrics := make(map[nvidia.CollectorName][]*nvidia.Metric)
-		for name, metrics := range collectorMetrics {
-			for _, m := range metrics {
+		for name, samples := range collectorSamples {
+			for _, sample := range samples {
+				m, ok := sample.(*nvidia.Metric)
+				require.True(t, ok)
 				if m.Name == "memory.limit" {
 					memLimitMetrics[name] = append(memLimitMetrics[name], m)
 				}
@@ -995,10 +996,10 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 		require.Contains(t, memLimitMetrics, ebpfCollector)
 		require.Len(t, memLimitMetrics[statelessCollector], 2) // memory.limit comes from two APIs in stateless collector
 		require.Len(t, memLimitMetrics[ebpfCollector], 1)      // memory.limit comes from one API in ebpf collector
-		require.NotEmpty(t, memLimitMetrics[ebpfCollector][0].AssociatedWorkloads, "memory.limit must be emitted when deduplication happens")
+		require.NotEmpty(t, memLimitMetrics[ebpfCollector][0].AssociatedWorkloads(), "memory.limit must be emitted when deduplication happens")
 
 		for _, m := range memLimitMetrics[statelessCollector] {
-			require.Greater(t, m.Priority, memLimitMetrics[ebpfCollector][0].Priority, "memory.limit must always have higher priority in stateless collector than in ebpf collector")
+			require.Greater(t, m.Priority(), memLimitMetrics[ebpfCollector][0].Priority(), "memory.limit must always have higher priority in stateless collector than in ebpf collector")
 		}
 	}
 }
@@ -1047,7 +1048,7 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 				pkgconfigsetup.Datadog().SetInTest("gpu.disabled_collectors", []string{})
 			})
 
-			check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(), nil)
+			check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
 
 			// Verify the disabled collectors are correctly identified in the check struct
 			assert.Equal(t, len(tt.expected), len(check.disabledCollectors),
@@ -1056,6 +1057,40 @@ func TestDisabledCollectorsConfiguration(t *testing.T) {
 				"disabled collectors mismatch")
 		})
 	}
+}
+
+func TestExcludedDevicesConfiguration(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+
+	WithGPUConfigEnabled(t)
+	excludedDeviceUUID := testutil.GPUUUIDs[0]
+	includedDeviceUUID := testutil.GPUUUIDs[1]
+	pkgconfigsetup.Datadog().SetInTest("gpu.excluded_devices", []string{strings.ToLower(excludedDeviceUUID)})
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetInTest("gpu.excluded_devices", []string{})
+	})
+
+	check := newConfiguredGPUCheck(t, fakeTagger, wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(2),
+	)
+
+	var createdCollectorUUIDs []string
+	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.CollectorBuilder{
+		"mock": func(device ddnvml.Device, _ *nvidia.CollectorDependencies) (nvidia.Collector, error) {
+			deviceUUID := device.GetDeviceInfo().UUID
+			createdCollectorUUIDs = append(createdCollectorUUIDs, deviceUUID)
+			return &mockCollector{name: "mock", deviceUUID: deviceUUID}, nil
+		},
+	})
+
+	require.NoError(t, check.ensureInitCollectors())
+
+	assert.Equal(t, []string{includedDeviceUUID}, createdCollectorUUIDs)
+	require.Len(t, check.collectors, 1)
+	assert.Equal(t, includedDeviceUUID, check.collectors[0].Device().GetDeviceInfo().UUID)
 }
 
 func TestMetricsFollowSpec(t *testing.T) {
@@ -1126,12 +1161,12 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 	t.Helper()
 	opts := gpuspec.BuildMockOptionsForConfig(t, config, archSpecs, archSpec)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	mockSender := mocksender.NewMockSenderWithSenderManager("gpu", senderManager)
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
+	nvmltestutil.SetupMockNVML(t, opts...)
 
 	wmeta := testutil.GetWorkloadMetaMock(t)
 	SetupWorkloadmetaGPUs(t, wmeta, fakeTagger, config.DeviceMode, false)
