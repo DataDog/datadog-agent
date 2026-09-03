@@ -95,20 +95,21 @@ def setup(
     ]
     if devcontainer.get("image") and "amd64" in devcontainer["image"].casefold():
         devcontainer["runArgs"].append("--platform=linux/amd64")
-    if sys.platform != "win32":
-        # The image's entrypoint realigns its user to this UID/GID so writes to bind
-        # mounts keep host ownership. We pass them as explicit `docker run` env vars
-        # because no devcontainer variable resolves to the host UID/GID. (`os.getuid`/
-        # `os.getgid` are absent on Windows, but the platform check short-circuits first.)
-        devcontainer["runArgs"] += ["-e", f"HOST_UID={os.getuid()}", "-e", f"HOST_GID={os.getgid()}"]
+    # We deliberately do not pass HOST_UID/HOST_GID or set updateRemoteUserUID: the dev
+    # container CLI owns `dd`'s UID alignment. On Linux it rewrites /etc/passwd at
+    # image-build time (race-free), so the image entrypoint's runtime realign is a no-op; on
+    # macOS/Windows it leaves the container UID alone, which is correct because the Docker VM
+    # file sharing maps writes to the host user regardless of the container UID. Passing
+    # HOST_UID would re-arm the entrypoint's runtime `usermod`, which -- under the
+    # --cap-add=SYS_PTRACE below -- races the CLI's `docker exec -u dd` (onCreateCommand) and
+    # aborts startup (exit 137).
     devcontainer["features"] = {}
-    # Keep the image's entrypoint, which realigns `dd` to the host's UID/GID and runs
-    # the image's startup before exec'ing its long-running command. Otherwise the dev
-    # container CLI replaces the entrypoint with its own keep-alive command and skips
-    # that setup.
+    # Keep the image's entrypoint, which runs the image's startup (user shell, shared roots,
+    # background services) before exec'ing its long-running command. Otherwise the dev
+    # container CLI replaces the entrypoint with its own keep-alive command and skips that
+    # setup.
     devcontainer["overrideCommand"] = False
-    # The image provides this user, and its entrypoint realigns it to the host's UID/GID
-    # (via HOST_UID/HOST_GID above).
+    # The image provides this user; the dev container CLI aligns its UID (see above).
     devcontainer["remoteUser"] = "dd"
     # The host home directory is `USERPROFILE` on Windows and `HOME` elsewhere. We use a
     # single variable rather than concatenating both, because some Windows shells also
