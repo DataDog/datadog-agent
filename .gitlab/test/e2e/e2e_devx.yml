@@ -27,6 +27,44 @@ go_e2e_test_binaries:
     - !reference [.except_mergequeue]
     - when: on_success
 
+# Runs a single, deliberately flaky test (fails ~50% of the time) with orchestrion,
+# to exercise orchestrion-instrumented `go test` runs (CI Visibility, flaky detection).
+# The test binary is not pre-built: the job runs `orchestrion go test` directly.
+new-e2e-orchestrion-flaky-test:
+  stage: source_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - go_e2e_deps
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  # The test is expected to fail about half of the time: don't retry it (the
+  # default job retry would skew the failure rate) and never gate merges on it.
+  retry: 0
+  allow_failure: true
+  variables:
+    KUBERNETES_CPU_REQUEST: 2
+    KUBERNETES_MEMORY_REQUEST: 4Gi
+    KUBERNETES_MEMORY_LIMIT: 4Gi
+  before_script:
+    - !reference [.retrieve_linux_go_e2e_deps]
+  script:
+    - pushd test/new-e2e
+    - go install github.com/DataDog/orchestrion
+    # Make sure the go install directory is on the PATH for the orchestrion binary
+    - go_bin="$(go env GOBIN)"; [ -n "$go_bin" ] || go_bin="$(go env GOPATH)/bin"; export PATH="$PATH:$go_bin"
+    # Same orchestrion/CI Visibility configuration as the E2E tests (see .new_e2e_template)
+    - export DD_ENV=nativetest
+    - export DD_CIVISIBILITY_ENABLED=true
+    - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
+    - export DD_CIVISIBILITY_FLAKY_RETRY_ENABLED=false
+    - export DD_TAGS="gitlab.pipeline_source:${CI_PIPELINE_SOURCE}"
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - orchestrion go test -count=1 -run '^TestRandomFailure$' ./flakytest
+    - popd
+
 new-e2e-base-coverage:
   extends: .new_e2e_template
   needs:
