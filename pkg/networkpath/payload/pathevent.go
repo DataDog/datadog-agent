@@ -147,8 +147,7 @@ const (
 type DynamicTestClass string
 
 const (
-	// DynamicTestClassCore is the Agent's baseline coverage: every basic run,
-	// plus the first 5 completed standard runs per Agent per hour.
+	// DynamicTestClassCore is assigned to every completed basic dynamic test.
 	DynamicTestClassCore DynamicTestClass = "core"
 )
 
