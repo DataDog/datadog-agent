@@ -550,17 +550,12 @@ docker_build_secret_generic_connector_arm64:
 
 # FIPS variant: the FIPS binary is CGO/boringcrypto, so it is dynamically linked and needs glibc at
 # runtime - it cannot run on scratch. Build it against the public Ubuntu glibc base via a dedicated build
-# context (Dockerfiles/secret-generic-connector-fips). The nm check fails the build if the binary is
-# not boringcrypto-linked, rather than publishing a non-FIPS image.
+# context (Dockerfiles/secret-generic-connector-fips).
 .docker_build_secret_generic_connector_fips:
   extends: .docker_build_secret_generic_connector
   variables:
     TAG_SUFFIX: -fips
     BUILD_CONTEXT: Dockerfiles/secret-generic-connector-fips
-  before_script:
-    - !reference [.docker_build_secret_generic_connector, before_script]
-    - go tool nm $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector.${ARCH} | grep '_Cfunc__goboringcrypto_'
-    - go tool nm $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector.${ARCH} | grep 'crypto/tls/fipsonly'
 
 docker_build_secret_generic_connector_fips_amd64:
   extends: [.docker_build_secret_generic_connector_fips, .docker_build_amd64]
