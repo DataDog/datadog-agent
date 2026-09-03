@@ -42,6 +42,7 @@ type Config struct {
 	Username           string
 	Password           string
 	Profile            config.ProfileDefinition
+	CollectTopology    bool
 	UseTLS             bool
 	InsecureSkipVerify bool
 	// SampleInterval is the interval requested for every SAMPLE subscription.
@@ -405,11 +406,12 @@ func (c *Client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 }
 
 func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
-	subscriptions := make([]*gnmipb.Subscription, 0, len(c.cfg.Profile.Metrics))
-	for _, metric := range c.cfg.Profile.Metrics {
-		path, err := subscribePathFromMetric(metric)
+	specs := buildSubscriptionSpecs(c.cfg)
+	subscriptions := make([]*gnmipb.Subscription, 0, len(specs))
+	for _, spec := range specs {
+		path, err := subscribePathFromSpec(spec)
 		if err != nil {
-			return nil, fmt.Errorf("metric %q: %w", metric.Metric, err)
+			return nil, fmt.Errorf("path %q: %w", spec.Path, err)
 		}
 		subscriptions = append(subscriptions, &gnmipb.Subscription{
 			Path:           path,
