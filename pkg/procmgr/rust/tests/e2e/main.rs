@@ -6,7 +6,6 @@
 #[path = "../helpers/mod.rs"]
 mod helpers;
 
-mod list;
 mod cli_contracts;
 mod config_status;
 mod create;
@@ -15,6 +14,7 @@ mod ddot;
 mod describe;
 mod env_files;
 mod fixtures;
+mod list;
 mod process_control;
 mod reload;
 mod restart_burst;
