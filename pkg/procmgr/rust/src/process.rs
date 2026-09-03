@@ -164,7 +164,7 @@ impl ManagedProcess {
         &self.config
     }
 
-    pub fn profile(&self) -> SpawnProfile {
+    pub(crate) fn profile(&self) -> SpawnProfile {
         self.profile
     }
 
