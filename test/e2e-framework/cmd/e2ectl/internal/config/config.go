@@ -101,7 +101,18 @@ var (
 	agentVersionRegexp = kindVersionRegexp
 	integrationPattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]+\.d$`)
 	imageRefRegexp     = regexp.MustCompile(`^[a-zA-Z0-9.-]+(:[0-9]+)?/[a-zA-Z0-9/._-]+:[a-zA-Z0-9._-]+$`)
+	semverTagRegexp    = regexp.MustCompile(`^\d+\.\d+\.\d+(-[a-zA-Z0-9._-]+)?$`)
 )
+
+// imageTag returns the tag part of an image reference (after the last ':').
+func imageTag(ref string) string {
+	for i := len(ref) - 1; i >= 0; i-- {
+		if ref[i] == ':' {
+			return ref[i+1:]
+		}
+	}
+	return ""
+}
 
 // Load reads and validates the configuration at path. All validation errors
 // are accumulated so the file can be fixed in a single pass.
@@ -217,9 +228,16 @@ func (f *File) validateAgent() []error {
 		if a.Version != "" && !kindVersionRegexp.MatchString(a.Version) {
 			errs = append(errs, errf("agent.version", "%q is not a released agent version (expected e.g. \"7.69.0\")", a.Version))
 		}
-		if a.Image != "" && !imageRefRegexp.MatchString(a.Image) {
-			errs = append(errs, errf("agent.image",
-				"%q is not a fully-qualified image reference with tag (expected e.g. \"gcr.io/datadoghq/agent:my-dev\")", a.Image))
+		if a.Image != "" {
+			if !imageRefRegexp.MatchString(a.Image) {
+				errs = append(errs, errf("agent.image",
+					"%q is not a fully-qualified image reference with tag (expected e.g. \"gcr.io/datadoghq/agent:7.99.0-e2ectl\")", a.Image))
+			} else if !semverTagRegexp.MatchString(imageTag(a.Image)) {
+				// The Datadog Helm chart derives feature comparisons (semverCompare)
+				// from the agent image tag, so the tag must parse as semver.
+				errs = append(errs, errf("agent.image",
+					"tag %q is not semver-shaped (expected e.g. \"7.99.0-e2ectl\"; the Helm chart runs version comparisons on it)", imageTag(a.Image)))
+			}
 		}
 	case InstallScript:
 		if f.Environment.Base != BaseEC2Host {

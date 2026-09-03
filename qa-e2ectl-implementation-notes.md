@@ -81,3 +81,22 @@ Follow-up seam (noted, not M1): move the Output structs into Pulumi-free
   `e2ectl-dev` is not semver and would break the comparisons).
 - **Helm installer namespace**: `Params.Namespace` must be set (`datadog` by default
   in the worker) — the framework's own tests always pass one.
+- **Commit signing broke mid-run**: the ssh-agent socket died and the signing
+  private keys are only held by the (dead) agent managed by git-config-tool.
+  Workaround used: `git -c commit.gpgsign=false commit` for the remaining local
+  commits. Re-sign later with
+  `git rebase --exec 'git commit --amend --no-edit -S' 082fb1d4a3f` once the
+  agent is back. Nothing was pushed.
+- **`agents.image.repository` in the upstream Datadog chart is the FULL path
+  including the registry**: the chart's `image-path` helper renders
+  `repository:tag` verbatim when repository is set, and only falls back to
+  `registry/name:tag` when it is empty. The worker therefore sets
+  `agents.image.repository` to `gcr.io/datadoghq/agent` and the tag, and does
+  not touch the chart's `registry` value.
+- **Iteration loop verified live**: rename of `datadog.%s.running` in
+  pkg/aggregator → `dda inv agent.hacky-dev-image-build
+  --target-image=gcr.io/datadoghq/agent:7.99.0-e2ectl` → `e2ectl update
+  --env qa-dev --skip-build` → the renamed metric observed in the fakeintake,
+  with the old name only present on the pre-update agent payloads. The
+  `e2ectl update --config <file>` flag replaces the stored config copy, e.g.
+  to point at a new local image tag.

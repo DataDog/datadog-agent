@@ -192,6 +192,7 @@ func cmdInstall(args []string) error {
 func cmdUpdate(args []string) error {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	name := fs.String("env", "", "environment name (required)")
+	configPath := fs.String("config", "", "environment config file; replaces the stored config copy (e.g. to change the agent image)")
 	skipBuild := fs.Bool("skip-build", false, "do not rebuild the agent image; reuse the one referenced in the config")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -210,9 +211,26 @@ func cmdUpdate(args []string) error {
 	if entry.Meta.Base != config.BaseKind {
 		return fmt.Errorf("update only supports kind environments so far (this one is %q)", entry.Meta.Base)
 	}
-	cfg, err := entry.LoadConfig()
-	if err != nil {
-		return err
+	var cfg *config.File
+	var err2 error
+	if *configPath != "" {
+		cfg, err2 = config.Load(*configPath)
+		if err2 != nil {
+			return err2
+		}
+		// the provided config becomes the environment's source of truth
+		cfgData, err2 := os.ReadFile(cfg.Path)
+		if err2 != nil {
+			return err2
+		}
+		if err2 = os.WriteFile(entry.ConfigPath(), cfgData, 0o644); err2 != nil {
+			return err2
+		}
+	} else {
+		cfg, err2 = entry.LoadConfig()
+		if err2 != nil {
+			return err2
+		}
 	}
 	if cfg.Agent.Image == "" {
 		return fmt.Errorf("update requires agent.image in the environment config (e.g. gcr.io/datadoghq/agent:my-dev)")
