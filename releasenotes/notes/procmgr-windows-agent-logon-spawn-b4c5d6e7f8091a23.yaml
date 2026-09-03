@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    dd-procmgrd: Windows agent-profile managed children now spawn via LogonUser as the
+    installer agent account instead of inheriting the supervisor token.
