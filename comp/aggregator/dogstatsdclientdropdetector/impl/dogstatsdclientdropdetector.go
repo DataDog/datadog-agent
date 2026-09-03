@@ -191,7 +191,6 @@ func (d *component) completeWindow(state *clientState) {
 	stats := d.takeWindow(state)
 	// Drop-reason breakdowns alone cannot establish the sent/drop ratio.
 	if stats.sent == 0 && stats.dropped == 0 {
-		d.resetPendingTransition(state)
 		return
 	}
 	_, violated := droppedRatio(stats)

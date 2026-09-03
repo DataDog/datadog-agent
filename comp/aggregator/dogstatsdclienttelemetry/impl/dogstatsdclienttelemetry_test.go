@@ -162,6 +162,7 @@ func TestComponentSharesOnlyValidUDSClientBytesWithDetector(t *testing.T) {
 	for _, serie := range []*metrics.Serie{
 		{Name: dogStatsDClientBytesSentMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 5}}},
 		{Name: dogStatsDClientBytesSentMetric, Tags: clientTags("uds-stream", "py"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 4}}},
+		{Name: dogStatsDClientBytesSentMetric, Tags: tagset.CompositeTagsFromSlice([]string{"client_transport:uds", "client:orders", "client:java"}), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 3}}},
 		{Name: dogStatsDClientBytesDroppedMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 1}}},
 		{Name: dogStatsDClientBytesDroppedQueueMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 0.6}}},
 		{Name: dogStatsDClientBytesDroppedWriterMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 0.4}}},
@@ -175,6 +176,7 @@ func TestComponentSharesOnlyValidUDSClientBytesWithDetector(t *testing.T) {
 	require.Equal(t, []observedClientBytes{
 		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 50},
 		{clientLibrary: "py", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 40},
+		{clientLibrary: "java", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 30},
 		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricDropped, bytes: 10},
 		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricDroppedQueue, bytes: 6},
 		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricDroppedWriter, bytes: 4},
