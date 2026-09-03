@@ -5,7 +5,9 @@ go_library(
     name = "libproc",
     srcs = [
         "scanner.go",
+        "scanner_darwin.c",
         "scanner_darwin.go",
+        "scanner_darwin.h",
         "scanner_darwin_nocgo.go",
     ],
     cgo = True,
