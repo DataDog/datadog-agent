@@ -36,7 +36,7 @@ fn list_shows_running_and_created_mix() {
 }
 
 #[test]
-fn test_cli_list_terminal_table_fields() {
+fn list_terminal_table_fields() {
     let procmgr = TestEnv::new()
         .with_process("exit_ok")
         .with_process("exit_fail")
@@ -80,7 +80,7 @@ fn test_cli_list_terminal_table_fields() {
 }
 
 #[test]
-fn test_cli_list_json() {
+fn list_json() {
     let env = TestEnv::new()
         .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();

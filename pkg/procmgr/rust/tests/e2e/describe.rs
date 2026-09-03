@@ -11,28 +11,6 @@ use dd_procmgrd::test_helpers;
 use std::collections::BTreeMap;
 
 #[test]
-fn describe_running_process_spawn_identity() {
-    let procmgr = TestEnv::new().with_process("sleeper").start();
-    procmgr
-        .wait_for_process_running("sleeper")
-        .expect("expected sleeper running");
-
-    let pid = procmgr.process("sleeper").expect("sleeper").pid as u32;
-    let expected_user = expected_agent_spawn_user();
-    let expected_runtime_user = expected_runtime_user_for_pid(pid);
-
-    procmgr.assert_describe_matches(
-        "sleeper",
-        DescribeExpect {
-            profile: Some("agent".into()),
-            user: Some(expected_user),
-            runtime_user: Some(expected_runtime_user),
-            ..Default::default()
-        },
-    );
-}
-
-#[test]
 fn describe_running_process_matches_fixture() {
     let procmgr = TestEnv::new().with_process("sleeper").start();
     procmgr
@@ -40,6 +18,10 @@ fn describe_running_process_matches_fixture() {
         .expect("expected sleeper running");
 
     let list_snap = procmgr.process("sleeper").expect("sleeper");
+    let pid = list_snap.pid as u32;
+    let expected_user = expected_agent_spawn_user();
+    let expected_runtime_user = expected_runtime_user_for_pid(pid);
+
     procmgr.assert_describe_matches(
         "sleeper",
         DescribeExpect {
@@ -49,6 +31,9 @@ fn describe_running_process_matches_fixture() {
             args: Some(list_snap.args),
             has_uuid: Some(true),
             pid_alive: Some(true),
+            profile: Some("agent".into()),
+            user: Some(expected_user),
+            runtime_user: Some(expected_runtime_user),
             ..Default::default()
         },
     );
@@ -103,11 +88,11 @@ fn describe_shows_static_config_fields() {
 }
 
 #[test]
-fn describe_after_exit_shows_last_exit() {
-    let procmgr = TestEnv::new().with_process("exit_fail").start();
-    procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
+fn describe_last_exit_text() {
+    let env = TestEnv::new().with_process("exit_fail").start();
+    env.assert_process_state_within("exit_fail", ProcessExpect::Failed);
 
-    procmgr.assert_describe_matches(
+    env.assert_describe_matches(
         "exit_fail",
         DescribeExpect {
             name: Some("exit_fail".into()),
@@ -117,12 +102,6 @@ fn describe_after_exit_shows_last_exit() {
             ..Default::default()
         },
     );
-}
-
-#[test]
-fn test_cli_describe_last_exit_text() {
-    let env = TestEnv::new().with_process("exit_fail").start();
-    env.assert_process_state_within("exit_fail", ProcessExpect::Failed);
 
     env.cli_describe("exit_fail")
         .assert_success()
@@ -130,7 +109,7 @@ fn test_cli_describe_last_exit_text() {
 }
 
 #[test]
-fn test_cli_describe_restarts_text() {
+fn describe_restarts_text() {
     let env = TestEnv::new().with_process("crasher").start();
     env.assert_restart_count_at_least("crasher", 2);
 
@@ -141,7 +120,7 @@ fn test_cli_describe_restarts_text() {
 }
 
 #[test]
-fn test_cli_describe_not_found() {
+fn describe_not_found() {
     let env = TestEnv::new().start();
 
     env.cli_describe("nonexistent")
@@ -150,7 +129,7 @@ fn test_cli_describe_not_found() {
 }
 
 #[test]
-fn test_cli_describe_json() {
+fn describe_json() {
     let env = TestEnv::new()
         .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
