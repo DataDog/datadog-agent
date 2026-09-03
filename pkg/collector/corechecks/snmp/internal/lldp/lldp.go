@@ -6,26 +6,10 @@
 //nolint:revive // TODO(NDM) Fix revive linter
 package lldp
 
+import ndmlldp "github.com/DataDog/datadog-agent/pkg/networkdevice/lldp"
+
 // ChassisIDSubtypeMap mapping to translate into human-readable value for LldpChassisIdSubtype
-// Ref http://www.mibdepot.com/cgi-bin/getmib3.cgi?win=mib_a&i=1&n=LLDP-MIB&r=cisco&f=LLDP-MIB-V1SMI.my&v=v1&t=def#LldpChassisIdSubtype
-var ChassisIDSubtypeMap = map[string]string{
-	"1": "chassis_component",
-	"2": "interface_alias",
-	"3": "port_component",
-	"4": "mac_address",
-	"5": "network_address",
-	"6": "interface_name",
-	"7": "local",
-}
+var ChassisIDSubtypeMap = ndmlldp.ChassisIDSubtypeMap
 
 // PortIDSubTypeMap mapping to translate into human-readable value for LldpPortIdSubtype
-// Ref http://www.mibdepot.com/cgi-bin/getmib3.cgi?win=mib_a&i=1&n=LLDP-MIB&r=cisco&f=LLDP-MIB-V1SMI.my&v=v1&t=def#LldpPortIdSubtype
-var PortIDSubTypeMap = map[string]string{
-	"1": "interface_alias",
-	"2": "port_component",
-	"3": "mac_address",
-	"4": "network_address",
-	"5": "interface_name",
-	"6": "agent_circuit_id",
-	"7": "local",
-}
+var PortIDSubTypeMap = ndmlldp.PortIDSubTypeMap
