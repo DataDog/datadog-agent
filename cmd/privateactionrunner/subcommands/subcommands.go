@@ -9,6 +9,7 @@ package subcommands
 import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/bootstrapparcontrol"
+	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/containermode"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/rotateidentity"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/run"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/runexecutor"
@@ -19,6 +20,7 @@ import (
 func PrivateActionRunnerSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		bootstrapparcontrol.Commands,
+		containermode.Commands,
 		run.Commands,
 		runexecutor.Commands,
 		version.Commands,

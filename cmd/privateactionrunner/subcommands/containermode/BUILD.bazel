@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "containermode",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/containermode",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/privateactionrunner/def",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "containermode_test",
+    srcs = ["command_test.go"],
+    embed = [":containermode"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//comp/core/config",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+    ],
+)

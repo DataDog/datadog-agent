@@ -1,6 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ -x /opt/datadog-agent/embedded/bin/privateactionrunner ]]; then
-exec /opt/datadog-agent/embedded/bin/privateactionrunner run --cfgpath=/etc/datadog-agent/datadog.yaml
+readonly install_dir="/opt/datadog-agent"
+readonly par="${install_dir}/embedded/bin/privateactionrunner"
+readonly par_control="${install_dir}/embedded/bin/par-control"
+readonly procmgrd="${install_dir}/embedded/bin/dd-procmgrd"
+readonly processes_dir="${DD_PM_CONFIG_DIR:-${install_dir}/processes.d}"
+readonly config_file="/etc/datadog-agent/datadog.yaml"
+
+if [[ ! -x "${par}" ]]; then
+    exit 0
 fi
+
+mode="$("${par}" resolve-container-mode --cfgpath="${config_file}")"
+case "${mode}" in
+    monolithic)
+        exec "${par}" run --cfgpath="${config_file}"
+        ;;
+    split)
+        for binary in "${par_control}" "${procmgrd}"; do
+            if [[ ! -x "${binary}" ]]; then
+                printf 'Private Action Runner split mode requires executable %s\n' "${binary}" >&2
+                exit 1
+            fi
+        done
+        for definition in \
+            "${processes_dir}/datadog-agent-par-control.yaml" \
+            "${processes_dir}/datadog-agent-action-executor.yaml"; do
+            if [[ ! -f "${definition}" ]]; then
+                printf 'Private Action Runner split mode requires process definition %s\n' "${definition}" >&2
+                exit 1
+            fi
+        done
+        export DD_PM_CONFIG_DIR="${processes_dir}"
+        exec "${procmgrd}"
+        ;;
+    *)
+        printf 'Unknown Private Action Runner container mode: %s\n' "${mode}" >&2
+        exit 1
+        ;;
+esac
