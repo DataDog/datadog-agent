@@ -142,12 +142,13 @@ const (
 	DynamicTestProfileStandard DynamicTestProfile = "standard"
 )
 
-// DynamicTestClass is the Agent-computed class of a dynamic test run.
-// It is independent of DynamicTestProfile, which is how the path was selected.
+// DynamicTestClass is which coverage group a completed dynamic test belongs to.
+// Profile is how the path was selected; class is assigned after the run.
 type DynamicTestClass string
 
 const (
-	// DynamicTestClassCore is a run in the Agent's core set.
+	// DynamicTestClassCore is the Agent's baseline coverage: every basic run,
+	// plus the first 5 completed standard runs per Agent per hour.
 	DynamicTestClassCore DynamicTestClass = "core"
 )
 
@@ -281,8 +282,8 @@ type NetworkPath struct {
 	TestRunType        TestRunType        `json:"test_run_type"`
 	TestConfigSource   TestConfigSource   `json:"test_config_source,omitempty"`
 	DynamicTestProfile DynamicTestProfile `json:"dynamic_test_profile,omitempty"`
-	// DynamicTestClass is core when this run is in the Agent's core set.
-	// Omitted when unset so older payloads match runs that are not.
+	// DynamicTestClass is core for baseline coverage. Omitted when the run is
+	// not in that group.
 	DynamicTestClass DynamicTestClass       `json:"dynamic_test_class,omitempty"`
 	SourceProduct    SourceProduct          `json:"source_product"`
 	CollectorType    CollectorType          `json:"collector_type"`
