@@ -12,36 +12,36 @@
         <meta name="author" content="Datadog">
       
       
-        <link rel="canonical" href="https://datadoghq.dev/datadog-agent/how-to/test/unit/">
+        <link rel="canonical" href="https://datadoghq.dev/datadog-agent/how-to/test/e2e/custom-amis/">
       
       
-        <link rel="prev" href="../../build/distributions/">
+        <link rel="prev" href="../dependencies/">
       
       
-        <link rel="next" href="../static-analysis/">
+        <link rel="next" href="../../manual-qa/">
       
       
         
       
       
-      <link rel="icon" href="../../../assets/images/favicon.ico">
+      <link rel="icon" href="../../../../assets/images/favicon.ico">
       <meta name="generator" content="zensical-0.0.58">
     
     
       
-        <title>How to run unit tests - Datadog Agent</title>
+        <title>Custom AMIs - Datadog Agent</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="../../../assets/stylesheets/classic/main.38807bfb.min.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/classic/main.38807bfb.min.css">
       
         
           
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/classic/palette.c7ab7c71.min.css">
+        <link rel="stylesheet" href="../../../../assets/stylesheets/classic/palette.c7ab7c71.min.css">
       
       
 
@@ -60,11 +60,11 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/css/custom.css">
+      <link rel="stylesheet" href="../../../../assets/css/custom.css">
     
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/firacode@6.2.0/distr/fira_code.css">
     
-    <script>__md_scope=new URL("../../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    <script>__md_scope=new URL("../../../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -89,7 +89,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#how-to-run-unit-tests" class="md-skip">
+        <a href="#custom-amis" class="md-skip">
           Skip to content
         </a>
       
@@ -105,9 +105,9 @@
 
 <header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="Datadog Agent" class="md-header__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
+    <a href="../../../.." title="Datadog Agent" class="md-header__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
       
-  <img src="../../../assets/images/logo.svg" alt="Datadog Agent">
+  <img src="../../../../assets/images/logo.svg" alt="Datadog Agent">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
@@ -124,7 +124,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              How to run unit tests
+              Custom AMIs
             
           </span>
         </div>
@@ -215,7 +215,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../.." class="md-tabs__link">
+        <a href="../../../.." class="md-tabs__link">
           
   
   Home
@@ -269,7 +269,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../../build/standalone/" class="md-tabs__link">
+        <a href="../../../build/standalone/" class="md-tabs__link">
           
   
   How-to
@@ -314,7 +314,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../tutorials/dev/env/" class="md-tabs__link">
+        <a href="../../../../tutorials/dev/env/" class="md-tabs__link">
           
   
   Tutorials
@@ -351,7 +351,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../guidelines/contributing/" class="md-tabs__link">
+        <a href="../../../../guidelines/contributing/" class="md-tabs__link">
           
   
   Guidelines
@@ -381,7 +381,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../components/overview/" class="md-tabs__link">
+        <a href="../../../../components/overview/" class="md-tabs__link">
           
   
   Components
@@ -417,7 +417,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../agent-schema/" class="md-tabs__link">
+        <a href="../../../../agent-schema/" class="md-tabs__link">
           
   
   Agent Schema
@@ -457,7 +457,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../architecture/dogstatsd/internals/" class="md-tabs__link">
+        <a href="../../../../architecture/dogstatsd/internals/" class="md-tabs__link">
           
   
   Architecture
@@ -504,7 +504,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../reference/images/dev/" class="md-tabs__link">
+        <a href="../../../../reference/images/dev/" class="md-tabs__link">
           
   
   Reference
@@ -546,9 +546,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="Datadog Agent" class="md-nav__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
+    <a href="../../../.." title="Datadog Agent" class="md-nav__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
       
-  <img src="../../../assets/images/logo.svg" alt="Datadog Agent">
+  <img src="../../../../assets/images/logo.svg" alt="Datadog Agent">
 
     </a>
     Datadog Agent
@@ -602,7 +602,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../.." class="md-nav__link ">
+            <a href="../../../.." class="md-nav__link ">
               
   
   
@@ -704,7 +704,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../setup/required/" class="md-nav__link">
+      <a href="../../../../setup/required/" class="md-nav__link">
         
   
   
@@ -731,7 +731,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../setup/optional/" class="md-nav__link">
+      <a href="../../../../setup/optional/" class="md-nav__link">
         
   
   
@@ -758,7 +758,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../setup/manual/" class="md-nav__link">
+      <a href="../../../../setup/manual/" class="md-nav__link">
         
   
   
@@ -928,7 +928,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../build/standalone/" class="md-nav__link">
+      <a href="../../../build/standalone/" class="md-nav__link">
         
   
   
@@ -955,7 +955,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../build/distributions/" class="md-nav__link">
+      <a href="../../../build/distributions/" class="md-nav__link">
         
   
   
@@ -1052,38 +1052,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      
-        <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Unit tests
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="././" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../unit/" class="md-nav__link">
         
   
   
@@ -1098,49 +1070,6 @@
   
 
       </a>
-      
-        
-
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#test-selection" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Test selection
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#race-detection" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Race detection
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1153,7 +1082,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../static-analysis/" class="md-nav__link">
+      <a href="../../static-analysis/" class="md-nav__link">
         
   
   
@@ -1177,6 +1106,8 @@
                 
   
   
+    
+  
   
   
     
@@ -1203,17 +1134,15 @@
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2_3" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../e2e/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1236,7 +1165,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_2_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_2_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2_2_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1255,7 +1184,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../e2e/running/" class="md-nav__link">
+      <a href="../running/" class="md-nav__link">
         
   
   
@@ -1282,7 +1211,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../e2e/writing/" class="md-nav__link">
+      <a href="../writing/" class="md-nav__link">
         
   
   
@@ -1309,7 +1238,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../e2e/dependencies/" class="md-nav__link">
+      <a href="../dependencies/" class="md-nav__link">
         
   
   
@@ -1333,10 +1262,38 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../e2e/custom-amis/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+        <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Custom AMIs
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1351,6 +1308,110 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-an-ami-is-chosen" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How an AMI is chosen
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-e2e-amis" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The <code>-e2e</code> AMIs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-or-bumping-an-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Adding or bumping an image
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Adding or bumping an image">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adding-a-new-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Adding a new image
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pinning-one-test-to-a-specific-ami" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pinning one test to a specific AMI
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-an-ami" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Inspecting an AMI
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Windows
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1402,7 +1463,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../manual-qa/" class="md-nav__link ">
+            <a href="../../manual-qa/" class="md-nav__link ">
               
   
   
@@ -1508,7 +1569,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-vm/" class="md-nav__link">
+      <a href="../../manual-qa/aws-vm/" class="md-nav__link">
         
   
   
@@ -1535,7 +1596,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-docker/" class="md-nav__link">
+      <a href="../../manual-qa/aws-docker/" class="md-nav__link">
         
   
   
@@ -1562,7 +1623,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-eks/" class="md-nav__link">
+      <a href="../../manual-qa/aws-eks/" class="md-nav__link">
         
   
   
@@ -1589,7 +1650,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-ecs/" class="md-nav__link">
+      <a href="../../manual-qa/aws-ecs/" class="md-nav__link">
         
   
   
@@ -1616,7 +1677,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-kind/" class="md-nav__link">
+      <a href="../../manual-qa/aws-kind/" class="md-nav__link">
         
   
   
@@ -1707,7 +1768,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/azure-vm/" class="md-nav__link">
+      <a href="../../manual-qa/azure-vm/" class="md-nav__link">
         
   
   
@@ -1798,7 +1859,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/gcp-vm/" class="md-nav__link">
+      <a href="../../manual-qa/gcp-vm/" class="md-nav__link">
         
   
   
@@ -1908,7 +1969,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../go/modules/" class="md-nav__link">
+      <a href="../../../go/modules/" class="md-nav__link">
         
   
   
@@ -1975,7 +2036,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../debug-agents/" class="md-nav__link ">
+            <a href="../../../debug-agents/" class="md-nav__link ">
               
   
   
@@ -2017,7 +2078,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../debug-agents/linux/" class="md-nav__link">
+      <a href="../../../debug-agents/linux/" class="md-nav__link">
         
   
   
@@ -2044,7 +2105,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../debug-agents/windows/" class="md-nav__link">
+      <a href="../../../debug-agents/windows/" class="md-nav__link">
         
   
   
@@ -2144,7 +2205,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/overview/" class="md-nav__link">
+      <a href="../../../memory-profiling/overview/" class="md-nav__link">
         
   
   
@@ -2171,7 +2232,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/go/" class="md-nav__link">
+      <a href="../../../memory-profiling/go/" class="md-nav__link">
         
   
   
@@ -2198,7 +2259,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/python/" class="md-nav__link">
+      <a href="../../../memory-profiling/python/" class="md-nav__link">
         
   
   
@@ -2225,7 +2286,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/c++/" class="md-nav__link">
+      <a href="../../../memory-profiling/c++/" class="md-nav__link">
         
   
   
@@ -2381,7 +2442,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutorials/dev/env/" class="md-nav__link">
+      <a href="../../../../tutorials/dev/env/" class="md-nav__link">
         
   
   
@@ -2435,7 +2496,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../../tutorials/dev/lab/" class="md-nav__link ">
+            <a href="../../../../tutorials/dev/lab/" class="md-nav__link ">
               
   
   
@@ -2477,7 +2538,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutorials/dev/lab/kind/" class="md-nav__link">
+      <a href="../../../../tutorials/dev/lab/kind/" class="md-nav__link">
         
   
   
@@ -2591,7 +2652,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/contributing/" class="md-nav__link">
+      <a href="../../../../guidelines/contributing/" class="md-nav__link">
         
   
   
@@ -2618,7 +2679,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/docs/" class="md-nav__link">
+      <a href="../../../../guidelines/docs/" class="md-nav__link">
         
   
   
@@ -2703,7 +2764,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/languages/go/" class="md-nav__link">
+      <a href="../../../../guidelines/languages/go/" class="md-nav__link">
         
   
   
@@ -2730,7 +2791,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/languages/RUST/" class="md-nav__link">
+      <a href="../../../../guidelines/languages/RUST/" class="md-nav__link">
         
   
   
@@ -2821,7 +2882,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/testing/test-categories/" class="md-nav__link">
+      <a href="../../../../guidelines/testing/test-categories/" class="md-nav__link">
         
   
   
@@ -2912,7 +2973,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/conventions/logging/" class="md-nav__link">
+      <a href="../../../../guidelines/conventions/logging/" class="md-nav__link">
         
   
   
@@ -3014,7 +3075,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/overview/" class="md-nav__link">
+      <a href="../../../../components/overview/" class="md-nav__link">
         
   
   
@@ -3101,7 +3162,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/creating-components/" class="md-nav__link">
+      <a href="../../../../components/creating-components/" class="md-nav__link">
         
   
   
@@ -3128,7 +3189,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/testing/" class="md-nav__link">
+      <a href="../../../../components/testing/" class="md-nav__link">
         
   
   
@@ -3155,7 +3216,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/using-components/" class="md-nav__link">
+      <a href="../../../../components/using-components/" class="md-nav__link">
         
   
   
@@ -3304,7 +3365,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/shared_features/flares/" class="md-nav__link">
+      <a href="../../../../components/shared_features/flares/" class="md-nav__link">
         
   
   
@@ -3331,7 +3392,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/shared_features/status/" class="md-nav__link">
+      <a href="../../../../components/shared_features/status/" class="md-nav__link">
         
   
   
@@ -3414,7 +3475,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../../agent-schema/" class="md-nav__link ">
+            <a href="../../../../agent-schema/" class="md-nav__link ">
               
   
   
@@ -3456,7 +3517,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/keywords/" class="md-nav__link">
+      <a href="../../../../agent-schema/keywords/" class="md-nav__link">
         
   
   
@@ -3483,7 +3544,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/examples/" class="md-nav__link">
+      <a href="../../../../agent-schema/examples/" class="md-nav__link">
         
   
   
@@ -3510,7 +3571,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/cli/" class="md-nav__link">
+      <a href="../../../../agent-schema/cli/" class="md-nav__link">
         
   
   
@@ -3537,7 +3598,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/faq/" class="md-nav__link">
+      <a href="../../../../agent-schema/faq/" class="md-nav__link">
         
   
   
@@ -3683,7 +3744,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../architecture/dogstatsd/internals/" class="md-nav__link">
+      <a href="../../../../architecture/dogstatsd/internals/" class="md-nav__link">
         
   
   
@@ -3841,7 +3902,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../reference/images/dev/" class="md-nav__link">
+      <a href="../../../../reference/images/dev/" class="md-nav__link">
         
   
   
@@ -3868,7 +3929,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../reference/images/builders/" class="md-nav__link">
+      <a href="../../../../reference/images/builders/" class="md-nav__link">
         
   
   
@@ -3959,7 +4020,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../reference/builds/components/" class="md-nav__link">
+      <a href="../../../../reference/builds/components/" class="md-nav__link">
         
   
   
@@ -4023,10 +4084,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#test-selection" class="md-nav__link">
+  <a href="#how-an-ami-is-chosen" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Test selection
+        How an AMI is chosen
       </span>
     </span>
   </a>
@@ -4034,10 +4095,71 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#race-detection" class="md-nav__link">
+  <a href="#the-e2e-amis" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Race detection
+        The <code>-e2e</code> AMIs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-or-bumping-an-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Adding or bumping an image
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Adding or bumping an image">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adding-a-new-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Adding a new image
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pinning-one-test-to-a-specific-ami" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pinning one test to a specific AMI
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-an-ami" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Inspecting an AMI
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Windows
       </span>
     </span>
   </a>
@@ -4059,7 +4181,7 @@
                 
                   
   
-    <a href="https://github.com/DataDog/datadog-agent/blob/main/docs/public/how-to/test/unit.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/DataDog/datadog-agent/blob/main/docs/public/how-to/test/e2e/custom-amis.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -4067,20 +4189,125 @@
   
 
 
-<h1 id="how-to-run-unit-tests">How to run unit tests<a class="headerlink" href="#how-to-run-unit-tests" title="Permanent link">&para;</a></h1>
-<hr />
-<p>The <code>dda inv test</code> command runs Go tests and is a thin wrapper around <a href="https://github.com/gotestyourself/gotestsum">gotestsum</a>.</p>
-<h2 id="test-selection">Test selection<a class="headerlink" href="#test-selection" title="Permanent link">&para;</a></h2>
-<p>The Go module to test may be selected with the <code>-m</code>/<code>--module</code> flag using a relative path, defaulting to <code>.</code>.</p>
-<p>The <code>-t</code>/<code>--targets</code> flag is used to select the targets to test using a comma-separated list of relative paths within the given module. For example, the following command runs tests for the <code>pkg/collector/check</code> and <code>pkg/aggregator</code> root packages.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda inv test --targets=pkg/collector/check,pkg/aggregator
-</span></code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If no module nor targets are set then the tests for all modules and targets are executed, which may be time-consuming.</p>
+<h1 id="custom-amis">Custom AMIs<a class="headerlink" href="#custom-amis" title="Permanent link">&para;</a></h1>
+<p>Many E2E tests rely on extra dependencies being installed - instead of installing them at runtime (via an <code>apt install</code> or similar), we prefer to "bake" them into the underlying AMI that is used for provisioning the test VMs, as installing at runtime is a big source of flakiness (see <a href="../dependencies/">here</a>)
+These images are pinned by ID in this repo (<code>test/e2e-framework/resources/aws/platforms.json</code>) and always associated with a specific OS Descriptior in the E2E framework (see below.)</p>
+<p>The images themselves are built in <a href="https://github.com/ddoghq/ami-builder/tree/master/ami/images/e2e">ami-builder</a>. This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.</p>
+<h2 id="how-an-ami-is-chosen">How an AMI is chosen<a class="headerlink" href="#how-an-ami-is-chosen" title="Permanent link">&para;</a></h2>
+<ol>
+<li><code>ec2.WithOS(e2eos.Ubuntu2204E2E)</code> resolves to a <code>Descriptor{Ubuntu, "22-04-e2e", x86_64}</code> — a <code>(flavor, version, architecture)</code> triple.</li>
+<li>No <code>WithOS</code> at all? The descriptor comes from a flavor default instead (<code>LinuxDescriptorsDefault</code>, <code>WindowsDescriptorsDefault</code>, or <code>MacOSDescriptorsDefault</code>).</li>
+<li>Either way, <code>aws.GetAMI(descriptor)</code> looks that triple up as <code>platforms.json[flavor][arch][version]</code> and returns the pinned AMI ID.</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>File</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Descriptors (<code>Ubuntu2204E2E</code>, <code>WindowsServer2025</code>, …)</td>
+<td><code>test/e2e-framework/components/os/{linux,windows,macos}_descriptors.go</code></td>
+</tr>
+<tr>
+<td>Flavor defaults (<code>UbuntuDefault</code>, <code>WindowsServerDefault</code>, …)</td>
+<td>same files</td>
+</tr>
+<tr>
+<td>The AMI table</td>
+<td><code>test/e2e-framework/resources/aws/platforms.json</code></td>
+</tr>
+<tr>
+<td>The lookup</td>
+<td><code>test/e2e-framework/resources/aws/platforms.go</code> (<code>GetAMI</code>)</td>
+</tr>
+<tr>
+<td>Resolution and fallbacks</td>
+<td><code>test/e2e-framework/scenarios/aws/ec2/os_resolver.go</code></td>
+</tr>
+</tbody>
+</table>
+<p>The <code>version</code> field is a literal <code>platforms.json</code> key — hence <code>"22-04-e2e"</code>, not <code>"22.04"</code>.</p>
+<div class="admonition tip">
+<p class="admonition-title">Seeing <code>version '22-04-e2e' not found in platforms.json</code>?</p>
+<p>The descriptor exists but the table entry does not — check <code>platforms.json</code> for a typo'd or missing key.</p>
 </div>
-<h2 id="race-detection">Race detection<a class="headerlink" href="#race-detection" title="Permanent link">&para;</a></h2>
-<p>The <code>-r</code>/<code>--race</code> flag enables Go's built-in <a href="https://go.dev/doc/articles/race_detector">data race detector</a>.</p>
+<details class="info">
+<summary>Bypassing the pin with <code>ec2.WithLatestAMI()</code></summary>
+<p><code>ec2.WithLatestAMI()</code> bypasses <code>platforms.json</code> entirely and resolves the latest published image through SSM. It is deliberately rare in tests — it gives up reproducibility and it never gets you a prebaked image. Not every flavor can resolve a latest image; those log a warning and fall back to the pinned ID.</p>
+<p>For manual QA the same switch is <code>dda inv aws.create-vm --latest-ami</code> (which sets <code>ddinfra:osImageIDUseLatest</code>). That is the right way to check whether a new upstream image breaks something, before bumping the pin.</p>
+</details>
+<h2 id="the-e2e-amis">The <code>-e2e</code> AMIs<a class="headerlink" href="#the-e2e-amis" title="Permanent link">&para;</a></h2>
+<p>Most OS types have an <code>-e2e</code> variant defined in <code>platforms.json</code>: </p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">"ubuntu"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">"x86_64"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">"22-04"</span><span class="p">:</span><span class="w">     </span><span class="s2">"ami-0347d82d55205687d"</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">"22-04-e2e"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ami-09bcb097bdb06fabf"</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>Both derive from the same upstream base image, but the <code>-e2e</code> one contains extra stuff: common test dependencies, maybe some config files etc. See <a href="../dependencies/#prebake-into-the-machine-image">Prebake into the machine image</a> for more details.</p>
+<div class="admonition danger">
+<p class="admonition-title">Prefer using the <code>-e2e</code> variant in new tests.</p>
+<p>Unless overriden, this should be the default on both Linux and Windows — <code>UbuntuDefault</code> is <code>Ubuntu2204E2E</code> — so a test that passes no OS at all gets the prebaked image. A test that explicitly asks for <code>e2eos.Ubuntu2204</code> opts <em>out</em> of it, usually by accident.</p>
+<p>If you need an extra dependency in your test, <strong>prefer adding it to the existing <code>-e2e</code> variant over creating your own fully-custom AMI</strong> if at all possible. Feel free to ask #agent-devx-help for help.</p>
+</div>
+<h2 id="adding-or-bumping-an-image">Adding or bumping an image<a class="headerlink" href="#adding-or-bumping-an-image" title="Permanent link">&para;</a></h2>
+<p>The build lives in <a href="https://github.com/ddoghq/ami-builder">ami-builder</a>; this repo only holds the resulting ID.</p>
+<ol>
+<li>Make the image change in ami-builder under <code>ami/images/e2e/</code> and open a PR there.</li>
+<li>Run the manual <code>build:&lt;os&gt;-&lt;arch&gt;-&lt;version&gt;</code> job in that branch's child pipeline. The build jobs are manual-only, and a feature branch produces a real usable AMI even without merging.</li>
+<li>Read the ID out of the job log:
+   <div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Sharing new AMI ami-0123456789abcdef0 to account datadog-agent-sandbox
+</span></code></pre></div></li>
+<li>Update <code>test/e2e-framework/resources/aws/platforms.json</code> in this repo with that ID. Trigger a full pipeline on that PR — an image change can affect any suite, not only the ones whose files you touched.</li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The scheduled <code>[bot] Update E2E AMIs</code> PRs <strong>only refresh keys that already exist</strong> in <code>platforms.json</code>. A brand-new key — a new OS version, a new <code>-e2e</code> variant — is built and shared but then silently dropped until someone adds the key by hand. Add the key in the same PR that starts consuming it.</p>
+</div>
+<h3 id="adding-a-new-image">Adding a new image<a class="headerlink" href="#adding-a-new-image" title="Permanent link">&para;</a></h3>
+<p>To add a new custom AMI, you also need to tell the e2e framework about it: this is done by creating a new <em>OS descriptor</em> alongside the <code>platforms.json</code> update
+1. Update <code>platforms.json</code>, adding your new key in the appropriate spot.</p>
+<ol>
+<li>Use that descriptor in your test: <code>ec2.WithOS(e2eos.yourNewDescriptor)</code></li>
+<li><code>components/os/&lt;family&gt;_descriptors.go</code> — create a matching descriptor (<code>Ubuntu2204E2E</code> style naming).</li>
+</ol>
+<h2 id="pinning-one-test-to-a-specific-ami">Pinning one test to a specific AMI<a class="headerlink" href="#pinning-one-test-to-a-specific-ami" title="Permanent link">&para;</a></h2>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Avoid doing this if at all possible - prefer using the <code>-e2e</code> variants, adding your dependency to them if needed.</p>
+</div>
+<p><code>ec2.WithAMI</code> skips resolution altogether:</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nx">ec2</span><span class="p">.</span><span class="nx">WithAMI</span><span class="p">(</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="s">"ami-04e7f0e0bde783f77"</span><span class="p">,</span><span class="w"> </span><span class="c1">// https://gitlab.ddbuild.io/DataDog/ami-builder/-/jobs/1232214462</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nx">compos</span><span class="p">.</span><span class="nx">AmazonLinux2</span><span class="p">,</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nx">compos</span><span class="p">.</span><span class="nx">AMD64Arch</span><span class="p">,</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">)</span>
+</span></code></pre></div>
+<p>The descriptor and architecture arguments must still match the image — they drive package-manager and path selection, not the lookup.</p>
+<p>This is an escape hatch for a one-off image, as in <code>test/new-e2e/tests/npm/ec2_1host_selinux_test.go</code>. Always leave the build-job link in a comment, as above: an unattributed AMI ID cannot be rebuilt or audited. Do not reach for it to avoid getting a dependency prebaked properly — the ID will never be bumped by the bot and will rot.</p>
+<h2 id="inspecting-an-ami">Inspecting an AMI<a class="headerlink" href="#inspecting-an-ami" title="Permanent link">&para;</a></h2>
+<p>To poke at an image by hand — check that a tool really is installed, look at a service's state:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>aws-vault<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>sso-agent-qa-account-admin-8h<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>dda<span class="w"> </span>inv<span class="w"> </span>ami.launch-instance<span class="w"> </span>--ami-id<span class="w"> </span>ami-0123456789abcdef0<span class="w"> </span>--key-name<span class="w"> </span>&lt;your-key&gt;
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># then ssh (or RDP) to the printed private IP</span>
+</span></code></pre></div>
+<p><code>dda inv ami.create-ami</code> / <code>ami.delete-ami</code> can snapshot such an instance back into an AMI.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>That snapshot path is for <strong>debugging only</strong>. An image built by hand-editing a running instance is unreproducible, untracked, and will not be rebuilt when the base image is refreshed. To add a dependency for real, change the ami-builder provisioner script.</p>
+</div>
+<h2 id="windows">Windows<a class="headerlink" href="#windows" title="Permanent link">&para;</a></h2>
+<p>Windows images need a few extra precautions when building or bumping one. Skip this section unless you are touching Windows E2E infrastructure.</p>
+<ul>
+<li><strong>SSH bootstrap runs from EC2 user data.</strong> A fresh Windows instance has no SSH server; <code>test/e2e-framework/components/os/scripts/setup-ssh.ps1</code> (wired up in <code>scenarios/aws/ec2/os_win.go</code>) installs OpenSSH and the test's key on boot. If a Windows host is unreachable, read this script first.</li>
+<li><strong>A Packer build must end with <code>EC2Launch.exe reset -c</code></strong> (or its v1 equivalent, <code>Scripts\InitializeInstance.ps1 -Schedule</code>). EC2Launch tracks which boot-time setup tasks it has already run in a marker file, and Packer snapshots that marker along with the disk — so without a reset, every instance launched from the image thinks setup already happened and skips it. The task that actually bites is <code>extendRootPartition</code>: skip it, and <code>C:</code> never grows to the volume size the test asked for.</li>
+<li><strong>Build custom images from the <code>EC2LaunchV2-*</code> base AMIs</strong>, not the plain <code>Windows_Server-*</code> ones. The plain bases ship EC2Launch v1, which bakes its IMDS route into the image itself; an image built in one subnet and launched in another can lose IMDS entirely, which silently breaks user data and SSH bootstrap with it.</li>
+<li><strong>Never set <code>&lt;persist&gt;true&lt;/persist&gt;</code> on the build-time bootstrap script.</strong> Only the consumer-facing user data (the one <code>setup-ssh.ps1</code> ships as) should persist. On EC2Launch v1, a persisted build-time script becomes a permanent scheduled task that re-runs on every instance launched from the image, fighting the real bootstrap.</li>
+</ul>
 
 
 
@@ -4114,7 +4341,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../../build/distributions/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Distribution packages">
+          <a href="../dependencies/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Test dependencies">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -4124,20 +4351,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Distribution packages
+                Test dependencies
               </div>
             </div>
           </a>
         
         
           
-          <a href="../static-analysis/" class="md-footer__link md-footer__link--next" aria-label="Next: Static analysis">
+          <a href="../../manual-qa/" class="md-footer__link md-footer__link--next" aria-label="Next: Manual QA Infrastructure">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Static analysis
+                Manual QA Infrastructure
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -4227,10 +4454,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":"../../..","features":["content.action.edit","content.code.copy","content.tabs.link","content.tooltips","navigation.expand","navigation.footer","navigation.indexes","navigation.instant","navigation.sections","navigation.tabs","navigation.tabs.sticky"],"search":"../../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"../../../..","features":["content.action.edit","content.code.copy","content.tabs.link","content.tooltips","navigation.expand","navigation.footer","navigation.indexes","navigation.instant","navigation.sections","navigation.tabs","navigation.tabs.sticky"],"search":"../../../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.6970bfe9.min.js"></script>
+      <script src="../../../../assets/javascripts/bundle.6970bfe9.min.js"></script>
       
     
   </body>

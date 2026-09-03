@@ -12,36 +12,36 @@
         <meta name="author" content="Datadog">
       
       
-        <link rel="canonical" href="https://datadoghq.dev/datadog-agent/how-to/test/unit/">
+        <link rel="canonical" href="https://datadoghq.dev/datadog-agent/how-to/test/e2e/dependencies/">
       
       
-        <link rel="prev" href="../../build/distributions/">
+        <link rel="prev" href="../writing/">
       
       
-        <link rel="next" href="../static-analysis/">
+        <link rel="next" href="../custom-amis/">
       
       
         
       
       
-      <link rel="icon" href="../../../assets/images/favicon.ico">
+      <link rel="icon" href="../../../../assets/images/favicon.ico">
       <meta name="generator" content="zensical-0.0.58">
     
     
       
-        <title>How to run unit tests - Datadog Agent</title>
+        <title>Test dependencies - Datadog Agent</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="../../../assets/stylesheets/classic/main.38807bfb.min.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/classic/main.38807bfb.min.css">
       
         
           
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/classic/palette.c7ab7c71.min.css">
+        <link rel="stylesheet" href="../../../../assets/stylesheets/classic/palette.c7ab7c71.min.css">
       
       
 
@@ -60,11 +60,11 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/css/custom.css">
+      <link rel="stylesheet" href="../../../../assets/css/custom.css">
     
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/firacode@6.2.0/distr/fira_code.css">
     
-    <script>__md_scope=new URL("../../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    <script>__md_scope=new URL("../../../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -89,7 +89,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#how-to-run-unit-tests" class="md-skip">
+        <a href="#test-dependencies" class="md-skip">
           Skip to content
         </a>
       
@@ -105,9 +105,9 @@
 
 <header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="Datadog Agent" class="md-header__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
+    <a href="../../../.." title="Datadog Agent" class="md-header__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
       
-  <img src="../../../assets/images/logo.svg" alt="Datadog Agent">
+  <img src="../../../../assets/images/logo.svg" alt="Datadog Agent">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
@@ -124,7 +124,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              How to run unit tests
+              Test dependencies
             
           </span>
         </div>
@@ -215,7 +215,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../.." class="md-tabs__link">
+        <a href="../../../.." class="md-tabs__link">
           
   
   Home
@@ -269,7 +269,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../../build/standalone/" class="md-tabs__link">
+        <a href="../../../build/standalone/" class="md-tabs__link">
           
   
   How-to
@@ -314,7 +314,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../tutorials/dev/env/" class="md-tabs__link">
+        <a href="../../../../tutorials/dev/env/" class="md-tabs__link">
           
   
   Tutorials
@@ -351,7 +351,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../guidelines/contributing/" class="md-tabs__link">
+        <a href="../../../../guidelines/contributing/" class="md-tabs__link">
           
   
   Guidelines
@@ -381,7 +381,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../components/overview/" class="md-tabs__link">
+        <a href="../../../../components/overview/" class="md-tabs__link">
           
   
   Components
@@ -417,7 +417,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../agent-schema/" class="md-tabs__link">
+        <a href="../../../../agent-schema/" class="md-tabs__link">
           
   
   Agent Schema
@@ -457,7 +457,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../architecture/dogstatsd/internals/" class="md-tabs__link">
+        <a href="../../../../architecture/dogstatsd/internals/" class="md-tabs__link">
           
   
   Architecture
@@ -504,7 +504,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../reference/images/dev/" class="md-tabs__link">
+        <a href="../../../../reference/images/dev/" class="md-tabs__link">
           
   
   Reference
@@ -546,9 +546,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="Datadog Agent" class="md-nav__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
+    <a href="../../../.." title="Datadog Agent" class="md-nav__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
       
-  <img src="../../../assets/images/logo.svg" alt="Datadog Agent">
+  <img src="../../../../assets/images/logo.svg" alt="Datadog Agent">
 
     </a>
     Datadog Agent
@@ -602,7 +602,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../.." class="md-nav__link ">
+            <a href="../../../.." class="md-nav__link ">
               
   
   
@@ -704,7 +704,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../setup/required/" class="md-nav__link">
+      <a href="../../../../setup/required/" class="md-nav__link">
         
   
   
@@ -731,7 +731,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../setup/optional/" class="md-nav__link">
+      <a href="../../../../setup/optional/" class="md-nav__link">
         
   
   
@@ -758,7 +758,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../setup/manual/" class="md-nav__link">
+      <a href="../../../../setup/manual/" class="md-nav__link">
         
   
   
@@ -928,7 +928,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../build/standalone/" class="md-nav__link">
+      <a href="../../../build/standalone/" class="md-nav__link">
         
   
   
@@ -955,7 +955,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../build/distributions/" class="md-nav__link">
+      <a href="../../../build/distributions/" class="md-nav__link">
         
   
   
@@ -1052,38 +1052,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      
-        <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Unit tests
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="././" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../unit/" class="md-nav__link">
         
   
   
@@ -1098,49 +1070,6 @@
   
 
       </a>
-      
-        
-
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#test-selection" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Test selection
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#race-detection" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Race detection
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1153,7 +1082,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../static-analysis/" class="md-nav__link">
+      <a href="../../static-analysis/" class="md-nav__link">
         
   
   
@@ -1177,6 +1106,8 @@
                 
   
   
+    
+  
   
   
     
@@ -1203,17 +1134,15 @@
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2_3" checked>
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../e2e/" class="md-nav__link ">
+            <a href="../" class="md-nav__link ">
               
   
   
@@ -1236,7 +1165,7 @@
             
           </div>
         
-        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_2_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_2_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_2_2_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1255,7 +1184,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../e2e/running/" class="md-nav__link">
+      <a href="../running/" class="md-nav__link">
         
   
   
@@ -1282,7 +1211,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../e2e/writing/" class="md-nav__link">
+      <a href="../writing/" class="md-nav__link">
         
   
   
@@ -1306,10 +1235,38 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../e2e/dependencies/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+        <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Test dependencies
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1324,6 +1281,110 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#spotting-a-runtime-dependency" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Spotting a runtime dependency
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-ways-to-remove-external-deps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Common ways to remove external deps
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ecr-pull-through-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ECR pull-through cache
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ECR pull-through cache">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#kubernetes-and-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Kubernetes and Kind
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prebake-into-the-machine-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Prebake into the machine image
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#s3-artifact-bucket" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S3 artifact bucket
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#azure-and-gcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Azure and GCP
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1336,7 +1397,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../e2e/custom-amis/" class="md-nav__link">
+      <a href="../custom-amis/" class="md-nav__link">
         
   
   
@@ -1402,7 +1463,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../manual-qa/" class="md-nav__link ">
+            <a href="../../manual-qa/" class="md-nav__link ">
               
   
   
@@ -1508,7 +1569,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-vm/" class="md-nav__link">
+      <a href="../../manual-qa/aws-vm/" class="md-nav__link">
         
   
   
@@ -1535,7 +1596,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-docker/" class="md-nav__link">
+      <a href="../../manual-qa/aws-docker/" class="md-nav__link">
         
   
   
@@ -1562,7 +1623,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-eks/" class="md-nav__link">
+      <a href="../../manual-qa/aws-eks/" class="md-nav__link">
         
   
   
@@ -1589,7 +1650,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-ecs/" class="md-nav__link">
+      <a href="../../manual-qa/aws-ecs/" class="md-nav__link">
         
   
   
@@ -1616,7 +1677,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-kind/" class="md-nav__link">
+      <a href="../../manual-qa/aws-kind/" class="md-nav__link">
         
   
   
@@ -1707,7 +1768,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/azure-vm/" class="md-nav__link">
+      <a href="../../manual-qa/azure-vm/" class="md-nav__link">
         
   
   
@@ -1798,7 +1859,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/gcp-vm/" class="md-nav__link">
+      <a href="../../manual-qa/gcp-vm/" class="md-nav__link">
         
   
   
@@ -1908,7 +1969,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../go/modules/" class="md-nav__link">
+      <a href="../../../go/modules/" class="md-nav__link">
         
   
   
@@ -1975,7 +2036,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../debug-agents/" class="md-nav__link ">
+            <a href="../../../debug-agents/" class="md-nav__link ">
               
   
   
@@ -2017,7 +2078,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../debug-agents/linux/" class="md-nav__link">
+      <a href="../../../debug-agents/linux/" class="md-nav__link">
         
   
   
@@ -2044,7 +2105,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../debug-agents/windows/" class="md-nav__link">
+      <a href="../../../debug-agents/windows/" class="md-nav__link">
         
   
   
@@ -2144,7 +2205,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/overview/" class="md-nav__link">
+      <a href="../../../memory-profiling/overview/" class="md-nav__link">
         
   
   
@@ -2171,7 +2232,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/go/" class="md-nav__link">
+      <a href="../../../memory-profiling/go/" class="md-nav__link">
         
   
   
@@ -2198,7 +2259,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/python/" class="md-nav__link">
+      <a href="../../../memory-profiling/python/" class="md-nav__link">
         
   
   
@@ -2225,7 +2286,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/c++/" class="md-nav__link">
+      <a href="../../../memory-profiling/c++/" class="md-nav__link">
         
   
   
@@ -2381,7 +2442,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutorials/dev/env/" class="md-nav__link">
+      <a href="../../../../tutorials/dev/env/" class="md-nav__link">
         
   
   
@@ -2435,7 +2496,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../../tutorials/dev/lab/" class="md-nav__link ">
+            <a href="../../../../tutorials/dev/lab/" class="md-nav__link ">
               
   
   
@@ -2477,7 +2538,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutorials/dev/lab/kind/" class="md-nav__link">
+      <a href="../../../../tutorials/dev/lab/kind/" class="md-nav__link">
         
   
   
@@ -2591,7 +2652,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/contributing/" class="md-nav__link">
+      <a href="../../../../guidelines/contributing/" class="md-nav__link">
         
   
   
@@ -2618,7 +2679,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/docs/" class="md-nav__link">
+      <a href="../../../../guidelines/docs/" class="md-nav__link">
         
   
   
@@ -2703,7 +2764,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/languages/go/" class="md-nav__link">
+      <a href="../../../../guidelines/languages/go/" class="md-nav__link">
         
   
   
@@ -2730,7 +2791,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/languages/RUST/" class="md-nav__link">
+      <a href="../../../../guidelines/languages/RUST/" class="md-nav__link">
         
   
   
@@ -2821,7 +2882,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/testing/test-categories/" class="md-nav__link">
+      <a href="../../../../guidelines/testing/test-categories/" class="md-nav__link">
         
   
   
@@ -2912,7 +2973,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/conventions/logging/" class="md-nav__link">
+      <a href="../../../../guidelines/conventions/logging/" class="md-nav__link">
         
   
   
@@ -3014,7 +3075,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/overview/" class="md-nav__link">
+      <a href="../../../../components/overview/" class="md-nav__link">
         
   
   
@@ -3101,7 +3162,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/creating-components/" class="md-nav__link">
+      <a href="../../../../components/creating-components/" class="md-nav__link">
         
   
   
@@ -3128,7 +3189,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/testing/" class="md-nav__link">
+      <a href="../../../../components/testing/" class="md-nav__link">
         
   
   
@@ -3155,7 +3216,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/using-components/" class="md-nav__link">
+      <a href="../../../../components/using-components/" class="md-nav__link">
         
   
   
@@ -3304,7 +3365,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/shared_features/flares/" class="md-nav__link">
+      <a href="../../../../components/shared_features/flares/" class="md-nav__link">
         
   
   
@@ -3331,7 +3392,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/shared_features/status/" class="md-nav__link">
+      <a href="../../../../components/shared_features/status/" class="md-nav__link">
         
   
   
@@ -3414,7 +3475,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../../agent-schema/" class="md-nav__link ">
+            <a href="../../../../agent-schema/" class="md-nav__link ">
               
   
   
@@ -3456,7 +3517,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/keywords/" class="md-nav__link">
+      <a href="../../../../agent-schema/keywords/" class="md-nav__link">
         
   
   
@@ -3483,7 +3544,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/examples/" class="md-nav__link">
+      <a href="../../../../agent-schema/examples/" class="md-nav__link">
         
   
   
@@ -3510,7 +3571,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/cli/" class="md-nav__link">
+      <a href="../../../../agent-schema/cli/" class="md-nav__link">
         
   
   
@@ -3537,7 +3598,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/faq/" class="md-nav__link">
+      <a href="../../../../agent-schema/faq/" class="md-nav__link">
         
   
   
@@ -3683,7 +3744,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../architecture/dogstatsd/internals/" class="md-nav__link">
+      <a href="../../../../architecture/dogstatsd/internals/" class="md-nav__link">
         
   
   
@@ -3841,7 +3902,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../reference/images/dev/" class="md-nav__link">
+      <a href="../../../../reference/images/dev/" class="md-nav__link">
         
   
   
@@ -3868,7 +3929,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../reference/images/builders/" class="md-nav__link">
+      <a href="../../../../reference/images/builders/" class="md-nav__link">
         
   
   
@@ -3959,7 +4020,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../reference/builds/components/" class="md-nav__link">
+      <a href="../../../../reference/builds/components/" class="md-nav__link">
         
   
   
@@ -4023,10 +4084,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#test-selection" class="md-nav__link">
+  <a href="#spotting-a-runtime-dependency" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Test selection
+        Spotting a runtime dependency
       </span>
     </span>
   </a>
@@ -4034,10 +4095,71 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#race-detection" class="md-nav__link">
+  <a href="#common-ways-to-remove-external-deps" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Race detection
+        Common ways to remove external deps
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ecr-pull-through-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ECR pull-through cache
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ECR pull-through cache">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#kubernetes-and-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Kubernetes and Kind
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prebake-into-the-machine-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Prebake into the machine image
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#s3-artifact-bucket" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        S3 artifact bucket
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#azure-and-gcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Azure and GCP
       </span>
     </span>
   </a>
@@ -4059,7 +4181,7 @@
                 
                   
   
-    <a href="https://github.com/DataDog/datadog-agent/blob/main/docs/public/how-to/test/unit.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/DataDog/datadog-agent/blob/main/docs/public/how-to/test/e2e/dependencies.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -4067,20 +4189,195 @@
   
 
 
-<h1 id="how-to-run-unit-tests">How to run unit tests<a class="headerlink" href="#how-to-run-unit-tests" title="Permanent link">&para;</a></h1>
-<hr />
-<p>The <code>dda inv test</code> command runs Go tests and is a thin wrapper around <a href="https://github.com/gotestyourself/gotestsum">gotestsum</a>.</p>
-<h2 id="test-selection">Test selection<a class="headerlink" href="#test-selection" title="Permanent link">&para;</a></h2>
-<p>The Go module to test may be selected with the <code>-m</code>/<code>--module</code> flag using a relative path, defaulting to <code>.</code>.</p>
-<p>The <code>-t</code>/<code>--targets</code> flag is used to select the targets to test using a comma-separated list of relative paths within the given module. For example, the following command runs tests for the <code>pkg/collector/check</code> and <code>pkg/aggregator</code> root packages.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda inv test --targets=pkg/collector/check,pkg/aggregator
-</span></code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If no module nor targets are set then the tests for all modules and targets are executed, which may be time-consuming.</p>
+<h1 id="test-dependencies">Test dependencies<a class="headerlink" href="#test-dependencies" title="Permanent link">&para;</a></h1>
+<p>E2E tests run on real VMs and clusters. Anything a test fetches from the public internet at test time is a dependency on infrastructure we don't and can't control.
+This is one of the biggest source of unreliability in e2e tests: DockerHub will rate-limit us, distro package mirrors often go down down, and <code>apt install &lt;pkg&gt;</code> might quietly install a different version six months from now.</p>
+<p>A major source of flaky / unrelated failures is reliance on <em>external dependencies</em>: anything outside the AWS/GCP/Azure account the test runs in and internal DD systems.</p>
+<p>We will soon block <em>all</em> internet access from CI for security reasons, so prepare now.</p>
+<h4 id="spotting-a-runtime-dependency">Spotting a runtime dependency<a class="headerlink" href="#spotting-a-runtime-dependency" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Smell</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A package manager on the host</td>
+<td><code>vm.Execute("sudo apt-get install -y jq")</code>, <code>yum install</code>, <code>zypper</code>, <code>choco</code></td>
+</tr>
+<tr>
+<td>A download from a public host</td>
+<td><code>curl https://…</code>, <code>wget</code>, <code>Invoke-WebRequest</code>, <code>msiexec /i https://…</code></td>
+</tr>
+<tr>
+<td>An image reference with no registry</td>
+<td><code>docker run busybox</code>, <code>FROM ubuntu:22.04</code>, <code>image: redis</code></td>
+</tr>
+<tr>
+<td>A language package manager</td>
+<td><code>pip install</code>, <code>npm i</code>, <code>gem install</code>, <code>cargo install</code></td>
+</tr>
+<tr>
+<td>A remotely-hosted manifest</td>
+<td><code>kubectl apply -f https://…</code>, a Helm <code>repository:</code> URL, a remote kustomize base</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition info">
+<p class="admonition-title">Info</p>
+<p>The rules above — what is allowed, in what order of preference, and the requirement to pin versions — are what review checks a PR against, straight from <a href="https://github.com/DataDog/datadog-agent/blob/main/test/new-e2e/codereview_guideline.md">the guideline</a>. This page is the <em>how</em>: the mechanisms behind each alternative, the commands, and the parts that bite.</p>
 </div>
-<h2 id="race-detection">Race detection<a class="headerlink" href="#race-detection" title="Permanent link">&para;</a></h2>
-<p>The <code>-r</code>/<code>--race</code> flag enables Go's built-in <a href="https://go.dev/doc/articles/race_detector">data race detector</a>.</p>
+<h2 id="common-ways-to-remove-external-deps">Common ways to remove external deps<a class="headerlink" href="#common-ways-to-remove-external-deps" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Type of dep</th>
+<th>Preferred mechanism</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A public container image</td>
+<td><a href="#ecr-pull-through-cache">ECR pull-through cache</a></td>
+</tr>
+<tr>
+<td>A CLI tool or system package on the VM</td>
+<td><a href="#prebake-into-the-machine-image">Prebake it into the machine image</a></td>
+</tr>
+<tr>
+<td>A third-party binary, installer, or tarball</td>
+<td><a href="#s3-artifact-bucket">S3 artifact bucket</a></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Most of these methods only work for tests that run on <strong>AWS</strong> - if your test runs on Azure or GCP, <a href="#azure-and-gcp">your options will be more limited.</a></p>
+</div>
+<h2 id="ecr-pull-through-cache">ECR pull-through cache<a class="headerlink" href="#ecr-pull-through-cache" title="Permanent link">&para;</a></h2>
+<div class="admonition info">
+<p class="admonition-title">Info</p>
+<p>It is a <strong>cache, not a mirror</strong>. There is no "request that an image be added" process — the first pull of a tag populates it transparently.</p>
+</div>
+<p>Use the ECR pull-through cache set up in the <code>datadog-agent-qa</code> account (<code>669783387624</code>, <code>us-east-1</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Upstream</th>
+<th>Prefix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DockerHub</td>
+<td><code>669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/…</code></td>
+</tr>
+<tr>
+<td>Public ECR</td>
+<td><code>669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/…</code></td>
+</tr>
+<tr>
+<td>Quay</td>
+<td><code>669783387624.dkr.ecr.us-east-1.amazonaws.com/quay/…</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>DockerHub official images keep their <code>library/</code> path: <code>busybox:1.37.0</code> becomes <code>…/dockerhub/library/busybox:1.37.0</code>.</li>
+<li>Only those three upstreams are supported. <strong>GHCR is not</strong> — if your image is only on GHCR, use an equivalent from a supported upstream if possible, otherwise leave unproxied.</li>
+<li>Pulling from <code>public.ecr.aws/…</code> or <code>mirror.gcr.io</code> <strong>directly is not an approved alternative</strong>, even though neither is rate limited today. Route it through the prefixes above. Existing code that does otherwise is debt, not precedent.</li>
+<li>There is no pull-through cache in GCP or Azure. For a test that only ever runs on GCP, the provider's registry or <code>mirror.gcr.io</code> is acceptable — do not import that habit into an AWS test. Ask #agent-devx-help before relying on any other public mirror.</li>
+</ul>
+<details class="tip">
+<summary>Avoid hardcoding the registry adress</summary>
+<p>Don't hardcode the registry host. Read it from the runner parameter store, so the same test works in a different account:</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nx">reg</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">runner</span><span class="p">.</span><span class="nx">GetProfile</span><span class="p">().</span><span class="nx">ParamStore</span><span class="p">().</span><span class="nx">GetWithDefault</span><span class="p">(</span><span class="nx">parameters</span><span class="p">.</span><span class="nx">ImagePullRegistry</span><span class="p">,</span><span class="w"> </span><span class="s">""</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">if</span><span class="w"> </span><span class="nx">reg</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">""</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nx">busyboxImage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">SplitN</span><span class="p">(</span><span class="nx">reg</span><span class="p">,</span><span class="w"> </span><span class="s">","</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">"/dockerhub/library/busybox:1.37.0"</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>The <code>strings.SplitN(reg, ",", 2)[0]</code> is not decoration: the parameter may hold a comma-separated list, and only the first entry is a usable host. Inside a Pulumi component the same value is on the environment: <code>e.ImagePullRegistry()</code>.</p>
+<p>Real examples to copy from:</p>
+<ul>
+<li><code>test/new-e2e/tests/containers/docker_test.go</code> — DockerHub, from a test</li>
+<li><code>test/new-e2e/tests/agent-platform/tests/install_script_test.go</code> — <code>ecr-public</code></li>
+<li><code>test/e2e-framework/components/datadog/apps/etcd/k8s.go</code> — <code>quay</code>, from a Pulumi component</li>
+<li><code>test/new-e2e/tests/ndm/snmp/compose/snmpCompose.yaml</code> — a compose file with a rewritten <code>image:</code></li>
+<li><code>test/new-e2e/tests/installer/host/host.go</code> — the mirrored-with-upstream-fallback pair, for when you need both forms</li>
+</ul>
+</details>
+<h3 id="kubernetes-and-kind">Kubernetes and Kind<a class="headerlink" href="#kubernetes-and-kind" title="Permanent link">&para;</a></h3>
+<p>Two different pulls happen, with two different defaults:</p>
+<ul>
+<li><strong>The Kind node image</strong> (the VM image the cluster itself boots from) is proxied through the ECR cache by default. <code>components/kubernetes/kind.go</code> builds its reference from <code>env.InternalDockerhubMirror()</code>, which resolves to the cache on AWS and falls back to <code>registry-1.docker.io</code> elsewhere. Use that helper rather than writing the registry host yourself.</li>
+<li><strong>Images pulled by workloads <em>inside</em> the cluster</strong> (your test's pods) are <strong>not</strong> proxied by default. The containerd host config the framework installs (<code>components/kubernetes/hosts.toml</code>) only redirects the bare <code>docker.io</code> host to <code>mirror.gcr.io</code> — a public, unauthenticated mirror, not the ECR cache — because giving every pod containerd credentials for a private registry isn't solved cluster-wide.</li>
+</ul>
+<p>A workload <em>can</em> pull through the authenticated ECR cache, but it takes two steps together, both opt-in: rewrite the pod's image reference to point at the cache prefix (same idiom as the parameter-store snippet above), and set the <code>imagePullRegistry</code>/<code>imagePullUsername</code>/<code>imagePullPassword</code> runner parameters so the framework attaches a matching <code>ImagePullSecret</code> to the pod (<code>common/utils/kubernetes.go</code>, <code>NewImagePullSecret</code>). Do one without the other and the pull fails: a rewritten reference with no secret can't authenticate, and a secret with no rewritten reference has nothing to authenticate against.</p>
+<details>
+<summary>Example</summary>
+<p>type: info
+   open: False
+<code>test/new-e2e/tests/gpu/gpu_test.go</code>, for example, does both:</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">var</span><span class="w"> </span><span class="nx">dockerRegistry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kd">func</span><span class="p">()</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nx">reg</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">runner</span><span class="p">.</span><span class="nx">GetProfile</span><span class="p">().</span><span class="nx">ParamStore</span><span class="p">().</span><span class="nx">GetWithDefault</span><span class="p">(</span><span class="nx">parameters</span><span class="p">.</span><span class="nx">ImagePullRegistry</span><span class="p">,</span><span class="w"> </span><span class="s">""</span><span class="p">)</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">reg</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">""</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">strings</span><span class="p">.</span><span class="nx">SplitN</span><span class="p">(</span><span class="nx">reg</span><span class="p">,</span><span class="w"> </span><span class="s">","</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">"/dockerhub"</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="s">"docker.io"</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="p">}()</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="kd">var</span><span class="w"> </span><span class="nx">cuda12DockerImage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Sprintf</span><span class="p">(</span><span class="s">"%s/nvidia/cuda:%s-base-ubuntu22.04"</span><span class="p">,</span><span class="w"> </span><span class="nx">dockerRegistry</span><span class="p">,</span><span class="w"> </span><span class="nx">defaultCudaVersion</span><span class="p">)</span>
+</span></code></pre></div>
+<p>The <code>ImagePullSecret</code> half is handled separately, by the framework, once <code>e.ImagePullRegistry()</code> is non-empty — see the flags this test needs locally right below.</p>
+<p>If your test doesn't opt in, its workload images still leave the VPC through <code>mirror.gcr.io</code> — say so in the test rather than assuming that path is fully internal.</p>
+</details>
+<details class="tip">
+<summary>Running a k8s-based test locally</summary>
+<p>Kubernetes workloads need credentials for the cache, which are not set by default:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>new-e2e-tests.run<span class="w"> </span>--targets<span class="w"> </span>./tests/gpu<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span>-c<span class="w"> </span>ddagent:imagePullRegistry<span class="o">=</span><span class="m">669783387624</span>.dkr.ecr.us-east-1.amazonaws.com<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>-c<span class="w"> </span>ddagent:imagePullUsername<span class="o">=</span>AWS<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>-c<span class="w"> </span>ddagent:imagePullPassword<span class="o">=</span><span class="k">$(</span>aws-vault<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>sso-agent-qa-read-only<span class="w"> </span>--<span class="w"> </span>aws<span class="w"> </span>ecr<span class="w"> </span>get-login-password<span class="k">)</span>
+</span></code></pre></div>
+<p>If you see <code>User: arn:aws:sts::… is not authorized to perform: ecr:BatchGetImage</code>, you are authenticated against the wrong account — re-run <code>aws-vault login sso-agent-sandbox-account-admin-8h</code>. Note that those <code>ddagent:imagePull*</code> flags are for the in-cluster Agent; an EC2 host pulls with its own instance profile.</p>
+</details>
+<h2 id="prebake-into-the-machine-image">Prebake into the machine image<a class="headerlink" href="#prebake-into-the-machine-image" title="Permanent link">&para;</a></h2>
+<p>If a test needs a specific tool or system package in a VM, avoid installing it at test time at all costs.
+The better alternative is to:</p>
+<ul>
+<li>Use a Docker image containing that tool that you can then pull the <a href="#ecr-pull-through-cache">ECR pull-through cache</a>.</li>
+<li>"Bake" the dependency into the VM machine image (AMI).</li>
+</ul>
+<p>We already provide <code>-e2e</code> AMI variants for most OSes for this purpose, that contain some common dependencies: docker itself, <code>jq</code>, <code>python3</code> etc.
+These <code>-e2e</code> variants are already the default for tests running on AWS.</p>
+<p>See <a href="../custom-amis/">Custom AMIs</a> for more details on how to do this.</p>
+<h2 id="s3-artifact-bucket">S3 artifact bucket<a class="headerlink" href="#s3-artifact-bucket" title="Permanent link">&para;</a></h2>
+<p>For a more miscellaneous third-party artifact, vendor it into <code>s3://agent-e2e-s3-bucket</code> and pull it from there. Hosts authenticate with their instance profile, so no credentials are involved in the test.</p>
+<div class="language-go highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">v</span><span class="p">.</span><span class="nx">Env</span><span class="p">().</span><span class="nx">RemoteHost</span><span class="p">.</span><span class="nx">HostArtifactClient</span><span class="p">.</span><span class="nx">Get</span><span class="p">(</span><span class="s">"toto.txt"</span><span class="p">,</span><span class="w"> </span><span class="s">"toto.txt"</span><span class="p">)</span>
+</span></code></pre></div>
+<p><code>test/new-e2e/examples/vmenv_artifacts_test.go</code> is the runnable example. Objects are namespaced by owning team — <code>windows-products/xperf-5.0.8169.zip</code>, <code>processes/DiskSpd.zip</code> — and the bucket URL is prepended for you, so the path in <code>Get</code> is the key, not a URL.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Pin the version in the key (<code>xperf-5.0.8169.zip</code>, not <code>xperf.zip</code>) so a re-upload can never change what an existing test downloads, and record where the artifact came from when you request the upload.</p>
+<p>Some existing objects have no recorded upstream or version, which makes them impossible to reproduce or audit — this is a pattern to avoid.</p>
+</div>
+<div class="admonition info">
+<p class="admonition-title">Info</p>
+<p><code>HostArtifactClient</code> is implemented for AWS hosts only — the supported Linux flavors and Windows Server. On Azure and GCP it returns <code>not implemented</code>.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Uploading is <strong>not self-service</strong>: write access is held by <code>agent-qa</code> admins, because IAM cannot express "this team may write only under its own prefix" at the granularity we would want. Ask #agent-devx-help with the artifact, its upstream URL, its version, and the key you want it at. See <a href="https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/5040342019/E2E+-+Use+a+third+party+artifact+in+test">E2E - Use a third party artifact in test</a> on Confluence for the current inventory.</p>
+</div>
+<h2 id="azure-and-gcp">Azure and GCP<a class="headerlink" href="#azure-and-gcp" title="Permanent link">&para;</a></h2>
+<p>None of the three mechanisms above exist on Azure or GCP:</p>
+<ul>
+<li><strong>Container images</strong>: no pull-through cache (<code>InternalDockerhubMirror()</code> falls back to plain <code>registry-1.docker.io</code>). Use the most reliable mirror available instead — <code>mirror.gcr.io</code> on GCP; Azure has no blessed equivalent, ask #agent-devx-help.</li>
+<li><strong>Prebaked images</strong>: no <code>-e2e</code> AMI equivalent. <code>docker.InstallDocker</code> / <code>docker.InstallCompose</code> (<code>test/e2e-framework/components/docker/install.go</code>) install Docker at provision time as the accepted exception for these clouds.</li>
+<li><strong>S3 artifact bucket</strong>: <code>HostArtifactClient</code> returns <code>not implemented</code> (see above), with no fallback.</li>
+</ul>
 
 
 
@@ -4114,7 +4411,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../../build/distributions/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Distribution packages">
+          <a href="../writing/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Writing tests">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -4124,20 +4421,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Distribution packages
+                Writing tests
               </div>
             </div>
           </a>
         
         
           
-          <a href="../static-analysis/" class="md-footer__link md-footer__link--next" aria-label="Next: Static analysis">
+          <a href="../custom-amis/" class="md-footer__link md-footer__link--next" aria-label="Next: Custom AMIs">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Static analysis
+                Custom AMIs
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -4227,10 +4524,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":"../../..","features":["content.action.edit","content.code.copy","content.tabs.link","content.tooltips","navigation.expand","navigation.footer","navigation.indexes","navigation.instant","navigation.sections","navigation.tabs","navigation.tabs.sticky"],"search":"../../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"../../../..","features":["content.action.edit","content.code.copy","content.tabs.link","content.tooltips","navigation.expand","navigation.footer","navigation.indexes","navigation.instant","navigation.sections","navigation.tabs","navigation.tabs.sticky"],"search":"../../../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.6970bfe9.min.js"></script>
+      <script src="../../../../assets/javascripts/bundle.6970bfe9.min.js"></script>
       
     
   </body>

@@ -12,36 +12,36 @@
         <meta name="author" content="Datadog">
       
       
-        <link rel="canonical" href="https://datadoghq.dev/datadog-agent/how-to/test/unit/">
+        <link rel="canonical" href="https://datadoghq.dev/datadog-agent/how-to/test/e2e/running/">
       
       
-        <link rel="prev" href="../../build/distributions/">
+        <link rel="prev" href="../">
       
       
-        <link rel="next" href="../static-analysis/">
+        <link rel="next" href="../writing/">
       
       
         
       
       
-      <link rel="icon" href="../../../assets/images/favicon.ico">
+      <link rel="icon" href="../../../../assets/images/favicon.ico">
       <meta name="generator" content="zensical-0.0.58">
     
     
       
-        <title>How to run unit tests - Datadog Agent</title>
+        <title>Running E2E tests - Datadog Agent</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="../../../assets/stylesheets/classic/main.38807bfb.min.css">
+      <link rel="stylesheet" href="../../../../assets/stylesheets/classic/main.38807bfb.min.css">
       
         
           
         
-        <link rel="stylesheet" href="../../../assets/stylesheets/classic/palette.c7ab7c71.min.css">
+        <link rel="stylesheet" href="../../../../assets/stylesheets/classic/palette.c7ab7c71.min.css">
       
       
 
@@ -60,11 +60,11 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/css/custom.css">
+      <link rel="stylesheet" href="../../../../assets/css/custom.css">
     
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/firacode@6.2.0/distr/fira_code.css">
     
-    <script>__md_scope=new URL("../../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    <script>__md_scope=new URL("../../../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -89,7 +89,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#how-to-run-unit-tests" class="md-skip">
+        <a href="#running-e2e-tests" class="md-skip">
           Skip to content
         </a>
       
@@ -105,9 +105,9 @@
 
 <header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="Datadog Agent" class="md-header__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
+    <a href="../../../.." title="Datadog Agent" class="md-header__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
       
-  <img src="../../../assets/images/logo.svg" alt="Datadog Agent">
+  <img src="../../../../assets/images/logo.svg" alt="Datadog Agent">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
@@ -124,7 +124,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              How to run unit tests
+              Running E2E tests
             
           </span>
         </div>
@@ -215,7 +215,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../.." class="md-tabs__link">
+        <a href="../../../.." class="md-tabs__link">
           
   
   Home
@@ -269,7 +269,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../../build/standalone/" class="md-tabs__link">
+        <a href="../../../build/standalone/" class="md-tabs__link">
           
   
   How-to
@@ -314,7 +314,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../tutorials/dev/env/" class="md-tabs__link">
+        <a href="../../../../tutorials/dev/env/" class="md-tabs__link">
           
   
   Tutorials
@@ -351,7 +351,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../guidelines/contributing/" class="md-tabs__link">
+        <a href="../../../../guidelines/contributing/" class="md-tabs__link">
           
   
   Guidelines
@@ -381,7 +381,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../components/overview/" class="md-tabs__link">
+        <a href="../../../../components/overview/" class="md-tabs__link">
           
   
   Components
@@ -417,7 +417,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../agent-schema/" class="md-tabs__link">
+        <a href="../../../../agent-schema/" class="md-tabs__link">
           
   
   Agent Schema
@@ -457,7 +457,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../architecture/dogstatsd/internals/" class="md-tabs__link">
+        <a href="../../../../architecture/dogstatsd/internals/" class="md-tabs__link">
           
   
   Architecture
@@ -504,7 +504,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../../reference/images/dev/" class="md-tabs__link">
+        <a href="../../../../reference/images/dev/" class="md-tabs__link">
           
   
   Reference
@@ -546,9 +546,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="Datadog Agent" class="md-nav__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
+    <a href="../../../.." title="Datadog Agent" class="md-nav__button md-logo" aria-label="Datadog Agent" data-md-component="logo">
       
-  <img src="../../../assets/images/logo.svg" alt="Datadog Agent">
+  <img src="../../../../assets/images/logo.svg" alt="Datadog Agent">
 
     </a>
     Datadog Agent
@@ -602,7 +602,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../.." class="md-nav__link ">
+            <a href="../../../.." class="md-nav__link ">
               
   
   
@@ -704,7 +704,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../setup/required/" class="md-nav__link">
+      <a href="../../../../setup/required/" class="md-nav__link">
         
   
   
@@ -731,7 +731,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../setup/optional/" class="md-nav__link">
+      <a href="../../../../setup/optional/" class="md-nav__link">
         
   
   
@@ -758,7 +758,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../setup/manual/" class="md-nav__link">
+      <a href="../../../../setup/manual/" class="md-nav__link">
         
   
   
@@ -928,7 +928,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../build/standalone/" class="md-nav__link">
+      <a href="../../../build/standalone/" class="md-nav__link">
         
   
   
@@ -955,7 +955,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../build/distributions/" class="md-nav__link">
+      <a href="../../../build/distributions/" class="md-nav__link">
         
   
   
@@ -1052,6 +1052,135 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../../unit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Unit tests
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../static-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Static analysis
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2_3" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  End-to-end tests
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_2_3" id="__nav_2_2_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_2_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  End-to-end tests
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
     
   
   
@@ -1073,7 +1202,7 @@
   <span class="md-ellipsis">
     
   
-  Unit tests
+  Running tests
 
     
   </span>
@@ -1090,7 +1219,7 @@
   <span class="md-ellipsis">
     
   
-  Unit tests
+  Running tests
 
     
   </span>
@@ -1116,10 +1245,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#test-selection" class="md-nav__link">
+  <a href="#basic-test-execution" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Test selection
+        Basic Test Execution
       </span>
     </span>
   </a>
@@ -1127,10 +1256,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#race-detection" class="md-nav__link">
+  <a href="#test-with-local-agent-packages" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Race detection
+        Test with Local Agent Packages
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-with-local-agent-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Test with Local Agent Image
       </span>
     </span>
   </a>
@@ -1153,136 +1293,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../static-analysis/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Static analysis
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    
-    
-      
-        
-          
-        
-      
-        
-      
-        
-      
-        
-      
-        
-      
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2_2_3" >
-        
-          
-          <div class="md-nav__link md-nav__container">
-            <a href="../e2e/" class="md-nav__link ">
-              
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  End-to-end tests
-
-    
-  </span>
-  
-  
-
-            </a>
-            
-              
-              <label class="md-nav__link " for="__nav_2_2_3" id="__nav_2_2_3_label" tabindex="0">
-                <span class="md-nav__icon md-icon"></span>
-              </label>
-            
-          </div>
-        
-        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_2_2_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2_2_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-  End-to-end tests
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../e2e/running/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Running tests
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../e2e/writing/" class="md-nav__link">
+      <a href="../writing/" class="md-nav__link">
         
   
   
@@ -1309,7 +1320,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../e2e/dependencies/" class="md-nav__link">
+      <a href="../dependencies/" class="md-nav__link">
         
   
   
@@ -1336,7 +1347,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../e2e/custom-amis/" class="md-nav__link">
+      <a href="../custom-amis/" class="md-nav__link">
         
   
   
@@ -1402,7 +1413,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../manual-qa/" class="md-nav__link ">
+            <a href="../../manual-qa/" class="md-nav__link ">
               
   
   
@@ -1508,7 +1519,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-vm/" class="md-nav__link">
+      <a href="../../manual-qa/aws-vm/" class="md-nav__link">
         
   
   
@@ -1535,7 +1546,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-docker/" class="md-nav__link">
+      <a href="../../manual-qa/aws-docker/" class="md-nav__link">
         
   
   
@@ -1562,7 +1573,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-eks/" class="md-nav__link">
+      <a href="../../manual-qa/aws-eks/" class="md-nav__link">
         
   
   
@@ -1589,7 +1600,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-ecs/" class="md-nav__link">
+      <a href="../../manual-qa/aws-ecs/" class="md-nav__link">
         
   
   
@@ -1616,7 +1627,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/aws-kind/" class="md-nav__link">
+      <a href="../../manual-qa/aws-kind/" class="md-nav__link">
         
   
   
@@ -1707,7 +1718,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/azure-vm/" class="md-nav__link">
+      <a href="../../manual-qa/azure-vm/" class="md-nav__link">
         
   
   
@@ -1798,7 +1809,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../manual-qa/gcp-vm/" class="md-nav__link">
+      <a href="../../manual-qa/gcp-vm/" class="md-nav__link">
         
   
   
@@ -1908,7 +1919,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../go/modules/" class="md-nav__link">
+      <a href="../../../go/modules/" class="md-nav__link">
         
   
   
@@ -1975,7 +1986,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../debug-agents/" class="md-nav__link ">
+            <a href="../../../debug-agents/" class="md-nav__link ">
               
   
   
@@ -2017,7 +2028,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../debug-agents/linux/" class="md-nav__link">
+      <a href="../../../debug-agents/linux/" class="md-nav__link">
         
   
   
@@ -2044,7 +2055,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../debug-agents/windows/" class="md-nav__link">
+      <a href="../../../debug-agents/windows/" class="md-nav__link">
         
   
   
@@ -2144,7 +2155,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/overview/" class="md-nav__link">
+      <a href="../../../memory-profiling/overview/" class="md-nav__link">
         
   
   
@@ -2171,7 +2182,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/go/" class="md-nav__link">
+      <a href="../../../memory-profiling/go/" class="md-nav__link">
         
   
   
@@ -2198,7 +2209,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/python/" class="md-nav__link">
+      <a href="../../../memory-profiling/python/" class="md-nav__link">
         
   
   
@@ -2225,7 +2236,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../memory-profiling/c++/" class="md-nav__link">
+      <a href="../../../memory-profiling/c++/" class="md-nav__link">
         
   
   
@@ -2381,7 +2392,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutorials/dev/env/" class="md-nav__link">
+      <a href="../../../../tutorials/dev/env/" class="md-nav__link">
         
   
   
@@ -2435,7 +2446,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../../tutorials/dev/lab/" class="md-nav__link ">
+            <a href="../../../../tutorials/dev/lab/" class="md-nav__link ">
               
   
   
@@ -2477,7 +2488,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../tutorials/dev/lab/kind/" class="md-nav__link">
+      <a href="../../../../tutorials/dev/lab/kind/" class="md-nav__link">
         
   
   
@@ -2591,7 +2602,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/contributing/" class="md-nav__link">
+      <a href="../../../../guidelines/contributing/" class="md-nav__link">
         
   
   
@@ -2618,7 +2629,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/docs/" class="md-nav__link">
+      <a href="../../../../guidelines/docs/" class="md-nav__link">
         
   
   
@@ -2703,7 +2714,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/languages/go/" class="md-nav__link">
+      <a href="../../../../guidelines/languages/go/" class="md-nav__link">
         
   
   
@@ -2730,7 +2741,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/languages/RUST/" class="md-nav__link">
+      <a href="../../../../guidelines/languages/RUST/" class="md-nav__link">
         
   
   
@@ -2821,7 +2832,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/testing/test-categories/" class="md-nav__link">
+      <a href="../../../../guidelines/testing/test-categories/" class="md-nav__link">
         
   
   
@@ -2912,7 +2923,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../guidelines/conventions/logging/" class="md-nav__link">
+      <a href="../../../../guidelines/conventions/logging/" class="md-nav__link">
         
   
   
@@ -3014,7 +3025,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/overview/" class="md-nav__link">
+      <a href="../../../../components/overview/" class="md-nav__link">
         
   
   
@@ -3101,7 +3112,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/creating-components/" class="md-nav__link">
+      <a href="../../../../components/creating-components/" class="md-nav__link">
         
   
   
@@ -3128,7 +3139,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/testing/" class="md-nav__link">
+      <a href="../../../../components/testing/" class="md-nav__link">
         
   
   
@@ -3155,7 +3166,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/using-components/" class="md-nav__link">
+      <a href="../../../../components/using-components/" class="md-nav__link">
         
   
   
@@ -3304,7 +3315,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/shared_features/flares/" class="md-nav__link">
+      <a href="../../../../components/shared_features/flares/" class="md-nav__link">
         
   
   
@@ -3331,7 +3342,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../components/shared_features/status/" class="md-nav__link">
+      <a href="../../../../components/shared_features/status/" class="md-nav__link">
         
   
   
@@ -3414,7 +3425,7 @@
         
           
           <div class="md-nav__link md-nav__container">
-            <a href="../../../agent-schema/" class="md-nav__link ">
+            <a href="../../../../agent-schema/" class="md-nav__link ">
               
   
   
@@ -3456,7 +3467,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/keywords/" class="md-nav__link">
+      <a href="../../../../agent-schema/keywords/" class="md-nav__link">
         
   
   
@@ -3483,7 +3494,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/examples/" class="md-nav__link">
+      <a href="../../../../agent-schema/examples/" class="md-nav__link">
         
   
   
@@ -3510,7 +3521,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/cli/" class="md-nav__link">
+      <a href="../../../../agent-schema/cli/" class="md-nav__link">
         
   
   
@@ -3537,7 +3548,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../agent-schema/faq/" class="md-nav__link">
+      <a href="../../../../agent-schema/faq/" class="md-nav__link">
         
   
   
@@ -3683,7 +3694,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../architecture/dogstatsd/internals/" class="md-nav__link">
+      <a href="../../../../architecture/dogstatsd/internals/" class="md-nav__link">
         
   
   
@@ -3841,7 +3852,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../reference/images/dev/" class="md-nav__link">
+      <a href="../../../../reference/images/dev/" class="md-nav__link">
         
   
   
@@ -3868,7 +3879,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../reference/images/builders/" class="md-nav__link">
+      <a href="../../../../reference/images/builders/" class="md-nav__link">
         
   
   
@@ -3959,7 +3970,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../reference/builds/components/" class="md-nav__link">
+      <a href="../../../../reference/builds/components/" class="md-nav__link">
         
   
   
@@ -4023,10 +4034,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#test-selection" class="md-nav__link">
+  <a href="#basic-test-execution" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Test selection
+        Basic Test Execution
       </span>
     </span>
   </a>
@@ -4034,10 +4045,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#race-detection" class="md-nav__link">
+  <a href="#test-with-local-agent-packages" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Race detection
+        Test with Local Agent Packages
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-with-local-agent-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Test with Local Agent Image
       </span>
     </span>
   </a>
@@ -4059,7 +4081,7 @@
                 
                   
   
-    <a href="https://github.com/DataDog/datadog-agent/blob/main/docs/public/how-to/test/unit.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/DataDog/datadog-agent/blob/main/docs/public/how-to/test/e2e/running.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -4067,20 +4089,66 @@
   
 
 
-<h1 id="how-to-run-unit-tests">How to run unit tests<a class="headerlink" href="#how-to-run-unit-tests" title="Permanent link">&para;</a></h1>
-<hr />
-<p>The <code>dda inv test</code> command runs Go tests and is a thin wrapper around <a href="https://github.com/gotestyourself/gotestsum">gotestsum</a>.</p>
-<h2 id="test-selection">Test selection<a class="headerlink" href="#test-selection" title="Permanent link">&para;</a></h2>
-<p>The Go module to test may be selected with the <code>-m</code>/<code>--module</code> flag using a relative path, defaulting to <code>.</code>.</p>
-<p>The <code>-t</code>/<code>--targets</code> flag is used to select the targets to test using a comma-separated list of relative paths within the given module. For example, the following command runs tests for the <code>pkg/collector/check</code> and <code>pkg/aggregator</code> root packages.</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>dda inv test --targets=pkg/collector/check,pkg/aggregator
+<h1 id="running-e2e-tests">Running E2E tests<a class="headerlink" href="#running-e2e-tests" title="Permanent link">&para;</a></h1>
+<p>Complete the <a href="../#one-time-setup">one-time setup</a> before running anything on this page.</p>
+<h2 id="basic-test-execution">Basic Test Execution<a class="headerlink" href="#basic-test-execution" title="Permanent link">&para;</a></h2>
+<p>E2E tests are located in the <code>test/new-e2e/</code> directory. After running <code>dda inv e2e.setup</code> once, you can run them like unit tests — no <code>aws-vault exec</code> wrapping, no exported <code>PULUMI_CONFIG_PASSPHRASE</code>. The runner reads the passphrase from your local config and auto-wraps the test command with <code>aws-vault exec</code> against the configured profile.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Run a simple VM test</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>new-e2e-tests.run<span class="w"> </span>--targets<span class="o">=</span>./examples<span class="w"> </span>--run<span class="o">=</span>^TestVMSuite$
 </span></code></pre></div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If no module nor targets are set then the tests for all modules and targets are executed, which may be time-consuming.</p>
+<p>Replace ./examples with your subfolder.
+This also supports the golang testing flag --run and --skip to target specific tests using go test syntax. See go help testflag for details.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>new-e2e-tests.run<span class="w"> </span>--targets<span class="o">=</span>./examples<span class="w"> </span>--run<span class="o">=</span>TestMyLocalKindSuite/TestClusterAgentInstalled
+</span></code></pre></div>
+<p>You can also run it with go test, from test/new-e2e
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>test/new-e2e<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>go<span class="w"> </span><span class="nb">test</span><span class="w"> </span>./examples<span class="w"> </span>-timeout<span class="w"> </span><span class="m">0</span><span class="w"> </span>-run<span class="o">=</span>^TestVMSuite$
+</span></code></pre></div></p>
+<p>While developing a test you might want to keep the remote instance alive to iterate faster. You can skip the resources deletion using dev mode with the environment variable <code>E2E_DEV_MODE</code>. You can force this in the terminal
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">E2E_DEV_MODE</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>dda<span class="w"> </span>inv<span class="w"> </span>-e<span class="w"> </span>new-e2e-tests.run<span class="w"> </span>--targets<span class="w"> </span>./examples<span class="w"> </span>--run<span class="o">=</span>^TestVMSuite$
+</span></code></pre></div>
+or for instance add it in the <code>go.testEnvVars</code> if you are using a VSCode-based IDE
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>"go.testEnvVars": {
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  "E2E_DEV_MODE": "true",
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>}, 
+</span></code></pre></div></p>
+<h2 id="test-with-local-agent-packages">Test with Local Agent Packages<a class="headerlink" href="#test-with-local-agent-packages" title="Permanent link">&para;</a></h2>
+<div class="admonition warning">
+<p class="admonition-title">Limitations</p>
+<p>Local packaging is curently limited to DEB packages, only for Linux and Macos computers.
+This method relies on updating an existing agent package with the local Go binaries. As a consequence, this is incompatible with tests related to the agent packaging or the python integration.</p>
 </div>
-<h2 id="race-detection">Race detection<a class="headerlink" href="#race-detection" title="Permanent link">&para;</a></h2>
-<p>The <code>-r</code>/<code>--race</code> flag enables Go's built-in <a href="https://go.dev/doc/articles/race_detector">data race detector</a>.</p>
+<p>From a developer environment (see <a href="../../../../tutorials/dev/env/">Using developer environments</a>), you can create the agent package with your local code using:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>omnibus.build-repackaged-agent
+</span></code></pre></div></p>
+<p>You can then execute your E2E tests with the associated command:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Run tests with a specific agent version</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>new-e2e-tests.run<span class="w"> </span>--targets<span class="w"> </span>./examples<span class="w"> </span>--run<span class="w"> </span>TestVMSuiteEx5<span class="w"> </span>--local-package<span class="w"> </span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>/omnibus
+</span></code></pre></div></p>
+<p>Make sure to replace <code>examples</code> with the package you want to test and to target the test you want to run with <code>--run</code>.</p>
+<h2 id="test-with-local-agent-image">Test with Local Agent Image<a class="headerlink" href="#test-with-local-agent-image" title="Permanent link">&para;</a></h2>
+<div class="admonition warning">
+<p class="admonition-title">Limitations</p>
+<p>This method relies on updating an existing Agent image with the local Go binaries. It only works for Docker images and must be considered as a solution for testing only.</p>
+</div>
+<p>Build the Agent binary and the Docker image, using this command:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>dda<span class="w"> </span>inv<span class="w"> </span><span class="o">[</span>--core-opts<span class="o">]</span><span class="w"> </span>agent.hacky-dev-image-build<span class="w"> </span><span class="o">[</span>--base-image<span class="o">=</span>STRING<span class="w"> </span>--push<span class="w"> </span>--signed-pull<span class="w"> </span>--target-image<span class="o">=</span>STRING<span class="o">]</span>
+</span></code></pre></div></p>
+<p>The command uses <code>dda inv agent.build</code> to generate the Go binaries. The generated image embeds this binary, a debugger and auto-completion for the agent commands.
+By default, the image is names <code>agent</code> unless you override it with the <code>--target-image</code> option.</p>
+<p>Then push the image to a registry:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Login to ECR</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>aws-vault<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>sso-agent-sandbox-account-admin-8h<span class="w"> </span>--<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>aws<span class="w"> </span>ecr<span class="w"> </span>get-login-password<span class="w"> </span>--region<span class="w"> </span>us-east-1<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>docker<span class="w"> </span>login<span class="w"> </span>--username<span class="w"> </span>AWS<span class="w"> </span>--password-stdin<span class="w"> </span><span class="m">376334461865</span>.dkr.ecr.us-east-1.amazonaws.com
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># Push the image</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>docker<span class="w"> </span>push<span class="w"> </span><span class="m">376334461865</span>.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests:<span class="nv">$USER</span>
+</span></code></pre></div></p>
+<p>And finally, execute your E2E tests with the associated command:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Run Ubuntu tests</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>dda<span class="w"> </span>inv<span class="w"> </span>-e<span class="w"> </span>new-e2e-tests.run<span class="w"> </span>--targets<span class="w"> </span>./tests/containers<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span>--run<span class="w"> </span>TestDockerSuite/TestDSDWithUDP<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span>--agent-image<span class="w"> </span><span class="m">376334461865</span>.dkr.ecr.us-east-1.amazonaws.com/agent-e2e-tests:<span class="nv">$USER</span>
+</span></code></pre></div></p>
 
 
 
@@ -4114,7 +4182,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../../build/distributions/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Distribution packages">
+          <a href="../" class="md-footer__link md-footer__link--prev" aria-label="Previous: End-to-end tests">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -4124,20 +4192,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Distribution packages
+                End-to-end tests
               </div>
             </div>
           </a>
         
         
           
-          <a href="../static-analysis/" class="md-footer__link md-footer__link--next" aria-label="Next: Static analysis">
+          <a href="../writing/" class="md-footer__link md-footer__link--next" aria-label="Next: Writing tests">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Static analysis
+                Writing tests
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -4227,10 +4295,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":"../../..","features":["content.action.edit","content.code.copy","content.tabs.link","content.tooltips","navigation.expand","navigation.footer","navigation.indexes","navigation.instant","navigation.sections","navigation.tabs","navigation.tabs.sticky"],"search":"../../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"../../../..","features":["content.action.edit","content.code.copy","content.tabs.link","content.tooltips","navigation.expand","navigation.footer","navigation.indexes","navigation.instant","navigation.sections","navigation.tabs","navigation.tabs.sticky"],"search":"../../../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.6970bfe9.min.js"></script>
+      <script src="../../../../assets/javascripts/bundle.6970bfe9.min.js"></script>
       
     
   </body>
