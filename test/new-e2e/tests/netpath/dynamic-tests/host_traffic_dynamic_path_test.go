@@ -212,6 +212,7 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
 		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
 		assert.Equal(c, payload.DynamicTestProfileStandard, match.DynamicTestProfile)
+		assert.False(c, match.InAllowance)
 		assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
 		assert.Equal(c, payload.ProtocolTCP, match.Protocol)
 		assert.Equal(c, hostTrafficRemoteConfigDomain, match.Destination.Hostname)

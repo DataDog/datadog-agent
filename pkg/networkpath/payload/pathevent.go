@@ -261,26 +261,26 @@ type TracerouteDestination struct {
 // NetworkPath encapsulates data that defines a
 // path between two hosts as mapped by the agent
 type NetworkPath struct {
-	Timestamp          int64                  `json:"timestamp"`
-	AgentVersion       string                 `json:"agent_version"`
-	Namespace          string                 `json:"namespace"`      // namespace used to resolve NDM resources
-	TestConfigID       string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
-	TestConfigName     string                 `json:"test_config_name,omitempty"`
-	TestResultID       string                 `json:"test_result_id"` // ID of specific test result (test run)
-	TestRunID          string                 `json:"test_run_id"`
-	Origin             PathOrigin             `json:"origin"`
-	TestRunType        TestRunType            `json:"test_run_type"`
-	TestConfigSource   TestConfigSource       `json:"test_config_source,omitempty"`
-	DynamicTestProfile DynamicTestProfile     `json:"dynamic_test_profile,omitempty"`
-	// InAllowance is true when this run is counted toward the Agent's hourly
+	Timestamp          int64              `json:"timestamp"`
+	AgentVersion       string             `json:"agent_version"`
+	Namespace          string             `json:"namespace"`      // namespace used to resolve NDM resources
+	TestConfigID       string             `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
+	TestConfigName     string             `json:"test_config_name,omitempty"`
+	TestResultID       string             `json:"test_result_id"` // ID of specific test result (test run)
+	TestRunID          string             `json:"test_run_id"`
+	Origin             PathOrigin         `json:"origin"`
+	TestRunType        TestRunType        `json:"test_run_type"`
+	TestConfigSource   TestConfigSource   `json:"test_config_source,omitempty"`
+	DynamicTestProfile DynamicTestProfile `json:"dynamic_test_profile,omitempty"`
+	// InAllowance is true for basic dynamic tests counted toward the Agent's
 	// allowance. Omitted when false so older payloads match runs that are not.
-	InAllowance        bool                   `json:"in_allowance,omitempty"`
-	SourceProduct      SourceProduct          `json:"source_product"`
-	CollectorType      CollectorType          `json:"collector_type"`
-	Protocol           Protocol               `json:"protocol"`
-	Source             NetworkPathSource      `json:"source"`
-	Destination        NetworkPathDestination `json:"destination"`
-	Traceroute         Traceroute             `json:"traceroute"`
-	E2eProbe           E2eProbe               `json:"e2e_probe"`
-	Tags               []string               `json:"tags,omitempty"`
+	InAllowance   bool                   `json:"in_allowance,omitempty"`
+	SourceProduct SourceProduct          `json:"source_product"`
+	CollectorType CollectorType          `json:"collector_type"`
+	Protocol      Protocol               `json:"protocol"`
+	Source        NetworkPathSource      `json:"source"`
+	Destination   NetworkPathDestination `json:"destination"`
+	Traceroute    Traceroute             `json:"traceroute"`
+	E2eProbe      E2eProbe               `json:"e2e_probe"`
+	Tags          []string               `json:"tags,omitempty"`
 }

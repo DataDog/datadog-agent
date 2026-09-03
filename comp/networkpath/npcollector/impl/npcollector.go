@@ -40,7 +40,7 @@ const (
 	reverseDNSLookupMetricPrefix        = common.NetworkPathCollectorMetricPrefix + "reverse_dns_lookup."
 	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
 	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
-	netpathConnsSkippedMetricName = common.NetworkPathCollectorMetricPrefix + "schedule.conns_skipped"
+	netpathConnsSkippedMetricName       = common.NetworkPathCollectorMetricPrefix + "schedule.conns_skipped"
 )
 
 var getVPCSubnetsForHost = network.GetVPCSubnetsForHost
