@@ -687,3 +687,57 @@ func TestFilterCRCollectorsByPermission(t *testing.T) {
 		require.Len(t, result, 0)
 	})
 }
+
+// TestImportDRACollectors pins the opt-in path for DRA. The generic resources
+// are registered non-stable so discovery never activates them without RBAC, and
+// naming them in the check's `collectors` list would replace the default
+// selection rather than add to it -- so the flag has to append, the way builtin
+// collectors do.
+func TestImportDRACollectors(t *testing.T) {
+	cfg := mockconfig.New(t)
+
+	collectorDiscovery := &discovery.DiscoveryCollector{}
+	collectorDiscovery.SetCache(discovery.DiscoveryCache{
+		CollectorForVersion: map[discovery.CollectorVersion]struct{}{
+			{GroupVersion: "v1", Kind: "pods"}:                           {},
+			{GroupVersion: "resource.k8s.io/v1", Kind: "resourceclaims"}: {},
+			{GroupVersion: "resource.k8s.io/v1", Kind: "resourceslices"}: {},
+		},
+	})
+
+	newBundle := func(collectDRA bool) *CollectorBundle {
+		return &CollectorBundle{
+			check: &OrchestratorCheck{
+				instance: &OrchestratorInstance{CollectDRAResources: collectDRA},
+			},
+			collectorDiscovery:  collectorDiscovery,
+			activatedCollectors: make(map[string]struct{}),
+			collectors:          []collectors.K8sCollector{k8s.NewUnassignedPodCollector(nil, nil, nil)},
+			inventory:           inventory.NewCollectorInventory(cfg, nil, nil),
+			runCfg: &collectors.CollectorRunConfig{
+				K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+					APIClient: createMockAPIClient(),
+				},
+			},
+		}
+	}
+
+	t.Run("flag off leaves the bundle untouched", func(t *testing.T) {
+		cb := newBundle(false)
+		cb.importDRACollectors()
+		require.Len(t, cb.collectors, 1, "DRA must not be collected unless asked for")
+	})
+
+	t.Run("flag on appends both, keeping what was already selected", func(t *testing.T) {
+		cb := newBundle(true)
+		cb.importDRACollectors()
+
+		names := make([]string, 0, len(cb.collectors))
+		for _, collector := range cb.collectors {
+			names = append(names, collector.Metadata().FullName())
+		}
+		require.Contains(t, names, "v1/pods", "the default selection must survive opting into DRA")
+		require.Contains(t, names, "resource.k8s.io/v1/resourceclaims")
+		require.Contains(t, names, "resource.k8s.io/v1/resourceslices")
+	})
+}
