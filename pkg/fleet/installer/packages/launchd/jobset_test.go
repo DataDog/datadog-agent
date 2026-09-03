@@ -10,11 +10,13 @@ package launchd
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,13 +32,21 @@ var swappableJobs = []string{
 	"com.datadoghq.data-plane",
 }
 
+// testJobSet returns a JobSet backed by a recording stub. Every launchctl call succeeds except
+// print, which reports the label as not loaded -- Bootout's settle loop (waitUntilUnloaded) polls
+// print after every bootout, and a stub that reported "loaded" forever would make every JobSet
+// test spin for the full BootoutSettleTimeout instead of finishing immediately.
 func testJobSet(t *testing.T) (JobSet, *[][]string) {
 	t.Helper()
 
 	var calls [][]string
 	client := NewClient(System)
+	client.BootoutSettlePollInterval = time.Millisecond
 	client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
 		calls = append(calls, args)
+		if len(args) > 0 && args[0] == "print" {
+			return []byte(notLoadedOutput), errors.New("exit status 113")
+		}
 		return nil, nil
 	}
 	return JobSet{Labels: swappableJobs, Dir: t.TempDir(), Client: client}, &calls

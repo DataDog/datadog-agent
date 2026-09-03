@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
@@ -124,11 +125,38 @@ type Client struct {
 
 	// Runner executes launchctl. Nil runs the real binary; tests substitute a recorder.
 	Runner Runner
+
+	// BootoutSettleTimeout bounds how long Bootout waits for a label to leave the domain after
+	// launchctl bootout returns. Zero uses defaultBootoutSettleTimeout; tests override it to keep
+	// the settle loop from adding wall-clock time to the suite.
+	BootoutSettleTimeout time.Duration
+	// BootoutSettlePollInterval is how often Bootout re-checks the label while waiting. Zero uses
+	// defaultBootoutSettlePollInterval.
+	BootoutSettlePollInterval time.Duration
 }
 
 // NewClient returns a Client targeting the given domain.
 func NewClient(domain Domain) *Client {
 	return &Client{Domain: domain}
+}
+
+const (
+	defaultBootoutSettleTimeout      = 10 * time.Second
+	defaultBootoutSettlePollInterval = 100 * time.Millisecond
+)
+
+func (c *Client) bootoutSettleTimeout() time.Duration {
+	if c.BootoutSettleTimeout > 0 {
+		return c.BootoutSettleTimeout
+	}
+	return defaultBootoutSettleTimeout
+}
+
+func (c *Client) bootoutSettlePollInterval() time.Duration {
+	if c.BootoutSettlePollInterval > 0 {
+		return c.BootoutSettlePollInterval
+	}
+	return defaultBootoutSettlePollInterval
 }
 
 // Bootstrap loads a job definition into the domain. It succeeds when the job is already loaded.
@@ -141,12 +169,36 @@ func (c *Client) Bootstrap(ctx context.Context, job Job) error {
 }
 
 // Bootout unloads a job from the domain. It succeeds when the job is not loaded.
+//
+// launchd's bootout is asynchronous: launchctl can return before the label has actually left the
+// domain, which used to let a following Bootstrap race it and fail with a bare
+// "Input/output error". Bootout now polls Print until the label is gone, bounded by
+// BootoutSettleTimeout, so a nil return is a real guarantee that the domain no longer has it.
 func (c *Client) Bootout(ctx context.Context, label string) error {
 	out, err := c.launchctl(ctx, "bootout", c.serviceTarget(label))
-	if err == nil || isNotLoaded(out) {
-		return nil
+	if err != nil && !isNotLoaded(out) {
+		return fmt.Errorf("could not bootout %s: %w (%s)", label, err, strings.TrimSpace(string(out)))
 	}
-	return fmt.Errorf("could not bootout %s: %w (%s)", label, err, strings.TrimSpace(string(out)))
+	return c.waitUntilUnloaded(ctx, label)
+}
+
+func (c *Client) waitUntilUnloaded(ctx context.Context, label string) error {
+	ctx, cancel := context.WithTimeout(ctx, c.bootoutSettleTimeout())
+	defer cancel()
+	for {
+		loaded, err := c.Loaded(ctx, label)
+		if err != nil {
+			return fmt.Errorf("could not confirm %s left the domain: %w", label, err)
+		}
+		if !loaded {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%s did not leave the domain within %s", label, c.bootoutSettleTimeout())
+		case <-time.After(c.bootoutSettlePollInterval()):
+		}
+	}
 }
 
 // Kickstart starts a loaded job. With kill set, a running instance is terminated and restarted.

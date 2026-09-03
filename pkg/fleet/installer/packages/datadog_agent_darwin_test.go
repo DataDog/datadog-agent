@@ -9,11 +9,13 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,6 +24,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// notLoadedOutput is real launchctl output for a label that is not in the domain, used so the
+// stub below can answer Bootout's post-bootout print poll without spinning for the full
+// BootoutSettleTimeout. Kept in sync with launchd_test.go's fixture of the same name.
+const notLoadedOutput = `Bad request.
+Could not find service "com.datadoghq.agent" in domain for system
+`
 
 // testLayout returns a layout rooted in temporary directories and owned by the user running the
 // test, so the ownership pass the hook performs is permitted without root.
@@ -44,7 +53,9 @@ func testLayout(t *testing.T) agentLayout {
 }
 
 // stubLaunchd replaces the launchd client with one that records its invocations instead of
-// running launchctl.
+// running launchctl. print always reports the label as not loaded, so Bootout's settle loop
+// (which polls print after every bootout) returns immediately instead of spinning for the full
+// BootoutSettleTimeout.
 func stubLaunchd(t *testing.T) *[][]string {
 	t.Helper()
 
@@ -52,8 +63,12 @@ func stubLaunchd(t *testing.T) *[][]string {
 	original := launchdClient
 	launchdClient = func() *launchd.Client {
 		client := launchd.NewClient(launchd.System)
+		client.BootoutSettlePollInterval = time.Millisecond
 		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
 			calls = append(calls, args)
+			if len(args) > 0 && args[0] == "print" {
+				return []byte(notLoadedOutput), errors.New("exit status 113")
+			}
 			return nil, nil
 		}
 		return client

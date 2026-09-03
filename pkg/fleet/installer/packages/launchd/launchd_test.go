@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -170,7 +171,12 @@ func TestOperationsAreIdempotentWhenJobIsAbsent(t *testing.T) {
 			notLoadedOutput,
 			"Boot-out failed: 3: No such process\n",
 		} {
-			rec := &recorder{outputs: [][]byte{[]byte(out)}, errs: []error{errors.New("exit status 3")}}
+			// A second response is queued for the settle loop's print poll: the job was
+			// already absent, so the very first check must confirm that and return.
+			rec := &recorder{
+				outputs: [][]byte{[]byte(out), []byte(notLoadedOutput)},
+				errs:    []error{errors.New("exit status 3"), errors.New("exit status 113")},
+			}
 			assert.NoError(t, newClient(rec).Bootout(context.Background(), "com.datadoghq.agent"))
 		}
 	})
@@ -201,6 +207,56 @@ func TestBootoutRealFailureIsAnError(t *testing.T) {
 	assert.Error(t, newClient(rec).Bootout(context.Background(), "com.datadoghq.agent"))
 }
 
+// TestBootoutNamesTheServiceTarget pins the launchctl invocation bootout makes, independent of the
+// settle loop that follows it.
+func TestBootoutNamesTheServiceTarget(t *testing.T) {
+	rec := &recorder{outputs: [][]byte{nil, []byte(notLoadedOutput)}, errs: []error{nil, errors.New("exit status 113")}}
+	require.NoError(t, newClient(rec).Bootout(context.Background(), "com.datadoghq.agent"))
+	require.NotEmpty(t, rec.calls)
+	assert.Equal(t, []string{"bootout", "system/com.datadoghq.agent"}, rec.calls[0].args)
+}
+
+// TestBootoutWaitsForTheJobToLeaveTheDomain guards the fix for the race documented in
+// priv_notes/TO_BE_FIXED_MACOS_LAUNCHD_BOOTOUT_BOOTSTRAP_RACE.md: launchctl bootout can return
+// before the label has actually left the domain, and a Bootstrap that follows immediately can hit
+// a bare "Input/output error". Bootout must not return until a print poll confirms the label is
+// gone.
+func TestBootoutWaitsForTheJobToLeaveTheDomain(t *testing.T) {
+	rec := &recorder{
+		outputs: [][]byte{
+			nil,                        // bootout
+			[]byte(runningPrintOutput), // print: still loaded
+			[]byte(runningPrintOutput), // print: still loaded
+			[]byte(notLoadedOutput),    // print: finally gone
+		},
+		errs: []error{nil, nil, nil, errors.New("exit status 113")},
+	}
+	c := newClient(rec)
+	c.BootoutSettlePollInterval = time.Millisecond
+	require.NoError(t, c.Bootout(context.Background(), "com.datadoghq.agent"))
+
+	var prints int
+	for _, call := range rec.calls {
+		if len(call.args) > 0 && call.args[0] == "print" {
+			prints++
+		}
+	}
+	assert.Equal(t, 3, prints, "Bootout must poll print until the label is actually gone")
+}
+
+// TestBootoutTimesOutIfTheJobNeverLeaves is the regression guard for the settle loop itself: it
+// must fail loudly rather than hang forever or silently report success on a label that never
+// actually left the domain.
+func TestBootoutTimesOutIfTheJobNeverLeaves(t *testing.T) {
+	c := NewClient(System)
+	c.Runner = func(_ context.Context, _ string, _ ...string) ([]byte, error) {
+		return []byte(runningPrintOutput), nil
+	}
+	c.BootoutSettleTimeout = 10 * time.Millisecond
+	c.BootoutSettlePollInterval = time.Millisecond
+	assert.Error(t, c.Bootout(context.Background(), "com.datadoghq.agent"))
+}
+
 func TestCommandConstruction(t *testing.T) {
 	ctx := context.Background()
 	job := Job{Label: "com.datadoghq.agent", Domain: System}
@@ -214,11 +270,6 @@ func TestCommandConstruction(t *testing.T) {
 			name: "bootstrap names the domain and the definition path",
 			do:   func(c *Client) error { return c.Bootstrap(ctx, job) },
 			want: []string{"bootstrap", "system", "/Library/LaunchDaemons/com.datadoghq.agent.plist"},
-		},
-		{
-			name: "bootout names the service target",
-			do:   func(c *Client) error { return c.Bootout(ctx, "com.datadoghq.agent") },
-			want: []string{"bootout", "system/com.datadoghq.agent"},
 		},
 		{
 			name: "kickstart without kill",
