@@ -18,6 +18,7 @@ go_library(
         "//comp/dogstatsd/replay/impl",
         "//pkg/config/setup",
         "//pkg/proto/pbgo/core",
+        "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
         "@org_golang_google_grpc//:grpc",

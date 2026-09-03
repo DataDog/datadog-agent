@@ -37,6 +37,10 @@ type metricsTriggeredSuite struct {
 // enabled using BOCPD with a short test-only warmup. The test sends one gauge per
 // second to produce distinct one-second storage points before a sustained step.
 func TestAnomalyDetectionMetricsTriggered(t *testing.T) {
+	// Skipped for ADP-enabled CI sweep (DADP-72): when data_plane.enabled=true the Core Agent's
+	// DSD server is disabled and ADP owns port 8125. DSD metrics then bypass the Core Agent's
+	// internal anomaly scorer pipeline, so the BOCPD scorer never triggers an episode.
+	t.Skip("skipped for ADP-enabled CI sweep (DADP-72): DSD metrics bypass Core Agent anomaly scorer when ADP owns port 8125")
 	t.Parallel()
 	// language=yaml
 	agentConfig := `

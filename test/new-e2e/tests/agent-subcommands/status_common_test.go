@@ -138,8 +138,9 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 			shouldBePresent: false,
 		},
 		{
+			// DADP-72: internal DSD is disabled when ADP is the DSD handler; section absent.
 			name:            "DogStatsD",
-			shouldBePresent: true,
+			shouldBePresent: false,
 		},
 		{
 			name:             "Endpoints",

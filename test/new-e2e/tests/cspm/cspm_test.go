@@ -303,6 +303,10 @@ func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
 }
 
 func (s *cspmTestSuite) TestMetrics() {
+	// Skipped for ADP-enabled CI sweep (DADP-72): data_plane.enabled=true disables the Core Agent
+	// DSD server. The Kind container image does not bundle agent-data-plane, so the security
+	// agent's compliance metrics (sent via DSD to port 8125) are never received.
+	s.T().Skip("skipped for ADP-enabled CI sweep (DADP-72): Kind container image has no ADP binary; compliance DSD metrics dropped when data_plane.enabled=true")
 	s.T().Log("Waiting for datadog.security_agent.compliance.running metrics")
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 

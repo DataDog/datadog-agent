@@ -10,6 +10,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"time"
 
 	"go.uber.org/fx"
@@ -22,6 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
@@ -75,7 +79,43 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdCaptureCmd}
 }
 
+func findADPBinary() (string, error) {
+	candidates := []string{
+		filepath.Join(defaultpaths.GetEmbeddedBinPath(), "agent-data-plane"),
+		filepath.Join(defaultpaths.GetInstallPath(), "bin", "agent", "agent-data-plane"),
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	return "", fmt.Errorf("agent-data-plane binary not found (tried: %v)", candidates)
+}
+
+func captureViaADP(cliParams *cliParams) error {
+	adpBin, err := findADPBinary()
+	if err != nil {
+		return fmt.Errorf("cannot delegate dogstatsd-capture to agent-data-plane: %w", err)
+	}
+
+	args := []string{"dogstatsd", "capture", "--duration", cliParams.dsdCaptureDuration.String()}
+	if cliParams.dsdCaptureFilePath != "" {
+		args = append(args, "--path", cliParams.dsdCaptureFilePath)
+	}
+	if !cliParams.dsdCaptureCompressed {
+		args = append(args, "--compressed", "false")
+	}
+
+	cmd := exec.Command(adpBin, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 func dogstatsdCapture(_ log.Component, _ config.Component, cliParams *cliParams, ipc ipc.Component) error {
+	if pkgconfigsetup.Datadog().GetBool("data_plane.enabled") && pkgconfigsetup.Datadog().GetBool("data_plane.dogstatsd.enabled") {
+		return captureViaADP(cliParams)
+	}
 	fmt.Printf("Starting a dogstatsd traffic capture session...\n\n")
 
 	ctx, cancel := context.WithCancel(context.Background())

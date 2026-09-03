@@ -61,6 +61,11 @@ func TestTruthTable(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
+			// The full-suite ADP sweep (DADP-72) temporarily flips the compiled
+			// data_plane.enabled default to true. Pin the shipped default here so
+			// the tri-state truth table keeps validating the intended routing
+			// semantics for the "unset" rows.
+			cfg.SetInTest("data_plane.enabled", false)
 			if tc.useDogstatsd != nil {
 				cfg.SetInTest("use_dogstatsd", *tc.useDogstatsd)
 			}

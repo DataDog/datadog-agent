@@ -345,7 +345,7 @@ func (tc *TrafficCaptureWriter) writeState(duration time.Duration) (int, error) 
 			LowCardinalityTags:          entity.LowCardinalityTags,
 			StandardTags:                entity.StandardTags,
 		}
-		pbState.State[id] = &entry
+		pbState.State[entityIDStr] = &entry
 	}
 
 	log.Debugf("Going to write STATE: %#v", pbState)
