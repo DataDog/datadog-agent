@@ -23,12 +23,13 @@ pub(super) fn agent_profile_credential() -> anyhow::Result<SpawnCredential> {
     } else {
         let sid = token_user_sid_bytes(token.as_handle())
             .context("read supervisor token SID for test harness")?;
-        agent_account_from_well_known_sid(&sid).unwrap_or_else(|| {
-            password_logon_from_display(
-                current_process_account_display()
-                    .context("lookup supervisor account name for test harness")?,
-            )
-        })
+        if let Some(account) = agent_account_from_well_known_sid(&sid) {
+            account
+        } else {
+            let display = current_process_account_display()
+                .context("lookup supervisor account name for test harness")?;
+            password_logon_from_display(display)
+        }
     };
 
     Ok(SpawnCredential::from_account(account))
