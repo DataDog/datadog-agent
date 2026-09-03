@@ -188,6 +188,9 @@ func (d *delegatedAuthComponent) initializeIfNeeded(ctx context.Context, params 
 		// Auto-detect cloud provider (network I/O happens here, outside any lock)
 		source, err := detectAWSCredentialSource(ctx)
 		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, ctxErr
+			}
 			// No supported cloud provider detected. Warn and record the reason for the status page.
 			disabledReason = fmt.Sprintf("no supported cloud provider detected: %v", err)
 			log.Warnf("Delegated authentication is configured but no supported cloud provider was "+

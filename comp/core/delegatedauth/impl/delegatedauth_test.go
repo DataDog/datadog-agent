@@ -1635,3 +1635,34 @@ func TestInitializeIfNeeded_DetectionFailureIsRecorded(t *testing.T) {
 	assert.Nil(t, providerConfig)
 	assert.Contains(t, comp.disabledReason, "no supported cloud provider detected")
 }
+
+func TestInitializeIfNeeded_DetectionTimeoutCanRetry(t *testing.T) {
+	original := detectAWSCredentialSource
+	calls := 0
+	detectAWSCredentialSource = func(ctx context.Context) (string, error) {
+		calls++
+		if calls == 1 {
+			return "", ctx.Err()
+		}
+		return "environment", nil
+	}
+	t.Cleanup(func() { detectAWSCredentialSource = original })
+
+	mockConfig := mock.New(t)
+	mockConfig.Set("delegated_auth.aws.region", "us-east-1", pkgconfigmodel.SourceFile)
+	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
+	params := delegatedauth.InstanceParams{Config: mockConfig, OrgUUID: "test-org", APIKeyConfigKey: "api_key"}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	providerConfig, err := comp.initializeIfNeeded(ctx, params)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, providerConfig)
+	assert.False(t, comp.initialized)
+
+	providerConfig, err = comp.initializeIfNeeded(context.Background(), params)
+	require.NoError(t, err)
+	require.NotNil(t, providerConfig)
+	assert.Equal(t, 2, calls)
+	assert.True(t, comp.initialized)
+}

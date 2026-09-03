@@ -6846,6 +6846,11 @@ properties:
         node_type: setting
         type: integer
         default: 60
+      startup_timeout_secs:
+        node_type: setting
+        type: integer
+        default: 60
+        comment: Bounds provider detection and the initial credential exchange during config loading. Set to 0 to disable the deadline.
   disable_unsafe_yaml:
     node_type: setting
     type: boolean
