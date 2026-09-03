@@ -147,7 +147,7 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
         if job.name in no_cancel_override:
             continue
 
-        if job.status == "running" and job.stage in no_cancel_running_stages:
+        if job.status == "running" and job.stage in no_cancel_running_stages and job.stage not in force_cancel_stages:
             continue
 
         if job.stage in force_cancel_stages or (
