@@ -1,7 +1,9 @@
 [Unit]
 Description=Datadog rshell privileged helper experiment socket
-After=datadog-agent-exp.service datadog-agent-action-exp.service
-BindsTo=datadog-agent-exp.service datadog-agent-action-exp.service
+# Keep this unit out of the action runner transaction so package experiments
+# can hand stable and experiment units over independently.
+After=datadog-agent-exp.service
+BindsTo=datadog-agent-exp.service
 Conflicts=datadog-agent-rshell-privileged.socket
 ConditionPathExists=/opt/datadog-packages/datadog-agent/experiment/embedded/bin/rshell
 
@@ -15,4 +17,4 @@ DirectoryMode=0750
 RemoveOnStop=yes
 
 [Install]
-WantedBy=sockets.target datadog-agent-action-exp.service
+WantedBy=sockets.target

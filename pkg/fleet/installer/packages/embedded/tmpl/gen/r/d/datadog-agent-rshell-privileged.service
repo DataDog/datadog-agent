@@ -1,7 +1,9 @@
 [Unit]
 Description=Datadog rshell privileged helper
-After=datadog-agent.service datadog-agent-action.service
-BindsTo=datadog-agent.service datadog-agent-action.service
+# Keep this unit out of the action runner transaction so package experiments
+# can hand stable and experiment units over independently.
+After=datadog-agent.service
+BindsTo=datadog-agent.service
 Conflicts=datadog-agent-rshell-privileged-exp.service
 ConditionPathExists=/opt/datadog-agent/embedded/bin/rshell
 

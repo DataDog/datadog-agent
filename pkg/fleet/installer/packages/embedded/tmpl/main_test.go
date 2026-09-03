@@ -32,8 +32,11 @@ func TestPrivilegedRshellUnitsUseProtectedPolicyAndConfiguredSocket(t *testing.T
 
 	stableSocket := string(units["datadog-agent-rshell-privileged.socket"])
 	experimentSocket := string(units["datadog-agent-rshell-privileged-exp.socket"])
-	assert.Contains(t, stableSocket, "WantedBy=sockets.target datadog-agent-action.service")
-	assert.Contains(t, experimentSocket, "WantedBy=sockets.target datadog-agent-action-exp.service")
+	assert.Contains(t, stableSocket, "WantedBy=sockets.target")
+	assert.Contains(t, experimentSocket, "WantedBy=sockets.target")
+	for name, unit := range units {
+		assert.NotContains(t, string(unit), "datadog-agent-action", "%s must not participate in the action runner's systemd transaction", name)
+	}
 	assert.Equal(t, 1, strings.Count(stableSocket, "ListenStream=/run/datadog/rshell-privileged.sock"))
 	assert.Equal(t, 1, strings.Count(experimentSocket, "ListenStream=/run/datadog/rshell-privileged.sock"))
 	assert.NotContains(t, experimentSocket, "rshell-privileged-exp.sock")
