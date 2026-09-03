@@ -244,44 +244,16 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 }
 
 // normalizeMetricNames normalizes each entry so it matches the name space the
-// matcher compares in (see metricname.Matcher). Entries the intake would reject
-// outright (empty, too long, or containing no ASCII letter) are dropped.
+// matcher compares in, and reports the ones dropped for not being able to match
+// any metric name the intake stores. `matchPrefix` makes every entry a prefix,
+// whether or not it is written with a trailing `*`.
 //
-// A trailing `*` marks a prefix entry, and is not part of the name: it is
-// stripped before normalizing and put back afterwards, so that normalization
-// doesn't silently turn the prefix entry `foo.*` into the exact name `foo.`.
-// `matchPrefix` makes every entry a prefix, whether or not it ends with `*`.
-//
-// A prefix is normalized as a prefix, not as a complete name, so that it keeps
-// the boundary the names it matches do keep: `service_*` stays `service_*`, and
-// is not widened into `service*`, which would also drop `service.requests`. See
-// metricname.NormalizePrefixAppend.
+// The entry format and the normalizing itself belong to metricname, which owns
+// both the `*` convention and the name space entries are compared in.
 func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) []string {
-	normalized := make([]string, 0, len(names))
-	// Reuse this stack buffer for normalizing each metric.
-	var buf [metricname.MaxLength]byte
-	for _, name := range names {
-		entry, hasStar := strings.CutSuffix(name, metricname.PrefixSuffix)
-
-		var key []byte
-		var ok bool
-		if hasStar || matchPrefix {
-			key, ok = metricname.NormalizePrefixAppend(buf[:0], entry)
-		} else {
-			key, ok = metricname.NormalizeAppend(buf[:0], entry)
-		}
-		if !ok {
-			log.Warnf("metric_filterlist: dropping entry %q that is not a storable metric name", name)
-			continue
-		}
-
-		// Only put back a marker the entry had: in `matchPrefix` mode every
-		// entry is a prefix already, whether or not it is written as one.
-		if hasStar {
-			normalized = append(normalized, string(key)+metricname.PrefixSuffix)
-			continue
-		}
-		normalized = append(normalized, string(key))
+	normalized, dropped := metricname.NormalizeEntries(names, matchPrefix)
+	for _, entry := range dropped {
+		log.Warnf("metric_filterlist: dropping entry %q that cannot match any metric name stored by Datadog", entry)
 	}
 	return normalized
 }
@@ -291,14 +263,6 @@ func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) [
 // the rest of the entry. `matchPrefix` turns every entry into a prefix.
 func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool) {
 	fl.log.Debugf("SetMetricFilterList with %d metrics", len(metricNames))
-
-	// A lone `*`, or any empty entry in prefix mode, is a prefix matching every
-	// metric name: worth a warning since it silently drops all metrics.
-	if slices.ContainsFunc(metricNames, func(name string) bool {
-		return name == metricname.PrefixSuffix || (matchPrefix && name == "")
-	}) {
-		fl.log.Warn("the metric filterlist contains an entry matching every metric name: all metrics will be dropped")
-	}
 
 	// we will use two different filterlists:
 	// - one with all the metrics names, with all values from `metricNames`
@@ -311,6 +275,11 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 	// instead of recompiling a duplicate copy.
 	filterList := metricname.NewMatcher(metricNames, matchPrefix)
 	histoFilterList := filterList.RestrictExact(fl.isHistogramAggregateSuffix)
+
+	// Worth a warning, since it silently drops every metric.
+	if filterList.MatchesAll() {
+		fl.log.Warn("the metric filterlist contains an entry matching every metric name: all metrics will be dropped")
+	}
 
 	// Report the compiled size: with prefix matching, NewMatcher compacts
 	// redundant sub-prefixes, so len(metricNames) can overcount.

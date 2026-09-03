@@ -213,53 +213,26 @@ func TestMetricFilterListNormalizesPrefixEntries(t *testing.T) {
 	require.False(matcher.Test("other.metric"))
 }
 
-// TestNormalizeMetricNamesKeepsPrefixMarker verifies that normalizing an entry
-// preserves the trailing `*` marking it as a prefix: normalizing it away would
-// silently turn the prefix entry `my metric.*` into the exact name
-// `my_metric.`, and only filter that one metric.
-func TestNormalizeMetricNamesKeepsPrefixMarker(t *testing.T) {
-	require := require.New(t)
-
-	// `123.*` has no ASCII letter to normalize, so it is dropped like any other
-	// unstorable entry; a lone `*` matches everything and is kept as is.
-	in := []string{"my metric-name.*", "*", "123.*", "exact"}
-	out := normalizeMetricNames(in, false, logmock.New(t))
-
-	require.Equal([]string{"my_metric_name.*", "*", "exact"}, out)
-}
-
-// TestNormalizeMetricNamesKeepsPrefixBoundary verifies that a prefix entry is
-// normalized as a prefix, keeping the trailing boundary that a complete name
-// drops. Normalizing `service_*` as a name yields `service*`, which would widen
-// the entry from the `service_` family to everything starting with `service`.
-func TestNormalizeMetricNamesKeepsPrefixBoundary(t *testing.T) {
+// TestNormalizeMetricNames verifies the wiring around
+// metricname.NormalizeEntries, which owns the entry format and is tested there:
+// the prefix mode is passed through, and unusable entries are dropped from the
+// list the component keeps rather than reported some other way.
+func TestNormalizeMetricNames(t *testing.T) {
 	require := require.New(t)
 
 	logComponent := logmock.New(t)
-	in := []string{"service_*", "service-*", "service.*", "service_"}
+	// `123.*` can never match a stored name and is dropped; `service_` only
+	// keeps its boundary when the whole list is prefixes.
+	in := []string{"my metric-name.*", "123.*", "service_", "exact"}
 
-	// Only the entries written as prefixes keep their boundary...
 	require.Equal(
-		[]string{"service_*", "service_*", "service.*", "service"},
+		[]string{"my_metric_name.*", "service", "exact"},
 		normalizeMetricNames(in, false, logComponent),
 	)
-
-	// ...unless every entry is a prefix, in which case they all do.
 	require.Equal(
-		[]string{"service_*", "service_*", "service.*", "service_"},
+		[]string{"my_metric_name.*", "service_", "exact"},
 		normalizeMetricNames(in, true, logComponent),
 	)
-}
-
-// TestNormalizeMetricNamesDropsUnstorable verifies the helper drops names the
-// intake would reject outright rather than keeping them as dead entries.
-func TestNormalizeMetricNamesDropsUnstorable(t *testing.T) {
-	require := require.New(t)
-
-	in := []string{"valid.metric", "", "123", "...", "another.valid"}
-	out := normalizeMetricNames(in, false, logmock.New(t))
-
-	require.Equal([]string{"valid.metric", "another.valid"}, out)
 }
 
 // TestMetricFilterListPrefixBoundaryIsNotWidened is the end-to-end form of

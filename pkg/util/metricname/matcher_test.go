@@ -211,6 +211,88 @@ func TestNewMatcherPatterns(t *testing.T) {
 	}
 }
 
+func TestNormalizeEntries(t *testing.T) {
+	cases := []struct {
+		name        string
+		entries     []string
+		matchPrefix bool
+		normalized  []string
+		dropped     []string
+	}{
+		{
+			name:       "empty",
+			entries:    []string{},
+			normalized: []string{},
+		},
+		{
+			name:       "names are normalized",
+			entries:    []string{"my metric-name", "already_normalized.metric"},
+			normalized: []string{"my_metric_name", "already_normalized.metric"},
+		},
+		{
+			// The marker is not part of the name, and survives normalization.
+			name:       "prefix marker is preserved",
+			entries:    []string{"my metric-name.*", "*"},
+			normalized: []string{"my_metric_name.*", "*"},
+		},
+		{
+			// A prefix keeps the boundary a complete name drops, so the entry is
+			// not widened from the `service_` family to everything starting with
+			// `service`. See NormalizePrefixAppend.
+			name:       "prefix boundary is kept",
+			entries:    []string{"service_*", "service-*", "service.*", "service_"},
+			normalized: []string{"service_*", "service_*", "service.*", "service"},
+		},
+		{
+			// With matchPrefix every entry is a prefix, so they all keep their
+			// boundary -- and none gains a marker it wasn't written with.
+			name:        "match prefix keeps every boundary",
+			entries:     []string{"service_*", "service_", "exact"},
+			matchPrefix: true,
+			normalized:  []string{"service_*", "service_", "exact"},
+		},
+		{
+			name:       "unusable entries are dropped",
+			entries:    []string{"valid.metric", "", "123", "...", "123.*", "another.valid"},
+			normalized: []string{"valid.metric", "another.valid"},
+			dropped:    []string{"", "123", "...", "123.*"},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			normalized, dropped := NormalizeEntries(c.entries, c.matchPrefix)
+			assert.Equal(t, c.normalized, normalized)
+			assert.Equal(t, c.dropped, dropped)
+
+			// Normalizing an already-normalized list changes nothing, so a list
+			// normalized again (config load, then an RC update) is stable.
+			twice, dropped := NormalizeEntries(normalized, c.matchPrefix)
+			assert.Equal(t, normalized, twice, "normalizing entries must be idempotent")
+			assert.Empty(t, dropped)
+		})
+	}
+}
+
+// TestNormalizeEntriesFeedsMatcher checks the whole path an entry takes: it is
+// normalized, then compiled, and matches the metric names the intake stores for
+// the family it names -- and only those.
+func TestNormalizeEntriesFeedsMatcher(t *testing.T) {
+	normalized, dropped := NormalizeEntries([]string{"service_*", "my metric"}, false)
+	assert.Empty(t, dropped)
+
+	m := NewMatcher(normalized, false)
+
+	assert.True(t, m.Test("service_requests"))
+	assert.True(t, m.Test("service requests"), "raw name normalizes into the family")
+	assert.False(t, m.Test("service.requests"), "a different family")
+	assert.False(t, m.Test("serviceother"))
+
+	assert.True(t, m.Test("my metric"))
+	assert.True(t, m.Test("my_metric"))
+	assert.False(t, m.Test("my_metric.count"), "not a prefix entry")
+}
+
 func TestIsStringMatchingPatterns(t *testing.T) {
 	list := []string{"foo.bar", "foo.baz.*", "zzz", "app.*"}
 
@@ -279,14 +361,32 @@ func TestRestrictExact(t *testing.T) {
 	assert.True(t, restricted.Test("bar.anything"))
 }
 
+func TestMatchesAll(t *testing.T) {
+	// However the empty prefix is spelled, and whatever else is in the list.
+	for _, list := range [][]string{{"*"}, {"*", "foo", "bar.*"}} {
+		m := NewMatcher(list, false)
+		assert.True(t, m.MatchesAll(), "%v should match every name", list)
+	}
+	prefixMode := NewMatcher([]string{""}, true)
+	assert.True(t, prefixMode.MatchesAll())
+
+	// A prefix that merely matches a lot is not the empty prefix.
+	for _, list := range [][]string{nil, {"foo"}, {"foo.*"}, {"a*"}} {
+		m := NewMatcher(list, false)
+		assert.False(t, m.MatchesAll(), "%v should not match every name", list)
+	}
+}
+
 func TestNilMatcher(t *testing.T) {
 	var m *Matcher
 	assert.False(t, m.Test("foo"))
 	assert.Equal(t, 0, m.Len())
+	assert.False(t, m.MatchesAll())
 
 	empty := Matcher{}
 	assert.False(t, empty.Test("foo"))
 	assert.Equal(t, 0, empty.Len())
+	assert.False(t, empty.MatchesAll())
 }
 
 func randomString(size uint) string {

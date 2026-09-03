@@ -74,6 +74,53 @@ func NewMatcher(data []string, matchPrefix bool) Matcher {
 	}
 }
 
+// NormalizeEntries returns `entries` normalized into the name space `Matcher`
+// compares in, along with the entries that were dropped because no metric name
+// the intake stores can match them (see `NormalizeAppend` and
+// `NormalizePrefixAppend` for what that rules out).
+//
+// Entries are the raw strings a user or Remote Config provides, so this is where
+// the `*` marker documented on `NewMatcher` is accounted for: the marker is not
+// part of the name, and a prefix is normalized as a prefix rather than as a
+// complete metric name, which is what keeps `service_*` from widening into
+// `service*`. The marker is preserved, so the result is a filter list of the same
+// shape as the input, ready to hand to `NewMatcher` — or to report back to the
+// user as the list actually in effect.
+//
+// Dropped entries are returned rather than logged: this package has no logger,
+// and the caller knows which setting they came from.
+func NormalizeEntries(entries []string, matchPrefix bool) (normalized, dropped []string) {
+	normalized = make([]string, 0, len(entries))
+	// Reuse this stack buffer to normalize every entry.
+	var buf [MaxLength]byte
+
+	for _, entry := range entries {
+		name, hasStar := strings.CutSuffix(entry, PrefixSuffix)
+
+		var key []byte
+		var ok bool
+		if hasStar || matchPrefix {
+			key, ok = NormalizePrefixAppend(buf[:0], name)
+		} else {
+			key, ok = NormalizeAppend(buf[:0], name)
+		}
+		if !ok {
+			dropped = append(dropped, entry)
+			continue
+		}
+
+		// Only put back a marker the entry had: with `matchPrefix` every entry
+		// is a prefix already, whether or not it is written as one.
+		if hasStar {
+			normalized = append(normalized, string(key)+PrefixSuffix)
+			continue
+		}
+		normalized = append(normalized, string(key))
+	}
+
+	return normalized, dropped
+}
+
 // compactPrefixes sorts `prefixes` and removes the entries identifying a
 // prefix already identified by a shorter entry, so that elements identify
 // unique prefixes.
@@ -156,6 +203,17 @@ func (m *Matcher) Len() int {
 		return 0
 	}
 	return len(m.exact) + len(m.prefixes)
+}
+
+// MatchesAll reports whether the matcher matches every metric name the intake
+// stores, which is what an entry of a lone `*` (or any empty entry in
+// `matchPrefix` mode) asks for. Compaction leaves that empty prefix as the only
+// entry, since every name starts with it.
+func (m *Matcher) MatchesAll() bool {
+	if m == nil {
+		return false
+	}
+	return len(m.prefixes) == 1 && m.prefixes[0] == ""
 }
 
 // Test returns true if the given metric name is equal to one of the exact
