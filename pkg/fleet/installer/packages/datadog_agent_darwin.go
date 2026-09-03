@@ -19,7 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var datadogAgentPackage = hooks{
@@ -53,16 +55,20 @@ type agentLayout struct {
 	installRoot string
 	// linkDir is where the convenience commands are linked from.
 	linkDir string
+	// packagesRoot is the root of the OCI package repositories the shared installer code keeps.
+	// It sits outside the install root, and macOS stores nothing of its own there.
+	packagesRoot string
 
 	owner string
 	group string
 }
 
 var defaultAgentLayout = agentLayout{
-	installRoot: filepath.Dir(paths.AgentConfigDir),
-	linkDir:     convenienceLinkDir,
-	owner:       agentUser,
-	group:       agentGroup,
+	installRoot:  filepath.Dir(paths.AgentConfigDir),
+	linkDir:      convenienceLinkDir,
+	packagesRoot: paths.PackagesPath,
+	owner:        agentUser,
+	group:        agentGroup,
 }
 
 func (l agentLayout) etcDir() string    { return filepath.Join(l.installRoot, "etc") }
@@ -191,6 +197,45 @@ func installFilesystem(ctx HookContext, layout agentLayout) (err error) {
 	return nil
 }
 
+// registerPackageRepository registers the Agent in the OCI package repository the shared installer
+// code keeps for every package.
+//
+// macOS installs the Agent from a .dmg rather than from an OCI package, so nothing else on this
+// platform ever creates that repository -- but the shared code reads it unconditionally.
+// InstallConfigExperiment cleans the package repository before it writes the configuration
+// experiment, so on a host without one the read fails with ENOENT and no configuration experiment
+// can start at all.
+//
+// The version directory the links resolve to is a placeholder. macOS keeps no versioned package
+// pool: the files the entry stands for live in the install root, and are replaced there by the
+// next .dmg rather than installed alongside. What the shared code needs is a repository whose
+// stable and experiment links resolve, which is what this creates.
+func registerPackageRepository(ctx HookContext, layout agentLayout) (err error) {
+	span, ctx := ctx.StartSpan("register_package_repository")
+	defer func() {
+		span.Finish(err)
+	}()
+
+	if err = os.MkdirAll(layout.packagesRoot, 0755); err != nil {
+		return fmt.Errorf("failed to create %s: %w", layout.packagesRoot, err)
+	}
+
+	// Create wants a source directory to move in as the version, and takes ownership of it. An
+	// empty one stands in for the package pool this platform does not have.
+	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
+	placeholder, err := repositories.MkdirTemp()
+	if err != nil {
+		return fmt.Errorf("failed to create the placeholder package directory: %w", err)
+	}
+	// Only reached if Create failed before moving it.
+	defer os.RemoveAll(placeholder)
+
+	if err = repositories.Create(ctx, ctx.Package, version.AgentVersion, placeholder); err != nil {
+		return fmt.Errorf("failed to register %s as a package: %w", ctx.Package, err)
+	}
+	return nil
+}
+
 // installStableJobs writes and loads the stable launchd job set, including the installer daemon.
 //
 // Both install paths run this, from the same embedded definitions, so a host installed from the
@@ -295,9 +340,13 @@ func preInstallDatadogAgent(ctx HookContext) error {
 	return nil
 }
 
-// postInstallDatadogAgent creates the state directories and loads the stable job set.
+// postInstallDatadogAgent creates the state directories, registers the Agent as a package, and
+// loads the stable job set.
 func postInstallDatadogAgent(ctx HookContext) error {
 	if err := installFilesystem(ctx, defaultAgentLayout); err != nil {
+		return err
+	}
+	if err := registerPackageRepository(ctx, defaultAgentLayout); err != nil {
 		return err
 	}
 	if err := installinfo.WriteInstallInfo(ctx, string(ctx.PackageType)); err != nil {

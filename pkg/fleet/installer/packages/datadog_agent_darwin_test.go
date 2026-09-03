@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // testLayout returns a layout rooted in temporary directories and owned by the user running the
@@ -33,10 +35,11 @@ func testLayout(t *testing.T) agentLayout {
 
 	root := t.TempDir()
 	return agentLayout{
-		installRoot: filepath.Join(root, "opt", "datadog-agent"),
-		linkDir:     filepath.Join(root, "usr", "local", "bin"),
-		owner:       current.Username,
-		group:       group.Name,
+		installRoot:  filepath.Join(root, "opt", "datadog-agent"),
+		linkDir:      filepath.Join(root, "usr", "local", "bin"),
+		packagesRoot: filepath.Join(root, "opt", "datadog-packages"),
+		owner:        current.Username,
+		group:        group.Name,
 	}
 }
 
@@ -174,6 +177,61 @@ func TestConfigPermissionsAreRootedAtEtc(t *testing.T) {
 		assert.NotEqual(t, layout.etcExpDir(), dir.Path,
 			"the hook must not create etc-exp; the configuration layer owns it alone")
 	}
+}
+
+// TestRegisterPackageRepositoryLetsAConfigExperimentStart is the reason the hook registers a
+// package at all. InstallConfigExperiment cleans the package repository before it writes the
+// experiment, so on a host without one that read fails with ENOENT and no configuration
+// experiment can start -- which is every macOS host, since the Agent arrives in a .dmg.
+func TestRegisterPackageRepositoryLetsAConfigExperimentStart(t *testing.T) {
+	layout := testLayout(t)
+	ctx := testHookContext(t)
+	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
+
+	require.Error(t, repositories.Get(agentPackage).DeleteExperiment(ctx),
+		"the repository is meant to be missing before the hook runs")
+
+	require.NoError(t, registerPackageRepository(ctx, layout))
+
+	assert.NoError(t, repositories.Get(agentPackage).DeleteExperiment(ctx))
+}
+
+// TestRegisterPackageRepositoryReportsTheInstalledVersion covers what the entry tells the backend:
+// the state the installer reports for the package must name the Agent that is actually installed.
+func TestRegisterPackageRepositoryReportsTheInstalledVersion(t *testing.T) {
+	layout := testLayout(t)
+	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
+
+	require.NoError(t, registerPackageRepository(testHookContext(t), layout))
+
+	state, err := repositories.GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, version.AgentVersion, state.Stable)
+	assert.Empty(t, state.Experiment, "a fresh install must not look like it has a version experiment")
+}
+
+// TestRegisterPackageRepositoryIsIdempotent is the property every hook here needs: the .dmg runs
+// postInstall on a first install, on every upgrade, and again on a host already in this state.
+func TestRegisterPackageRepositoryIsIdempotent(t *testing.T) {
+	layout := testLayout(t)
+	ctx := testHookContext(t)
+
+	require.NoError(t, registerPackageRepository(ctx, layout))
+	require.NoError(t, registerPackageRepository(ctx, layout))
+
+	state, err := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks).GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, version.AgentVersion, state.Stable)
+
+	// The placeholder directory Create moves in must not accumulate one temporary directory per
+	// run: the packages root holds the package and nothing else.
+	entries, err := os.ReadDir(layout.packagesRoot)
+	require.NoError(t, err)
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	assert.Equal(t, []string{agentPackage}, names)
 }
 
 func TestInstallStableJobsLoadsTheStableSetIncludingTheInstaller(t *testing.T) {

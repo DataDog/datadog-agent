@@ -122,9 +122,13 @@ dd_agent_go_test(
     ] + select({
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/launchd",
+            "//pkg/fleet/installer/repository",
+            "//pkg/version",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/launchd",
+            "//pkg/fleet/installer/repository",
+            "//pkg/version",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",

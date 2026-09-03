@@ -7,8 +7,8 @@
 # Datadog Agent uninstall script for macOS.
 # Paired with install_mac_os.sh (Agent 7.79.0+). Removes the system-wide
 # components installed by the DMG: LaunchDaemons (agent, sysprobe, data-plane,
-# installer), GUI LaunchAgent, /Applications app, /opt/datadog-agent tree, and
-# symlinks.
+# installer), GUI LaunchAgent, /Applications app, /opt/datadog-agent and
+# /opt/datadog-packages trees, and symlinks.
 set -eu
 
 if [ -t 1 ]; then
@@ -85,6 +85,9 @@ $sudo_cmd rm -f "/Library/LaunchAgents/$old_ai_usage_desktop_monitor_label.plist
 printf "${BLUE}\n    - Removing application and install directory...\n${NC}"
 $sudo_cmd rm -rf "/Applications/Datadog Agent.app"
 $sudo_cmd rm -rf /opt/datadog-agent
+# The installer registers the Agent as a package here and keeps its state
+# alongside; macOS stores nothing else under this root.
+$sudo_cmd rm -rf /opt/datadog-packages
 
 printf "${BLUE}\n    - Removing symlinks and staging data...\n${NC}"
 $sudo_cmd rm -f /usr/local/bin/datadog-agent

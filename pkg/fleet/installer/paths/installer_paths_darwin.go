@@ -19,8 +19,10 @@ import "os"
 // resolves its configuration and run directories through.
 const (
 	// PackagesPath is the path to the packages directory.
-	// Nothing this platform does today writes there -- macOS has no versioned package pool --
-	// but the shared installer code names it unconditionally, so it keeps its Linux value.
+	// macOS has no versioned package pool of its own: the Agent comes from a .dmg and lives in
+	// the install root. The shared installer code reads a package repository per package all the
+	// same, so the install registers a placeholder one here (see registerPackageRepository in
+	// pkg/fleet/installer/packages/datadog_agent_darwin.go) and the path keeps its Linux value.
 	PackagesPath = "/opt/datadog-packages"
 	// ConfigsPath is the path to the Fleet-managed configuration directory.
 	ConfigsPath = "/opt/datadog-agent/etc/managed"
