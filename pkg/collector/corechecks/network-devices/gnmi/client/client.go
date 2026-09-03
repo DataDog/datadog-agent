@@ -1,0 +1,375 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+// Package client maintains streaming gNMI subscriptions and a latest-value cache.
+package client
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"strconv"
+	"sync"
+	"time"
+
+	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+
+	parentgnmi "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
+)
+
+const (
+	defaultMinReconnectDelay = 1 * time.Second
+	defaultMaxReconnectDelay = 30 * time.Second
+)
+
+// Config holds the connection and subscription settings for a gNMI client.
+type Config struct {
+	Address  string
+	Port     int
+	Username string
+	Password string
+	Profile  config.ProfileDefinition
+}
+
+// Option configures optional client behavior, primarily for tests.
+type Option func(*options)
+
+type options struct {
+	minReconnectDelay time.Duration
+	maxReconnectDelay time.Duration
+	dial              func(context.Context, string, ...grpc.DialOption) (*grpc.ClientConn, error)
+}
+
+// WithReconnectDelays overrides reconnect backoff bounds.
+func WithReconnectDelays(minDelay, maxDelay time.Duration) Option {
+	return func(o *options) {
+		o.minReconnectDelay = minDelay
+		o.maxReconnectDelay = maxDelay
+	}
+}
+
+// Client maintains a streaming gNMI subscription and a latest-value cache.
+type Client struct {
+	cfg Config
+	opt options
+
+	mu       sync.Mutex
+	conn     *grpc.ClientConn
+	cancel   context.CancelFunc
+	done     chan struct{}
+	closeErr error
+
+	cache *cache
+
+	reconnectAttempts int
+}
+
+// New creates a client. Call Start to open the subscription loop.
+func New(cfg Config, opts ...Option) (*Client, error) {
+	if cfg.Address == "" {
+		return nil, errors.New("address is required")
+	}
+	if cfg.Port <= 0 || cfg.Port > 65535 {
+		return nil, fmt.Errorf("invalid port %d", cfg.Port)
+	}
+	if cfg.Username == "" {
+		return nil, errors.New("username is required")
+	}
+	if cfg.Password == "" {
+		return nil, errors.New("password is required")
+	}
+	if len(cfg.Profile.Metrics) == 0 {
+		return nil, errors.New("profile must define at least one metric")
+	}
+
+	clientOpts := options{
+		minReconnectDelay: defaultMinReconnectDelay,
+		maxReconnectDelay: defaultMaxReconnectDelay,
+		dial: func(_ context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+			return grpc.NewClient(target, opts...)
+		},
+	}
+	for _, opt := range opts {
+		opt(&clientOpts)
+	}
+	if clientOpts.minReconnectDelay <= 0 {
+		return nil, errors.New("min reconnect delay must be greater than 0")
+	}
+	if clientOpts.maxReconnectDelay < clientOpts.minReconnectDelay {
+		return nil, fmt.Errorf("max reconnect delay %s must be >= min reconnect delay %s", clientOpts.maxReconnectDelay, clientOpts.minReconnectDelay)
+	}
+
+	return &Client{
+		cfg:   cfg,
+		opt:   clientOpts,
+		cache: newCache(),
+	}, nil
+}
+
+// Start launches the reconnect loop and receive goroutine.
+func (c *Client) Start(ctx context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.cancel != nil {
+		return errors.New("client already started")
+	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	c.cancel = cancel
+	c.done = make(chan struct{})
+
+	go c.run(runCtx)
+	return nil
+}
+
+// Close stops the reconnect loop, closes the active stream and connection, and waits for shutdown.
+func (c *Client) Close() error {
+	c.mu.Lock()
+	if c.cancel == nil {
+		c.mu.Unlock()
+		return nil
+	}
+	cancel := c.cancel
+	done := c.done
+	c.cancel = nil
+	c.mu.Unlock()
+
+	cancel()
+	<-done
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closeErr != nil && errors.Is(c.closeErr, context.Canceled) {
+		return nil
+	}
+	return c.closeErr
+}
+
+// Cancel is an alias for Close.
+func (c *Client) Cancel() error {
+	return c.Close()
+}
+
+// Get returns the latest cached value for a normalized path and key set.
+func (c *Client) Get(path string, keys map[string]string) (CacheEntry, bool) {
+	return c.cache.get(CacheKey{Path: path, Keys: cloneKeys(keys)})
+}
+
+// CachedValue pairs a cache key with its latest entry.
+type CachedValue struct {
+	Key   CacheKey
+	Entry CacheEntry
+}
+
+// Snapshot returns a copy of all cached entries.
+func (c *Client) Snapshot() []CachedValue {
+	return c.cache.snapshot()
+}
+
+// ReconnectAttempts returns the number of reconnect attempts since the last successful stream.
+func (c *Client) ReconnectAttempts() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.reconnectAttempts
+}
+
+func (c *Client) run(ctx context.Context) {
+	defer close(c.done)
+
+	policy := backoff.NewExpBackoffPolicy(
+		2,
+		float64(c.opt.minReconnectDelay)/float64(time.Second),
+		float64(c.opt.maxReconnectDelay)/float64(time.Second),
+		1,
+		false,
+	)
+
+	numErrors := 0
+	for {
+		if ctx.Err() != nil {
+			c.setCloseErr(ctx.Err())
+			return
+		}
+
+		err := c.connectAndReceive(ctx)
+		if ctx.Err() != nil {
+			c.setCloseErr(ctx.Err())
+			return
+		}
+		if err != nil {
+			numErrors = policy.IncError(numErrors)
+			c.mu.Lock()
+			c.reconnectAttempts = numErrors
+			c.mu.Unlock()
+
+			delay := policy.GetBackoffDuration(numErrors)
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				c.setCloseErr(ctx.Err())
+				return
+			case <-timer.C:
+			}
+		}
+	}
+}
+
+func (c *Client) connectAndReceive(ctx context.Context) error {
+	conn, err := c.dial(ctx)
+	if err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	c.conn = conn
+	c.reconnectAttempts = 0
+	c.mu.Unlock()
+
+	defer func() {
+		c.mu.Lock()
+		c.conn = nil
+		c.mu.Unlock()
+		_ = conn.Close()
+	}()
+
+	gnmiClient := gnmipb.NewGNMIClient(conn)
+	streamCtx := metadata.NewOutgoingContext(ctx, metadata.Pairs(
+		"username", c.cfg.Username,
+		"password", c.cfg.Password,
+	))
+	stream, err := gnmiClient.Subscribe(streamCtx)
+	if err != nil {
+		return fmt.Errorf("open subscribe stream: %w", err)
+	}
+
+	subscribeReq, err := c.buildSubscribeRequest()
+	if err != nil {
+		return err
+	}
+	if err := stream.Send(subscribeReq); err != nil {
+		return fmt.Errorf("send subscribe request: %w", err)
+	}
+
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, context.Canceled) || ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if errors.Is(err, io.EOF) {
+				return errors.New("subscribe stream closed")
+			}
+			return fmt.Errorf("receive subscribe response: %w", err)
+		}
+
+		if err := c.handleSubscribeResponse(resp); err != nil {
+			return err
+		}
+	}
+}
+
+func (c *Client) dial(ctx context.Context) (*grpc.ClientConn, error) {
+	target := net.JoinHostPort(c.cfg.Address, strconv.Itoa(c.cfg.Port))
+	// MVP uses insecure transport credentials; production TLS support is follow-up work.
+	conn, err := c.opt.dial(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("dial %s: %w", target, err)
+	}
+	return conn, nil
+}
+
+func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
+	subscriptions := make([]*gnmipb.Subscription, 0, len(c.cfg.Profile.Metrics))
+	for _, metric := range c.cfg.Profile.Metrics {
+		path, err := subscribePathFromMetric(metric)
+		if err != nil {
+			return nil, fmt.Errorf("metric %q: %w", metric.Metric, err)
+		}
+		subscriptions = append(subscriptions, &gnmipb.Subscription{
+			Path: path,
+			Mode: gnmipb.SubscriptionMode_SAMPLE,
+		})
+	}
+
+	return &gnmipb.SubscribeRequest{
+		Request: &gnmipb.SubscribeRequest_Subscribe{
+			Subscribe: &gnmipb.SubscriptionList{
+				Mode:         gnmipb.SubscriptionList_STREAM,
+				Encoding:     parentgnmi.DefaultEncoding,
+				Subscription: subscriptions,
+			},
+		},
+	}, nil
+}
+
+func (c *Client) handleSubscribeResponse(resp *gnmipb.SubscribeResponse) error {
+	switch payload := resp.GetResponse().(type) {
+	case *gnmipb.SubscribeResponse_SyncResponse:
+		return nil
+	case *gnmipb.SubscribeResponse_Update:
+		c.applyNotification(payload.Update)
+		return nil
+	default:
+		return fmt.Errorf("unsupported subscribe response type %T", payload)
+	}
+}
+
+func (c *Client) applyNotification(notification *gnmipb.Notification) {
+	if notification == nil {
+		return
+	}
+
+	timestamp := time.Unix(0, notification.GetTimestamp())
+	for _, update := range notification.GetUpdate() {
+		c.applyUpdate(update, timestamp)
+	}
+	for _, deletedPath := range notification.GetDelete() {
+		c.applyDelete(deletedPath)
+	}
+}
+
+func (c *Client) applyUpdate(update *gnmipb.Update, timestamp time.Time) {
+	if update == nil || update.GetPath() == nil {
+		return
+	}
+
+	value, err := decodeTypedValue(update.GetVal())
+	if err != nil {
+		return
+	}
+
+	key := cacheKeyFromGNMIPath(update.GetPath())
+	c.cache.set(key, CacheEntry{
+		Value:     value,
+		Timestamp: timestamp,
+		Keys:      cloneKeys(key.Keys),
+	})
+}
+
+func (c *Client) applyDelete(path *gnmipb.Path) {
+	key := cacheKeyFromGNMIPath(path)
+	if len(key.Keys) == 0 {
+		c.cache.deletePrefix(key)
+		return
+	}
+	c.cache.delete(key)
+}
+
+func (c *Client) setCloseErr(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closeErr == nil {
+		c.closeErr = err
+	}
+}
