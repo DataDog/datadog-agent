@@ -69,13 +69,13 @@ var rcLastWinsOtherPolicyJSON []byte
 
 const (
 	apmPoliciesRCProduct              = "APM_POLICIES"
-	rcHostLinuxOnlyConfigID           = "1.host-linux-only"
+	rcHostLinuxOnlyConfigID           = "1.kubernetes.host-linux-only"
 	rcHostLinuxOnlyConfigName         = "config"
-	rcNamespaceOtherConfigID          = "1.namespace-other"
+	rcNamespaceOtherConfigID          = "1.kubernetes.namespace-other"
 	rcNamespaceOtherConfigName        = "config"
-	rcDenyTargetedNamespaceConfigID   = "1.deny-targeted-namespace"
+	rcDenyTargetedNamespaceConfigID   = "1.kubernetes.deny-targeted-namespace"
 	rcDenyTargetedNamespaceConfigName = "config"
-	rcLastWinsOtherConfigID           = "1.last-wins-other"
+	rcLastWinsOtherConfigID           = "1.kubernetes.last-wins-other"
 	rcLastWinsOtherConfigName         = "config"
 	rcFakeIntakeDefaultOrgID          = "42"
 	rcHelmTargetNamespace             = "targeted-namespace"
