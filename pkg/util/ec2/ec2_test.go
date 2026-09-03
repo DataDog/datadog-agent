@@ -668,10 +668,13 @@ func TestMetadataSourceDMIPreventFallback(t *testing.T) {
 
 func TestGetInstanceTypeSkipsIMDSOnECSFargate(t *testing.T) {
 	ctx := context.Background()
-	imdsCalled := false
+	imdsCalled := make(chan struct{}, 1)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		imdsCalled = true
+		select {
+		case imdsCalled <- struct{}{}:
+		default:
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer ts.Close()
@@ -684,7 +687,12 @@ func TestGetInstanceTypeSkipsIMDSOnECSFargate(t *testing.T) {
 	instanceType, err := GetInstanceType(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, instanceType)
-	assert.False(t, imdsCalled, "GetInstanceType must not query EC2 IMDS on ECS Fargate")
+
+	select {
+	case <-imdsCalled:
+		t.Fatalf("GetInstanceType must not query EC2 IMDS on ECS Fargate")
+	default:
+	}
 }
 
 func TestGetInstanceTypeFromIMDS(t *testing.T) {
