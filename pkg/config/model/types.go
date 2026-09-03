@@ -136,10 +136,14 @@ type Proxy struct {
 	NoProxy []string `mapstructure:"no_proxy"`
 }
 
-// NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
-// configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
-// 'NotificationReceiver' should not be blocking.
-type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64)
+// NotificationReceiver represents the callback type to receive notifications each time the `Set` or
+// `UnsetForSource` method is called. The configuration will call each NotificationReceiver
+// registered through the 'OnUpdate' method, therefore 'NotificationReceiver' should not be blocking.
+//
+// source and newValue describe what the setting resolves to after the change. unsetSource is empty
+// except for a removal, where it names the layer that was cleared and source is the layer now
+// winning, or SourceUnknown when none is left.
+type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64, unsetSource Source)
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
