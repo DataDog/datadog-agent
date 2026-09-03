@@ -19,6 +19,10 @@ env_vars(
         # For some tests we want to run with higher compression, but
         # not break caching and rebuild the binaries.
         "FORCED_PACKAGE_COMPRESSION_LEVEL",
+        # Lets a caller force pkg/version.AgentVersion to an explicit value,
+        # overriding the PACKAGE_VERSION/release.json-derived default.
+        # Used by host-profiler's nightly/dev-branch version override.
+        "FORCE_AGENT_VERSION",
         # This is the build pipeline id, which is used in some symlink paths.
         "PACKAGE_VERSION",
         # macOS code signing: control whether to enable code signing
