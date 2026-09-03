@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "report",
+    srcs = ["metrics.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/report",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator/sender",
+        "//pkg/collector/corechecks/network-devices/gnmi/client",
+        "//pkg/collector/corechecks/network-devices/gnmi/config",
+        "//pkg/networkdevice/utils",
+    ],
+)
+
+dd_agent_go_test(
+    name = "report_test",
+    srcs = ["metrics_test.go"],
+    embed = [":report"],
+    deps = [
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks/network-devices/gnmi/client",
+        "//pkg/collector/corechecks/network-devices/gnmi/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
