@@ -23,7 +23,10 @@ def get_pipeline_commit_sha(pipeline_id: str) -> str | None:
         pipeline = repo.pipelines.get(int(pipeline_id))
         return pipeline.sha[:8]
     except Exception as e:
-        print(f"Warning: Could not fetch commit SHA for pipeline {pipeline_id}: {e}", file=sys.stderr)
+        print(
+            f"Warning: Could not fetch commit SHA for pipeline {pipeline_id}: {e}",
+            file=sys.stderr,
+        )
         if 'GITLAB_TOKEN' not in os.environ:
             print(
                 "No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)",
@@ -74,7 +77,9 @@ def deploy(
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
+        raise Exit(
+            f"Error in config {config.get_full_profile_path(config_path)}:{e}"
+        ) from e
 
     flags["scenario"] = scenario_name
     flags["ddagent:version"] = agent_version
@@ -131,8 +136,7 @@ def deploy(
         if commit_sha:
             flags["ddagent:commit_sha"] = commit_sha
 
-    if install_agent:
-        flags["ddagent:apiKey"] = config.get_api_key(cfg)
+    flags["ddagent:apiKey"] = config.get_api_key(cfg)
 
     # When using fakeintake, enable dual shipping to send data to both fakeintake and Datadog
     # Otherwise pulumi will configure the agent to send data directly to fakeintake
@@ -200,7 +204,9 @@ def check_s3_image_exists(_, pipeline_id: str, deploy_job: str):
     response = s3.list_objects_v2(Bucket=bucket, Prefix=path)
     exists = "Contents" in response
 
-    assert exists, f"Latest job {deploy_job} is outdated, use `inv retry-job {pipeline_id} {deploy_job}` to run it again or use --no-verify to force deploy"
+    assert exists, (
+        f"Latest job {deploy_job} is outdated, use `inv retry-job {pipeline_id} {deploy_job}` to run it again or use --no-verify to force deploy"
+    )
 
 
 # creates a stack with the given stack_name if it doesn't already exists
@@ -261,9 +267,13 @@ def _deploy(
     extra = f" {pulumi_extra_args}" if pulumi_extra_args else ""
     env_prefix = " ".join(f"{k}={v}" for k, v in (pulumi_env or {}).items())
     env_prefix = f"{env_prefix} " if env_prefix else ""
-    cmd = f"{env_prefix}pulumi {global_flags} up --yes{extra} -s {stack_name} {up_flags}"
+    cmd = (
+        f"{env_prefix}pulumi {global_flags} up --yes{extra} -s {stack_name} {up_flags}"
+    )
 
-    pty = not pulumi_extra_args  # disable pty when extra args are set (e.g. --non-interactive)
+    pty = (
+        not pulumi_extra_args
+    )  # disable pty when extra args are set (e.g. --non-interactive)
     if tool.is_windows():
         pty = False
     ctx.run(cmd, pty=pty)
