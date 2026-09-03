@@ -6,7 +6,7 @@
 #[path = "../helpers/mod.rs"]
 mod helpers;
 
-mod catalog_list;
+mod list;
 mod cli_contracts;
 mod config_status;
 mod create;
