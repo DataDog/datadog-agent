@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 var (
@@ -994,7 +994,7 @@ func TestConvertNamespaceBlacklist(t *testing.T) {
 
 func TestMetricFilterListShouldBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	filter := utilstrings.NewMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
+	filter := metricname.NewMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
@@ -1031,7 +1031,7 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 
 func TestMetricFilterListShouldNotBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	filterList := utilstrings.NewMatcher([]string{"custom.metric.b", "custom.metric.c"}, false)
+	filterList := metricname.NewMatcher([]string{"custom.metric.b", "custom.metric.c"}, false)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
@@ -1602,4 +1602,26 @@ func TestEnrichMetricSampleJMXInfraTag(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotContains(t, s.Tags, "infra_mode:cloud_cost_only")
 	})
+}
+
+// serverlessSourceCustomToRuntime runs on every metric sample in serverless mode;
+// a missing case silently mis-attributes customer metrics.
+func TestServerlessSourceCustomToRuntime(t *testing.T) {
+	tests := []struct {
+		name string
+		in   metrics.MetricSource
+		want metrics.MetricSource
+	}{
+		{"AWSMicroVMCustom remaps to runtime", metrics.MetricSourceAWSMicroVMCustom, metrics.MetricSourceAWSMicroVMRuntime},
+		{"GoogleCloudRunCustom remaps to runtime", metrics.MetricSourceGoogleCloudRunCustom, metrics.MetricSourceGoogleCloudRunRuntime},
+		{"AzureContainerAppCustom remaps to runtime", metrics.MetricSourceAzureContainerAppCustom, metrics.MetricSourceAzureContainerAppRuntime},
+		{"AzureAppServiceCustom remaps to runtime", metrics.MetricSourceAzureAppServiceCustom, metrics.MetricSourceAzureAppServiceRuntime},
+		{"AWSMicroVMRuntime is not double-remapped", metrics.MetricSourceAWSMicroVMRuntime, metrics.MetricSourceAWSMicroVMRuntime},
+		{"non-serverless source is unchanged", metrics.MetricSourceJmxCustom, metrics.MetricSourceJmxCustom},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, serverlessSourceCustomToRuntime(tt.in))
+		})
+	}
 }

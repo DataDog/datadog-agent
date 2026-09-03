@@ -230,16 +230,15 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
-
 	c.maybeRebuild()
 
 	c.Lock()
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
-			log.Errorf("set value for unknown key '%s'", key)
+			_ = log.ErrorfStackDepth(2, "set value for unknown key '%s'", key)
 		} else {
-			log.Errorf("could not set '%s' unknown key", key)
+			_ = log.ErrorfStackDepth(2, "could not set '%s' unknown key", key)
 			c.Unlock()
 			return
 		}
@@ -258,9 +257,9 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 				typePair := fmt.Sprintf("%T->%T", newValue, converted)
 				isIntWidthConversion := typePair == "int64->int" || typePair == "int->int64"
 				if isIntWidthConversion && c.setTypeWarnings[typePair] {
-					log.Debugf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+					log.DebugfStackDepth(2, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
 				} else {
-					log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
+					log.WarnfStackDepth(2, "Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
 					if isIntWidthConversion {
 						c.setTypeWarnings[typePair] = true
 					}
@@ -278,7 +277,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
-		log.Errorf("could not insert value: %s", err)
+		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
 		c.Unlock()
 		return
 	} else if newTree != nil {
@@ -288,8 +287,14 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	receivers := slices.Clone(c.notificationReceivers)
 
+	// Read back rather than trusting newValue: a write to a layer that loses the merge changes
+	// nothing that resolves, and receivers are told what the setting is, not what was stored.
+	resolved := c.leafAtPathFromNode(key, c.root)
+	resolvedValue := resolved.Get()
+	resolvedSource := resolved.Source()
+
 	// if no value has changed we don't notify
-	if reflect.DeepEqual(previousValue, newValue) {
+	if reflect.DeepEqual(previousValue, resolvedValue) {
 		c.Unlock()
 		return
 	}
@@ -302,7 +307,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, sequenceID)
+		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, "")
 	}
 }
 
@@ -314,6 +319,86 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 
 	err = tree.setAt(key, value, source, copyOnWrite)
 	return tree, err
+}
+
+// DirectBulkSet implements model.Writer. shouldNotify if true will send notifications for settings that
+// change values.
+func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting, shouldNotify bool) {
+	c.Lock()
+
+	// Previous values are read before any merge, so they all reflect the pre-snapshot state.
+	type change struct {
+		key      string
+		source   model.Source
+		previous interface{}
+	}
+	var changes []change
+
+	for _, setting := range settings {
+		key := setting.Key
+		// Stored anyway, as the YAML loader does, so the client mirrors the sender. Reconnects
+		// resend the whole snapshot, hence warn once.
+		if !c.isKnownKey(key) {
+			if _, alreadySeen := c.unknownKeys.LoadOrStore(key, struct{}{}); !alreadySeen {
+				log.Warnf("unknown key from config stream: %s", key)
+			}
+		}
+
+		declaredNode := c.nodeAtPathFromNode(key, c.defaults)
+		if declaredNode.IsInnerNode() {
+			log.Errorf("could not set '%s': partial path of a setting", key)
+			continue
+		}
+
+		// structpb collapses every number to float64, so a value still needs coercing back to the
+		// declared type. Unknown keys have no default, for which this is a no-op.
+		value := setting.Value
+		if converted, err := basic.ConvertToDefaultType(value, declaredNode.Get(), false); err == nil {
+			value = converted
+		}
+
+		if shouldNotify {
+			changes = append(changes, change{key: key, source: setting.Source, previous: c.leafAtPathFromNode(key, c.root).Get()})
+		}
+
+		if _, err := c.insertValueIntoTree(key, value, setting.Source); err != nil {
+			log.Errorf("could not insert value for '%s': %s", key, err)
+		}
+	}
+
+	// Set merges per write; rebuilding the root once at the end is equivalent because Merge
+	// ranks conflicting leaves by source, not by merge order.
+	if err := c.mergeAllLayers(); err != nil {
+		log.Errorf("could not merge config layers: %s", err)
+	}
+
+	if !shouldNotify {
+		c.Unlock()
+		return
+	}
+
+	receivers := slices.Clone(c.notificationReceivers)
+	type notification struct {
+		change
+		newValue   interface{}
+		sequenceID uint64
+	}
+	pending := make([]notification, 0, len(changes))
+	for _, ch := range changes {
+		newValue := c.leafAtPathFromNode(ch.key, c.root).Get()
+		if reflect.DeepEqual(ch.previous, newValue) {
+			continue
+		}
+		c.sequenceID++
+		pending = append(pending, notification{change: ch, newValue: newValue, sequenceID: c.sequenceID})
+	}
+	c.Unlock()
+
+	for _, n := range pending {
+		for _, receiver := range receivers {
+			receiver(n.key, n.source, n.previous, n.newValue, n.sequenceID, "")
+		}
+	}
 }
 
 // SetInTest assigns the value to the given key using source Unknown, may only be called from tests
@@ -373,13 +458,14 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.maybeRebuild()
 
 	var (
-		previousValue interface{}
-		newValue      interface{}
-		receivers     []model.NotificationReceiver
-		sequenceID    uint64
+		previousValue  interface{}
+		resolvedValue  interface{}
+		resolvedSource model.Source
+		receivers      []model.NotificationReceiver
+		sequenceID     uint64
 	)
 
-	ok := func() bool {
+	func() {
 		c.Lock()
 		defer c.Unlock()
 
@@ -390,69 +476,64 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		tree, err := c.getTreeBySource(source)
 		if err != nil {
 			log.Errorf("%s", err)
-			return false
+			return
 		}
 		parentNode, childName, err := c.parentOfNode(tree, key)
 		if err != nil {
-			return false
+			return
 		}
 		// Only remove if the setting is a leaf
+		removed := false
 		if child, err := parentNode.GetChild(childName); err == nil {
 			if child.IsLeafNode() {
 				parentNode.RemoveChild(childName)
+				removed = true
 			} else {
 				log.Errorf("cannot remove setting %q, not a leaf", key)
-				return false
+				return
+			}
+		}
+		// Nothing left the layer, so root cannot name this source as its winner either.
+		if !removed {
+			return
+		}
+
+		// Allocated on removal, not on value change: a mirror drops the entry either way.
+		c.sequenceID++
+		sequenceID = c.sequenceID
+		receivers = slices.Clone(c.notificationReceivers)
+
+		// The merged tree only needs mending when the layer we cleared was the one winning in it.
+		if c.leafAtPathFromNode(key, c.root).Source() == source {
+			prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
+			if rootParent, rootChild, err := c.parentOfNode(c.root, key); err == nil {
+				if findPreviousSourceError != nil {
+					// No lower layer holds this key, so it leaves the merged tree entirely.
+					rootParent.RemoveChild(rootChild)
+				} else {
+					rootParent.InsertChildNode(rootChild, prevNode)
+				}
 			}
 		}
 
-		// If the node in the merged tree doesn't match the source we expect, we're done
-		if c.leafAtPathFromNode(key, c.root).Source() != source {
-			return false
-		}
-
-		// Find what the previous value used to be, based upon the previous source
-		prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
-
-		// Get the parent node of the leaf we're unsetting
-		parentNode, childName, err = c.parentOfNode(c.root, key)
-		if err != nil {
-			return false
-		}
-
-		// If there was no previous source with a node of this name, simply remove it from the parent
-		if findPreviousSourceError != nil {
-			parentNode.RemoveChild(childName)
-			return false
-		}
-
-		// Replace the child with the node from the previous layer
-		parentNode.InsertChildNode(childName, prevNode)
-
-		newValue = c.leafAtPathFromNode(key, c.root).Get()
-
-		// Value has not changed, do not notify
-		if reflect.DeepEqual(previousValue, newValue) {
-			return false
-		}
-
-		c.sequenceID++
-		receivers = slices.Clone(c.notificationReceivers)
-		// Capture the sequenceID here whilst locked to send to the receivers
-		// after unlocking.
-		sequenceID = c.sequenceID
-		return true
+		// Read once the merged tree has settled, so every removal path reports the same thing: what
+		// the key resolves to now. missingLeaf reports SourceUnknown, meaning nothing is left.
+		resolved := c.leafAtPathFromNode(key, c.root)
+		resolvedValue = resolved.Get()
+		resolvedSource = resolved.Source()
 	}()
 
-	if !ok {
+	if receivers == nil {
 		return
 	}
 
 	// Notify receivers outside the lock. Subscribers commonly read the
 	// config from within their callback, and doing so while the write
 	// lock is still held deadlocks them against this goroutine.
+	// Unlike Set, every removal notifies: a config mirroring the layers has to drop the entry even
+	// when a lower layer resolves to the same value.
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, sequenceID)
+		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, source)
 	}
 }
 

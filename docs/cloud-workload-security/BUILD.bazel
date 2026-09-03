@@ -81,7 +81,19 @@ run_binary(
     tool = "//tasks/libs/cws:secl_doc_gen",
 )
 
-# Umbrella target: updates all four CWS markdown docs in one shot using the
+run_binary(
+    name = "workload_protection_agent_config_doc_gen",
+    srcs = ["workload_protection_agent_config.schema.json"],
+    outs = ["workload_protection_agent_config_doc_gen/workload_protection_agent_config.md"],
+    args = [
+        "$(execpath workload_protection_agent_config.schema.json)",
+        "$(execpath workload_protection_agent_config_doc_gen/workload_protection_agent_config.md)",
+        "workload_protection_agent_config.md",
+    ],
+    tool = "//tasks/libs/cws:config_doc_gen",
+)
+
+# Umbrella target: updates all five CWS markdown docs in one shot using the
 # committed JSON schemas as inputs. Platform-neutral — can run on any OS.
 # The JSON schemas themselves are updated by backend_linux_schema /
 # backend_windows_schema (Linux-only), called from cws_go_generate.
@@ -92,6 +104,7 @@ write_source_files(
         "backend_windows.md": ":backend_windows_doc_gen/backend_windows.md",
         "linux_expressions.md": ":secl_linux_doc_gen/linux_expressions.md",
         "windows_expressions.md": ":secl_windows_doc_gen/windows_expressions.md",
+        "workload_protection_agent_config.md": ":workload_protection_agent_config_doc_gen/workload_protection_agent_config.md",
     },
     visibility = ["//visibility:public"],
 )

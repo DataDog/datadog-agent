@@ -268,6 +268,21 @@ func TestDigestIncludesDiscovery(t *testing.T) {
 		"Discovery field must change the config digest so a discovery template and its non-discovery counterpart are distinct")
 	assert.NotEqual(t, withoutDiscovery.FastDigest(), withDiscovery.FastDigest(),
 		"Discovery field must change FastDigest as well")
+
+	withMetricsPrefixA := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Discovery:  &DiscoveryConfig{MetricsPrefix: "a"},
+	}
+	withMetricsPrefixB := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Discovery:  &DiscoveryConfig{MetricsPrefix: "b"},
+	}
+	assert.NotEqual(t, withMetricsPrefixA.Digest(), withMetricsPrefixB.Digest(),
+		"a change to Discovery.MetricsPrefix alone must change the digest, or an auto_conf.yaml update that only adds/changes it would be silently treated as an already-tracked config")
+	assert.NotEqual(t, withMetricsPrefixA.FastDigest(), withMetricsPrefixB.FastDigest(),
+		"a change to Discovery.MetricsPrefix alone must change FastDigest as well")
 }
 
 func TestDigestIncludesCELSelector(t *testing.T) {

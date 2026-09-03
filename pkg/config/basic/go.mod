@@ -4,14 +4,13 @@ go 1.26.0
 
 require (
 	github.com/spf13/cast v1.10.0
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 )
 
 require (
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	github.com/rogpeppe/go-internal v1.15.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

@@ -11,6 +11,7 @@ package ssi
 
 import (
 	_ "embed"
+	"fmt"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/require"
+	kubeClient "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -29,6 +31,7 @@ import (
 	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 //go:embed testdata/base.yaml
@@ -48,6 +51,41 @@ var workloadSelectionHelmValues string
 
 //go:embed testdata/registry_allow_list.yaml
 var registryAllowListHelmValues string
+
+//go:embed testdata/rc_policies.yaml
+var rcPoliciesHelmValues string
+
+//go:embed testdata/rc_host_linux_only_policy.json
+var rcHostLinuxOnlyPolicyJSON []byte
+
+//go:embed testdata/rc_namespace_other_policy.json
+var rcNamespaceOtherPolicyJSON []byte
+
+//go:embed testdata/rc_deny_targeted_namespace_policy.json
+var rcDenyTargetedNamespacePolicyJSON []byte
+
+//go:embed testdata/rc_last_wins_other_policy.json
+var rcLastWinsOtherPolicyJSON []byte
+
+const (
+	apmPoliciesRCProduct              = "APM_POLICIES"
+	rcHostLinuxOnlyConfigID           = "1.host-linux-only"
+	rcHostLinuxOnlyConfigName         = "config"
+	rcNamespaceOtherConfigID          = "1.namespace-other"
+	rcNamespaceOtherConfigName        = "config"
+	rcDenyTargetedNamespaceConfigID   = "1.deny-targeted-namespace"
+	rcDenyTargetedNamespaceConfigName = "config"
+	rcLastWinsOtherConfigID           = "1.last-wins-other"
+	rcLastWinsOtherConfigName         = "config"
+	rcFakeIntakeDefaultOrgID          = "42"
+	rcHelmTargetNamespace             = "targeted-namespace"
+	rcHelmTargetApp                   = "rc-target-python"
+	rcOtherNamespace                  = "other"
+	rcAnnotatedPodApp                 = "rc-ann-only"
+	rcUnannotatedPodApp               = "rc-unannotated"
+	rcHelmTargetName                  = "python-apps"
+	rcNamespaceOtherPolicyName        = "namespace other: matches admission namespace fact"
+)
 
 // ssiSuite runs all SSI test groups on a single cluster, calling UpdateEnv at the start of
 // each group to update the env (workloads, helm values).
@@ -203,7 +241,7 @@ func (v *ssiSuite) TestInjectionMode() {
 
 			require.Eventually(v.T(), func() bool {
 				traces := FindTracesForService(v.T(), intake, tc.name)
-				return len(traces) != 0
+				return traces != 0
 			}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", tc.name)
 		})
 	}
@@ -273,7 +311,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "local-sdk-injection-app")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "local-sdk-injection-app")
 	})
 
@@ -346,7 +384,7 @@ func (v *ssiSuite) TestNamespaceSelection() {
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "namespace-selection-inject")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "namespace-selection-inject")
 	})
 	v.Run("ExpectNoInjection", func() {
@@ -421,7 +459,7 @@ func (v *ssiSuite) TestWorkloadSelection() {
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "workload-selection-inject")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "workload-selection-inject")
 	})
 
@@ -506,7 +544,7 @@ func (v *ssiSuite) TestRegistryAllowList() {
 
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "registry-allow-list-allowed")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "registry-allow-list-allowed")
 	})
 
@@ -545,6 +583,208 @@ func (v *ssiSuite) TestRegistryAllowList() {
 		require.NotEmpty(v.T(), errAnnotation, "expected injection-error annotation to be set")
 		require.Contains(v.T(), errAnnotation, "not in the allow list")
 	})
+}
+
+func (v *ssiSuite) TestRemoteConfig() {
+	// rc_policies.yaml: helm SSI target (namespace injection=yes, pod language=python) plus two
+	// workloads in namespace "other", outside that target: annotated lib-injection and unannotated.
+	// RC uptake is asserted by pod mutation. RestartUntil re-admits until the
+	// expected outcome appears so we do not race the cluster-agent RC client.
+	agentOptions := []kubernetesagentparams.Option{
+		kubernetesagentparams.WithHelmValues(rcPoliciesHelmValues),
+		kubernetesagentparams.WithTimeout(600),
+	}
+	provisionerOpts := ProvisionerOptions{
+		AgentOptions: agentOptions,
+		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
+			return singlestep.Scenario(e, kubeProvider, "rc-policies", []singlestep.Namespace{
+				{
+					Name: rcHelmTargetNamespace,
+					Labels: map[string]string{
+						"injection": "yes",
+					},
+					Apps: []singlestep.App{
+						{
+							Name:    rcHelmTargetApp,
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
+							PodLabels: map[string]string{
+								"language": "python",
+							},
+						},
+					},
+				},
+				{
+					Name: rcOtherNamespace,
+					Apps: []singlestep.App{
+						{
+							Name:    rcAnnotatedPodApp,
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
+							PodLabels: map[string]string{
+								"admission.datadoghq.com/enabled": "true",
+							},
+							PodAnnotations: map[string]string{
+								"admission.datadoghq.com/python-lib.version": "v3.18.1",
+							},
+						},
+						{
+							Name:    rcUnannotatedPodApp,
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
+						},
+					},
+				},
+			}, dependsOnAgent)
+		},
+	}
+
+	v.UpdateEnv(Provisioner(provisionerOpts))
+
+	fi := v.Env().FakeIntake.Client()
+
+	// Host-only RC cannot match K8s admission facts. A matching policy is published first so
+	// the annotated pod leaves the helm baseline; replacing that same RC document with the
+	// host-only payload must restore lib-injection. Delete-then-add would restore the
+	// baseline as soon as the matching policy is gone, before host-only is applied.
+	v.Run("HostOnlyPolicyDoesNotMatchK8s", func() {
+		k8s := v.Env().KubernetesCluster.Client()
+
+		cleanup := v.pushAPMPolicy(fi, rcHostLinuxOnlyConfigID, rcHostLinuxOnlyConfigName, rcNamespaceOtherPolicyJSON)
+		defer cleanup()
+
+		RestartUntil(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp, hasInstallType(rcAnnotatedPodApp, "k8s_single_step"))
+
+		_ = v.pushAPMPolicy(fi, rcHostLinuxOnlyConfigID, rcHostLinuxOnlyConfigName, rcHostLinuxOnlyPolicyJSON)
+		pod := RestartUntil(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp, hasInstallType(rcAnnotatedPodApp, "k8s_lib_injection"))
+
+		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+		podValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
+		podValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
+		podValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
+		// Library annotations short-circuit applied-target / applied-policy metadata.
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotated := FindPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
+		unannotatedValidator.RequireNoInjection(v.T())
+		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		v.requireHelmTargetStillSSI(k8s)
+	})
+
+	// RC policy matching namespace "other" enables SSI on the annotated pod and on the unannotated
+	// pod (true on-demand, still outside the helm target). Helm local targeting is unchanged.
+	v.Run("NamespacePolicyEnablesSSIOutsideHelmTarget", func() {
+		k8s := v.Env().KubernetesCluster.Client()
+
+		cleanup := v.pushAPMPolicy(fi, rcNamespaceOtherConfigID, rcNamespaceOtherConfigName, rcNamespaceOtherPolicyJSON)
+		defer cleanup()
+
+		pod := RestartUntil(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp, hasInstallType(rcAnnotatedPodApp, "k8s_single_step"))
+
+		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+		podValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
+		podValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcAnnotatedPodApp})
+		podValidator.RequireEnvs(v.T(), map[string]string{"DD_TRACE_ENABLED": "true"}, []string{rcAnnotatedPodApp})
+		// SSI mode follows the policy match; annotation short-circuit still skips applied-policy JSON.
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotated := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
+		unannotatedValidator.RequireInjection(v.T(), []string{rcUnannotatedPodApp})
+		unannotatedValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcUnannotatedPodApp})
+		unannotatedValidator.RequireEnvs(v.T(), map[string]string{"DD_TRACE_ENABLED": "true"}, []string{rcUnannotatedPodApp})
+		unannotatedValidator.RequireAppliedPolicyName(v.T(), rcNamespaceOtherPolicyName)
+		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation})
+
+		v.requireHelmTargetStillSSI(k8s)
+	})
+
+	// Static targeting is evaluated before RC. A remote deny matching targeted-namespace
+	// must not block the helm python workload; RC only applies when no helm target matches.
+	// An allow matching "other" is published first so a pod leaves the helm baseline;
+	// replacing that same document with the deny must restore lib-injection in "other"
+	// (the deny does not match that namespace) while helm targeting stays SSI.
+	v.Run("HelmTargetWinsOverRemoteDeny", func() {
+		k8s := v.Env().KubernetesCluster.Client()
+
+		cleanup := v.pushAPMPolicy(fi, rcDenyTargetedNamespaceConfigID, rcDenyTargetedNamespaceConfigName, rcNamespaceOtherPolicyJSON)
+		defer cleanup()
+
+		RestartUntil(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp, hasInstallType(rcAnnotatedPodApp, "k8s_single_step"))
+
+		_ = v.pushAPMPolicy(fi, rcDenyTargetedNamespaceConfigID, rcDenyTargetedNamespaceConfigName, rcDenyTargetedNamespacePolicyJSON)
+		annotated := RestartUntil(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp, hasInstallType(rcAnnotatedPodApp, "k8s_lib_injection"))
+		annotatedValidator := testutils.NewPodValidator(annotated, testutils.InjectionModeAuto)
+		annotatedValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
+		annotatedValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
+		annotatedValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
+		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotated := FindPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
+		unannotatedValidator.RequireNoInjection(v.T())
+		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		v.requireHelmTargetStillSSI(k8s)
+	})
+
+	// Two RC policies both match namespace "other": allow then deny. Last TRUE wins,
+	// so the unannotated pod is uninjected. An allow-only document is published first
+	// so the pod leaves the helm baseline; replacing it with allow+deny must restore
+	// no-injection. Delete-then-add would restore the baseline as soon as the allow is
+	// gone, before last-wins is applied. First-wins would keep SSI after the replace.
+	v.Run("LastMatchingRemotePolicyWins", func() {
+		k8s := v.Env().KubernetesCluster.Client()
+
+		cleanup := v.pushAPMPolicy(fi, rcLastWinsOtherConfigID, rcLastWinsOtherConfigName, rcNamespaceOtherPolicyJSON)
+		defer cleanup()
+
+		RestartUntil(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp, hasInstallType(rcUnannotatedPodApp, "k8s_single_step"))
+
+		_ = v.pushAPMPolicy(fi, rcLastWinsOtherConfigID, rcLastWinsOtherConfigName, rcLastWinsOtherPolicyJSON)
+		unannotated := RestartUntil(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp, noInjection(rcUnannotatedPodApp))
+		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
+		unannotatedValidator.RequireNoInjection(v.T())
+		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		RestartPod(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
+		annotated := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
+		annotatedValidator := testutils.NewPodValidator(annotated, testutils.InjectionModeAuto)
+		annotatedValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
+		annotatedValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
+		annotatedValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
+		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+
+		v.requireHelmTargetStillSSI(k8s)
+	})
+}
+
+func (v *ssiSuite) requireHelmTargetStillSSI(k8s kubeClient.Interface) {
+	v.T().Helper()
+
+	pod := RestartUntil(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp, hasInstallType(rcHelmTargetApp, "k8s_single_step"))
+	podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+	podValidator.RequireInjection(v.T(), []string{rcHelmTargetApp})
+	podValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcHelmTargetApp})
+	podValidator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
+	podValidator.RequireAppliedTargetName(v.T(), rcHelmTargetName)
+	podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedPolicyAnnotation})
+}
+
+func (v *ssiSuite) pushAPMPolicy(fi *fakeintake.Client, configID, configName string, payload []byte) func() {
+	v.T().Helper()
+	require.NoError(v.T(), fi.RCAddConfig("", apmPoliciesRCProduct, configID, configName, payload))
+	return func() {
+		require.NoError(v.T(), fi.RCDeleteConfig(fmt.Sprintf("%s/%s/%s/%s", rcFakeIntakeDefaultOrgID, apmPoliciesRCProduct, configID, configName)))
+	}
 }
 
 func isOpenShift() bool {
