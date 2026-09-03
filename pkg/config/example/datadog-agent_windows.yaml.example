@@ -4109,6 +4109,19 @@ api_key:
 #               match_value: '2'
 #               disabled: true
 
+
+#   # @param gnmi - custom object - optional
+#   # This section configures NDM gNMI collection.
+#
+#   gnmi:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_NETWORK_DEVICES_GNMI_ENABLED - boolean - optional - default: false
+#     # Set to true to enable the gNMI core check. When disabled, configured
+#     # gNMI check instances do not run.
+#
+#     enabled: false
+
 #   # @param snmp_traps - custom object - optional
 #   # This section configures SNMP traps collection.
 #   # Traps are forwarded as logs and can be found in the logs explorer with a source:snmp-traps query

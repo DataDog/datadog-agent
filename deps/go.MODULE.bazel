@@ -52,6 +52,14 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=requirefips"],
     path = "go.opentelemetry.io/collector/config/configtls",
 )
+go_deps.module_override(
+    patch_strip = 1,
+    patches = [
+        "//bazel/patches:openconfig-gnmi-gnmi-ext-bazel-build.patch",
+        "//bazel/patches:openconfig-gnmi-gnmi-bazel-build.patch",
+    ],
+    path = "github.com/openconfig/gnmi",
+)
 go_deps.gazelle_override(
     build_extra_args = ["-build_tags=trivy_no_javadb"],
     path = "github.com/aquasecurity/trivy",
@@ -282,6 +290,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_receivercreator",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_zipkinreceiver",
+    "com_github_openconfig_gnmi",
     "com_github_opencontainers_go_digest",
     "com_github_opencontainers_image_spec",
     "com_github_opencontainers_runtime_spec",
