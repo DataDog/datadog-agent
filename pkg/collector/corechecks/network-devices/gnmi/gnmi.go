@@ -33,11 +33,12 @@ const (
 type Check struct {
 	core.CheckBase
 
-	mu       sync.Mutex
-	config   *config.CheckConfig
-	interval time.Duration
-	client   *client.Client
-	started  bool
+	mu                 sync.Mutex
+	config             *config.CheckConfig
+	interval           time.Duration
+	client             *client.Client
+	started            bool
+	lastMetadataReport time.Time
 }
 
 // Factory creates a new check factory.
@@ -77,6 +78,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		Username:           checkConfig.Instance.Username,
 		Password:           checkConfig.Instance.Password,
 		Profile:            checkConfig.Profile,
+		CollectTopology:    checkConfig.Instance.CollectTopology,
 		UseTLS:             checkConfig.Instance.UseTLS,
 		InsecureSkipVerify: checkConfig.Instance.InsecureSkipVerify,
 		// Sample once per check run.
@@ -93,6 +95,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.interval = time.Duration(checkConfig.Instance.MinCollectionInterval) * time.Second
 	c.client = gnmiClient
 	c.started = false
+	c.lastMetadataReport = time.Time{}
 
 	return nil
 }
@@ -138,6 +141,22 @@ func (c *Check) Run() error {
 		}
 	}
 
+	metadataInterval := report.MetadataCollectionInterval(checkConfig)
+	c.mu.Lock()
+	shouldReportMetadata := report.ShouldReportMetadata(c.lastMetadataReport, metadataInterval, now)
+	c.mu.Unlock()
+	if shouldReportMetadata {
+		reported, err := report.ReportMetadata(s, checkConfig, snapshot, now)
+		if err != nil {
+			return err
+		}
+		if reported {
+			c.mu.Lock()
+			c.lastMetadataReport = now
+			c.mu.Unlock()
+		}
+	}
+
 	s.Commit()
 	return nil
 }
@@ -149,6 +168,7 @@ func (c *Check) Cancel() {
 	c.client = nil
 	c.config = nil
 	c.started = false
+	c.lastMetadataReport = time.Time{}
 	c.mu.Unlock()
 
 	if gnmiClient != nil {

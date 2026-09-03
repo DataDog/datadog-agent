@@ -9,6 +9,7 @@ go_library(
         "credentials.go",
         "json_ietf.go",
         "path.go",
+        "subscriptions.go",
         "transport.go",
         "value.go",
     ],
@@ -33,6 +34,7 @@ dd_agent_go_test(
         "credentials_test.go",
         "json_ietf_test.go",
         "path_test.go",
+        "subscriptions_test.go",
     ],
     embed = [":client"],
     deps = [
