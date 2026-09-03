@@ -123,7 +123,7 @@ func TestFinalDogStatsDSerieObserverCompletesAfterAllWorkers(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond)
 
-	demux.ForceFlushToSerializer(start.Add(30*time.Second), true)
+	demux.ForceFlushToSerializer(start.Add(30*time.Second), true, false)
 
 	require.Contains(t, observer.series, "worker.0.metric")
 	require.Contains(t, observer.series, "worker.1.metric")
