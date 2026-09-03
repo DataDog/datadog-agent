@@ -524,19 +524,25 @@ func (m *defaultMapper) exponentialHistogramToDDSketch(
 		return nil, errors.New("cumulative exponential histograms are not supported")
 	}
 
-	// Create the DDSketch stores
-	positiveStore := toStore(p.Positive())
-	negativeStore := toStore(p.Negative())
-
 	// Create the DDSketch mapping that corresponds to the ExponentialHistogram settings
 	gamma := math.Pow(2, math.Pow(2, float64(-p.Scale())))
-	mapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, 0)
+	indexMapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, 0)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)
 	}
 
+	positiveStore, err := toStore(p.Positive(), indexMapping)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create positive DDSketch store: %w", err)
+	}
+
+	negativeStore, err := toStore(p.Negative(), indexMapping)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create negative DDSketch store: %w", err)
+	}
+
 	// Create DDSketch with the above mapping and stores
-	sketch := ddsketch.NewDDSketch(mapping, positiveStore, negativeStore)
+	sketch := ddsketch.NewDDSketch(indexMapping, positiveStore, negativeStore)
 	err = sketch.AddWithCount(0, float64(p.ZeroCount()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to add ZeroCount to DDSketch: %w", err)
