@@ -411,6 +411,7 @@ func (c *ControllerV1) generateTemplates() {
 }
 
 func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resources []common.WebhookResourceRule, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.ValidatingWebhook {
+	namespaceSelector = common.EnsureAKSSelectors(namespaceSelector)
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -454,6 +455,7 @@ func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, ope
 }
 
 func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resources []common.WebhookResourceRule, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.MutatingWebhook {
+	namespaceSelector = common.EnsureAKSSelectors(namespaceSelector)
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()

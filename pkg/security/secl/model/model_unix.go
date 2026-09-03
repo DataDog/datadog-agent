@@ -136,6 +136,7 @@ type Event struct {
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 	SysCtl       SysCtlEvent       `field:"sysctl" event:"sysctl"`               // [7.65] [Kernel] A sysctl parameter was read or modified
 	CgroupWrite  CgroupWriteEvent  `field:"cgroup_write" event:"cgroup_write"`   // [7.68] [Kernel] A process migrated another process to a cgroup
+	Unshare      UnshareEvent      `field:"unshare" event:"unshare"`             // [7.84] [Kernel] A process created new namespaces
 
 	// network events
 	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
@@ -430,7 +431,7 @@ type Process struct {
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
-	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
+	AWSSecurityCredentials []AWSSecurityCredentials `field:"aws_security_credentials,iterator:AWSSecurityCredentialsIterator,opts:exposed_at_event_root_only"` // AWS security credentials this process resolved from IMDS; only exposed at the root of a process context, the accessors generator keeps a single iterator per field so it cannot be nested under the ancestors one
 
 	Tracer Tracer `field:"-"`
 
@@ -646,6 +647,12 @@ type MountEvent struct {
 // UnshareMountNSEvent represents a mount cloned from a newly created mount namespace
 type UnshareMountNSEvent struct {
 	Mount
+}
+
+// UnshareEvent represents a namespace creation via the unshare syscall
+type UnshareEvent struct {
+	SyscallEvent
+	Flags uint64 `field:"flags"` // SECLDoc[flags] Definition:`Namespace flags requested by the unshare call` Constants:`Clone flags`
 }
 
 // ChdirEvent represents a chdir event
@@ -917,6 +924,11 @@ type SampleRefreshEvent struct {
 	Cookie uint32
 }
 
+// OTelProcessCtxEvent is an internal event sent when a process publishes its OTel process context.
+type OTelProcessCtxEvent struct {
+	Pid uint32
+}
+
 // AcceptEvent represents an accept event
 type AcceptEvent struct {
 	SyscallEvent
@@ -1046,6 +1058,54 @@ type NetworkFlowMonitorEvent struct {
 	Device     NetworkDeviceContext `field:"device"` // network device on which the network flows were captured
 	FlowsCount uint64               `field:"-"`
 	Flows      []Flow               `field:"flows,iterator:FlowsIterator"` // list of captured flows
+}
+
+// AWSSecurityCredentialsIterator defines an iterator of the AWS security credentials of a process
+type AWSSecurityCredentialsIterator struct {
+	Root []AWSSecurityCredentials
+	prev int
+}
+
+// Front returns the first element
+func (it *AWSSecurityCredentialsIterator) Front(_ *eval.Context) *AWSSecurityCredentials {
+	if len(it.Root) == 0 {
+		return nil
+	}
+
+	it.prev = 0
+	return &it.Root[0]
+}
+
+// Next returns the next element
+func (it *AWSSecurityCredentialsIterator) Next(_ *eval.Context) *AWSSecurityCredentials {
+	if len(it.Root) > it.prev+1 {
+		it.prev++
+		return &it.Root[it.prev]
+	}
+	return nil
+}
+
+// At returns the element at the given position
+func (it *AWSSecurityCredentialsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *AWSSecurityCredentials {
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*AWSSecurityCredentials)
+	}
+
+	if len(it.Root) > pos {
+		creds := &it.Root[pos]
+		ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+			Pos:   pos,
+			Value: creds,
+		}
+		return creds
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *AWSSecurityCredentialsIterator) Len(_ *eval.Context) int {
+	return len(it.Root)
 }
 
 // FlowsIterator defines an iterator of flows

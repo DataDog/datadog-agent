@@ -19,6 +19,10 @@ env_vars(
         # For some tests we want to run with higher compression, but
         # not break caching and rebuild the binaries.
         "FORCED_PACKAGE_COMPRESSION_LEVEL",
+        # Lets a caller force pkg/version.AgentVersion to an explicit value,
+        # overriding the PACKAGE_VERSION/release.json-derived default.
+        # Used by host-profiler's nightly/dev-branch version override.
+        "FORCE_AGENT_VERSION",
         # This is the build pipeline id, which is used in some symlink paths.
         "PACKAGE_VERSION",
         # macOS code signing: control whether to enable code signing
@@ -59,7 +63,7 @@ archive_override(
     urls = ["https://github.com/bazel-contrib/supply-chain/archive/d88044594228c41619f4e31eda5ca88adf3c6026.zip"],
 )
 
-bazel_dep(name = "bazel_lib", version = "3.7.1")
+bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
 bazel_dep(name = "gazelle", version = "0.53.0")
@@ -85,6 +89,15 @@ bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
+# Temporary until gazelle cuts a release >0.53.0, to pick up build info improvements: bazel-contrib/bazel-gazelle#2407
+# (package metadata) and bazel-contrib/bazel-gazelle#2409 (checksum qualifiers)
+archive_override(
+    module_name = "gazelle",
+    sha256 = "f661997d326e2616ed6db4fbf86a99b2663fc1e4f5aa94d182603e2ec3ec0e21",
+    strip_prefix = "bazel-gazelle-48a1c5337c1c106ae9eedc5e1ae700925a61bc6f",
+    urls = ["https://github.com/bazel-contrib/bazel-gazelle/archive/48a1c5337c1c106ae9eedc5e1ae700925a61bc6f.tar.gz"],  # master as of August 31, 2026
+)
+
 single_version_override(
     module_name = "protobuf",
     patch_strip = 1,
@@ -94,12 +107,17 @@ single_version_override(
     version = "35.1",
 )
 
-single_version_override(
+# Temporary until rules_go cuts a release >0.63.0, to pick up build info improvements: bazel-contrib/rules_go#4694
+# (main module) and bazel-contrib/rules_go#4700 (checksum qualifiers)
+archive_override(
     module_name = "rules_go",
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
     ],
+    sha256 = "9f066d4ad363d049b7b6c3c7f64d73e5ba36caf065fab51848a540a49ab1bb49",
+    strip_prefix = "rules_go-f6afe7478c645595839adc211644e6e5474d9fd3",
+    urls = ["https://github.com/bazel-contrib/rules_go/archive/f6afe7478c645595839adc211644e6e5474d9fd3.tar.gz"],  # master as of September 3, 2026
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
