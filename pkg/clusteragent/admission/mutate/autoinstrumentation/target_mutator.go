@@ -650,7 +650,7 @@ func containsVolume(pod *corev1.Pod, volumeName string) bool {
 
 // extractTracerConfigsFromAnnotations parses the tracer-configs annotation into env vars to inject
 // alongside the locally injected libraries. It is the annotation-based equivalent of a target's
-// ddTraceConfigs. Invalid input (malformed JSON or a non DD_ prefixed name) is logged and skipped
+// ddTraceConfigs. Invalid input (malformed JSON or a name without an allowed prefix) is logged and skipped
 // rather than failing the mutation, mirroring the lenient handling of the other local SDK
 // injection annotations.
 func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
