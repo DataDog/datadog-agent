@@ -1031,7 +1031,7 @@ func collectConntrackMetrics(sender sender.Sender, useConntrackProcfile bool, co
 		stats = addConntrackStatsMetrics(conntrackPath, useSudo)
 	}
 
-	for stat := range stats {
+	for _, stat := range stats {
 		cpuTag := []string{"cpu:" + stat.cpuID}
 		sender.MonotonicCount("system.net.conntrack.found", stat.Found, "", cpuTag)
 		sender.MonotonicCount("system.net.conntrack.invalid", stat.Invalid, "", cpuTag)
