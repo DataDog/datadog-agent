@@ -132,13 +132,11 @@ fn open_stdio_file_as_account(
     path: &str,
     credential: &SpawnCredential,
 ) -> Result<MappedStdioHandle> {
-    if credential.inherits_supervisor_token() {
+    let account = credential.account();
+    if account.inherits_supervisor_token() {
         return Ok(MappedStdioHandle(open_append_file(path)?));
     }
-    let agent_account = credential
-        .agent_account_for_interactive_logon()
-        .expect("inherit-supervisor credentials skip file stdio impersonation");
-    let creds = logon_user_credentials(agent_account);
+    let creds = logon_user_credentials(account);
     let token = logon_user_token(process_name, &creds)?;
     with_impersonated_token(process_name, token.raw(), || {
         Ok(MappedStdioHandle(open_append_file(path)?))
@@ -258,10 +256,9 @@ mod tests {
     #[test]
     fn unopenable_file_path_falls_back_to_inherit() {
         let bad_path = StdioSetting::File(PathBuf::from(r"C:\nonexistent_pmgr_stdio_dir\out.log"));
-        let credential = SpawnCredential::InheritSupervisor {
-            display_name: r"NT AUTHORITY\SYSTEM".to_string(),
-            require_local_system: true,
-        };
+        let credential = SpawnCredential::from_account(
+            super::super::local_agent_account::AgentAccount::LocalSystem,
+        );
         let handle = map_stdio_setting("test-proc", &bad_path, STD_OUTPUT_HANDLE, &credential)
             .expect("map_stdio_setting should fall back instead of failing spawn");
         assert!(!handle.raw().is_null());

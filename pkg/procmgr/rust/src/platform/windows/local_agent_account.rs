@@ -169,6 +169,10 @@ pub(crate) fn canonical_account_name_for_well_known_sid(sid: &[u8]) -> Option<Ac
     well_known_from_sid(sid).map(|account| account.account_name())
 }
 
+pub(crate) fn agent_account_from_well_known_sid(sid: &[u8]) -> Option<AgentAccount> {
+    well_known_from_sid(sid)
+}
+
 fn well_known_from_sid(sid: &[u8]) -> Option<AgentAccount> {
     if is_local_system_sid(sid) {
         Some(AgentAccount::LocalSystem)

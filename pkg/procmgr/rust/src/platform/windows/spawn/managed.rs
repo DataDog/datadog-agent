@@ -14,8 +14,8 @@ use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
 use crate::spawn_context;
 
 use super::super::{
-    apply_child_baseline_env, setup_process_group, JobObject, stdout_inheritable,
-    stderr_inheritable,
+    JobObject, apply_child_baseline_env, setup_process_group, stderr_inheritable,
+    stdout_inheritable,
 };
 use super::credential::SpawnCredential;
 use super::primary_token::spawn_as_primary_token;
@@ -43,7 +43,7 @@ fn spawn_agent_logon(
     let job = JobObject::new()
         .with_context(|| format!("[{process_name}] create job object for child supervision"))?;
 
-    let credential = SpawnCredential::resolve(SpawnProfile::Agent)
+    let credential = SpawnCredential::resolve_agent()
         .with_context(|| format!("[{process_name}] resolve spawn credential"))?;
     process.set_intended_user(credential.display_name());
 
@@ -63,11 +63,10 @@ fn spawn_privileged_inherit(
     process_name: &str,
     request: SpawnRequest,
 ) -> Result<ProcessHandle> {
-    process.set_intended_user(
-        SpawnCredential::resolve(SpawnProfile::Privileged)
-            .map(|credential| credential.display_name())
-            .unwrap_or_else(|_| r"NT AUTHORITY\SYSTEM".to_string()),
-    );
+    process.set_intended_user(super::intended_user::intended_spawn_user(
+        process_name,
+        SpawnProfile::Privileged,
+    ));
 
     let SpawnRequest {
         command,

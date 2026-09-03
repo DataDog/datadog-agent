@@ -65,12 +65,11 @@ pub(crate) fn token_user_is_local_system(token: HANDLE) -> std::io::Result<bool>
 #[cfg(test)]
 pub(crate) fn current_process_account_display() -> std::io::Result<String> {
     let token = open_current_process_token(windows_sys::Win32::Security::TOKEN_QUERY)?;
-    let sid = token_user_sid(token.as_handle())?;
+    let sid = token_user_sid_bytes(token.as_handle())?;
     Ok(lookup_account_display(&sid)?.display())
 }
 
-#[cfg(test)]
-fn token_user_sid(token: HANDLE) -> std::io::Result<Vec<u8>> {
+pub(crate) fn token_user_sid_bytes(token: HANDLE) -> std::io::Result<Vec<u8>> {
     if token.is_null() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,

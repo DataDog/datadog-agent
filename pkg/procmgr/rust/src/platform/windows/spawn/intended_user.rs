@@ -9,13 +9,18 @@ use crate::spawn::SpawnProfile;
 
 use super::credential::SpawnCredential;
 
+const PRIVILEGED_INTENDED_USER: &str = r"NT AUTHORITY\SYSTEM";
+
 pub(crate) fn intended_spawn_user(process_name: &str, profile: SpawnProfile) -> String {
-    match SpawnCredential::resolve(profile) {
-        Ok(credential) => credential.display_name(),
-        Err(e) => {
-            warn!("[{process_name}] could not resolve intended spawn user: {e:#}");
-            "unknown".to_string()
-        }
+    match profile {
+        SpawnProfile::Privileged => PRIVILEGED_INTENDED_USER.to_string(),
+        SpawnProfile::Agent => match SpawnCredential::resolve_agent() {
+            Ok(credential) => credential.display_name(),
+            Err(e) => {
+                warn!("[{process_name}] could not resolve intended spawn user: {e:#}");
+                "unknown".to_string()
+            }
+        },
     }
 }
 
@@ -28,7 +33,7 @@ mod tests {
     fn privileged_profile_spawn_user_is_local_system() {
         assert_eq!(
             intended_spawn_user("datadog-agent-process", SpawnProfile::Privileged),
-            r"NT AUTHORITY\SYSTEM"
+            PRIVILEGED_INTENDED_USER
         );
     }
 }
