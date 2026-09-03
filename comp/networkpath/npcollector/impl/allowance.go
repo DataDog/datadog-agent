@@ -12,7 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
-const standardAllowancePerHour = 5
+const (
+	standardAllowancePerHour = 5
+	standardAllowanceWindow  = time.Hour
+)
 
 type allowance struct {
 	mu    sync.Mutex
@@ -41,7 +44,7 @@ func (a *allowance) take(now time.Time) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.until.IsZero() || !now.Before(a.until) {
-		a.until = now.Add(time.Hour)
+		a.until = now.Add(standardAllowanceWindow)
 		a.left = standardAllowancePerHour
 	}
 	if a.left == 0 {

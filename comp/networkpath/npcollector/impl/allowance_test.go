@@ -74,14 +74,14 @@ func TestAllowance(t *testing.T) {
 		for i := 0; i < standardAllowancePerHour; i++ {
 			require.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now))
 		}
-		assert.False(t, a.inAllowance(payload.DynamicTestProfileStandard, now.Add(time.Hour-time.Nanosecond)))
-		assert.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now.Add(time.Hour)))
+		assert.False(t, a.inAllowance(payload.DynamicTestProfileStandard, now.Add(standardAllowanceWindow-time.Nanosecond)))
+		assert.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now.Add(standardAllowanceWindow)))
 	})
 
 	t.Run("standard window resets after idle hours", func(t *testing.T) {
 		a := newAllowance()
 		require.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now))
-		assert.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now.Add(2*time.Hour)))
+		assert.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now.Add(2*standardAllowanceWindow)))
 	})
 
 	t.Run("time going backward stays in the same window", func(t *testing.T) {
@@ -145,7 +145,7 @@ func TestRunTracerouteForPathAllowance(t *testing.T) {
 	assert.Empty(t, (*emitted)[2].DynamicTestClass)
 	assert.Empty(t, (*emitted)[3].DynamicTestClass)
 
-	now = now.Add(time.Hour)
+	now = now.Add(standardAllowanceWindow)
 	*emitted = nil
 	runAllowancePath(collector, payload.DynamicTestProfileStandard)
 	require.Len(t, *emitted, 1)
