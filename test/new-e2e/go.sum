@@ -593,8 +593,8 @@ github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 h1:vkHw5I/plNdTr435
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231/go.mod h1:murToZ2N9hNJzewjHBgfFdXhZKjY3z5cYC1VXk+lbFE=
 github.com/pulumi/pulumi-aws/sdk/v7 v7.43.0 h1:Z5+wr3Po7dlgIH1EX8JdYpTSuwHuq9lQl611kgyk8Ow=
 github.com/pulumi/pulumi-aws/sdk/v7 v7.43.0/go.mod h1:wImO2X5EeAVjuNtyJF/W/N96Q73tEO9t1Ne9Uqa50Ps=
-github.com/pulumi/pulumi-awsx/sdk/v3 v3.8.0 h1:7C6VZV3yBxxn39wsFDtA0D78Ayg9tDmnl80mxfed7EA=
-github.com/pulumi/pulumi-awsx/sdk/v3 v3.8.0/go.mod h1:5IRij9mHJMZBjecVckf+xYMRMlyxBP4+OH0FpX3wUy0=
+github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0 h1:KDrkwdt/wFQZ1AEFRzGQ0Mo4Qoa9AuTbt5AdyLpM/b4=
+github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0/go.mod h1:6YCxvGh70KupvbhPIQX+Amzsxz8qBzhyoXO5AD3AxXE=
 github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3 h1:CNyoETY53sPooJbyymlVnPhYG34yr0iK8OezkJZnydQ=
 github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3/go.mod h1:Z9QC26ocUAXUK3fjEAL3RtklbaxQOqlfQFC9IaNfxIQ=
 github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3 h1:3/syHYdOXXXFQhUfvqxxtUO1SobQqaZ5U7UmcGMgkIQ=
