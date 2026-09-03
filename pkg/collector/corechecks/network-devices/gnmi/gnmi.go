@@ -113,9 +113,25 @@ func (c *Check) Run() error {
 		return errors.New("gNMI check is not configured")
 	}
 
+	now := time.Now()
 	snapshot := gnmiClient.Snapshot()
-	if err := report.ReportMetrics(s, checkConfig, snapshot); err != nil {
+	stalenessThreshold := report.DefaultStalenessThreshold(c.interval)
+	freshSnapshot := report.FilterStale(snapshot, stalenessThreshold, now)
+
+	healthStats := report.HealthStats{
+		StreamState:      gnmiClient.StreamState(),
+		ReconnectCount:   gnmiClient.ReconnectAttempts(),
+		ReceivedSamples:  gnmiClient.ReceivedSamples(),
+		SampleAgeSeconds: report.OldestSampleAgeSeconds(snapshot, now),
+	}
+	if err := report.ReportHealth(s, checkConfig, healthStats); err != nil {
 		return err
+	}
+
+	if len(freshSnapshot) > 0 {
+		if err := report.ReportMetrics(s, checkConfig, freshSnapshot); err != nil {
+			return err
+		}
 	}
 
 	s.Commit()
