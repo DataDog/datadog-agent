@@ -248,6 +248,25 @@ func TestNewTelemetry_DisabledForGovCloudSite(t *testing.T) {
 	}
 }
 
+// TestNewTelemetry_DisabledForGovCloudSiteCaseInsensitiveAndTrailingDot guards
+// against two valid-but-easy-to-miss DNS forms of the same GovCloud site: DNS
+// names are case-insensitive, and a trailing root dot (e.g. "ddog-gov.com.")
+// denotes the same fully-qualified domain. Both must still be detected as
+// GovCloud, matching the case-sensitive-only regex bug flagged in review.
+func TestNewTelemetry_DisabledForGovCloudSiteCaseInsensitiveAndTrailingDot(t *testing.T) {
+	for _, site := range []string{
+		"DDOG-GOV.COM",
+		"Ddog-Gov.Com",
+		"ddog-gov.com.",
+		"DDOG-GOV.COM.",
+		"XXXX99.DDOG-GOV.COM",
+		"  DDOG-GOV.COM  ",
+	} {
+		telem := newTelemetry(&http.Client{}, "api", site, "test-service")
+		assert.False(t, telem.telemetryClient.siteSupportsTelemetry, "expected telemetry to be disabled for site %q", site)
+	}
+}
+
 func TestNewTelemetry_EnabledForNonGovCloudSite(t *testing.T) {
 	for _, site := range []string{"datadoghq.com", "datadoghq.eu", "datad0g.com", ""} {
 		telem := newTelemetry(&http.Client{}, "api", site, "test-service")
