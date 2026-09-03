@@ -992,29 +992,38 @@ mod tests {
     #[test]
     fn exec_backend_times_out_hung_command() {
         let dir = test_env::tempdir_for_secret_backend();
-        #[cfg(unix)]
-        let script = {
-            let path = dir.path().join("slow_secret_backend.sh");
-            std::fs::write(&path, "#!/bin/sh\nsleep 30\n").unwrap();
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
-            path
-        };
-        #[cfg(windows)]
-        let script = {
-            let path = dir.path().join("slow_secret_backend.cmd");
-            std::fs::write(&path, "@echo off\r\nping -n 30 127.0.0.1 >nul\r\n").unwrap();
-            path
-        };
         let agent_yaml = dir.path().join("datadog.yaml");
-        std::fs::write(
-            &agent_yaml,
-            format!(
-                "secret_backend_command: {}\nsecret_backend_timeout: 1\n",
-                script.to_string_lossy()
-            ),
-        )
-        .unwrap();
+        #[cfg(unix)]
+        {
+            let script = {
+                let path = dir.path().join("slow_secret_backend.sh");
+                std::fs::write(&path, "#!/bin/sh\nsleep 30\n").unwrap();
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+                path
+            };
+            std::fs::write(
+                &agent_yaml,
+                format!(
+                    "secret_backend_command: {}\nsecret_backend_timeout: 1\n",
+                    script.to_string_lossy()
+                ),
+            )
+            .unwrap();
+        }
+        #[cfg(windows)]
+        {
+            // Run PowerShell directly so timeout terminates the waited process. A `.cmd`
+            // that spawns `ping` can outlive `TerminateProcess` on the parent when
+            // CREATE_NEW_PROCESS_GROUP is set.
+            std::fs::write(
+                &agent_yaml,
+                "secret_backend_command: powershell.exe\n\
+                 secret_backend_arguments: [\"-NoProfile\", \"-Command\", \"Start-Sleep -Seconds 30\"]\n\
+                 secret_backend_timeout: 1\n",
+            )
+            .unwrap();
+        }
 
         let started = std::time::Instant::now();
         assert_eq!(
