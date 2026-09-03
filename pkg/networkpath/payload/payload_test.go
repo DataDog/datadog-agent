@@ -65,36 +65,35 @@ func TestNetworkPathDynamicTestProfileJSON(t *testing.T) {
 	}
 }
 
-func TestNetworkPathInAllowanceJSON(t *testing.T) {
+func TestNetworkPathDynamicTestClassJSON(t *testing.T) {
 	tests := []struct {
 		name        string
-		inAllowance bool
+		class       DynamicTestClass
 		expectField bool
 	}{
 		{name: "unset"},
-		{name: "false"},
-		{name: "true", inAllowance: true, expectField: true},
+		{name: "core", class: DynamicTestClassCore, expectField: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			raw, err := json.Marshal(NetworkPath{InAllowance: tt.inAllowance})
+			raw, err := json.Marshal(NetworkPath{DynamicTestClass: tt.class})
 			require.NoError(t, err)
 
 			var decoded map[string]any
 			require.NoError(t, json.Unmarshal(raw, &decoded))
 			if !tt.expectField {
-				require.NotContains(t, decoded, "in_allowance")
+				require.NotContains(t, decoded, "dynamic_test_class")
 				return
 			}
-			require.Equal(t, true, decoded["in_allowance"])
+			require.Equal(t, string(tt.class), decoded["dynamic_test_class"])
 		})
 	}
 }
 
-func TestNetworkPathInAllowanceMissingJSONUnmarshalsFalse(t *testing.T) {
+func TestNetworkPathDynamicTestClassMissingJSONUnmarshalsEmpty(t *testing.T) {
 	var path NetworkPath
 	require.NoError(t, json.Unmarshal([]byte(`{}`), &path))
-	require.False(t, path.InAllowance)
+	require.Empty(t, path.DynamicTestClass)
 }
 
 func TestICMPMode(t *testing.T) {

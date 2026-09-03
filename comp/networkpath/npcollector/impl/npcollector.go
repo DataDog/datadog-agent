@@ -491,7 +491,9 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.TestConfigName = ptest.Pathtest.TestConfigName
 	path.TestConfigSource = ptest.Pathtest.TestConfigSource
 	path.DynamicTestProfile = ptest.Pathtest.DynamicTestProfile
-	path.InAllowance = path.DynamicTestProfile == payload.DynamicTestProfileBasic
+	if path.DynamicTestProfile == payload.DynamicTestProfileBasic {
+		path.DynamicTestClass = payload.DynamicTestClassCore
+	}
 	path.Tags = ptest.Pathtest.Tags
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {

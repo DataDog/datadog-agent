@@ -142,6 +142,15 @@ const (
 	DynamicTestProfileStandard DynamicTestProfile = "standard"
 )
 
+// DynamicTestClass is the Agent-computed class of a dynamic test run.
+// It is independent of DynamicTestProfile, which is how the path was selected.
+type DynamicTestClass string
+
+const (
+	// DynamicTestClassCore is a run in the Agent's core set.
+	DynamicTestClassCore DynamicTestClass = "core"
+)
+
 // SourceProduct defines the product that originated the path
 type SourceProduct string
 
@@ -272,15 +281,15 @@ type NetworkPath struct {
 	TestRunType        TestRunType        `json:"test_run_type"`
 	TestConfigSource   TestConfigSource   `json:"test_config_source,omitempty"`
 	DynamicTestProfile DynamicTestProfile `json:"dynamic_test_profile,omitempty"`
-	// InAllowance is true for basic dynamic tests counted toward the Agent's
-	// allowance. Omitted when false so older payloads match runs that are not.
-	InAllowance   bool                   `json:"in_allowance,omitempty"`
-	SourceProduct SourceProduct          `json:"source_product"`
-	CollectorType CollectorType          `json:"collector_type"`
-	Protocol      Protocol               `json:"protocol"`
-	Source        NetworkPathSource      `json:"source"`
-	Destination   NetworkPathDestination `json:"destination"`
-	Traceroute    Traceroute             `json:"traceroute"`
-	E2eProbe      E2eProbe               `json:"e2e_probe"`
-	Tags          []string               `json:"tags,omitempty"`
+	// DynamicTestClass is core when this run is in the Agent's core set.
+	// Omitted when unset so older payloads match runs that are not.
+	DynamicTestClass DynamicTestClass       `json:"dynamic_test_class,omitempty"`
+	SourceProduct    SourceProduct          `json:"source_product"`
+	CollectorType    CollectorType          `json:"collector_type"`
+	Protocol         Protocol               `json:"protocol"`
+	Source           NetworkPathSource      `json:"source"`
+	Destination      NetworkPathDestination `json:"destination"`
+	Traceroute       Traceroute             `json:"traceroute"`
+	E2eProbe         E2eProbe               `json:"e2e_probe"`
+	Tags             []string               `json:"tags,omitempty"`
 }

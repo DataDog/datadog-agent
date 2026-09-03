@@ -513,7 +513,7 @@ func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
 	assert.Equal(t, "Production paths", emittedPath.TestConfigName)
 	assert.Equal(t, payload.TestConfigSourceRemote, emittedPath.TestConfigSource)
 	assert.Empty(t, emittedPath.DynamicTestProfile)
-	assert.False(t, emittedPath.InAllowance)
+	assert.Empty(t, emittedPath.DynamicTestClass)
 	assert.Equal(t, []string{"team:payments", "env:prod"}, emittedPath.Tags)
 }
 

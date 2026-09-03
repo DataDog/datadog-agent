@@ -37,13 +37,13 @@ func TestRunTracerouteForPathAllowance(t *testing.T) {
 
 	require.Len(t, *emitted, 4)
 	assert.Equal(t, payload.DynamicTestProfileBasic, (*emitted)[0].DynamicTestProfile)
-	assert.True(t, (*emitted)[0].InAllowance)
+	assert.Equal(t, payload.DynamicTestClassCore, (*emitted)[0].DynamicTestClass)
 	assert.Equal(t, payload.DynamicTestProfileStandard, (*emitted)[1].DynamicTestProfile)
-	assert.False(t, (*emitted)[1].InAllowance)
+	assert.Empty(t, (*emitted)[1].DynamicTestClass)
 	assert.Empty(t, (*emitted)[2].DynamicTestProfile)
-	assert.False(t, (*emitted)[2].InAllowance)
+	assert.Empty(t, (*emitted)[2].DynamicTestClass)
 	assert.Empty(t, (*emitted)[3].DynamicTestProfile)
-	assert.False(t, (*emitted)[3].InAllowance)
+	assert.Empty(t, (*emitted)[3].DynamicTestClass)
 }
 
 func newAllowanceCollector(t *testing.T, traceroute *tracerouteRunner) (*npCollectorImpl, *[]payload.NetworkPath) {
