@@ -150,7 +150,7 @@
         fi
         # after_script runs in a fresh shell, so restore the profile exported in before_script.
         export AWS_PROFILE=agent-qa-ci
-        STACK_REGEX="^ci-(init-${CI_PIPELINE_ID}|${CI_JOB_ID})-${CI_PROJECT_ID}-.*$"
+        STACK_REGEX="^ci-${CI_JOB_ID}-${CI_PROJECT_ID}-.*$"
         dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "$STACK_REGEX" || \
           echo "WARNING: failed to submit canceled job stacks to stackcleaner"
       fi
