@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config",
+    visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
+    deps = ["@in_yaml_go_yaml_v3//:yaml"],
+)

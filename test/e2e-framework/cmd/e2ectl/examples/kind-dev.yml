@@ -1,0 +1,22 @@
+# Example e2ectl environment: local kind cluster with a locally-built agent.
+#
+#   e2ectl start   --config kind-dev.yml --name mydev
+#   e2ectl install --config kind-dev.yml --env mydev
+#   e2ectl update  --env mydev
+#   e2ectl fakeintake metrics --env mydev
+#
+schema: 1
+environment:
+  base: kind
+  # kubernetes:             # optional: pin the kind node image
+  #   version: "1.31.0"     # maps to kindest/node:v1.31.0
+  #   nodes: 1              # extra worker nodes
+  fakeintake: true
+agent:
+  install: helm
+  # The local image is tagged exactly as the Helm chart expects (the registry
+  # prefix is only a naming convention: nothing is pushed to gcr.io). Build it
+  # with: dda inv agent.hacky-dev-image-build --target-image=gcr.io/datadoghq/agent:e2ectl-dev
+  image: gcr.io/datadoghq/agent:e2ectl-dev
+  # config: |              # optional datadog.yaml overrides
+  #   log_level: debug
