@@ -9,8 +9,10 @@
 package probe
 
 import (
+	"encoding/binary"
 	"math"
 	"net"
+	"net/netip"
 	"os"
 	"strings"
 	"testing"
@@ -420,4 +422,52 @@ func TestEnrichRuleEventForkTimeMismatch(t *testing.T) {
 	assert.Same(t, origEnvsEntry, pr.EnvsEntry)
 	assert.Equal(t, []string{fakeArg}, pr.ArgsEntry.Values)
 	assert.Equal(t, []string{fakeEnv}, pr.EnvsEntry.Values)
+}
+
+func TestCredentialEndpointKey(t *testing.T) {
+	// matches how parser.h fills flow_t: IPv4 in the first word only
+	nativeU64 := func(b ...byte) uint64 {
+		var raw [8]byte
+		copy(raw[:], b)
+		return binary.NativeEndian.Uint64(raw[:])
+	}
+
+	for _, tc := range []struct {
+		name     string
+		addr     string
+		expected [2]uint64
+	}{
+		{
+			name:     "imds ipv4",
+			addr:     "169.254.169.254",
+			expected: [2]uint64{nativeU64(169, 254, 169, 254), 0},
+		},
+		{
+			name:     "eks pod identity ipv4",
+			addr:     "169.254.170.23",
+			expected: [2]uint64{nativeU64(169, 254, 170, 23), 0},
+		},
+		{
+			name: "eks pod identity ipv6",
+			addr: "fd00:ec2::23",
+			expected: [2]uint64{
+				nativeU64(0xfd, 0x00, 0x0e, 0xc2, 0x00, 0x00, 0x00, 0x00),
+				nativeU64(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x23),
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			addr, err := netip.ParseAddr(tc.addr)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, credentialEndpointKey(addr))
+		})
+	}
+}
+
+func TestCredentialEndpointKeyIPv4MappedIsNotIPv6(t *testing.T) {
+	// a 4-in-6 address must not produce the same key as plain IPv4
+	mapped := netip.MustParseAddr("::ffff:169.254.169.254")
+	plain := netip.MustParseAddr("169.254.169.254")
+
+	assert.NotEqual(t, credentialEndpointKey(plain), credentialEndpointKey(mapped))
 }
