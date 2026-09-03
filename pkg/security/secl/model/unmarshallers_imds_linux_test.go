@@ -16,17 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// imdsEventData builds the binary layout the kernel sends for an EVENT_IMDS event:
-// the credential source as a u32, followed by the captured HTTP payload.
+// imdsEventData builds the kernel's EVENT_IMDS layout: source u32 + payload
 func imdsEventData(source CredentialSource, payload string) []byte {
 	data := make([]byte, 4, 4+len(payload))
 	binary.NativeEndian.PutUint32(data, uint32(source))
 	return append(data, payload...)
 }
 
-// podIdentityResponse is the response shape of the EKS Pod Identity Agent
-// (/v1/credentials). Unlike IMDS it carries no Code, LastUpdated or Type, and no
-// header identifying the endpoint.
+// EKS Pod Identity /v1/credentials response shape
 const podIdentityResponse = "HTTP/1.1 200 OK\r\n" +
 	"Content-Type: application/json\r\n" +
 	"\r\n" +
@@ -70,19 +67,14 @@ func TestIMDSEventUnmarshalPodIdentityResponse(t *testing.T) {
 
 	assert.Equal(t, IMDSResponseType, e.Type)
 	assert.Equal(t, CredentialSourceEKSPodIdentityStr, e.CredentialSource)
-	// the Pod Identity Agent sends no distinguishing header, so it falls back to AWS
 	assert.Equal(t, IMDSAWSCloudProvider, e.CloudProvider)
-	// the access key id and its expiration are what the process resolver attributes
 	assert.Equal(t, "ASIAIOSFODNN7EXAMPLE", e.AWS.SecurityCredentials.AccessKeyID)
 	assert.Equal(t, "2324-05-01T12:00:00Z", e.AWS.SecurityCredentials.ExpirationRaw)
 	assert.False(t, e.AWS.SecurityCredentials.Expiration.IsZero(), "expiration should be parsed")
-	// v1/v2 is an IMDS-only notion and must not be reported for Pod Identity
 	assert.False(t, e.AWS.IsIMDSv2)
 }
 
 func TestIMDSEventUnmarshalIMDSv2NotReportedForPodIdentity(t *testing.T) {
-	// A Pod Identity response that happens to carry an IMDSv2 header must still not be
-	// reported as IMDSv2: the gate is the credential source, not the header alone.
 	withV2Header := "HTTP/1.1 200 OK\r\n" +
 		"Content-Type: application/json\r\n" +
 		"x-aws-ec2-metadata-token-ttl-seconds: 21600\r\n" +
