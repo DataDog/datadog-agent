@@ -7,6 +7,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start",
     visibility = ["//visibility:public"],
     deps = [
+        "//cmd/dogstatsd/aas/inventory",
         "//comp/aggregator/demultiplexer/def",
         "//comp/aggregator/demultiplexer/impl",
         "//comp/core/config",
@@ -40,7 +41,6 @@ go_library(
         "//comp/haagent/fx",
         "//comp/metadata/host/def",
         "//comp/metadata/host/fx",
-        "//cmd/dogstatsd/aas/inventory",
         "//comp/metadata/inventoryagent/def",
         "//comp/metadata/inventoryagent/fx",
         "//comp/metadata/inventoryhost/def",
