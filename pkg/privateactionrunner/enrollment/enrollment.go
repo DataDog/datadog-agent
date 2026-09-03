@@ -48,14 +48,10 @@ type PersistedIdentity struct {
 	URN           string `json:"urn"`
 	Hostname      string `json:"hostname,omitempty"`
 	OrchClusterID string `json:"orch_cluster_id,omitempty"`
-	// APIKeyHash is the SHA-256 hash (hex-encoded) of the api_key used at enrollment
-	// time. It lets us detect when the configured api_key has since changed without
-	// persisting the api_key itself alongside the identity.
+	// Hashed rather than stored raw, to avoid persisting a second live credential.
 	APIKeyHash string `json:"api_key_hash,omitempty"`
 }
 
-// HashAPIKey returns a hex-encoded SHA-256 hash of the given API key, suitable for
-// detecting api_key changes across restarts without persisting the key itself.
 func HashAPIKey(apiKey string) string {
 	sum := sha256.Sum256([]byte(apiKey))
 	return hex.EncodeToString(sum[:])
@@ -79,10 +75,8 @@ func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Co
 	return agentIdentifier, nil
 }
 
-// ShouldReenroll checks whether the persisted identity needs refreshing.
-// Re-enrollment is only supported for the node agent: the cluster agent identity is
-// shared across replicas via a K8s secret, so triggering re-enrollment from any
-// individual replica's config could cause races between them.
+// Re-enrollment is only supported for the node agent: the cluster agent's identity is
+// shared across replicas via a K8s secret, so re-enrolling from one replica could race with others.
 func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity, currentAPIKey string) bool {
 	if identity == nil || flavor.GetFlavor() == flavor.ClusterAgent {
 		return false
