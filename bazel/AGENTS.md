@@ -30,6 +30,13 @@ In containers there
 is no interactive Vault login, so a token must be injected via the
 `BUILDBARN_ID_TOKEN` environment variable (minted on the host from Vault).
 
+The two wrappers diverge on a missing `vault` CLI: `tools/bazel.bat` fails the
+build with exit 2 and installation instructions, while `tools/bazel` silently
+builds without the cache. A Windows developer therefore has to opt out
+explicitly (`DD_BAZEL_REMOTE_CACHE=off`, or an rc-level / command-line
+`--config=no-remote-cache`) rather than discovering weeks later that every
+build was cold.
+
 The `.bazelrc` is managed by `@DataDog/agent-build`. Do not edit it without their review. Per-user options belong in
 `user.bazelrc`, which is `.gitignore`d and auto-imported via `try-import %workspace%/user.bazelrc`.
 

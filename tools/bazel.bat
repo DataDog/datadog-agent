@@ -49,8 +49,15 @@ if defined XDG_CACHE_HOME (
   )
 )
 
+:: Captured here so the cache selection below can inspect the command line
+:: through delayed expansion, which keeps a `|` inside an argument out of the parser.
+set "args=%*"
+
 :: Local developer remote cache selection (CI selects its own endpoint above).
-if not defined CI call :remote_cache_select
+if not defined CI (
+  call :remote_cache_select
+  if errorlevel 2 exit /b 2
+)
 
 :: Check legacy max path length of 260 characters got lifted, or fail with instructions
 for %%i in ("%~dp0..\.cache") do if defined XDG_CACHE_HOME (set "more_than_260_chars=!XDG_CACHE_HOME!") else set "more_than_260_chars=%%~fi"
@@ -76,7 +83,6 @@ for %%i in ("!more_than_8dot3_chars!") do if "%%~nxi"=="%%~snxi" (
   exit /b 2
 )
 
-set "args=%*"
 if defined args if defined extra_args call :insert_extra_args
 "%BAZEL_REAL%" !startup_options! !args!
 exit /b !errorlevel!
@@ -117,7 +123,7 @@ exit /b
 :: auto (default) | on | off. Appends --config=cache to extra_args when enabled.
 :remote_cache_select
 :: An explicit cache config on the command line, or an rc-file opt-out, wins.
-echo %* | findstr /C:"--config=cache" /C:"--config=no-remote-cache" >nul && goto :eof
+if defined args echo(!args!| findstr /C:"--config=cache" /C:"--config=no-remote-cache" >nul && goto :eof
 call :rc_opts_out && goto :eof
 if not defined DD_BAZEL_REMOTE_CACHE set "DD_BAZEL_REMOTE_CACHE=auto"
 if /i "%DD_BAZEL_REMOTE_CACHE%"=="off" goto :eof
@@ -129,7 +135,10 @@ if /i not "%DD_BAZEL_REMOTE_CACHE%"=="auto" (
   >&2 echo 🔴 Unknown DD_BAZEL_REMOTE_CACHE=%DD_BAZEL_REMOTE_CACHE%, expected auto^|on^|off
   goto :eof
 )
-call :remote_cache_eligible || goto :eof
+call :remote_cache_eligible
+:: 2 is fatal (missing prerequisite), 1 only means "no cache this time".
+if errorlevel 2 exit /b 2
+if errorlevel 1 goto :eof
 if defined extra_args (set "extra_args=!extra_args! --config=cache") else set "extra_args=--config=cache"
 goto :eof
 
@@ -143,17 +152,22 @@ for %%R in ("%~dp0..\user.bazelrc" "%USERPROFILE%\.bazelrc") do (
 exit /b 1
 
 :remote_cache_eligible
-set "_have_token="
-if defined BUILDBARN_ID_TOKEN set "_have_token=1"
+if defined BUILDBARN_ID_TOKEN goto :remote_cache_probe
 if defined DOTNET_RUNNING_IN_CONTAINER (
-  if not defined _have_token (
-    >&2 echo 💡 Bazel remote cache skipped: no Buildbarn token in this container. Mint one on the host and inject it, e.g.:
-    >&2 echo     docker.exe run --env=BUILDBARN_ID_TOKEN=^<token^> ...
-    exit /b 1
-  )
-) else (
-  if not defined _have_token where vault >nul 2>&1 || exit /b 1
+  >&2 echo 💡 Bazel remote cache skipped: no Buildbarn token in this container. Mint one on the host and inject it, e.g.:
+  >&2 echo     docker.exe run --env=BUILDBARN_ID_TOKEN=^<token^> ...
+  exit /b 1
 )
+where vault >nul 2>&1 && goto :remote_cache_probe
+>&2 echo 🔴 The Bazel remote cache needs the `vault` CLI, which is not on PATH. Install it:
+>&2 echo     winget install --id Hashicorp.Vault --accept-package-agreements --accept-source-agreements
+>&2 echo Then authenticate, which opens a browser:
+>&2 echo     vault login -address=https://vault.us1.ddbuild.io -method=oidc
+>&2 echo Already installed? A shell or IDE started before the install still carries the old PATH; restart it.
+>&2 echo Prefer building without the remote cache? Set DD_BAZEL_REMOTE_CACHE=off
+exit /b 2
+
+:remote_cache_probe
 call :remote_cache_reachable
 exit /b !errorlevel!
 
