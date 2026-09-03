@@ -11,6 +11,7 @@ package tests
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"testing"
@@ -183,4 +184,105 @@ func checkVersionAgainstRpm(tb testing.TB, event *model.Event, pkgName string) {
 	if string(out) != "(none)" {
 		assert.Equal(tb, string(out), fmt.Sprintf("%d", epoch), "package epoch doesn't match")
 	}
+}
+
+var _ = declare(TestSBOMScriptInterpreterInUse, testOpts{enableSBOM: true})
+
+// TestSBOMScriptInterpreterInUse checks that executing a shebang script attributes
+// the package shipping the interpreter. The exec event carries the script as
+// exec.file, and no package owns it, so the interpreter is only reachable through
+// the linux_binprm field. No rule here mentions a package field, which keeps the
+// SBOM hook on the exec event the only thing that can stamp the interpreter.
+func TestSBOMScriptInterpreterInUse(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_sbom_interpreter_placeholder",
+			Expression: `open.file.path == "/tmp/test-sbom-interpreter-never-opened"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
+	// the test root is bind-mounted into the container at the same path, so the
+	// script lives outside the image and belongs to no package
+	scriptPath, _, err := test.Path("sbom-interpreter.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(scriptPath)
+
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	if err != nil {
+		t.Fatalf("failed to create docker wrapper: %v", err)
+	}
+
+	// dash owns /bin/sh and the /usr/bin/dash it resolves to on Debian and Ubuntu
+	const interpreterPkg = "dash"
+
+	dockerWrapper.Run(t, "interpreter-package", func(t *testing.T, _ wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
+		containerID := containerutils.ContainerID(dockerWrapper.containerID)
+
+		if err := retry(t, func() error {
+			workload := p.Resolvers.SBOMResolver.GetWorkload(containerID)
+			if workload == nil {
+				return fmt.Errorf("failed to find SBOM for '%s'", containerID)
+			}
+			if !workload.IsComputed() {
+				return fmt.Errorf("report hasn't been generated for '%s'", containerID)
+			}
+			return nil
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(50)); err != nil {
+			t.Fatal(err)
+		}
+
+		// the container runs sleep, so nothing has gone through the interpreter yet
+		before, held := p.Resolvers.SBOMResolver.LastPackageAccess(containerID, interpreterPkg)
+		if !held {
+			t.Skipf("image %s does not ship the %s package", dockerWrapper.image, interpreterPkg)
+		}
+		require.True(t, before.IsZero(), "%s was already attributed before the script ran", interpreterPkg)
+
+		if out, err := cmdFunc(scriptPath, nil, nil).CombinedOutput(); err != nil {
+			t.Fatalf("failed to run %s in the container: %v, %s", scriptPath, err, out)
+		}
+
+		if err := retry(t, func() error {
+			last, held := p.Resolvers.SBOMResolver.LastPackageAccess(containerID, interpreterPkg)
+			if !held {
+				return fmt.Errorf("workload '%s' no longer holds the %s package", containerID, interpreterPkg)
+			}
+			if last.IsZero() {
+				return fmt.Errorf("running a shebang script left the %s package unattributed", interpreterPkg)
+			}
+			return nil
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond)), backoff.WithMaxTries(25)); err != nil {
+			t.Error(err)
+		}
+	})
 }
