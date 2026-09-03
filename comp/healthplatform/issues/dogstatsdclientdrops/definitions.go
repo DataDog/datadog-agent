@@ -52,7 +52,7 @@ var issueDefinitions = map[ClientLibrary]issueDefinition{
 		dropReasonMetrics: []string{bytesDroppedQueueMetric, bytesDroppedWriterMetric},
 		remediationGuidance: []string{
 			"For queue drops, remove WithoutClientSideAggregation() if configured. If histogram, distribution, or timing traffic is significant, use WithExtendedClientSideAggregation(). Increase WithSenderQueueSize(...) only to absorb bursts.",
-			"For writer drops, configure WithErrorHandler(statsd.LoggingErrorHandler) and inspect the UDS error. Increase WithWriteTimeout(...) only for write timeouts or WithConnectTimeout(...) only for connection timeouts.",
+			"For writer drops, configure WithErrorHandler(statsd.LoggingErrorHandler) and inspect the UDS error. Increase the corresponding write or connection timeout if the error indicates a timeout.",
 		},
 	},
 	ClientLibraryPython: {
@@ -76,7 +76,7 @@ var issueDefinitions = map[ClientLibrary]issueDefinition{
 		issueID:     JavaUDSIssueID,
 		remediationGuidance: []string{
 			"Configure errorHandler(...) and inspect the reported UDS write error.",
-			"For gauges, counts, and sets, confirm client-side aggregation is enabled with enableAggregation(true). Aggregation is enabled by default in version 3.0.0 and later.",
+			"For gauges, counts, and sets, enable aggregation with enableAggregation(true) if supported and not already enabled.",
 			"Increase timeout(...) only for write timeouts. For UDS stream connections, increase connectionTimeout(...) only for connection timeouts.",
 		},
 	},

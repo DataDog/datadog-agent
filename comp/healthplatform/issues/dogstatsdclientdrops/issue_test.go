@@ -173,6 +173,8 @@ func TestLibrarySpecificUDSRemediation(t *testing.T) {
 		t.Run(string(test.library), func(t *testing.T) {
 			issue, err := BuildUDSIssue(UDSDetectionContext{ClientLibrary: test.library, AgentHostname: "test-host"})
 			require.NoError(t, err)
+			require.Contains(t, issue.Remediation.Steps[0].Text, "review "+bytesDroppedMetric)
+			require.Contains(t, issue.Remediation.Steps[0].Text, "client_transport set to either uds or uds-stream")
 			var remediation strings.Builder
 			for _, step := range issue.Remediation.Steps {
 				remediation.WriteString(step.Text)
