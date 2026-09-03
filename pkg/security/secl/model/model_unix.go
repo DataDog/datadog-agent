@@ -924,6 +924,11 @@ type SampleRefreshEvent struct {
 	Cookie uint32
 }
 
+// OTelProcessCtxEvent is an internal event sent when a process publishes its OTel process context.
+type OTelProcessCtxEvent struct {
+	Pid uint32
+}
+
 // AcceptEvent represents an accept event
 type AcceptEvent struct {
 	SyscallEvent

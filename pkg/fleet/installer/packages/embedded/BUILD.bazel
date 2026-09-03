@@ -58,6 +58,7 @@ go_library(
     name = "tmpl_lib",
     srcs = ["tmpl/main.go"],
     embedsrcs = [
+        "tmpl/datadog-agent-par-control.yaml.tmpl",
         "tmpl/datadog-agent-action-executor.yaml.tmpl",
         "tmpl/datadog-agent-action-executor-windows.yaml.tmpl",
         "tmpl/datadog-agent-action.service.tmpl",

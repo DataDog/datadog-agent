@@ -60,6 +60,10 @@ const (
 	argsEnvsValueCacheSize           = 8192
 	numAllowedPIDsToResolvePerPeriod = 1
 	procFallbackLimiterPeriod        = 30 * time.Second // proc fallback period by pid
+
+	// otelProcCtxQueueSize bounds the pids waiting for OTel process context
+	// resolution.
+	otelProcCtxQueueSize = 100
 )
 
 // EBPFResolver resolved process context
@@ -88,6 +92,13 @@ type EBPFResolver struct {
 	goLabelsMap         ebpf.Map
 	otelTLSMap          ebpf.Map
 	opts                ResolverOpts
+
+	// otelProcCtxQueue carries the pids whose OTel process context is waiting to
+	// be resolved by the loop Start spawns. otelProcCtxPending mirrors what the
+	// channel holds so a pid is never queued twice.
+	otelProcCtxQueue   chan uint32
+	otelProcCtxPending map[uint32]struct{}
+	otelProcCtxLock    sync.Mutex
 
 	// stats
 	hitsStats                 map[string]*atomic.Int64
@@ -1229,9 +1240,10 @@ func (p *EBPFResolver) SnapshotTracer(pid uint32) {
 }
 
 // applyTracerMetadata stores tracer metadata on the process cache entry and, when
-// span tracking is enabled, resolves the thread-context reader for the process:
-// the pprof label offsets for Go, the OTel TLS layout for every language. Must be
-// called WITHOUT the resolver lock held, since ELF I/O happens outside the lock.
+// span tracking is enabled, resolves the pprof label offsets of a Go process.
+// The thread-context readers hang off the OTel process context instead, which a
+// tracer publishes separately -- see ResolveOTelProcessContext. Must be called
+// WITHOUT the resolver lock held, since ELF I/O happens outside the lock.
 func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel.TracerMetadata) {
 	p.Lock()
 	if entry := p.entryCache[pid]; entry != nil {
@@ -1239,31 +1251,96 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 	}
 	p.Unlock()
 
-	if !p.config.SpanTrackingEnabled {
+	if !p.config.SpanTrackingEnabled || tmeta.TracerLanguage != "go" {
 		return
 	}
 
-	if tmeta.TracerLanguage == "go" {
-		if err := p.resolveGoLabels(pid); err != nil {
-			seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
-		}
+	if err := p.resolveGoLabels(pid); err != nil {
+		seclog.Debugf("Go labels resolution for pid %d: %s", pid, err)
+	}
+}
+
+// ResolveOTelProcessContext queues the resolution of the OTel process context
+// the given pid publishes.
+func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
+	if !p.config.SpanTrackingEnabled || p.otelTLSMap == nil {
+		return
 	}
 
-	if p.otelTLSMap != nil {
-		if err := p.resolveAndUpdateOTelTLS(pid, tmeta.TracerLanguage); err != nil {
-			seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+	p.otelProcCtxLock.Lock()
+	defer p.otelProcCtxLock.Unlock()
+
+	if _, pending := p.otelProcCtxPending[pid]; pending {
+		return
+	}
+
+	select {
+	case p.otelProcCtxQueue <- pid:
+		p.otelProcCtxPending[pid] = struct{}{}
+	default:
+		seclog.Warnf("OTel process context queue full, dropping pid %d", pid)
+	}
+}
+
+// SnapshotOTelProcessContext resolves the OTel process context of a process
+// that published before the agent was watching.
+func (p *EBPFResolver) SnapshotOTelProcessContext(pid uint32) {
+	if !p.config.SpanTrackingEnabled || p.otelTLSMap == nil {
+		return
+	}
+
+	if err := p.resolveAndUpdateOTelTLS(pid); err != nil {
+		seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+	}
+}
+
+// resolveOTelProcessContextLoop drains otelProcCtxQueue and resolves each pid's
+// OTel process context
+func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case pid := <-p.otelProcCtxQueue:
+			// Cleared before resolving, so an update that lands while this pid
+			// is in flight is queued again rather than lost.
+			p.otelProcCtxLock.Lock()
+			delete(p.otelProcCtxPending, pid)
+			p.otelProcCtxLock.Unlock()
+
+			if err := p.resolveAndUpdateOTelTLS(pid); err != nil {
+				seclog.Debugf("OTel TLS resolution for pid %d: %s", pid, err)
+			}
 		}
 	}
 }
 
-func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, tracerLanguage string) error {
-	res, err := resolveOTelTLS(pid, tracerLanguage)
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32) error {
+	// Only do the (mildly expensive) resolution for pids that SyncCache actually entered into the cache
+	p.RLock()
+	hasEntry := p.entryCache[pid] != nil
+	p.RUnlock()
+	if !hasEntry {
+		return nil
+	}
+
+	res, err := resolveOTelTLS(pid)
 	if err != nil {
 		return err
 	}
 
 	value := serializeOTelTLSValue(res)
-	return p.otelTLSMap.Put(pid, value)
+	if err := p.otelTLSMap.Put(pid, value); err != nil {
+		return err
+	}
+
+	p.Lock()
+	if entry := p.entryCache[pid]; entry != nil {
+		entry.Tracer.ThreadlocalAttributeKeys = res.attributeKeys
+	}
+	p.Unlock()
+
+	return nil
 }
 
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
@@ -1343,6 +1420,7 @@ func (p *EBPFResolver) Start(ctx context.Context) error {
 	}
 
 	go p.cacheFlush(ctx)
+	go p.resolveOTelProcessContextLoop(ctx)
 
 	return nil
 }
@@ -1712,6 +1790,8 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		pathResolver:              pathResolver,
 		envVarsResolver:           envVarsResolver,
 		userSessionResolver:       userSessionResolver,
+		otelProcCtxQueue:          make(chan uint32, otelProcCtxQueueSize),
+		otelProcCtxPending:        make(map[uint32]struct{}),
 	}
 
 	for _, t := range metrics.AllTypesTags {

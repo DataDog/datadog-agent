@@ -1407,6 +1407,16 @@ func (e *SampleRefreshEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *OTelProcessCtxEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 4 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Pid = binary.NativeEndian.Uint32(data[0:4])
+	return 4, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 72 {
 		return 0, ErrNotEnoughData

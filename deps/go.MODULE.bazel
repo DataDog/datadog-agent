@@ -451,6 +451,8 @@ use_repo(
     "io_opentelemetry_go_otel_sdk",
     "io_opentelemetry_go_otel_sdk_metric",
     "io_opentelemetry_go_otel_trace",
+    "io_opentelemetry_go_proto_slim_otlp",
+    "io_opentelemetry_go_proto_slim_otlp_processcontext_v1development",
     "io_temporal_go_api",
     "io_temporal_go_sdk",
     "net_pgregory_rapid",

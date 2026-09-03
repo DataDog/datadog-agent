@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -33,8 +34,10 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
@@ -59,6 +62,10 @@ const (
 // isEnabled checks if the private action runner is enabled in the configuration
 func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
+}
+
+func splitDeploymentSupported(goos string, containerized, fipsEnabled bool) bool {
+	return goos == "linux" && !containerized && !fipsEnabled
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -125,6 +132,18 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
+	}
+	if reqs.Config.GetBool(privateactionrunner.PARSplitEnabled) {
+		fipsEnabled := reqs.Config.GetBool("fips.enabled")
+		if buildFIPSEnabled, err := fips.Enabled(); err == nil {
+			fipsEnabled = fipsEnabled || buildFIPSEnabled
+		}
+		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized(), fipsEnabled) {
+			reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
+			reqs.Log.Flush()
+			return Provides{}, privateactionrunner.ErrSplitDeployment
+		}
+		reqs.Log.Warn("Split deployment is not supported in this environment; continuing with the monolithic PAR")
 	}
 
 	// The standalone runner sends metrics over a DogStatsD socket/UDP, built from

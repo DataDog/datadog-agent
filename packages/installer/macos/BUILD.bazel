@@ -22,7 +22,6 @@ pkg_files(
 pkg_filegroup(
     name = "installer_components",
     srcs = [":installer_binary"],
-    prefix = "/opt/datadog-installer",
 )
 
 # Intermediate node for the license-gathering aspect.
@@ -36,12 +35,18 @@ package_licenses(
     src = ":everything",
 )
 
-pkg_tar(
-    name = "whole_distro_tar",
+pkg_filegroup(
+    name = "whole_distro",
     srcs = [
         ":everything",
         ":license_files",
     ],
+    prefix = "/opt/datadog-installer",
+)
+
+pkg_tar(
+    name = "whole_distro_tar",
+    srcs = [":whole_distro"],
     compression_level = get_compression_level(),
     extension = "tar.xz",
     owner = "0.0",
