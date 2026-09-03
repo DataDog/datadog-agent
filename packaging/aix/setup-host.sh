@@ -121,6 +121,25 @@ else
         "rust${RUST_VERSION}-community-license"
 fi
 
+# ── Step 5c: IBM MQ Client (build/packaging) ──────────────────────────────────
+# Required by the packaging build (pymqi for the ibm_mq check). It's an
+# installp fileset from IBM Fix Central (not on the AIX Toolbox); the CI job
+# transfers the archive to $BUILD_DIR/mqclient.tar.Z (see .aix_remote).
+if lslpp -Lq mqm.base.runtime >/dev/null 2>&1; then
+    log "IBM MQ Client already installed"
+elif [ -f "$BUILD_DIR/mqclient.tar.Z" ]; then
+    log "Installing IBM MQ Client"
+    rm -rf "$BUILD_DIR/buildtmp/mqclient"
+    mkdir -p "$BUILD_DIR/buildtmp/mqclient"
+    ( cd "$BUILD_DIR/buildtmp/mqclient" && zcat "$BUILD_DIR/mqclient.tar.Z" | tar xf - )
+    installp -acXg -d "$BUILD_DIR/buildtmp/mqclient/MQClient" -Y mqm.base.runtime mqm.base.sdk mqm.client.rte
+    rm -rf "$BUILD_DIR/buildtmp/mqclient"
+else
+    echo "ERROR: IBM MQ Client not installed and $BUILD_DIR/mqclient.tar.Z not found." >&2
+    echo "       The CI job template (.aix_remote) fetches it from MASS and transfers it." >&2
+    exit 1
+fi
+
 # ── Step 6: verify ────────────────────────────────────────────────────────────
 log "=== Verification ==="
 
@@ -151,6 +170,7 @@ verify "python3.12" "/opt/freeware/bin/python3.12 --version" "3.12"             
 verify "invoke"     "/opt/freeware/bin/python3.12 -m invoke --version" "Invoke"   || _rc=1
 verify "gotestsum"  "$BUILD_DIR/bin/gotestsum --version 2>&1 | head -1" "gotestsum"   || _rc=1
 verify "cargo"      "/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin/cargo --version" "cargo" || _rc=1
+verify "mqm"        "lslpp -Lq mqm.base.runtime" "mqm.base.runtime"                     || _rc=1
 
 [ "$_rc" -eq 0 ] || { echo "ERROR: tool verification failed" >&2; exit 1; }
 

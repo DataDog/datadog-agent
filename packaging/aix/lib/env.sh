@@ -133,7 +133,9 @@ export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
 
 # ── PATH and Go toolchain ─────────────────────────────────────────────────────
 
-GOPATH=/home/gopath
+# GOPATH on /opt (the large build volume) — /home is only 3 GiB on SiteOX LPARs
+# and fills up with the Go module cache during a build.
+GOPATH=$BUILD_DIR/gopath
 GOROOT=/opt/go
 CGO_ENABLED=1
 CGO_CFLAGS="-I/opt/freeware/include"
