@@ -287,7 +287,8 @@ func (c *Check) Run() error {
 		}
 	}
 
-	if c.config.Schemas.Enabled && checkIntervalExpired(&c.schemasLastRun, c.config.Schemas.CollectionInterval) {
+	if c.config.Schemas.Enabled && (c.dbmEnabled || c.config.DataObservability.Enabled) &&
+		checkIntervalExpired(&c.schemasLastRun, c.config.Schemas.CollectionInterval) {
 		err := c.SchemaCollection()
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect schemas %w", c.logPrompt, err))

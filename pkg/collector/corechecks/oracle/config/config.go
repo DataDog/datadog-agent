@@ -80,16 +80,37 @@ type TablespacesConfig struct {
 
 // SchemasConfig configures table and column metadata collection.
 type SchemasConfig struct {
-	Enabled            bool  `yaml:"enabled"`
-	CollectionInterval int64 `yaml:"collection_interval"`
-	PayloadChunkSize   int   `yaml:"payload_chunk_size"`
-	CollectViews       *bool `yaml:"collect_views"`
-	MaxViews           int   `yaml:"max_views"`
+	Enabled            bool     `yaml:"enabled"`
+	CollectionInterval int64    `yaml:"collection_interval"`
+	PayloadChunkSize   int      `yaml:"payload_chunk_size"`
+	CollectViews       *bool    `yaml:"collect_views"`
+	MaxViews           int      `yaml:"max_views"`
+	MaxTables          int      `yaml:"max_tables"`
+	MaxColumns         int      `yaml:"max_columns"`
+	MaxQueryDuration   int      `yaml:"max_query_duration"`
+	IncludeSchemas     []string `yaml:"include_schemas"`
+	ExcludeSchemas     []string `yaml:"exclude_schemas"`
+	IncludeTables      []string `yaml:"include_tables"`
+	ExcludeTables      []string `yaml:"exclude_tables"`
+	IncludeDatabases   []string `yaml:"include_databases"`
+	ExcludeDatabases   []string `yaml:"exclude_databases"`
 }
 
 // ViewsEnabled reports whether view collection is on. It defaults to true.
 func (c SchemasConfig) ViewsEnabled() bool {
 	return c.CollectViews == nil || *c.CollectViews
+}
+
+// MaxQueryDurationDuration returns max_query_duration as a time.Duration.
+func (c SchemasConfig) MaxQueryDurationDuration() time.Duration {
+	return time.Duration(c.MaxQueryDuration) * time.Second
+}
+
+// DataObservabilityConfig gates schema collection alongside dbm, matching the Postgres check's
+// data_observability.enabled. Only the gate is implemented here; the monitor-query fields
+// Postgres carries on this block belong to a different component.
+type DataObservabilityConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -205,6 +226,7 @@ type InstanceConfig struct {
 	ResourceManager                    resourceManagerConfig    `yaml:"resource_manager"`
 	Locks                              locksConfig              `yaml:"locks"`
 	Schemas                            SchemasConfig            `yaml:"schemas"`
+	DataObservability                  DataObservabilityConfig  `yaml:"data_observability"`
 	OnlyCustomQueries                  bool                     `yaml:"only_custom_queries"`
 	Service                            string                   `yaml:"service"`
 	Loader                             string                   `yaml:"loader"`
@@ -298,6 +320,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.Schemas.CollectionInterval = 600
 	instance.Schemas.PayloadChunkSize = 1000
 	instance.Schemas.MaxViews = 1000
+	instance.Schemas.MaxTables = 300
+	instance.Schemas.MaxColumns = 50
+	instance.Schemas.MaxQueryDuration = 60
 
 	instance.Loader = defaultLoader
 	initCfg.Loader = defaultLoader
@@ -308,6 +333,22 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 	if err := yaml.Unmarshal(rawInitConfig, &initCfg); err != nil {
 		return nil, err
+	}
+
+	if instance.Schemas.PayloadChunkSize <= 0 {
+		instance.Schemas.PayloadChunkSize = 1000
+	}
+	if instance.Schemas.CollectionInterval <= 0 {
+		instance.Schemas.CollectionInterval = 600
+	}
+	if instance.Schemas.MaxTables <= 0 {
+		instance.Schemas.MaxTables = 300
+	}
+	if instance.Schemas.MaxColumns <= 0 {
+		instance.Schemas.MaxColumns = 50
+	}
+	if instance.Schemas.MaxQueryDuration <= 0 {
+		instance.Schemas.MaxQueryDuration = 60
 	}
 
 	serverSlice := strings.Split(instance.Server, ":")
