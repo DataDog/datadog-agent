@@ -40,11 +40,12 @@ func (t *AdmissionProbeIssue) BuildIssue(context map[string]string) (*healthplat
 	}
 
 	steps := []*healthplatform.RemediationStep{
-		{Order: 1, Text: "Check the cluster agent logs for admission controller errors"},
-		{Order: 2, Text: "Verify the cluster agent service is reachable from the Kubernetes API server on port 8000"},
+		{Order: 1, Text: "Run 'datadog-cluster-agent status' and check the 'Webhook running' line in the admissionWebhook section — if it is false, the webhook was never created (often because the certificate secret is missing or unreadable) and this is not a network issue"},
+		{Order: 2, Text: "Check the cluster agent logs for admission controller errors"},
 		{Order: 3, Text: "Verify the MutatingWebhookConfiguration exists and has the correct service reference: kubectl get mutatingwebhookconfigurations"},
-		{Order: 4, Text: remediation},
-		{Order: 5, Text: "See docs: https://dtdg.co/4eZW0g4"},
+		{Order: 4, Text: "If the webhook is confirmed running, verify the cluster agent service is reachable from the Kubernetes API server on port 8000"},
+		{Order: 5, Text: remediation},
+		{Order: 6, Text: "See docs: https://dtdg.co/4eZW0g4"},
 	}
 
 	extra, err := structpb.NewStruct(map[string]any{

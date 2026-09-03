@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -311,4 +312,192 @@ func TestRunProbe_NoHealthReportWithoutPlatform(t *testing.T) {
 
 	snap := p.GetStatsSnapshot()
 	assert.Equal(t, int64(1), snap.FailCount)
+}
+
+// withRealWebhookStatusLookup points the package-level admcommon dispatch vars
+// at the real v1 implementations for the duration of the test, then restores
+// them, since they are shared global state.
+func withRealWebhookStatusLookup(t *testing.T) {
+	prevValidating := admcommon.GetValidatingWebhookStatus
+	prevMutating := admcommon.GetMutatingWebhookStatus
+	admcommon.GetValidatingWebhookStatus = admcommon.GetValidatingWebhookStatusV1
+	admcommon.GetMutatingWebhookStatus = admcommon.GetMutatingWebhookStatusV1
+	t.Cleanup(func() {
+		admcommon.GetValidatingWebhookStatus = prevValidating
+		admcommon.GetMutatingWebhookStatus = prevMutating
+	})
+}
+
+func TestWebhookExists_NeitherEnabled(t *testing.T) {
+	client := fakeclientset.NewSimpleClientset()
+	p := newTestProbe(client)
+	p.webhookName = "datadog-webhook"
+
+	exists, err := p.webhookExists(context.Background())
+	assert.NoError(t, err)
+	assert.True(t, exists, "with no webhook type enabled, existence can't be disproven")
+}
+
+func TestWebhookExists_MutatingConfigured(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	t.Run("exists", func(t *testing.T) {
+		client := fakeclientset.NewSimpleClientset(&admissionregistrationv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "datadog-webhook"},
+		})
+		p := newTestProbe(client)
+		p.webhookName = "datadog-webhook"
+		p.mutationEnabled = true
+
+		exists, err := p.webhookExists(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, exists)
+	})
+
+	t.Run("missing", func(t *testing.T) {
+		client := fakeclientset.NewSimpleClientset()
+		p := newTestProbe(client)
+		p.webhookName = "datadog-webhook"
+		p.mutationEnabled = true
+
+		exists, err := p.webhookExists(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, exists)
+	})
+
+	t.Run("api error", func(t *testing.T) {
+		client := fakeclientset.NewSimpleClientset()
+		client.PrependReactor("get", "mutatingwebhookconfigurations", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+			return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "mutatingwebhookconfigurations"}, "datadog-webhook", errors.New("forbidden"))
+		})
+		p := newTestProbe(client)
+		p.webhookName = "datadog-webhook"
+		p.mutationEnabled = true
+
+		exists, err := p.webhookExists(context.Background())
+		require.Error(t, err)
+		assert.False(t, exists)
+	})
+}
+
+func TestWebhookExists_ValidatingConfigured(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	t.Run("exists", func(t *testing.T) {
+		client := fakeclientset.NewSimpleClientset(&admissionregistrationv1.ValidatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{Name: "datadog-webhook"},
+		})
+		p := newTestProbe(client)
+		p.webhookName = "datadog-webhook"
+		p.validationEnabled = true
+
+		exists, err := p.webhookExists(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, exists)
+	})
+
+	t.Run("missing", func(t *testing.T) {
+		client := fakeclientset.NewSimpleClientset()
+		p := newTestProbe(client)
+		p.webhookName = "datadog-webhook"
+		p.validationEnabled = true
+
+		exists, err := p.webhookExists(context.Background())
+		assert.NoError(t, err)
+		assert.False(t, exists)
+	})
+}
+
+func TestWebhookExists_BothConfigured_MutatingMissingShortCircuits(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	// Only the ValidatingWebhookConfiguration exists; the mutating one is
+	// missing and should be reported first without needing to check validating.
+	client := fakeclientset.NewSimpleClientset(&admissionregistrationv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "datadog-webhook"},
+	})
+	p := newTestProbe(client)
+	p.webhookName = "datadog-webhook"
+	p.mutationEnabled = true
+	p.validationEnabled = true
+
+	exists, err := p.webhookExists(context.Background())
+	assert.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestWebhookExists_BothConfigured_ValidatingMissing(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	// The mutating config exists but the validating one is missing; both must
+	// be checked, so this should still report false.
+	client := fakeclientset.NewSimpleClientset(&admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "datadog-webhook"},
+	})
+	p := newTestProbe(client)
+	p.webhookName = "datadog-webhook"
+	p.mutationEnabled = true
+	p.validationEnabled = true
+
+	exists, err := p.webhookExists(context.Background())
+	assert.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestRunProbe_ReportsWebhookMissingIssue(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	// No MutatingWebhookConfiguration exists, so the probe should diagnose
+	// this as "webhook was never created" rather than a network issue.
+	client := fakeclientset.NewSimpleClientset()
+	p, hp := newTestProbeWithHP(t, client)
+	p.webhookName = "datadog-webhook"
+	p.mutationEnabled = true
+
+	p.runProbe(context.Background())
+
+	issue := hp.GetIssue(healthIssueID)
+	require.NotNil(t, issue)
+	assert.Contains(t, issue.Description, "does not exist")
+}
+
+func TestRunProbe_ReportsNetworkIssueWhenWebhookConfirmedExists(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	// The MutatingWebhookConfiguration exists but the dry-run configmap was
+	// never annotated, so this should be diagnosed as a network/reachability
+	// issue rather than "webhook was never created".
+	client := fakeclientset.NewSimpleClientset(&admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "datadog-webhook"},
+	})
+	p, hp := newTestProbeWithHP(t, client)
+	p.webhookName = "datadog-webhook"
+	p.mutationEnabled = true
+
+	p.runProbe(context.Background())
+
+	issue := hp.GetIssue(healthIssueID)
+	require.NotNil(t, issue)
+	assert.NotContains(t, issue.Description, "does not exist")
+}
+
+func TestRunProbe_ReportsNetworkIssueWhenExistenceCheckErrors(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	// If webhookExists itself can't determine an answer (e.g. RBAC denies the
+	// lookup), the probe should still report the generic network-issue
+	// diagnosis rather than silently swallowing the failure.
+	client := fakeclientset.NewSimpleClientset()
+	client.PrependReactor("get", "mutatingwebhookconfigurations", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "mutatingwebhookconfigurations"}, "datadog-webhook", errors.New("forbidden"))
+	})
+	p, hp := newTestProbeWithHP(t, client)
+	p.webhookName = "datadog-webhook"
+	p.mutationEnabled = true
+
+	p.runProbe(context.Background())
+
+	issue := hp.GetIssue(healthIssueID)
+	require.NotNil(t, issue)
+	assert.NotContains(t, issue.Description, "does not exist")
 }
