@@ -9,10 +9,9 @@
 package config
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math"
-	"net"
+	"net/netip"
 	"slices"
 	"time"
 
@@ -839,7 +838,17 @@ type RuntimeSecurityConfig struct {
 	// description: IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	// visibility: private
 	// default_value: 169.254.169.254
-	IMDSIPv4 uint32
+	IMDSIPv4 string
+
+	// description: EKSPodIdentityIPv4 is used to provide a custom IPv4 address for the EKS Pod Identity Agent endpoint
+	// visibility: private
+	// default_value: 169.254.170.23
+	EKSPodIdentityIPv4 string
+
+	// description: EKSPodIdentityIPv6 is used to provide a custom IPv6 address for the EKS Pod Identity Agent endpoint
+	// visibility: private
+	// default_value: fd00:ec2::23
+	EKSPodIdentityIPv6 string
 
 	// description: EventGRPCServer defines which process should be used to send events and activity dumps
 	// visibility: private
@@ -1093,7 +1102,11 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EBPFLessSocket:  pkgconfigsetup.SystemProbe().GetString("runtime_security_config.ebpfless.socket"),
 
 		// IMDS
-		IMDSIPv4: parseIMDSIPv4(),
+		IMDSIPv4: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4"),
+
+		// EKS Pod Identity
+		EKSPodIdentityIPv4: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.eks_pod_identity_ipv4"),
+		EKSPodIdentityIPv6: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.eks_pod_identity_ipv6"),
 
 		// event
 		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_grpc_server"),
@@ -1148,14 +1161,43 @@ func (c *RuntimeSecurityConfig) IsSysctlSnapshotEnabled() bool {
 	return c.SysCtlEnabled && c.SysCtlSnapshotEnabled
 }
 
-// parseIMDSIPv4 returns the uint32 representation of the IMDS IP set by the configuration
-func parseIMDSIPv4() uint32 {
-	ip := pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4")
-	parsedIP := net.ParseIP(ip)
-	if parsedIP == nil {
-		return 0
+// CredentialEndpoint is an address and the credential source it serves
+type CredentialEndpoint struct {
+	Addr   netip.Addr
+	Source model.CredentialSource
+}
+
+// CredentialEndpoints returns the configured credential endpoints. An empty
+// address disables that endpoint.
+func (c *RuntimeSecurityConfig) CredentialEndpoints() ([]CredentialEndpoint, error) {
+	endpoints := []struct {
+		key    string
+		value  string
+		is4    bool
+		source model.CredentialSource
+	}{
+		{"runtime_security_config.imds_ipv4", c.IMDSIPv4, true, model.CredentialSourceIMDS},
+		{"runtime_security_config.eks_pod_identity_ipv4", c.EKSPodIdentityIPv4, true, model.CredentialSourceEKSPodIdentity},
+		{"runtime_security_config.eks_pod_identity_ipv6", c.EKSPodIdentityIPv6, false, model.CredentialSourceEKSPodIdentity},
 	}
-	return binary.LittleEndian.Uint32(parsedIP.To4())
+
+	var out []CredentialEndpoint
+	for _, endpoint := range endpoints {
+		if endpoint.value == "" {
+			continue
+		}
+
+		addr, err := netip.ParseAddr(endpoint.value)
+		if err != nil {
+			return nil, fmt.Errorf("invalid address for %s: %v", endpoint.key, endpoint.value)
+		}
+		if addr.Is4() != endpoint.is4 {
+			return nil, fmt.Errorf("wrong address family for %s: got %v", endpoint.key, endpoint.value)
+		}
+
+		out = append(out, CredentialEndpoint{Addr: addr, Source: endpoint.source})
+	}
+	return out, nil
 }
 
 // If RC is globally enabled, RC is enabled for CWS, unless the CWS-specific RC value is explicitly set to false
@@ -1203,8 +1245,8 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		c.HostServiceName = serviceName
 	}
 
-	if c.IMDSIPv4 == 0 {
-		return fmt.Errorf("invalid IPv4 address: got %v", pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4"))
+	if _, err := c.CredentialEndpoints(); err != nil {
+		return err
 	}
 
 	if c.EnforcementDisarmerContainerEnabled && c.EnforcementDisarmerContainerMaxAllowed <= 0 {
