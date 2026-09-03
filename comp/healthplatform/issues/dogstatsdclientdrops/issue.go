@@ -197,14 +197,16 @@ func buildUDSIssue(context UDSDetectionContext, restored bool) (*healthplatform.
 }
 
 func buildUDSRemediation(definition issueDefinition, agentHostname string) *healthplatform.Remediation {
-	metricFilter := fmt.Sprintf("host:%s and client:%s", agentHostname, definition.library)
+	metricFilter := fmt.Sprintf("host:%s and client:%s, with client_transport set to either uds or uds-stream", agentHostname, definition.library)
 	docsURL := highThroughputDocs + "?code-lang=" + strings.ToLower(definition.displayName)
-	metricNames := bytesDroppedMetric
+	metricNames := []string{bytesDroppedMetric}
+	metricNames = append(metricNames, definition.dropReasonMetrics...)
+	metricGuidance := fmt.Sprintf("In Metrics Explorer, review %s filtered by %s. The host identifies the receiving Agent.", strings.Join(metricNames, ", "), metricFilter)
 	if len(definition.dropReasonMetrics) > 0 {
-		metricNames = strings.Join(definition.dropReasonMetrics, " and ")
+		metricGuidance += " The total bytes_dropped metric is authoritative; queue and writer metrics provide the reason breakdown when available."
 	}
 	steps := []*healthplatform.RemediationStep{
-		{Order: 1, Text: fmt.Sprintf("In Metrics Explorer, review %s filtered by %s. The host identifies the receiving Agent.", metricNames, metricFilter)},
+		{Order: 1, Text: metricGuidance},
 	}
 	for _, guidance := range definition.remediationGuidance {
 		steps = append(steps, &healthplatform.RemediationStep{Order: int32(len(steps) + 1), Text: guidance})
