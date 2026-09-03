@@ -49,7 +49,7 @@ pkg_mkdirs(
 
 # Version manifest files.  The templates live in the parent package so they
 # can be shared if other platforms ever need them.
-# No prefix here — installer_components applies /opt/datadog-installer below.
+# No prefix here — whole_distro applies /opt/datadog-installer below.
 dd_agent_expand_template(
     name = "version_manifest_json",
     out = "version-manifest.json",
@@ -71,7 +71,6 @@ pkg_filegroup(
         ":version_manifest_json",
         ":version_manifest_txt",
     ],
-    prefix = "/opt/datadog-installer",
 )
 
 # Intermediate node for the license-gathering aspect.
@@ -95,6 +94,7 @@ pkg_filegroup(
         ":everything",
         ":license_files",
     ],
+    prefix = "/opt/datadog-installer",
     tags = ["manual"],
 )
 

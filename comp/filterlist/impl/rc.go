@@ -98,6 +98,7 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	}
 
 	metricNames := fl.buildMetricFilterListConfig(metricFilterListUpdates)
+	metricNames = normalizeMetricNames(metricNames, fl.log)
 
 	if len(metricNames) > 0 {
 		// update the runtime config to be consistent

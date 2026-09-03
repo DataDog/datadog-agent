@@ -84,6 +84,9 @@ its behavior or cost.
 - Shared code must use bounded production defaults. Unbounded history or
   retention is allowed only through explicit testbench configuration such as
   `bench.unboundedStorageCfg()` passed to `DebugView.Reset`.
+- Full raw anomaly history is testbench-only via `TrackAnomalyHistory`; live
+  reporting uses advance-local events and retains only bounded detector-output
+  deduplication state.
 - Hard-bound every live collection driven by time or input cardinality. On
   eviction, also clear detector state, indexes, interned data, deduplication
   state, and caches. Production config must not disable these bounds.
