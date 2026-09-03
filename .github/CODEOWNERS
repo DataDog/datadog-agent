@@ -398,6 +398,7 @@
 /comp/checks/agentcrashdetect @DataDog/windows-products
 /comp/checks/windowseventlog @DataDog/windows-products
 /comp/checks/winregistry @DataDog/windows-products
+/comp/core/agenttelemetry @DataDog/fleet-remediation
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/config @DataDog/fleet-automation
 /comp/core/configfilesdiscovery @DataDog/agent-discovery
@@ -415,6 +416,7 @@
 /comp/core/status @DataDog/fleet-remediation
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-platform
+/comp/core/telemetry @DataDog/fleet-remediation
 /comp/core/workloadfilter @DataDog/container-platform
 /comp/core/workloadmeta @DataDog/container-platform
 /comp/forwarder/connectionsforwarder @DataDog/container-experiences
@@ -480,8 +482,6 @@
 /comp/forwarder/eventplatform/impl/pipelines_dataobservability.go @DataDog/data-observability
 /comp/forwarder/eventplatform/impl/pipelines_datasecurity.go      @DataDog/sensitive-data-scanner
 /comp/forwarder/eventplatform/impl/pipelines_softwareinventory.go @DataDog/windows-products
-
-/comp/core/agenttelemetry @DataDog/fleet-remediation
 
 # ebpf-platform also owns the stat wrappers in telemetry (previously pkg/telemetry/stat_*_wrapper.go)
 /comp/core/telemetry/def/stat_gauge_wrapper.go   @DataDog/agent-runtimes @DataDog/ebpf-platform
@@ -612,6 +612,7 @@
 /pkg/collector/corechecks/system/winproc/                             @DataDog/windows-products
 /pkg/collector/corechecks/systemd/                                    @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/                                     @DataDog/agent-runtimes
+/pkg/collector/corechecks/telemetry                                   @DataDog/fleet-remediation
 /pkg/config/                                                          @DataDog/fleet-automation
 /pkg/config/settings/runtime_setting_profiling_period*.go             @DataDog/agent-runtimes
 /pkg/config/example/application_monitoring.yaml.example               @DataDog/agent-apm
