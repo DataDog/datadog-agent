@@ -6,6 +6,7 @@
 package npcollectorimpl
 
 import (
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -13,29 +14,39 @@ import (
 
 const standardAllowancePerHour = 5
 
-func (s *npCollectorImpl) inAllowance(profile payload.DynamicTestProfile) bool {
+type allowance struct {
+	mu    sync.Mutex
+	until time.Time
+	left  int
+}
+
+func newAllowance() *allowance {
+	return &allowance{}
+}
+
+func (a *allowance) inAllowance(profile payload.DynamicTestProfile, now time.Time) bool {
 	switch profile {
 	case payload.DynamicTestProfileBasic:
 		return true
 	case payload.DynamicTestProfileStandard:
-		return s.takeStandardAllowance(s.TimeNowFn())
+		return a.take(now)
 	default:
 		return false
 	}
 }
 
-// takeStandardAllowance returns true for the first standardAllowancePerHour
-// completed standard runs in each hour. The hour starts on the first take.
-func (s *npCollectorImpl) takeStandardAllowance(now time.Time) bool {
-	s.allowanceMu.Lock()
-	defer s.allowanceMu.Unlock()
-	if s.allowanceUntil.IsZero() || !now.Before(s.allowanceUntil) {
-		s.allowanceUntil = now.Add(time.Hour)
-		s.allowanceLeft = standardAllowancePerHour
+// take returns true for the first standardAllowancePerHour completed
+// standard runs in each hour. The hour starts on the first take.
+func (a *allowance) take(now time.Time) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.until.IsZero() || !now.Before(a.until) {
+		a.until = now.Add(time.Hour)
+		a.left = standardAllowancePerHour
 	}
-	if s.allowanceLeft == 0 {
+	if a.left == 0 {
 		return false
 	}
-	s.allowanceLeft--
+	a.left--
 	return true
 }
