@@ -86,6 +86,7 @@ type EventStream interface {
 	Start(*sync.WaitGroup) error
 	Pause() error
 	Resume() error
+	SendStats() error
 }
 
 const (
@@ -1157,6 +1158,10 @@ func (p *EBPFProbe) SendStats() error {
 
 	valueNameTruncated := p.MetricNameTruncated.Swap(0)
 	if err := p.statsdClient.Count(metrics.MetricNameTruncated, int64(valueNameTruncated), []string{}, 1.0); err != nil {
+		return err
+	}
+
+	if err := p.eventStream.SendStats(); err != nil {
 		return err
 	}
 
@@ -2581,6 +2586,7 @@ func (p *EBPFProbe) Stop() {
 	// wait for the following goroutines to exit:
 	// - the perfmap reorderer (if used/enabled)
 	// - the perfmap reorderer monitor (if used/enabled)
+	// - the ring-buffer dispatcher (if the user-space queue is enabled)
 	// - the security profile manager
 	// - the process killer goroutine
 	// - the startSysCtlSnapshotLoop goroutine
@@ -3494,7 +3500,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	})
 
 	if p.useRingBuffers {
-		p.eventStream = ringbuffer.New(p.handleEvent)
+		p.eventStream = ringbuffer.New(p.ctx, p.handleEvent, probe.StatsdClient)
 	} else {
 		p.eventStream, err = reorderer.NewOrderedPerfMap(p.ctx, p.handleEvent, probe.StatsdClient)
 		if err != nil {

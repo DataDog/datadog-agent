@@ -728,6 +728,38 @@ properties:
         node_type: section
         type: object
         properties:
+          anomaly_stabilization:
+            node_type: section
+            type: object
+            properties:
+              period:
+                node_type: setting
+                type: string
+                default: 0s
+                description: |
+                  Duration after a security profile starts before anomaly
+                  detection events are emitted. Only used when
+                  use_time_based is true. 0s emits anomalies as soon as the
+                  profile starts.
+              use_time_based:
+                node_type: setting
+                type: boolean
+                default: false
+                description: |
+                  When false (default), anomaly detection events are withheld
+                  until the security profile has been persisted at least once.
+                  When true, anomalies are withheld for period after the
+                  profile starts, independent of persistence.
+          delete_local_profiles_cookie:
+            node_type: setting
+            type: string
+            default: "1"
+            description: |
+              Cookie that triggers a one-time deletion of locally stored
+              security profiles. When set, profiles are deleted on startup if
+              the stored cookie does not match, then the new cookie is written
+              so the deletion does not repeat. Leave empty to skip deletion.
+              Change the cookie to force another deletion.
           enabled:
             node_type: setting
             type: boolean

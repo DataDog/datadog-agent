@@ -1132,6 +1132,38 @@ properties:
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_BUFFER_SIZE
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_BUFFER_SIZE
+          dispatcher_queue_enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Enable the user-space ring-buffer dispatcher queue. Off by default.
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_ENABLED
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_ENABLED
+          dispatcher_queue_size:
+            node_type: setting
+            type: integer
+            default: 16384
+            comment: Dispatcher queue capacity. Multiplied by CPU count when size_per_core is true.
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE
+          dispatcher_queue_size_per_core:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: Multiply dispatcher_queue_size by the number of CPUs.
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
+          dispatcher_queue_size_min:
+            node_type: setting
+            type: integer
+            default: 65535
+            comment: Floor applied after size and optional per-core scaling.
+            env_vars:
+            - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_MIN
+            - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_MIN
           kretprobe_max_active:
             node_type: setting
             type: integer

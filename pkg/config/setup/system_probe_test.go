@@ -59,6 +59,8 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		{key: "runtime_security_config.security_profile.v2.enabled", defaultValue: true},
 		{key: "runtime_security_config.security_profile.v2.max_dump_size", defaultValue: 2560},
 		{key: "runtime_security_config.security_profile.v2.event_types", defaultValue: []string{"exec", "open", "dns", "bind"}},
+		{key: "runtime_security_config.security_profile.v2.anomaly_stabilization.use_time_based", defaultValue: false},
+		{key: "runtime_security_config.security_profile.v2.delete_local_profiles_cookie", defaultValue: "1"},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
 			switch expected := tc.defaultValue.(type) {
@@ -83,6 +85,8 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 			}
 		})
 	}
+
+	assert.Equal(t, time.Duration(0), cfg.GetDuration("runtime_security_config.security_profile.v2.anomaly_stabilization.period"))
 }
 
 func TestDiscoveryUseSystemProbeLite(t *testing.T) {
