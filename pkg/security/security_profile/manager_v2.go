@@ -955,15 +955,9 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	// Key the version context by the concrete image_tag so it lines up with the activity tree's
-	// imageTagIDs. `selector.Tag` here would be the "*" grouping sentinel, which the tree never
-	// registers, breaking rollup lookups at encode time. If tag resolution has not caught up yet
-	// we drop the event on the floor rather than routing it to a synthetic "latest" bucket that
-	// would never merge back with the concrete tag once it resolves.
 	imageTag := secprof.GetTagValue("image_tag")
 	if imageTag == "" {
-		m.tagResolutionEventsDropped.Inc()
-		return nil, false
+		imageTag = "latest"
 	}
 	m.ensureVersionContext(secprof, imageTag)
 
