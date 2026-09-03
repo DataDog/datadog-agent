@@ -64,7 +64,7 @@ impl SpawnCredential {
 
 #[cfg(test)]
 impl SpawnCredential {
-    fn from_account(account: AgentAccount) -> Self {
+    pub(super) fn from_account(account: AgentAccount) -> Self {
         Self(account)
     }
 }
