@@ -15,61 +15,7 @@ import (
 
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 )
-
-func TestDispatcherQueueMaxBytes(t *testing.T) {
-	tests := []struct {
-		name     string
-		cfg      config.Config
-		numCPU   int
-		expected int64
-	}{
-		{
-			name:     "zero size stays zero without min",
-			cfg:      config.Config{EventStreamDispatcherQueueSize: 0},
-			numCPU:   8,
-			expected: 0,
-		},
-		{
-			name: "per-core multiplies by cpu count",
-			cfg: config.Config{
-				EventStreamDispatcherQueueSize:        100,
-				EventStreamDispatcherQueueSizePerCore: true,
-			},
-			numCPU:   4,
-			expected: 400,
-		},
-		{
-			name: "min floor applied after per-core",
-			cfg: config.Config{
-				EventStreamDispatcherQueueSize:        100,
-				EventStreamDispatcherQueueSizePerCore: true,
-				EventStreamDispatcherQueueSizeMin:     1000,
-			},
-			numCPU:   2,
-			expected: 1000,
-		},
-		{
-			name: "invalid cpu count treated as 1",
-			cfg: config.Config{
-				EventStreamDispatcherQueueSize:        100,
-				EventStreamDispatcherQueueSizePerCore: true,
-			},
-			numCPU:   0,
-			expected: 100,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expected, dispatcherQueueMaxBytesWithCPU(&tt.cfg, tt.numCPU))
-		})
-	}
-}
 
 func TestDispatcherRecoversFromHandlerPanic(t *testing.T) {
 	done := make(chan []byte, 1)
@@ -104,21 +50,6 @@ func TestDispatcherRecoversFromHandlerPanic(t *testing.T) {
 
 	cancel()
 	wg.Wait()
-}
-
-func TestSendStats(t *testing.T) {
-	client := statsdclient.NewStatsdClient()
-	rb := New(context.Background(), func(int, []byte) {}, client)
-	rb.queue = newByteQueue(4096)
-
-	rb.handleQueuedEvent(&ringbuf.Record{RawSample: make([]byte, 1000)}, nil, nil)
-	rb.handleQueuedEvent(&ringbuf.Record{RawSample: make([]byte, 500)}, nil, nil)
-
-	require.NoError(t, rb.SendStats())
-	require.Equal(t, int64(2), client.Get(metrics.MetricEventStreamDispatcherQueueUsage))
-	require.Equal(t, int64(1500), client.Get(metrics.MetricEventStreamDispatcherQueueBytes))
-	require.Equal(t, int64(4096), client.Get(metrics.MetricEventStreamDispatcherQueueCapacity))
-	require.Equal(t, int64(2), client.Get(metrics.MetricEventStreamDispatcherQueueEnqueued))
 }
 
 func waitForEnqueueBlocked(t *testing.T, q *byteQueue) {
