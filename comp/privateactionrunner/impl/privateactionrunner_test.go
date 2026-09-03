@@ -41,9 +41,9 @@ func TestSplitDeploymentEnabled(t *testing.T) {
 		want          bool
 	}{
 		{name: "host config", configEnabled: true, want: true},
-		{name: "container env", configEnabled: true, containerized: true, envValue: "true", want: true},
+		{name: "container env", containerized: true, envValue: "true", want: true},
 		{name: "container config only", configEnabled: true, containerized: true},
-		{name: "disabled", envValue: "true"},
+		{name: "disabled"},
 	}
 
 	for _, tt := range tests {

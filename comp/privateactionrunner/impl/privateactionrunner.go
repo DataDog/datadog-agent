@@ -66,7 +66,10 @@ func isEnabled(cfg config.Component) bool {
 }
 
 func splitDeploymentEnabled(configEnabled, containerized bool, envValue string) bool {
-	return configEnabled && (!containerized || envValue == "true")
+	if containerized {
+		return envValue == "true"
+	}
+	return configEnabled
 }
 
 func splitDeploymentSupported(goos string, fipsEnabled bool) bool {

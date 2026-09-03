@@ -148,6 +148,9 @@ COPY s6-services /etc/services.d/
 COPY cont-init.d /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
 
+# dd-procmgrd process definitions
+COPY --chmod=644 processes.d /opt/datadog-agent/processes.d/
+
 ##########################################################
 #  Preparation stage: extract Agent package and cleanup  #
 ##########################################################
@@ -162,7 +165,6 @@ WORKDIR /output
 # Configuration:
 #   - copy default config files
 COPY datadog*.yaml etc/datadog-agent/
-COPY processes.d opt/datadog-agent/processes.d/
 
 # Installation information
 COPY install_info etc/datadog-agent/
