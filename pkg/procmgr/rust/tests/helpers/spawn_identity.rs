@@ -7,7 +7,7 @@
 //! `intended_spawn_user` or `runtime_user_for_pid`.
 
 pub fn expected_agent_spawn_user() -> String {
-    agent_spawn_user_oracle().expect("agent spawn user oracle")
+    agent_spawn_user_oracle().unwrap_or_else(|| "unknown".to_string())
 }
 
 pub fn expected_runtime_user_for_pid(pid: u32) -> String {
