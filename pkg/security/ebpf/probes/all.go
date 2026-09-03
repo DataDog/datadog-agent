@@ -206,6 +206,7 @@ type MapSpecEditorOpts struct {
 	ReducedProcPidCacheSize       bool
 	NetworkFlowMonitorEnabled     bool
 	NetworkSkStorageEnabled       bool
+	NetworkSkLookupPidEnabled     bool
 	SpanTrackMaxCount             int
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
@@ -273,7 +274,11 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"span_tls": {
+		"go_labels_procs": {
+			MaxEntries: uint32(opts.SpanTrackMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"otel_tls": {
 			MaxEntries: uint32(opts.SpanTrackMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
@@ -396,6 +401,20 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
+	if !opts.NetworkSkLookupPidEnabled {
+		// Transform the sk_storage_pid SK_Storage map into a basic hash map so it can be loaded by
+		// kernels that don't support sk-local storage or bpf_sk_lookup. Dead code elimination removes
+		// the code working with it before the verifier runs.
+		editors["sk_storage_pid"] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			KeySize:    1,
+			ValueSize:  1,
+			MaxEntries: 1,
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries | manager.EditFlags,
+		}
+	}
+
 	if !kv.HasSafeBPFMemoryAllocations() {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
@@ -445,6 +464,7 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonit
 
 	routes = append(routes, getOpenTailCallRoutes()...)
 	routes = append(routes, getExecTailCallRoutes()...)
+	routes = append(routes, getSpanFillTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(eRPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
 	routes = append(routes, getCacheSyscallTailCallRoutes()...)

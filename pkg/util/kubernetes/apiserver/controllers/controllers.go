@@ -24,6 +24,7 @@ import (
 	apiextentionsinformer "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -92,6 +93,7 @@ type ControllerContext struct {
 	Client                      kubernetes.Interface
 	IsLeaderFunc                func() bool
 	InstrumentationHandlers     []instrumentation.Handler
+	Telemetry                   telemetry.Component
 	EventRecorder               record.EventRecorder
 	WorkloadMeta                workloadmeta.Component
 	DatadogClient               option.Option[datadogclient.Component]

@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 func TestSketchIterator(t *testing.T) {
@@ -44,7 +44,7 @@ func TestSketchIterator(t *testing.T) {
 	origin, err := originFromHeader(header, tagger)
 	require.NoError(t, err)
 
-	it, err := newSketchIterator(payload, origin, "default", utilstrings.Matcher{})
+	it, err := newSketchIterator(payload, origin, "default", metricname.Matcher{})
 	require.NoError(t, err)
 	require.NotNil(t, it)
 
@@ -119,7 +119,7 @@ func TestSketchIteratorFilterList(t *testing.T) {
 	origin, err := originFromHeader(http.Header{}, tagger)
 	require.NoError(t, err)
 
-	it, err := newSketchIterator(payload, origin, "default", utilstrings.NewMatcher([]string{"foo"}, false))
+	it, err := newSketchIterator(payload, origin, "default", metricname.NewMatcher([]string{"foo"}, false))
 	require.NoError(t, err)
 
 	// bar's summary and bins must not be shifted by foo's skipped points.
@@ -143,9 +143,9 @@ func TestSketchIteratorTagMerging(t *testing.T) {
 	payload := &pb.Payload{
 		MetricData: &pb.MetricData{
 			DictNameStr:        []byte("\x03foo\x03bar"),
-			DictTagStr:         []byte("\x03ook\x15dd.internal.card:high"),
-			DictTagsets:        []int64{2, 1, 1, 1, 1},
-			Types:              []uint64{0x04, 0x04},
+			DictTagStr:         []byte("\x03ook\x03eek"),
+			DictTagsets:        []int64{1, 1, 1, 2},
+			Types:              []uint64{0x4004, 0x04},
 			NameRefs:           []int64{1, 1},
 			TagsetRefs:         []int64{1, 1},
 			ResourcesRefs:      []int64{0, 0},
@@ -171,7 +171,7 @@ func TestSketchIteratorTagMerging(t *testing.T) {
 	origin, err := originFromHeader(header, tagger)
 	require.NoError(t, err)
 
-	it, err := newSketchIterator(payload, origin, "default", utilstrings.Matcher{})
+	it, err := newSketchIterator(payload, origin, "default", metricname.Matcher{})
 	require.NoError(t, err)
 
 	require.True(t, it.MoveNext())
@@ -182,7 +182,7 @@ func TestSketchIteratorTagMerging(t *testing.T) {
 	require.True(t, it.MoveNext())
 	s = it.Current().(*dogstatsdSketchSeries)
 	require.Equal(t, "bar", s.Name)
-	require.Equal(t, tagset.NewCompositeTags([]string{"low"}, []string{"ook"}), s.Tags)
+	require.Equal(t, tagset.NewCompositeTags([]string{"low"}, []string{"eek"}), s.Tags)
 
 	require.False(t, it.MoveNext())
 }
@@ -213,7 +213,7 @@ func TestSketchIteratorHostOverride(t *testing.T) {
 	header := http.Header{}
 	origin, err := originFromHeader(header, tagger)
 	require.NoError(t, err)
-	it, err := newSketchIterator(payload, origin, "default", utilstrings.Matcher{})
+	it, err := newSketchIterator(payload, origin, "default", metricname.Matcher{})
 	require.NoError(t, err)
 	require.True(t, it.MoveNext())
 	s := it.Current().(*dogstatsdSketchSeries)
@@ -243,7 +243,7 @@ func TestSketchIteratorWrongType(t *testing.T) {
 	header := http.Header{}
 	origin, err := originFromHeader(header, tagger)
 	require.NoError(t, err)
-	it, err := newSketchIterator(payload, origin, "default", utilstrings.Matcher{})
+	it, err := newSketchIterator(payload, origin, "default", metricname.Matcher{})
 	require.NoError(t, err)
 	require.False(t, it.MoveNext())
 	require.Error(t, it.err)

@@ -39,7 +39,6 @@ pkg_filegroup(
         "//packages/install_dir:embedded",
         "//packages/install_dir:etc",
     ],
-    prefix = "/opt/datadog-agent",
 )
 
 # This is an intermediate node so that have a place to collect all
@@ -60,13 +59,23 @@ package_licenses(
     src = ":everything",
 )
 
+# Everything that gets installed under /opt/datadog-agent: the product
+# files plus the licenses gathered for them.
+pkg_filegroup(
+    name = "installed_distro",
+    srcs = [
+        ":everything",
+        ":license_files",
+    ],
+    prefix = "/opt/datadog-agent",
+)
+
 # Blend the dependencies, the license files and things that vary
 # a build time into the distribution.
 pkg_filegroup(
     name = "whole_distro",
     srcs = [
-        ":everything",
-        ":license_files",
+        ":installed_distro",
     ] + select({
         "//:is_standard_install": [
             ":datadog_agent_installer_symlinks",

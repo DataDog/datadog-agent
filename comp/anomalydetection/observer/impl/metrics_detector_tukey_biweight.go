@@ -26,22 +26,15 @@ type tbStateKey struct {
 
 // tbSeriesState holds streaming state per (series, aggregate) pair.
 //
-// Memory footprint per key (rough):
-//
-//	ring (80 * 16)               = 1280 B
-//	scalars                      ~  100 B
-//	                              -------
-//	                             ~1.4 KB
+// Memory footprint per key is limited to cursor and cooldown scalars. The
+// scoring window is read from bounded storage into a detector-wide scratch
+// buffer instead of being retained per series.
 type tbSeriesState struct {
 	// Cursor over visible storage buckets plus in-place write generation.
 	lastProcessedCount int
 	lastWriteGen       int64
 	lastProcessedTime  int64
-
-	// Sliding window of recent points in chronological order when read via
-	// windowSnapshot(). cap == WindowSize once full.
-	ring        []observer.Point
-	head, count int
+	lastProcessedValue float64
 
 	// ticksSinceScore counts new points ingested since the last scoring tick.
 	// scoreBiweight is invoked only when this clears ScoreEvery, amortizing
@@ -99,6 +92,9 @@ type TukeyBiweightDetector struct {
 
 	// per-series state keyed by ref+agg
 	series map[tbStateKey]*tbSeriesState
+	// scoreBuf is shared by the single-writer detector while it scores each
+	// series. Keeping it here avoids retaining a raw window for every series.
+	scoreBuf []observer.Point
 
 	// Cache the discovered series list across Detect calls.
 	cachedSeries []observer.SeriesMeta
@@ -258,8 +254,6 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 					sCopy := *s
 					seriesMeta = &sCopy
 				}
-				d.appendRing(state, p)
-
 				// Decrement cooldown per ingested point so it expires
 				// regardless of whether scoring runs this tick.
 				if state.cooldownLeft > 0 {
@@ -267,18 +261,22 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				}
 				state.ticksSinceScore++
 
-				if status.pointCount >= d.MinPoints && state.count >= d.MinPoints && state.cooldownLeft == 0 && state.ticksSinceScore >= d.ScoreEvery {
-					d.ready = true
-					state.ticksSinceScore = 0
-					if anomaly, fired := d.scoreBiweight(state, seriesMeta, agg, p.Timestamp); fired {
-						anomaly.SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
-						allAnomalies = append(allAnomalies, anomaly)
-						state.cooldownLeft = d.CooldownPoints
-						state.lastFireTime = p.Timestamp
+				if status.pointCount >= d.MinPoints && state.cooldownLeft == 0 && state.ticksSinceScore >= d.ScoreEvery {
+					seriesMeta, d.scoreBuf = collectLastPoints(storage, meta.Ref, p.Timestamp, d.WindowSize, agg, d.scoreBuf)
+					if len(d.scoreBuf) >= d.MinPoints {
+						state.ticksSinceScore = 0
+						d.ready = true
+						if anomaly, fired := d.scoreBiweight(d.scoreBuf, seriesMeta, agg, p.Timestamp); fired {
+							anomaly.SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
+							allAnomalies = append(allAnomalies, anomaly)
+							state.cooldownLeft = d.CooldownPoints
+							state.lastFireTime = p.Timestamp
+						}
 					}
 				}
 
 				state.lastProcessedTime = p.Timestamp
+				state.lastProcessedValue = p.Value
 			})
 
 			if !pointsSeen && status.writeGeneration != state.lastWriteGen {
@@ -296,63 +294,13 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 	return observer.DetectionResult{Anomalies: allAnomalies}
 }
 
-// appendRing appends a point to the per-series ring buffer in chronological
-// order. While the buffer is filling, it grows; once full, the oldest entry
-// at state.head is overwritten and head advances modulo WindowSize.
-func (d *TukeyBiweightDetector) appendRing(state *tbSeriesState, p observer.Point) {
-	if state.count < d.WindowSize {
-		state.ring = append(state.ring, p)
-		state.count++
-		return
-	}
-	state.ring[state.head] = p
-	state.head = (state.head + 1) % d.WindowSize
-}
-
-// windowSnapshot returns the current ring contents in chronological order as
-// a fresh []float64 of length state.count. Allocated only on scoring ticks
-// (gated by ScoreEvery) so allocation pressure is amortized.
-func (d *TukeyBiweightDetector) windowSnapshot(state *tbSeriesState) []float64 {
-	xs := make([]float64, state.count)
-	if state.count < d.WindowSize {
-		for i := 0; i < state.count; i++ {
-			xs[i] = state.ring[i].Value
-		}
-		return xs
-	}
-	for i := 0; i < d.WindowSize; i++ {
-		xs[i] = state.ring[(state.head+i)%d.WindowSize].Value
-	}
-	return xs
-}
-
-func (d *TukeyBiweightDetector) windowPointsSnapshot(state *tbSeriesState) []observer.Point {
-	points := make([]observer.Point, state.count)
-	if state.count < d.WindowSize {
-		copy(points, state.ring)
-		return points
-	}
-	for i := 0; i < d.WindowSize; i++ {
-		points[i] = state.ring[(state.head+i)%d.WindowSize]
-	}
-	return points
-}
-
 func (d *TukeyBiweightDetector) cursorPointChanged(storage observer.StorageReader, ref observer.SeriesRef, agg observer.Aggregate, state *tbSeriesState) bool {
-	if state.count == 0 {
-		return false
-	}
-	idx := state.count - 1
-	if state.count >= d.WindowSize {
-		idx = (state.head + d.WindowSize - 1) % d.WindowSize
-	}
-	lastPoint := state.ring[idx]
-	if lastPoint.Timestamp != state.lastProcessedTime {
+	if state.lastProcessedCount == 0 {
 		return false
 	}
 	changed := false
 	storage.ForEachPoint(ref, state.lastProcessedTime-1, state.lastProcessedTime, agg, func(_ *observer.Series, p observer.Point) {
-		if p.Timestamp == lastPoint.Timestamp && p.Value != lastPoint.Value {
+		if p.Timestamp == state.lastProcessedTime && p.Value != state.lastProcessedValue {
 			changed = true
 		}
 	})
@@ -367,8 +315,14 @@ func (d *TukeyBiweightDetector) cursorPointChanged(storage observer.StorageReade
 // so a single historical glitch CANNOT poison (mu, sigma). This is the property
 // that distinguishes biweight from rank/AR detectors and motivates the
 // "robust-to-historical-outlier" test case.
-func (d *TukeyBiweightDetector) scoreBiweight(state *tbSeriesState, series *observer.Series, agg observer.Aggregate, dataTime int64) (observer.Anomaly, bool) {
-	xs := d.windowSnapshot(state)
+func (d *TukeyBiweightDetector) scoreBiweight(points []observer.Point, series *observer.Series, agg observer.Aggregate, dataTime int64) (observer.Anomaly, bool) {
+	if series == nil {
+		return observer.Anomaly{}, false
+	}
+	xs := make([]float64, len(points))
+	for i, point := range points {
+		xs[i] = point.Value
+	}
 	n := len(xs)
 	if n < 2 {
 		return observer.Anomaly{}, false
@@ -465,7 +419,7 @@ func (d *TukeyBiweightDetector) scoreBiweight(state *tbSeriesState, series *obse
 		Source:              observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Tags: series.Tags, Aggregate: agg},
 		DetectorName:        d.Name(),
 		Title:               "Tukey biweight: " + seriesName,
-		SamplingIntervalSec: medianPointInterval(d.windowPointsSnapshot(state)),
+		SamplingIntervalSec: medianPointInterval(points),
 		Description: fmt.Sprintf("%s biweight baseline (z=%.2f, mu=%.4f, sigma=%.4f, n=%d)",
 			direction, z, mu, sigma, n),
 		Timestamp: dataTime,
