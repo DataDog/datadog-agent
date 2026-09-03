@@ -98,7 +98,9 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	}
 
 	metricNames := fl.buildMetricFilterListConfig(metricFilterListUpdates)
-	metricNames = normalizeMetricNames(metricNames, fl.log)
+	// RC lists mark their prefixes per entry with `*`, and are applied with the
+	// global prefix mode off (see SetMetricFilterList below).
+	metricNames = normalizeMetricNames(metricNames, false, fl.log)
 
 	if len(metricNames) > 0 {
 		// update the runtime config to be consistent

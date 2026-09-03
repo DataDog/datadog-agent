@@ -77,12 +77,14 @@ func NewMatcher(data []string, matchPrefix bool) Matcher {
 // compactPrefixes sorts `prefixes` and removes the entries identifying a
 // prefix already identified by a shorter entry, so that elements identify
 // unique prefixes.
+//
+// `prefixes` is reordered and compacted in place: it must be a slice the caller
+// owns, which is the case for the one `NewMatcher` builds by appending.
 func compactPrefixes(prefixes []string) []string {
 	if len(prefixes) == 0 {
 		return nil
 	}
 
-	prefixes = slices.Clone(prefixes)
 	sort.Strings(prefixes)
 
 	i := 0
@@ -101,12 +103,13 @@ func compactPrefixes(prefixes []string) []string {
 
 // compactExact sorts `exact`, deduplicates it and removes the entries already
 // matched by one of `prefixes`, which must already be compacted.
+//
+// As in `compactPrefixes`, `exact` is reordered and compacted in place.
 func compactExact(exact, prefixes []string) []string {
 	if len(exact) == 0 {
 		return nil
 	}
 
-	exact = slices.Clone(exact)
 	sort.Strings(exact)
 	exact = slices.Compact(exact)
 

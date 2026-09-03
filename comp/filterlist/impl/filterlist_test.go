@@ -223,9 +223,32 @@ func TestNormalizeMetricNamesKeepsPrefixMarker(t *testing.T) {
 	// `123.*` has no ASCII letter to normalize, so it is dropped like any other
 	// unstorable entry; a lone `*` matches everything and is kept as is.
 	in := []string{"my metric-name.*", "*", "123.*", "exact"}
-	out := normalizeMetricNames(in, logmock.New(t))
+	out := normalizeMetricNames(in, false, logmock.New(t))
 
 	require.Equal([]string{"my_metric_name.*", "*", "exact"}, out)
+}
+
+// TestNormalizeMetricNamesKeepsPrefixBoundary verifies that a prefix entry is
+// normalized as a prefix, keeping the trailing boundary that a complete name
+// drops. Normalizing `service_*` as a name yields `service*`, which would widen
+// the entry from the `service_` family to everything starting with `service`.
+func TestNormalizeMetricNamesKeepsPrefixBoundary(t *testing.T) {
+	require := require.New(t)
+
+	logComponent := logmock.New(t)
+	in := []string{"service_*", "service-*", "service.*", "service_"}
+
+	// Only the entries written as prefixes keep their boundary...
+	require.Equal(
+		[]string{"service_*", "service_*", "service.*", "service"},
+		normalizeMetricNames(in, false, logComponent),
+	)
+
+	// ...unless every entry is a prefix, in which case they all do.
+	require.Equal(
+		[]string{"service_*", "service_*", "service.*", "service_"},
+		normalizeMetricNames(in, true, logComponent),
+	)
 }
 
 // TestNormalizeMetricNamesDropsUnstorable verifies the helper drops names the
@@ -234,7 +257,44 @@ func TestNormalizeMetricNamesDropsUnstorable(t *testing.T) {
 	require := require.New(t)
 
 	in := []string{"valid.metric", "", "123", "...", "another.valid"}
-	out := normalizeMetricNames(in, logmock.New(t))
+	out := normalizeMetricNames(in, false, logmock.New(t))
 
 	require.Equal([]string{"valid.metric", "another.valid"}, out)
+}
+
+// TestMetricFilterListPrefixBoundaryIsNotWidened is the end-to-end form of
+// TestNormalizeMetricNamesKeepsPrefixBoundary: `service_*` must drop the
+// `service_` family only, and leave `service.requests` alone.
+func TestMetricFilterListPrefixBoundaryIsNotWidened(t *testing.T) {
+	for name, cfg := range map[string]map[string]interface{}{
+		"per-entry prefix": {
+			"metric_filterlist": []string{"service_*"},
+		},
+		"global match prefix": {
+			"metric_filterlist":              []string{"service_"},
+			"metric_filterlist_match_prefix": true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require := require.New(t)
+
+			logComponent := logmock.New(t)
+			configComponent := config.NewMockWithOverrides(t, cfg)
+			telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+			filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+			matcher := filterList.GetMetricFilterList()
+
+			// The family the entry names, submitted raw or normalized.
+			require.True(matcher.Test("service_requests"))
+			require.True(matcher.Test("service requests"))
+			require.True(matcher.Test("service-requests"))
+
+			// Anything past that boundary is a different metric.
+			require.False(matcher.Test("service.requests"), "the period boundary is a different family")
+			require.False(matcher.Test("services.requests"))
+			require.False(matcher.Test("serviceother"))
+			require.False(matcher.Test("service"))
+		})
+	}
 }

@@ -77,7 +77,7 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 		filterlist = config.GetStringSlice("statsd_metric_blocklist")
 		filterlistPrefix = config.GetBool("statsd_metric_blocklist_match_prefix")
 	}
-	filterlist = normalizeMetricNames(filterlist, log)
+	filterlist = normalizeMetricNames(filterlist, filterlistPrefix, log)
 
 	// Load tag filter list from config
 	var tagFilterListEntries []MetricTagListEntry
@@ -250,26 +250,34 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 // A trailing `*` marks a prefix entry, and is not part of the name: it is
 // stripped before normalizing and put back afterwards, so that normalization
 // doesn't silently turn the prefix entry `foo.*` into the exact name `foo.`.
-// Note that normalizing a prefix strips a trailing underscore, so `foo_*` ends
-// up as `foo*` and matches slightly more than written.
-func normalizeMetricNames(names []string, log log.Component) []string {
+// `matchPrefix` makes every entry a prefix, whether or not it ends with `*`.
+//
+// A prefix is normalized as a prefix, not as a complete name, so that it keeps
+// the boundary the names it matches do keep: `service_*` stays `service_*`, and
+// is not widened into `service*`, which would also drop `service.requests`. See
+// metricname.NormalizePrefixAppend.
+func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) []string {
 	normalized := make([]string, 0, len(names))
 	// Reuse this stack buffer for normalizing each metric.
 	var buf [metricname.MaxLength]byte
 	for _, name := range names {
-		entry, isPrefix := strings.CutSuffix(name, metricname.PrefixSuffix)
-		if isPrefix && entry == "" {
-			// A lone `*` matches every name: nothing to normalize, and dropping
-			// it would silently change the filter list's meaning.
-			normalized = append(normalized, name)
-			continue
+		entry, hasStar := strings.CutSuffix(name, metricname.PrefixSuffix)
+
+		var key []byte
+		var ok bool
+		if hasStar || matchPrefix {
+			key, ok = metricname.NormalizePrefixAppend(buf[:0], entry)
+		} else {
+			key, ok = metricname.NormalizeAppend(buf[:0], entry)
 		}
-		key, ok := metricname.NormalizeAppend(buf[:0], entry)
 		if !ok {
 			log.Warnf("metric_filterlist: dropping entry %q that is not a storable metric name", name)
 			continue
 		}
-		if isPrefix {
+
+		// Only put back a marker the entry had: in `matchPrefix` mode every
+		// entry is a prefix already, whether or not it is written as one.
+		if hasStar {
 			normalized = append(normalized, string(key)+metricname.PrefixSuffix)
 			continue
 		}
