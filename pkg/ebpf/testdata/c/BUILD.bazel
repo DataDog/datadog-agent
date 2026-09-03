@@ -1,6 +1,6 @@
-load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
+# gazelle:ebpf_c on
 
-_COMMON_DEPS = ["//pkg/ebpf/c:ebpf_c_headers"]
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
 _TEST_FLAGS = [
     "-g",
@@ -13,7 +13,13 @@ ebpf_prog(
     core = True,
     extra_flags = _TEST_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_helpers_custom",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
 )
 
 ebpf_prog(
@@ -22,15 +28,31 @@ ebpf_prog(
     core = True,
     extra_flags = _TEST_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/compiler",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
 )
 
 ebpf_prog(
     name = "sleepable",
     src = "sleepable.c",
+    # Included behind #ifdef COMPILE_RUNTIME, which is off for a CO-RE build.
+    allowed_unused = ["pkg/ebpf/c/kconfig.h"],
     core = True,
     extra_flags = _TEST_FLAGS,
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_telemetry",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/kconfig",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/ebpf/c:hdr/map-defs",
+    ],
 )
 
 ebpf_prog(
@@ -48,5 +70,11 @@ ebpf_prog(
     core = True,
     extra_flags = _TEST_FLAGS,
     visibility = ["//visibility:public"],
-    deps = _COMMON_DEPS,
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_helpers_custom",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/bpf_tracing",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
 )

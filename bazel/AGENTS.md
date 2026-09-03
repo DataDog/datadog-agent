@@ -1101,6 +1101,48 @@ Key Bazel macros:
 - `cgo_godefs` (`bazel/rules/ebpf/cgo_godefs.bzl`) — `go tool cgo -godefs` + `write_source_file` verification
 - `runtime_compilation_bundle` (`bazel/rules/ebpf/runtime_compilation.bzl`) — flatten headers + generate integrity hash `.go` file
 
+### eBPF C headers are Gazelle-managed — do not hand-edit
+
+The `ebpf_c` Gazelle extension (`bazel/rules/ebpf_c/`) owns every `hdr/*`
+`cc_library` and the `deps` of every `ebpf_prog` / `ebpf_program_suite`. It
+generates one library per header and points each program at exactly the
+headers its source `#include`s. Run `bazel run //:gazelle` after adding,
+removing, or re-including an eBPF header; editing those `deps` by hand is
+pointless because the next Gazelle run overwrites them.
+
+A tree opts in with `# gazelle:ebpf_c on` in its BUILD file. Libraries are
+emitted into that tree's root package with slash-bearing names
+(`//pkg/network/ebpf/c:hdr/protocols/tls/tags`) even for headers in
+subdirectories. Do not "fix" this by giving subdirectories their own
+packages: that requires `strip_include_prefix`, whose `_virtual_includes`
+paths no longer match what clang writes into its depfile, which silently
+breaks the unused-header check below.
+
+Headers that `#include` each other share one library, because Bazel rejects
+the dependency cycle that C tolerates through include guards.
+
+### The unused-header check
+
+Every program runs a validation action that fails the build if it declares a
+header clang never opened, so over-declared `deps` cannot creep back in. This
+relies on `unused_inputs_list`, so it also prunes those headers from the
+action's inputs and avoids needless recompilation.
+
+Kernel headers from `@linux_headers` are exempt — they are declared in bulk
+and cannot be pruned per program.
+
+Two kinds of header are supplied by the rule rather than by `deps`, because
+whether clang reads them depends on flags the rule sets and not on anything
+visible in the build graph: `asm_goto_workaround.h` (force-included into
+prebuilt programs) and `vmlinux.h` (reachable only under `-DCOMPILE_CORE`).
+The extension skips those `#include` edges via `ruleOwnedIncludes`; keep the
+two lists in sync.
+
+When an `#include` sits behind an `#ifdef` that is off for a given program,
+the header is declared but never read. List it in `allowed_unused` on that
+target with a comment naming the guard. Entries that become used again are
+reported as stale, so the list cannot silently rot.
+
 ## See also
 
 - [Rust in the Datadog Agent](../docs/public/guidelines/languages/RUST.md)

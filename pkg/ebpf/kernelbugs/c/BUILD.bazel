@@ -1,3 +1,5 @@
+# gazelle:ebpf_c on
+
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
@@ -7,7 +9,7 @@ ebpf_prog(
     src = "uprobe-trigger.c",
     core = True,
     visibility = ["//visibility:public"],
-    deps = ["//pkg/ebpf/c:ebpf_c_headers"],
+    deps = ["//pkg/ebpf/c:hdr/bpf_helpers"],
 )
 
 # detect-seccomp-bug is a native binary (not eBPF), x86 only.

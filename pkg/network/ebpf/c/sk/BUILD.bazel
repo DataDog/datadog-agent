@@ -1,3 +1,5 @@
+# gazelle:ebpf_c on
+
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_program_suite")
 
@@ -16,8 +18,124 @@ ebpf_program_suite(
     core = True,
     visibility = ["//visibility:public"],
     deps = [
-        ":ebpf_c_network_sk",
-        "//pkg/ebpf/c:ebpf_c_headers",
-        "//pkg/network/ebpf/c:ebpf_c_network",
+        ":hdr/maps",
+        ":hdr/sk_init",
+        ":hdr/sk_port",
+        ":hdr/sk_tcp",
+        ":hdr/sk_udp",
+        "//pkg/ebpf/c:hdr/bpf_builtins",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
+)
+
+cc_library(
+    name = "hdr/defs",
+    hdrs = ["defs.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/network/ebpf/c:hdr/tracer/tracer"],
+)
+
+cc_library(
+    name = "hdr/maps",
+    hdrs = ["maps.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/defs",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/map-defs",
+        "//pkg/network/ebpf/c:hdr/tracer/tracer",
+    ],
+)
+
+cc_library(
+    name = "hdr/sk",
+    hdrs = ["sk.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:hdr/ktypes"],
+)
+
+cc_library(
+    name = "hdr/sk_conn",
+    hdrs = ["sk_conn.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/defs",
+        ":hdr/sk",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/network/ebpf/c:hdr/tracer/tracer",
+    ],
+)
+
+cc_library(
+    name = "hdr/sk_init",
+    hdrs = ["sk_init.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/defs",
+        ":hdr/maps",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/network/ebpf/c:hdr/ip",
+        "//pkg/network/ebpf/c:hdr/ipv6",
+        "//pkg/network/ebpf/c:hdr/netns",
+        "//pkg/network/ebpf/c:hdr/tracer/port",
+    ],
+)
+
+cc_library(
+    name = "hdr/sk_port",
+    hdrs = ["sk_port.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/defs",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/ktypes",
+        "//pkg/network/ebpf/c:hdr/ip",
+        "//pkg/network/ebpf/c:hdr/ipv6",
+        "//pkg/network/ebpf/c:hdr/netns",
+        "//pkg/network/ebpf/c:hdr/port_range",
+        "//pkg/network/ebpf/c:hdr/tracer/port",
+    ],
+)
+
+cc_library(
+    name = "hdr/sk_tcp",
+    hdrs = ["sk_tcp.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/defs",
+        ":hdr/maps",
+        ":hdr/sk",
+        ":hdr/sk_conn",
+        "//pkg/ebpf/c:hdr/bpf_endian",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/network/ebpf/c:hdr/sock",
+        "//pkg/network/ebpf/c:hdr/tracer/port",
+        "//pkg/network/ebpf/c:hdr/tracer/tracer",
+    ],
+)
+
+cc_library(
+    name = "hdr/sk_udp",
+    hdrs = ["sk_udp.h"],
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":hdr/defs",
+        ":hdr/maps",
+        ":hdr/sk",
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/network/ebpf/c:hdr/sock",
+        "//pkg/network/ebpf/c:hdr/tracer/tracer",
     ],
 )

@@ -18,6 +18,21 @@ py_test(
     main = "clang_with_unused_inputs_test.py",
 )
 
+py_binary(
+    name = "check_unused_inputs",
+    srcs = ["check_unused_inputs.py"],
+    visibility = ["//visibility:private"],
+)
+
+py_test(
+    name = "check_unused_inputs_test",
+    srcs = [
+        "check_unused_inputs.py",
+        "check_unused_inputs_test.py",
+    ],
+    main = "check_unused_inputs_test.py",
+)
+
 string_flag(
     name = "target_arch",
     build_setting_default = "",

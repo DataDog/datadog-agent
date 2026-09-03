@@ -1,3 +1,5 @@
+# gazelle:ebpf_c on
+
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
 ebpf_prog(
@@ -9,5 +11,9 @@ ebpf_prog(
         "-DDEBUG=1",
     ],
     visibility = ["//visibility:public"],
-    deps = ["//pkg/ebpf/c:ebpf_c_headers"],
+    deps = [
+        "//pkg/ebpf/c:hdr/bpf_helpers",
+        "//pkg/ebpf/c:hdr/bpf_metadata",
+        "//pkg/ebpf/c:hdr/ktypes",
+    ],
 )
