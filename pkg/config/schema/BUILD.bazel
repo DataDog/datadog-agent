@@ -149,7 +149,11 @@ pkg_install(
 
 go_library(
     name = "schema",
-    srcs = ["schema.go"],
+    srcs = [
+        "navigate.go",
+        "schema.go",
+        "violation.go",
+    ],
     embedsrcs = [
         "compressed/.embed",
         "compressed/core_schema.yaml.zstd",
@@ -160,6 +164,7 @@ go_library(
     deps = [
         "@com_github_datadog_zstd//:zstd",
         "@com_github_santhosh_tekuri_jsonschema_v6//:jsonschema",
+        "@com_github_santhosh_tekuri_jsonschema_v6//kind",
         "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

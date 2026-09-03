@@ -1,0 +1,15 @@
+---
+enhancements:
+  - |
+    The ``invalid-config`` Agent Health issue now states what to change instead of naming a JSON
+    Schema type. Each violation reports the setting using the dotted key from ``datadog.yaml``, the
+    value that was found, and a correction, for example::
+
+        logs_enabled must be true or false, but it is the text "yes". Set logs_enabled: true.
+
+    Remediation lists one step per violation rather than a single generic instruction.
+fixes:
+  - |
+    Duration settings in the ``invalid-config`` Agent Health issue no longer report ``want string``,
+    which led to quoting the number as ``"30"`` -- a value that satisfies the schema but is still
+    wrong at runtime. They now report the expected duration form, such as ``"30s"``.
