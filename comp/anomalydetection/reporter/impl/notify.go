@@ -195,17 +195,34 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 // pattern when no example is available. Other metrics retain their series name.
 func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
 	if name := logDerivedContributorName(meta.Namespace, context); name != "" {
-		if len(meta.Tags) == 0 {
+		tags := scorerContributorTags(meta)
+		if len(tags) == 0 {
 			return name
 		}
-		return name + " — {" + strings.Join(meta.Tags, ",") + "}"
+		return name + " — {" + strings.Join(tags, ",") + "}"
 	}
 	return observerdef.SeriesDescriptor{
 		Namespace: meta.Namespace,
 		Name:      meta.Name,
+		Host:      meta.Host,
 		Tags:      meta.Tags,
 		Aggregate: aggregate,
 	}.DisplayName()
+}
+
+func scorerContributorTags(meta *observerdef.SeriesMeta) []string {
+	if meta.Host == "" {
+		return meta.Tags
+	}
+	hostTag := "host:" + meta.Host
+	for _, tag := range meta.Tags {
+		if tag == hostTag {
+			return meta.Tags
+		}
+	}
+	tags := make([]string, 0, len(meta.Tags)+1)
+	tags = append(tags, hostTag)
+	return append(tags, meta.Tags...)
 }
 
 // logDerivedContributorName returns the human-readable name for a log-derived
@@ -425,6 +442,9 @@ func BuildEventTags(c observerdef.ActiveCorrelation) []string {
 					break
 				}
 			}
+		}
+		if a.Source.Host != "" {
+			dimensionSet["host:"+a.Source.Host] = struct{}{}
 		}
 		// For log-derived anomalies, dimensional info lives in Context.SplitTags
 		// (set by the log tagged pattern clusterer).

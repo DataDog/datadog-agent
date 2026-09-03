@@ -36,8 +36,8 @@ func TestMaterializedLogCountBucketizerCountsAndZeros(t *testing.T) {
 	}
 	tags := canonicalizeTags([]string{"service:api"})
 
-	require.True(t, b.observe("logs", metric, 1, tags))
-	require.True(t, b.observe("logs", metric, 3, tags))
+	require.True(t, b.observe("logs", metric, "", 1, tags))
+	require.True(t, b.observe("logs", metric, "", 3, tags))
 	b.flush(storage, 15)
 
 	series := storage.GetSeries("logs", "log.pattern.count", tags, observerdef.AggregateAverage)
@@ -58,9 +58,9 @@ func TestMaterializedLogCountBucketizerStopsAtIdleTTLAndReactivates(t *testing.T
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 10})
 	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
 
-	require.True(t, b.observe("logs", metric, 1, nil))
+	require.True(t, b.observe("logs", metric, "", 1, nil))
 	b.flush(storage, 20)
-	require.True(t, b.observe("logs", metric, 21, nil))
+	require.True(t, b.observe("logs", metric, "", 21, nil))
 	b.flush(storage, 35)
 
 	series := storage.GetSeries("logs", "log.pattern.count", nil, observerdef.AggregateAverage)
@@ -78,9 +78,9 @@ func TestMaterializedLogCountBucketizerRejectsFlushedLateBucket(t *testing.T) {
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
 	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
 
-	require.True(t, b.observe("logs", metric, 1, nil))
+	require.True(t, b.observe("logs", metric, "", 1, nil))
 	b.flush(storage, 5)
-	assert.False(t, b.observe("logs", metric, 2, nil))
+	assert.False(t, b.observe("logs", metric, "", 2, nil))
 }
 
 func TestMaterializedLogCountBucketizerAcceptsLateObservationForOpenBucket(t *testing.T) {
@@ -88,9 +88,9 @@ func TestMaterializedLogCountBucketizerAcceptsLateObservationForOpenBucket(t *te
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
 	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
 
-	require.True(t, b.observe("logs", metric, 1, nil))
+	require.True(t, b.observe("logs", metric, "", 1, nil))
 	b.flush(storage, 4)
-	require.True(t, b.observe("logs", metric, 3, nil))
+	require.True(t, b.observe("logs", metric, "", 3, nil))
 	b.flush(storage, 5)
 
 	series := storage.GetSeries("logs", "log.pattern.count", nil, observerdef.AggregateAverage)
@@ -111,9 +111,9 @@ func TestMaterializedLogCountBucketizerOverridesRetentionForLogSeries(t *testing
 	})
 	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
 
-	require.True(t, b.observe("logs", metric, 1, nil))
+	require.True(t, b.observe("logs", metric, "", 1, nil))
 	b.flush(storage, 5)
-	require.True(t, b.observe("logs", metric, 21, nil))
+	require.True(t, b.observe("logs", metric, "", 21, nil))
 	b.flush(storage, 25)
 
 	series := storage.GetSeries("logs", "log.pattern.count", nil, observerdef.AggregateAverage)

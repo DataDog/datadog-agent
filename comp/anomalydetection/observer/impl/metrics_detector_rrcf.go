@@ -247,19 +247,20 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 		}
 	}
 
-	// Build a tag signature for each series
-	tagSig := func(tags []string) string {
+	// Build an identity signature for each series. Host is separate from metric
+	// tags, so it must participate to avoid combining different hosts.
+	tagSig := func(host string, tags []string) string {
 		sorted := make([]string, len(tags))
 		copy(sorted, tags)
 		sort.Strings(sorted)
-		return strings.Join(sorted, ",")
+		return host + "|" + strings.Join(sorted, ",")
 	}
 
 	// Group series by tag signature and find a tag set that has ALL metrics
 	tagSetMetrics := make(map[string]map[string]observer.SeriesMeta) // tagSig -> cursorKey -> SeriesMeta
 	for cursorKey, metas := range seriesByMetric {
 		for _, meta := range metas {
-			sig := tagSig(meta.Tags)
+			sig := tagSig(meta.Host, meta.Tags)
 			if tagSetMetrics[sig] == nil {
 				tagSetMetrics[sig] = make(map[string]observer.SeriesMeta)
 			}

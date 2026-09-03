@@ -69,6 +69,7 @@ type observation struct {
 type metricObs struct {
 	name      string
 	value     float64
+	host      string
 	tags      []string
 	timestamp int64
 }
@@ -87,6 +88,8 @@ func (m *metricObs) GetValue() float64 {
 func (m *metricObs) GetRawTags() []string {
 	return m.tags
 }
+
+func (m *metricObs) GetHost() string { return m.host }
 
 func (m *metricObs) GetTimestampUnix() int64 { return m.timestamp }
 
@@ -695,6 +698,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 				result.Anomalies[j].Source = observerdef.SeriesDescriptor{
 					Namespace: series.Namespace,
 					Name:      series.Name,
+					Host:      series.Host,
 					Tags:      series.Tags,
 					Aggregate: agg,
 				}
@@ -1068,8 +1072,9 @@ type metricIngestDecision struct {
 
 func prepareMetricIngest(source string, sample observerdef.MetricView, filter *metricsFilterRules) metricIngestDecision {
 	name := sample.GetName()
+	host := sample.GetHost()
 	normalizedSource := normalizeMetricSource(name, source)
-	precheck := filter.precheck(name, normalizedSource)
+	precheck := filter.precheck(name, normalizedSource, host)
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
 	}
@@ -1077,8 +1082,8 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 	// Canonicalize once so the mute hash in isMuted matches seriesKeyHash in
 	// storage, and downstream Add calls hit the tagsSorted fast path.
 	tags := canonicalizeTags(sample.GetRawTags())
-	if filter.isMuted(name, normalizedSource, tags) ||
-		(precheck.needsTags && !filter.isAllowedByRulesFrom(name, normalizedSource, tags, precheck.firstCandidate)) {
+	if filter.isMutedWithHost(name, normalizedSource, host, tags) ||
+		(precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, normalizedSource, host, tags, precheck.firstCandidate)) {
 		return metricIngestDecision{source: normalizedSource}
 	}
 
@@ -1091,6 +1096,7 @@ func prepareMetricIngest(source string, sample observerdef.MetricView, filter *m
 		metric: &metricObs{
 			name:      name,
 			value:     sample.GetValue(),
+			host:      host,
 			tags:      tags,
 			timestamp: timestamp,
 		},
