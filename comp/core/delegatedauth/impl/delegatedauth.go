@@ -107,6 +107,9 @@ type authInstance struct {
 // Thread-safety: This struct uses sync.RWMutex (mu) to protect concurrent access to all
 // mutable fields.
 type delegatedAuthComponent struct {
+	// addInstanceMu serializes construction and replacement without blocking status reads.
+	addInstanceMu sync.Mutex
+
 	// Mutable fields (protected by mu)
 	mu               sync.RWMutex
 	config           pkgconfigmodel.ReaderWriter
@@ -262,7 +265,12 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		return errors.New("additional_endpoint_domain and additional_endpoints_list_config_key are mutually exclusive")
 	}
 
-	// Check for context cancellation early
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	d.addInstanceMu.Lock()
+	defer d.addInstanceMu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -280,6 +288,9 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	// now if set, so dual-shipping still works. No retry — detection only runs once.
 	if providerConfig == nil {
 		log.Warnf("Delegated auth is not available on this host, so '%s' will keep its statically configured value", params.APIKeyConfigKey)
+		if err := d.replaceInstance(ctx, params.APIKeyConfigKey, nil); err != nil {
+			return err
+		}
 		if params.FallbackAPIKey != "" {
 			d.writeAPIKeyToTarget(fallbackTargetInstance(params), params.FallbackAPIKey, true)
 		}
@@ -332,33 +343,9 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		done:                             make(chan struct{}),
 	}
 
-	// Check if we're replacing an existing instance.
-	// This is expected behavior - callers may reconfigure delegated auth (e.g., with different org UUID
-	// or refresh interval). When this happens, we cancel the old refresh goroutine and wait for it to
-	// exit before starting a new one to prevent goroutine leaks.
-	var existingDone chan struct{}
-	d.mu.Lock()
-	if existingInstance, exists := d.instances[apiKeyConfigKey]; exists {
-		log.Infof("Replacing existing delegated auth configuration for '%s'", apiKeyConfigKey)
-		// Cancel the existing refresh goroutine
-		if existingInstance.refreshCancel != nil {
-			existingInstance.refreshCancel()
-		}
-		existingDone = existingInstance.done
-	}
-	d.instances[apiKeyConfigKey] = instance
-	d.mu.Unlock()
-
-	// Wait for the old goroutine to exit outside the lock to avoid blocking other operations
-	if existingDone != nil {
-		select {
-		case <-existingDone:
-			// Old goroutine has exited
-		case <-ctx.Done():
-			// Context was canceled while waiting - clean up and return error
-			refreshCancel()
-			return ctx.Err()
-		}
+	if err := d.replaceInstance(ctx, apiKeyConfigKey, instance); err != nil {
+		refreshCancel()
+		return err
 	}
 
 	log.Infof("Delegated authentication is enabled for '%s', fetching initial API key...", apiKeyConfigKey)
@@ -386,6 +373,46 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	// This ensures retries will happen with exponential backoff
 	d.startBackgroundRefresh(instance)
 
+	return nil
+}
+
+// replaceInstance stops the old refresh loop before publishing its replacement.
+// A nil replacement removes the existing instance.
+func (d *delegatedAuthComponent) replaceInstance(ctx context.Context, key string, replacement *authInstance) error {
+	d.mu.RLock()
+	existing := d.instances[key]
+	d.mu.RUnlock()
+
+	if existing != nil {
+		log.Infof("Replacing existing delegated auth configuration for '%s'", key)
+		if existing.refreshCancel != nil {
+			existing.refreshCancel()
+		}
+		if existing.done != nil {
+			select {
+			case <-existing.done:
+			case <-ctx.Done():
+				if replacement != nil && replacement.refreshCancel != nil {
+					replacement.refreshCancel()
+				}
+				return ctx.Err()
+			}
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		if replacement != nil && replacement.refreshCancel != nil {
+			replacement.refreshCancel()
+		}
+		return err
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if replacement == nil {
+		delete(d.instances, key)
+	} else {
+		d.instances[key] = replacement
+	}
 	return nil
 }
 
