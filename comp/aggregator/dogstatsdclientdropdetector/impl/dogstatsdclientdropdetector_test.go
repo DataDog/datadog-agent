@@ -153,13 +153,11 @@ func TestComponentIgnoresWindowBeforeStartupReconciliation(t *testing.T) {
 	}).Comp.(*component)
 
 	completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
-	state := goClientState(detector)
-	require.Equal(t, clientByteStats{}, state.stats)
-	require.False(t, state.confirmationPending)
-	require.Nil(t, healthPlatform.GetIssue(state.issueID))
+	require.Empty(t, detector.clients)
 
 	lifecycle.start(t)
 	completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
+	state := goClientState(detector)
 	require.True(t, state.confirmationPending)
 }
 
