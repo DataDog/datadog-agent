@@ -33,7 +33,7 @@ New Features
   of Kubernetes cluster-level metrics, leader election coordination for Kubernetes receivers,
   and count-based metric generation via the OpenTelemetry Collector pipeline.
 
-- Add helm rollback action
+- Add Helm rollback action
 
 - Adds an Agent Data Plane (ADP) preflight mode, controlled by the new
   ``data_plane.preflight_mode`` setting (enabled by default).
@@ -190,7 +190,7 @@ Enhancement Notes
 
 - Adds kubernetes-actions functionality to the private action runner in the DCA.
 
-- Adds ability to patch daemonsets and statefulsets through the kuberntes-actions pipeline.
+- Adds ability to patch daemonsets and statefulsets through the kubernetes-actions pipeline.
 
 - Add ``exporter.datadogexporter.AddUnits`` feature gate that maps OTLP (UCUM) metric units to their Datadog equivalents.
 
@@ -292,7 +292,7 @@ Enhancement Notes
   execution policies. Leaving the setting unset preserves the backend grants;
   configuring an empty map blocks all system-service operations.
 
-- The Agent can now refresh secrets-managed API keys when a Remote Agent reports an Invalid API Kay event.
+- The Agent can now refresh secrets-managed API keys when a Remote Agent reports an Invalid API Key event.
 
 - End User Device Monitoring no longer applies a preconfigured set of SaaS
   domain filters to ``network_path.collector.filters``. Network Path
