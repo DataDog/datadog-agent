@@ -17,15 +17,3 @@ features:
     from the configuration file as well as to lists received from Remote
     Configuration. ``metric_filterlist_match_prefix``, which turns every entry
     of the list into a prefix, is unaffected and still supported.
-upgrade:
-  - |
-    A ``metric_filterlist`` or ``statsd_metric_blocklist`` entry ending with
-    ``*`` is now interpreted as a prefix pattern rather than as a metric name
-    containing a literal trailing ``*``. Metric names ending with a literal
-    ``*`` can no longer be filtered.
-fixes:
-  - |
-    Fixed prefix entries of ``metric_filterlist`` not being applied to the
-    aggregates derived from DogStatsD histograms, timings and distributions
-    (for example ``.avg`` or ``.95percentile``) when the name of the aggregate
-    matched the prefix but the name of the histogram itself did not.
