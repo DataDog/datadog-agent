@@ -315,7 +315,7 @@ func TestGetAPIDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getAPIDomain(tt.endpoint, true)
+			got := getAPIDomain(tt.endpoint)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -329,23 +329,27 @@ func TestResolveTokenURL(t *testing.T) {
 	cfg := mock.NewFromYAML(t, `dd_url: "https://agent.datadoghq.com"`)
 
 	t.Run("empty targetSite falls back to the agent's primary site", func(t *testing.T) {
-		got := resolveTokenURL(cfg, "")
+		got, err := resolveTokenURL(cfg, "")
+		require.NoError(t, err)
 		assert.Equal(t, "https://api.datadoghq.com/api/v2/intake-key", got)
 	})
 
 	t.Run("non-empty targetSite overrides the primary site", func(t *testing.T) {
-		got := resolveTokenURL(cfg, "https://agent.datad0g.com")
+		got, err := resolveTokenURL(cfg, "https://agent.datad0g.com")
+		require.NoError(t, err)
 		assert.Equal(t, "https://api.datad0g.com/api/v2/intake-key", got)
 	})
 
-	// Regression test: a supported HTTP proxy dd_url legitimately doesn't match the known-Datadog
-	// domain pattern, so it must not be treated the same as an unrecognized delegated-auth target
-	// site (which gets a Warnf since a signed proof is being sent there). Falling back to the
-	// primary site via an empty targetSite must stay silent (Debugf) regardless of whether that
-	// site happens to match the pattern.
+	t.Run("non-Datadog target is rejected", func(t *testing.T) {
+		_, err := resolveTokenURL(cfg, "https://example.com")
+		require.ErrorContains(t, err, "not a recognized Datadog domain")
+	})
+
+	// The primary dd_url may legitimately point at an HTTP proxy.
 	t.Run("empty targetSite falling back to an unrecognized primary site (e.g. a proxy) still resolves", func(t *testing.T) {
 		proxyCfg := mock.NewFromYAML(t, `dd_url: "https://my-proxy.internal"`)
-		got := resolveTokenURL(proxyCfg, "")
+		got, err := resolveTokenURL(proxyCfg, "")
+		require.NoError(t, err)
 		assert.Equal(t, "https://my-proxy.internal/api/v2/intake-key", got)
 	})
 }
