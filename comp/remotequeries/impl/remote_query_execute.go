@@ -14,6 +14,8 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
+	"strings"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -40,11 +42,33 @@ const (
 	remoteQueryFixtureTableProofQuery   = "SELECT city, country FROM cities ORDER BY city"
 	remoteQueryMatrixIdentityProofQuery = "SELECT current_database() AS current_db, expected_agent_hostname, expected_postgres_host, expected_postgres_port, expected_dbname, marker FROM remote_query_identity"
 
+	// ClickHouse proof queries, mirroring the integrations-core executor's allowlist.
+	// The fixture-dependent Postgres proofs stay Postgres-only: they need harness-
+	// created tables (cities, remote_query_identity); hostName()/currentUser()/
+	// version() prove the matched server without any fixture.
+	remoteQueryClickHouseIdentityProofQuery = "SELECT hostName() AS host, currentUser() AS user, version() AS version"
+	// Binary-sensitive but valid-UTF-8 proof payload: unhex('006162') decodes to a NUL
+	// byte followed by ASCII, which real servers render as \u0000 in the stream
+	// format, so the row stays valid JSON and the page preserves the payload exactly.
+	// The former unhex('00ff80') payload was non-UTF-8, which the executor's JSON
+	// value contract fails closed on, so it can no longer be allowlisted.
+	remoteQueryClickHouseBinaryPayloadProofQuery = "SELECT unhex('006162') AS payload"
+
+	// ClickHouse hard cap on repeat() counts: the server rejects anything above
+	// 1,000,000 with Code 131 (TOO_LARGE_STRING_SIZE), and no setting lifts it
+	// (verified on 22.7, 24.8, and 26.3 by the integrations-core executor). Proof
+	// payloads larger than the cap concatenate bounded repeat() parts instead.
+	remoteQueryClickHouseRepeatCap = 1000000
+
 	statusExecutorUnavailable = "executor_unavailable"
 )
 
 const remoteQueryBinaryPayloadProofQuery = "SELECT decode('00ff80', 'hex') AS payload"
 
+// The dialect-neutral large-payload proof queries of the Postgres proof set; the
+// value documents the payload size. ClickHouse cannot carry these: every count sits
+// at or above its hard repeat() cap, so its proof set registers the deterministic
+// concat queries built by remoteQueryClickHouseProofPayloadQuery instead.
 var remoteQueryLargePayloadProofQueries = map[string]int{
 	"SELECT repeat('x', 1048576) AS payload":  1 << 20,  // 1 MiB.
 	"SELECT repeat('x', 2097152) AS payload":  2 << 20,  // 2 MiB.
@@ -52,6 +76,86 @@ var remoteQueryLargePayloadProofQueries = map[string]int{
 	"SELECT repeat('x', 8388608) AS payload":  8 << 20,  // 8 MiB.
 	"SELECT repeat('x', 16777216) AS payload": 16 << 20, // 16 MiB.
 	"SELECT repeat('x', 33554432) AS payload": 32 << 20, // 32 MiB.
+}
+
+// The pinned ClickHouse proof payload sizes in bytes: 1, 2, 4, 8, 16, and 32 MiB,
+// mirroring the integrations-core executor's REMOTE_QUERY_PROOF_PAYLOAD_SIZES_BYTES.
+var remoteQueryClickHouseProofPayloadSizesBytes = []int{1048576, 2097152, 4194304, 8388608, 16777216, 33554432}
+
+// remoteQueryProofQueries is the integration-specific proof-query allowlist. Each
+// supported integration's set mirrors its integration-side executor's allowlist
+// exactly, and dialect-specific proof queries never cross integrations: the Agent
+// accepts no proof query the matched executor would reject and rejects none it
+// accepts. The fixture-dependent Postgres proofs (cities, remote_query_identity,
+// decode) can never reach a ClickHouse executor even though the generic bridge
+// import would attempt them, and the ClickHouse identity/binary proofs never reach
+// a Postgres executor.
+var remoteQueryProofQueries = map[string]map[string]struct{}{
+	postgresIntegration:   postgresProofQueries(),
+	clickhouseIntegration: clickHouseProofQueries(),
+}
+
+func postgresProofQueries() map[string]struct{} {
+	queries := map[string]struct{}{
+		remoteQueryProofSeedQuery:           {},
+		remoteQueryFixtureTableProofQuery:   {},
+		remoteQueryMatrixIdentityProofQuery: {},
+		remoteQueryBinaryPayloadProofQuery:  {},
+	}
+	for query := range remoteQueryLargePayloadProofQueries {
+		queries[query] = struct{}{}
+	}
+	return queries
+}
+
+// remoteQueryClickHouseProofPayloadQuery builds the single-row ClickHouse proof query
+// producing exactly sizeBytes payload bytes. Every repeat() count must stay within
+// the server's hard cap (see remoteQueryClickHouseRepeatCap), so a payload is the
+// concatenation of sizeBytes/cap full-cap parts and one remainder part when the
+// size is not an exact multiple of the cap. The construction is a pure function of
+// sizeBytes mirroring the integrations-core executor's _proof_payload_query
+// byte-for-byte, so the Agent-side allowlist registers the exact strings the executor
+// allowlists; hand-maintained large SQL strings would drift instead.
+func remoteQueryClickHouseProofPayloadQuery(sizeBytes int) (string, error) {
+	if sizeBytes <= 0 {
+		return "", errors.New("proof payload size must be a positive byte count")
+	}
+	whole, remainder := sizeBytes/remoteQueryClickHouseRepeatCap, sizeBytes%remoteQueryClickHouseRepeatCap
+	fullCapPart := "repeat('x', " + strconv.Itoa(remoteQueryClickHouseRepeatCap) + ")"
+	repeatParts := make([]string, 0, whole+1)
+	for range whole {
+		repeatParts = append(repeatParts, fullCapPart)
+	}
+	if remainder > 0 {
+		repeatParts = append(repeatParts, "repeat('x', "+strconv.Itoa(remainder)+")")
+	}
+	return "SELECT concat(" + strings.Join(repeatParts, ", ") + ") AS payload", nil
+}
+
+// clickHouseProofQueries mirrors the integrations-core ClickHouse executor's corrected
+// proof allowlist exactly: the dialect-neutral seed, the fixture-free identity proof,
+// the valid-UTF-8 binary payload proof via unhex, and the six deterministic
+// bounded-repeat payload queries built by remoteQueryClickHouseProofPayloadQuery —
+// never the direct repeat('x', N) Postgres form, which real servers reject at these
+// sizes. The future multi-row 100 MiB proof stays deferred; the Agent does not invent
+// one.
+func clickHouseProofQueries() map[string]struct{} {
+	queries := map[string]struct{}{
+		remoteQueryProofSeedQuery:                    {},
+		remoteQueryClickHouseIdentityProofQuery:      {},
+		remoteQueryClickHouseBinaryPayloadProofQuery: {},
+	}
+	for _, sizeBytes := range remoteQueryClickHouseProofPayloadSizesBytes {
+		query, err := remoteQueryClickHouseProofPayloadQuery(sizeBytes)
+		if err != nil {
+			// Unreachable: the pinned sizes are positive constants. Construction
+			// fails closed instead of registering a partial allowlist.
+			//reliabilint:ignore PANIC_OPERATIONAL_ERROR reason="unreachable must-style guard on pinned positive constants; init-time allowlist construction fails closed instead of registering a partial set"
+			panic(err)
+		}
+		queries[query] = struct{}{}
+	}
+	return queries
 }
 
 // Hard forwarding caps for the backend-injected upload instructions. The backend owns the
@@ -92,14 +196,13 @@ func RemoteQueriesQueryAllowlistEnabled(cfg interface {
 	return cfg.GetBool(RemoteQueriesEnableQueryAllowlistConfig)
 }
 
-func isRemoteQueryAllowedProofQuery(query string) bool {
-	switch query {
-	case remoteQueryProofSeedQuery, remoteQueryFixtureTableProofQuery, remoteQueryMatrixIdentityProofQuery, remoteQueryBinaryPayloadProofQuery:
-		return true
-	default:
-		_, ok := remoteQueryLargePayloadProofQueries[query]
-		return ok
+func isRemoteQueryAllowedProofQuery(integration string, query string) bool {
+	queries, ok := remoteQueryProofQueries[integration]
+	if !ok {
+		return false
 	}
+	_, ok = queries[query]
+	return ok
 }
 
 type remoteQueryCheckUnwrapper interface {
@@ -624,7 +727,7 @@ func (s *RemoteQueryExecuteService) ExecuteStream(_ctx context.Context, req Remo
 	if req.ResultDelivery == nil {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "result_delivery is required")
 	}
-	if s.queryAllowlistEnabled && !isRemoteQueryAllowedProofQuery(req.Query) {
+	if s.queryAllowlistEnabled && !isRemoteQueryAllowedProofQuery(req.Integration, req.Query) {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "query is not allowed")
 	}
 

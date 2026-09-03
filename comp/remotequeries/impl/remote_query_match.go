@@ -27,6 +27,12 @@ import (
 )
 
 const (
+	// postgresIntegration and clickhouseIntegration are the integrations whose
+	// instance-config shapes the bridge parses. Any other integration fails closed:
+	// the bridge never guesses a config shape it has not been taught.
+	postgresIntegration   = "postgres"
+	clickhouseIntegration = "clickhouse"
+
 	// RemoteQueryMatchEndpointPath is mounted under /agent by the Agent command API.
 	RemoteQueryMatchEndpointPath = "/remote-queries/match-check"
 	// RemoteQueriesMatchEnabledConfig is disabled by default when the key is absent.
@@ -371,7 +377,7 @@ func findIntegrationMatches(collector RemoteQueryCollector, integration string, 
 			continue
 		}
 
-		instanceTarget, ok := parseIntegrationInstanceTarget(chk.InstanceConfig())
+		instanceTarget, ok := parseIntegrationInstanceTarget(integration, chk.InstanceConfig())
 		if !ok {
 			continue
 		}
@@ -403,7 +409,18 @@ func (t integrationInstanceTarget) matches(target remoteQueryTarget) bool {
 	return t.host == target.Host && t.port == target.Port && t.dbname == target.DBName
 }
 
-func parseIntegrationInstanceTarget(instanceConfig string) (integrationInstanceTarget, bool) {
+func parseIntegrationInstanceTarget(integration string, instanceConfig string) (integrationInstanceTarget, bool) {
+	switch integration {
+	case postgresIntegration:
+		return parsePostgresInstanceTarget(instanceConfig)
+	case clickhouseIntegration:
+		return parseClickHouseInstanceTarget(instanceConfig)
+	default:
+		return integrationInstanceTarget{}, false
+	}
+}
+
+func parsePostgresInstanceTarget(instanceConfig string) (integrationInstanceTarget, bool) {
 	var fields map[string]any
 	if err := yaml.Unmarshal([]byte(instanceConfig), &fields); err != nil || fields == nil {
 		return integrationInstanceTarget{}, false
@@ -433,6 +450,64 @@ func parseIntegrationInstanceTarget(instanceConfig string) (integrationInstanceT
 	return integrationInstanceTarget{host: host, port: port, dbname: dbname, databaseInstance: databaseInstance}, true
 }
 
+// The ClickHouse check's documented instance defaults: the HTTP interface port and
+// the default database. The Agent applies them exactly like the check does when the
+// config keys are absent, so instance matching sees the effective endpoint the check
+// monitors.
+const (
+	clickhouseDefaultPort = 8123
+	clickhouseDefaultDB   = "default"
+)
+
+// parseClickHouseInstanceTarget parses a ClickHouse check instance config. The wire
+// tuple {host, port, dbname} is the normalized alias of the ClickHouse config triple
+// {server, port, db}: wire host aliases config server and wire dbname aliases config
+// db. The wire dbname stays required and is compared exactly against the effective
+// database — an explicit db, or the check's `default` when the key is absent — so an
+// instance only matches a target that names the database it actually monitors. Keys
+// that are present but invalid fail closed; the deprecated config alias `host` is not
+// accepted for server (the parser reads the canonical field only).
+func parseClickHouseInstanceTarget(instanceConfig string) (integrationInstanceTarget, bool) {
+	var fields map[string]any
+	if err := yaml.Unmarshal([]byte(instanceConfig), &fields); err != nil || fields == nil {
+		return integrationInstanceTarget{}, false
+	}
+
+	rawServer, ok := fields["server"].(string)
+	if !ok {
+		return integrationInstanceTarget{}, false
+	}
+	server := normalizeHost(rawServer)
+	if server == "" {
+		return integrationInstanceTarget{}, false
+	}
+
+	port := clickhouseDefaultPort
+	if rawPort, present := fields["port"]; present {
+		parsedPort, ok := yamlInt(rawPort)
+		if !ok || parsedPort < 1 || parsedPort > 65535 {
+			return integrationInstanceTarget{}, false
+		}
+		port = parsedPort
+	}
+
+	db := clickhouseDefaultDB
+	if rawDB, present := fields["db"]; present {
+		parsedDB, ok := rawDB.(string)
+		if !ok || parsedDB == "" {
+			return integrationInstanceTarget{}, false
+		}
+		db = parsedDB
+	}
+
+	// The identifier renders from the raw server string because the check templates
+	// str(config.server) without normalization; the normalized server is used for
+	// tuple matching against the wire host only.
+	databaseInstance, _ := renderClickHouseDatabaseIdentifier(fields, rawServer, port, db)
+
+	return integrationInstanceTarget{host: server, port: port, dbname: db, databaseInstance: databaseInstance}, true
+}
+
 func renderPostgresDatabaseIdentifier(fields map[string]any, host string, port int) (string, bool) {
 	template := "$resolved_hostname"
 	if rawIdentifier, ok := fields["database_identifier"]; ok {
@@ -460,6 +535,62 @@ func renderPostgresDatabaseIdentifier(fields map[string]any, host string, port i
 }
 
 func postgresDatabaseIdentifierTemplateValues(fields map[string]any, host string, port int) map[string]string {
+	values := tagTemplateValues(fields)
+	values["host"] = host
+	values["port"] = strconv.Itoa(port)
+	if reportedHostname, ok := fields["reported_hostname"].(string); ok && strings.TrimSpace(reportedHostname) != "" {
+		values["resolved_hostname"] = strings.TrimSpace(reportedHostname)
+	}
+	return values
+}
+
+// clickhouseDatabaseIdentifierDefaultTemplate mirrors the ClickHouse check's default
+// database_identifier template.
+const clickhouseDatabaseIdentifierDefaultTemplate = "$server:$port:$db"
+
+// renderClickHouseDatabaseIdentifier renders the database_instance identifier the
+// ClickHouse check emits. Unlike Postgres, the check's default template
+// $server:$port:$db is fully config-derived — server, port, and db are effective config
+// values, none resolved at runtime — so the Agent can render it faithfully instead of
+// failing closed like the Postgres default.
+func renderClickHouseDatabaseIdentifier(fields map[string]any, server string, port int, db string) (string, bool) {
+	template := clickhouseDatabaseIdentifierDefaultTemplate
+	if rawIdentifier, ok := fields["database_identifier"]; ok {
+		identifier, ok := rawIdentifier.(map[string]any)
+		if !ok {
+			return "", false
+		}
+		rawTemplate, ok := identifier["template"]
+		if !ok {
+			return "", false
+		}
+		parsedTemplate, ok := rawTemplate.(string)
+		if !ok || parsedTemplate == "" {
+			return "", false
+		}
+		template = parsedTemplate
+	}
+
+	values := clickHouseDatabaseIdentifierTemplateValues(fields, server, port, db)
+	rendered, ok := renderPythonTemplate(template, values)
+	if !ok || rendered == "" {
+		return "", false
+	}
+	return rendered, true
+}
+
+func clickHouseDatabaseIdentifierTemplateValues(fields map[string]any, server string, port int, db string) map[string]string {
+	values := tagTemplateValues(fields)
+	values["server"] = server
+	values["port"] = strconv.Itoa(port)
+	values["db"] = db
+	return values
+}
+
+// tagTemplateValues exposes each `key:value` tag as a template variable, matching the
+// check-side identifier templating: duplicate keys join with commas after sorting the
+// tags for a stable ordering.
+func tagTemplateValues(fields map[string]any) map[string]string {
 	values := make(map[string]string)
 	if tags, ok := fields["tags"].([]any); ok {
 		stringTags := make([]string, 0, len(tags))
@@ -482,11 +613,6 @@ func postgresDatabaseIdentifierTemplateValues(fields map[string]any, host string
 				values[key] = value
 			}
 		}
-	}
-	values["host"] = host
-	values["port"] = strconv.Itoa(port)
-	if reportedHostname, ok := fields["reported_hostname"].(string); ok && strings.TrimSpace(reportedHostname) != "" {
-		values["resolved_hostname"] = strings.TrimSpace(reportedHostname)
 	}
 	return values
 }
