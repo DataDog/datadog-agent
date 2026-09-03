@@ -211,10 +211,6 @@ Enhancement Notes
   running their unit tests and clippy lint checks in CI as part of the
   build.
 
-- Agents are now built with Go ``1.26.5``.
-
-- Agents are now built with Go ``1.26.6``.
-
 - Agents are now built with Go ``1.26.7``.
 
 - Check instances scheduled via configuration discovery now carry the
@@ -313,10 +309,6 @@ Enhancement Notes
   Agent logger, so their output is formatted and level-filtered consistently
   with other checks instead of being written directly to standard output.
 
-- The Linux Agent packages can now ship built-in Rust-based checks as shared
-  libraries under ``/etc/datadog-agent/checks.d``, restricted to owner-only access.
-  No such check is shipped for now; this only adds the packaging support.
-
 - SNMP device scans now walk devices using GetBulk by default, requesting only
   OIDs the device actually returns and adapting the max-repetitions on failures.
   This avoids the infinite loops and device crashes that could occur with the
@@ -326,17 +318,12 @@ Enhancement Notes
 - SNMP device scans now report results incrementally while the scan is running
   instead of only after it completes, so large devices surface OIDs sooner.
 
-- Upgrade OpenTelemetry Collector dependencies from v0.156.0 to v0.157.0
-  (core v1.62.0 to v1.63.0).
+- Upgrade OpenTelemetry Collector dependencies from v0.156.0 to v0.158.0
+  (core v1.62.0 to v1.64.0).
   
   See the full upstream changelogs:
   `collector-contrib v0.157.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.157.0>`_,
   `collector core v0.157.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.157.0>`_.
-
-- Upgrade OpenTelemetry Collector dependencies from v0.157.0 to v0.158.0
-  (core v1.63.0 to v1.64.0).
-  
-  See the full upstream changelogs:
   `collector-contrib v0.158.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.158.0>`_,
   `collector core v0.158.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.158.0>`_.
 
