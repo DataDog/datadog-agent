@@ -253,3 +253,36 @@ pub fn expected_spawn_user(process_name: &str) -> String {
 pub fn expected_runtime_user_for_pid(pid: u32) -> String {
     crate::platform::runtime_user_for_pid(pid).unwrap_or_else(|| "unknown".to_string())
 }
+
+#[cfg(windows)]
+pub fn privileged_process_agent_command_line() -> (String, Vec<String>) {
+    let install_root = crate::platform::windows::install_root_for_tests();
+    let etc_root = crate::platform::program_data_root();
+    let command = install_root
+        .join(r"bin\agent\process-agent.exe")
+        .to_string_lossy()
+        .into_owned();
+    let args = vec![
+        "--cfgpath".to_string(),
+        etc_root.join("datadog.yaml").to_string_lossy().into_owned(),
+    ];
+    (command, args)
+}
+
+#[cfg(windows)]
+fn yaml_single_quoted(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+#[cfg(windows)]
+pub fn privileged_process_agent_yaml(extra: &str) -> String {
+    let (command, args) = privileged_process_agent_command_line();
+    let mut yaml = format!("command: {}\n", yaml_single_quoted(&command));
+    yaml.push_str("args:\n");
+    for arg in &args {
+        yaml.push_str(&format!("  - {}\n", yaml_single_quoted(arg)));
+    }
+    yaml.push_str("auto_start: true\n");
+    yaml.push_str(extra);
+    yaml
+}

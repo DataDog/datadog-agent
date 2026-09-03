@@ -339,6 +339,12 @@ pub fn program_data_root() -> PathBuf {
         .unwrap_or_else(default_program_data_dir)
 }
 
+/// Same paths the daemon uses when validating privileged process-agent spawns.
+#[cfg(any(test, feature = "test-helpers"))]
+pub fn install_root_for_tests() -> PathBuf {
+    install_root()
+}
+
 fn default_program_data_dir() -> PathBuf {
     let base = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
     PathBuf::from(base).join("Datadog")
