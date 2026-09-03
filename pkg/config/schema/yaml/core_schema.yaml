@@ -8627,7 +8627,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: false
+                default: true
           sleep_interval:
             node_type: setting
             type: string
