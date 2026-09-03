@@ -210,10 +210,11 @@ def _ci_pulumi_env() -> dict[str, str]:
 
 
 def _local_pulumi_passphrase(config_path: str | None) -> str | None:
-    # Imported here because config imports this module.
-    from . import config as e2e_config
-
     try:
+        # Imported here, and inside the try: config imports this module, and pulls in
+        # pydantic, which isn't installed in every environment that calls run_pulumi.
+        from . import config as e2e_config
+
         return e2e_config.get_pulumi_passphrase(e2e_config.get_local_config(config_path))
     except Exception:
         # A broken config file shouldn't stop `pulumi version` or `pulumi login` from
