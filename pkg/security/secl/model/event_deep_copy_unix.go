@@ -79,6 +79,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Umount = deepCopyUmountEvent(e.Umount)
 	copied.Unlink = deepCopyUnlinkEvent(e.Unlink)
 	copied.UnloadModule = deepCopyUnloadModuleEvent(e.UnloadModule)
+	copied.Unshare = deepCopyUnshareEvent(e.Unshare)
 	copied.UnshareMountNS = deepCopyUnshareMountNSEvent(e.UnshareMountNS)
 	copied.Utimes = deepCopyUtimesEvent(e.Utimes)
 	copied.VethPair = deepCopyVethPairEvent(e.VethPair)
@@ -1214,6 +1215,12 @@ func deepCopyUnlinkEvent(fieldToCopy UnlinkEvent) UnlinkEvent {
 func deepCopyUnloadModuleEvent(fieldToCopy UnloadModuleEvent) UnloadModuleEvent {
 	copied := UnloadModuleEvent{}
 	copied.Name = fieldToCopy.Name
+	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
+	return copied
+}
+func deepCopyUnshareEvent(fieldToCopy UnshareEvent) UnshareEvent {
+	copied := UnshareEvent{}
+	copied.Flags = fieldToCopy.Flags
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	return copied
 }

@@ -20,13 +20,13 @@ cc_library(
 rust_library(
     name = "par-control-lib",
     srcs = [
+        "src/bootstrap.rs",
         "src/config.rs",
         "src/executor.rs",
         "src/jwt.rs",
         "src/lib.rs",
         "src/opms.rs",
         "src/orchestrator.rs",
-        "src/platform.rs",
         "src/procmgr.rs",
         "src/proto.rs",
         "src/test_support.rs",
@@ -57,20 +57,13 @@ rust_library(
         "@crates//:saluki-tls",
         "@crates//:serde",
         "@crates//:serde_json",
-        "@crates//:serde_yaml",
         "@crates//:tokio",
         "@crates//:tokio-rustls",
         "@crates//:tokio-stream",
         "@crates//:tonic",
         "@crates//:tonic-prost",
         "@crates//:tower",
-    ] + select({
-        "@platforms//os:windows": [
-            "@crates//:windows-registry",
-            "@crates//:windows-sys",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 rust_binary(
