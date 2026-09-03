@@ -703,15 +703,11 @@ func (m *ManagerV2) shouldSendAnomalyDetection(p *profile.Profile, now time.Time
 		return p.HasAlreadyBeenSent()
 	}
 
-	// Anchor the window on the persisted profile start so it survives reloads and
-	// restarts; fall back to the in-memory creation time when no start is recorded.
 	start := p.Metadata.Start
 	if start.IsZero() {
 		start = p.StartedAt()
 	}
 
-	// Clamp so a backward clock jump (now before start) can neither reopen nor
-	// overextend the window: it counts as no time elapsed.
 	elapsed := now.Sub(start)
 	if elapsed < 0 {
 		elapsed = 0
