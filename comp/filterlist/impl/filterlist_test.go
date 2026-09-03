@@ -157,3 +157,84 @@ func TestMetricFilterListGlobalMatchPrefixStripsStar(t *testing.T) {
 	// The global flag still turns a plain entry into a prefix.
 	require.True(t, matcher.Test("bar.metric"))
 }
+
+// TestMetricFilterListNormalizesEntries verifies that metric_filterlist entries
+// are normalized at load time, so a raw entry such as `my metric-name` (which
+// the intake stores as `my_metric_name`) matches metrics submitted with that
+// raw name. Without normalization the verbatim entry would never match, since
+// Matcher.Test normalizes the query name but not the list.
+func TestMetricFilterListNormalizesEntries(t *testing.T) {
+	require := require.New(t)
+
+	cfg := map[string]interface{}{
+		// `my metric-name` normalizes to `my_metric_name`; `123` is unstorable
+		// (no ASCII letter) and must be dropped.
+		"metric_filterlist": []string{"my metric-name", "123", "already_normalized.metric"},
+	}
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	matcher := filterList.GetMetricFilterList()
+
+	// The raw submitted name normalizes to the stored entry, so it is filtered.
+	require.True(matcher.Test("my metric-name"), "raw name should match its normalized filterlist entry")
+	require.True(matcher.Test("my_metric_name"), "normalized name should match")
+	require.True(matcher.Test("already_normalized.metric"), "already-normalized entry should match")
+
+	// An unstorable entry cannot match anything.
+	require.False(matcher.Test("123"), "unstorable entry must not match")
+	require.False(matcher.Test("unrelated.metric"), "unrelated metric must not match")
+}
+
+// TestMetricFilterListNormalizesPrefixEntries verifies that normalization and
+// per-entry prefixes compose: the prefix of a raw entry is normalized, and the
+// entry keeps matching by prefix.
+func TestMetricFilterListNormalizesPrefixEntries(t *testing.T) {
+	require := require.New(t)
+
+	cfg := map[string]interface{}{
+		// Normalizes to the prefix entry `my_metric.*`.
+		"metric_filterlist": []string{"my metric.*"},
+	}
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("my metric.count"), "raw name should match the normalized prefix")
+	require.True(matcher.Test("my_metric.count"), "normalized name should match the prefix")
+	require.True(matcher.Test("my_metric."), "the prefix itself should match")
+	require.False(matcher.Test("my_metric"), "shorter than the prefix, should not match")
+	require.False(matcher.Test("other.metric"))
+}
+
+// TestNormalizeMetricNamesKeepsPrefixMarker verifies that normalizing an entry
+// preserves the trailing `*` marking it as a prefix: normalizing it away would
+// silently turn the prefix entry `my metric.*` into the exact name
+// `my_metric.`, and only filter that one metric.
+func TestNormalizeMetricNamesKeepsPrefixMarker(t *testing.T) {
+	require := require.New(t)
+
+	// `123.*` has no ASCII letter to normalize, so it is dropped like any other
+	// unstorable entry; a lone `*` matches everything and is kept as is.
+	in := []string{"my metric-name.*", "*", "123.*", "exact"}
+	out := normalizeMetricNames(in, logmock.New(t))
+
+	require.Equal([]string{"my_metric_name.*", "*", "exact"}, out)
+}
+
+// TestNormalizeMetricNamesDropsUnstorable verifies the helper drops names the
+// intake would reject outright rather than keeping them as dead entries.
+func TestNormalizeMetricNamesDropsUnstorable(t *testing.T) {
+	require := require.New(t)
+
+	in := []string{"valid.metric", "", "123", "...", "another.valid"}
+	out := normalizeMetricNames(in, logmock.New(t))
+
+	require.Equal([]string{"valid.metric", "another.valid"}, out)
+}

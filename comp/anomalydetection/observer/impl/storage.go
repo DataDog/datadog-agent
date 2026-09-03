@@ -60,6 +60,12 @@ type StorageConfig struct {
 	// this to true alongside MaxCorrelations=-1 to retain the full history for
 	// replay analysis.
 	TrackCorrelationHistory bool
+
+	// TrackAnomalyHistory enables full raw anomaly history for replay/debug
+	// introspection. Default false: live production keeps only a bounded dedup
+	// cache because reporters consume advance-local anomalies directly. The
+	// testbench enables this to display every anomaly from a finite replay.
+	TrackAnomalyHistory bool
 }
 
 // DefaultStorageConfig returns the hard-coded production defaults.
@@ -70,7 +76,7 @@ func DefaultStorageConfig() StorageConfig {
 		PointRetentionSecs:                 storagePointRetentionSecs,
 		InactiveSeriesTTLSeconds:           storageInactiveSeriesTTLSeconds,
 		InactiveSeriesCheckIntervalSeconds: storageInactiveSeriesCheckIntervalSeconds,
-		// TrackCorrelationHistory defaults to false: live agent incurs no overhead.
+		// History tracking defaults to false: live agent incurs no replay-only overhead.
 	}
 }
 
@@ -1141,6 +1147,18 @@ func (s *timeSeriesStorage) SetSeriesRetention(ref observer.SeriesRef, retention
 	if stats := s.resolveByID(ref); stats != nil {
 		stats.retentionOverrideSecs = max(retentionSecs, 0)
 	}
+}
+
+// pointRetentionForSeries returns the effective point-retention window for a
+// series. Missing series use the storage-wide value, which also provides the
+// fallback for anomalies that do not have a storage-backed source.
+func (s *timeSeriesStorage) pointRetentionForSeries(ref observer.SeriesRef) int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if stats := s.resolveByID(ref); stats != nil && stats.retentionOverrideSecs > 0 {
+		return stats.retentionOverrideSecs
+	}
+	return s.cfg.PointRetentionSecs
 }
 
 // SetSeriesActivityTimestamp overrides the timestamp used to rank a series for
