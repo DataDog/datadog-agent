@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 // TCAct is the type of the tc action
@@ -58,16 +57,6 @@ func (p Policy) String() string {
 		return "drop"
 	default:
 		return "allow"
-	}
-}
-
-// Parse parses a string and sets the policy
-func (p *Policy) Parse(policy rules.NetworkFilterPolicy) {
-	switch policy {
-	case "drop":
-		*p = PolicyDrop
-	default:
-		*p = PolicyAllow
 	}
 }
 

@@ -3974,7 +3974,13 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			}
 
 			var policy rawpacket.Policy
-			policy.Parse(action.Def.NetworkFilter.Policy)
+			switch action.Def.NetworkFilter.Policy {
+			case "drop":
+				policy = rawpacket.PolicyDrop
+			default:
+				policy = rawpacket.PolicyAllow
+			}
+
 			var reportStatus RawPacketActionStatus
 			if policy == rawpacket.PolicyDrop {
 				dropActionFilter := rawpacket.Filter{
