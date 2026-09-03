@@ -67,7 +67,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:               reqs.Log,
 	}
 	// Register a callback to refresh the client when the api_key or app_key changes
-	reqs.Config.OnUpdate(func(setting string, _ model.Source, _, _ any, _ uint64) {
+	reqs.Config.OnUpdate(func(setting string, _ model.Source, _, _ any, _ uint64, _ model.Source) {
 		if setting == "api_key" || setting == "app_key" {
 			dc.refreshClient()
 		}
