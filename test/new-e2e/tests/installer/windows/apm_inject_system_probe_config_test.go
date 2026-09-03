@@ -47,7 +47,7 @@ func (s *testSystemProbeConfig) TestInstallScriptStartsSystemProbe() {
 	output, err := s.InstallScript().Run(
 		WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED":                      "host",
-			"DD_INSTALLER_REGISTRY_URL":                           "install.datad0g.com",
+			"DD_INSTALLER_REGISTRY_URL":                           currentAPMInjectRegistry,
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": s.currentAPMInjectVersion.PackageVersion(),
 			"DD_APM_INSTRUMENTATION_LIBRARIES":                    "dotnet:3",
 		}),
@@ -73,7 +73,7 @@ func (s *testSystemProbeConfig) TestStandaloneInstallDoesNotStartSystemProbe() {
 	// Install apm-inject package separately
 	pkgOutput, err := s.Installer().InstallPackage("apm-inject-package",
 		installer.WithVersion(s.currentAPMInjectVersion.PackageVersion()),
-		installer.WithRegistry("install.datad0g.com"),
+		installer.WithRegistry(currentAPMInjectRegistry),
 	)
 	s.Require().NoError(err, "failed to install apm-inject package: %s", pkgOutput)
 

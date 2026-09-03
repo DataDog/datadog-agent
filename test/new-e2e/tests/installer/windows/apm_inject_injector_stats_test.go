@@ -45,9 +45,8 @@ func (s *testInjectorStats) TestQueryStatsViaSystemProbe() {
 	// Install agent with APM inject enabled
 	s.installCurrentAgentVersionWithAPMInject(
 		WithExtraEnvVars(map[string]string{
-			"DD_APM_INSTRUMENTATION_ENABLED": "host",
-			// TODO: remove override once image is published in prod
-			"DD_INSTALLER_REGISTRY_URL":                           "install.datad0g.com",
+			"DD_APM_INSTRUMENTATION_ENABLED":                      "host",
+			"DD_INSTALLER_REGISTRY_URL":                           currentAPMInjectRegistry,
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": s.currentAPMInjectVersion.PackageVersion(),
 			"DD_APM_INSTRUMENTATION_LIBRARIES":                    "dotnet:3",
 		}),
@@ -70,9 +69,8 @@ func (s *testInjectorStats) TestQueryStatsAfterInjection() {
 	// Install agent with APM inject enabled
 	s.installCurrentAgentVersionWithAPMInject(
 		WithExtraEnvVars(map[string]string{
-			"DD_APM_INSTRUMENTATION_ENABLED": "host",
-			// TODO: remove override once image is published in prod
-			"DD_INSTALLER_REGISTRY_URL":                           "install.datad0g.com",
+			"DD_APM_INSTRUMENTATION_ENABLED":                      "host",
+			"DD_INSTALLER_REGISTRY_URL":                           currentAPMInjectRegistry,
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": s.currentAPMInjectVersion.PackageVersion(),
 			"DD_APM_INSTRUMENTATION_LIBRARIES":                    "dotnet:3",
 		}),
