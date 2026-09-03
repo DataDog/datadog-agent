@@ -278,7 +278,7 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 
 	// Worth a warning, since it silently drops every metric.
 	if filterList.MatchesAll() {
-		fl.log.Warn("the metric filterlist contains an entry matching every metric name: all metrics will be dropped")
+		fl.log.Error("the metric filterlist contains an entry matching every metric name: all metrics will be dropped")
 	}
 
 	// Report the compiled size: with prefix matching, NewMatcher compacts
