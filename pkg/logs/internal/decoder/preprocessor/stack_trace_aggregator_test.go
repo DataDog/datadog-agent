@@ -751,14 +751,19 @@ func TestGoStackTrace_RawDataLenAggregated(t *testing.T) {
 	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize, true)
 	m1 := makeMsg("panic: bad")
 	m1.RawDataLen = 15
+	m1.SetRawDataLenForCheckpoint(0)
 	m2 := makeMsg("")
 	m2.RawDataLen = 5
+	m2.SetRawDataLenForCheckpoint(0)
 	m3 := makeMsg("goroutine 1 [running]:")
 	m3.RawDataLen = 27
+	m3.SetRawDataLenForCheckpoint(0)
 	m4 := makeMsg("main.main()")
 	m4.RawDataLen = 16
+	m4.SetRawDataLenForCheckpoint(0)
 	m5 := makeMsg("\t/path/main.go:1 +0x1")
 	m5.RawDataLen = 25
+	m5.SetRawDataLenForCheckpoint(88)
 
 	agg.Process(m1)
 	agg.Process(m2)
@@ -768,6 +773,7 @@ func TestGoStackTrace_RawDataLenAggregated(t *testing.T) {
 	out := agg.Flush()
 	require.Len(t, out, 1)
 	assert.Equal(t, 15+5+27+16+25, out[0].RawDataLen)
+	assert.Equal(t, 88, out[0].RawDataLenForCheckpoint())
 }
 
 // ---------------------------------------------------------------------------

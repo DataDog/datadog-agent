@@ -209,6 +209,11 @@ type SpanContext struct {
 type Tracer struct {
 	Metadata tracermetadata.TracerMetadata
 	Trace    SpanContext
+	// ThreadlocalAttributeKeys is the ordered list of attribute key names the
+	// process published in its OTel process context (OTEP 4947). The key indices
+	// of a thread context record index into it to resolve the full attribute
+	// name.
+	ThreadlocalAttributeKeys []string
 }
 
 // RuleContext defines a rule context
@@ -745,8 +750,8 @@ type AWSIMDSEvent struct {
 // AWSSecurityCredentials is used to parse the fields that are none to be free of credentials or secrets
 type AWSSecurityCredentials struct {
 	Code        string    `field:"-" json:"Code"`
-	Type        string    `field:"type" json:"Type"` // SECLDoc[type] Definition:`the security credentials type`
-	AccessKeyID string    `field:"-" json:"AccessKeyId"`
+	Type        string    `field:"type" json:"Type"`                 // SECLDoc[type] Definition:`The security credentials type`
+	AccessKeyID string    `field:"access_key_id" json:"AccessKeyId"` // SECLDoc[access_key_id] Definition:`The access key ID of the security credentials in the IMDS answer`
 	LastUpdated string    `field:"-" json:"LastUpdated"`
 	Expiration  time.Time `field:"-"`
 

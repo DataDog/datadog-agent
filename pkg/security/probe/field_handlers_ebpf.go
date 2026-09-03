@@ -757,6 +757,7 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model
 // kernel only left a reference to. Runs lazily during serialization or for fork and exec.
 func (fh *EBPFFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanContext {
 	fh.resolveGoLabelsSpanContext(ev)
+	fh.resolveOTelSpanAttrs(ev)
 
 	// fork and exec carry the span context over to the process they create.
 	if eventType := ev.GetEventType(); eventType == model.ForkEventType || eventType == model.ExecEventType {
@@ -785,6 +786,64 @@ func (fh *EBPFFieldHandlers) resolveGoLabelsSpanContext(ev *model.Event) {
 
 	ev.SpanContext.SpanID = spanID
 	ev.SpanContext.TraceID = traceID
+}
+
+// resolveOTelSpanAttrs fills the event attributes from the OTel thread local
+// context record snapshot the kernel staged under ExtraAttrsID.
+func (fh *EBPFFieldHandlers) resolveOTelSpanAttrs(ev *model.Event) {
+	if !ev.SpanContext.HasExtraAttrs {
+		return
+	}
+	ev.SpanContext.HasExtraAttrs = false
+
+	rawAttrs, err := fh.resolvers.OTelAttrsResolver.Resolve(ev.SpanContext.ExtraAttrsID)
+	if err != nil {
+		seclog.Tracef("unable to resolve the otel span attributes: %s", err)
+		return
+	}
+	if len(rawAttrs) == 0 {
+		return
+	}
+
+	keyNames := fh.otelAttributeKeyNames(ev)
+
+	attrs := make(map[string]string, len(rawAttrs))
+	for _, attr := range rawAttrs {
+		attrs[otelAttributeName(keyNames, attr.KeyIndex)] = attr.Value
+	}
+	ev.SpanContext.Attributes = attrs
+}
+
+// otelAttributeKeyNames returns the ordered key names the process published, which
+// the key indices of a record index into. The list lands on the cache entry that
+// was current when the process published its context, so an entry created by a
+// later exec carries none and the lookup has to walk up to an ancestor.
+func (fh *EBPFFieldHandlers) otelAttributeKeyNames(ev *model.Event) []string {
+	if ev.ProcessContext == nil {
+		return nil
+	}
+
+	fh.resolvers.ProcessResolver.RLock()
+	defer fh.resolvers.ProcessResolver.RUnlock()
+
+	if keyNames := ev.ProcessContext.Process.Tracer.ThreadlocalAttributeKeys; len(keyNames) > 0 {
+		return keyNames
+	}
+
+	for pce := ev.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
+		if keyNames := pce.Process.Tracer.ThreadlocalAttributeKeys; len(keyNames) > 0 {
+			return keyNames
+		}
+	}
+
+	return nil
+}
+
+func otelAttributeName(keyNames []string, keyIndex uint8) string {
+	if int(keyIndex) < len(keyNames) {
+		return keyNames[keyIndex]
+	}
+	return strconv.Itoa(int(keyIndex))
 }
 
 // ResolveOnDemandName resolves the on-demand event name
