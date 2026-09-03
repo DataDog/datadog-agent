@@ -5,10 +5,9 @@
 
 //go:build tools
 
-// Package rshelldeps retains dependencies used only by the standalone rshell
-// command built by tasks/rshell.py. The Agent imports rshell's library
-// packages, but not cmd/rshell, so these dependencies would otherwise be
-// removed by go mod tidy and omitted from license generation.
+// Package rshelldeps retains the standalone rshell command's product-only
+// dependencies so go mod tidy and license generation include them. The Agent
+// imports rshell's libraries, while Bazel builds the command itself.
 package rshelldeps
 
 import _ "github.com/landlock-lsm/go-landlock/landlock/syscall"

@@ -2,6 +2,9 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 
+# The tools-tagged dependency anchor is product metadata, not a Bazel source.
+# gazelle:exclude deps.go
+
 dd_agent_go_binary(
     name = "rshell",
     cgo = False,
