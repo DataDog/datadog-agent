@@ -12,9 +12,9 @@ import (
 	"errors"
 	"fmt"
 
-	yy "github.com/ghodss/yaml"
 	"github.com/swaggest/jsonschema-go"
 	"github.com/xeipuuv/gojsonschema"
+	yy "sigs.k8s.io/yaml"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
