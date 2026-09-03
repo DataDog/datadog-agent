@@ -3,6 +3,7 @@
 
 #include "constants/enums.h"
 #include "helpers/network/context.h"
+#include "helpers/network/credentials.h"
 #include "helpers/process.h"
 #include "maps.h"
 
@@ -36,6 +37,9 @@ __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk
 
     // network context
     fill_network_context(&evt->network, skb, pkt);
+
+    // which credential endpoint served this event ?
+    evt->credential_source = get_credential_source(pkt);
 
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
     fill_cgroup_context(entry, &evt->cgroup);
