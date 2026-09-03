@@ -157,6 +157,7 @@ def deploy(
         debug,
         cfg.get_pulumi().logLevel,
         cfg.get_pulumi().logToStdErr,
+        config_path=config_path,
         pulumi_extra_args=pulumi_extra_args,
         pulumi_env=pulumi_env,
     )
@@ -204,19 +205,11 @@ def check_s3_image_exists(_, pipeline_id: str, deploy_job: str):
 
 
 # creates a stack with the given stack_name if it doesn't already exists
-def _create_stack(ctx: Context, stack_name: str, global_flags: str):
-    result = ctx.run(f"pulumi {global_flags} stack ls --all", hide="stdout")
-    if not result:
+def _create_stack(ctx: Context, stack_name: str, log_flags: str, config_path: str | None):
+    if stack_name in tool.pulumi_stack_names(ctx, config_path=config_path):
         return
 
-    stacks = result.stdout.splitlines()[1:]  # skip header
-    for stack in stacks:
-        # the stack has an asterisk if it is currently selected
-        ls_stack_name = stack.split(" ")[0].rstrip("*")
-        if ls_stack_name == stack_name:
-            return
-
-    ctx.run(f"pulumi {global_flags} stack init --no-select {stack_name}")
+    tool.run_pulumi(ctx, f"{log_flags} stack init --no-select {stack_name}", config_path=config_path)
 
 
 def _deploy(
@@ -226,17 +219,14 @@ def _deploy(
     debug: bool | None,
     log_level: int | None,
     log_to_stderr: bool | None,
+    config_path: str | None = None,
     pulumi_extra_args: str = "",
     pulumi_env: dict[str, str] | None = None,
 ) -> str:
+    # get_stack_name normalizes the name, so destroy looks for the one deployed here
     stack_name = tool.get_stack_name(stack_name, flags["scenario"])
-    # make sure the stack name is safe
-    stack_name = stack_name.replace(" ", "-").lower()
-    global_flags_array: list[str] = []
+    log_flags_array: list[str] = []
     up_flags = ""
-
-    # Check we are in a pulumi project
-    global_flags_array.append(tool.get_pulumi_dir_flag())
 
     # Building run func parameters
     for key, value in flags.items():
@@ -251,20 +241,22 @@ def _deploy(
         log_to_stderr = debug
     if should_log:
         if log_to_stderr:
-            global_flags_array.append("--logtostderr")
-        global_flags_array.append(f"-v {log_level}")
+            log_flags_array.append("--logtostderr")
+        log_flags_array.append(f"-v {log_level}")
         if debug:
             up_flags += " --debug"
 
-    global_flags = " ".join(global_flags_array)
-    _create_stack(ctx, stack_name, global_flags)
+    log_flags = " ".join(log_flags_array)
+    _create_stack(ctx, stack_name, log_flags, config_path)
     extra = f" {pulumi_extra_args}" if pulumi_extra_args else ""
-    env_prefix = " ".join(f"{k}={v}" for k, v in (pulumi_env or {}).items())
-    env_prefix = f"{env_prefix} " if env_prefix else ""
-    cmd = f"{env_prefix}pulumi {global_flags} up --yes{extra} -s {stack_name} {up_flags}"
 
-    pty = not pulumi_extra_args  # disable pty when extra args are set (e.g. --non-interactive)
-    if tool.is_windows():
-        pty = False
-    ctx.run(cmd, pty=pty)
+    tool.run_pulumi(
+        ctx,
+        f"{log_flags} up --yes{extra} {up_flags}",
+        stack=stack_name,
+        config_path=config_path,
+        env=pulumi_env,
+        # disable pty when extra args are set (e.g. --non-interactive)
+        pty=not pulumi_extra_args,
+    )
     return stack_name
