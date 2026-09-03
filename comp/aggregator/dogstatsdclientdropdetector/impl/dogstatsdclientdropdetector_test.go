@@ -57,7 +57,7 @@ func newTestComponentWithHealthPlatform(t testing.TB, healthPlatform healthplatf
 	hostname, _ := hostnamemock.NewMock(hostnamemock.MockHostname(hostnameValue))
 	lifecycle := &testLifecycle{}
 	provides := NewComponent(Requires{
-		Lifecycle: lifecycle, Config: config.NewMock(t), Log: logmock.New(t),
+		Lifecycle: lifecycle, Config: config.NewMockWithOverrides(t, map[string]interface{}{enabledConfig: true}), Log: logmock.New(t),
 		Hostname: hostname, HealthPlatform: healthPlatform,
 	})
 	lifecycle.start(t)
@@ -148,7 +148,7 @@ func TestComponentIgnoresWindowBeforeStartupReconciliation(t *testing.T) {
 	hostname, _ := hostnamemock.NewMock(hostnamemock.MockHostname(testHostname))
 	lifecycle := &testLifecycle{}
 	detector := NewComponent(Requires{
-		Lifecycle: lifecycle, Config: config.NewMock(t), Log: logmock.New(t),
+		Lifecycle: lifecycle, Config: config.NewMockWithOverrides(t, map[string]interface{}{enabledConfig: true}), Log: logmock.New(t),
 		Hostname: hostname, HealthPlatform: healthPlatform,
 	}).Comp.(*component)
 
@@ -161,6 +161,35 @@ func TestComponentIgnoresWindowBeforeStartupReconciliation(t *testing.T) {
 	lifecycle.start(t)
 	completeWindow(detector, clientByteStats{sent: 98, dropped: 2})
 	require.True(t, state.confirmationPending)
+}
+
+func TestComponentDisabledByDefault(t *testing.T) {
+	healthPlatform := healthplatformmock.New(t)
+	issue, err := dogstatsdclientdrops.BuildUDSIssue(dogstatsdclientdrops.UDSDetectionContext{
+		ClientLibrary: dogstatsdclientdrops.ClientLibraryGo,
+		AgentHostname: testHostname,
+		DroppedRatio:  0.02,
+	})
+	require.NoError(t, err)
+	issue.Id = dogstatsdclientdrops.UDSIssueIDForHost(dogstatsdclientdrops.ClientLibraryGo, "test-uuid", testHostname)
+	require.NoError(t, healthPlatform.ReportIssue(issue))
+
+	hostname, _ := hostnamemock.NewMock(hostnamemock.MockHostname(testHostname))
+	lifecycle := &testLifecycle{}
+	detector := NewComponent(Requires{
+		Lifecycle: lifecycle, Config: config.NewMockWithOverrides(t, map[string]interface{}{unhealthyConfirmationWindowConfig: "0s"}), Log: logmock.New(t),
+		Hostname: hostname, HealthPlatform: healthPlatform,
+	}).Comp
+	lifecycle.start(t)
+
+	for range 2 {
+		detector.ObserveClientBytes("go", dogstatsdclientdropdetector.ClientByteMetricSent, 98)
+		detector.ObserveClientBytes("go", dogstatsdclientdropdetector.ClientByteMetricDropped, 2)
+		detector.CompleteFinalDogStatsDSerieFlush()
+	}
+	require.Nil(t, healthPlatform.GetIssue(issue.Id))
+	require.Equal(t, []string{issue.Id}, healthPlatform.ResolvedIDs())
+	require.Empty(t, healthPlatform.GetActiveIssueIDsByIssueName(issue.IssueName))
 }
 
 func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
