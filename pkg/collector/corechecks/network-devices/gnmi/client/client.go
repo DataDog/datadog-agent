@@ -21,7 +21,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
-	parentgnmi "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/admission"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
@@ -313,7 +312,7 @@ func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
 		Request: &gnmipb.SubscribeRequest_Subscribe{
 			Subscribe: &gnmipb.SubscriptionList{
 				Mode:         gnmipb.SubscriptionList_STREAM,
-				Encoding:     parentgnmi.DefaultEncoding,
+				Encoding:     config.DefaultEncoding,
 				Subscription: subscriptions,
 			},
 		},
