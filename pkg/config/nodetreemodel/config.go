@@ -321,11 +321,18 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	return tree, err
 }
 
-// DirectBulkSet implements model.Writer. Keys are assumed already lowercased, which holds for
-// anything enumerated from another config.
-func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
+// DirectBulkSet implements model.Writer. shouldNotify if true will send notifications for settings that
+// change values.
+func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting, shouldNotify bool) {
 	c.Lock()
-	defer c.Unlock()
+
+	// Previous values are read before any merge, so they all reflect the pre-snapshot state.
+	type change struct {
+		key      string
+		source   model.Source
+		previous interface{}
+	}
+	var changes []change
 
 	for _, setting := range settings {
 		key := setting.Key
@@ -350,6 +357,10 @@ func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
 			value = converted
 		}
 
+		if shouldNotify {
+			changes = append(changes, change{key: key, source: setting.Source, previous: c.leafAtPathFromNode(key, c.root).Get()})
+		}
+
 		if _, err := c.insertValueIntoTree(key, value, setting.Source); err != nil {
 			log.Errorf("could not insert value for '%s': %s", key, err)
 		}
@@ -359,6 +370,34 @@ func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
 	// ranks conflicting leaves by source, not by merge order.
 	if err := c.mergeAllLayers(); err != nil {
 		log.Errorf("could not merge config layers: %s", err)
+	}
+
+	if !shouldNotify {
+		c.Unlock()
+		return
+	}
+
+	receivers := slices.Clone(c.notificationReceivers)
+	type notification struct {
+		change
+		newValue   interface{}
+		sequenceID uint64
+	}
+	pending := make([]notification, 0, len(changes))
+	for _, ch := range changes {
+		newValue := c.leafAtPathFromNode(ch.key, c.root).Get()
+		if reflect.DeepEqual(ch.previous, newValue) {
+			continue
+		}
+		c.sequenceID++
+		pending = append(pending, notification{change: ch, newValue: newValue, sequenceID: c.sequenceID})
+	}
+	c.Unlock()
+
+	for _, n := range pending {
+		for _, receiver := range receivers {
+			receiver(n.key, n.source, n.previous, n.newValue, n.sequenceID, "")
+		}
 	}
 }
 

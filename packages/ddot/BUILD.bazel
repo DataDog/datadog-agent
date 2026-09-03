@@ -34,7 +34,6 @@ pkg_filegroup(
         # TODO: //packages/ddot/dependencies:all_files
         # TODO: //packages/install_dir:embedded (ddot-specific variant)
     ],
-    prefix = "/opt/datadog-agent",
 )
 
 # This is an intermediate node to collect all dependencies so we can walk
@@ -58,6 +57,7 @@ pkg_filegroup(
         ":everything",
         ":license_files",
     ],
+    prefix = "/opt/datadog-agent",
 )
 
 pkg_tar(

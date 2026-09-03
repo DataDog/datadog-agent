@@ -19,6 +19,10 @@ env_vars(
         # For some tests we want to run with higher compression, but
         # not break caching and rebuild the binaries.
         "FORCED_PACKAGE_COMPRESSION_LEVEL",
+        # Lets a caller force pkg/version.AgentVersion to an explicit value,
+        # overriding the PACKAGE_VERSION/release.json-derived default.
+        # Used by host-profiler's nightly/dev-branch version override.
+        "FORCE_AGENT_VERSION",
         # This is the build pipeline id, which is used in some symlink paths.
         "PACKAGE_VERSION",
         # macOS code signing: control whether to enable code signing
@@ -59,7 +63,7 @@ archive_override(
     urls = ["https://github.com/bazel-contrib/supply-chain/archive/d88044594228c41619f4e31eda5ca88adf3c6026.zip"],
 )
 
-bazel_dep(name = "bazel_lib", version = "3.7.1")
+bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
 bazel_dep(name = "gazelle", version = "0.53.0")
@@ -111,9 +115,9 @@ archive_override(
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
     ],
-    sha256 = "8cb73cffdaac70d1f1c8430b2dfe892251c69a223d8b878d9648eecd648cb233",
-    strip_prefix = "rules_go-3798bb5f3bbb61e36285705ab12d8b2aa78cf2cd",
-    urls = ["https://github.com/bazel-contrib/rules_go/archive/3798bb5f3bbb61e36285705ab12d8b2aa78cf2cd.tar.gz"],  # master as of September 1, 2026
+    sha256 = "9f066d4ad363d049b7b6c3c7f64d73e5ba36caf065fab51848a540a49ab1bb49",
+    strip_prefix = "rules_go-f6afe7478c645595839adc211644e6e5474d9fd3",
+    urls = ["https://github.com/bazel-contrib/rules_go/archive/f6afe7478c645595839adc211644e6e5474d9fd3.tar.gz"],  # master as of September 3, 2026
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR

@@ -58,6 +58,19 @@ dda inv e2e.setup --with-azure --with-gcp
 
 The configuration is persisted to `~/.test_infra_config.yaml` (chmod `0600`, since it contains the auto-generated Pulumi passphrase). Re-running `dda inv e2e.setup` is idempotent — it prints `✓ already configured` checks and exits.
 
+### Workspace support
+The e2e test framework tooling supports being run from Datadog workspaces just like developer laptops. 
+/// warning | Workspace compatibility of the e2e tooling
+- **The workspace must be in the `us-east-1` region**. The VPN bridging the AWS account holding the workspace machines and the `datadog-agent-qa` account actually running the tests only exists in `us-east-1`.
+- **You must use `zsh` in the workspace**. The `fish`-based workspace config lacks some setup that is required for the e2e tooling.
+///
+/// danger
+The `e2e.*` Invoke tasks will **NOT WORK** in a workspace provisioned in `eu-west-3`.
+///
+
+- Stacks, EC2 key pairs and SSH keys are named after `$REAL_USER` and `$WORKSPACE_NAME`, not the OS user (which is `bits` for everyone on a workspace). Two workspaces owned by the same developer therefore get their own key pair and their own stacks, and `dda inv aws.destroy-vm` only ever sees the stacks created from that workspace.
+- Workspaces are headless, so desktop notifications and the "copy to clipboard" prompts are skipped automatically. The connection command or password is printed instead.
+
 ## See Also
 
 - [Test Categories](../../../guidelines/testing/test-categories.md) - Understanding different test types

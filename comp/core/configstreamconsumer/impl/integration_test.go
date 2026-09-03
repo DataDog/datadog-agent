@@ -50,13 +50,70 @@ import (
 // StreamConfigEvents. Events are fed through the channel.
 type mockCoreAgent struct {
 	pb.UnimplementedAgentSecureServer
-	sessionID string
 	events    chan *pb.ConfigEvent
 	closeOnce sync.Once
+
+	mu        sync.Mutex
+	sessionID string
+	// pendingSessionIDs are handed out in order; the last one is reused once drained.
+	pendingSessionIDs   []string
+	refreshIntervalSecs uint32
+	registerCount       int
+	refreshCount        int
+	// evicted holds session IDs the RAR reaper has already dropped.
+	evicted map[string]bool
+	// refreshErrs are transport-level errors returned by the next refreshes, in order.
+	refreshErrs []codes.Code
+}
+
+func (m *mockCoreAgent) currentSessionID() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.sessionID
+}
+
+func (m *mockCoreAgent) sessionValid(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return id == m.sessionID && !m.evicted[id]
+}
+
+func (m *mockCoreAgent) counts() (registers, refreshes int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.registerCount, m.refreshCount
 }
 
 func (m *mockCoreAgent) RegisterRemoteAgent(_ context.Context, _ *pb.RegisterRemoteAgentRequest) (*pb.RegisterRemoteAgentResponse, error) {
-	return &pb.RegisterRemoteAgentResponse{SessionId: m.sessionID}, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.registerCount++
+	if len(m.pendingSessionIDs) > 0 {
+		m.sessionID = m.pendingSessionIDs[0]
+		m.pendingSessionIDs = m.pendingSessionIDs[1:]
+	}
+	return &pb.RegisterRemoteAgentResponse{
+		SessionId:                      m.sessionID,
+		RecommendedRefreshIntervalSecs: m.refreshIntervalSecs,
+	}, nil
+}
+
+func (m *mockCoreAgent) RefreshRemoteAgent(_ context.Context, req *pb.RefreshRemoteAgentRequest) (*pb.RefreshRemoteAgentResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.refreshCount++
+	if len(m.refreshErrs) > 0 {
+		code := m.refreshErrs[0]
+		m.refreshErrs = m.refreshErrs[1:]
+		return nil, status.Errorf(code, "injected transport failure")
+	}
+	// Matches the real registry, which reports an unknown session as NotFound.
+	if req.SessionId != m.sessionID || m.evicted[req.SessionId] {
+		return nil, status.Errorf(codes.NotFound, "session_id %q not found", req.SessionId)
+	}
+	return &pb.RefreshRemoteAgentResponse{}, nil
 }
 
 func (m *mockCoreAgent) StreamConfigEvents(_ *pb.ConfigStreamRequest, stream pb.AgentSecure_StreamConfigEventsServer) error {
@@ -64,8 +121,9 @@ func (m *mockCoreAgent) StreamConfigEvents(_ *pb.ConfigStreamRequest, stream pb.
 	if !ok {
 		return status.Error(codes.Unauthenticated, "missing gRPC metadata")
 	}
-	if got := md.Get("session_id"); len(got) == 0 || got[0] != m.sessionID {
-		return status.Error(codes.Unauthenticated, "invalid session_id")
+	// Matches the real server, which rejects an unknown session with PermissionDenied.
+	if got := md.Get("session_id"); len(got) == 0 || !m.sessionValid(got[0]) {
+		return status.Errorf(codes.PermissionDenied, "session_id %v not found", got)
 	}
 	for event := range m.events {
 		if err := stream.Send(event); err != nil {
@@ -245,6 +303,146 @@ func TestRunNoopWhenConfigstreamDisabled(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("OneShot blocked unexpectedly when configstream is disabled")
 	}
+}
+
+// startConsumer returns a channel that fires once the initial snapshot has been applied.
+func startConsumer(t *testing.T, dir, addr string, readyTimeout time.Duration, run func() error) <-chan error {
+	t.Helper()
+
+	host, port, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+
+	datadogYaml := fmt.Sprintf(`
+cmd_host: %s
+cmd_port: %s
+auth_token_file_path: %s
+ipc_cert_file_path: %s
+remote_agent:
+  registry:
+    enabled: true
+  configstream:
+    consumer:
+      enabled: true
+`, host, port,
+		filepath.Join(dir, "auth_token"),
+		filepath.Join(dir, "ipc_cert.pem"),
+	)
+	datadogPath := filepath.Join(dir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("trace-agent", datadogPath, configstreamconsumer.WithReadyTimeout(readyTimeout))),
+		configstreamconsumerfx.Module(),
+	)
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(func(_ configstreamconsumer.Component) error { return run() }, opts) }()
+	return done
+}
+
+// queueSnapshot buffers a snapshot so it is delivered whenever the stream opens.
+func queueSnapshot(t *testing.T, mock *mockCoreAgent, seqID int32) {
+	t.Helper()
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: seqID,
+				Settings:   []*pb.ConfigSetting{{Key: "test.key", Value: mustNewValue(t, "test-value")}},
+			},
+		},
+	}
+}
+
+// Recovery driven purely by the stream's PermissionDenied: the refresh interval is set far
+// beyond the test window so the session loop cannot be what rescues the consumer.
+func TestConsumerReregistersAfterStreamRejectsSession(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	mock.pendingSessionIDs = []string{"stale-session", "fresh-session"}
+	mock.evicted = map[string]bool{"stale-session": true}
+	mock.refreshIntervalSecs = 60
+
+	queueSnapshot(t, mock, 1)
+	done := startConsumer(t, dir, addr, 30*time.Second, func() error { return nil })
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(60 * time.Second):
+		t.Fatal("consumer never recovered from the rejected session")
+	}
+
+	registers, refreshes := mock.counts()
+	require.GreaterOrEqual(t, registers, 2, "consumer should have re-registered after PermissionDenied")
+	require.Zero(t, refreshes, "refresh interval was too long to have driven recovery")
+	require.Equal(t, "fresh-session", mock.currentSessionID())
+}
+
+// The other half: an open stream is not enough to keep a session out of the RAR reaper.
+func TestConsumerRefreshesSession(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	mock.refreshIntervalSecs = 1
+
+	queueSnapshot(t, mock, 1)
+	done := startConsumer(t, dir, addr, 30*time.Second, func() error {
+		require.Eventually(t, func() bool {
+			_, refreshes := mock.counts()
+			return refreshes >= 2
+		}, 15*time.Second, 100*time.Millisecond, "session was never refreshed, so RAR would reap it")
+		return nil
+	})
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(60 * time.Second):
+		t.Fatal("consumer did not finish")
+	}
+
+	registers, _ := mock.counts()
+	require.Equal(t, 1, registers, "a refreshed session should never need re-registration")
+}
+
+// A refresh failing on its own connection says nothing about the session, which the core agent
+// keeps alive through the stream. Dropping it there would strand the old registration in RAR
+// while the replacement takes over, accumulating a duplicate agent per transient failure.
+func TestConsumerKeepsSessionAfterTransientRefreshFailure(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	mock.refreshIntervalSecs = 1
+	mock.refreshErrs = []codes.Code{codes.Unavailable, codes.DeadlineExceeded}
+
+	queueSnapshot(t, mock, 1)
+	done := startConsumer(t, dir, addr, 30*time.Second, func() error {
+		require.Eventually(t, func() bool {
+			_, refreshes := mock.counts()
+			return refreshes >= 4
+		}, 30*time.Second, 100*time.Millisecond, "refreshes did not resume after the transient failures")
+		return nil
+	})
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(60 * time.Second):
+		t.Fatal("consumer did not finish")
+	}
+
+	registers, _ := mock.counts()
+	require.Equal(t, 1, registers, "a transient refresh error must not re-register the session")
+	require.Equal(t, "test-session-id", mock.currentSessionID(), "the original session must survive")
 }
 
 // TestUnsetUpdateRestoresShadowedValue covers the scenario from the review thread: a value supplied by

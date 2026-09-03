@@ -24,10 +24,10 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/dd-trace-go/v2 v2.9.2
 	github.com/DataDog/orchestrion v1.12.2
-	github.com/aws/aws-sdk-go-v2 v1.43.7
-	github.com/aws/aws-sdk-go-v2/config v1.32.38
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.90.3
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.107.3
+	github.com/aws/aws-sdk-go-v2 v1.44.0
+	github.com/aws/aws-sdk-go-v2/config v1.32.40
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.91.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.108.0
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
@@ -40,7 +40,7 @@ require (
 	github.com/hairyhenderson/go-codeowners v0.7.1
 	github.com/kr/pretty v0.3.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.43.0
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.8.0
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.33.0
 	github.com/pulumi/pulumi/sdk/v3 v3.259.0
 	github.com/samber/lo v1.53.0
@@ -121,26 +121,26 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.18 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.37 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.38 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.38 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.38 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.39 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.322.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.60.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.92.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.17 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.31 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.38 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.39 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.5.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.73.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.33.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.45.7 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.39 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.40 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.40 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.40 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.41 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.324.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.61.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.94.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.10.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.40 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.41 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.6.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.74.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.34.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.39.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.46.0 // indirect
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492 // indirect
-	github.com/aws/smithy-go v1.27.8 // indirect
+	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
@@ -211,7 +211,7 @@ require (
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
-	github.com/gofrs/flock v0.13.0 // indirect
+	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/glog v1.2.5 // indirect
 	github.com/google/btree v1.1.3 // indirect

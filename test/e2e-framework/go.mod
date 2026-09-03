@@ -12,14 +12,14 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go/v2 v2.64.0
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/aws/aws-sdk-go-v2 v1.43.7
-	github.com/aws/aws-sdk-go-v2/config v1.32.38
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.322.0
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.60.7
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.90.3
-	github.com/aws/aws-sdk-go-v2/service/eks v1.92.1
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.107.3
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.73.7
+	github.com/aws/aws-sdk-go-v2 v1.44.0
+	github.com/aws/aws-sdk-go-v2/config v1.32.40
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.324.0
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.61.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.91.0
+	github.com/aws/aws-sdk-go-v2/service/eks v1.94.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.108.0
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.74.0
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/docker/cli v29.7.2+incompatible
@@ -29,7 +29,7 @@ require (
 	github.com/moby/moby/client v0.5.1
 	github.com/pkg/sftp v1.13.11
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.43.0
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.8.0
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.92.3
@@ -88,21 +88,21 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.18 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.37 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.38 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.38 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.38 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.39 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.17 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.31 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.38 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.39 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.5.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.33.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.45.7 // indirect
-	github.com/aws/smithy-go v1.27.8 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.39 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.40 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.40 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.40 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.41 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.10.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.40 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.41 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.6.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.34.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.39.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.46.0 // indirect
+	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
