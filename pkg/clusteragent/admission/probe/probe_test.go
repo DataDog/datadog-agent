@@ -481,12 +481,13 @@ func TestRunProbe_ReportsNetworkIssueWhenWebhookConfirmedExists(t *testing.T) {
 	assert.NotContains(t, issue.Description, "does not exist")
 }
 
-func TestRunProbe_ReportsNetworkIssueWhenExistenceCheckErrors(t *testing.T) {
+func TestRunProbe_ReportsUnknownIssueWhenExistenceCheckErrors(t *testing.T) {
 	withRealWebhookStatusLookup(t)
 
 	// If webhookExists itself can't determine an answer (e.g. RBAC denies the
-	// lookup), the probe should still report the generic network-issue
-	// diagnosis rather than silently swallowing the failure.
+	// lookup), the probe can't rule out either a missing webhook or a network
+	// issue, so it should report a distinct "could not determine" diagnosis
+	// rather than claiming either one.
 	client := fakeclientset.NewSimpleClientset()
 	client.PrependReactor("get", "mutatingwebhookconfigurations", func(_ k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "mutatingwebhookconfigurations"}, "datadog-webhook", errors.New("forbidden"))
@@ -500,4 +501,5 @@ func TestRunProbe_ReportsNetworkIssueWhenExistenceCheckErrors(t *testing.T) {
 	issue := hp.GetIssue(healthIssueID)
 	require.NotNil(t, issue)
 	assert.NotContains(t, issue.Description, "does not exist")
+	assert.Contains(t, issue.Description, "Could not determine whether")
 }
