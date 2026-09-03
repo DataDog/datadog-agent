@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "fakeserver",
+    srcs = [
+        "auth.go",
+        "server.go",
+        "values.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_openconfig_gnmi//proto/gnmi",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_grpc//stats",
+    ],
+)
+
+dd_agent_go_test(
+    name = "fakeserver_test",
+    srcs = ["server_test.go"],
+    embed = [":fakeserver"],
+    deps = [
+        "@com_github_openconfig_gnmi//proto/gnmi",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_grpc//status",
+    ],
+)
