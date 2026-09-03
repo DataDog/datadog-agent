@@ -210,6 +210,23 @@ func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t
 	assert.Equal(t, []checkid.ID{check.ShadowID(sourceID)}, shadowSenderManager.infraTaggedIDs)
 }
 
+func TestApplyInfraTaggerAppliesOnlyToSelectivelyTaggedChecks(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("infrastructure_mode", "cloud_cost_only")
+	cfg.SetInTest("integration.cloud_cost_only.tagged", []string{"cpu"})
+
+	s := &CheckScheduler{infraTagger: infratags.NewTagger(cfg)}
+	manager := &recordingSchedulerSenderManager{}
+
+	cpuID := checkid.ID("cpu:instance-1")
+	networkID := checkid.ID("network:instance-1")
+
+	s.applyInfraTagger(manager, "cpu", cpuID)
+	s.applyInfraTagger(manager, "network", networkID)
+
+	assert.Equal(t, []checkid.ID{cpuID}, manager.infraTaggedIDs)
+}
+
 func TestGetChecksFromConfigsDoesNotLoadShadowChecksWhenCacheIsNotPopulated(t *testing.T) {
 	core.WithTestCatalog(t)
 	cfg := configmock.New(t)
