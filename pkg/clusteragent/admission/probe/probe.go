@@ -248,10 +248,15 @@ func (p *Probe) handleError(ctx context.Context, err error) {
 			return
 		}
 
-		if p.logLimiter.ShouldLog() {
-			if existsErr != nil {
+		if existsErr != nil {
+			if p.logLimiter.ShouldLog() {
 				log.Warnf("Admission controller probe: could not determine whether the webhook configuration exists: %v", existsErr)
 			}
+			p.reportHealthIssue(fmt.Sprintf("Could not determine whether the admission webhook configuration exists: %v. The probe cannot rule out either a missing webhook or a network connectivity issue.", existsErr))
+			return
+		}
+
+		if p.logLimiter.ShouldLog() {
 			log.Errorf(
 				"Admission controller probe failed: the webhook did not handle the probe configmap. "+
 					"This indicates a network connectivity issue between the Kubernetes API server "+
