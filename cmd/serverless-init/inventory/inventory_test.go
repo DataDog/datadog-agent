@@ -82,7 +82,7 @@ func TestSetDeploymentIDWhenEnabled(t *testing.T) {
 
 	SetDeploymentID(ia, conf, "vm-abc123")
 
-	assert.Equal(t, "vm-abc123", ia.fields[serverlessFieldPrefix+"deployment_id"])
+	assert.Equal(t, "vm-abc123", ia.fields["deployment_id"])
 }
 
 func TestSetDeploymentIDGatedOff(t *testing.T) {
