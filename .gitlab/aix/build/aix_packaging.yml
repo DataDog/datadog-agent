@@ -1,0 +1,19 @@
+---
+package_aix-ppc64:
+  stage: packaging
+  extends: .aix_remote
+  timeout: 4h
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.manual]
+  script:
+    - 'echo "=== AIX: running packaging build (build.sh) ==="'
+    - ssh -T -p $AIX_PORT $AIX_USER@$AIX_HOST "bash -c 'AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh'"
+    # Retrieve the built .bff from the AIX host and expose it as a job artifact.
+    - 'echo "=== AIX: retrieving .bff artifact ==="'
+    - mkdir -p $CI_PROJECT_DIR/out
+    - scp -P $AIX_PORT "$AIX_USER@$AIX_HOST:/opt/dd-build/*.bff" $CI_PROJECT_DIR/out/
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - out/*.bff
