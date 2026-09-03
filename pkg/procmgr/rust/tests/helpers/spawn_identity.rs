@@ -112,10 +112,6 @@ fn runtime_user_oracle(_pid: u32) -> Option<String> {
 fn runtime_user_oracle(pid: u32) -> Option<String> {
     use std::ptr;
     use windows_sys::Win32::Foundation::CloseHandle;
-    use windows_sys::Win32::Foundation::HANDLE;
-    use windows_sys::Win32::Security::{
-        GetLengthSid, GetTokenInformation, LookupAccountSidW, TOKEN_USER, TokenUser,
-    };
     use windows_sys::Win32::System::Threading::{
         OpenProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION,
     };
@@ -147,9 +143,7 @@ fn runtime_user_oracle(pid: u32) -> Option<String> {
 #[cfg(windows)]
 unsafe fn lookup_token_account(token: windows_sys::Win32::Foundation::HANDLE) -> Option<String> {
     use std::ptr;
-    use windows_sys::Win32::Security::{
-        GetTokenInformation, LookupAccountSidW, TOKEN_USER, TokenUser,
-    };
+    use windows_sys::Win32::Security::{GetTokenInformation, TOKEN_USER, TokenUser};
 
     let mut needed = 0u32;
     let _ = GetTokenInformation(token, TokenUser, ptr::null_mut(), 0, &mut needed);
