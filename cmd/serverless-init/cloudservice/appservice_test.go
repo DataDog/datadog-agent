@@ -84,6 +84,7 @@ func TestAppServiceGetInventoryData(t *testing.T) {
 	t.Setenv("WEBSITE_OWNER_NAME", "test_subscription_id+resourcegroup-EastUSwebspace")
 	t.Setenv("WEBSITE_RESOURCE_GROUP", "test_resource_group")
 	t.Setenv("WEBSITE_STACK", "NODE")
+	t.Setenv("WEBSITE_NODE_DEFAULT_VERSION", "~18")
 	os.Unsetenv("FUNCTIONS_WORKER_RUNTIME")
 
 	inv := service.GetInventoryData()
