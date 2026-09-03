@@ -167,7 +167,7 @@ PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
 ## Code Review
 
 Code reviewer plugins for Go and Python are available from the
-[Datadog Claude Marketplace](https://github.com/DataDog/claude-marketplace):
+Datadog Claude Marketplace (DataDog/claude-marketplace, internal-only repo):
 
 - `/go-review`, `/go-improve` - Go code review and iterative improvement
 - `/py-review`, `/py-improve` - Python code review and iterative improvement
