@@ -25,7 +25,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -135,7 +135,10 @@ func (j job) Run() {
 
 // Passing metrics to sender Interfacing with sender
 type agentmetric struct {
-	name    string
+	name string
+	// route is the profile-configured backend destination for this metric. Metrics are
+	// dispatched to one sender session per route so that a payload never mixes routes.
+	route   MetricsRoute
 	metrics []*dto.Metric
 	family  *dto.MetricFamily
 }
@@ -561,6 +564,7 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 
 	return &agentmetric{
 		name:    mCfg.Name,
+		route:   mCfg.route,
 		metrics: amt,
 		family:  mfam,
 	}
@@ -598,7 +602,46 @@ func coalesceMetricFamilies(pms []*telemetry.MetricFamily) []*telemetry.MetricFa
 	return merged
 }
 
-func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.MetricFamily, p *Profile) {
+// routeSessions accumulates one sender session per route.
+//
+// Payload identity lives in the session: sendAgentMetricPayloads reuses payloads within
+// a session, keyed by tag-set index, so two routes sharing a session would have their
+// metrics merged into the same payload objects. Giving each route its own session is
+// what keeps a payload homogeneous, and leaves sendAgentMetricPayloads unaware of routes
+// entirely. The cost is one flush (one HTTP request) per route in use.
+//
+// A single routeSessions is shared across the whole profile loop, so metrics of the same
+// route coming from different profiles still merge into shared payloads as before.
+type routeSessions struct {
+	a        *atel
+	sessions map[MetricsRoute]*senderSession
+}
+
+func newRouteSessions(a *atel) *routeSessions {
+	return &routeSessions{
+		a:        a,
+		sessions: make(map[MetricsRoute]*senderSession),
+	}
+}
+
+// get returns the session for a route, starting one on first use.
+func (rs *routeSessions) get(route MetricsRoute) *senderSession {
+	if ss, ok := rs.sessions[route]; ok {
+		return ss
+	}
+
+	ss := rs.a.sender.startSession(rs.a.cancelCtx)
+	rs.sessions[route] = ss
+	return ss
+}
+
+// all returns the started sessions. Routes that collected no
+// metrics never started a session and so are absent.
+func (rs *routeSessions) all() []*senderSession {
+	return slices.Collect(maps.Values(rs.sessions))
+}
+
+func (a *atel) reportAgentMetrics(sessions *routeSessions, pms []*telemetry.MetricFamily, p *Profile) {
 	// If no metrics are configured nothing to report
 	if len(p.metricsMap) == 0 {
 		return
@@ -606,16 +649,17 @@ func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.Metri
 
 	a.logComp.Debugf("Collect Agent Metric telemetry for profile %s", p.Name)
 
-	// ... and filter them according to the profile configuration
-	var metrics []*agentmetric
+	// ... and filter them according to the profile configuration, bucketed by the route
+	// their profile assigns them
+	metricsByRoute := make(map[MetricsRoute][]*agentmetric)
 	for _, pm := range pms {
 		if am := a.transformMetricFamily(p, pm); am != nil {
-			metrics = append(metrics, am)
+			metricsByRoute[am.route] = append(metricsByRoute[am.route], am)
 		}
 	}
 
 	// Send the metrics if any were filtered
-	if len(metrics) == 0 {
+	if len(metricsByRoute) == 0 {
 		a.logComp.Debug("No Agent Metric telemetry collected")
 		return
 	}
@@ -623,10 +667,14 @@ func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.Metri
 	// Send the metrics if any were filtered
 	a.logComp.Debugf("Reporting Agent Metric telemetry for profile %s", p.Name)
 
-	a.sender.sendAgentMetricPayloads(session, metrics)
+	for route, routeMetrics := range metricsByRoute {
+		a.sender.sendAgentMetricPayloads(sessions.get(route), routeMetrics)
+	}
 }
 
-func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
+// loadPayloads gathers telemetry and builds one session per route in use. Callers must
+// flush every returned session; the slice is empty when nothing was collected.
+func (a *atel) loadPayloads(profiles []*Profile) ([]*senderSession, error) {
 	// Gather all prom metrics. Currently Gather() does not allow filtering by
 	// metric name, so we need to gather all metrics and filter them on our own.
 	pms, err := a.telComp.Gather(false)
@@ -652,27 +700,29 @@ func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 	// e.g., "checks__execution_time". Therefore, the "Options.NoDoubleUnderscoreSep: true" option
 	// must not be used when creating metrics.
 
-	session := a.sender.startSession(a.cancelCtx)
+	sessions := newRouteSessions(a)
 	for _, p := range profiles {
-		a.reportAgentMetrics(session, pms, p)
+		a.reportAgentMetrics(sessions, pms, p)
 	}
-	return session, nil
+	return sessions.all(), nil
 }
 
 // run runs the agent telemetry for a given profile. It is triggered by the runner
 // according to the profiles schedule.
 func (a *atel) run(profiles []*Profile) {
 	a.logComp.Info("Starting agent telemetry run")
-	session, err := a.loadPayloads(profiles)
+	sessions, err := a.loadPayloads(profiles)
 	if err != nil {
 		a.logComp.Errorf("failed to load agent telemetry session: %s", err)
 		return
 	}
 
-	err = a.sender.flushSession(session)
-	if err != nil {
-		a.logComp.Errorf("failed to flush agent telemetry session: %s", err)
-		return
+	// One flush, and so one request, per route in use. A route failing to send must not
+	// suppress the others, so this logs and continues rather than returning early.
+	for _, session := range sessions {
+		if err := a.sender.flushSession(session); err != nil {
+			a.logComp.Errorf("failed to flush agent telemetry session: %s", err)
+		}
 	}
 }
 
@@ -693,11 +743,28 @@ func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (a *atel) getAsJSON() ([]byte, error) {
-	session, err := a.loadPayloads(a.atelCfg.Profiles)
+	sessions, err := a.loadPayloads(a.atelCfg.Profiles)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load agent telemetry payload: %w", err)
 	}
-	payload := session.flush()
+
+	// Preserve the historical single-object response shape whenever one route is in use,
+	// which is every deployment that has not configured 'route'. Only a genuine multi-route
+	// setup produces an array. The zero-session case keeps emitting the empty batch that
+	// flushing an untouched session used to produce.
+	var payload any
+	switch len(sessions) {
+	case 0:
+		payload = a.sender.startSession(a.cancelCtx).flush()
+	case 1:
+		payload = sessions[0].flush()
+	default:
+		payloads := make([]Payload, 0, len(sessions))
+		for _, session := range sessions {
+			payloads = append(payloads, session.flush())
+		}
+		payload = payloads
+	}
 
 	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {

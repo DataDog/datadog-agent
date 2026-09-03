@@ -146,8 +146,15 @@ type BatchPayloadWrapper struct {
 //
 
 // AgentMetricsPayload defines Metrics object
+//
+// Route is the backend destination configured per metric in the profile
+// (profiles[].metric.metrics[].route), and is what the backend routes on. Metrics are
+// dispatched to one session per route, so a payload only ever holds metrics of a single
+// route and the value is payload-scoped. RouteDDCoat is the zero value and is omitted
+// from the wire format.
 type AgentMetricsPayload struct {
 	Message string                 `json:"message"`
+	Route   MetricsRoute           `json:"route,omitempty"`
 	Metrics map[string]interface{} `json:"metrics"`
 }
 
@@ -552,6 +559,10 @@ func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agent
 			// reuse or add a payload
 			if idx+1 > len(ss.metricPayloads) {
 				newPayload := s.agentMetricsPayloadTemplate
+				// Safe to stamp from the first metric that creates the payload: a session
+				// only ever receives metrics of one route (see routeSessions), so every am
+				// reaching this session carries the same value.
+				newPayload.Route = am.route
 				newPayload.Metrics = make(map[string]interface{}, 0)
 				newPayload.Metrics["agent_metadata"] = s.metadataPayloadTemplate
 				ss.metricPayloads = append(ss.metricPayloads, &newPayload)
