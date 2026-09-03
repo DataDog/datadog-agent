@@ -98,7 +98,10 @@ func (c *component) ObserveFinalDogStatsDSerie(serie *metrics.Serie) {
 	}
 
 	if totalBytes > 0 && (transport == "uds" || transport == "uds-stream") {
-		c.dropDetector.ObserveClientBytes(client, metric, totalBytes)
+		switch client {
+		case "go", "py", "java":
+			c.dropDetector.ObserveClientBytes(client, metric, totalBytes)
+		}
 	}
 }
 
