@@ -29,20 +29,20 @@ go_deps.gazelle_default_attributes(
     ],
 )
 go_deps.gazelle_override(
-    directives = [
-        "gazelle:build_file_generation on",
-    ],
+    directives = ["gazelle:go_naming_convention go_default_library"],
+    path = "cel.dev/cel-go",
+)
+go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=trivy_no_javadb"],
+    path = "github.com/aquasecurity/trivy",
+)
+go_deps.gazelle_override(
+    directives = ["gazelle:build_file_generation on"],
     path = "github.com/coreos/etcd",
 )
 go_deps.gazelle_override(
-    directives = [
-        "gazelle:go_naming_convention go_default_library",
-    ],
+    directives = ["gazelle:go_naming_convention go_default_library"],
     path = "github.com/google/cel-go",
-)
-go_deps.gazelle_override(
-    build_extra_args = ["-build_tags=grpcnotrace"],
-    path = "google.golang.org/grpc",
 )
 go_deps.gazelle_override(
     build_extra_args = ["-build_tags=retrynotrace"],
@@ -53,8 +53,8 @@ go_deps.gazelle_override(
     path = "go.opentelemetry.io/collector/config/configtls",
 )
 go_deps.gazelle_override(
-    build_extra_args = ["-build_tags=trivy_no_javadb"],
-    path = "github.com/aquasecurity/trivy",
+    build_extra_args = ["-build_tags=grpcnotrace"],
+    path = "google.golang.org/grpc",
 )
 use_repo(
     go_deps,
@@ -168,7 +168,6 @@ use_repo(
     "com_github_golang_mock",
     "com_github_golangci_golangci_lint_v2",
     "com_github_google_btree",
-    "com_github_google_cel_go",
     "com_github_google_go_cmp",
     "com_github_google_go_containerregistry",
     "com_github_google_gofuzz",
@@ -358,6 +357,7 @@ use_repo(
     "com_gitlab_gitlab_org_api_client_go",
     "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
+    "dev_cel_cel_go",
     "dev_essio_al_pkg_shellescape",
     "in_gopkg_ini_v1",
     "in_gopkg_yaml_v3",
