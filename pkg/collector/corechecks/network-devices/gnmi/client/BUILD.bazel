@@ -14,7 +14,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/collector/corechecks/network-devices/gnmi",
         "//pkg/collector/corechecks/network-devices/gnmi/admission",
         "//pkg/collector/corechecks/network-devices/gnmi/config",
         "//pkg/util/backoff",
