@@ -3,18 +3,34 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "gnmi",
-    srcs = ["encoding.go"],
+    srcs = ["gnmi.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_openconfig_gnmi//proto/gnmi"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/network-devices/gnmi/client",
+        "//pkg/collector/corechecks/network-devices/gnmi/config",
+        "//pkg/collector/corechecks/network-devices/gnmi/report",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ],
 )
 
 dd_agent_go_test(
     name = "gnmi_test",
-    srcs = ["encoding_test.go"],
-    embed = [":gnmi"],
+    srcs = ["gnmi_test.go"],
     deps = [
-        "@com_github_openconfig_gnmi//proto/gnmi",
+        ":gnmi",
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/network-devices/gnmi/admission",
+        "//pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
     ],
 )
