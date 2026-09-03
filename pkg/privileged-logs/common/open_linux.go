@@ -43,10 +43,6 @@ func OpenPathWithoutSymlinks(path string) (*os.File, error) {
 	// (list) permission on every directory component, which would wrongly
 	// reject files under directories that are traversable but not listable
 	// (e.g. mode 0711).
-	//
-	// O_CLOEXEC is set on every open so that none of the (transient directory
-	// or final file) descriptors can be inherited by a concurrently-started
-	// subprocess, matching the close-on-exec behavior of os.Open.
 	dirFd, err := unix.Open("/", unix.O_PATH|unix.O_NOFOLLOW|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open root directory: %w", err)
@@ -77,7 +73,6 @@ func OpenPathWithoutSymlinks(path string) (*os.File, error) {
 	// Open the final file component with O_NOFOLLOW. dirFd was opened with
 	// O_PATH, but it can still be used as the directory fd for this openat,
 	// which enforces the normal read-permission check on the file itself.
-	// O_CLOEXEC prevents the returned descriptor from leaking into subprocesses.
 	fileName := parts[len(parts)-1]
 	fileFd, err := unix.Openat(dirFd, fileName, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
