@@ -6,6 +6,8 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -69,6 +71,9 @@ type Endpoint struct {
 	additionalEndpointsIdx int
 	// additionalEndpointsCount detects runtime insertions and removals that invalidate the index.
 	additionalEndpointsCount int
+	// additionalEndpointIdentity binds credential updates to the original endpoint route.
+	additionalEndpointIdentity      [sha256.Size]byte
+	additionalEndpointIdentityValid bool
 
 	Host                    string `mapstructure:"host" json:"host"`
 	Port                    int
@@ -119,6 +124,15 @@ type unmarshalEndpoint struct {
 	ConnectionResetIntervalSeconds *int `mapstructure:"connection_reset_interval" json:"connection_reset_interval"`
 
 	Endpoint `mapstructure:",squash"`
+}
+
+func endpointRoutingIdentity(endpoint unmarshalEndpoint) ([sha256.Size]byte, bool) {
+	endpoint.APIKey = ""
+	encoded, err := json.Marshal(endpoint)
+	if err != nil {
+		return [sha256.Size]byte{}, false
+	}
+	return sha256.Sum256(encoded), true
 }
 
 // EndpointCompressionOptions is the compression options for the endpoint
@@ -221,6 +235,7 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
 		newE.additionalEndpointsCount = len(additionals)
+		newE.additionalEndpointIdentity, newE.additionalEndpointIdentityValid = endpointRoutingIdentity(e)
 
 		newE.UseCompression = e.UseCompression
 		newE.CompressionLevel = e.CompressionLevel
@@ -267,6 +282,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 		newE.isAdditionalEndpoint = true
 		newE.additionalEndpointsIdx = idx
 		newE.additionalEndpointsCount = len(additionals)
+		newE.additionalEndpointIdentity, newE.additionalEndpointIdentityValid = endpointRoutingIdentity(e)
 		newE.UseCompression = main.UseCompression
 		newE.CompressionKind = main.CompressionKind
 		newE.CompressionLevel = main.CompressionLevel
@@ -443,6 +459,12 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 		updated := newAdditionalEndpoints[e.additionalEndpointsIdx]
 		credential := e.credential.Load()
 		if credential != nil && credential.invalid {
+			return
+		}
+		identity, identityValid := endpointRoutingIdentity(updated)
+		if !identityValid || !e.additionalEndpointIdentityValid || identity != e.additionalEndpointIdentity {
+			e.credential.Store(&endpointCredential{pending: true, invalid: true})
+			log.Errorf("additional endpoint route changed at runtime for '%s' number %d; sending is disabled until the Agent restarts", e.configSettingPath, e.additionalEndpointsIdx)
 			return
 		}
 		for index, candidate := range newAdditionalEndpoints {

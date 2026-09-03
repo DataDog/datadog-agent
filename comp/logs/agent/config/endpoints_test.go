@@ -720,6 +720,46 @@ func (suite *EndpointsTestSuite) TestRuntimeDelegatedAuthModeChangeFailsClosed()
 	suite.True(endpoints[0].IsWaitingForDelegatedAuth())
 }
 
+func (suite *EndpointsTestSuite) TestDelegatedAuthRouteChangeFailsClosed() {
+	tests := []struct {
+		name   string
+		update string
+	}{
+		{
+			name:   "port",
+			update: `{"api_key":"resolved-key","host":"logs.datadoghq.com","port":8443,"use_ssl":true,"ProxyAddress":"proxy-a","path_prefix":"/a"}`,
+		},
+		{
+			name:   "TLS",
+			update: `{"api_key":"resolved-key","host":"logs.datadoghq.com","port":443,"use_ssl":false,"ProxyAddress":"proxy-a","path_prefix":"/a"}`,
+		},
+		{
+			name:   "proxy",
+			update: `{"api_key":"resolved-key","host":"logs.datadoghq.com","port":443,"use_ssl":true,"ProxyAddress":"proxy-b","path_prefix":"/a"}`,
+		},
+		{
+			name:   "path",
+			update: `{"api_key":"resolved-key","host":"logs.datadoghq.com","port":443,"use_ssl":true,"ProxyAddress":"proxy-a","path_prefix":"/b"}`,
+		},
+	}
+
+	for _, test := range tests {
+		suite.Run(test.name, func() {
+			logsConfig := defaultLogsConfigKeys(suite.config)
+			suite.config.SetInTest("logs_config.additional_endpoints", `[
+				{"api_key":"DELA(org-a, aws)","host":"logs.datadoghq.com","port":443,"use_ssl":true,"ProxyAddress":"proxy-a","path_prefix":"/a"}
+			]`)
+			endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
+			suite.Require().Len(endpoints, 1)
+
+			suite.config.SetInTest("logs_config.additional_endpoints", "["+test.update+"]")
+
+			suite.Empty(endpoints[0].GetAPIKey())
+			suite.True(endpoints[0].IsWaitingForDelegatedAuth())
+		})
+	}
+}
+
 func (suite *EndpointsTestSuite) TestDelegatedAuthReorderFailsClosedForSharedHost() {
 	logsConfig := defaultLogsConfigKeys(suite.config)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[
