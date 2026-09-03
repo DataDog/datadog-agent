@@ -232,6 +232,8 @@ func TestStatusJSON_EnabledWithInstances(t *testing.T) {
 		instances: map[string]*authInstance{
 			"api_key": {
 				apiKey:              &apiKey,
+				providerName:        cloudauthconfig.ProviderAWS,
+				providerRegion:      "eu-west-1",
 				refreshInterval:     60 * time.Minute,
 				apiKeyConfigKey:     "api_key",
 				consecutiveFailures: 0,
@@ -260,6 +262,8 @@ func TestStatusJSON_EnabledWithInstances(t *testing.T) {
 	// Check api_key instance
 	apiKeyInstance := instances["api_key"]
 	assert.Equal(t, "Active", apiKeyInstance["Status"])
+	assert.Equal(t, cloudauthconfig.ProviderAWS, apiKeyInstance["Provider"])
+	assert.Equal(t, "eu-west-1", apiKeyInstance["AWSRegion"])
 	assert.Equal(t, "1h0m0s", apiKeyInstance["RefreshInterval"])
 	assert.Nil(t, apiKeyInstance["Error"])
 
@@ -1608,6 +1612,59 @@ func TestInitializeIfNeeded_ConfiguredRegionDoesNotSkipDetection(t *testing.T) {
 	assert.Equal(t, "eu-central-1", awsConfig.Region, "configured region must win over detection")
 	assert.Equal(t, cloudauthconfig.ProviderAWS, comp.resolvedProvider, "detection must still have run")
 	assert.Empty(t, comp.disabledReason)
+}
+
+func TestInitializeIfNeededExplicitProviderSkipsDetection(t *testing.T) {
+	original := detectAWSCredentialSource
+	detectAWSCredentialSource = func(context.Context) (string, error) {
+		t.Fatal("explicit provider must not run auto-detection")
+		return "", nil
+	}
+	t.Cleanup(func() { detectAWSCredentialSource = original })
+
+	mockConfig := mock.New(t)
+	explicit := &cloudauthconfig.AWSProviderConfig{Region: "eu-central-1"}
+	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
+
+	providerConfig, err := comp.initializeIfNeeded(context.Background(), delegatedauth.InstanceParams{
+		Config:          mockConfig,
+		ProviderConfig:  explicit,
+		OrgUUID:         "test-org",
+		APIKeyConfigKey: "api_key",
+	})
+	require.NoError(t, err)
+	assert.Same(t, explicit, providerConfig)
+	assert.Same(t, mockConfig, comp.config)
+	assert.False(t, comp.initialized)
+}
+
+func TestListWritebackRejectsRouteChange(t *testing.T) {
+	mockConfig := mock.New(t)
+	configKey := "logs_config.additional_endpoints"
+	original := map[string]any{
+		"api_key": "DELA(logs-org-uuid, aws)",
+		"host":    "original.logs.datadoghq.com",
+		"port":    443,
+	}
+	identity, ok := common.ListEntryIdentity(original)
+	require.True(t, ok)
+	mockConfig.SetInTest(configKey, []any{map[string]any{
+		"api_key": "DELA(logs-org-uuid, aws)",
+		"host":    "changed.logs.datadoghq.com",
+		"port":    443,
+	}})
+
+	instance := &authInstance{
+		additionalEndpointsListConfigKey: configKey,
+		additionalEndpointIdentity:       identity,
+		lastWrittenValue:                 "DELA(logs-org-uuid, aws)",
+		originalDirective:                "DELA(logs-org-uuid, aws)",
+	}
+	(&delegatedAuthComponent{config: mockConfig}).mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
+
+	got, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
+	require.True(t, ok)
+	assert.Equal(t, "DELA(logs-org-uuid, aws)", got[0].(map[string]any)["api_key"])
 }
 
 // TestInitializeIfNeeded_DetectionFailureIsRecorded is the companion case: with no credential
