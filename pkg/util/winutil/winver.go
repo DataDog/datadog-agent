@@ -164,8 +164,8 @@ type tagVSFIXEDFILEINFO struct {
 	dwFileDateLS       uint32
 }
 
-func getVersionInfo(block []uint8) (ver string, err error) {
-
+// queryFixedFileInfo returns the VS_FIXEDFILEINFO at the root of a version resource block.
+func queryFixedFileInfo(block []uint8) (*tagVSFIXEDFILEINFO, error) {
 	subblock := windows.StringToUTF16Ptr("\\")
 	var infoptr unsafe.Pointer
 	var ulen uint32
@@ -174,13 +174,18 @@ func getVersionInfo(block []uint8) (ver string, err error) {
 		uintptr(unsafe.Pointer(&infoptr)),
 		uintptr(unsafe.Pointer(&ulen)))
 	if ret == 0 {
-		return
+		return nil, err
 	}
-	ffi := (*tagVSFIXEDFILEINFO)(infoptr)
-	ver = fmt.Sprintf("%d.%d Build %d", ffi.dwProductVersionMS>>16, ffi.dwProductVersionMS&0xFF, ffi.dwProductVersionLS>>16)
+	return (*tagVSFIXEDFILEINFO)(infoptr), nil
+}
 
-	return ver, nil
+func getVersionInfo(block []uint8) (string, error) {
+	ffi, err := queryFixedFileInfo(block)
+	if err != nil {
+		return "", err
+	}
 
+	return fmt.Sprintf("%d.%d Build %d", ffi.dwProductVersionMS>>16, ffi.dwProductVersionMS&0xFF, ffi.dwProductVersionLS>>16), nil
 }
 
 // fixedFileVersion returns the file version from the VS_FIXEDFILEINFO structure of a
@@ -191,18 +196,11 @@ func getVersionInfo(block []uint8) (ver string, err error) {
 // no decoration ("1.0.0.1 (build_lab)") and nothing to parse. It returns an empty string
 // when the resource has no fixed information.
 func fixedFileVersion(block []uint8) string {
-	subblock := windows.StringToUTF16Ptr("\\")
-	var infoptr unsafe.Pointer
-	var ulen uint32
-	ret, _, _ := procVerQueryValue.Call(uintptr(unsafe.Pointer(&block[0])),
-		uintptr(unsafe.Pointer(subblock)),
-		uintptr(unsafe.Pointer(&infoptr)),
-		uintptr(unsafe.Pointer(&ulen)))
-	if ret == 0 || infoptr == nil {
+	ffi, err := queryFixedFileInfo(block)
+	if err != nil || ffi == nil {
 		return ""
 	}
 
-	ffi := (*tagVSFIXEDFILEINFO)(infoptr)
 	return fmt.Sprintf("%d.%d.%d.%d",
 		ffi.dwFileVersionMS>>16, ffi.dwFileVersionMS&0xFFFF,
 		ffi.dwFileVersionLS>>16, ffi.dwFileVersionLS&0xFFFF)
