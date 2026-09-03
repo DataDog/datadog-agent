@@ -127,21 +127,27 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
     - Do not cancel jobs containing 'cleanup' in their name
     - Jobs in the stages specified in 'force_cancel_stages' variables will always be canceled
     - Do not cancel jobs in the no_cancel_override list
-    - Do not cancel jobs in the no_cancel_stages list
+    - Do not cancel already-running jobs in the no_cancel_running_stages list
     """
 
     jobs = pipeline.jobs.list(per_page=100, all=True)
     kmt_cleanup_jobs_to_run: set[str] = set()
     jobs_by_name: dict[str, ProjectJob] = {}
     no_cancel_override: list[str] = ["dev_deploy-host-profiler-devtest"]
-    # Temporarily excluded while we investigate a security-group DependencyViolation
-    # left behind when e2e_init jobs get force-canceled mid-provisioning (ACIX-1949 follow-up).
-    no_cancel_stages: list[str] = ["e2e_init"]
+    # Temporarily excluded while running, while we investigate a security-group
+    # DependencyViolation left behind when e2e_init jobs get force-canceled
+    # mid-provisioning (ACIX-1949 follow-up). Queued jobs in this stage are still
+    # canceled: they can't have leaked any infra yet, so there is no reason to let
+    # them start in a pipeline that is already superseded.
+    no_cancel_running_stages: list[str] = ["e2e_init"]
 
     for job in jobs:
         jobs_by_name[job.name] = cast(ProjectJob, job)
 
-        if job.name in no_cancel_override or job.stage in no_cancel_stages:
+        if job.name in no_cancel_override:
+            continue
+
+        if job.status == "running" and job.stage in no_cancel_running_stages:
             continue
 
         if job.stage in force_cancel_stages or (
