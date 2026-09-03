@@ -4,8 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "provisioners",
     srcs = [
-        "file_provisioner.go",
-        "provisioners.go",
+        "compat.go",
         "pulumi_provisioner.go",
         "static_stack_provisioner.go",
     ],
@@ -13,6 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/components",
+        "//test/e2e-framework/testing/provisioner",
         "//test/e2e-framework/testing/runner",
         "//test/e2e-framework/testing/utils/infra",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",

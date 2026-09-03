@@ -79,6 +79,15 @@ func newLogWriter(ctx common.Context) io.Writer { return ctxLogWriter{ctx: ctx} 
 // The returned environment is ready to use (e.g. env.RemoteHost.Execute). Callers are
 // responsible for calling [Destroy] when done.
 func Provision[Env any](ctx common.Context, stackName string, p provisioners.Provisioner) (*Env, error) {
+	env, _, err := ProvisionE[Env](ctx, stackName, p)
+	return env, err
+}
+
+// ProvisionE is [Provision] that also returns the RawResources produced by the
+// provisioner. Callers that need to persist an environment snapshot (so the
+// environment can be re-attached later without re-provisioning) use ProvisionE and
+// write the returned resources with provisioner.WriteSnapshotFile.
+func ProvisionE[Env any](ctx common.Context, stackName string, p provisioners.Provisioner) (*Env, provisioners.RawResources, error) {
 	pCtx, cancel := context.WithTimeout(context.Background(), createTimeout)
 	defer cancel()
 
@@ -86,7 +95,7 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioners.Pro
 
 	env, fields, values, err := environments.CreateEnv[Env]()
 	if err != nil {
-		return nil, fmt.Errorf("unable to create env %T for stack %s: %w", env, stackName, err)
+		return nil, nil, fmt.Errorf("unable to create env %T for stack %s: %w", env, stackName, err)
 	}
 
 	var resources provisioners.RawResources
@@ -96,10 +105,10 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioners.Pro
 	case provisioners.UntypedProvisioner:
 		resources, err = pType.Provision(pCtx, stackName, logger)
 	default:
-		return nil, fmt.Errorf("provisioner of type %T implements neither TypedProvisioner nor UntypedProvisioner", p)
+		return nil, nil, fmt.Errorf("provisioner of type %T implements neither TypedProvisioner nor UntypedProvisioner", p)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("provisioning stack %s with provisioner %s failed: %w", stackName, p.ID(), err)
+		return nil, nil, fmt.Errorf("provisioning stack %s with provisioner %s failed: %w", stackName, p.ID(), err)
 	}
 
 	// Refresh field values from env to capture any changes made by the provisioner
@@ -110,16 +119,16 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioners.Pro
 	}
 
 	if err := environments.BuildEnvFromResources(ctx, resources, fields, values); err != nil {
-		return nil, fmt.Errorf("unable to build env %T from resources for stack %s: %w", env, stackName, err)
+		return nil, nil, fmt.Errorf("unable to build env %T from resources for stack %s: %w", env, stackName, err)
 	}
 
 	if initializable, ok := any(env).(common.Initializable); ok {
 		if err := initializable.Init(ctx); err != nil {
-			return nil, fmt.Errorf("failed to init environment: %w", err)
+			return nil, nil, fmt.Errorf("failed to init environment: %w", err)
 		}
 	}
 
-	return env, nil
+	return env, resources, nil
 }
 
 // Destroy tears down the stack provisioned for stackName using the given provisioner.
