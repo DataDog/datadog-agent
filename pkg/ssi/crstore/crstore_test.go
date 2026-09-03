@@ -139,7 +139,7 @@ func TestStoreDeleteByCR(t *testing.T) {
 	}
 }
 
-func TestStoreConcurrentAccess(t *testing.T) {
+func TestStoreConcurrentAccess(_ *testing.T) {
 	s := New()
 	const workers = 16
 	const iterations = 200

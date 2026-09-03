@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
@@ -254,7 +255,7 @@ func apmRolloutConfigHash(target crstore.WorkloadTarget, config crstore.APMConfi
 	writeHashField(target.Kind)
 	writeHashField(target.Namespace)
 	writeHashField(target.Name)
-	writeHashField(fmt.Sprintf("%t", config.Enabled))
+	writeHashField(strconv.FormatBool(config.Enabled))
 
 	langs := make([]string, 0, len(config.TracerVersions))
 	for lang := range config.TracerVersions {
