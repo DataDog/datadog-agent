@@ -23,8 +23,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
+// targetedPolicyIDPrefix identifies host-targeted policies within a policy ID.
+// Policy IDs of the form "targeted.<name>" are merged into configPathTargeted;
+// all other policy IDs are treated as org-wide and merged into configPath.
+const targetedPolicyIDPrefix = "targeted."
+
 var (
-	configPath = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.bin")
+	configPath         = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.bin")
+	configPathTargeted = filepath.Join(config.DefaultConfPath, "managed", "rc-targeted-wls-policy.bin")
 	// Pattern to extract policy ID from config path: datadog/\d+/<product>/<config_id>/<hash>
 	policyIDPattern = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
 	// Pattern to extract numeric prefix from policy ID: N.<name>
@@ -104,6 +110,12 @@ func extractOrderFromPolicyID(policyID string) int {
 	return 0
 }
 
+// isTargetedPolicyID reports whether a policy ID identifies a host-targeted policy,
+// as opposed to an org-wide policy.
+func isTargetedPolicyID(policyID string) bool {
+	return strings.HasPrefix(policyID, targetedPolicyIDPrefix)
+}
+
 // mergeConfigs merges multiple configs by concatenating their policies in order
 func mergeConfigs(configs []policyConfig) ([]byte, error) {
 	type policyJSON struct {
@@ -124,30 +136,52 @@ func mergeConfigs(configs []policyConfig) ([]byte, error) {
 	return json.Marshal(merged)
 }
 
-// onConfigUpdate is the callback function called by Remote Config when the workload selection config is updated
+// onConfigUpdate is the callback function called by Remote Config when the workload selection config is updated.
+// Configs are split into org-wide and host-targeted groups, merged and compiled
+// independently, and written to separate output files so that a host's targeted policies never affect
+// another host's org-wide policies and vice versa.
 func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	c.log.Debugf("workload selection config update received: %d", len(updates))
 	if len(updates) == 0 {
-		err := c.removeConfig() // No config received, we have to remove the file. Nothing to acknowledge.
-		if err != nil {
-			c.log.Errorf("failed to remove workload selection config: %v", err)
-		}
+		// No config received at all, we have to remove both files. Nothing to acknowledge.
+		c.removeConfigs()
 		return
 	}
 
-	// Build a list of configs with their ordering information
-	var configs []policyConfig
+	// Build lists of configs with their ordering information, split by scope
+	var orgWideConfigs, targetedConfigs []policyConfig
 	for path, rawConfig := range updates {
 		policyID := extractPolicyID(path)
 		order := extractOrderFromPolicyID(policyID)
 
 		c.log.Debugf("Processing config path=%s policyID=%s order=%d", path, policyID, order)
 
-		configs = append(configs, policyConfig{
+		cfg := policyConfig{
 			path:   path,
 			order:  order,
 			config: rawConfig.Config,
-		})
+		}
+
+		if isTargetedPolicyID(policyID) {
+			targetedConfigs = append(targetedConfigs, cfg)
+		} else {
+			orgWideConfigs = append(orgWideConfigs, cfg)
+		}
+	}
+
+	c.processConfigGroup(orgWideConfigs, configPath, "org-wide", applyStateCallback)
+	c.processConfigGroup(targetedConfigs, configPathTargeted, "targeted", applyStateCallback)
+}
+
+// processConfigGroup sorts, merges, compiles, and writes a group of policy configs to outputPath,
+// invoking applyStateCallback for each config's path. If configs is empty, the file previously
+// written at outputPath (if any) is removed instead, and applyStateCallback is not invoked.
+func (c *workloadselectionComponent) processConfigGroup(configs []policyConfig, outputPath, groupName string, applyStateCallback func(string, state.ApplyStatus)) {
+	if len(configs) == 0 {
+		if err := c.removeConfig(outputPath); err != nil {
+			c.log.Errorf("failed to remove %s workload selection config: %v", groupName, err)
+		}
+		return
 	}
 
 	// Sort configs by order, then alphabetically by path for deterministic ordering
@@ -182,30 +216,39 @@ func (c *workloadselectionComponent) onConfigUpdate(updates map[string]state.Raw
 		policyID := extractPolicyID(cfg.path)
 		orderInfo = append(orderInfo, fmt.Sprintf("%s (order=%d)", policyID, cfg.order))
 	}
-	c.log.Debugf("Merging %d workload selection configs in order: %s", len(configs), strings.Join(orderInfo, ", "))
+	c.log.Debugf("Merging %d %s workload selection configs in order: %s", len(configs), groupName, strings.Join(orderInfo, ", "))
 
 	// Merge all configs into one
 	mergedConfig, err := mergeConfigs(configs)
 	if err != nil {
-		c.log.Errorf("failed to merge workload selection configs: %v", err)
+		c.log.Errorf("failed to merge %s workload selection configs: %v", groupName, err)
 		processingErr = err
 		return
 	}
 
 	// Compile and write the merged config
-	err = c.compileAndWriteConfig(mergedConfig)
-	if err != nil {
-		c.log.Errorf("failed to compile workload selection config: %v", err)
+	if err := c.compileAndWriteConfig(mergedConfig, outputPath); err != nil {
+		c.log.Errorf("failed to compile %s workload selection config: %v", groupName, err)
 		processingErr = err
 		return
 	}
 }
 
-func (c *workloadselectionComponent) removeConfig() error {
+// removeConfigs removes both the org-wide and targeted workload selection config files.
+func (c *workloadselectionComponent) removeConfigs() {
+	if err := c.removeConfig(configPath); err != nil {
+		c.log.Errorf("failed to remove org-wide workload selection config: %v", err)
+	}
+	if err := c.removeConfig(configPathTargeted); err != nil {
+		c.log.Errorf("failed to remove targeted workload selection config: %v", err)
+	}
+}
+
+func (c *workloadselectionComponent) removeConfig(path string) error {
 	// os.RemoveAll does not fail if the path doesn't exist, it returns nil
-	c.log.Debugf("Removing workload selection config")
-	if err := os.RemoveAll(configPath); err != nil {
-		return fmt.Errorf("failed to remove workload selection binary policy: %w", err)
+	c.log.Debugf("Removing workload selection config at %s", path)
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("failed to remove workload selection binary policy at %s: %w", path, err)
 	}
 	return nil
 }
