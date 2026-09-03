@@ -23,6 +23,48 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
+func TestGetOTelSpanTypeFromGenAI(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		attrs    map[string]string
+		expected string
+	}{
+		{
+			name: "gen_ai attribute overrides explicit span.type",
+			attrs: map[string]string{
+				"span.type":     "browser",
+				"gen_ai.system": "openai",
+			},
+			expected: "llm",
+		},
+		{
+			name: "no gen_ai attribute keeps explicit span.type",
+			attrs: map[string]string{
+				"span.type": "browser",
+				"ai.system": "openai",
+			},
+			expected: "browser",
+		},
+		{
+			name: "gen_ai attribute overrides span-kind fallback",
+			attrs: map[string]string{
+				"gen_ai.request.model": "gpt-4",
+			},
+			expected: "llm",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetKind(ptrace.SpanKindClient)
+			for k, v := range tt.attrs {
+				span.Attributes().PutStr(k, v)
+			}
+
+			assert.Equal(t, tt.expected, GetOTelSpanType(span, pcommon.NewResource()))
+		})
+	}
+}
+
 func TestGetOTelEnv(t *testing.T) {
 	tests := []struct {
 		name     string
