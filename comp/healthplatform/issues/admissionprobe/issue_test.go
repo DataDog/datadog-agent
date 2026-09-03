@@ -47,12 +47,12 @@ func TestBuildIssue_Remediation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, issue.Remediation)
 	assert.NotEmpty(t, issue.Remediation.Summary)
-	assert.Len(t, issue.Remediation.Steps, 5)
+	assert.Len(t, issue.Remediation.Steps, 6)
 
 	lastStep := issue.Remediation.Steps[len(issue.Remediation.Steps)-1]
 	assert.Contains(t, lastStep.Text, "dtdg.co")
 
-	assert.Equal(t, "check network", issue.Remediation.Steps[3].Text)
+	assert.Equal(t, "check network", issue.Remediation.Steps[4].Text)
 }
 
 func TestBuildIssue_Defaults(t *testing.T) {
@@ -61,7 +61,7 @@ func TestBuildIssue_Defaults(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, issue.Description, "unreachable from the Kubernetes API server")
-	assert.Contains(t, issue.Remediation.Steps[3].Text, "port 8000")
+	assert.Contains(t, issue.Remediation.Steps[4].Text, "port 8000")
 }
 
 func TestBuildIssue_Extra(t *testing.T) {
