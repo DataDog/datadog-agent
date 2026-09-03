@@ -8,8 +8,8 @@ load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
 pkg_files(
     name = "config_files",
     srcs = [
-        "//pkg/config:system_probe_config",
         "//pkg/config:agent_config",
+        "//pkg/config:system_probe_config",
     ],
     attributes = pkg_attributes(mode = "0644"),
     prefix = select(ETC_DIR_SELECTOR),
