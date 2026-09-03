@@ -730,12 +730,13 @@ func (de *DNSEvent) Matches(new *DNSEvent) bool {
 
 // IMDSEvent represents an IMDS event
 type IMDSEvent struct {
-	Type          string `field:"type"`           // SECLDoc[type] Definition:`the type of IMDS event`
-	CloudProvider string `field:"cloud_provider"` // SECLDoc[cloud_provider] Definition:`the intended cloud provider of the IMDS event`
-	URL           string `field:"url"`            // SECLDoc[url] Definition:`the queried IMDS URL`
-	Host          string `field:"host"`           // SECLDoc[host] Definition:`the host of the HTTP protocol`
-	UserAgent     string `field:"user_agent"`     // SECLDoc[user_agent] Definition:`the user agent of the HTTP client`
-	Server        string `field:"server"`         // SECLDoc[server] Definition:`the server header of a response`
+	Type             string `field:"type"`              // SECLDoc[type] Definition:`the type of IMDS event`
+	CloudProvider    string `field:"cloud_provider"`    // SECLDoc[cloud_provider] Definition:`the intended cloud provider of the IMDS event`
+	URL              string `field:"url"`               // SECLDoc[url] Definition:`the queried IMDS URL`
+	Host             string `field:"host"`              // SECLDoc[host] Definition:`the host of the HTTP protocol`
+	UserAgent        string `field:"user_agent"`        // SECLDoc[user_agent] Definition:`the user agent of the HTTP client`
+	Server           string `field:"server"`            // SECLDoc[server] Definition:`the server header of a response`
+	CredentialSource string `field:"credential_source"` // SECLDoc[credential_source] Definition:`the credential endpoint that served the IMDS event, either imds or eks_pod_identity`
 
 	// The fields below are optional and cloud specific fields
 	AWS AWSIMDSEvent `field:"aws"` // SECLDoc[aws] Definition:`the AWS specific data parsed from the IMDS event`
