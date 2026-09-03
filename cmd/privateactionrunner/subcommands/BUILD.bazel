@@ -8,7 +8,6 @@ go_library(
     deps = [
         "//cmd/privateactionrunner/command",
         "//cmd/privateactionrunner/subcommands/bootstrapparcontrol",
-        "//cmd/privateactionrunner/subcommands/containermode",
         "//cmd/privateactionrunner/subcommands/rotateidentity",
         "//cmd/privateactionrunner/subcommands/run",
         "//cmd/privateactionrunner/subcommands/runexecutor",

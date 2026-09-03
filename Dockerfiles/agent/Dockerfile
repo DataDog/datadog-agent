@@ -162,6 +162,7 @@ WORKDIR /output
 # Configuration:
 #   - copy default config files
 COPY datadog*.yaml etc/datadog-agent/
+COPY processes.d opt/datadog-agent/processes.d/
 
 # Installation information
 COPY install_info etc/datadog-agent/

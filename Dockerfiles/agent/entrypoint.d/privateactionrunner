@@ -12,12 +12,11 @@ if [[ ! -x "${par}" ]]; then
     exit 0
 fi
 
-mode="$("${par}" resolve-container-mode --cfgpath="${config_file}")"
-case "${mode}" in
-    monolithic)
+case "${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-false}" in
+    false)
         exec "${par}" run --cfgpath="${config_file}"
         ;;
-    split)
+    true)
         for binary in "${par_control}" "${procmgrd}"; do
             if [[ ! -x "${binary}" ]]; then
                 printf 'Private Action Runner split mode requires executable %s\n' "${binary}" >&2
@@ -36,7 +35,7 @@ case "${mode}" in
         exec "${procmgrd}"
         ;;
     *)
-        printf 'Unknown Private Action Runner container mode: %s\n' "${mode}" >&2
+        printf 'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED must be true or false\n' >&2
         exit 1
         ;;
 esac
