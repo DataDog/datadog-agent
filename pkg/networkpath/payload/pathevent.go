@@ -114,6 +114,8 @@ const (
 	TestRunTypeScheduled TestRunType = "scheduled"
 	// TestRunTypeDynamic is a dynamic test run.
 	TestRunTypeDynamic TestRunType = "dynamic"
+	// TestRunTypeFast is a fast test run.
+	TestRunTypeFast TestRunType = "fast"
 	// TestRunTypeTriggered is a triggered test run.
 	TestRunTypeTriggered TestRunType = "triggered"
 )

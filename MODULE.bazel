@@ -59,7 +59,7 @@ archive_override(
     urls = ["https://github.com/bazel-contrib/supply-chain/archive/d88044594228c41619f4e31eda5ca88adf3c6026.zip"],
 )
 
-bazel_dep(name = "bazel_lib", version = "3.7.1")
+bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
 bazel_dep(name = "gazelle", version = "0.53.0")
@@ -85,6 +85,15 @@ bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
+# Temporary until gazelle cuts a release >0.53.0, to pick up build info improvements: bazel-contrib/bazel-gazelle#2407
+# (package metadata) and bazel-contrib/bazel-gazelle#2409 (checksum qualifiers)
+archive_override(
+    module_name = "gazelle",
+    sha256 = "f661997d326e2616ed6db4fbf86a99b2663fc1e4f5aa94d182603e2ec3ec0e21",
+    strip_prefix = "bazel-gazelle-48a1c5337c1c106ae9eedc5e1ae700925a61bc6f",
+    urls = ["https://github.com/bazel-contrib/bazel-gazelle/archive/48a1c5337c1c106ae9eedc5e1ae700925a61bc6f.tar.gz"],  # master as of August 31, 2026
+)
+
 single_version_override(
     module_name = "protobuf",
     patch_strip = 1,
@@ -94,12 +103,17 @@ single_version_override(
     version = "35.1",
 )
 
-single_version_override(
+# Temporary until rules_go cuts a release >0.63.0, to pick up build info improvements: bazel-contrib/rules_go#4694
+# (main module) and bazel-contrib/rules_go#4700 (checksum qualifiers)
+archive_override(
     module_name = "rules_go",
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
     ],
+    sha256 = "8cb73cffdaac70d1f1c8430b2dfe892251c69a223d8b878d9648eecd648cb233",
+    strip_prefix = "rules_go-3798bb5f3bbb61e36285705ab12d8b2aa78cf2cd",
+    urls = ["https://github.com/bazel-contrib/rules_go/archive/3798bb5f3bbb61e36285705ab12d8b2aa78cf2cd.tar.gz"],  # master as of September 1, 2026
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR

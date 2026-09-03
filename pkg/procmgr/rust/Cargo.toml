@@ -57,8 +57,11 @@ windows-sys = { workspace = true, features = [
 nix = { workspace = true, features = ["signal", "process", "user"] }
 
 [dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 tempfile.workspace = true
 
 [[test]]
 name = "e2e"
+path = "tests/e2e/main.rs"
 required-features = ["test-helpers"]
