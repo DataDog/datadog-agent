@@ -85,7 +85,11 @@ func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentit
 		log.Infof("Saved identity hostname does not match current hostname, re-enrolling")
 		return true
 	}
-	if identity.APIKeyHash != "" && identity.APIKeyHash != HashAPIKey(currentAPIKey) {
+	if identity.APIKeyHash == "" {
+		log.Infof("Saved identity predates api_key tracking, re-enrolling")
+		return true
+	}
+	if identity.APIKeyHash != HashAPIKey(currentAPIKey) {
 		log.Infof("Configured api_key does not match the one used for the saved identity, re-enrolling")
 		return true
 	}

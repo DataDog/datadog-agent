@@ -168,7 +168,7 @@ func TestBootstrapUsesDDURLForFakeintake(t *testing.T) {
 
 func writeIdentity(t *testing.T, cfg coreconfig.Component, urn, key, hostname string) {
 	t.Helper()
-	result := &enrollment.Result{URN: urn, Hostname: hostname}
+	result := &enrollment.Result{URN: urn, Hostname: hostname, APIKeyHash: enrollment.HashAPIKey(cfg.GetString("api_key"))}
 	jwk, err := parutil.Base64ToJWK(key)
 	require.NoError(t, err)
 	result.PrivateKey = jwk.Key.(*ecdsa.PrivateKey)

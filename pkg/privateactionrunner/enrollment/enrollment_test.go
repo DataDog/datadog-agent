@@ -45,7 +45,7 @@ func TestShouldReenroll_NodeAgent(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			agentID := &AgentIdentifier{Hostname: tc.agentHostname}
-			identity := &PersistedIdentity{Hostname: tc.persistedHostname}
+			identity := &PersistedIdentity{Hostname: tc.persistedHostname, APIKeyHash: HashAPIKey("some-api-key")}
 			assert.Equal(t, tc.want, ShouldReenroll(agentID, identity, "some-api-key"))
 		})
 	}
@@ -92,9 +92,9 @@ func TestShouldReenroll_APIKeyChanged(t *testing.T) {
 		})
 	}
 
-	t.Run("empty persisted api key hash - no reenroll (backward compat)", func(t *testing.T) {
+	t.Run("empty persisted api key hash - reenroll (legacy identity)", func(t *testing.T) {
 		agentID := &AgentIdentifier{Hostname: "my-host"}
 		identity := &PersistedIdentity{Hostname: "my-host"}
-		assert.False(t, ShouldReenroll(agentID, identity, "any-key"))
+		assert.True(t, ShouldReenroll(agentID, identity, "any-key"))
 	})
 }
