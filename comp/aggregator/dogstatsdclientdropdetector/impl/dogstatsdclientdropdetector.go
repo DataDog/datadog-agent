@@ -128,6 +128,12 @@ func resolveActiveIssues(healthPlatform healthplatformstore.Component) {
 
 // ObserveClientBytes adds one validated UDS client byte total to the current window.
 func (d *component) ObserveClientBytes(clientLibrary string, metric dogstatsdclientdropdetector.ClientByteMetric, bytes float64) {
+	select {
+	case <-d.startupReconciled:
+	default:
+		return
+	}
+
 	library := dogstatsdclientdrops.NormalizeClientLibrary(clientLibrary)
 	if !dogstatsdclientdrops.IsSupportedClientLibrary(library) {
 		return
@@ -151,13 +157,12 @@ func (d *component) CompleteFinalDogStatsDSerieFlush() {
 	// Ignore flushes until persisted issue state has been reconciled during startup.
 	select {
 	case <-d.startupReconciled:
-		for _, state := range d.clients {
-			d.completeWindow(state)
-		}
 	default:
-		for _, state := range d.clients {
-			d.takeWindow(state)
-		}
+		return
+	}
+
+	for _, state := range d.clients {
+		d.completeWindow(state)
 	}
 }
 
