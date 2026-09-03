@@ -1062,6 +1062,7 @@ An IMDS event was captured
 | [`imds.aws.security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
 | [`imds.aws.security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`imds.cloud_provider`](#imds-cloud_provider-doc) | the intended cloud provider of the IMDS event |
+| [`imds.credential_source`](#imds-credential_source-doc) | the credential endpoint that served the IMDS event, either imds or eks_pod_identity |
 | [`imds.host`](#imds-host-doc) | the host of the HTTP protocol |
 | [`imds.server`](#imds-server-doc) | the server header of a response |
 | [`imds.type`](#imds-type-doc) | the type of IMDS event |
@@ -4344,6 +4345,13 @@ Definition: a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2
 Type: string
 
 Definition: the intended cloud provider of the IMDS event
+
+
+
+### `imds.credential_source` {#imds-credential_source-doc}
+Type: string
+
+Definition: the credential endpoint that served the IMDS event, either imds or eks_pod_identity
 
 
 
