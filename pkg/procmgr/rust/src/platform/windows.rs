@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::spawn::SpawnProfile;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
