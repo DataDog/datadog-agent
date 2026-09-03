@@ -107,3 +107,66 @@ spec:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Selective deployment (optional)
+
+Setting the `agent.datadoghq.com/host-profiler-enabled` annotation on the `DatadogAgent` Custom Resource enables the Host Profiler sidecar on every node. To limit it to a subset of nodes, move the Host Profiler annotations to a [`DatadogAgentProfile`](https://github.com/DataDog/datadog-operator/blob/main/docs/datadog_agent_profiles.md) (DAP), which applies them only to the nodes it matches. DAP support for the Host Profiler annotations starts in Datadog Operator **v1.30.0**.
+
+### Enable the DatadogAgentProfile controller
+
+DAP is disabled by default. Before creating a profile, set the following in the [datadog-operator Helm chart](https://github.com/DataDog/helm-charts/tree/main/charts/datadog-operator) values, or pass them as `--set` flags:
+
+- `datadogAgentProfile.enabled=true` starts the `DatadogAgentProfile` controller in the Operator deployment.
+- `datadogCRDs.crds.datadogAgentProfiles=true` installs the `DatadogAgentProfile` CRD.
+
+```yaml
+datadogAgentProfile:
+  enabled: true
+datadogCRDs:
+  crds:
+    datadogAgentProfiles: true
+```
+
+For OLM deployments, where container args cannot be set, enable the controller with an environment variable in the `Subscription` instead:
+
+```yaml
+config:
+  env:
+    - name: DD_AGENT_PROFILE_CONTROLLER_ENABLED
+      value: "true"
+```
+
+### Create the profile
+
+A `DatadogAgentProfile` carries the following Host Profiler annotations. On the nodes matched by `profileAffinity`, they override the same-named annotations on the `DatadogAgent` Custom Resource:
+
+| Annotation | Effect |
+| --- | --- |
+| `agent.datadoghq.com/host-profiler-enabled` | Enables the Host Profiler. |
+| `agent.datadoghq.com/host-profiler-seccomp-enabled` | Controls both the localhost seccomp profile the Host Profiler applies and the init container that installs it on the node. Enabled by default; set to `"false"` to disable both. |
+| `agent.datadoghq.com/host-profiler-logging-seccomp-enabled` | Enables verbose logging for the seccomp profile. No effect when seccomp is disabled. |
+| `experimental.agent.datadoghq.com/image-override-config` | Overrides the Host Profiler container image. |
+
+Remove these annotations from the `DatadogAgent` Custom Resource, then create a `DatadogAgentProfile` that carries them and scopes them with `profileAffinity`:
+
+```yaml
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogAgentProfile
+metadata:
+  name: host-profiler
+  namespace: <NAMESPACE>
+  annotations:
+    agent.datadoghq.com/host-profiler-enabled: "true"
+    experimental.agent.datadoghq.com/image-override-config: |
+      {"host-profiler": {"name": "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"}}
+spec:
+  profileAffinity:
+    profileNodeAffinity:
+      - key: eks.amazonaws.com/nodegroup
+        operator: In
+        values:
+          - ng1
+  config: {}
+```
+
+Apply the `DatadogAgentProfile` through your usual workflow. The Datadog Operator reconciles it and rolls out the Host Profiler sidecar only on the nodes matching `profileNodeAffinity`.
