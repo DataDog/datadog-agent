@@ -149,4 +149,7 @@ fn describe_json() {
     let pid = json["pid"].as_u64().expect("pid should be a number") as u32;
     assert!(pid > 0);
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
+    assert_eq!(json["profile"], "agent");
+    assert_eq!(json["user"], expected_agent_spawn_user());
+    assert_eq!(json["runtime_user"], expected_runtime_user_for_pid(pid));
 }
