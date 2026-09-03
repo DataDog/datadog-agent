@@ -24,6 +24,7 @@ import (
 )
 
 const (
+	enabledConfig                     = "dogstatsd_client_drop_detection.enabled"
 	droppedBytesIssueThreshold        = 0.01
 	unhealthyConfirmationWindowConfig = "dogstatsd_client_drop_detection.unhealthy_confirmation_window"
 	recoveryConfirmationWindowConfig  = "dogstatsd_client_drop_detection.recovery_confirmation_window"
@@ -42,6 +43,13 @@ type Requires struct {
 type Provides struct {
 	Comp dogstatsdclientdropdetector.Component
 }
+
+type disabledComponent struct{}
+
+func (*disabledComponent) ObserveClientBytes(string, dogstatsdclientdropdetector.ClientByteMetric, float64) {
+}
+
+func (*disabledComponent) CompleteFinalDogStatsDSerieFlush() {}
 
 // clientByteStats holds client byte totals for one serializer-flush window.
 type clientByteStats struct {
@@ -83,6 +91,14 @@ type component struct {
 
 // NewComponent creates the DogStatsD client drop detector.
 func NewComponent(req Requires) Provides {
+	if !req.Config.GetBool(enabledConfig) {
+		req.Lifecycle.Append(compdef.Hook{OnStart: func(context.Context) error {
+			resolveActiveIssues(req.HealthPlatform)
+			return nil
+		}})
+		return Provides{Comp: &disabledComponent{}}
+	}
+
 	detector := &component{
 		clients:                       make(map[dogstatsdclientdrops.ClientLibrary]*clientState),
 		logger:                        req.Log,
@@ -100,6 +116,14 @@ func NewComponent(req Requires) Provides {
 		return nil
 	}})
 	return Provides{Comp: detector}
+}
+
+func resolveActiveIssues(healthPlatform healthplatformstore.Component) {
+	for _, library := range dogstatsdclientdrops.ClientLibraries() {
+		for _, issueID := range healthPlatform.GetActiveIssueIDsByIssueName(dogstatsdclientdrops.UDSIssueName(library)) {
+			healthPlatform.ResolveIssue(issueID)
+		}
+	}
 }
 
 // ObserveClientBytes adds one validated UDS client byte total to the current window.

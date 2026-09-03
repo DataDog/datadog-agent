@@ -82,8 +82,10 @@ func (o *coatOnlyBenchmarkObserver) ObserveFinalDogStatsDSerie(serie *metrics.Se
 func newBenchmarkDetector(b *testing.B) dogstatsdclientdropdetector.Component {
 	hostname, _ := hostnamemock.NewMock(hostnamemock.MockHostname("benchmark-host"))
 	return dogstatsdclientdropdetectorimpl.NewComponent(dogstatsdclientdropdetectorimpl.Requires{
-		Lifecycle:      &benchmarkLifecycle{b: b},
-		Config:         config.NewMock(b),
+		Lifecycle: &benchmarkLifecycle{b: b},
+		Config: config.NewMockWithOverrides(b, map[string]interface{}{
+			"dogstatsd_client_drop_detection.enabled": true,
+		}),
 		Log:            logmock.New(b),
 		Hostname:       hostname,
 		HealthPlatform: healthplatformmock.New(b),
