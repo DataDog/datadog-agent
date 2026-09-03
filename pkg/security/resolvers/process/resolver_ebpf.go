@@ -66,6 +66,9 @@ const (
 	otelProcCtxQueueSize     = 100
 	tryReparentMaxForkDepth  = 3  // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
 	tryReparentMaxIterations = 64 // hard cap on total loop iterations in tryReparentFromProcfs to prevent hangs on ancestor cycles or long exec chains
+
+	// eksPodIdentityAgentBinary is the well-known binary name of the EKS Pod Identity Agent
+	eksPodIdentityAgentBinary = "eks-pod-identity-agent"
 )
 
 // EBPFResolver resolved process context
@@ -1662,15 +1665,22 @@ func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) 
 	defer p.Unlock()
 
 	entry := p.entryCache[pid]
-	if entry != nil {
-		// check if this key is already in cache
-		for _, key := range entry.AWSSecurityCredentials {
-			if key.AccessKeyID == e.IMDS.AWS.SecurityCredentials.AccessKeyID {
-				return
-			}
-		}
-		entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials, e.IMDS.AWS.SecurityCredentials)
+	if entry == nil {
+		return
 	}
+
+	// skip the agent itself: attribute the key to the requester, not the broker
+	if e.IMDS.CredentialSource == model.CredentialSourceEKSPodIdentityStr && path.Base(entry.FileEvent.PathnameStr) == eksPodIdentityAgentBinary {
+		return
+	}
+
+	// check if this key is already in cache
+	for _, key := range entry.AWSSecurityCredentials {
+		if key.AccessKeyID == e.IMDS.AWS.SecurityCredentials.AccessKeyID {
+			return
+		}
+	}
+	entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials, e.IMDS.AWS.SecurityCredentials)
 }
 
 // FetchAWSSecurityCredentials returns the list of AWS Security Credentials valid at the time of the event for the
