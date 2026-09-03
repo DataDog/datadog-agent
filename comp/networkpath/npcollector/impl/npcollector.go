@@ -66,7 +66,6 @@ type npCollectorImpl struct {
 	pathtestInputChan      chan *common.Pathtest
 	pathtestProcessingChan chan *pathteststore.PathtestContext
 	basicSelector          *basicSelector
-	allowance              *allowance
 
 	// Scheduling related
 	running               bool
@@ -93,7 +92,6 @@ type npCollectorImpl struct {
 func newNoopNpCollectorImpl() *npCollectorImpl {
 	return &npCollectorImpl{
 		collectorConfigs: &collectorConfigs{},
-		allowance:        newAllowance(),
 	}
 }
 
@@ -124,7 +122,6 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		basicSelector:          basicSelector,
-		allowance:              newAllowance(),
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
 		inputChanFullLogLimit:  utillog.NewLogLimit(10, time.Minute*5),
@@ -494,7 +491,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.TestConfigName = ptest.Pathtest.TestConfigName
 	path.TestConfigSource = ptest.Pathtest.TestConfigSource
 	path.DynamicTestProfile = ptest.Pathtest.DynamicTestProfile
-	path.InAllowance = s.allowance.inAllowance(path.DynamicTestProfile, s.TimeNowFn())
+	path.InAllowance = path.DynamicTestProfile == payload.DynamicTestProfileBasic
 	path.Tags = ptest.Pathtest.Tags
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {
