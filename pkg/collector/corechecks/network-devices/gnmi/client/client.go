@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	parentgnmi "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/admission"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
@@ -240,6 +241,7 @@ func (c *Client) connectAndReceive(ctx context.Context) error {
 		c.mu.Lock()
 		c.conn = nil
 		c.mu.Unlock()
+		admission.Gate().Release()
 		_ = conn.Close()
 	}()
 
@@ -280,10 +282,15 @@ func (c *Client) connectAndReceive(ctx context.Context) error {
 }
 
 func (c *Client) dial(ctx context.Context) (*grpc.ClientConn, error) {
+	if err := admission.Gate().Admit(ctx); err != nil {
+		return nil, fmt.Errorf("admission gate: %w", err)
+	}
+
 	target := net.JoinHostPort(c.cfg.Address, strconv.Itoa(c.cfg.Port))
 	// MVP uses insecure transport credentials; production TLS support is follow-up work.
 	conn, err := c.opt.dial(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
+		admission.Gate().Release()
 		return nil, fmt.Errorf("dial %s: %w", target, err)
 	}
 	return conn, nil
