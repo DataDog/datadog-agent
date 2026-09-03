@@ -5,11 +5,12 @@ go_library(
     name = "telemetry",
     srcs = [
         "check.go",
-        "merge.go",
+        "internal_metrics.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
         "//comp/core/telemetry/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
@@ -26,10 +27,14 @@ dd_agent_go_test(
     embed = [":telemetry"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/core/telemetry/def",
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks",
-        "@com_github_prometheus_client_golang//prometheus",
+        "//pkg/config/model",
         "@com_github_prometheus_client_model//go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
     ],
 )

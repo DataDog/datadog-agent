@@ -1,0 +1,49 @@
+---
+features:
+  - |
+    The ``telemetry`` core check can now report the Agent's internal telemetry registry as
+    ``datadog.agent.*`` metrics, read directly in-process with no HTTP scrape. Setting
+    ``telemetry.internal.enabled`` in ``datadog.yaml`` reports a curated set covering the
+    forwarder, DogStatsD, the aggregator, the check scheduler, and the logs agent, making it a
+    replacement for the ``go_expvar`` instance described in
+    ``conf.d/go_expvar.d/agent_stats.yaml.example``. Setting ``telemetry.internal.advanced``
+    instead reports every metric in the registry.
+
+    Both settings are disabled by default and can be changed at runtime, for example with
+    ``agent config set telemetry.internal.enabled true``; the check picks the new value up on
+    its next run, with no restart. When enabled, the reported metrics are indexed custom
+    metrics; ``advanced`` in particular reports an unbounded number of them and is intended
+    for debugging rather than steady-state use.
+enhancements:
+  - |
+    Added internal telemetry metrics for signals that were previously only available through
+    expvars: ``aggregator__flush_time``, ``aggregator__flush_count``,
+    ``aggregator__number_of_flush``, ``scheduler__queue_size``, and ``logs__running``.
+other:
+  - |
+    Removed dead entries from the ``go_expvar`` ``agent_stats.yaml.example`` sample
+    configuration and the code behind them. ``forwarder/Transactions/DroppedOnInput`` was
+    renamed to ``HighPriorityQueueFull`` in Agent 7.32 and the old path has not resolved
+    since; the ``splitter/*`` paths referred to a serializer splitter that no longer exists;
+    the ``aggregator/HostnameUpdate`` expvar was published but never incremented, so it
+    always reported 0; and the ``logs-agent/HttpDestinationStats/logs_<N>_reliable_0`` paths
+    were named after a sender worker ID that has since changed shape, so they matched
+    nothing. The ``aggregator/HostnameUpdate`` expvar and the status-page fields that
+    rendered these values have been removed. Per-destination sender idle and in-use time is
+    available from the ``telemetry`` core check with a proper ``sender`` tag.
+upgrade:
+  - |
+    Prometheus histograms in the telemetry registry are reported as native Datadog
+    distributions rather than as ``.sum`` and ``.count`` counters, so percentiles, min and max
+    are available. Bucket counts are de-cumulated and submitted as bucket ranges, which the
+    check sampler interpolates into a sketch; this costs one series per histogram instead of
+    two, and the first observation in each bucket is skipped so that history accumulated
+    before the Agent started is not reported as a single interval.
+  - |
+    When a remote agent (such as ADP) reports a metric that the Core Agent also reports as
+    default telemetry, the ``telemetry`` core check no longer sums the two into a single
+    series with the ``emitter`` tag stripped. Both series are now reported unchanged, so the
+    total is obtained by aggregating across them at query time (for example
+    ``sum:datadog.agent.point.sent{*}``) and the per-emitter breakdown is preserved. Queries
+    that already aggregate are unaffected; queries that assumed a single pre-summed series
+    per metric may need to be updated.

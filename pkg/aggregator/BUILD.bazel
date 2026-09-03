@@ -101,6 +101,7 @@ dd_agent_go_test(
         "demultiplexer_agent_test.go",
         "demultiplexer_test.go",
         "final_dogstatsd_serie_observer_bench_test.go",
+        "flush_telemetry_test.go",
         "no_aggregation_stream_worker_test.go",
         "observer_handle_test.go",
         "sender_test.go",

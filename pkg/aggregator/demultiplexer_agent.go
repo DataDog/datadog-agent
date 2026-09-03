@@ -610,6 +610,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)
+	tlmNumberOfFlush.Inc()
 }
 
 // GetEventsAndServiceChecksChannels returneds underlying events and service checks channels.

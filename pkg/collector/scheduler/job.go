@@ -8,6 +8,7 @@ package scheduler
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -121,6 +122,14 @@ func newJobQueue(interval time.Duration, isShadow bool) *jobQueue {
 	return jq
 }
 
+// telemetryTags returns the label values identifying this queue in telemetry metrics.
+func (jq *jobQueue) telemetryTags() []string {
+	return []string{
+		strconv.FormatInt(int64(jq.interval/time.Second), 10),
+		strconv.FormatBool(jq.isShadow),
+	}
+}
+
 // addJob is a convenience method to add a check to a queue
 func (jq *jobQueue) addJob(c check.Check) {
 	jq.mu.Lock()
@@ -129,6 +138,7 @@ func (jq *jobQueue) addJob(c check.Check) {
 	// Checks scheduled to buckets scheduled with sparse round-robin
 	jq.buckets[jq.schedulingBucketIdx].addJob(c)
 	jq.schedulingBucketIdx = (jq.schedulingBucketIdx + jq.sparseStep) % uint(len(jq.buckets))
+	tlmQueueSize.Inc(jq.telemetryTags()...)
 }
 
 func (jq *jobQueue) removeJob(id checkid.ID) error {
@@ -137,6 +147,7 @@ func (jq *jobQueue) removeJob(id checkid.ID) error {
 
 	for _, bucket := range jq.buckets {
 		if found := bucket.removeJob(id); found {
+			tlmQueueSize.Dec(jq.telemetryTags()...)
 			return nil
 		}
 	}

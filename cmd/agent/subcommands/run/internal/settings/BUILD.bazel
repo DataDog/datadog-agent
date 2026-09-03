@@ -8,6 +8,7 @@ go_library(
     srcs = [
         "runtime_setting_dogstatsd_capture_duration.go",
         "runtime_setting_dogstatsd_stats.go",
+        "runtime_setting_internal_telemetry.go",
         "runtime_settings_multi_region_failover.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings",

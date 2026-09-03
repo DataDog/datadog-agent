@@ -20,6 +20,9 @@ var (
 	// TlmLogsDecoded is the total number of decoded logs
 	TlmLogsDecoded = telemetryimpl.GetCompatComponent().NewCounter("logs", "decoded",
 		nil, "Total number of decoded logs")
+	// TlmLogsRunning is whether or not the logs agent is running (0 or 1).
+	TlmLogsRunning = telemetryimpl.GetCompatComponent().NewSimpleGauge("logs", "running",
+		"Whether the logs agent is currently running (1) or not (0)")
 	// LogsProcessed is the total number of processed logs.
 	LogsProcessed = expvar.Int{}
 	// TlmLogsProcessed is the total number of processed logs.
