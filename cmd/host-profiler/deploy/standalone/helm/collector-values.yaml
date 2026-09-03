@@ -43,6 +43,11 @@ clusterRole:
     - apiGroups: [""]
       resources: ["nodes", "nodes/proxy", "nodes/spec"]
       verbs: ["get", "list"]
+    # Required for kubeadm cluster-name discovery.
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      resourceNames: ["kubeadm-config"]
+      verbs: ["get"]
 
 # Required Linux capabilities for host-wide eBPF profiling.
 # The container is not privileged and drops all default capabilities.

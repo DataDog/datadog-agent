@@ -23,7 +23,12 @@ import (
 )
 
 var resourceDetectionDefaultConfig = confMap{
-	"detectors": []any{"system"},
+	"detectors":                []any{"env", "system", "kubeadm", "eks", "gcp", "aks"},
+	"override":                 false,
+	"fail_on_missing_metadata": false,
+	"retry": confMap{
+		"enabled": false,
+	},
 	"system": confMap{
 		"resource_attributes": confMap{
 			"host.arch": confMap{
@@ -240,6 +245,9 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		if err := confmaputils.Set(processors, defaultResourceDetectionName, resourceDetectionDefaultConfig); err != nil {
 			return nil, err
 		}
+		if err := c.ensureResourceDetectionConfig(resourceDetectionDefaultConfig); err != nil {
+			return nil, err
+		}
 		slog.Warn("Added minimal resourcedetection processor to user configuration")
 		processorNames = append(processorNames, defaultResourceDetectionName)
 	}
@@ -269,13 +277,63 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 		return err
 	}
 
-	hasSystemDetector := slices.ContainsFunc(detectors, func(detector any) bool {
-		d, ok := detector.(string)
-		return ok && d == "system"
-	})
+	hasDetector := func(name string) bool {
+		return slices.ContainsFunc(detectors, func(detector any) bool {
+			d, ok := detector.(string)
+			return ok && d == name
+		})
+	}
+	hasSystemDetector := hasDetector("system")
 
-	if !hasSystemDetector {
-		resourceDetection["detectors"] = append(detectors, "system")
+	// Keep explicit OTEL_RESOURCE_ATTRIBUTES ahead of auto-detected values.
+	if hasDetector("env") {
+		detectors = slices.DeleteFunc(detectors, func(detector any) bool {
+			d, ok := detector.(string)
+			return ok && d == "env"
+		})
+	}
+	detectors = append([]any{"env"}, detectors...)
+	for _, detector := range []string{"system", "kubeadm", "eks", "gcp", "aks"} {
+		if !hasDetector(detector) {
+			detectors = append(detectors, detector)
+		}
+	}
+	resourceDetection["detectors"] = detectors
+
+	for path, value := range map[string]bool{
+		"override":                 false,
+		"fail_on_missing_metadata": false,
+		"retry::enabled":           false,
+	} {
+		if _, err := confmaputils.SetDefault(resourceDetection, path, value); err != nil {
+			return err
+		}
+	}
+
+	for _, detector := range []string{"kubeadm", "eks", "gcp", "aks"} {
+		path := detector + "::resource_attributes::k8s.cluster.name::enabled"
+		if _, err := confmaputils.SetDefault(resourceDetection, path, true); err != nil {
+			return err
+		}
+	}
+
+	for detector, attributes := range map[string][]string{
+		"eks": {"cloud.platform", "cloud.provider"},
+		"aks": {"cloud.platform", "cloud.provider"},
+		"gcp": {
+			"cloud.account.id", "cloud.availability_zone", "cloud.platform", "cloud.provider", "cloud.region",
+			"faas.instance", "faas.name", "faas.version",
+			"gcp.cloud_run.job.execution", "gcp.cloud_run.job.task_index",
+			"gcp.gce.instance_group_manager.name", "gcp.gce.instance_group_manager.region", "gcp.gce.instance_group_manager.zone",
+			"host.id", "host.name", "host.type",
+		},
+	} {
+		for _, attribute := range attributes {
+			path := detector + "::resource_attributes::" + attribute + "::enabled"
+			if _, err := confmaputils.SetDefault(resourceDetection, path, false); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Always ensure host.arch is enabled
