@@ -29,7 +29,6 @@ import (
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -217,9 +216,10 @@ func (c *Check) ensureInitCollectors() error {
 	collectors := []nvidia.Collector{}
 	collectorUUIDs := map[string]struct{}{}
 	for _, c := range c.collectors {
-		if _, ok := curDevices[c.DeviceUUID()]; ok {
+		deviceUUID := c.Device().GetDeviceInfo().UUID
+		if _, ok := curDevices[deviceUUID]; ok {
 			collectors = append(collectors, c)
-			collectorUUIDs[c.DeviceUUID()] = struct{}{}
+			collectorUUIDs[deviceUUID] = struct{}{}
 		}
 	}
 
@@ -428,17 +428,18 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 	return gpuToContainers
 }
 
-type deviceMetricsCollection struct {
-	collectorMetrics map[nvidia.CollectorName][]*nvidia.Metric // collector name -> metrics
-	totalCount       int                                       // total number of metrics across all collectors
+type deviceSamplesCollection struct {
+	collectorSamples map[nvidia.CollectorName][]nvidia.Sample
+	totalCount       int
 }
 
-type collectorMetricsCollection struct {
-	name       nvidia.CollectorName
-	deviceUUID string
-	metrics    []*nvidia.Metric
-	err        error
-	duration   time.Duration
+type collectorSamplesCollection struct {
+	name          nvidia.CollectorName
+	deviceUUID    string
+	telemetryTags []string
+	samples       []nvidia.Sample
+	err           error
+	duration      time.Duration
 }
 
 func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
@@ -447,52 +448,51 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
 	}
 
-	perDeviceMetrics := make(map[string]*deviceMetricsCollection)
+	perDeviceSamples := make(map[string]*deviceSamplesCollection)
 
-	var collectorResults []collectorMetricsCollection
+	var collectorResults []collectorSamplesCollection
 	if c.parallelCollectors {
-		collectorResults = collectMetrics(c.collectors)
+		collectorResults = collectSamples(c.collectors)
 	} else {
-		collectorResults = collectMetricsSerial(c.collectors)
+		collectorResults = collectSamplesSerial(c.collectors)
 	}
 
 	var multiErr []error
 	for _, collectorResult := range collectorResults {
-		c.telemetry.collectorTelemetry.Time.Observe(float64(collectorResult.duration.Milliseconds()), string(collectorResult.name))
+		c.telemetry.collectorTelemetry.CollectionRuns.Inc(collectorResult.telemetryTags...)
+		c.telemetry.collectorTelemetry.Time.Observe(float64(collectorResult.duration.Milliseconds()), collectorResult.telemetryTags...)
 
 		if collectorResult.err != nil {
-			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, string(collectorResult.name))
+			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, collectorResult.telemetryTags...)
 			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collectorResult.name, collectorResult.err))
 		}
 
-		if len(collectorResult.metrics) > 0 {
+		if len(collectorResult.samples) > 0 {
 			deviceUUID := collectorResult.deviceUUID
-			if perDeviceMetrics[deviceUUID] == nil {
-				perDeviceMetrics[deviceUUID] = &deviceMetricsCollection{
-					collectorMetrics: make(map[nvidia.CollectorName][]*nvidia.Metric),
+			if perDeviceSamples[deviceUUID] == nil {
+				perDeviceSamples[deviceUUID] = &deviceSamplesCollection{
+					collectorSamples: make(map[nvidia.CollectorName][]nvidia.Sample),
 				}
 			}
-			perDeviceMetrics[deviceUUID].collectorMetrics[collectorResult.name] = collectorResult.metrics
-			perDeviceMetrics[deviceUUID].totalCount += len(collectorResult.metrics)
+			perDeviceSamples[deviceUUID].collectorSamples[collectorResult.name] = collectorResult.samples
+			perDeviceSamples[deviceUUID].totalCount += len(collectorResult.samples)
 		}
 
-		c.telemetry.metrics.metricsSent.Add(float64(len(collectorResult.metrics)), string(collectorResult.name))
+		c.telemetry.metrics.metricsSent.Add(float64(len(collectorResult.samples)), string(collectorResult.name))
 	}
 
-	//iterate through devices to emit its metrics
-	for deviceUUID, deviceData := range perDeviceMetrics {
-		//filter out same metric with lower priority
-		deduplicatedMetrics := nvidia.RemoveDuplicateMetrics(deviceData.collectorMetrics)
-		c.telemetry.metrics.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedMetrics)), deviceUUID)
+	// Iterate through devices to emit their samples.
+	for deviceUUID, deviceData := range perDeviceSamples {
+		deduplicatedSamples := nvidia.RemoveDuplicateSamples(deviceData.collectorSamples)
+		c.telemetry.metrics.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedSamples)), deviceUUID)
 		deviceContainers := gpuToContainersMap[deviceUUID]
 		deviceTags := c.deviceTags[deviceUUID]
 
-		deduplicatedMetrics = c.rateCalculator.ProcessMetrics(deduplicatedMetrics, currentExecutionTime, deviceUUID)
+		deduplicatedSamples = c.rateCalculator.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
 
-		// iterate through filtered metrics and emit them with the tags
-		for _, metric := range deduplicatedMetrics {
-			if err := c.emitSingleMetric(metric, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
-				multiErr = append(multiErr, fmt.Errorf("error emitting metric %s: %w", metric.Name, err))
+		for _, sample := range deduplicatedSamples {
+			if err := c.emitSample(sample, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
+				multiErr = append(multiErr, fmt.Errorf("error emitting sample %s: %w", sample.Key(), err))
 			}
 		}
 	}
@@ -500,25 +500,25 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 	return errors.Join(multiErr...)
 }
 
-func collectMetricsSerial(collectors []nvidia.Collector) []collectorMetricsCollection {
-	results := make([]collectorMetricsCollection, len(collectors))
+func collectSamplesSerial(collectors []nvidia.Collector) []collectorSamplesCollection {
+	results := make([]collectorSamplesCollection, len(collectors))
 
 	for i, collector := range collectors {
-		results[i] = collectMetric(collector)
+		results[i] = collectSample(collector)
 	}
 
 	return results
 }
 
-func collectMetrics(collectors []nvidia.Collector) []collectorMetricsCollection {
-	results := make([]collectorMetricsCollection, len(collectors))
+func collectSamples(collectors []nvidia.Collector) []collectorSamplesCollection {
+	results := make([]collectorSamplesCollection, len(collectors))
 
 	var wg sync.WaitGroup
 	wg.Add(len(collectors))
 	for i, collector := range collectors {
 		go func(i int, collector nvidia.Collector) {
 			defer wg.Done()
-			results[i] = collectMetric(collector)
+			results[i] = collectSample(collector)
 		}(i, collector)
 	}
 	wg.Wait()
@@ -526,7 +526,7 @@ func collectMetrics(collectors []nvidia.Collector) []collectorMetricsCollection 
 	return results
 }
 
-func collectMetric(collector nvidia.Collector) (result collectorMetricsCollection) {
+func collectSample(collector nvidia.Collector) (result collectorSamplesCollection) {
 	defer func() {
 		if r := recover(); r != nil {
 			result.err = fmt.Errorf("collector panicked: %v", r)
@@ -534,18 +534,19 @@ func collectMetric(collector nvidia.Collector) (result collectorMetricsCollectio
 		}
 	}()
 	result.name = collector.Name()
-	log.Debugf("Collecting metrics from NVML collector: %s", result.name)
+	result.deviceUUID = collector.Device().GetDeviceInfo().UUID
+	result.telemetryTags = nvidia.CollectorTelemetryTags(collector)
+	log.Debugf("Collecting samples from NVML collector: %s", result.name)
 	startTime := time.Now()
-	result.metrics, result.err = collector.Collect()
-	result.deviceUUID = collector.DeviceUUID()
+	result.samples, result.err = collector.Collect()
 	result.duration = time.Since(startTime)
 	return
 }
 
-func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {
+func (c *Check) emitSample(sample nvidia.Sample, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {
 	var multiErr []error
 
-	metricWorkloads := metric.AssociatedWorkloads
+	metricWorkloads := sample.AssociatedWorkloads()
 
 	// Metrics with no associated workloads are assumed to apply to all workloads on the device.
 	if len(metricWorkloads) == 0 {
@@ -565,38 +566,13 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 		metricTags = append(metricTags, tags...)
 	}
 
-	metricName := gpuMetricsNs + metric.Name
-	// Build into a fresh slice so we do not append into deviceTags' backing
-	// array and leak tags across metrics for the same device.
-	allTags := make([]string, 0, len(deviceTags)+len(metricTags)+len(metric.Tags))
-	allTags = append(allTags, deviceTags...)
-	allTags = append(allTags, metricTags...)
-	allTags = append(allTags, metric.Tags...)
+	sample = sample.Clone() // avoid modifying the original sample
+	sample.AppendTags(metricTags)
+	sample.AppendTags(deviceTags)
 
-	if metric.Type == ddmetrics.HistogramType {
-		if metric.HistogramBucket == nil {
-			return fmt.Errorf("metric %s has histogram type but no histogram bucket data", metric.Name)
-		}
-
-		snd.HistogramBucket(metricName, int64(metric.Value), metric.HistogramBucket.Bounds[0], metric.HistogramBucket.Bounds[1], metric.HistogramBucket.Monotonic, "", allTags, metric.HistogramBucket.FlushFirstValue)
-		return nil
-	}
-
-	// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
-	// We need this to ensure weighted metrics are calibrated correctly.
-	var err error
-	metricTimestamp := float64(currentExecutionTime.UnixNano()) / float64(time.Second)
-	switch metric.Type {
-	case ddmetrics.CountType:
-		err = snd.CountWithTimestamp(metricName, metric.Value, "", allTags, metricTimestamp)
-	case ddmetrics.GaugeType:
-		err = snd.GaugeWithTimestamp(metricName, metric.Value, "", allTags, metricTimestamp)
-	default:
-		err = fmt.Errorf("unsupported metric type %s", metric.Type)
-	}
-
+	err := sample.Emit(gpuMetricsNs, snd, currentExecutionTime)
 	if err != nil {
-		multiErr = append(multiErr, fmt.Errorf("error sending metric: %w", err))
+		multiErr = append(multiErr, fmt.Errorf("error emitting sample: %w", err))
 	}
 
 	return errors.Join(multiErr...)

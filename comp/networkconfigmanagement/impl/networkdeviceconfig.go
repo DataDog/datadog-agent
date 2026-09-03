@@ -139,7 +139,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		nonBlockingErrors = append(nonBlockingErrors, types.WrapErrorf(types.ErrMetadataSendFailed, "failed to send device metadata: %w", err))
 	}
 
-	configs, localStoreChanged, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store)
+	configs, localStoreChanged, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store, sender)
 	nonBlockingErrors = append(nonBlockingErrors, confErrs...)
 
 	var inventoryEntries []ncmreport.InventoryEntry
@@ -198,10 +198,9 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryE
 	entries := make([]ncmreport.InventoryEntry, 0, len(configMeta))
 	for _, m := range configMeta {
 		entries = append(entries, ncmreport.InventoryEntry{
-			Namespace:  m.GetNamespace(),
-			ConfigID:   m.ConfigUUID,
-			DeviceID:   m.DeviceID,
-			ReportedAt: m.CapturedAt,
+			Namespace: m.GetNamespace(),
+			ConfigID:  m.ConfigUUID,
+			DeviceID:  m.DeviceID,
 		})
 	}
 	return entries, nil

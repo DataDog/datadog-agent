@@ -103,8 +103,8 @@ var (
 
 	// agentPackageUninstallPaths are the agent paths that are deleted during an uninstall
 	agentPackageUninstallPaths = file.Paths{
+		"processes.d",
 		"embedded/ssl/fipsmodule.cnf",
-		"processes.d/datadog-agent-action-executor.yaml",
 		"run",
 		".pre_python_installed_packages.txt",
 		".post_python_installed_packages.txt",
@@ -128,8 +128,14 @@ var (
 	agentService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
-		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-ddot.service", "datadog-agent-procmgr.service"},
-		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-ddot-exp.service", "datadog-agent-procmgr-exp.service"},
+		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-ddot.service"},
+		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-ddot-exp.service"},
+
+		ProcmgrMainUnitStable: "datadog-agent.service",
+		ProcmgrMainUnitExp:    "datadog-agent-exp.service",
+		ProcmgrUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service", "datadog-agent-action.service", "datadog-agent-procmgr.service"},
+		ProcmgrUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-procmgr-exp.service"},
+		ProcmgrProcesses:      []string{"datadog-agent-ddot.yaml", "datadog-agent-action-executor.yaml", "datadog-agent-par-control.yaml"},
 
 		UpstartMainService: "datadog-agent",
 		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-action"},
@@ -175,7 +181,12 @@ func installFilesystem(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 
-	// 2. Ensure config/run/log/package directories are created and have the correct permissions
+	// 2. Write procmgr processes (ownership enforced next step)
+	if err = agentService.WriteProcesses(ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to write processes: %s", err)
+	}
+
+	// 3. Ensure config/run/log/package directories are created and have the correct permissions
 	if err = agentDirectories.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
@@ -189,12 +200,8 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err = agentRunPath.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to create run directory: %v", err)
 	}
-	processesDir := file.Directory{Path: filepath.Join(ctx.PackagePath, "processes.d"), Mode: 0755, Owner: "dd-agent", Group: "dd-agent"}
-	if err = processesDir.Ensure(ctx); err != nil {
-		return fmt.Errorf("failed to create processes.d directory: %v", err)
-	}
 
-	// 3. Create symlinks
+	// 4. Create symlinks
 	if err = file.EnsureSymlink(ctx, filepath.Join(ctx.PackagePath, "bin/agent/agent"), agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
@@ -202,22 +209,22 @@ func installFilesystem(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 
-	// 4. Set up SELinux permissions
+	// 5. Set up SELinux permissions
 	if err = selinux.SetAgentPermissions(ctx, "/etc/datadog-agent", ctx.PackagePath); err != nil {
 		log.Warnf("failed to set SELinux permissions: %v", err)
 	}
 
-	// 5. Handle install info
+	// 6. Handle install info
 	if err = installinfo.WriteInstallInfo(ctx, string(ctx.PackageType)); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
 
-	// 6. Remove old installer units if they exist
+	// 7. Remove old installer units if they exist
 	if err = oldInstallerUnitPaths.EnsureAbsent(ctx, "/etc/systemd/system"); err != nil {
 		return fmt.Errorf("failed to remove old installer units: %v", err)
 	}
 
-	// 7. Stop and remove legacy procmgr unit names so only datadog-agent-procmgr.service runs dd-procmgrd
+	// 8. Stop and remove legacy procmgr unit names so only datadog-agent-procmgr.service runs dd-procmgrd
 	if err = retireLegacyProcmgrUnits(ctx); err != nil {
 		log.Warnf("failed to retire legacy procmgr units: %v", err)
 	}
@@ -228,10 +235,8 @@ func installFilesystem(ctx HookContext) (err error) {
 // A host that upgraded from datadog-agent-procmgrd.service could otherwise run two dd-procmgrd
 // instances (socket and processes.d conflicts).
 func retireLegacyProcmgrUnits(ctx HookContext) error {
-	serviceManager := service.GetServiceManagerType()
-	log.Debugf("retire legacy procmgr units: service manager %q", serviceManager)
-	switch serviceManager {
-	case service.SystemdType:
+	switch service.GetServiceManagerType(ctx.PackagePath) {
+	case service.SystemdType, service.ProcmgrType:
 	default:
 		log.Debugf("retire legacy procmgr units: skipping, systemd not in use")
 		return nil
@@ -256,8 +261,7 @@ func retireLegacyProcmgrUnits(ctx HookContext) error {
 	} else {
 		log.Debugf("retire legacy procmgr units: skipping stop/disable, systemd not running")
 	}
-	for _, unitsPath := range systemdUnitInstallPaths {
-		log.Debugf("retire legacy procmgr units: removing unit files from %q", unitsPath)
+	for _, unitsPath := range unitInstallPaths {
 		if err := legacyProcmgrUnitPaths.EnsureAbsent(ctx, unitsPath); err != nil {
 			log.Debugf("retire legacy procmgr units: remove unit files from %q failed: %v", unitsPath, err)
 			return fmt.Errorf("remove legacy procmgr unit files from %s: %w", unitsPath, err)
@@ -270,18 +274,6 @@ func retireLegacyProcmgrUnits(ctx HookContext) error {
 	}
 	log.Debugf("retire legacy procmgr units: done")
 	return nil
-}
-
-const parExecutorProcmgrConfigName = "datadog-agent-action-executor.yaml"
-
-func writePARExecutorProcmgrConfig(installRoot string) error {
-	processesDir := filepath.Join(installRoot, "processes.d")
-	config := strings.ReplaceAll(embedded.PARExecutorProcessConfig, "/opt/datadog-agent", installRoot)
-	if err := os.MkdirAll(processesDir, 0755); err != nil {
-		return fmt.Errorf("failed to write PAR executor procmgr config: %w", err)
-	}
-	path := filepath.Join(processesDir, parExecutorProcmgrConfigName)
-	return os.WriteFile(path, []byte(config), 0644)
 }
 
 // uninstallFilesystem cleans the filesystem by removing various temporary files, symlinks and installation metadata
@@ -364,12 +356,6 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	}
 	if err := installAgentExtensions(ctx, agentVersion, false); err != nil {
 		log.Warnf("failed to install extensions: %s", err)
-	}
-	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
-		log.Warnf("failed to write DDOT process manager config: %v", err)
-	}
-	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
-		log.Warnf("failed to write PAR executor process manager config: %v", err)
 	}
 	if err := agentService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
@@ -484,9 +470,6 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
-	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
-		log.Warnf("failed to write PAR executor process manager config: %v", err)
-	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
 	}
@@ -533,9 +516,6 @@ func prePromoteExperimentDatadogAgent(ctx HookContext) error {
 func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	if err := installFilesystem(ctx); err != nil {
 		return err
-	}
-	if err := writePARExecutorProcmgrConfig(ctx.PackagePath); err != nil {
-		log.Warnf("failed to write PAR executor process manager config: %v", err)
 	}
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx
@@ -639,6 +619,12 @@ type datadogAgentService struct {
 	SystemdUnitsStable    []string
 	SystemdUnitsExp       []string
 
+	ProcmgrMainUnitStable string
+	ProcmgrMainUnitExp    string
+	ProcmgrUnitsStable    []string
+	ProcmgrUnitsExp       []string
+	ProcmgrProcesses      []string
+
 	UpstartMainService string
 	UpstartServices    []string
 
@@ -647,8 +633,8 @@ type datadogAgentService struct {
 }
 
 func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
-	switch service.GetServiceManagerType() {
-	case service.SystemdType:
+	switch service.GetServiceManagerType(ctx.PackagePath) {
+	case service.SystemdType, service.ProcmgrType:
 		return nil
 	case service.UpstartType:
 		if ctx.PackageType != PackageTypeDEB && ctx.PackageType != PackageTypeRPM {
@@ -669,9 +655,11 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.EnableUnit(ctx, s.SystemdMainUnitStable)
+	case service.ProcmgrType:
+		return systemd.EnableUnit(ctx, s.ProcmgrMainUnitStable)
 	case service.UpstartType:
 		return nil // Nothing to do, this is defined directly in the upstart job file
 	case service.SysvinitType:
@@ -686,9 +674,11 @@ func (s *datadogAgentService) DisableStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.DisableUnits(ctx, s.SystemdUnitsStable...)
+	case service.ProcmgrType:
+		return systemd.DisableUnits(ctx, s.ProcmgrUnitsStable...)
 	case service.UpstartType:
 		return nil // Nothing to do, this is defined directly in the upstart job file
 	case service.SysvinitType:
@@ -711,9 +701,11 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	if !present {
 		return nil
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.RestartUnit(ctx, s.SystemdMainUnitStable)
+	case service.ProcmgrType:
+		return systemd.RestartUnit(ctx, s.ProcmgrMainUnitStable)
 	case service.UpstartType:
 		return upstart.Restart(ctx, s.UpstartMainService)
 	case service.SysvinitType:
@@ -728,9 +720,11 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.StopUnits(ctx, reverseStringSlice(s.SystemdUnitsStable)...)
+	case service.ProcmgrType:
+		return systemd.StopUnits(ctx, reverseStringSlice(s.ProcmgrUnitsStable)...)
 	case service.UpstartType:
 		return upstart.StopAll(ctx, reverseStringSlice(s.UpstartServices)...)
 	case service.SysvinitType:
@@ -740,20 +734,31 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	}
 }
 
+// WriteProcesses writes the processes for the given package path
+func (s *datadogAgentService) WriteProcesses(packagePath string) error {
+	switch service.GetServiceManagerType(packagePath) {
+	case service.ProcmgrType:
+		return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)
+	default:
+		return nil // Only procmgr defines processes
+	}
+}
+
 // WriteStable writes the stable units to the system and reloads the systemd daemon
 func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsStable...)
-	case service.UpstartType:
+		return writeEmbeddedSystemdUnitsAndReload(ctx, s.SystemdUnitsStable...)
+	case service.ProcmgrType:
+		return writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsStable...)
+	case service.UpstartType, service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
-	case service.SysvinitType:
-		return nil // Nothing to do, files are embedded in the package
+	default:
+		return errors.New("unsupported service manager")
 	}
-	return errors.New("unsupported service manager")
 }
 
 // RemoveStable removes the stable units
@@ -761,15 +766,16 @@ func (s *datadogAgentService) RemoveStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return removeUnits(ctx, s.SystemdUnitsStable...)
-	case service.UpstartType:
+	case service.ProcmgrType:
+		return removeUnits(ctx, s.ProcmgrUnitsStable...)
+	case service.UpstartType, service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
-	case service.SysvinitType:
-		return nil // Nothing to do, files are embedded in the package
+	default:
+		return errors.New("unsupported service manager")
 	}
-	return errors.New("unsupported service manager")
 }
 
 // StartExperiment starts the experiment unit
@@ -777,15 +783,18 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.StartUnit(ctx, s.SystemdMainUnitExp)
+	case service.ProcmgrType:
+		return systemd.StartUnit(ctx, s.ProcmgrMainUnitExp)
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
 		return errors.New("experiments are not supported on sysvinit")
+	default:
+		return errors.New("unsupported service manager")
 	}
-	return errors.New("unsupported service manager")
 }
 
 // StopExperiment stops the experiment units
@@ -793,15 +802,16 @@ func (s *datadogAgentService) StopExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return systemd.StopUnits(ctx, s.SystemdMainUnitExp)
-	case service.UpstartType:
-		return nil // Experiments are not supported on upstart
-	case service.SysvinitType:
-		return nil // Experiments are not supported on sysvinit
+	case service.ProcmgrType:
+		return systemd.StopUnits(ctx, s.ProcmgrMainUnitExp)
+	case service.UpstartType, service.SysvinitType:
+		return nil // Experiments are not supported on upstart or sysvinit
+	default:
+		return errors.New("unsupported service manager")
 	}
-	return errors.New("unsupported service manager")
 }
 
 // WriteExperiment writes the experiment units to the system and reloads the systemd daemon
@@ -809,15 +819,18 @@ func (s *datadogAgentService) WriteExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsExp...)
+		return writeEmbeddedSystemdUnitsAndReload(ctx, s.SystemdUnitsExp...)
+	case service.ProcmgrType:
+		return writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsExp...)
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
 		return errors.New("experiments are not supported on sysvinit")
+	default:
+		return errors.New("unsupported service manager")
 	}
-	return errors.New("unsupported service manager")
 }
 
 // RemoveExperiment removes the experiment units from the disk
@@ -825,15 +838,16 @@ func (s *datadogAgentService) RemoveExperiment(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	switch service.GetServiceManagerType() {
+	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
 		return removeUnits(ctx, s.SystemdUnitsExp...)
-	case service.UpstartType:
-		return nil // Experiments are not supported on upstart
-	case service.SysvinitType:
-		return nil // Experiments are not supported on sysvinit
+	case service.ProcmgrType:
+		return removeUnits(ctx, s.ProcmgrUnitsExp...)
+	case service.UpstartType, service.SysvinitType:
+		return nil // Experiments are not supported on upstart or sysvinit
+	default:
+		return errors.New("unsupported service manager")
 	}
-	return errors.New("unsupported service manager")
 }
 
 // isAgentConfigFilePresent checks if the agent config file exists
@@ -851,17 +865,38 @@ const (
 	rpmUnitsPath = "/usr/lib/systemd/system"
 )
 
-var systemdUnitInstallPaths = []string{ociUnitsPath, debUnitsPath, rpmUnitsPath}
+var unitInstallPaths = []string{ociUnitsPath, debUnitsPath, rpmUnitsPath}
 
-func removeUnits(ctx HookContext, units ...string) error {
-	var unitsPath string
+// unitsPath returns the directory the package's unit files are installed to.
+func unitsPath(ctx HookContext) (string, error) {
 	switch ctx.PackageType {
 	case PackageTypeDEB:
-		unitsPath = debUnitsPath
+		return debUnitsPath, nil
 	case PackageTypeRPM:
-		unitsPath = rpmUnitsPath
+		return rpmUnitsPath, nil
 	case PackageTypeOCI:
-		unitsPath = ociUnitsPath
+		return ociUnitsPath, nil
+	default:
+		return "", fmt.Errorf("unsupported package type: %s", ctx.PackageType)
+	}
+}
+
+// unitType returns the generated unit flavor for the package type.
+func unitType(ctx HookContext) (embedded.UnitType, error) {
+	switch ctx.PackageType {
+	case PackageTypeDEB, PackageTypeRPM:
+		return embedded.UnitTypeDebRpm, nil
+	case PackageTypeOCI:
+		return embedded.UnitTypeOCI, nil
+	default:
+		return "", fmt.Errorf("unsupported package type: %s", ctx.PackageType)
+	}
+}
+
+func removeUnits(ctx HookContext, units ...string) error {
+	unitsPath, err := unitsPath(ctx)
+	if err != nil {
+		return err
 	}
 	for _, unit := range units {
 		err := os.Remove(filepath.Join(unitsPath, unit))
@@ -872,27 +907,38 @@ func removeUnits(ctx HookContext, units ...string) error {
 	return nil
 }
 
-func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
+func writeEmbeddedSystemdUnitsAndReload(ctx HookContext, units ...string) error {
+	if err := writeUnitsAndReload(ctx, embedded.GetSystemdUnit, units...); err != nil {
+		return err
+	}
+	return systemd.Reload(ctx)
+}
+
+func writeEmbeddedProcmgrUnitsAndReload(ctx HookContext, units ...string) error {
+	if err := writeUnitsAndReload(ctx, embedded.GetProcmgrUnit, units...); err != nil {
+		return err
+	}
+	return systemd.Reload(ctx)
+}
+
+type embeddedUnitGetter func(name string, unitType embedded.UnitType, ambiantCapabilitiesSupported bool) ([]byte, error)
+
+func writeUnitsAndReload(ctx HookContext, get embeddedUnitGetter, units ...string) error {
 	ambiantCapabilitiesSupported, err := isAmbiantCapabilitiesSupported()
 	if err != nil {
 		log.Errorf("failed to check if ambiant capabilities are supported: %v", err)
 		ambiantCapabilitiesSupported = true // Assume true if we can't check
 	}
-	var unitType embedded.SystemdUnitType
-	var unitsPath string
-	switch ctx.PackageType {
-	case PackageTypeDEB:
-		unitType = embedded.SystemdUnitTypeDebRpm
-		unitsPath = debUnitsPath
-	case PackageTypeRPM:
-		unitType = embedded.SystemdUnitTypeDebRpm
-		unitsPath = rpmUnitsPath
-	case PackageTypeOCI:
-		unitType = embedded.SystemdUnitTypeOCI
-		unitsPath = ociUnitsPath
+	unitType, err := unitType(ctx)
+	if err != nil {
+		return err
+	}
+	unitsPath, err := unitsPath(ctx)
+	if err != nil {
+		return err
 	}
 	for _, unit := range units {
-		content, err := embedded.GetSystemdUnit(unit, unitType, ambiantCapabilitiesSupported)
+		content, err := get(unit, unitType, ambiantCapabilitiesSupported)
 		if err != nil {
 			return err
 		}
@@ -901,7 +947,23 @@ func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
 			return err
 		}
 	}
-	return systemd.Reload(ctx)
+	return nil
+}
+
+func writeEmbeddedProcmgrProcesses(packagePath string, processes ...string) error {
+	if len(processes) == 0 {
+		return nil
+	}
+	for _, process := range processes {
+		content, err := embedded.GetProcmgrProcess(process)
+		if err != nil {
+			return err
+		}
+		if err := service.WriteProcess(packagePath, process, content); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func writeEmbeddedUnit(dir string, unit string, content []byte) error {

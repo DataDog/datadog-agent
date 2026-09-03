@@ -2,7 +2,7 @@
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
-load("@rules_go//go:def.bzl", "go_context")
+load("@rules_go//go:def.bzl", "go_context", "go_rule")
 load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_include_dirs")
 
 def _relpath(target, base):
@@ -116,7 +116,7 @@ def _cgo_godefs_impl(ctx):
         OutputGroupInfo(**output_groups),
     ]
 
-_cgo_godefs = rule(
+_cgo_godefs = go_rule(
     implementation = _cgo_godefs_impl,
     attrs = {
         "src": attr.label(
@@ -145,7 +145,6 @@ _cgo_godefs = rule(
             default = "@rules_go//:go_context_data",
         ),
     },
-    toolchains = ["@rules_go//go:toolchain"],
 )
 
 _STD_LINUX_DEPS = [

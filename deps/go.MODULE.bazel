@@ -148,7 +148,6 @@ use_repo(
     "com_github_frapposelli_wwhrd",
     "com_github_freddierice_go_losetup",
     "com_github_fsnotify_fsnotify",
-    "com_github_ghodss_yaml",
     "com_github_glaslos_ssdeep",
     "com_github_go_delve_delve",
     "com_github_go_enry_go_license_detector_v4",
@@ -159,7 +158,6 @@ use_repo(
     "com_github_go_viper_mapstructure_v2",
     "com_github_go_zookeeper_zk",
     "com_github_gobwas_glob",
-    "com_github_goccy_go_yaml",
     "com_github_gocomply_scap",
     "com_github_godbus_dbus_v5",
     "com_github_godror_godror",
@@ -220,6 +218,7 @@ use_repo(
     "com_github_masterminds_sprig_v3",
     "com_github_mattn_go_sqlite3",
     "com_github_mdlayher_netlink",
+    "com_github_mdlayher_socket",
     "com_github_mdlayher_vsock",
     "com_github_microsoft_go_winio",
     "com_github_microsoft_hcsshim",
@@ -318,7 +317,6 @@ use_repo(
     "com_github_safchain_baloum",
     "com_github_safchain_ethtool",
     "com_github_samber_lo",
-    "com_github_santhosh_tekuri_jsonschema_v5",
     "com_github_santhosh_tekuri_jsonschema_v6",
     "com_github_sassoftware_go_rpmutils",
     "com_github_secure_systems_lab_go_securesystemslib",
@@ -452,6 +450,8 @@ use_repo(
     "io_opentelemetry_go_otel_sdk",
     "io_opentelemetry_go_otel_sdk_metric",
     "io_opentelemetry_go_otel_trace",
+    "io_opentelemetry_go_proto_slim_otlp",
+    "io_opentelemetry_go_proto_slim_otlp_processcontext_v1development",
     "io_temporal_go_api",
     "io_temporal_go_sdk",
     "net_pgregory_rapid",
@@ -490,6 +490,7 @@ use_repo(
     "org_uber_go_multierr",
     "org_uber_go_zap",
     "org_uber_go_zap_exp",
+    "sh_helm_helm_v3",
     "tools_gotest_gotestsum",
 )
 
@@ -539,6 +540,17 @@ go_deps.module_override(
         "//bazel/rules/go_godror:cdeps-attr.patch",
     ],
     path = "github.com/godror/godror",
+)
+
+# kustomize's native Go-plugin loader flips the linker into dynlinking mode (-Wl,-z,nocopyreloc), breaking
+# github.com/DataDog/zstd's copy-relocation-dependent cgo (#54846). A gotags-based exclusion doesn't work here:
+# rules_go's own compile-time constraint filter re-evaluates //go:build tags using each consumer's real (transitively
+# propagated) gotags, independent of what Gazelle put in srcs, so the disabled stub would get silently dropped again.
+# Patch out the build-tag guard itself so there's nothing left to get wrong.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:kustomize-disable-go-plugin-loader.patch"],
+    path = "sigs.k8s.io/kustomize/api",
 )
 
 inject_repo(go_deps, "systemd")

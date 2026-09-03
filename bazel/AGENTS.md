@@ -223,6 +223,23 @@ cross-platform by design: the binary runs on the CI host while the *target VM* i
 `foo_win_test.go` carry no Go build constraint (`_win` is not a `GOOS` — only `_windows` is), and constraining them
 would stop Windows suites from ever running from Linux CI.
 
+#### A directory-scoped run deletes `write_pb_go` rules
+
+The `write_pb_go` extension (`bazel/rules/write_pb_go/_gazelle_extension.go`) matches a
+`go_library` holding checked-in `*.pb.go` files against the `go_proto_library` that generates them. It
+accumulates `go_proto_library` info as Gazelle walks directories and relies on the proto directory being
+visited *before* the Go directory (there is a `TODO` on that traversal-order dependency). A scoped run
+never visits the proto directory, so the match fails and the extension deletes the rule as stale:
+
+```sh
+bazel run //:gazelle -- pkg/proto/pbgo/trace   # DELETES the write_pb_go rule (and its load)
+bazel run //:gazelle                           # keeps it — the proto dir is visited too
+```
+
+So for any directory with checked-in generated `.pb.go` files (`pkg/proto/pbgo/...`), run Gazelle
+repo-wide, or `git diff` the BUILD file afterwards and restore the `write_pb_go` rule plus its
+`load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")`.
+
 #### `@//` in a generated dep means Gazelle found no target
 
 A label like `"@//test/new-e2e/tests/windows/common"` (rather than `"//test/..."`) is Gazelle's module-path fallback: the
@@ -941,6 +958,10 @@ The target name is spent twice in that path, so keep target names, tag-set suffi
 runner has 16 CPUs, and building the repo alongside ~1k race-instrumented Go tests starves them enough that tests
 asserting on wall-clock time fail. Prefer waiting on a signal over a fixed duration in any test that runs there.
 
+**Go test link memory.** Windows race/cgo Go test binaries can exhaust the container or host commit limit during
+external linking (`VirtualAlloc ... errno=1455`). Hybrid `dda inv test` runs can lower Bazel test concurrency with
+`DD_BAZEL_TEST_JOBS`; keep this aligned with the Windows unit-test container memory ceiling.
+
 ## Testing
 
 ### Testing rules (Starlark unit tests)
@@ -1068,7 +1089,7 @@ When a `verify_generated_files` test fails, run the corresponding
 
 ```bash
 # Update a single cgo godefs output
-bazel run //pkg/ebpf:types_godefs
+bazel run //pkg/ebpf/lockcontention:types_godefs
 ```
 
 Runtime compilation integrity hash files (`pkg/ebpf/bytecode/runtime/*.go`) are

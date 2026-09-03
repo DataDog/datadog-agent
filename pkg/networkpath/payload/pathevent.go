@@ -114,6 +114,8 @@ const (
 	TestRunTypeScheduled TestRunType = "scheduled"
 	// TestRunTypeDynamic is a dynamic test run.
 	TestRunTypeDynamic TestRunType = "dynamic"
+	// TestRunTypeFast is a fast test run.
+	TestRunTypeFast TestRunType = "fast"
 	// TestRunTypeTriggered is a triggered test run.
 	TestRunTypeTriggered TestRunType = "triggered"
 )
@@ -127,6 +129,15 @@ const (
 	// TestConfigSourceRemote identifies a test configured through Network Path
 	// Remote Configuration, including dynamic paths admitted by an RC filter.
 	TestConfigSourceRemote TestConfigSource = "remote"
+)
+
+// DynamicTestProfile identifies how a dynamic test was selected. It is
+// independent of the configuration source that admitted the path.
+type DynamicTestProfile string
+
+const (
+	// DynamicTestProfileBasic is an included CNM basic test.
+	DynamicTestProfileBasic DynamicTestProfile = "basic"
 )
 
 // SourceProduct defines the product that originated the path
@@ -248,22 +259,23 @@ type TracerouteDestination struct {
 // NetworkPath encapsulates data that defines a
 // path between two hosts as mapped by the agent
 type NetworkPath struct {
-	Timestamp        int64                  `json:"timestamp"`
-	AgentVersion     string                 `json:"agent_version"`
-	Namespace        string                 `json:"namespace"`      // namespace used to resolve NDM resources
-	TestConfigID     string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
-	TestConfigName   string                 `json:"test_config_name,omitempty"`
-	TestResultID     string                 `json:"test_result_id"` // ID of specific test result (test run)
-	TestRunID        string                 `json:"test_run_id"`
-	Origin           PathOrigin             `json:"origin"`
-	TestRunType      TestRunType            `json:"test_run_type"`
-	TestConfigSource TestConfigSource       `json:"test_config_source,omitempty"`
-	SourceProduct    SourceProduct          `json:"source_product"`
-	CollectorType    CollectorType          `json:"collector_type"`
-	Protocol         Protocol               `json:"protocol"`
-	Source           NetworkPathSource      `json:"source"`
-	Destination      NetworkPathDestination `json:"destination"`
-	Traceroute       Traceroute             `json:"traceroute"`
-	E2eProbe         E2eProbe               `json:"e2e_probe"`
-	Tags             []string               `json:"tags,omitempty"`
+	Timestamp          int64                  `json:"timestamp"`
+	AgentVersion       string                 `json:"agent_version"`
+	Namespace          string                 `json:"namespace"`      // namespace used to resolve NDM resources
+	TestConfigID       string                 `json:"test_config_id"` // ID represent the test configuration created in UI/backend/Agent
+	TestConfigName     string                 `json:"test_config_name,omitempty"`
+	TestResultID       string                 `json:"test_result_id"` // ID of specific test result (test run)
+	TestRunID          string                 `json:"test_run_id"`
+	Origin             PathOrigin             `json:"origin"`
+	TestRunType        TestRunType            `json:"test_run_type"`
+	TestConfigSource   TestConfigSource       `json:"test_config_source,omitempty"`
+	DynamicTestProfile DynamicTestProfile     `json:"dynamic_test_profile,omitempty"`
+	SourceProduct      SourceProduct          `json:"source_product"`
+	CollectorType      CollectorType          `json:"collector_type"`
+	Protocol           Protocol               `json:"protocol"`
+	Source             NetworkPathSource      `json:"source"`
+	Destination        NetworkPathDestination `json:"destination"`
+	Traceroute         Traceroute             `json:"traceroute"`
+	E2eProbe           E2eProbe               `json:"e2e_probe"`
+	Tags               []string               `json:"tags,omitempty"`
 }

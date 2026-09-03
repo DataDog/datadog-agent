@@ -91,6 +91,11 @@ const (
 	Deadlock  // DEADLOCK
 	Timeout   // TIMEOUT
 
+	// Hybrid tokens span mixed character classes (digits, punctuation, ...)
+	// and are produced by collapsing a run of base tokens after the
+	// per-byte scan. See collapseHybridTokens.
+	IPv4
+
 	End // Not a valid token. Used to mark the end of the token list or as a terminator.
 )
 

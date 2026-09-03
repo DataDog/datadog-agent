@@ -3810,6 +3810,18 @@ api_key:
 #
 #     collect_vpn: true
 
+#     # @param device_tags_source - string - optional - default: "resource"
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_DEVICE_TAGS_SOURCE - string - optional - default: "resource"
+#     # Where the device tags on metrics come from.
+#     # `resource`: only the resource tag is sent and the backend attaches the device tags from
+#     # the metadata payload.
+#     # `agent`: the Agent attaches the device tags to every metric it submits and no resource
+#     # tag is sent, so the backend does not enrich the metrics.
+#     # `both`: the Agent attaches the device tags and the backend enrichment applies on top.
+#     # This has no effect when `collect_device_metadata` is disabled.
+#
+#     device_tags_source: "resource"
+
 #     # @param ping - custom object - optional
 #     # Configure ICMP pings for all hosts in SNMP autodiscovery
 #     # Devices will be pinged with these settings each time the SNMP
@@ -4740,6 +4752,14 @@ api_key:
 #   # Set to false to disable these default actions.
 #
 #   default_actions_enabled: true
+
+#   # @param agent_secret_management_enabled - boolean - optional - default: true
+#   # @env DD_PRIVATE_ACTION_RUNNER_AGENT_SECRET_MANAGEMENT_ENABLED - boolean - optional - default: true
+#   # Enables resolving connection credentials with the Datadog Agent secret
+#   # management backend. Set to false to disable Agent secret resolution for
+#   # Private Action Runner connections.
+#
+#   agent_secret_management_enabled: true
 
 #   # @param http_timeout_seconds - integer - optional - default: 30
 #   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_TIMEOUT_SECONDS - integer - optional - default: 30

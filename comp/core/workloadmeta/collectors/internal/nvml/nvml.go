@@ -53,6 +53,12 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 	// build the GPU device info using the pre-computed values
 	// from the device cache
 	devInfo := device.GetDeviceInfo()
+	nvlinkVersion := devInfo.NVLinkVersion
+	if devInfo.NVLinkLinkCount == 0 {
+		nvlinkVersion = "not_nvlink_capable"
+	} else if nvlinkVersion == "" {
+		nvlinkVersion = "unknown"
+	}
 	gpuDeviceInfo := workloadmeta.GPU{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindGPU,
@@ -69,9 +75,10 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 			Major: int(devInfo.SMVersion / 10),
 			Minor: int(devInfo.SMVersion % 10),
 		},
-		TotalCores:   devInfo.CoreCount,
-		TotalMemory:  devInfo.Memory,
-		Architecture: gpuutil.ArchToString(devInfo.Architecture),
+		TotalCores:    devInfo.CoreCount,
+		TotalMemory:   devInfo.Memory,
+		Architecture:  gpuutil.ArchToString(devInfo.Architecture),
+		NVLinkVersion: nvlinkVersion,
 	}
 
 	switch d := device.(type) {
@@ -109,7 +116,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
 		}
 	} else {
-		gpuDeviceInfo.VirtualizationMode = gpuVirtModeToString(virtMode)
+		gpuDeviceInfo.VirtualizationMode = gpuutil.VirtualizationModeToString(virtMode)
 	}
 
 	memBusWidth, err := device.GetMemoryBusWidth()
@@ -434,21 +441,4 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-func gpuVirtModeToString(nvmlVirtMode nvml.GpuVirtualizationMode) string {
-	switch nvmlVirtMode {
-	case nvml.GPU_VIRTUALIZATION_MODE_NONE:
-		return "none"
-	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU:
-		return "host_vgpu"
-	case nvml.GPU_VIRTUALIZATION_MODE_PASSTHROUGH:
-		return "passthrough"
-	case nvml.GPU_VIRTUALIZATION_MODE_HOST_VSGA:
-		return "host_vsga"
-	case nvml.GPU_VIRTUALIZATION_MODE_VGPU:
-		return "vgpu"
-	default:
-		return "unknown"
-	}
 }

@@ -396,7 +396,7 @@ func (t *Tailer) forwardMessages() {
 		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan() {
-		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
+		offset := t.decodedOffset.Load() + int64(output.RawDataLenForCheckpoint())
 		// Track post-framer log line sizes
 		metrics.TlmLogLineSizes.Observe(float64(output.RawDataLen))
 		identifier := t.Identifier()

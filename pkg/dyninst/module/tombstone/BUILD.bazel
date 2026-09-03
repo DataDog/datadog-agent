@@ -6,10 +6,19 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/module/statedir",
-        "//pkg/util/backoff",
-        "//pkg/util/log",
-        "//pkg/version",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/module/statedir",
+            "//pkg/util/backoff",
+            "//pkg/util/log",
+            "//pkg/version",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/module/statedir",
+            "//pkg/util/backoff",
+            "//pkg/util/log",
+            "//pkg/version",
+        ],
+        "//conditions:default": [],
+    }),
 )

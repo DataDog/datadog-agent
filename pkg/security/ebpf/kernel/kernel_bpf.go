@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && linux_bpf
+//go:build linux && bpf
 
 // Package kernel holds kernel related files
 package kernel
@@ -216,6 +216,22 @@ func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
 // https://github.com/torvalds/linux/commit/c501bf55c88b834adefda870c7c092ec9052a437
 func (k *Version) HasBpfGetCurrentCgroupIDForSchedCLS() bool {
 	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnGetCurrentCgroupId) == nil
+}
+
+// HasSkLookupForSchedCLS returns true if the kernel supports bpf_sk_lookup_tcp/udp for the Sched CLS program type
+// https://github.com/torvalds/linux/commit/6acc9b432e6714d72d7d77ec7c27f6f8358d0c71
+func (k *Version) HasSkLookupForSchedCLS() bool {
+	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnSkLookupTcp) == nil
+}
+
+// HasSKStorageInSchedCLS returns true if the kernel supports bpf_sk_storage_get in Sched CLS programs
+func (k *Version) HasSKStorageInSchedCLS() bool {
+	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnSkStorageGet) == nil
+}
+
+// HasSKStorageInCgroupSock returns true if the kernel supports bpf_sk_storage_get in cgroup/sock programs
+func (k *Version) HasSKStorageInCgroupSock() bool {
+	return features.HaveProgramHelper(ebpf.CGroupSock, asm.FnSkStorageGet) == nil
 }
 
 // HasBpfGetCurrentCgroupID returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type

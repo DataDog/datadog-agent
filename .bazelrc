@@ -14,6 +14,8 @@ startup --max_idle_secs=28800 # Keep the server alive for at most 8 hours of ina
 
 # Common options -------------------------------------------------------------------------------------------------------
 common --@rules_python//python/config_settings:bootstrap_impl=script # https://github.com/bazel-contrib/rules_python/blob/main/BZLMOD_SUPPORT.md
+#TODO(regis): uncomment once https://github.com/bazel-contrib/rules_python/pull/4079 is released:
+#common --@rules_python//python/config_settings:validate_test_main=enabled # Reject a py_test whose main never runs tests
 common --check_direct_dependencies=error # Escalate any bypassed `bazel_dep` to a resolution failure
 common --credential_helper_cache_duration=55m # Refresh a little earlier than the Vault OIDC token TTL (1h)
 common --credential_helper_timeout=2m # Interactive Vault login might involve a browser and exceed the 10s default
@@ -23,7 +25,6 @@ common --experimental_proto_descriptor_sets_include_source_info # Preserve comme
 common --experimental_strict_repo_env # Do not leak uncontrolled environment variables into repository rules
 common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
 common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
-common --incompatible_default_to_explicit_init_py # https://github.com/bazel-contrib/rules_python/issues/2945
 common --incompatible_remote_local_fallback_for_remote_cache # works only if --remote_local_fallback is also set
 common --nobuild_event_json_file_path_conversion # don't fail the build on a transient BEP-upload error (no such host)
 common --remote_instance_name=ci/datadog-agent # entries missing from datadog-agent will be searched in remote-caching
@@ -33,6 +34,7 @@ common --remote_timeout=60
 common --rewind_lost_inputs # https://github.com/bazelbuild/bazel/pull/25477
 common --repo_env=DEPLOY_AGENT # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=FORCED_PACKAGE_COMPRESSION_LEVEL # Keep in sync with env_vars in MODULE.bazel
+common --repo_env=FORCE_AGENT_VERSION # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=GOCACHE # https://pkg.go.dev/cmd/go#hdr-Build_and_test_caching
 common --repo_env=GOMODCACHE # https://wiki.archlinux.org/title/XDG_Base_Directory#Partial
 common --repo_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/rules_go/pull/3660 to Go SDK patching rules

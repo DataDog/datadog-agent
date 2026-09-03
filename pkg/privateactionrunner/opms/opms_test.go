@@ -41,20 +41,57 @@ func newTestKey(t *testing.T) *ecdsa.PrivateKey {
 }
 
 // newTestClient builds a client wired to the given httptest server.
-// It sets DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION so endpointURL uses plain HTTP.
 func newTestClient(t *testing.T, srv *httptest.Server) *client {
 	t.Helper()
-	t.Setenv(app.InternalSkipTaskVerificationEnvVar, "true")
+	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
 	return &client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		config: &config.Config{
-			DDHost:             srv.URL, // "http://127.0.0.1:PORT"
+			DDHost:             srv.URL,
 			OpmsRequestTimeout: 5000,
 			OrgId:              1,
 			RunnerId:           "test-runner",
 			PrivateKey:         newTestKey(t),
 		},
 		runnerStartedAt: time.Now().UTC(),
+	}
+}
+
+func TestEndpointURL(t *testing.T) {
+	cfg := &config.Config{
+		DDHost:    "http://fakeintake.test:8080",
+		DDApiHost: "api.datadoghq.com",
+	}
+	client := &client{config: cfg}
+
+	assert.Equal(t, "https://api.datadoghq.com/task", client.endpointURL("/task"))
+
+	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
+	for _, test := range []struct {
+		name     string
+		ddHost   string
+		expected string
+	}{
+		{
+			name:     "HTTP URL",
+			ddHost:   "http://fakeintake.test:8080",
+			expected: "http://fakeintake.test:8080/task",
+		},
+		{
+			name:     "HTTPS URL",
+			ddHost:   "https://fakeintake.test:8443",
+			expected: "https://fakeintake.test:8443/task",
+		},
+		{
+			name:     "normalized HTTPS URL",
+			ddHost:   "fakeintake.test:8443",
+			expected: "https://fakeintake.test:8443/task",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client.config.DDHost = test.ddHost
+			assert.Equal(t, test.expected, client.endpointURL("/task"))
+		})
 	}
 }
 
@@ -280,6 +317,12 @@ func TestNewClientHonorsProxyConfig(t *testing.T) {
 	proxyURL, err := transport.Proxy(req)
 	require.NoError(t, err)
 	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
+}
+
+func TestNewPublicClientPreservesHTTPBaseURL(t *testing.T) {
+	cfg := configmock.New(t)
+	pc := NewPublicClient(cfg, "http://fakeintake.test:8080/", nil).(*publicClient)
+	assert.Equal(t, "http://fakeintake.test:8080", pc.ddBaseURL)
 }
 
 func TestNewPublicClientHonorsProxyConfig(t *testing.T) {

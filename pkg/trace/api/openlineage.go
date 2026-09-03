@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	openlineageURLTemplate = "https://data-obs-intake.%s/api/v1/lineage"
-	openlineageURLDefault  = "https://data-obs-intake.datadoghq.com/api/v1/lineage"
+	openlineageURLTemplate = config.OpenLineageEndpointPrefix + "%s" + config.OpenLineageEndpointPath
+	openlineageURLDefault  = config.OpenLineageEndpointPrefix + "datadoghq.com" + config.OpenLineageEndpointPath
 )
 
 // openLineageEndpoint returns the openlineage intake url and the corresponding API key.

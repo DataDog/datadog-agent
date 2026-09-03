@@ -84,6 +84,9 @@ its behavior or cost.
 - Shared code must use bounded production defaults. Unbounded history or
   retention is allowed only through explicit testbench configuration such as
   `bench.unboundedStorageCfg()` passed to `DebugView.Reset`.
+- Full raw anomaly history is testbench-only via `TrackAnomalyHistory`; live
+  reporting uses advance-local events and retains only bounded detector-output
+  deduplication state.
 - Hard-bound every live collection driven by time or input cardinality. On
   eviction, also clear detector state, indexes, interned data, deduplication
   state, and caches. Production config must not disable these bounds.
@@ -116,6 +119,12 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 - **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
 Both paths share filtering primitives from `internal/logsfilter/`.
+
+### Logging convention
+
+Use `internal/logging` for every production log. Its
+`[anomalydetection] ` marker prevents self-ingestion; label only non-main
+subsystems such as `logssource`, `reporter`, or `logsfilter` in messages.
 
 Metrics with the `datadog.*` prefix are normalized as internal agent telemetry.
 Only observer telemetry under `datadog.agent.observer.*` is dropped before it
@@ -167,8 +176,8 @@ lives inside each correlator via the shared `correlationEmitter` helper
   after `defaultMaxRetryAttempts` consecutive failures.
 
 `ReportOutput.CorrelatorEvents` carries three event kinds:
-- `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster`, `CrossSignal`,
-  `Passthrough` at first-seen (and again after a pattern goes inactive and recurs)
+- `CorrelatorEventCorrelationDetected` — emitted by `TimeCluster` at first-seen
+  (and again after a pattern goes inactive and recurs)
 - `CorrelatorEventEpisodeStarted` — emitted by `anomaly_scorer` when severity enters
   the configured correlation threshold (`medium` or `high`)
 - `CorrelatorEventEpisodeEnded` — emitted by `anomaly_scorer` when severity exits
@@ -213,7 +222,9 @@ Keys are declared in the config schema (`pkg/config/schema/yaml/`).
 | `anomaly_detection.detectors.<name>.enabled` | varies | Per detector/correlator/extractor |
 | `anomaly_detection.storage.max_series` | `50000` | Storage series cap |
 | `anomaly_detection.storage.eviction_floor_ratio` | `0.5` | Fraction below the cap to drain during series eviction |
-| `anomaly_detection.storage.point_retention` | `120s` | Per-series point retention |
+| `anomaly_detection.storage.point_retention` | derived | Per-series retention; `0s` derives it from enabled detector windows |
+| `anomaly_detection.storage.inactive_series_ttl` | `5m` | Evict non-telemetry series inactive for this long; `0` disables inactivity eviction |
+| `anomaly_detection.storage.inactive_series_check_interval` | `5m` | Advance-time interval between inactivity scans; `0` disables inactivity eviction |
 
 Per-source log rate limits and min severity live under
 `anomaly_detection.logs.{internal,kubelet,containers}.*`.

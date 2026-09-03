@@ -234,13 +234,21 @@ func (s *packageInUseSuite) Test00UpAndRunning() {
 }
 
 // TestPackageInUse drives the full not-in-use -> in-use -> stale -> security ->
-// refresh cycle for each workload (rpm, dpkg, apk) as a nested subtest.
+// refresh cycle for each workload (rpm, dpkg, apk) as a nested subtest, then
+// checks the scope and the shape of the SBOMs the enrichment merges into.
 func (s *packageInUseSuite) TestPackageInUse() {
 	for _, d := range pkgInUseDistros {
 		s.Run(d.name, func() {
 			s.runPackageInUse(d)
 		})
 	}
+
+	s.Run("out-of-scope-components", func() {
+		s.runOutOfScopeComponents()
+	})
+	s.Run("component-list-preserved", func() {
+		s.runComponentListPreserved()
+	})
 }
 
 func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
@@ -370,6 +378,94 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 	})
 }
 
+// runOutOfScopeComponents asserts the runtime properties reach the OS packages
+// alone. The resolver reads the dpkg, rpm and apk databases, so the image's
+// operating-system component and the application packages stay out of its scope,
+// and the absence of a property marks them so.
+//
+// Every image SBOM holds one operating-system component, so every enriched image
+// exercises this. The phase stands alone, which suits the leaf-test retry loop in
+// tasks/new_e2e_tests.py: it reads whatever enriched payloads the fake intake
+// holds, and the Agent's own containers and the control plane keep it supplied.
+func (s *packageInUseSuite) runOutOfScopeComponents() {
+	s.EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{CollectT: collect, errors: []error{}}
+		collect = nil //nolint:ineffassign
+
+		images := s.enrichedImages(c)
+		require.NotEmptyf(c, images, "no runtime-enriched container SBOM in fake intake")
+
+		for _, img := range images {
+			apps := applicationComponents(img.components)
+			s.T().Logf("PKG-IN-USE[scope] id=%q components=%d application=%d", img.id, len(img.components), len(apps))
+
+			if osComp := findOSComponent(img.components); osComp != nil {
+				assertNoRuntimeProperties(c, img.id, osComp)
+			}
+			for _, comp := range apps {
+				assertNoRuntimeProperties(c, img.id, comp)
+			}
+		}
+		// 15m: run on its own, the phase waits out the first enrichment, which
+		// lands ~10-15m in, once the overlayfs Trivy SBOMs reach workloadmeta.
+	}, 15*time.Minute, 15*time.Second, "runtime properties kept landing on components the resolver cannot observe")
+}
+
+func assertNoRuntimeProperties(c *myCollectT, id string, comp *cyclonedx_v1_4.Component) {
+	for _, name := range []string{propLastSeenRunning, propHasSetSuidBit, propRunningAsRoot} {
+		assert.Emptyf(c, propertyValues(comp.GetProperties(), name),
+			"%s %q carries %s in %s, but the resolver cannot observe it", comp.GetType(), comp.GetName(), name, id)
+	}
+}
+
+// enrichedImage holds the components of one image's newest enriched payload.
+type enrichedImage struct {
+	id         string
+	components []*cyclonedx_v1_4.Component
+}
+
+// enrichedImages returns, for every container image in the fake intake, the
+// components of its newest payload carrying a LastSeenRunning property. That
+// property marks the payloads the enrichment merge has been through, which are
+// the ones worth asserting on.
+func (s *packageInUseSuite) enrichedImages(c *myCollectT) []enrichedImage {
+	ids, err := s.Fakeintake.GetSBOMIDs()
+	require.NoErrorf(c, err, "Failed to query fake intake")
+
+	var images []enrichedImage
+	for _, id := range ids {
+		payloads, err := s.Fakeintake.FilterSBOMs(id)
+		if err != nil {
+			continue
+		}
+
+		var newest time.Time
+		var components []*cyclonedx_v1_4.Component
+		for _, p := range payloads {
+			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
+				continue
+			}
+			if p.GetCollectedTime().Before(newest) {
+				continue
+			}
+			comps := p.GetCyclonedx().Components
+			if !lo.SomeBy(comps, func(comp *cyclonedx_v1_4.Component) bool {
+				_, enriched := lastSeenRunning(comp)
+				return enriched
+			}) {
+				continue
+			}
+			newest = p.GetCollectedTime()
+			components = comps
+		}
+
+		if len(components) > 0 {
+			images = append(images, enrichedImage{id: id, components: components})
+		}
+	}
+	return images
+}
+
 // packageUsage returns, across every successful container-image SBOM payload for
 // the given repo retained by fakeintake, the highest LastSeenRunning timestamp
 // reported for the named package's component (newest access wins), whether that
@@ -449,6 +545,129 @@ func (s *packageInUseSuite) packageProperty(repo, pkg, name string) string {
 		}
 	}
 	return value
+}
+
+// imagePayloads summarises, for one container image, what the fake intake holds:
+// the newest enriched payload, and the largest component count seen on a payload
+// the enrichment had yet to touch.
+type imagePayloads struct {
+	id           string
+	rootRef      string // bom-ref of the image itself, the root of the dependency graph
+	components   []*cyclonedx_v1_4.Component
+	dependencies []*cyclonedx_v1_4.Dependency
+	rawCount     int
+}
+
+// danglingRefs returns the dependency refs of the payload that resolve to no
+// component. The image itself roots the dependency graph and rides in the BOM
+// metadata, so its ref resolves too, as do those of nested components.
+func danglingRefs(img imagePayloads) []string {
+	refs := make(map[string]struct{}, len(img.components)+1)
+	if img.rootRef != "" {
+		refs[img.rootRef] = struct{}{}
+	}
+	collectBomRefs(refs, img.components)
+
+	var dangling []string
+	for _, dep := range img.dependencies {
+		if _, ok := refs[dep.GetRef()]; !ok {
+			dangling = append(dangling, dep.GetRef())
+		}
+	}
+	return dangling
+}
+
+func collectBomRefs(refs map[string]struct{}, comps []*cyclonedx_v1_4.Component) {
+	for _, comp := range comps {
+		refs[comp.GetBomRef()] = struct{}{}
+		collectBomRefs(refs, comp.GetComponents())
+	}
+}
+
+// runComponentListPreserved asserts the enrichment merge annotates the image SBOM
+// and leaves its shape alone. The merge rebuilds the component list every round,
+// so a component dropped there vanishes from the payload the backend sees while
+// the dependency graph, carried over as it stands, goes on referencing it.
+//
+// The phase stands alone, which suits the leaf-test retry loop in
+// tasks/new_e2e_tests.py: it reads whatever enriched payloads the fake intake
+// holds, and the Agent's own containers and the control plane keep it supplied
+// with the richest ones on the node.
+func (s *packageInUseSuite) runComponentListPreserved() {
+	s.EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{CollectT: collect, errors: []error{}}
+		collect = nil //nolint:ineffassign
+
+		images := s.imagePayloads(c)
+		require.NotEmptyf(c, images, "no runtime-enriched container SBOM in fake intake")
+
+		for _, img := range images {
+			// Components sharing a name and version are what a merge keyed on those
+			// two collapses, so log how many groups this image holds: that says how
+			// much bite the assertions below have here.
+			groups := map[string]int{}
+			for _, comp := range img.components {
+				groups[comp.GetName()+"@"+comp.GetVersion()]++
+			}
+			repeated := lo.CountBy(lo.Values(groups), func(n int) bool { return n > 1 })
+			dangling := danglingRefs(img)
+			s.T().Logf("PKG-IN-USE[shape] id=%q components=%d raw=%d dependencies=%d repeated_name_version=%d dangling_refs=%d",
+				img.id, len(img.components), img.rawCount, len(img.dependencies), repeated, len(dangling))
+
+			assert.GreaterOrEqualf(c, len(img.components), img.rawCount,
+				"enriched %s has %d components, fewer than the %d of its un-enriched payload", img.id, len(img.components), img.rawCount)
+			assert.Emptyf(c, dangling,
+				"dependency refs of %s resolve to no component, the merge dropped them: %v", img.id, dangling)
+		}
+		// 15m: run on its own, the phase waits out the first enrichment, which
+		// lands ~10-15m in, once the overlayfs Trivy SBOMs reach workloadmeta.
+	}, 15*time.Minute, 15*time.Second, "the enrichment merge kept reshaping the component list")
+}
+
+// imagePayloads walks every container image payload in the fake intake and returns
+// one entry per image whose SBOM has been enriched. A LastSeenRunning property on
+// any component marks a payload the merge has been through, which leaves the raw
+// Trivy ones as the baseline to compare against.
+func (s *packageInUseSuite) imagePayloads(c *myCollectT) []imagePayloads {
+	ids, err := s.Fakeintake.GetSBOMIDs()
+	require.NoErrorf(c, err, "Failed to query fake intake")
+
+	var images []imagePayloads
+	for _, id := range ids {
+		payloads, err := s.Fakeintake.FilterSBOMs(id)
+		if err != nil {
+			continue
+		}
+
+		img := imagePayloads{id: id}
+		var newest time.Time
+		for _, p := range payloads {
+			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
+				continue
+			}
+			comps := p.GetCyclonedx().Components
+			enriched := lo.SomeBy(comps, func(comp *cyclonedx_v1_4.Component) bool {
+				_, ok := lastSeenRunning(comp)
+				return ok
+			})
+			if !enriched {
+				img.rawCount = max(img.rawCount, len(comps))
+				continue
+			}
+			if p.GetCollectedTime().Before(newest) {
+				continue
+			}
+			newest = p.GetCollectedTime()
+			img.components = comps
+			img.dependencies = p.GetCyclonedx().Dependencies
+			img.rootRef = p.GetCyclonedx().GetMetadata().GetComponent().GetBomRef()
+		}
+
+		if len(img.components) > 0 {
+			images = append(images, img)
+		}
+	}
+	return images
 }
 
 // startInUseService launches, inside the workload pod, a detached loop that
