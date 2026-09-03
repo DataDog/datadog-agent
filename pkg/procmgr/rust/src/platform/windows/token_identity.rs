@@ -6,7 +6,8 @@
 use std::ptr;
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{
-    GetLengthSid, GetTokenInformation, IsWellKnownSid, TOKEN_USER, TokenUser, WinLocalSystemSid,
+    EqualSid, GetLengthSid, GetTokenInformation, IsWellKnownSid, TOKEN_USER, TokenUser,
+    WinLocalSystemSid,
 };
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
@@ -172,6 +173,19 @@ pub(crate) fn open_current_process_token(access: u32) -> std::io::Result<WinHand
         return Err(std::io::Error::last_os_error());
     }
     Ok(WinHandle::new(token))
+}
+
+pub(crate) fn sids_equal(left: &[u8], right: &[u8]) -> std::io::Result<bool> {
+    if left.is_empty() || right.is_empty() {
+        return Ok(false);
+    }
+    Ok(unsafe { EqualSid(left.as_ptr() as *mut _, right.as_ptr() as *mut _) != 0 })
+}
+
+pub(crate) fn current_process_sid_matches(sid: &[u8]) -> std::io::Result<bool> {
+    let token = open_current_process_token(windows_sys::Win32::Security::TOKEN_QUERY)?;
+    let process_sid = token_user_sid_bytes(token.as_handle())?;
+    sids_equal(&process_sid, sid)
 }
 
 #[cfg(test)]

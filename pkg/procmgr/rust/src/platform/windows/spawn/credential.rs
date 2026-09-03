@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use windows_sys::Win32::Foundation::HANDLE;
+use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 
 use super::super::local_agent_account::AgentAccount;
 #[cfg(not(test))]
 use super::super::local_agent_account::resolve_agent_account;
+use super::super::token_identity::open_current_process_token;
 use super::logon::{logon_user_credentials, logon_user_token};
 use super::win32::duplicate_primary_token;
 
@@ -40,6 +42,18 @@ impl SpawnCredential {
     }
 
     pub(crate) fn duplicate_primary_token(&self, process_name: &str) -> Result<HANDLE> {
+        if self.account().spawns_with_supervisor_token()
+            .with_context(|| format!("[{process_name}] compare spawn account to supervisor token"))?
+        {
+            let supervisor_token = open_current_process_token(TOKEN_QUERY | TOKEN_DUPLICATE)
+                .map_err(|e| {
+                    anyhow::anyhow!(
+                        "[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {e}"
+                    )
+                })?;
+            return duplicate_primary_token(process_name, supervisor_token.as_handle());
+        }
+
         let account = self.account();
         duplicate_primary_token(
             process_name,
