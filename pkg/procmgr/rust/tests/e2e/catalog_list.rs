@@ -11,6 +11,12 @@ fn list_empty_when_no_processes() {
     let procmgr = TestEnv::new().start();
     procmgr.require_status().assert_ready();
     procmgr.require_list().assert_empty();
+
+    let out = procmgr.cli_list_json();
+    out.assert_success();
+    let json = out.stdout_json();
+    let arr = json.as_array().expect("expected JSON array");
+    assert!(arr.is_empty(), "expected empty array, got {json}");
 }
 
 #[test]
@@ -30,20 +36,6 @@ fn list_shows_running_and_created_mix() {
 }
 
 #[test]
-fn list_shows_exited_with_last_exit_code() {
-    let env = TestEnv::new()
-        .with_process("exit_ok")
-        .with_process("exit_fail");
-    let procmgr = env.start();
-    procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
-    procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
-    let list = procmgr.require_list();
-    list.assert_len(2);
-    list.assert_last_exit_code("exit_ok", 0);
-    list.assert_last_exit_code("exit_fail", 1);
-}
-
-#[test]
 fn test_cli_list_terminal_table_fields() {
     let procmgr = TestEnv::new()
         .with_process("exit_ok")
@@ -51,6 +43,11 @@ fn test_cli_list_terminal_table_fields() {
         .start();
     procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
     procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
+
+    let list = procmgr.require_list();
+    list.assert_len(2);
+    list.assert_last_exit_code("exit_ok", 0);
+    list.assert_last_exit_code("exit_fail", 1);
 
     let python = test_helpers::python_exe();
     let expected_user = expected_agent_spawn_user();
@@ -111,15 +108,4 @@ fn test_cli_list_json() {
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
     assert_eq!(entry["profile"], "agent");
     assert_eq!(entry["user"], expected_agent_spawn_user());
-}
-
-#[test]
-fn test_cli_list_json_empty() {
-    let env = TestEnv::new().start();
-
-    let out = env.cli_list_json();
-    out.assert_success();
-    let json = out.stdout_json();
-    let arr = json.as_array().expect("expected JSON array");
-    assert!(arr.is_empty(), "expected empty array, got {json}");
 }
