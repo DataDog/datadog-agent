@@ -3,27 +3,46 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "report",
-    srcs = ["metrics.go"],
+    srcs = [
+        "health.go",
+        "metadata.go",
+        "metrics.go",
+        "snapshot.go",
+        "topology.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/report",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/forwarder/eventplatform/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/corechecks/network-devices/gnmi/client",
         "//pkg/collector/corechecks/network-devices/gnmi/config",
+        "//pkg/networkdevice/integrations",
+        "//pkg/networkdevice/lldp",
+        "//pkg/networkdevice/metadata",
         "//pkg/networkdevice/utils",
+        "//pkg/util/log",
+        "//pkg/util/sort",
     ],
 )
 
 dd_agent_go_test(
     name = "report_test",
-    srcs = ["metrics_test.go"],
+    srcs = [
+        "health_test.go",
+        "metadata_test.go",
+        "metrics_test.go",
+        "topology_test.go",
+    ],
     embed = [":report"],
     deps = [
         "//pkg/aggregator/mocksender",
         "//pkg/collector/check/id",
         "//pkg/collector/corechecks/network-devices/gnmi/client",
         "//pkg/collector/corechecks/network-devices/gnmi/config",
+        "//pkg/networkdevice/metadata",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
     ],
 )
