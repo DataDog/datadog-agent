@@ -1,0 +1,4 @@
+api_key: x
+apm_config:
+  features:
+    - disable-convert-traces
