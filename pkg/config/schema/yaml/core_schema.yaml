@@ -8424,22 +8424,12 @@ properties:
       type: string
     tags:
     - full-agent-only:true
-    comment: |-
-      List of metric names that are dropped instead of being sent to Datadog.
-      An entry ending with `*` is a prefix: `foo.bar.*` drops every metric whose
-      name starts with `foo.bar.` (including `foo.bar.` itself), while `foo.bar`
-      only drops that exact name. A `*` anywhere else in an entry is matched
-      literally, and a metric name ending with a literal `*` cannot be expressed.
   metric_filterlist_match_prefix:
     node_type: setting
     type: boolean
     default: false
     tags:
     - full-agent-only:true
-    comment: |-
-      When true, every entry of metric_filterlist is treated as a prefix, whether
-      or not it ends with `*`. Prefer the per-entry `*` suffix, which lets exact
-      and prefix entries be mixed in the same list.
   metric_tag_filterlist:
     node_type: setting
     type: array
@@ -9258,18 +9248,12 @@ properties:
       type: string
     tags:
     - full-agent-only:true
-    comment: |-
-      Deprecated: use metric_filterlist, which takes precedence when set.
-      Entries support the same per-entry `*` prefix suffix as metric_filterlist.
   statsd_metric_blocklist_match_prefix:
     node_type: setting
     type: boolean
     default: false
     tags:
     - full-agent-only:true
-    comment: |-
-      Deprecated: use metric_filterlist_match_prefix. When true, every entry of
-      statsd_metric_blocklist is treated as a prefix.
   statsd_metric_namespace_blacklist:
     node_type: setting
     type: array
