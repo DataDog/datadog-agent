@@ -14,6 +14,7 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -675,6 +676,13 @@ func startAgent(
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
 	log.Infof("Hostname is: %s", hostnameDetected)
+	confDir := filepath.Dir(cfg.ConfigFileUsed())
+	if confDir == "." {
+		confDir = config.DefaultConfPath
+	}
+	if err := os.WriteFile(filepath.Join(confDir, "hostname"), []byte(hostnameDetected), 0644); err != nil {
+		log.Warnf("Failed to write hostname file: %v", err)
+	}
 
 	// start remote configuration management
 	if configUtils.IsRemoteConfigEnabled(cfg) {

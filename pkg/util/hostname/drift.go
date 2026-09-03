@@ -9,11 +9,15 @@ package hostname
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // driftService contains configuration for hostname drift detection
@@ -157,5 +161,12 @@ func (ds *driftService) checkHostnameDrift(ctx context.Context, cacheHostnameKey
 	if drift.hasDrift {
 		tlmDriftDetected.Inc(drift.state, providerName)
 		cache.Cache.Set(cacheHostnameKey, newData, cache.NoExpiration)
+		confDir := filepath.Dir(setup.Datadog().ConfigFileUsed())
+		if confDir == "." {
+			confDir = config.DefaultConfPath
+		}
+		if err := os.WriteFile(filepath.Join(confDir, "hostname"), []byte(hostname), 0644); err != nil {
+			log.Warnf("Failed to update hostname file after drift: %v", err)
+		}
 	}
 }
