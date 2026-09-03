@@ -20,6 +20,7 @@ func TestDockerFileFormat(t *testing.T) {
 	msg, err := parser.Parse(logMessage)
 	assert.Nil(t, err)
 	assert.True(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, message.StreamStderr, msg.ParsingExtra.Stream)
 	assert.Equal(t, []byte("a message"), msg.GetContent())
 	assert.Equal(t, message.StatusError, msg.Status)
 	assert.Equal(t, "2019-06-06T16:35:55.930852911Z", msg.ParsingExtra.Timestamp)
@@ -28,6 +29,7 @@ func TestDockerFileFormat(t *testing.T) {
 	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
 	assert.True(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, message.StreamStdout, msg.ParsingExtra.Stream)
 	assert.Equal(t, []byte("a second message"), msg.GetContent())
 	assert.Equal(t, message.StatusInfo, msg.Status)
 	assert.Equal(t, "2019-06-06T16:35:55.930852912Z", msg.ParsingExtra.Timestamp)
@@ -36,6 +38,7 @@ func TestDockerFileFormat(t *testing.T) {
 	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
 	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, message.StreamStdout, msg.ParsingExtra.Stream)
 	assert.Equal(t, []byte("a third message"), msg.GetContent())
 	assert.Equal(t, message.StatusInfo, msg.Status)
 	assert.Equal(t, "2019-06-06T16:35:55.930852913Z", msg.ParsingExtra.Timestamp)
@@ -50,6 +53,7 @@ func TestDockerFileFormat(t *testing.T) {
 	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
 	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, message.StreamStdout, msg.ParsingExtra.Stream)
 	assert.Equal(t, []byte(""), msg.GetContent())
 	assert.Equal(t, message.StatusInfo, msg.Status)
 	assert.Equal(t, "2019-06-06T16:35:55.930852914Z", msg.ParsingExtra.Timestamp)
@@ -58,9 +62,18 @@ func TestDockerFileFormat(t *testing.T) {
 	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
 	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, message.StreamStdout, msg.ParsingExtra.Stream)
 	assert.Equal(t, []byte(""), msg.GetContent())
 	assert.Equal(t, message.StatusInfo, msg.Status)
 	assert.Equal(t, "2019-06-06T16:35:55.930852915Z", msg.ParsingExtra.Timestamp)
+}
+
+func TestDockerFileFormatDoesNotExposeUnknownStream(t *testing.T) {
+	logMessage := message.NewMessage([]byte(`{"log":"message\n","stream":"unknown","time":"2019-06-06T16:35:55.930852911Z"}`), nil, "", 0)
+	msg, err := New().Parse(logMessage)
+
+	assert.NoError(t, err)
+	assert.Empty(t, msg.ParsingExtra.Stream)
 }
 
 func TestDockerFileFormatNullJSON(t *testing.T) {
