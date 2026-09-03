@@ -215,6 +215,9 @@ func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn npmodel.NetworkPathCon
 
 type pathEvaluation struct {
 	shouldSchedule bool
+	// hostname is the DNS name selected for the path test across all of the
+	// connection's reverse-resolved names (see ConnFilter.EvaluateDomains).
+	hostname       string
 	testConfigID   string
 	testConfigName string
 	tags           []string
@@ -249,15 +252,28 @@ func (s *npCollectorImpl) evaluateNetworkPathForConn(conn npmodel.NetworkPathCon
 		return pathEvaluation{}
 	}
 
+	// A destination IP can reverse-resolve to more than one DNS name; evaluate
+	// all of them so a name pointing at Datadog infrastructure excludes the
+	// connection regardless of which name was cached first.
+	domains := conn.Domains
+	if len(domains) == 0 && conn.Domain != "" {
+		domains = []string{conn.Domain}
+	}
 	s.filterMutex.RLock()
-	included, testConfigID, testConfigName, tags := s.filter.EvaluateWithConfig(conn.Domain, conn.Dest.Addr())
+	included, hostname, testConfigID, testConfigName, tags := s.filter.EvaluateDomains(domains, conn.Dest.Addr())
 	s.filterMutex.RUnlock()
 	if !included {
 		_ = s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_not_matched_by_filters"}, 1)
 		return pathEvaluation{}
 	}
 
-	return pathEvaluation{shouldSchedule: true, testConfigID: testConfigID, testConfigName: testConfigName, tags: tags}
+	return pathEvaluation{
+		shouldSchedule: true,
+		hostname:       hostname,
+		testConfigID:   testConfigID,
+		testConfigName: testConfigName,
+		tags:           tags,
+	}
 }
 
 func (s *npCollectorImpl) shouldSkipNetflowAgentSource(conn npmodel.NetworkPathConnection, origin payload.PathOrigin) bool {
@@ -337,6 +353,11 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		if !evaluation.shouldSchedule {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
+		}
+		// Use the name the filter selected among the connection's DNS names as
+		// the path test hostname (and reverse-DNS metadata).
+		if evaluation.hostname != "" {
+			conn.Domain = evaluation.hostname
 		}
 		pathtest := s.makePathtest(conn, origin)
 		pathtest.TestConfigID = evaluation.testConfigID
