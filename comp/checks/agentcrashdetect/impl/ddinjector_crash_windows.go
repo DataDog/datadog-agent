@@ -37,7 +37,7 @@ const (
 	ddInjectorETWCrashKeyword    = uint64(0x40)
 	ddInjectorCrashQueueSize     = 64
 	ddInjectorCrashEventsPerMin  = 10
-	traceEventInfoEventNameIndex = 108
+	traceEventInfoEventNameIndex = 92 // offsetof(TRACE_EVENT_INFO, EventNameOffset)
 )
 
 type ddInjectorCrashEvent struct {
