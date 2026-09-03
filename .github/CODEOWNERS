@@ -1012,7 +1012,8 @@
 /test/otel/                                                     @DataDog/opentelemetry-agent
 /test/static/                                                   @DataDog/agent-build
 # Also change the run-time check for approver at: tasks/static_quality_gates/decisions.py:EXCEPTION_APPROVERS
-/test/static/static_quality_gates.yml                           @DataDog/agent-build @DataDog/agent-devx @DataDog/container-platform @cmourot
+/test/static/static_quality_gates.yml                           @DataDog/agent-build @DataDog/agent-devx @cmourot
+/test/static/static_quality_gates_cluster_agent.yml             @DataDog/container-platform @DataDog/agent-build @DataDog/agent-devx
 /test/benchmarks/apm_scripts/                                   @DataDog/agent-apm
 /test/regression/                                               @DataDog/single-machine-performance
 /test/regression/ebpf                                           @DataDog/single-machine-performance @DataDog/ebpf-platform
