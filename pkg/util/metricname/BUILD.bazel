@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "matcher.go",
         "normalize.go",
+        "tagname.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/metricname",
     visibility = ["//visibility:public"],
@@ -16,6 +17,7 @@ dd_agent_go_test(
     srcs = [
         "matcher_test.go",
         "normalize_test.go",
+        "tagname_test.go",
     ],
     embed = [":metricname"],
     deps = [

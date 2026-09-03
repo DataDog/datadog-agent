@@ -251,20 +251,37 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 	}
 }
 
+// normalizeMetricName normalizes a single filter list entry so it is in the name
+// space the filter lists compare in, i.e. the one the intake stores metric names
+// in. It reports false when the intake would reject the name outright (empty,
+// too long, or containing no ASCII letter); such an entry can never match
+// anything and callers drop it.
+func normalizeMetricName(name string) (string, bool) {
+	// Already normalized names, the common case, are returned as given.
+	if metricname.IsNormalized(name) {
+		return name, true
+	}
+
+	var buf [metricname.MaxLength]byte
+	key, ok := metricname.NormalizeAppend(buf[:0], name)
+	if !ok {
+		return "", false
+	}
+	return string(key), true
+}
+
 // normalizeMetricNames normalizes each entry so it matches the name space the
 // matcher compares in (see metricname.Matcher). Entries the intake would reject
 // outright (empty, too long, or containing no ASCII letter) are dropped.
 func normalizeMetricNames(names []string, log log.Component) []string {
 	normalized := make([]string, 0, len(names))
-	// Reuse this stack buffer for normalizing each metric.
-	var buf [metricname.MaxLength]byte
 	for _, name := range names {
-		key, ok := metricname.NormalizeAppend(buf[:0], name)
+		key, ok := normalizeMetricName(name)
 		if !ok {
 			log.Warnf("metric_filterlist: dropping entry %q that is not a storable metric name", name)
 			continue
 		}
-		normalized = append(normalized, string(key))
+		normalized = append(normalized, key)
 	}
 	return normalized
 }

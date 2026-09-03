@@ -80,7 +80,7 @@ func (m *Matcher) Test(name string) bool {
 	}
 
 	// Fast path: already normalized, so compare the name as given.
-	if isNormalized(name) {
+	if IsNormalized(name) {
 		return m.search(name)
 	}
 

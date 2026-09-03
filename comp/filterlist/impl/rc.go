@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/twmb/murmur3"
 )
 
 type statsdFilterListUpdate struct {
@@ -157,16 +156,33 @@ func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filtere
 // The first result contains the hashed tags that the filterlist uses, second result is the entry with unhashed tags
 // used to override the configuration file entry.
 //
+// Metric names are normalized, so that they are keyed on the name the intake
+// stores, which is the name the tag filterlist is queried with, and so are the tag
+// names they carry. Names the intake would reject outright are dropped.
+//
 // There is nothing stopping the tags for a given metric name being configured multiple times. Conflicts are handled
 // by the following rules:
 // - If the action is the same for both metrics, the list of tags is merged.
 // - If the action is different, always take the exclude list.
+//
+// Two names that normalize to the same stored name are a conflict too, and are
+// reconciled by those same rules.
 func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTags) (map[string]hashedMetricTagList, []MetricTagListEntry) {
 	tags := make(map[string]hashedMetricTagList)
 	tagEntries := make(map[string]MetricTagListEntry)
 
 	for _, update := range tagFilterListUpdates {
 		for _, metric := range update.ByName.Metrics {
+			name, storable := normalizeMetricName(metric.Name)
+			if !storable {
+				fl.log.Warnf("metric_tag_filterlist: dropping entry %q that is not a storable metric name", metric.Name)
+				continue
+			}
+			// metric is a copy, so the normalized names carry into the keys, the
+			// merge below and the config entry written back.
+			metric.Name = name
+			metric.Tags = normalizeTagNames(metric.Tags, fl.log)
+
 			currentHashed, ok := tags[metric.Name]
 			currentEntry := tagEntries[metric.Name]
 
@@ -213,8 +229,8 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed hashedMetricTagList, currentEntry MetricTagListEntry) (hashedMetricTagList, MetricTagListEntry) {
 	if (currentHashed.action == exclude) == metric.ExcludeTag {
 		// Both metrics define the same action so we can just merge the list.
-		currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
-		slices.Sort(currentHashed.tags)
+		currentHashed = newHashedMetricTagList(currentHashed.action,
+			slices.Concat(currentHashed.tags, hashTags(metric.Tags)))
 
 		// Merge unhashed tags too
 		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
@@ -239,13 +255,4 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 	// We always prefer the exclude tag, ignore this include tag configuration.
 	fl.log.Debugf("tag filterlist configures conflicting tags for metric %v", metric.Name)
 	return currentHashed, currentEntry
-}
-
-func hashTags(tags []string) []uint64 {
-	hashed := make([]uint64, 0, len(tags))
-	for _, tag := range tags {
-		hashed = append(hashed, murmur3.StringSum64(tag))
-	}
-
-	return hashed
 }

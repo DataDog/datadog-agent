@@ -87,3 +87,92 @@ func TestNormalizeMetricNamesDropsUnstorable(t *testing.T) {
 
 	require.Equal([]string{"valid.metric", "another.valid"}, out)
 }
+
+// TestTagFilterListNormalizesEntries verifies that metric_tag_filterlist entries
+// loaded from the config are keyed on the normalized metric name, so an entry
+// written as the metric appears in Datadog strips tags from metrics submitted
+// with the raw name.
+func TestTagFilterListNormalizesEntries(t *testing.T) {
+	require := require.New(t)
+
+	cfg := map[string]interface{}{
+		"metric_tag_filterlist": []map[string]interface{}{
+			{
+				// `my metric-name` normalizes to this, the name a user sees.
+				"metric_name": "my_metric_name",
+				"action":      "exclude",
+				"tags":        []string{"env"},
+			},
+			{
+				// A raw entry is normalized at load time too.
+				"metric_name": "other metric-name",
+				"action":      "exclude",
+				"tags":        []string{"host"},
+			},
+			{
+				// Unstorable: no ASCII letter, so it can never match.
+				"metric_name": "123",
+				"action":      "exclude",
+				"tags":        []string{"pod"},
+			},
+		},
+	}
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	matcher := filterList.GetTagFilterList()
+
+	// The raw submitted name normalizes to the configured entry, so its tags
+	// are stripped.
+	keepTag, shouldStrip := matcher.ShouldStripTags("my metric-name")
+	require.True(shouldStrip, "raw name should match its normalized filterlist entry")
+	require.False(keepTag("env:prod"))
+	require.True(keepTag("host:server1"))
+
+	keepTag, shouldStrip = matcher.ShouldStripTags("other_metric_name")
+	require.True(shouldStrip, "raw entry should have been normalized at load time")
+	require.False(keepTag("host:server1"))
+
+	_, shouldStrip = matcher.ShouldStripTags("123")
+	require.False(shouldStrip, "unstorable entry must not match")
+
+	_, shouldStrip = matcher.ShouldStripTags("unrelated.metric")
+	require.False(shouldStrip, "unrelated metric must not match")
+}
+
+// TestTagFilterListNormalizesTagNames verifies that the tag names of
+// metric_tag_filterlist entries loaded from the config are normalized, so an entry
+// written as the tag appears in Datadog strips the raw tag the Agent sees.
+func TestTagFilterListNormalizesTagNames(t *testing.T) {
+	require := require.New(t)
+
+	cfg := map[string]interface{}{
+		"metric_tag_filterlist": []map[string]interface{}{
+			{
+				"metric_name": "my.metric",
+				"action":      "exclude",
+				// As they appear in Datadog, plus one raw entry and one the
+				// intake would drop.
+				"tags": []string{"kube_namespace", "my-tag", "Raw Tag", "123"},
+			},
+		},
+	}
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	keepTag, shouldStrip := filterList.GetTagFilterList().ShouldStripTags("my.metric")
+	require.True(shouldStrip)
+
+	require.False(keepTag("Kube Namespace:default"), "raw tag should match its normalized entry")
+	require.False(keepTag("kube_namespace:default"))
+	require.False(keepTag("My-Tag:value"))
+	require.False(keepTag("raw_tag:value"), "raw entry should have been normalized at load time")
+	require.True(keepTag("unrelated:value"))
+	require.True(keepTag("123:value"), "unstorable entry must not match")
+}
