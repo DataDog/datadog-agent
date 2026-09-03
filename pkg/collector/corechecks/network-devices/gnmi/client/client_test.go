@@ -106,7 +106,7 @@ func TestSubscribeSyncUpdateAndCacheRead(t *testing.T) {
 	require.Equal(t, "pass", event.Password)
 	require.NotNil(t, event.Request.GetSubscribe())
 	require.Equal(t, gnmipb.Encoding_PROTO, event.Request.GetSubscribe().GetEncoding())
-	require.Len(t, event.Request.GetSubscribe().GetSubscription(), 2)
+	require.Len(t, event.Request.GetSubscribe().GetSubscription(), 2+len(client.MetadataSubscriptionPaths()))
 
 	update := fakeserver.InterfaceInOctetsUpdate("eth0", 42)
 	require.NoError(t, server.SendUpdate(event.StreamID, update))

@@ -9,6 +9,7 @@ go_library(
         "credentials.go",
         "json_ietf.go",
         "path.go",
+        "subscriptions.go",
         "value.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client",
@@ -30,12 +31,14 @@ dd_agent_go_test(
         "client_test.go",
         "json_ietf_test.go",
         "path_test.go",
+        "subscriptions_test.go",
     ],
     embed = [":client"],
     deps = [
         "//pkg/collector/corechecks/network-devices/gnmi/config",
         "//pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver",
         "@com_github_openconfig_gnmi//proto/gnmi",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
 )
