@@ -79,6 +79,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Umount = deepCopyUmountEvent(e.Umount)
 	copied.Unlink = deepCopyUnlinkEvent(e.Unlink)
 	copied.UnloadModule = deepCopyUnloadModuleEvent(e.UnloadModule)
+	copied.Unshare = deepCopyUnshareEvent(e.Unshare)
 	copied.UnshareMountNS = deepCopyUnshareMountNSEvent(e.UnshareMountNS)
 	copied.Utimes = deepCopyUtimesEvent(e.Utimes)
 	copied.VethPair = deepCopyVethPairEvent(e.VethPair)
@@ -403,6 +404,7 @@ func deepCopyLinuxBinprm(fieldToCopy LinuxBinprm) LinuxBinprm {
 func deepCopyTracer(fieldToCopy Tracer) Tracer {
 	copied := Tracer{}
 	copied.Metadata = deepCopyTracerMetadata(fieldToCopy.Metadata)
+	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
 	copied.Trace = deepCopySpanContext(fieldToCopy.Trace)
 	return copied
 }
@@ -417,7 +419,6 @@ func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermet
 	copied.ServiceEnv = fieldToCopy.ServiceEnv
 	copied.ServiceName = fieldToCopy.ServiceName
 	copied.ServiceVersion = fieldToCopy.ServiceVersion
-	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
 	copied.TracerLanguage = fieldToCopy.TracerLanguage
 	copied.TracerVersion = fieldToCopy.TracerVersion
 	return copied
@@ -1214,6 +1215,12 @@ func deepCopyUnlinkEvent(fieldToCopy UnlinkEvent) UnlinkEvent {
 func deepCopyUnloadModuleEvent(fieldToCopy UnloadModuleEvent) UnloadModuleEvent {
 	copied := UnloadModuleEvent{}
 	copied.Name = fieldToCopy.Name
+	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
+	return copied
+}
+func deepCopyUnshareEvent(fieldToCopy UnshareEvent) UnshareEvent {
+	copied := UnshareEvent{}
+	copied.Flags = fieldToCopy.Flags
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	return copied
 }

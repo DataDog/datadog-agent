@@ -136,6 +136,7 @@ type Event struct {
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 	SysCtl       SysCtlEvent       `field:"sysctl" event:"sysctl"`               // [7.65] [Kernel] A sysctl parameter was read or modified
 	CgroupWrite  CgroupWriteEvent  `field:"cgroup_write" event:"cgroup_write"`   // [7.68] [Kernel] A process migrated another process to a cgroup
+	Unshare      UnshareEvent      `field:"unshare" event:"unshare"`             // [7.84] [Kernel] A process created new namespaces
 
 	// network events
 	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
@@ -648,6 +649,12 @@ type UnshareMountNSEvent struct {
 	Mount
 }
 
+// UnshareEvent represents a namespace creation via the unshare syscall
+type UnshareEvent struct {
+	SyscallEvent
+	Flags uint64 `field:"flags"` // SECLDoc[flags] Definition:`Namespace flags requested by the unshare call` Constants:`Clone flags`
+}
+
 // ChdirEvent represents a chdir event
 type ChdirEvent struct {
 	SyscallEvent
@@ -915,6 +922,11 @@ type ConnectEvent struct {
 // detects a duplicate and wants to refresh the cookie timestamp in userspace.
 type SampleRefreshEvent struct {
 	Cookie uint32
+}
+
+// OTelProcessCtxEvent is an internal event sent when a process publishes its OTel process context.
+type OTelProcessCtxEvent struct {
+	Pid uint32
 }
 
 // AcceptEvent represents an accept event

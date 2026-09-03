@@ -101,6 +101,7 @@ var (
 		model.ExecEventType.String(),
 		model.ExitEventType.String(),
 		model.TracerMemfdSealEventType.String(),
+		model.OTelProcessCtxEventType.String(),
 	}
 )
 
@@ -1908,6 +1909,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			return false
 		}
 		event.Setrlimit.Target = resolveTargetProcessContext(event.Setrlimit.TargetPid, p)
+	case model.UnshareEventType:
+		if !p.regularUnmarshalEvent(&event.Unshare, eventType, offset, dataLen, data) {
+			return false
+		}
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false
@@ -2010,6 +2015,12 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		var ev model.SampleRefreshEvent
 		if _, err := ev.UnmarshalBinary(data[offset:]); err == nil {
 			p.profileManager.HandleSampleRefresh(ev.Cookie)
+		}
+		return false
+	case model.OTelProcessCtxEventType:
+		var ev model.OTelProcessCtxEvent
+		if _, err := ev.UnmarshalBinary(data[offset:]); err == nil {
+			p.Resolvers.ProcessResolver.ResolveOTelProcessContext(ev.Pid)
 		}
 		return false
 	case model.NopEventType:
@@ -2357,6 +2368,8 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 		return p.probe.IsNetworkFlowMonitorEnabled()
 	case model.SyscallsEventType.String():
 		return p.config.RuntimeSecurity.IsSysctlEventEnabled()
+	case model.OTelProcessCtxEventType.String():
+		return p.config.Probe.SpanTrackingEnabled
 	}
 	return true
 }
@@ -4002,7 +4015,13 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			}
 
 			var policy rawpacket.Policy
-			policy.Parse(action.Def.NetworkFilter.Policy)
+			switch action.Def.NetworkFilter.Policy {
+			case "drop":
+				policy = rawpacket.PolicyDrop
+			default:
+				policy = rawpacket.PolicyAllow
+			}
+
 			var reportStatus RawPacketActionStatus
 			if policy == rawpacket.PolicyDrop {
 				dropActionFilter := rawpacket.Filter{
