@@ -338,6 +338,7 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
 			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
 			cfg.SetInTest("run_path", t.TempDir())
+			cfg.SetInTest("dogstatsd_client_drop_detection.enabled", true)
 			cfg.SetInTest("dogstatsd_client_drop_detection.unhealthy_confirmation_window", "0s")
 			cfg.SetInTest("dogstatsd_client_drop_detection.recovery_confirmation_window", "0s")
 			return cfg
