@@ -80,15 +80,13 @@ func readDirectFingerprintRangeFromFile(file *os.File, count, memoryAlignment, o
 	return out, nil
 }
 
-// readAligned fills buffer from offset 0 using aligned O_DIRECT reads.
+// readAligned fills buffer with sequential O_DIRECT reads from offset 0. A short
+// read leaves the offset unaligned for the next read, so it stops there (or EOF).
 func readAligned(file *os.File, buffer []byte, memoryAlignment, offsetAlignment int) (int, error) {
 	stride := max(memoryAlignment, offsetAlignment)
 
 	total := 0
 	for total < len(buffer) {
-		if _, err := file.Seek(int64(total), io.SeekStart); err != nil {
-			return total, err
-		}
 		read, err := file.Read(buffer[total:])
 		total += read
 		if err != nil {
