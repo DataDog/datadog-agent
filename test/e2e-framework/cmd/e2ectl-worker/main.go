@@ -153,6 +153,8 @@ func installOrUpdateKind(j job) error {
 	}
 
 	values := map[string]interface{}{}
+	params := helminstaller.Params{Values: values}
+	params.Namespace = "datadog"
 	if j.Image != "" {
 		registry, repository, tag := splitImageRef(j.Image)
 		values["registry"] = registry
@@ -162,12 +164,16 @@ func installOrUpdateKind(j job) error {
 				"tag":        tag,
 			},
 		}
+		// With a locally-built agent image the cluster-agent keeps the public
+		// chart defaults: a custom tag such as "e2ectl-dev" is not semver and
+		// the chart's version comparisons cannot parse it.
+		params.ClusterAgentVersion = "latest"
+	} else {
+		params.AgentVersion = j.Version
+		params.ClusterAgentVersion = j.Version
 	}
 
-	if err := helminstaller.Install(nil, env, helminstaller.Params{
-		AgentVersion: j.Version,
-		Values:       values,
-	}); err != nil {
+	if err := helminstaller.Install(nil, env, params); err != nil {
 		return err
 	}
 
