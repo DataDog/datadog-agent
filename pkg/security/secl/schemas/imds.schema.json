@@ -47,6 +47,9 @@
                         "server": {
                             "type": "string"
                         },
+                        "credential_source": {
+                            "type": "string"
+                        },
                         "aws": {
                             "type": "object",
                             "required": [

@@ -93,6 +93,45 @@ const (
 	IMDSOracleCloudProvider = "oracle"
 )
 
+// CredentialSource identifies the endpoint that served an IMDS event
+type CredentialSource uint32
+
+const (
+	// CredentialSourceUnknown is used when the credential endpoint could not be resolved
+	CredentialSourceUnknown CredentialSource = iota
+	// CredentialSourceIMDS is the cloud provider instance metadata service
+	CredentialSourceIMDS
+	// CredentialSourceEKSPodIdentity is the EKS Pod Identity Agent
+	CredentialSourceEKSPodIdentity
+	// CredentialSourceECS is the ECS task credential endpoint
+	CredentialSourceECS
+)
+
+const (
+	// CredentialSourceUnknownStr is the SECL value of CredentialSourceUnknown
+	CredentialSourceUnknownStr = ""
+	// CredentialSourceIMDSStr is the SECL value of CredentialSourceIMDS
+	CredentialSourceIMDSStr = "imds"
+	// CredentialSourceEKSPodIdentityStr is the SECL value of CredentialSourceEKSPodIdentity
+	CredentialSourceEKSPodIdentityStr = "eks_pod_identity"
+	// CredentialSourceECSStr is the SECL value of CredentialSourceECS
+	CredentialSourceECSStr = "ecs"
+)
+
+// String returns the SECL representation of the credential source
+func (cs CredentialSource) String() string {
+	switch cs {
+	case CredentialSourceIMDS:
+		return CredentialSourceIMDSStr
+	case CredentialSourceEKSPodIdentity:
+		return CredentialSourceEKSPodIdentityStr
+	case CredentialSourceECS:
+		return CredentialSourceECSStr
+	default:
+		return CredentialSourceUnknownStr
+	}
+}
+
 // EventSource is the source of the event
 type EventSource = string
 
