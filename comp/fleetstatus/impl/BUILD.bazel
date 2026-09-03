@@ -4,13 +4,17 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "impl",
     srcs = ["fleetstatus.go"],
-    embedsrcs = ["status_templates/fleetstatus.tmpl"],
+    embedsrcs = [
+        "status_templates/fleetstatus.tmpl",
+        "status_templates/fleetstatusHTML.tmpl",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/fleetstatus/impl",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
         "//comp/core/status",
-        "//comp/updater/daemonchecker/def",
+        "//comp/updater/localapiclient/def",
+        "//pkg/proto/pbgo/core",
     ],
 )
 
@@ -20,7 +24,9 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
-        "//comp/updater/daemonchecker/mock",
+        "//comp/updater/localapi/def",
+        "//comp/updater/localapiclient/def",
+        "//pkg/proto/pbgo/core",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

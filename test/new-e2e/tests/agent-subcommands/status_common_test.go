@@ -158,6 +158,10 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 		{
 			name:            "Fleet Automation",
 			shouldBePresent: true,
+			shouldContain: []string{
+				"Datadog Installer Status:    Not running",
+				"Installer API:               Unreachable",
+			},
 		},
 		{
 			name:            "Logs Agent",

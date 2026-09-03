@@ -815,19 +815,13 @@ Package tracetelemetry sends telemetry about the trace-agent and its state
 
 Package updater implements the updater component.
 
-### [comp/updater/daemonchecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/daemonchecker)
-
-*Datadog Team*: fleet
-
-Package daemonchecker retrieves the running status of the installer daemon
-
 ### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
 
 Package localapi is the updater local api component.
 
 ### [comp/updater/localapiclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapiclient)
 
-Package localapiclient provides the local API client component.
+Package localapiclient provides the installer local API client component.
 
 ### [comp/updater/ssistatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/ssistatus)
 

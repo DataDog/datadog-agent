@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Agent status now reports whether the Datadog Installer is reachable and
+    displays its package, configuration, and task state to simplify Fleet
+    Automation troubleshooting.

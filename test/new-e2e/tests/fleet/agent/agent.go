@@ -737,6 +737,11 @@ type Status struct {
 		FleetAutomationEnabled  bool `json:"fleetAutomationEnabled"`
 		InstallerRunning        bool `json:"installerRunning"`
 		RemoteManagementEnabled bool `json:"remoteManagementEnabled"`
+		InstallerStatus         struct {
+			Reachable bool                    `json:"reachable"`
+			Packages  []InstallerPackageState `json:"packages"`
+			Error     string                  `json:"error"`
+		} `json:"installerStatus"`
 	} `json:"fleetAutomationStatus"`
 	ForwarderStats struct {
 		APIKeyFailure struct {
@@ -1120,4 +1125,15 @@ type Status struct {
 	} `json:"ssiStatus"`
 	TimeNano int64  `json:"time_nano"`
 	Version  string `json:"version"`
+}
+
+// InstallerPackageState is the package state exposed by the core Agent status.
+type InstallerPackageState struct {
+	Package                 string `json:"package"`
+	StableVersion           string `json:"stable_version"`
+	ExperimentVersion       string `json:"experiment_version"`
+	RunningVersion          string `json:"running_version"`
+	StableConfigVersion     string `json:"stable_config_version"`
+	ExperimentConfigVersion string `json:"experiment_config_version"`
+	RunningConfigVersion    string `json:"running_config_version"`
 }

@@ -61,6 +61,13 @@ type PackageState struct {
 	Config  repository.State
 }
 
+// APMInjectionStatus contains the instrumentation status of the APM injection.
+type APMInjectionStatus struct {
+	HostInstrumented   bool `json:"host_instrumented"`
+	DockerInstalled    bool `json:"docker_installed"`
+	DockerInstrumented bool `json:"docker_instrumented"`
+}
+
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
 type Daemon interface {
 	Start(ctx context.Context) error
@@ -219,9 +226,9 @@ func (d *daemonImpl) GetState(ctx context.Context) (map[string]PackageState, err
 
 // GetRemoteConfigState returns the remote config state.
 func (d *daemonImpl) GetRemoteConfigState() *pbgo.ClientUpdater {
-	d.m.Lock()
-	defer d.m.Unlock()
-
+	// The remote config client stores installer state atomically. Do not take the
+	// daemon operation lock here: installs can hold it for minutes, while status
+	// readers must still be able to observe the cached RUNNING task state.
 	return d.rc.GetState()
 }
 

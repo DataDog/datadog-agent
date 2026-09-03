@@ -168,7 +168,7 @@ go_library(
         "//comp/syntheticstestscheduler/fx",
         "//comp/trace-telemetry/fx",
         "//comp/trace/status/fx",
-        "//comp/updater/daemonchecker/fx",
+        "//comp/updater/localapiclient/fx",
         "//comp/updater/ssistatus/fx",
         "//comp/workloadselection/fx",
         "//pkg/aggregator",

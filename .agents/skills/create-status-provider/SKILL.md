@@ -27,8 +27,8 @@ Before writing any code, read the appropriate reference files to follow existing
 | What | Reference file |
 |---|---|
 | Provider interface | `comp/core/status/component.go` |
-| Provider implementation + templates | `comp/dogstatsd/status/statusimpl/status.go` and its `status_templates/` directory |
-| Registration in component Provides | `comp/trace/status/statusimpl/status.go` |
+| Provider implementation + templates | `comp/dogstatsd/status/impl/status.go` and its `status_templates/` directory |
+| Registration in component Provides | `comp/trace/status/impl/status.go` |
 | Template helpers (humanize, etc.) | `comp/core/status/render_helpers.go` |
 
 ### Step 3: Implement the provider

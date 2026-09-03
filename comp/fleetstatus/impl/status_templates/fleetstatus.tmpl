@@ -1,15 +1,46 @@
-{{- if .HTML }}
-<div class="stat">
-  <span class="stat_title">Fleet Status</span>
-  <span class="stat_data">
-{{- end }}
-  {{ with .fleetAutomationStatus }}
-  {{ if .fleetAutomationEnabled }}Fleet Management is enabled{{ else }}Fleet Management is disabled{{ end }}
+{{- with .fleetAutomationStatus }}
+  {{ if .FleetAutomationEnabled }}Fleet Management is enabled{{ else }}Fleet Management is disabled{{ end }}
 
-  Remote Management Status:    {{ if .remoteManagementEnabled }}Enabled{{ else }}Disabled{{ end }}
-  Datadog Installer Status:    {{ if .installerRunning }}Running{{ else }}Not running{{ end }}
-  {{ end }}
-  {{- if .HTML }}
-  </span>
-</div>
+  Remote Management Status:    {{ if .RemoteManagementEnabled }}Enabled{{ else }}Disabled{{ end }}
+  Datadog Installer Status:    {{ if .InstallerRunning }}Running{{ else }}Not running{{ end }}
+  Installer API:               {{ if .InstallerStatus.Reachable }}Reachable{{ else }}Unreachable{{ end }}
+  {{- with .InstallerStatus.Error }}
+  Error:                       {{ . }}
+  {{- end }}
+  {{- with .InstallerStatus.Packages }}
+
+  Packages:
+  {{- range $package := . }}
+    {{ .Package }}:
+    {{- with .StableVersion }}
+      Stable version:             {{ . }}
+    {{- end }}
+    {{- with .ExperimentVersion }}
+      Experiment version:         {{ . }}
+    {{- end }}
+    {{- with .RunningVersion }}
+      Running version:            {{ . }}
+    {{- end }}
+    {{- with .StableConfigVersion }}
+      Stable config version:      {{ . }}
+    {{- end }}
+    {{- with .ExperimentConfigVersion }}
+      Experiment config version:  {{ . }}
+    {{- end }}
+    {{- with .RunningConfigVersion }}
+      Running config version:     {{ . }}
+    {{- end }}
+    {{- with .Task }}
+      Task state:                 {{ .State }}
+      {{- with .Id }}
+      Task ID:                    {{ . }}
+      {{- end }}
+      Task completion:            {{ printf "%g" $package.Completion }}
+      {{- with .Error }}
+      Task error code:            {{ .Code }}
+      Task error message:         {{ .Message }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
 {{- end }}

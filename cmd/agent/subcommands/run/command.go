@@ -181,7 +181,7 @@ import (
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
 	tracetelemetryfx "github.com/DataDog/datadog-agent/comp/trace-telemetry/fx"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/fx"
-	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
+	localapiclientfx "github.com/DataDog/datadog-agent/comp/updater/localapiclient/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
@@ -494,7 +494,7 @@ func getSharedFxOption() fx.Option {
 		rcservicefx.Module(),
 		rcservicemrffx.Module(),
 		remoteconfig.Bundle(),
-		daemoncheckerfx.Module(),
+		localapiclientfx.Module(),
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),

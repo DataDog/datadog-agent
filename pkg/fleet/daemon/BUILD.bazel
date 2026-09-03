@@ -16,6 +16,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/updater/localapi/def",
         "//pkg/api/middleware",
         "//pkg/config/remote/client",
         "//pkg/config/utils",
@@ -57,6 +58,8 @@ dd_agent_go_test(
     ],
     embed = [":daemon"],
     deps = [
+        "//comp/updater/localapiclient/def",
+        "//comp/updater/localapiclient/impl",
         "//pkg/fleet/installer",
         "//pkg/fleet/installer/config",
         "//pkg/fleet/installer/env",
