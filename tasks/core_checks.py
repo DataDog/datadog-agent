@@ -70,6 +70,7 @@ WINDOWS_CORECHECKS = [
     "wincrashdetect",
     "windows_certificate",
     "winproc",
+    "vdi",
     "win32_event_log",
     "wlan",
 ]

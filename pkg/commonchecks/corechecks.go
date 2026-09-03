@@ -73,6 +73,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/vdi"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -152,6 +153,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg, ncmComp))
 	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
 	corecheckLoader.RegisterCheck(thermal.CheckName, thermal.Factory())
+	corecheckLoader.RegisterCheck(vdi.CheckName, vdi.Factory())
 
 	registerSystemProbeChecks(tagger)
 }

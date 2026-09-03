@@ -610,6 +610,7 @@
 /pkg/collector/corechecks/system/windowscertificate/                  @DataDog/windows-products
 /pkg/collector/corechecks/system/winkmem/                             @DataDog/windows-products
 /pkg/collector/corechecks/system/winproc/                             @DataDog/windows-products
+/pkg/collector/corechecks/vdi/                                        @DataDog/windows-products
 /pkg/collector/corechecks/systemd/                                    @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/                                     @DataDog/agent-runtimes
 /pkg/config/                                                          @DataDog/fleet-automation

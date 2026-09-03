@@ -81,6 +81,7 @@ go_library(
         "//pkg/collector/corechecks/system/winproc",
         "//pkg/collector/corechecks/systemd",
         "//pkg/collector/corechecks/telemetry",
+        "//pkg/collector/corechecks/vdi",
         "//pkg/util/option",
     ],
 )
