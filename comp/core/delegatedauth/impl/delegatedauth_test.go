@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -275,6 +276,26 @@ func TestStatusJSON_EnabledWithInstances(t *testing.T) {
 	assert.Equal(t, "3 consecutive failures", logsInstance["Error"])
 }
 
+func TestStatusJSON_FallbackIsActive(t *testing.T) {
+	provider := newInstanceProvider()
+	provider.setFallback("fallback-key")
+	comp := &delegatedAuthComponent{
+		instances: map[string]*authInstance{
+			"additional_endpoints[1]": {
+				credProvider:        provider,
+				refreshInterval:     time.Hour,
+				apiKeyConfigKey:     "additional_endpoints[1]",
+				consecutiveFailures: 1,
+			},
+		},
+	}
+
+	stats := make(map[string]interface{})
+	require.NoError(t, comp.JSON(false, stats))
+	instances := stats["instances"].(map[string]map[string]interface{})
+	assert.Equal(t, "Active", instances["additional_endpoints[1]"]["Status"])
+}
+
 func TestStatusText_NotEnabled(t *testing.T) {
 	comp := &delegatedAuthComponent{
 		instances: make(map[string]*authInstance),
@@ -532,7 +553,7 @@ func TestAddInstanceRespectsContextCancellation(t *testing.T) {
 	mockConfig := mock.New(t)
 
 	// AddInstance should return context.Canceled error after validating params
-	err := comp.AddInstance(ctx, delegatedauth.InstanceParams{
+	_, err := comp.AddInstance(ctx, delegatedauth.InstanceParams{
 		Config:          mockConfig,
 		OrgUUID:         "test-org",
 		APIKeyConfigKey: "api_key",
@@ -1494,7 +1515,7 @@ func TestAddInstanceWritesFallbackWhenNoCloudProviderDetected(t *testing.T) {
 		config:      mockConfig,
 	}
 
-	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	_, err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
 		Config:                       mockConfig,
 		OrgUUID:                      "second-org-uuid",
 		APIKeyConfigKey:              "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]",
@@ -1509,8 +1530,43 @@ func TestAddInstanceWritesFallbackWhenNoCloudProviderDetected(t *testing.T) {
 	assert.Equal(t, []string{"static-fallback-key"}, got["https://second-org.datadoghq.com"],
 		"with no cloud provider detected, the fallback key should be written instead of leaving the domain with zero keys")
 
-	// No instance/retry loop should be created for the no-provider case.
-	assert.Empty(t, comp.instances)
+	// Keep a terminal status instance without starting a retry loop.
+	instanceKey := "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]"
+	require.Contains(t, comp.instances, instanceKey)
+	select {
+	case <-comp.instances[instanceKey].done:
+	default:
+		t.Fatal("unavailable instance is not terminal")
+	}
+}
+
+func TestAddInstanceDoesNotWriteProviderFallbackWhenNoCloudProviderDetected(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetDefault("provider_slot", "original")
+	mockConfig.Set("provider_slot", "original", pkgconfigmodel.SourceFile)
+
+	comp := &delegatedAuthComponent{
+		instances:   make(map[string]*authInstance),
+		initialized: true,
+		config:      mockConfig,
+	}
+
+	provider, err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+		Config:              mockConfig,
+		OrgUUID:             "second-org-uuid",
+		APIKeyConfigKey:     "provider_slot",
+		ConfigKey:           "additional_endpoints",
+		Destination:         "https://second-org.datadoghq.com",
+		Directive:           "DELA(second-org-uuid, aws)",
+		FallbackAPIKey:      "static-fallback-key",
+		SkipConfigWriteback: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "original", mockConfig.GetString("provider_slot"))
+
+	header := http.Header{}
+	require.True(t, provider.Authorize(header))
+	assert.Equal(t, "static-fallback-key", header.Get(apiKeyHeader))
 }
 
 func TestAddInstanceWithoutFallbackSkipsSilentlyWhenNoCloudProviderDetected(t *testing.T) {
@@ -1525,7 +1581,7 @@ func TestAddInstanceWithoutFallbackSkipsSilentlyWhenNoCloudProviderDetected(t *t
 		config:      mockConfig,
 	}
 
-	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	_, err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
 		Config:                       mockConfig,
 		OrgUUID:                      "second-org-uuid",
 		APIKeyConfigKey:              "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]",
@@ -1556,7 +1612,7 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
 
 	apiKeyConfigKey := "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]"
-	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	_, err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
 		Config:                       mockConfig,
 		ProviderConfig:               &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
 		OrgUUID:                      "second-org-uuid",

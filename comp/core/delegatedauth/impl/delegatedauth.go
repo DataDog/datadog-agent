@@ -14,6 +14,7 @@ import (
 	"io"
 	"maps"
 	"reflect"
+	"slices"
 	"sync"
 	"time"
 
@@ -93,6 +94,13 @@ type authInstance struct {
 	// consecutiveFailures tracks failures for status reporting
 	consecutiveFailures int
 
+	// credProvider exposes the resolved credential to request-path consumers.
+	credProvider *instanceProvider
+	// fallbackAPIKey is used only after credential resolution fails.
+	fallbackAPIKey string
+	// skipConfigWriteback serves consumers directly through credProvider.
+	skipConfigWriteback bool
+
 	// lastRefresh, nextRefresh, and lastError are for status reporting only.
 	lastRefresh time.Time
 	nextRefresh time.Time
@@ -123,10 +131,24 @@ type delegatedAuthComponent struct {
 	resolvedProvider string                   // Resolved provider name (e.g., "aws") - for status display
 	// disabledReason explains why no provider was resolved, for status display.
 	disabledReason string
+	// providers indexes credentials by config setting and destination.
+	providers map[providerKey][]registeredProvider
 
 	// additionalEndpointsMu serializes read-modify-write access to additional_endpoints config
 	// values across concurrent instances. Separate from mu to avoid deadlocking with OnUpdate callbacks.
 	additionalEndpointsMu sync.Mutex
+}
+
+type providerKey struct {
+	configKey   string
+	destination string
+}
+
+// registeredProvider retains the directive needed to disambiguate credentials.
+type registeredProvider struct {
+	instanceKey string
+	directive   string
+	provider    delegatedauth.Provider
 }
 
 // Provides list the provided interfaces from the delegatedauth Component
@@ -139,6 +161,7 @@ type Provides struct {
 func NewComponent() Provides {
 	comp := &delegatedAuthComponent{
 		instances: make(map[string]*authInstance),
+		providers: make(map[providerKey][]registeredProvider),
 	}
 
 	return Provides{
@@ -232,43 +255,43 @@ func (d *delegatedAuthComponent) initializeIfNeeded(ctx context.Context, params 
 // AddInstance configures delegated auth for a specific API key.
 // On the first call, it detects the cloud provider and initializes the component.
 // The context is used for the initial API key fetch and cloud provider detection.
-func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegatedauth.InstanceParams) error {
+func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegatedauth.InstanceParams) (delegatedauth.Provider, error) {
 	// Validate required parameters first
 	if params.Config == nil {
-		return errors.New("config is required")
+		return nil, errors.New("config is required")
 	}
 	if params.OrgUUID == "" {
-		return errors.New("org_uuid is required")
+		return nil, errors.New("org_uuid is required")
 	}
 	if params.APIKeyConfigKey == "" {
-		return errors.New("api_key_config_key is required")
+		return nil, errors.New("api_key_config_key is required")
 	}
 	if params.AdditionalEndpointDomain != "" {
 		if params.AdditionalEndpointDirective == "" {
-			return errors.New("additional_endpoint_directive is required when additional_endpoint_domain is set")
+			return nil, errors.New("additional_endpoint_directive is required when additional_endpoint_domain is set")
 		}
 		if params.AdditionalEndpointsConfigKey == "" {
-			return errors.New("additional_endpoints_config_key is required when additional_endpoint_domain is set")
+			return nil, errors.New("additional_endpoints_config_key is required when additional_endpoint_domain is set")
 		}
 	}
 	if params.AdditionalEndpointsListConfigKey != "" && params.AdditionalEndpointDirective == "" {
-		return errors.New("additional_endpoint_directive is required when additional_endpoints_list_config_key is set")
+		return nil, errors.New("additional_endpoint_directive is required when additional_endpoints_list_config_key is set")
 	}
 	if params.AdditionalEndpointsListConfigKey != "" && params.AdditionalEndpointIdentity == "" {
-		return errors.New("additional_endpoint_identity is required when additional_endpoints_list_config_key is set")
+		return nil, errors.New("additional_endpoint_identity is required when additional_endpoints_list_config_key is set")
 	}
 	if params.AdditionalEndpointDomain != "" && params.AdditionalEndpointsListConfigKey != "" {
-		return errors.New("additional_endpoint_domain and additional_endpoints_list_config_key are mutually exclusive")
+		return nil, errors.New("additional_endpoint_domain and additional_endpoints_list_config_key are mutually exclusive")
 	}
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
 	d.addInstanceMu.Lock()
 	defer d.addInstanceMu.Unlock()
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Initialize on first call - this detects cloud provider without holding locks.
@@ -276,21 +299,32 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	// the process-wide detected/default configuration.
 	providerConfig, err := d.initializeIfNeeded(ctx, params)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	providerConfig = providerConfigForInstance(providerConfig, params.ProviderConfig)
 
-	// No provider: skip this instance and keep the statically configured key. Write the fallback
-	// now if set, so dual-shipping still works. No retry — detection only runs once.
+	// No provider is terminal because detection only runs once. Expose fallback state to consumers.
 	if providerConfig == nil {
 		log.Warnf("Delegated auth is not available on this host, so '%s' will keep its statically configured value", params.APIKeyConfigKey)
-		if err := d.replaceInstance(ctx, params.APIKeyConfigKey, nil); err != nil {
-			return err
+		credProvider := newInstanceProvider()
+		credProvider.setFallback(params.FallbackAPIKey)
+		instance := fallbackTargetInstance(params)
+		instance.refreshInterval = 60 * time.Minute
+		instance.credProvider = credProvider
+		instance.fallbackAPIKey = params.FallbackAPIKey
+		instance.skipConfigWriteback = params.SkipConfigWriteback
+		instance.consecutiveFailures = 1
+		instance.lastError = errors.New("no delegated auth provider is available on this host")
+		instance.done = make(chan struct{})
+		close(instance.done)
+		if err := d.replaceInstance(ctx, params.APIKeyConfigKey, instance); err != nil {
+			return nil, err
 		}
-		if params.FallbackAPIKey != "" {
-			d.writeAPIKeyToTarget(fallbackTargetInstance(params), params.FallbackAPIKey, true)
+		if params.FallbackAPIKey != "" && !params.SkipConfigWriteback {
+			d.writeAPIKeyToTarget(instance, params.FallbackAPIKey, true)
 		}
-		return nil
+		d.registerProvider(params, credProvider)
+		return credProvider, nil
 	}
 
 	apiKeyConfigKey := params.APIKeyConfigKey
@@ -309,13 +343,15 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	case *cloudauthconfig.AWSProviderConfig:
 		tokenProvider = aws.NewAWSAuth(cfg)
 	default:
-		return fmt.Errorf("unsupported delegated auth provider config type: %T", providerConfig)
+		return nil, fmt.Errorf("unsupported delegated auth provider config type: %T", providerConfig)
 	}
 
 	authConfig := &common.AuthConfig{
 		OrgUUID: params.OrgUUID,
 	}
 	providerName, providerRegion := providerStatus(providerConfig)
+	credProvider := newInstanceProvider()
+	credProvider.setRefreshTrigger(make(chan struct{}, 1))
 
 	// Create a context for the background refresh goroutine
 	refreshCtx, refreshCancel := context.WithCancel(context.Background())
@@ -338,6 +374,9 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		lastWrittenValue:                 params.AdditionalEndpointDirective,
 		originalDirective:                params.AdditionalEndpointDirective,
 		backoff:                          newBackoff(refreshInterval),
+		credProvider:                     credProvider,
+		fallbackAPIKey:                   params.FallbackAPIKey,
+		skipConfigWriteback:              params.SkipConfigWriteback,
 		refreshCtx:                       refreshCtx,
 		refreshCancel:                    refreshCancel,
 		done:                             make(chan struct{}),
@@ -345,7 +384,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 
 	if err := d.replaceInstance(ctx, apiKeyConfigKey, instance); err != nil {
 		refreshCancel()
-		return err
+		return nil, err
 	}
 
 	log.Infof("Delegated authentication is enabled for '%s', fetching initial API key...", apiKeyConfigKey)
@@ -354,9 +393,9 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	apiKey, _, err := d.refreshAndGetAPIKey(ctx, instance, false)
 	if err != nil {
 		log.Errorf("Failed to get initial delegated API key for '%s': %v", apiKeyConfigKey, err)
-		// Write the fallback now so the target ships with a static key while retries continue.
-		if params.FallbackAPIKey != "" {
-			d.writeAPIKeyToTarget(instance, params.FallbackAPIKey, true)
+		instance.credProvider.setFallback(instance.fallbackAPIKey)
+		if instance.fallbackAPIKey != "" && !instance.skipConfigWriteback {
+			d.writeAPIKeyToTarget(instance, instance.fallbackAPIKey, true)
 		}
 		// Record the failure so the status page shows it immediately.
 		d.mu.Lock()
@@ -364,8 +403,7 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 		instance.lastError = err
 		d.mu.Unlock()
 	} else {
-		// Update the config with the initial API key
-		d.updateConfigWithAPIKey(instance, *apiKey)
+		d.deliverAPIKey(instance, *apiKey)
 		log.Infof("Successfully fetched and set initial delegated API key for '%s'", apiKeyConfigKey)
 	}
 
@@ -373,7 +411,8 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	// This ensures retries will happen with exponential backoff
 	d.startBackgroundRefresh(instance)
 
-	return nil
+	d.registerProvider(params, instance.credProvider)
+	return instance.credProvider, nil
 }
 
 // replaceInstance stops the old refresh loop before publishing its replacement.
@@ -407,13 +446,92 @@ func (d *delegatedAuthComponent) replaceInstance(ctx context.Context, key string
 	}
 
 	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.removeProviderRegistrationLocked(key)
 	if replacement == nil {
 		delete(d.instances, key)
 	} else {
 		d.instances[key] = replacement
 	}
+	d.mu.Unlock()
 	return nil
+}
+
+func (d *delegatedAuthComponent) deliverAPIKey(instance *authInstance, apiKey string) {
+	instance.credProvider.setResolved(apiKey)
+	if !instance.skipConfigWriteback {
+		d.updateConfigWithAPIKey(instance, apiKey)
+	}
+}
+
+func (d *delegatedAuthComponent) registerProvider(params delegatedauth.InstanceParams, p delegatedauth.Provider) {
+	configKey, destination := params.ProviderKey()
+	key := providerKey{configKey: configKey, destination: destination}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.providers == nil {
+		d.providers = make(map[providerKey][]registeredProvider)
+	}
+	d.removeProviderRegistrationLocked(params.APIKeyConfigKey)
+	d.providers[key] = append(d.providers[key], registeredProvider{
+		instanceKey: params.APIKeyConfigKey,
+		directive:   params.Directive,
+		provider:    p,
+	})
+}
+
+func (d *delegatedAuthComponent) removeProviderRegistrationLocked(instanceKey string) {
+	for key, registered := range d.providers {
+		kept := registered[:0]
+		for _, candidate := range registered {
+			if candidate.instanceKey != instanceKey {
+				kept = append(kept, candidate)
+			}
+		}
+		if len(kept) == 0 {
+			delete(d.providers, key)
+		} else {
+			d.providers[key] = kept
+		}
+	}
+}
+
+// ProvidersFor returns all credentials registered for a destination.
+func (d *delegatedAuthComponent) ProvidersFor(configKey, destination string) []delegatedauth.Provider {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	found := d.providers[providerKey{configKey: configKey, destination: destination}]
+	out := make([]delegatedauth.Provider, len(found))
+	for i, registered := range found {
+		out[i] = registered.provider
+	}
+	return out
+}
+
+// ProviderForDirective returns the credential owned by one directive.
+func (d *delegatedAuthComponent) ProviderForDirective(configKey, destination, directive string) delegatedauth.Provider {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	for _, registered := range d.providers[providerKey{configKey: configKey, destination: destination}] {
+		if registered.directive == directive {
+			return registered.provider
+		}
+	}
+	return nil
+}
+
+// RefreshFor requests an immediate refresh for the matching credential.
+func (d *delegatedAuthComponent) RefreshFor(configKey, destination, credential string) bool {
+	d.mu.RLock()
+	registered := slices.Clone(d.providers[providerKey{configKey: configKey, destination: destination}])
+	d.mu.RUnlock()
+	for _, entry := range registered {
+		provider, ok := entry.provider.(*instanceProvider)
+		if ok && provider.matches(credential) {
+			return provider.Refresh()
+		}
+	}
+	return false
 }
 
 // providerConfigForInstance applies a directive-specific provider configuration after shared
@@ -478,82 +596,66 @@ func (d *delegatedAuthComponent) refreshAndGetAPIKey(ctx context.Context, instan
 	return apiKey, true, nil
 }
 
-// startBackgroundRefresh starts the background goroutine that periodically refreshes the API key
-// with exponential backoff on failures
+// startBackgroundRefresh periodically refreshes the key and accepts immediate refresh requests.
 func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) {
 	go func() {
-		// Signal goroutine exit when we return
 		defer close(instance.done)
-
-		// Get initial interval with jitter from backoff
 		d.mu.Lock()
 		nextInterval := instance.backoff.NextBackOff()
 		instance.nextRefresh = time.Now().Add(nextInterval)
 		d.mu.Unlock()
-
 		ticker := time.NewTicker(nextInterval)
 		defer ticker.Stop()
-
 		for {
 			select {
 			case <-instance.refreshCtx.Done():
 				log.Debugf("Background refresh goroutine for '%s' exiting due to context cancellation", instance.apiKeyConfigKey)
 				return
 			case <-ticker.C:
-				lCreds, updated, lErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
-
-				// Variables to capture state updates
-				var shouldUpdateConfig bool
-				var apiKeyToUpdate string
-
-				d.mu.Lock()
-				if lErr != nil {
-					// Check if the error is due to context cancellation
-					if instance.refreshCtx.Err() != nil {
-						d.mu.Unlock()
-						log.Debugf("Refresh for '%s' failed due to context cancellation, exiting", instance.apiKeyConfigKey)
-						return
-					}
-
-					// Track failures for status reporting
-					instance.consecutiveFailures++
-					instance.lastError = lErr
-
-					// Get next backoff interval (exponentially increasing with jitter)
-					nextInterval := instance.backoff.NextBackOff()
-					instance.nextRefresh = time.Now().Add(nextInterval)
-					log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v",
-						instance.apiKeyConfigKey, instance.consecutiveFailures, lErr, nextInterval)
-					ticker.Reset(nextInterval)
-				} else {
-					// Success - reset backoff and failure counter
-					if instance.consecutiveFailures > 0 {
-						log.Infof("Successfully refreshed delegated API key for '%s' after %d failed attempts",
-							instance.apiKeyConfigKey, instance.consecutiveFailures)
-					}
-					instance.consecutiveFailures = 0
-					instance.backoff.Reset()
-					nextInterval := instance.backoff.NextBackOff()
-					instance.nextRefresh = time.Now().Add(nextInterval)
-
-					// Capture the API key to update config outside the lock
-					if updated && lCreds != nil {
-						shouldUpdateConfig = true
-						apiKeyToUpdate = *lCreds
-					}
-
-					ticker.Reset(nextInterval)
-				}
-				d.mu.Unlock()
-
-				// Update the config OUTSIDE the lock to avoid potential deadlocks
-				// with config callbacks that might try to acquire locks
-				if shouldUpdateConfig {
-					d.updateConfigWithAPIKey(instance, apiKeyToUpdate)
-				}
+				d.doRefresh(instance, ticker)
+			case <-instance.credProvider.refreshTrigger:
+				d.doRefresh(instance, ticker)
 			}
 		}
 	}()
+}
+
+func (d *delegatedAuthComponent) doRefresh(instance *authInstance, ticker *time.Ticker) {
+	credentials, updated, refreshErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
+	var apiKey string
+	var fallbackActivated bool
+
+	d.mu.Lock()
+	if refreshErr != nil {
+		if instance.refreshCtx.Err() != nil {
+			d.mu.Unlock()
+			return
+		}
+		instance.consecutiveFailures++
+		instance.lastError = refreshErr
+		fallbackActivated = instance.credProvider.setFallback(instance.fallbackAPIKey)
+		nextInterval := instance.backoff.NextBackOff()
+		instance.nextRefresh = time.Now().Add(nextInterval)
+		ticker.Reset(nextInterval)
+		log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v",
+			instance.apiKeyConfigKey, instance.consecutiveFailures, refreshErr, nextInterval)
+	} else {
+		instance.consecutiveFailures = 0
+		instance.backoff.Reset()
+		nextInterval := instance.backoff.NextBackOff()
+		instance.nextRefresh = time.Now().Add(nextInterval)
+		ticker.Reset(nextInterval)
+		if updated && credentials != nil {
+			apiKey = *credentials
+		}
+	}
+	d.mu.Unlock()
+
+	if apiKey != "" {
+		d.deliverAPIKey(instance, apiKey)
+	} else if fallbackActivated && !instance.skipConfigWriteback {
+		d.writeAPIKeyToTarget(instance, instance.fallbackAPIKey, true)
+	}
 }
 
 // authenticate uses the configured provider to generate an auth proof, then exchanges it for an API key
@@ -897,8 +999,11 @@ func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}
 			instanceInfo["AWSRegion"] = instance.providerRegion
 		}
 
-		// Status
-		if instance.apiKey != nil {
+		active := instance.apiKey != nil
+		if instance.credProvider != nil {
+			active = instance.credProvider.hasCredential()
+		}
+		if active {
 			instanceInfo["Status"] = "Active"
 		} else {
 			instanceInfo["Status"] = "Pending"

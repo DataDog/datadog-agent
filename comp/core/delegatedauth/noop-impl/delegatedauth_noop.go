@@ -9,6 +9,7 @@ package delegatedauthimpl
 import (
 	"context"
 	"io"
+	"net/http"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -34,10 +35,34 @@ func NewComponent() Provides {
 	}
 }
 
-// AddInstance does nothing in the noop implementation
-func (d *DelegatedAuthNoop) AddInstance(_ context.Context, _ delegatedauth.InstanceParams) error {
+// AddInstance is a no-op. It returns a provider that never has a credential, so a consumer that
+// buffers on "no credential yet" would never ship. That is intentional: this impl is wired in
+// where delegated auth is compiled out, and nothing registers DELA destinations there.
+func (d *DelegatedAuthNoop) AddInstance(_ context.Context, _ delegatedauth.InstanceParams) (delegatedauth.Provider, error) {
+	return noopProvider{}, nil
+}
+
+// ProvidersFor is a no-op and never has providers to return.
+func (d *DelegatedAuthNoop) ProvidersFor(_, _ string) []delegatedauth.Provider {
 	return nil
 }
+
+// ProviderForDirective implements delegatedauth.Component and never has a credential.
+func (d *DelegatedAuthNoop) ProviderForDirective(_, _, _ string) delegatedauth.Provider {
+	return nil
+}
+
+// RefreshFor is a no-op and never finds a provider.
+func (d *DelegatedAuthNoop) RefreshFor(_, _, _ string) bool { return false }
+
+// noopProvider never holds a credential.
+type noopProvider struct{}
+
+// Authorize implements delegatedauth.Provider and never authorizes.
+func (noopProvider) Authorize(_ http.Header) bool { return false }
+
+// Refresh implements delegatedauth.Provider. No background refresh in the noop impl.
+func (noopProvider) Refresh() bool { return false }
 
 // Status Provider implementation for noop
 

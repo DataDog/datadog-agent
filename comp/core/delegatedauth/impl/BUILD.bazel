@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = ["delegatedauth.go"],
+    srcs = [
+        "delegatedauth.go",
+        "provider.go",
+    ],
     embedsrcs = [
         "status_templates/delegatedauth.tmpl",
         "status_templates/delegatedauthHTML.tmpl",
@@ -27,7 +30,10 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["delegatedauth_test.go"],
+    srcs = [
+        "delegatedauth_test.go",
+        "provider_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core/delegatedauth/api/cloudauth/config",
