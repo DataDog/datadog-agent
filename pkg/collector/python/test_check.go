@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkbase "github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
@@ -102,6 +103,31 @@ int get_check_diagnoses_calls = 0;
 char *get_check_diagnoses(rtloader_t *s, rtloader_pyobject_t *check) {
 	get_check_diagnoses_calls++;
 	return get_check_diagnoses_return;
+}
+
+int run_remote_query_stream_return = 1;
+int run_remote_query_stream_calls = 0;
+int run_remote_query_stream_emit_payload = 0;
+rtloader_pyobject_t *run_remote_query_stream_instance = NULL;
+const char *run_remote_query_stream_integration = NULL;
+const char *run_remote_query_stream_request_json = NULL;
+const char *run_remote_query_stream_event_json = NULL;
+int run_remote_query_stream(rtloader_t *s, rtloader_pyobject_t *check, const char *integration, const char *request_json, int (*emit)(const char *, const char *, const uint8_t *, size_t, void *), void *userdata) {
+	run_remote_query_stream_instance = check;
+	run_remote_query_stream_integration = strdup(integration);
+	run_remote_query_stream_request_json = strdup(request_json);
+	run_remote_query_stream_calls++;
+	run_remote_query_stream_event_json = "{\"status\":\"SUCCEEDED\",\"upload_receipt\":{\"uploadId\":\"upload-proof\",\"pageCount\":1,\"totalRows\":2,\"totalBytes\":18}}";
+	uint8_t payload[] = {0x00, 0xff, 0x80};
+	if (run_remote_query_stream_return && emit != NULL) {
+		if (emit("metadata", "{\"status\":\"STARTED\",\"operation\":\"produce_json_pages\"}", run_remote_query_stream_emit_payload ? payload : NULL, run_remote_query_stream_emit_payload ? sizeof(payload) : 0, userdata) != 0) {
+			return 0;
+		}
+		if (emit("final", run_remote_query_stream_event_json, NULL, 0, userdata) != 0) {
+			return 0;
+		}
+	}
+	return run_remote_query_stream_return;
 }
 
 //
@@ -203,6 +229,13 @@ void reset_check_mock() {
 
 	get_check_diagnoses_return = NULL;
 	get_check_diagnoses_calls = 0;
+	run_remote_query_stream_return = 1;
+	run_remote_query_stream_calls = 0;
+	run_remote_query_stream_emit_payload = 0;
+	run_remote_query_stream_instance = NULL;
+	run_remote_query_stream_integration = NULL;
+	run_remote_query_stream_request_json = NULL;
+	run_remote_query_stream_event_json = NULL;
 }
 */
 import "C"
@@ -666,6 +699,81 @@ func testGetDiagnoses(t *testing.T) {
 	assert.Zero(t, len(diagnoses[1].Category))
 	assert.Zero(t, len(diagnoses[1].Description))
 	assert.Zero(t, len(diagnoses[1].Remediation))
+}
+
+func testRunRemoteQueryStream(t *testing.T) {
+	mockRtloader(t)
+
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+	check.instance = newMockPyObjectPtr()
+
+	C.reset_check_mock()
+	var events []checkbase.RemoteQueryStreamEvent
+	err = check.RunRemoteQueryStream(" Postgres ", `{"operation":"produce_json_pages"}`, func(event checkbase.RemoteQueryStreamEvent) error {
+		events = append(events, event)
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.Len(t, events, 2)
+	assert.Equal(t, "metadata", events[0].Type)
+	assert.JSONEq(t, `{"status":"STARTED","operation":"produce_json_pages"}`, events[0].MetadataJSON)
+	assert.Equal(t, "final", events[1].Type)
+	assert.JSONEq(t, `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":2,"totalBytes":18}}`, events[1].MetadataJSON)
+	assert.Equal(t, C.int(1), C.gil_locked_calls)
+	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
+	assert.Equal(t, C.int(1), C.run_remote_query_stream_calls)
+	assert.Equal(t, check.instance, C.run_remote_query_stream_instance)
+	assert.Equal(t, "postgres", C.GoString(C.run_remote_query_stream_integration))
+	assert.JSONEq(t, `{"operation":"produce_json_pages"}`, C.GoString(C.run_remote_query_stream_request_json))
+}
+
+func testRunRemoteQueryStreamRejectsPayload(t *testing.T) {
+	mockRtloader(t)
+
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+	check.instance = newMockPyObjectPtr()
+
+	C.reset_check_mock()
+	C.run_remote_query_stream_emit_payload = 1
+	err = check.RunRemoteQueryStream("postgres", `{"operation":"produce_json_pages"}`, func(checkbase.RemoteQueryStreamEvent) error {
+		t.Fatal("emit callback must not receive payload-carrying events")
+		return nil
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, C.int(1), C.run_remote_query_stream_calls)
+}
+
+func testRunRemoteQueryStreamEmitError(t *testing.T) {
+	mockRtloader(t)
+
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+	check.instance = newMockPyObjectPtr()
+
+	C.reset_check_mock()
+	err = check.RunRemoteQueryStream("postgres", `{"operation":"produce_json_pages"}`, func(checkbase.RemoteQueryStreamEvent) error { return assert.AnError })
+
+	require.Error(t, err)
+	assert.Equal(t, C.int(1), C.run_remote_query_stream_calls)
+}
+
+func testRunRemoteQueryStreamAfterCancel(t *testing.T) {
+	mockRtloader(t)
+
+	check, err := NewPythonFakeCheck(aggregator.NewNoOpSenderManager())
+	require.NoError(t, err)
+	check.instance = newMockPyObjectPtr()
+
+	C.reset_check_mock()
+	check.Cancel()
+
+	err = check.RunRemoteQueryStream("postgres", `{"operation":"produce_json_pages"}`, func(checkbase.RemoteQueryStreamEvent) error { return nil })
+	assert.EqualError(t, err, "check fake_check is already cancelled")
+	assert.Equal(t, C.int(0), C.run_remote_query_stream_calls)
 }
 
 func testRunAfterCancel(t *testing.T) {

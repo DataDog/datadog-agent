@@ -146,6 +146,7 @@ const (
 	AgentSecure_GetHostTags_FullMethodName                             = "/datadog.api.v1.AgentSecure/GetHostTags"
 	AgentSecure_StreamConfigEvents_FullMethodName                      = "/datadog.api.v1.AgentSecure/StreamConfigEvents"
 	AgentSecure_WorkloadFilterEvaluate_FullMethodName                  = "/datadog.api.v1.AgentSecure/WorkloadFilterEvaluate"
+	AgentSecure_RemoteQueryExecuteStream_FullMethodName                = "/datadog.api.v1.AgentSecure/RemoteQueryExecuteStream"
 	AgentSecure_StreamKubeMetadata_FullMethodName                      = "/datadog.api.v1.AgentSecure/StreamKubeMetadata"
 	AgentSecure_ReportHealthIssue_FullMethodName                       = "/datadog.api.v1.AgentSecure/ReportHealthIssue"
 	AgentSecure_ResolveHealthIssue_FullMethodName                      = "/datadog.api.v1.AgentSecure/ResolveHealthIssue"
@@ -187,6 +188,11 @@ type AgentSecureClient interface {
 	StreamConfigEvents(ctx context.Context, in *ConfigStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ConfigEvent], error)
 	// Evaluates a workloadfilter rule on behalf of remote agents.
 	WorkloadFilterEvaluate(ctx context.Context, in *WorkloadFilterEvaluateRequest, opts ...grpc.CallOption) (*WorkloadFilterEvaluateResponse, error)
+	// Executes an Agent-local Remote Queries request through a matched integration check.
+	// The result contract is fixed: bounded JSON page files uploaded directly by the
+	// integration to its-agent-intake. The stream carries only progress metadata, the
+	// compact run receipt, and errors; bulk result bytes never traverse AgentSecure.
+	RemoteQueryExecuteStream(ctx context.Context, in *RemoteQueryExecuteRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RemoteQueryExecuteChunk], error)
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(ctx context.Context, in *KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[KubeMetadataStreamResponse], error)
 	// Reports a fully-built health issue to the core agent's health platform store.
@@ -429,9 +435,28 @@ func (c *agentSecureClient) WorkloadFilterEvaluate(ctx context.Context, in *Work
 	return out, nil
 }
 
+func (c *agentSecureClient) RemoteQueryExecuteStream(ctx context.Context, in *RemoteQueryExecuteRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RemoteQueryExecuteChunk], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentSecure_ServiceDesc.Streams[5], AgentSecure_RemoteQueryExecuteStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[RemoteQueryExecuteRequest, RemoteQueryExecuteChunk]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentSecure_RemoteQueryExecuteStreamClient = grpc.ServerStreamingClient[RemoteQueryExecuteChunk]
+
 func (c *agentSecureClient) StreamKubeMetadata(ctx context.Context, in *KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[KubeMetadataStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AgentSecure_ServiceDesc.Streams[5], AgentSecure_StreamKubeMetadata_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AgentSecure_ServiceDesc.Streams[6], AgentSecure_StreamKubeMetadata_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -504,6 +529,11 @@ type AgentSecureServer interface {
 	StreamConfigEvents(*ConfigStreamRequest, grpc.ServerStreamingServer[ConfigEvent]) error
 	// Evaluates a workloadfilter rule on behalf of remote agents.
 	WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error)
+	// Executes an Agent-local Remote Queries request through a matched integration check.
+	// The result contract is fixed: bounded JSON page files uploaded directly by the
+	// integration to its-agent-intake. The stream carries only progress metadata, the
+	// compact run receipt, and errors; bulk result bytes never traverse AgentSecure.
+	RemoteQueryExecuteStream(*RemoteQueryExecuteRequest, grpc.ServerStreamingServer[RemoteQueryExecuteChunk]) error
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error
 	// Reports a fully-built health issue to the core agent's health platform store.
@@ -580,6 +610,9 @@ func (UnimplementedAgentSecureServer) StreamConfigEvents(*ConfigStreamRequest, g
 }
 func (UnimplementedAgentSecureServer) WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method WorkloadFilterEvaluate not implemented")
+}
+func (UnimplementedAgentSecureServer) RemoteQueryExecuteStream(*RemoteQueryExecuteRequest, grpc.ServerStreamingServer[RemoteQueryExecuteChunk]) error {
+	return status.Error(codes.Unimplemented, "method RemoteQueryExecuteStream not implemented")
 }
 func (UnimplementedAgentSecureServer) StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error {
 	return status.Error(codes.Unimplemented, "method StreamKubeMetadata not implemented")
@@ -896,6 +929,17 @@ func _AgentSecure_WorkloadFilterEvaluate_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentSecure_RemoteQueryExecuteStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(RemoteQueryExecuteRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AgentSecureServer).RemoteQueryExecuteStream(m, &grpc.GenericServerStream[RemoteQueryExecuteRequest, RemoteQueryExecuteChunk]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentSecure_RemoteQueryExecuteStreamServer = grpc.ServerStreamingServer[RemoteQueryExecuteChunk]
+
 func _AgentSecure_StreamKubeMetadata_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(KubeMetadataStreamRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -1036,6 +1080,11 @@ var AgentSecure_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "StreamConfigEvents",
 			Handler:       _AgentSecure_StreamConfigEvents_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "RemoteQueryExecuteStream",
+			Handler:       _AgentSecure_RemoteQueryExecuteStream_Handler,
 			ServerStreams: true,
 		},
 		{
