@@ -169,7 +169,7 @@ func TestOnRemoteConfigUpdate_ParsesAndApplies(t *testing.T) {
 	apply := func(_ string, s state.ApplyStatus) { applied = append(applied, s) }
 
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{
-		"datadog/2/APM_POLICIES/policy-1/config": {Config: []byte(raw)},
+		"datadog/2/APM_POLICIES/1.kubernetes/config": {Config: []byte(raw)},
 	}, apply)
 
 	require.Len(t, applied, 1)
@@ -219,18 +219,80 @@ func TestOnRemoteConfigUpdate_OrdersPolicyIDsByNumericPrefix(t *testing.T) {
     }`
 
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{
-		"datadog/2/APM_POLICIES/10.deny/config": {Config: []byte(deny)},
-		"datadog/2/APM_POLICIES/2.allow/config": {Config: []byte(allow)},
+		"datadog/2/APM_POLICIES/10.kubernetes.deny/config": {Config: []byte(deny)},
+		"datadog/2/APM_POLICIES/2.kubernetes.allow/config": {Config: []byte(allow)},
 	}, func(string, state.ApplyStatus) {})
 
 	remotePolicies := m.remotePolicies.Load()
 	require.NotNil(t, remotePolicies)
 	require.Len(t, remotePolicies.matcher.policies, 2)
-	// Numeric prefix sorts 2.allow before 10.deny; last-TRUE-wins then picks deny.
+	// Numeric prefix sorts 2.kubernetes.allow before 10.kubernetes.deny.
 	require.Equal(t, "allow", remotePolicies.matcher.policies[0].Name)
 	require.Equal(t, "deny", remotePolicies.matcher.policies[1].Name)
 
 	// Last-TRUE-wins: deny is after allow, both match app=db.
+	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "db"})))
+}
+
+func TestOnRemoteConfigUpdate_KeepsOnlyKubernetesPolicyIDs(t *testing.T) {
+	wmeta := newMatchTestWmeta(t)
+	m := newMatchMutator(t, rcDisabledCfg, wmeta)
+
+	const k8s = `{
+      "policies": [{
+        "description": "k8s-allow",
+        "rules": {
+          "node_type": "EvaluatorNode",
+          "node": {
+            "eval_type": "StrEvaluator",
+            "eval": {"id": "POD_LABEL", "cmp": "CMP_EXACT", "value": "app=db"}
+          }
+        },
+        "actions": [
+          {"action": "INJECT_ALLOW"},
+          {"action": "ENABLE_SDK", "values": ["java=latest"]}
+        ]
+      }]
+    }`
+	const linux = `{
+      "policies": [{
+        "description": "linux-deny",
+        "rules": {
+          "node_type": "EvaluatorNode",
+          "node": {
+            "eval_type": "StrEvaluator",
+            "eval": {"id": "POD_LABEL", "cmp": "CMP_EXACT", "value": "app=db"}
+          }
+        },
+        "actions": [{"action": "INJECT_DENY"}]
+      }]
+    }`
+
+	applied := make(map[string]state.ApplyStatus)
+	m.onRemoteConfigUpdate(map[string]state.RawConfig{
+		"datadog/2/APM_POLICIES/1.linux/config":         {Config: []byte(linux)},
+		"datadog/2/APM_POLICIES/2.kubernetes/config":    {Config: []byte(k8s)},
+		"datadog/2/APM_POLICIES/3.windows.block/config": {Config: []byte(linux)},
+		"datadog/2/APM_POLICIES/policy-1/config":        {Config: []byte(linux)},
+	}, func(path string, status state.ApplyStatus) { applied[path] = status })
+
+	require.Len(t, applied, 4)
+	for _, path := range []string{
+		"datadog/2/APM_POLICIES/1.linux/config",
+		"datadog/2/APM_POLICIES/2.kubernetes/config",
+		"datadog/2/APM_POLICIES/3.windows.block/config",
+		"datadog/2/APM_POLICIES/policy-1/config",
+	} {
+		require.Equal(t, state.ApplyStateAcknowledged, applied[path].State)
+	}
+
+	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	require.Equal(t, "k8s-allow", name)
+	require.True(t, fromPolicy)
+
+	m.onRemoteConfigUpdate(map[string]state.RawConfig{
+		"datadog/2/APM_POLICIES/1.linux/config": {Config: []byte(linux)},
+	}, func(string, state.ApplyStatus) {})
 	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "db"})))
 }
 
@@ -258,14 +320,14 @@ func TestOnRemoteConfigUpdate_InvalidPayloadKeepsBaseline(t *testing.T) {
 	apply := func(path string, status state.ApplyStatus) { applied[path] = status }
 
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{
-		"datadog/2/APM_POLICIES/1.valid/config": {Config: []byte(validDeny)},
-		"datadog/2/APM_POLICIES/2.bad/config":   {Config: []byte("{")},
+		"datadog/2/APM_POLICIES/1.kubernetes.valid/config": {Config: []byte(validDeny)},
+		"datadog/2/APM_POLICIES/2.kubernetes.bad/config":   {Config: []byte("{")},
 	}, apply)
 
 	require.Len(t, applied, 2)
 	for _, path := range []string{
-		"datadog/2/APM_POLICIES/1.valid/config",
-		"datadog/2/APM_POLICIES/2.bad/config",
+		"datadog/2/APM_POLICIES/1.kubernetes.valid/config",
+		"datadog/2/APM_POLICIES/2.kubernetes.bad/config",
 	} {
 		require.Equal(t, state.ApplyStateError, applied[path].State)
 		require.NotEmpty(t, applied[path].Error)

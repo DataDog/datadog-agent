@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	apmPolicyIDPattern     = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
-	apmPolicyPrefixPattern = regexp.MustCompile(`^(\d+)\.`)
+	apmPolicyIDPattern           = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
+	apmPolicyPrefixPattern       = regexp.MustCompile(`^(\d+)\.`)
+	apmPolicyKubernetesIDPattern = regexp.MustCompile(`^\d+\.kubernetes`)
 )
 
 // sortRemotePolicyPaths preserves the numeric-prefix ordering used by the
@@ -53,6 +54,14 @@ func remotePolicyPathOrder(path string) int {
 		return 0
 	}
 	return order
+}
+
+func isKubernetesRemotePolicyPath(path string) bool {
+	policyIDMatches := apmPolicyIDPattern.FindStringSubmatch(path)
+	if len(policyIDMatches) <= 1 {
+		return false
+	}
+	return apmPolicyKubernetesIDPattern.MatchString(policyIDMatches[1])
 }
 
 // subscribeRemoteConfig wires the remote-config client to the mutator so that
@@ -96,7 +105,12 @@ func (m *TargetMutator) onRemoteConfigUpdate(updates map[string]state.RawConfig,
 	}
 
 	var allPolicies []policies.Policy
+	kept := 0
 	for _, path := range paths {
+		if !isKubernetesRemotePolicyPath(path) {
+			log.Debugf("auto-instrumentation: ignoring remote config %q (not a kubernetes APM_POLICIES id)", path)
+			continue
+		}
 		parsed, err := policies.ParsePolicies(updates[path].Config)
 		if err != nil {
 			reportApplyError(err)
@@ -104,6 +118,7 @@ func (m *TargetMutator) onRemoteConfigUpdate(updates map[string]state.RawConfig,
 			return
 		}
 		allPolicies = append(allPolicies, parsed...)
+		kept++
 	}
 
 	if err := m.SetRemotePolicies(allPolicies); err != nil {
@@ -112,7 +127,7 @@ func (m *TargetMutator) onRemoteConfigUpdate(updates map[string]state.RawConfig,
 		return
 	}
 
-	log.Infof("auto-instrumentation: applied %d SSI policies from %d remote config(s)", len(allPolicies), len(updates))
+	log.Infof("auto-instrumentation: applied %d SSI policies from %d remote config(s)", len(allPolicies), kept)
 	for path := range updates {
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
