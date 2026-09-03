@@ -10,6 +10,7 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -1748,6 +1749,19 @@ func TestRemediationCustomEvents(t *testing.T) {
 
 }
 
+func remediationStatusSourceRuleID(data []byte) string {
+	var obj interface{}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return ""
+	}
+	if el, err := jsonpath.JsonPathLookup(obj, `$.rule_tags.rule_id`); err == nil {
+		if ruleID, ok := el.(string); ok {
+			return ruleID
+		}
+	}
+	return ""
+}
+
 func TestRemediationCustomEventNotTriggered(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1881,6 +1895,11 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 
 			msg := test.msgSender.getMsg("remediation_status")
 			if msg != nil {
+				if sourceRuleID := remediationStatusSourceRuleID(msg.Data); sourceRuleID != noEventRule.ID {
+					// Stale remediation_status from another test still in the queue.
+					test.msgSender.flush()
+					return errors.New("retry")
+				}
 				t.Error("should not find remediation_status message, got event : " + string(msg.Data))
 				return nil
 			}
