@@ -8,8 +8,8 @@ cloud.google.com/go/compute v1.66.0 h1:v8pAJeA0xYPe/tJDMcyimdnHZ115LVrw3xCi9ZelT
 cloud.google.com/go/compute v1.66.0/go.mod h1:h1O3BCv0Zd0/8rZ6PGx8aRBhKBtDC0AuvURtWg1hLLE=
 cloud.google.com/go/compute/metadata v0.9.0 h1:pDUj4QMoPejqq20dK0Pg2N4yG9zIkYGdBtwLoEkH9Zs=
 cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCBSM6qQI1yTBdEb3C10=
-github.com/DataDog/agent-payload/v5 v5.0.209 h1:VthYhodp1FRrf2HSk0bxyLiNt1xbqMHCf+whsdOkt3Y=
-github.com/DataDog/agent-payload/v5 v5.0.209/go.mod h1:z6tbYIJQWWQa3ozmZdit7jR3ROOKhgs/va4tNLu80mI=
+github.com/DataDog/agent-payload/v5 v5.0.210-0.20260903135538-84910fb4573a h1:fLzUG89HELOnjneBSPh6Y6FPmrUkVLe+KmRkJQH/9Ig=
+github.com/DataDog/agent-payload/v5 v5.0.210-0.20260903135538-84910fb4573a/go.mod h1:z6tbYIJQWWQa3ozmZdit7jR3ROOKhgs/va4tNLu80mI=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
 github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
