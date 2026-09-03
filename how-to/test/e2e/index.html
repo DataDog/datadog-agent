@@ -4007,6 +4007,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#workspace-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Workspace support
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -4087,6 +4098,23 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>e2e.setup<span class="w"> </span>--with-azure<span class="w"> </span>--with-gcp
 </span></code></pre></div>
 <p>The configuration is persisted to <code>~/.test_infra_config.yaml</code> (chmod <code>0600</code>, since it contains the auto-generated Pulumi passphrase). Re-running <code>dda inv e2e.setup</code> is idempotent — it prints <code>✓ already configured</code> checks and exits.</p>
+<h3 id="workspace-support">Workspace support<a class="headerlink" href="#workspace-support" title="Permanent link">&para;</a></h3>
+<p>The e2e test framework tooling supports being run from Datadog workspaces just like developer laptops. </p>
+<div class="admonition warning">
+<p class="admonition-title">Workspace compatibility of the e2e tooling</p>
+<ul>
+<li><strong>The workspace must be in the <code>us-east-1</code> region</strong>. The VPN bridging the AWS account holding the workspace machines and the <code>datadog-agent-qa</code> account actually running the tests only exists in <code>us-east-1</code>.</li>
+<li><strong>You must use <code>zsh</code> in the workspace</strong>. The <code>fish</code>-based workspace config lacks some setup that is required for the e2e tooling.</li>
+</ul>
+</div>
+<div class="admonition danger">
+<p class="admonition-title">Danger</p>
+<p>The <code>e2e.*</code> Invoke tasks will <strong>NOT WORK</strong> in a workspace provisioned in <code>eu-west-3</code>.</p>
+</div>
+<ul>
+<li>Stacks, EC2 key pairs and SSH keys are named after <code>$REAL_USER</code> and <code>$WORKSPACE_NAME</code>, not the OS user (which is <code>bits</code> for everyone on a workspace). Two workspaces owned by the same developer therefore get their own key pair and their own stacks, and <code>dda inv aws.destroy-vm</code> only ever sees the stacks created from that workspace.</li>
+<li>Workspaces are headless, so desktop notifications and the "copy to clipboard" prompts are skipped automatically. The connection command or password is printed instead.</li>
+</ul>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../../guidelines/testing/test-categories/">Test Categories</a> - Understanding different test types</li>
