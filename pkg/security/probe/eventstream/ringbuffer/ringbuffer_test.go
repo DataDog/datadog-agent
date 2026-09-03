@@ -1,0 +1,301 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//go:build linux
+
+package ringbuffer
+
+import (
+	"context"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/cilium/ebpf/ringbuf"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
+)
+
+func TestDispatcherQueueMaxBytes(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      config.Config
+		numCPU   int
+		expected int64
+	}{
+		{
+			name:     "zero size stays zero without min",
+			cfg:      config.Config{EventStreamDispatcherQueueSize: 0},
+			numCPU:   8,
+			expected: 0,
+		},
+		{
+			name: "per-core multiplies by cpu count",
+			cfg: config.Config{
+				EventStreamDispatcherQueueSize:        100,
+				EventStreamDispatcherQueueSizePerCore: true,
+			},
+			numCPU:   4,
+			expected: 400,
+		},
+		{
+			name: "min floor applied after per-core",
+			cfg: config.Config{
+				EventStreamDispatcherQueueSize:        100,
+				EventStreamDispatcherQueueSizePerCore: true,
+				EventStreamDispatcherQueueSizeMin:     1000,
+			},
+			numCPU:   2,
+			expected: 1000,
+		},
+		{
+			name: "invalid cpu count treated as 1",
+			cfg: config.Config{
+				EventStreamDispatcherQueueSize:        100,
+				EventStreamDispatcherQueueSizePerCore: true,
+			},
+			numCPU:   0,
+			expected: 100,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, dispatcherQueueMaxBytesWithCPU(&tt.cfg, tt.numCPU))
+		})
+	}
+}
+
+func TestHandleEventInlineWhenQueueDisabled(t *testing.T) {
+	var got []byte
+	rb := New(context.Background(), func(_ int, data []byte) {
+		got = append([]byte(nil), data...)
+	}, nil)
+
+	rb.handleEvent(&ringbuf.Record{RawSample: []byte{1, 2, 3}}, nil, nil)
+
+	require.Equal(t, []byte{1, 2, 3}, got)
+	require.Zero(t, rb.enqueued.Load())
+}
+
+func TestHandleEventQueuesWhenEnabled(t *testing.T) {
+	done := make(chan []byte, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	rb := New(ctx, func(_ int, data []byte) {
+		done <- append([]byte(nil), data...)
+	}, nil)
+	rb.queue = newByteQueue(4096)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go rb.dispatch(&wg)
+
+	rb.handleQueuedEvent(&ringbuf.Record{RawSample: []byte{9, 8, 7}}, nil, nil)
+
+	select {
+	case got := <-done:
+		require.Equal(t, []byte{9, 8, 7}, got)
+	case <-time.After(2 * time.Second):
+		t.Fatal("dispatcher did not process the queued event")
+	}
+
+	require.Equal(t, uint64(1), rb.enqueued.Load())
+	require.Zero(t, rb.occupancy.Load())
+	require.Zero(t, rb.queueBytes.Load())
+
+	cancel()
+	wg.Wait()
+}
+
+func TestDispatcherRecoversFromHandlerPanic(t *testing.T) {
+	done := make(chan []byte, 1)
+	var n int
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	rb := New(ctx, func(_ int, data []byte) {
+		n++
+		if n == 1 {
+			panic("boom")
+		}
+		done <- append([]byte(nil), data...)
+	}, nil)
+	rb.queue = newByteQueue(4096)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go rb.dispatch(&wg)
+
+	rb.handleQueuedEvent(&ringbuf.Record{RawSample: []byte{1}}, nil, nil)
+	rb.handleQueuedEvent(&ringbuf.Record{RawSample: []byte{2}}, nil, nil)
+
+	select {
+	case got := <-done:
+		require.Equal(t, []byte{2}, got)
+	case <-time.After(2 * time.Second):
+		t.Fatal("dispatcher did not recover from handler panic")
+	}
+
+	require.Zero(t, rb.occupancy.Load())
+
+	cancel()
+	wg.Wait()
+}
+
+func TestSendStats(t *testing.T) {
+	t.Run("reports occupancy, bytes, capacity and enqueued", func(t *testing.T) {
+		client := statsdclient.NewStatsdClient()
+		rb := New(context.Background(), func(int, []byte) {}, client)
+		rb.queue = newByteQueue(4096)
+
+		rb.handleQueuedEvent(&ringbuf.Record{RawSample: make([]byte, 1000)}, nil, nil)
+		rb.handleQueuedEvent(&ringbuf.Record{RawSample: make([]byte, 500)}, nil, nil)
+
+		require.NoError(t, rb.SendStats())
+		require.Equal(t, int64(2), client.Get(metrics.MetricEventStreamDispatcherQueueUsage))
+		require.Equal(t, int64(1500), client.Get(metrics.MetricEventStreamDispatcherQueueBytes))
+		require.Equal(t, int64(4096), client.Get(metrics.MetricEventStreamDispatcherQueueCapacity))
+		require.Equal(t, int64(2), client.Get(metrics.MetricEventStreamDispatcherQueueEnqueued))
+	})
+
+	t.Run("is a no-op when the queue is disabled", func(t *testing.T) {
+		client := statsdclient.NewStatsdClient()
+		rb := New(context.Background(), func(int, []byte) {}, client)
+
+		require.NoError(t, rb.SendStats())
+		require.Zero(t, client.Get(metrics.MetricEventStreamDispatcherQueueUsage))
+	})
+}
+
+func TestByteQueueAdmitsOversizedWhenEmpty(t *testing.T) {
+	q := newByteQueue(100)
+	t.Cleanup(q.close)
+	rec := &ringbuf.Record{RawSample: make([]byte, 500)}
+	require.True(t, q.enqueue(rec))
+
+	got, ok := q.dequeue()
+	require.True(t, ok)
+	require.Equal(t, rec, got)
+}
+
+func TestByteQueueGrowsBeyondInitialCapacity(t *testing.T) {
+	q := newByteQueue(1 << 20)
+	t.Cleanup(q.close)
+
+	const n = 200 // exceeds the initial ring capacity of 64 to exercise growLocked
+	for i := 0; i < n; i++ {
+		require.True(t, q.enqueue(&ringbuf.Record{RawSample: []byte{byte(i)}}))
+	}
+	require.Greater(t, len(q.buf), 64)
+
+	for i := 0; i < n; i++ {
+		rec, ok := q.dequeue()
+		require.True(t, ok)
+		require.Equal(t, []byte{byte(i)}, rec.RawSample)
+	}
+}
+
+func waitForEnqueueBlocked(t *testing.T, q *byteQueue) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		return q.waiters.Load() == 1
+	}, time.Second, time.Millisecond)
+}
+
+func TestByteQueueBlocksUntilBytesFreed(t *testing.T) {
+	q := newByteQueue(1000)
+	t.Cleanup(q.close)
+	require.True(t, q.enqueue(&ringbuf.Record{RawSample: make([]byte, 400)}))
+	require.True(t, q.enqueue(&ringbuf.Record{RawSample: make([]byte, 400)}))
+
+	unblocked := make(chan struct{})
+	go func() {
+		require.True(t, q.enqueue(&ringbuf.Record{RawSample: make([]byte, 400)}))
+		close(unblocked)
+	}()
+
+	waitForEnqueueBlocked(t, q)
+	select {
+	case <-unblocked:
+		t.Fatal("enqueue returned while the queue was over budget")
+	default:
+	}
+
+	got, ok := q.dequeue()
+	require.True(t, ok)
+	require.Len(t, got.RawSample, 400)
+
+	select {
+	case <-unblocked:
+	case <-time.After(time.Second):
+		t.Fatal("enqueue did not proceed after bytes were freed")
+	}
+}
+
+func TestByteQueueOversizedWaitsIfNotEmpty(t *testing.T) {
+	q := newByteQueue(100)
+	t.Cleanup(q.close)
+	require.True(t, q.enqueue(&ringbuf.Record{RawSample: make([]byte, 40)}))
+
+	unblocked := make(chan struct{})
+	oversized := &ringbuf.Record{RawSample: make([]byte, 200)}
+	go func() {
+		require.True(t, q.enqueue(oversized))
+		close(unblocked)
+	}()
+
+	waitForEnqueueBlocked(t, q)
+	select {
+	case <-unblocked:
+		t.Fatal("oversized event was admitted while the queue was not empty")
+	default:
+	}
+
+	got, ok := q.dequeue()
+	require.True(t, ok)
+	require.Len(t, got.RawSample, 40)
+
+	select {
+	case <-unblocked:
+	case <-time.After(time.Second):
+		t.Fatal("oversized event was not admitted after the queue became empty")
+	}
+
+	got, ok = q.dequeue()
+	require.True(t, ok)
+	require.Equal(t, oversized, got)
+}
+
+func TestByteQueueCloseUnblocksEnqueue(t *testing.T) {
+	q := newByteQueue(100)
+	t.Cleanup(q.close)
+	require.True(t, q.enqueue(&ringbuf.Record{RawSample: make([]byte, 80)}))
+
+	done := make(chan bool, 1)
+	go func() {
+		done <- q.enqueue(&ringbuf.Record{RawSample: make([]byte, 80)})
+	}()
+
+	waitForEnqueueBlocked(t, q)
+	select {
+	case admitted := <-done:
+		t.Fatalf("enqueue returned %v while the queue was full", admitted)
+	default:
+	}
+
+	q.close()
+
+	select {
+	case admitted := <-done:
+		require.False(t, admitted)
+	case <-time.After(time.Second):
+		t.Fatal("enqueue was not unblocked by close")
+	}
+}
