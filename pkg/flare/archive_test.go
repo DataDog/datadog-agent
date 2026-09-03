@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -91,24 +92,51 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 	confMock.SetInTest("process_config.cmd_port", port)
 }
 
+// setupProcessAPIServer picks a free TCP port, sets it as process_config.cmd_port, and starts a
+// real process-agent API server (with real auth via the IPC component) listening on it.
+//
+// The port is chosen by binding an ephemeral listener and immediately closing it so the real
+// server can bind to the same port. Between the close and the real bind, another process on the
+// same host can grab that port, which fails the server startup with "address already in use".
+// This is more likely on CI hosts that run many test binaries in parallel, so retry with a fresh
+// port a few times before giving up.
 func setupProcessAPIServer(t *testing.T) {
-	_ = fxutil.Test[processapiserver.Component](t, fx.Options(
-		processapiserverimpl.Module(),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		mocktelemetry.Module(),
-		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Supply(
-			status.Params{
-				PythonVersionGetFunc: func() string { return "n/a" },
-			},
-		),
-		taggerfx.Module(),
-		statusimpl.Module(),
-		settingsmock.MockModule(),
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-	))
+	const maxAttempts = 5
+	for attempt := 1; ; attempt++ {
+		listener, err := net.Listen("tcp", ":0")
+		require.NoError(t, err)
+		port := listener.Addr().(*net.TCPAddr).Port
+		listener.Close()
+
+		cfg := configmock.New(t)
+		cfg.SetInTest("process_config.cmd_port", port)
+		cfg.SetInTest("process_config.process_discovery.enabled", true)
+
+		app, _, startErr := fxutil.TestApp[processapiserver.Component](fx.Options(
+			processapiserverimpl.Module(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			mocktelemetry.Module(),
+			workloadmetafx.Module(workloadmeta.NewParams()),
+			fx.Supply(
+				status.Params{
+					PythonVersionGetFunc: func() string { return "n/a" },
+				},
+			),
+			taggerfx.Module(),
+			statusimpl.Module(),
+			settingsmock.MockModule(),
+			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		))
+		if startErr == nil {
+			t.Cleanup(func() { _ = app.Stop(context.Background()) })
+			return
+		}
+		if attempt >= maxAttempts || !strings.Contains(startErr.Error(), "address already in use") {
+			require.NoError(t, startErr)
+		}
+	}
 }
 
 func TestVersionHistory(t *testing.T) {
@@ -181,15 +209,6 @@ process_config:
 	})
 
 	t.Run("verify auth", func(t *testing.T) {
-		listener, err := net.Listen("tcp", ":0")
-		require.NoError(t, err)
-		port := listener.Addr().(*net.TCPAddr).Port
-		listener.Close()
-
-		cfg := configmock.New(t)
-		cfg.SetInTest("process_config.cmd_port", port)
-		cfg.SetInTest("process_config.process_discovery.enabled", true)
-		cfg.SetInTest("process_config.cmd_port", port)
 		setupProcessAPIServer(t)
 
 		content, err := remoteProvider.getProcessAgentFullConfig()
@@ -288,15 +307,6 @@ func TestProcessAgentChecks(t *testing.T) {
 		mock.AssertFileContent(string(expectedProcessDiscoveryJSON), "process_discovery_check_output.json")
 	})
 	t.Run("verify auth", func(t *testing.T) {
-		listener, err := net.Listen("tcp", ":0")
-		require.NoError(t, err)
-		port := listener.Addr().(*net.TCPAddr).Port
-		listener.Close()
-
-		cfg := configmock.New(t)
-		cfg.SetInTest("process_config.cmd_port", port)
-		cfg.SetInTest("process_config.process_discovery.enabled", true)
-		cfg.SetInTest("process_config.cmd_port", port)
 		setupProcessAPIServer(t)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
