@@ -65,6 +65,12 @@ func (c *cache) get(key CacheKey) (CacheEntry, bool) {
 	return cloneCacheEntry(entry), true
 }
 
+func (c *cache) count() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.entries)
+}
+
 func (c *cache) snapshot() []CachedValue {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
