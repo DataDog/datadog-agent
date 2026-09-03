@@ -239,6 +239,62 @@ func TestTokenizerIPv4(t *testing.T) {
 	assert.Equal(t, TokensToString(connectedA), TokensToString(connectedB))
 }
 
+func TestTokenizerUUID(t *testing.T) {
+	tokenizer := NewTokenizer(0)
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		indices  []int
+	}{
+		{
+			name:     "lowercase",
+			input:    "event_id=c05d056c-1c1f-457f-bfd2-f381f7f84e0d done",
+			expected: "CCCCC_CC=UUID CCCC",
+			indices:  []int{0, 5, 6, 8, 9, 45, 46},
+		},
+		{
+			name:     "uppercase and multiple",
+			input:    "C05D056C-1C1F-457F-BFD2-F381F7F84E0D c05d056c-1c1f-457f-bfd2-f381f7f84e0d",
+			expected: "UUID UUID",
+			indices:  []int{0, 36, 37},
+		},
+		{
+			name:  "non hex",
+			input: "c05d056c-1c1f-457f-bfd2-f381f7f84e0g",
+		},
+		{
+			name:  "embedded in word",
+			input: "xc05d056c-1c1f-457f-bfd2-f381f7f84e0d",
+		},
+		{
+			name:  "word suffix",
+			input: "c05d056c-1c1f-457f-bfd2-f381f7f84e0dx",
+		},
+		{
+			name:  "non ascii prefix in character run",
+			input: "\xffc05d056c-1c1f-457f-bfd2-f381f7f84e0d",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tokens, indices := tokenizer.Tokenize([]byte(tc.input))
+			if tc.expected == "" {
+				assert.NotContains(t, tokens, UUID)
+			} else {
+				assert.Equal(t, tc.expected, TokensToString(tokens))
+			}
+			if tc.indices != nil {
+				assert.Equal(t, tc.indices, indices)
+			}
+		})
+	}
+
+	tokens, _ := NewTokenizer(20).Tokenize([]byte("c05d056c-1c1f-457f-bfd2-f381f7f84e0d"))
+	assert.NotContains(t, tokens, UUID, "a UUID truncated by maxEvalBytes must not be promoted")
+}
+
 // --- Fuzz tests ---
 //
 // Each fuzz / property test below names the spec construct it anchors
@@ -430,6 +486,12 @@ func referenceTokenize(input []byte) []Token {
 	var starts []int
 	i := 0
 	for i < len(input) {
+		if referenceUUIDAt(input, i) {
+			starts = append(starts, i)
+			tokens = append(tokens, UUID)
+			i += uuidLength
+			continue
+		}
 		base := refClassify(input[i])
 		runLen := 1
 		for i+runLen < len(input) && refClassify(input[i+runLen]) == base {
@@ -460,6 +522,40 @@ func referenceTokenize(input []byte) []Token {
 		i += runLen
 	}
 	return referenceCollapseIPv4(tokens, starts)
+}
+
+// referenceUUIDAt independently expresses the UUID hybrid-token rule for the
+// broad tokenizer oracle. It intentionally does not call the production
+// isUUIDAt helper.
+func referenceUUIDAt(input []byte, start int) bool {
+	const length = 36
+	if start < 0 || start+length > len(input) {
+		return false
+	}
+	if start > 0 && !referenceUUIDBoundary(input[start-1]) ||
+		start+length < len(input) && !referenceUUIDBoundary(input[start+length]) {
+		return false
+	}
+	for i := range length {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if input[start+i] != '-' {
+				return false
+			}
+			continue
+		}
+		value := input[start+i]
+		if !((value >= '0' && value <= '9') ||
+			(value >= 'a' && value <= 'f') ||
+			(value >= 'A' && value <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
+func referenceUUIDBoundary(value byte) bool {
+	token := refClassify(value)
+	return token != C1 && token != D1 && token != Underscore
 }
 
 // referenceCollapseIPv4 is an independent copy of the dotted-quad rule:
@@ -510,6 +606,7 @@ func FuzzTokenizerCorrectness(f *testing.F) {
 	f.Add([]byte("192.168.1.1 10.0.0.1 1.2.3.4.5"))
 	f.Add([]byte("1...2.3.4 1234.1.1.1"))
 	f.Add([]byte("2026-08-11 10:34:49 W3SVC1 10.1.48.10 GET"))
+	f.Add([]byte("event_id=c05d056c-1c1f-457f-bfd2-f381f7f84e0d"))
 	f.Add([]byte("JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC MON TUE WED THU FRI SAT SUN " +
 		"AM PM UTC GMT EST EDT CST CDT MST MDT PST PDT JST KST IST MSK CET BST HST HDT NST NDT " +
 		"CEST NZST NZDT ACST ACDT AEST AEDT AWST AWDT AKST AKDT CHST CHDT WARN CRIT FATAL ERROR " +

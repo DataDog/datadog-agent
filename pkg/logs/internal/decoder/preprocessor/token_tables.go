@@ -22,6 +22,7 @@ func init() {
 		tokenDebug[C1+Token(i)] = strings.Repeat("C", i+1)
 	}
 	tokenDebug[IPv4] = "IPv4"
+	tokenDebug[UUID] = "UUID"
 	for _, m := range tokenMeta {
 		tokenDebug[m.tok] = m.debug
 		importantToken[m.tok] = m.critical
