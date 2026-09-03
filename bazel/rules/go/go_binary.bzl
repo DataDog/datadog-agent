@@ -11,6 +11,9 @@ Version string strategy (mirrors package_naming.bzl):
   AgentVersionURLSafe uses this directly; AgentVersion converts it back to standard
   SemVer form with '+' via _url_safe_to_standard().
 - Locally: fall back to release_json current_milestone + "-localbuild" for both.
+- The agent_version parameter, when passed, overrides both AgentVersion and AgentVersionURLSafe
+  so the two stay in sync. Used by callers that compute their own version outside of
+  PACKAGE_VERSION, e.g. host-profiler's nightly/dev-branch build.
 
 Run-path strategy, selected via //:linux_and_release and @platforms//os:linux:
 - Linux + release (//:linux_and_release): /opt/datadog-packages/run
@@ -92,7 +95,7 @@ def _make_agent_version_url_safe():
         return env_vars.PACKAGE_VERSION
     return release_json.get("current_milestone") + "-localbuild"
 
-def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = None, **kwargs):
+def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = None, agent_version = None, **kwargs):
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
     Accepts all go_binary attributes.  x_defs and gc_linkopts are merged with
@@ -111,6 +114,8 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
       gotags: Base set of gotags for this binary. COMMON tags are added, and
               per-platform adjustments are made.
       exact_gotags: Like gotags, but if this is specified, no other tag sets are added.
+      agent_version: overrides pkg/version.AgentVersion and AgentVersionURLSafe (URL-safe
+                     encoded) instead of deriving them from PACKAGE_VERSION/release.json.
       **kwargs: arguments to be forwarded to go_binary
     """
     # TODO: When --stamp support is in place, also inject:
@@ -121,16 +126,20 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
     # Build two complete x_defs dicts — one per //:is_release branch.
     # string_dict attributes do not support per-value select(); the select()
     # must wrap the whole dict.
-    agent_version_url_safe = _make_agent_version_url_safe()
+    if agent_version:
+        agent_version_url_safe = _standard_to_url_safe(agent_version)
+    else:
+        agent_version_url_safe = _make_agent_version_url_safe()
+        agent_version = _url_safe_to_standard(agent_version_url_safe)
     release_x_defs = {
         _VERSION_PKG + ".AgentPayloadVersion": AGENT_PAYLOAD_VERSION,
-        _VERSION_PKG + ".AgentVersion": _url_safe_to_standard(agent_version_url_safe),
+        _VERSION_PKG + ".AgentVersion": agent_version,
         _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
         _SETUP_PKG + ".defaultRunPath": _RUN_PATH_RELEASE,
     }
     dev_x_defs = {
         _VERSION_PKG + ".AgentPayloadVersion": AGENT_PAYLOAD_VERSION,
-        _VERSION_PKG + ".AgentVersion": _url_safe_to_standard(agent_version_url_safe),
+        _VERSION_PKG + ".AgentVersion": agent_version,
         _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
         _SETUP_PKG + ".defaultRunPath": _RUN_PATH_DEV,
     }
