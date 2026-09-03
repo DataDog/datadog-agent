@@ -480,6 +480,10 @@ func TestNetworkPathToTestResult(t *testing.T) {
 		},
 	}
 
+	for i := range tests {
+		tests[i].worker.testCfg.cfg.RunType = string(payload.TestRunTypeScheduled)
+	}
+
 	sched := &syntheticsTestScheduler{
 		generateTestResultID: func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
 			return "test-result-id-123", nil
@@ -540,8 +544,9 @@ func TestNetworkPathToTestResult_UsesRequestResultIDAndMapsSyntheticsRunType(t *
 	worker := workerResult{
 		testCfg: SyntheticsTestCtx{
 			cfg: common.SyntheticsTestConfig{
-				PublicID: "pub-on-demand",
+				PublicID: "pub-triggered",
 				ResultID: "backend-result-id",
+				RunType:  string(payload.TestRunTypeTriggered),
 				Type:     "network",
 				Config: struct {
 					Assertions []common.Assertion   `json:"assertions"`
