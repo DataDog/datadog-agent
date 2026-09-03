@@ -50,6 +50,8 @@ dd_agent_go_test(
         "//comp/core/telemetry/fx",
         "//comp/core/telemetry/mock",
         "//pkg/api/security/cert",
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/configstreambootstrap",
         "//pkg/proto/pbgo/core",
         "//pkg/util/fxutil",

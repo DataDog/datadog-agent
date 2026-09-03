@@ -1908,6 +1908,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			return false
 		}
 		event.Setrlimit.Target = resolveTargetProcessContext(event.Setrlimit.TargetPid, p)
+	case model.UnshareEventType:
+		if !p.regularUnmarshalEvent(&event.Unshare, eventType, offset, dataLen, data) {
+			return false
+		}
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false

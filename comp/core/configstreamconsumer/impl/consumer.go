@@ -58,6 +58,13 @@ const noSessionPollInterval = time.Second
 // seqIDUnset marks "nothing applied on this stream yet" so sequence ID 0 is still accepted.
 const seqIDUnset = -1
 
+// ipcTimeout bounds the wait for the core agent to write the IPC auth token and certificate, and
+// ipcPollInterval is how often that wait retries.
+const (
+	ipcTimeout      = 60 * time.Second
+	ipcPollInterval = 2 * time.Second
+)
+
 // Requires defines the dependencies for the configstreamconsumer component
 type Requires struct {
 	compdef.In
@@ -100,6 +107,9 @@ type consumer struct {
 
 	lastSeqID atomic.Int32
 
+	// Layers this stream has written, keyed by setting. Touched only from the stream goroutine.
+	streamedLayers map[string]map[pkgconfigmodel.Source]struct{}
+
 	ready     atomic.Bool
 	readyCh   chan struct{}
 	readyOnce sync.Once
@@ -124,6 +134,38 @@ type noopConsumer struct{}
 
 func (noopConsumer) IsActive() bool { return false }
 
+// loadIPCCredentials reads the IPC auth token and client certificate, retrying until timeout.
+// A remote agent must never mint either artifact itself, so when the core agent has not written
+// them yet — routine when both start together in a container — the only option is to wait.
+// Failing immediately exits before FX startup completes, which restarts the container.
+func loadIPCCredentials(authTokenPath, certPath string, timeout, interval time.Duration, logger log.Component) (string, *tls.Config, error) {
+	deadline := time.Now().Add(timeout)
+	waiting := false
+
+	for {
+		authToken, err := pkgtoken.LoadAuthTokenFromPath(authTokenPath)
+		if err == nil {
+			var clientTLS *tls.Config
+			clientTLS, err = cert.LoadClientTLSConfigFromPath(certPath)
+			if err == nil {
+				if waiting {
+					logger.Infof("configstreamconsumer: IPC credentials are now available")
+				}
+				return authToken, clientTLS, nil
+			}
+		}
+
+		if time.Now().After(deadline) {
+			return "", nil, fmt.Errorf("load IPC credentials: gave up after %v: %w", timeout, err)
+		}
+		if !waiting {
+			logger.Infof("configstreamconsumer: waiting up to %v for the core agent to write the IPC credentials (%v)", timeout, err)
+			waiting = true
+		}
+		time.Sleep(interval)
+	}
+}
+
 // NewComponent returns a no-op when configstream is disabled; otherwise it blocks until
 // the first snapshot lands (or ReadyTimeout) before returning.
 func NewComponent(reqs Requires) (Provides, error) {
@@ -142,22 +184,24 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	configstreambootstrap.SeedGlobalBuilder(bs, resolvedConfigFile(reqs.Params.CLIConfigPath))
 
-	authToken, err := pkgtoken.LoadAuthTokenFromPath(configstreambootstrap.AuthTokenFilepath())
+	// pkglog.NewWrapper avoids the config → configstreamconsumer → log → config FX cycle
+	// in system-probe's binary (log.Component depends on config).
+	logger := pkglog.NewWrapper(2)
+
+	authToken, clientTLS, err := loadIPCCredentials(
+		configstreambootstrap.AuthTokenFilepath(),
+		configstreambootstrap.IPCCertFilepath(),
+		ipcTimeout, ipcPollInterval, logger,
+	)
 	if err != nil {
-		return Provides{}, fmt.Errorf("load auth token: %w", err)
-	}
-	clientTLS, err := cert.LoadClientTLSConfigFromPath(configstreambootstrap.IPCCertFilepath())
-	if err != nil {
-		return Provides{}, fmt.Errorf("load IPC cert: %w", err)
+		return Provides{}, err
 	}
 
 	// Must drop before snapshot apply, otherwise streamed SourceEnvVar values get wiped too.
 	configstreambootstrap.DisableLocalEnvLayer(reqs.Params.ClientName)
 
 	c := &consumer{
-		// pkglog.NewWrapper avoids the config → configstreamconsumer → log → config FX cycle
-		// in system-probe's binary (log.Component depends on config).
-		log:       pkglog.NewWrapper(2),
+		log:       logger,
 		telemetry: reqs.Telemetry,
 		params:    reqs.Params,
 		addr:      net.JoinHostPort(bs.CmdHost, strconv.Itoa(bs.CmdPort)),
@@ -166,7 +210,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		clientTLS: clientTLS,
 		readyCh:   make(chan struct{}),
 
-		sessionKick: make(chan struct{}, 1),
+		sessionKick:    make(chan struct{}, 1),
+		streamedLayers: make(map[string]map[pkgconfigmodel.Source]struct{}),
 	}
 	c.initMetrics()
 
@@ -544,12 +589,36 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	c.log.Infof("Applying config snapshot (seq_id: %d, settings: %d)", snapshot.SequenceId, len(snapshot.Settings))
 
 	settings := make([]pkgconfigmodel.DirectSetting, 0, len(snapshot.Settings))
+	fresh := make(map[string]map[pkgconfigmodel.Source]struct{}, len(snapshot.Settings))
 	for _, setting := range snapshot.Settings {
-		settings = append(settings, toDirectSetting(setting))
+		ds := toDirectSetting(setting)
+		settings = append(settings, ds)
+		if fresh[ds.Key] == nil {
+			fresh[ds.Key] = make(map[pkgconfigmodel.Source]struct{}, 1)
+		}
+		fresh[ds.Key][ds.Source] = struct{}{}
 	}
+
+	cfg := configstreambootstrap.Config()
 	// The first snapshot seeds a config nothing has read yet; a later one replaces a config the
 	// process is already running on, so its changes have to be broadcast.
-	configstreambootstrap.Config().DirectBulkSet(settings, c.ready.Load())
+	cfg.DirectBulkSet(settings, c.ready.Load())
+
+	// A snapshot is the sender's entire state, so a layer the stream wrote earlier that the
+	// snapshot no longer claims has to be retracted. Left in place it would outrank the snapshot's
+	// own entry for that key and resurrect a value removed while this client was disconnected.
+	// Retracted after the bulk set so each notification already carries the value that now wins.
+	for key, sources := range c.streamedLayers {
+		for source := range sources {
+			if _, stillClaimed := fresh[key][source]; stillClaimed {
+				continue
+			}
+			c.log.Debugf("Snapshot retracts stale layer (key: %s, source: %s)", key, source)
+			cfg.UnsetForSource(key, source)
+		}
+	}
+	c.streamedLayers = fresh
+
 	c.lastSeqID.Store(snapshot.SequenceId)
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 
@@ -562,6 +631,18 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	})
 
 	return nil
+}
+
+// recordLayer notes that the stream put key into source, so a later snapshot can retract the
+// layer if it stops claiming it.
+func (c *consumer) recordLayer(key string, source pkgconfigmodel.Source) {
+	if c.streamedLayers == nil {
+		c.streamedLayers = make(map[string]map[pkgconfigmodel.Source]struct{})
+	}
+	if c.streamedLayers[key] == nil {
+		c.streamedLayers[key] = make(map[pkgconfigmodel.Source]struct{}, 1)
+	}
+	c.streamedLayers[key][source] = struct{}{}
 }
 
 // toDirectSetting decodes a streamed setting into the form the config builder takes.
@@ -593,12 +674,35 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 		return fmt.Errorf("seq_id discontinuity: expected %d, got %d", c.lastSeqID.Load()+1, update.SequenceId)
 	}
 
-	c.log.Debugf("Applying config update (seq_id: %d, key: %s)", update.SequenceId, update.Setting.Key)
+	cfg := configstreambootstrap.Config()
 
-	setting := toDirectSetting(update.Setting)
-	// Updates never carry env-var-sourced settings, so Set's guardrail is not in the way and
-	// registered receivers still get notified.
-	configstreambootstrap.Config().Set(setting.Key, setting.Value, setting.Source)
+	if update.Setting.UnsetSource == "" {
+		c.log.Debugf("Applying config update (seq_id: %d, key: %s)", update.SequenceId, update.Setting.Key)
+		setting := toDirectSetting(update.Setting)
+		// Updates never carry env-var-sourced settings, so Set's guardrail is not in the way and
+		// registered receivers still get notified.
+		cfg.Set(setting.Key, setting.Value, setting.Source)
+		c.recordLayer(setting.Key, setting.Source)
+	} else {
+		c.log.Debugf("Applying config unset (seq_id: %d, key: %s, cleared source: %s)", update.SequenceId, update.Setting.Key, update.Setting.UnsetSource)
+		// Seeding the layer fallen back to is not optional: snapshots only carry the merged view, so
+		// this config has no lower layer of its own to fall back to. It is seeded before the unset
+		// rather than after, so the unset resolves onto it and notifies local receivers once with
+		// the final value instead of transiently with the default. Empty only for an undeclared key.
+		if update.Setting.Source != "" {
+			cfg.DirectBulkSet([]pkgconfigmodel.DirectSetting{toDirectSetting(update.Setting)}, false)
+			c.recordLayer(update.Setting.Key, pkgconfigmodel.Source(update.Setting.Source))
+		}
+		cleared := pkgconfigmodel.Source(update.Setting.UnsetSource)
+		cfg.UnsetForSource(update.Setting.Key, cleared)
+		if sources := c.streamedLayers[update.Setting.Key]; sources != nil {
+			delete(sources, cleared)
+			if len(sources) == 0 {
+				delete(c.streamedLayers, update.Setting.Key)
+			}
+		}
+	}
+
 	c.lastSeqID.Store(update.SequenceId)
 	c.lastSeqIDMetric.Set(float64(update.SequenceId))
 

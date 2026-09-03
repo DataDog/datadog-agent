@@ -11965,6 +11965,25 @@
       ]
     },
     {
+      "name": "unshare",
+      "definition": "A process created new namespaces",
+      "type": "Kernel",
+      "from_agent_version": "7.84",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "unshare.flags",
+          "definition": "Namespace flags requested by the unshare call",
+          "property_doc_link": "unshare-flags-doc"
+        },
+        {
+          "name": "unshare.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "utimes",
       "definition": "Change file access/modification times",
       "type": "File",
@@ -14862,6 +14881,7 @@
         "splice",
         "unlink",
         "unload_module",
+        "unshare",
         "utimes"
       ],
       "constants": "Error constants",
@@ -17312,6 +17332,18 @@
       "examples": []
     },
     {
+      "name": "unshare.flags",
+      "link": "unshare-flags-doc",
+      "type": "int",
+      "definition": "Namespace flags requested by the unshare call",
+      "prefixes": [
+        "unshare"
+      ],
+      "constants": "Clone flags",
+      "constants_link": "clone-flags",
+      "examples": []
+    },
+    {
       "name": "utimes.syscall.path",
       "link": "utimes-syscall-path-doc",
       "type": "string",
@@ -18629,6 +18661,69 @@
         },
         {
           "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Clone flags",
+      "link": "clone-flags",
+      "description": "Clone flags are the supported namespace flags for the unshare syscall.",
+      "all": [
+        {
+          "name": "CLONE_NEWNS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWCGROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUTS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWIPC",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUSER",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWPID",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWNET",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FILES",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SYSVSEM",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_THREAD",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SIGHAND",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_VM",
           "architecture": "all"
         }
       ]

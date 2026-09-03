@@ -692,6 +692,13 @@ type SetrlimitEventSerializer struct {
 	Target *ProcessContextSerializer `json:"target,omitempty"`
 }
 
+// UnshareEventSerializer serializes an unshare event
+// easyjson:json
+type UnshareEventSerializer struct {
+	// Namespace flags requested by the unshare call
+	Flags []string `json:"flags,omitempty"`
+}
+
 // CGroupWriteEventSerializer serializes a cgroup_write event
 // easyjson:json
 type CGroupWriteEventSerializer struct {
@@ -857,6 +864,7 @@ type EventSerializer struct {
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
 	*SocketEventSerializer        `json:"socket,omitempty"`
+	*UnshareEventSerializer       `json:"unshare,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -1621,6 +1629,12 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 	}
 }
 
+func newUnshareEventSerializer(e *model.Event) *UnshareEventSerializer {
+	return &UnshareEventSerializer{
+		Flags: model.CloneFlags(e.Unshare.Flags).StringArray(),
+	}
+}
+
 func newSocketEventSerializer(e *model.Event) *SocketEventSerializer {
 	return &SocketEventSerializer{
 		Domain:   model.SocketDomain(e.Socket.Domain).String(),
@@ -1961,6 +1975,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.SocketEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Socket.Retval)
 		s.SocketEventSerializer = newSocketEventSerializer(event)
+	case model.UnshareEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Unshare.Retval)
+		s.UnshareEventSerializer = newUnshareEventSerializer(event)
 	}
 
 	return s

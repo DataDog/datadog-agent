@@ -40,6 +40,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -442,4 +443,191 @@ func TestConsumerKeepsSessionAfterTransientRefreshFailure(t *testing.T) {
 	registers, _ := mock.counts()
 	require.Equal(t, 1, registers, "a transient refresh error must not re-register the session")
 	require.Equal(t, "test-session-id", mock.currentSessionID(), "the original session must survive")
+}
+
+// TestUnsetUpdateRestoresShadowedValue covers the scenario from the review thread: a value supplied by
+// an env var, shadowed by an agent-runtime write, then unset. Snapshots only carry the core agent's
+// merged view, and the consumer's own env layer is deliberately disabled, so it has no lower layer to
+// fall back to -- the removal has to supply the resolution or the key silently reverts to default.
+func TestUnsetUpdateRestoresShadowedValue(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	host, port, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+
+	datadogYaml := fmt.Sprintf(`
+cmd_host: %s
+cmd_port: %s
+auth_token_file_path: %s
+ipc_cert_file_path: %s
+remote_agent:
+  registry:
+    enabled: true
+  configstream:
+    consumer:
+      enabled: true
+`, host, port,
+		filepath.Join(dir, "auth_token"),
+		filepath.Join(dir, "ipc_cert.pem"),
+	)
+	datadogPath := filepath.Join(dir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("trace-agent", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+		configstreamconsumerfx.Module(),
+	)
+
+	testRun := func(_ configstreamconsumer.Component) error {
+		cfg := configstreambootstrap.Config()
+		require.Equal(t, "from-runtime", cfg.Get("test.key"))
+		require.Equal(t, model.SourceAgentRuntime, cfg.GetSource("test.key"))
+
+		// SourceEnvVar is why this cannot be applied as an ordinary update: Set rejects writes to
+		// the env layer, and the consumer's local one is cleared at startup.
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Update{
+				Update: &pb.ConfigUpdate{
+					SequenceId: 2,
+					Setting: &pb.ConfigSetting{
+						Key:         "test.key",
+						Value:       mustNewValue(t, "from-env"),
+						Source:      string(model.SourceEnvVar),
+						UnsetSource: string(model.SourceAgentRuntime),
+					},
+				},
+			},
+		}
+
+		require.Eventually(t, func() bool {
+			return cfg.Get("test.key") == "from-env"
+		}, 10*time.Second, 20*time.Millisecond, "key never fell back to the shadowed env value")
+		require.Equal(t, model.SourceEnvVar, cfg.GetSource("test.key"), "the layer the core agent resolves from")
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+
+	// One entry per key, as createConfigSnapshot sends: the resolved value tagged with the winning
+	// layer. The shadowed env value is never transmitted.
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "test.key", Value: mustNewValue(t, "from-runtime"), Source: string(model.SourceAgentRuntime)},
+				},
+			},
+		},
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("OneShot did not complete")
+	}
+}
+
+// A layer cleared while this client was disconnected is only visible as its absence from the
+// reconnect snapshot, so the snapshot has to retract it rather than merely add what it does claim.
+func TestSnapshotRetractsLayerRemovedWhileDisconnected(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	host, port, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+
+	datadogYaml := fmt.Sprintf(`
+cmd_host: %s
+cmd_port: %s
+auth_token_file_path: %s
+ipc_cert_file_path: %s
+remote_agent:
+  registry:
+    enabled: true
+  configstream:
+    consumer:
+      enabled: true
+`, host, port,
+		filepath.Join(dir, "auth_token"),
+		filepath.Join(dir, "ipc_cert.pem"),
+	)
+	datadogPath := filepath.Join(dir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("trace-agent", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+		configstreamconsumerfx.Module(),
+	)
+
+	testRun := func(_ configstreamconsumer.Component) error {
+		cfg := configstreambootstrap.Config()
+		require.Equal(t, "from-file", cfg.Get("test.key"))
+
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Update{
+				Update: &pb.ConfigUpdate{
+					SequenceId: 2,
+					Setting: &pb.ConfigSetting{
+						Key:    "test.key",
+						Value:  mustNewValue(t, "from-cli"),
+						Source: string(model.SourceCLI),
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return cfg.Get("test.key") == "from-cli"
+		}, 10*time.Second, 20*time.Millisecond, "the cli layer never took effect")
+
+		// The core agent cleared the cli layer while this client was away. The resynchronization
+		// snapshot reports the file layer as the winner and says nothing about cli.
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 3,
+					Settings: []*pb.ConfigSetting{
+						{Key: "test.key", Value: mustNewValue(t, "from-file"), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return cfg.Get("test.key") == "from-file"
+		}, 10*time.Second, 20*time.Millisecond, "the stale cli layer outlived the snapshot that dropped it")
+		require.Equal(t, model.SourceFile, cfg.GetSource("test.key"))
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "test.key", Value: mustNewValue(t, "from-file"), Source: string(model.SourceFile)},
+				},
+			},
+		},
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("OneShot did not complete")
+	}
 }

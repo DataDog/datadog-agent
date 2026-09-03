@@ -1192,6 +1192,22 @@ int test_tracer_memfd_with_keys(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_unshare_flags(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please specify the unshare flags as an integer\n");
+        return EXIT_FAILURE;
+    }
+
+    long flags = strtol(argv[1], NULL, 0);
+
+    if (syscall(SYS_unshare, (int)flags) < 0) {
+        perror("unshare");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int test_new_netns_exec(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Please specify at least an executable path\n");
@@ -2145,6 +2161,8 @@ int main(int argc, char **argv) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "create_socket_send_fd") == 0) {
             exit_code = test_create_socket_send_fd(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "unshare-flags") == 0) {
+            exit_code = test_unshare_flags(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {
