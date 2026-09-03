@@ -81,7 +81,7 @@ func TestKubernetesReaderReadFileReturnsFullContent(t *testing.T) {
 			client := &fakeKubernetesClient{stdout: tt.content}
 			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
-			file, err := reader.ReadFile(context.Background(), "/etc/redis/redis.conf")
+			file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
 
 			require.NoError(t, err)
 			assert.Equal(t, "/etc/redis/redis.conf", file.Path)
@@ -102,7 +102,7 @@ func TestKubernetesReaderReadFileTruncatesLargeContent(t *testing.T) {
 	client := &fakeKubernetesClient{stdout: content}
 	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
-	file, err := reader.ReadFile(context.Background(), "/etc/redis/redis.conf")
+	file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
 
 	require.NoError(t, err)
 	assert.Equal(t, "/etc/redis/redis.conf", file.Path)
@@ -125,24 +125,6 @@ func TestKubernetesReaderReadFileErrors(t *testing.T) {
 		wantErrorIs   error
 		wantContains  string
 	}{
-		{
-			name:          "empty path",
-			path:          "",
-			wantExecCalls: 0,
-			wantContains:  "empty config file path",
-		},
-		{
-			name:          "relative path",
-			path:          "etc/redis/redis.conf",
-			wantExecCalls: 0,
-			wantContains:  "is not absolute",
-		},
-		{
-			name:          "parent traversal",
-			path:          "/etc/../redis/redis.conf",
-			wantExecCalls: 0,
-			wantContains:  "contains parent traversal",
-		},
 		{
 			name:          "exec error",
 			path:          "/etc/redis/redis.conf",
@@ -177,7 +159,7 @@ func TestKubernetesReaderReadFileErrors(t *testing.T) {
 			}
 			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
-			file, err := reader.ReadFile(context.Background(), tt.path)
+			file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, tt.path))
 
 			require.Error(t, err)
 			assert.Empty(t, file)
@@ -188,6 +170,87 @@ func TestKubernetesReaderReadFileErrors(t *testing.T) {
 				assert.ErrorContains(t, err, tt.wantContains)
 			}
 			assert.Len(t, client.execCalls, tt.wantExecCalls)
+		})
+	}
+}
+
+func TestKubernetesReaderFindFiles(t *testing.T) {
+	tests := []struct {
+		name        string
+		pattern     string
+		maxMatches  int
+		stdout      []byte
+		wantPaths   []string
+		wantLimited bool
+		wantCommand []string
+	}{
+		{
+			name:        "literal file",
+			pattern:     "/etc/redis/redis.conf",
+			maxMatches:  2,
+			stdout:      []byte("/etc/redis/redis.conf\x00"),
+			wantPaths:   []string{"/etc/redis/redis.conf"},
+			wantCommand: []string{"find", "/etc/redis/redis.conf", "-type", "f", "-path", "/etc/redis/redis.conf", "-print0"},
+		},
+		{
+			name:        "wildcard parses nul delimited names and limits lexically",
+			pattern:     "/etc/redis/conf.d/*.conf",
+			maxMatches:  2,
+			stdout:      []byte("/etc/redis/conf.d/z.conf\x00/etc/redis/conf.d/a file.conf\x00/etc/redis/conf.d/b.conf\x00/etc/redis/conf.d/a file.conf\x00/outside.conf\x00"),
+			wantPaths:   []string{"/etc/redis/conf.d/a file.conf", "/etc/redis/conf.d/b.conf"},
+			wantLimited: true,
+			wantCommand: []string{"find", "/etc/redis/conf.d", "-type", "f", "-path", "/etc/redis/conf.d/*.conf", "-print0"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeKubernetesClient{stdout: tt.stdout}
+			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+			paths, limited, err := reader.FindFiles(context.Background(), verifyTestConfigFilePattern(t, tt.pattern), tt.maxMatches, matchTestFilePattern(tt.pattern))
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantPaths, verifiedConfigFilePathStrings(paths))
+			assert.Equal(t, tt.wantLimited, limited)
+			require.Len(t, client.execCalls, 1)
+			assert.Equal(t, tt.wantCommand, client.execCalls[0].cmd)
+			assert.Equal(t, kubernetesReadFileTimeout, client.execCalls[0].timeout)
+		})
+	}
+}
+
+func TestKubernetesReaderFindFilesErrors(t *testing.T) {
+	expectedErr := errors.New("exec failed")
+	tests := []struct {
+		name          string
+		pattern       string
+		maxMatches    int
+		execErr       error
+		exitCode      int32
+		wantExecCalls int
+		wantErrorIs   error
+	}{
+		{name: "non positive limit", pattern: "/etc/redis/*.conf", maxMatches: 0},
+		{name: "exec error", pattern: "/etc/redis/*.conf", maxMatches: 1, execErr: expectedErr, wantExecCalls: 1, wantErrorIs: expectedErr},
+		{name: "cancellation", pattern: "/etc/redis/*.conf", maxMatches: 1, execErr: context.Canceled, wantExecCalls: 1, wantErrorIs: context.Canceled},
+		{name: "nonzero exit", pattern: "/etc/redis/*.conf", maxMatches: 1, exitCode: 1, wantExecCalls: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeKubernetesClient{execErr: tt.execErr, exitCode: tt.exitCode}
+			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+			paths, limited, err := reader.FindFiles(context.Background(), verifyTestConfigFilePattern(t, tt.pattern), tt.maxMatches, matchTestFilePattern(tt.pattern))
+
+			require.Error(t, err)
+			assert.Nil(t, paths)
+			assert.False(t, limited)
+			assert.Len(t, client.execCalls, tt.wantExecCalls)
+			if tt.wantErrorIs != nil {
+				assert.ErrorIs(t, err, tt.wantErrorIs)
+			}
 		})
 	}
 }

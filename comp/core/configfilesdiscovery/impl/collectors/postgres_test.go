@@ -172,8 +172,13 @@ func (r *postgresCollectorTestReader) Runtime() configfilesdiscoveryimpl.Runtime
 
 func (r *postgresCollectorTestReader) Close() {}
 
-func (r *postgresCollectorTestReader) ReadFile(context.Context, string) (configfilesdiscoveryimpl.ConfigFile, error) {
+func (r *postgresCollectorTestReader) ReadFile(context.Context, configfilesdiscoveryimpl.VerifiedConfigFilePath) (configfilesdiscoveryimpl.ConfigFile, error) {
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("not implemented")
+}
+
+// FindFiles is not implemented by this test reader.
+func (r *postgresCollectorTestReader) FindFiles(context.Context, configfilesdiscoveryimpl.VerifiedConfigFilePattern, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.VerifiedConfigFilePath, bool, error) {
+	return nil, false, errors.New("not implemented")
 }
 
 func (r *postgresCollectorTestReader) ReadEnvVars(_ context.Context, predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {

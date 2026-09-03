@@ -7,7 +7,11 @@ package configfilesdiscoveryimpl
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"path"
 	"strings"
+	"unicode"
 
 	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -63,10 +67,93 @@ type TargetCommandline struct {
 	WorkingDir string
 }
 
+// UnverifiedConfigFilePath is a config file path that has not crossed the
+// runtime reader's path-validation boundary.
+type UnverifiedConfigFilePath string
+
+// VerifiedConfigFilePath is a cleaned absolute config file path without parent
+// traversal or control characters. Its fields are private so values can only
+// be created through VerifyConfigFilePath.
+type VerifiedConfigFilePath struct {
+	value string
+}
+
+// VerifyConfigFilePath validates and cleans path, returning a value safe to
+// pass to a runtime reader.
+func VerifyConfigFilePath(unverified UnverifiedConfigFilePath) (VerifiedConfigFilePath, error) {
+	value, err := verifyConfigFileLocation(string(unverified))
+	if err != nil {
+		return VerifiedConfigFilePath{}, err
+	}
+	return VerifiedConfigFilePath{value: value}, nil
+}
+
+// String returns the cleaned absolute path.
+func (p VerifiedConfigFilePath) String() string {
+	return p.value
+}
+
+// UnverifiedConfigFilePattern is a config file search pattern that has not
+// crossed the runtime reader's path-validation boundary.
+type UnverifiedConfigFilePattern string
+
+// VerifiedConfigFilePattern is a cleaned absolute config file search pattern
+// without parent traversal or control characters. Its fields are private so
+// values can only be created through VerifyConfigFilePattern.
+type VerifiedConfigFilePattern struct {
+	value string
+}
+
+// VerifyConfigFilePattern validates and cleans pattern, returning a value safe
+// to pass to a runtime reader.
+func VerifyConfigFilePattern(unverified UnverifiedConfigFilePattern) (VerifiedConfigFilePattern, error) {
+	value, err := verifyConfigFileLocation(string(unverified))
+	if err != nil {
+		return VerifiedConfigFilePattern{}, err
+	}
+	return VerifiedConfigFilePattern{value: value}, nil
+}
+
+// String returns the cleaned absolute pattern.
+func (p VerifiedConfigFilePattern) String() string {
+	return p.value
+}
+
+// verifyConfigFileLocation returns a cleaned absolute path or pattern after
+// rejecting inputs unsafe to pass to a container runtime.
+func verifyConfigFileLocation(value string) (string, error) {
+	if value == "" {
+		return "", errors.New("empty config file path")
+	}
+	if !path.IsAbs(value) {
+		return "", fmt.Errorf("config file path %q is not absolute", value)
+	}
+	for _, element := range strings.Split(value, "/") {
+		if element == ".." {
+			return "", fmt.Errorf("config file path %q contains parent traversal", value)
+		}
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			return "", fmt.Errorf("config file path %q contains a control character", value)
+		}
+	}
+	return path.Clean(value), nil
+}
+
+// ConfigFilePathMatcher returns whether a verified config file path should be
+// included in file-discovery results.
+type ConfigFilePathMatcher func(VerifiedConfigFilePath) (bool, error)
+
 // ConfigReader is the runtime-specific config access layer managed by the scheduler.
 type ConfigReader interface {
 	Runtime() RuntimeType
-	ReadFile(context.Context, string) (ConfigFile, error)
+	ReadFile(context.Context, VerifiedConfigFilePath) (ConfigFile, error)
+	// FindFiles uses searchPattern as a conservative runtime-compatible candidate
+	// filter, then returns regular-file paths accepted by matches in lexical
+	// order. It returns at most maxMatches paths and reports whether additional
+	// matches were omitted.
+	FindFiles(ctx context.Context, searchPattern VerifiedConfigFilePattern, maxMatches int, matches ConfigFilePathMatcher) (paths []VerifiedConfigFilePath, limited bool, err error)
 	ReadEnvVars(context.Context, ConfigEnvVarPredicate) (map[string]string, error)
 	ReadRuntimeCommandline(context.Context) (TargetCommandline, error)
 	ReadLiveProcessCommandlines(context.Context) []TargetCommandline

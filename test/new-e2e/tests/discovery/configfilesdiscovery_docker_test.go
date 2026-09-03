@@ -41,8 +41,14 @@ const (
 	redisDefaultContainerName    = "redis-configfilesdiscovery-default"
 	redisEnvContainerName        = "redis-env-configfilesdiscovery"
 	redisExplicitContainerPath   = "/configfilesdiscovery/redis-explicit.conf"
+	redisNestedContainerPath     = "/configfilesdiscovery/nested.conf"
+	redisGlobAContainerPath      = "/configfilesdiscovery/conf.d/a.conf"
+	redisGlobBContainerPath      = "/configfilesdiscovery/conf.d/b.conf"
 	redisDefaultContainerPath    = "/etc/redis/redis.conf"
 	redisExplicitConfigFileName  = "redis-explicit.conf"
+	redisNestedConfigFileName    = "nested.conf"
+	redisGlobAConfigFileName     = "a.conf"
+	redisGlobBConfigFileName     = "b.conf"
 	redisDefaultConfigFileName   = "redis-default.conf"
 	redisExplicitStartScriptName = "start-redis.sh"
 	redisDefaultStartScriptName  = "start-default-redis.sh"
@@ -84,7 +90,21 @@ var postgresCompose string
 const redisExplicitConfig = `port 6379
 appendonly no
 maxmemory-policy allkeys-lru
+include nested.conf
+include conf.d/*.conf
 # configfilesdiscovery-explicit-e2e-sentinel
+`
+
+const redisNestedConfig = `timeout 0
+# configfilesdiscovery-nested-e2e-sentinel
+`
+
+const redisGlobAConfig = `tcp-keepalive 300
+# configfilesdiscovery-glob-a-e2e-sentinel
+`
+
+const redisGlobBConfig = `databases 16
+# configfilesdiscovery-glob-b-e2e-sentinel
 `
 
 const redisDefaultConfig = `port 6379
@@ -180,16 +200,41 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 }
 
 func createConfigFilesDiscoveryRedisConfig(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
-	return createConfigFilesDiscoveryFixtureFiles(
+	rootFiles, err := createConfigFilesDiscoveryFixtureFiles(
 		host,
 		redisConfigDir,
 		[]configFilesDiscoveryFixtureFile{
 			{name: redisExplicitConfigFileName, content: redisExplicitConfig},
+			{name: redisNestedConfigFileName, content: redisNestedConfig},
 			{name: redisDefaultConfigFileName, content: redisDefaultConfig},
 			{name: redisExplicitStartScriptName, content: redisExplicitStartScript},
 			{name: redisDefaultStartScriptName, content: redisDefaultStartScript},
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	fileManager := host.OS.FileManager()
+	confDir, err := fileManager.CreateDirectory(path.Join(redisConfigDir, "conf.d"), false)
+	if err != nil {
+		return nil, err
+	}
+	dependency := rootFiles
+	for _, file := range []configFilesDiscoveryFixtureFile{
+		{name: redisGlobAConfigFileName, content: redisGlobAConfig},
+		{name: redisGlobBConfigFileName, content: redisGlobBConfig},
+	} {
+		dependency, err = fileManager.CopyInlineFile(
+			pulumi.String(file.content),
+			path.Join(redisConfigDir, "conf.d", file.name),
+			utils.PulumiDependsOn(dependency, confDir),
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return dependency, nil
 }
 
 func createConfigFilesDiscoveryKafkaConfig(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
@@ -519,6 +564,21 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilesDiscoveredAndHeart
 			path:     redisExplicitContainerPath,
 			content:  redisExplicitConfig,
 			sentinel: redisExplicitConfigSentinel,
+		},
+		{
+			path:     redisNestedContainerPath,
+			content:  redisNestedConfig,
+			sentinel: "configfilesdiscovery-nested-e2e-sentinel",
+		},
+		{
+			path:     redisGlobAContainerPath,
+			content:  redisGlobAConfig,
+			sentinel: "configfilesdiscovery-glob-a-e2e-sentinel",
+		},
+		{
+			path:     redisGlobBContainerPath,
+			content:  redisGlobBConfig,
+			sentinel: "configfilesdiscovery-glob-b-e2e-sentinel",
 		},
 		{
 			path:     redisDefaultContainerPath,

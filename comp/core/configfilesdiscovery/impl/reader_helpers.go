@@ -9,9 +9,9 @@ package configfilesdiscoveryimpl
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -36,19 +36,50 @@ func filterEnvVars(envEntries []string, predicate ConfigEnvVarPredicate) map[str
 	return env
 }
 
-func cleanContainerFilePath(filePath string) (string, error) {
-	if filePath == "" {
-		return "", errors.New("empty config file path")
+// filePatternSearchRoot returns the literal path or the longest directory
+// prefix before the first component containing pattern metacharacters.
+func filePatternSearchRoot(pattern VerifiedConfigFilePattern) VerifiedConfigFilePath {
+	patternValue := pattern.String()
+	if !hasFilePatternMeta(patternValue) {
+		return VerifiedConfigFilePath{value: patternValue}
 	}
-	if !path.IsAbs(filePath) {
-		return "", fmt.Errorf("config file path %q is not absolute", filePath)
-	}
-	for _, elem := range strings.Split(filePath, "/") {
-		if elem == ".." {
-			return "", fmt.Errorf("config file path %q contains parent traversal", filePath)
+
+	parts := strings.Split(strings.TrimPrefix(patternValue, "/"), "/")
+	fixedParts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if hasFilePatternMeta(part) {
+			break
 		}
+		fixedParts = append(fixedParts, part)
 	}
-	return path.Clean(filePath), nil
+	if len(fixedParts) == 0 {
+		return VerifiedConfigFilePath{value: "/"}
+	}
+	return VerifiedConfigFilePath{value: "/" + path.Join(fixedParts...)}
+}
+
+// hasFilePatternMeta returns whether pattern contains a supported file-pattern
+// metacharacter.
+func hasFilePatternMeta(pattern string) bool {
+	return strings.ContainsAny(pattern, "*?[")
+}
+
+// sortAndLimitFilePaths sorts and deduplicates paths in place, then returns at
+// most maxMatches paths and whether additional paths were omitted.
+func sortAndLimitFilePaths(paths []VerifiedConfigFilePath, maxMatches int) ([]VerifiedConfigFilePath, bool, error) {
+	if maxMatches <= 0 {
+		return nil, false, errors.New("maximum file matches must be positive")
+	}
+	slices.SortFunc(paths, func(left, right VerifiedConfigFilePath) int {
+		return strings.Compare(left.String(), right.String())
+	})
+	paths = slices.CompactFunc(paths, func(left, right VerifiedConfigFilePath) bool {
+		return left == right
+	})
+	if len(paths) <= maxMatches {
+		return paths, false, nil
+	}
+	return paths[:maxMatches], true, nil
 }
 
 func readLimitedFileContent(r io.Reader, limit int) ([]byte, bool, error) {

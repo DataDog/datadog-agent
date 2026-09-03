@@ -69,19 +69,35 @@ func (r *dockerConfigReader) Runtime() RuntimeType {
 
 func (r *dockerConfigReader) Close() {}
 
-func (r *dockerConfigReader) ReadFile(ctx context.Context, filePath string) (ConfigFile, error) {
-	cleanPath, err := cleanContainerFilePath(filePath)
-	if err != nil {
-		return ConfigFile{}, err
-	}
-
-	body, err := r.client.getFile(ctx, r.containerID, cleanPath)
+func (r *dockerConfigReader) ReadFile(ctx context.Context, filePath VerifiedConfigFilePath) (ConfigFile, error) {
+	body, err := r.client.getFile(ctx, r.containerID, filePath.String())
 	if err != nil {
 		return ConfigFile{}, fmt.Errorf("copy config file from docker container: %w", err)
 	}
 	defer body.Close()
 
-	return readConfigFileFromDockerArchive(body, cleanPath)
+	return readConfigFileFromDockerArchive(body, filePath.String())
+}
+
+// FindFiles uses searchPattern to copy a conservative set of Docker archive
+// entries, then returns the paths accepted by matches in lexical order.
+func (r *dockerConfigReader) FindFiles(ctx context.Context, searchPattern VerifiedConfigFilePattern, maxMatches int, matches ConfigFilePathMatcher) ([]VerifiedConfigFilePath, bool, error) {
+	if maxMatches <= 0 {
+		return nil, false, errors.New("maximum file matches must be positive")
+	}
+
+	searchRoot := filePatternSearchRoot(searchPattern)
+	body, err := r.client.getFile(ctx, r.containerID, searchRoot.String())
+	if err != nil {
+		return nil, false, fmt.Errorf("copy config file pattern root from docker container: %w", err)
+	}
+	defer body.Close()
+
+	paths, err := findRegularFilesInDockerArchive(body, searchRoot, matches)
+	if err != nil {
+		return nil, false, err
+	}
+	return sortAndLimitFilePaths(paths, maxMatches)
 }
 
 func (r *dockerConfigReader) ReadEnvVars(ctx context.Context, predicate ConfigEnvVarPredicate) (map[string]string, error) {
@@ -172,6 +188,64 @@ func matchesRequestedPath(entryName string, requestedPath string) bool {
 
 func cleanTarPath(filePath string) string {
 	return strings.TrimPrefix(path.Clean(filePath), "/")
+}
+
+// findRegularFilesInDockerArchive returns paths for regular archive entries
+// accepted by matches.
+func findRegularFilesInDockerArchive(r io.Reader, searchRoot VerifiedConfigFilePath, matches ConfigFilePathMatcher) ([]VerifiedConfigFilePath, error) {
+	tr := tar.NewReader(r)
+	var paths []VerifiedConfigFilePath
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read docker archive: %w", err)
+		}
+		if !isRegularTarEntry(header) {
+			continue
+		}
+
+		entryPath, err := verifyDockerArchiveEntryPath(searchRoot, header.Name)
+		if err != nil {
+			continue
+		}
+		matched, err := matches(entryPath)
+		if err != nil {
+			return nil, fmt.Errorf("match docker archive entry %q: %w", header.Name, err)
+		}
+		if matched {
+			paths = append(paths, entryPath)
+		}
+	}
+	return paths, nil
+}
+
+// verifyDockerArchiveEntryPath verifies and returns the absolute container path
+// for an archive entry copied from searchRoot.
+func verifyDockerArchiveEntryPath(searchRoot VerifiedConfigFilePath, entryName string) (VerifiedConfigFilePath, error) {
+	if path.IsAbs(entryName) {
+		return VerifyConfigFilePath(UnverifiedConfigFilePath(entryName))
+	}
+	entryPath, err := VerifyConfigFilePath(UnverifiedConfigFilePath("/" + entryName))
+	if err != nil {
+		return VerifiedConfigFilePath{}, err
+	}
+	cleanEntry := strings.TrimPrefix(entryPath.String(), "/")
+	cleanRoot := strings.TrimPrefix(searchRoot.String(), "/")
+	if cleanEntry == cleanRoot || strings.HasPrefix(cleanEntry, cleanRoot+"/") {
+		return VerifiedConfigFilePath{value: "/" + cleanEntry}, nil
+	}
+	rootBase := path.Base(searchRoot.String())
+	if cleanEntry == rootBase || strings.HasPrefix(cleanEntry, rootBase+"/") {
+		return VerifiedConfigFilePath{
+			value: path.Clean(path.Join(path.Dir(searchRoot.String()), cleanEntry)),
+		}, nil
+	}
+	return VerifiedConfigFilePath{
+		value: path.Clean(path.Join(searchRoot.String(), cleanEntry)),
+	}, nil
 }
 
 type dockerUtilConfigClient struct {

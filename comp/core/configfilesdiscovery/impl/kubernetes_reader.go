@@ -89,13 +89,8 @@ func (r *kubernetesConfigReader) Close() {
 	r.client.close()
 }
 
-func (r *kubernetesConfigReader) ReadFile(ctx context.Context, filePath string) (ConfigFile, error) {
-	cleanPath, err := cleanContainerFilePath(filePath)
-	if err != nil {
-		return ConfigFile{}, err
-	}
-
-	stdout, stderr, exitCode, err := r.client.execSync(ctx, r.containerID, kubernetesReadFileCommand(cleanPath), kubernetesReadFileTimeout)
+func (r *kubernetesConfigReader) ReadFile(ctx context.Context, filePath VerifiedConfigFilePath) (ConfigFile, error) {
+	stdout, stderr, exitCode, err := r.client.execSync(ctx, r.containerID, kubernetesReadFileCommand(filePath.String()), kubernetesReadFileTimeout)
 	if err != nil {
 		return ConfigFile{}, fmt.Errorf("exec read config file in kubernetes container: %w", err)
 	}
@@ -109,10 +104,50 @@ func (r *kubernetesConfigReader) ReadFile(ctx context.Context, filePath string) 
 	}
 
 	return ConfigFile{
-		Path:      cleanPath,
+		Path:      filePath.String(),
 		Content:   content,
 		Truncated: truncated,
 	}, nil
+}
+
+// FindFiles uses searchPattern with find to select conservative candidates,
+// then returns the paths accepted by matches in lexical order.
+func (r *kubernetesConfigReader) FindFiles(ctx context.Context, searchPattern VerifiedConfigFilePattern, maxMatches int, matches ConfigFilePathMatcher) ([]VerifiedConfigFilePath, bool, error) {
+	if maxMatches <= 0 {
+		return nil, false, errors.New("maximum file matches must be positive")
+	}
+
+	// This excludes symlinks observed during discovery. The path can still
+	// change before the separate ReadFile call, so rejection is best-effort.
+	searchRoot := filePatternSearchRoot(searchPattern)
+	command := []string{"find", searchRoot.String(), "-type", "f", "-path", searchPattern.String(), "-print0"}
+	stdout, stderr, exitCode, err := r.client.execSync(ctx, r.containerID, command, kubernetesReadFileTimeout)
+	if err != nil {
+		return nil, false, fmt.Errorf("exec find config files in kubernetes container: %w", err)
+	}
+	if exitCode != 0 {
+		return nil, false, kubernetesExecExitError(exitCode, stderr)
+	}
+
+	var paths []VerifiedConfigFilePath
+	for _, outputPath := range bytes.Split(stdout, []byte{0}) {
+		if len(outputPath) == 0 {
+			continue
+		}
+		cleanPath, err := VerifyConfigFilePath(UnverifiedConfigFilePath(outputPath))
+		if err != nil {
+			continue
+		}
+		matched, err := matches(cleanPath)
+		if err != nil {
+			return nil, false, fmt.Errorf("match kubernetes config file %q: %w", cleanPath.String(), err)
+		}
+		if !matched {
+			continue
+		}
+		paths = append(paths, cleanPath)
+	}
+	return sortAndLimitFilePaths(paths, maxMatches)
 }
 
 func kubernetesReadFileCommand(cleanPath string) []string {

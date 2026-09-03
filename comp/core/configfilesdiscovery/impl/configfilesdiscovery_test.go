@@ -2373,8 +2373,13 @@ func (r fakeConfigReader) Close() {
 	}
 }
 
-func (r fakeConfigReader) ReadFile(context.Context, string) (ConfigFile, error) {
+func (r fakeConfigReader) ReadFile(context.Context, VerifiedConfigFilePath) (ConfigFile, error) {
 	return ConfigFile{}, errors.New("not implemented")
+}
+
+// FindFiles is not implemented by this test reader.
+func (r fakeConfigReader) FindFiles(context.Context, VerifiedConfigFilePattern, int, ConfigFilePathMatcher) ([]VerifiedConfigFilePath, bool, error) {
+	return nil, false, errors.New("not implemented")
 }
 
 func (r fakeConfigReader) ReadEnvVars(context.Context, ConfigEnvVarPredicate) (map[string]string, error) {

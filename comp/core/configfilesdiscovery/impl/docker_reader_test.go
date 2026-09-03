@@ -76,7 +76,7 @@ func TestDockerReaderReadFileReturnsFullContent(t *testing.T) {
 			}
 			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-			file, err := reader.ReadFile(context.Background(), "/etc/redis/redis.conf")
+			file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
 
 			require.NoError(t, err)
 			assert.Equal(t, "/etc/redis/redis.conf", file.Path)
@@ -102,7 +102,7 @@ func TestDockerReaderReadFileTruncatesLargeContent(t *testing.T) {
 	}
 	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	file, err := reader.ReadFile(context.Background(), "/etc/redis/redis.conf")
+	file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
 
 	require.NoError(t, err)
 	assert.Equal(t, "/etc/redis/redis.conf", file.Path)
@@ -147,7 +147,7 @@ func TestDockerReaderReadFileClosesArchiveBody(t *testing.T) {
 			client := &fakeDockerClient{copyBody: body}
 			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-			_, _ = reader.ReadFile(context.Background(), "/etc/redis/redis.conf")
+			_, _ = reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
 
 			assert.True(t, body.closed)
 		})
@@ -164,21 +164,6 @@ func TestDockerReaderReadFileErrors(t *testing.T) {
 		wantCopyCalls int
 		wantErrorIs   error
 	}{
-		{
-			name:          "empty path",
-			path:          "",
-			wantCopyCalls: 0,
-		},
-		{
-			name:          "relative path",
-			path:          "etc/redis/redis.conf",
-			wantCopyCalls: 0,
-		},
-		{
-			name:          "parent traversal",
-			path:          "/etc/../redis/redis.conf",
-			wantCopyCalls: 0,
-		},
 		{
 			name:          "copy error",
 			path:          "/etc/redis/redis.conf",
@@ -237,7 +222,7 @@ func TestDockerReaderReadFileErrors(t *testing.T) {
 			}
 			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-			file, err := reader.ReadFile(context.Background(), tt.path)
+			file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, tt.path))
 
 			require.Error(t, err)
 			assert.Empty(t, file)
@@ -245,6 +230,108 @@ func TestDockerReaderReadFileErrors(t *testing.T) {
 				assert.ErrorIs(t, err, tt.wantErrorIs)
 			}
 			assert.Len(t, client.copyCalls, tt.wantCopyCalls)
+		})
+	}
+}
+
+func TestDockerReaderFindFiles(t *testing.T) {
+	tests := []struct {
+		name        string
+		pattern     string
+		maxMatches  int
+		archive     []byte
+		wantPaths   []string
+		wantLimited bool
+		wantCopy    string
+	}{
+		{
+			name:       "literal file",
+			pattern:    "/etc/redis/redis.conf",
+			maxMatches: 2,
+			archive: tarArchive(t, tarEntry{
+				name:    "redis.conf",
+				content: []byte("port 6379\n"),
+			}),
+			wantPaths: []string{"/etc/redis/redis.conf"},
+			wantCopy:  "/etc/redis/redis.conf",
+		},
+		{
+			name:       "wildcard sorts limits and rejects non regular files",
+			pattern:    "/etc/redis/conf.d/*.conf",
+			maxMatches: 2,
+			archive: tarArchive(t,
+				tarEntry{name: "conf.d", typeflag: tar.TypeDir},
+				tarEntry{name: "etc/redis/conf.d/c.conf", content: []byte("c")},
+				tarEntry{name: "conf.d/link.conf", typeflag: tar.TypeSymlink, linkname: "a.conf"},
+				tarEntry{name: "conf.d/a.conf", content: []byte("a")},
+				tarEntry{name: "conf.d/b.conf", content: []byte("b")},
+				tarEntry{name: "conf.d/readme.txt", content: []byte("ignored")},
+			),
+			wantPaths:   []string{"/etc/redis/conf.d/a.conf", "/etc/redis/conf.d/b.conf"},
+			wantLimited: true,
+			wantCopy:    "/etc/redis/conf.d",
+		},
+		{
+			name:       "literal symlink is rejected",
+			pattern:    "/etc/redis/link.conf",
+			maxMatches: 1,
+			archive: tarArchive(t, tarEntry{
+				name:     "link.conf",
+				typeflag: tar.TypeSymlink,
+				linkname: "redis.conf",
+			}),
+			wantCopy: "/etc/redis/link.conf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := closeTracker(tt.archive)
+			client := &fakeDockerClient{copyBody: body}
+			reader := &dockerConfigReader{containerID: "container-id", client: client}
+
+			paths, limited, err := reader.FindFiles(context.Background(), verifyTestConfigFilePattern(t, tt.pattern), tt.maxMatches, matchTestFilePattern(tt.pattern))
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantPaths, verifiedConfigFilePathStrings(paths))
+			assert.Equal(t, tt.wantLimited, limited)
+			assert.Equal(t, []dockerCopyCall{{containerID: "container-id", path: tt.wantCopy}}, client.copyCalls)
+			assert.True(t, body.closed)
+		})
+	}
+}
+
+func TestDockerReaderFindFilesErrors(t *testing.T) {
+	expectedErr := errors.New("copy failed")
+	tests := []struct {
+		name          string
+		pattern       string
+		maxMatches    int
+		copyBody      io.ReadCloser
+		copyErr       error
+		wantCopyCalls int
+		wantErrorIs   error
+	}{
+		{name: "non positive limit", pattern: "/etc/redis/*.conf", maxMatches: 0},
+		{name: "copy error", pattern: "/etc/redis/*.conf", maxMatches: 1, copyErr: expectedErr, wantCopyCalls: 1, wantErrorIs: expectedErr},
+		{name: "cancellation", pattern: "/etc/redis/*.conf", maxMatches: 1, copyErr: context.Canceled, wantCopyCalls: 1, wantErrorIs: context.Canceled},
+		{name: "archive error", pattern: "/etc/redis/*.conf", maxMatches: 1, copyBody: closeTracker([]byte("not a tar archive")), wantCopyCalls: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeDockerClient{copyBody: tt.copyBody, copyErr: tt.copyErr}
+			reader := &dockerConfigReader{containerID: "container-id", client: client}
+
+			paths, limited, err := reader.FindFiles(context.Background(), verifyTestConfigFilePattern(t, tt.pattern), tt.maxMatches, matchTestFilePattern(tt.pattern))
+
+			require.Error(t, err)
+			assert.Nil(t, paths)
+			assert.False(t, limited)
+			assert.Len(t, client.copyCalls, tt.wantCopyCalls)
+			if tt.wantErrorIs != nil {
+				assert.ErrorIs(t, err, tt.wantErrorIs)
+			}
 		})
 	}
 }

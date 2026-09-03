@@ -12,6 +12,8 @@ dd_agent_go_test(
     ],
     data = [
         "config/helm-values.tmpl",
+        "testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-redis.yaml",
         "testdata/config/agent_config.yaml",
         "testdata/config/agent_process_autodiscovery.yaml",
         "testdata/config/agent_process_config.yaml",
@@ -41,6 +43,8 @@ dd_agent_go_test(
         "testdata/config/system_probe_config.yaml",
         "testdata/config/system_probe_config_fallback.yaml",
         "testdata/config/system_probe_config_privileged_logs.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-redis.yaml",
     ] + select({
         "@rules_go//go/platform:android": [
             "testdata/compose/docker-compose.fake-krakend.yaml",

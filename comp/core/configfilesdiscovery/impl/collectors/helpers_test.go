@@ -29,8 +29,7 @@ func TestReadConfigFile(t *testing.T) {
 		readErrors              map[string]error
 		defaultPathGroups       [][]string
 		cancelContext           bool
-		wantFile                configfilesdiscoveryimpl.ConfigFile
-		wantOK                  bool
+		wantSelection           *configFileSelection
 		wantErr                 error
 		wantReadFileCalls       []string
 		wantProcessCommandCalls int
@@ -38,7 +37,8 @@ func TestReadConfigFile(t *testing.T) {
 		{
 			name: "runtime explicit path wins",
 			commandline: configfilesdiscoveryimpl.TargetCommandline{
-				Args: []string{"service", "/runtime.conf"},
+				Args:       []string{"service", "/runtime.conf"},
+				WorkingDir: "/runtime",
 			},
 			commandlines: []configfilesdiscoveryimpl.TargetCommandline{{
 				Args: []string{"service", "/process.conf"},
@@ -46,8 +46,10 @@ func TestReadConfigFile(t *testing.T) {
 			files: map[string]configfilesdiscoveryimpl.ConfigFile{
 				"/runtime.conf": {Path: "/runtime.conf"},
 			},
-			wantFile:          configfilesdiscoveryimpl.ConfigFile{Path: "/runtime.conf"},
-			wantOK:            true,
+			wantSelection: &configFileSelection{
+				file:       configfilesdiscoveryimpl.ConfigFile{Path: "/runtime.conf"},
+				workingDir: "/runtime",
+			},
 			wantReadFileCalls: []string{"/runtime.conf"},
 		},
 		{
@@ -103,23 +105,28 @@ func TestReadConfigFile(t *testing.T) {
 			files: map[string]configfilesdiscoveryimpl.ConfigFile{
 				"/process.conf": {Path: "/process.conf"},
 			},
-			wantFile:                configfilesdiscoveryimpl.ConfigFile{Path: "/process.conf"},
-			wantOK:                  true,
+			wantSelection:           &configFileSelection{file: configfilesdiscoveryimpl.ConfigFile{Path: "/process.conf"}},
 			wantReadFileCalls:       []string{"/process.conf"},
 			wantProcessCommandCalls: 1,
 		},
 		{
-			name: "conflicting live paths do not fall back",
+			name: "first live config keeps its process working directory",
 			commandline: configfilesdiscoveryimpl.TargetCommandline{
 				Args: []string{"wrapper"},
 			},
 			commandlines: []configfilesdiscoveryimpl.TargetCommandline{
-				{Args: []string{"service", "/one.conf"}},
-				{Args: []string{"service", "/two.conf"}},
+				{Args: []string{"service", "/one.conf"}, WorkingDir: "/one"},
+				{Args: []string{"service", "/two.conf"}, WorkingDir: "/two"},
 			},
 			files: map[string]configfilesdiscoveryimpl.ConfigFile{
-				"/default/one.conf": {Path: "/default/one.conf"},
+				"/one.conf": {Path: "/one.conf"},
+				"/two.conf": {Path: "/two.conf"},
 			},
+			wantSelection: &configFileSelection{
+				file:       configfilesdiscoveryimpl.ConfigFile{Path: "/one.conf"},
+				workingDir: "/one",
+			},
+			wantReadFileCalls:       []string{"/one.conf"},
 			wantProcessCommandCalls: 1,
 		},
 		{
@@ -132,8 +139,7 @@ func TestReadConfigFile(t *testing.T) {
 				"/preferred/config.conf": {Path: "/preferred/config.conf"},
 				"/default/one.conf":      {Path: "/default/one.conf"},
 			},
-			wantFile:                configfilesdiscoveryimpl.ConfigFile{Path: "/preferred/config.conf"},
-			wantOK:                  true,
+			wantSelection:           &configFileSelection{file: configfilesdiscoveryimpl.ConfigFile{Path: "/preferred/config.conf"}},
 			wantReadFileCalls:       []string{"/preferred/config.conf"},
 			wantProcessCommandCalls: 1,
 		},
@@ -143,11 +149,12 @@ func TestReadConfigFile(t *testing.T) {
 			files: map[string]configfilesdiscoveryimpl.ConfigFile{
 				"/default/two.conf": {Path: "/default/two.conf", Content: []byte("config")},
 			},
-			wantFile: configfilesdiscoveryimpl.ConfigFile{
-				Path:    "/default/two.conf",
-				Content: []byte("config"),
+			wantSelection: &configFileSelection{
+				file: configfilesdiscoveryimpl.ConfigFile{
+					Path:    "/default/two.conf",
+					Content: []byte("config"),
+				},
 			},
-			wantOK:                  true,
 			wantReadFileCalls:       defaultPaths,
 			wantProcessCommandCalls: 1,
 		},
@@ -207,15 +214,21 @@ func TestReadConfigFile(t *testing.T) {
 			if defaultPathGroups == nil {
 				defaultPathGroups = [][]string{defaultPaths}
 			}
-			file, ok, err := readConfigFile(ctx, reader, getTestConfigArg, matchesTestCommandline, "", defaultPathGroups...)
+			selection, err := selectConfigFile(ctx, reader, getTestConfigArg, matchesTestCommandline, "", defaultPathGroups...)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)
 			}
-			assert.Equal(t, tt.wantOK, ok)
-			assert.Equal(t, tt.wantFile, file)
+			if tt.wantSelection == nil {
+				assert.Nil(t, selection)
+			} else {
+				require.NotNil(t, selection)
+				assert.Equal(t, tt.wantSelection.file, selection.file)
+				assert.Equal(t, tt.wantSelection.file.Path, selection.path.String())
+				assert.Equal(t, tt.wantSelection.workingDir, selection.workingDir)
+			}
 			assert.Equal(t, tt.wantReadFileCalls, reader.readFileCalls)
 			assert.Equal(t, tt.wantProcessCommandCalls, reader.processCommandlineCalls)
 		})
@@ -227,6 +240,22 @@ func getTestConfigArg(args []string) (string, bool) {
 		return "", false
 	}
 	return args[1], true
+}
+
+// verifyTestConfigFilePath returns a verified path or fails the current test.
+func verifyTestConfigFilePath(t testing.TB, value string) configfilesdiscoveryimpl.VerifiedConfigFilePath {
+	t.Helper()
+	verified, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configfilesdiscoveryimpl.UnverifiedConfigFilePath(value))
+	require.NoError(t, err)
+	return verified
+}
+
+// verifyTestConfigFilePattern returns a verified pattern or fails the current test.
+func verifyTestConfigFilePattern(t testing.TB, value string) configfilesdiscoveryimpl.VerifiedConfigFilePattern {
+	t.Helper()
+	verified, err := configfilesdiscoveryimpl.VerifyConfigFilePattern(configfilesdiscoveryimpl.UnverifiedConfigFilePattern(value))
+	require.NoError(t, err)
+	return verified
 }
 
 func matchesTestCommandline(args []string) bool {
@@ -249,18 +278,23 @@ func (r *configFileTestReader) Runtime() configfilesdiscoveryimpl.RuntimeType {
 
 func (r *configFileTestReader) Close() {}
 
-func (r *configFileTestReader) ReadFile(ctx context.Context, path string) (configfilesdiscoveryimpl.ConfigFile, error) {
-	r.readFileCalls = append(r.readFileCalls, path)
+func (r *configFileTestReader) ReadFile(ctx context.Context, path configfilesdiscoveryimpl.VerifiedConfigFilePath) (configfilesdiscoveryimpl.ConfigFile, error) {
+	r.readFileCalls = append(r.readFileCalls, path.String())
 	if err := ctx.Err(); err != nil {
 		return configfilesdiscoveryimpl.ConfigFile{}, err
 	}
-	if err, found := r.readErrors[path]; found {
+	if err, found := r.readErrors[path.String()]; found {
 		return configfilesdiscoveryimpl.ConfigFile{}, err
 	}
-	if file, found := r.files[path]; found {
+	if file, found := r.files[path.String()]; found {
 		return file, nil
 	}
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
+}
+
+// FindFiles is not implemented by this test reader.
+func (r *configFileTestReader) FindFiles(context.Context, configfilesdiscoveryimpl.VerifiedConfigFilePattern, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.VerifiedConfigFilePath, bool, error) {
+	return nil, false, errors.New("not implemented")
 }
 
 func (r *configFileTestReader) ReadEnvVars(context.Context, configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {
