@@ -123,7 +123,7 @@ def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: 
 
 
 @task
-def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
+def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True, force: bool = False):
     """Prints one or more Gitlab pipelines in JSON and potentially query them with jq.
 
     Usage:
@@ -131,6 +131,24 @@ def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None
         $ dda inv gitlab.print-pipeline 1234 -j .source
         $ dda inv gitlab.print-pipeline 1234 -j .duration,.ref,.status,.sha
     """
+    if not force:
+        different_repo = '' if repo == 'DataDog/datadog-agent' else f"cd {repo.split('/')[-1]} && "
+        jq_suffix = f" | jq '{jq}'" if jq else ""
+        commands = "\n".join(
+            f"     {different_repo}ddgl pipelines get --pipeline {id} --json{jq_suffix}     "
+            for id in ids.split(",")
+            if id
+        )
+        text = (
+            "WARNING: This task has been deprecated, and will be removed on Oct 05 2026.\n"
+            + "Please use `ddgl` (https://github.com/DataDog/ddgl-cli) instead:\n"
+            + f"{commands}\n"
+            + "If `ddgl` is not available, either install it manually or run it in a dev env\n"
+            + "by prefixing with `dda env dev run --`.\n"
+            + "Re-run with `--force` to force execution of this task."
+        )
+        print(color_message(text, Color.ORANGE))
+        return
 
     def get_pipeline(repo, id):
         return repo.pipelines.get(id)
