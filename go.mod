@@ -354,6 +354,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.159.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.159.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.159.0
+	github.com/openconfig/gnmi v0.14.1
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/opencontainers/runtime-spec v1.3.0
