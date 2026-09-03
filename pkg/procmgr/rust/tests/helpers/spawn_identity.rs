@@ -141,88 +141,94 @@ fn runtime_user_oracle(pid: u32) -> Option<String> {
 }
 
 #[cfg(windows)]
-unsafe fn lookup_token_account(token: windows_sys::Win32::Foundation::HANDLE) -> Option<String> {
+fn lookup_token_account(token: windows_sys::Win32::Foundation::HANDLE) -> Option<String> {
     use std::ptr;
     use windows_sys::Win32::Security::{GetTokenInformation, TOKEN_USER, TokenUser};
 
-    let mut needed = 0u32;
-    let _ = GetTokenInformation(token, TokenUser, ptr::null_mut(), 0, &mut needed);
-    if needed == 0 {
-        return None;
-    }
+    unsafe {
+        let mut needed = 0u32;
+        let _ = GetTokenInformation(token, TokenUser, ptr::null_mut(), 0, &mut needed);
+        if needed == 0 {
+            return None;
+        }
 
-    let mut buffer = vec![0u8; needed as usize];
-    if GetTokenInformation(
-        token,
-        TokenUser,
-        buffer.as_mut_ptr().cast(),
-        needed,
-        &mut needed,
-    ) == 0
-    {
-        return None;
-    }
+        let mut buffer = vec![0u8; needed as usize];
+        if GetTokenInformation(
+            token,
+            TokenUser,
+            buffer.as_mut_ptr().cast(),
+            needed,
+            &mut needed,
+        ) == 0
+        {
+            return None;
+        }
 
-    let token_user = ptr::read_unaligned(buffer.as_ptr().cast::<TOKEN_USER>());
-    let sid_ptr = token_user.User.Sid;
-    if sid_ptr.is_null() {
-        return None;
-    }
+        let token_user = ptr::read_unaligned(buffer.as_ptr().cast::<TOKEN_USER>());
+        let sid_ptr = token_user.User.Sid;
+        if sid_ptr.is_null() {
+            return None;
+        }
 
-    let sid_len = windows_sys::Win32::Security::GetLengthSid(sid_ptr);
-    if sid_len == 0 {
-        return None;
+        let sid_len = windows_sys::Win32::Security::GetLengthSid(sid_ptr);
+        if sid_len == 0 {
+            return None;
+        }
+        let mut sid = vec![0u8; sid_len as usize];
+        ptr::copy_nonoverlapping(sid_ptr.cast(), sid.as_mut_ptr(), sid_len as usize);
+        lookup_account_display(&sid)
     }
-    let mut sid = vec![0u8; sid_len as usize];
-    ptr::copy_nonoverlapping(sid_ptr.cast(), sid.as_mut_ptr(), sid_len as usize);
-    lookup_account_display(&sid)
 }
 
 #[cfg(windows)]
-unsafe fn lookup_account_display(sid: &[u8]) -> Option<String> {
+fn lookup_account_display(sid: &[u8]) -> Option<String> {
     use std::ptr;
     use windows_sys::Win32::Security::LookupAccountSidW;
 
-    let sid_ptr = sid.as_ptr().cast();
-    let mut name_size = 0u32;
-    let mut domain_size = 0u32;
-    let mut sid_type = 0i32;
-    let _ = LookupAccountSidW(
-        ptr::null(),
-        sid_ptr,
-        ptr::null_mut(),
-        &mut name_size,
-        ptr::null_mut(),
-        &mut domain_size,
-        &mut sid_type,
-    );
+    unsafe {
+        let sid_ptr = sid.as_ptr().cast();
+        let mut name_size = 0u32;
+        let mut domain_size = 0u32;
+        let mut sid_type = 0i32;
+        let _ = LookupAccountSidW(
+            ptr::null(),
+            sid_ptr,
+            ptr::null_mut(),
+            &mut name_size,
+            ptr::null_mut(),
+            &mut domain_size,
+            &mut sid_type,
+        );
 
-    let mut name = vec![0u16; name_size as usize];
-    let mut domain = vec![0u16; domain_size as usize];
-    if LookupAccountSidW(
-        ptr::null(),
-        sid_ptr,
-        name.as_mut_ptr(),
-        &mut name_size,
-        domain.as_mut_ptr(),
-        &mut domain_size,
-        &mut sid_type,
-    ) == 0
-    {
-        return None;
-    }
+        let mut name = vec![0u16; name_size as usize];
+        let mut domain = vec![0u16; domain_size as usize];
+        if LookupAccountSidW(
+            ptr::null(),
+            sid_ptr,
+            name.as_mut_ptr(),
+            &mut name_size,
+            domain.as_mut_ptr(),
+            &mut domain_size,
+            &mut sid_type,
+        ) == 0
+        {
+            return None;
+        }
 
-    let user = trim_wide_nul(&name);
-    let domain = trim_wide_nul(&domain);
-    if domain.is_empty() {
-        Some(user)
-    } else {
-        Some(format!("{domain}\\{user}"))
+        let user = trim_wide_nul(&name);
+        let domain = trim_wide_nul(&domain);
+        if domain.is_empty() {
+            Some(user)
+        } else {
+            Some(format!("{domain}\\{user}"))
+        }
     }
 }
 
 #[cfg(windows)]
 fn trim_wide_nul(wide: &[u16]) -> String {
+    use std::os::windows::ffi::OsStringExt;
+
     let end = wide.iter().position(|&c| c == 0).unwrap_or(wide.len());
     std::ffi::OsString::from_wide(&wide[..end])
         .to_string_lossy()
