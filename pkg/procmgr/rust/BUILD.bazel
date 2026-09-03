@@ -24,6 +24,7 @@ _LIB_DEPS = [
     "@crates//:serde",
     "@crates//:serde_json",
     "@crates//:serde_yaml",
+    "@crates//:saphyr-parser",
     "@crates//:tokio",
     "@crates//:tokio-stream",
     "@crates//:tonic",

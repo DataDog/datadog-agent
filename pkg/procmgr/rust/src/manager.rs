@@ -178,6 +178,10 @@ impl ProcessManager {
             info!("[{name}] already running, skipping queued restart");
             return;
         }
+        if !proc.may_respawn() {
+            info!("[{name}] restart skipped: start conditions not met");
+            return;
+        }
         match proc.spawn() {
             Ok(()) => spawn_watcher(proc, exit_tx.clone()),
             Err(e) => warn!("[{}] restart failed: {e:#}", proc.name()),
@@ -356,6 +360,24 @@ impl ProcessManager {
                     } else {
                         spawn_watcher(proc, exit_tx.clone());
                     }
+                }
+            }
+        }
+
+        {
+            let mut procs = self.processes.write().await;
+            for name in &unchanged {
+                let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) else {
+                    continue;
+                };
+                if proc.is_running() || !proc.should_start() {
+                    continue;
+                }
+                info!("[{name}] config gate now met after reload, starting");
+                if let Err(e) = proc.spawn() {
+                    warn!("[{name}] failed to start after gate re-eval: {e:#}");
+                } else {
+                    spawn_watcher(proc, exit_tx.clone());
                 }
             }
         }
@@ -1005,5 +1027,129 @@ mod tests {
 
         // Clean up the spawned process.
         let _: Result<_, _> = mgr.handle_stop("aabbccdd-1").await;
+    }
+
+    #[cfg(not(windows))]
+    mod config_gate {
+        use super::*;
+        use crate::config::{ProcessConfig, RestartPolicy};
+        use crate::config_gate::ConditionConfigFile;
+        use std::io::Write;
+
+        fn gated_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
+            let (cmd, args) = test_helpers::sleep_cmd(60);
+            ProcessDefinition {
+                name: name.to_string(),
+                config: ProcessConfig {
+                    command: cmd.to_string(),
+                    args,
+                    condition_config_any: vec![ConditionConfigFile {
+                        path: agent_yaml.to_string(),
+                        keys: vec!["process_config.process_collection.enabled".into()],
+                    }],
+                    ..Default::default()
+                },
+            }
+        }
+
+        fn write_agent_yaml(dir: &std::path::Path, process_collection_enabled: bool) -> String {
+            let path = dir.join("datadog.yaml");
+            let body = format!(
+                "process_config:\n  process_collection:\n    enabled: {process_collection_enabled}\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n"
+            );
+            let mut file = std::fs::File::create(&path).unwrap();
+            file.write_all(body.as_bytes()).unwrap();
+            path.to_string_lossy().into_owned()
+        }
+
+        fn gated_on_failure_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
+            let (cmd, args) = test_helpers::sleep_cmd(60);
+            ProcessDefinition {
+                name: name.to_string(),
+                config: ProcessConfig {
+                    command: cmd.to_string(),
+                    args,
+                    restart: RestartPolicy::OnFailure,
+                    restart_sec: Some(2.0),
+                    condition_config_any: vec![ConditionConfigFile {
+                        path: agent_yaml.to_string(),
+                        keys: vec!["process_config.process_collection.enabled".into()],
+                    }],
+                    ..Default::default()
+                },
+            }
+        }
+
+        #[tokio::test]
+        async fn test_auto_start_runs_when_config_gate_open() -> anyhow::Result<()> {
+            let dir = tempfile::tempdir().unwrap();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "process should auto-start when condition_config_any is met"
+            );
+
+            test_helpers::cleanup_process(mgr.processes().await[0].pid().unwrap());
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_auto_start_skips_when_config_gate_closed() -> anyhow::Result<()> {
+            let dir = tempfile::tempdir().unwrap();
+            let yaml = write_agent_yaml(dir.path(), false);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            assert!(
+                !mgr.processes().await[0].is_running(),
+                "process should not auto-start when condition_config_any is not met"
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_on_failure_restart_skips_when_config_gate_closes() -> anyhow::Result<()> {
+            let dir = tempfile::tempdir().unwrap();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_on_failure_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            let pid = {
+                let procs = mgr.processes().await;
+                assert!(procs[0].is_running());
+                procs[0].pid().unwrap()
+            };
+
+            write_agent_yaml(dir.path(), false);
+            {
+                let mut procs = mgr.processes.write().await;
+                let (cmd, args) = test_helpers::false_cmd();
+                let status = std::process::Command::new(cmd).args(args).status()?;
+                procs[0].set_last_status(status);
+            }
+            test_helpers::cleanup_process(pid);
+
+            mgr.complete_restart("gated-svc", &exit_tx).await;
+            assert!(
+                !mgr.processes().await[0].is_running(),
+                "on-failure restart should skip when the config gate is closed"
+            );
+            Ok(())
+        }
     }
 }

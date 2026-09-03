@@ -229,19 +229,47 @@ impl ManagedProcess {
     }
 
     #[must_use]
+    fn condition_path_exists_met(&self) -> bool {
+        let Some(raw) = &self.config.condition_path_exists else {
+            return true;
+        };
+        let path = expand_env_vars(raw);
+        if std::path::Path::new(&path).exists() {
+            return true;
+        }
+        info!("[{}] condition_path_exists not met: {path}", self.name);
+        false
+    }
+
+    fn config_gate_met(&self) -> bool {
+        if crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+            return true;
+        }
+        info!(
+            "[{}] condition_config_any not met: {}",
+            self.name,
+            crate::config_gate::condition_config_summary(&self.config.condition_config_any)
+        );
+        false
+    }
+
+    #[must_use]
+    fn start_conditions_met(&self) -> bool {
+        self.condition_path_exists_met() && self.config_gate_met()
+    }
+
+    #[must_use]
+    pub(crate) fn may_respawn(&self) -> bool {
+        self.start_conditions_met()
+    }
+
+    #[must_use]
     pub fn should_start(&self) -> bool {
         if !self.config.auto_start {
             info!("[{}] auto_start=false, skipping", self.name);
             return false;
         }
-        if let Some(ref raw) = self.config.condition_path_exists {
-            let path = expand_env_vars(raw);
-            if !std::path::Path::new(&path).exists() {
-                info!("[{}] condition_path_exists not met: {path}", self.name);
-                return false;
-            }
-        }
-        true
+        self.start_conditions_met()
     }
 
     pub fn spawn(&mut self) -> Result<()> {
@@ -472,6 +500,11 @@ impl ManagedProcess {
                     self.name
                 );
             }
+            return None;
+        }
+
+        if !self.may_respawn() {
+            info!("[{}] start conditions not met, not restarting", self.name);
             return None;
         }
 
