@@ -88,7 +88,7 @@ var kafkaCompose string
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml
 var postgresCompose string
 
-//go:embed testdata/compose/docker-compose.configfilesdiscovery-spark-master.yaml
+//go:embed testdata/compose/docker-compose.configfilesdiscovery-spark.yaml
 var sparkMasterCompose string
 
 const redisExplicitConfig = `port 6379

@@ -146,6 +146,24 @@ func TestSparkCollectorRecognizesApacheMasterCommand(t *testing.T) {
 	}, collected.EnvVars)
 }
 
+func TestSparkCollectorRecognizesShellFormMasterCommand(t *testing.T) {
+	reader := &sparkCollectorTestReader{
+		env: map[string]string{
+			"SPARK_MASTER_HOST": "spark-master",
+		},
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/bin/sh", "-c", "spark-class org.apache.spark.deploy.master.Master"},
+		},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "SPARK_MASTER_HOST", Value: "spark-master"},
+	}, collected.EnvVars)
+}
+
 func TestSparkCollectorRecognizesLiveBitnamiMasterProcess(t *testing.T) {
 	reader := &sparkCollectorTestReader{
 		env: map[string]string{
@@ -165,6 +183,55 @@ func TestSparkCollectorRecognizesLiveBitnamiMasterProcess(t *testing.T) {
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
 		{Name: "SPARK_MASTER_HOST", Value: "spark-master"},
 	}, collected.EnvVars)
+}
+
+func TestSparkCollectorFallsBackWhenRuntimeCommandlineReadFails(t *testing.T) {
+	expectedErr := errors.New("command line unavailable")
+	reader := &sparkCollectorTestReader{
+		env: map[string]string{
+			"SPARK_MODE":        "master",
+			"SPARK_MASTER_HOST": "spark-master",
+		},
+		runtimeCommandlineErr: expectedErr,
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "SPARK_MASTER_HOST", Value: "spark-master"},
+		{Name: "SPARK_MODE", Value: "master"},
+	}, collected.EnvVars)
+}
+
+func TestSparkCollectorFallsBackToLiveProcessWhenRuntimeCommandlineReadFails(t *testing.T) {
+	expectedErr := errors.New("command line unavailable")
+	reader := &sparkCollectorTestReader{
+		env: map[string]string{
+			"SPARK_MASTER_HOST": "spark-master",
+		},
+		runtimeCommandlineErr: expectedErr,
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
+			{Args: []string{"java", "org.apache.spark.deploy.master.Master"}},
+		},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "SPARK_MASTER_HOST", Value: "spark-master"},
+	}, collected.EnvVars)
+}
+
+func TestSparkCollectorReturnsRuntimeCommandlineErrorsWithoutFallback(t *testing.T) {
+	expectedErr := errors.New("command line unavailable")
+	reader := &sparkCollectorTestReader{runtimeCommandlineErr: expectedErr}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
 }
 
 func TestSparkCollectorReturnsReaderErrors(t *testing.T) {
@@ -192,6 +259,7 @@ type sparkCollectorTestReader struct {
 	env                     map[string]string
 	readEnvVarsErr          error
 	runtimeCommandline      configfilesdiscoveryimpl.TargetCommandline
+	runtimeCommandlineErr   error
 	liveProcessCommandlines []configfilesdiscoveryimpl.TargetCommandline
 }
 
@@ -224,6 +292,9 @@ func (r *sparkCollectorTestReader) ReadEnvVars(_ context.Context, predicate conf
 }
 
 func (r *sparkCollectorTestReader) ReadRuntimeCommandline(context.Context) (configfilesdiscoveryimpl.TargetCommandline, error) {
+	if r.runtimeCommandlineErr != nil {
+		return configfilesdiscoveryimpl.TargetCommandline{}, r.runtimeCommandlineErr
+	}
 	return r.runtimeCommandline, nil
 }
 

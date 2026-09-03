@@ -64,11 +64,8 @@ func (sparkConfigCollector) Collect(ctx context.Context, reader configfilesdisco
 }
 
 func isSparkMaster(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader, envVars []configfilesdiscoveryimpl.ConfigEnvVar) (bool, error) {
-	commandline, err := reader.ReadRuntimeCommandline(ctx)
-	if err != nil {
-		return false, fmt.Errorf("read spark runtime command line: %w", err)
-	}
-	if isSparkMasterCommand(commandline.Args) {
+	commandline, commandlineErr := reader.ReadRuntimeCommandline(ctx)
+	if commandlineErr == nil && isSparkMasterCommand(commandline.Args) {
 		return true, nil
 	}
 
@@ -86,10 +83,14 @@ func isSparkMaster(ctx context.Context, reader configfilesdiscoveryimpl.ConfigRe
 			return envVar.Value == sparkMasterMode, nil
 		}
 	}
+	if commandlineErr != nil {
+		return false, fmt.Errorf("read spark runtime command line: %w", commandlineErr)
+	}
 	return false, nil
 }
 
 func isSparkMasterCommand(args []string) bool {
+	args = unwrapShellCommandline(args)
 	for _, arg := range args {
 		if arg == "org.apache.spark.deploy.master.Master" {
 			return true
