@@ -156,6 +156,11 @@ func TestMount(t *testing.T) {
 	})
 }
 
+// withForceReload() at the newTestModule call is load-bearing: this test and
+// the two TestMountSnapshot* below share the inline-config run, so without it
+// they would reuse each other's module and snapshot the wrong mounts.
+var _ = declareInlineConfig(TestMountPropagated)
+
 func TestMountPropagated(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -405,11 +410,15 @@ func testMountSnapshot(t *testing.T) {
 	assert.Equal(t, 1|2|4|8, mntResolved)
 }
 
+var _ = declareInlineConfig(TestMountSnapshotListmount)
+
 func TestMountSnapshotListmount(t *testing.T) {
 	SkipIfNotAvailable(t)
 	t.Setenv("DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT", "true")
 	testMountSnapshot(t)
 }
+
+var _ = declareInlineConfig(TestMountSnapshotProcfs)
 
 func TestMountSnapshotProcfs(t *testing.T) {
 	SkipIfNotAvailable(t)

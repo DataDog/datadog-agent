@@ -122,6 +122,8 @@ func isRawPacketNotSupported(kv *kernel.Version) bool {
 	return probe.IsRawPacketNotSupported(kv) || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 }
 
+var _ = declare(TestRawPacket, testOpts{networkRawPacketEnabled: true})
+
 func TestRawPacket(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -168,7 +170,7 @@ func TestRawPacket(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,6 +238,9 @@ func TestRawPacket(t *testing.T) {
 		})
 	})
 }
+
+var _ = declare(TestRawPacketRouterSelFlipOnRulesetReload, testOpts{networkRawPacketEnabled: true})
+
 func TestRawPacketRouterSelFlipOnRulesetReload(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -246,7 +251,7 @@ func TestRawPacketRouterSelFlipOnRulesetReload(t *testing.T) {
 		Expression: `dns.question.name == "never.match.raw.packet.router.sel.test"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,6 +283,8 @@ func TestRawPacketRouterSelFlipOnRulesetReload(t *testing.T) {
 		"raw_packet_router_sel must be flipped after ruleset reload")
 }
 
+var _ = declare(TestRawPacketAction, testOpts{networkRawPacketEnabled: true})
+
 func TestRawPacketAction(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping cgroup ID test in docker")
@@ -295,13 +302,13 @@ func TestRawPacketAction(t *testing.T) {
 				NetworkFilter: &rules.NetworkFilterDefinition{
 					BPFFilter: "port 53",
 					Scope:     "cgroup",
-					Policy:    "drop",
+					Policy:    rules.NetworkFilterPolicyDrop,
 				},
 			},
 		},
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,6 +378,8 @@ func TestRawPacketAction(t *testing.T) {
 	})
 }
 
+var _ = declare(TestRawPacketDropMetricAccuracyWithReload, testOpts{networkRawPacketEnabled: true})
+
 func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping cgroup ID test in docker")
@@ -393,7 +402,7 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 		Expression: `exec.file.name == "id"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{bootstrapRule}, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{bootstrapRule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -484,7 +493,7 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 				NetworkFilter: &rules.NetworkFilterDefinition{
 					BPFFilter: "host 1.1.1.1",
 					Scope:     "cgroup",
-					Policy:    "drop",
+					Policy:    rules.NetworkFilterPolicyDrop,
 				},
 			},
 		},
@@ -499,7 +508,7 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 				NetworkFilter: &rules.NetworkFilterDefinition{
 					BPFFilter: "host " + pingHost,
 					Scope:     "cgroup",
-					Policy:    "drop",
+					Policy:    rules.NetworkFilterPolicyDrop,
 				},
 			},
 		},
@@ -528,6 +537,8 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 	waitForMetric(ruleID1, totalExpected)
 }
 
+var _ = declare(TestRawPacketActionWithSignature, testOpts{networkRawPacketEnabled: true})
+
 func TestRawPacketActionWithSignature(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping cgroup ID test in docker")
@@ -553,7 +564,7 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -600,7 +611,7 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 					NetworkFilter: &rules.NetworkFilterDefinition{
 						BPFFilter: "port 53",
 						Scope:     "cgroup",
-						Policy:    "drop",
+						Policy:    rules.NetworkFilterPolicyDrop,
 					},
 				},
 			},
@@ -688,6 +699,8 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 	}
 }
 
+var _ = declare(TestRawPacketActionProcessScopeWithSignature, testOpts{networkRawPacketEnabled: true})
+
 func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -704,7 +717,7 @@ func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -825,7 +838,7 @@ func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
 					NetworkFilter: &rules.NetworkFilterDefinition{
 						BPFFilter: "port " + udpTestPort,
 						Scope:     "process",
-						Policy:    "drop",
+						Policy:    rules.NetworkFilterPolicyDrop,
 					},
 				},
 			},
@@ -999,6 +1012,12 @@ func TestRawPacketFilter(t *testing.T) {
 	})
 }
 
+var _ = declare(TestNetworkFlowSendUDP4,
+	testOpts{
+		networkFlowMonitorEnabled: true,
+	},
+)
+
 func TestNetworkFlowSendUDP4(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1022,11 +1041,7 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 		Expression: `network_flow_monitor.flows.length > 0 && process.file.name == "syscall_tester"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(
-		testOpts{
-			networkFlowMonitorEnabled: true,
-		},
-	))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}

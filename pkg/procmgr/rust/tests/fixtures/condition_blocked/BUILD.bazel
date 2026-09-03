@@ -1,0 +1,5 @@
+filegroup(
+    name = "condition_blocked",
+    srcs = glob(["*"]),
+    visibility = ["//pkg/procmgr/rust/tests/fixtures:__pkg__"],
+)

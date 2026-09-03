@@ -49,8 +49,8 @@ datadog-agent-oci-x64-a7:
     ]
   variables:
     PACKAGE_ARCH: amd64
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"
 
 datadog-agent-oci-arm64-a7:
   extends: [.common_build_oci, .agent_base_flavor]
@@ -68,8 +68,8 @@ datadog-agent-oci-arm64-a7:
     ]
   variables:
     PACKAGE_ARCH: arm64
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 datadog-agent-oci-x64-a7-fips:
   extends: [.common_build_oci, .agent_fips_flavor]
@@ -87,8 +87,8 @@ datadog-agent-oci-x64-a7-fips:
     ]
   variables:
     PACKAGE_ARCH: amd64
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"
 
 datadog-agent-oci-arm64-a7-fips:
   extends: [.common_build_oci, .agent_fips_flavor]
@@ -106,8 +106,8 @@ datadog-agent-oci-arm64-a7-fips:
     ]
   variables:
     PACKAGE_ARCH: arm64
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 #
 # The installer install scripts (install-djm.sh, ...)
@@ -195,8 +195,8 @@ installer-amd64:
   variables:
     PACKAGE_ARCH: amd64
     DESTINATION_FILE: "datadog-installer_7-amd64.tar.xz"
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"
 
 installer-arm64:
   extends: [.installer_build_common, .installer_linux_common]
@@ -204,8 +204,8 @@ installer-arm64:
   variables:
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 installer-amd64-oci:
   extends: [installer-amd64, .installer_oci_common]
@@ -226,16 +226,16 @@ installer-arm64-oci:
   tags: ["arch:amd64", "specific:true"]
   variables:
     PACKAGE_ARCH: amd64
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"
 
 .installer-fips-arm64:
   extends: [.installer_build_common, .installer_linux_common, .agent_fips_flavor]
   tags: ["arch:arm64", "specific:true"]
   variables:
     PACKAGE_ARCH: arm64
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 installer-fips-amd64-oci:
   extends: [.installer-fips-amd64, .installer_oci_common]
