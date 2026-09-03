@@ -12,6 +12,8 @@ import (
 	"github.com/cenkalti/backoff/v7"
 )
 
+const currentAPMInjectRegistry = "install.datadoghq.com"
+
 type baseAPMInjectSuite struct {
 	BaseSuite
 	currentAPMInjectVersion  PackageVersion
@@ -23,7 +25,7 @@ func (s *baseAPMInjectSuite) SetupSuite() {
 
 	s.currentAPMInjectVersion = NewVersionFromPackageVersion(os.Getenv("CURRENT_APM_INJECT_VERSION"))
 	if s.currentAPMInjectVersion.PackageVersion() == "" {
-		s.currentAPMInjectVersion = NewVersionFromPackageVersion("0.52.0-dev.b282e14.glci1291404213.g7ff18a26-1")
+		s.currentAPMInjectVersion = NewVersionFromPackageVersion("0.71.0-1")
 	}
 	s.previousAPMInjectVersion = NewVersionFromPackageVersion(os.Getenv("PREVIOUS_APM_INJECT_VERSION"))
 	if s.previousAPMInjectVersion.PackageVersion() == "" {
