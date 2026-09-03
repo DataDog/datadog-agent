@@ -68,18 +68,17 @@ func TestReadDirectFingerprintRangeWithDirect(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		skip  int
 		count int
 		want  []byte
 	}{
-		{name: "bounded range", skip: 0, count: 2061, want: content[:2061]},
-		{name: "range after a skip", skip: 1037, count: 512, want: content[1037:1549]},
-		{name: "range running to EOF", skip: 0, count: len(content), want: content},
+		{name: "bounded range", count: 2061, want: content[:2061]},
+		{name: "sub-block range", count: 512, want: content[:512]},
+		{name: "range running to EOF", count: len(content), want: content},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := opener.ReadDirectFingerprintRange(path, tt.skip, tt.count, flags)
+			got, err := opener.ReadDirectFingerprintRange(path, tt.count, flags)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
 		})
@@ -93,7 +92,7 @@ func TestReadDirectFingerprintRangeReportsPermissionError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "noperm.log")
 	require.NoError(t, os.WriteFile(path, []byte("data"), 0o000))
 
-	_, err := NewFileOpener().ReadDirectFingerprintRange(path, 0, 4, []types.FileOpenFlag{types.FileOpenFlagDirect})
+	_, err := NewFileOpener().ReadDirectFingerprintRange(path, 4, []types.FileOpenFlag{types.FileOpenFlagDirect})
 	require.ErrorIs(t, err, os.ErrPermission)
 }
 
@@ -101,6 +100,6 @@ func TestDirectFingerprintReadRequiresSupportedFlags(t *testing.T) {
 	path := requireDirectIOTestFile(t, "flags.log", []byte("data"))
 	opener := NewFileOpener()
 
-	_, err := opener.ReadDirectFingerprintRange(path, 0, 4, nil)
+	_, err := opener.ReadDirectFingerprintRange(path, 4, nil)
 	require.ErrorContains(t, err, "no supported open flags")
 }

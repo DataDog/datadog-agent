@@ -39,20 +39,19 @@ func TestReadDirectFingerprintRangeReturnsLogicalRange(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		skip  int
 		count int
 		want  []byte
 	}{
-		{name: "aligned start", skip: 0, count: 100, want: content[:100]},
-		{name: "unaligned start", skip: 137, count: 100, want: content[137:237]},
-		{name: "spans block boundary", skip: directIOAlignment - 1, count: 3, want: content[directIOAlignment-1 : directIOAlignment+2]},
-		{name: "deep skip stays bounded", skip: window + 500, count: 64, want: content[window+500 : window+564]},
+		{name: "aligned count", count: directIOAlignment, want: content[:directIOAlignment]},
+		{name: "unaligned count", count: 100, want: content[:100]},
+		{name: "spans block boundary", count: directIOAlignment + 2, want: content[:directIOAlignment+2]},
+		{name: "spans several blocks", count: window + 500, want: content[:window+500]},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			file := openTestFile(t, path)
-			got, err := readDirectFingerprintRangeFromFile(file, tt.skip, tt.count, directIOAlignment, directIOAlignment)
+			got, err := readDirectFingerprintRangeFromFile(file, tt.count, directIOAlignment, directIOAlignment)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
 		})
@@ -64,7 +63,7 @@ func TestReadDirectFingerprintRangeStopsAtEOF(t *testing.T) {
 		t.Run(fmt.Sprintf("size_%d", size), func(t *testing.T) {
 			path, content := writeTestFile(t, "short.log", size)
 			file := openTestFile(t, path)
-			got, err := readDirectFingerprintRangeFromFile(file, 0, size+16, directIOAlignment, directIOAlignment)
+			got, err := readDirectFingerprintRangeFromFile(file, size+16, directIOAlignment, directIOAlignment)
 			require.NoError(t, err)
 			require.Equal(t, content, got)
 		})
@@ -73,6 +72,6 @@ func TestReadDirectFingerprintRangeStopsAtEOF(t *testing.T) {
 
 func TestReadDirectFingerprintRangeRejectsInvalidArgs(t *testing.T) {
 	path, _ := writeTestFile(t, "args.log", 16)
-	_, err := readDirectFingerprintRangeFromFile(openTestFile(t, path), -1, 4, directIOAlignment, directIOAlignment)
+	_, err := readDirectFingerprintRangeFromFile(openTestFile(t, path), -1, directIOAlignment, directIOAlignment)
 	require.ErrorIs(t, err, os.ErrInvalid)
 }

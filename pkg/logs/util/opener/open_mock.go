@@ -49,17 +49,13 @@ func (m *MockFileOpener) OpenLogFile(path string) (afero.File, error) {
 	return m.openLogFile(path, nil)
 }
 
-func (m *MockFileOpener) ReadDirectFingerprintRange(path string, skip, count int, openFlags []types.FileOpenFlag) ([]byte, error) {
+// ReadDirectFingerprintRange returns up to the first count bytes of the mock file.
+func (m *MockFileOpener) ReadDirectFingerprintRange(path string, count int, openFlags []types.FileOpenFlag) ([]byte, error) {
 	file, err := m.openLogFile(path, openFlags)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	if skip > 0 {
-		if _, err := file.Seek(int64(skip), io.SeekStart); err != nil {
-			return nil, err
-		}
-	}
 	buffer := make([]byte, count)
 	read, err := io.ReadFull(file, buffer)
 	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {

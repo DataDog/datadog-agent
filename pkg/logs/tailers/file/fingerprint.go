@@ -172,39 +172,30 @@ func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfi
 	return f.computeFingerprintFromReader(fpFile, filePath, fingerprintConfig)
 }
 
+// computeFingerprintDirect reads the head of the file once with open_flags, then
+// runs the shared fingerprint flow over those bytes so direct and buffered agree.
 func (f *fingerprinterImpl) computeFingerprintDirect(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
-	openFlags := fingerprintConfig.OpenFlags
-	switch fingerprintConfig.FingerprintStrategy {
-	case types.FingerprintStrategyByteChecksum:
-		data, err := f.fileOpener.ReadDirectFingerprintRange(filePath, fingerprintConfig.CountToSkip, fingerprintConfig.Count, openFlags)
-		if err != nil {
-			return newInvalidFingerprint(fingerprintConfig), err
-		}
-		return fingerprintFromByteData(data, fingerprintConfig.Count, fingerprintConfig)
-	case types.FingerprintStrategyLineChecksum:
-		return f.computeFingerprintByLinesDirect(filePath, openFlags, fingerprintConfig)
-	default:
-		log.Warnf("invalid fingerprint strategy %q for file %q, using default lines strategy", fingerprintConfig.FingerprintStrategy, filePath)
-		return f.computeFingerprintByLinesDirect(filePath, openFlags, defaultLinesConfig)
+	data, err := f.fileOpener.ReadDirectFingerprintRange(filePath, directReadBudget(fingerprintConfig), fingerprintConfig.OpenFlags)
+	if err != nil {
+		return newInvalidFingerprint(fingerprintConfig), err
 	}
+	return f.computeFingerprintFromReader(bytes.NewReader(data), filePath, fingerprintConfig)
 }
 
-// computeFingerprintByLinesDirect reads the bounded head of the file once with
-// the configured open_flags, then runs the shared buffered line-fingerprint flow
-// over the in-memory bytes. This keeps the direct and buffered paths on a single
-// implementation so their checksums cannot drift.
-//
-// The read window covers both the line budget (MaxBytes) and the byte-fallback
-// budget (defaultBytesConfig.Count). The line flow falls back to a byte checksum
-// over the first bytes of the same reader when a line exceeds MaxBytes, so the
-// window must hold enough bytes for that fallback without a second open.
-func (f *fingerprinterImpl) computeFingerprintByLinesDirect(filePath string, openFlags []types.FileOpenFlag, hashConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
-	readBudget := max(hashConfig.MaxBytes, defaultBytesConfig.Count)
-	data, err := f.fileOpener.ReadDirectFingerprintRange(filePath, 0, readBudget, openFlags)
-	if err != nil {
-		return newInvalidFingerprint(hashConfig), err
+// directReadBudget is how many leading bytes computeFingerprintFromReader may
+// read for cfg, so a single read from offset 0 covers it.
+func directReadBudget(cfg *types.FingerprintConfig) int {
+	switch cfg.FingerprintStrategy {
+	case types.FingerprintStrategyByteChecksum:
+		return cfg.CountToSkip + cfg.Count
+	case types.FingerprintStrategyLineChecksum:
+		// Line mode may fall back to a byte checksum over the first
+		// defaultBytesConfig.Count bytes.
+		return max(cfg.MaxBytes, defaultBytesConfig.Count)
+	default:
+		// Reader falls back to the default line config here.
+		return max(defaultLinesConfig.MaxBytes, defaultBytesConfig.Count)
 	}
-	return computeFingerPrintByLines(bytes.NewReader(data), filePath, hashConfig)
 }
 
 // FingerprintOpenFlagsActive reports whether configured open_flags should be

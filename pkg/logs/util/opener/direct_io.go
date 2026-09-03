@@ -17,10 +17,10 @@ import (
 
 const directIOAlignment = 4096
 
-// readDirectFingerprintRange opens path with O_DIRECT and returns the logical
-// bytes in [skip, skip+count).
-func readDirectFingerprintRange(path string, skip, count int) ([]byte, error) {
-	if skip < 0 || count < 0 {
+// readDirectFingerprintRange opens path with O_DIRECT and returns up to the
+// first count bytes.
+func readDirectFingerprintRange(path string, count int) ([]byte, error) {
+	if count < 0 {
 		return nil, os.ErrInvalid
 	}
 	if count == 0 {
@@ -37,11 +37,11 @@ func readDirectFingerprintRange(path string, skip, count int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return readDirectFingerprintRangeFromFile(file, skip, count, memoryAlignment, offsetAlignment)
+	return readDirectFingerprintRangeFromFile(file, count, memoryAlignment, offsetAlignment)
 }
 
-func readDirectFingerprintRangeFromFile(file *os.File, skip, count, memoryAlignment, offsetAlignment int) ([]byte, error) {
-	if skip < 0 || count < 0 {
+func readDirectFingerprintRangeFromFile(file *os.File, count, memoryAlignment, offsetAlignment int) ([]byte, error) {
+	if count < 0 {
 		return nil, os.ErrInvalid
 	}
 	if count == 0 {
@@ -54,12 +54,8 @@ func readDirectFingerprintRangeFromFile(file *os.File, skip, count, memoryAlignm
 		offsetAlignment = directIOAlignment
 	}
 
-	alignedStart := skip - skip%offsetAlignment
-	logicalEnd := skip + count
-	alignedSize := ((logicalEnd - alignedStart) + offsetAlignment - 1) / offsetAlignment * offsetAlignment
-	if alignedSize <= 0 {
-		return []byte{}, nil
-	}
+	// The read starts at offset 0 (block-aligned), so only the length is rounded up.
+	alignedSize := (count + offsetAlignment - 1) / offsetAlignment * offsetAlignment
 
 	mapping, err := allocDirectIOBuffer(alignedSize + memoryAlignment - 1)
 	if err != nil {
@@ -71,31 +67,26 @@ func readDirectFingerprintRangeFromFile(file *os.File, skip, count, memoryAlignm
 	padding := int((uintptr(memoryAlignment) - address%uintptr(memoryAlignment)) % uintptr(memoryAlignment))
 	buffer := mapping[padding : padding+alignedSize]
 
-	filled, err := readAlignedAt(file, buffer, int64(alignedStart), memoryAlignment, offsetAlignment)
+	filled, err := readAligned(file, buffer, memoryAlignment, offsetAlignment)
 	if err != nil {
 		return nil, err
 	}
 
-	prefix := skip - alignedStart
-	if prefix >= filled {
-		return []byte{}, nil
+	if filled > count {
+		filled = count
 	}
-	available := filled - prefix
-	if available > count {
-		available = count
-	}
-	out := make([]byte, available)
-	copy(out, buffer[prefix:prefix+available])
+	out := make([]byte, filled)
+	copy(out, buffer[:filled])
 	return out, nil
 }
 
-// readAlignedAt fills buffer from start using aligned O_DIRECT reads.
-func readAlignedAt(file *os.File, buffer []byte, start int64, memoryAlignment, offsetAlignment int) (int, error) {
+// readAligned fills buffer from offset 0 using aligned O_DIRECT reads.
+func readAligned(file *os.File, buffer []byte, memoryAlignment, offsetAlignment int) (int, error) {
 	stride := max(memoryAlignment, offsetAlignment)
 
 	total := 0
 	for total < len(buffer) {
-		if _, err := file.Seek(start+int64(total), io.SeekStart); err != nil {
+		if _, err := file.Seek(int64(total), io.SeekStart); err != nil {
 			return total, err
 		}
 		read, err := file.Read(buffer[total:])

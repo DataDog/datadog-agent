@@ -19,7 +19,7 @@ func TestDirectFingerprintReadRequiresLinux(t *testing.T) {
 	opener := NewFileOpener()
 	flags := []types.FileOpenFlag{types.FileOpenFlagDirect}
 
-	_, err := opener.ReadDirectFingerprintRange("/tmp/app.log", 0, 16, flags)
+	_, err := opener.ReadDirectFingerprintRange("/tmp/app.log", 16, flags)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Linux")
 }
