@@ -63,6 +63,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/privileged-logs/test/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
+    "./pkg/util/kernel",
     "./pkg/util/kernel/headers/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)

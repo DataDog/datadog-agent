@@ -12,6 +12,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
@@ -24,6 +25,7 @@ import (
 // (caches, atomic counters, maps) so that methods like UpdateArgsEnvs, AddForkEntry,
 // AddExecEntry, Resolve, ApplyExitEntry, UpdateUID, UpdateGID, etc. do not panic.
 func NewTestEBPFResolver(
+	config *config.Config,
 	timeResolver *stime.Resolver,
 	pathResolver path.ResolverInterface,
 	mountResolver mount.ResolverInterface,
@@ -36,6 +38,7 @@ func NewTestEBPFResolver(
 
 	p := &EBPFResolver{
 		state:                     atomic.NewInt64(Snapshotting),
+		config:                    config,
 		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
 		argsEnvsCache:             argsEnvsCache,
 		timeResolver:              timeResolver,
@@ -55,6 +58,8 @@ func NewTestEBPFResolver(
 		envsSize:                  atomic.NewInt64(0),
 		brokenLineage:             atomic.NewInt64(0),
 		inodeErrStats:             make(map[string]*atomic.Int64),
+		otelProcCtxQueue:          make(chan uint32, otelProcCtxQueueSize),
+		otelProcCtxPending:        make(map[uint32]struct{}),
 	}
 
 	for _, t := range metrics.AllTypesTags {
