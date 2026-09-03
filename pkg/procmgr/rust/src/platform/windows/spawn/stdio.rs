@@ -133,13 +133,10 @@ fn open_stdio_file_as_account(
     credential: &SpawnCredential,
 ) -> Result<MappedStdioHandle> {
     let account = credential.account();
-    if account
-        .spawns_with_supervisor_token()
-        .unwrap_or_else(|e| {
-            warn!("[{process_name}] compare spawn account to supervisor token: {e:#}");
-            false
-        })
-    {
+    if account.spawns_with_supervisor_token().unwrap_or_else(|e| {
+        warn!("[{process_name}] compare spawn account to supervisor token: {e:#}");
+        false
+    }) {
         return Ok(MappedStdioHandle(open_append_file(path)?));
     }
     let creds = logon_user_credentials(account);
