@@ -10,8 +10,11 @@ package npcollectorimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,23 +30,153 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 )
 
-func TestRunTracerouteForPathAllowance(t *testing.T) {
-	collector, emitted := newAllowanceCollector(t, succeedingAllowanceTraceroute())
+func TestAllowance(t *testing.T) {
+	now := MockTimeNow()
 
+	t.Run("basic is always in", func(t *testing.T) {
+		a := newAllowance()
+		for i := 0; i < standardAllowancePerHour+3; i++ {
+			assert.True(t, a.inAllowance(payload.DynamicTestProfileBasic, now))
+		}
+	})
+
+	t.Run("basic does not consume standard slots", func(t *testing.T) {
+		a := newAllowance()
+		for i := 0; i < 20; i++ {
+			assert.True(t, a.inAllowance(payload.DynamicTestProfileBasic, now))
+		}
+		for i := 0; i < standardAllowancePerHour; i++ {
+			assert.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now), "standard %d", i)
+		}
+		assert.False(t, a.inAllowance(payload.DynamicTestProfileStandard, now))
+		assert.True(t, a.inAllowance(payload.DynamicTestProfileBasic, now))
+	})
+
+	t.Run("unset profile is never in and does not consume", func(t *testing.T) {
+		a := newAllowance()
+		for i := 0; i < 20; i++ {
+			assert.False(t, a.inAllowance("", now))
+		}
+		assert.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now))
+	})
+
+	t.Run("standard first N then exhausted", func(t *testing.T) {
+		a := newAllowance()
+		for i := 0; i < standardAllowancePerHour; i++ {
+			assert.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now), "standard %d", i)
+		}
+		assert.False(t, a.inAllowance(payload.DynamicTestProfileStandard, now))
+		assert.False(t, a.take(now))
+	})
+
+	t.Run("standard window resets at hour", func(t *testing.T) {
+		a := newAllowance()
+		for i := 0; i < standardAllowancePerHour; i++ {
+			require.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now))
+		}
+		assert.False(t, a.inAllowance(payload.DynamicTestProfileStandard, now.Add(time.Hour-time.Nanosecond)))
+		assert.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now.Add(time.Hour)))
+	})
+
+	t.Run("standard window resets after idle hours", func(t *testing.T) {
+		a := newAllowance()
+		require.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now))
+		assert.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now.Add(2*time.Hour)))
+	})
+
+	t.Run("time going backward stays in the same window", func(t *testing.T) {
+		a := newAllowance()
+		for i := 0; i < standardAllowancePerHour; i++ {
+			require.True(t, a.inAllowance(payload.DynamicTestProfileStandard, now))
+		}
+		assert.False(t, a.inAllowance(payload.DynamicTestProfileStandard, now.Add(-time.Minute)))
+	})
+
+	t.Run("concurrent standard takes cap at N", func(t *testing.T) {
+		a := newAllowance()
+		results := make(chan bool, 20)
+		var wg sync.WaitGroup
+		for i := 0; i < 20; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				results <- a.inAllowance(payload.DynamicTestProfileStandard, now)
+			}()
+		}
+		wg.Wait()
+		close(results)
+
+		taken := 0
+		for ok := range results {
+			if ok {
+				taken++
+			}
+		}
+		assert.Equal(t, standardAllowancePerHour, taken)
+	})
+}
+
+func TestRunTracerouteForPathAllowance(t *testing.T) {
+	now := MockTimeNow()
+	collector, emitted := newAllowanceCollector(t, succeedingAllowanceTraceroute())
+	collector.TimeNowFn = func() time.Time { return now }
+
+	for i := 0; i < standardAllowancePerHour+2; i++ {
+		runAllowancePath(collector, payload.DynamicTestProfileStandard)
+	}
+	require.Len(t, *emitted, standardAllowancePerHour+2)
+	for i, path := range *emitted {
+		assert.Equal(t, payload.DynamicTestProfileStandard, path.DynamicTestProfile)
+		if i < standardAllowancePerHour {
+			assert.Equal(t, payload.DynamicTestClassCore, path.DynamicTestClass)
+		} else {
+			assert.Empty(t, path.DynamicTestClass)
+		}
+	}
+
+	*emitted = nil
 	runAllowancePath(collector, payload.DynamicTestProfileBasic)
-	runAllowancePath(collector, payload.DynamicTestProfileStandard)
 	runAllowancePath(collector, "")
 	runAllowanceNetflowPath(collector)
-
+	runAllowancePath(collector, payload.DynamicTestProfileStandard)
 	require.Len(t, *emitted, 4)
-	assert.Equal(t, payload.DynamicTestProfileBasic, (*emitted)[0].DynamicTestProfile)
 	assert.Equal(t, payload.DynamicTestClassCore, (*emitted)[0].DynamicTestClass)
-	assert.Equal(t, payload.DynamicTestProfileStandard, (*emitted)[1].DynamicTestProfile)
 	assert.Empty(t, (*emitted)[1].DynamicTestClass)
-	assert.Empty(t, (*emitted)[2].DynamicTestProfile)
 	assert.Empty(t, (*emitted)[2].DynamicTestClass)
-	assert.Empty(t, (*emitted)[3].DynamicTestProfile)
 	assert.Empty(t, (*emitted)[3].DynamicTestClass)
+
+	now = now.Add(time.Hour)
+	*emitted = nil
+	runAllowancePath(collector, payload.DynamicTestProfileStandard)
+	require.Len(t, *emitted, 1)
+	assert.Equal(t, payload.DynamicTestClassCore, (*emitted)[0].DynamicTestClass)
+}
+
+func TestRunTracerouteFailedDoesNotTakeAllowance(t *testing.T) {
+	collector, emitted := newAllowanceCollector(t, &tracerouteRunner{func(_ context.Context, _ config.Config) (payload.NetworkPath, error) {
+		return payload.NetworkPath{}, errors.New("boom")
+	}})
+
+	runAllowancePath(collector, payload.DynamicTestProfileStandard)
+	assert.Empty(t, *emitted)
+	assert.True(t, collector.allowance.take(MockTimeNow()))
+}
+
+func TestRunTracerouteInvalidPathDoesNotTakeAllowance(t *testing.T) {
+	collector, emitted := newAllowanceCollector(t, &tracerouteRunner{func(_ context.Context, cfg config.Config) (payload.NetworkPath, error) {
+		return payload.NetworkPath{
+			Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
+			Traceroute: payload.Traceroute{
+				Runs: []payload.TracerouteRun{{
+					Destination: payload.TracerouteDestination{IPAddress: net.IP{}, Port: cfg.DestPort},
+				}},
+			},
+		}, nil
+	}})
+
+	runAllowancePath(collector, payload.DynamicTestProfileStandard)
+	assert.Empty(t, *emitted)
+	assert.True(t, collector.allowance.take(MockTimeNow()))
 }
 
 func newAllowanceCollector(t *testing.T, traceroute *tracerouteRunner) (*npCollectorImpl, *[]payload.NetworkPath) {
