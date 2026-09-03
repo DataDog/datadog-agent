@@ -256,6 +256,8 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_run_id": "",
     "origin": "network_traffic",
     "test_run_type": "dynamic",
+    "dynamic_test_profile": "standard",
+    "in_allowance": true,
     "source_product": "network_path",
     "collector_type": "agent",
     "protocol": "UDP",
@@ -336,6 +338,8 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_run_id": "",
     "origin": "network_traffic",
     "test_run_type": "dynamic",
+    "dynamic_test_profile": "standard",
+    "in_allowance": true,
     "source_product": "network_path",
     "collector_type": "agent",
     "protocol": "UDP",
@@ -510,6 +514,8 @@ func Test_NpCollector_runTracerouteForPath_NetflowSourceProduct(t *testing.T) {
 	assert.Equal(t, "dynamic-a", emittedPath.TestConfigID)
 	assert.Equal(t, "Production paths", emittedPath.TestConfigName)
 	assert.Equal(t, payload.TestConfigSourceRemote, emittedPath.TestConfigSource)
+	assert.Empty(t, emittedPath.DynamicTestProfile)
+	assert.False(t, emittedPath.InAllowance)
 	assert.Equal(t, []string{"team:payments", "env:prod"}, emittedPath.Tags)
 }
 
@@ -1151,6 +1157,9 @@ func Test_npCollectorImpl_ScheduleNetworkPathTests(t *testing.T) {
 				if pathtest.Origin == "" {
 					pathtest.Origin = expectedOrigin
 				}
+				if !tt.scheduleNetflow && pathtest.DynamicTestProfile == "" {
+					pathtest.DynamicTestProfile = payload.DynamicTestProfileStandard
+				}
 			}
 			assert.Equal(t, expectedPathtests, actualPathtests)
 
@@ -1216,11 +1225,13 @@ func TestScheduleNetworkPathTestsCapturesWinningRCConfigID(t *testing.T) {
 	assert.Equal(t, "Production paths", remote.TestConfigName)
 	assert.Equal(t, payload.TestConfigSourceRemote, remote.TestConfigSource)
 	assert.Equal(t, []string{"team:payments"}, remote.Tags)
+	assert.Equal(t, payload.DynamicTestProfileStandard, remote.DynamicTestProfile)
 	assert.Equal(t, "local.example.com", local.Hostname)
 	assert.Empty(t, local.TestConfigID)
 	assert.Empty(t, local.TestConfigName)
 	assert.Empty(t, local.TestConfigSource)
 	assert.Empty(t, local.Tags)
+	assert.Equal(t, payload.DynamicTestProfileStandard, local.DynamicTestProfile)
 }
 
 func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
@@ -1263,10 +1274,11 @@ func Test_npCollectorImpl_ScheduleMethods_methodGates(t *testing.T) {
 			agentConfigs: connectionsOnlyConfigs,
 			conn:         networkTrafficConn,
 			expectedPathtest: &common.Pathtest{
-				Hostname: "10.0.0.2",
-				Port:     uint16(80),
-				Protocol: payload.ProtocolTCP,
-				Origin:   payload.PathOriginNetworkTraffic,
+				Hostname:           "10.0.0.2",
+				Port:               uint16(80),
+				Protocol:           payload.ProtocolTCP,
+				Origin:             payload.PathOriginNetworkTraffic,
+				DynamicTestProfile: payload.DynamicTestProfileStandard,
 			},
 		},
 		{
@@ -1364,10 +1376,11 @@ func Test_npCollectorImpl_ScheduleNetflowPathTests_SkipsLocalAgentSource(t *test
 		select {
 		case pathtest := <-npCollector.pathtestInputChan:
 			assert.Equal(t, &common.Pathtest{
-				Hostname: "10.0.0.20",
-				Port:     uint16(443),
-				Protocol: payload.ProtocolTCP,
-				Origin:   payload.PathOriginNetworkTraffic,
+				Hostname:           "10.0.0.20",
+				Port:               uint16(443),
+				Protocol:           payload.ProtocolTCP,
+				Origin:             payload.PathOriginNetworkTraffic,
+				DynamicTestProfile: payload.DynamicTestProfileStandard,
 			}, pathtest)
 		default:
 			require.Fail(t, "expected pathtest")

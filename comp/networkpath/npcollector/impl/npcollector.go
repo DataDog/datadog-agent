@@ -41,6 +41,7 @@ const (
 	reverseDNSLookupFailuresMetricName  = reverseDNSLookupMetricPrefix + "failures"
 	reverseDNSLookupSuccessesMetricName = reverseDNSLookupMetricPrefix + "successes"
 	netpathConnsSkippedMetricName       = common.NetworkPathCollectorMetricPrefix + "schedule.conns_skipped"
+	standardAllowancePerHour            = 5
 )
 
 var getVPCSubnetsForHost = network.GetVPCSubnetsForHost
@@ -66,6 +67,9 @@ type npCollectorImpl struct {
 	pathtestInputChan      chan *common.Pathtest
 	pathtestProcessingChan chan *pathteststore.PathtestContext
 	basicSelector          *basicSelector
+	allowanceMu            sync.Mutex
+	allowanceUntil         time.Time
+	allowanceLeft          int
 
 	// Scheduling related
 	running               bool
@@ -352,6 +356,9 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			s.basicSelector.add(pathtest, saturatingAdd(conn.SentBytes, conn.RecvBytes), startTime)
 			continue
 		}
+		if origin == payload.PathOriginNetworkTraffic {
+			pathtest.DynamicTestProfile = payload.DynamicTestProfileStandard
+		}
 
 		if err := s.scheduleOne(&pathtest); err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
@@ -488,6 +495,8 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.TestConfigName = ptest.Pathtest.TestConfigName
 	path.TestConfigSource = ptest.Pathtest.TestConfigSource
 	path.DynamicTestProfile = ptest.Pathtest.DynamicTestProfile
+	path.InAllowance = path.DynamicTestProfile == payload.DynamicTestProfileBasic ||
+		(path.DynamicTestProfile == payload.DynamicTestProfileStandard && s.takeStandardAllowance(s.TimeNowFn()))
 	path.Tags = ptest.Pathtest.Tags
 	path.SourceProduct = s.collectorConfigs.sourceProduct
 	if path.Origin == payload.PathOriginNetflow {
@@ -698,4 +707,20 @@ func (s *npCollectorImpl) runWorker(workerID int) {
 			}
 		}
 	}
+}
+
+// takeStandardAllowance returns true for the first standardAllowancePerHour
+// completed standard runs in each hour. The hour starts on the first take.
+func (s *npCollectorImpl) takeStandardAllowance(now time.Time) bool {
+	s.allowanceMu.Lock()
+	defer s.allowanceMu.Unlock()
+	if s.allowanceUntil.IsZero() || !now.Before(s.allowanceUntil) {
+		s.allowanceUntil = now.Add(time.Hour)
+		s.allowanceLeft = standardAllowancePerHour
+	}
+	if s.allowanceLeft == 0 {
+		return false
+	}
+	s.allowanceLeft--
+	return true
 }

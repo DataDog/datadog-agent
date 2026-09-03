@@ -47,6 +47,7 @@ func TestNetworkPathDynamicTestProfileJSON(t *testing.T) {
 	}{
 		{name: "unset", expectField: false},
 		{name: "basic", profile: DynamicTestProfileBasic, expectField: true},
+		{name: "standard", profile: DynamicTestProfileStandard, expectField: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -60,6 +61,31 @@ func TestNetworkPathDynamicTestProfileJSON(t *testing.T) {
 				return
 			}
 			require.Equal(t, string(tt.profile), decoded["dynamic_test_profile"])
+		})
+	}
+}
+
+func TestNetworkPathInAllowanceJSON(t *testing.T) {
+	tests := []struct {
+		name        string
+		inAllowance bool
+		expectField bool
+	}{
+		{name: "unset"},
+		{name: "true", inAllowance: true, expectField: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw, err := json.Marshal(NetworkPath{InAllowance: tt.inAllowance})
+			require.NoError(t, err)
+
+			var decoded map[string]any
+			require.NoError(t, json.Unmarshal(raw, &decoded))
+			if !tt.expectField {
+				require.NotContains(t, decoded, "in_allowance")
+				return
+			}
+			require.Equal(t, true, decoded["in_allowance"])
 		})
 	}
 }

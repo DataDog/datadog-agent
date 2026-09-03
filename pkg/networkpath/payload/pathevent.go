@@ -136,8 +136,10 @@ const (
 type DynamicTestProfile string
 
 const (
-	// DynamicTestProfileBasic is an included CNM basic test.
+	// DynamicTestProfileBasic is a CNM basic-mode dynamic test.
 	DynamicTestProfileBasic DynamicTestProfile = "basic"
+	// DynamicTestProfileStandard is a CNM standard-mode dynamic test.
+	DynamicTestProfileStandard DynamicTestProfile = "standard"
 )
 
 // SourceProduct defines the product that originated the path
@@ -270,6 +272,9 @@ type NetworkPath struct {
 	TestRunType        TestRunType            `json:"test_run_type"`
 	TestConfigSource   TestConfigSource       `json:"test_config_source,omitempty"`
 	DynamicTestProfile DynamicTestProfile     `json:"dynamic_test_profile,omitempty"`
+	// InAllowance is true when this run is counted toward the Agent's hourly
+	// allowance. Omitted when false so older payloads match runs that are not.
+	InAllowance        bool                   `json:"in_allowance,omitempty"`
 	SourceProduct      SourceProduct          `json:"source_product"`
 	CollectorType      CollectorType          `json:"collector_type"`
 	Protocol           Protocol               `json:"protocol"`
