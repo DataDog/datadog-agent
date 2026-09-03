@@ -10,7 +10,9 @@ package npcollectorimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,12 +30,125 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 )
 
+func TestTakeStandardAllowance(t *testing.T) {
+	collector := &npCollectorImpl{}
+	now := MockTimeNow()
+
+	for i := 0; i < standardAllowancePerHour; i++ {
+		assert.True(t, collector.takeStandardAllowance(now), "take %d", i)
+	}
+	assert.False(t, collector.takeStandardAllowance(now))
+	assert.False(t, collector.takeStandardAllowance(now.Add(time.Hour-time.Nanosecond)))
+	assert.True(t, collector.takeStandardAllowance(now.Add(time.Hour)))
+	assert.True(t, collector.takeStandardAllowance(now.Add(2*time.Hour)))
+}
+
+func TestTakeStandardAllowanceConcurrent(t *testing.T) {
+	collector := &npCollectorImpl{}
+	now := MockTimeNow()
+	results := make(chan bool, 20)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results <- collector.takeStandardAllowance(now)
+		}()
+	}
+	wg.Wait()
+	close(results)
+
+	taken := 0
+	for ok := range results {
+		if ok {
+			taken++
+		}
+	}
+	assert.Equal(t, standardAllowancePerHour, taken)
+}
+
 func TestRunTracerouteForPathAllowance(t *testing.T) {
 	now := MockTimeNow()
+	collector, emitted := newAllowanceCollector(t, succeedingAllowanceTraceroute())
+	collector.TimeNowFn = func() time.Time { return now }
+
+	for i := 0; i < standardAllowancePerHour+2; i++ {
+		runAllowancePath(collector, payload.DynamicTestProfileStandard)
+	}
+	require.Len(t, *emitted, standardAllowancePerHour+2)
+	for i, path := range *emitted {
+		assert.Equal(t, payload.DynamicTestProfileStandard, path.DynamicTestProfile)
+		assert.Equal(t, i < standardAllowancePerHour, path.InAllowance)
+	}
+
+	*emitted = nil
+	runAllowancePath(collector, payload.DynamicTestProfileBasic)
+	runAllowancePath(collector, "")
+	runAllowanceNetflowPath(collector)
+	runAllowancePath(collector, payload.DynamicTestProfileStandard)
+	require.Len(t, *emitted, 4)
+	assert.True(t, (*emitted)[0].InAllowance)
+	assert.False(t, (*emitted)[1].InAllowance)
+	assert.False(t, (*emitted)[2].InAllowance)
+	assert.False(t, (*emitted)[3].InAllowance)
+
+	now = now.Add(time.Hour)
+	*emitted = nil
+	runAllowancePath(collector, payload.DynamicTestProfileStandard)
+	require.Len(t, *emitted, 1)
+	assert.True(t, (*emitted)[0].InAllowance)
+}
+
+func TestRunTracerouteFailedDoesNotTakeAllowance(t *testing.T) {
+	collector, emitted := newAllowanceCollector(t, &tracerouteRunner{func(_ context.Context, _ config.Config) (payload.NetworkPath, error) {
+		return payload.NetworkPath{}, errors.New("boom")
+	}})
+
+	runAllowancePath(collector, payload.DynamicTestProfileStandard)
+	assert.Empty(t, *emitted)
+	assert.True(t, collector.takeStandardAllowance(MockTimeNow()))
+}
+
+func TestRunTracerouteInvalidPathDoesNotTakeAllowance(t *testing.T) {
+	collector, emitted := newAllowanceCollector(t, &tracerouteRunner{func(_ context.Context, cfg config.Config) (payload.NetworkPath, error) {
+		return payload.NetworkPath{
+			Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
+			Traceroute: payload.Traceroute{
+				Runs: []payload.TracerouteRun{{
+					Destination: payload.TracerouteDestination{IPAddress: net.IP{}, Port: cfg.DestPort},
+				}},
+			},
+		}, nil
+	}})
+
+	runAllowancePath(collector, payload.DynamicTestProfileStandard)
+	assert.Empty(t, *emitted)
+	assert.True(t, collector.takeStandardAllowance(MockTimeNow()))
+}
+
+func newAllowanceCollector(t *testing.T, traceroute *tracerouteRunner) (*npCollectorImpl, *[]payload.NetworkPath) {
+	t.Helper()
 	_, collector := newTestNpCollector(t, map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.filters":              []map[string]any{},
-	}, &teststatsd.Client{}, &tracerouteRunner{func(_ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
+	}, &teststatsd.Client{}, traceroute)
+
+	var emitted []payload.NetworkPath
+	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
+	collector.epForwarder = mockEpForwarder
+	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), eventplatform.EventTypeNetworkPath).
+		DoAndReturn(func(msg *message.Message, _ string) error {
+			var path payload.NetworkPath
+			require.NoError(t, json.Unmarshal(msg.GetContent(), &path))
+			emitted = append(emitted, path)
+			return nil
+		}).AnyTimes()
+	return collector, &emitted
+}
+
+func succeedingAllowanceTraceroute() *tracerouteRunner {
+	return &tracerouteRunner{func(_ context.Context, cfg config.Config) (payload.NetworkPath, error) {
 		return payload.NetworkPath{
 			Protocol: cfg.Protocol,
 			Destination: payload.NetworkPathDestination{
@@ -50,45 +165,28 @@ func TestRunTracerouteForPathAllowance(t *testing.T) {
 				}},
 			},
 		}, nil
-	}})
-	collector.TimeNowFn = func() time.Time { return now }
+	}}
+}
 
-	var emitted []payload.NetworkPath
-	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
-	collector.epForwarder = mockEpForwarder
-	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), eventplatform.EventTypeNetworkPath).
-		DoAndReturn(func(msg *message.Message, _ string) error {
-			var path payload.NetworkPath
-			require.NoError(t, json.Unmarshal(msg.GetContent(), &path))
-			emitted = append(emitted, path)
-			return nil
-		}).AnyTimes()
+func runAllowancePath(collector *npCollectorImpl, profile payload.DynamicTestProfile) {
+	collector.runTracerouteForPath(&pathteststore.PathtestContext{
+		Pathtest: &common.Pathtest{
+			Hostname:           "10.0.0.2",
+			Port:               443,
+			Protocol:           payload.ProtocolTCP,
+			Origin:             payload.PathOriginNetworkTraffic,
+			DynamicTestProfile: profile,
+		},
+	})
+}
 
-	run := func(profile payload.DynamicTestProfile) {
-		collector.runTracerouteForPath(&pathteststore.PathtestContext{
-			Pathtest: &common.Pathtest{
-				Hostname:           "10.0.0.2",
-				Port:               443,
-				Protocol:           payload.ProtocolTCP,
-				Origin:             payload.PathOriginNetworkTraffic,
-				DynamicTestProfile: profile,
-			},
-		})
-	}
-
-	for i := 0; i < standardAllowancePerHour+2; i++ {
-		run(payload.DynamicTestProfileStandard)
-	}
-	require.Len(t, emitted, standardAllowancePerHour+2)
-	for i, path := range emitted {
-		assert.Equal(t, i < standardAllowancePerHour, path.InAllowance)
-	}
-
-	now = now.Add(time.Hour)
-	emitted = nil
-	run(payload.DynamicTestProfileStandard)
-	run(payload.DynamicTestProfileBasic)
-	require.Len(t, emitted, 2)
-	assert.True(t, emitted[0].InAllowance)
-	assert.True(t, emitted[1].InAllowance)
+func runAllowanceNetflowPath(collector *npCollectorImpl) {
+	collector.runTracerouteForPath(&pathteststore.PathtestContext{
+		Pathtest: &common.Pathtest{
+			Hostname: "10.0.0.2",
+			Port:     443,
+			Protocol: payload.ProtocolTCP,
+			Origin:   payload.PathOriginNetflow,
+		},
+	})
 }

@@ -72,6 +72,7 @@ func TestNetworkPathInAllowanceJSON(t *testing.T) {
 		expectField bool
 	}{
 		{name: "unset"},
+		{name: "false"},
 		{name: "true", inAllowance: true, expectField: true},
 	}
 	for _, tt := range tests {
@@ -88,6 +89,12 @@ func TestNetworkPathInAllowanceJSON(t *testing.T) {
 			require.Equal(t, true, decoded["in_allowance"])
 		})
 	}
+}
+
+func TestNetworkPathInAllowanceMissingJSONUnmarshalsFalse(t *testing.T) {
+	var path NetworkPath
+	require.NoError(t, json.Unmarshal([]byte(`{}`), &path))
+	require.False(t, path.InAllowance)
 }
 
 func TestICMPMode(t *testing.T) {
