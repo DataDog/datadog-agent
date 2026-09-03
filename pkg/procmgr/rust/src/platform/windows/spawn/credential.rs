@@ -42,8 +42,12 @@ impl SpawnCredential {
     }
 
     pub(crate) fn duplicate_primary_token(&self, process_name: &str) -> Result<HANDLE> {
-        if self.account().spawns_with_supervisor_token()
-            .with_context(|| format!("[{process_name}] compare spawn account to supervisor token"))?
+        if self
+            .account()
+            .spawns_with_supervisor_token()
+            .with_context(|| {
+                format!("[{process_name}] compare spawn account to supervisor token")
+            })?
         {
             let supervisor_token = open_current_process_token(TOKEN_QUERY | TOKEN_DUPLICATE)
                 .map_err(|e| {

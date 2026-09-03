@@ -15,9 +15,7 @@ use windows_sys::Win32::Security::{
 use super::account_name::AccountName;
 use super::agent_service_sid::lookup_installed_user_sid;
 #[cfg(not(test))]
-use super::agent_service_sid::{
-    DATADOG_AGENT_SERVICE, service_runs_as_agent_user,
-};
+use super::agent_service_sid::{DATADOG_AGENT_SERVICE, service_runs_as_agent_user};
 use super::local_account::is_local_account;
 #[cfg(not(test))]
 use super::scm_lsa_secret::read_scm_service_password;
