@@ -282,6 +282,7 @@ struct imds_event_t {
     struct cgroup_context_t cgroup;
     struct network_context_t network;
 
+    u32 credential_source;
     u8 body[IMDS_MAX_LENGTH];
 };
 

@@ -91,6 +91,15 @@ enum TC_RAWPACKET_KEYS {
 #define IMDS_EVENT_KEY 0
 #define IMDS_MAX_LENGTH 2048
 
+// which credential endpoint served an EVENT_IMDS event
+enum CREDENTIAL_SOURCE {
+    CREDENTIAL_SOURCE_UNKNOWN = 0,
+    CREDENTIAL_SOURCE_IMDS,
+    CREDENTIAL_SOURCE_EKS_POD_IDENTITY,
+    // reserved, not populated yet
+    CREDENTIAL_SOURCE_ECS,
+};
+
 #define STATE_NULL 0
 #define STATE_NEWLINK 1
 #define STATE_REGISTER_PEER_DEVICE 2
@@ -212,12 +221,6 @@ static __attribute__((always_inline)) u64 is_anomaly_syscalls_enabled() {
     u64 anomaly;
     LOAD_CONSTANT("anomaly_syscalls", anomaly);
     return anomaly;
-};
-
-static __attribute__((always_inline)) u64 get_imds_ip() {
-    u64 imds_ip;
-    LOAD_CONSTANT("imds_ip", imds_ip);
-    return imds_ip;
 };
 
 static __attribute__((always_inline)) u64 get_capabilities_monitoring_period() {
