@@ -207,8 +207,7 @@ build do
     end
 
     if linux_target?
-      command "dda inv -- -e rshell.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-      copy 'bin/rshell/rshell', "#{install_dir}/embedded/bin"
+      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/rshell:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
       command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/par-control:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     end
   end

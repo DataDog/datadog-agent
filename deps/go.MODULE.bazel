@@ -56,6 +56,14 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=trivy_no_javadb"],
     path = "github.com/aquasecurity/trivy",
 )
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:go_visibility @@//pkg/privateactionrunner/rshell:__pkg__",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry @@//pkg/fleet/installer/telemetry:telemetry",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state:state",
+    ],
+    path = "github.com/DataDog/rshell",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",
