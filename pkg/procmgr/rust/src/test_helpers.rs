@@ -256,7 +256,7 @@ pub fn expected_runtime_user_for_pid(pid: u32) -> String {
 
 #[cfg(windows)]
 pub fn privileged_process_agent_command_line() -> (String, Vec<String>) {
-    let install_root = crate::platform::windows::install_root_for_tests();
+    let install_root = crate::platform::install_root_for_tests();
     let etc_root = crate::platform::program_data_root();
     let command = install_root
         .join(r"bin\agent\process-agent.exe")
