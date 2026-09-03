@@ -60,6 +60,12 @@ type StorageConfig struct {
 	// this to true alongside MaxCorrelations=-1 to retain the full history for
 	// replay analysis.
 	TrackCorrelationHistory bool
+
+	// TrackAnomalyHistory enables full raw anomaly history for replay/debug
+	// introspection. Default false: live production keeps only a bounded dedup
+	// cache because reporters consume advance-local anomalies directly. The
+	// testbench enables this to display every anomaly from a finite replay.
+	TrackAnomalyHistory bool
 }
 
 // DefaultStorageConfig returns the hard-coded production defaults.
@@ -70,7 +76,7 @@ func DefaultStorageConfig() StorageConfig {
 		PointRetentionSecs:                 storagePointRetentionSecs,
 		InactiveSeriesTTLSeconds:           storageInactiveSeriesTTLSeconds,
 		InactiveSeriesCheckIntervalSeconds: storageInactiveSeriesCheckIntervalSeconds,
-		// TrackCorrelationHistory defaults to false: live agent incurs no overhead.
+		// History tracking defaults to false: live agent incurs no replay-only overhead.
 	}
 }
 
@@ -124,12 +130,6 @@ type timeSeriesStorage struct {
 	// reference count. When the count drops to zero on eviction the entry is
 	// deleted. Protected by s.mu (write lock).
 	tagIntern map[uint64]*tagInternEntry
-
-	// Drop accounting for invalid/unsafe input values.
-	droppedNonFinite int64
-	droppedExtreme   int64
-	droppedByMetric  map[string]int64
-	sampledDrops     map[string]int
 }
 
 // tagInternEntry is the value stored in timeSeriesStorage.tagIntern.
@@ -140,11 +140,20 @@ type tagInternEntry struct {
 	count int
 }
 
-// pointBucket contains the summary statistics for one one-second bucket.
+// pointBucket contains the timestamp and sum for one one-second bucket.
+// A count of one is implicit; seriesStats allocates a parallel count vector
+// only after multiple samples land in the same bucket.
 type pointBucket struct {
 	timestamp int64
 	sum       float64
-	count     int64
+}
+
+// bucketCounts holds explicit per-bucket sample counts for series that have
+// observed at least one same-second merge. Keeping the slice behind a pointer
+// adds one word per series while reducing the common point payload from 24 to
+// 16 bytes. Series whose buckets all contain one sample never allocate it.
+type bucketCounts struct {
+	values []int64
 }
 
 // seriesStats contains accumulated statistics for a time series (internal).
@@ -173,6 +182,7 @@ type seriesStats struct {
 	writeGeneration int64
 
 	buckets []pointBucket
+	counts  *bucketCounts
 }
 
 func aggregateMask(agg observer.Aggregate) uint8 {
@@ -184,12 +194,58 @@ func (s *seriesStats) pointCount() int {
 	return len(s.buckets)
 }
 
+// countAt returns the sample count for bucket i. A nil explicit count vector
+// means every bucket contains exactly one sample.
+func (s *seriesStats) countAt(i int) int64 {
+	if s.counts == nil {
+		return 1
+	}
+	return s.counts.values[i]
+}
+
+// incrementCount materializes exact counts on the first same-second merge.
+func (s *seriesStats) incrementCount(i int) {
+	if s.counts == nil {
+		// Most merged series keep receiving samples. A small initial reserve
+		// avoids growing the parallel vector on every early bucket without
+		// imposing the full retention-window cost on a one-off merge.
+		countCapacity := max(8, cap(s.buckets))
+		values := make([]int64, len(s.buckets), countCapacity)
+		for j := range values {
+			values[j] = 1
+		}
+		s.counts = &bucketCounts{values: values}
+	}
+	s.counts.values[i]++
+}
+
+// insertCount appends the implicit count for a newly inserted bucket when a
+// series already has an explicit count vector.
+func (s *seriesStats) insertCount(i int) {
+	if s.counts == nil {
+		return
+	}
+	values := append(s.counts.values, 0)
+	copy(values[i+1:], values[i:])
+	values[i] = 1
+	s.counts.values = values
+}
+
+// trimBuckets removes the oldest n buckets and keeps an explicit count vector
+// aligned with the point data.
+func (s *seriesStats) trimBuckets(n int) {
+	s.buckets = trimFront(s.buckets, n)
+	if s.counts != nil {
+		s.counts.values = trimFront(s.counts.values, n)
+	}
+}
+
 // sampleCount returns the total number of samples for a series.
 // A point can contain multiple samples if it is aggregated.
 func (s *seriesStats) sampleCount() int64 {
 	count := int64(0)
-	for _, bucket := range s.buckets {
-		count += bucket.count
+	for i := range s.buckets {
+		count += s.countAt(i)
 	}
 	return count
 }
@@ -207,16 +263,17 @@ const (
 // aggregateAt extracts the specified statistic at index i.
 func (s *seriesStats) aggregateAt(i int, agg Aggregate) float64 {
 	bucket := s.buckets[i]
+	count := s.countAt(i)
 	switch agg {
 	case AggregateAverage:
-		if bucket.count == 0 {
+		if count == 0 {
 			return 0
 		}
-		return bucket.sum / float64(bucket.count)
+		return bucket.sum / float64(count)
 	case AggregateSum:
 		return bucket.sum
 	case AggregateCount:
-		return float64(bucket.count)
+		return float64(count)
 	default:
 		return 0
 	}
@@ -260,8 +317,6 @@ func newTimeSeriesStorageWith(cfg StorageConfig) *timeSeriesStorage {
 		seriesIDStats:         make(map[observer.SeriesRef]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		tagIntern:             make(map[uint64]*tagInternEntry),
-		droppedByMetric:       make(map[string]int64),
-		sampledDrops:          make(map[string]int),
 	}
 }
 
@@ -275,7 +330,7 @@ type AddResult struct {
 }
 
 // Add inserts a (namespace, name, value, timestamp, tags) point into storage.
-// Invalid values are dropped at ingest with accounting and sampled logging.
+// Invalid values are dropped at ingest.
 // Timestamps are maintained in sorted order so replay and live ingestion remain
 // correct even when data arrives out of order.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) AddResult {
@@ -283,13 +338,11 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	defer s.mu.Unlock()
 
 	if math.IsInf(value, 0) || math.IsNaN(value) {
-		s.recordDroppedValue("non_finite", namespace, name, value, timestamp, tags)
 		return AddResult{Ref: -1}
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
 	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
-		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return AddResult{Ref: -1}
 	}
 	h := seriesKeyHash(namespace, name, tags)
@@ -359,15 +412,15 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	if idx < len(stats.buckets) && stats.buckets[idx].timestamp == bucket {
 		// Update existing bucket in-place.
 		stats.buckets[idx].sum += value
-		stats.buckets[idx].count++
+		stats.incrementCount(idx)
 		return res
 	}
 
 	stats.buckets = insertBucket(stats.buckets, idx, pointBucket{
 		timestamp: bucket,
 		sum:       value,
-		count:     1,
 	})
+	stats.insertCount(idx)
 
 	retentionSecs := s.cfg.PointRetentionSecs
 	if stats.retentionOverrideSecs > 0 {
@@ -379,13 +432,13 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		// points don't shift the cutoff backwards and over-retain stale data.
 		latestTS := stats.buckets[len(stats.buckets)-1].timestamp
 		if trim := searchAfter(stats.buckets, latestTS-retentionSecs-1); trim > 0 {
-			stats.buckets = trimFront(stats.buckets, trim)
+			stats.trimBuckets(trim)
 		}
 	}
 	if s.cfg.MaxPointsPerSeries > 0 {
 		physicalCapacity := s.cfg.MaxPointsPerSeries + 1
 		if trim := len(stats.buckets) - physicalCapacity; trim > 0 {
-			stats.buckets = trimFront(stats.buckets, trim)
+			stats.trimBuckets(trim)
 		}
 	}
 	return res
@@ -405,35 +458,6 @@ func insertBucket(s []pointBucket, idx int, v pointBucket) []pointBucket {
 	copy(s[idx+1:], s[idx:])
 	s[idx] = v
 	return s
-}
-
-func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, value float64, timestamp int64, tags []string) {
-	switch reason {
-	case "non_finite":
-		s.droppedNonFinite++
-	case "extreme":
-		s.droppedExtreme++
-	}
-
-	metricKey := namespace + "|" + name
-	s.droppedByMetric[metricKey]++
-	sampled := s.sampledDrops[metricKey]
-	if sampled < 3 {
-		s.sampledDrops[metricKey] = sampled + 1
-		logging.Warnf("dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
-			reason, namespace, name, value, timestamp, tags, sampled+1)
-	}
-}
-
-func (s *timeSeriesStorage) DroppedValueStats() (nonFinite int64, extreme int64, byMetric map[string]int64) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	byMetric = make(map[string]int64, len(s.droppedByMetric))
-	for k, v := range s.droppedByMetric {
-		byMetric[k] = v
-	}
-	return s.droppedNonFinite, s.droppedExtreme, byMetric
 }
 
 // GetSeries returns the series using the specified aggregation.
@@ -967,7 +991,7 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 			ds.Points = append(ds.Points, dumpPoint{
 				Timestamp: st.buckets[i].timestamp,
 				Sum:       st.buckets[i].sum,
-				Count:     st.buckets[i].count,
+				Count:     st.countAt(i),
 			})
 		}
 		out = append(out, ds)
@@ -1123,6 +1147,18 @@ func (s *timeSeriesStorage) SetSeriesRetention(ref observer.SeriesRef, retention
 	if stats := s.resolveByID(ref); stats != nil {
 		stats.retentionOverrideSecs = max(retentionSecs, 0)
 	}
+}
+
+// pointRetentionForSeries returns the effective point-retention window for a
+// series. Missing series use the storage-wide value, which also provides the
+// fallback for anomalies that do not have a storage-backed source.
+func (s *timeSeriesStorage) pointRetentionForSeries(ref observer.SeriesRef) int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if stats := s.resolveByID(ref); stats != nil && stats.retentionOverrideSecs > 0 {
+		return stats.retentionOverrideSecs
+	}
+	return s.cfg.PointRetentionSecs
 }
 
 // SetSeriesActivityTimestamp overrides the timestamp used to rank a series for
@@ -1507,7 +1543,7 @@ func (s *timeSeriesStorage) GetSeriesRange(ref observer.SeriesRef, start, end in
 		for i := 0; i < resultLen; i++ {
 			points[i] = observer.Point{
 				Timestamp: stats.buckets[lo+i].timestamp,
-				Value:     float64(stats.buckets[lo+i].count),
+				Value:     float64(stats.countAt(lo + i)),
 			}
 		}
 	default: // AggregateAverage and any unknown
@@ -1625,8 +1661,8 @@ func (s *timeSeriesStorage) SumRange(ref observer.SeriesRef, start, end int64, a
 			total += bucket.sum
 		}
 	case AggregateCount:
-		for _, bucket := range stats.buckets[lo:hi] {
-			total += float64(bucket.count)
+		for i := lo; i < hi; i++ {
+			total += float64(stats.countAt(i))
 		}
 	default: // AggregateAverage
 		for i := lo; i < hi; i++ {
