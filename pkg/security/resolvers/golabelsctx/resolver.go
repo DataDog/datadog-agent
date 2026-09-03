@@ -56,6 +56,10 @@ type Resolver struct {
 // It returns the zero values when the id is stale (ring reuse) or the labels
 // carry no span context.
 func (r *Resolver) Resolve(ctxID uint32) (spanID uint64, traceID utils.TraceID, err error) {
+	if r == nil || r.ctxMap == nil {
+		return 0, utils.TraceID{}, fmt.Errorf("go labels context resolver is not initialized")
+	}
+
 	key := ctxID % maxEntries
 
 	var entry kernelLabelsEntry
