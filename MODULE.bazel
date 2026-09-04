@@ -106,9 +106,9 @@ archive_override(
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
     ],
-    sha256 = "9f066d4ad363d049b7b6c3c7f64d73e5ba36caf065fab51848a540a49ab1bb49",
-    strip_prefix = "rules_go-f6afe7478c645595839adc211644e6e5474d9fd3",
-    urls = ["https://github.com/bazel-contrib/rules_go/archive/f6afe7478c645595839adc211644e6e5474d9fd3.tar.gz"],  # master as of September 3, 2026
+    sha256 = "536772e5ff9733b495a47b9da599a10a8653392aa4012533ac66547881941c07",
+    strip_prefix = "rules_go-975884f705a9721a3c39bad4033852b0b795a3ce",
+    urls = ["https://github.com/bazel-contrib/rules_go/archive/975884f705a9721a3c39bad4033852b0b795a3ce.tar.gz"],  # master as of September 4, 2026
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
