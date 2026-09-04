@@ -206,22 +206,19 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 					}
 				}
 			}
-			if dims["name"] != "" && dims["resource_group"] != "" && dims["subscription_id"] != "" {
-				// The actual unique identifier for an Azure Container App is its subscription id,
-				// resource group, and name combination
-				primary := dims["replica"]
-				if primary == "" {
-					primary = dims["name"]
-				}
-				return source.Source{
-					Kind:       source.AzureContainerAppsKind,
-					Identifier: primary,
-					SourceIdentifier: source.SourceIdentifier{
-						Primary:    primary,
-						Dimensions: dims,
-					},
-				}, true
+
+			primary := dims["replica"]
+			if primary == "" {
+				primary = dims["name"]
 			}
+			return source.Source{
+				Kind:       source.AzureContainerAppsKind,
+				Identifier: primary,
+				SourceIdentifier: source.SourceIdentifier{
+					Primary:    primary,
+					Dimensions: dims,
+				},
+			}, true
 		}
 	}
 
@@ -237,4 +234,9 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 	}
 
 	return source.Source{}, false
+}
+
+// // The unique identifier for an Azure Container App is its subscription id, resource group, and name combination
+func IsAzureContainerAppsIdentified(dims map[string]string) bool {
+	return dims["name"] != "" && dims["resource_group"] != "" && dims["subscription_id"] != ""
 }

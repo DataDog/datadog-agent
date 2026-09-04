@@ -294,14 +294,21 @@ func TestSourceFromAttrs(t *testing.T) {
 			},
 		},
 		{
-			name: "Azure Container Apps (missing identifying attributes, falls through unidentified)",
+			name: "Azure Container Apps (missing identifying attributes, still classified as ACA but unidentified)",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey):          conventions.CloudProviderAzure.Value.AsString(),
 				string(conventions.CloudPlatformKey):          semconv1_43.CloudPlatformAzureContainerApps.Value.AsString(),
 				string(semconv1_43.AzureResourceGroupNameKey): "my-rg",
 			}),
-			ok:  false,
-			src: source.Source{},
+			ok: true,
+			src: source.Source{
+				Kind: source.AzureContainerAppsKind,
+				SourceIdentifier: source.SourceIdentifier{
+					Dimensions: map[string]string{
+						"resource_group": "my-rg",
+					},
+				},
+			},
 		},
 		{
 			name: "GCP",

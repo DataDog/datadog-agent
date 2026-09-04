@@ -155,8 +155,9 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					c.ConsumeTagSet("fargate", []string{src.Tag()})
 				}
 			case source.AzureContainerAppsKind:
-				if c, ok := consumer.(TagSetConsumer); ok {
-					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				dims := src.SourceIdentifier.Dimensions
+				if c, ok := consumer.(TagSetConsumer); ok && attributes.IsAzureContainerAppsIdentified(dims) {
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(dims))
 				}
 			}
 		}
