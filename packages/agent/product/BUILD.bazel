@@ -12,6 +12,7 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
+load("//bazel/rules/dd_packaging:dd_pkg_strip_transform.bzl", "dd_pkg_files_stripped")
 load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
 
 package(default_visibility = ["//packages:__subpackages__"])
@@ -80,6 +81,23 @@ pkg_filegroup(
     }),
 )
 
+# The debug-symbol counterpart to :all_files: for every binary that
+# dd_pkg_files_stripped split debug info off of, this carries the debug
+# artifact (a .debug file, a .dSYM bundle, or -- on Windows, which has no
+# split-DWARF story -- the unstripped original) instead of the stripped
+# binary itself. Non-binary files (configs, dirs, python sources, ...) have
+# no debug counterpart and are intentionally not included here; see
+# dd_pkg_strip_transform.bzl's "debug_only" mode.
+pkg_filegroup(
+    name = "all_files_debug",
+    srcs = [
+        ":dda_built_agent_binary_debug",
+        ":dda_built_privateactionrunner_binary_debug",
+        ":dda_built_process_agent_binary_debug",
+        ":dda_built_trace_agent_binary_debug",
+    ],
+)
+
 # All the components to be installed in {install_dir} during the build during the migration.
 # This is the subset of :all_files that we need to place in install_dir so the omnibus
 # packaging can pick them up. When we can build the packages with bazel rules, this goes
@@ -132,7 +150,7 @@ pkg_files(
     },
 )
 
-pkg_files(
+dd_pkg_files_stripped(
     name = "dda_built_agent_binary",
     srcs = [
         "@agent_binary//:agent",
@@ -141,7 +159,7 @@ pkg_files(
     prefix = "bin/agent",
 )
 
-pkg_files(
+dd_pkg_files_stripped(
     name = "dda_built_process_agent_binary",
     srcs = [
         "@process_agent_binary//:process_agent",
@@ -153,7 +171,7 @@ pkg_files(
     }),
 )
 
-pkg_files(
+dd_pkg_files_stripped(
     name = "dda_built_privateactionrunner_binary",
     srcs = [
         "@privateactionrunner_binary//:privateactionrunner",
@@ -162,7 +180,7 @@ pkg_files(
     prefix = "embedded/bin",
 )
 
-pkg_files(
+dd_pkg_files_stripped(
     name = "dda_built_trace_agent_binary",
     srcs = [
         "@trace_agent_binary//:trace_agent",

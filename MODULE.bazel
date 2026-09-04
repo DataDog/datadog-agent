@@ -210,6 +210,12 @@ register_toolchains(
     "//bazel/toolchains/rpath_rewriter:patchelf_toolchain",
 )
 
+register_toolchains(
+    "//bazel/toolchains/dd_strip:dd_strip_linux_toolchain",
+    "//bazel/toolchains/dd_strip:dd_strip_macos_toolchain",
+    "//bazel/toolchains/dd_strip:dd_strip_windows_toolchain",
+)
+
 find_rpmbuild = use_extension("@rules_pkg//toolchains/rpm:rpmbuild_configure.bzl", "find_system_rpmbuild_bzlmod", dev_dependency = True)
 use_repo(find_rpmbuild, "rules_pkg_rpmbuild")
 

@@ -214,7 +214,21 @@ This target is removed once the omnibus recipe is deleted.
 - **Version stamping**: all products currently hardcode `version = "7"`. In the future
   we will get that from the pipeine (equivalent to `build_version ENV['PACKAGE_VERSION']`).
 - **RHEL vs SUSE constraint**: omnibus distinguishes RHEL and SUSE builds in different pipelines. Going forward we'll just have different targets for them, and always build both in the same pipeline.
-- **Symbol stripping / signing**: `strip_build`, `windows_symbol_stripping_file`,
-  `inspect_binary`, and `sign_file` are not yet migrated.
+- **Symbol stripping**: migrated. `pkg_files` for shipped binaries has been
+  replaced with `dd_pkg_files_stripped` (see
+  `//bazel/rules/dd_packaging:dd_pkg_strip_transform.bzl`), which strips
+  object files at packaging time and splits debug info into a parallel
+  `name + "_debug"` target (Linux: `objcopy`-split `.debug` + debuglink;
+  macOS: `strip -x` + a `dsymutil` `.dSYM`; Windows: `strip`'d binary plus the
+  unstripped original, matching `windows_symbol_stripping_file` -- mingw has
+  no split-DWARF story). `packages/agent/product:all_files_debug` and
+  `packages/installer/windows:installer_components_debug` collect the debug
+  siblings. `inspect_binary` (verifying a shipped binary is actually
+  stripped) and `sign_file` are still not migrated.
+  Depends on: whatever builds the underlying binary must not pre-strip it
+  (there is nothing left to split debug info from otherwise) -- see
+  `bazel/configs/system_probe_lite.bazelrc`'s note on this for the Rust
+  build; the `dda`/omnibus-built Go binaries have the same requirement but it
+  is out of scope for this change.
 - **Transitive deps**: `//packages/agent/linux:transitive_deps` is a temporary
   catch-all. It shrinks as deps grow proper Bazel targets. See ABLD-363.
