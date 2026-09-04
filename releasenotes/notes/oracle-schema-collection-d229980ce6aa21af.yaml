@@ -11,8 +11,8 @@ features:
     [oracle] Add Oracle database schema collection. The Agent can now collect
     metadata about the containers/PDBs, schemas, tables, views, columns,
     indexes, and constraints of the Oracle databases it monitors, and emits
-    it for Data Observability and Database Monitoring to consume. Schema
-    collection is opt-in: set ``schemas.enabled: true`` on an instance that
-    also has ``dbm: true`` or ``data_observability.enabled: true``.
+    it for Datadog products to consume. Schema collection is disabled by
+    default: set ``schemas.enabled: true`` on an instance that also has
+    ``dbm: true`` or ``data_observability.enabled: true``.
     Collection can be tuned and scoped down through additional ``schemas.*``
     options, such as table/column limits and include/exclude filters.

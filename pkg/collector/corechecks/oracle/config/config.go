@@ -78,7 +78,6 @@ type TablespacesConfig struct {
 	CollectionInterval int64 `yaml:"collection_interval"`
 }
 
-// SchemasConfig configures table and column metadata collection.
 type SchemasConfig struct {
 	Enabled            bool     `yaml:"enabled"`
 	CollectionInterval int64    `yaml:"collection_interval"`
@@ -106,9 +105,6 @@ func (c SchemasConfig) MaxQueryDurationDuration() time.Duration {
 	return time.Duration(c.MaxQueryDuration) * time.Second
 }
 
-// DataObservabilityConfig gates schema collection alongside dbm, matching the Postgres check's
-// data_observability.enabled. Only the gate is implemented here; the monitor-query fields
-// Postgres carries on this block belong to a different component.
 type DataObservabilityConfig struct {
 	Enabled bool `yaml:"enabled"`
 }

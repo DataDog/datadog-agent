@@ -458,10 +458,6 @@ type modificationsDetail struct {
 	LastModified string `json:"last_modified,omitempty"`
 }
 
-// indexKeyPart is one position of an index's key, in key order. Exactly one field is set: Column
-// for an ordinary key column, Expression for a function-based index's expression (a column name
-// can itself contain parentheses via a quoted identifier, so the text alone cannot tell the two
-// apart -- which field is populated is what does).
 type indexKeyPart struct {
 	Column     string `json:"column,omitempty"`
 	Expression string `json:"expression,omitempty"`
@@ -500,7 +496,6 @@ type externalDetail struct {
 	Locations    []string `json:"locations,omitempty"`
 }
 
-// objectTypeDetail names the object type backing an object table (CREATE TABLE t OF type_t).
 type objectTypeDetail struct {
 	TypeOwner string `json:"type_owner,omitempty"`
 	TypeName  string `json:"type_name"`
