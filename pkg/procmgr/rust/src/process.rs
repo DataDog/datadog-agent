@@ -12,8 +12,20 @@ use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{info, warn};
 use std::collections::VecDeque;
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{self, Duration, Instant};
+
+pub(crate) struct ExitEvent {
+    pub name: String,
+    pub pid: u32,
+    pub status: std::process::ExitStatus,
+}
+
+#[cfg(test)]
+pub(crate) fn test_exit_channel() -> (mpsc::Sender<ExitEvent>, mpsc::Receiver<ExitEvent>) {
+    mpsc::channel(8)
+}
 
 // ---------------------------------------------------------------------------
 // RestartTracker
@@ -244,7 +256,7 @@ impl ManagedProcess {
         true
     }
 
-    pub fn spawn(&mut self) -> Result<()> {
+    pub(crate) fn spawn(&mut self, exit_tx: mpsc::Sender<ExitEvent>) -> Result<()> {
         if !self.state.can_transition_to(ProcessState::Starting) {
             bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
         }
@@ -255,8 +267,40 @@ impl ManagedProcess {
             #[cfg(windows)]
             self.clear_windows_spawn_resources();
             self.transition_to(ProcessState::Failed);
+            return result;
         }
+        self.start_exit_watcher(exit_tx);
         result
+    }
+
+    fn start_exit_watcher(&mut self, tx: mpsc::Sender<ExitEvent>) {
+        let Some(mut handle) = self.take_handle() else {
+            return;
+        };
+        let name = self.name().to_owned();
+        let pid = self.pid().unwrap_or(0);
+        let watcher_handle = tokio::spawn(async move {
+            let status = match handle.wait().await {
+                Ok(status) => status,
+                Err(e) => {
+                    warn!("[{name}] wait error: {e}, killing process");
+                    let _ = handle.kill().await;
+                    match handle.wait().await {
+                        Ok(s) => s,
+                        Err(e2) => {
+                            warn!("[{name}] failed to reap after kill: {e2}");
+                            return;
+                        }
+                    }
+                }
+            };
+            let _ = tx.try_send(ExitEvent {
+                name,
+                pid,
+                status,
+            });
+        });
+        self.set_watcher_handle(watcher_handle);
     }
 
     fn try_spawn(&mut self) -> Result<()> {
@@ -283,7 +327,7 @@ impl ManagedProcess {
         self.state.is_alive()
     }
 
-    pub fn take_handle(&mut self) -> Option<ProcessHandle> {
+    pub(crate) fn take_handle(&mut self) -> Option<ProcessHandle> {
         self.handle.take()
     }
 
@@ -291,7 +335,7 @@ impl ManagedProcess {
         self.handle.is_some()
     }
 
-    pub(crate) fn set_watcher_handle(&mut self, handle: JoinHandle<()>) {
+    fn set_watcher_handle(&mut self, handle: JoinHandle<()>) {
         self.watcher_handle = Some(handle);
     }
 
@@ -506,6 +550,12 @@ pub mod tests {
     #[cfg(unix)]
     use nix::sys::signal::Signal;
 
+    fn spawn_ok(proc: &mut ManagedProcess) -> mpsc::Receiver<ExitEvent> {
+        let (tx, rx) = test_exit_channel();
+        proc.spawn(tx).unwrap();
+        rx
+    }
+
     // -- ${VAR} expansion tests --
 
     #[test]
@@ -590,11 +640,11 @@ pub mod tests {
         );
         assert_eq!(proc.state(), ProcessState::Created);
 
-        proc.spawn().unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
         assert_eq!(proc.state(), ProcessState::Running);
         assert!(proc.is_running());
 
-        let status = proc.wait().await.unwrap();
+        let status = exit_rx.recv().await.expect("exit event").status;
         assert!(status.success());
         proc.set_last_status(status);
         assert_eq!(proc.state(), ProcessState::Exited);
@@ -609,10 +659,10 @@ pub mod tests {
             test_helpers::test_uuid(),
             test_helpers::make_config(cmd, args),
         );
-        proc.spawn().unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
         assert_eq!(proc.state(), ProcessState::Running);
 
-        let status = proc.wait().await.unwrap();
+        let status = exit_rx.recv().await.expect("exit event").status;
         assert!(!status.success());
         proc.set_last_status(status);
         assert_eq!(proc.state(), ProcessState::Failed);
@@ -626,23 +676,25 @@ pub mod tests {
             test_helpers::test_uuid(),
             test_helpers::make_config(cmd, args),
         );
-        proc.spawn().unwrap();
+        let _exit_rx = spawn_ok(&mut proc);
         assert_eq!(proc.state(), ProcessState::Running);
 
+        // Watcher owns the wait handle after a successful spawn.
         let child = proc.take_handle();
-        assert!(child.is_some());
+        assert!(
+            child.is_none(),
+            "exit watcher takes the child handle on spawn"
+        );
         assert_eq!(
             proc.state(),
             ProcessState::Running,
-            "state should remain Running after take_handle"
+            "state should remain Running after spawn takes the handle for the watcher"
         );
         assert!(proc.is_running());
 
         if let Some(pid) = proc.pid() {
             test_helpers::cleanup_process(pid);
         }
-        let mut child = child.unwrap();
-        let _ = child.wait().await;
     }
 
     #[cfg(unix)]
@@ -654,14 +706,13 @@ pub mod tests {
             test_helpers::test_uuid(),
             test_helpers::make_config(cmd, args),
         );
-        proc.spawn().unwrap();
-        let mut child = proc.take_handle().unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
 
         proc.send_signal(Signal::SIGTERM);
-        let status = child.wait().await.unwrap();
+        let status = exit_rx.recv().await.expect("exit event").status;
         assert!(
             !status.success(),
-            "signal by stored PID should reach child after take_handle"
+            "signal by stored PID should reach child after spawn (watcher owns the handle)"
         );
     }
 
@@ -718,11 +769,11 @@ pub mod tests {
         );
 
         assert!(!proc.is_running());
-        proc.spawn().unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
         assert!(proc.is_running());
 
         proc.request_stop();
-        let status = proc.wait().await.unwrap();
+        let status = exit_rx.recv().await.expect("exit event").status;
         proc.set_last_status(status);
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
@@ -731,7 +782,7 @@ pub mod tests {
     async fn test_spawn_nonexistent_binary() {
         let cfg = test_helpers::make_config("/nonexistent/binary", vec![]);
         let mut proc = ManagedProcess::new_config("bad".into(), test_helpers::test_uuid(), cfg);
-        assert!(proc.spawn().is_err());
+        assert!(proc.spawn(test_exit_channel().0).is_err());
         assert!(!proc.is_running());
         assert_eq!(proc.state(), ProcessState::Failed);
     }
@@ -744,17 +795,16 @@ pub mod tests {
             test_helpers::test_uuid(),
             test_helpers::make_config(cmd, args),
         );
-        proc.spawn().unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
         proc.request_stop();
-        let mut child = proc.take_handle().unwrap();
-        let status = child.wait().await.unwrap();
+        let status = exit_rx.recv().await.expect("exit event").status;
         proc.set_last_status(status);
         assert_eq!(proc.state(), ProcessState::Stopped);
 
         let mut bad_cfg = proc.config().clone();
         bad_cfg.command = "/nonexistent/binary".to_string();
         proc.set_config(bad_cfg);
-        assert!(proc.spawn().is_err());
+        assert!(proc.spawn(test_exit_channel().0).is_err());
         assert_eq!(
             proc.state(),
             ProcessState::Failed,
@@ -770,8 +820,8 @@ pub mod tests {
 
         let mut proc =
             ManagedProcess::new_config("env-test".into(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
-        let status = proc.wait().await.unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
         assert_eq!(status.code(), Some(42));
     }
 
@@ -783,8 +833,8 @@ pub mod tests {
             test_helpers::test_uuid(),
             test_helpers::make_config(cmd, args),
         );
-        proc.spawn().unwrap();
-        let status = proc.wait().await.unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
         assert_eq!(status.code(), Some(7));
     }
 
@@ -799,10 +849,10 @@ pub mod tests {
             test_helpers::test_uuid(),
             test_helpers::make_config(cmd, args),
         );
-        proc.spawn().unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
 
         proc.send_signal(Signal::SIGTERM);
-        let status = proc.wait().await.unwrap();
+        let status = exit_rx.recv().await.expect("exit event").status;
         assert!(!status.success());
     }
 
@@ -832,8 +882,8 @@ pub mod tests {
         let cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
         let mut proc =
             ManagedProcess::new_config("clean-env".into(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
-        let status = proc.wait().await.unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
         assert_eq!(
             status.code(),
             Some(0),
@@ -857,8 +907,8 @@ pub mod tests {
         cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
 
         let mut proc = ManagedProcess::new_config("envfile".into(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
-        let status = proc.wait().await.unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
         assert_eq!(
             status.code(),
             Some(0),
@@ -884,8 +934,8 @@ pub mod tests {
 
         let mut proc =
             ManagedProcess::new_config("override".into(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
-        let status = proc.wait().await.unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
         assert_eq!(
             status.code(),
             Some(0),
@@ -901,7 +951,7 @@ pub mod tests {
         let mut proc =
             ManagedProcess::new_config("bad-envfile".into(), test_helpers::test_uuid(), cfg);
         assert!(
-            proc.spawn().is_err(),
+            proc.spawn(test_exit_channel().0).is_err(),
             "spawn should fail if environment_file is missing without - prefix"
         );
         assert!(!proc.is_running());
@@ -914,8 +964,8 @@ pub mod tests {
         cfg.environment_file = Some("-/nonexistent/env".to_string());
         let mut proc =
             ManagedProcess::new_config("optional-envfile".into(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
-        let status = proc.wait().await.unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
         assert!(
             status.success(),
             "spawn should succeed when optional environment_file (- prefix) is missing"
@@ -1103,12 +1153,11 @@ runtime_success_sec: 5
             test_helpers::test_uuid(),
             test_helpers::make_config(cmd, args),
         );
-        proc.spawn().unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
         assert_eq!(proc.state(), ProcessState::Running);
 
         proc.request_stop();
-        let mut child = proc.take_handle().unwrap();
-        let status = child.wait().await.unwrap();
+        let status = exit_rx.recv().await.expect("exit event").status;
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Stopped);
@@ -1120,18 +1169,15 @@ runtime_success_sec: 5
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::OnFailure;
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
 
         proc.request_stop();
-        let _ = proc.take_handle();
-        // Mirrors handle_stop: wait_for_stop may call mark_stopped before the exit
-        // watcher runs set_last_status, leaving stop_requested set without this clear.
-        proc.mark_stopped();
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
 
-        proc.spawn().unwrap();
-        let mut child = proc.take_handle().unwrap();
-        child.kill().await.expect("kill child");
-        let status = child.wait().await.unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
+        test_helpers::cleanup_process(proc.pid().expect("running pid"));
+        let status = exit_rx.recv().await.expect("exit event").status;
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Failed);
@@ -1147,11 +1193,10 @@ runtime_success_sec: 5
         let mut cfg = test_helpers::make_config(cmd, args);
         cfg.restart = RestartPolicy::Always;
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
 
         proc.request_stop();
-        let mut child = proc.take_handle().unwrap();
-        let status = child.wait().await.unwrap();
+        let status = exit_rx.recv().await.expect("exit event").status;
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Stopped);
@@ -1169,10 +1214,9 @@ runtime_success_sec: 5
             test_helpers::test_uuid(),
             test_helpers::make_config(cmd, args),
         );
-        proc.spawn().unwrap();
+        let mut exit_rx = spawn_ok(&mut proc);
 
-        let mut child = proc.take_handle().unwrap();
-        let status = child.wait().await.unwrap();
+        let status = exit_rx.recv().await.expect("exit event").status;
         proc.set_last_status(status);
 
         assert_eq!(

@@ -4,6 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::process::ManagedProcess;
+#[cfg(test)]
+use crate::process::test_exit_channel;
 
 /// Shut down processes in the given index order (typically reverse startup order).
 /// Sends SIGTERM to all first, then waits for each in order.
@@ -41,8 +43,8 @@ mod tests {
 
         let mut p1 = ManagedProcess::new_config("p1".into(), test_helpers::test_uuid(), cfg1);
         let mut p2 = ManagedProcess::new_config("p2".into(), test_helpers::test_uuid(), cfg2);
-        p1.spawn().unwrap();
-        p2.spawn().unwrap();
+        p1.spawn(test_exit_channel().0).unwrap();
+        p2.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![p1, p2];
         shutdown_all(&mut procs).await;
@@ -66,7 +68,7 @@ mod tests {
         cfg.stop_timeout = Some(1);
         let mut proc =
             ManagedProcess::new_config("stubborn".into(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
+        proc.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![proc];
         shutdown_all(&mut procs).await;
@@ -78,8 +80,11 @@ mod tests {
     async fn test_shutdown_all_after_take_child() {
         let mut proc =
             ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), sleep_config());
-        proc.spawn().unwrap();
-        let _child = proc.take_handle();
+        proc.spawn(test_exit_channel().0).unwrap();
+        assert!(
+            proc.take_handle().is_none(),
+            "exit watcher owns the wait handle after spawn"
+        );
 
         assert!(proc.is_running(), "state should still be Running");
         let mut procs = vec![proc];
@@ -99,9 +104,9 @@ mod tests {
             ManagedProcess::new_config("p2".into(), test_helpers::test_uuid(), sleep_config());
         let mut p3 =
             ManagedProcess::new_config("p3".into(), test_helpers::test_uuid(), sleep_config());
-        p1.spawn().unwrap();
-        p2.spawn().unwrap();
-        p3.spawn().unwrap();
+        p1.spawn(test_exit_channel().0).unwrap();
+        p2.spawn(test_exit_channel().0).unwrap();
+        p3.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![p1, p2, p3];
         // Reverse order: p3, p2, p1

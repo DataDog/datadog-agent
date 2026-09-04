@@ -10,7 +10,7 @@ use crate::config::{self, ConfigLoader, ProcessDefinition};
 use crate::grpc;
 use crate::ordering;
 use crate::platform;
-use crate::process::{ManagedProcess, ProcessOrigin};
+use crate::process::{ExitEvent, ManagedProcess, ProcessOrigin};
 use crate::shutdown;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
@@ -18,12 +18,6 @@ use log::{debug, info, warn};
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc, oneshot};
 use tonic::Status;
-
-pub(crate) struct ExitEvent {
-    pub name: String,
-    pub pid: u32,
-    pub status: std::process::ExitStatus,
-}
 
 #[derive(Clone)]
 pub struct ProcessManager {
@@ -56,11 +50,10 @@ impl ProcessManager {
         let mut procs = self.processes.write().await;
         for &idx in order.iter() {
             let proc = &mut procs[idx];
-            if proc.should_start() {
-                match proc.spawn() {
-                    Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-                    Err(e) => warn!("{e:#}"),
-                }
+            if proc.should_start()
+                && let Err(e) = proc.spawn(exit_tx.clone())
+            {
+                warn!("{e:#}");
             }
         }
     }
@@ -178,9 +171,8 @@ impl ProcessManager {
             info!("[{name}] already running, skipping queued restart");
             return;
         }
-        match proc.spawn() {
-            Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-            Err(e) => warn!("[{}] restart failed: {e:#}", proc.name()),
+        if let Err(e) = proc.spawn(exit_tx.clone()) {
+            warn!("[{}] restart failed: {e:#}", proc.name());
         }
     }
 
@@ -217,11 +209,10 @@ impl ProcessManager {
             info!("[{name}] created via RPC (uuid={uuid})");
             procs.push(proc);
             let proc = procs.last_mut().unwrap();
-            if proc.should_start() {
-                match proc.spawn() {
-                    Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-                    Err(e) => warn!("[{name}] auto-start failed: {e:#}"),
-                }
+            if proc.should_start()
+                && let Err(e) = proc.spawn(exit_tx.clone())
+            {
+                warn!("[{name}] auto-start failed: {e:#}");
             }
         }
         let warnings = self.update_startup_order().await;
@@ -243,12 +234,11 @@ impl ProcessManager {
                 proc.name()
             )));
         }
-        proc.spawn()
+        proc.spawn(exit_tx.clone())
             .map_err(|e| Status::internal(format!("failed to start '{}': {e:#}", proc.name())))?;
         let uuid = proc.uuid().to_owned();
         let pid = proc.pid();
         let state = proc.state();
-        spawn_watcher(proc, exit_tx.clone());
         Ok(StartResult { uuid, pid, state })
     }
 
@@ -330,12 +320,10 @@ impl ProcessManager {
                         self.uuid_gen.generate(),
                         np.config,
                     );
-                    if proc.should_start() {
-                        if let Err(e) = proc.spawn() {
-                            warn!("[{}] failed to start: {e:#}", np.name);
-                        } else {
-                            spawn_watcher(&mut proc, exit_tx.clone());
-                        }
+                    if proc.should_start()
+                        && let Err(e) = proc.spawn(exit_tx.clone())
+                    {
+                        warn!("[{}] failed to start: {e:#}", np.name);
                     }
                     added.push(np.name);
                     procs.push(proc);
@@ -351,10 +339,8 @@ impl ProcessManager {
                 if let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) {
                     proc.wait_for_stop().await;
                     info!("[{name}] restarting with updated config");
-                    if let Err(e) = proc.spawn() {
+                    if let Err(e) = proc.spawn(exit_tx.clone()) {
                         warn!("[{name}] failed to restart: {e:#}");
-                    } else {
-                        spawn_watcher(proc, exit_tx.clone());
                     }
                 }
             }
@@ -422,36 +408,6 @@ fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, 
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
 }
 
-/// Spawn a background task that awaits the child's exit and sends the result.
-fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
-    if let Some(mut handle) = proc.take_handle() {
-        let name = proc.name().to_owned();
-        let pid = proc.pid().unwrap_or(0);
-        let watcher_handle = tokio::spawn(async move {
-            let status = match handle.wait().await {
-                Ok(status) => status,
-                Err(e) => {
-                    warn!("[{name}] wait error: {e}, killing process");
-                    let _ = handle.kill().await;
-                    match handle.wait().await {
-                        Ok(s) => s,
-                        Err(e2) => {
-                            warn!("[{name}] failed to reap after kill: {e2}");
-                            return;
-                        }
-                    }
-                }
-            };
-            let _ = tx.try_send(ExitEvent {
-                name: name.clone(),
-                pid,
-                status,
-            });
-        });
-        proc.set_watcher_handle(watcher_handle);
-    }
-}
-
 /// Build `ProcessDefinition`s from the live processes Vec and resolve their
 /// dependency order. Because the definitions are built in the same index order
 /// as the Vec, the returned indices can be used directly for indexing into it.
@@ -487,6 +443,7 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
 mod tests {
     use super::*;
     use crate::config::{MutableConfigLoader, ProcessConfig, StaticConfigLoader};
+    use crate::process::ExitEvent;
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, V4UuidGenerator};
 

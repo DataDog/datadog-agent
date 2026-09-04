@@ -357,6 +357,7 @@ fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
 mod tests {
     use super::*;
     use crate::config::ProcessConfig;
+    use crate::process::test_exit_channel;
     use crate::test_helpers;
 
     #[test]
@@ -472,7 +473,7 @@ mod tests {
         };
         let mut proc =
             ManagedProcess::new_config("sleeper".to_string(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
+        proc.spawn(test_exit_channel().0).unwrap();
 
         let proto = process_to_proto(&proc);
         assert_eq!(proto.name, "sleeper");
@@ -496,10 +497,13 @@ mod tests {
         };
         let mut proc =
             ManagedProcess::new_config("fail-proc".to_string(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
+        let mut exit_rx = {
+            let (tx, rx) = test_exit_channel();
+            proc.spawn(tx).unwrap();
+            rx
+        };
 
-        let mut handle = proc.take_handle().unwrap();
-        let status = handle.wait().await.unwrap();
+        let status = exit_rx.recv().await.expect("exit event").status;
         proc.set_last_status(status);
 
         let proto = process_to_proto(&proc);
