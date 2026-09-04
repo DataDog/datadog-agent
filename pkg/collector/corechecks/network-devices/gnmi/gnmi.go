@@ -89,6 +89,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		// Sample once per check run.
 		SampleInterval: time.Duration(checkConfig.Instance.MinCollectionInterval) * time.Second,
 	}
+	encoding, err := checkConfig.Instance.ResolvedEncoding()
+	if err != nil {
+		return fmt.Errorf("resolve encoding failed: %w", err)
+	}
+	clientCfg.Encoding = encoding
+
 	gnmiClient, err := client.New(clientCfg)
 	if err != nil {
 		return fmt.Errorf("create gNMI client failed: %w", err)

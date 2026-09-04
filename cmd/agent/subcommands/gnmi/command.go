@@ -42,6 +42,7 @@ type cliParams struct {
 	collectTopology    bool
 	useTLS             bool
 	insecureSkipVerify bool
+	encoding           string
 	instanceIndex      int
 	interval           time.Duration
 	fastReconnect      bool
@@ -101,6 +102,7 @@ with --instance.`,
 	subscribeCmd.Flags().BoolVar(&params.collectTopology, "collect-topology", false, "Subscribe to LLDP topology paths")
 	subscribeCmd.Flags().BoolVar(&params.useTLS, "use-tls", true, "Use TLS for the gRPC transport")
 	subscribeCmd.Flags().BoolVar(&params.insecureSkipVerify, "insecure-skip-verify", false, "Skip TLS certificate verification")
+	subscribeCmd.Flags().StringVar(&params.encoding, "encoding", "", "gNMI encoding: proto, json, or json_ietf (default: json_ietf)")
 	subscribeCmd.Flags().IntVar(&params.instanceIndex, "instance", -1, "Load settings from conf.d/gnmi.d/conf.yaml instance index")
 	subscribeCmd.Flags().DurationVar(&params.interval, "interval", 2*time.Second, "How often to print status and cached values")
 	subscribeCmd.Flags().BoolVar(&params.fastReconnect, "fast-reconnect", true, "Use shorter reconnect backoff for interactive debugging")
@@ -120,6 +122,17 @@ func runSubscribe(params *cliParams, config config.Component) error {
 		return err
 	}
 
+	encoding, err := instance.ResolvedEncoding()
+	if err != nil {
+		return err
+	}
+	if params.encoding != "" {
+		encoding, err = gnmicfg.ParseEncoding(params.encoding)
+		if err != nil {
+			return err
+		}
+	}
+
 	clientCfg := client.Config{
 		Address:            instance.Address,
 		Port:               instance.Port,
@@ -131,6 +144,7 @@ func runSubscribe(params *cliParams, config config.Component) error {
 		InsecureSkipVerify: instance.InsecureSkipVerify,
 		// Match the check's request; 0 (ad-hoc target) selects the client default.
 		SampleInterval: time.Duration(instance.MinCollectionInterval) * time.Second,
+		Encoding:       encoding,
 	}
 
 	paths := client.SubscriptionPaths(clientCfg)
@@ -151,10 +165,11 @@ func runSubscribe(params *cliParams, config config.Component) error {
 		return err
 	}
 
-	fmt.Printf("target=%s:%d transport=%s profile=%q paths=%d\n",
+	fmt.Printf("target=%s:%d transport=%s encoding=%s profile=%q paths=%d\n",
 		instance.Address,
 		instance.Port,
 		gnmiClient.TransportMode(),
+		gnmicfg.EncodingName(clientCfg.Encoding),
 		profile.Name,
 		len(paths),
 	)
@@ -223,6 +238,18 @@ func resolveSubscribeTarget(config config.Component, params *cliParams) (*gnmicf
 		instance.Port = params.port
 	} else if instance.Port == 0 {
 		instance.Port = gnmicfg.DefaultPort
+	}
+	if params.useTLS {
+		instance.UseTLS = params.useTLS
+	}
+	if params.collectTopology {
+		instance.CollectTopology = params.collectTopology
+	}
+	if params.insecureSkipVerify {
+		instance.InsecureSkipVerify = params.insecureSkipVerify
+	}
+	if params.encoding != "" {
+		instance.Encoding = params.encoding
 	}
 
 	if instance.Address == "" {

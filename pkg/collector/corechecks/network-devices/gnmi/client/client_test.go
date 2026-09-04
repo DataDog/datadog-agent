@@ -68,6 +68,7 @@ func newTestClient(t *testing.T, server *fakeserver.Server, opts ...client.Optio
 		Username: "user",
 		Password: "pass",
 		Profile:  testProfile(),
+		Encoding: config.DefaultEncoding,
 	}
 	opts = append([]client.Option{client.WithReconnectDelays(50*time.Millisecond, 200*time.Millisecond)}, opts...)
 
@@ -108,7 +109,7 @@ func TestSubscribeSyncUpdateAndCacheRead(t *testing.T) {
 	require.Equal(t, "user", event.Username)
 	require.Equal(t, "pass", event.Password)
 	require.NotNil(t, event.Request.GetSubscribe())
-	require.Equal(t, gnmipb.Encoding_PROTO, event.Request.GetSubscribe().GetEncoding())
+	require.Equal(t, gnmipb.Encoding_JSON_IETF, event.Request.GetSubscribe().GetEncoding())
 	require.Len(t, event.Request.GetSubscribe().GetSubscription(), 2+len(client.MetadataSubscriptionPaths()))
 
 	update := fakeserver.InterfaceInOctetsUpdate("eth0", 42)
@@ -175,6 +176,27 @@ func TestNewRejectsNegativeSampleInterval(t *testing.T) {
 	require.ErrorContains(t, err, "invalid sample interval")
 }
 
+func TestExplicitJSONEncoding(t *testing.T) {
+	server := startServer(t)
+	host, port, err := hostPort(server.Addr())
+	require.NoError(t, err)
+
+	c, err := client.New(client.Config{
+		Address:  host,
+		Port:     port,
+		Username: "user",
+		Password: "pass",
+		Profile:  testProfile(),
+		Encoding: gnmipb.Encoding_JSON,
+	}, client.WithReconnectDelays(50*time.Millisecond, 200*time.Millisecond))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, c.Close()) })
+
+	startClient(t, c)
+	event := waitSubscribeEvent(t, server)
+	require.Equal(t, gnmipb.Encoding_JSON, event.Request.GetSubscribe().GetEncoding())
+}
+
 func TestStreamStateRequiresSync(t *testing.T) {
 	server := startServer(t)
 	server.SetDelaySync(true)
@@ -237,6 +259,7 @@ func TestCancelCleansUp(t *testing.T) {
 		Username: "user",
 		Password: "pass",
 		Profile:  testProfile(),
+		Encoding: config.DefaultEncoding,
 	}, client.WithReconnectDelays(50*time.Millisecond, 200*time.Millisecond))
 	require.NoError(t, err)
 
