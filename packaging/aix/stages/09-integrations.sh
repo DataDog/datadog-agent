@@ -85,16 +85,26 @@ fi
 # so integrations-core is the single source of truth for AIX support instead
 # of a hardcoded list here.
 #
-# --constraint pins all transitive deps to the exact versions frozen by Stage 08,
-# matching the Linux omnibus approach and failing loudly if a dep is unavailable.
+# Dependency versions come from integrations-core's agent_requirements.in — the
+# same pinned input file the Linux/macOS/Windows lockfile flow (resolve-build-deps)
+# compiles into the per-platform .deps/resolved/*.txt wheel sets. AIX has no
+# such lockfile (no prebuilt AIX wheels exist), so instead of compiling one we
+# install the AIX-relevant subset of agent_requirements.in directly: the union
+# of every AIX-tagged check's [deps] extra, looked up in agent_requirements.in
+# for the canonical pin. Native deps Stage 06 already built and installed
+# (pymqi, lxml, psutil, cryptography) are seen as satisfied and not rebuilt;
+# only missing pure-Python deps (e.g. http_check's pysocks/requests-ntlm) are
+# fetched from PyPI.
+#
+# Native C-extension deps that Stage 06 did NOT build (e.g. pyodbc when
+# unixODBC headers are absent) are filtered out so the dep install does not
+# fail on a source build that cannot succeed. The check still installs; it
+# surfaces a clear ImportError at runtime if the missing extension is needed,
+# matching the graceful-degradation behavior for the IBM checks.
+#
+# --constraint pins all transitive deps to the exact versions frozen by Stage 08.
 # --find-links allows pip to locate native AIX wheels (pydantic-core, cryptography)
 # from the local cache if needed rather than hitting PyPI.
-#
-# IBM checks (ibm_mq, ibm_ace, ibm_db2, ibm_i) are installed regardless of
-# whether the corresponding C extension (pymqi, ibm_db, pyodbc) was built in
-# Stage 06. The check code installs successfully; it will surface a clear
-# ImportError at runtime if the missing native extension is not present on the
-# target system.
 
 PYTHON_CHECKS=$(python3.12 -c "
 import json
@@ -123,6 +133,82 @@ fi
 
 log "Discovered Python checks tagged Supported OS::AIX: $PYTHON_CHECKS"
 
+# Build the AIX dependency subset from agent_requirements.in: the union of the
+# [deps] extras of every AIX-tagged check, pinned to agent_requirements.in's
+# versions. This is the same set the other platforms resolve into their lockfiles;
+# we install it directly because AIX has no prebuilt wheel set.
+AIX_DEPS="$BUILD_DIR/.09-aix-deps.tmp"
+AGENT_REQ="$INTEGRATIONS_CORE/agent_requirements.in"
+if [ ! -f "$AGENT_REQ" ]; then
+    log "ERROR: $AGENT_REQ not found — is the integrations-core checkout complete?"
+    exit 1
+fi
+python3.12 - "$INTEGRATIONS_CORE" "$AGENT_REQ" "$STAGING/constraints.txt" "$AIX_DEPS" <<'PYEOF'
+import json, os, re, sys, tomllib
+ic, req_in, constraints, out = sys.argv[1:5]
+# Native C extensions Stage 06 builds conditionally on host prerequisites.
+# If absent from the frozen constraints (i.e. not built), skip them rather
+# than fail the install with a source build that cannot succeed.
+NATIVE_OPTIONAL = {"pyodbc"}
+
+def pkg_name(spec):
+    return re.split(r"[<>=!;\[]", spec.strip(), 1)[0].strip().lower()
+
+# 1. Collect the dep package names declared by every AIX-tagged check's
+#    [deps] extra. These are the only deps the AIX package needs.
+needed = set()
+for name in sorted(os.listdir(ic)):
+    pp = os.path.join(ic, name, "pyproject.toml")
+    mp = os.path.join(ic, name, "manifest.json")
+    if not (os.path.isfile(pp) and os.path.isfile(mp)):
+        continue
+    with open(mp) as f:
+        if "Supported OS::AIX" not in json.load(f).get("tile", {}).get("classifier_tags", []):
+            continue
+    with open(pp, "rb") as f:
+        t = tomllib.load(f)
+    for d in t.get("project", {}).get("optional-dependencies", {}).get("deps", []):
+        needed.add(pkg_name(d))
+
+# 2. Drop native deps Stage 06 did not build (absent from the freeze).
+installed = set()
+with open(constraints) as f:
+    for line in f:
+        n = pkg_name(line)
+        if n:
+            installed.add(n)
+for n in sorted(needed):
+    if n in NATIVE_OPTIONAL and n not in installed:
+        print(f"# skipped (native, not built): {n}", file=sys.stderr)
+        needed.discard(n)
+
+# 3. Emit the matching lines from agent_requirements.in (canonical pins).
+#    pip evaluates each line's environment markers, so win32/darwin-marked
+#    lines that slipped into `needed` are skipped on AIX automatically.
+missing = set(needed)
+with open(req_in) as f, open(out, "w") as w:
+    for line in f:
+        n = pkg_name(line)
+        if n in needed:
+            w.write(line)
+            missing.discard(n)
+for n in sorted(missing):
+    print(f"# WARNING: {n} needed by an AIX check but not in agent_requirements.in", file=sys.stderr)
+PYEOF
+log "AIX dependency subset written to $AIX_DEPS ($(wc -l < "$AIX_DEPS" | tr -d ' ') entries):"
+sed 's/^/  /' "$AIX_DEPS" >&2
+
+log "Installing AIX dependency subset from agent_requirements.in"
+$PIP install \
+    --constraint "$STAGING/constraints.txt" \
+    --find-links "$WHEEL_CACHE" \
+    -r "$AIX_DEPS"
+rm -f "$AIX_DEPS"
+log "AIX dependency subset installed"
+
+# Install each check's own code. Its [deps] extra deps are already installed
+# above, so a plain 'pip install <check_dir>' suffices and will not rebuild
+# native extensions.
 for check in $PYTHON_CHECKS; do
     CHECK_DIR="$INTEGRATIONS_CORE/$check"
     log "Installing check: $check"
