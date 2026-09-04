@@ -59,7 +59,11 @@ mod tests {
             "datadog-agent-trace",
             "unknown-process",
         ] {
-            assert_eq!(SpawnProfile::profile_for(name), SpawnProfile::Agent, "{name}");
+            assert_eq!(
+                SpawnProfile::profile_for(name),
+                SpawnProfile::Agent,
+                "{name}"
+            );
         }
     }
 }
