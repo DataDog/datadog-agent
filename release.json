@@ -1,12 +1,12 @@
 {
-    "base_branch": "main",
+    "base_branch": "7.84.x",
     "current_milestone": "7.84.0",
     "dependencies": {
         "INTEGRATIONS_CORE_VERSION": "687712a0063b770cbaa527230c177f79b4c74275",
         "INTEGRATIONS_WHEELS_STORAGE": "stable",
         "JMXFETCH_HASH": "3eb735171a3e41518c4101a6aee06fee8b93092d015769c2e470eecadb4bd11b",
         "JMXFETCH_VERSION": "0.52.0",
-        "OMNIBUS_RUBY_VERSION": "6b9608d93cd620f3d9173254fee74c5b820b604b",
+        "OMNIBUS_RUBY_VERSION": "7.84.x",
         "SECURITY_AGENT_POLICIES_SHA256": "cb4d3c0b868143000d9c67eaf96bc52628c5ee74291d08c4db5146175cebcf03",
         "SECURITY_AGENT_POLICIES_VERSION": "v0.84.0",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
