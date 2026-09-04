@@ -20,12 +20,11 @@ type AgentBundle struct {
 func NewAgent(client ipc.HTTPClient) types.Bundle {
 	return &AgentBundle{
 		actions: map[string]types.Action{
-			"getStatus":             NewGetStatusHandler(client),
-			"getDiagnose":           NewGetDiagnoseHandler(client),
-			"getConfig":             NewGetConfigHandler(client),
-			"generateFlare":         NewGenerateFlareHandler(client),
-			"dumpDogstatsdContexts": NewDumpDogstatsdContextsHandler(client),
-			"getDogstatsdTop":       NewGetDogstatsdTopHandler(client),
+			"getStatus":       NewGetStatusHandler(client),
+			"getDiagnose":     NewGetDiagnoseHandler(client),
+			"getConfig":       NewGetConfigHandler(client),
+			"generateFlare":   NewGenerateFlareHandler(client),
+			"getDogstatsdTop": NewGetDogstatsdTopHandler(client),
 		},
 	}
 }
