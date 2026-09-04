@@ -84,6 +84,9 @@ its behavior or cost.
 - Shared code must use bounded production defaults. Unbounded history or
   retention is allowed only through explicit testbench configuration such as
   `bench.unboundedStorageCfg()` passed to `DebugView.Reset`.
+- Full raw anomaly history is testbench-only via `TrackAnomalyHistory`; live
+  reporting uses advance-local events and retains only bounded detector-output
+  deduplication state.
 - Hard-bound every live collection driven by time or input cardinality. On
   eviction, also clear detector state, indexes, interned data, deduplication
   state, and caches. Production config must not disable these bounds.
@@ -219,7 +222,7 @@ Keys are declared in the config schema (`pkg/config/schema/yaml/`).
 | `anomaly_detection.detectors.<name>.enabled` | varies | Per detector/correlator/extractor |
 | `anomaly_detection.storage.max_series` | `50000` | Storage series cap |
 | `anomaly_detection.storage.eviction_floor_ratio` | `0.5` | Fraction below the cap to drain during series eviction |
-| `anomaly_detection.storage.point_retention` | `120s` | Per-series point retention |
+| `anomaly_detection.storage.point_retention` | derived | Per-series retention; `0s` derives it from enabled detector windows |
 | `anomaly_detection.storage.inactive_series_ttl` | `5m` | Evict non-telemetry series inactive for this long; `0` disables inactivity eviction |
 | `anomaly_detection.storage.inactive_series_check_interval` | `5m` | Advance-time interval between inactivity scans; `0` disables inactivity eviction |
 

@@ -11,8 +11,10 @@ import (
 	"errors"
 	"math"
 	"slices"
+	"strings"
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 )
@@ -173,7 +175,11 @@ func (r *MetricDataReader) unpackTagsetsDict() ([][]string, error) {
 				if idx >= int64(len(r.dictTagStr)) {
 					return nil, errBadReference
 				}
-				tags = append(tags, r.dictTagStr[idx])
+				// Cardinality is carried by the type column, drop the legacy tag here so it never
+				// reaches the intake.
+				if tag := r.dictTagStr[idx]; !strings.HasPrefix(tag, constants.CardinalityTagPrefix) {
+					tags = append(tags, tag)
+				}
 			}
 		}
 		packed = packed[size:]
@@ -320,6 +326,12 @@ func (r *MetricDataReader) Type() pb.MetricType {
 
 func (r *MetricDataReader) ValueType() pb.ValueType {
 	return pb.ValueType(r.packedType() & 0xF0)
+}
+
+// TagCardinality returns the origin tag cardinality requested for the current
+// metric entry.
+func (r *MetricDataReader) TagCardinality() pb.TagCardinality {
+	return pb.TagCardinality(r.packedType() & 0xF000)
 }
 
 // Name returns metric name of current metric entry.

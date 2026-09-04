@@ -78,6 +78,11 @@ func TestResolveRootOwner(t *testing.T) {
 			expected: &core.FilterRootOwner{Kind: "StatefulSet", Name: "redis"},
 		},
 		{
+			name:     "StrimziPodSet is its own root",
+			owners:   []workloadmeta.KubernetesPodOwner{{Kind: "StrimziPodSet", Name: "my-cluster-kafka", Controller: boolPtr(true)}},
+			expected: &core.FilterRootOwner{Kind: "StrimziPodSet", Name: "my-cluster-kafka"},
+		},
+		{
 			name: "prefers controller owner over non-controller",
 			owners: []workloadmeta.KubernetesPodOwner{
 				{Kind: "Node", Name: "node-1", Controller: boolPtr(false)},
@@ -133,4 +138,20 @@ func TestCreatePodWithRolloutRootOwner(t *testing.T) {
 	assert.NotNil(t, result.FilterPod.Rootowner)
 	assert.Equal(t, "Rollout", result.FilterPod.Rootowner.Kind)
 	assert.Equal(t, "my-rollout", result.FilterPod.Rootowner.Name)
+}
+
+func TestCreatePodWithStrimziPodSetRootOwner(t *testing.T) {
+	pod := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "my-cluster-kafka-0",
+			Namespace: "default",
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{Kind: "StrimziPodSet", Name: "my-cluster-kafka", Controller: boolPtr(true)},
+		},
+	}
+	result := CreatePod(pod)
+	assert.NotNil(t, result.FilterPod.Rootowner)
+	assert.Equal(t, "StrimziPodSet", result.FilterPod.Rootowner.Kind)
+	assert.Equal(t, "my-cluster-kafka", result.FilterPod.Rootowner.Name)
 }

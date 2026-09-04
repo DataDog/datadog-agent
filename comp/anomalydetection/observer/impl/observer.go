@@ -28,7 +28,6 @@ import (
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -255,50 +254,14 @@ func NewComponent(deps Requires) (Provides, error) {
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, rawScorer, extractors, _ := catalog.Instantiate(settings)
 
-	storageCfg := DefaultStorageConfig()
-	if cfg != nil {
-		if cfg.IsConfigured("anomaly_detection.storage.max_series") {
-			storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
-		}
-		if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
-			storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
-		}
-		if cfg.IsConfigured("anomaly_detection.storage.point_retention") {
-			d := cfg.GetDuration("anomaly_detection.storage.point_retention")
-			if d < 0 {
-				logging.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s — using default", d)
-			} else {
-				storageCfg.PointRetentionSecs = int64(d.Seconds())
-			}
-		}
-		if cfg.IsConfigured("anomaly_detection.storage.inactive_series_ttl") {
-			d := cfg.GetDuration("anomaly_detection.storage.inactive_series_ttl")
-			if d < 0 {
-				pkglog.Warnf("anomaly_detection.storage.inactive_series_ttl must be >= 0, got %s — using default", d)
-			} else {
-				storageCfg.InactiveSeriesTTLSeconds = int64(d.Seconds())
-			}
-		}
-		if cfg.IsConfigured("anomaly_detection.storage.inactive_series_check_interval") {
-			d := cfg.GetDuration("anomaly_detection.storage.inactive_series_check_interval")
-			if d < 0 {
-				pkglog.Warnf("anomaly_detection.storage.inactive_series_check_interval must be >= 0, got %s — using default", d)
-			} else {
-				storageCfg.InactiveSeriesCheckIntervalSeconds = int64(d.Seconds())
-			}
-		}
-	}
+	storageCfg := storageConfigFromAgentConfig(cfg, detectors)
 
 	compiledMetricFilter, err := loadMetricFilter(cfg)
 	if err != nil {
 		return Provides{}, fmt.Errorf("%s: %w", metricProcessingRulesConfigKey, err)
 	}
 
-	telemetryComp := deps.Telemetry
-	if telemetryComp == nil {
-		telemetryComp = noopsimpl.GetCompatComponent()
-	}
-	obsTelemetry := newObserverTelemetry(telemetryComp)
+	obsTelemetry := newObserverTelemetry(deps.Telemetry)
 
 	// Upgrade the raw scorer (no telemetry) to one with gauges. The catalog
 	// returns a plain *anomalyScorer; here we reconstruct it with the watcher
@@ -324,6 +287,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
+	eng.onAnomalyDedupEvicted = obsTelemetry.recordAnomalyDedupEvicted
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	eng.onProcessingTime = obsTelemetry.recordProcessingTime
 	eng.onDetectorEmission = obsTelemetry.recordDetectorEmission
@@ -467,6 +431,69 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	return Provides{Comp: obs}, nil
+}
+
+const (
+	storagePointInterval = 15 * time.Second
+	storageRetentionPad  = 16 * time.Second
+)
+
+func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.Detector) StorageConfig {
+	storageCfg := DefaultStorageConfig()
+	maxPoints := maxDetectorPoints(detectors)
+	requiredRetention := time.Duration(maxPoints)*storagePointInterval + storageRetentionPad
+	storageCfg.MaxPointsPerSeries = maxPoints
+	storageCfg.PointRetentionSecs = int64(requiredRetention.Seconds())
+
+	if cfg == nil {
+		return storageCfg
+	}
+	if cfg.IsConfigured("anomaly_detection.storage.max_series") {
+		storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
+	}
+	if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
+		storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+	}
+	if cfg.IsConfigured("anomaly_detection.storage.point_retention") {
+		configuredRetention := cfg.GetDuration("anomaly_detection.storage.point_retention")
+		switch {
+		case configuredRetention == 0:
+			// Keep the detector-derived retention.
+		case configuredRetention < 0:
+			pkglog.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s; using %s derived from enabled detector windows", configuredRetention, requiredRetention)
+		case configuredRetention < requiredRetention:
+			pkglog.Warnf("anomaly_detection.storage.point_retention=%s is below the %s required by enabled detector windows; using %s", configuredRetention, requiredRetention, requiredRetention)
+		default:
+			storageCfg.PointRetentionSecs = int64(configuredRetention.Seconds())
+		}
+	}
+	if cfg.IsConfigured("anomaly_detection.storage.inactive_series_ttl") {
+		d := cfg.GetDuration("anomaly_detection.storage.inactive_series_ttl")
+		if d < 0 {
+			pkglog.Warnf("anomaly_detection.storage.inactive_series_ttl must be >= 0, got %s — using default", d)
+		} else {
+			storageCfg.InactiveSeriesTTLSeconds = int64(d.Seconds())
+		}
+	}
+	if cfg.IsConfigured("anomaly_detection.storage.inactive_series_check_interval") {
+		d := cfg.GetDuration("anomaly_detection.storage.inactive_series_check_interval")
+		if d < 0 {
+			pkglog.Warnf("anomaly_detection.storage.inactive_series_check_interval must be >= 0, got %s — using default", d)
+		} else {
+			storageCfg.InactiveSeriesCheckIntervalSeconds = int64(d.Seconds())
+		}
+	}
+	return storageCfg
+}
+
+func maxDetectorPoints(detectors []observerdef.Detector) int {
+	var maxPoints int
+	for _, detector := range detectors {
+		if requirement, ok := detector.(observerdef.DetectorPointWindowRequirement); ok {
+			maxPoints = max(maxPoints, requirement.DetectorPointWindow().MaxPoints)
+		}
+	}
+	return maxPoints
 }
 
 // observerImpl is the implementation of the observer component.
@@ -688,7 +715,8 @@ func aggSuffix(agg observerdef.Aggregate) string {
 	return observerdef.AggregateString(agg)
 }
 
-// RawAnomalies returns a copy of currently tracked raw anomalies.
+// RawAnomalies returns replay/debug history when anomaly history is enabled.
+// Live production mode returns an empty slice.
 func (o *observerImpl) RawAnomalies() []observerdef.Anomaly {
 	return o.engine.RawAnomalies()
 }

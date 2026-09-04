@@ -19,6 +19,7 @@ from tasks.e2e_framework.destroy import destroy
 from tasks.e2e_framework.tool import add_known_host as add_known_host_func
 from tasks.e2e_framework.tool import clean_known_hosts as clean_known_hosts_func
 from tasks.e2e_framework.tool import get_host, notify, show_connection_message
+from tasks.e2e_framework.vm import get_vm_password as get_vm_password_func
 
 scenario_name = "aws/vm"
 remote_hostname = "aws-vm"
@@ -226,99 +227,31 @@ def _get_os_information(
     return family, architecture
 
 
-def _filter_aws_resource(resource, instance_id: str | None = None, ip: str | None = None):
-    if instance_id and resource["id"] != instance_id:
-        return None
-    if ip and resource["outputs"]["privateIp"] != ip:
-        return None
-    return resource
-
-
-def _get_windows_password(
-    ctx: Context,
-    aws_account: str,
-    private_key_path: str,
-    full_stack_name: str,
-    use_aws_vault: bool | None = True,
-    instance_id: str | None = None,
-    ip: str | None = None,
-):
-    resources = tool.get_stack_json_resources(ctx, full_stack_name)
-    vms = []
-    for r in resources:
-        if not r["type"].startswith("aws:ec2/instance:Instance"):
-            continue
-        vms.append(r)
-    if not vms:
-        raise Exit("No VM found in the stack.")
-
-    out = []
-    for r in vms:
-        if not _filter_aws_resource(r, instance_id, ip):
-            continue
-        vm_id = r["id"]
-
-        # TODO: could xref with r['inputs']['keyName']
-        if not private_key_path:
-            raise Exit("No privateKeyPath found in the config.")
-        password = tool.get_aws_instance_password_data(
-            ctx, vm_id, private_key_path, aws_account=aws_account, use_aws_vault=use_aws_vault
-        )
-        if password:
-            out.append({"vm_id": vm_id, "resource": r, "password": password})
-    return out
-
-
 @task(
     help={
-        "config_path": doc.config_path,
         "stack_name": "Name of stack that contains hosts to RDP into",
-        "use_aws_vault": doc.use_aws_vault,
         "ip": "Filter to VM with this IP address",
-        "instance_id": "Filter to VM with this id",
+        "ci": "Look up a CI-created stack (state in CI's S3 backend) instead of a local one. "
+        "Run wrapped in `aws-vault exec sso-agent-qa-read-only --`.",
+        "config_path": "Path to the local config file holding the Pulumi passphrase "
+        "(defaults to ~/.test_infra_config.yaml). Ignored when --ci is set.",
     }
 )
 def get_vm_password(
     ctx: Context,
     stack_name: str | None = None,
-    config_path: str | None = None,
     ip: str | None = None,
-    instance_id: str | None = None,
-    use_aws_vault: bool | None = True,
+    ci: bool = False,
+    config_path: str | None = None,
 ):
     """
     Get the password of a new virtual machine in a stack.
+
+    Alias for the cloud-agnostic `dda inv e2e.get-vm-password`, kept under the
+    `aws` namespace for backward compatibility.
     """
-    from pydantic import ValidationError
-
-    from tasks.e2e_framework import config
-
-    try:
-        cfg = config.get_local_config(config_path)
-    except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
-
-    if not stack_name:
-        raise Exit("Please provide a stack name to connect to.")
-
-    out = _get_windows_password(
-        ctx,
-        cfg.get_aws().get_account(),
-        cfg.get_aws().privateKeyPath,
-        stack_name,
-        use_aws_vault=use_aws_vault,
-        instance_id=instance_id,
-        ip=ip,
-    )
-    if not out:
-        raise Exit(
-            "No VM found in the stack, or no password available. Verify that keyPairName and publicKeyPath are an RSA key. run `inv setup.debug` for automated help."
-        )
-    for vm in out:
-        vm_id = vm["vm_id"]
-        vm_ip = vm["resource"]["outputs"]["privateIp"]
-        password = vm["password"]
-        print(f"Password for VM {vm_id} ({vm_ip}): {password}")
+    tool.warn("`aws.get-vm-password` is deprecated, please use `dda inv e2e.get-vm-password` instead.")
+    get_vm_password_func(ctx, stack_name=stack_name, ip=ip, ci=ci, config_path=config_path)
 
 
 @task(
@@ -328,6 +261,8 @@ def get_vm_password(
         "use_aws_vault": doc.use_aws_vault,
         "ip": "Filter to VM with this IP address",
         "instance_id": "Filter to VM with this id",
+        "ci": "Look up a CI-created stack (state in CI's S3 backend) instead of a local one. "
+        "Run wrapped in `aws-vault exec sso-agent-qa-read-only --`.",
     }
 )
 def rdp_vm(
@@ -337,6 +272,7 @@ def rdp_vm(
     ip: str | None = None,
     instance_id: str | None = None,
     use_aws_vault: bool | None = True,
+    ci: bool = False,
 ):
     """
     Open an RDP connection to a new virtual machine in a stack.
@@ -345,19 +281,18 @@ def rdp_vm(
     if not stack_name:
         raise Exit("Please provide a stack name to connect to.")
 
-    out = tool.get_stack_json_outputs(ctx, stack_name)
+    out = tool.get_stack_json_outputs(ctx, stack_name, config_path=config_path, ci=ci)
     if not out:
         raise Exit("No VM found in the stack.")
 
     for vm_id, vm in out.items():
-        import pyperclip
-
         if "address" not in vm:
             continue
         vm_ip = vm["address"]
         password = vm["password"]
         tool.rdp(ctx, vm_ip)
         print(f"Password for VM {vm_id} ({vm_ip}): {password}")
-        print("Username is Administrator, password has been copied to clipboard")
-
-        pyperclip.copy(password)
+        if tool.copy_to_clipboard_if_supported(password):
+            print("Username is Administrator, password has been copied to clipboard")
+        else:
+            print("Username is Administrator")

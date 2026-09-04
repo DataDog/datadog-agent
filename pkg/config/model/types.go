@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 )
 
@@ -94,6 +93,13 @@ var sourcesPriority = map[Source]int{
 	SourceCLI:                11,
 }
 
+// DirectSetting is one key/value/source assignment for nodetreemodel's DirectBulkSet.
+type DirectSetting struct {
+	Key    string
+	Value  interface{}
+	Source Source
+}
+
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
 	Source Source
@@ -130,10 +136,14 @@ type Proxy struct {
 	NoProxy []string `mapstructure:"no_proxy"`
 }
 
-// NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
-// configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
-// 'NotificationReceiver' should not be blocking.
-type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64)
+// NotificationReceiver represents the callback type to receive notifications each time the `Set` or
+// `UnsetForSource` method is called. The configuration will call each NotificationReceiver
+// registered through the 'OnUpdate' method, therefore 'NotificationReceiver' should not be blocking.
+//
+// source and newValue describe what the setting resolves to after the change. unsetSource is empty
+// except for a removal, where it names the layer that was cleared and source is the layer now
+// winning, or SourceUnknown when none is left.
+type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64, unsetSource Source)
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
@@ -193,16 +203,12 @@ type Reader interface {
 	// IsSetting returns whether the key identifies a setting (and not a section)
 	IsSetting(key string) bool
 
-	// GetKnownKeysLowercased returns all the keys that are known by the config
-	// Note: that it returns the keys lowercased.
-	GetKnownKeysLowercased() map[string]interface{}
-
 	// GetEnvVars returns a list of the env vars that the config supports.
 	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
 	GetEnvVars() []string
 
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
-	Warnings() *Warnings
+	Warnings() []string
 
 	// StartTime returns the time at which the agent process started (completes config.Component interface)
 	StartTime() time.Time
@@ -223,6 +229,12 @@ type Writer interface {
 	Set(key string, value interface{}, source Source)
 	SetInTest(key string, value interface{})
 	UnsetForSource(key string, source Source)
+	// DirectBulkSet writes settings already resolved by another config, keeping each one in the
+	// source layer it came from so the result mirrors the sender. It exists for config streaming
+	// and nothing else should call it: unlike Set it accepts SourceEnvVar, which makes it unfit
+	// for applying a live change. shouldNotify notifies receivers for every setting whose resolved
+	// value changed, which a snapshot replacing a config the process already runs on requires.
+	DirectBulkSet(settings []DirectSetting, shouldNotify bool)
 }
 
 // ReaderWriter is a subset of Config that allows reading and writing the configuration
@@ -241,7 +253,6 @@ type Setup interface {
 	SetDefault(key string, value interface{})
 
 	SetEnvPrefix(in string)
-	SetEnvKeyReplacer(r *strings.Replacer)
 
 	// ParseEnvSplitComma registers a transformer to parse the env var for key as a comma-separated list.
 	ParseEnvSplitComma(key string)
@@ -263,6 +274,13 @@ type Setup interface {
 	// If env is provided, it will override the name of the environment variable used for this
 	// config key
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
+
+	// BindEnvAndSetDefaultWithDeprecation fully declares a setting with a default value, a list of deprecated names and
+	// optional env var overrides.
+	// If no env vars are declared, one will be derived from the key name.
+	// Settings in the deprecated names list take precedence over the official and will automatically generate a warning.
+	// Name in the list must be sorted by priority (oldest name first).
+	BindEnvAndSetDefaultWithDeprecation(key string, defaultVal interface{}, deprecatedNames []string, envvars ...string)
 
 	AddConfigPath(in string)
 	AddExtraConfigPaths(in []string) error

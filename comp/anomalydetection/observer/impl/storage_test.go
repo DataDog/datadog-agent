@@ -33,6 +33,39 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_ForEachLastPoints(t *testing.T) {
+	s := newTimeSeriesStorage()
+	var ref observer.SeriesRef
+	for i := int64(1); i <= 5; i++ {
+		res := s.Add("test", "my.metric", float64(i), i, []string{"env:prod"})
+		ref = res.Ref
+	}
+
+	var got []observer.Point
+	found := s.ForEachLastPoints(ref, 4, 3, AggregateAverage, func(series *observer.Series, p observer.Point) {
+		assert.Equal(t, "my.metric", series.Name)
+		got = append(got, p)
+	})
+	require.True(t, found)
+	assert.Equal(t, []observer.Point{{Timestamp: 2, Value: 2}, {Timestamp: 3, Value: 3}, {Timestamp: 4, Value: 4}}, got)
+}
+
+func TestTimeSeriesStorage_ForEachLastPoints_Boundaries(t *testing.T) {
+	s := newTimeSeriesStorage()
+	res := s.Add("test", "my.metric", 1, 10, nil)
+	s.Add("test", "my.metric", 2, 20, nil)
+
+	called := false
+	assert.False(t, s.ForEachLastPoints(res.Ref, 20, 0, AggregateAverage, func(*observer.Series, observer.Point) { called = true }))
+	assert.False(t, called)
+
+	var got []int64
+	require.True(t, s.ForEachLastPoints(res.Ref, 100, 10, AggregateAverage, func(_ *observer.Series, p observer.Point) {
+		got = append(got, p.Timestamp)
+	}))
+	assert.Equal(t, []int64{10, 20}, got)
+}
+
 func TestDefaultStorageConfigIncludesInactiveSeriesEviction(t *testing.T) {
 	cfg := DefaultStorageConfig()
 	assert.Equal(t, int64(5*60), cfg.InactiveSeriesTTLSeconds)
@@ -80,20 +113,37 @@ func TestTimeSeriesStorage_AddSameBucket_Count(t *testing.T) {
 	assert.Equal(t, 3.0, series.Points[0].Value)
 }
 
-func TestTimeSeriesStorage_AddSameBucket_MinMax(t *testing.T) {
+func TestTimeSeriesStorage_LeavesUnitCountsImplicit(t *testing.T) {
 	s := newTimeSeriesStorage()
+	res := s.Add("test", "my.metric", 10, 1000, nil)
+	s.Add("test", "my.metric", 20, 1001, nil)
 
-	s.Add("test", "my.metric", 10.0, 1000, nil)
-	s.Add("test", "my.metric", 20.0, 1000, nil)
-	s.Add("test", "my.metric", 5.0, 1000, nil)
+	stats := s.resolveByID(res.Ref)
+	require.NotNil(t, stats)
+	assert.Nil(t, stats.counts)
+	assert.Equal(t, int64(2), stats.sampleCount())
+}
 
-	minSeries := s.GetSeries("test", "my.metric", nil, AggregateMin)
-	maxSeries := s.GetSeries("test", "my.metric", nil, AggregateMax)
+func TestTimeSeriesStorage_ExplicitCountsStayAlignedThroughInsertAndTrim(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
+	res := s.Add("test", "my.metric", 30, 1002, nil)
+	s.Add("test", "my.metric", 10, 1000, nil)
+	s.Add("test", "my.metric", 20, 1001, nil)
+	s.Add("test", "my.metric", 40, 1002, nil)
+	s.Add("test", "my.metric", 50, 1003, nil)
 
-	require.NotNil(t, minSeries)
-	require.NotNil(t, maxSeries)
-	assert.Equal(t, 5.0, minSeries.Points[0].Value)
-	assert.Equal(t, 20.0, maxSeries.Points[0].Value)
+	stats := s.resolveByID(res.Ref)
+	require.NotNil(t, stats)
+	require.NotNil(t, stats.counts)
+	assert.Equal(t, []int64{1, 2, 1}, stats.counts.values)
+
+	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
+	require.NotNil(t, series)
+	assert.Equal(t, []observer.Point{
+		{Timestamp: 1001, Value: 20},
+		{Timestamp: 1002, Value: 35},
+		{Timestamp: 1003, Value: 50},
+	}, series.Points)
 }
 
 func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
@@ -114,6 +164,38 @@ func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 	assert.Equal(t, 20.0, series.Points[1].Value)
 	assert.Equal(t, 30.0, series.Points[2].Value)
+}
+
+func TestTimeSeriesStorage_MaxPointsRetainsPendingBucket(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 3})
+	for timestamp := int64(1); timestamp <= 6; timestamp++ {
+		s.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+
+	series := s.GetSeriesRange(observer.SeriesRef(0), 0, 6, AggregateAverage)
+	require.NotNil(t, series)
+	require.Equal(t, []observer.Point{
+		{Timestamp: 3, Value: 3},
+		{Timestamp: 4, Value: 4},
+		{Timestamp: 5, Value: 5},
+		{Timestamp: 6, Value: 6},
+	}, series.Points)
+	assert.Equal(t, 3, s.PointCountUpTo(observer.SeriesRef(0), 5))
+}
+
+func TestTimeSeriesStorage_CombinesDurationAndPointRetention(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{PointRetentionSecs: 3, MaxPointsPerSeries: 2})
+	for timestamp := int64(1); timestamp <= 6; timestamp++ {
+		s.Add("ns", "metric", float64(timestamp), timestamp, nil)
+	}
+
+	series := s.GetSeriesRange(observer.SeriesRef(0), 0, 6, AggregateAverage)
+	require.NotNil(t, series)
+	require.Equal(t, []observer.Point{
+		{Timestamp: 4, Value: 4},
+		{Timestamp: 5, Value: 5},
+		{Timestamp: 6, Value: 6},
+	}, series.Points)
 }
 
 func TestTimeSeriesStorage_PreservesOutOfOrderBuckets(t *testing.T) {
@@ -186,45 +268,35 @@ func TestTimeSeriesStorage_AllSeries(t *testing.T) {
 }
 
 func TestSeriesStats_AggregateAt(t *testing.T) {
-	// Build a seriesStats with known columnar data to test aggregation.
+	// Build a seriesStats with known bucket data to test aggregation.
 	ss := &seriesStats{
-		timestamps: []int64{1000},
-		sums:       []float64{100.0},
-		counts:     []int64{4},
-		mins:       []float64{10.0},
-		maxes:      []float64{40.0},
+		buckets: []pointBucket{{timestamp: 1000, sum: 100.0}},
+		counts:  &bucketCounts{values: []int64{4}},
 	}
 
 	assert.Equal(t, 25.0, ss.aggregateAt(0, AggregateAverage))
 	assert.Equal(t, 100.0, ss.aggregateAt(0, AggregateSum))
 	assert.Equal(t, 4.0, ss.aggregateAt(0, AggregateCount))
-	assert.Equal(t, 10.0, ss.aggregateAt(0, AggregateMin))
-	assert.Equal(t, 40.0, ss.aggregateAt(0, AggregateMax))
 
 	// Zero count returns 0 for average
 	ss2 := &seriesStats{
-		timestamps: []int64{1000},
-		sums:       []float64{10.0},
-		counts:     []int64{0},
-		mins:       []float64{0},
-		maxes:      []float64{0},
+		buckets: []pointBucket{{timestamp: 1000, sum: 10.0}},
+		counts:  &bucketCounts{values: []int64{0}},
 	}
 	assert.Equal(t, 0.0, ss2.aggregateAt(0, AggregateAverage))
 }
 
 func TestAggSuffix(t *testing.T) {
-	// Test all aggregation types return correct suffixes
+	// Test all aggregation types return correct suffixes.
 	assert.Equal(t, "avg", aggSuffix(AggregateAverage))
 	assert.Equal(t, "sum", aggSuffix(AggregateSum))
 	assert.Equal(t, "count", aggSuffix(AggregateCount))
-	assert.Equal(t, "min", aggSuffix(AggregateMin))
-	assert.Equal(t, "max", aggSuffix(AggregateMax))
 
 	// Unknown aggregation type
 	assert.Equal(t, "unknown", aggSuffix(Aggregate(999)))
 }
 
-func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
+func TestTimeSeriesStorage_DropsNonFiniteValues(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	s.Add("test", "my.metric", math.Inf(1), 1000, nil)
@@ -232,14 +304,9 @@ func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
 
 	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
 	assert.Nil(t, series)
-
-	nonFinite, extreme, byMetric := s.DroppedValueStats()
-	assert.Equal(t, int64(2), nonFinite)
-	assert.Equal(t, int64(0), extreme)
-	assert.Equal(t, int64(2), byMetric["test|my.metric"])
 }
 
-func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
+func TestTimeSeriesStorage_DropsExtremeFiniteValues(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	s.Add("test", "my.metric", math.MaxFloat64, 1000, nil)
@@ -249,11 +316,6 @@ func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
 	require.NotNil(t, series)
 	require.Len(t, series.Points, 1)
 	assert.Equal(t, math.MaxFloat64/4, series.Points[0].Value)
-
-	nonFinite, extreme, byMetric := s.DroppedValueStats()
-	assert.Equal(t, int64(0), nonFinite)
-	assert.Equal(t, int64(1), extreme)
-	assert.Equal(t, int64(1), byMetric["test|my.metric"])
 }
 
 // --- Binary-search-based range query tests ---
@@ -354,7 +416,7 @@ func TestGetSeriesRange_NoOverlap(t *testing.T) {
 
 func TestGetSeriesRange_AllAggregates(t *testing.T) {
 	s := newTimeSeriesStorage()
-	// Two values in the same bucket: sum=30, count=2, min=10, max=20, avg=15
+	// Two values in the same bucket: sum=30, count=2, avg=15.
 	s.Add("ns", "m", 10.0, 100, nil)
 	s.Add("ns", "m", 20.0, 100, nil)
 
@@ -366,8 +428,6 @@ func TestGetSeriesRange_AllAggregates(t *testing.T) {
 	}{
 		{AggregateSum, 30.0},
 		{AggregateCount, 2.0},
-		{AggregateMin, 10.0},
-		{AggregateMax, 20.0},
 		{AggregateAverage, 15.0},
 	} {
 		result := s.GetSeriesRange(id, 0, 200, tc.agg)
@@ -503,30 +563,6 @@ func TestFindingH1_StorageListAllSeriesCompactRace(_ *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 500; i++ {
 			_ = s.ListAllSeriesCompact()
-		}
-	}()
-
-	wg.Wait()
-}
-
-func TestFindingH1_StorageDroppedValueStatsRace(_ *testing.T) {
-	s := newTimeSeriesStorage()
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 500; i++ {
-			// Add some NaN to trigger drop accounting writes
-			s.Add("ns", "metric", math.NaN(), int64(i), nil)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 500; i++ {
-			_, _, _ = s.DroppedValueStats()
 		}
 	}()
 

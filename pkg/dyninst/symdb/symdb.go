@@ -37,19 +37,23 @@ var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
 
 // PackagesIterator returns an iterator over the packages in the binary.
 //
+// The binary is opened when the iteration starts and released when it ends.
+// An error opening it is yielded by the iterator.
+//
 // The last package yielded by the iterator has its Final field set to true. No
 // more packages will be yielded after that, but an error may still be yielded.
 //
 // PackagesIterator can only be used if the packagesIterator was configured with
 // ExtractOptions.AccumulateInlineInfoAcrossCompileUnits=false.
-func PackagesIterator(binaryPath string, loader object.Loader, opt ExtractOptions) (iter.Seq2[PackageWithFinal, error], error) {
-	bin, err := openBinary(binaryPath, loader, opt)
-	if err != nil {
-		return nil, err
+func PackagesIterator(binaryPath string, loader object.Loader, opt ExtractOptions) iter.Seq2[PackageWithFinal, error] {
+	return func(yield func(PackageWithFinal, error) bool) {
+		bin, err := openBinary(binaryPath, loader, opt)
+		if err != nil {
+			yield(PackageWithFinal{}, err)
+			return
+		}
+		newPackagesIterator(bin, opt).iterator()(yield)
 	}
-
-	b := newPackagesIterator(bin, opt)
-	return b.iterator(), nil
 }
 
 // ExtractSymbols walks the DWARF data and accumulates the symbols to send to
@@ -643,6 +647,11 @@ func openBinary(binaryPath string, loader object.Loader, opt ExtractOptions) (bi
 	if err != nil {
 		return binaryInfo{}, fmt.Errorf("failed to open file: %w", err)
 	}
+	defer func() {
+		if obj != nil {
+			_ = obj.Close()
+		}
+	}()
 	// Parse the binary's build info to figure out the URL of the main module.
 	// Note that we'll get an empty URL for binaries built with Bazel.
 	binfo, err := buildinfo.ReadFile(binaryPath)
@@ -678,17 +687,19 @@ func openBinary(binaryPath string, loader object.Loader, opt ExtractOptions) (bi
 	} else if opt.Scope == ExtractScopeMainModuleOnly || opt.Scope == ExtractScopeModulesFromSameOrg {
 		filesFilter = []string{"external/", "GOROOT/"}
 	}
-	return binaryInfo{
+	bin := binaryInfo{
 		obj:                 obj,
 		mainModule:          mainModule,
 		goDebugSections:     &symTable.GoDebugSections,
 		symTable:            &symTable.GoSymbolTable,
 		firstPartyPkgPrefix: firstPartyPkgPrefix,
 		filesFilter:         filesFilter,
-	}, nil
+	}
+	obj = nil // ownership passes to bin
+	return bin, nil
 }
 
-// close frees resources associated with the iterator.
+// close frees resources associated with the iterator, the binary among them.
 func (b *packagesIterator) close() {
 	for _, f := range b.cleanupFuncs {
 		f()

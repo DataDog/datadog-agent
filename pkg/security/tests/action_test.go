@@ -201,6 +201,8 @@ func TestActionKill(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestActionKillExcludeBinary)
+
 func TestActionKillExcludeBinary(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -523,6 +525,20 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 	})
 }
 
+// enforcementDisarmerPeriod is shared between TestActionKillDisarm's declared
+// config and its body, which waits out the period it configures.
+const enforcementDisarmerPeriod = 4 * time.Second
+
+var _ = declare(TestActionKillDisarm, testOpts{
+	enforcementDisarmerContainerEnabled:     true,
+	enforcementDisarmerContainerMaxAllowed:  1,
+	enforcementDisarmerContainerPeriod:      enforcementDisarmerPeriod,
+	enforcementDisarmerExecutableEnabled:    true,
+	enforcementDisarmerExecutableMaxAllowed: 1,
+	enforcementDisarmerExecutablePeriod:     enforcementDisarmerPeriod,
+	eventServerRetention:                    1 * time.Nanosecond,
+})
+
 func TestActionKillDisarm(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -543,10 +559,6 @@ func TestActionKillDisarm(t *testing.T) {
 	})
 
 	sleep := which(t, "sleep")
-
-	const (
-		enforcementDisarmerPeriod = 4 * time.Second
-	)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -573,15 +585,7 @@ func TestActionKillDisarm(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
-		enforcementDisarmerContainerEnabled:     true,
-		enforcementDisarmerContainerMaxAllowed:  1,
-		enforcementDisarmerContainerPeriod:      enforcementDisarmerPeriod,
-		enforcementDisarmerExecutableEnabled:    true,
-		enforcementDisarmerExecutableMaxAllowed: 1,
-		enforcementDisarmerExecutablePeriod:     enforcementDisarmerPeriod,
-		eventServerRetention:                    1 * time.Nanosecond,
-	}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1381,6 +1385,8 @@ func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	containerKilled = true
 }
 
+var _ = declare(TestRemediationCustomEvents, testOpts{networkRawPacketEnabled: true})
+
 func TestRemediationCustomEvents(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1453,7 +1459,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 			{
 				NetworkFilter: &rules.NetworkFilterDefinition{
 					BPFFilter: "port 53",
-					Policy:    "drop",
+					Policy:    rules.NetworkFilterPolicyDrop,
 					Scope:     "process",
 				},
 			},
@@ -1467,7 +1473,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkRawPacketEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

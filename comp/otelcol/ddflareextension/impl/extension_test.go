@@ -120,12 +120,21 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 }
 
 func TestNewComponent(t *testing.T) {
-	ext, err := getTestExtension(t, option.None[ipc.Component]())
+	ext, err := getTestExtension(t, option.New[ipc.Component](ipcmock.New(t)))
 	assert.NoError(t, err)
 	assert.NotNil(t, ext)
 
 	_, ok := ext.(*ddExtension)
 	assert.True(t, ok)
+}
+
+// TestNewComponentRequiresIPC ensures the extension fails closed when no IPC component is
+// available. Without IPC there is no authentication middleware, so serving the endpoint
+// would expose the effective configuration, environment and status to any local caller.
+func TestNewComponentRequiresIPC(t *testing.T) {
+	ext, err := getTestExtension(t, option.None[ipc.Component]())
+	require.ErrorIs(t, err, errNoIPCComponent)
+	assert.Nil(t, ext)
 }
 
 func TestExtensionHTTPHandler(t *testing.T) {

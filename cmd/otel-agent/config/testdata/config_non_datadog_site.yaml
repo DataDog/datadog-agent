@@ -1,0 +1,16 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+exporters:
+  datadog:
+    api:
+      key: DATADOG_API_KEY
+      site: mycompany.internal
+processors:
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]

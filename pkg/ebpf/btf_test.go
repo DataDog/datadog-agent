@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 )
 
 func TestEmbeddedBTFMatch(t *testing.T) {
@@ -32,7 +32,7 @@ func TestEmbeddedBTFMatch(t *testing.T) {
 
 	for subset, ext := range subsets {
 		t.Run(subset, func(t *testing.T) {
-			loader, err := initBTFLoader(&Config{}, nil, telemetryimpl.GetCompatComponent())
+			loader, err := initBTFLoader(&Config{}, nil, noopsimpl.NewComponent())
 			require.NoError(t, err)
 			loader.embeddedDir = filepath.Join(cd, "testdata", subset)
 
@@ -71,7 +71,7 @@ func TestEmbeddedBTFMatch(t *testing.T) {
 }
 
 func TestBTFTelemetry(t *testing.T) {
-	loader, err := initBTFLoader(NewConfig(), nil, telemetryimpl.GetCompatComponent())
+	loader, err := initBTFLoader(NewConfig(), nil, noopsimpl.NewComponent())
 	require.NoError(t, err)
 	ret, result, err := loader.Get()
 	assert.NoError(t, err)

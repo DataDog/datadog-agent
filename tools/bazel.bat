@@ -24,6 +24,7 @@ if defined XDG_CACHE_HOME (
   set "XDG_CACHE_HOME=!XDG_CACHE_HOME:/=\!"
   if "!XDG_CACHE_HOME:~1,2!" neq ":\" if "!XDG_CACHE_HOME:~0,2!" neq "\\" goto :error_xdg_cache_home_must_be_absolute
   set "GOCACHE=!XDG_CACHE_HOME!\go-build"
+  set "GOLANGCI_LINT_CACHE=!XDG_CACHE_HOME!\golangci-lint"
   set "GOMODCACHE=!XDG_CACHE_HOME!\go\mod"
   set "PIP_CACHE_DIR=!XDG_CACHE_HOME!\pip"
   :: https://github.com/bazelbuild/bazel/issues/27808
@@ -34,7 +35,10 @@ if defined XDG_CACHE_HOME (
   set extra_args="--disk_cache=!bazel_home!\disk-cache"
   :: https://github.com/bazelbuild/bazel/issues/26384
   for %%i in ("%~dp0..\.cache") do if "!XDG_CACHE_HOME!" == "%%~fi" set "extra_args=!extra_args! --repo_contents_cache="
-  if defined CI if not defined GITHUB_ACTIONS set "extra_args=!extra_args! --config=ci --config=cache:frontend"
+  if defined CI if not defined GITHUB_ACTIONS (
+    if not defined BUILDBARN_ID_TOKEN goto :error_buildbarn_id_token_must_be_set
+    set "extra_args=!extra_args! --config=ci --config=cache:frontend"
+  )
 ) else (
   :: Without XDG_CACHE_HOME, fall back Go caches to official defaults so Go repo rules work under strict repo_env
   if not defined GOCACHE set "GOCACHE=%LOCALAPPDATA%\go-build"
@@ -72,10 +76,27 @@ for %%i in ("!more_than_8dot3_chars!") do if "%%~nxi"=="%%~snxi" (
   exit /b 2
 )
 
+:: Check symlink creation privilege (required by rules_python bootstrap on Windows)
+set "_sl_probe=%TEMP%\bazel_sl_probe_%RANDOM%_%RANDOM%"
+set "_sl_target=%TEMP%\bazel_sl_target_%RANDOM%_%RANDOM%"
+>"!_sl_target!" type nul
+2>nul mklink "!_sl_probe!" "!_sl_target!" >nul
+set "_sl_rc=!errorlevel!"
+2>nul del /f /q "!_sl_probe!" "!_sl_target!"
+if !_sl_rc! neq 0 (
+  >&2 echo 🔴 For `bazel` to work properly, please enable Windows Developer Mode, which grants symlink creation privilege:
+  >&2 echo     Settings ^> System ^> Advanced ^> For developers ^> Developer Mode
+  exit /b 2
+)
+
 set "args=%*"
 if defined args if defined extra_args call :insert_extra_args
 "%BAZEL_REAL%" !startup_options! !args!
 exit /b !errorlevel!
+
+:error_buildbarn_id_token_must_be_set
+>&2 echo 🔴 BUILDBARN_ID_TOKEN must be populated in CI
+exit /b 2
 
 :error_xdg_cache_home_must_exist
 >&2 echo 🔴 XDG_CACHE_HOME ^(!XDG_CACHE_HOME!^) must denote a directory in CI
