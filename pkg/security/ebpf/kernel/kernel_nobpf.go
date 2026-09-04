@@ -117,3 +117,27 @@ func (k *Version) HasBpfGetCurrentCgroupID() bool {
 func (k *Version) HasBpfGetSocketCookieForCgroupSocket() bool {
 	return false
 }
+
+// HasTaskStorage returns true if the kernel supports BPF_MAP_TYPE_TASK_STORAGE maps
+// here it's not, since we are built without eBPF support
+func (k *Version) HasTaskStorage() bool {
+	return false
+}
+
+// HasTaskStorageInKprobePrograms returns true if the kernel supports using task local storage in kprobe programs
+// here it's not, since we are built without eBPF support
+func (k *Version) HasTaskStorageInKprobePrograms() bool {
+	return false
+}
+
+// HasTaskStorageInTracingPrograms returns true if the kernel supports using task local storage in tracing (fentry) programs
+// here it's not, since we are built without eBPF support
+func (k *Version) HasTaskStorageInTracingPrograms() bool {
+	return false
+}
+
+// HasTaskStorageInTracePointPrograms returns true if the kernel supports using task local storage in tracepoint programs
+// here it's not, since we are built without eBPF support
+func (k *Version) HasTaskStorageInTracePointPrograms() bool {
+	return false
+}
