@@ -15,19 +15,34 @@ import (
 )
 
 const (
-	defaultAgentImageRepo            = "registry.datadoghq.com/agent"
-	defaultClusterAgentImageRepo     = "registry.datadoghq.com/cluster-agent"
-	defaultOTelAgentGatewayImageRepo = "registry.datadoghq.com/ddot-collector"
-	defaultAgentImageTag             = "latest"
-	defaultAgent6ImageTag            = "6"
-	defaultDevAgentImageRepo         = "datadog/agent-dev" // Used as default repository for images that are not stable and released yet, should not be used in the CI
-	defaultOTAgentImageTag           = "nightly-full-main-jmx"
-	jmxSuffix                        = "-jmx"
-	otelSuffix                       = "-7-full"
-	otelFIPSSuffix                   = "-7-fips-full"
-	fipsSuffix                       = "-fips"
-	linuxOnlySuffix                  = "-linux"
+	defaultAgentImageTag   = "latest"
+	defaultAgent6ImageTag  = "6"
+	defaultOTAgentImageTag = "nightly-full-main-jmx"
+	jmxSuffix              = "-jmx"
+	otelSuffix             = "-7-full"
+	otelFIPSSuffix         = "-7-fips-full"
+	fipsSuffix             = "-fips"
+	linuxOnlySuffix        = "-linux"
 )
+
+func defaultAgentImageRepo(config.Env) string {
+	return "registry.datadoghq.com/agent"
+}
+
+func defaultClusterAgentImageRepo(config.Env) string {
+	return "registry.datadoghq.com/cluster-agent"
+}
+
+func defaultOTelAgentGatewayImageRepo(config.Env) string {
+	return "registry.datadoghq.com/ddot-collector"
+}
+
+// defaultDevAgentImageRepo holds the FIPS and OTel agent variants. Its tags float on
+// main rather than tracking a build, so this is only a fallback for runs that have no
+// pipeline image to use.
+func defaultDevAgentImageRepo(config.Env) string {
+	return "datadog/agent-dev"
+}
 
 // DockerAgentFullImagePath resolves the node-agent image using the standard
 // environment settings (fullImagePath → pipeline+SHA → version → latest).
@@ -95,7 +110,7 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 
 	if useOtel {
 		if repositoryPath == "" {
-			repositoryPath = defaultDevAgentImageRepo
+			repositoryPath = defaultDevAgentImageRepo(e)
 		}
 		if imageTag == "" {
 			imageTag = defaultOTAgentImageTag
@@ -107,7 +122,7 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 
 	if useFIPS {
 		if repositoryPath == "" {
-			repositoryPath = defaultDevAgentImageRepo
+			repositoryPath = defaultDevAgentImageRepo(e)
 		}
 		if imageTag == "" {
 			if useJMX {
@@ -121,7 +136,7 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 	}
 
 	if repositoryPath == "" {
-		repositoryPath = defaultAgentImageRepo
+		repositoryPath = defaultAgentImageRepo(e)
 	}
 
 	if imageTag == "" {
@@ -164,7 +179,7 @@ func dockerClusterAgentFullImagePath(e config.Env, repositoryPath, imageTag stri
 
 	if useFips {
 		if repositoryPath == "" {
-			repositoryPath = defaultDevAgentImageRepo
+			repositoryPath = defaultDevAgentImageRepo(e)
 		}
 		if imageTag == "" {
 			imageTag = "main" + fipsSuffix
@@ -174,7 +189,7 @@ func dockerClusterAgentFullImagePath(e config.Env, repositoryPath, imageTag stri
 	}
 
 	if repositoryPath == "" {
-		repositoryPath = defaultClusterAgentImageRepo
+		repositoryPath = defaultClusterAgentImageRepo(e)
 	}
 
 	if imageTag == "" {
@@ -197,7 +212,7 @@ func dockerOTelAgentGatewayFullImagePath(e config.Env, repositoryPath, imageTag 
 	}
 
 	if repositoryPath == "" {
-		repositoryPath = defaultOTelAgentGatewayImageRepo
+		repositoryPath = defaultOTelAgentGatewayImageRepo(e)
 	}
 
 	if imageTag == "" {

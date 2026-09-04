@@ -12,10 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 )
 
-const (
-	defaultDogstatsdImageRepo = "registry.datadoghq.com/dogstatsd"
-	defaultDogstatsdImageTag  = "latest"
-)
+const defaultDogstatsdImageTag = "latest"
+
+func defaultDogstatsdImageRepo(config.Env) string {
+	return "registry.datadoghq.com/dogstatsd"
+}
 
 func dockerDogstatsdFullImagePath(e config.Env, repositoryPath string) string {
 	// return dogstatsd image path if defined
@@ -29,7 +30,7 @@ func dockerDogstatsdFullImagePath(e config.Env, repositoryPath string) string {
 	}
 
 	if repositoryPath == "" {
-		repositoryPath = defaultDogstatsdImageRepo
+		repositoryPath = defaultDogstatsdImageRepo(e)
 	}
 
 	return utils.BuildDockerImagePath(repositoryPath, defaultDogstatsdImageTag)
