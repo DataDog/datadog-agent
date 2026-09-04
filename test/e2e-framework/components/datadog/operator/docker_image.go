@@ -14,10 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 )
 
-const (
-	defaultOperatorImageRepo = "registry.datadoghq.com/operator"
-	defaultOperatorImageTag  = "latest"
-)
+const defaultOperatorImageTag = "latest"
+
+func defaultOperatorImageRepo(config.Env) string {
+	return "registry.datadoghq.com/operator"
+}
 
 func dockerOperatorFullImagePath(e config.Env, repositoryPath, imageTag string) string {
 	// return operator image path if defined
@@ -31,7 +32,7 @@ func dockerOperatorFullImagePath(e config.Env, repositoryPath, imageTag string) 
 	}
 
 	if repositoryPath == "" {
-		repositoryPath = defaultOperatorImageRepo
+		repositoryPath = defaultOperatorImageRepo(e)
 	}
 	if imageTag == "" {
 		imageTag = dockerOperatorImageTag(e, config.OperatorSemverVersion)
