@@ -19,9 +19,30 @@ type snapshotIndex map[string][]client.CachedValue
 func indexSnapshot(snapshot []client.CachedValue) snapshotIndex {
 	byPath := make(snapshotIndex, len(snapshot))
 	for _, cached := range snapshot {
-		byPath[cached.Key.Path] = append(byPath[cached.Key.Path], cached)
+		for _, path := range snapshotPathAliases(cached.Key.Path) {
+			byPath[path] = append(byPath[path], cached)
+		}
 	}
 	return byPath
+}
+
+// snapshotPathAliases lets profiles and metadata use either the internal
+// /openconfig prefix produced by module-qualified JSON-IETF responses or the
+// corresponding wire path used by PROTO and unqualified JSON responses.
+func snapshotPathAliases(path string) []string {
+	const openConfigPrefix = "/openconfig"
+	if strings.HasPrefix(path, openConfigPrefix+"/") {
+		return []string{path, strings.TrimPrefix(path, openConfigPrefix)}
+	}
+
+	trimmed := strings.TrimPrefix(path, "/")
+	root, _, _ := strings.Cut(trimmed, "/")
+	switch root {
+	case "interfaces", "system", "components", "lldp", "network-instances", "routing":
+		return []string{path, openConfigPrefix + path}
+	default:
+		return []string{path}
+	}
 }
 
 func firstStringValue(index snapshotIndex, path string, keys map[string]string) string {

@@ -9,6 +9,7 @@ import (
 	"context"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -68,6 +69,7 @@ func newTestClient(t *testing.T, server *fakeserver.Server, opts ...client.Optio
 		Username: "user",
 		Password: "pass",
 		Profile:  testProfile(),
+		Encoding: config.DefaultEncoding,
 	}
 	opts = append([]client.Option{client.WithReconnectDelays(50*time.Millisecond, 200*time.Millisecond)}, opts...)
 
@@ -108,7 +110,7 @@ func TestSubscribeSyncUpdateAndCacheRead(t *testing.T) {
 	require.Equal(t, "user", event.Username)
 	require.Equal(t, "pass", event.Password)
 	require.NotNil(t, event.Request.GetSubscribe())
-	require.Equal(t, gnmipb.Encoding_PROTO, event.Request.GetSubscribe().GetEncoding())
+	require.Equal(t, gnmipb.Encoding_JSON_IETF, event.Request.GetSubscribe().GetEncoding())
 	require.Len(t, event.Request.GetSubscribe().GetSubscription(), 2+len(client.MetadataSubscriptionPaths()))
 
 	update := fakeserver.InterfaceInOctetsUpdate("eth0", 42)
@@ -202,6 +204,64 @@ func TestCacheEntryRecordsReceiveTime(t *testing.T) {
 	require.False(t, entry.ReceivedAt.After(time.Now()))
 }
 
+// Leaves flattened from a JSON container value (as sent by SR Linux with
+// JSON_IETF) also carry the agent receive time.
+func TestJSONContainerLeavesRecordReceiveTime(t *testing.T) {
+	server := startServer(t)
+	c := newTestClient(t, server)
+	startClient(t, c)
+	event := waitSubscribeEvent(t, server)
+
+	before := time.Now()
+	require.NoError(t, server.SendReplace(event.StreamID, &gnmipb.Notification{
+		Timestamp: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).UnixNano(),
+		Update: []*gnmipb.Update{{
+			Path: &gnmipb.Path{Elem: []*gnmipb.PathElem{
+				{Name: "interfaces"},
+				{Name: "interface", Key: map[string]string{"name": "eth0"}},
+				{Name: "state"},
+				{Name: "counters"},
+			}},
+			Val: &gnmipb.TypedValue{Value: &gnmipb.TypedValue_JsonIetfVal{JsonIetfVal: []byte(`{"in-octets":"5"}`)}},
+		}},
+	}))
+
+	var leaf client.CacheEntry
+	require.Eventually(t, func() bool {
+		for _, cached := range c.Snapshot() {
+			if strings.HasSuffix(cached.Key.Path, "/counters/in-octets") {
+				leaf = cached.Entry
+				return true
+			}
+		}
+		return false
+	}, 2*time.Second, 10*time.Millisecond)
+
+	require.False(t, leaf.ReceivedAt.Before(before), "flattened leaf uses the agent receive time")
+	require.False(t, leaf.ReceivedAt.After(time.Now()))
+}
+
+func TestExplicitJSONEncoding(t *testing.T) {
+	server := startServer(t)
+	host, port, err := hostPort(server.Addr())
+	require.NoError(t, err)
+
+	c, err := client.New(client.Config{
+		Address:  host,
+		Port:     port,
+		Username: "user",
+		Password: "pass",
+		Profile:  testProfile(),
+		Encoding: gnmipb.Encoding_JSON,
+	}, client.WithReconnectDelays(50*time.Millisecond, 200*time.Millisecond))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, c.Close()) })
+
+	startClient(t, c)
+	event := waitSubscribeEvent(t, server)
+	require.Equal(t, gnmipb.Encoding_JSON, event.Request.GetSubscribe().GetEncoding())
+}
+
 func TestStreamStateRequiresSync(t *testing.T) {
 	server := startServer(t)
 	server.SetDelaySync(true)
@@ -264,6 +324,7 @@ func TestCancelCleansUp(t *testing.T) {
 		Username: "user",
 		Password: "pass",
 		Profile:  testProfile(),
+		Encoding: config.DefaultEncoding,
 	}, client.WithReconnectDelays(50*time.Millisecond, 200*time.Millisecond))
 	require.NoError(t, err)
 
