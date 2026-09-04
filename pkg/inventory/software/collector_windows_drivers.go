@@ -14,6 +14,8 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/sys/windows"
 
@@ -151,13 +153,20 @@ func cutPrefixFold(s, prefix string) (string, bool) {
 
 // isMicrosoftPublisher reports whether the CompanyName of a driver binary names Microsoft.
 // Drivers spell it several ways — "Microsoft Corporation", "Microsoft Windows", plain
-// "Microsoft" — so the prefix is what is matched.
+// "Microsoft" — so a leading Microsoft token is matched case-insensitively. The token must
+// end the value or be followed by a non-alphanumeric separator; joined names such as
+// "Microsoftsoftware" may belong to an unrelated publisher and are kept.
 //
 // This filters the service source only. The device source carries an INF name, which is a
 // far better signal; see collectDeviceDrivers.
 func isMicrosoftPublisher(publisher string) bool {
-	_, ok := cutPrefixFold(strings.TrimSpace(publisher), "microsoft")
-	return ok
+	remainder, ok := cutPrefixFold(strings.TrimSpace(publisher), "microsoft")
+	if !ok || remainder == "" {
+		return ok
+	}
+
+	first, _ := utf8.DecodeRuneInString(remainder)
+	return !unicode.IsLetter(first) && !unicode.IsNumber(first)
 }
 
 // isOEMInfName reports whether an INF was published as an OEM package.

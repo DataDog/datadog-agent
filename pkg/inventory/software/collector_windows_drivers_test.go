@@ -213,6 +213,7 @@ func TestDriverCollectorDropsMicrosoftPublishedDrivers(t *testing.T) {
 			{Name: "WdFilter", DisplayName: "Defender Mini-Filter", ImagePath: `C:\Windows\System32\drivers\WdFilter.sys`},
 			{Name: "tcpip", DisplayName: "TCP/IP Protocol Driver", ImagePath: `C:\Windows\System32\drivers\tcpip.sys`},
 			{Name: "acpi", DisplayName: "ACPI Driver", ImagePath: `C:\Windows\System32\drivers\acpi.sys`},
+			{Name: "Microsoftsoftware", DisplayName: "Publisher Lookalike", ImagePath: `C:\Vendor\lookalike.sys`},
 			{Name: "Unattributed", DisplayName: "Unattributed Driver", ImagePath: `C:\Vendor\u.sys`},
 			{Name: "VendorFlt", DisplayName: "Vendor Filter", ImagePath: `C:\Vendor\flt.sys`},
 		},
@@ -220,6 +221,7 @@ func TestDriverCollectorDropsMicrosoftPublishedDrivers(t *testing.T) {
 			`C:\Windows\System32\drivers\WdFilter.sys`: {FileVersionNumeric: "4.18.24090.11", CompanyName: "Microsoft Corporation"},
 			`C:\Windows\System32\drivers\tcpip.sys`:    {FileVersionNumeric: "10.0.26100.1", CompanyName: "Microsoft Windows"},
 			`C:\Windows\System32\drivers\acpi.sys`:     {FileVersionNumeric: "10.0.26100.1", CompanyName: "  microsoft  "},
+			`C:\Vendor\lookalike.sys`:                  {FileVersionNumeric: "1.0.0.0", CompanyName: "Microsoftsoftware"},
 			`C:\Vendor\u.sys`:                          {FileVersionNumeric: "1.0.0.0", CompanyName: ""},
 			`C:\Vendor\flt.sys`:                        {FileVersionNumeric: "1.0.0.0", CompanyName: "Vendor GmbH"},
 		},
@@ -236,7 +238,7 @@ func TestDriverCollectorDropsMicrosoftPublishedDrivers(t *testing.T) {
 	}
 	// The unattributed driver is kept: an unattributed kernel driver is exactly the kind of
 	// thing an operator wants to see.
-	assert.Equal(t, []string{"unattributed", "vendorflt"}, reported)
+	assert.Equal(t, []string{"microsoftsoftware", "unattributed", "vendorflt"}, reported)
 }
 
 func TestDriverCollectorReportsSoftwareOnlyDrivers(t *testing.T) {
