@@ -347,7 +347,6 @@ impl ManagedProcess {
             if let Err(e) = job.terminate() {
                 warn!("[{}] job object terminate failed: {e}", self.name);
             } else {
-                self.clear_windows_spawn_resources();
                 return;
             }
         }
