@@ -48,8 +48,8 @@ func Check() ([]runnerdef.IssueReport, error) {
 				IssueName: IssueName,
 				Source:    "docker",
 				Context: map[string]string{
-					"dockerDirs": strings.Join(unreachableSockets, ","),
-					"os":         runtime.GOOS,
+					"socketPaths": strings.Join(unreachableSockets, ","),
+					"os":          runtime.GOOS,
 				},
 				Tags: []string{"docker-socket", "permissions"},
 			},

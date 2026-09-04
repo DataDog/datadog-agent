@@ -16,6 +16,7 @@ go_library(
     ] + select({
         "@rules_go//go/platform:windows": [
             "@com_github_microsoft_go_winio//:go-winio",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),
