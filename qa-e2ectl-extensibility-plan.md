@@ -318,3 +318,49 @@ type Meta struct {
 Bottom line: T2, T4 and T6 are the same decision at three layers — config
 sections, worker jobs, store metadata — **driver knowledge belongs to the
 driver, and the generic layers carry opaque payloads the driver owns**.
+
+## 10. Why the worker exists — and what that implies for T4
+
+The worker was born as leak-containment (transitive Pulumi through
+testing/components) and shrank to its true purpose when the outputs seam closed:
+install/update moved in-process, and what remained is exactly the operations
+that link Pulumi *by nature* — cloud provisioning. Its value, measured in this
+implementation:
+
+- **Dev velocity**: the core's dep graph has 0 pulumi packages (vs 196 in the
+  worker), so iterating on the CLI — the actively developed artifact — never
+  compiles the Pulumi SDK; the worker changes only when provisioning changes.
+- **Always-fast surface**: 22MB vs 736MB; list/fakeintake stay instant for
+  cloud users too, not just local ones (the build-tag alternative would make
+  cloud users pay Pulumi for every verb).
+- **Distribution**: the heavy binary only exists where cloud credentials do.
+- **Process isolation**: provider failures are exit codes, not in-process
+  crashes.
+- **Enforcement**: the dep-graph CI guard makes "no Pulumi in local paths"
+  mechanically true, not a convention.
+
+The steelman alternative — build tags (`go build -tags cloud`) — was
+considered and rejected: it wins on IPC plumbing but loses the always-fast
+surface (cloud users get the fat binary for everything), dev velocity, and
+process isolation.
+
+Implication for T4: any two-binary split needs a contract across the
+dependency-world boundary, and the question is only how wide it is. The wide
+contract (per-provider action strings + shared typed Job fields) re-creates
+switch-proliferation across the process boundary. The minimal contract —
+{provision|destroy, base, opaque params} — turns the worker into a generic
+executor of a Provider registry, the same inversion the core got. A single
+shared registry is mechanically impossible (the core must not link Pulumi —
+the worker's own reason for existing), so the registry necessarily mirrors
+across the boundary; the mirror is the shadow cast by the worker's
+justification, not an extra cost.
+
+Corollary: T2, T4 and T6 are one rule at three layers — generic layers carry
+opaque payloads, the owner decodes them. The worker is where that rule has a
+process boundary to cross.
+
+Lifetime: the worker lives exactly as long as Pulumi does in the framework's
+cloud provisioning. A provider gaining a non-Pulumi implementation can move
+to the core registry; full de-Pulumization would dissolve the worker and
+merge the mirrors back into one registry. The design degrades toward
+simplicity, never away from it.
