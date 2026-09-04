@@ -7,6 +7,7 @@ go_library(
         "agentapi.go",
         "config.go",
         "diagnose.go",
+        "dogstatsd_dump_contexts.go",
         "dogstatsd_top.go",
         "entrypoint.go",
         "flare.go",
@@ -29,7 +30,10 @@ go_library(
 
 dd_agent_go_test(
     name = "datadogagent_test",
-    srcs = ["dogstatsd_top_test.go"],
+    srcs = [
+        "dogstatsd_dump_contexts_test.go",
+        "dogstatsd_top_test.go",
+    ],
     embed = [":datadogagent"],
     deps = [
         "//comp/core/ipc/def",
