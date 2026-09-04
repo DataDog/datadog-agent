@@ -87,6 +87,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		UseTLS:             checkConfig.Instance.UseTLS,
 		InsecureSkipVerify: checkConfig.Instance.InsecureSkipVerify,
 	}
+	encoding, err := checkConfig.Instance.ResolvedEncoding()
+	if err != nil {
+		return fmt.Errorf("resolve encoding failed: %w", err)
+	}
+	clientCfg.Encoding = encoding
+
 	gnmiClient, err := client.New(clientCfg)
 	if err != nil {
 		return fmt.Errorf("create gNMI client failed: %w", err)

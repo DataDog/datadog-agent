@@ -39,6 +39,7 @@ type Config struct {
 	CollectTopology    bool
 	UseTLS             bool
 	InsecureSkipVerify bool
+	Encoding           gnmipb.Encoding
 }
 
 // Option configures optional client behavior, primarily for tests.
@@ -134,6 +135,9 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 	}
 	if len(cfg.Profile.Metrics) == 0 {
 		return nil, errors.New("profile must define at least one metric")
+	}
+	if cfg.Encoding == 0 {
+		cfg.Encoding = config.DefaultEncoding
 	}
 
 	clientOpts := options{
@@ -432,7 +436,7 @@ func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
 		Request: &gnmipb.SubscribeRequest_Subscribe{
 			Subscribe: &gnmipb.SubscriptionList{
 				Mode:         gnmipb.SubscriptionList_STREAM,
-				Encoding:     config.DefaultEncoding,
+				Encoding:     c.cfg.Encoding,
 				Subscription: subscriptions,
 			},
 		},
