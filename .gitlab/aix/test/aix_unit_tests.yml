@@ -15,10 +15,9 @@ tests_aix-ppc64:
   script:
     - 'echo "=== AIX: running unit tests ==="'
     - >
-      ssh -tt -p $AIX_PORT $AIX_USER@$AIX_HOST
-      "bash -c '
-        set -eu
-        cd $AIX_AGENT_SRC
-        . ./packaging/aix/lib/env.sh
-        python3.12 -m invoke -e test $EXTRA_TEST_FLAGS --build-exclude=python --build-cpus=1
-      '"
+      aix_run_cmd <<EOF
+      set -eu
+      cd $AIX_AGENT_SRC
+      . ./packaging/aix/lib/env.sh
+      python3.12 -m invoke -e test $EXTRA_TEST_FLAGS --build-exclude=python --build-cpus=1
+      EOF

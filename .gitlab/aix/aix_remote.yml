@@ -6,9 +6,13 @@
 # is available at the correct ref, and that the host has necessary tools and setup.
 # A resource_group per VM ensures only one AIX job uses the host at a time.
 #
-# The SSH key is added to the ssh-agent in before_script, so script steps can
-# connect with plain `ssh -p $AIX_PORT $AIX_USER@$AIX_HOST <cmd>`.
 # The repository is cloned in $AIX_AGENT_SRC.
+# Use aix_run_cmd, copy_file_from_aix, and copy_file_to_aix to connect to the host in job scripts, eg.:
+## $ aix_run_cmd echo "Hello from AIX"
+## $ aix_run_cmd <<EOF
+##    echo a
+##    echo b
+##    EOF
 
 .aix_remote:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -36,6 +40,30 @@
     # Add the key to the ssh-agent so script steps don't need -i.
     - eval $(ssh-agent -s)
     - ssh-add ~/.ssh/aix_ci_key
+    # Add the port to the config so script steps don't need -p.
+    - echo "Host $AIX_HOST\n  Port $AIX_PORT" >> ~/.ssh/config
+    - chmod 644 ~/.ssh/config
+
+    # Helpers for connecting to the AIX host.
+    - export AIX_SSH_COMMON_OPTS="-o ServerAliveInterval=20 -o ServerAliveCountMax=6"
+    - export AIX_SSH_DEST="$AIX_USER@$AIX_HOST"
+    - |
+      # this makes it very convenient to define and run multiline scripts on the AIX host
+      aix_run_cmd() {
+        local script
+        if [ "$#" -gt 0 ]; then
+          script="$*"
+        else
+          script=$(cat)
+        fi
+        local encoded
+        encoded=$(printf '%s' "$script" | base64 -w0)
+        # pass the script encoded in base64 to avoid issues with stdin
+        ssh -tt $AIX_SSH_COMMON_OPTS $AIX_SSH_DEST \
+          "echo $encoded | openssl enc -base64 -d -A | bash -s"
+      }
+    - copy_file_from_aix () { scp $AIX_SSH_COMMON_OPTS "$AIX_SSH_DEST:$1" "$2" ; }
+    - copy_file_to_aix () { scp $AIX_SSH_COMMON_OPTS "$1" "$AIX_SSH_DEST:$2" ; }
 
     # Ensure the agent source is cloned on the AIX host at the commit under
     # test. Reuses any existing clone (fetch + checkout) to avoid cloning from
@@ -43,7 +71,7 @@
     # has the scripts the job later runs.
     - 'echo "=== AIX: cloning agent source at $CI_COMMIT_SHA ==="'
     - |
-      ssh -T -p $AIX_PORT $AIX_USER@$AIX_HOST bash -s <<EOF
+      aix_run_cmd <<EOF
       set -eu
       export PATH=/opt/freeware/bin:/usr/bin:\$PATH
       if [ ! -d "$AIX_AGENT_SRC/.git" ]; then
@@ -62,4 +90,4 @@
     # Host setup (tools, etc)
     # -tt forces a PTY so the remote script's stdout/stderr stream live to the job log.
     - 'echo "=== AIX: provisioning host (setup-host.sh) ==="'
-    - ssh -tt -p $AIX_PORT $AIX_USER@$AIX_HOST "sh $AIX_AGENT_SRC/packaging/aix/setup-host.sh"
+    - aix_run_cmd sh $AIX_AGENT_SRC/packaging/aix/setup-host.sh
