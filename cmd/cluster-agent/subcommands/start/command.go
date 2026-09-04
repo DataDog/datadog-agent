@@ -358,13 +358,6 @@ func start(log log.Component,
 		}
 	}()
 
-	// Create the Leader election engine and initialize it
-	leaderelection.CreateGlobalLeaderEngine(mainCtx)
-	le, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		return err
-	}
-
 	// Setup the leader forwarder for autoscaling failover store, language detection and cluster checks
 	if config.GetBool("cluster_checks.enabled") ||
 		(config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) ||
@@ -382,11 +375,6 @@ func start(log log.Component,
 		return connectivity.DiagnoseMetadataAutodiscoveryConnectivity()
 	})
 
-	// Starting server early to ease investigations
-	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, clusterChecksMetadataComp, telemetry); err != nil {
-		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
-	}
-
 	// Getting connection to APIServer, it's done before Hostname resolution
 	// as hostname resolution may call APIServer
 	pkglog.Info("Waiting to obtain APIClient connection")
@@ -395,6 +383,17 @@ func start(log log.Component,
 		return fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
 	}
 	pkglog.Infof("Got APIClient connection")
+
+	// Create the leader election engine and initialize it
+	le, err := leaderelection.WaitForLeaderEngine(mainCtx)
+	if err != nil {
+		return err
+	}
+
+	// Starting server early to ease investigations
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, clusterChecksMetadataComp, telemetry); err != nil {
+		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
+	}
 
 	// Get hostname as aggregator requires hostname
 	hname, err := hostname.Get(mainCtx)

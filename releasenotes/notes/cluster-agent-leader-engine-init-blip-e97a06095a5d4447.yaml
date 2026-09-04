@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed the cluster agent crashing when the Leader Election Engine is temporarily unable to reach the API server during initialization.
