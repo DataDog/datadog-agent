@@ -22,6 +22,7 @@ go_library(
             "//comp/core/sysprobeconfig/def",
             "//comp/def",
             "//comp/etw/def",
+            "//comp/etw/impl",
             "//pkg/aggregator/sender",
             "//pkg/collector/check",
             "//pkg/collector/corechecks",
