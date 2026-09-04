@@ -294,11 +294,7 @@ impl ManagedProcess {
                     }
                 }
             };
-            let _ = tx.try_send(ExitEvent {
-                name,
-                pid,
-                status,
-            });
+            let _ = tx.try_send(ExitEvent { name, pid, status });
         });
         self.set_watcher_handle(watcher_handle);
     }
