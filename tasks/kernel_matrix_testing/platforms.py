@@ -27,12 +27,28 @@ def get_platforms():
         return cast("Platforms", json.load(f))
 
 
+# TestSetShard identifies one (test set, shard) pair: shard is None for a job
+# that does not shard, so an unsharded and a sharded job never collide on the
+# same key.
+TestSetShard = tuple[str, str | None]
+
+
 class KMTTestJob:
-    def __init__(self, name: str, arch: KMTArchName, test_set: str, kernels: set[str]):
+    def __init__(
+        self,
+        name: str,
+        arch: KMTArchName,
+        test_set: list[TestSetShard],
+        kernels: set[str],
+        shards: str | None = None,
+    ):
         self.name = name
         self.arch = arch
         self.test_set = test_set
         self.kernels = kernels
+        # The SHARDS job variable, carried alongside for the matrix
+        # consistency check in tasks/unit_tests/kmt_tests.py.
+        self.shards = shards
 
 
 def get_ci_test_jobs(component: Component) -> list[KMTTestJob]:
@@ -70,16 +86,24 @@ def get_ci_test_jobs(component: Component) -> list[KMTTestJob]:
             arch = ci_config[job]["variables"]["ARCH"]
             sets = ci_config[job]["parallel"]["matrix"][0]["TEST_SET"]
             kernels = ci_config[job]["parallel"]["matrix"][0]["TAG"]
+            shard_values = ci_config[job]["parallel"]["matrix"][0].get("SHARD")
 
-            test_jobs.append(KMTTestJob(job, Arch.from_str(arch).kmt_arch, sets, set(kernels)))
+            if shard_values:
+                test_set_shards = [(s, shard) for s in sets for shard in shard_values]
+            else:
+                test_set_shards = [(s, None) for s in sets]
+
+            shards = ci_config[job]["variables"].get("SHARDS")
+
+            test_jobs.append(KMTTestJob(job, Arch.from_str(arch).kmt_arch, test_set_shards, set(kernels), shards))
 
     return test_jobs
 
 
-def filter_by_ci_component(platforms: Platforms, component: Component) -> dict[str, Platforms]:
+def filter_by_ci_component(platforms: Platforms, component: Component) -> dict[TestSetShard, Platforms]:
     test_jobs = get_ci_test_jobs(component)
 
-    new_platforms_by_set: dict[str, Platforms] = {}
+    new_platforms_by_set: dict[TestSetShard, Platforms] = {}
     for job in test_jobs:
         # we need to index `new_platforms_by_set` by a literal to
         # avoid mypy errors, which is why assign arch to `cur_arch`
