@@ -3,10 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+#[cfg(not(test))]
 use anyhow::{Context, Result, bail};
 #[cfg(not(test))]
 use log::info;
+#[cfg(not(test))]
 use std::ptr;
+#[cfg(not(test))]
 use windows_sys::Win32::System::Services::{
     CloseServiceHandle, OpenSCManagerW, OpenServiceW, QUERY_SERVICE_CONFIGW, QueryServiceConfigW,
     SC_HANDLE, SC_MANAGER_CONNECT, SERVICE_QUERY_CONFIG,
