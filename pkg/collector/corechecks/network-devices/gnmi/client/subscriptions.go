@@ -19,6 +19,19 @@ type SubscriptionSpec struct {
 	Keys map[string]string // segment name -> key name
 }
 
+// String returns a human-readable subscription path.
+func (s SubscriptionSpec) String() string {
+	if len(s.Keys) == 0 {
+		return s.Path
+	}
+	return s.Path + "{" + formatKeys(s.Keys) + "}"
+}
+
+// SubscriptionPaths returns the deduplicated gNMI paths the client subscribes to.
+func SubscriptionPaths(cfg Config) []SubscriptionSpec {
+	return buildSubscriptionSpecs(cfg)
+}
+
 // MetadataSubscriptionPaths returns OpenConfig paths subscribed for device and interface metadata.
 func MetadataSubscriptionPaths() []SubscriptionSpec {
 	return []SubscriptionSpec{
