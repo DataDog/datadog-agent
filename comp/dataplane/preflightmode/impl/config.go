@@ -130,11 +130,21 @@ var preflightModeGlobalOverrides = map[string]any{
 // https://app.datadoghq.com. Since an explicit dd_url beats `site` in ADP just as it does in the
 // Core Agent, a site-only config came out of AllSettings pointing the pre-flight -- metrics and
 // API key both -- at US1 no matter what site the operator had configured.
-func buildPreflightConfig(cfg pkgconfigmodel.Reader, l listener) map[string]any {
+//
+// hostname is the one exception to "the operator's settings as-is": it is always written in,
+// even over an operator-supplied value, because it is what the caller already resolved through
+// the hostname component (the same resolution the Core Agent itself uses -- EC2 metadata, OS
+// hostname, `hostname_file`, and so on) rather than the config's raw, usually-empty `hostname`
+// setting. Standalone-mode ADP requires this field with no fallback of its own, and childEnv
+// strips DD_HOSTNAME from its environment along with the rest of the DD_ namespace, so this is
+// the only way it can learn a hostname at all.
+func buildPreflightConfig(cfg pkgconfigmodel.Reader, l listener, hostname string) map[string]any {
 	out := cfg.AllSettingsWithoutDefault()
 	if out == nil {
 		out = map[string]any{}
 	}
+
+	setNested(out, "hostname", hostname)
 
 	// Set all of the "global" overrides: overrides that apply regardless of OS/architecture.
 	for k, v := range preflightModeGlobalOverrides {
@@ -169,8 +179,8 @@ func buildPreflightConfig(cfg pkgconfigmodel.Reader, l listener) map[string]any 
 // The 0600 below is what restricts the file on Unix. It does nothing on Windows, where the
 // mode is not an access control mechanism at all; there the file is covered by the ACL
 // secureWorkDir puts on the directory, which is inheritable for exactly this reason.
-func writePreflightConfig(cfg pkgconfigmodel.Reader, l listener, workDir string) (string, error) {
-	data, err := yaml.Marshal(buildPreflightConfig(cfg, l))
+func writePreflightConfig(cfg pkgconfigmodel.Reader, l listener, workDir string, hostname string) (string, error) {
+	data, err := yaml.Marshal(buildPreflightConfig(cfg, l, hostname))
 	if err != nil {
 		return "", fmt.Errorf("could not render the data plane preflight mode config: %w", err)
 	}
