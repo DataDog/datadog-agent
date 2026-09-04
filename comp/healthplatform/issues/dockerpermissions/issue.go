@@ -8,7 +8,6 @@ package dockerpermissions
 import (
 	_ "embed"
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -83,7 +82,7 @@ func (t *DockerPermissionIssue) buildLinux(socketPaths string) *healthplatform.R
 	return &healthplatform.Remediation{
 		Summary: "Add the dd-agent user to the docker group so it can connect to the Docker socket.",
 		Steps: []*healthplatform.RemediationStep{
-			{Order: 1, Text: "Confirm the permission error on the affected socket(s): ls -la " + strings.ReplaceAll(socketPaths, ",", " ")},
+			{Order: 1, Text: "Affected socket(s): " + socketPaths},
 			{Order: 2, Text: "Add dd-agent to the docker group: sudo usermod -aG docker dd-agent"},
 			{Order: 3, Text: "Restart the datadog-agent service: sudo systemctl restart datadog-agent"},
 			{Order: 4, Text: "Verify the issue is resolved by checking agent status: datadog-agent status"},

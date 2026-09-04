@@ -8,6 +8,7 @@
 package dockerpermissions
 
 import (
+	"errors"
 	"os"
 	"path"
 	"runtime"
@@ -37,8 +38,7 @@ func Check() ([]runnerdef.IssueReport, error) {
 
 	var unreachableSockets []string
 	for _, socketPath := range getDockerSocketPaths() {
-		exists, permissionDenied := checkSocketPermission(socketPath, socketTimeout)
-		if exists && permissionDenied {
+		if err := checkSocketPermission(socketPath, socketTimeout); errors.Is(err, os.ErrPermission) {
 			unreachableSockets = append(unreachableSockets, socketPath)
 		}
 	}

@@ -8,27 +8,30 @@
 package dockerpermissions
 
 import (
-	"errors"
 	"net"
 	"os"
 	"time"
 )
 
-// checkSocketPermission reports whether the Unix socket at path exists and,
-// if so, whether dialing it failed specifically with a permission-denied
-// error. A busy socket, connection refused, or timeout is not a permission
-// problem and reports permissionDenied=false.
-func checkSocketPermission(path string, timeout time.Duration) (exists bool, permissionDenied bool) {
+// checkSocketPermission returns nil if the Unix socket at path is reachable
+// (or absent). Otherwise it returns the error from stat-ing or dialing the
+// socket; callers can test errors.Is(err, os.ErrPermission) to distinguish a
+// genuine permission problem from a busy socket, connection refused, or
+// timeout, none of which are permission issues.
+func checkSocketPermission(path string, timeout time.Duration) error {
 	f, err := os.Stat(path)
-	if err != nil || f.Mode()&os.ModeSocket == 0 {
-		return false, false
+	if err != nil {
+		return nil // socket doesn't exist, not a permission problem
+	}
+	if f.Mode()&os.ModeSocket == 0 {
+		return nil
 	}
 
 	conn, err := net.DialTimeout("unix", path, timeout)
 	if err != nil {
-		return true, errors.Is(err, os.ErrPermission)
+		return err
 	}
 
 	conn.Close()
-	return true, false
+	return nil
 }
