@@ -478,6 +478,9 @@ include("//deps:repos.MODULE.bazel")
 include("//deps/acl:acl.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/agent_check_runner:agent_check_runner.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/agent_data_plane:agent_data_plane.MODULE.bazel")
 
 # buildifier: leave-alone

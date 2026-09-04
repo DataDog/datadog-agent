@@ -265,6 +265,11 @@ RUN if [ ! -f /opt/datadog-agent/embedded/bin/agent-data-plane ]; then \
   rm -rf /etc/services.d/data-plane ; \
 fi
 
+# Update if optional Agent Check Runner process should not run
+RUN if [ ! -f /opt/datadog-agent/embedded/bin/agent-check-runner/agent-check-runner ]; then \
+  rm -rf /etc/services.d/check-runner ; \
+fi
+
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
 # Add Debian snapshot date for debugging
