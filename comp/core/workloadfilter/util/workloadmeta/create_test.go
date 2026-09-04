@@ -107,37 +107,66 @@ func TestResolveRootOwner(t *testing.T) {
 	}
 }
 
-func TestCreatePodWithRootOwner(t *testing.T) {
-	pod := &workloadmeta.KubernetesPod{
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:      "my-app-6d4f5b7c8-abc12",
-			Namespace: "default",
+func TestCreatePod(t *testing.T) {
+	tests := []struct {
+		name          string
+		pod           *workloadmeta.KubernetesPod
+		rootOwner     *core.FilterRootOwner
+		matchedOwners []*core.FilterMatchedOwner
+	}{
+		{
+			name: "deployment root owner",
+			pod: &workloadmeta.KubernetesPod{
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{Kind: "ReplicaSet", Name: "my-app-6d4f5b7c8", Controller: boolPtr(true)},
+				},
+			},
+			rootOwner: &core.FilterRootOwner{Kind: "Deployment", Name: "my-app"},
 		},
-		Owners: []workloadmeta.KubernetesPodOwner{
-			{Kind: "ReplicaSet", Name: "my-app-6d4f5b7c8", Controller: boolPtr(true)},
+		{
+			name: "rollout root owner",
+			pod: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Labels: map[string]string{kubernetes.ArgoRolloutLabelKey: "9b8dc4bd6"},
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{Kind: "ReplicaSet", Name: "my-rollout-9b8dc4bd6", Controller: boolPtr(true)},
+				},
+			},
+			rootOwner: &core.FilterRootOwner{Kind: "Rollout", Name: "my-rollout"},
+		},
+		{
+			name: "matched owner",
+			pod: &workloadmeta.KubernetesPod{
+				MatchedOwners: []workloadmeta.KubernetesMatchedOwner{
+					{
+						Group:     "apps.kruise.io",
+						Version:   "v1alpha1",
+						Kind:      "CloneSet",
+						Namespace: "default",
+						Name:      "nginx",
+					},
+				},
+			},
+			matchedOwners: []*core.FilterMatchedOwner{
+				{
+					Group:     "apps.kruise.io",
+					Version:   "v1alpha1",
+					Kind:      "CloneSet",
+					Namespace: "default",
+					Name:      "nginx",
+				},
+			},
 		},
 	}
-	result := CreatePod(pod)
-	assert.NotNil(t, result.FilterPod.Rootowner)
-	assert.Equal(t, "Deployment", result.FilterPod.Rootowner.Kind)
-	assert.Equal(t, "my-app", result.FilterPod.Rootowner.Name)
-}
 
-func TestCreatePodWithRolloutRootOwner(t *testing.T) {
-	pod := &workloadmeta.KubernetesPod{
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:      "my-rollout-9b8dc4bd6-abc12",
-			Namespace: "default",
-			Labels:    map[string]string{kubernetes.ArgoRolloutLabelKey: "9b8dc4bd6"},
-		},
-		Owners: []workloadmeta.KubernetesPodOwner{
-			{Kind: "ReplicaSet", Name: "my-rollout-9b8dc4bd6", Controller: boolPtr(true)},
-		},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CreatePod(tt.pod)
+			assert.Equal(t, tt.rootOwner, result.FilterPod.Rootowner)
+			assert.ElementsMatch(t, tt.matchedOwners, result.FilterPod.MatchedOwners)
+		})
 	}
-	result := CreatePod(pod)
-	assert.NotNil(t, result.FilterPod.Rootowner)
-	assert.Equal(t, "Rollout", result.FilterPod.Rootowner.Kind)
-	assert.Equal(t, "my-rollout", result.FilterPod.Rootowner.Name)
 }
 
 func TestCreatePodWithStrimziPodSetRootOwner(t *testing.T) {

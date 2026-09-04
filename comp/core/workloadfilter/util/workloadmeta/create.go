@@ -37,13 +37,25 @@ func CreatePod(pod *workloadmeta.KubernetesPod) *workloadfilter.Pod {
 		return nil
 	}
 
+	matchedOwners := make([]*core.FilterMatchedOwner, 0, len(pod.MatchedOwners))
+	for _, owner := range pod.MatchedOwners {
+		matchedOwners = append(matchedOwners, &core.FilterMatchedOwner{
+			Group:     owner.Group,
+			Version:   owner.Version,
+			Kind:      owner.Kind,
+			Namespace: owner.Namespace,
+			Name:      owner.Name,
+		})
+	}
+
 	return &workloadfilter.Pod{
 		FilterPod: &core.FilterPod{
-			Id:          pod.ID,
-			Name:        pod.Name,
-			Namespace:   pod.Namespace,
-			Annotations: pod.Annotations,
-			Rootowner:   resolveRootOwner(pod.Owners, pod.Labels),
+			Id:            pod.ID,
+			Name:          pod.Name,
+			Namespace:     pod.Namespace,
+			Annotations:   pod.Annotations,
+			Rootowner:     resolveRootOwner(pod.Owners, pod.Labels),
+			MatchedOwners: matchedOwners,
 		},
 	}
 }
