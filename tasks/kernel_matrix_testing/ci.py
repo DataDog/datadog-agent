@@ -163,20 +163,23 @@ class KMTSetupEnvJob(KMTJob):
 
         return ips
 
-    def get_vm(self, distro: str, vmset: str) -> tuple[str, str] | None:
-        """Return the VM ID and IP that matches a given distro and vmset in this environment job
+    def get_vm(self, distro: str, vmset: str, shard: str | None = None) -> tuple[str, str] | None:
+        """Return the VM ID and IP that matches a given distro, vmset and shard in this
+        environment job. shard is matched as a second tag, same as vmset; None matches any
+        microVM regardless of what shard tag it carries.
 
         Returns None if they're not found
         """
         for _, vmmap in self.stack_output.items():
             for microvm in vmmap['microvms']:
-                if microvm['tag'] == distro and vmset in microvm['vmset-tags']:
+                tags = microvm['vmset-tags']
+                if microvm['tag'] == distro and vmset in tags and (shard is None or shard in tags):
                     return microvm['id'], microvm['ip']
         return None
 
-    def get_vm_boot_log(self, distro: str, vmset: str) -> str | None:
-        """Return the boot log for a given distro and vmset in this setup-env job"""
-        vmdata = self.get_vm(distro, vmset)
+    def get_vm_boot_log(self, distro: str, vmset: str, shard: str | None = None) -> str | None:
+        """Return the boot log for a given distro, vmset and shard in this setup-env job"""
+        vmdata = self.get_vm(distro, vmset, shard)
         if vmdata is None:
             return None
         vmid, _ = vmdata
@@ -237,11 +240,19 @@ class KMTTestRunJob(KMTJob):
     def vmset(self) -> str:
         return self.vars[1]
 
+    @property
+    def shard(self) -> str | None:
+        """The shard this job ran, or None for a job that isn't sharded. Reports exactly
+        what the job name says, same as distro and vmset -- nothing composes a key.
+        """
+        return self.vars[2] if len(self.vars) > 2 else None
+
     def get_test_results(self) -> dict[str, bool | None]:
         """Return a dictionary with the results of all tests in this job, indexed by "package_name:testname".
         The values are True if test passed, False if failed, None if skipped.
         """
-        junit_archive_name = f"junit-{self.arch}-{self.distro}-{self.vmset}.tar.gz"
+        shard_suffix = f"-{self.shard}" if self.shard is not None else ""
+        junit_archive_name = f"junit-{self.arch}-{self.distro}-{self.vmset}{shard_suffix}.tar.gz"
         junit_archive = self.artifact_file_binary(f"test/new-e2e/tests/{junit_archive_name}", ignore_not_found=True)
         if junit_archive is None:
             return {}

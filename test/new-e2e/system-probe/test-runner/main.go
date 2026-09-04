@@ -49,6 +49,11 @@ type testConfig struct {
 	testingTools string
 	extraParams  string
 	extraEnv     string
+	// shard and shards are CI fan-out, not test selection, so they are kept
+	// out of userProvidedConfig: they never come from the packages-run-config
+	// JSON, only from the CI-supplied flags below.
+	shard  int
+	shards int
 }
 
 type userProvidedConfig struct {
@@ -287,6 +292,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		if testContainer != nil {
 			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, envVars)
 		}
+		testsuiteArgs = shardArgs(testsuiteArgs, testConfig.shard, testConfig.shards)
 
 		for _, group := range testPasses(pkg, testsuiteArgs, envVars, filepath.Dir(testsuite)) {
 			suffix, groupArgs := groupPass(testsuiteArgs, group)
@@ -341,6 +347,8 @@ func buildTestConfiguration() (*testConfig, error) {
 	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 	extraEnv := flag.String("extra-env", "", "extra environment variables to pass to the test runner")
+	shard := flag.Int("shard", 0, "1-based index of the shard to run; 0 means unsharded")
+	shards := flag.Int("shards", 0, "number of shards the suite is split into; 0 means unsharded")
 
 	flag.Parse()
 
@@ -379,6 +387,8 @@ func buildTestConfiguration() (*testConfig, error) {
 		testingTools:       tools,
 		extraParams:        *extraParams,
 		extraEnv:           *extraEnv,
+		shard:              *shard,
+		shards:             *shards,
 	}, nil
 }
 
