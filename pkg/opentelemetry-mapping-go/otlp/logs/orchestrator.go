@@ -483,7 +483,7 @@ type K8sTranslationResult struct {
 // TranslateK8sObjects converts k8sobjectsreceiver logs into chunked orchestrator manifest payloads.
 // It handles deduplication via cache (pass nil to disable), cluster manifest creation, and chunking.
 // Set skipClusterManifest to true to skip automatic Cluster manifest creation from collected nodes.
-// Set maxChunkSize to value >= 0 to override individual chunk weight. Otherwise, default value will be used.
+// Set maxChunkSize to value > 0 to override individual chunk weight. Otherwise, default value will be used.
 // Individual record errors are logged and skipped rather than aborting the batch.
 func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger, skipClusterManifest bool, maxChunkSize int) *K8sTranslationResult {
 	var manifests []*agentmodel.Manifest
