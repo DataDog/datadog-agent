@@ -17,6 +17,7 @@ services:
     container_name: spark-driver-configfilesdiscovery-worker
     environment:
       SPARK_DAEMON_JAVA_OPTS: -Dsecret=must-not-be-forwarded
+      SPARK_CONF_DIR: /opt/configfilesdiscovery
       SPARK_DRIVER_MEMORY: 2g
       SPARK_LOCAL_DIRS: /tmp/configfilesdiscovery-spark
       SPARK_LOCAL_IP: spark-driver-configfilesdiscovery-worker
@@ -44,7 +45,8 @@ services:
         printf '%s\n' 'public final class ConfigFilesDiscoveryDriver { public static void main(String[] args) throws Exception { Thread.sleep(300000); } }' > /opt/configfilesdiscovery/ConfigFilesDiscoveryDriver.java
         /opt/java/openjdk/bin/javac -d /opt/configfilesdiscovery /opt/configfilesdiscovery/ConfigFilesDiscoveryDriver.java
         /opt/java/openjdk/bin/jar cf /opt/configfilesdiscovery/configfilesdiscovery-driver.jar -C /opt/configfilesdiscovery ConfigFilesDiscoveryDriver.class
-        exec /opt/spark/bin/spark-submit --master spark://spark-driver-configfilesdiscovery-master:7077 --deploy-mode cluster --class ConfigFilesDiscoveryDriver /opt/configfilesdiscovery/configfilesdiscovery-driver.jar
+        printf '%s\n' 'spark.app.name configfilesdiscovery-driver' 'spark.driver.memory 2g' > /opt/configfilesdiscovery/spark-defaults.conf
+        exec /opt/spark/bin/spark-submit --properties-file /opt/configfilesdiscovery/spark-defaults.conf --master spark://spark-driver-configfilesdiscovery-master:7077 --deploy-mode cluster --class ConfigFilesDiscoveryDriver /opt/configfilesdiscovery/configfilesdiscovery-driver.jar
     volumes:
       - spark-driver-configfilesdiscovery-artifacts:/opt/configfilesdiscovery
 

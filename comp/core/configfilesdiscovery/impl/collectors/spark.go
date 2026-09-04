@@ -8,13 +8,21 @@ package collectors
 import (
 	"context"
 	"fmt"
+	"path"
+	"strings"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	// SparkIntegrationName is the Autodiscovery check name for Spark.
-	SparkIntegrationName = "spark"
+	SparkIntegrationName        = "spark"
+	sparkConfigPayloadFormat    = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_PROPERTIES
+	sparkDefaultsConfigFileName = "spark-defaults.conf"
+	sparkSubmitClass            = "org.apache.spark.deploy.SparkSubmit"
+	sparkPropertiesFileOption   = "--properties-file"
 
 	// sparkStandaloneDriverClass is launched by a Spark Standalone Worker for
 	// applications submitted in cluster deploy mode. It is the stable process
@@ -79,9 +87,15 @@ var sparkEnvAllowlist = map[string]struct{}{
 	"SPARK_WORKER_WEBUI_PORT":                {},
 }
 
+var sparkDefaultConfigPathGroups = [][]string{
+	{"/opt/spark/conf/" + sparkDefaultsConfigFileName},
+	{"/opt/bitnami/spark/conf/" + sparkDefaultsConfigFileName},
+}
+
 // NewSpark returns a collector for Spark Standalone Drivers running in cluster
-// deploy mode. Other Spark deployment modes do not have a portable,
-// unambiguous Driver process identity available through ConfigReader.
+// deploy mode. It reads the Driver's Spark properties file and supporting
+// non-secret environment metadata. Other Spark deployment modes do not have a
+// portable, unambiguous Driver process identity available through ConfigReader.
 func NewSpark() configfilesdiscoveryimpl.ConfigCollector {
 	return sparkConfigCollector{}
 }
@@ -98,20 +112,85 @@ func (sparkConfigCollector) Collect(ctx context.Context, reader configfilesdisco
 		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("identify spark driver: %w", err)
 	}
 	if !isDriver {
+		log.Debugf("config files discovery skipped spark driver env collection: no DriverWrapper process detected")
 		return configfilesdiscoveryimpl.CollectedConfig{}, nil
 	}
 
-	envVars, err := readEnvVars(ctx, reader, includeSparkEnvVar)
+	envVars, envErr := readEnvVars(ctx, reader, includeSparkEnvVar)
+	if envErr != nil {
+		log.Debugf("config files discovery skipped spark driver env var collection: %v", envErr)
+		envVars = nil
+	}
+
+	file, ok, err := readConfigFile(
+		ctx,
+		reader,
+		sparkGetPropertiesFileFromCommandline,
+		sparkMatchesSubmitCommandline,
+		sparkFallbackConfigArg(envVars),
+		sparkDefaultConfigPathGroups...,
+	)
 	if err != nil {
-		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read spark env vars: %w", err)
+		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect spark driver config file: %w", err)
 	}
-	if len(envVars) == 0 {
-		return configfilesdiscoveryimpl.CollectedConfig{}, nil
+	if !ok {
+		if envErr != nil {
+			return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read spark driver env vars: %w", envErr)
+		}
+		if len(envVars) == 0 {
+			return configfilesdiscoveryimpl.CollectedConfig{}, nil
+		}
+		return configfilesdiscoveryimpl.CollectedConfig{EnvVars: envVars}, nil
 	}
 
+	file.PayloadFormat = sparkConfigPayloadFormat
 	return configfilesdiscoveryimpl.CollectedConfig{
-		EnvVars: envVars,
+		ConfigFiles: []configfilesdiscoveryimpl.ConfigFile{file},
+		EnvVars:     envVars,
 	}, nil
+}
+
+// sparkFallbackConfigArg uses Spark's documented configuration-directory
+// override. When it is absent, readConfigFile considers known image defaults.
+func sparkFallbackConfigArg(envVars []configfilesdiscoveryimpl.ConfigEnvVar) string {
+	for _, envVar := range envVars {
+		if envVar.Name == "SPARK_CONF_DIR" && envVar.Value != "" {
+			return path.Join(envVar.Value, sparkDefaultsConfigFileName)
+		}
+	}
+	return ""
+}
+
+// sparkGetPropertiesFileFromCommandline returns the explicit properties file
+// passed to SparkSubmit. An explicit path is authoritative over SPARK_CONF_DIR
+// and image defaults.
+func sparkGetPropertiesFileFromCommandline(args []string) (string, bool) {
+	args = unwrapShellCommandline(args)
+	for i, arg := range args {
+		if arg != sparkSubmitClass && path.Base(arg) != "spark-submit" {
+			continue
+		}
+		for i++; i < len(args); i++ {
+			switch {
+			case args[i] == sparkPropertiesFileOption && i+1 < len(args):
+				return args[i+1], true
+			case strings.HasPrefix(args[i], sparkPropertiesFileOption+"="):
+				return strings.TrimPrefix(args[i], sparkPropertiesFileOption+"="), true
+			}
+		}
+		return "", false
+	}
+	return "", false
+}
+
+func sparkMatchesSubmitCommandline(args []string) bool {
+	args = unwrapShellCommandline(args)
+	for _, arg := range args {
+		if arg == sparkSubmitClass || path.Base(arg) == "spark-submit" {
+			return true
+		}
+	}
+	return false
 }
 
 func includeSparkEnvVar(name string) bool {
