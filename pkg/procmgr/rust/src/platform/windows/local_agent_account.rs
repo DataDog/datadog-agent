@@ -146,6 +146,22 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
 }
 
 #[cfg(not(test))]
+fn stored_logon_domain(registry_domain: &str, sid: &[u8]) -> Result<String> {
+    Ok(normalize_registry_domain_for_logon(
+        registry_domain,
+        is_local_account(sid)?,
+    ))
+}
+
+fn normalize_registry_domain_for_logon(registry_domain: &str, is_local: bool) -> String {
+    if is_local {
+        String::new()
+    } else {
+        registry_domain.to_string()
+    }
+}
+
+#[cfg(not(test))]
 fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Result<AgentAccount> {
     let display = AccountName::new(&domain, &user).display();
 
@@ -157,7 +173,7 @@ fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Resu
              agent spawn will inherit the supervisor token until LocalSystem migration"
         );
         return Ok(AgentAccount::PasswordLogon {
-            domain,
+            domain: stored_logon_domain(&domain, sid)?,
             user,
             password: String::new(),
         });
@@ -193,7 +209,7 @@ fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Resu
         })?;
 
     Ok(AgentAccount::PasswordLogon {
-        domain,
+        domain: stored_logon_domain(&domain, sid)?,
         user,
         password,
     })
@@ -287,6 +303,18 @@ mod tests {
             }
             .display_name(),
             AccountName::new("", "ddagentuser").display(),
+        );
+    }
+
+    #[test]
+    fn stored_logon_domain_clears_stale_hostname_for_local_accounts() {
+        assert_eq!(
+            normalize_registry_domain_for_logon("OLD-HOST", true),
+            String::new()
+        );
+        assert_eq!(
+            normalize_registry_domain_for_logon("CORP", false),
+            "CORP".to_string()
         );
     }
 
