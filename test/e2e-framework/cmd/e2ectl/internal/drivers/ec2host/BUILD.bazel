@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ec2host",
+    srcs = ["ec2host.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/drivers/ec2host",
+    visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
+    deps = [
+        "//test/e2e-framework/cmd/e2ectl/internal/config",
+        "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+        "//test/e2e-framework/cmd/e2ectl/internal/installer",
+        "//test/e2e-framework/cmd/e2ectl/workerclient",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioner",
+        "//test/e2e-framework/testing/standalone",
+    ],
+)

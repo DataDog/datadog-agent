@@ -8,15 +8,15 @@
 schema: 1
 environment:
   base: kind
-  # kubernetes:             # optional: pin the kind node image
-  #   version: "1.31.0"     # maps to kindest/node:v1.31.0
-  #   nodes: 1              # extra worker nodes
   fakeintake: true
+  kind:                 # the kind-driver-owned section
+    version: "1.31.0"    # optional: full version, maps to kindest/node:v1.31.0
+    # nodes: 1          # optional: extra worker nodes
 agent:
   install: helm
   # The local image is tagged exactly as the Helm chart expects (the registry
   # prefix is only a naming convention: nothing is pushed to gcr.io). Build it
-  # with: dda inv agent.hacky-dev-image-build --target-image=gcr.io/datadoghq/agent:e2ectl-dev
-  image: gcr.io/datadoghq/agent:e2ectl-dev
-  # config: |              # optional datadog.yaml overrides
+  # with: dda inv agent.hacky-dev-image-build --target-image=gcr.io/datadoghq/agent:7.99.0-dev1
+  image: gcr.io/datadoghq/agent:7.99.0-dev1
+  # config: |          # optional datadog.yaml overrides
   #   log_level: debug

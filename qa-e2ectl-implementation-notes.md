@@ -146,3 +146,42 @@ must run in-process via the no-pulumi installers. The seam that made it possible
   kind load, snapshot attach, helm upgrade, renamed metric flowing.
 - Still local (now unblocked): `config.SupportedOS` can be derived from
   `components/os/types` instead of a hand table (consolidation D8).
+
+### 11. Extensibility executed: driver registry + scenario registry (live-verified)
+
+The extensibility plan (§2-§12) is implemented:
+
+- **Driver registry** (cmd/e2ectl/internal/driver): Driver/Updatable + the
+  explicit registry slice — the single edit site. The Installer/Updatable
+  contracts live in the installer package so drivers implement them
+  structurally without importing the registry (no import cycle).
+- **Driver-owned config sections**: environment = {base, fakeintake, <base>-section};
+  the core strict-decodes what it owns and hands the section raw to the driver —
+  no shared typed struct, unknown-field rejection per driver. The install/base
+  matrix moved to registry lookups with "supported:" error messages.
+- **Worker = pulumi-executor with a scenario registry**: generic job
+  {action, base, params, stack}; scenarios.go registers {base → params decoder
+  + run function}; main is a forever-static engine. Infra-only (§12): the EC2
+  scenario always runs WithoutAgent+WithoutFakeIntake; the core deploys the
+  fakeintake on the VM over ssh post-provision.
+- **Bookkeeping from the snapshot**: kind Stop derives the cluster name from
+  the snapshot; the EC2 stack name is recomputed deterministically from the
+  env name — envstore gained the opaque DriverMeta field but nothing needs it
+  yet.
+- **Commands are switch-free**: start/install/update/stop are registry-driven.
+
+Live-verified (fresh env qa-dev2, kind 1.33.0 pinned via the driver section):
+start → install 7.67.0 in-process → update --config (dev image, kind-load hook)
+→ renamed metric in fakeintake → stop cleans everything. Core dep graph:
+zero pulumi packages; worker: the executor, by design.
+
+Tricky points found while executing:
+- `install --config <file>` replaces the stored config copy — so a dev-image
+  `update` after a released-version install needs `update --config <dev>`: the
+  config-switch is the designed flow, not a bug. Worth a README line one day.
+- The process check posts to process.datadoghq.com regardless of dd_url (only
+  the core forwarder is fakeintake-routed) — pre-existing framework behavior,
+  harmless with dummy keys (403s), observed live.
+- Docker on the VM: the ec2 post-provision fakeintake runs `docker` on the host;
+  the plain awshost image may not ship it — flagged for the (untestable, no
+  creds) EC2 path: the scenario may need WithDocker like the dockerhost envs.

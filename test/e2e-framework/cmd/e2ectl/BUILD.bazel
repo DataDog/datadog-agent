@@ -10,13 +10,10 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//test/e2e-framework/cmd/e2ectl/internal/config",
+        "//test/e2e-framework/cmd/e2ectl/internal/driver",
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
         "//test/e2e-framework/cmd/e2ectl/internal/fakeintakecmd",
         "//test/e2e-framework/cmd/e2ectl/internal/installer",
-        "//test/e2e-framework/cmd/e2ectl/internal/kinddriver",
-        "//test/e2e-framework/cmd/e2ectl/workerclient",
-        "//test/e2e-framework/components/outputs",
-        "//test/e2e-framework/testing/provisioner",
     ],
 )
 

@@ -3,10 +3,16 @@
 // This product contains software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present, Datadog, Inc.
 
-// Package installer installs and updates the agent on an existing environment,
-// in-process. It rehydrates the typed environment from the snapshot and uses
-// the framework's Pulumi-free installers — after the outputs seam, no worker
-// process is needed for any non-Pulumi operation.
+// Package installer holds the SHARED agent installers, referenced by the
+// drivers, and the Installer/Updatable contracts the drivers advertise.
+// Installers operate on typed environments rehydrated from the snapshot —
+// they do not know which driver created the environment, so one instance
+// serves every compatible base.
+//
+// NewKubernetes is parameterized by the image-delivery hook: how a locally
+// built agent image reaches the cluster (kind load for kind, a registry push
+// for remote clusters). That hook is the entire semantic difference between
+// cluster drivers.
 package installer
 
 import (
@@ -14,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
@@ -24,16 +31,54 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/standalone"
 )
 
-// Kind installs (or upgrades) the agent on a kind environment with the Helm chart.
-// With a locally-built image (cfg.Agent.Image), the image is loaded into the kind
-// cluster first and used via chart value overrides.
-func Kind(entry envstore.Entry, cfg *config.File) error {
-	if cfg.Agent.Image != "" {
-		if err := loadKindImage(entry, cfg.Agent.Image); err != nil {
+// Installer owns one agent installation method. The interfaces live here
+// (not in the driver package) so drivers implement them structurally without
+// importing the driver registry — no import cycle.
+type Installer interface {
+	// ID is the agent.install value.
+	ID() string
+	// Validate checks the installer's own agent-section rules.
+	Validate(cfg *config.File) []error
+	// Install installs (or upgrades) the agent on the environment.
+	Install(cfg *config.File, entry envstore.Entry) error
+}
+
+// Updatable is the optional local-iteration capability: every environment
+// should end up updatable, but drivers can ship without it and grow it later.
+type Updatable interface {
+	Installer
+	Update(cfg *config.File, entry envstore.Entry) error
+}
+
+// Kubernetes installs or upgrades the agent with the Helm chart on any
+// Kubernetes environment (kind, and later remote clusters).
+type Kubernetes struct {
+	// DeliverImage makes a locally-built image available to the cluster
+	// (e.g. kind load, or a registry push). May be nil when only released
+	// versions are installed.
+	DeliverImage func(entry envstore.Entry, image string) error
+}
+
+// ID implements driver.Installer.
+func (k *Kubernetes) ID() string { return "helm" }
+
+// Validate implements driver.Installer: the helm chart's own rules.
+func (k *Kubernetes) Validate(cfg *config.File) []error {
+	var errs []error
+	a := &cfg.Agent
+	if a.Version == "" && a.Image == "" {
+		errs = append(errs, fmt.Errorf("agent: either version or image is required when install is %q", k.ID()))
+	}
+	return errs
+}
+
+// Install implements driver.Installer.
+func (k *Kubernetes) Install(cfg *config.File, entry envstore.Entry) error {
+	if k.DeliverImage != nil && cfg.Agent.Image != "" {
+		if err := k.DeliverImage(entry, cfg.Agent.Image); err != nil {
 			return err
 		}
 	}
-
 	env, err := attach[environments.Kubernetes](entry)
 	if err != nil {
 		return err
@@ -43,9 +88,9 @@ func Kind(entry envstore.Entry, cfg *config.File) error {
 	params := helminstaller.Params{Values: values}
 	params.Namespace = "datadog"
 	if cfg.Agent.Image != "" {
-		// In the upstream Datadog chart, agents.image.repository is the FULL image
-		// path including the registry (the chart's image-path helper renders
-		// repository:tag verbatim when repository is set).
+		// In the upstream Datadog chart, agents.image.repository is the FULL
+		// image path including the registry (the chart's image-path helper
+		// renders repository:tag verbatim when repository is set).
 		repository, tag := splitImageRef(cfg.Agent.Image)
 		values["agents"] = map[string]interface{}{
 			"image": map[string]interface{}{
@@ -53,7 +98,7 @@ func Kind(entry envstore.Entry, cfg *config.File) error {
 				"tag":        tag,
 			},
 		}
-		// A custom agent tag such as "7.99.0-e2ectl" is semver but the
+		// A custom agent tag such as "7.99.0-e2ectl" is semver, but the
 		// cluster-agent keeps the public chart defaults.
 		params.ClusterAgentVersion = "latest"
 	} else {
@@ -70,8 +115,36 @@ func Kind(entry envstore.Entry, cfg *config.File) error {
 	return nil
 }
 
-// Host installs the agent on an ec2-host environment with the official install script.
-func Host(entry envstore.Entry, cfg *config.File) error {
+// Update implements driver.Updatable: the same install path (the chart
+// installer upgrades an existing release), with the image delivered first.
+func (k *Kubernetes) Update(cfg *config.File, entry envstore.Entry) error {
+	return k.Install(cfg, entry)
+}
+
+// HostScript installs the agent on a host environment (ec2-host, and later
+// local host drivers) with the official install script.
+type HostScript struct{}
+
+// ID implements driver.Installer.
+func (h *HostScript) ID() string { return "script" }
+
+// Validate implements driver.Installer: the install script's own rules.
+func (h *HostScript) Validate(cfg *config.File) []error {
+	var errs []error
+	a := &cfg.Agent
+	if a.Version == "" {
+		errs = append(errs, fmt.Errorf("agent.version: required when install is %q", h.ID()))
+	} else if !releasedVersionRegexp.MatchString(a.Version) {
+		errs = append(errs, fmt.Errorf("agent.version: %q is not a released agent version (expected e.g. \"7.69.0\")", a.Version))
+	}
+	if a.Image != "" {
+		errs = append(errs, fmt.Errorf("agent.image: not supported when install is %q", h.ID()))
+	}
+	return errs
+}
+
+// Install implements driver.Installer.
+func (h *HostScript) Install(cfg *config.File, entry envstore.Entry) error {
 	env, err := attach[environments.Host](entry)
 	if err != nil {
 		return err
@@ -89,7 +162,8 @@ func Host(entry envstore.Entry, cfg *config.File) error {
 	return nil
 }
 
-// attach rehydrates a typed environment from the snapshot without any provisioning.
+// attach rehydrates a typed environment from the snapshot without any
+// provisioning — the executor is long gone by the time installers run.
 func attach[Env any](entry envstore.Entry) (*Env, error) {
 	p := provisioner.NewStaticStackProvisioner[Env]("", entry.SnapshotPath())
 	ctx := standalone.NewContext(entry.Dir)
@@ -100,8 +174,8 @@ func attach[Env any](entry envstore.Entry) (*Env, error) {
 	return env, nil
 }
 
-// loadKindImage loads a locally-built docker image into the kind cluster.
-func loadKindImage(entry envstore.Entry, image string) error {
+// LoadKindImage delivers a locally-built docker image into a kind cluster.
+func LoadKindImage(entry envstore.Entry, image string) error {
 	var cluster struct {
 		ClusterName string `json:"clusterName"`
 	}
@@ -147,3 +221,11 @@ func splitImageRef(ref string) (repository, tag string) {
 	}
 	return ref, ""
 }
+
+var releasedVersionRegexp = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+
+var (
+	_ Installer = (*Kubernetes)(nil)
+	_ Updatable = (*Kubernetes)(nil)
+	_ Installer = (*HostScript)(nil)
+)

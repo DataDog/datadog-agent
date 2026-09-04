@@ -1,12 +1,18 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// This product contains software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present, Datadog, Inc.
 
 // Package config defines and validates the e2ectl environment configuration
 // (schema v1). Validation is deliberately strict: unknown fields, invalid
-// enums and invalid cross-field combinations all fail with field-anchored
-// errors, before any environment is touched.
+// types and invalid combinations all fail with field-anchored errors, before
+// any environment is touched.
+//
+// The environment section is: common fields (base, fakeintake) plus ONE
+// driver-owned section named after the base. The core validates what it owns;
+// the driver strict-decodes its own section (config.StrictDecode), so
+// unknown-field rejection works per driver and the core never grows
+// per-environment types.
 package config
 
 import (
@@ -21,28 +27,6 @@ import (
 // SchemaVersion is the only config schema version supported so far.
 const SchemaVersion = 1
 
-// Bases supported by environment.base.
-const (
-	BaseKind    = "kind"
-	BaseEC2Host = "ec2-host"
-)
-
-// Install methods supported by agent.install.
-const (
-	InstallHelm   = "helm"
-	InstallScript = "script"
-)
-
-// SupportedOS is the list of host OS descriptors accepted for ec2-host.
-// The design document calls for deriving this from components/os (e2eos)
-// so the list can never drift; that package currently pulls in Pulumi
-// transitively, so the core CLI keeps this table and the worker maps it to
-// e2eos descriptors (see qa-e2ectl-implementation-notes.md).
-var SupportedOS = []string{"ubuntu-22.04", "ubuntu-24.04"}
-
-// SupportedArch is the list of architectures accepted for ec2-host.
-var SupportedArch = []string{"amd64", "arm64"}
-
 // File is an e2ectl environment configuration file.
 type File struct {
 	Schema      int         `yaml:"schema"`
@@ -54,31 +38,20 @@ type File struct {
 	Path string `yaml:"-"`
 }
 
-// Environment describes the environment to create.
+// Environment describes the environment to create: the common fields the
+// core owns, plus the raw driver-owned section.
 type Environment struct {
-	Base       string      `yaml:"base"`
-	Kubernetes *Kubernetes `yaml:"kubernetes,omitempty"`
-	VM         *VM         `yaml:"vm,omitempty"`
+	Base string `yaml:"base"`
 	// FakeIntake defaults to true. Pointer so "explicitly false" is representable.
 	FakeIntake *bool `yaml:"fakeintake,omitempty"`
-}
-
-// Kubernetes carries kind-specific settings.
-type Kubernetes struct {
-	// Version is a full kindest/node tag version, e.g. "1.31.0".
-	Version string `yaml:"version,omitempty"`
-	// Nodes is the number of worker nodes in addition to the control plane.
-	Nodes int `yaml:"nodes,omitempty"`
-}
-
-// VM carries ec2-host specific settings.
-type VM struct {
-	OS           string `yaml:"os,omitempty"`
-	Arch         string `yaml:"arch,omitempty"`
-	InstanceType string `yaml:"instance-type,omitempty"`
+	// Section is the raw driver-owned section (the environment key matching
+	// base), strict-decoded by the driver. Nil when absent.
+	Section []byte `yaml:"-"`
 }
 
 // Agent describes how the Datadog agent is installed on the environment.
+// The install method's own rules (version vs image requirements) live in
+// the installers; the core checks only the generic shapes.
 type Agent struct {
 	Install      string            `yaml:"install"`
 	Version      string            `yaml:"version,omitempty"`
@@ -97,8 +70,7 @@ func (f *File) FakeIntakeEnabled() bool {
 }
 
 var (
-	kindVersionRegexp  = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
-	agentVersionRegexp = kindVersionRegexp
+	versionRegexp      = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 	integrationPattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]+\.d$`)
 	imageRefRegexp     = regexp.MustCompile(`^[a-zA-Z0-9.-]+(:[0-9]+)?/[a-zA-Z0-9/._-]+:[a-zA-Z0-9._-]+$`)
 	semverTagRegexp    = regexp.MustCompile(`^\d+\.\d+\.\d+(-[a-zA-Z0-9._-]+)?$`)
@@ -131,18 +103,53 @@ func Load(path string) (*File, error) {
 
 // Parse validates the raw content of a configuration file.
 func Parse(data []byte) (*File, []error) {
-	var errs []error
-
-	node := yaml.Node{}
-	if err := yaml.Unmarshal(data, &node); err != nil {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return nil, []error{fmt.Errorf("invalid YAML: %w", err)}
+	}
+	if len(doc.Content) == 0 {
+		return nil, []error{errf("config", "empty file")}
+	}
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return nil, []error{errf("config", "expected a mapping at the top level")}
 	}
 
 	f := &File{}
-	dec := yaml.NewDecoder(strings.NewReader(string(data)))
-	dec.KnownFields(true)
-	if err := dec.Decode(f); err != nil {
-		return nil, []error{fmt.Errorf("decoding config: %w", err)}
+	var errs []error
+	var envNode, agentNode *yaml.Node
+
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		k, v := root.Content[i], root.Content[i+1]
+		switch k.Value {
+		case "schema":
+			var s int
+			if err := v.Decode(&s); err != nil {
+				errs = append(errs, errf("schema", "not an integer: %v", err))
+			} else {
+				f.Schema = s
+			}
+		case "environment":
+			envNode = v
+		case "agent":
+			agentNode = v
+		default:
+			errs = append(errs, errf(k.Value, "unknown top-level field (supported: schema, environment, agent)"))
+		}
+	}
+
+	if envNode != nil {
+		if err := f.parseEnvironment(envNode); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if agentNode != nil {
+		agentData, err := yaml.Marshal(agentNode)
+		if err != nil {
+			errs = append(errs, errf("agent", "decoding: %v", err))
+		} else if err := strictDecode(agentData, &f.Agent); err != nil {
+			errs = append(errs, errf("agent", "%v", err))
+		}
 	}
 
 	errs = append(errs, f.validate()...)
@@ -152,7 +159,58 @@ func Parse(data []byte) (*File, []error) {
 	return f, nil
 }
 
-// validate returns every validation error found in the file.
+// parseEnvironment walks the environment mapping: the common fields are
+// decoded here; exactly one driver-owned section (the key matching base) is
+// preserved raw for the driver.
+func (f *File) parseEnvironment(node *yaml.Node) error {
+	if node.Kind != yaml.MappingNode {
+		return errf("environment", "expected a mapping")
+	}
+	env := &f.Environment
+	var sectionNode *yaml.Node
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		k, v := node.Content[i], node.Content[i+1]
+		switch k.Value {
+		case "base":
+			var s string
+			if err := v.Decode(&s); err != nil {
+				return errf("environment.base", "not a string: %v", err)
+			}
+			env.Base = s
+		case "fakeintake":
+			var b bool
+			if err := v.Decode(&b); err != nil {
+				return errf("environment.fakeintake", "not a boolean: %v", err)
+			}
+			env.FakeIntake = &b
+		default:
+			if env.Base != "" && k.Value == env.Base {
+				// the driver-owned section, named after the base
+				if sectionNode != nil {
+					return errf("environment."+k.Value, "duplicated")
+				}
+				sectionNode = v
+				continue
+			}
+			if env.Base == "" {
+				return errf("environment.base", "must come before the %q section so the section can be attributed to a base", k.Value)
+			}
+			return errf("environment."+k.Value, "not supported for base %q (only the %q section is)", env.Base, env.Base)
+		}
+	}
+	if sectionNode != nil {
+		data, err := yaml.Marshal(sectionNode)
+		if err != nil {
+			return errf("environment."+env.Base, "decoding section: %v", err)
+		}
+		env.Section = data
+	}
+	return nil
+}
+
+// validate returns every validation error found in the file (generic rules
+// only; driver sections are validated by their drivers, installer rules by
+// the installers).
 func (f *File) validate() []error {
 	var errs []error
 
@@ -161,103 +219,28 @@ func (f *File) validate() []error {
 	} else if f.Schema != SchemaVersion {
 		errs = append(errs, errf("schema", "unsupported version %d (supported: %d)", f.Schema, SchemaVersion))
 	}
-
-	errs = append(errs, f.validateEnvironment()...)
-	errs = append(errs, f.validateAgent()...)
-	return errs
-}
-
-func (f *File) validateEnvironment() []error {
-	var errs []error
-	env := &f.Environment
-
-	switch env.Base {
-	case "":
-		errs = append(errs, errf("environment.base", "missing (supported: %s, %s)", BaseKind, BaseEC2Host))
-	case BaseKind:
-		if env.VM != nil {
-			errs = append(errs, errf("environment.vm", "not supported for base %q", BaseKind))
-		}
-		if env.Kubernetes != nil {
-			if env.Kubernetes.Version != "" && !kindVersionRegexp.MatchString(env.Kubernetes.Version) {
-				errs = append(errs, errf("environment.kubernetes.version",
-					"%q is not a full version (expected e.g. \"1.31.0\", it maps to kindest/node:v1.31.0)", env.Kubernetes.Version))
-			}
-			if env.Kubernetes.Nodes < 0 {
-				errs = append(errs, errf("environment.kubernetes.nodes", "must be >= 0"))
-			}
-		}
-	case BaseEC2Host:
-		if env.Kubernetes != nil {
-			errs = append(errs, errf("environment.kubernetes", "not supported for base %q", BaseEC2Host))
-		}
-		if env.VM != nil {
-			if !contains(SupportedOS, env.VM.OS) {
-				errs = append(errs, errf("environment.vm.os", "%q is not supported (supported: %s)",
-					env.VM.OS, strings.Join(SupportedOS, ", ")))
-			}
-			if !contains(SupportedArch, env.VM.Arch) {
-				errs = append(errs, errf("environment.vm.arch", "%q is not supported (supported: %s)",
-					env.VM.Arch, strings.Join(SupportedArch, ", ")))
-			}
-		} else {
-			errs = append(errs, errf("environment.vm", "required for base %q", BaseEC2Host))
-		}
-	default:
-		errs = append(errs, errf("environment.base", "%q is not supported (supported: %s, %s)",
-			env.Base, BaseKind, BaseEC2Host))
+	if f.Environment.Base == "" {
+		errs = append(errs, errf("environment.base", "missing"))
 	}
-	return errs
-}
 
-func (f *File) validateAgent() []error {
-	var errs []error
 	a := &f.Agent
-
-	switch a.Install {
-	case "":
-		errs = append(errs, errf("agent.install", "missing (supported: %s, %s)", InstallHelm, InstallScript))
-	case InstallHelm:
-		if f.Environment.Base != BaseKind {
-			errs = append(errs, errf("agent.install", "%q is not supported for base %q (supported: %s)",
-				InstallHelm, f.Environment.Base, InstallScript))
-		}
-		if a.Version == "" && a.Image == "" {
-			errs = append(errs, errf("agent", "either version or image is required when install is %q", InstallHelm))
-		}
-		if a.Version != "" && !kindVersionRegexp.MatchString(a.Version) {
-			errs = append(errs, errf("agent.version", "%q is not a released agent version (expected e.g. \"7.69.0\")", a.Version))
-		}
-		if a.Image != "" {
-			if !imageRefRegexp.MatchString(a.Image) {
-				errs = append(errs, errf("agent.image",
-					"%q is not a fully-qualified image reference with tag (expected e.g. \"gcr.io/datadoghq/agent:7.99.0-e2ectl\")", a.Image))
-			} else if !semverTagRegexp.MatchString(imageTag(a.Image)) {
-				// The Datadog Helm chart derives feature comparisons (semverCompare)
-				// from the agent image tag, so the tag must parse as semver.
-				errs = append(errs, errf("agent.image",
-					"tag %q is not semver-shaped (expected e.g. \"7.99.0-e2ectl\"; the Helm chart runs version comparisons on it)", imageTag(a.Image)))
-			}
-		}
-	case InstallScript:
-		if f.Environment.Base != BaseEC2Host {
-			errs = append(errs, errf("agent.install", "%q is not supported for base %q (supported: %s)",
-				InstallScript, f.Environment.Base, InstallHelm))
-		}
-		if a.Version == "" {
-			errs = append(errs, errf("agent.version", "required when install is %q", InstallScript))
-		}
-		if a.Version != "" && !agentVersionRegexp.MatchString(a.Version) {
-			errs = append(errs, errf("agent.version", "%q is not a released agent version (expected e.g. \"7.69.0\")", a.Version))
-		}
-		if a.Image != "" {
-			errs = append(errs, errf("agent.image", "not supported when install is %q", InstallScript))
-		}
-	default:
-		errs = append(errs, errf("agent.install", "%q is not supported (supported: %s, %s)",
-			a.Install, InstallHelm, InstallScript))
+	if a.Install == "" {
+		errs = append(errs, errf("agent.install", "missing"))
 	}
-
+	if a.Version != "" && !versionRegexp.MatchString(a.Version) {
+		errs = append(errs, errf("agent.version", "%q is not a released agent version (expected e.g. \"7.69.0\")", a.Version))
+	}
+	if a.Image != "" {
+		if !imageRefRegexp.MatchString(a.Image) {
+			errs = append(errs, errf("agent.image",
+				"%q is not a fully-qualified image reference with tag (expected e.g. \"gcr.io/datadoghq/agent:7.99.0-e2ectl\")", a.Image))
+		} else if !semverTagRegexp.MatchString(imageTag(a.Image)) {
+			// The Datadog Helm chart derives feature comparisons (semverCompare)
+			// from the agent image tag, so the tag must parse as semver.
+			errs = append(errs, errf("agent.image",
+				"tag %q is not semver-shaped (expected e.g. \"7.99.0-e2ectl\"; the Helm chart runs version comparisons on it)", imageTag(a.Image)))
+		}
+	}
 	if a.Config != "" {
 		var cfg map[string]any
 		if err := yaml.Unmarshal([]byte(a.Config), &cfg); err != nil {
@@ -271,6 +254,21 @@ func (f *File) validateAgent() []error {
 		}
 	}
 	return errs
+}
+
+// StrictDecode strict-decodes raw YAML into out (unknown fields are errors).
+// Drivers use it for their own config sections.
+func StrictDecode(raw []byte, out any) error {
+	return strictDecode(raw, out)
+}
+
+func strictDecode(raw []byte, out any) error {
+	dec := yaml.NewDecoder(strings.NewReader(string(raw)))
+	dec.KnownFields(true)
+	if err := dec.Decode(out); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Errors aggregates validation errors.
@@ -290,11 +288,11 @@ func errf(field, format string, args ...any) error {
 	return fmt.Errorf("%s: %s", field, fmt.Sprintf(format, args...))
 }
 
-func contains(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
+// NewErrors wraps validation errors collected outside config (driver sections,
+// installer rules) into the same aggregate error.
+func NewErrors(errs []error) error {
+	if len(errs) == 0 {
+		return nil
 	}
-	return false
+	return &Errors{errs: errs}
 }

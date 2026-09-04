@@ -3,10 +3,12 @@
 // This product contains software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present, Datadog, Inc.
 
+// Package main is the e2ectl CLI: the fast, Pulumi-free surface. The commands
+// are registry-driven — there is no switch on environment type anywhere;
+// each command looks up the driver and calls it.
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -14,13 +16,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/driver"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/fakeintakecmd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/installer"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/kinddriver"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/workerclient"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
 )
 
 func cmdStart(args []string) error {
@@ -37,6 +36,13 @@ func cmdStart(args []string) error {
 	if err != nil {
 		return err
 	}
+	d, err := driver.Get(cfg.Environment.Base)
+	if err != nil {
+		return err
+	}
+	if errs := d.Validate(cfg); len(errs) > 0 {
+		return config.NewErrors(errs)
+	}
 	store, err := envstore.New()
 	if err != nil {
 		return err
@@ -46,63 +52,26 @@ func cmdStart(args []string) error {
 		return err
 	}
 
-	switch cfg.Environment.Base {
-	case config.BaseKind:
-		if err := kinddriver.Start(cfg, entry, store); err != nil {
-			entry.Meta.Status = envstore.StatusError
-			_ = store.UpdateMeta(entry)
-			return err
-		}
-		fmt.Printf("environment %q is ready (kind cluster, kubeconfig: %s)\n",
-			*name, entry.KubeconfigPath())
-		if cfg.FakeIntakeEnabled() {
-			e, _ := store.Get(*name)
-			fmt.Printf("fakeintake: %s\n", e.Meta.FakeIntakeURL)
-		}
-		return nil
-	case config.BaseEC2Host:
-		entry.Meta.StackName = "e2ectl-" + sanitizeStackName(*name)
-		_ = store.UpdateMeta(entry)
-		fmt.Printf("provisioning EC2 host (Pulumi), this takes a few minutes...\n")
-		err := workerclient.Run(entry.Dir, workerclient.Job{
-			Action:       "provision-ec2",
-			EnvDir:       entry.Dir,
-			StackName:    entry.Meta.StackName,
-			OS:           cfg.Environment.VM.OS,
-			Arch:         cfg.Environment.VM.Arch,
-			InstanceType: cfg.Environment.VM.InstanceType,
-			FakeIntake:   cfg.FakeIntakeEnabled(),
-		})
-		if err != nil {
-			entry.Meta.Status = envstore.StatusError
-			_ = store.UpdateMeta(entry)
-			return err
-		}
-		entry.Meta.Status = envstore.StatusReady
-		if err := fillFakeintakeURL(entry, &entry.Meta); err != nil {
-			return err
-		}
-		return store.UpdateMeta(entry)
-	default:
-		return fmt.Errorf("unsupported base %q", cfg.Environment.Base)
-	}
-}
-
-// fillFakeintakeURL reads the fakeintake URL from the snapshot so metadata
-// works for both drivers.
-func fillFakeintakeURL(entry envstore.Entry, meta *envstore.Meta) error {
-	resources, _, err := provisioner.ReadSnapshotFile(entry.SnapshotPath())
-	if err != nil {
+	if err := d.Start(cfg, entry, store); err != nil {
 		return err
 	}
-	var fi outputs.FakeintakeOutput
-	if raw, ok := resources["fakeIntake"]; ok {
-		if err := json.Unmarshal(raw, &fi); err != nil {
-			return err
-		}
-		meta.FakeIntakeURL = fi.URL
+
+	// the generic post-start report: everything below comes from common meta
+	// or well-known snapshot keys, so no driver is consulted
+	e, _ := store.Get(*name)
+	fmt.Printf("environment %q is %s\n", *name, e.Meta.Status)
+	if fi := e.Meta.FakeIntakeURL; fi != "" {
+		fmt.Printf("fakeintake: %s\n", fi)
+	}
+	if kubeconfig := e.KubeconfigPath(); e.Meta.Base == "kind" || fileExists(kubeconfig) {
+		_ = kubeconfig // cluster drivers report the kubeconfig themselves
 	}
 	return nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func cmdList(args []string) error {
@@ -159,20 +128,22 @@ func cmdInstall(args []string) error {
 	if err != nil {
 		return err
 	}
-	if entry.Meta.Base != cfg.Environment.Base {
-		return fmt.Errorf("config base %q does not match environment base %q",
-			cfg.Environment.Base, entry.Meta.Base)
+	d, err := driver.Get(cfg.Environment.Base)
+	if err != nil {
+		return err
+	}
+	if d.ID() != entry.Meta.Base {
+		return fmt.Errorf("config base %q does not match environment base %q", d.ID(), entry.Meta.Base)
+	}
+	inst, err := driver.InstallerFor(d, cfg.Agent.Install)
+	if err != nil {
+		return err
+	}
+	if errs := inst.Validate(cfg); len(errs) > 0 {
+		return config.NewErrors(errs)
 	}
 
-	switch cfg.Environment.Base {
-	case config.BaseKind:
-		err = installer.Kind(entry, cfg)
-	case config.BaseEC2Host:
-		err = installer.Host(entry, cfg)
-	default:
-		return fmt.Errorf("unsupported base %q", cfg.Environment.Base)
-	}
-	if err != nil {
+	if err := inst.Install(cfg, entry); err != nil {
 		return err
 	}
 	entry.Meta.AgentInstalled = true
@@ -200,15 +171,27 @@ func cmdUpdate(args []string) error {
 	if err != nil {
 		return err
 	}
-	if entry.Meta.Base != config.BaseKind {
-		return fmt.Errorf("update only supports kind environments so far (this one is %q)", entry.Meta.Base)
-	}
 	cfg, err := loadOrStoredConfig(*configPath, entry)
 	if err != nil {
 		return err
 	}
-	if cfg.Agent.Image == "" {
-		return fmt.Errorf("update requires agent.image in the environment config (e.g. gcr.io/datadoghq/agent:7.99.0-dev1)")
+	d, err := driver.Get(cfg.Environment.Base)
+	if err != nil {
+		return err
+	}
+	if d.ID() != entry.Meta.Base {
+		return fmt.Errorf("config base %q does not match environment base %q", d.ID(), entry.Meta.Base)
+	}
+	inst, err := driver.InstallerFor(d, cfg.Agent.Install)
+	if err != nil {
+		return err
+	}
+	updatable, ok := inst.(installer.Updatable)
+	if !ok {
+		return fmt.Errorf("update is not supported for base %q with install %q yet", d.ID(), inst.ID())
+	}
+	if errs := inst.Validate(cfg); len(errs) > 0 {
+		return config.NewErrors(errs)
 	}
 
 	if !*skipBuild {
@@ -218,7 +201,7 @@ func cmdUpdate(args []string) error {
 		}
 	}
 
-	if err := installer.Kind(entry, cfg); err != nil {
+	if err := updatable.Update(cfg, entry); err != nil {
 		return err
 	}
 	entry.Meta.AgentInstalled = true
@@ -308,30 +291,11 @@ func cmdStop(args []string) error {
 	if err != nil {
 		return err
 	}
-	switch entry.Meta.Base {
-	case config.BaseKind:
-		return kinddriver.Stop(entry, store)
-	case config.BaseEC2Host:
-		cfg, err := entry.LoadConfig()
-		if err != nil {
-			return err
-		}
-		fmt.Println("destroying EC2 host (Pulumi)...")
-		if err := workerclient.Run(entry.Dir, workerclient.Job{
-			Action:       "destroy-ec2",
-			EnvDir:       entry.Dir,
-			StackName:    entry.Meta.StackName,
-			OS:           cfg.Environment.VM.OS,
-			Arch:         cfg.Environment.VM.Arch,
-			InstanceType: cfg.Environment.VM.InstanceType,
-			FakeIntake:   cfg.FakeIntakeEnabled(),
-		}); err != nil {
-			return err
-		}
-		return store.Delete(*name)
-	default:
-		return fmt.Errorf("unsupported base %q", entry.Meta.Base)
+	d, err := driver.Get(entry.Meta.Base)
+	if err != nil {
+		return err
 	}
+	return d.Stop(entry, store)
 }
 
 func age(t time.Time) string {
@@ -346,17 +310,4 @@ func age(t time.Time) string {
 	default:
 		return fmt.Sprintf("%dd", int(d.Hours()/24))
 	}
-}
-
-func sanitizeStackName(name string) string {
-	out := make([]rune, 0, len(name))
-	for _, r := range name {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
-			out = append(out, r)
-		default:
-			out = append(out, '-')
-		}
-	}
-	return string(out)
 }

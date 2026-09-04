@@ -44,10 +44,10 @@ type Meta struct {
 	AgentImage     string    `json:"agent_image,omitempty"`
 	AgentVersion   string    `json:"agent_version,omitempty"`
 	AgentInstalled bool      `json:"agent_installed"`
-	// KindName is the kind cluster name (base kind only).
-	KindName string `json:"kind_name,omitempty"`
-	// StackName is the Pulumi stack name (base ec2-host only).
-	StackName string `json:"stack_name,omitempty"`
+	// DriverMeta is opaque driver bookkeeping, strict-decoded by the driver
+	// alone; the core never reads it (T6). Prefer deriving bookkeeping from
+	// the snapshot — the single source of truth — before using this.
+	DriverMeta json.RawMessage `json:"driver_meta,omitempty"`
 }
 
 // Entry is a stored environment.

@@ -2,7 +2,11 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "e2ectl-worker_lib",
-    srcs = ["main.go"],
+    srcs = [
+        "executor.go",
+        "main.go",
+        "scenarios.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl-worker",
     visibility = ["//visibility:private"],
     deps = [
@@ -13,6 +17,7 @@ go_library(
         "//test/e2e-framework/testing/provisioner",
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/standalone",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 

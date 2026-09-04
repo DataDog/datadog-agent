@@ -1,13 +1,15 @@
 load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
-    name = "kinddriver",
-    srcs = ["kinddriver.go"],
-    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/kinddriver",
+    name = "kind",
+    srcs = ["kind.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/drivers/kind",
     visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
     deps = [
         "//test/e2e-framework/cmd/e2ectl/internal/config",
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+        "//test/e2e-framework/cmd/e2ectl/internal/installer",
+        "//test/e2e-framework/cmd/e2ectl/internal/localinfra",
         "//test/e2e-framework/testing/provisioner",
     ],
 )

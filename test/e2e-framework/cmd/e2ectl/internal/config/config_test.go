@@ -1,6 +1,6 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// This product contains software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present, Datadog, Inc.
 
 package config
@@ -15,6 +15,9 @@ schema: 1
 environment:
   base: kind
   fakeintake: true
+  kind:
+    version: "1.31.0"
+    nodes: 1
 agent:
   install: helm
   image: gcr.io/datadoghq/agent:7.99.0-e2ectl
@@ -24,10 +27,10 @@ const validEC2 = `
 schema: 1
 environment:
   base: ec2-host
-  vm:
+  fakeintake: true
+  ec2-host:
     os: ubuntu-22.04
     arch: amd64
-  fakeintake: true
 agent:
   install: script
   version: "7.69.0"
@@ -43,86 +46,95 @@ func TestParseValid(t *testing.T) {
 			if !f.FakeIntakeEnabled() {
 				t.Error("fakeintake should default to true when not set")
 			}
+			if name == "kind" && f.Environment.Section == nil {
+				t.Error("the kind section should be preserved raw for the driver")
+			}
 		})
 	}
 }
 
-func TestParseUnknownFieldIsRejected(t *testing.T) {
-	bad := strings.Replace(validKind, "base: kind", "base: kind\n  instnce-type: t3.medium", 1)
-	_, errs := Parse([]byte(bad))
-	if len(errs) != 1 {
-		t.Fatalf("expected 1 error, got %v", errs)
+func TestParseExtractsTheDriverSection(t *testing.T) {
+	f, errs := Parse([]byte(validKind))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
 	}
-	if !strings.Contains(errs[0].Error(), "field instnce-type") {
-		t.Errorf("error should be field-anchored, got: %v", errs[0])
+	var section map[string]any
+	if err := StrictDecode(f.Environment.Section, &section); err != nil {
+		t.Fatalf("section is not valid YAML: %v", err)
+	}
+	if section["version"] != "1.31.0" {
+		t.Errorf("section version mismatch: %v", section)
+	}
+}
+
+func TestParseUnknownTopLevelFieldIsRejected(t *testing.T) {
+	bad := strings.Replace(validKind, "schema: 1", "schema: 1\nextra: true", 1)
+	_, errs := Parse([]byte(bad))
+	if len(errs) == 0 || !strings.Contains(errs[0].Error(), "unknown top-level field") {
+		t.Fatalf("expected unknown top-level field error, got: %v", errs)
+	}
+}
+
+func TestParseSectionNotMatchingBaseIsRejected(t *testing.T) {
+	// a vm: section on a kind base: the coupling T2 removed
+	bad := strings.Replace(validKind, "  kind:\n    version: \"1.31.0\"\n    nodes: 1",
+		"  kind:\n    version: \"1.31.0\"\n  vm:\n    os: ubuntu-22.04", 1)
+	_, errs := Parse([]byte(bad))
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Error(), `environment.vm: not supported for base "kind"`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected a section/base mismatch error, got: %v", errs)
+	}
+}
+
+func TestParseSectionBeforeBaseIsRejected(t *testing.T) {
+	bad := `
+schema: 1
+environment:
+  kind:
+    nodes: 1
+  base: kind
+agent:
+  install: helm
+`
+	_, errs := Parse([]byte(bad))
+	if len(errs) == 0 {
+		t.Fatal("expected an error (base must come before its section)")
 	}
 }
 
 func TestParseErrorsAreAccumulated(t *testing.T) {
 	bad := `
 schema: 2
-environment:
-  base: kubernetes
+environment: {}
 agent:
-  install: puppet
+  install: nope
+  version: "7.x"
 `
 	_, errs := Parse([]byte(bad))
-	if len(errs) < 3 {
-		t.Fatalf("expected accumulated errors for schema, base and install, got: %v", errs)
+	joined := ""
+	for _, e := range errs {
+		joined += e.Error() + "\n"
+	}
+	for _, want := range []string{"schema:", "environment.base:", "agent.version:"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("expected an error anchored at %q, got: %v", want, errs)
+		}
 	}
 }
 
-func TestParseCrossFieldRules(t *testing.T) {
-	cases := []struct {
-		name    string
-		mutate  func(string) string
-		wantErr string
-	}{
-		{"helm on host", func(s string) string {
-			s = strings.Replace(s, "install: script", "install: helm", 1)
-			return s
-		}, "agent.install"},
-		{"script on kind", func(s string) string {
-			s = strings.Replace(validKind, "install: helm", "install: script", 1)
-			s = strings.Replace(s, "image: gcr.io/datadoghq/agent:7.99.0-e2ectl", "", 1)
-			s = strings.Replace(s, "agent:", "agent:\n  version: \"7.69.0\"", 1)
-			return s
-		}, "agent.install"},
-		{"missing version for script", func(s string) string {
-			return strings.Replace(s, `  version: "7.69.0"`, "", 1)
-		}, "agent.version"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, errs := Parse([]byte(tc.mutate(validEC2)))
-			if len(errs) == 0 {
-				t.Fatal("expected an error")
-			}
-			if !strings.Contains(errs[0].Error(), tc.wantErr) {
-				t.Errorf("expected error anchored at %q, got: %v", tc.wantErr, errs)
-			}
-		})
-	}
-}
-
-func TestParseImageTagMustBeSemverShaped(t *testing.T) {
-	bad := strings.Replace(validKind, "7.99.0-e2ectl", "e2ectl-dev", 1)
+func TestParseGenericAgentRules(t *testing.T) {
+	bad := strings.Replace(validKind, "image: gcr.io/datadoghq/agent:7.99.0-e2ectl",
+		"image: gcr.io/datadoghq/agent:e2ectl-dev", 1)
 	_, errs := Parse([]byte(bad))
 	if len(errs) != 1 {
 		t.Fatalf("expected 1 error, got %v", errs)
 	}
-	if !strings.Contains(errs[0].Error(), "agent.image") || !strings.Contains(errs[0].Error(), "semver") {
-		t.Errorf("expected a semver-shaped tag error, got: %v", errs[0])
-	}
-}
-
-func TestParseBadOS(t *testing.T) {
-	bad := strings.Replace(validEC2, "ubuntu-22.04", "ubunt-22.04", 1)
-	_, errs := Parse([]byte(bad))
-	if len(errs) != 1 {
-		t.Fatalf("expected 1 error, got %v", errs)
-	}
-	if !strings.Contains(errs[0].Error(), "environment.vm.os") {
-		t.Errorf("expected OS error with supported list, got: %v", errs[0])
+	if !strings.Contains(errs[0].Error(), "semver-shaped") {
+		t.Errorf("expected the semver-shaped tag rule, got: %v", errs[0])
 	}
 }
