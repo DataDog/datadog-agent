@@ -15,6 +15,7 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	metricslogs "github.com/DataDog/datadog-agent/comp/core/metricslogs/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -39,19 +40,54 @@ type EBPFCheckConfig struct {
 type EBPFCheck struct {
 	config             *EBPFCheckConfig
 	sysProbeClient     *sysprobeclient.CheckClient
+	metricsLogs        metricslogs.Component
 	previousMapEntries map[string]int64
 	core.CheckBase
 }
 
-// Factory creates a new check factory
-func Factory() option.Option[func() check.Check] {
-	return option.New(newCheck)
+// metricBatch accumulates the metrics gathered during a single check run, so
+// that they can be handed to the metricslogs component as one structured line.
+type metricBatch struct {
+	metrics []*metricslogs.Metric
 }
 
-func newCheck() check.Check {
+func (b *metricBatch) add(name string, typ metricslogs.MetricType, value float64, tags []string) {
+	b.metrics = append(b.metrics, &metricslogs.Metric{
+		Name:  name,
+		Type:  typ,
+		Value: value,
+		Tags:  tags,
+	})
+}
+
+func (b *metricBatch) gauge(name string, value float64, tags []string) {
+	b.add(name, metricslogs.MetricTypeGauge, value, tags)
+}
+
+// count reports an ever-increasing counter. The value is the counter's current
+// cumulative reading, not a per-run delta: consumers of the log line compute
+// deltas between successive batches themselves.
+func (b *metricBatch) count(name string, value float64, tags []string) {
+	b.add(name, metricslogs.MetricTypeCount, value, tags)
+}
+
+// Factory creates a new check factory
+func Factory(metricsLogs metricslogs.Component) option.Option[func() check.Check] {
+	if metricsLogs == nil {
+		// The check reports exclusively through the metrics-as-logs forwarder,
+		// so without it there is nothing it can do.
+		return option.None[func() check.Check]()
+	}
+	return option.New(func() check.Check {
+		return newCheck(metricsLogs)
+	})
+}
+
+func newCheck(metricsLogs metricslogs.Component) check.Check {
 	return &EBPFCheck{
 		CheckBase:          core.NewCheckBase(CheckName),
 		config:             &EBPFCheckConfig{},
+		metricsLogs:        metricsLogs,
 		previousMapEntries: make(map[string]int64),
 	}
 }
@@ -73,7 +109,9 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 	return nil
 }
 
-// Run executes the check
+// Run executes the check. Every metric it gathers is reported through the
+// metrics-as-logs forwarder rather than as a Datadog metric: the per-map and
+// per-program tag combinations blow past metric cardinality limits.
 func (m *EBPFCheck) Run() error {
 	stats, err := sysprobeclient.GetCheck[ebpfcheck.EBPFStats](m.sysProbeClient, sysconfig.EBPFModule)
 	if err != nil {
@@ -83,10 +121,16 @@ func (m *EBPFCheck) Run() error {
 		return fmt.Errorf("get ebpf check: %s", err)
 	}
 
-	sender, err := m.GetSender()
-	if err != nil {
-		return fmt.Errorf("get metric sender: %s", err)
+	if err := m.metricsLogs.LogMetrics(m.collectMetrics(stats)); err != nil {
+		return fmt.Errorf("log ebpf check metrics: %s", err)
 	}
+	return nil
+}
+
+// collectMetrics turns one system-probe stats payload into the batch of metrics
+// reported for that run.
+func (m *EBPFCheck) collectMetrics(stats ebpfcheck.EBPFStats) []*metricslogs.Metric {
+	batch := &metricBatch{}
 
 	totalMapMaxSize, totalMapRSS := uint64(0), uint64(0)
 	moduleTotalMapMaxSize, moduleTotalMapRSS := make(map[string]uint64), make(map[string]uint64)
@@ -102,18 +146,22 @@ func (m *EBPFCheck) Run() error {
 			"map_type:" + mapStats.Type,
 			"module:" + mapStats.Module,
 		}
-		sender.Gauge("ebpf.maps.memory_max", float64(mapStats.MaxSize), "", tags)
+		batch.gauge("ebpf.maps.memory_max", float64(mapStats.MaxSize), tags)
 		if mapStats.RSS > 0 {
-			sender.Gauge("ebpf.maps.memory_rss", float64(mapStats.RSS), "", tags)
+			batch.gauge("ebpf.maps.memory_rss", float64(mapStats.RSS), tags)
 		}
 
 		maxEntries := float64(mapStats.MaxEntries)
-		sender.Gauge("ebpf.maps.max_entries", maxEntries, "", tags)
+		batch.gauge("ebpf.maps.max_entries", maxEntries, tags)
 		if mapStats.Entries >= 0 {
 			entries := float64(mapStats.Entries)
-			sender.Gauge("ebpf.maps.entry_count", entries, "", tags)
-			sender.Gauge("ebpf.maps.occupation", entries/maxEntries, "", tags)
-			sender.Gauge("ebpf.maps.occupation_increase", float64(mapStats.Entries-m.previousMapEntries[mapStats.Name])/maxEntries, "", tags)
+			batch.gauge("ebpf.maps.entry_count", entries, tags)
+			// A map with no declared maximum has no meaningful occupation, and
+			// dividing by it would yield NaN, which is not representable in JSON.
+			if mapStats.MaxEntries > 0 {
+				batch.gauge("ebpf.maps.occupation", entries/maxEntries, tags)
+				batch.gauge("ebpf.maps.occupation_increase", float64(mapStats.Entries-m.previousMapEntries[mapStats.Name])/maxEntries, tags)
+			}
 			m.previousMapEntries[mapStats.Name] = mapStats.Entries
 		}
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
@@ -127,22 +175,22 @@ func (m *EBPFCheck) Run() error {
 	}
 
 	if totalMapMaxSize > 0 {
-		sender.Gauge("ebpf.maps.memory_max_total", float64(totalMapMaxSize), "", nil)
+		batch.gauge("ebpf.maps.memory_max_total", float64(totalMapMaxSize), nil)
 	}
 	if totalMapRSS > 0 {
-		sender.Gauge("ebpf.maps.memory_rss_total", float64(totalMapRSS), "", nil)
+		batch.gauge("ebpf.maps.memory_rss_total", float64(totalMapRSS), nil)
 	}
 	for mod, max := range moduleTotalMapMaxSize {
 		if mod == "unknown" {
 			continue
 		}
-		sender.Gauge("ebpf.maps.memory_max_permodule_total", float64(max), "", []string{"module:" + mod})
+		batch.gauge("ebpf.maps.memory_max_permodule_total", float64(max), []string{"module:" + mod})
 	}
 	for mod, rss := range moduleTotalMapRSS {
 		if mod == "unknown" {
 			continue
 		}
-		sender.Gauge("ebpf.maps.memory_rss_permodule_total", float64(rss), "", []string{"module:" + mod})
+		batch.gauge("ebpf.maps.memory_rss_permodule_total", float64(rss), []string{"module:" + mod})
 	}
 
 	totalProgRSS := uint64(0)
@@ -174,7 +222,7 @@ func (m *EBPFCheck) Run() error {
 			if v == 0 {
 				continue
 			}
-			sender.Gauge("ebpf.programs."+k, v, "", tags)
+			batch.gauge("ebpf.programs."+k, v, tags)
 			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
@@ -192,7 +240,7 @@ func (m *EBPFCheck) Run() error {
 			if v == 0 {
 				continue
 			}
-			sender.MonotonicCountWithFlushFirstValue("ebpf.programs."+k, v, "", tags, true)
+			batch.count("ebpf.programs."+k, v, tags)
 			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
@@ -229,7 +277,7 @@ func (m *EBPFCheck) Run() error {
 			if v == 0 {
 				continue
 			}
-			sender.MonotonicCountWithFlushFirstValue("ebpf.kprobes."+k, v, "", tags, true)
+			batch.count("ebpf.kprobes."+k, v, tags)
 			if log.ShouldLog(log.TraceLvl) {
 				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
 			}
@@ -241,20 +289,20 @@ func (m *EBPFCheck) Run() error {
 	}
 
 	if totalProgRSS > 0 {
-		sender.Gauge("ebpf.programs.memory_rss_total", float64(totalProgRSS), "", nil)
+		batch.gauge("ebpf.programs.memory_rss_total", float64(totalProgRSS), nil)
 	}
 	for mod, rss := range moduleTotalProgRSS {
 		if mod == "unknown" {
 			continue
 		}
-		sender.Gauge("ebpf.programs.memory_rss_permodule_total", float64(rss), "", []string{"module:" + mod})
+		batch.gauge("ebpf.programs.memory_rss_permodule_total", float64(rss), []string{"module:" + mod})
 	}
 	for mod, xlatedLen := range moduleTotalXlatedLen {
 		if mod == "unknown" {
 			continue
 		}
 		if xlatedLen > 0 {
-			sender.Gauge("ebpf.programs.xlated_instruction_len_permodule_total", float64(xlatedLen), "", []string{"module:" + mod})
+			batch.gauge("ebpf.programs.xlated_instruction_len_permodule_total", float64(xlatedLen), []string{"module:" + mod})
 		}
 	}
 	for mod, verifiedCount := range moduleTotalVerifiedCount {
@@ -262,10 +310,9 @@ func (m *EBPFCheck) Run() error {
 			continue
 		}
 		if verifiedCount > 0 {
-			sender.Gauge("ebpf.programs.verified_instruction_count_permodule_total", float64(verifiedCount), "", []string{"module:" + mod})
+			batch.gauge("ebpf.programs.verified_instruction_count_permodule_total", float64(verifiedCount), []string{"module:" + mod})
 		}
 	}
 
-	sender.Commit()
-	return nil
+	return batch.metrics
 }

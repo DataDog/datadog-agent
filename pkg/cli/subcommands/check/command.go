@@ -45,6 +45,8 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	metricslogs "github.com/DataDog/datadog-agent/comp/core/metricslogs/def"
+	metricslogsfx "github.com/DataDog/datadog-agent/comp/core/metricslogs/fx"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
@@ -202,6 +204,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				orchestratorForwarderFx.Module(orchestratordef.NewNoopParams()),
 				eventplatformfx.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
+				metricslogsfx.Module(),
 				fx.Supply(
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,
@@ -277,6 +280,7 @@ func run(
 	ipc ipc.Component,
 	traceroute traceroute.Component,
 	healthPlatform healthplatformdef.Component,
+	metricsLogs metricslogs.Component,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -312,7 +316,7 @@ func run(
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component]())
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component](), metricsLogs)
 
 	common.LoadComponents(ac, config)
 	ac.LoadAndRun(context.Background())

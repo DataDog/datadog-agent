@@ -12,6 +12,7 @@ go_library(
         "@rules_go//go/platform:aix": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/autodiscovery/integration",
@@ -24,31 +25,38 @@ go_library(
             "//pkg/system-probe/config",
             "//pkg/util/log",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
             "@in_yaml_go_yaml_v2//:yaml",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:freebsd": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/autodiscovery/integration",
@@ -61,35 +69,43 @@ go_library(
             "//pkg/system-probe/config",
             "//pkg/util/log",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
             "@in_yaml_go_yaml_v2//:yaml",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:openbsd": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:osx": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:plan9": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:qnx": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:solaris": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/collector/check",
             "//pkg/util/option",
+            "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
         ],
         "//conditions:default": [],
     }),

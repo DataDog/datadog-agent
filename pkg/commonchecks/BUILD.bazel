@@ -82,6 +82,7 @@ go_library(
         "//pkg/collector/corechecks/systemd",
         "//pkg/collector/corechecks/telemetry",
         "//pkg/util/option",
+        "@com_github_datadog_datadog_agent//comp/core/metricslogs/def",
     ],
 )
 

@@ -12,6 +12,7 @@ package commonchecks
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	metricslogs "github.com/DataDog/datadog-agent/comp/core/metricslogs/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -80,6 +81,7 @@ import (
 func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component, snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component, ncmComp option.Option[networkconfigmanagement.Component],
+	metricsLogs metricslogs.Component,
 ) {
 	telemetryForMode := telemetryProviderForLoadMode(telemetry)
 
@@ -153,5 +155,5 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
 	corecheckLoader.RegisterCheck(thermal.CheckName, thermal.Factory())
 
-	registerSystemProbeChecks(tagger)
+	registerSystemProbeChecks(tagger, metricsLogs)
 }

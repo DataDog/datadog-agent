@@ -93,11 +93,13 @@ import (
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
+	metricslogs "github.com/DataDog/datadog-agent/comp/core/metricslogs/def"
+	metricslogsfx "github.com/DataDog/datadog-agent/comp/core/metricslogs/fx"
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
@@ -326,6 +328,7 @@ func run(log log.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	metricsLogs metricslogs.Component,
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -391,6 +394,7 @@ func run(log log.Component,
 		traceroute,
 		healthplatformComp,
 		ncmComp,
+		metricsLogs,
 	); err != nil {
 		return err
 	}
@@ -533,6 +537,7 @@ func getSharedFxOption() fx.Option {
 		orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
+		metricslogsfx.Module(),
 
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.
@@ -636,6 +641,7 @@ func startAgent(
 	traceroute traceroute.Component,
 	healthplatformComp healthplatformdef.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	metricsLogs metricslogs.Component,
 ) error {
 	var err error
 
@@ -730,7 +736,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp, metricsLogs)
 	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
 	checkScheduler.SetMetricLookbackShadowSenderManager(metricLookback.NewSenderManager(ctx, hostnameDetected))
 	ac.AddScheduler("check", checkScheduler, true)

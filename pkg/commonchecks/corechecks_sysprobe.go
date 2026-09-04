@@ -10,6 +10,7 @@
 package commonchecks
 
 import (
+	metricslogs "github.com/DataDog/datadog-agent/comp/core/metricslogs/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
@@ -18,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/tcpqueuelength"
 )
 
-func registerSystemProbeChecks(tagger tagger.Component) {
-	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
+func registerSystemProbeChecks(tagger tagger.Component, metricsLogs metricslogs.Component) {
+	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory(metricsLogs))
 	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory(tagger))
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory(tagger))
 	corecheckLoader.RegisterCheck(noisyneighbor.CheckName, noisyneighbor.Factory(tagger))
