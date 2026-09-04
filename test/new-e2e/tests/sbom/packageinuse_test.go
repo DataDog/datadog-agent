@@ -135,6 +135,9 @@ agents:
       env:
         - name: DD_SBOM_ENRICHMENT_USAGE_ENABLED
           value: "true"
+        # Streamed from here because the security-agent's own copy is discarded.
+        - name: DD_RUNTIME_SECURITY_CONFIG_ENABLED
+          value: "true"
     systemProbe:
       env:
         # The UsageConsumer that registers the SBOMCollector gRPC stream the core
