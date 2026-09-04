@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // payloadStats counts what a single payload contributed. Accumulated as the
@@ -36,7 +36,7 @@ type iteratorCommon struct {
 	reader     *reader.MetricDataReader
 	origin     origin
 	hostname   string
-	filterList utilstrings.Matcher
+	filterList metricname.Matcher
 	stats      payloadStats
 	err        error
 }
@@ -83,7 +83,7 @@ type seriesIterator struct {
 	buffer metrics.Serie
 }
 
-func newSeriesIterator(payload *pb.Payload, origin origin, hostname string, filterList utilstrings.Matcher) (*seriesIterator, error) {
+func newSeriesIterator(payload *pb.Payload, origin origin, hostname string, filterList metricname.Matcher) (*seriesIterator, error) {
 	it := &seriesIterator{
 		iteratorCommon: iteratorCommon{
 			reader:     reader.NewMetricDataReader(payload.MetricData),

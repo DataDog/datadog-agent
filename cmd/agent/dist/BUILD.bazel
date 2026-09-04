@@ -31,7 +31,10 @@ pkg_filegroup(
     srcs = [
         ":config_files",
         "//cmd/agent/dist/conf.d:all_files",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["//cmd/agent/dist/protected:all_files"],
+        "//conditions:default": [],
+    }),
     visibility = ["//packages/agent:__subpackages__"],
 )
 

@@ -36,9 +36,21 @@ profiles:
       - name: dogstatsd.udp_packets_bytes
       - name: dogstatsd.uds_packets_bytes
       - name: dogstatsd_client.bytes_sent
+        preserve_tags:
+          - client
+          - client_transport
       - name: dogstatsd_client.bytes_dropped
+        preserve_tags:
+          - client
+          - client_transport
       - name: dogstatsd_client.bytes_dropped_queue
+        preserve_tags:
+          - client
+          - client_transport
       - name: dogstatsd_client.bytes_dropped_writer
+        preserve_tags:
+          - client
+          - client_transport
       - name: logs.bytes_missed
       - name: logs.bytes_sent
         aggregate_total: true

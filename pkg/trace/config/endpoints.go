@@ -10,4 +10,19 @@ const (
 	ProfilingEndpointPrefix = "https://intake.profile."
 	// ProfilingEndpointPath is the API path for the profiling intake.
 	ProfilingEndpointPath = "/api/v2/profile"
+
+	// DebuggerLogsEndpointPrefix is the URL prefix for the debugger logs intake.
+	DebuggerLogsEndpointPrefix = "https://http-intake.logs."
+	// DebuggerLogsEndpointPath is the API path for the debugger logs intake.
+	DebuggerLogsEndpointPath = "/api/v2/logs"
+
+	// DebuggerIntakeEndpointPrefix is the URL prefix for the debugger diagnostics/symbol database intake.
+	DebuggerIntakeEndpointPrefix = "https://debugger-intake."
+	// DebuggerIntakeEndpointPath is the API path for the debugger diagnostics/symbol database intake.
+	DebuggerIntakeEndpointPath = "/api/v2/debugger"
+
+	// OpenLineageEndpointPrefix is the URL prefix for the openlineage intake.
+	OpenLineageEndpointPrefix = "https://data-obs-intake."
+	// OpenLineageEndpointPath is the API path for the openlineage intake.
+	OpenLineageEndpointPath = "/api/v1/lineage"
 )

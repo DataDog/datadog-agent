@@ -102,7 +102,7 @@ func pinnedApmLibraryPythonVersion() string {
 	if version, ok := os.LookupEnv("E2E_APM_LIBRARY_PYTHON_PACKAGE_VERSION"); ok && version != "" {
 		return version
 	}
-	return "4.13.0"
+	return "4.14.0"
 }
 
 func previousApmLibraryPythonVersion() string {

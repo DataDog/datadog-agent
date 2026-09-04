@@ -10,8 +10,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
+
+func TestEnrollmentBaseURL(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("dd_url", "http://fakeintake.test:8080/")
+
+	assert.Equal(t, "https://api.datadoghq.com", enrollmentBaseURL(cfg, "datadoghq.com"))
+
+	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
+	assert.Equal(t, "http://fakeintake.test:8080", enrollmentBaseURL(cfg, "datadoghq.com"))
+}
 
 func TestShouldReenroll_NodeAgent(t *testing.T) {
 	flavor.SetFlavor(flavor.DefaultAgent)

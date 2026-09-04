@@ -10,8 +10,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 var (
@@ -36,11 +36,11 @@ type worker struct {
 
 	packetsTelemetry *packets.TelemetryStore
 
-	FilterListUpdate chan utilstrings.Matcher
-	filterList       utilstrings.Matcher
+	FilterListUpdate chan metricname.Matcher
+	filterList       metricname.Matcher
 }
 
-func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, filterList utilstrings.Matcher) *worker {
+func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, filterList metricname.Matcher) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer, s.tlmChannel)
@@ -54,7 +54,7 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
 		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 		packetsTelemetry: packetsTelemetry,
-		FilterListUpdate: make(chan utilstrings.Matcher),
+		FilterListUpdate: make(chan metricname.Matcher),
 		filterList:       filterList,
 	}
 }
