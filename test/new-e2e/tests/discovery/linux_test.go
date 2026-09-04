@@ -69,6 +69,18 @@ var services = []string{
 	"rails-svc",
 }
 
+// servicePorts is the TCP port each service listens on, matching the systemd
+// units installed by testdata/provision/provision.sh. Used to wait for a
+// service to be ready rather than merely started, see waitForServicesListening.
+var servicePorts = map[string]int{
+	"python-svc":          8082,
+	"python-instrumented": 8083,
+	"python-restricted":   8086,
+	"node-json-server":    8084,
+	"node-instrumented":   8085,
+	"rails-svc":           7777,
+}
+
 func TestLinuxTestSuite(t *testing.T) {
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(agentConfigStr),
@@ -732,6 +744,50 @@ func (s *linuxTestSuite) stopServices() {
 func (s *linuxTestSuite) startServicesFromList(servicesList []string) {
 	for _, service := range servicesList {
 		s.Env().RemoteHost.MustExecute("sudo systemctl start " + service)
+	}
+	s.waitForServicesListening(servicesList)
+}
+
+// waitForServicesListening waits until every given service is listening on its
+// port.
+//
+// The units are Type=simple, so systemctl start returns as soon as the process
+// has been forked, well before the application has booted and called listen().
+// Discovery only reports a process once it has a listening socket, and it only
+// looks again every discovery.service_collection_interval (1 minute by
+// default), so a service which is slow to bind costs a full discovery cycle for
+// every scan it misses. Waiting here keeps the budget of the assertions below
+// covering the discovery pipeline only, and makes a fixture which fails to
+// start report itself as such instead of as a discovery timeout.
+func (s *linuxTestSuite) waitForServicesListening(servicesList []string) {
+	t := s.T()
+	t.Helper()
+
+	var notListening []string
+	ok := assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		// ss is used elsewhere in the e2e tests, so it is available on these
+		// images.
+		listening := s.Env().RemoteHost.MustExecuteOn(c, "sudo ss -ltn")
+
+		notListening = nil
+		for _, service := range servicesList {
+			port, found := servicePorts[service]
+			if !found {
+				continue
+			}
+			// The local address column is printed as *:port, 0.0.0.0:port or
+			// [::]:port, so match on the port with its trailing separator to
+			// avoid matching a longer port which happens to share the prefix.
+			if !strings.Contains(listening, fmt.Sprintf(":%d ", port)) {
+				notListening = append(notListening, fmt.Sprintf("%s(:%d)", service, port))
+			}
+		}
+		assert.Empty(c, notListening, "services not listening yet: %v", notListening)
+	}, 3*time.Minute, 5*time.Second)
+	if !ok {
+		s.dumpServiceDiagnostics(t, servicesList)
+		require.FailNowf(t, "fixture services failed to start",
+			"not listening: %v", notListening)
 	}
 }
 
