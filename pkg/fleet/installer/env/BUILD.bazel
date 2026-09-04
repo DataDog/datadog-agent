@@ -3,10 +3,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "env",
-    srcs = [
-        "env.go",
-        "process_manager_windows.go",
-    ],
+    srcs = ["env.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/env",
     visibility = ["//visibility:public"],
     deps = [

@@ -16,31 +16,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// processManagerEnvVar must match envProcessManagerEnabled in pkg/fleet/installer/env.
-const processManagerEnvVar = "DD_PROCESS_MANAGER_ENABLED"
 
 // SetProcessManagerEnabled flips the effective process manager for the agent's supervised
 // components between dd-procmgrd and native systemd, and reconciles the running services so the
 // change takes effect immediately. It is a no-op if the desired state already matches the current
 // one.
-//
-// The reconciliation reuses the existing datadogAgentService abstraction
-// (StopStable/DisableStable/RemoveStable/WriteProcesses/WriteStable/EnableStable/RestartStable),
-// which already dispatches on service.GetServiceManagerType() on every call — the same
-// mechanism a normal install/update/experiment hook uses to pick systemd's or procmgr's unit
-// set. GetServiceManagerType is not memoized for the procmgr decision (only the init-system
-// probe is, see pkg/fleet/installer/packages/service), so tearing the currently-active type's
-// units down BEFORE flipping the in-process env var, then writing the newly-selected type's units
-// AFTER, moves every managed unit between the two modes without hand-rolling unit-specific
-// stop/start logic here — exactly mirroring what preInstallDatadogAgent/postInstallDatadogAgent
-// already do for a normal reinstall. The freshly-written installer unit itself carries the
-// correct DD_PROCESS_MANAGER_ENABLED value baked in (see
-// packages/embedded/tmpl/datadog-agent-installer.service.tmpl), so the daemon picks it up on its
-// own once RestartStable restarts it under systemd — no persistence beyond this process's
-// lifetime is needed.
 func SetProcessManagerEnabled(ctx context.Context, enabled bool) error {
 	if env.FromEnv().ProcessManagerEnabled == enabled {
 		return nil
@@ -52,12 +35,22 @@ func SetProcessManagerEnabled(ctx context.Context, enabled bool) error {
 		return errors.New("switching the process manager is only supported under systemd")
 	}
 
-	// Flipping the installer's own process manager is scoped to OCI installs (the fleet-managed
-	// installation method this command and the daemon are built for); deb/rpm installs manage
-	// their own systemd units directly via the package manager.
+	// Switching requires everything to be stable: an in-progress experiment means the stable and
+	// experiment unit sets can diverge on which process manager they expect, and tearing stable
+	// down here would leave the experiment referencing units that no longer exist.
+	state, err := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks).GetState(agentPackage)
+	if err != nil {
+		return fmt.Errorf("failed to get agent package state: %w", err)
+	}
+	if state.HasExperiment() {
+		return errors.New("cannot switch the process manager while an experiment is in progress")
+	}
+
+	// PackageType only affects checkPlatformSupport's upstart/sysvinit gating, and the switch
+	// above already restricts this function to systemd/procmgr — so it plays no role here and
+	// this works identically for OCI and deb/rpm installs alike.
 	hookCtx := HookContext{Context: ctx, PackagePath: installRoot, PackageType: PackageTypeOCI}
 
-	// Tear down the currently-active unit set while GetServiceManagerType still resolves to it.
 	if err := agentService.StopStable(hookCtx); err != nil {
 		log.Warnf("failed to stop stable units: %v", err)
 	}
@@ -69,19 +62,28 @@ func SetProcessManagerEnabled(ctx context.Context, enabled bool) error {
 	}
 
 	// Flip this process's own view of the desired state so that GetServiceManagerType(installRoot)
-	// resolves to the newly-selected type for the remainder of this call.
-	if err := os.Setenv(processManagerEnvVar, strconv.FormatBool(enabled)); err != nil {
-		return fmt.Errorf("failed to set process manager state: %w", err)
+	// resolves to the newly-selected type for the remainder of this call. The old unit set was
+	// already torn down above, so a failure here must not abort: doing so would leave the host
+	// with no service at all. Instead keep going — GetServiceManagerType will resolve back to
+	// whichever type it saw before (the switch didn't take effect) — and report the failure once
+	// the service is back up.
+	var setEnvErr error
+	if err := os.Setenv(env.EnvProcessManagerEnabled, strconv.FormatBool(enabled)); err != nil {
+		setEnvErr = fmt.Errorf("failed to set process manager state: %w", err)
+		log.Warnf("%v", setEnvErr)
 	}
 
 	if err := agentService.WriteProcesses(installRoot); err != nil {
-		return fmt.Errorf("failed to write processes: %w", err)
+		return errors.Join(setEnvErr, fmt.Errorf("failed to write processes: %w", err))
 	}
 	if err := agentService.WriteStable(hookCtx); err != nil {
-		return fmt.Errorf("failed to write stable units: %w", err)
+		return errors.Join(setEnvErr, fmt.Errorf("failed to write stable units: %w", err))
 	}
 	if err := agentService.EnableStable(hookCtx); err != nil {
-		return fmt.Errorf("failed to enable stable units: %w", err)
+		return errors.Join(setEnvErr, fmt.Errorf("failed to enable stable units: %w", err))
 	}
-	return agentService.RestartStable(hookCtx)
+	if err := agentService.RestartStable(hookCtx); err != nil {
+		return errors.Join(setEnvErr, err)
+	}
+	return setEnvErr
 }

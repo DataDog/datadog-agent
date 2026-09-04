@@ -51,7 +51,7 @@ const (
 	envDDNoProxy             = "DD_PROXY_NO_PROXY"
 	envNoProxy               = "NO_PROXY"
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
-	envProcessManagerEnabled = "DD_PROCESS_MANAGER_ENABLED"
+	EnvProcessManagerEnabled = "DD_PROCESS_MANAGER_ENABLED"
 	// envFIPSMode is the canonical FIPS toggle, also recognized by
 	// pkg/fleet/installer/setup/defaultscript/default_script.go.
 	envFIPSMode = "DD_FIPS_MODE"
@@ -295,7 +295,7 @@ func FromEnv() *Env {
 		Site:                  getEnvOrDefault(envSite, defaultEnv.Site),
 		RemoteUpdates:         strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 		OTelCollectorEnabled:  strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
-		ProcessManagerEnabled: getBoolEnvOrDefault(envProcessManagerEnabled, defaultEnv.ProcessManagerEnabled),
+		ProcessManagerEnabled: boolEnvOrDefault(EnvProcessManagerEnabled, defaultEnv.ProcessManagerEnabled),
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -424,7 +424,7 @@ func (e *Env) ToEnv() []string {
 	// Unlike the flags above, ProcessManagerEnabled defaults to true, so "only append when true"
 	// can't express an explicit false. Always serialize the resolved value so it reliably
 	// overrides whatever is already in a spawned subprocess's inherited environment.
-	env = append(env, envProcessManagerEnabled+"="+strconv.FormatBool(e.ProcessManagerEnabled))
+	env = append(env, EnvProcessManagerEnabled+"="+strconv.FormatBool(e.ProcessManagerEnabled))
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
 	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
 	env = appendStringEnv(env, envRegistryAuth, e.RegistryAuthOverride, "")
@@ -575,7 +575,7 @@ func getBoolEnv(env string) *bool {
 	}
 }
 
-func getBoolEnvOrDefault(env string, defaultValue bool) bool {
+func boolEnvOrDefault(env string, defaultValue bool) bool {
 	v, set := os.LookupEnv(env)
 	if !set {
 		return defaultValue
