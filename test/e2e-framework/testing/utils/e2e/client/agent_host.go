@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os/types"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	wincommand "github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/command"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
 type agentHostExecutor struct {
@@ -20,19 +20,19 @@ type agentHostExecutor struct {
 	host        *Host
 }
 
-func newAgentHostExecutor(osFamily os.Family, host *Host, params *agentclientparams.Params) agentCommandExecutor {
+func newAgentHostExecutor(osFamily types.Family, host *Host, params *agentclientparams.Params) agentCommandExecutor {
 	var baseCommand string
 	switch osFamily {
-	case os.WindowsFamily:
+	case types.WindowsFamily:
 		installPath := params.AgentInstallPath
 		if len(installPath) == 0 {
 			installPath = DefaultWindowsAgentInstallPath(host)
 		}
 		fmt.Printf("Using default install path: %s\n", installPath)
 		baseCommand = fmt.Sprintf(`& "%s\bin\agent.exe"`, installPath)
-	case os.LinuxFamily:
+	case types.LinuxFamily:
 		baseCommand = "sudo datadog-agent"
-	case os.MacOSFamily:
+	case types.MacOSFamily:
 		baseCommand = "datadog-agent"
 	default:
 		panic(fmt.Sprintf("unsupported OS family: %v", osFamily))
@@ -56,7 +56,7 @@ func (ae agentHostExecutor) execute(arguments []string) (string, error) {
 func (ae agentHostExecutor) restart() error {
 	var cmd string
 	switch ae.host.osFamily {
-	case os.WindowsFamily:
+	case types.WindowsFamily:
 		cmd = "Restart-Service -Name datadogagent"
 	default:
 		cmd = "sudo systemctl restart datadog-agent"

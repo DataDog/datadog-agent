@@ -115,3 +115,34 @@ Follow-up seam (noted, not M1): move the Output structs into Pulumi-free
 - The EC2 path (provision-ec2/destroy-ec2/install-host) is implemented and
   compile-checked but not executed (no cloud credentials in this session).
 - Unit tests: config validation tables + snapshot roundtrip.
+
+### 10. The outputs seam — install/update moved out of the worker (done)
+
+Directive: no Pulumi for any operation that does not require it; install in kind
+must run in-process via the no-pulumi installers. The seam that made it possible:
+
+- **`components/outputs`** (new, Pulumi-free): the import contract (Importable,
+  JSONImporter, CloudProviderIdentifier), every `*Output` struct
+  (Host, Cluster, KubernetesObjRef, KubernetesAgent, HostAgent, DockerAgent,
+  Fakeintake + its seed/RCRootJSON, HostUpdater, DockerManager, ECSCluster,
+  ActiveDirectory). The Pulumi component packages re-export them as aliases,
+  so all existing imports keep working.
+- **`components/os/types`** (new, Pulumi-free): OS descriptors; the Pulumi
+  package-manager machinery stays in `components/os` and aliases back.
+- **`runner` freed** by moving `configmap.go` (Pulumi stack configs) to
+  `runner/infraconfig`; **`common/utils` freed for its free consumers** by moving
+  the YAML helpers to `common/utils/yamlutil`.
+- **Windows is the one genuine holdout**: `WindowsHost` carries the Pulumi
+  `config.Env` of the Windows scenario, so it moved to
+  `environments/windowshost` + `scenarios/outputs/windowshost` (consumers flipped,
+  no aliases to avoid re-tainting `environments`).
+- After the seam: environments, testing/components, standalone, both installers
+  and the provisioner package (with StaticStackProvisioner) are all
+  Pulumi-free (`go list -deps` = 0 pulumi packages).
+- **CLI consequence**: `install` and `update` run in-process in the core
+  (internal/installer); the worker shrank to EC2-only (provision/destroy) and
+  imports the shared Job type from cmd/e2ectl/workerclient (dedup D2 done).
+- Live-verified: `e2ectl update --env qa-dev --skip-build` without any worker —
+  kind load, snapshot attach, helm upgrade, renamed metric flowing.
+- Still local (now unblocked): `config.SupportedOS` can be derived from
+  `components/os/types` instead of a hand table (consolidation D8).

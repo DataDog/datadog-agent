@@ -10,21 +10,11 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
-type KubernetesAgentOutput struct {
-	components.JSONImporter
-
-	LinuxNodeAgent     kubernetes.KubernetesObjRefOutput `json:"linuxNodeAgent"`
-	LinuxClusterAgent  kubernetes.KubernetesObjRefOutput `json:"linuxClusterAgent"`
-	LinuxClusterChecks kubernetes.KubernetesObjRefOutput `json:"linuxClusterChecks"`
-
-	WindowsNodeAgent     kubernetes.KubernetesObjRefOutput `json:"windowsNodeAgent"`
-	WindowsClusterAgent  kubernetes.KubernetesObjRefOutput `json:"windowsClusterAgent"`
-	WindowsClusterChecks kubernetes.KubernetesObjRefOutput `json:"windowsClusterChecks"`
-
-	FIPSEnabled bool `json:"fipsEnabled"`
-}
+// KubernetesAgentOutput moved to the Pulumi-free components/outputs package.
+type KubernetesAgentOutput = outputs.KubernetesAgentOutput
 
 // KubernetesAgent is an installer to install the Datadog Agent on a Kubernetes cluster.
 type KubernetesAgent struct {

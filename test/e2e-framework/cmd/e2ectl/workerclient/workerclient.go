@@ -17,19 +17,18 @@ import (
 	"runtime"
 )
 
-// Job is the JSON contract with e2ectl-worker (mirrors its job struct).
+// Job is the JSON contract with e2ectl-worker: cloud (EC2) provisioning only.
 type Job struct {
-	Action       string            `json:"action"`
-	EnvDir       string            `json:"env_dir"`
-	StackName    string            `json:"stack_name,omitempty"`
-	OS           string            `json:"os,omitempty"`
-	Arch         string            `json:"arch,omitempty"`
-	InstanceType string            `json:"instance_type,omitempty"`
-	FakeIntake   bool              `json:"fakeintake,omitempty"`
-	Version      string            `json:"version,omitempty"`
-	Image        string            `json:"image,omitempty"`
-	AgentConfig  string            `json:"agent_config,omitempty"`
-	Integrations map[string]string `json:"integrations,omitempty"`
+	Action       string `json:"action"`
+	EnvDir       string `json:"env_dir"`
+	StackName    string `json:"stack_name,omitempty"`
+	OS           string `json:"os,omitempty"`
+	Arch         string `json:"arch,omitempty"`
+	InstanceType string `json:"instance_type,omitempty"`
+	FakeIntake   bool   `json:"fakeintake,omitempty"`
+	Version      string `json:"version,omitempty"`
+	Image        string `json:"image,omitempty"`
+	AgentConfig  string `json:"agent_config,omitempty"`
 }
 
 // Run writes the job to dir and executes the worker with it. The worker's

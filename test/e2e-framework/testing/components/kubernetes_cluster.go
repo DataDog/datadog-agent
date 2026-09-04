@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 
 	kubeClient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -21,7 +21,7 @@ const kubeClientTimeout = 60 * time.Second
 
 // KubernetesCluster represents a Kubernetes cluster
 type KubernetesCluster struct {
-	kubernetes.ClusterOutput
+	outputs.ClusterOutput
 
 	KubernetesClient *client.KubernetesClient
 }

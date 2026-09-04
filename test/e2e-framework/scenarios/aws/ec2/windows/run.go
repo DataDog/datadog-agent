@@ -15,20 +15,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/testsigning"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs/windowshost"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 // RunWithEnv deploys a Windows EC2 environment using provided env and params.
 // It accepts WindowsHostOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
-func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.WindowsHostOutputs, params *RunParams) error {
+func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env windowshost.WindowsHostOutputs, params *RunParams) error {
 	// Set the environment for test code access
 	env.SetEnvironment(&awsEnv)
 
@@ -153,14 +153,14 @@ func pickVersionIndex(versions []compos.Descriptor, seed string) int {
 }
 
 // Run is the entry point for the scenario when run via pulumi.
-// It uses outputs.WindowsHost which is lightweight and doesn't pull in test dependencies.
+// It uses windowshost.WindowsHost which is lightweight and doesn't pull in test dependencies.
 func Run(ctx *pulumi.Context) error {
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
 
-	env := outputs.NewWindowsHost()
+	env := windowshost.NewWindowsHost()
 
 	params := ParamsFromEnvironment(awsEnv)
 	return RunWithEnv(ctx, awsEnv, env, params)

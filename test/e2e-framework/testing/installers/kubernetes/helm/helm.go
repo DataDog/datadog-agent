@@ -21,9 +21,7 @@ import (
 	"helm.sh/helm/v3/pkg/storage/driver"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
-	compagent "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -57,11 +55,11 @@ func Install(_ context.Context, env *environments.Kubernetes, p Params) error {
 		return fmt.Errorf("resolving Agent application key: %w", err)
 	}
 
-	var fi *fakeintake.FakeintakeOutput
+	var fi *compout.FakeintakeOutput
 	var rcRootJSON string
 	if env.FakeIntake != nil {
 		fi = &env.FakeIntake.FakeintakeOutput
-		rcRootJSON, err = fakeintake.RCRootJSON()
+		rcRootJSON, err = compout.RCRootJSON()
 		if err != nil {
 			return fmt.Errorf("building fakeintake Remote Config root: %w", err)
 		}
@@ -95,10 +93,10 @@ type chartParams struct {
 	Values                                       map[string]interface{}
 }
 
-func installChart(kubeconfig, clusterName string, fi *fakeintake.FakeintakeOutput, p chartParams) (compagent.KubernetesAgentOutput, error) {
+func installChart(kubeconfig, clusterName string, fi *compout.FakeintakeOutput, p chartParams) (compout.KubernetesAgentOutput, error) {
 	kubeconfigPath, cleanup, err := writeTempFile("kubeconfig-*.yaml", kubeconfig)
 	if err != nil {
-		return compagent.KubernetesAgentOutput{}, err
+		return compout.KubernetesAgentOutput{}, err
 	}
 	defer cleanup()
 
@@ -108,12 +106,12 @@ func installChart(kubeconfig, clusterName string, fi *fakeintake.FakeintakeOutpu
 
 	actionConfig := new(helmaction.Configuration)
 	if err := actionConfig.Init(flags, p.Namespace, "secret", func(string, ...interface{}) {}); err != nil {
-		return compagent.KubernetesAgentOutput{}, err
+		return compout.KubernetesAgentOutput{}, err
 	}
 
 	clusterAgentToken, err := randomHex(16)
 	if err != nil {
-		return compagent.KubernetesAgentOutput{}, err
+		return compout.KubernetesAgentOutput{}, err
 	}
 
 	values := buildValues(p, clusterName, fi, clusterAgentToken)
@@ -121,17 +119,17 @@ func installChart(kubeconfig, clusterName string, fi *fakeintake.FakeintakeOutpu
 		mergeMaps(values, p.Values)
 	}
 	if err := installOrUpgradeRelease(actionConfig, releaseName, p.Namespace, values); err != nil {
-		return compagent.KubernetesAgentOutput{}, err
+		return compout.KubernetesAgentOutput{}, err
 	}
 
-	return compagent.KubernetesAgentOutput{
-		LinuxNodeAgent: compkube.KubernetesObjRefOutput{
+	return compout.KubernetesAgentOutput{
+		LinuxNodeAgent: compout.KubernetesObjRefOutput{
 			Namespace:      p.Namespace,
 			Kind:           "Pod",
 			Version:        p.AgentVersion,
 			LabelSelectors: map[string]string{"app": releaseName + "-datadog"},
 		},
-		LinuxClusterAgent: compkube.KubernetesObjRefOutput{
+		LinuxClusterAgent: compout.KubernetesObjRefOutput{
 			Namespace:      p.Namespace,
 			Kind:           "Pod",
 			Version:        p.ClusterAgentVersion,
@@ -193,7 +191,7 @@ func installOrUpgradeRelease(cfg *helmaction.Configuration, name, namespace stri
 // buildValues is deliberately minimal and independent of Pulumi Outputs.
 // Kube-state-metrics, SBOM, autoscaling, APM instrumentation, OTel, Windows,
 // FIPS, and JMX are out of scope for this POC.
-func buildValues(p chartParams, clusterName string, fi *fakeintake.FakeintakeOutput, clusterAgentToken string) map[string]interface{} {
+func buildValues(p chartParams, clusterName string, fi *compout.FakeintakeOutput, clusterAgentToken string) map[string]interface{} {
 	datadog := map[string]interface{}{
 		"apiKey":      p.APIKey,
 		"appKey":      p.AppKey,

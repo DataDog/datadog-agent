@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
@@ -62,7 +62,7 @@ func (c *Context) FailNow(format string, args ...any) {
 // SessionOutputDir returns the directory where output files and artifacts are stored.
 func (c *Context) SessionOutputDir() string { return c.outputDir }
 
-// ctxLogWriter adapts a [common.Context] to an [io.Writer] so it can be passed to provisioners.
+// ctxLogWriter adapts a [common.Context] to an [io.Writer] so it can be passed to provisioner.
 type ctxLogWriter struct{ ctx common.Context }
 
 func (w ctxLogWriter) Write(p []byte) (int, error) {
@@ -78,7 +78,7 @@ func newLogWriter(ctx common.Context) io.Writer { return ctxLogWriter{ctx: ctx} 
 //
 // The returned environment is ready to use (e.g. env.RemoteHost.Execute). Callers are
 // responsible for calling [Destroy] when done.
-func Provision[Env any](ctx common.Context, stackName string, p provisioners.Provisioner) (*Env, error) {
+func Provision[Env any](ctx common.Context, stackName string, p provisioner.Provisioner) (*Env, error) {
 	env, _, err := ProvisionE[Env](ctx, stackName, p)
 	return env, err
 }
@@ -87,7 +87,7 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioners.Pro
 // provisioner. Callers that need to persist an environment snapshot (so the
 // environment can be re-attached later without re-provisioning) use ProvisionE and
 // write the returned resources with provisioner.WriteSnapshotFile.
-func ProvisionE[Env any](ctx common.Context, stackName string, p provisioners.Provisioner) (*Env, provisioners.RawResources, error) {
+func ProvisionE[Env any](ctx common.Context, stackName string, p provisioner.Provisioner) (*Env, provisioner.RawResources, error) {
 	pCtx, cancel := context.WithTimeout(context.Background(), createTimeout)
 	defer cancel()
 
@@ -98,11 +98,11 @@ func ProvisionE[Env any](ctx common.Context, stackName string, p provisioners.Pr
 		return nil, nil, fmt.Errorf("unable to create env %T for stack %s: %w", env, stackName, err)
 	}
 
-	var resources provisioners.RawResources
+	var resources provisioner.RawResources
 	switch pType := p.(type) {
-	case provisioners.TypedProvisioner[Env]:
+	case provisioner.TypedProvisioner[Env]:
 		resources, err = pType.ProvisionEnv(pCtx, stackName, logger, env)
-	case provisioners.UntypedProvisioner:
+	case provisioner.UntypedProvisioner:
 		resources, err = pType.Provision(pCtx, stackName, logger)
 	default:
 		return nil, nil, fmt.Errorf("provisioner of type %T implements neither TypedProvisioner nor UntypedProvisioner", p)
@@ -132,7 +132,7 @@ func ProvisionE[Env any](ctx common.Context, stackName string, p provisioners.Pr
 }
 
 // Destroy tears down the stack provisioned for stackName using the given provisioner.
-func Destroy(ctx common.Context, stackName string, p provisioners.Provisioner) error {
+func Destroy(ctx common.Context, stackName string, p provisioner.Provisioner) error {
 	pCtx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
 	defer cancel()
 	return p.Destroy(pCtx, stackName, newLogWriter(ctx))

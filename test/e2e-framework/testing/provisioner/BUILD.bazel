@@ -7,9 +7,11 @@ go_library(
         "file_provisioner.go",
         "provisioner.go",
         "snapshot.go",
+        "static_stack.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner",
     visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/components/outputs"],
 )
 
 dd_agent_go_test(

@@ -8,20 +8,20 @@ package kindvm
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
 type provisionerParams struct {
 	awsEnv            *aws.Environment
 	runOptions        []kindvm.RunOption
-	extraConfigParams runner.ConfigMap
+	extraConfigParams infraconfig.ConfigMap
 }
 
 type provisionerOption func(*provisionerParams) error
 
 func getProvisionerParams(opts ...provisionerOption) *provisionerParams {
-	p := &provisionerParams{awsEnv: nil, runOptions: []kindvm.RunOption{}, extraConfigParams: runner.ConfigMap{}}
+	p := &provisionerParams{awsEnv: nil, runOptions: []kindvm.RunOption{}, extraConfigParams: infraconfig.ConfigMap{}}
 	_ = optional.ApplyOptions(p, opts)
 	return p
 }
@@ -32,6 +32,6 @@ func WithAwsEnv(env *aws.Environment) provisionerOption {
 func WithRunOptions(opts ...kindvm.RunOption) provisionerOption {
 	return func(p *provisionerParams) error { p.runOptions = append(p.runOptions, opts...); return nil }
 }
-func WithExtraConfigParams(cm runner.ConfigMap) provisionerOption {
+func WithExtraConfigParams(cm infraconfig.ConfigMap) provisionerOption {
 	return func(p *provisionerParams) error { p.extraConfigParams = cm; return nil }
 }

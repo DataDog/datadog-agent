@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,7 +27,7 @@ const agentNamespace = "datadog"
 
 // AgentSelectorAnyPod creates a selector for any pod that runs the agent of the given type.
 // For example, you can pass Agent.LinuxNodeAgent to select any pod that runs the node agent.
-func AgentSelectorAnyPod(agentType kubernetes.KubernetesObjRefOutput) metav1.ListOptions {
+func AgentSelectorAnyPod(agentType outputs.KubernetesObjRefOutput) metav1.ListOptions {
 	return metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", agentType.LabelSelectors["app"]).String(),
 		Limit:         1,

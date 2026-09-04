@@ -1,21 +1,26 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// This product contains software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present, Datadog, Inc.
 
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/fakeintakecmd"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/installer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/kinddriver"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/workerclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/workerclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
 )
 
 func cmdStart(args []string) error {
@@ -86,17 +91,13 @@ func cmdStart(args []string) error {
 // fillFakeintakeURL reads the fakeintake URL from the snapshot so metadata
 // works for both drivers.
 func fillFakeintakeURL(entry envstore.Entry, meta *envstore.Meta) error {
-	resources, _, err := readSnapshot(entry.SnapshotPath())
+	resources, _, err := provisioner.ReadSnapshotFile(entry.SnapshotPath())
 	if err != nil {
 		return err
 	}
-	var fi struct {
-		Host string `json:"host"`
-		Port int    `json:"port"`
-		URL  string `json:"url"`
-	}
+	var fi outputs.FakeintakeOutput
 	if raw, ok := resources["fakeIntake"]; ok {
-		if err := jsonUnmarshal(raw, &fi); err != nil {
+		if err := json.Unmarshal(raw, &fi); err != nil {
 			return err
 		}
 		meta.FakeIntakeURL = fi.URL
@@ -135,17 +136,13 @@ func cmdList(args []string) error {
 
 func cmdInstall(args []string) error {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
-	configPath := fs.String("config", "", "environment config file (required)")
+	configPath := fs.String("config", "", "environment config file (defaults to the stored config)")
 	name := fs.String("env", "", "environment name (required)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *configPath == "" || *name == "" {
-		return fmt.Errorf("both --config and --env are required")
-	}
-	cfg, err := config.Load(*configPath)
-	if err != nil {
-		return err
+	if *name == "" {
+		return fmt.Errorf("--env is required")
 	}
 	store, err := envstore.New()
 	if err != nil {
@@ -158,28 +155,23 @@ func cmdInstall(args []string) error {
 	if entry.Meta.Status != envstore.StatusReady {
 		return fmt.Errorf("environment %q is not ready (status: %s)", *name, entry.Meta.Status)
 	}
+	cfg, err := loadOrStoredConfig(*configPath, entry)
+	if err != nil {
+		return err
+	}
 	if entry.Meta.Base != cfg.Environment.Base {
 		return fmt.Errorf("config base %q does not match environment base %q",
 			cfg.Environment.Base, entry.Meta.Base)
 	}
 
-	var action string
 	switch cfg.Environment.Base {
 	case config.BaseKind:
-		action = "install-kind"
+		err = installer.Kind(entry, cfg)
 	case config.BaseEC2Host:
-		action = "install-host"
+		err = installer.Host(entry, cfg)
 	default:
 		return fmt.Errorf("unsupported base %q", cfg.Environment.Base)
 	}
-	err = workerclient.Run(entry.Dir, workerclient.Job{
-		Action:       action,
-		EnvDir:       entry.Dir,
-		Version:      cfg.Agent.Version,
-		Image:        cfg.Agent.Image,
-		AgentConfig:  cfg.Agent.Config,
-		Integrations: cfg.Agent.Integrations,
-	})
 	if err != nil {
 		return err
 	}
@@ -211,29 +203,12 @@ func cmdUpdate(args []string) error {
 	if entry.Meta.Base != config.BaseKind {
 		return fmt.Errorf("update only supports kind environments so far (this one is %q)", entry.Meta.Base)
 	}
-	var cfg *config.File
-	var err2 error
-	if *configPath != "" {
-		cfg, err2 = config.Load(*configPath)
-		if err2 != nil {
-			return err2
-		}
-		// the provided config becomes the environment's source of truth
-		cfgData, err2 := os.ReadFile(cfg.Path)
-		if err2 != nil {
-			return err2
-		}
-		if err2 = os.WriteFile(entry.ConfigPath(), cfgData, 0o644); err2 != nil {
-			return err2
-		}
-	} else {
-		cfg, err2 = entry.LoadConfig()
-		if err2 != nil {
-			return err2
-		}
+	cfg, err := loadOrStoredConfig(*configPath, entry)
+	if err != nil {
+		return err
 	}
 	if cfg.Agent.Image == "" {
-		return fmt.Errorf("update requires agent.image in the environment config (e.g. gcr.io/datadoghq/agent:my-dev)")
+		return fmt.Errorf("update requires agent.image in the environment config (e.g. gcr.io/datadoghq/agent:7.99.0-dev1)")
 	}
 
 	if !*skipBuild {
@@ -243,11 +218,7 @@ func cmdUpdate(args []string) error {
 		}
 	}
 
-	if err := workerclient.Run(entry.Dir, workerclient.Job{
-		Action: "update-kind",
-		EnvDir: entry.Dir,
-		Image:  cfg.Agent.Image,
-	}); err != nil {
+	if err := installer.Kind(entry, cfg); err != nil {
 		return err
 	}
 	entry.Meta.AgentInstalled = true
@@ -255,10 +226,31 @@ func cmdUpdate(args []string) error {
 	return store.UpdateMeta(entry)
 }
 
+// loadOrStoredConfig returns the config from path when given, replacing the
+// stored copy, else the environment's stored config.
+func loadOrStoredConfig(path string, entry envstore.Entry) (*config.File, error) {
+	if path != "" {
+		cfg, err := config.Load(path)
+		if err != nil {
+			return nil, err
+		}
+		// the provided config becomes the environment's source of truth
+		cfgData, err := os.ReadFile(cfg.Path)
+		if err != nil {
+			return nil, err
+		}
+		if err = os.WriteFile(entry.ConfigPath(), cfgData, 0o644); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	}
+	return entry.LoadConfig()
+}
+
 // buildAgentImage runs the repo's dev image build, tagging the result exactly
 // as the config references it.
 func buildAgentImage(image string) error {
-	cmd := osCommand("dda", "inv", "agent.hacky-dev-image-build", "--target-image="+image)
+	cmd := exec.Command("dda", "inv", "agent.hacky-dev-image-build", "--target-image="+image)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

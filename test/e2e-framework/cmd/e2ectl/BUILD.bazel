@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "commands.go",
         "main.go",
-        "util.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl",
     visibility = ["//visibility:private"],
@@ -13,8 +12,10 @@ go_library(
         "//test/e2e-framework/cmd/e2ectl/internal/config",
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
         "//test/e2e-framework/cmd/e2ectl/internal/fakeintakecmd",
+        "//test/e2e-framework/cmd/e2ectl/internal/installer",
         "//test/e2e-framework/cmd/e2ectl/internal/kinddriver",
-        "//test/e2e-framework/cmd/e2ectl/internal/workerclient",
+        "//test/e2e-framework/cmd/e2ectl/workerclient",
+        "//test/e2e-framework/components/outputs",
         "//test/e2e-framework/testing/provisioner",
     ],
 )

@@ -6,7 +6,7 @@
 package components
 
 import (
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
@@ -14,7 +14,7 @@ import (
 
 // RemoteHostDocker represents an Agent running directly on a Host
 type RemoteHostDocker struct {
-	docker.ManagerOutput
+	outputs.ManagerOutput
 
 	Client *client.Docker
 }

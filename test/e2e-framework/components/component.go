@@ -6,46 +6,27 @@
 package components
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-type CloudProviderIdentifier string
-
-const (
-	CloudProviderAWS   CloudProviderIdentifier = "aws"
-	CloudProviderAzure CloudProviderIdentifier = "azure"
-	CloudProviderGCP   CloudProviderIdentifier = "gcp"
+// The import contract types moved to the Pulumi-free components/outputs
+// package; the aliases below keep every existing import working.
+type (
+	Importable             = outputs.Importable
+	JSONImporter           = outputs.JSONImporter
+	CloudProviderIdentifier = outputs.CloudProviderIdentifier
 )
 
-// Importable needs to be implemented by the fully resolved type used outside of Pulumi
-type Importable interface {
-	SetKey(string)
-	Key() string
-	Import(in []byte, obj any) error
-}
-
-var _ Importable = &JSONImporter{}
-
-type JSONImporter struct {
-	key string
-}
-
-func (imp *JSONImporter) SetKey(key string) {
-	imp.key = key
-}
-
-func (imp *JSONImporter) Key() string {
-	return imp.key
-}
-
-func (imp *JSONImporter) Import(in []byte, obj any) error {
-	return json.Unmarshal(in, obj)
-}
+const (
+	CloudProviderAWS   = outputs.CloudProviderAWS
+	CloudProviderAzure = outputs.CloudProviderAzure
+	CloudProviderGCP   = outputs.CloudProviderGCP
+)
 
 type component interface {
 	pulumi.ComponentResource

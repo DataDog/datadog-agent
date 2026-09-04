@@ -5,7 +5,7 @@
 
 package parameters
 
-import "github.com/DataDog/datadog-agent/test/e2e-framework/components"
+import "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 
 // StoreKey alias to string
 type StoreKey string
@@ -22,9 +22,9 @@ const (
 	// KeyPairName aws keypairname, used to access EC2 instances
 	KeyPairName StoreKey = "key_pair_name"
 	// AWSPrivateKeyPassword private ssh key password
-	AWSPrivateKeyPassword StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPasswordSuffix)
+	AWSPrivateKeyPassword StoreKey = StoreKey(outputs.CloudProviderAWS + PrivateKeyPasswordSuffix)
 	// AWSPrivateKeyPath private ssh key path
-	AWSPrivateKeyPath StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPathSuffix)
+	AWSPrivateKeyPath StoreKey = StoreKey(outputs.CloudProviderAWS + PrivateKeyPathSuffix)
 	// Registry used for image pulls (in K8s and manually running `docker run`)
 	ImagePullRegistry StoreKey = "image_pull_registry"
 	// Username used for image pulls (in K8s and manually running `docker run`)
@@ -34,19 +34,19 @@ const (
 	// Profile aws profile name
 	Profile StoreKey = "profile"
 	// AWSPublicKeyPath public ssh key path
-	AWSPublicKeyPath StoreKey = StoreKey(components.CloudProviderAWS + PublicKeyPathSuffix)
+	AWSPublicKeyPath StoreKey = StoreKey(outputs.CloudProviderAWS + PublicKeyPathSuffix)
 	//AzurePrivateKeyPassword private ssh key password
-	AzurePrivateKeyPassword StoreKey = StoreKey(components.CloudProviderAzure + PrivateKeyPasswordSuffix)
+	AzurePrivateKeyPassword StoreKey = StoreKey(outputs.CloudProviderAzure + PrivateKeyPasswordSuffix)
 	//AzurePrivateKeyPath private ssh key path
-	AzurePrivateKeyPath StoreKey = StoreKey(components.CloudProviderAzure + PrivateKeyPathSuffix)
+	AzurePrivateKeyPath StoreKey = StoreKey(outputs.CloudProviderAzure + PrivateKeyPathSuffix)
 	//AzurePublicKeyPath public ssh key path
-	AzurePublicKeyPath StoreKey = StoreKey(components.CloudProviderAzure + PublicKeyPathSuffix)
+	AzurePublicKeyPath StoreKey = StoreKey(outputs.CloudProviderAzure + PublicKeyPathSuffix)
 	//GCPPrivateKeyPassword private ssh key password
-	GCPPrivateKeyPassword StoreKey = StoreKey(components.CloudProviderGCP + PrivateKeyPasswordSuffix)
+	GCPPrivateKeyPassword StoreKey = StoreKey(outputs.CloudProviderGCP + PrivateKeyPasswordSuffix)
 	//GCPPrivateKeyPath private ssh key path
-	GCPPrivateKeyPath StoreKey = StoreKey(components.CloudProviderGCP + PrivateKeyPathSuffix)
+	GCPPrivateKeyPath StoreKey = StoreKey(outputs.CloudProviderGCP + PrivateKeyPathSuffix)
 	//GCPPublicKeyPath public ssh key path
-	GCPPublicKeyPath StoreKey = StoreKey(components.CloudProviderGCP + PublicKeyPathSuffix)
+	GCPPublicKeyPath StoreKey = StoreKey(outputs.CloudProviderGCP + PublicKeyPathSuffix)
 	// LocalPublicKeyPath public ssh key path
 	LocalPublicKeyPath StoreKey = "local_public_key_path"
 	// PulumiPassword config file parameter name

@@ -17,9 +17,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
@@ -40,7 +38,7 @@ var _ outputs.KubernetesOutputs = (*Kubernetes)(nil)
 var _ common.Diagnosable = (*Kubernetes)(nil)
 
 // KubernetesClusterOutput implements eks.KubernetesOutputs
-func (e *Kubernetes) KubernetesClusterOutput() *kubernetes.ClusterOutput {
+func (e *Kubernetes) KubernetesClusterOutput() *compout.ClusterOutput {
 	if e.KubernetesCluster == nil {
 		e.KubernetesCluster = &components.KubernetesCluster{}
 	}
@@ -48,7 +46,7 @@ func (e *Kubernetes) KubernetesClusterOutput() *kubernetes.ClusterOutput {
 }
 
 // FakeIntakeOutput implements eks.KubernetesOutputs
-func (e *Kubernetes) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+func (e *Kubernetes) FakeIntakeOutput() *compout.FakeintakeOutput {
 	if e.FakeIntake == nil {
 		e.FakeIntake = &components.FakeIntake{}
 	}
@@ -56,7 +54,7 @@ func (e *Kubernetes) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
 }
 
 // KubernetesAgentOutput implements eks.KubernetesOutputs
-func (e *Kubernetes) KubernetesAgentOutput() *agent.KubernetesAgentOutput {
+func (e *Kubernetes) KubernetesAgentOutput() *compout.KubernetesAgentOutput {
 	if e.Agent == nil {
 		e.Agent = &components.KubernetesAgent{}
 	}

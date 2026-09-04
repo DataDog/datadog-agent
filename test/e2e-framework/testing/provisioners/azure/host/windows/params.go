@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/compute"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
 )
 
 // ProvisionerParams is a set of parameters for the Provisioner.

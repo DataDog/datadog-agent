@@ -20,7 +20,7 @@ go_library(
         "//test/e2e-framework/scenarios/gcp/gke",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",
-        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/infraconfig",
         "//test/e2e-framework/testing/utils/k8s",
         "//test/e2e-framework/testing/utils/optional",
         "//test/e2e-framework/testing/utils/ssh",

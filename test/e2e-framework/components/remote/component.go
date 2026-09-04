@@ -7,38 +7,14 @@ package remote
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// HostOutput is the type that is used to import the Host component
-type HostOutput struct {
-	components.JSONImporter
-
-	CloudProvider components.CloudProviderIdentifier `json:"cloudProvider"`
-
-	Address      string          `json:"address"`
-	Port         int             `json:"port"`
-	Username     string          `json:"username"`
-	Password     string          `json:"password,omitempty"`
-	OSFamily     os.Family       `json:"osFamily"`
-	OSFlavor     os.Flavor       `json:"osFlavor"`
-	OSVersion    string          `json:"osVersion"`
-	Architecture os.Architecture `json:"architecture"`
-
-	// Pool* are set only when the host is a macOS EC2 pool member (see
-	// resources/aws/ec2/pool). BaseSuite reads them at teardown to revert and release
-	// the instance. An empty PoolLeaseToken with a set PoolInstanceID means the member
-	// was just created and still needs its first lease published.
-	PoolInstanceID      string `json:"poolInstanceId,omitempty"`
-	PoolLeaseToken      string `json:"poolLeaseToken,omitempty"`
-	PoolRegion          string `json:"poolRegion,omitempty"`
-	PoolProfile         string `json:"poolProfile,omitempty"`
-	PoolLeaseBucket     string `json:"poolLeaseBucket,omitempty"`
-	PoolBaselineImageID string `json:"poolBaselineImageId,omitempty"`
-	PoolStackID         string `json:"poolStackId,omitempty"`
-}
+// HostOutput moved to the Pulumi-free components/outputs package.
+type HostOutput = outputs.HostOutput
 
 // Host represents a remote host (for instance, a VM)
 type Host struct {

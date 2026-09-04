@@ -8,20 +8,20 @@ package kubeadm
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kubeadm"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
 type provisionerParams struct {
 	awsEnv            *aws.Environment
 	runOptions        []kubeadm.RunOption
-	extraConfigParams runner.ConfigMap
+	extraConfigParams infraconfig.ConfigMap
 }
 
 type provisionerOption func(*provisionerParams) error
 
 func getProvisionerParams(opts ...provisionerOption) *provisionerParams {
-	p := &provisionerParams{awsEnv: nil, runOptions: []kubeadm.RunOption{}, extraConfigParams: runner.ConfigMap{}}
+	p := &provisionerParams{awsEnv: nil, runOptions: []kubeadm.RunOption{}, extraConfigParams: infraconfig.ConfigMap{}}
 	_ = optional.ApplyOptions(p, opts)
 	return p
 }
@@ -37,6 +37,6 @@ func WithRunOptions(opts ...kubeadm.RunOption) provisionerOption {
 }
 
 // WithExtraConfigParams sets extra Pulumi config params.
-func WithExtraConfigParams(cm runner.ConfigMap) provisionerOption {
+func WithExtraConfigParams(cm infraconfig.ConfigMap) provisionerOption {
 	return func(p *provisionerParams) error { p.extraConfigParams = cm; return nil }
 }

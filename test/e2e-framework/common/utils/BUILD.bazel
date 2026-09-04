@@ -16,7 +16,6 @@ go_library(
         "ssh.go",
         "strings.go",
         "version.go",
-        "yaml.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/common/utils",
     visibility = ["//visibility:public"],

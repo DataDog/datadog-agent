@@ -9,7 +9,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 )
 
 // Params implements [BaseSuite] options
@@ -74,12 +74,12 @@ func WithProvisioner(provisioner provisioners.Provisioner) SuiteOption {
 }
 
 // WithUntypedPulumiProvisioner adds an untyped Pulumi provisioner to the suite
-func WithUntypedPulumiProvisioner(runFunc pulumi.RunFunc, configMap runner.ConfigMap) SuiteOption {
+func WithUntypedPulumiProvisioner(runFunc pulumi.RunFunc, configMap infraconfig.ConfigMap) SuiteOption {
 	return WithProvisioner(provisioners.NewUntypedPulumiProvisioner("", runFunc, configMap))
 }
 
 // WithPulumiProvisioner adds a typed Pulumi provisioner to the suite
-func WithPulumiProvisioner[Env any](runFunc provisioners.PulumiEnvRunFunc[Env], configMap runner.ConfigMap) SuiteOption {
+func WithPulumiProvisioner[Env any](runFunc provisioners.PulumiEnvRunFunc[Env], configMap infraconfig.ConfigMap) SuiteOption {
 	return WithProvisioner(provisioners.NewTypedPulumiProvisioner("", runFunc, configMap))
 }
 

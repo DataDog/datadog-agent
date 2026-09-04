@@ -6,12 +6,12 @@
 package components
 
 import (
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
 // RemoteHostUpdater represents an Updater running directly on a Host
 type RemoteHostUpdater struct {
-	updater.HostUpdaterOutput
+	outputs.HostUpdaterOutput
 
 	// add Client when a test needs to interact with the updater
 }

@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
@@ -28,7 +28,7 @@ type ProvisionerParams struct {
 	agentOptions       []agentparams.Option
 	agentClientOptions []agentclientparams.Option
 	fakeintakeOptions  []fakeintake.Option
-	extraConfigParams  runner.ConfigMap
+	extraConfigParams  infraconfig.ConfigMap
 	installUpdater     bool
 }
 
@@ -40,7 +40,7 @@ func newProvisionerParams() *ProvisionerParams {
 		agentOptions:       []agentparams.Option{},
 		agentClientOptions: []agentclientparams.Option{},
 		fakeintakeOptions:  []fakeintake.Option{},
-		extraConfigParams:  runner.ConfigMap{},
+		extraConfigParams:  infraconfig.ConfigMap{},
 	}
 }
 
@@ -98,7 +98,7 @@ func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
 }
 
 // WithExtraConfigParams adds extra config parameters to the ConfigMap.
-func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
+func WithExtraConfigParams(configMap infraconfig.ConfigMap) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.extraConfigParams = configMap
 		return nil

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ import (
 type EC2Metadata struct {
 	t        *testing.T
 	host     *Host
-	osFamily os.Family
+	osFamily types.Family
 	token    string
 }
 
@@ -28,13 +28,13 @@ const metadataEndPoint = "http://169.254.169.254"
 const commandTimeoutSec = 5
 
 // NewEC2Metadata creates a new [EC2Metadata] given an EC2 [VM]
-func NewEC2Metadata(t *testing.T, h *Host, osFamily os.Family) *EC2Metadata {
+func NewEC2Metadata(t *testing.T, h *Host, osFamily types.Family) *EC2Metadata {
 	var cmd string
 
 	switch osFamily {
-	case os.WindowsFamily:
+	case types.WindowsFamily:
 		cmd = fmt.Sprintf(`Invoke-RestMethod -Uri "%v/latest/api/token" -Method Put -Headers @{ "X-aws-ec2-metadata-token-ttl-seconds" = "21600" } -TimeoutSec %v`, metadataEndPoint, commandTimeoutSec)
-	case os.LinuxFamily:
+	case types.LinuxFamily:
 		cmd = fmt.Sprintf(`curl -s -X PUT "%v/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" --max-time %v`, metadataEndPoint, commandTimeoutSec)
 	default:
 		panic(fmt.Sprintf("unsupported OS family: %v", osFamily))
@@ -50,9 +50,9 @@ func (m *EC2Metadata) Get(name string) string {
 
 	var cmd string
 	switch m.osFamily {
-	case os.WindowsFamily:
+	case types.WindowsFamily:
 		cmd = fmt.Sprintf(`Invoke-RestMethod  -Headers @{"X-aws-ec2-metadata-token"="%v"} -Uri "%v/latest/meta-data/%v" -TimeoutSec %v`, m.token, metadataEndPoint, name, commandTimeoutSec)
-	case os.LinuxFamily:
+	case types.LinuxFamily:
 		cmd = fmt.Sprintf(`curl -s -H "X-aws-ec2-metadata-token: %v" "%v/latest/meta-data/%v" --max-time %v`, m.token, metadataEndPoint, name, commandTimeoutSec)
 	default:
 		panic(fmt.Sprintf("unsupported OS family: %v", m.osFamily))

@@ -12,15 +12,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
-// The type that is used to import the KubernetesCluster component
-type ClusterOutput struct {
-	components.JSONImporter
-
-	ClusterName string `json:"clusterName"`
-	KubeConfig  string `json:"kubeConfig"`
-}
+// ClusterOutput moved to the Pulumi-free components/outputs package.
+type ClusterOutput = outputs.ClusterOutput
 
 // Cluster represents a Kubernetes cluster
 type Cluster struct {

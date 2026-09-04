@@ -10,7 +10,7 @@ go_library(
         "//test/e2e-framework/scenarios/aws/ec2docker",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",
-        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/infraconfig",
         "//test/e2e-framework/testing/utils/optional",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],

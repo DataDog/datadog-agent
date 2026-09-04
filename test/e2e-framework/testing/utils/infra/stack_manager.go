@@ -31,6 +31,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
@@ -127,7 +128,7 @@ func newStackManager() (*StackManager, error) {
 }
 
 // GetStack creates or return a stack based on stack name and config, if error occurs during stack creation it destroy all the resources created
-func (sm *StackManager) GetStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (_ *auto.Stack, _ auto.UpResult, err error) {
+func (sm *StackManager) GetStack(ctx context.Context, name string, config infraconfig.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (_ *auto.Stack, _ auto.UpResult, err error) {
 	defer func() {
 		if err != nil {
 			err = common.InternalError{Err: err}
@@ -152,7 +153,7 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 }
 
 type getStackParams struct {
-	Config             runner.ConfigMap
+	Config             infraconfig.ConfigMap
 	FailOnMissing      bool
 	LogWriter          io.Writer
 	DatadogEventSender datadogEventSender
@@ -165,7 +166,7 @@ type getStackParams struct {
 type GetStackOption func(*getStackParams)
 
 // WithConfigMap sets the configuration map for the stack
-func WithConfigMap(config runner.ConfigMap) GetStackOption {
+func WithConfigMap(config infraconfig.ConfigMap) GetStackOption {
 	return func(p *getStackParams) {
 		p.Config = config
 	}
@@ -455,7 +456,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 	deployFunc = runFuncWithRecover(deployFunc)
 
 	// Inject common/managed parameters
-	cm, err := runner.BuildStackParameters(profile, params.Config)
+	cm, err := infraconfig.BuildStackParameters(profile, params.Config)
 	if err != nil {
 		return nil, auto.UpResult{}, err
 	}
@@ -550,7 +551,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 				opt(&params)
 			}
 
-			cm, err = runner.BuildStackParameters(profile, params.Config)
+			cm, err = infraconfig.BuildStackParameters(profile, params.Config)
 			if err != nil {
 				return nil, auto.UpResult{}, fmt.Errorf("error trying to build new stack options on retry: %s", err)
 			}

@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -28,7 +28,7 @@ const (
 type ProvisionerParams struct {
 	name              string
 	runOptions        []scenecs.RunOption
-	extraConfigParams runner.ConfigMap
+	extraConfigParams infraconfig.ConfigMap
 	awsEnv            *aws.Environment
 }
 
@@ -37,7 +37,7 @@ func newProvisionerParams() *ProvisionerParams {
 	return &ProvisionerParams{
 		name:              defaultECS,
 		runOptions:        []scenecs.RunOption{},
-		extraConfigParams: runner.ConfigMap{},
+		extraConfigParams: infraconfig.ConfigMap{},
 	}
 }
 
@@ -71,7 +71,7 @@ func WithRunOptions(opts ...scenecs.RunOption) ProvisionerOption {
 }
 
 // WithExtraConfigParams adds extra config parameters to the environment
-func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
+func WithExtraConfigParams(configMap infraconfig.ConfigMap) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.extraConfigParams = configMap
 		return nil

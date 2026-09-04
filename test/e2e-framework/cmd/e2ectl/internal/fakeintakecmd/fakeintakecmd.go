@@ -83,9 +83,9 @@ func Metrics(url, name string, asJSON bool) error {
 		}
 		if asJSON {
 			type count struct {
-			Name  string `json:"name"`
-			Count int    `json:"count"`
-		}
+				Name  string `json:"name"`
+				Count int    `json:"count"`
+			}
 			out := make([]count, 0, len(counts))
 			for n, cnt := range counts {
 				out = append(out, count{Name: n, Count: cnt})

@@ -5,5 +5,5 @@ go_library(
     srcs = ["agent_client_params.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams",
     visibility = ["//visibility:public"],
-    deps = ["//test/e2e-framework/components/os"],
+    deps = ["//test/e2e-framework/components/os/types"],
 )

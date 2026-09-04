@@ -10,8 +10,7 @@ import (
 
 	"github.com/moby/moby/client"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
 type agentDockerExecutor struct {
@@ -21,7 +20,7 @@ type agentDockerExecutor struct {
 
 var _ agentCommandExecutor = &agentDockerExecutor{}
 
-func newAgentDockerExecutor(context Context, dockerAgentOutput agent.DockerAgentOutput) *agentDockerExecutor {
+func newAgentDockerExecutor(context Context, dockerAgentOutput outputs.DockerAgentOutput) *agentDockerExecutor {
 	dockerClient, err := NewDocker(context, dockerAgentOutput.DockerManager)
 	if err != nil {
 		context.FailNow("%v", err)

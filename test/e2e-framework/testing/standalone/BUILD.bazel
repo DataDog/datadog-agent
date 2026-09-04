@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/testing/environments",
-        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/provisioner",
         "//test/e2e-framework/testing/utils/common",
     ],
 )

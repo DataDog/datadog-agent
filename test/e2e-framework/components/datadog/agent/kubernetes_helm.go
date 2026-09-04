@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils/yamlutil"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/helm"
@@ -1223,7 +1224,7 @@ func buildOTelConfigWithFakeintake(otelConfig string, fakeintake *fakeintake.Fak
 			return nil, err
 		}
 		mergeSlices := false
-		mergedConfig := utils.MergeMaps(config, defaultConfig, mergeSlices)
+		mergedConfig := yamlutil.MergeMaps(config, defaultConfig, mergeSlices)
 		mergedConfigYAML, err := yaml.Marshal(mergedConfig)
 		if err != nil {
 			return nil, err
@@ -1261,7 +1262,7 @@ func buildOTelAgentGatewayConfigWithFakeintake(otelConfig string, fakeintake *fa
 			return nil, err
 		}
 		mergeSlices := false
-		mergedConfig := utils.MergeMaps(config, defaultConfig, mergeSlices)
+		mergedConfig := yamlutil.MergeMaps(config, defaultConfig, mergeSlices)
 		mergedConfigYAML, err := yaml.Marshal(mergedConfig)
 		if err != nil {
 			return nil, err

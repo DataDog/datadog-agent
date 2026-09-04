@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package provisioners
+package provisioner
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
 const (
@@ -39,14 +39,14 @@ const (
 //
 // # Field naming and key resolution
 //
-// For each exported pointer field in *Env that implements [components.Importable],
+// For each exported pointer field in *Env that implements [outputs.Importable],
 // the provisioner derives a resource key using the following priority order:
 //
 //  1. The value of the `import` struct tag, when present.
 //  2. The field name with its first letter lowercased (lowerCamelCase).
 //
 // The derived key is then looked up in the JSON object:
-//   - Match found: [components.Importable.SetKey] is called so that
+//   - Match found: [outputs.Importable.SetKey] is called so that
 //     [environments.BuildEnvFromResources] can unmarshal the payload into the field.
 //   - No match: the field is set to nil and silently skipped.
 //
@@ -79,7 +79,7 @@ const (
 //
 // Value-embedded structs (e.g. CoverageBase in environments.Host) are silently
 // skipped because they have kind Struct, not Ptr.  This is harmless as long as
-// those helpers carry no [components.Importable] fields themselves.
+// those helpers carry no [outputs.Importable] fields themselves.
 //
 //	// OK — CoverageBase is a value embed with no Importable fields.
 //	// wireEnv skips it and still finds RemoteHost, FakeIntake, Agent, Updater.
@@ -178,14 +178,14 @@ func (fp *StaticStackProvisioner[Env]) readResources() (RawResources, error) {
 }
 
 // wireEnv iterates over the exported fields of *Env.  For each field that
-// implements [components.Importable] it resolves a resource key (see the
+// implements [outputs.Importable] it resolves a resource key (see the
 // [StaticStackProvisioner] type-level doc for the full naming rules) and then:
 //   - match found: calls SetKey so that BuildEnvFromResources can locate and
 //     unmarshal the payload.
 //   - no match: sets the field to nil so that BuildEnvFromResources skips it
 //     without error.
 func (fp *StaticStackProvisioner[Env]) wireEnv(env *Env, resources RawResources) error {
-	importableType := reflect.TypeOf((*components.Importable)(nil)).Elem()
+	importableType := reflect.TypeOf((*outputs.Importable)(nil)).Elem()
 
 	envValue := reflect.ValueOf(env).Elem()
 	envType := envValue.Type()
@@ -219,7 +219,7 @@ func (fp *StaticStackProvisioner[Env]) wireEnv(env *Env, resources RawResources)
 			if fieldValue.IsNil() {
 				fieldValue.Set(reflect.New(field.Type.Elem()))
 			}
-			fieldValue.Interface().(components.Importable).SetKey(key)
+			fieldValue.Interface().(outputs.Importable).SetKey(key)
 		} else {
 			// Mark the component as not provisioned so BuildEnvFromResources skips it.
 			fieldValue.Set(reflect.Zero(field.Type))

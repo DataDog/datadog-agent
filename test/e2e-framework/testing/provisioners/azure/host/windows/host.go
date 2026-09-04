@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments/windowshost"
 )
 
 const (
@@ -28,10 +28,10 @@ const (
 
 // Provisioner creates a VM environment with a Windows VM, a FakeIntake and a Host Agent configured to talk to each other.
 // FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
-func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.WindowsHost] {
+func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[windowshost.WindowsHost] {
 	// We need to build params here to be able to use params.name in the provisioner name
 	params := getProvisionerParams(opts...)
-	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.WindowsHost) error {
+	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *windowshost.WindowsHost) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard-to-debug issues.
 		params := getProvisionerParams(opts...)
@@ -42,7 +42,7 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 }
 
 // ProvisionerNoAgent wraps Provisioner with hardcoded WithoutAgent options.
-func ProvisionerNoAgent(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.WindowsHost] {
+func ProvisionerNoAgent(opts ...ProvisionerOption) provisioners.TypedProvisioner[windowshost.WindowsHost] {
 	mergedOpts := make([]ProvisionerOption, 0, len(opts)+1)
 	mergedOpts = append(mergedOpts, opts...)
 	mergedOpts = append(mergedOpts, WithoutAgent())
@@ -51,7 +51,7 @@ func ProvisionerNoAgent(opts ...ProvisionerOption) provisioners.TypedProvisioner
 }
 
 // ProvisionerNoAgentNoFakeIntake wraps Provisioner with hardcoded WithoutAgent and WithoutFakeIntake options.
-func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.WindowsHost] {
+func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) provisioners.TypedProvisioner[windowshost.WindowsHost] {
 	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
 	mergedOpts = append(mergedOpts, opts...)
 	mergedOpts = append(mergedOpts, WithoutAgent(), WithoutFakeIntake())
@@ -60,7 +60,7 @@ func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) provisioners.Type
 }
 
 // ProvisionerNoFakeIntake wraps Provisioner with hardcoded WithoutFakeIntake option.
-func ProvisionerNoFakeIntake(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.WindowsHost] {
+func ProvisionerNoFakeIntake(opts ...ProvisionerOption) provisioners.TypedProvisioner[windowshost.WindowsHost] {
 	mergedOpts := make([]ProvisionerOption, 0, len(opts)+1)
 	mergedOpts = append(mergedOpts, opts...)
 	mergedOpts = append(mergedOpts, WithoutFakeIntake())
@@ -69,7 +69,7 @@ func ProvisionerNoFakeIntake(opts ...ProvisionerOption) provisioners.TypedProvis
 }
 
 // Run deploys a Windows environment given a pulumi.Context
-func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *ProvisionerParams) error {
+func Run(ctx *pulumi.Context, env *windowshost.WindowsHost, params *ProvisionerParams) error {
 	azureEnv, err := azure.NewEnvironment(ctx)
 	if err != nil {
 		return err
@@ -100,7 +100,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		if err != nil {
 			return err
 		}
-		err = activeDirectoryComp.Export(ctx, &env.ActiveDirectory.Output)
+		err = activeDirectoryComp.Export(ctx, &env.ActiveDirectory.ActiveDirectoryOutput)
 		if err != nil {
 			return err
 		}

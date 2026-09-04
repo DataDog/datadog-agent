@@ -3,23 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package outputs
+package windowshost
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
 // WindowsHostOutputs is the interface for WindowsHost environment outputs.
 type WindowsHostOutputs interface {
-	RemoteHostOutput() *remote.HostOutput
-	FakeIntakeOutput() *fakeintake.FakeintakeOutput
-	AgentOutput() *agent.HostAgentOutput
-	ActiveDirectoryOutput() *activedirectory.Output
+	RemoteHostOutput() *compout.HostOutput
+	FakeIntakeOutput() *compout.FakeintakeOutput
+	AgentOutput() *compout.HostAgentOutput
+	ActiveDirectoryOutput() *compout.ActiveDirectoryOutput
 	DisableFakeIntake()
 	DisableAgent()
 	DisableActiveDirectory()
@@ -29,39 +26,39 @@ type WindowsHostOutputs interface {
 
 // WindowsHost contains the outputs for a WindowsHost environment.
 type WindowsHost struct {
-	RemoteHost      *remote.HostOutput
-	FakeIntake      *fakeintake.FakeintakeOutput
-	Agent           *agent.HostAgentOutput
-	ActiveDirectory *activedirectory.Output
+	RemoteHost      *compout.HostOutput
+	FakeIntake      *compout.FakeintakeOutput
+	Agent           *compout.HostAgentOutput
+	ActiveDirectory *compout.ActiveDirectoryOutput
 }
 
 // NewWindowsHost creates a new WindowsHost output struct with all fields initialized.
 func NewWindowsHost() *WindowsHost {
 	return &WindowsHost{
-		RemoteHost:      &remote.HostOutput{},
-		FakeIntake:      &fakeintake.FakeintakeOutput{},
-		Agent:           &agent.HostAgentOutput{},
-		ActiveDirectory: &activedirectory.Output{},
+		RemoteHost:      &compout.HostOutput{},
+		FakeIntake:      &compout.FakeintakeOutput{},
+		Agent:           &compout.HostAgentOutput{},
+		ActiveDirectory: &compout.ActiveDirectoryOutput{},
 	}
 }
 
 // RemoteHostOutput returns the remote host output for exporting
-func (h *WindowsHost) RemoteHostOutput() *remote.HostOutput {
+func (h *WindowsHost) RemoteHostOutput() *compout.HostOutput {
 	return h.RemoteHost
 }
 
 // FakeIntakeOutput returns the fakeintake output for exporting (may be nil)
-func (h *WindowsHost) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+func (h *WindowsHost) FakeIntakeOutput() *compout.FakeintakeOutput {
 	return h.FakeIntake
 }
 
 // AgentOutput returns the agent output for exporting (may be nil)
-func (h *WindowsHost) AgentOutput() *agent.HostAgentOutput {
+func (h *WindowsHost) AgentOutput() *compout.HostAgentOutput {
 	return h.Agent
 }
 
 // ActiveDirectoryOutput returns the ActiveDirectory output for exporting (may be nil)
-func (h *WindowsHost) ActiveDirectoryOutput() *activedirectory.Output {
+func (h *WindowsHost) ActiveDirectoryOutput() *compout.ActiveDirectoryOutput {
 	return h.ActiveDirectory
 }
 

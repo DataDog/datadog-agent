@@ -18,7 +18,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters",
     visibility = ["//visibility:public"],
     deps = [
-        "//test/e2e-framework/components",
+        "//test/e2e-framework/components/outputs",
         "//test/e2e-framework/testing/utils/clients",
         "//test/e2e-framework/testing/utils/common",
         "@com_github_aws_aws_sdk_go_v2_service_ssm//:ssm",

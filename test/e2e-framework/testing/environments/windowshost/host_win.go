@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package environments
+package windowshost
 
 import (
 	"errors"
@@ -11,11 +11,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
+	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs/windowshost"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
@@ -32,7 +29,7 @@ type WindowsHost struct {
 }
 
 // Ensure WindowsHost implements the WindowsHostOutputs interface
-var _ outputs.WindowsHostOutputs = (*WindowsHost)(nil)
+var _ windowshost.WindowsHostOutputs = (*WindowsHost)(nil)
 
 var _ common.Initializable = &WindowsHost{}
 
@@ -41,49 +38,49 @@ func (e *WindowsHost) Init(_ common.Context) error {
 	return nil
 }
 
-// RemoteHostOutput implements outputs.WindowsHostOutputs
-func (e *WindowsHost) RemoteHostOutput() *remote.HostOutput {
+// RemoteHostOutput implements windowshost.WindowsHostOutputs
+func (e *WindowsHost) RemoteHostOutput() *compout.HostOutput {
 	if e.RemoteHost == nil {
 		e.RemoteHost = &components.RemoteHost{}
 	}
 	return &e.RemoteHost.HostOutput
 }
 
-// FakeIntakeOutput implements outputs.WindowsHostOutputs
-func (e *WindowsHost) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+// FakeIntakeOutput implements windowshost.WindowsHostOutputs
+func (e *WindowsHost) FakeIntakeOutput() *compout.FakeintakeOutput {
 	if e.FakeIntake == nil {
 		e.FakeIntake = &components.FakeIntake{}
 	}
 	return &e.FakeIntake.FakeintakeOutput
 }
 
-// AgentOutput implements outputs.WindowsHostOutputs
-func (e *WindowsHost) AgentOutput() *agent.HostAgentOutput {
+// AgentOutput implements windowshost.WindowsHostOutputs
+func (e *WindowsHost) AgentOutput() *compout.HostAgentOutput {
 	if e.Agent == nil {
 		e.Agent = &components.RemoteHostAgent{}
 	}
 	return &e.Agent.HostAgentOutput
 }
 
-// ActiveDirectoryOutput implements outputs.WindowsHostOutputs
-func (e *WindowsHost) ActiveDirectoryOutput() *activedirectory.Output {
+// ActiveDirectoryOutput implements windowshost.WindowsHostOutputs
+func (e *WindowsHost) ActiveDirectoryOutput() *compout.ActiveDirectoryOutput {
 	if e.ActiveDirectory == nil {
 		e.ActiveDirectory = &components.RemoteActiveDirectory{}
 	}
-	return &e.ActiveDirectory.Output
+	return &e.ActiveDirectory.ActiveDirectoryOutput
 }
 
-// DisableFakeIntake implements outputs.WindowsHostOutputs
+// DisableFakeIntake implements windowshost.WindowsHostOutputs
 func (e *WindowsHost) DisableFakeIntake() {
 	e.FakeIntake = nil
 }
 
-// DisableAgent implements outputs.WindowsHostOutputs
+// DisableAgent implements windowshost.WindowsHostOutputs
 func (e *WindowsHost) DisableAgent() {
 	e.Agent = nil
 }
 
-// DisableActiveDirectory implements outputs.WindowsHostOutputs
+// DisableActiveDirectory implements windowshost.WindowsHostOutputs
 func (e *WindowsHost) DisableActiveDirectory() {
 	e.ActiveDirectory = nil
 }
@@ -92,7 +89,7 @@ func (e *WindowsHost) SetAgentClientOptions(options ...agentclientparams.Option)
 	e.Agent.ClientOptions = options
 }
 
-// SetEnvironment implements outputs.WindowsHostOutputs
+// SetEnvironment implements windowshost.WindowsHostOutputs
 func (e *WindowsHost) SetEnvironment(env config.Env) {
 	e.Environment = env
 }
@@ -106,7 +103,7 @@ func (e *WindowsHost) Diagnose(outputDir string) (string, error) {
 	// add Agent diagnose
 	if e.Agent != nil {
 		diagnoses = append(diagnoses, "==== Agent ====")
-		dstPath, err := generateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
+		dstPath, err := components.GenerateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
 		}

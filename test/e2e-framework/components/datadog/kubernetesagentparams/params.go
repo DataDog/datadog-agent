@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils/yamlutil"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -324,7 +325,7 @@ otelAgentGateway:
 func WithOTelConfig(config string) func(*Params) error {
 	return func(p *Params) error {
 		var err error
-		p.OTelConfig, err = utils.MergeYAML(p.OTelConfig, config)
+		p.OTelConfig, err = yamlutil.MergeYAML(p.OTelConfig, config)
 		return err
 	}
 }
@@ -332,7 +333,7 @@ func WithOTelConfig(config string) func(*Params) error {
 func WithOTelGatewayConfig(config string) func(*Params) error {
 	return func(p *Params) error {
 		var err error
-		p.OTelGatewayConfig, err = utils.MergeYAML(p.OTelGatewayConfig, config)
+		p.OTelGatewayConfig, err = yamlutil.MergeYAML(p.OTelGatewayConfig, config)
 		return err
 	}
 }

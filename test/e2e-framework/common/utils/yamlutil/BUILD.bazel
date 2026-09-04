@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "yamlutil",
+    srcs = ["yaml.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/common/utils/yamlutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)

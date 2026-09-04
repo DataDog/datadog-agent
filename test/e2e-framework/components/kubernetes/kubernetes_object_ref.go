@@ -10,18 +10,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
-type KubernetesObjRefOutput struct { // nolint:revive, We want to keep the name as <Component>ObjRefOutput
-	components.JSONImporter
-
-	Namespace      string            `json:"namespace"`
-	Name           string            `json:"name"`
-	Kind           string            `json:"kind"`
-	AppVersion     string            `json:"installAppVersion"`
-	Version        string            `json:"installVersion"`
-	LabelSelectors map[string]string `json:"labelSelectors"`
-}
+// KubernetesObjRefOutput moved to the Pulumi-free components/outputs package.
+type KubernetesObjRefOutput = outputs.KubernetesObjRefOutput
 
 type KubernetesObjectRef struct { // nolint:revive, We want to keep the name as <Component>ObjectRef
 	pulumi.ResourceState

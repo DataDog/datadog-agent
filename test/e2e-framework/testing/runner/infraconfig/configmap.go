@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package runner
+package infraconfig
 
 import (
 	"encoding/json"
@@ -16,6 +16,7 @@ import (
 	infragcp "github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	infralocal "github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -118,7 +119,7 @@ func SetConfigMapFromStore(store parameters.Store, cm ConfigMap, paramName param
 
 // BuildStackParameters creates a config map from a profile, a scenario config map
 // and env/cli configuration parameters
-func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap, error) {
+func BuildStackParameters(profile runner.Profile, scenarioConfig ConfigMap) (ConfigMap, error) {
 	var err error
 	// Priority order: profile configs < scenarioConfig < Env/CLI config
 	cm := ConfigMap{}
