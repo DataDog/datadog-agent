@@ -1,0 +1,52 @@
+services:
+  spark-driver-configfilesdiscovery-master:
+    image: ${DD_REGISTRY:-docker.io}/apache/spark:4.0.0@sha256:a89782d90529a623fc4471cdddb0f9c32d6eed10a81b256a80207b23c3b1df00
+    container_name: spark-driver-configfilesdiscovery-master
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.master.Master
+      - --host
+      - spark-driver-configfilesdiscovery-master
+      - --port
+      - "7077"
+      - --webui-port
+      - "8080"
+
+  spark-driver-configfilesdiscovery-worker:
+    image: ${DD_REGISTRY:-docker.io}/apache/spark:4.0.0@sha256:a89782d90529a623fc4471cdddb0f9c32d6eed10a81b256a80207b23c3b1df00
+    container_name: spark-driver-configfilesdiscovery-worker
+    environment:
+      SPARK_DAEMON_JAVA_OPTS: -Dsecret=must-not-be-forwarded
+      SPARK_DRIVER_MEMORY: 2g
+      SPARK_LOCAL_DIRS: /tmp/configfilesdiscovery-spark
+      SPARK_LOCAL_IP: spark-driver-configfilesdiscovery-worker
+      SPARK_RPC_AUTHENTICATION_SECRET: must-not-be-forwarded
+      SPARK_RPC_ENCRYPTION_ENABLED: "no"
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.worker.Worker
+      - spark://spark-driver-configfilesdiscovery-master:7077
+    volumes:
+      - spark-driver-configfilesdiscovery-artifacts:/opt/configfilesdiscovery
+    labels:
+      com.datadoghq.ad.checks: >-
+        {"spark":{"instances":[{"spark_url":"http://%%host%%:4040","spark_cluster_mode":"spark_driver_mode"}]}}
+
+  spark-driver-configfilesdiscovery-submit:
+    image: ${DD_REGISTRY:-docker.io}/apache/spark:4.0.0@sha256:a89782d90529a623fc4471cdddb0f9c32d6eed10a81b256a80207b23c3b1df00
+    container_name: spark-driver-configfilesdiscovery-submit
+    user: "0"
+    command:
+      - /bin/bash
+      - -ec
+      - |-
+        until curl -fs http://spark-driver-configfilesdiscovery-master:8080/json/ | grep -q '"aliveworkers" : 1'; do sleep 1; done
+        printf '%s\n' 'public final class ConfigFilesDiscoveryDriver { public static void main(String[] args) throws Exception { Thread.sleep(300000); } }' > /opt/configfilesdiscovery/ConfigFilesDiscoveryDriver.java
+        /opt/java/openjdk/bin/javac -d /opt/configfilesdiscovery /opt/configfilesdiscovery/ConfigFilesDiscoveryDriver.java
+        /opt/java/openjdk/bin/jar cf /opt/configfilesdiscovery/configfilesdiscovery-driver.jar -C /opt/configfilesdiscovery ConfigFilesDiscoveryDriver.class
+        exec /opt/spark/bin/spark-submit --master spark://spark-driver-configfilesdiscovery-master:7077 --deploy-mode cluster --class ConfigFilesDiscoveryDriver /opt/configfilesdiscovery/configfilesdiscovery-driver.jar
+    volumes:
+      - spark-driver-configfilesdiscovery-artifacts:/opt/configfilesdiscovery
+
+volumes:
+  spark-driver-configfilesdiscovery-artifacts:

@@ -526,9 +526,7 @@ func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	obs := &observerImpl{
 		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
@@ -570,9 +568,7 @@ func TestHandleFilteredMetricTelemetryCachePreservesNormalizedSourceLabels(t *te
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			telComp := telemetryimpl.GetCompatComponent()
-			telComp.Reset()
-			t.Cleanup(telComp.Reset)
+			telComp := telemetryimpl.NewMock(t)
 
 			h := &handle{
 				source:    "check",
@@ -597,9 +593,7 @@ func TestFilteredMetricTelemetrySyncPath(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	obs := &observerImpl{
 		engine:       newEngine(engineConfig{storage: newTimeSeriesStorage()}),
@@ -617,9 +611,7 @@ func TestFilteredMetricTelemetrySyncPath(t *testing.T) {
 }
 
 func TestDefaultFilterAsyncPathIngestsAgentMetricsAndFiltersObserverTelemetry(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	defaultFilter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
@@ -696,9 +688,7 @@ func TestTagBasedFilterCountsOnlyFullyMatchingSamples(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
@@ -740,9 +730,7 @@ func TestNamePrefixFilterCountsFilteredMetrics(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
@@ -785,9 +773,7 @@ func TestMixedAgentRulesAsyncPathKeepsIncludedMetricAndCountsDroppedMetric(t *te
 	}, implicitMetricsProcessingRules()...))
 	require.NoError(t, err)
 
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
@@ -843,9 +829,7 @@ func TestAsyncAndSyncFilteringForCheckSourceRemainConsistent(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
@@ -952,9 +936,7 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	obs := &observerImpl{
 		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),

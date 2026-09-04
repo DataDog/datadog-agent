@@ -358,8 +358,13 @@ func IsInstallerDataDirSecure() error {
 	return IsDirSecure(targetDir)
 }
 
-// IsDirSecure returns nil if the directory is owned by Administrators or SYSTEM,
-// otherwise an error is returned.
+// containerAdministratorSID is the SID of the ContainerAdministrator account used in Windows
+// containers. It is not part of the WELL_KNOWN_SID_TYPE enum, so it cannot be created with
+// windows.CreateWellKnownSid like the other allowed owners.
+const containerAdministratorSID = "S-1-5-93-2-1"
+
+// IsDirSecure returns nil if the directory is owned by Administrators, SYSTEM, or
+// ContainerAdministrator, otherwise an error is returned.
 func IsDirSecure(targetDir string) error {
 	allowedWellKnownSids := []windows.WELL_KNOWN_SID_TYPE{
 		windows.WinBuiltinAdministratorsSid,
@@ -388,6 +393,11 @@ func IsDirSecure(targetDir string) error {
 		}
 		allowedSids = append(allowedSids, sid)
 	}
+	containerAdminSid, err := windows.StringToSid(containerAdministratorSID)
+	if err != nil {
+		return fmt.Errorf("failed to create container administrator sid: %w", err)
+	}
+	allowedSids = append(allowedSids, containerAdminSid)
 	ownerInAllowedList := slices.ContainsFunc(allowedSids, func(sid *windows.SID) bool {
 		return windows.EqualSid(owner, sid)
 	})

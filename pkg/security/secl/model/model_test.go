@@ -242,3 +242,52 @@ func TestSetFieldValue(t *testing.T) {
 		}
 	}
 }
+
+func TestProcessAWSSecurityCredentials(t *testing.T) {
+	mod := &Model{}
+
+	evaluateStrings := func(t *testing.T, event *Event, field string) []string {
+		t.Helper()
+
+		evaluator, err := mod.GetEvaluator(field, "", 0)
+		if err != nil {
+			t.Fatalf("failed to get an evaluator for %s: %v", field, err)
+		}
+
+		arrayEvaluator, ok := evaluator.(*eval.StringArrayEvaluator)
+		if !ok {
+			t.Fatalf("%s should evaluate to a string array, got %T", field, evaluator)
+		}
+
+		values, ok := arrayEvaluator.Eval(eval.NewContext(event)).([]string)
+		if !ok {
+			t.Fatalf("%s should evaluate to a string array", field)
+		}
+		return values
+	}
+
+	t.Run("no-credentials", func(t *testing.T) {
+		event := NewFakeEvent()
+
+		if values := evaluateStrings(t, event, "process.aws_security_credentials.access_key_id"); len(values) != 0 {
+			t.Errorf("expected no access key ID, got %v", values)
+		}
+	})
+
+	t.Run("every-resolved-credential", func(t *testing.T) {
+		event := NewFakeEvent()
+		event.ProcessContext.Process.AWSSecurityCredentials = []AWSSecurityCredentials{
+			{Type: "AWS-HMAC", AccessKeyID: "ASIAIOSFODNN7EXAMPLE"},
+			{Type: "AWS-HMAC", AccessKeyID: "ASIAROTATEDKEY000000"},
+		}
+
+		values := evaluateStrings(t, event, "process.aws_security_credentials.access_key_id")
+		if !reflect.DeepEqual(values, []string{"ASIAIOSFODNN7EXAMPLE", "ASIAROTATEDKEY000000"}) {
+			t.Errorf("expected every access key ID the process resolved, got %v", values)
+		}
+
+		if values := evaluateStrings(t, event, "process.aws_security_credentials.type"); !reflect.DeepEqual(values, []string{"AWS-HMAC", "AWS-HMAC"}) {
+			t.Errorf("unexpected credentials types: %v", values)
+		}
+	})
+}

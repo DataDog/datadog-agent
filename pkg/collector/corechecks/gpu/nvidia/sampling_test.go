@@ -23,19 +23,19 @@ import (
 func TestNewSampleCollector(t *testing.T) {
 	tests := []struct {
 		name                  string
-		customSetup           testutil.NvmlMockOption
+		customSetup           testutil.NvmlDeviceOption
 		expectError           bool
 		expectedSupportedAPIs int
 	}{
 		{
 			name:                  "Supported",
-			customSetup:           testutil.WithCombinedOptions(), // Use default setup with all functions enabled
+			customSetup:           testutil.WithCombinedDeviceOptions(), // Use default setup with all functions enabled
 			expectError:           false,
 			expectedSupportedAPIs: 5,
 		},
 		{
 			name: "Unsupported",
-			customSetup: testutil.WithCombinedOptions(
+			customSetup: testutil.WithCombinedDeviceOptions(
 				testutil.WithProcessData([]testutil.MockProcessData{}, nvml.ERROR_NOT_SUPPORTED),
 				testutil.WithSamplesUnsupported(),
 			),
@@ -110,7 +110,7 @@ func TestCollectProcessUtilization(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
-						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Sample, uint64, error) {
 							return processUtilizationSample(device, lastTimestamp)
 						},
 					},
@@ -161,7 +161,7 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
-						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Sample, uint64, error) {
 							return processUtilizationSample(device, lastTimestamp)
 						},
 					},
@@ -231,7 +231,7 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
-						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Sample, uint64, error) {
 							return processUtilizationSample(device, lastTimestamp)
 						},
 					},
@@ -339,7 +339,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
-						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
+						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Sample, uint64, error) {
 							return processUtilizationSample(device, lastTimestamp)
 						},
 					},
@@ -356,7 +356,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 
 			// Find the sm_active metric
 			var smActiveMetric *Metric
-			for _, metric := range processMetrics {
+			for _, metric := range requireMetrics(t, processMetrics) {
 				if metric.Name == "sm_active" {
 					smActiveMetric = metric
 					break
@@ -365,7 +365,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 
 			require.NotNil(t, smActiveMetric, "sm_active metric should always be emitted")
 			require.Equal(t, tt.expectedSmActive, smActiveMetric.Value, "sm_active value should match expected calculation: %s", tt.description)
-			require.Nil(t, smActiveMetric.Tags, "sm_active should have no tags (device-wide metric)")
+			require.Nil(t, smActiveMetric.Tags(), "sm_active should have no tags (device-wide metric)")
 		})
 	}
 }

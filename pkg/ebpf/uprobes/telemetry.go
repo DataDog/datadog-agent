@@ -123,7 +123,7 @@ func newUprobeAttacherTelemetry(tm telemetryComponent.Component, attacherName st
 		definitions = &telemetryDefinitions{
 			once: sync.Once{},
 		}
-		definitions.init(telemetryNoop.GetCompatComponent())
+		definitions.init(telemetryNoop.NewComponent())
 	} else {
 		definitions = &telemetryDefs
 		definitions.init(tm)

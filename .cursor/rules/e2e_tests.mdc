@@ -6,7 +6,7 @@ globs: test/new-e2e/**/*
 
 # E2E Test Development Guidelines
 
-This rule provides troubleshooting tips and code patterns not covered in the main documentation. For prerequisites, setup, and basic usage, see `docs/public/how-to/test/e2e.md`.
+This rule provides troubleshooting tips and code patterns not covered in the main documentation. For prerequisites, setup, and basic usage, see `docs/public/how-to/test/e2e/`.
 
 ## AWS Account Configuration
 

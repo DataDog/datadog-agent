@@ -5,6 +5,7 @@ go_library(
     name = "client",
     srcs = [
         "client.go",
+        "idxTracePayload.go",
         "par.go",
         "rc.go",
     ],
@@ -12,6 +13,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/metrics/event",
+        "//pkg/proto/pbgo/trace/idx",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/client/flare",
@@ -26,6 +28,7 @@ dd_agent_go_test(
     srcs = [
         "client_integration_test.go",
         "client_test.go",
+        "idxTracePayload_test.go",
     ],
     embed = [":client"],
     embedsrcs = [
@@ -45,6 +48,8 @@ dd_agent_go_test(
         "fixtures/api_v2_series_response",
     ],
     deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/fixtures",
