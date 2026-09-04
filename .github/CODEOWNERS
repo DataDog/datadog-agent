@@ -129,7 +129,7 @@
 /.gitlab/.ci-linters.yml                                                  @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/.pre/*                                                           @DataDog/agent-devx
 /.gitlab/.post/*                                                          @DataDog/agent-devx
-/.gitlab/build/bazel/*                                                    @DataDog/agent-build
+/.gitlab/build/bazel/*                                                    @DataDog/agent-build @DataDog/agent-devx
 /.gitlab/deploy/check_deploy/*                                            @DataDog/agent-delivery
 /.gitlab/.post/do_not_merge.yml                                           @DataDog/agent-devx
 /.gitlab/deploy*/*                                                        @DataDog/agent-delivery
@@ -559,6 +559,7 @@
 /comp/core/gui/impl/systray/                                          @DataDog/windows-products @DataDog/fleet-remediation
 /comp/healthplatform/issues/ad-misconfiguration                       @DataDog/container-platform @DataDog/fleet-remediation
 /comp/healthplatform/issues/gpuenvironment                            @DataDog/gpu-monitoring-agent @DataDog/fleet-remediation
+/comp/healthplatform/issues/missedbytes                               @DataDog/agent-log-pipelines @DataDog/fleet-remediation
 /comp/healthplatform/issues/rofspermissions                           @DataDog/container-platform @DataDog/fleet-remediation
 /pkg/cloudfoundry                                                     @DataDog/agent-integrations
 /pkg/clusteragent/                                                    @DataDog/container-platform

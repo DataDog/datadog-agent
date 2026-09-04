@@ -14,6 +14,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -200,12 +201,14 @@ type MapSpecEditorOpts struct {
 	TracedCgroupSize              int
 	UseMmapableMaps               bool
 	UseRingBuffers                bool
+	UseSyscallTaskStorage         bool
 	RingBufferSize                uint32
 	PathResolutionEnabled         bool
 	SecurityProfileMaxCount       int
 	ReducedProcPidCacheSize       bool
 	NetworkFlowMonitorEnabled     bool
 	NetworkSkStorageEnabled       bool
+	NetworkSkLookupPidEnabled     bool
 	SpanTrackMaxCount             int
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
@@ -245,10 +248,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	}
 
 	editors := map[string]manager.MapSpecEditor{
-		"syscalls": {
-			MaxEntries: 8192,
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"proc_cache": {
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
@@ -274,6 +273,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"go_labels_procs": {
+			MaxEntries: uint32(opts.SpanTrackMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"otel_tls": {
 			MaxEntries: uint32(opts.SpanTrackMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
@@ -396,6 +399,20 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
+	if !opts.NetworkSkLookupPidEnabled {
+		// Transform the sk_storage_pid SK_Storage map into a basic hash map so it can be loaded by
+		// kernels that don't support sk-local storage or bpf_sk_lookup. Dead code elimination removes
+		// the code working with it before the verifier runs.
+		editors["sk_storage_pid"] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			KeySize:    1,
+			ValueSize:  1,
+			MaxEntries: 1,
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries | manager.EditFlags,
+		}
+	}
+
 	if !kv.HasSafeBPFMemoryAllocations() {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
@@ -414,6 +431,22 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 		editors["inet_bind_args"] = manager.MapSpecEditor{
 			MaxEntries: superReducedProcPidCacheSize,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.UseSyscallTaskStorage {
+		editors["syscalls"] = manager.MapSpecEditor{
+			Type:       ebpf.TaskStorage,
+			MaxEntries: 0,
+			KeySize:    4, // sizeof(unsigned int)
+			Key:        &btf.Int{Name: "unsigned int", Size: 4, Encoding: btf.Unsigned},
+			Flags:      unix.BPF_F_NO_PREALLOC,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKey | manager.EditFlags,
+		}
+	} else {
+		editors["syscalls"] = manager.MapSpecEditor{
+			MaxEntries: 8192,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

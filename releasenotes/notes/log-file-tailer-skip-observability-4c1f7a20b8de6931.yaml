@@ -1,0 +1,26 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    ``agent status`` now reports why a file matched by a log configuration is not being tailed when
+    its fingerprint cannot be used, under the log source that matched it. The most common cause is a
+    file that holds less data than ``logs_config.fingerprint_config.count``, for instance right after
+    a log rotation replaced it with a smaller file, and the message names the setting to change. This
+    previously showed up only as a shortfall in the ``N files tailed out of M files matching`` line,
+    with no explanation.
+  - |
+    The Logs Agent now logs a warning when a file matched by a log configuration is not tailed
+    because its fingerprint cannot be used, which previously happened without any log line at any
+    level. The most common cause is a file that holds less data than ``logs_config.fingerprint_config.count``,
+    for instance right after a log rotation replaced it with a smaller file. The warning reports the
+    path, the current size of the file and how much data fingerprinting requires, and distinguishes a
+    file that is simply too short from a file whose fingerprint could not be computed at all. It is
+    emitted once when the file starts being skipped rather than once per check, and a closing
+    message is logged when it stops being skipped, whether the file started being tailed again or
+    was never tailed at all, so the collection gap can be measured from the Agent log alone.

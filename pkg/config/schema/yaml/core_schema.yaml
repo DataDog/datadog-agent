@@ -4500,6 +4500,30 @@ properties:
             description: |-
               Set to false to disable metrics support in the OTLP ingest endpoint.
               To enable the OTLP ingest, the otlp_config.receiver section must be set.
+          infra_attributes:
+            node_type: section
+            type: object
+            visibility: public
+            description: Controls how the infraattributes processor promotes custom
+              tagger-derived tags onto OTLP metrics ingested by the Agent. Known
+              infrastructure attributes are attached regardless of this section.
+            tags:
+            - template_section:CoreAgent
+            properties:
+              as_tags:
+                node_type: setting
+                type: boolean
+                default: false
+                visibility: public
+                description: |-
+                  Controls whether the Infra-Attribute-Processor promotes custom tags (for example, from
+                  kubernetesResourcesLabelsAsTags/AnnotationsAsTags) so they survive the metrics translator's
+                  allowlist and are emitted as metric tags. Without it, custom tags that are not known Datadog
+                  or OpenTelemetry conventions are dropped.
+                comment: |-
+                  as_tags controls whether the infraattributes processor promotes custom tags
+                  (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) so they survive the metrics
+                  translator's allowlist and become metric tags.
           resource_attributes_as_tags:
             node_type: setting
             type: boolean
@@ -8627,7 +8651,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: false
+                default: true
           sleep_interval:
             node_type: setting
             type: string
