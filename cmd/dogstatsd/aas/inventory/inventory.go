@@ -16,6 +16,7 @@ package inventory
 
 import (
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -23,6 +24,8 @@ import (
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
+
+const periodicInterval = 10 * time.Minute
 
 // TODO(SVLS-9604): change to "serverless-extension" once serverless_extension_agent schema exists.
 const aasInventoryFlavor = "serverless-compat"
@@ -47,11 +50,12 @@ func IsEnabled() bool {
 
 // NewCapabilities returns the inventoryagent Capabilities for dogstatsd running
 // inside the AAS extension: skip cross-process enrichment (no sibling agent
-// processes) and use a per-process UUID. Multiple workers sharing the same app
-// produce separate startup payloads but the REDAPL row deduplicates on
-// resource_id, so cardinality stays at one row per app.
+// processes), use a per-process UUID, and force the payload enabled so AAS
+// inventory works regardless of the enable_metadata_collection config flag.
 func NewCapabilities() *inventoryagent.Capabilities {
-	return inventoryagent.NewServerlessCapabilities(uuid.New().String())
+	caps := inventoryagent.NewServerlessCapabilities(uuid.New().String())
+	caps.ForceEnabled = true
+	return caps
 }
 
 // workloadType returns the downstream workload_type value for this AAS process.
@@ -64,23 +68,23 @@ func workloadType() string {
 }
 
 // Inject sets the AAS-specific inventory fields on the shared inventoryagent
-// component. It is a no-op when IsEnabled() is false or when the Azure
-// resource ID cannot be derived (required REDAPL key; prevents a dangling row).
+// component. It returns true when fields were set and Submit should be called.
+// It returns false when IsEnabled() is false or when the Azure resource ID
+// cannot be derived (required REDAPL key; prevents a dangling row).
 //
 // Fields use unprefixed names (resource_id, workload_type, …) as required by
-// the EPRW decoder. agent_version_base and extension_version are omitted for
-// the temporary serverless-compat sanity test; add them when switching to
-// serverless-extension.
-func Inject(ia inventoryagent.Component, conf configmodel.Reader) {
+// the EPRW decoder. extension_version is omitted for the temporary
+// serverless-compat sanity test; add it when switching to serverless-extension.
+func Inject(ia inventoryagent.Component, conf configmodel.Reader) bool {
 	if !IsEnabled() {
-		return
+		return false
 	}
 
 	aasTags := traceutil.GetAppServicesTags()
 	resourceID := aasTags[traceutil.AASResourceID]
 	if resourceID == "" {
 		// Cannot form a valid REDAPL key; skip rather than emit a dangling row.
-		return
+		return false
 	}
 
 	ia.Set("flavor", aasInventoryFlavor)
@@ -99,12 +103,13 @@ func Inject(ia inventoryagent.Component, conf configmodel.Reader) {
 	ia.Set("dd_site", conf.GetString("site"))
 	ia.Set("dd_service", os.Getenv("DD_SERVICE"))
 	ia.Set("dd_version", os.Getenv("DD_VERSION"))
+	return true
 }
 
 // Submit enqueues the inventory payload synchronously so it is delivered before
 // the metadata runner goroutine fires. After submission it switches
-// report_reason to "periodic" so subsequent runner cycles (~10 min) are tagged
-// correctly without another Inject call.
+// report_reason to "periodic" so subsequent ticks from StartPeriodicRunner are
+// tagged correctly without another Inject call.
 //
 // It is a no-op when IsEnabled() is false.
 func Submit(ia inventoryagent.Component) {
@@ -113,4 +118,24 @@ func Submit(ia inventoryagent.Component) {
 	}
 	ia.Submit()
 	ia.Set("report_reason", reportReasonPeriodic)
+}
+
+// StartPeriodicRunner launches a goroutine that calls Submit every
+// periodicInterval (~10 min) until stopCh is closed. It must only be called
+// after a successful Inject so the payload fields are already set. The runner
+// is scoped to the AAS inventory gate and does not depend on the global
+// enable_metadata_collection flag.
+func StartPeriodicRunner(ia inventoryagent.Component, stopCh <-chan struct{}) {
+	go func() {
+		ticker := time.NewTicker(periodicInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				Submit(ia)
+			case <-stopCh:
+				return
+			}
+		}
+	}()
 }

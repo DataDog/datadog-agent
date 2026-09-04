@@ -39,6 +39,12 @@ type Capabilities struct {
 	// machine GUID (uuid.GetUUID()), which is meaningless across the ephemeral,
 	// per-process containers of a hostless environment.
 	PayloadUUID string
+	// ForceEnabled bypasses the enable_metadata_collection config gate and
+	// unconditionally enables this inventoryagent component. Use for AAS
+	// extension dogstatsd, which has its own scoped inventory gate
+	// (DD_SERVERLESS_AAS_EXTENSION_INVENTORY_ENABLED) and must not require
+	// the global metadata collection flag to be true.
+	ForceEnabled bool
 }
 
 // NewServerlessCapabilities builds the Capabilities for serverless-init, a
