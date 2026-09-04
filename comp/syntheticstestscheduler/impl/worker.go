@@ -367,6 +367,34 @@ func configRequestToResultRequest(req common.ConfigRequest) (common.ResultReques
 	}
 }
 
+// resolveNamespace returns the NDM namespace to stamp on the emitted path. A
+// non-empty namespace supplied by the test config takes precedence; otherwise
+// the Agent default (network_devices.namespace) is used, mirroring the
+// network_path integration.
+func (s *syntheticsTestScheduler) resolveNamespace(req common.ConfigRequest) string {
+	if req != nil {
+		if ns := req.GetNamespace(); ns != nil && *ns != "" {
+			return *ns
+		}
+	}
+	return s.namespace
+}
+
+// syntheticsRunTypeToNetworkPathTestRunType maps the Synthetics run type to
+// the Network Path run type.
+func syntheticsRunTypeToNetworkPathTestRunType(runType string) payload.TestRunType {
+	switch runType {
+	case common.RunTypeScheduled:
+		return payload.TestRunTypeScheduled
+	case common.RunTypeFast:
+		return payload.TestRunTypeFast
+	case common.RunTypeCI, common.RunTypeTriggered:
+		return payload.TestRunTypeTriggered
+	default:
+		return payload.TestRunTypeTriggered
+	}
+}
+
 // networkPathToTestResult converts a workerResult into the public TestResult structure.
 func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*common.TestResult, error) {
 	t := common.Test{
@@ -395,10 +423,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	w.tracerouteResult.TestConfigID = w.testCfg.cfg.PublicID
 	w.tracerouteResult.TestResultID = testResultID
 	w.tracerouteResult.Origin = payload.PathOriginSynthetics
-	w.tracerouteResult.TestRunType = payload.TestRunType(w.testCfg.cfg.RunType)
-	if w.testCfg.cfg.RunType == common.RunTypeCI {
-		w.tracerouteResult.TestRunType = payload.TestRunTypeTriggered
-	}
+	w.tracerouteResult.TestRunType = syntheticsRunTypeToNetworkPathTestRunType(w.testCfg.cfg.RunType)
 	w.tracerouteResult.SourceProduct = payload.SourceProductSynthetics
 	w.tracerouteResult.CollectorType = payload.CollectorTypeAgent
 	w.tracerouteResult.Timestamp = w.finishedAt.UnixMilli()
