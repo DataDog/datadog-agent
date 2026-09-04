@@ -12,6 +12,7 @@ dd_agent_go_test(
     name = "orchestrator_test",
     srcs = [
         "ecs_test.go",
+        "gateway_inference_test.go",
         "k8s_api_key_test.go",
         "k8s_test.go",
         "util_test.go",
@@ -19,17 +20,21 @@ dd_agent_go_test(
     data = [
         "agent_api_key_values.yaml",
         "agent_values.yaml",
+        "fixtures/gateway_inference.yaml",
     ],
     embed = [":orchestrator"],
     embedsrcs = [
         "agent_api_key_values.yaml",
         "agent_values.yaml",
+        "fixtures/gateway_inference.yaml",
     ],
     deps = [
+        "//test/e2e-framework/common/config",
         "//test/e2e-framework/components/datadog/apps/cpustress",
         "//test/e2e-framework/components/datadog/fakeintake",
         "//test/e2e-framework/components/datadog/kubernetesagentparams",
         "//test/e2e-framework/components/ecs",
+        "//test/e2e-framework/components/kubernetes",
         "//test/e2e-framework/resources/aws",
         "//test/e2e-framework/scenarios/aws/ecs",
         "//test/e2e-framework/scenarios/aws/kindvm",
@@ -40,6 +45,8 @@ dd_agent_go_test(
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",
         "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/yaml",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
