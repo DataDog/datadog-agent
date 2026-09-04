@@ -157,6 +157,19 @@ e.emitter.reset()
 The scorer uses a different path (`EpisodeStarted` / `EpisodeEnded` events) and does
 not embed a `correlationEmitter`.
 
+### Detector-output deduplication vs replay history
+
+The engine deduplicates detector outputs across advances before feeding them to
+correlators. Live mode keeps only a fixed-size dedup cache;
+it does not retain full raw anomalies because reporters receive advance-local
+anomalies and correlator events directly. `StorageConfig.TrackAnomalyHistory` is
+false by default and is enabled only by testbench/replay configuration so
+`StateView.Anomalies` can display the complete finite replay. Do not couple a new
+production consumer to raw anomaly history; add an explicitly bounded diagnostic
+surface if that use case emerges. Route every storage-series removal through the
+engine cleanup path so ref-backed dedup entries are removed too; dedup eviction is
+reported by `observer.anomaly_dedup.evicted{reason}`.
+
 ## Common Pitfalls
 
 1. **Don't call engine methods from multiple goroutines.** The engine assumes

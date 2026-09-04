@@ -381,12 +381,22 @@ func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	return nil
 }
 
+// NetworkFilterPolicy is the policy for a network filter action
+type NetworkFilterPolicy string
+
+const (
+	// NetworkFilterPolicyDrop drops matching packets
+	NetworkFilterPolicyDrop NetworkFilterPolicy = "drop"
+	// NetworkFilterPolicyAllow is used for raw packet rules
+	NetworkFilterPolicyAllow NetworkFilterPolicy = "allow"
+)
+
 // NetworkFilterDefinition describes the 'network_filter' section of a rule action
 type NetworkFilterDefinition struct {
 	DefaultActionDefinition `yaml:"-" json:"-"`
-	BPFFilter               string `yaml:"filter,omitempty" json:"filter,omitempty"`
-	Policy                  string `yaml:"policy,omitempty" json:"policy,omitempty"`
-	Scope                   string `yaml:"scope,omitempty" json:"scope,omitempty" jsonschema:"enum=process,enum=cgroup"`
+	BPFFilter               string              `yaml:"filter,omitempty" json:"filter,omitempty"`
+	Policy                  NetworkFilterPolicy `yaml:"policy,omitempty" json:"policy,omitempty" jsonschema:"enum=drop,enum=allow"`
+	Scope                   string              `yaml:"scope,omitempty" json:"scope,omitempty" jsonschema:"enum=process,enum=cgroup"`
 }
 
 // PreCheck returns an error if the network filter action is invalid
@@ -404,6 +414,14 @@ func (n *NetworkFilterDefinition) PreCheck(opts PolicyLoaderOpts) error {
 	}
 	if n.Scope != "process" && n.Scope != "cgroup" {
 		return fmt.Errorf("invalid scope '%s'", n.Scope)
+	}
+
+	// default policy to drop
+	if n.Policy == "" {
+		n.Policy = NetworkFilterPolicyDrop
+	}
+	if n.Policy != NetworkFilterPolicyDrop && n.Policy != NetworkFilterPolicyAllow {
+		return fmt.Errorf("invalid policy '%s', expected '%s' or '%s'", n.Policy, NetworkFilterPolicyDrop, NetworkFilterPolicyAllow)
 	}
 
 	return nil

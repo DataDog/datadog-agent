@@ -100,13 +100,17 @@ namespace CustomActions.Tests.Native
         }
 
         [Fact]
-        public void IsTrustedOwner_Accepts_Only_System_And_Administrators()
+        public void IsTrustedOwner_Accepts_Only_System_Administrators_And_ContainerAdministrator()
         {
             SecureDirectory.IsTrustedOwner(TestDirectory.LocalSystem).Should().BeTrue();
             SecureDirectory.IsTrustedOwner(TestDirectory.Administrators).Should().BeTrue();
+            SecureDirectory.IsTrustedOwner(TestDirectory.ContainerAdministrator).Should().BeTrue();
             SecureDirectory.IsTrustedOwner(TestDirectory.Everyone).Should().BeFalse();
             SecureDirectory.IsTrustedOwner(TestDirectory.UntrustedOwner).Should().BeFalse();
-            SecureDirectory.IsTrustedOwner(WindowsIdentity.GetCurrent().User).Should().BeFalse();
+            // A fixed SID rather than the current identity: this suite can run as
+            // ContainerAdministrator (see TestDirectory), which is now trusted.
+            SecureDirectory.IsTrustedOwner(new SecurityIdentifier(WellKnownSidType.NetworkServiceSid, null))
+                .Should().BeFalse();
         }
 
         [ElevatedFact]
@@ -201,6 +205,55 @@ namespace CustomActions.Tests.Native
             var act = () => SecureDirectory.CreateAndSecure(_session, path);
 
             act.Should().Throw<SecureDirectoryException>().WithMessage("*has unexpected owner*");
+        }
+
+        [ElevatedFact]
+        public void CreateIfMissing_Creates_The_Directory_With_The_AdminOnly_Dacl()
+        {
+            var path = Path.Combine(_root, "new");
+
+            // The owner check may reject this under the CI identity, see TestDirectory. What must hold
+            // either way is that the directory was created with the restricted DACL.
+            try
+            {
+                SecureDirectory.CreateIfMissing(_session, path);
+            }
+            catch (SecureDirectoryException)
+            {
+                // covered by CreateAndSecure's own tests, the creation path is shared
+            }
+
+            Directory.Exists(path).Should().BeTrue();
+            IsProtected(path).Should().BeTrue();
+            AllowedIdentities(path).Should().BeEquivalentTo(
+                new[] { TestDirectory.LocalSystem, TestDirectory.Administrators });
+        }
+
+        [ElevatedFact]
+        public void CreateIfMissing_Does_Not_Reset_The_Permissions_Of_An_Existing_Directory()
+        {
+            // Unlike CreateAndSecure, an already-trusted directory's permissions (e.g. a grant added
+            // for ddagentuser after it was first created) must survive untouched.
+            var path = TestDirectory.CreateOwnedBy(Path.Combine(_root, "trusted"),
+                TestDirectory.Administrators, grantEveryone: true);
+            var before = Dacl(path);
+
+            SecureDirectory.CreateIfMissing(_session, path);
+
+            Dacl(path).Should().Be(before);
+        }
+
+        [ElevatedFact]
+        public void CreateIfMissing_Rejects_A_Directory_Owned_By_Another_User()
+        {
+            var path = TestDirectory.CreateOwnedBy(Path.Combine(_root, "pre-created"),
+                TestDirectory.UntrustedOwner, grantEveryone: true);
+
+            var act = () => SecureDirectory.CreateIfMissing(_session, path);
+
+            act.Should().Throw<SecureDirectoryException>()
+                .WithMessage("*has unexpected owner*")
+                .And.Message.Should().Contain("takeown.exe");
         }
 
         [Theory]

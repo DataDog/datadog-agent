@@ -497,15 +497,15 @@ def build_repackaged_agent(ctx, log_level="info"):
     if architecture == "amd64":
         env.update(
             {
-                "DD_CC": "x86_64-unknown-linux-gnu-gcc",
-                "DD_CXX": "x86_64-unknown-linux-gnu-g++",
+                "DD_CC": "x86_64-linux-gnu-gcc",
+                "DD_CXX": "x86_64-linux-gnu-g++",
             }
         )
     elif architecture == "arm64":
         env.update(
             {
-                "DD_CC": "aarch64-unknown-linux-gnu-gcc",
-                "DD_CXX": "aarch64-unknown-linux-gnu-g++",
+                "DD_CC": "aarch64-linux-gnu-gcc",
+                "DD_CXX": "aarch64-linux-gnu-g++",
             }
         )
 
@@ -620,11 +620,11 @@ def docker_build(
 
     # Map architecture to cross-compiler triplet
     if arch == 'arm64':
-        cc = 'aarch64-unknown-linux-gnu-gcc'
-        cxx = 'aarch64-unknown-linux-gnu-g++'
+        cc = 'aarch64-linux-gnu-gcc'
+        cxx = 'aarch64-linux-gnu-g++'
     elif arch == 'amd64':
-        cc = 'x86_64-unknown-linux-gnu-gcc'
-        cxx = 'x86_64-unknown-linux-gnu-g++'
+        cc = 'x86_64-linux-gnu-gcc'
+        cxx = 'x86_64-linux-gnu-g++'
     else:
         raise Exit(f"Invalid architecture: {arch}. Use 'arm64' or 'amd64'")
 

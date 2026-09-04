@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // Run locally with `go test -fuzz=FuzzParseEventWithEnrich -run=FuzzParseEventWithEnrich -tags=test`
@@ -48,7 +48,7 @@ func FuzzParseMetricWithEnrich(f *testing.F) {
 		deps := newServerDeps(t)
 		stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
 		parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-		filter := utilstrings.NewMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
+		filter := metricname.NewMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
 
 		parsed, err := parser.parseMetricSample(rawMetric)
 		if err != nil {

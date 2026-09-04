@@ -16,6 +16,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/config/utils",
+        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/privateactionrunner/adapters/regions",
@@ -48,6 +49,8 @@ dd_agent_go_test(
         "orchestrator",
     ]],
     deps = [
+        "//pkg/config/mock",
+        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

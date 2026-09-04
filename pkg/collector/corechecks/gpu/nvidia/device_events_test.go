@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -29,7 +30,7 @@ func TestDeviceEventsGatherer_RegisterBeforeStart(t *testing.T) {
 }
 
 func TestDeviceEventsGatherer_RegisterWithUnsupportedEvents(t *testing.T) {
-	device := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
 		device.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
 			return 0, nvml.SUCCESS
 		}
@@ -40,7 +41,7 @@ func TestDeviceEventsGatherer_RegisterWithUnsupportedEvents(t *testing.T) {
 }
 
 func TestDeviceEventsGatherer_GetWithUnregistered(t *testing.T) {
-	safenvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	nvmltestutil.SetupMockNVML(t)
 
 	gatherer := NewDeviceEventsGatherer()
 	require.NoError(t, gatherer.Start())
@@ -60,8 +61,8 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 	gatheredDeviceEvents := make(chan nvml.EventData, 10)
 	t.Cleanup(func() { close(gatheredDeviceEvents) })
 
-	// setup mock device, and the nvml lib to return events at our command
-	device := setupMockDevice(t,
+	// Setup the mock device and library to return events at our command.
+	nvmlMock := nvmltestutil.SetupMockNVML(t,
 		testutil.WithSymbolsMock(map[string]struct{}{"nvmlDeviceGetUUID": {}}),
 		testutil.WithMockAllFunctions(),
 		testutil.WithEventSetCreate(func() (nvml.EventSet, nvml.Return) {
@@ -75,7 +76,9 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 					return <-gatheredDeviceEvents, nvml.SUCCESS
 				},
 			}, nvml.SUCCESS
-		}))
+		}),
+	)
+	device := nvmltestutil.PhysicalDevice(t, nvmlMock, 0)
 
 	// create gatherer after lib initialization so that it picks up the mock
 	gatherer := NewDeviceEventsGatherer()
@@ -95,7 +98,7 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 
 	// create an event to be gathered, then make sure it is not available until we refresh
 	sampleDeviceEvent := nvml.EventData{
-		Device:    &mock.Device{GetUUIDFunc: func() (string, nvml.Return) { return uuid, nvml.SUCCESS }},
+		Device:    nvmlMock.Device(0),
 		EventType: nvml.EventTypeXidCriticalError,
 		EventData: 31, // sample xid error for invalid mem access
 	}
@@ -199,16 +202,16 @@ func TestDeviceEventsCollector(t *testing.T) {
 	xid31Tags := []string{"type:31", "origin:hardware"}
 	xid12Tags := []string{"type:12", "origin:driver"}
 	xid31Total := func(value float64) *Metric {
-		return &Metric{Name: xidErrorsTotalMetricName, Value: value, Type: metrics.GaugeType, Priority: Medium, Tags: xid31Tags}
+		return NewMetric(xidErrorsTotalMetricName, value, metrics.GaugeType, Medium, xid31Tags, nil)
 	}
 	xid31Count := func(value float64) *Metric {
-		return &Metric{Name: xidErrorsCountMetricName, Value: value, Type: metrics.CountType, Priority: Medium, Tags: xid31Tags}
+		return NewMetric(xidErrorsCountMetricName, value, metrics.CountType, Medium, xid31Tags, nil)
 	}
 	xid12Total := func(value float64) *Metric {
-		return &Metric{Name: xidErrorsTotalMetricName, Value: value, Type: metrics.GaugeType, Priority: Medium, Tags: xid12Tags}
+		return NewMetric(xidErrorsTotalMetricName, value, metrics.GaugeType, Medium, xid12Tags, nil)
 	}
 	xid12Count := func(value float64) *Metric {
-		return &Metric{Name: xidErrorsCountMetricName, Value: value, Type: metrics.CountType, Priority: Medium, Tags: xid12Tags}
+		return NewMetric(xidErrorsCountMetricName, value, metrics.CountType, Medium, xid12Tags, nil)
 	}
 	cache.events = []safenvml.DeviceEventData{
 		{

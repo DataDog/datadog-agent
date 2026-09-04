@@ -7,7 +7,7 @@ installer tests (`test/new-e2e/tests/installer/windows/`).
 ## Prerequisites
 
 Follow the general E2E setup guide first:
-[docs/public/how-to/test/e2e.md](../../../../docs/public/how-to/test/e2e.md).
+[docs/public/how-to/test/e2e/index.md](../../../../docs/public/how-to/test/e2e/index.md).
 It covers AWS `agent-sandbox` account access, `aws-vault` setup, the
 `PULUMI_CONFIG_PASSPHRASE` requirement, and required tooling (Go, Python,
 `dda`).

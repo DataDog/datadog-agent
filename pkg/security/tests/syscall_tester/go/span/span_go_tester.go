@@ -118,15 +118,9 @@ func triggerExec(target, filePath string) error {
 
 // triggerForkExec fork+execs the target binary via os/exec.Cmd.Run — i.e. the
 // child runs in a brand-new tgid. This is the canonical "Go program shells out
-// to a subprocess" pattern (the one os/exec exposes), and is the scenario in
-// which the agent currently loses the parent's APM correlation: the eBPF fork
-// hook does not propagate go_labels_procs from the
-// parent's tgid to the child's, so fill_span_context in the child's exec hook
-// returns an empty span context.
-//
-// The test that drives this asserts the empty result, pinning the current
-// behaviour; when fork-time inheritance is later added, that assertion will
-// need to flip.
+// to a subprocess" pattern (the one os/exec exposes). The eBPF fork hook hands
+// go_labels_procs down to the child's tgid, so the read in the child's exec
+// hook still resolves the parent's labels out of the copy-on-write goroutine.
 func triggerForkExec(target, filePath string) error {
 	if target == "" {
 		return fmt.Errorf("exec target is required")
@@ -142,9 +136,8 @@ func triggerForkExec(target, filePath string) error {
 //   - in-process execve of execTarget when forkExec == false
 //   - fork+execve (os/exec.Cmd.Run) of execTarget when forkExec == true
 //
-// The fork+execve mode is used by the "fork_exec_no_inheritance" regression
-// test, which pins the current behaviour where the child's brand-new tgid has
-// no entry in go_labels_procs.
+// The fork+execve mode is used by the "fork_exec_propagates_to_child"
+// regression test.
 func RunGoSpanTest(spanID, localRootSpanID, filePath, execTarget string, setLabels, forkExec bool) error {
 	fd, err := setupGoTracerMemfd("go-span-test", "datadog-tracer-info-gotest01")
 	if err != nil {
