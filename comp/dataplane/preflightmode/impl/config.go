@@ -115,13 +115,22 @@ var preflightModeGlobalOverrides = map[string]any{
 // buildPreflightConfig returns the configuration ADP should run with during a preflight mode
 // pre-flight.
 //
-// The full Agent configuration as it exists at the time of this call is used as the base,
-// and overrides are applied on top of it: this ensures that ADP is configured as close as possible
-// to how it would be when running normally, with only the necessary changes to run it in "preflight" mode:
-// don't take over DSD, don't run any other pipelines, don't log to disk, and don't reserve buffer pools
-// sized for traffic that a one-metric pre-flight will never see.
+// The Agent configuration as the operator supplied it is used as the base, and overrides are
+// applied on top of it: this ensures that ADP is configured as close as possible to how it would
+// be when running normally, with only the necessary changes to run it in "preflight" mode:
+// don't take over DSD, don't run any other pipelines, don't log to disk, and don't reserve buffer
+// pools sized for traffic that a one-metric pre-flight will never see.
+//
+// Deliberately AllSettingsWithoutDefault and not AllSettings. A normally-supervised ADP is started
+// with `--config /etc/datadog-agent/datadog.yaml`, so it sees the operator's settings and fills in
+// the rest from its own defaults; handing it the Agent's defaults instead would be a different
+// configuration, not a more faithful one. It is also incorrect: AllSettings renders a default
+// indistinguishably from a value the operator asked for, and dd_url's default is a non-empty
+// https://app.datadoghq.com. Since an explicit dd_url beats `site` in ADP just as it does in the
+// Core Agent, a site-only config came out of AllSettings pointing the pre-flight -- metrics and
+// API key both -- at US1 no matter what site the operator had configured.
 func buildPreflightConfig(cfg pkgconfigmodel.Reader, l listener) map[string]any {
-	out := cfg.AllSettings()
+	out := cfg.AllSettingsWithoutDefault()
 	if out == nil {
 		out = map[string]any{}
 	}
@@ -147,12 +156,14 @@ func buildPreflightConfig(cfg pkgconfigmodel.Reader, l listener) map[string]any 
 
 // writePreflightConfig renders the preflight configuration into workDir and returns its path.
 //
-// The file holds the Agent's entire resolved configuration, so every credential the Agent was
-// given in plain text -- api_key, app_key, proxy credentials, additional_endpoints keys -- ends
-// up in it. Not, however, anything from a secret backend: AllSettings would merge the secrets
-// layer, but isEligible refuses to run the pre-flight at all when secrets are in use, precisely
-// so that this file cannot be how a secret first reaches the disk. The working directory is
-// removed when the run finishes, and again from stop if the run does not unwind in time.
+// The file holds every setting the operator supplied -- see buildPreflightConfig for why the
+// Agent's own defaults are deliberately left out -- so every credential the Agent was given in
+// plain text -- api_key, app_key, proxy credentials, additional_endpoints keys -- ends up in it.
+// Not, however, anything from a secret backend: dropping the defaults layer does not drop the
+// secrets layer, so AllSettingsWithoutDefault would still render a resolved secret, but
+// isEligible refuses to run the pre-flight at all when secrets are in use, precisely so that
+// this file cannot be how a secret first reaches the disk. The working directory is removed when
+// the run finishes, and again from stop if the run does not unwind in time.
 //
 // The 0600 below is what restricts the file on Unix. It does nothing on Windows, where the
 // mode is not an access control mechanism at all; there the file is covered by the ACL
