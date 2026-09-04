@@ -135,6 +135,11 @@ agents:
       env:
         - name: DD_SBOM_ENRICHMENT_USAGE_ENABLED
           value: "true"
+        # Config streaming makes the core agent the source of truth, so the
+        # security-agent's own DD_RUNTIME_SECURITY_CONFIG_ENABLED is discarded; without
+        # it here the streamed default (false) makes the security-agent exit.
+        - name: DD_RUNTIME_SECURITY_CONFIG_ENABLED
+          value: "true"
     systemProbe:
       env:
         # The UsageConsumer that registers the SBOMCollector gRPC stream the core
