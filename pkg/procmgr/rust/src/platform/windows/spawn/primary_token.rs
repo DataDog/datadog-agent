@@ -124,7 +124,9 @@ pub(super) fn spawn_as_primary_token(
 
 #[cfg(test)]
 mod tests {
-    use super::win32::{build_windows_command_line, env_vars_to_wide_block};
+    use crate::platform::windows::spawn::win32::{
+        build_windows_command_line, env_vars_to_wide_block,
+    };
     use std::collections::HashMap;
 
     #[test]

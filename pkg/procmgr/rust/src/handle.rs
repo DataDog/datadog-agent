@@ -131,15 +131,11 @@ impl ProcessHandle {
 
     #[cfg(windows)]
     pub fn from_tokio_child(child: Child) -> Result<Self> {
-        use std::os::windows::io::IntoRawHandle;
-
         let pid = child.id().context("spawned child has no pid")?;
-        let raw = child.into_std()?.into_raw_handle() as HANDLE;
-        let result = Self::from_borrowed(pid, raw);
-        unsafe {
-            CloseHandle(raw);
-        }
-        result
+        let raw = child
+            .raw_handle()
+            .context("spawned child has no process handle")? as HANDLE;
+        Self::from_borrowed(pid, raw)
     }
 
     #[cfg(windows)]

@@ -20,7 +20,7 @@ pub(crate) use spawn::intended_spawn_user;
 pub(crate) use spawn::spawn_child_handle;
 pub(crate) use spawn::user_profile::UserProfileGuard;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
