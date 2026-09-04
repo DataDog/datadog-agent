@@ -19,10 +19,6 @@ import (
 
 const enabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
 
-// Mirrors the remote_agent.configstream.consumer.enabled schema default; bootstrap runs before
-// schema-backed defaults are loaded, so the two have to be kept in sync by hand.
-const defaultEnabled = true
-
 // isEnabled reports whether the consumer should run, from env or datadog.yaml.
 func isEnabled(cliConfigPath string) bool {
 	if v, ok := os.LookupEnv(enabledEnvVar); ok {
@@ -39,18 +35,15 @@ func isEnabled(cliConfigPath string) bool {
 			RemoteAgent struct {
 				ConfigStream struct {
 					Consumer struct {
-						Enabled *bool `yaml:"enabled"`
+						Enabled bool `yaml:"enabled"`
 					} `yaml:"consumer"`
 				} `yaml:"configstream"`
 			} `yaml:"remote_agent"`
 		}
 		_ = yaml.Unmarshal(data, &cfg)
-		if enabled := cfg.RemoteAgent.ConfigStream.Consumer.Enabled; enabled != nil {
-			return *enabled
-		}
-		return defaultEnabled
+		return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
 	}
-	return defaultEnabled
+	return false
 }
 
 // readSettings overlays values from datadog.yaml onto a subset of the global config (defaults+env).
