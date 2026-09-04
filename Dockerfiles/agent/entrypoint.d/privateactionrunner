@@ -7,6 +7,10 @@ readonly procmgrd="${install_dir}/embedded/bin/dd-procmgrd"
 readonly processes_dir="${DD_PM_CONFIG_DIR:-${install_dir}/processes.d}"
 readonly config_file="/etc/datadog-agent/datadog.yaml"
 
+if [[ ! -x "${par}" ]]; then
+    exit 0
+fi
+
 case "${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-false}" in
     false)
         exec "${par}" run --cfgpath="${config_file}"
