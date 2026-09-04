@@ -86,6 +86,7 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 	}
 
 	assert.Equal(t, time.Duration(0), cfg.GetDuration("runtime_security_config.security_profile.v2.anomaly_stabilization.period"))
+	assert.Equal(t, time.Duration(0), cfg.GetDuration("runtime_security_config.security_profile.v2.startup_delay"))
 }
 
 func TestDiscoveryUseSystemProbeLite(t *testing.T) {

@@ -563,6 +563,12 @@ type RuntimeSecurityConfig struct {
 	// SecurityProfileV2UseTimeBasedAnomalyStabilization is true.
 	SecurityProfileV2AnomalyStabilizationPeriod time.Duration
 
+	// SecurityProfileV2StartupDelay is the delay after system-probe starts during which
+	// v2 workload profiling ignores events, so profiles don't learn noisy activity while
+	// system-probe is still stabilizing (OS resync, rule loading, programming approvers
+	// and discarders into the kernel). A zero value disables the delay.
+	SecurityProfileV2StartupDelay time.Duration
+
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	// visibility: private
 	// default_value: ["exec"]
@@ -1063,6 +1069,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		},
 		SecurityProfileV2UseTimeBasedAnomalyStabilization: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.anomaly_stabilization.use_time_based"),
 		SecurityProfileV2AnomalyStabilizationPeriod:       pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.anomaly_stabilization.period"),
+		SecurityProfileV2StartupDelay:                     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.startup_delay"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),

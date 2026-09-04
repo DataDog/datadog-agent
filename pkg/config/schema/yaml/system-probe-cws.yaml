@@ -778,6 +778,16 @@ properties:
             node_type: setting
             type: string
             default: 30s
+          startup_delay:
+            node_type: setting
+            type: string
+            default: 0s
+            description: |
+              Duration after system-probe starts during which v2 workload
+              profiling ignores events, so profiles don't learn noisy activity
+              while system-probe is still stabilizing (resyncing from the OS,
+              loading rules, pushing approvers and discarders to the kernel).
+              0s (default) disables the delay.
       watch_dir:
         node_type: setting
         type: boolean
