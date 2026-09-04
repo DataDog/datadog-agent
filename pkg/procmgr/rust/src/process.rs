@@ -183,7 +183,7 @@ impl ManagedProcess {
         self.user_profile = None;
     }
 
-    pub fn profile(&self) -> SpawnProfile {
+    pub(crate) fn profile(&self) -> SpawnProfile {
         self.profile
     }
 

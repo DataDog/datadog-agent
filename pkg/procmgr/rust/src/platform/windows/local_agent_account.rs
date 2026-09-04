@@ -129,11 +129,6 @@ pub(crate) fn resolve_agent_account() -> Result<AgentAccount> {
 #[cfg(not(test))]
 fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Result<AgentAccount> {
     let display = AccountName::new(&domain, &user).display();
-    let is_local =
-        is_local_account(sid).with_context(|| format!("classify local account for {display}"))?;
-    if !is_local {
-        bail!("domain agent account {display} is not supported");
-    }
 
     if current_process_sid_matches(sid)
         .with_context(|| format!("compare supervisor token to installed agent account {display}"))?
@@ -147,6 +142,12 @@ fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Resu
             user,
             password: String::new(),
         });
+    }
+
+    let is_local =
+        is_local_account(sid).with_context(|| format!("classify local account for {display}"))?;
+    if !is_local {
+        bail!("domain agent account {display} is not supported");
     }
 
     let scm_service_matches_agent =
