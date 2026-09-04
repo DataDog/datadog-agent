@@ -589,8 +589,10 @@ func (c *consumer) handleConfigEvent(event *pb.ConfigEvent) error {
 	// After applySnapshot's retraction loop, so a remapped value is not retracted out from under itself.
 	c.applyOverrides()
 	if snapshotApplied {
-		// Signalled last: waitForReady must not release before the remap has folded in the override.
+		// After applyOverrides: waitForReady must not release before the remap has folded in the override.
 		c.markReady()
+		// Diagnostic only, so it trails readiness; after applyOverrides, or a remap reads as a loss.
+		configstreambootstrap.ReportDroppedEnvOverrides(c.params.ClientName)
 	}
 	return nil
 }

@@ -1,0 +1,11 @@
+---
+deprecations:
+  - |
+    When config streaming is enabled, ``DD_*`` environment variables set directly on a
+    remote Agent process (trace-agent, process-agent, security-agent, system-probe) are
+    ignored: the core Agent is the source of truth for configuration and its streamed
+    snapshot replaces the remote Agent's local environment layer. Such variables must be
+    set on the core Agent instead. After the first snapshot, remote Agents log a single
+    warning naming only the settings whose streamed value differs from the local
+    environment variable that was setting them; settings the core Agent streams back
+    unchanged are not reported. The warning names settings and variables, never values.
