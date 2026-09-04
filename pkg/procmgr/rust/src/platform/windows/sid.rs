@@ -7,9 +7,34 @@ use anyhow::{Result, bail};
 use std::ptr;
 #[cfg(not(test))]
 use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
-use windows_sys::Win32::Security::LookupAccountNameW;
+use windows_sys::Win32::Security::{CreateWellKnownSid, LookupAccountNameW, WELL_KNOWN_SID_TYPE};
 
 use super::wide;
+
+pub(crate) fn create_well_known_sid(well_known: WELL_KNOWN_SID_TYPE) -> Result<Vec<u8>> {
+    unsafe {
+        let mut sid_size = 0u32;
+        let _ = CreateWellKnownSid(well_known, ptr::null_mut(), ptr::null_mut(), &mut sid_size);
+        if sid_size == 0 {
+            bail!(
+                "CreateWellKnownSid size query: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        let mut sid = vec![0u8; sid_size as usize];
+        let ok = CreateWellKnownSid(
+            well_known,
+            ptr::null_mut(),
+            sid.as_mut_ptr() as *mut _,
+            &mut sid_size,
+        );
+        if ok == 0 {
+            bail!("CreateWellKnownSid: {}", std::io::Error::last_os_error());
+        }
+        sid.truncate(sid_size as usize);
+        Ok(sid)
+    }
+}
 
 pub(crate) fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
     let account = if domain.is_empty() {

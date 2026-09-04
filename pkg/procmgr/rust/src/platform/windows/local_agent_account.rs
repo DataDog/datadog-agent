@@ -19,7 +19,7 @@ use super::agent_service_sid::{DATADOG_AGENT_SERVICE, service_runs_as_agent_user
 use super::local_account::is_local_account;
 #[cfg(not(test))]
 use super::scm_lsa_secret::read_scm_service_password;
-use super::sid::lookup_account_sid;
+use super::sid::{create_well_known_sid, lookup_account_sid};
 use super::token_identity::current_process_sid_matches;
 #[cfg(not(test))]
 use super::{open_datadog_agent_key, registry_nonempty_string};
@@ -98,13 +98,13 @@ impl AgentAccount {
     }
 
     fn well_known_account_sid(&self) -> Option<Result<Vec<u8>>> {
-        let (domain, user) = match self {
-            AgentAccount::LocalSystem => (NT_AUTHORITY, "SYSTEM"),
-            AgentAccount::LocalService => (NT_AUTHORITY, "LOCAL SERVICE"),
-            AgentAccount::NetworkService => (NT_AUTHORITY, "NETWORK SERVICE"),
+        let well_known = match self {
+            AgentAccount::LocalSystem => WinLocalSystemSid,
+            AgentAccount::LocalService => WinLocalServiceSid,
+            AgentAccount::NetworkService => WinNetworkServiceSid,
             _ => return None,
         };
-        Some(lookup_account_sid(domain, user))
+        Some(create_well_known_sid(well_known))
     }
 }
 
