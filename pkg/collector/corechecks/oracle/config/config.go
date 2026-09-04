@@ -340,6 +340,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if instance.Schemas.MaxTables <= 0 {
 		instance.Schemas.MaxTables = 300
 	}
+	if instance.Schemas.MaxViews <= 0 {
+		instance.Schemas.MaxViews = 1000
+	}
 	if instance.Schemas.MaxColumns <= 0 {
 		instance.Schemas.MaxColumns = 50
 	}

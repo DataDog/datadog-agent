@@ -184,12 +184,17 @@ FROM cdb_immutable_tables WHERE schema_name IN (/*OWNERS*/)`
 const tabModificationsQuery = `SELECT con_id, table_owner, table_name, inserts, updates, deletes, truncated, timestamp
 FROM cdb_tab_modifications WHERE partition_name IS NULL AND table_owner IN (/*OWNERS*/)`
 
-const partTablesQuery = `SELECT con_id, owner, table_name, partitioning_type, subpartitioning_type, partition_count
-FROM cdb_part_tables WHERE owner IN (/*OWNERS*/)`
-
-const partKeyColumnsQuery = `SELECT con_id, owner, name, column_name
-FROM cdb_part_key_columns WHERE object_type = 'TABLE' AND owner IN (/*OWNERS*/)
-ORDER BY con_id, owner, name, column_position`
+// The partitioning key columns are joined to their table rather than fetched separately: one
+// round trip per owner batch covers both, and a key column can no longer arrive without the
+// table row that gives it a partitioning type to hang off.
+const partTablesQuery = `SELECT pt.con_id, pt.owner, pt.table_name, pt.partitioning_type,
+	pt.subpartitioning_type, pt.partition_count, pkc.column_name
+FROM cdb_part_tables pt
+LEFT JOIN cdb_part_key_columns pkc
+	ON pkc.con_id = pt.con_id AND pkc.owner = pt.owner AND pkc.name = pt.table_name
+	AND pkc.object_type = 'TABLE'
+WHERE pt.owner IN (/*OWNERS*/)
+ORDER BY pt.con_id, pt.owner, pt.table_name, pkc.column_position`
 
 const tableCommentsQuery = `SELECT con_id, owner, table_name, comments
 FROM cdb_tab_comments WHERE comments IS NOT NULL AND owner IN (/*OWNERS*/)`
@@ -228,11 +233,15 @@ WHERE (c.constraint_type IN ('P', 'U', 'R') OR (c.constraint_type = 'C' AND c.ge
 	AND c.owner IN (/*OWNERS*/)
 ORDER BY c.con_id, c.owner, c.table_name, c.constraint_name, cc.position`
 
-const externalTablesQuery = `SELECT con_id, owner, table_name, type_name, NVL(default_directory_name, '-')
-FROM cdb_external_tables WHERE owner IN (/*OWNERS*/)`
-
-const externalLocationsQuery = `SELECT con_id, owner, table_name, NVL(directory_name, '-'), location
-FROM cdb_external_locations WHERE owner IN (/*OWNERS*/)`
+// An external table's locations live in a child view, joined here rather than fetched
+// separately so one round trip per owner batch covers both.
+const externalTablesQuery = `SELECT et.con_id, et.owner, et.table_name, et.type_name,
+	NVL(et.default_directory_name, '-'), NVL(el.directory_name, '-'), el.location
+FROM cdb_external_tables et
+LEFT JOIN cdb_external_locations el
+	ON el.con_id = et.con_id AND el.owner = et.owner AND el.table_name = et.table_name
+WHERE et.owner IN (/*OWNERS*/)
+ORDER BY et.con_id, et.owner, et.table_name`
 
 // A materialized view's container table appears in CDB_TABLES under the mview name, so
 // without this it is catalogued as an ordinary table.
@@ -245,9 +254,20 @@ const containerNamesQuery = `SELECT con_id, name FROM v$containers`
 // Views reuse the table row shape so the same scanning and type rendering apply; the
 // table-only columns are filled with the values an ordinary heap table would report.
 //
-// max_columns is enforced the same way as in schemasQueryTemplate: ranked_columns ranks
-// cdb_tab_cols by internal_column_id within each view, and total_columns rides along per row.
-const viewsQueryTemplate = `WITH ranked_columns AS (
+// max_views and max_columns are enforced exactly as max_tables and max_columns are in
+// schemasQueryTemplate: ranked_views ranks whole views per container before the column join, so
+// the cap drops whole views rather than cutting one off partway through its columns, and its
+// window total rides along as total_tables (the row shape views share with tables) so the
+// collector can tell a capped container from one that simply has fewer views than max_views.
+const viewsQueryTemplate = `WITH ranked_views AS (
+	SELECT v.con_id, v.owner, v.view_name,
+		ROW_NUMBER() OVER (PARTITION BY v.con_id ORDER BY v.owner, v.view_name) AS rn,
+		COUNT(*) OVER (PARTITION BY v.con_id) AS total_views
+	FROM cdb_views v
+	WHERE v.owner IN (/*OWNERS*/)
+		/*TABLE_FILTERS*/
+),
+ranked_columns AS (
 	SELECT c.con_id, c.owner, c.table_name, c.column_name, c.column_id, c.internal_column_id,
 		c.virtual_column, c.hidden_column, c.data_type, c.data_type_owner, c.data_type_mod,
 		c.data_length, c.char_length, c.data_precision, c.data_scale, c.char_used, c.nullable,
@@ -259,9 +279,9 @@ const viewsQueryTemplate = `WITH ranked_columns AS (
 		AND NOT (c.hidden_column = 'YES' AND c.user_generated = 'NO')
 )
 SELECT
-	v.con_id,
-	v.owner,
-	v.view_name AS table_name,
+	rv.con_id,
+	rv.owner,
+	rv.view_name AS table_name,
 	'N' AS temporary,
 	'-' AS duration,
 	'NO' AS external,
@@ -286,14 +306,14 @@ SELECT
 	NVL(c.char_used, '-') AS char_used,
 	c.nullable,
 	c.data_default_vc,
+	rv.total_views AS total_tables,
 	c.total_columns
-FROM cdb_views v
+FROM ranked_views rv
 JOIN ranked_columns c
-	ON c.con_id = v.con_id AND c.owner = v.owner AND c.table_name = v.view_name
-WHERE v.owner IN (/*OWNERS*/)
-	/*TABLE_FILTERS*/
+	ON c.con_id = rv.con_id AND c.owner = rv.owner AND c.table_name = rv.view_name
+WHERE rv.rn <= /*MAX_VIEWS*/
 	AND c.col_rn <= /*MAX_COLUMNS*/
-ORDER BY v.con_id, v.owner, v.view_name, c.internal_column_id`
+ORDER BY rv.con_id, rv.owner, rv.view_name, c.internal_column_id`
 
 const viewDefinitionsQuery = `SELECT con_id, owner, view_name, text_vc
 FROM cdb_views WHERE owner IN (/*OWNERS*/)`
@@ -763,6 +783,11 @@ func (s *schemaCollector) addView(r schemaRowDB) {
 		s.tablesTotal++
 		s.containerCount++
 
+		// TOTAL_TABLES carries the ranked_views window total for this container (views share the
+		// table row shape), computed before max_views truncates it; same reasoning as in add().
+		if r.TotalTables.Valid && r.TotalTables.Int64 > int64(s.check.config.Schemas.MaxViews) {
+			s.truncated = true
+		}
 		// TOTAL_COLUMNS is the ranked_columns window total for this view, computed before
 		// max_columns truncates it; same reasoning as TOTAL_TABLES in add(), one level down.
 		if r.TotalColumns.Valid && r.TotalColumns.Int64 > int64(s.check.config.Schemas.MaxColumns) {
@@ -1430,9 +1455,13 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 	}
 
 	c.queryDetails(ctx, "external tables", externalTablesQuery, ownerList, func(rows *sqlx.Rows) error {
-		var conID int64
-		var owner, table, driver, directory string
-		if err := rows.Scan(&conID, &owner, &table, &driver, &directory); err != nil {
+		var (
+			conID                  int64
+			owner, table, driver   string
+			directory, locationDir string
+			location               sql.NullString
+		)
+		if err := rows.Scan(&conID, &owner, &table, &driver, &directory, &locationDir, &location); err != nil {
 			return err
 		}
 		d := at(conID, owner, table)
@@ -1443,23 +1472,14 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 		if directory != "-" {
 			d.External.Directory = directory
 		}
-		return nil
-	})
-
-	c.queryDetails(ctx, "external locations", externalLocationsQuery, ownerList, func(rows *sqlx.Rows) error {
-		var conID int64
-		var owner, table, directory, location string
-		if err := rows.Scan(&conID, &owner, &table, &directory, &location); err != nil {
-			return err
+		// The LEFT JOIN yields one row with a NULL location for an external table that has none.
+		if location.Valid {
+			loc := location.String
+			if locationDir != "-" {
+				loc = locationDir + ":" + loc
+			}
+			d.External.Locations = append(d.External.Locations, loc)
 		}
-		d := at(conID, owner, table)
-		if d.External == nil {
-			d.External = &externalDetail{}
-		}
-		if directory != "-" {
-			location = directory + ":" + location
-		}
-		d.External.Locations = append(d.External.Locations, location)
 		return nil
 	})
 
@@ -1478,35 +1498,29 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 		return nil
 	})
 
+	keys := make(map[tableKey][]string)
 	c.queryDetails(ctx, "partitioning", partTablesQuery, ownerList, func(rows *sqlx.Rows) error {
 		var (
 			conID          int64
 			owner, table   string
 			ptype, subtype sql.NullString
 			count          sql.NullInt64
+			col            sql.NullString
 		)
-		if err := rows.Scan(&conID, &owner, &table, &ptype, &subtype, &count); err != nil {
+		if err := rows.Scan(&conID, &owner, &table, &ptype, &subtype, &count, &col); err != nil {
 			return err
 		}
-		d := &partitionDetail{PartitioningType: ptype.String, NumPartitions: count.Int64}
-		if subtype.Valid && subtype.String != "NONE" {
-			d.SubpartitionsType = subtype.String
+		d := at(conID, owner, table)
+		if d.Partitioned == nil {
+			d.Partitioned = &partitionDetail{PartitioningType: ptype.String, NumPartitions: count.Int64}
+			if subtype.Valid && subtype.String != "NONE" {
+				d.Partitioned.SubpartitionsType = subtype.String
+			}
 		}
-		at(conID, owner, table).Partitioned = d
-		return nil
-	})
-
-	keys := make(map[tableKey][]string)
-	c.queryDetails(ctx, "partition keys", partKeyColumnsQuery, ownerList, func(rows *sqlx.Rows) error {
-		var (
-			conID             int64
-			owner, table, col string
-		)
-		if err := rows.Scan(&conID, &owner, &table, &col); err != nil {
-			return err
+		if col.Valid {
+			k := tableKey{conID: conID, owner: owner, table: table}
+			keys[k] = append(keys[k], col.String)
 		}
-		k := tableKey{conID: conID, owner: owner, table: table}
-		keys[k] = append(keys[k], col)
 		return nil
 	})
 	for k, cols := range keys {
@@ -1638,40 +1652,14 @@ func tableKeysFromRows(rows []schemaRowDB) map[tableKey]struct{} {
 	return keys
 }
 
-// viewKeysWithCap applies max_views per container -- rows arrive grouped contiguously by
-// container (see fetchMetadataRows) -- and reports which container hit the cap, so the caller
-// can mark its payload truncated instead of just dropping the excess silently.
-func viewKeysWithCap(rows []schemaRowDB, maxViews int) (map[tableKey]struct{}, map[int64]bool) {
-	allowed := make(map[tableKey]struct{})
-	truncated := make(map[int64]bool)
-	counts := make(map[int64]int)
-	for _, r := range rows {
-		k := tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}
-		if _, ok := allowed[k]; ok {
-			continue
-		}
-		if maxViews > 0 && counts[r.ConID] >= maxViews {
-			truncated[r.ConID] = true
-			continue
-		}
-		counts[r.ConID]++
-		allowed[k] = struct{}{}
-	}
-	return allowed, truncated
-}
-
 // ViewCollection emits view metadata as its own kind, mirroring how sqlserver_views is kept
 // separate from sqlserver_databases.
-func (c *Check) ViewCollection(ctx context.Context, owners map[ownerKey]string, names []string, containers map[int64]string) error {
-	sender, err := c.GetSender()
-	if err != nil {
-		return fmt.Errorf("failed to initialize sender: %w", err)
-	}
-
+func (c *Check) ViewCollection(ctx context.Context, emit payloadEmitter, owners map[ownerKey]string, names []string, containers map[int64]string) error {
 	ownerLists := ownerListChunks(names)
 
 	extra := map[string]string{
 		"/*TABLE_FILTERS*/": regexSQLClauses("v.view_name", c.config.Schemas.IncludeTables, c.config.Schemas.ExcludeTables),
+		"/*MAX_VIEWS*/":     strconv.Itoa(c.config.Schemas.MaxViews),
 		"/*MAX_COLUMNS*/":   strconv.Itoa(c.config.Schemas.MaxColumns),
 	}
 	rows, err := c.fetchMetadataRows(ctx, viewsQueryTemplate, ownerLists, owners, extra)
@@ -1679,31 +1667,22 @@ func (c *Check) ViewCollection(ctx context.Context, owners map[ownerKey]string, 
 		return fmt.Errorf("failed to query views: %w", err)
 	}
 
-	allowedViews, truncatedContainers := viewKeysWithCap(rows, c.config.Schemas.MaxViews)
+	collector := newViewCollector(c, emit, c.viewDetails(ctx, ownerLists, tableKeysFromRows(rows)), owners, containers)
 
-	collector := newViewCollector(c, func(payload []byte) {
-		sender.EventPlatformEvent(payload, "dbm-metadata")
-	}, c.viewDetails(ctx, ownerLists, allowedViews), owners, containers)
-
+	cappedContainers := make(map[int64]struct{})
 	for _, r := range rows {
 		if r.ConID != collector.conID {
 			collector.startContainer(r.ConID)
-			collector.truncated = truncatedContainers[r.ConID]
 		}
-		k := tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}
-		isNewView := collector.currentSchema == nil || collector.currentSchema.Name != r.Owner ||
-			collector.currentView == nil || collector.currentView.Name != r.TableName
-		if isNewView {
-			if _, ok := allowedViews[k]; !ok {
-				continue
-			}
+		if r.TotalTables.Valid && r.TotalTables.Int64 > int64(c.config.Schemas.MaxViews) {
+			cappedContainers[r.ConID] = struct{}{}
 		}
 		collector.addView(r)
 	}
 	collector.finish()
 	collector.emitEmptyContainers(containers)
 
-	for conID := range truncatedContainers {
+	for conID := range cappedContainers {
 		log.Warnf("%s view collection stopped at max_views=%d for container %d; some views were not collected",
 			c.logPrompt, c.config.Schemas.MaxViews, conID)
 	}
@@ -1771,7 +1750,7 @@ func (c *Check) SchemaCollection() error {
 	if c.config.Schemas.ViewsEnabled() {
 		// Views need a grant that table collection does not, so treat them as enrichment:
 		// losing them must not discard the tables already emitted above.
-		if err := c.ViewCollection(ctx, owners, names, containers); err != nil {
+		if err := c.ViewCollection(ctx, emit, owners, names, containers); err != nil {
 			log.Warnf("%s view collection failed, continuing without views: %s", c.logPrompt, err)
 		}
 	}

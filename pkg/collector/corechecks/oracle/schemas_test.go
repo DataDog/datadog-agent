@@ -799,21 +799,44 @@ func TestTableDetailsPartitionKeyJoin(t *testing.T) {
 	defer closeDB()
 
 	dbMock.MatchExpectationsInOrder(false)
+	// The key columns are LEFT JOINed onto the table row, so a two-key table arrives as two rows
+	// repeating the table's partitioning columns. The detail must be built once from the first
+	// row and the keys appended in column_position order.
 	dbMock.ExpectQuery("cdb_part_tables").WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "PARTITIONING_TYPE", "SUBPARTITIONING_TYPE", "PARTITION_COUNT"}).
-			AddRow(3, "APP", "EVENTS", "RANGE", "NONE", 4))
-	dbMock.ExpectQuery("cdb_part_key_columns").WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "OWNER", "NAME", "COLUMN_NAME"}).
-			AddRow(3, "APP", "EVENTS", "EVENT_DATE"))
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "PARTITIONING_TYPE", "SUBPARTITIONING_TYPE", "PARTITION_COUNT", "COLUMN_NAME"}).
+			AddRow(3, "APP", "EVENTS", "RANGE", "NONE", 4, "EVENT_DATE").
+			AddRow(3, "APP", "EVENTS", "RANGE", "NONE", 4, "REGION"))
 
 	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "EVENTS"}: {}}
 	details := c.tableDetails(context.Background(), []string{"'APP'"}, allowed)
 
 	p := details[tableKey{conID: 3, owner: "APP", table: "EVENTS"}].Partitioned
 	require.NotNil(t, p)
-	assert.Equal(t, int64(4), p.NumPartitions)
+	assert.Equal(t, int64(4), p.NumPartitions, "the repeated table row must not accumulate")
 	assert.Empty(t, p.SubpartitionsType, "NONE must not surface as a subpartitioning type")
-	assert.Equal(t, "RANGE (EVENT_DATE)", p.PartitionKey)
+	assert.Equal(t, "RANGE (EVENT_DATE, REGION)", p.PartitionKey)
+}
+
+// TestTableDetailsPartitionedWithoutKeyColumns covers the LEFT JOIN's null side: a partitioned
+// table whose key columns are unavailable still gets its partitioning detail, just without a
+// rendered key.
+func TestTableDetailsPartitionedWithoutKeyColumns(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery("cdb_part_tables").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "PARTITIONING_TYPE", "SUBPARTITIONING_TYPE", "PARTITION_COUNT", "COLUMN_NAME"}).
+			AddRow(3, "APP", "EVENTS", "HASH", "NONE", 8, nil))
+
+	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "EVENTS"}: {}}
+	details := c.tableDetails(context.Background(), []string{"'APP'"}, allowed)
+
+	p := details[tableKey{conID: 3, owner: "APP", table: "EVENTS"}].Partitioned
+	require.NotNil(t, p, "a NULL key column must not discard the partitioning detail")
+	assert.Equal(t, "HASH", p.PartitioningType)
+	assert.Equal(t, int64(8), p.NumPartitions)
+	assert.Empty(t, p.PartitionKey)
 }
 
 // TestTableDetailsExternalLocationsConcat covers the directory:location concatenation, and that
@@ -824,13 +847,12 @@ func TestTableDetailsExternalLocationsConcat(t *testing.T) {
 	defer closeDB()
 
 	dbMock.MatchExpectationsInOrder(false)
+	// Locations are LEFT JOINed onto the table row, so each location arrives as its own row
+	// repeating the table's driver and default directory.
 	dbMock.ExpectQuery("cdb_external_tables").WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "TYPE_NAME", "NVL(default_directory_name, '-')"}).
-			AddRow(3, "APP", "EXT_ORDERS", "ORACLE_LOADER", "DEFAULT_DIR"))
-	dbMock.ExpectQuery("cdb_external_locations").WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "NVL(directory_name, '-')", "LOCATION"}).
-			AddRow(3, "APP", "EXT_ORDERS", "LOAD_DIR", "orders_2024.csv").
-			AddRow(3, "APP", "EXT_ORDERS", "-", "orders_fallback.csv"))
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "TYPE_NAME", "NVL(default_directory_name, '-')", "NVL(directory_name, '-')", "LOCATION"}).
+			AddRow(3, "APP", "EXT_ORDERS", "ORACLE_LOADER", "DEFAULT_DIR", "LOAD_DIR", "orders_2024.csv").
+			AddRow(3, "APP", "EXT_ORDERS", "ORACLE_LOADER", "DEFAULT_DIR", "-", "orders_fallback.csv"))
 
 	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "EXT_ORDERS"}: {}}
 	details := c.tableDetails(context.Background(), []string{"'APP'"}, allowed)
@@ -1418,10 +1440,10 @@ func TestViewCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 }
 
 // TestViewCollectionFilteredViewNotCountedAsTruncated guards the distinction the fix must
-// preserve: a view dropped by exclude_tables at the SQL layer never reaches viewKeysWithCap, so
-// it must not be mistaken for a view dropped by max_views. Here max_views is set to exactly the
-// number of rows the (already filtered) query returns, so if the exclusion were instead applied
-// client-side after the cap check, or double-counted somehow, this container would come back
+// preserve: exclude_tables narrows ranked_views before it ranks, so an excluded view is never
+// counted towards max_views and must not be mistaken for one the cap dropped. Here max_views is
+// set to exactly the number of rows the (already filtered) query returns, so if the exclusion
+// were applied after the ranking, or double-counted somehow, this container would come back
 // marked truncated.
 func TestViewCollectionFilteredViewNotCountedAsTruncated(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
@@ -1499,15 +1521,20 @@ var viewRelationColumns = []string{
 	"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
 	"COLUMN_NAME", "COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
 	"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
-	"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
+	"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC", "TOTAL_TABLES",
 }
 
 // addViewRow appends one cdb_views row for the given container/owner/view to rows, mirroring
 // the AddRow calls in TestViewCollectionEmitsSeparateKind.
-func addViewRow(rows *sqlmock.Rows, conID int64, owner, viewName string) *sqlmock.Rows {
+//
+// totalViews is the ranked_views window total the real query reports per container -- the count
+// before max_views truncates it. Because max_views is enforced in SQL, a mock must supply only
+// the rows that survived the cap and set totalViews to the pre-cap count, which is what the
+// collector reads to decide whether the container was truncated.
+func addViewRow(rows *sqlmock.Rows, conID int64, owner, viewName string, totalViews int) *sqlmock.Rows {
 	return rows.AddRow(
 		conID, owner, viewName, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil,
-		"C1", 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil,
+		"C1", 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil, totalViews,
 	)
 }
 
@@ -1544,9 +1571,9 @@ func viewPayloadsByContainer(t *testing.T, sender *mock.Mock) map[string]schemaE
 	return byContainer
 }
 
-// TestMaxViewsCapsViewsAndFlagsTruncation covers viewKeysWithCap's basic role: a container with
-// more views than max_views must have its oracle_views payload capped at max_views views and
-// marked truncated.
+// TestMaxViewsCapsViewsAndFlagsTruncation covers the max_views cap: the SQL returns only the
+// first max_views views of the container, and the ranked_views window total tells the collector
+// the container held more, so its oracle_views payload must be marked truncated.
 func TestMaxViewsCapsViewsAndFlagsTruncation(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -1568,10 +1595,11 @@ func TestMaxViewsCapsViewsAndFlagsTruncation(t *testing.T) {
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 	dbMock.ExpectQuery("cdb_tables").WillReturnRows(emptyTablesRows())
 
+	// max_views=2 against a container holding 3 views: the SQL keeps the first two and reports
+	// total_views=3 on every row.
 	rows := sqlmock.NewRows(viewRelationColumns)
-	addViewRow(rows, 3, "APP", "V1")
-	addViewRow(rows, 3, "APP", "V2")
-	addViewRow(rows, 3, "APP", "V3")
+	addViewRow(rows, 3, "APP", "V1", 3)
+	addViewRow(rows, 3, "APP", "V2", 3)
 	dbMock.ExpectQuery("cdb_views").WillReturnRows(rows)
 
 	require.NoError(t, c.SchemaCollection())
@@ -1607,7 +1635,7 @@ func TestMaxViewsNotTruncatedWhenUnderCap(t *testing.T) {
 	dbMock.ExpectQuery("cdb_tables").WillReturnRows(emptyTablesRows())
 
 	rows := sqlmock.NewRows(viewRelationColumns)
-	addViewRow(rows, 3, "APP", "V1")
+	addViewRow(rows, 3, "APP", "V1", 1)
 	dbMock.ExpectQuery("cdb_views").WillReturnRows(rows)
 
 	require.NoError(t, c.SchemaCollection())
@@ -1645,8 +1673,8 @@ func TestMaxViewsNotTruncatedWhenExactlyAtCap(t *testing.T) {
 	dbMock.ExpectQuery("cdb_tables").WillReturnRows(emptyTablesRows())
 
 	rows := sqlmock.NewRows(viewRelationColumns)
-	addViewRow(rows, 3, "APP", "V1")
-	addViewRow(rows, 3, "APP", "V2")
+	addViewRow(rows, 3, "APP", "V1", 2)
+	addViewRow(rows, 3, "APP", "V2", 2)
 	dbMock.ExpectQuery("cdb_views").WillReturnRows(rows)
 
 	require.NoError(t, c.SchemaCollection())
@@ -1688,12 +1716,13 @@ func TestMaxViewsCapEnforcedPerContainerIndependently(t *testing.T) {
 			AddRow(3, "APP", 104).AddRow(4, "APP", 105))
 	dbMock.ExpectQuery("cdb_tables").WillReturnRows(emptyTablesRows())
 
+	// Container 3 holds 3 views and is capped to 2; container 4 holds exactly 2 and is not.
+	// The window total is per container, which is what keeps the two independent.
 	rows := sqlmock.NewRows(viewRelationColumns)
-	addViewRow(rows, 3, "APP", "V1")
-	addViewRow(rows, 3, "APP", "V2")
-	addViewRow(rows, 3, "APP", "V3")
-	addViewRow(rows, 4, "APP", "V4")
-	addViewRow(rows, 4, "APP", "V5")
+	addViewRow(rows, 3, "APP", "V1", 3)
+	addViewRow(rows, 3, "APP", "V2", 3)
+	addViewRow(rows, 4, "APP", "V4", 2)
+	addViewRow(rows, 4, "APP", "V5", 2)
 	dbMock.ExpectQuery("cdb_views").WillReturnRows(rows)
 
 	require.NoError(t, c.SchemaCollection())
