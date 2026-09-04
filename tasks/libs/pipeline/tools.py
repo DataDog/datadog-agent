@@ -123,23 +123,16 @@ def cancel_pipelines_with_confirmation(repo: Project, pipelines: list[ProjectPip
 def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_cancel_stages):
     """
     Gracefully cancel pipeline
-    - Cancel all queued and running jobs
+    - Cancel all the jobs that did not start to run yet
     - Do not cancel jobs containing 'cleanup' in their name
-    - Jobs in the stages specified in 'force_cancel_stages' variables will always be canceled
+    - Jobs in the stages specified in 'force_cancel_stages' variables will always be canceled even if running
     - Do not cancel jobs in the no_cancel_override list
-    - Do not cancel already-running jobs in the no_cancel_running_stages list
     """
 
     jobs = pipeline.jobs.list(per_page=100, all=True)
     kmt_cleanup_jobs_to_run: set[str] = set()
     jobs_by_name: dict[str, ProjectJob] = {}
     no_cancel_override: list[str] = ["dev_deploy-host-profiler-devtest"]
-    # Temporarily excluded while running, while we investigate a security-group
-    # DependencyViolation left behind when e2e_init jobs get force-canceled
-    # mid-provisioning (ACIX-1949 follow-up). Queued jobs in this stage are still
-    # canceled: they can't have leaked any infra yet, so there is no reason to let
-    # them start in a pipeline that is already superseded.
-    no_cancel_running_stages: list[str] = ["e2e_init"]
 
     for job in jobs:
         jobs_by_name[job.name] = cast(ProjectJob, job)
@@ -147,11 +140,8 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
         if job.name in no_cancel_override:
             continue
 
-        if job.status == "running" and job.stage in no_cancel_running_stages and job.stage not in force_cancel_stages:
-            continue
-
         if job.stage in force_cancel_stages or (
-            job.status not in ["canceled", "success", "manual"] and "cleanup" not in job.name
+            job.status not in ["running", "canceled", "success", "manual"] and "cleanup" not in job.name
         ):
             repo.jobs.get(job.id, lazy=True).cancel()
 
