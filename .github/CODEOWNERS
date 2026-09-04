@@ -129,7 +129,7 @@
 /.gitlab/.ci-linters.yml                                                  @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/.pre/*                                                           @DataDog/agent-devx
 /.gitlab/.post/*                                                          @DataDog/agent-devx
-/.gitlab/build/bazel/*                                                    @DataDog/agent-build
+/.gitlab/build/bazel/*                                                    @DataDog/agent-build @DataDog/agent-devx
 /.gitlab/build/package_build/*                                            @DataDog/agent-build @Datadog/agent-delivery
 /.gitlab/deploy/check_deploy/*                                            @DataDog/agent-delivery
 /.gitlab/.post/do_not_merge.yml                                           @DataDog/agent-devx
@@ -269,10 +269,12 @@
 /cmd/agent/dist/conf.d/network_path.d/              @DataDog/network-path
 /cmd/agent/dist/conf.d/network_config_management.d/ @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/orchestrator_ecs.d/          @DataDog/ecs-experiences
+/cmd/agent/dist/conf.d/powershell.d/                @DataDog/windows-products
 /cmd/agent/dist/conf.d/sbom.d/                      @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/                      @DataDog/network-device-monitoring-core
 /cmd/agent/dist/conf.d/win32_event_log.d/           @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/       @DataDog/windows-products
+/cmd/agent/dist/protected/                          @DataDog/windows-products
 /cmd/agent/install*.sh                              @DataDog/agent-build
 /cmd/agent/macos/                                   @DataDog/windows-products
 /cmd/ai_prompt_logger/                              @DataDog/windows-products
@@ -399,6 +401,7 @@
 /comp/checks/agentcrashdetect @DataDog/windows-products
 /comp/checks/windowseventlog @DataDog/windows-products
 /comp/checks/winregistry @DataDog/windows-products
+/comp/core/agenttelemetry @DataDog/fleet-remediation
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/config @DataDog/fleet-automation
 /comp/core/configfilesdiscovery @DataDog/agent-discovery
@@ -416,6 +419,7 @@
 /comp/core/status @DataDog/fleet-remediation
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-platform
+/comp/core/telemetry @DataDog/fleet-remediation
 /comp/core/workloadfilter @DataDog/container-platform
 /comp/core/workloadmeta @DataDog/container-platform
 /comp/forwarder/connectionsforwarder @DataDog/container-experiences
@@ -482,11 +486,9 @@
 /comp/forwarder/eventplatform/impl/pipelines_datasecurity.go      @DataDog/sensitive-data-scanner
 /comp/forwarder/eventplatform/impl/pipelines_softwareinventory.go @DataDog/windows-products
 
-/comp/core/agenttelemetry @DataDog/fleet-remediation
-
 # ebpf-platform also owns the stat wrappers in telemetry (previously pkg/telemetry/stat_*_wrapper.go)
-/comp/core/telemetry/def/stat_gauge_wrapper.go   @DataDog/agent-runtimes @DataDog/ebpf-platform
-/comp/core/telemetry/def/stat_counter_wrapper.go @DataDog/agent-runtimes @DataDog/ebpf-platform
+/comp/core/telemetry/def/stat_gauge_wrapper.go   @DataDog/fleet-remediation @DataDog/ebpf-platform
+/comp/core/telemetry/def/stat_counter_wrapper.go @DataDog/fleet-remediation @DataDog/ebpf-platform
 
 # trace-agent logging implementation should also notify agent-apm
 /comp/core/log/impl-trace @DataDog/agent-apm
@@ -559,6 +561,7 @@
 /comp/core/gui/impl/systray/                                          @DataDog/windows-products @DataDog/fleet-remediation
 /comp/healthplatform/issues/ad-misconfiguration                       @DataDog/container-platform @DataDog/fleet-remediation
 /comp/healthplatform/issues/gpuenvironment                            @DataDog/gpu-monitoring-agent @DataDog/ebpf-platform @DataDog/fleet-remediation
+/comp/healthplatform/issues/missedbytes                               @DataDog/agent-log-pipelines @DataDog/fleet-remediation
 /comp/healthplatform/issues/rofspermissions                           @DataDog/container-platform @DataDog/fleet-remediation
 /pkg/cloudfoundry                                                     @DataDog/agent-integrations
 /pkg/clusteragent/                                                    @DataDog/container-platform
@@ -606,6 +609,7 @@
 /pkg/collector/corechecks/system/                                     @DataDog/agent-runtimes
 /pkg/collector/corechecks/system/**/*_windows*.go                     @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/collector/corechecks/system/battery/                             @DataDog/windows-products
+/pkg/collector/corechecks/system/powershell/                          @DataDog/windows-products
 /pkg/collector/corechecks/system/thermal/                             @DataDog/windows-products
 /pkg/collector/corechecks/system/wincrashdetect/                      @DataDog/windows-products
 /pkg/collector/corechecks/system/windowscertificate/                  @DataDog/windows-products
@@ -613,6 +617,7 @@
 /pkg/collector/corechecks/system/winproc/                             @DataDog/windows-products
 /pkg/collector/corechecks/systemd/                                    @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/                                     @DataDog/agent-runtimes
+/pkg/collector/corechecks/telemetry                                   @DataDog/fleet-remediation
 /pkg/config/                                                          @DataDog/fleet-automation
 /pkg/config/settings/runtime_setting_profiling_period*.go             @DataDog/agent-runtimes
 /pkg/config/example/application_monitoring.yaml.example               @DataDog/agent-apm
@@ -723,6 +728,7 @@
 /pkg/util/ktime                                                       @DataDog/agent-security
 /pkg/util/kubelet/                                                    @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/                                                 @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
+/pkg/util/metricname/                                                 @DataDog/agent-metric-pipelines
 /pkg/util/podman/                                                     @DataDog/container-integrations
 /pkg/util/port/                                                       @DataDog/agent-runtimes
 /pkg/util/port/portlist/*windows*.go                                  @DataDog/windows-products

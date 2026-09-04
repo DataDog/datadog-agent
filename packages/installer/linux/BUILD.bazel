@@ -19,7 +19,7 @@ load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//compliance/rules:version_manifest.bzl", "version_manifest")
 load("//packages/rules:dd_pkg_deb.bzl", "dd_pkg_deb")
-load("//packages/rules:package_naming.bzl", "package_name_variables")
+load("//packages/rules:package_naming.bzl", "make_version", "package_name_variables")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -49,7 +49,7 @@ pkg_mkdirs(
 
 # Version manifest files.  The templates live in the parent package so they
 # can be shared if other platforms ever need them.
-# No prefix here — installer_components applies /opt/datadog-installer below.
+# No prefix here — whole_distro applies /opt/datadog-installer below.
 dd_agent_expand_template(
     name = "version_manifest_json",
     out = "version-manifest.json",
@@ -71,7 +71,6 @@ pkg_filegroup(
         ":version_manifest_json",
         ":version_manifest_txt",
     ],
-    prefix = "/opt/datadog-installer",
 )
 
 # Intermediate node for the license-gathering aspect.
@@ -95,6 +94,7 @@ pkg_filegroup(
         ":everything",
         ":license_files",
     ],
+    prefix = "/opt/datadog-installer",
     tags = ["manual"],
 )
 
@@ -175,7 +175,7 @@ dd_pkg_deb(
     recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
     section = "utils",
     tags = ["manual"],
-    version = "7",  # TODO: stamp from pipeline (ABLD-364)
+    version = "1:" + make_version() + "-1",
 )
 
 pkg_rpm(
@@ -207,7 +207,7 @@ pkg_rpm(
     summary = "Datadog Installer",
     tags = ["manual"],
     url = "http://www.datadoghq.com",
-    version = "7",  # TODO: pick up from pipeline
+    version = make_version(),
 )
 
 # Version manifests approximating the omnibus <artifact>.metadata.json sidecar,

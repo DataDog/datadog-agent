@@ -79,6 +79,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Umount = deepCopyUmountEvent(e.Umount)
 	copied.Unlink = deepCopyUnlinkEvent(e.Unlink)
 	copied.UnloadModule = deepCopyUnloadModuleEvent(e.UnloadModule)
+	copied.Unshare = deepCopyUnshareEvent(e.Unshare)
 	copied.UnshareMountNS = deepCopyUnshareMountNSEvent(e.UnshareMountNS)
 	copied.Utimes = deepCopyUtimesEvent(e.Utimes)
 	copied.VethPair = deepCopyVethPairEvent(e.VethPair)
@@ -193,6 +194,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
+	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
 	copied.SID = fieldToCopy.SID
 	copied.Tid = fieldToCopy.Tid
@@ -253,8 +255,8 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
+	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
@@ -403,6 +405,7 @@ func deepCopyLinuxBinprm(fieldToCopy LinuxBinprm) LinuxBinprm {
 func deepCopyTracer(fieldToCopy Tracer) Tracer {
 	copied := Tracer{}
 	copied.Metadata = deepCopyTracerMetadata(fieldToCopy.Metadata)
+	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
 	copied.Trace = deepCopySpanContext(fieldToCopy.Trace)
 	return copied
 }
@@ -417,7 +420,6 @@ func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermet
 	copied.ServiceEnv = fieldToCopy.ServiceEnv
 	copied.ServiceName = fieldToCopy.ServiceName
 	copied.ServiceVersion = fieldToCopy.ServiceVersion
-	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
 	copied.TracerLanguage = fieldToCopy.TracerLanguage
 	copied.TracerVersion = fieldToCopy.TracerVersion
 	return copied
@@ -522,8 +524,8 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
+	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
@@ -1214,6 +1216,12 @@ func deepCopyUnlinkEvent(fieldToCopy UnlinkEvent) UnlinkEvent {
 func deepCopyUnloadModuleEvent(fieldToCopy UnloadModuleEvent) UnloadModuleEvent {
 	copied := UnloadModuleEvent{}
 	copied.Name = fieldToCopy.Name
+	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
+	return copied
+}
+func deepCopyUnshareEvent(fieldToCopy UnshareEvent) UnshareEvent {
+	copied := UnshareEvent{}
+	copied.Flags = fieldToCopy.Flags
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	return copied
 }
