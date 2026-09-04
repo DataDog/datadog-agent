@@ -11,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -664,6 +663,192 @@ func (suite *EndpointsTestSuite) TestEndpointOnUpdate() {
 	}
 }
 
+func (suite *EndpointsTestSuite) TestHTTPAdditionalEndpointWaitsForDelegatedAuthWriteback() {
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	suite.config.SetInTest("logs_config.additional_endpoints", `[{
+		"api_key": "DELA(some-org-uuid, aws)",
+		"host": "localhost1",
+		"port": 1234
+	}]`)
+
+	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
+	suite.Require().Len(endpoints, 1)
+	suite.Empty(endpoints[0].GetAPIKey())
+	suite.True(endpoints[0].IsWaitingForDelegatedAuth())
+	suite.True(endpoints[0].IsReliable())
+
+	suite.config.SetInTest("logs_config.additional_endpoints", `[{
+		"api_key": "resolved-real-key",
+		"host": "localhost1",
+		"port": 1234
+	}]`)
+
+	suite.Equal("resolved-real-key", endpoints[0].GetAPIKey())
+	suite.False(endpoints[0].IsWaitingForDelegatedAuth())
+	suite.True(endpoints[0].IsReliable())
+}
+
+func (suite *EndpointsTestSuite) TestTCPAdditionalEndpointRejectsDelegatedAuth() {
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	suite.config.SetInTest("logs_config.additional_endpoints", `[{
+		"api_key": "DELA(some-org-uuid, aws)",
+		"host": "localhost1",
+		"port": 1234
+	}]`)
+
+	suite.Empty(loadTCPAdditionalEndpoints(Endpoint{}, logsConfig, true))
+}
+
+func (suite *EndpointsTestSuite) TestRuntimeDelegatedAuthModeChangeFailsClosed() {
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	suite.config.SetInTest("logs_config.additional_endpoints", `[{
+		"api_key": "static-key",
+		"host": "localhost1",
+		"port": 1234
+	}]`)
+
+	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
+	suite.Require().Len(endpoints, 1)
+
+	suite.config.SetInTest("logs_config.additional_endpoints", `[{
+		"api_key": "DELA(some-org-uuid, aws)",
+		"host": "localhost1",
+		"port": 1234
+	}]`)
+
+	suite.Empty(endpoints[0].GetAPIKey())
+	suite.True(endpoints[0].IsWaitingForDelegatedAuth())
+}
+
+func (suite *EndpointsTestSuite) TestDelegatedAuthRouteChangeFailsClosed() {
+	tests := []struct {
+		name   string
+		update string
+	}{
+		{
+			name:   "port",
+			update: `{"api_key":"resolved-key","host":"logs.datadoghq.com","port":8443,"use_ssl":true,"ProxyAddress":"proxy-a","path_prefix":"/a"}`,
+		},
+		{
+			name:   "TLS",
+			update: `{"api_key":"resolved-key","host":"logs.datadoghq.com","port":443,"use_ssl":false,"ProxyAddress":"proxy-a","path_prefix":"/a"}`,
+		},
+		{
+			name:   "proxy",
+			update: `{"api_key":"resolved-key","host":"logs.datadoghq.com","port":443,"use_ssl":true,"ProxyAddress":"proxy-b","path_prefix":"/a"}`,
+		},
+		{
+			name:   "path",
+			update: `{"api_key":"resolved-key","host":"logs.datadoghq.com","port":443,"use_ssl":true,"ProxyAddress":"proxy-a","path_prefix":"/b"}`,
+		},
+	}
+
+	for _, test := range tests {
+		suite.Run(test.name, func() {
+			logsConfig := defaultLogsConfigKeys(suite.config)
+			suite.config.SetInTest("logs_config.additional_endpoints", `[
+				{"api_key":"DELA(org-a, aws)","host":"logs.datadoghq.com","port":443,"use_ssl":true,"ProxyAddress":"proxy-a","path_prefix":"/a"}
+			]`)
+			endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
+			suite.Require().Len(endpoints, 1)
+
+			suite.config.SetInTest("logs_config.additional_endpoints", "["+test.update+"]")
+
+			suite.Empty(endpoints[0].GetAPIKey())
+			suite.True(endpoints[0].IsWaitingForDelegatedAuth())
+		})
+	}
+}
+
+func (suite *EndpointsTestSuite) TestDelegatedAuthReorderFailsClosedForSharedHost() {
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":443},
+		{"api_key":"DELA(org-b, aws)","host":"shared.datadoghq.com","port":443}
+	]`)
+	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
+	suite.Require().Len(endpoints, 2)
+
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"DELA(org-b, aws)","host":"shared.datadoghq.com","port":443},
+		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":443}
+	]`)
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"resolved-b","host":"shared.datadoghq.com","port":443},
+		{"api_key":"resolved-a","host":"shared.datadoghq.com","port":443}
+	]`)
+
+	for _, endpoint := range endpoints {
+		suite.Empty(endpoint.GetAPIKey())
+		suite.True(endpoint.IsWaitingForDelegatedAuth())
+	}
+}
+
+func (suite *EndpointsTestSuite) TestResolvedDelegatedAuthReorderFailsClosedForSharedHost() {
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":443},
+		{"api_key":"DELA(org-b, aws)","host":"shared.datadoghq.com","port":443}
+	]`)
+	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
+	suite.Require().Len(endpoints, 2)
+
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"resolved-a","host":"shared.datadoghq.com","port":443},
+		{"api_key":"resolved-b","host":"shared.datadoghq.com","port":443}
+	]`)
+	suite.Equal("resolved-a", endpoints[0].GetAPIKey())
+	suite.Equal("resolved-b", endpoints[1].GetAPIKey())
+
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"resolved-b","host":"shared.datadoghq.com","port":443},
+		{"api_key":"resolved-a","host":"shared.datadoghq.com","port":443}
+	]`)
+	for _, endpoint := range endpoints {
+		suite.Empty(endpoint.GetAPIKey())
+		suite.True(endpoint.IsWaitingForDelegatedAuth())
+	}
+}
+
+func (suite *EndpointsTestSuite) TestPreResolvedEndpointReorderFailsClosedForSharedHost() {
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"resolved-a","host":"shared.datadoghq.com","port":443},
+		{"api_key":"resolved-b","host":"shared.datadoghq.com","port":443}
+	]`)
+	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
+	suite.Require().Len(endpoints, 2)
+	suite.Empty(endpoints[0].delegatedAuthDirective)
+	suite.Empty(endpoints[1].delegatedAuthDirective)
+
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"resolved-b","host":"shared.datadoghq.com","port":443},
+		{"api_key":"resolved-a","host":"shared.datadoghq.com","port":443}
+	]`)
+	for _, endpoint := range endpoints {
+		suite.Empty(endpoint.GetAPIKey())
+		suite.True(endpoint.IsWaitingForDelegatedAuth())
+	}
+}
+
+func (suite *EndpointsTestSuite) TestRemovedDelegatedAuthEndpointFailsClosed() {
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"DELA(org-a, aws)","host":"logs.datadoghq.com","port":443}
+	]`)
+	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
+	suite.Require().Len(endpoints, 1)
+
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"resolved-a","host":"logs.datadoghq.com","port":443}
+	]`)
+	suite.Equal("resolved-a", endpoints[0].GetAPIKey())
+
+	suite.config.SetInTest("logs_config.additional_endpoints", `[]`)
+	suite.Empty(endpoints[0].GetAPIKey())
+	suite.True(endpoints[0].IsWaitingForDelegatedAuth())
+}
+
 func (suite *EndpointsTestSuite) TestloadTCPAdditionalEndpoints() {
 	jsonString := `[{
 			"api_key":           "apiKey2",
@@ -683,25 +868,27 @@ func (suite *EndpointsTestSuite) TestloadTCPAdditionalEndpoints() {
 	suite.config.SetInTest("logs_config.additional_endpoints", jsonString)
 
 	expected1 := Endpoint{
-		apiKey:                 atomic.NewString("apiKey2"),
-		configSettingPath:      "logs_config.additional_endpoints",
-		isAdditionalEndpoint:   true,
-		additionalEndpointsIdx: 0,
-		isReliable:             true,
-		useSSL:                 true,
-		Host:                   "localhost1",
-		Port:                   1234,
-		UseCompression:         true,
-		CompressionLevel:       12,
+		credential:               newEndpointCredential("apiKey2", false),
+		configSettingPath:        "logs_config.additional_endpoints",
+		isAdditionalEndpoint:     true,
+		additionalEndpointsIdx:   0,
+		additionalEndpointsCount: 2,
+		isReliable:               true,
+		useSSL:                   true,
+		Host:                     "localhost1",
+		Port:                     1234,
+		UseCompression:           true,
+		CompressionLevel:         12,
 	}
 	expected2 := Endpoint{
-		apiKey:                 atomic.NewString("apiKey3"),
-		configSettingPath:      "logs_config.additional_endpoints",
-		isAdditionalEndpoint:   true,
-		additionalEndpointsIdx: 1,
-		isReliable:             false,
-		Host:                   "localhost2",
-		Port:                   5678,
+		credential:               newEndpointCredential("apiKey3", false),
+		configSettingPath:        "logs_config.additional_endpoints",
+		isAdditionalEndpoint:     true,
+		additionalEndpointsIdx:   1,
+		additionalEndpointsCount: 2,
+		isReliable:               false,
+		Host:                     "localhost2",
+		Port:                     5678,
 	}
 
 	main := Endpoint{useSSL: true}
@@ -732,29 +919,31 @@ func (suite *EndpointsTestSuite) TestloadHTTPAdditionalEndpoints() {
 	suite.config.SetInTest("logs_config.compression_kind", "gzip") // has to set explicit compression kind to avoid fallback to defaults compression configs when additional endpoints are present
 
 	expected1 := Endpoint{
-		apiKey:                 atomic.NewString("apiKey2"),
-		configSettingPath:      "logs_config.additional_endpoints",
-		isAdditionalEndpoint:   true,
-		additionalEndpointsIdx: 0,
-		isReliable:             true,
-		useSSL:                 true,
-		Host:                   "localhost1",
-		Port:                   1234,
-		UseCompression:         true, // compression from main overwrite the config
-		CompressionLevel:       123,
-		Version:                123,
+		credential:               newEndpointCredential("apiKey2", false),
+		configSettingPath:        "logs_config.additional_endpoints",
+		isAdditionalEndpoint:     true,
+		additionalEndpointsIdx:   0,
+		additionalEndpointsCount: 2,
+		isReliable:               true,
+		useSSL:                   true,
+		Host:                     "localhost1",
+		Port:                     1234,
+		UseCompression:           true, // compression from main overwrite the config
+		CompressionLevel:         123,
+		Version:                  123,
 	}
 	expected2 := Endpoint{
-		apiKey:                 atomic.NewString("apiKey3"),
-		configSettingPath:      "logs_config.additional_endpoints",
-		isAdditionalEndpoint:   true,
-		additionalEndpointsIdx: 1,
-		isReliable:             false,
-		Host:                   "localhost2",
-		Port:                   5678,
-		UseCompression:         true,
-		CompressionLevel:       123,
-		Version:                EPIntakeVersion2,
+		credential:               newEndpointCredential("apiKey3", false),
+		configSettingPath:        "logs_config.additional_endpoints",
+		isAdditionalEndpoint:     true,
+		additionalEndpointsIdx:   1,
+		additionalEndpointsCount: 2,
+		isReliable:               false,
+		Host:                     "localhost2",
+		Port:                     5678,
+		UseCompression:           true,
+		CompressionLevel:         123,
+		Version:                  EPIntakeVersion2,
 		// Those are enforce when EPIntakeVersion2 is used
 		TrackType: "some track type",
 		Protocol:  "some intake protocol",

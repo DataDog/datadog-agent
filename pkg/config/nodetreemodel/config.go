@@ -227,12 +227,25 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	c.set(key, newValue, source, nil)
+}
+
+// SetIfSequenceID sets a value only if the config sequence still matches expectedSequenceID.
+func (c *ntmConfig) SetIfSequenceID(key string, newValue interface{}, source model.Source, expectedSequenceID uint64) bool {
+	return c.set(key, newValue, source, &expectedSequenceID)
+}
+
+func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, expectedSequenceID *uint64) bool {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
 	c.maybeRebuild()
 
 	c.Lock()
+	if expectedSequenceID != nil && c.sequenceID != *expectedSequenceID {
+		c.Unlock()
+		return false
+	}
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
@@ -240,14 +253,14 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		} else {
 			_ = log.ErrorfStackDepth(2, "could not set '%s' unknown key", key)
 			c.Unlock()
-			return
+			return false
 		}
 	}
 	declaredNode := c.nodeAtPathFromNode(key, c.defaults)
 	if declaredNode.IsInnerNode() {
 		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
 		c.Unlock()
-		return
+		return false
 	}
 
 	// convert the value to the type of the default
@@ -279,7 +292,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	if err != nil {
 		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
 		c.Unlock()
-		return
+		return false
 	} else if newTree != nil {
 		// a new node was allocated, merge it into root
 		c.root, _ = c.root.Merge(newTree)
@@ -296,7 +309,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// if no value has changed we don't notify
 	if reflect.DeepEqual(previousValue, resolvedValue) {
 		c.Unlock()
-		return
+		return true
 	}
 
 	c.sequenceID++
@@ -309,6 +322,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	for _, receiver := range receivers {
 		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, "")
 	}
+	return true
 }
 
 func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (*nodeImpl, error) {

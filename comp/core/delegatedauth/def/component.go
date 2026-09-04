@@ -63,6 +63,10 @@ type InstanceParams struct {
 	// AdditionalEndpointsListConfigKey. Required when that field is set.
 	ListEntryIndex int
 
+	// AdditionalEndpointIdentity fingerprints the list entry without its API key.
+	// Writeback is refused if the endpoint route changes.
+	AdditionalEndpointIdentity string
+
 	// AdditionalEndpointDirective is the literal DELA(...) directive text to
 	// replace with the real key once fetched. Used only when
 	// AdditionalEndpointDomain or AdditionalEndpointsListConfigKey is set.
@@ -74,11 +78,11 @@ type InstanceParams struct {
 
 	// FallbackAPIKey, if set, is written when no delegated-auth key can be
 	// obtained so dual-shipping still works. A later successful fetch replaces it.
-	// Parsed from a DELA(...) directive's fallback=<api_key> param.
+	// Current DELA(...) discovery does not populate this field.
 	FallbackAPIKey string
 
 	// ProviderConfig contains provider-specific configuration.
-	// If nil, auto-detects from the environment (only used on first call).
+	// A non-nil value overrides the detected configuration for this instance.
 	ProviderConfig common.ProviderConfig
 }
 

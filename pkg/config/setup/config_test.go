@@ -7,10 +7,12 @@ package setup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -49,6 +51,66 @@ func TestAddDelegatedAuthInstanceContinuesAfterDeadline(t *testing.T) {
 		t.Fatal("background registration did not run")
 	}
 }
+
+func TestConfigureDelegatedAuthSharesStartupBudgetAcrossEndpointShapes(t *testing.T) {
+	startupCtx := &expiringDeadlineContext{done: make(chan struct{})}
+	backgroundCalls := make(chan string, 3)
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
+		if ctx.Done() != nil {
+			startupCtx.expire()
+			<-ctx.Done()
+			return ctx.Err()
+		}
+		backgroundCalls <- params.APIKeyConfigKey
+		return errors.New("stop after recording background registration")
+	}}
+	config := confFromYAML(t, `
+delegated_auth:
+  org_uuid: flat-org
+additional_endpoints:
+  https://metrics.datadoghq.com:
+    - DELA(map-org, aws)
+logs_config:
+  force_use_http: true
+  additional_endpoints:
+    - host: logs.datadoghq.com
+      api_key: DELA(list-org, aws)
+`)
+	require.ErrorIs(t, configureDelegatedAuth(startupCtx, config, comp), context.DeadlineExceeded)
+
+	got := make([]string, 0, 3)
+	for range 3 {
+		select {
+		case key := <-backgroundCalls:
+			got = append(got, key)
+		case <-time.After(time.Second):
+			t.Fatal("background registration did not run")
+		}
+	}
+	assert.ElementsMatch(t, []string{
+		"api_key",
+		"additional_endpoints[https://metrics.datadoghq.com][0][map-org]",
+		"logs_config.additional_endpoints[0][list-org]",
+	}, got)
+}
+
+type expiringDeadlineContext struct {
+	done chan struct{}
+	once sync.Once
+}
+
+func (c *expiringDeadlineContext) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (c *expiringDeadlineContext) Done() <-chan struct{}       { return c.done }
+func (c *expiringDeadlineContext) Value(any) any               { return nil }
+func (c *expiringDeadlineContext) Err() error {
+	select {
+	case <-c.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
+}
+func (c *expiringDeadlineContext) expire() { c.once.Do(func() { close(c.done) }) }
 
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)

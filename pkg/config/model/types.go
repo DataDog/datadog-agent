@@ -227,6 +227,8 @@ type Reader interface {
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
 	Set(key string, value interface{}, source Source)
+	// SetIfSequenceID sets a value only if no config update occurred after expectedSequenceID.
+	SetIfSequenceID(key string, value interface{}, source Source, expectedSequenceID uint64) bool
 	SetInTest(key string, value interface{})
 	UnsetForSource(key string, source Source)
 	// DirectBulkSet writes settings already resolved by another config, keeping each one in the

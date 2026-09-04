@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -232,6 +233,8 @@ func TestStatusJSON_EnabledWithInstances(t *testing.T) {
 		instances: map[string]*authInstance{
 			"api_key": {
 				apiKey:              &apiKey,
+				providerName:        cloudauthconfig.ProviderAWS,
+				providerRegion:      "eu-west-1",
 				refreshInterval:     60 * time.Minute,
 				apiKeyConfigKey:     "api_key",
 				consecutiveFailures: 0,
@@ -260,6 +263,8 @@ func TestStatusJSON_EnabledWithInstances(t *testing.T) {
 	// Check api_key instance
 	apiKeyInstance := instances["api_key"]
 	assert.Equal(t, "Active", apiKeyInstance["Status"])
+	assert.Equal(t, cloudauthconfig.ProviderAWS, apiKeyInstance["Provider"])
+	assert.Equal(t, "eu-west-1", apiKeyInstance["AWSRegion"])
 	assert.Equal(t, "1h0m0s", apiKeyInstance["RefreshInterval"])
 	assert.Nil(t, apiKeyInstance["Error"])
 
@@ -1117,11 +1122,130 @@ type alwaysRevertingConfig struct {
 	revertTo map[string][]string
 }
 
+// casRacingConfig changes the watched value immediately before every compare-and-set.
+type casRacingConfig struct {
+	pkgconfigmodel.ReaderWriter
+	watchKey string
+	inject   func()
+}
+
+func (r *casRacingConfig) SetIfSequenceID(key string, value any, source pkgconfigmodel.Source, expected uint64) bool {
+	if key == r.watchKey {
+		r.inject()
+	}
+	return r.ReaderWriter.SetIfSequenceID(key, value, source, expected)
+}
+
+func TestMergeIntoAdditionalEndpointsGivesUpOnSustainedPreWriteRace(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		"https://our-org.datadoghq.com":     {"DELA(our-org-uuid, aws)"},
+		"https://sibling-org.datadoghq.com": {"sibling-v0"},
+	})
+
+	rotation := 0
+	racy := &casRacingConfig{ReaderWriter: mockConfig, watchKey: "additional_endpoints"}
+	racy.inject = func() {
+		rotation++
+		updated := mockConfig.GetStringMapStringSlice("additional_endpoints")
+		updated["https://sibling-org.datadoghq.com"] = []string{fmt.Sprintf("sibling-v%d", rotation)}
+		mockConfig.Set("additional_endpoints", updated, pkgconfigmodel.SourceSecret)
+	}
+
+	instance := &authInstance{
+		additionalEndpointDomain:     "https://our-org.datadoghq.com",
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(our-org-uuid, aws)",
+		originalDirective:            "DELA(our-org-uuid, aws)",
+	}
+	(&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpoints(instance, "resolved-key", false)
+
+	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
+	assert.Equal(t, []string{"DELA(our-org-uuid, aws)"}, got["https://our-org.datadoghq.com"])
+	assert.Equal(t, []string{"sibling-v3"}, got["https://sibling-org.datadoghq.com"])
+	assert.Equal(t, "DELA(our-org-uuid, aws)", instance.lastWrittenValue)
+}
+
+func TestMergeIntoAdditionalEndpointsListGivesUpOnSustainedPreWriteRace(t *testing.T) {
+	mockConfig := mock.New(t)
+	configKey := "logs_config.additional_endpoints"
+	mockConfig.SetInTest(configKey, []any{
+		map[string]any{"api_key": "DELA(logs-org-uuid, aws)", "host": "logs.datadoghq.com"},
+		map[string]any{"api_key": "static-key", "host": "sibling-v0.datadoghq.com"},
+	})
+
+	rotation := 0
+	racy := &casRacingConfig{ReaderWriter: mockConfig, watchKey: configKey}
+	racy.inject = func() {
+		rotation++
+		entries, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
+		require.True(t, ok)
+		sibling := entries[1].(map[string]any)
+		sibling["host"] = fmt.Sprintf("sibling-v%d.datadoghq.com", rotation)
+		mockConfig.Set(configKey, entries, pkgconfigmodel.SourceSecret)
+	}
+
+	instance := &authInstance{
+		additionalEndpointsListConfigKey: configKey,
+		listEntryIndex:                   0,
+		lastWrittenValue:                 "DELA(logs-org-uuid, aws)",
+		originalDirective:                "DELA(logs-org-uuid, aws)",
+	}
+	(&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
+
+	got, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
+	require.True(t, ok)
+	_, apiKey, ok := common.CaseInsensitiveStringFieldWithKey(got[0].(map[string]any), "api_key")
+	require.True(t, ok)
+	assert.Equal(t, "DELA(logs-org-uuid, aws)", apiKey)
+	assert.Equal(t, "sibling-v3.datadoghq.com", got[1].(map[string]any)["host"])
+	assert.Equal(t, "DELA(logs-org-uuid, aws)", instance.lastWrittenValue)
+}
+
+func TestMergeIntoAdditionalEndpointsListRejectsDestinationChange(t *testing.T) {
+	mockConfig := mock.New(t)
+	configKey := "logs_config.additional_endpoints"
+	original := map[string]any{
+		"api_key": "DELA(logs-org-uuid, aws)",
+		"host":    "original.logs.datadoghq.com",
+		"port":    443,
+	}
+	identity, ok := common.ListEntryIdentity(original)
+	require.True(t, ok)
+	mockConfig.SetInTest(configKey, []any{map[string]any{
+		"api_key": "DELA(logs-org-uuid, aws)",
+		"host":    "changed.logs.datadoghq.com",
+		"port":    443,
+	}})
+
+	instance := &authInstance{
+		additionalEndpointsListConfigKey: configKey,
+		listEntryIndex:                   0,
+		additionalEndpointIdentity:       identity,
+		lastWrittenValue:                 "DELA(logs-org-uuid, aws)",
+		originalDirective:                "DELA(logs-org-uuid, aws)",
+	}
+	(&delegatedAuthComponent{config: mockConfig}).mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
+
+	got, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
+	require.True(t, ok)
+	assert.Equal(t, "DELA(logs-org-uuid, aws)", got[0].(map[string]any)["api_key"])
+	assert.Equal(t, "DELA(logs-org-uuid, aws)", instance.lastWrittenValue)
+}
+
 func (r *alwaysRevertingConfig) Set(key string, value any, source pkgconfigmodel.Source) {
 	r.ReaderWriter.Set(key, value, source)
 	if key == r.watchKey {
 		r.ReaderWriter.Set(key, r.revertTo, pkgconfigmodel.SourceSecret)
 	}
+}
+
+func (r *alwaysRevertingConfig) SetIfSequenceID(key string, value any, source pkgconfigmodel.Source, expected uint64) bool {
+	set := r.ReaderWriter.SetIfSequenceID(key, value, source, expected)
+	if set && key == r.watchKey {
+		r.ReaderWriter.Set(key, r.revertTo, pkgconfigmodel.SourceSecret)
+	}
+	return set
 }
 
 func TestMergeIntoAdditionalEndpointsRetriesWhenRacedByConcurrentWriter(t *testing.T) {
@@ -1608,6 +1732,30 @@ func TestInitializeIfNeeded_ConfiguredRegionDoesNotSkipDetection(t *testing.T) {
 	assert.Equal(t, "eu-central-1", awsConfig.Region, "configured region must win over detection")
 	assert.Equal(t, cloudauthconfig.ProviderAWS, comp.resolvedProvider, "detection must still have run")
 	assert.Empty(t, comp.disabledReason)
+}
+
+func TestInitializeIfNeededExplicitProviderSkipsDetection(t *testing.T) {
+	original := detectAWSCredentialSource
+	detectAWSCredentialSource = func(context.Context) (string, error) {
+		t.Fatal("explicit provider must not run auto-detection")
+		return "", nil
+	}
+	t.Cleanup(func() { detectAWSCredentialSource = original })
+
+	mockConfig := mock.New(t)
+	explicit := &cloudauthconfig.AWSProviderConfig{Region: "eu-central-1"}
+	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
+
+	providerConfig, err := comp.initializeIfNeeded(context.Background(), delegatedauth.InstanceParams{
+		Config:          mockConfig,
+		ProviderConfig:  explicit,
+		OrgUUID:         "test-org",
+		APIKeyConfigKey: "api_key",
+	})
+	require.NoError(t, err)
+	assert.Same(t, explicit, providerConfig)
+	assert.Same(t, mockConfig, comp.config)
+	assert.False(t, comp.initialized)
 }
 
 // TestInitializeIfNeeded_DetectionFailureIsRecorded is the companion case: with no credential
