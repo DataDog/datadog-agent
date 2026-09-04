@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -58,7 +58,7 @@ func TestRemoteConfigBTFTimeout(t *testing.T) {
 	mockRC := &mockRCClient{t: t, sub: func(product data.Product, _ func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 		require.Equal(t, string(product), state.ProductBTFDD)
 	}}
-	loader, err := initBTFLoader(cfg, mockRC, telemetryimpl.GetCompatComponent())
+	loader, err := initBTFLoader(cfg, mockRC, noopsimpl.NewComponent())
 	require.NoError(t, err)
 
 	_, err = loader.loadRemoteConfig(t.Context())
@@ -184,7 +184,7 @@ func TestRemoteConfigBTFFoundEntry(t *testing.T) {
 			}()
 		},
 	}
-	loader, err := initBTFLoader(cfg, mockRC, telemetryimpl.GetCompatComponent())
+	loader, err := initBTFLoader(cfg, mockRC, noopsimpl.NewComponent())
 	require.NoError(t, err)
 	ret, err := loader.loadRemoteConfig(t.Context())
 	require.NoError(t, err)
@@ -214,7 +214,7 @@ func TestRemoteConfigBTFHashMismatch(t *testing.T) {
 			}()
 		},
 	}
-	loader, err := initBTFLoader(cfg, mockRC, telemetryimpl.GetCompatComponent())
+	loader, err := initBTFLoader(cfg, mockRC, noopsimpl.NewComponent())
 	require.NoError(t, err)
 	ret, err := loader.loadRemoteConfig(t.Context())
 	require.Error(t, err)
@@ -244,7 +244,7 @@ func TestRemoteConfigBTFMissingEntry(t *testing.T) {
 			}()
 		},
 	}
-	loader, err := initBTFLoader(cfg, mockRC, telemetryimpl.GetCompatComponent())
+	loader, err := initBTFLoader(cfg, mockRC, noopsimpl.NewComponent())
 	require.NoError(t, err)
 	ret, err := loader.loadRemoteConfig(t.Context())
 	require.Error(t, err)

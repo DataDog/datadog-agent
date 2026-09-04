@@ -140,6 +140,8 @@ include:
   - local: .gitlab/deploy/**.yml
   - local: .gitlab/test/**.yml
   - local: .gitlab/.post/**.yml
+  # AIX jobs
+  - local: .gitlab/aix/**.yml
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
     rules:
@@ -298,21 +300,21 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v133257318-6ecce2dd
+  CI_IMAGE_BTF_GEN: v134889588-9b0a9089
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v133257318-6ecce2dd
+  CI_IMAGE_DOCKER_X64: v134889588-9b0a9089
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v133257318-6ecce2dd
+  CI_IMAGE_DOCKER_ARM64: v134889588-9b0a9089
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v133257318-6ecce2dd
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v134889588-9b0a9089
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v133257318-6ecce2dd
+  CI_IMAGE_LINUX: v134889588-9b0a9089
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v133257318-6ecce2dd
+  CI_IMAGE_RPM_X64: v134889588-9b0a9089
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v133257318-6ecce2dd
+  CI_IMAGE_RPM_ARM64: v134889588-9b0a9089
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v133257318-6ecce2dd
+  CI_IMAGE_RPM_ARMHF: v134889588-9b0a9089
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v133257318-6ecce2dd
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
@@ -350,6 +352,7 @@ variables:
   AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
   AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
   AGENT_QA_E2E: agent-qa-e2e # agent-devx
+  SITEOX_AIX_CI_RUNNER: siteox-aix-ci-runner # agent-runtimes
   ATLASSIAN_WRITE: atlassian-write # agent-delivery
   DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
   DYNAMIC_TESTS_BREAKGLASS: dynamic-tests-breakglass # agent-devx
@@ -989,6 +992,7 @@ workflow:
     when: on_success
   - changes:
       paths:
+        - pkg/config/schema/**/* # incident-60254
         - .gitlab/test/e2e/*.yml
         - bazel/rules/go_shim/**/* # Runs bazelified Go tools
         - internal/tools/**/* # Go tools: gotestsum, etc. (incident-59251/59255/59256/59257/59258)
