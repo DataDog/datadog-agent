@@ -224,18 +224,53 @@ func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 	elapsed := time.Since(start)
 	assert.Empty(t, first, "no Cluster Agent is configured in this test, so resolution settles on empty")
 	assert.Less(t, elapsed, time.Second, "ClusterID must not block indefinitely")
+}
 
-	// Cached from the settled resolution; must return immediately without
-	// re-running the resolution loop. A single before/after comparison is
-	// too sensitive to one-off scheduler/GC jitter under -race, so this
-	// amortizes across many calls: if caching were broken and each call
-	// re-ran the full retry loop, this would take ~50x the first call's
-	// elapsed time; if cached, it's ~50 atomic loads.
-	start = time.Now()
-	for i := 0; i < 50; i++ {
-		assert.Empty(t, s.ClusterID())
-	}
-	assert.Less(t, time.Since(start), elapsed, "later calls must return immediately from cache, not re-run resolution")
+// TestClusterID_CachesSuccessfulResolution verifies that once resolution
+// succeeds, later calls return the cached id without re-running the lookup.
+func TestClusterID_CachesSuccessfulResolution(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+
+	var calls int
+	stubClusterIDFuncs(t,
+		func() (string, error) { calls++; return "node-agent-id", nil },
+		func() (string, error) { return "", errors.New("unused") },
+	)
+
+	s := New(nil)
+
+	assert.Equal(t, "node-agent-id", s.ClusterID())
+	assert.Equal(t, "node-agent-id", s.ClusterID())
+	assert.Equal(t, 1, calls, "second call must return from cache, not re-run the lookup")
+}
+
+// TestClusterID_FailedResolutionIsNotCachedPermanently verifies that a
+// Cluster Agent/API server outage at startup does not permanently blank out
+// cluster_id for the process lifetime — a later call (e.g. the next periodic
+// report) must retry rather than replay a stale empty result, the same
+// guarantee DeploymentID already provides for a transient workloadmeta miss
+// (see TestDeploymentID_TransientMissIsNotCachedPermanently).
+func TestClusterID_FailedResolutionIsNotCachedPermanently(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+
+	var calls int
+	stubClusterIDFuncs(t,
+		func() (string, error) {
+			calls++
+			if calls == 1 {
+				return "", errors.New("api server unreachable")
+			}
+			return "node-agent-id", nil
+		},
+		func() (string, error) { return "", errors.New("unused") },
+	)
+
+	s := New(nil)
+	s.resolveRetries = 0
+	s.resolveRetryDelay = time.Millisecond
+
+	assert.Empty(t, s.ClusterID(), "lookup failed, retry budget exhausted")
+	assert.Equal(t, "node-agent-id", s.ClusterID(), "a later call must retry rather than replay the stale empty result")
 }
 
 // stubClusterIDFuncs overrides the node-agent/cluster-agent cluster id
@@ -251,8 +286,8 @@ func stubClusterIDFuncs(t *testing.T, nodeAgent, clusterAgent func() (string, er
 }
 
 // TestClusterID_ClusterAgentFlavorUsesClusterAgentLookup verifies that on the
-// Cluster Agent flavor, resolveClusterID dispatches to the Cluster-Agent-
-// specific lookup (apiserver.GetAPIClient + GetOrCreateClusterID) rather than
+// Cluster Agent flavor, ClusterID dispatches to the Cluster-Agent-specific
+// lookup (apiserver.GetAPIClient + GetOrCreateClusterID) rather than
 // clustername.GetClusterID, which is documented as node-agent-only and is
 // broken when the Cluster Agent calls it on itself. Without this dispatch,
 // this test would instead observe the node-agent stub's value.

@@ -125,3 +125,22 @@ func TestResourceIdentityClusterAgent(t *testing.T) {
 	assert.Equal(t, "cluster", resourceType)
 	assert.Equal(t, "11111111-1111-1111-1111-111111111111", resourceID)
 }
+
+// TestResourceIdentityClusterAgentFallsBackToHost verifies that ResourceIdentity
+// falls back to resource_type "host" when the Cluster Agent flavor's cluster id
+// is unavailable (e.g. the API server hasn't been reachable yet) — resource_id
+// must never be silently empty, mirroring the fallback the deployment branch
+// already has for an empty DaemonSet UID.
+func TestResourceIdentityClusterAgentFallsBackToHost(t *testing.T) {
+	h := newTestStore(t)
+	h.agentFlavor = flavor.ClusterAgent
+	// selfident.New outside Kubernetes returns a no-op instance whose
+	// ClusterID() is always "", deterministically exercising the fallback
+	// without depending on a real (or process-globally cached) cluster id
+	// lookup.
+	h.selfIdent = selfident.New(nil)
+
+	resourceType, resourceID := h.ResourceIdentity("test-host")
+	assert.Equal(t, "host", resourceType)
+	assert.Equal(t, "test-host", resourceID)
+}

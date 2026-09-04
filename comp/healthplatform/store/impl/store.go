@@ -560,7 +560,10 @@ func (h *healthPlatformImpl) IssueDiscriminator(hostID string) string {
 // entity this agent process represents; see the Component interface doc.
 func (h *healthPlatformImpl) ResourceIdentity(hostname string) (string, string) {
 	if h.agentFlavor == flavor.ClusterAgent {
-		return "cluster", h.selfIdent.ClusterID()
+		if clusterID := h.selfIdent.ClusterID(); clusterID != "" {
+			return "cluster", clusterID
+		}
+		return "host", hostname
 	}
 	if deploymentID := h.selfIdent.DeploymentID(); deploymentID != "" {
 		return "deployment", deploymentID
