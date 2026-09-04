@@ -620,7 +620,9 @@ properties:
       direct_send:
         node_type: setting
         type: boolean
-        default: false
+        platform_default:
+          linux: true
+          other: false
       dns_recorded_query_types:
         node_type: setting
         type: array
