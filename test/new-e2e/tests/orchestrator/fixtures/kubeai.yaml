@@ -26,6 +26,10 @@ metadata:
   namespace: default
 spec:
   engine: VLLM
+  env:
+    API_KEY: kubeai-e2e-api-key
+    HF_TOKEN: kubeai-e2e-hf-token
+    MODEL_NAME: kubeai-e2e-model
   features:
     - TextGeneration
   minReplicas: 0

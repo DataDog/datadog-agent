@@ -52,7 +52,8 @@ type manifest struct {
 	Kind       string `yaml:"kind"`
 	APIVersion string `yaml:"apiVersion"`
 	Spec       struct {
-		Group string `yaml:"group"`
+		Env   map[string]string `yaml:"env"`
+		Group string            `yaml:"group"`
 		Names struct {
 			Kind string `yaml:"kind"`
 		} `yaml:"names"`

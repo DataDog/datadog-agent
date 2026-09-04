@@ -44,9 +44,12 @@ func (suite *k8sSuite) TestKubeAICRManif() {
 			return payload.Type == agentmodel.TypeCollectorManifestCR &&
 				manif.APIVersion == "kubeai.org/v1" &&
 				manif.Kind == "Model" &&
-				manif.Metadata.Name == "kubeai-e2e"
+				manif.Metadata.Name == "kubeai-e2e" &&
+				manif.Spec.Env["API_KEY"] == "********" &&
+				manif.Spec.Env["HF_TOKEN"] == "********" &&
+				manif.Spec.Env["MODEL_NAME"] == "kubeai-e2e-model"
 		},
-		message: "find a KubeAI Model manifest collected through the built-in v1 collector",
+		message: "find a scrubbed KubeAI Model manifest collected through the built-in v1 collector",
 		timeout: defaultTimeout,
 	}.Assert(suite)
 }
