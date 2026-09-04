@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -687,6 +688,31 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 	assert.NoError(err2)
 
 	assert.Equal(v1, v2)
+}
+
+func TestGetOriginConfiguredTagsAppearOnce(t *testing.T) {
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Tags: []string{"team:infra", "env:prod"},
+	})
+	tailer := &Tailer{
+		source:      source,
+		tagProvider: tag.NewLocalProvider([]string{}),
+	}
+	entry := &sdjournal.JournalEntry{Fields: map[string]string{"MESSAGE": "hello"}}
+
+	tags := tailer.getOrigin(entry).Tags()
+	assert.Equal(t, 1, countTagOccurrences(tags, "team:infra"))
+	assert.Equal(t, 1, countTagOccurrences(tags, "env:prod"))
+}
+
+func countTagOccurrences(tags []string, target string) int {
+	count := 0
+	for _, tag := range tags {
+		if tag == target {
+			count++
+		}
+	}
+	return count
 }
 
 func TestExpectedTagDuration(t *testing.T) {

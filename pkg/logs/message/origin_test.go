@@ -50,6 +50,34 @@ func TestSetTagsWithNoConfigTags(t *testing.T) {
 	assert.Equal(t, "[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"foo:bar,baz\"]", string(origin.TagsPayload(nil)))
 }
 
+func TestConfiguredTagsAppearOnceWhenNotPassedToSetTags(t *testing.T) {
+	// Configured tags belong in LogSource.Config.Tags; the origin merges them on read.
+	// Tailers must not also pass Config.Tags into SetTags (journald/windowsevent #38334).
+	cfg := &config.LogsConfig{
+		SourceCategory: "b",
+		Tags:           []string{"team:infra"},
+	}
+	source := sources.NewLogSource("", cfg)
+	origin := NewOrigin(source)
+	origin.SetTags([]string{})
+
+	tags := origin.Tags()
+	assert.Equal(t, []string{"sourcecategory:b", "team:infra"}, tags)
+	for _, configuredTag := range cfg.Tags {
+		assert.Equal(t, 1, countTagOccurrences(tags, configuredTag))
+	}
+}
+
+func countTagOccurrences(tags []string, target string) int {
+	count := 0
+	for _, tag := range tags {
+		if tag == target {
+			count++
+		}
+	}
+	return count
+}
+
 func TestSetTagsWithConfigTags(t *testing.T) {
 	cfg := &config.LogsConfig{
 		Source:         "a",
