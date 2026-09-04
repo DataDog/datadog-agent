@@ -8,6 +8,7 @@ package privateactionrunner
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,14 +41,27 @@ const (
 
 type parK8sSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
-	runnerURN string
+	runnerURN    string
+	parPodName   string
+	splitEnabled bool
+}
+
+type parK8sSplitSuite struct {
+	parK8sSuite
 }
 
 func TestPARRshellK8sSuite(t *testing.T) {
 	t.Parallel()
 	urn, keyB64 := generateTestRunnerIdentity(t)
 	suite := &parK8sSuite{runnerURN: urn}
-	e2e.Run(t, suite, e2e.WithProvisioner(parK8sProvisioner(urn, keyB64)))
+	e2e.Run(t, suite, e2e.WithProvisioner(parK8sProvisioner(urn, keyB64, false)))
+}
+
+func TestPARSplitRshellK8sSuite(t *testing.T) {
+	t.Parallel()
+	urn, keyB64 := generateTestRunnerIdentity(t)
+	suite := &parK8sSplitSuite{parK8sSuite: parK8sSuite{runnerURN: urn, splitEnabled: true}}
+	e2e.Run(t, suite, e2e.WithProvisioner(parK8sProvisioner(urn, keyB64, true)))
 }
 
 // SetupSuite registers a signing identity with fakeintake, then waits for PAR to be
@@ -56,10 +70,10 @@ func (s *parK8sSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 	selector := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
-	keyPushed := false
+	setupComplete := false
 	defer func() {
-		if !keyPushed {
-			s.logPARContainerLogs(selector, "signing key push failure")
+		if !setupComplete {
+			s.logPARContainerLogs(selector, "setup failure")
 		}
 	}()
 
@@ -71,9 +85,11 @@ func (s *parK8sSuite) SetupSuite() {
 		}()
 		SetupPARTaskSigning(s.T(), s.Env().FakeIntake.Client(), testRunnerOrgID, testRunnerRunnerID)
 	}()
-	keyPushed = true
-
 	s.waitForPARReady()
+	if s.splitEnabled {
+		s.verifySplitExecutorStartup()
+	}
+	setupComplete = true
 }
 
 func (s *parK8sSuite) BeforeTest(suiteName, testName string) {
@@ -360,6 +376,7 @@ func (s *parK8sSuite) waitForPARReady() {
 		for _, pod := range pods.Items {
 			for _, cs := range pod.Status.ContainerStatuses {
 				if cs.Name == parContainerName && cs.Ready {
+					s.parPodName = pod.Name
 					return
 				}
 			}
@@ -368,8 +385,16 @@ func (s *parK8sSuite) waitForPARReady() {
 	}, 5*time.Minute, 10*time.Second, "PAR container should become ready")
 	s.T().Logf("PAR container became Ready after %s", time.Since(started))
 
-	// Confirm PAR is actively polling fakeintake by waiting for at least one dequeue call.
-	// The workflow loop starts only after KeysManager receives its first Remote Config update.
+	if s.splitEnabled {
+		_, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
+			agentNamespace, s.parPodName, parContainerName, []string{"/par-probe.sh"},
+		)
+		s.Require().NoError(err, stderr)
+		s.waitForPARProcessStates(parControlProcess, []string{"Running"}, 2*time.Minute)
+		s.waitForPARProcessStates(parExecutorProcess, []string{"Created", "Exited"}, 2*time.Minute)
+	}
+
+	// Confirm PAR is actively polling fakeintake by waiting for a dequeue call.
 	pollingObserved := false
 	dequeueStarted := time.Now()
 	defer func() {
@@ -384,6 +409,36 @@ func (s *parK8sSuite) waitForPARReady() {
 	}, 5*time.Minute, 3*time.Second, "PAR should start polling fakeintake")
 	pollingObserved = true
 	s.T().Logf("PAR started polling fakeintake %s after its container became Ready", time.Since(dequeueStarted))
+}
+
+func (s *parK8sSuite) verifySplitExecutorStartup() {
+	taskID := uuid.New().String()
+	s.Require().NoError(s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
+		"command":         "echo par-split-k8s-e2e",
+		"allowedCommands": []string{"rshell:echo"},
+	}))
+	s.waitForPARProcessStates(parExecutorProcess, []string{"Running"}, 2*time.Minute)
+	result := s.pollResult(taskID, 2*time.Minute)
+	s.Require().True(result.Success, "split PAR action failed: %+v", result)
+	s.Require().Equal(0, rshellExitCode(s.T(), result), "unexpected rshell result: %+v", result)
+	s.Require().Contains(result.Outputs["stdout"], "par-split-k8s-e2e")
+}
+
+func (s *parK8sSuite) waitForPARProcessStates(process string, states []string, timeout time.Duration) {
+	s.T().Helper()
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
+			agentNamespace, s.parPodName, parContainerName, []string{procmgrCLI, "describe", process},
+		)
+		require.NoError(c, err, stderr)
+		stdout = strings.ReplaceAll(stdout, " ", "")
+		for _, state := range states {
+			if strings.Contains(stdout, "State:"+state) {
+				return
+			}
+		}
+		assert.Fail(c, "unexpected process state", "%s should be in one of %v:\n%s", process, states, stdout)
+	}, timeout, 200*time.Millisecond)
 }
 
 func (s *parK8sSuite) logPARContainerLogs(selector, reason string) {
