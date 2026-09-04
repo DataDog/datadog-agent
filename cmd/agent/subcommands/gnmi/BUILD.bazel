@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "gnmi",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/gnmi",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//pkg/collector/corechecks/network-devices/gnmi/client",
+        "//pkg/collector/corechecks/network-devices/gnmi/config",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@in_yaml_go_yaml_v2//:yaml",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "gnmi_test",
+    srcs = ["command_test.go"],
+    embed = [":gnmi"],
+    deps = [
+        "//cmd/agent/command",
+        "//pkg/collector/corechecks/network-devices/gnmi/client",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

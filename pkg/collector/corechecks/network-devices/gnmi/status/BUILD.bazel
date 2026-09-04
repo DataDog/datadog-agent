@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "status",
+    srcs = [
+        "registry.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/gnmi.tmpl",
+        "status_templates/gnmiHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/status",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/status",
+    ],
+)
+
+dd_agent_go_test(
+    name = "status_test",
+    srcs = ["status_test.go"],
+    embed = [":status"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
