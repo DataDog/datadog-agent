@@ -116,13 +116,22 @@ var preflightModeGlobalOverrides = map[string]any{
 // buildPreflightConfig returns the configuration ADP should run with during a preflight mode
 // pre-flight.
 //
-// The full Agent configuration as it exists at the time of this call is used as the base,
-// and overrides are applied on top of it: this ensures that ADP is configured as close as possible
-// to how it would be when running normally, with only the necessary changes to run it in "preflight" mode:
-// don't take over DSD, don't run any other pipelines, don't log to disk, and don't reserve buffer pools
-// sized for traffic that a one-metric pre-flight will never see.
+// The Agent configuration as the operator supplied it is used as the base, and overrides are
+// applied on top of it: this ensures that ADP is configured as close as possible to how it would
+// be when running normally, with only the necessary changes to run it in "preflight" mode:
+// don't take over DSD, don't run any other pipelines, don't log to disk, and don't reserve buffer
+// pools sized for traffic that a one-metric pre-flight will never see.
+//
+// Deliberately AllSettingsWithoutDefault and not AllSettings. A normally-supervised ADP is started
+// with `--config /etc/datadog-agent/datadog.yaml`, so it sees the operator's settings and fills in
+// the rest from its own defaults; handing it the Agent's defaults instead would be a different
+// configuration, not a more faithful one. It is also incorrect: AllSettings renders a default
+// indistinguishably from a value the operator asked for, and dd_url's default is a non-empty
+// https://app.datadoghq.com. Since an explicit dd_url beats `site` in ADP just as it does in the
+// Core Agent, a site-only config came out of AllSettings pointing the pre-flight -- metrics and
+// API key both -- at US1 no matter what site the operator had configured.
 func buildPreflightConfig(cfg pkgconfigmodel.Reader, l listener) map[string]any {
-	out := cfg.AllSettings()
+	out := cfg.AllSettingsWithoutDefault()
 	if out == nil {
 		out = map[string]any{}
 	}
