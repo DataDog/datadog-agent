@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "oci",
-    srcs = ["materializer.go"],
+    srcs = ["source.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts/oci",
     visibility = ["//visibility:public"],
     deps = select({

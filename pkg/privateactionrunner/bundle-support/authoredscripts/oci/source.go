@@ -5,8 +5,7 @@
 
 //go:build !windows
 
-// Package oci adapts the Fleet OCI downloader to authored-script package
-// materialization.
+// Package oci provides an OCI-backed authored-script package source.
 package oci
 
 import (
@@ -28,17 +27,17 @@ import (
 
 const materializationLayoutVersion = "datadog-package-v1"
 
-// Materializer downloads authored-script OCI packages and extracts their main
-// Datadog Package layer into an artifact-store staging directory.
-type Materializer struct {
-	downloader   *fleetoci.Downloader
-	cacheVariant string
+// Source fetches authored-script OCI packages and extracts their main Datadog
+// Package layer into an artifact-store staging directory.
+type Source struct {
+	downloader *fleetoci.Downloader
+	variant    string
 }
 
-// NewMaterializer creates an OCI materializer using the Fleet installer OCI
+// NewSource creates an OCI package source using the Fleet installer OCI
 // implementation. environment controls registry, proxy, platform flavor, and
-// authentication behavior; client performs the registry requests.
-func NewMaterializer(environment *installerenv.Env, client *http.Client) (*Materializer, error) {
+// authentication behavior; client performs registry requests.
+func NewSource(environment *installerenv.Env, client *http.Client) (*Source, error) {
 	if environment == nil {
 		return nil, errors.New("installer environment is required for authored-script OCI downloads")
 	}
@@ -57,9 +56,9 @@ func NewMaterializer(environment *installerenv.Env, client *http.Client) (*Mater
 	if environmentCopy.FIPSMode {
 		flavor = fleetoci.VariantFIPS
 	}
-	return &Materializer{
+	return &Source{
 		downloader: fleetoci.NewDownloader(&environmentCopy, client),
-		cacheVariant: strings.Join([]string{
+		variant: strings.Join([]string{
 			materializationLayoutVersion,
 			runtime.GOOS,
 			runtime.GOARCH,
@@ -68,50 +67,63 @@ func NewMaterializer(environment *installerenv.Env, client *http.Client) (*Mater
 	}, nil
 }
 
-// CacheVariant identifies the platform, flavor, and extracted layout produced
-// by this materializer.
-func (m *Materializer) CacheVariant() string {
-	if m == nil {
+// Variant identifies the platform, flavor, and extracted layout produced by
+// this source.
+func (s *Source) Variant() string {
+	if s == nil {
 		return ""
 	}
-	return m.cacheVariant
+	return s.variant
 }
 
-// Materialize downloads descriptor's immutable OCI reference and extracts its
-// main package layer. Archive extraction remains in pkg/fleet/installer/oci so
-// its media-type handling, size limit, retries, and cleanup behavior are reused.
-func (m *Materializer) Materialize(
+// Fetch downloads descriptor's immutable OCI reference and extracts its main
+// package layer into destination. Archive extraction remains in
+// pkg/fleet/installer/oci so its media-type handling, size limit, retries, and
+// cleanup behavior are reused.
+func (s *Source) Fetch(
 	ctx context.Context,
 	descriptor authoredscripts.Descriptor,
 	destination string,
-) (authoredscripts.MaterializedPackage, error) {
+) error {
 	if ctx == nil {
-		return authoredscripts.MaterializedPackage{}, errors.New("authored-script OCI download context is required")
+		return errors.New("authored-script OCI fetch context is required")
 	}
-	if m == nil || m.downloader == nil {
-		return authoredscripts.MaterializedPackage{}, errors.New("authored-script OCI materializer is not configured")
+	if s == nil || s.downloader == nil {
+		return errors.New("authored-script OCI source is not configured")
 	}
 	if destination == "" {
-		return authoredscripts.MaterializedPackage{}, errors.New("authored-script OCI destination is required")
+		return errors.New("authored-script OCI destination is required")
 	}
 	if err := validateReference(descriptor); err != nil {
-		return authoredscripts.MaterializedPackage{}, err
+		return err
 	}
 
-	downloadedPackage, err := m.downloader.Download(ctx, descriptor.URL)
+	downloadedPackage, err := s.downloader.Download(ctx, descriptor.URL)
 	if err != nil {
-		return authoredscripts.MaterializedPackage{}, fmt.Errorf("could not download authored-script OCI package: %w", err)
+		return fmt.Errorf("could not download authored-script OCI package: %w", err)
 	}
 	if downloadedPackage == nil {
-		return authoredscripts.MaterializedPackage{}, errors.New("authored-script OCI downloader returned no package")
+		return errors.New("authored-script OCI downloader returned no package")
 	}
 	if err := downloadedPackage.ExtractLayers(ctx, fleetoci.DatadogPackageLayerMediaType, destination); err != nil {
-		return authoredscripts.MaterializedPackage{}, fmt.Errorf("could not extract authored-script OCI package: %w", err)
+		return fmt.Errorf("could not extract authored-script OCI package: %w", err)
 	}
-	return authoredscripts.MaterializedPackage{
-		Package: downloadedPackage.Name,
-		Version: downloadedPackage.Version,
-	}, nil
+
+	pkg, err := authoredscripts.LoadPackage(
+		descriptor.Package,
+		descriptor,
+		authoredscripts.LocalArtifact{Directory: destination},
+	)
+	if err != nil {
+		return fmt.Errorf("could not validate authored-script OCI package: %w", err)
+	}
+	if downloadedPackage.Name != pkg.Manifest.Package {
+		return fmt.Errorf("OCI package name %q does not match authored-script manifest package %q", downloadedPackage.Name, pkg.Manifest.Package)
+	}
+	if downloadedPackage.Version != pkg.Manifest.Version {
+		return fmt.Errorf("OCI package version %q does not match authored-script manifest version %q", downloadedPackage.Version, pkg.Manifest.Version)
+	}
+	return nil
 }
 
 func validateReference(descriptor authoredscripts.Descriptor) error {

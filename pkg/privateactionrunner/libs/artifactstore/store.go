@@ -26,16 +26,12 @@ import (
 )
 
 const (
-	cacheDirectoryName      = "cache"
-	packagesDirectoryName   = "packages"
+	artifactsDirectoryName  = "artifacts"
 	locksDirectoryName      = "locks"
 	stagingDirectoryName    = "staging"
-	artifactDirectoryName   = "content"
-	completionMarkerName    = "complete"
-	stagingDirectoryPrefix  = "download-"
+	stagingDirectoryPrefix  = "artifact-"
 	lockFileSuffix          = ".lock"
 	privateDirectoryMode    = 0o700
-	privateFileMode         = 0o600
 	defaultLockPollInterval = 100 * time.Millisecond
 )
 
@@ -61,11 +57,10 @@ type Artifact struct {
 // and removes it after PopulateFunc returns.
 type PopulateFunc func(ctx context.Context, stagingDirectory string) error
 
-// ValidateFunc verifies an artifact without modifying it. It is called before
-// publication and on cache hits. Store metadata is kept outside the artifact
-// directory and must not be part of artifact-specific validation. ValidateFunc
-// may run concurrently in multiple processes and should be deterministic and
-// safe for concurrent use.
+// ValidateFunc verifies an artifact without modifying it. It is called on the
+// staging directory before publication and on published cache entries.
+// ValidateFunc may run concurrently in multiple processes and should be
+// deterministic and safe for concurrent use.
 type ValidateFunc func(ctx context.Context, artifactDirectory string) error
 
 // Store coordinates access to immutable artifacts below a filesystem root.
@@ -133,7 +128,7 @@ func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, vali
 		return Artifact{}, fmt.Errorf("could not inspect artifact %s: %w", key, err)
 	}
 	if usable {
-		return Artifact{Directory: artifactDirectory(paths.finalDirectory)}, nil
+		return Artifact{Directory: paths.finalDirectory}, nil
 	}
 
 	if err := createPrivateDirectory(filepath.Dir(paths.lockFile)); err != nil {
@@ -141,6 +136,13 @@ func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, vali
 	}
 
 	fileLock := flock.New(paths.lockFile)
+	available, err := waitForArtifactOrLock(ctx, fileLock, s.lockPollInterval, paths.finalDirectory, validate)
+	if err != nil {
+		return Artifact{}, fmt.Errorf("could not acquire lock for artifact %s: %w", key, err)
+	}
+	if available {
+		return Artifact{Directory: paths.finalDirectory}, nil
+	}
 	defer func() {
 		if err := fileLock.Unlock(); err != nil {
 			// Preserve the usual result contract: an error never accompanies an
@@ -149,27 +151,20 @@ func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, vali
 			returnErr = errors.Join(returnErr, fmt.Errorf("could not release lock for artifact %s: %w", key, err))
 		}
 	}()
-	available, err := waitForArtifactOrLock(ctx, fileLock, s.lockPollInterval, paths.finalDirectory, validate)
-	if err != nil {
-		return Artifact{}, fmt.Errorf("could not acquire lock for artifact %s: %w", key, err)
-	}
-	if available {
-		return Artifact{Directory: artifactDirectory(paths.finalDirectory)}, nil
-	}
 
 	// Another process may have published between our last inspection and our
-	// successful lock attempt, so the check while holding the lock is required.
+	// successful lock acquisition, so the check while holding the lock is
+	// required.
 	usable, err = inspectArtifact(ctx, paths.finalDirectory, validate)
 	if err != nil {
 		return Artifact{}, fmt.Errorf("could not inspect artifact %s after acquiring its lock: %w", key, err)
 	}
 	if usable {
-		return Artifact{Directory: artifactDirectory(paths.finalDirectory)}, nil
+		return Artifact{Directory: paths.finalDirectory}, nil
 	}
 
-	// A completion marker whose contents fail validation is not a cache hit.
-	// Removing it while holding the per-key lock lets this caller repair the
-	// cache while all other callers either wait or observe the replacement.
+	// Removing an unusable entry while holding the per-key lock lets this caller
+	// repair the cache while all other callers wait.
 	if err := os.RemoveAll(paths.finalDirectory); err != nil {
 		return Artifact{}, fmt.Errorf("could not remove unusable artifact %s: %w", key, err)
 	}
@@ -185,22 +180,15 @@ func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, vali
 	if err != nil {
 		return Artifact{}, fmt.Errorf("could not create staging directory for artifact %s: %w", key, err)
 	}
-	stagingDirectory := artifactDirectory(stagingRoot)
-	if err := os.Mkdir(stagingDirectory, privateDirectoryMode); err != nil {
-		return Artifact{}, fmt.Errorf("could not create staging content directory for artifact %s: %w", key, err)
-	}
 
-	if err := populate(ctx, stagingDirectory); err != nil {
+	if err := populate(ctx, stagingRoot); err != nil {
 		return Artifact{}, fmt.Errorf("could not populate artifact %s: %w", key, err)
 	}
-	if err := validate(ctx, stagingDirectory); err != nil {
+	if err := validate(ctx, stagingRoot); err != nil {
 		return Artifact{}, fmt.Errorf("could not validate artifact %s: %w", key, err)
 	}
 	if err := ctx.Err(); err != nil {
 		return Artifact{}, err
-	}
-	if err := createCompletionMarker(stagingRoot); err != nil {
-		return Artifact{}, fmt.Errorf("could not mark artifact %s complete: %w", key, err)
 	}
 
 	if err := createPrivateDirectory(filepath.Dir(paths.finalDirectory)); err != nil {
@@ -210,7 +198,7 @@ func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, vali
 		return Artifact{}, fmt.Errorf("could not publish artifact %s: %w", key, err)
 	}
 
-	return Artifact{Directory: artifactDirectory(paths.finalDirectory)}, nil
+	return Artifact{Directory: paths.finalDirectory}, nil
 }
 
 type storePaths struct {
@@ -223,8 +211,7 @@ func (s *Store) paths(key Key) storePaths {
 	return storePaths{
 		finalDirectory: filepath.Join(
 			s.root,
-			cacheDirectoryName,
-			packagesDirectoryName,
+			artifactsDirectoryName,
 			key.Namespace,
 			key.ID,
 			key.Variant,
@@ -277,30 +264,7 @@ func inspectArtifact(ctx context.Context, directory string, validate ValidateFun
 	if !info.IsDir() {
 		return false, nil
 	}
-
-	markerInfo, err := os.Lstat(filepath.Join(directory, completionMarkerName))
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	if !markerInfo.Mode().IsRegular() {
-		return false, nil
-	}
-
-	contentDirectory := artifactDirectory(directory)
-	contentInfo, err := os.Lstat(contentDirectory)
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	if !contentInfo.IsDir() {
-		return false, nil
-	}
-	if err := validate(ctx, contentDirectory); err != nil {
+	if err := validate(ctx, directory); err != nil {
 		// Cancellation is an operation failure, not evidence that the cached
 		// artifact is corrupt. In particular, a canceled lock holder must not
 		// remove an otherwise valid artifact.
@@ -310,10 +274,6 @@ func inspectArtifact(ctx context.Context, directory string, validate ValidateFun
 		return false, nil
 	}
 	return true, nil
-}
-
-func artifactDirectory(root string) string {
-	return filepath.Join(root, artifactDirectoryName)
 }
 
 func createPrivateDirectory(path string) error {
@@ -330,6 +290,9 @@ func waitForArtifactOrLock(
 	artifactDirectory string,
 	validate ValidateFunc,
 ) (available bool, err error) {
+	// A true result means a published artifact is available and no lock is held.
+	// A false result with no error means the caller acquired fileLock and must
+	// release it.
 	for {
 		if err := ctx.Err(); err != nil {
 			return false, err
@@ -374,15 +337,6 @@ func prepareStagingDirectory(paths storePaths) error {
 		return err
 	}
 	return createPrivateDirectory(paths.stagingKeyDirectory)
-}
-
-func createCompletionMarker(stagingDirectory string) error {
-	markerPath := filepath.Join(stagingDirectory, completionMarkerName)
-	marker, err := os.OpenFile(markerPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, privateFileMode)
-	if err != nil {
-		return err
-	}
-	return marker.Close()
 }
 
 func (k Key) String() string {

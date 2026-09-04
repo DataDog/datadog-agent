@@ -6,7 +6,7 @@ go_library(
     srcs = [
         "catalog.go",
         "command.go",
-        "download.go",
+        "cache.go",
         "environment.go",
         "execution.go",
         "manifest.go",

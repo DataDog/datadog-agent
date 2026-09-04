@@ -20,10 +20,10 @@ import (
 )
 
 type RunAuthoredScriptHandler struct {
-	catalog           authoredscripts.Catalog
-	downloader        *authoredscripts.Downloader
-	downloaderInitErr error
-	enabled           bool
+	catalog             authoredscripts.Catalog
+	packageCache        *authoredscripts.PackageCache
+	packageCacheInitErr error
+	enabled             bool
 }
 
 func NewRunAuthoredScriptHandler(enabled bool) *RunAuthoredScriptHandler {
@@ -36,11 +36,11 @@ func NewRunAuthoredScriptHandler(enabled bool) *RunAuthoredScriptHandler {
 	}
 
 	environment := installerenv.FromEnv()
-	materializer, err := authoredscriptsoci.NewMaterializer(environment, environment.HTTPClient())
+	source, err := authoredscriptsoci.NewSource(environment, environment.HTTPClient())
 	if err == nil {
-		handler.downloader, err = authoredscripts.NewUserCacheDownloader(materializer)
+		handler.packageCache, err = authoredscripts.NewUserPackageCache(source)
 	}
-	handler.downloaderInitErr = err
+	handler.packageCacheInitErr = err
 	return handler
 }
 
@@ -69,18 +69,18 @@ func (h *RunAuthoredScriptHandler) Run(
 	fqn := task.GetFQN()
 	descriptor, err := h.catalog.Lookup(fqn)
 	if err != nil {
-		return nil, fmt.Errorf("could not resolve authored-script package %q: %w", fqn, err)
+		return nil, fmt.Errorf("could not look up authored-script package %q: %w", fqn, err)
 	}
-	if h.downloaderInitErr != nil {
-		return nil, fmt.Errorf("could not initialize authored-script downloader: %w", h.downloaderInitErr)
+	if h.packageCacheInitErr != nil {
+		return nil, fmt.Errorf("could not initialize authored-script package cache: %w", h.packageCacheInitErr)
 	}
-	if h.downloader == nil {
-		return nil, errors.New("authored-script downloader is not configured")
+	if h.packageCache == nil {
+		return nil, errors.New("authored-script package cache is not configured")
 	}
 
-	artifact, err := h.downloader.Download(ctx, descriptor)
+	artifact, err := h.packageCache.Resolve(ctx, descriptor)
 	if err != nil {
-		return nil, fmt.Errorf("could not download authored-script package %q: %w", fqn, err)
+		return nil, fmt.Errorf("could not resolve authored-script package %q: %w", fqn, err)
 	}
 	scriptPackage, err := authoredscripts.LoadPackage(fqn, descriptor, artifact)
 	if err != nil {
