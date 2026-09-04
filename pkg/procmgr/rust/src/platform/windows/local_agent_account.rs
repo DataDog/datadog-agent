@@ -13,7 +13,6 @@ use windows_sys::Win32::Security::{
 };
 
 use super::account_name::AccountName;
-#[cfg(not(test))]
 use super::agent_service_sid::lookup_installed_user_sid;
 #[cfg(not(test))]
 use super::agent_service_sid::{DATADOG_AGENT_SERVICE, service_runs_as_agent_user};
@@ -75,7 +74,7 @@ impl AgentAccount {
                 })
             }
             AgentAccount::PasswordLogon { domain, user, .. } => {
-                let sid = lookup_account_sid(domain, user)
+                let sid = lookup_installed_user_sid(domain, user)
                     .with_context(|| format!("lookup SID for {}", self.display_name()))?;
                 current_process_sid_matches(&sid).with_context(|| {
                     format!("compare supervisor token to {}", self.display_name())

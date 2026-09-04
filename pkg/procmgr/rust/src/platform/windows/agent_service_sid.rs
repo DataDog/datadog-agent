@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use anyhow::Result;
 #[cfg(not(test))]
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, bail};
 #[cfg(not(test))]
 use log::info;
 #[cfg(not(test))]
@@ -15,8 +16,9 @@ use windows_sys::Win32::System::Services::{
     SC_HANDLE, SC_MANAGER_CONNECT, SERVICE_QUERY_CONFIG,
 };
 
+use super::sid::lookup_account_sid;
 #[cfg(not(test))]
-use super::sid::{lookup_account_sid, sid_to_string};
+use super::sid::sid_to_string;
 #[cfg(not(test))]
 use super::wide;
 
@@ -46,7 +48,6 @@ pub(crate) fn service_runs_as_agent_user(
     Ok(matches)
 }
 
-#[cfg(not(test))]
 pub(crate) fn lookup_installed_user_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
     let mut last_err = None;
     for (candidate_domain, candidate_user) in installed_user_lookup_candidates(domain, user) {

@@ -90,6 +90,13 @@ mod tests {
                     "test harness must inherit the supervisor token, not SCM installer password: \
                      {credential:?}"
                 );
+                assert!(
+                    credential
+                        .account()
+                        .spawns_with_supervisor_token()
+                        .expect("compare spawn account to supervisor token"),
+                    "empty-password PasswordLogon must inherit the supervisor token: {credential:?}"
+                );
             }
         }
     }
