@@ -48,7 +48,8 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSI() {
 	// Act
 	s.installCurrentAgentVersion(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL="+currentAPMInjectRegistry),
+		// TODO: remove override once image is published in prod
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3,java:1"),
 		WithMSILogFile("install.log"),
@@ -65,7 +66,8 @@ func (s *testAgentMSIInstallsAPMInject) TestEnableDisable() {
 	// Act
 	s.installCurrentAgentVersion(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL="+currentAPMInjectRegistry),
+		// TODO: remove override once image is published in prod
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3,java:1"),
 		WithMSILogFile("install.log"),
@@ -96,7 +98,8 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSIWithIIS() {
 	// Install with IIS instrumentation
 	s.installCurrentAgentVersion(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL="+currentAPMInjectRegistry),
+		// TODO: remove override once image is published in prod
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3"),
 		WithMSILogFile("install.log"),
@@ -124,7 +127,8 @@ func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSIWithJava() {
 	// Install with Java instrumentation
 	s.installCurrentAgentVersion(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL="+currentAPMInjectRegistry),
+		// TODO: remove override once image is published in prod
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=java:1"),
 		WithMSILogFile("install.log"),
