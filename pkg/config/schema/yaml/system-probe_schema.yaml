@@ -622,7 +622,6 @@ properties:
         type: boolean
         platform_default:
           linux: true
-          windows: true
           other: false
       dns_recorded_query_types:
         node_type: setting
