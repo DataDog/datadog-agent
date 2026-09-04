@@ -9,6 +9,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -34,7 +35,7 @@ func TestStart(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	srv := NewKubeMetadataStreamServer(nil, wmetaMock)
+	srv := NewKubeMetadataStreamServer(nil, wmetaMock, nil)
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -92,8 +93,49 @@ func TestStart(t *testing.T) {
 	assert.Empty(t, srv.buildNamespacesSnapshot())
 }
 
+func TestStartSlowPodResolutionDoesNotBlockMetadataEvents(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	resolver := &blockingPodOwnerResolver{
+		started: make(chan struct{}, 1),
+		unblock: make(chan struct{}),
+	}
+	srv := NewKubeMetadataStreamServer(nil, wmetaMock, resolver)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer close(resolver.unblock)
+
+	nodeCh := srv.subscribeToNamespaceEvents("node1")
+	srv.Start(ctx)
+
+	wmetaMock.Set(&workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Namespace: "ns1",
+			Name:      "pod1",
+		},
+		NodeName: "node1",
+	})
+	assertNotified(t, "resolver started", resolver.started)
+
+	wmetaMock.Set(&workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "ns1")),
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: "ns1"},
+		GVR:        &schema.GroupVersionResource{Resource: "namespaces"},
+	})
+
+	assertNotified(t, "namespace metadata while resolver is blocked", nodeCh)
+}
+
 func TestSubscribeToNamespaceEvents(t *testing.T) {
-	srv := NewKubeMetadataStreamServer(nil, nil)
+	srv := NewKubeMetadataStreamServer(nil, nil, nil)
 
 	// Two subscriptions for the same node. Both must receive notifications.
 	ch1 := srv.subscribeToNamespaceEvents("node1")
@@ -101,45 +143,153 @@ func TestSubscribeToNamespaceEvents(t *testing.T) {
 	ch2 := srv.subscribeToNamespaceEvents("node1")
 	defer srv.unsubscribeFromNamespaceEvents("node1", ch2)
 
-	srv.processWmetaEvents(testNamespaceSetEvents())
+	srv.processMetadataEvents(testNamespaceSetEvents())
 
 	assertNotified(t, "first", ch1)
 	assertNotified(t, "second", ch2)
 }
 
+func TestProcessPodEvent_NotifiesAffectedNodeAfterProcessing(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil, staticPodOwnerResolver{})
+	t.Cleanup(srv.podOwnerQueue.ShutDown)
+	node1Ch := srv.subscribeToNamespaceEvents("node1")
+	defer srv.unsubscribeFromNamespaceEvents("node1", node1Ch)
+	node2Ch := srv.subscribeToNamespaceEvents("node2")
+	defer srv.unsubscribeFromNamespaceEvents("node2", node2Ch)
+
+	srv.enqueuePodEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{Namespace: "ns1", Name: "pod1"},
+				NodeName:   "node1",
+			},
+		},
+	})
+	assert.True(t, srv.processNextPodEvent(context.Background()))
+
+	assertNotified(t, "affected node", node1Ch)
+	assertNotNotified(t, "unaffected node", node2Ch)
+
+	srv.enqueuePodEvents([]workloadmeta.Event{
+		{
+			Type: workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{Namespace: "ns1", Name: "pod1"},
+				NodeName:   "node1",
+			},
+		},
+	})
+	assert.True(t, srv.processNextPodEvent(context.Background()))
+
+	assertNotified(t, "affected node after unset", node1Ch)
+	assert.NotContains(t, srv.buildMetadataSnapshot("node1").matchedOwners, "ns1/pod1")
+}
+
+func TestProcessesPodEvent_FollowingEventHandled(t *testing.T) {
+	resolver := &blockingPodOwnerResolver{
+		started: make(chan struct{}, 1),
+		unblock: make(chan struct{}),
+	}
+	srv := NewKubeMetadataStreamServer(nil, nil, resolver)
+	t.Cleanup(srv.podOwnerQueue.ShutDown)
+
+	nodeCh := srv.subscribeToNamespaceEvents("node1")
+	setEvent := workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{Namespace: "ns1", Name: "pod1"},
+			NodeName:   "node1",
+		},
+	}
+	unsetEvent := workloadmeta.Event{
+		Type: workloadmeta.EventTypeUnset,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{Namespace: "ns1", Name: "pod1"},
+			NodeName:   "node1",
+		},
+	}
+
+	srv.enqueuePodEvents([]workloadmeta.Event{setEvent})
+	done := make(chan struct{})
+	go func() {
+		srv.processNextPodEvent(context.Background())
+		close(done)
+	}()
+	assertNotified(t, "resolver started", resolver.started)
+
+	srv.enqueuePodEvents([]workloadmeta.Event{unsetEvent})
+	close(resolver.unblock)
+	assertNotified(t, "resolution finished", done)
+
+	assert.Contains(t, srv.buildMetadataSnapshot("node1").matchedOwners, "ns1/pod1")
+	assertNotified(t, "resolved pod event", nodeCh)
+
+	assert.True(t, srv.processNextPodEvent(context.Background()))
+	assertNotified(t, "event received during resolution", nodeCh)
+	assert.Empty(t, srv.buildMetadataSnapshot("node1").matchedOwners)
+}
+
+func TestProcessPodEvent_PreservesOwnersAfterRetriesExhausted(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil, errorPodOwnerResolver{})
+	t.Cleanup(srv.podOwnerQueue.ShutDown)
+
+	key := "ns1/pod1"
+	existingOwners := []workloadmeta.KubernetesMatchedOwner{{Kind: "CloneSet", Name: "workload1"}}
+	srv.matchedOwners["node1"] = matchedOwnersSnapshot{
+		key: {namespace: "ns1", podName: "pod1", owners: existingOwners},
+	}
+	nodeCh := srv.subscribeToNamespaceEvents("node1")
+
+	for i := 0; i < podOwnerMaxRetries; i++ {
+		srv.podOwnerQueue.AddRateLimited(key)
+	}
+	srv.enqueuePodEvents([]workloadmeta.Event{{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{Namespace: "ns1", Name: "pod1"},
+			NodeName:   "node1",
+		},
+	}})
+
+	assert.True(t, srv.processNextPodEvent(context.Background()))
+	assert.Equal(t, existingOwners, srv.buildMetadataSnapshot("node1").matchedOwners[key].owners)
+	assertNotNotified(t, "failed owner resolution", nodeCh)
+}
+
 func TestUnsubscribeFromNamespaceEvents(t *testing.T) {
 	t.Run("unsubscribing the older subscriber leaves the newer one working", func(t *testing.T) {
-		srv := NewKubeMetadataStreamServer(nil, nil)
+		srv := NewKubeMetadataStreamServer(nil, nil, nil)
 		olderCh := srv.subscribeToNamespaceEvents("node1")
 		newerCh := srv.subscribeToNamespaceEvents("node1")
 
 		srv.unsubscribeFromNamespaceEvents("node1", olderCh)
-		srv.processWmetaEvents(testNamespaceSetEvents())
+		srv.processMetadataEvents(testNamespaceSetEvents())
 
 		assertNotified(t, "newer", newerCh)
 		assertNotNotified(t, "older", olderCh)
 	})
 
 	t.Run("unsubscribing the newer subscriber leaves the older one working", func(t *testing.T) {
-		srv := NewKubeMetadataStreamServer(nil, nil)
+		srv := NewKubeMetadataStreamServer(nil, nil, nil)
 		olderCh := srv.subscribeToNamespaceEvents("node1")
 		newerCh := srv.subscribeToNamespaceEvents("node1")
 
 		srv.unsubscribeFromNamespaceEvents("node1", newerCh)
-		srv.processWmetaEvents(testNamespaceSetEvents())
+		srv.processMetadataEvents(testNamespaceSetEvents())
 
 		assertNotified(t, "older", olderCh)
 		assertNotNotified(t, "newer", newerCh)
 	})
 
 	t.Run("unsubscribing an unknown channel is a no-op", func(t *testing.T) {
-		srv := NewKubeMetadataStreamServer(nil, nil)
+		srv := NewKubeMetadataStreamServer(nil, nil, nil)
 		olderCh := srv.subscribeToNamespaceEvents("node1")
 		newerCh := srv.subscribeToNamespaceEvents("node1")
 
 		unknown := make(chan struct{}, 1)
 		srv.unsubscribeFromNamespaceEvents("node1", unknown)
-		srv.processWmetaEvents(testNamespaceSetEvents())
+		srv.processMetadataEvents(testNamespaceSetEvents())
 
 		assertNotified(t, "older", olderCh)
 		assertNotified(t, "newer", newerCh)
@@ -453,9 +603,9 @@ func TestComputeNamespacesDiff(t *testing.T) {
 }
 
 func TestProcessKueueQueueEvents(t *testing.T) {
-	srv := NewKubeMetadataStreamServer(nil, nil)
+	srv := NewKubeMetadataStreamServer(nil, nil, nil)
 
-	srv.processWmetaEvents([]workloadmeta.Event{
+	srv.processMetadataEvents([]workloadmeta.Event{
 		{
 			Type: workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.KubernetesKueueQueue{
@@ -484,7 +634,7 @@ func TestProcessKueueQueueEvents(t *testing.T) {
 	assert.Equal(t, map[string]string{"team": "batch"}, entry.labels)
 	assert.Equal(t, map[string]string{"owner": "team-a"}, entry.annotations)
 
-	srv.processWmetaEvents([]workloadmeta.Event{
+	srv.processMetadataEvents([]workloadmeta.Event{
 		{
 			Type: workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.KubernetesKueueQueue{
@@ -506,7 +656,7 @@ func TestProcessKueueQueueEvents(t *testing.T) {
 	assert.Equal(t, workloadmeta.KueueClusterQueue, entry.queueType)
 	assert.Equal(t, map[string]string{"tier": "gold"}, entry.labels)
 
-	srv.processWmetaEvents([]workloadmeta.Event{
+	srv.processMetadataEvents([]workloadmeta.Event{
 		{
 			Type: workloadmeta.EventTypeUnset,
 			Entity: &workloadmeta.KubernetesKueueQueue{
@@ -585,9 +735,9 @@ func TestComputeKueueQueueDiff(t *testing.T) {
 }
 
 func TestProcessKueueResourceFlavorEvents(t *testing.T) {
-	srv := NewKubeMetadataStreamServer(nil, nil)
+	srv := NewKubeMetadataStreamServer(nil, nil, nil)
 
-	srv.processWmetaEvents([]workloadmeta.Event{
+	srv.processMetadataEvents([]workloadmeta.Event{
 		{
 			Type: workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.KubernetesKueueResourceFlavor{
@@ -612,7 +762,7 @@ func TestProcessKueueResourceFlavorEvents(t *testing.T) {
 	assert.Equal(t, map[string]string{"owner": "team-a"}, entry.annotations)
 	assert.Equal(t, map[string]string{"nvidia.com/gpu.product": "NVIDIA-A100-SXM4-40GB"}, entry.nodeAffinityLabels)
 
-	srv.processWmetaEvents([]workloadmeta.Event{
+	srv.processMetadataEvents([]workloadmeta.Event{
 		{
 			Type: workloadmeta.EventTypeUnset,
 			Entity: &workloadmeta.KubernetesKueueResourceFlavor{
@@ -666,9 +816,9 @@ func TestComputeKueueResourceFlavorDiff(t *testing.T) {
 }
 
 func TestProcessKueueWorkloadEvents(t *testing.T) {
-	srv := NewKubeMetadataStreamServer(nil, nil)
+	srv := NewKubeMetadataStreamServer(nil, nil, nil)
 
-	srv.processWmetaEvents([]workloadmeta.Event{
+	srv.processMetadataEvents([]workloadmeta.Event{
 		{
 			Type: workloadmeta.EventTypeSet,
 			Entity: &workloadmeta.KubernetesKueueWorkload{
@@ -713,7 +863,7 @@ func TestProcessKueueWorkloadEvents(t *testing.T) {
 		{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 	}, entry.podSetAssignments)
 
-	srv.processWmetaEvents([]workloadmeta.Event{
+	srv.processMetadataEvents([]workloadmeta.Event{
 		{
 			Type: workloadmeta.EventTypeUnset,
 			Entity: &workloadmeta.KubernetesKueueWorkload{
@@ -807,6 +957,19 @@ func TestFullStateResponse(t *testing.T) {
 			{name: "main", flavors: map[string]string{"nvidia.com/gpu": "a100"}},
 		},
 	}
+	metadata.matchedOwners["ns1/pod1"] = podMatchedOwnersEntry{
+		namespace: "ns1",
+		podName:   "pod1",
+		owners: []workloadmeta.KubernetesMatchedOwner{
+			{
+				Group:     "apps.kruise.io",
+				Version:   "v1alpha1",
+				Kind:      "CloneSet",
+				Namespace: "ns1",
+				Name:      "workload1",
+			},
+		},
+	}
 
 	resp := fullStateResponse(pods, metadata)
 
@@ -848,9 +1011,40 @@ func TestFullStateResponse(t *testing.T) {
 				Type: pb.KubeMetadataEventType_SET,
 			},
 		},
+		MatchedOwners: []*pb.PodMatchedOwners{
+			{
+				Namespace: "ns1",
+				PodName:   "pod1",
+				Owners: []*pb.MatchedOwner{
+					{
+						Group:     "apps.kruise.io",
+						Version:   "v1alpha1",
+						Kind:      "CloneSet",
+						Namespace: "ns1",
+						Name:      "workload1",
+					},
+				},
+				Type: pb.KubeMetadataEventType_SET,
+			},
+		},
 	}
 
 	assert.True(t, proto.Equal(expected, resp))
+}
+
+func TestBuildMetadataSnapshotMatchedOwnersAreNodeScoped(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil, nil)
+	srv.matchedOwners["node-a"] = matchedOwnersSnapshot{
+		"ns1/pod1": {namespace: "ns1", podName: "pod1"},
+	}
+	srv.matchedOwners["node-b"] = matchedOwnersSnapshot{
+		"ns1/pod2": {namespace: "ns1", podName: "pod2"},
+	}
+
+	snapshot := srv.buildMetadataSnapshot("node-a")
+
+	assert.Contains(t, snapshot.matchedOwners, "ns1/pod1")
+	assert.NotContains(t, snapshot.matchedOwners, "ns1/pod2")
 }
 
 func testNamespaceSetEvents() []workloadmeta.Event {
@@ -882,5 +1076,32 @@ func assertNotNotified(t *testing.T, name string, ch <-chan struct{}) {
 	case <-ch:
 		t.Fatalf("%s subscriber was notified but should not have been", name)
 	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+type staticPodOwnerResolver struct{}
+
+func (staticPodOwnerResolver) Resolve(context.Context, *workloadmeta.KubernetesPod) ([]workloadmeta.KubernetesMatchedOwner, error) {
+	return nil, nil
+}
+
+type errorPodOwnerResolver struct{}
+
+func (errorPodOwnerResolver) Resolve(context.Context, *workloadmeta.KubernetesPod) ([]workloadmeta.KubernetesMatchedOwner, error) {
+	return nil, errors.New("owner resolution failed")
+}
+
+type blockingPodOwnerResolver struct {
+	started chan struct{}
+	unblock chan struct{}
+}
+
+func (r *blockingPodOwnerResolver) Resolve(ctx context.Context, _ *workloadmeta.KubernetesPod) ([]workloadmeta.KubernetesMatchedOwner, error) {
+	r.started <- struct{}{}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-r.unblock:
+		return nil, nil
 	}
 }
