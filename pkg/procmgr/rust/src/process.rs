@@ -6,7 +6,7 @@
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::parse_environment_file;
 use crate::platform;
-use crate::spawn::{SpawnProfile, profile_for};
+use crate::spawn::SpawnProfile;
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{info, warn};
@@ -119,7 +119,7 @@ impl ManagedProcess {
 
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
-        let profile = profile_for(&name);
+        let profile = SpawnProfile::profile_for(&name);
         let user = platform::intended_spawn_user(&name, profile);
         Self {
             name,

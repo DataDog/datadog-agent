@@ -20,10 +20,12 @@ impl std::fmt::Display for SpawnProfile {
     }
 }
 
-pub fn profile_for(process_name: &str) -> SpawnProfile {
-    match process_name {
-        DATADOG_AGENT_PROCESS if cfg!(windows) => SpawnProfile::Privileged,
-        _ => SpawnProfile::Agent,
+impl SpawnProfile {
+    pub fn profile_for(process_name: &str) -> Self {
+        match process_name {
+            DATADOG_AGENT_PROCESS if cfg!(windows) => Self::Privileged,
+            _ => Self::Agent,
+        }
     }
 }
 
@@ -35,7 +37,7 @@ mod tests {
     #[test]
     fn datadog_agent_process_uses_privileged_profile_on_windows() {
         assert_eq!(
-            profile_for("datadog-agent-process"),
+            SpawnProfile::profile_for("datadog-agent-process"),
             SpawnProfile::Privileged
         );
     }
@@ -43,7 +45,10 @@ mod tests {
     #[cfg(not(windows))]
     #[test]
     fn datadog_agent_process_uses_agent_profile_on_unix() {
-        assert_eq!(profile_for("datadog-agent-process"), SpawnProfile::Agent);
+        assert_eq!(
+            SpawnProfile::profile_for("datadog-agent-process"),
+            SpawnProfile::Agent
+        );
     }
 
     #[test]
@@ -54,7 +59,7 @@ mod tests {
             "datadog-agent-trace",
             "unknown-process",
         ] {
-            assert_eq!(profile_for(name), SpawnProfile::Agent, "{name}");
+            assert_eq!(SpawnProfile::profile_for(name), SpawnProfile::Agent, "{name}");
         }
     }
 }

@@ -5,4 +5,4 @@
 
 mod profile;
 
-pub(crate) use profile::{SpawnProfile, profile_for};
+pub(crate) use profile::SpawnProfile;
