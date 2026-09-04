@@ -226,9 +226,7 @@ fn print_fixed_width_table(headers: &[&str], rows: &[Vec<String>]) {
             rows.iter()
                 .filter_map(|row| row.get(col))
                 .map(String::len)
-                .chain(std::iter::once(header.len()))
-                .max()
-                .unwrap_or(0)
+                .fold(header.len(), usize::max)
         })
         .collect();
 
