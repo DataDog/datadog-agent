@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Support injecting Agent-managed connection credentials as environment
+    variables into predefined scripts.

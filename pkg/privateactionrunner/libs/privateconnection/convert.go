@@ -51,6 +51,22 @@ func ExtractConnectionDetails(connInfo *privateactionspb.ConnectionInfo) ([]*pri
 	return tokens, details
 }
 
+func ExtractEnvironmentVariables(connInfo *privateactionspb.ConnectionInfo) []PrivateCredentialsToken {
+	group := connlib.GroupTokens(connInfo.Tokens)
+	environmentVariables := group[EnvironmentVariablesGroupName]
+	if len(environmentVariables) == 0 {
+		return nil
+	}
+	result := make([]PrivateCredentialsToken, 0, len(environmentVariables))
+	for _, token := range environmentVariables {
+		result = append(result, PrivateCredentialsToken{
+			Name:  connlib.GetName(token),
+			Value: token.GetPlainText().GetValue(),
+		})
+	}
+	return result
+}
+
 func getHttpHeaders(tokens []*privateactionspb.ConnectionToken) []PrivateCredentialsToken {
 	headers := make([]PrivateCredentialsToken, 0)
 	for _, token := range tokens {

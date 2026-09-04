@@ -114,11 +114,13 @@ go_library(
 dd_agent_go_test(
     name = "script_test",
     srcs = [
+        "helper_test.go",
         "limited_writer_test.go",
         "transform_inline_script_test.go",
     ],
     embed = [":script"],
     deps = [
+        "//pkg/privateactionrunner/libs/privateconnection",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

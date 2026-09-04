@@ -82,6 +82,8 @@ func TestResolveConnectionInfoToCredentialConnectionTokensV2DatadogAgentSecrets(
 		TokensV2: []*privateactionspb.ConnectionTokenV2{
 			newV2DatadogAgentSecretToken([]string{privateconnection.RootTokenGroupName, "password"}, "ENC[database_password]"),
 			newV2DatadogAgentSecretToken([]string{"headers", "X-API-Key"}, "ENC[api_key]"),
+			newV2DatadogAgentSecretToken([]string{privateconnection.EnvironmentVariablesGroupName, "DATABASE_PASSWORD"}, "ENC[database_password]"),
+			newV2DatadogAgentSecretToken([]string{privateconnection.EnvironmentVariablesGroupName, "API_TOKEN"}, "ENC[api_key]"),
 		},
 	}
 
@@ -89,10 +91,14 @@ func TestResolveConnectionInfoToCredentialConnectionTokensV2DatadogAgentSecrets(
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"password": "resolved-password"}, got.AsTokenMap())
 	assert.Equal(t, []privateconnection.PrivateCredentialsToken{{Name: "X-API-Key", Value: "resolved-api-key"}}, got.HttpDetails.Headers)
+	assert.Equal(t, []privateconnection.PrivateCredentialsToken{
+		{Name: "DATABASE_PASSWORD", Value: "resolved-password"},
+		{Name: "API_TOKEN", Value: "resolved-api-key"},
+	}, got.EnvironmentVariables)
 	assert.Equal(t, "private-action-runner/connection/connection-id", secretResolver.origin)
 	var encodedSecrets []string
 	require.NoError(t, yaml.Unmarshal(secretResolver.encodedData, &encodedSecrets))
-	assert.Equal(t, []string{"ENC[database_password]", "ENC[api_key]"}, encodedSecrets)
+	assert.Equal(t, []string{"ENC[database_password]", "ENC[api_key]", "ENC[database_password]", "ENC[api_key]"}, encodedSecrets)
 	assert.Equal(t, 1, secretResolver.calls)
 }
 

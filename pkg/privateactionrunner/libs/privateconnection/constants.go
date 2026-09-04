@@ -6,7 +6,8 @@
 package privateconnection
 
 const (
-	RootTokenGroupName = "root_tokens"
-	UsernameTokenName  = "username"
-	PasswordTokenName  = "password"
+	RootTokenGroupName            = "root_tokens"
+	EnvironmentVariablesGroupName = "environmentVariables"
+	UsernameTokenName             = "username"
+	PasswordTokenName             = "password"
 )
