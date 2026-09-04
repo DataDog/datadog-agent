@@ -13,7 +13,7 @@ from invoke.context import Context
 
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
-from tasks.kernel_matrix_testing.platforms import filter_by_ci_component, get_platforms
+from tasks.kernel_matrix_testing.platforms import TestSetShard, filter_by_ci_component, get_platforms
 from tasks.kernel_matrix_testing.stacks import (
     check_and_get_stack,
     create_stack,
@@ -617,12 +617,12 @@ class VM:
 
 
 class VMSet:
-    def __init__(self, arch: KMTArchNameOrLocal, recipe: Recipe, testset: str, tags: set[str]):
+    def __init__(self, arch: KMTArchNameOrLocal, recipe: Recipe, testset: TestSetShard, tags: set[str]):
         self.arch: KMTArchNameOrLocal = arch
         self.recipe: Recipe = recipe
         self.tags: set[str] = tags
         self.vms: list[VM] = []
-        self.testset: str = testset
+        self.testset: TestSetShard = testset
 
     def __eq__(self, other: Any):
         if not isinstance(other, VMSet):
@@ -642,7 +642,7 @@ class VMSet:
             vm_str.append(vm.version)
         return f"<VMSet> tags={'-'.join(self.tags)} arch={self.arch} vms={','.join(vm_str)}"
 
-    def add_vm_if_belongs(self, recipe: Recipe, version: str, arch: KMTArchNameOrLocal, testset: str):
+    def add_vm_if_belongs(self, recipe: Recipe, version: str, arch: KMTArchNameOrLocal, testset: TestSetShard):
         if recipe == "custom":
             expected_tag = custom_version_prefix(version)
             found = False
@@ -661,11 +661,15 @@ def custom_version_prefix(version: str) -> str:
     return "lte_414" if lte_414(version) else "gt_414"
 
 
-def build_vmsets(normalized_vm_defs_by_set: dict[str, list[VMDef]]) -> set[VMSet]:
+def build_vmsets(normalized_vm_defs_by_set: dict[TestSetShard, list[VMDef]]) -> set[VMSet]:
     vmsets: set[VMSet] = set()
     for testset in normalized_vm_defs_by_set:
+        test_set_name, shard = testset
         for recipe, _, arch in normalized_vm_defs_by_set[testset]:
-            vmsets.add(VMSet(arch, recipe, testset, {vmset_name(arch, recipe), testset}))
+            tags = {vmset_name(arch, recipe), test_set_name}
+            if shard is not None:
+                tags.add(shard)
+            vmsets.add(VMSet(arch, recipe, testset, tags))
 
     # map vms to vmsets
     for testset in normalized_vm_defs_by_set:
@@ -678,7 +682,7 @@ def build_vmsets(normalized_vm_defs_by_set: dict[str, list[VMDef]]) -> set[VMSet
 
 def generate_vmconfig(
     vm_config: VMConfig,
-    normalized_vm_defs_by_set: dict[str, list[VMDef]],
+    normalized_vm_defs_by_set: dict[TestSetShard, list[VMDef]],
     vcpu: list[int],
     memory: list[int],
     ci: bool,
@@ -727,7 +731,7 @@ def ls_to_int(ls: list[Any]) -> list[int]:
     return int_ls
 
 
-def build_normalized_vm_def_by_set(vms: str, sets: list[str]) -> dict[str, list[VMDef]]:
+def build_normalized_vm_def_by_set(vms: str, sets: list[str]) -> dict[TestSetShard, list[VMDef]]:
     vm_types = vms.split(',')
     if len(vm_types) == 0:
         raise Exit("No VMs to boot provided")
@@ -738,9 +742,9 @@ def build_normalized_vm_def_by_set(vms: str, sets: list[str]) -> dict[str, list[
     if len(sets) == 0:
         sets = ["default"]
 
-    normalized_by_set = {}
+    normalized_by_set: dict[TestSetShard, list[VMDef]] = {}
     for s in sets:
-        normalized_by_set[s] = normalized
+        normalized_by_set[(s, None)] = normalized
 
     return normalized_by_set
 

@@ -62,7 +62,7 @@ class TestFilterByCIComponent(unittest.TestCase):
         plats = platforms.get_platforms()
 
         for component in self.components:
-            expected: dict[tuple[str, str], set[str]] = {}
+            expected: dict[tuple[platforms.TestSetShard, str], set[str]] = {}
             for job in platforms.get_ci_test_jobs(component):
                 for test_set in job.test_set:
                     expected.setdefault((test_set, job.arch), set()).update(job.kernels)
@@ -76,6 +76,26 @@ class TestFilterByCIComponent(unittest.TestCase):
                         f"{component}: vmset {test_set} on {arch} does not match the kernels "
                         "of the CI jobs running that test set",
                     )
+
+    def test_shard_matrix_matches_shards_variable(self):
+        """A job declaring SHARDS: n but whose matrix SHARD values don't cover 1..n would
+        silently never run some fraction of the suite, with nothing else failing: the VM
+        lookup and the archive filename both key off whatever SHARD values do appear, so
+        a missing one just leaves a shard's worth of tests unrun.
+        """
+        for component in self.components:
+            for job in platforms.get_ci_test_jobs(component):
+                if job.shards is None:
+                    continue
+
+                shard_values = {shard for _, shard in job.test_set if shard is not None}
+                expected_values = {str(i) for i in range(1, int(job.shards) + 1)}
+                self.assertEqual(
+                    shard_values,
+                    expected_values,
+                    f"{component}: job {job.name} declares SHARDS={job.shards} but its "
+                    f"matrix SHARD values are {sorted(shard_values, key=int)}",
+                )
 
     def test_every_ci_job_gets_its_microvms(self):
         plats = platforms.get_platforms()
