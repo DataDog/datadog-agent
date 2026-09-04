@@ -9,7 +9,7 @@ package contexttop
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"os"
 	"sort"
@@ -68,10 +68,10 @@ func FromFile(filePath string, numMetrics, numTags int) (Result, error) {
 // FromReader summarizes a sequence of JSON-encoded context representations.
 func FromReader(r io.Reader, numMetrics, numTags int) (Result, error) {
 	if numMetrics < 0 {
-		return Result{}, fmt.Errorf("number of metrics must not be negative")
+		return Result{}, errors.New("number of metrics must not be negative")
 	}
 	if numTags < 0 {
-		return Result{}, fmt.Errorf("number of tags must not be negative")
+		return Result{}, errors.New("number of tags must not be negative")
 	}
 
 	metrics := make(map[string]*metricContexts)
