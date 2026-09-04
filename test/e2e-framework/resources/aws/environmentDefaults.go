@@ -49,6 +49,7 @@ type ddInfra struct {
 	defaultShutdownBehavior        string
 	defaultInternalRegistry        string
 	defaultInternalDockerhubMirror string
+	defaultDatadogPublicRegistry   string
 	useMacosCompatibleSubnets      bool // Some subnets are not compatible with macOS hosts. macOS hosts are supported only in us-east-1a and us-east-1b
 	leaseBucket                    string
 
@@ -129,6 +130,7 @@ func sandboxDefault() environmentDefault {
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			defaultInternalDockerhubMirror: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub",
+			defaultDatadogPublicRegistry:   "669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog",
 			useMacosCompatibleSubnets:      false,
 			leaseBucket:                    "datadog-agent-sandbox",
 
@@ -180,6 +182,7 @@ func agentSandboxDefault() environmentDefault {
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			defaultInternalDockerhubMirror: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub",
+			defaultDatadogPublicRegistry:   "669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog",
 			useMacosCompatibleSubnets:      false,
 			leaseBucket:                    "datadog-agent-sandbox",
 			ecs: ddInfraECS{
@@ -252,6 +255,7 @@ func agentQADefault() environmentDefault {
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			defaultInternalDockerhubMirror: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub",
+			defaultDatadogPublicRegistry:   "669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog",
 			useMacosCompatibleSubnets:      false,
 			leaseBucket:                    "datadog-agent-qa-e2e-pools",
 			ecs: ddInfraECS{
@@ -323,7 +327,9 @@ func tsePlaygroundDefault() environmentDefault {
 			defaultWindowsInstanceType: "t3.large",
 			defaultInstanceStorageSize: 200,
 			defaultShutdownBehavior:    "stop",
-			useMacosCompatibleSubnets:  false,
+			// This account has no pull-through cache, so pull straight from the public registry.
+			defaultDatadogPublicRegistry: "public.ecr.aws/datadog",
+			useMacosCompatibleSubnets:    false,
 			// Not currently used to acquire macOS pool instances; defaulted to the
 			// sandbox bucket as a safe fallback.
 			leaseBucket: "datadog-agent-sandbox",
