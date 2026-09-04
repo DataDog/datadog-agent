@@ -19,7 +19,7 @@ kubernetes clusters.
 ```python
 
     def get_connection_info():
-        """Get kubelet connection informations.
+        """Get kubelet connection information.
 
         Returns:
             A dictionary containing connection info, can be empty.
