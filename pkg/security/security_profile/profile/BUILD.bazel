@@ -7,6 +7,7 @@ go_library(
         "dump_header.go",
         "graph.go",
         "grpc.go",
+        "hardening_posture.go",
         "json.go",
         "profile.go",
         "profile_unsupported.go",
@@ -116,7 +117,10 @@ go_library(
 
 dd_agent_go_test(
     name = "profile_test",
-    srcs = ["disable_test.go"],
+    srcs = [
+        "disable_test.go",
+        "hardening_posture_test.go",
+    ],
     embed = [":profile"],
     deps = select({
         "@rules_go//go/platform:android": [
@@ -124,6 +128,7 @@ dd_agent_go_test(
             "//pkg/security/resolvers/cgroup/model",
             "//pkg/security/secl/model",
             "//pkg/security/security_profile/activity_tree",
+            "//pkg/security/utils",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
@@ -132,6 +137,7 @@ dd_agent_go_test(
             "//pkg/security/resolvers/cgroup/model",
             "//pkg/security/secl/model",
             "//pkg/security/security_profile/activity_tree",
+            "//pkg/security/utils",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],

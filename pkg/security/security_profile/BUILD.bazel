@@ -107,6 +107,7 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/config",
+            "//pkg/security/probe/config",
             "//pkg/security/resolvers",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/cgroup/model",
@@ -126,6 +127,7 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/config",
+            "//pkg/security/probe/config",
             "//pkg/security/resolvers",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/cgroup/model",

@@ -487,6 +487,8 @@ func (m *ManagerV2) persistAllProfiles() {
 func (m *ManagerV2) persistProfile(p *profile.Profile) {
 	enabled := p.IsEnabled()
 
+	m.attachHardeningPosture(p)
+
 	encoded := make(map[config.StorageFormat]*bytes.Buffer)
 	for format, requests := range m.configuredStorageRequests {
 		for _, request := range requests {
@@ -535,6 +537,16 @@ func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.S
 	}
 
 	m.sendPersistenceMetrics(request, data.Len())
+}
+
+// attachHardeningPosture refreshes the profile's hardening posture summary so the storage
+// backends marshal it with the rest of the JSON header. It runs on every persist rather than
+// once, because the summary describes the tree as it stands at that moment.
+func (m *ManagerV2) attachHardeningPosture(p *profile.Profile) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2HardeningPostureEnabled {
+		return
+	}
+	p.Header.Hardening = p.ComputeHardeningPosture(m.config.Probe.CapabilitiesMonitoringEnabled)
 }
 
 // sendPersistenceMetrics accumulates persistence metrics after successful profile persistence.

@@ -554,6 +554,10 @@ type RuntimeSecurityConfig struct {
 	// visibility: private
 	// default_value: 5120
 	SecurityProfileV2MaxDumpSize func() int
+	// SecurityProfileV2HardeningPostureEnabled defines whether workload profiles carry a hardening
+	// posture summary in their JSON header. The summary is indexed backend-side on every profile
+	// from every container, so it stays opt-in until that cost is validated.
+	SecurityProfileV2HardeningPostureEnabled bool
 
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	// visibility: private
@@ -1053,6 +1057,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)
 			return mds * (1 << 10)
 		},
+		SecurityProfileV2HardeningPostureEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.hardening_posture.enabled"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
