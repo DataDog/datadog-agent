@@ -29,7 +29,10 @@ go_library(
 
 dd_agent_go_test(
     name = "aws_test",
-    srcs = ["environmentDefaults_test.go"],
+    srcs = [
+        "environmentDefaults_test.go",
+        "environment_test.go",
+    ],
     embed = [":aws"],
     deps = [
         "@com_github_stretchr_testify//assert",
