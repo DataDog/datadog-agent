@@ -38,6 +38,7 @@ env:
   https_proxy: -${https_proxy}
   no_proxy: -${no_proxy}
 
+  DD_AUTH_TOKEN_FILE_PATH: -${DD_AUTH_TOKEN_FILE_PATH}
   DD_IPC_CERT_FILE_PATH: -${DD_IPC_CERT_FILE_PATH}
   DD_PM_SOCKET_PATH: -${DD_PM_SOCKET_PATH}
 
