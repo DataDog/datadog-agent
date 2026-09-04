@@ -63,19 +63,6 @@ func TestConfiguredTagsAppearOnceWhenNotPassedToSetTags(t *testing.T) {
 
 	tags := origin.Tags()
 	assert.Equal(t, []string{"sourcecategory:b", "team:infra"}, tags)
-	for _, configuredTag := range cfg.Tags {
-		assert.Equal(t, 1, countTagOccurrences(tags, configuredTag))
-	}
-}
-
-func countTagOccurrences(tags []string, target string) int {
-	count := 0
-	for _, tag := range tags {
-		if tag == target {
-			count++
-		}
-	}
-	return count
 }
 
 func TestSetTagsWithConfigTags(t *testing.T) {
