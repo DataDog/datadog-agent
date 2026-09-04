@@ -119,7 +119,9 @@ func (r runConfig) commandArgs(t subCommandType) []string {
 
 		// Add mounts
 		for hostPath, containerPath := range r.Mounts {
-			args = append(args, "-v", fmt.Sprintf("%s:%s", hostPath, containerPath))
+			if hostPath != "" && containerPath != "" {
+				args = append(args, "-v", fmt.Sprintf("%s:%s", hostPath, containerPath))
+			}
 		}
 
 		// Pass environment variables to the container as docker args

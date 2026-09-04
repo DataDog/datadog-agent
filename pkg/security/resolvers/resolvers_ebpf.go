@@ -332,10 +332,14 @@ func (r *EBPFResolvers) snapshot() error {
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
 		// If the process is running a Datadog tracer, populate the user-space
-		// metadata and the kernel-side go_labels_procs / otel_tls maps: the
-		// runtime tracer_memfd_seal event that normally does it has already
-		// fired and been missed for processes that started before the agent.
+		// metadata and the kernel-side go_labels_procs map: the runtime
+		// tracer_memfd_seal event that normally does it has already fired and
+		// been missed for processes that started before the agent.
 		r.ProcessResolver.SnapshotTracer(uint32(proc.Pid))
+		// Likewise for the thread-context readers, which hang off the OTel
+		// process context a process publishes rather than off its tracer
+		// metadata, and whose publication was missed the same way.
+		r.ProcessResolver.SnapshotOTelProcessContext(uint32(proc.Pid))
 	}
 
 	return nil

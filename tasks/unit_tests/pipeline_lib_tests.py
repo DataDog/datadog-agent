@@ -41,6 +41,42 @@ class TestGracefullyCancelPipeline(unittest.TestCase):
         self.assertTrue(all(call.kwargs == {'lazy': True} for call in repo.jobs.get.call_args_list))
         self.assertEqual(repo.jobs.get.return_value.cancel.call_count, 2)
 
+    def test_does_not_cancel_running_e2e_init_job(self):
+        jobs = [
+            SimpleNamespace(id=1, name='e2e-init-job', stage='e2e_init', status='running'),
+        ]
+        pipeline = MagicMock()
+        pipeline.jobs.list.return_value = jobs
+        repo = MagicMock()
+
+        gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=[])
+
+        repo.jobs.get.assert_not_called()
+
+    def test_cancels_queued_e2e_init_job(self):
+        jobs = [
+            SimpleNamespace(id=1, name='e2e-init-job', stage='e2e_init', status='pending'),
+        ]
+        pipeline = MagicMock()
+        pipeline.jobs.list.return_value = jobs
+        repo = MagicMock()
+
+        gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=[])
+
+        self.assertEqual([call.args[0] for call in repo.jobs.get.call_args_list], [1])
+
+    def test_force_cancel_stages_overrides_running_e2e_init_exemption(self):
+        jobs = [
+            SimpleNamespace(id=1, name='e2e-init-job', stage='e2e_init', status='running'),
+        ]
+        pipeline = MagicMock()
+        pipeline.jobs.list.return_value = jobs
+        repo = MagicMock()
+
+        gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=['e2e_init'])
+
+        self.assertEqual([call.args[0] for call in repo.jobs.get.call_args_list], [1])
+
 
 class TestFailedJobs(unittest.TestCase):
     def test_infra_failure(self):

@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Send CNM/USM data directly to Datadog from system-probe on Linux and Windows.
+    This eliminates the need to run process-agent in certain configurations.
+    Customers with tight memory limits on system-probe may need to increase
+    the limit by 50-100MiB, but an equal amount can be removed from the process-agent memory limit.

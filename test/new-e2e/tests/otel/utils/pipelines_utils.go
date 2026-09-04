@@ -321,6 +321,46 @@ func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 	}
 }
 
+// TestMetricsAttributesAsTags verifies that when the infraattributes processor's
+// metrics_attributes_as_tags option is enabled, a custom tagger-derived tag
+// (customLabelTag) is promoted onto metrics as a real Datadog tag -- surviving
+// the metrics translator's allowlist -- WITHOUT enabling resource_attributes_as_tags.
+//
+// This is intentionally a separate helper from TestMetrics: TestMetrics asserts
+// against OTel resource-attribute conventions (custom.attribute, k8s.pod.name,
+// k8s.namespace.name, ...) that only surface as metric tags when
+// resource_attributes_as_tags is enabled. metrics_attributes_as_tags is the
+// targeted alternative to that broad, high-cardinality lever, so its suites do
+// not enable it -- and enabling it would make the promotion assertion below
+// meaningless, since customLabelTag would then appear regardless of this option.
+func TestMetricsAttributesAsTags(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	var metrics []*aggregator.MetricSeries
+	s.T().Log("Waiting for metrics")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter",
+			fakeintake.WithTags[*aggregator.MetricSeries]([]string{
+				fmt.Sprintf("service:%v", CalendarService),
+				"kube_ownerref_kind:replicaset",
+			}))
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics)
+	}, 5*time.Minute, 10*time.Second)
+	s.T().Log("Got metrics", s.T().Name(), metrics)
+
+	for _, metricSeries := range metrics {
+		tags := getTagMapFromSlice(s.T(), metricSeries.Tags)
+		assert.Equal(s.T(), CalendarService, tags["service"])
+		// The custom tagger-derived tag is promoted under the
+		// `datadog.container.tag.` prefix by the processor and surfaced as a real
+		// metric tag by the translator only when metrics_attributes_as_tags is on.
+		assert.Equal(s.T(), customLabelValue, tags[customLabelTag],
+			"expected %q to be promoted to a metric tag when metrics_attributes_as_tags is enabled", customLabelTag)
+	}
+}
+
 // TestLogs tests that OTLP logs are received through OTel pipelines as expected
 func TestLogs(s OTelTestSuite, iaParams IAParams) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
