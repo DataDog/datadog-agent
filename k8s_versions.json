@@ -43,5 +43,11 @@
     "digest": "sha256:aaacd9f04ed5d2161b30c6041dff5385d4d809766e46953b9df1fc6f9f5f4095",
     "rc": false,
     "kind_version": "v0.32.0"
+  },
+  "v1.37.0": {
+    "tag": "v1.37.0",
+    "digest": "sha256:ef1eb899a809858acccb92c27c4cb87c9541765a8986be0bcf27637e0fc9d9c5",
+    "rc": false,
+    "kind_version": "v0.32.0"
   }
 }

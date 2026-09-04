@@ -119,6 +119,7 @@ struct syscall_cache_t {
             int clone_mnt_ctr;
             int source;
             u64 ns_inum;
+            u64 unshare_flags;
         } mount;
 
         struct {

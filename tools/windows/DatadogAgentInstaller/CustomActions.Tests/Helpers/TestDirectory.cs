@@ -25,6 +25,13 @@ namespace CustomActions.Tests.Helpers
         internal static readonly SecurityIdentifier Administrators =
             new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
 
+        /// <summary>
+        /// SID of the ContainerAdministrator account used in Windows containers. Not a
+        /// WellKnownSidType, so it is constructed from its literal SID string.
+        /// </summary>
+        internal static readonly SecurityIdentifier ContainerAdministrator =
+            new SecurityIdentifier("S-1-5-93-2-1");
+
         internal static readonly SecurityIdentifier Everyone =
             new SecurityIdentifier(WellKnownSidType.WorldSid, null);
 

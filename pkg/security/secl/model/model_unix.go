@@ -136,6 +136,7 @@ type Event struct {
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 	SysCtl       SysCtlEvent       `field:"sysctl" event:"sysctl"`               // [7.65] [Kernel] A sysctl parameter was read or modified
 	CgroupWrite  CgroupWriteEvent  `field:"cgroup_write" event:"cgroup_write"`   // [7.68] [Kernel] A process migrated another process to a cgroup
+	Unshare      UnshareEvent      `field:"unshare" event:"unshare"`             // [7.84] [Kernel] A process created new namespaces
 
 	// network events
 	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
@@ -411,8 +412,14 @@ type Process struct {
 
 	// pid_cache_t
 	ForkTime time.Time `field:"fork_time,opts:getters_only"`
-	ExitTime time.Time `field:"exit_time,opts:getters_only"`
 	ExecTime time.Time `field:"exec_time,opts:getters_only"`
+	// ExitTime is set only when the process exits (do_exit).
+	ExitTime time.Time `field:"exit_time,opts:getters_only"`
+	// StopExecutionTime is set when this process cache entry stops being the
+	// currently executing image, either because it was replaced by a later exec
+	// or because the process exited. Unlike ExitTime, it is intentionally not
+	// exposed as a SECL field and must not be used as proof of a final process exit.
+	StopExecutionTime time.Time `field:"-"`
 
 	ForkFlags uint64 `field:"-"`
 
@@ -420,7 +427,6 @@ type Process struct {
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
 	Cookie uint64 `field:"-"`
-	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
 	Credentials
@@ -430,7 +436,7 @@ type Process struct {
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
-	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
+	AWSSecurityCredentials []AWSSecurityCredentials `field:"aws_security_credentials,iterator:AWSSecurityCredentialsIterator,opts:exposed_at_event_root_only"` // AWS security credentials this process resolved from IMDS; only exposed at the root of a process context, the accessors generator keeps a single iterator per field so it cannot be nested under the ancestors one
 
 	Tracer Tracer `field:"-"`
 
@@ -464,15 +470,7 @@ type Process struct {
 
 	Source uint64 `field:"-"`
 
-	// lineage
-	validLineageResult *validLineageResult `field:"-"`
-
 	IsThroughSymLink bool `field:"-"` // Indicates whether the process is through a symlink
-}
-
-type validLineageResult struct {
-	valid bool
-	err   error
 }
 
 // SetAncestorFields force the process cache entry to be valid
@@ -648,6 +646,12 @@ type UnshareMountNSEvent struct {
 	Mount
 }
 
+// UnshareEvent represents a namespace creation via the unshare syscall
+type UnshareEvent struct {
+	SyscallEvent
+	Flags uint64 `field:"flags"` // SECLDoc[flags] Definition:`Namespace flags requested by the unshare call` Constants:`Clone flags`
+}
+
 // ChdirEvent represents a chdir event
 type ChdirEvent struct {
 	SyscallEvent
@@ -691,6 +695,7 @@ type PIDContext struct {
 	NetNS         uint32 `field:"netns"`      // SECLDoc[netns] Definition:`NetNS ID of the process`
 	MntNS         uint32 `field:"mntns"`      // SECLDoc[mntns] Definition:`MNTNS ID of the process`
 	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker/kthread`
+	PPid          uint32 `field:"ppid"`       // SECLDoc[ppid] Definition:`Parent process ID`
 	SID           uint32 `field:"sid"`        // SECLDoc[sid] Definition:`Session ID of the process`
 	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
 	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
@@ -917,6 +922,11 @@ type SampleRefreshEvent struct {
 	Cookie uint32
 }
 
+// OTelProcessCtxEvent is an internal event sent when a process publishes its OTel process context.
+type OTelProcessCtxEvent struct {
+	Pid uint32
+}
+
 // AcceptEvent represents an accept event
 type AcceptEvent struct {
 	SyscallEvent
@@ -1046,6 +1056,54 @@ type NetworkFlowMonitorEvent struct {
 	Device     NetworkDeviceContext `field:"device"` // network device on which the network flows were captured
 	FlowsCount uint64               `field:"-"`
 	Flows      []Flow               `field:"flows,iterator:FlowsIterator"` // list of captured flows
+}
+
+// AWSSecurityCredentialsIterator defines an iterator of the AWS security credentials of a process
+type AWSSecurityCredentialsIterator struct {
+	Root []AWSSecurityCredentials
+	prev int
+}
+
+// Front returns the first element
+func (it *AWSSecurityCredentialsIterator) Front(_ *eval.Context) *AWSSecurityCredentials {
+	if len(it.Root) == 0 {
+		return nil
+	}
+
+	it.prev = 0
+	return &it.Root[0]
+}
+
+// Next returns the next element
+func (it *AWSSecurityCredentialsIterator) Next(_ *eval.Context) *AWSSecurityCredentials {
+	if len(it.Root) > it.prev+1 {
+		it.prev++
+		return &it.Root[it.prev]
+	}
+	return nil
+}
+
+// At returns the element at the given position
+func (it *AWSSecurityCredentialsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *AWSSecurityCredentials {
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*AWSSecurityCredentials)
+	}
+
+	if len(it.Root) > pos {
+		creds := &it.Root[pos]
+		ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+			Pos:   pos,
+			Value: creds,
+		}
+		return creds
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *AWSSecurityCredentialsIterator) Len(_ *eval.Context) int {
+	return len(it.Root)
 }
 
 // FlowsIterator defines an iterator of flows

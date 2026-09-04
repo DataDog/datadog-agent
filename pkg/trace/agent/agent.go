@@ -802,7 +802,9 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		// but the concentrator will sync copy all strings it needs.
 		a.Concentrator.AddV1(statsInput)
 	}
-	a.writeChunksV1(sampledChunks)
+	if len(sampledChunks.TracerPayload.Chunks) > 0 {
+		a.writeChunksV1(sampledChunks)
+	}
 }
 
 func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
