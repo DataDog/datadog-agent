@@ -60,10 +60,12 @@ var packetSourceTelemetry = struct {
 
 // packetWithInfo wraps copied packet data with metadata
 type packetWithInfo struct {
-	data      []byte // Copied data from pool, caller must return via putBuffer
-	timestamp time.Time
-	direction uint8 // PACKET_HOST or PACKET_OUTGOING
-	layerType gopacket.LayerType
+	data        []byte // Copied data from pool, caller must return via putBuffer
+	timestamp   time.Time
+	direction   uint8 // PACKET_HOST or PACKET_OUTGOING
+	layerType   gopacket.LayerType
+	originalLen int
+	capturedLen int
 }
 
 // directionDecoder is a placeholder for gopacket-based direction decoding.
@@ -128,7 +130,9 @@ type DarwinPacketInfo struct {
 	// encapsulation. Callers must use this to select the correct decoder —
 	// different interfaces on macOS may use different encapsulations
 	// (e.g. LayerTypeEthernet for en0, LayerTypeLoopback for utun0).
-	LayerType gopacket.LayerType
+	LayerType   gopacket.LayerType
+	originalLen int
+	capturedLen int
 }
 
 // PacketType returns the packet direction type
@@ -143,6 +147,16 @@ func (d *DarwinPacketInfo) LinkLayerType() gopacket.LayerType {
 		return d.LayerType
 	}
 	return layers.LayerTypeEthernet
+}
+
+// OriginalLength returns the packet length before capture truncation.
+func (d *DarwinPacketInfo) OriginalLength() int {
+	return d.originalLen
+}
+
+// CapturedLength returns the number of bytes supplied to the visitor.
+func (d *DarwinPacketInfo) CapturedLength() int {
+	return d.capturedLen
 }
 
 // Option configures a LibpcapSource.
@@ -180,8 +194,9 @@ func OptBPFFilter(expr string) Option {
 }
 
 // isEligibleInterface reports whether an interface should be captured.
-// Skips loopback, virtual/tunnel interfaces that never carry TCP/UDP connections,
-// Apple-internal interfaces, and virtualization/hardware interconnect interfaces.
+// It excludes loopback and selected virtual or Apple-internal interfaces from
+// optional packet enrichment; the composite backend still discovers their
+// connections through NStat. utun interfaces remain eligible for VPN traffic.
 func isEligibleInterface(iface net.Interface) bool {
 	if iface.Flags&net.FlagLoopback != 0 {
 		return false
@@ -387,6 +402,8 @@ func (p *LibpcapSource) VisitPackets(visitor func(data []byte, info PacketInfo, 
 		case pkt := <-p.packetChan:
 			packetInfo.PktType = pkt.direction
 			packetInfo.LayerType = pkt.layerType
+			packetInfo.originalLen = pkt.originalLen
+			packetInfo.capturedLen = pkt.capturedLen
 
 			// Wrap in a closure so putBuffer runs via defer even if visitor
 			// panics, preventing a permanent pool leak.
@@ -475,10 +492,12 @@ func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle) {
 
 		select {
 		case p.packetChan <- packetWithInfo{
-			data:      buf,
-			timestamp: ci.Timestamp,
-			direction: direction,
-			layerType: ih.goPacketLayerType,
+			data:        buf,
+			timestamp:   ci.Timestamp,
+			direction:   direction,
+			layerType:   ih.goPacketLayerType,
+			originalLen: ci.Length,
+			capturedLen: ci.CaptureLength,
 		}:
 		case <-p.exit:
 			p.putBuffer(buf)
