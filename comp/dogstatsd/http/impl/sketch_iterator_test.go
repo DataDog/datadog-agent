@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 func TestSketchIterator(t *testing.T) {
@@ -44,7 +44,7 @@ func TestSketchIterator(t *testing.T) {
 	origin, err := originFromHeader(header, tagger)
 	require.NoError(t, err)
 
-	it, err := newSketchIterator(payload, origin, "default", utilstrings.Matcher{})
+	it, err := newSketchIterator(payload, origin, "default", metricname.Matcher{})
 	require.NoError(t, err)
 	require.NotNil(t, it)
 
@@ -119,7 +119,7 @@ func TestSketchIteratorFilterList(t *testing.T) {
 	origin, err := originFromHeader(http.Header{}, tagger)
 	require.NoError(t, err)
 
-	it, err := newSketchIterator(payload, origin, "default", utilstrings.NewMatcher([]string{"foo"}, false))
+	it, err := newSketchIterator(payload, origin, "default", metricname.NewMatcher([]string{"foo"}, false))
 	require.NoError(t, err)
 
 	// bar's summary and bins must not be shifted by foo's skipped points.
@@ -171,7 +171,7 @@ func TestSketchIteratorTagMerging(t *testing.T) {
 	origin, err := originFromHeader(header, tagger)
 	require.NoError(t, err)
 
-	it, err := newSketchIterator(payload, origin, "default", utilstrings.Matcher{})
+	it, err := newSketchIterator(payload, origin, "default", metricname.Matcher{})
 	require.NoError(t, err)
 
 	require.True(t, it.MoveNext())
@@ -213,7 +213,7 @@ func TestSketchIteratorHostOverride(t *testing.T) {
 	header := http.Header{}
 	origin, err := originFromHeader(header, tagger)
 	require.NoError(t, err)
-	it, err := newSketchIterator(payload, origin, "default", utilstrings.Matcher{})
+	it, err := newSketchIterator(payload, origin, "default", metricname.Matcher{})
 	require.NoError(t, err)
 	require.True(t, it.MoveNext())
 	s := it.Current().(*dogstatsdSketchSeries)
@@ -243,7 +243,7 @@ func TestSketchIteratorWrongType(t *testing.T) {
 	header := http.Header{}
 	origin, err := originFromHeader(header, tagger)
 	require.NoError(t, err)
-	it, err := newSketchIterator(payload, origin, "default", utilstrings.Matcher{})
+	it, err := newSketchIterator(payload, origin, "default", metricname.Matcher{})
 	require.NoError(t, err)
 	require.False(t, it.MoveNext())
 	require.Error(t, it.err)

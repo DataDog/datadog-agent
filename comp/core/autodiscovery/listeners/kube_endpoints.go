@@ -513,9 +513,33 @@ func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }
 
-// FilterTemplates filters the given configs based on the service's CEL selector.
+// FilterTemplates filters the given configs based on the service's CEL selector
+// and endpoint annotation precedence.
 func (s *KubeEndpointService) FilterTemplates(configs map[string]integration.Config) {
 	filterTemplatesMatched(s, configs)
+	s.filterTemplatesOverriddenChecks(configs)
+}
+
+// filterTemplatesOverriddenChecks drops DatadogInstrumentation endpoint
+// templates when an endpoint annotation configures the same integration.
+func (s *KubeEndpointService) filterTemplatesOverriddenChecks(configs map[string]integration.Config) {
+	annotationCheckNames := make(map[string]struct{})
+	for _, config := range configs {
+		if config.Provider == names.KubeEndpoints || config.Provider == names.KubeEndpointSlices {
+			annotationCheckNames[config.Name] = struct{}{}
+		}
+	}
+
+	for digest, config := range configs {
+		if config.Provider != names.KubeEndpointSlicesCR {
+			continue
+		}
+		if _, found := annotationCheckNames[config.Name]; found {
+			log.Debugf("Ignoring config from %s: endpoint annotation overrides check %s for service %s",
+				config.Source, config.Name, s.GetServiceID())
+			delete(configs, digest)
+		}
+	}
 }
 
 // GetFilterableEntity returns the filterable entity of the service

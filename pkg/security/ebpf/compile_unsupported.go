@@ -15,6 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 )
 
-func getRuntimeCompiledPrograms(_ *config.Config, _, _, _ bool) (bytecode.AssetReader, error) {
+func getRuntimeCompiledPrograms(_ *config.Config, _, _, _, _ bool) (bytecode.AssetReader, error) {
 	return nil, errors.New("runtime compilation unsupported")
 }

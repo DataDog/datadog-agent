@@ -117,10 +117,7 @@ def show_eks_connection_message(
     print(f"\nYou can run the following command to connect to the EKS cluster\n\n{command}\n")
 
     if interactive:
-        import pyperclip
-
-        input("Press a key to copy command to clipboard...")
-        pyperclip.copy(command)
+        tool.copy_to_clipboard_if_supported(command, prompt="Press a key to copy command to clipboard...")
 
 
 def get_image_description(ctx: Context, ami_id: str) -> Any:

@@ -7,6 +7,7 @@ package configstreamimpl
 
 import (
 	"context"
+	"math"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -345,13 +346,13 @@ type configInterceptor struct {
 
 func (ci *configInterceptor) OnUpdate(cb model.NotificationReceiver) {
 	ci.realCallback = cb
-	ci.BuildableConfig.OnUpdate(func(setting string, source model.Source, oldValue, newValue interface{}, sequenceID uint64) {
+	ci.BuildableConfig.OnUpdate(func(setting string, source model.Source, oldValue, newValue interface{}, sequenceID uint64, unsetSource model.Source) {
 		if ci.swallowNextUpdate {
 			ci.swallowNextUpdate = false
 			return
 		}
 		if ci.realCallback != nil {
-			ci.realCallback(setting, source, oldValue, newValue, sequenceID)
+			ci.realCallback(setting, source, oldValue, newValue, sequenceID, unsetSource)
 		}
 	})
 }
@@ -365,6 +366,7 @@ func buildComponent(t *testing.T) (Provides, *configInterceptor) {
 	cfg.BindEnvAndSetDefault("my.new.setting", "")
 	cfg.BindEnvAndSetDefault("dropped.setting", "")
 	cfg.BindEnvAndSetDefault("another.setting", 0)
+	cfg.BindEnvAndSetDefault("complex.setting", map[string]interface{}{})
 	cfg.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", true)
 	cfg.BindEnvAndSetDefault("logs_config.use_compression", false)
 
@@ -467,19 +469,74 @@ func TestConfigStream(t *testing.T) {
 		require.Equal(t, "new_value", update.Update.Setting.Value.GetStringValue())
 
 		configComp.UnsetForSource("my.new.setting", model.SourceCLI)
-		// verify we receive the update for the unset.
+
 		select {
 		case event = <-eventsCh:
 		case <-time.After(2 * time.Second):
-			t.Fatal("timed out waiting for config update")
+			t.Fatal("timed out waiting for config unset")
 		}
 		require.NotNil(t, event)
 		update, isUpdate = event.GetEvent().(*pb.ConfigEvent_Update)
-		require.True(t, isUpdate, "unset event must be an update")
-
-		// verify that the value has been unset and back to the original value.
+		require.True(t, isUpdate, "a removal travels as an update, got %T", event.GetEvent())
 		require.Equal(t, "my.new.setting", update.Update.Setting.Key)
+		require.Equal(t, string(model.SourceCLI), update.Update.Setting.UnsetSource, "the cleared layer, not the fallback")
+
+		// Subscribers mirror the merged view, so the removal has to say what the key resolves to now.
 		require.Equal(t, "original_value", update.Update.Setting.Value.GetStringValue())
+		require.Equal(t, string(model.SourceAgentRuntime), update.Update.Setting.Source)
+	})
+	dropsRemovalWhenFallbackIsUnencodable := func(t *testing.T) {
+		provides, configComp := buildComponent(t)
+
+		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-unencodable"})
+		defer unsubscribe()
+
+		var event *pb.ConfigEvent
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting initial snapshot")
+		}
+		_, isSnapshot := event.GetEvent().(*pb.ConfigEvent_Snapshot)
+		require.True(t, isSnapshot, "first event must be snapshot")
+
+		configComp.Set("complex.setting", map[string]interface{}{"n": 1.0}, model.SourceCLI)
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting config update")
+		}
+		update, isUpdate := event.GetEvent().(*pb.ConfigEvent_Update)
+		require.True(t, isUpdate)
+		require.Equal(t, "complex.setting", update.Update.Setting.Key)
+
+		// Scalar keys are coerced to their declared type, so an unencodable value only survives under
+		// a complex one. This write is shadowed by CLI, so it notifies nobody and stays off the wire.
+		configComp.Set("complex.setting", map[string]interface{}{"n": math.Inf(1)}, model.SourceAgentRuntime)
+
+		// Clearing CLI falls back to the +Inf map, which has no JSON representation. A removal with a
+		// bare unset_source would read as "nothing remains" and diverge the subscriber for good, so
+		// nothing is sent at all.
+		configComp.UnsetForSource("complex.setting", model.SourceCLI)
+		select {
+		case event = <-eventsCh:
+			t.Fatalf("expected no event, got %v", event.GetEvent())
+		case <-time.After(500 * time.Millisecond):
+		}
+
+		// The dropped event still consumed a sequence ID, so the next change lands out of order and
+		// the subscriber is resynchronized with a snapshot instead of carrying a stale value.
+		configComp.Set("complex.setting", map[string]interface{}{"n": 2.0}, model.SourceCLI)
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting resynchronization snapshot")
+		}
+		_, isSnapshot = event.GetEvent().(*pb.ConfigEvent_Snapshot)
+		require.True(t, isSnapshot, "sequence gap must resynchronize the subscriber")
+	}
+	t.Run("drops the removal when the fallback value cannot be encoded", func(t *testing.T) {
+		synctest.Test(t, dropsRemovalWhenFallbackIsUnencodable)
 	})
 
 	resyncsWithSnapshotOnDiscontinuity := func(t *testing.T) {

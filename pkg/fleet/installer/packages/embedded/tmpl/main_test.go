@@ -45,6 +45,12 @@ func TestGenerationIsUpToDate(t *testing.T) {
 // variable referenced in a gen/pm/processes.d/*.yaml process definition
 // is defined in every gen/pm/*/datadog-agent-procmgr.service context that
 // starts the process manager responsible for running that process.
+func TestParControlUsesActiveConfigDirForFleetPolicies(t *testing.T) {
+	process, err := fs.ReadFile(genFS, "gen/pm/processes.d/datadog-agent-par-control.yaml")
+	assert.NoError(t, err)
+	assert.Contains(t, string(process), "DD_FLEET_POLICIES_DIR: ${DD_CONF_DIR}/managed/datadog-agent/stable")
+}
+
 func TestProcessesEnvVarsDefinedInProcmgrService(t *testing.T) {
 	processesDir, err := fs.Sub(genFS, "gen/pm/processes.d")
 	assert.NoError(t, err)

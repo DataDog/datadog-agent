@@ -110,6 +110,18 @@ func TestEnsureDatadogDataDir(t *testing.T) {
 
 		assert.NoError(t, ensureDatadogDataDir(sddl))
 	})
+
+	t.Run("directory owned by ContainerAdministrator", func(t *testing.T) {
+		privilegesRequired := []string{"SeRestorePrivilege"}
+		skipIfDontHavePrivileges(t, privilegesRequired)
+		DatadogDataDir = filepath.Join(t.TempDir(), "Datadog")
+		err := winio.RunWithPrivileges(privilegesRequired, func() error {
+			return createDirectoryWithSDDL(DatadogDataDir, "O:"+containerAdministratorSID+"G:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)")
+		})
+		require.NoError(t, err)
+
+		assert.NoError(t, ensureDatadogDataDir(sddl))
+	})
 }
 
 func TestIsDirSecureSuggestsARunnableCommand(t *testing.T) {

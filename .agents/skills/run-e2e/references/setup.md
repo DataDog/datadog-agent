@@ -1,6 +1,6 @@
 # One-time E2E setup
 
-`/docs/public/how-to/test/e2e.md` is the authoritative guide to `dda inv -- e2e.setup`. This file adds
+`/docs/public/how-to/test/e2e/running.md` is the authoritative guide to `dda inv -- e2e.setup`. This file adds
 only which machine to run it on. It is idempotent, so suggesting it is cheap even when you are unsure.
 
 **Always on the host, never the interactive form in a container.** It derives the keypair name from the
