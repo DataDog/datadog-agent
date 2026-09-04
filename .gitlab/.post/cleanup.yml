@@ -23,6 +23,5 @@ new-e2e-cleanup-on-failure:
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
     REMOTE_STACK_CLEANING: "true"
   rules:
-    - !reference [.except_mergequeue]
     - when: always
   allow_failure: true
