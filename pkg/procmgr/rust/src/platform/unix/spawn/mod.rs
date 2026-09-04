@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-mod profile;
-mod request;
-mod stdio_setting;
+mod managed;
+mod stdio;
 
-pub(crate) use profile::SpawnProfile;
-pub(crate) use request::SpawnRequest;
-pub(crate) use stdio_setting::StdioSetting;
+pub(crate) use managed::spawn_child_handle;

@@ -3,8 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::spawn::SpawnProfile;
-use anyhow::{Context, Result};
+mod account_name;
+mod agent_service_sid;
+mod legacy_scm_env;
+mod local_account;
+mod local_agent_account;
+#[cfg(not(test))]
+mod scm_lsa_secret;
+mod sid;
+mod spawn;
+mod token_identity;
+mod wide;
+mod win_handle;
+
+pub(crate) use spawn::intended_spawn_user;
+pub(crate) use spawn::spawn_child_handle;
+pub(crate) use spawn::user_profile::UserProfileGuard;
+
+use anyhow::Result;
+use std::collections::HashMap;
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
@@ -261,7 +278,7 @@ pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
     None
 }
 
-fn open_datadog_agent_key() -> Option<windows_registry::Key> {
+pub(crate) fn open_datadog_agent_key() -> Option<windows_registry::Key> {
     use windows_registry::LOCAL_MACHINE;
     use windows_sys::Win32::System::Registry::KEY_WOW64_64KEY;
 
@@ -273,7 +290,7 @@ fn open_datadog_agent_key() -> Option<windows_registry::Key> {
         .ok()
 }
 
-fn registry_nonempty_string(key: &windows_registry::Key, name: &str) -> Option<String> {
+pub(crate) fn registry_nonempty_string(key: &windows_registry::Key, name: &str) -> Option<String> {
     let value: String = key.get_string(name).ok()?;
     if value.is_empty() { None } else { Some(value) }
 }
@@ -462,39 +479,172 @@ fn apply_fallback_process_env(cmd: &mut tokio::process::Command) {
     }
 }
 
-const PRIVILEGED_SPAWN_USER: &str = r"NT AUTHORITY\SYSTEM";
-
-pub(crate) fn intended_spawn_user(process_name: &str, profile: SpawnProfile) -> String {
-    match profile {
-        SpawnProfile::Privileged => PRIVILEGED_SPAWN_USER.to_string(),
-        SpawnProfile::Agent => agent_account_display_from_registry(process_name),
-    }
-}
-
-fn agent_account_display_from_registry(process_name: &str) -> String {
-    match try_agent_account_display_from_registry() {
-        Ok(display) => display,
+pub(crate) fn baseline_env_vars_for_spawn(
+    process_name: &str,
+    token: HANDLE,
+) -> HashMap<String, String> {
+    match baseline_env_vars_from_token(token) {
+        Ok(vars) => vars,
         Err(e) => {
-            log::warn!("[{process_name}] intended spawn user lookup failed: {e:#}");
-            "unknown".to_string()
+            log::warn!(
+                "[{process_name}] CreateEnvironmentBlock failed ({e:#}); using allowlisted process-env fallback"
+            );
+            fallback_env_vars_for_spawn(token)
         }
     }
 }
 
-fn try_agent_account_display_from_registry() -> Result<String> {
-    let key = open_datadog_agent_key().context("open Datadog Agent registry key")?;
-    let user = registry_nonempty_string(&key, "installedUser")
-        .context("read installedUser from registry")?;
-    let domain = key.get_string("installedDomain").unwrap_or_default();
-    Ok(format_account_display(&domain, &user))
+pub(crate) fn baseline_env_vars_from_token(token: HANDLE) -> Result<HashMap<String, String>> {
+    if token.is_null() {
+        anyhow::bail!("baseline_env_vars_from_token: null token handle");
+    }
+
+    use windows_sys::Win32::System::Environment::{
+        CreateEnvironmentBlock, DestroyEnvironmentBlock,
+    };
+
+    let mut env_block: *mut c_void = std::ptr::null_mut();
+    let ok = unsafe { CreateEnvironmentBlock(&mut env_block, token, 0) };
+    if ok == 0 {
+        anyhow::bail!(
+            "CreateEnvironmentBlock: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
+    let vars = wide_env_block_to_map(env_block as *const u16);
+
+    unsafe {
+        let _ = DestroyEnvironmentBlock(env_block as *const c_void);
+    }
+    Ok(vars)
 }
 
-fn format_account_display(domain: &str, user: &str) -> String {
-    let domain = domain.trim();
-    if domain.is_empty() || domain == "." {
-        format!(r".\{user}")
-    } else {
-        format!(r"{domain}\{user}")
+pub(crate) fn merge_env_overrides(
+    vars: &mut HashMap<String, String>,
+    overrides: &[(String, String)],
+) {
+    for (key, value) in overrides {
+        vars.retain(|existing, _| !existing.eq_ignore_ascii_case(key));
+        vars.insert(key.clone(), value.clone());
+    }
+}
+
+fn wide_env_block_to_map(block: *const u16) -> HashMap<String, String> {
+    if block.is_null() {
+        return HashMap::new();
+    }
+    let mut vars = HashMap::new();
+    let mut p = block;
+    loop {
+        unsafe {
+            if *p == 0 {
+                break;
+            }
+            let entry_start = p;
+            while *p != 0 {
+                p = p.add(1);
+            }
+            let len = (p as usize - entry_start as usize) / std::mem::size_of::<u16>();
+            let slice = std::slice::from_raw_parts(entry_start, len);
+            p = p.add(1);
+            if let Some((k, v)) = split_env_entry_wide(slice) {
+                vars.insert(
+                    k.to_string_lossy().into_owned(),
+                    v.to_string_lossy().into_owned(),
+                );
+            }
+        }
+    }
+    vars
+}
+
+fn supervisor_machine_env_vars() -> HashMap<String, String> {
+    let mut vars = HashMap::new();
+    for &key in FALLBACK_ENV_KEYS {
+        if let Ok(val) = std::env::var(key)
+            && !val.is_empty()
+        {
+            vars.insert(key.to_string(), val);
+        }
+    }
+    vars
+}
+
+fn fallback_env_vars_for_spawn(token: HANDLE) -> HashMap<String, String> {
+    let mut vars = supervisor_machine_env_vars();
+    vars.extend(token_profile_env_vars(token));
+    vars
+}
+
+fn token_profile_env_vars(token: HANDLE) -> HashMap<String, String> {
+    let mut vars = HashMap::new();
+    if let Ok(Some(userprofile)) = user_profile_directory_for_token(token) {
+        vars.insert("USERPROFILE".to_string(), userprofile);
+    }
+    for (key, pattern) in [("LOCALAPPDATA", "%LOCALAPPDATA%"), ("APPDATA", "%APPDATA%")] {
+        if let Ok(Some(value)) = expand_environment_string_for_user(token, pattern)
+            && !value.is_empty()
+        {
+            vars.insert(key.to_string(), value);
+        }
+    }
+    vars
+}
+
+fn user_profile_directory_for_token(token: HANDLE) -> Result<Option<String>> {
+    if token.is_null() {
+        return Ok(None);
+    }
+
+    use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
+    use windows_sys::Win32::UI::Shell::GetUserProfileDirectoryW;
+
+    unsafe {
+        let mut size = 260u32;
+        loop {
+            let mut buf = vec![0u16; size as usize];
+            let mut size_inout = size;
+            if GetUserProfileDirectoryW(token, buf.as_mut_ptr(), &mut size_inout) != 0 {
+                return Ok(Some(wide::from_ptr(buf.as_ptr())));
+            }
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() == Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+                size = size_inout;
+                continue;
+            }
+            log::debug!("GetUserProfileDirectoryW failed: {err}");
+            return Ok(None);
+        }
+    }
+}
+
+fn expand_environment_string_for_user(token: HANDLE, src: &str) -> Result<Option<String>> {
+    if token.is_null() {
+        return Ok(None);
+    }
+
+    use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
+    use windows_sys::Win32::System::Environment::ExpandEnvironmentStringsForUserW;
+
+    let src_w = wide::null_terminated(src);
+    unsafe {
+        let mut size = 256u32;
+        loop {
+            let mut buf = vec![0u16; size as usize];
+            if ExpandEnvironmentStringsForUserW(token, src_w.as_ptr(), buf.as_mut_ptr(), size) != 0
+            {
+                let value = wide::from_ptr(buf.as_ptr());
+                return Ok(if value.is_empty() { None } else { Some(value) });
+            }
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() == Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+                size = size.saturating_mul(2).max(size + 64);
+                continue;
+            }
+            log::debug!("ExpandEnvironmentStringsForUserW({src}) failed: {err}");
+            return Ok(None);
+        }
     }
 }
 
@@ -651,30 +801,5 @@ impl Drop for TokenHandle {
                 CloseHandle(self.0);
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod intended_spawn_user_tests {
-    use super::*;
-    use crate::spawn::SpawnProfile;
-
-    #[test]
-    fn privileged_profile_uses_local_system() {
-        assert_eq!(
-            intended_spawn_user("datadog-agent-process", SpawnProfile::Privileged),
-            PRIVILEGED_SPAWN_USER
-        );
-    }
-
-    #[test]
-    fn format_account_display_local_uses_dot_prefix() {
-        assert_eq!(format_account_display("", "ddagentuser"), r".\ddagentuser");
-        assert_eq!(format_account_display(".", "ddagentuser"), r".\ddagentuser");
-    }
-
-    #[test]
-    fn format_account_display_domain() {
-        assert_eq!(format_account_display("CORP", "gmsa$"), r"CORP\gmsa$");
     }
 }
