@@ -1,4 +1,4 @@
-log_level: debug
+log_level: trace
 service_monitoring_config:
   enabled: true
   enable_http_monitoring: true

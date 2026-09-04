@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
@@ -188,7 +187,6 @@ func (s *windowsUSMSuite) TestIISRemoteServiceTags() {
 // have RemoteServiceTagsIdx >= 0 with process-based remote service tags.
 func (s *windowsUSMSuite) TestHTTPRemoteServiceTags() {
 	t := s.T()
-	ebpftest.LogLevel(t, "trace")
 	host := s.Env().RemoteHost
 
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
