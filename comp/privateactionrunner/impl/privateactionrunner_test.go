@@ -34,21 +34,24 @@ func TestExecutorIdleTimeout(t *testing.T) {
 
 func TestSplitDeploymentSupported(t *testing.T) {
 	tests := []struct {
-		name          string
-		goos          string
-		containerized bool
-		fipsEnabled   bool
-		want          bool
+		name                  string
+		goos                  string
+		containerized         bool
+		fipsEnabled           bool
+		processManagerEnabled bool
+		want                  bool
 	}{
 		{name: "linux host", goos: "linux", want: true},
+		{name: "windows host", goos: "windows", processManagerEnabled: true, want: true},
+		{name: "windows without process manager", goos: "windows"},
 		{name: "linux container", goos: "linux", containerized: true},
 		{name: "linux FIPS host", goos: "linux", fipsEnabled: true},
-		{name: "unsupported host platform", goos: "windows"},
+		{name: "unsupported host platform", goos: "darwin"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, splitDeploymentSupported(tt.goos, tt.containerized, tt.fipsEnabled))
+			assert.Equal(t, tt.want, splitDeploymentSupported(tt.goos, tt.containerized, tt.fipsEnabled, tt.processManagerEnabled))
 		})
 	}
 }
