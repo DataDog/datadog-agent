@@ -5,6 +5,7 @@
 
 use anyhow::{Result, bail};
 use std::ptr;
+#[cfg(not(test))]
 use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
 use windows_sys::Win32::Security::LookupAccountNameW;
 

@@ -6,9 +6,10 @@
 use std::ptr;
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{
-    EqualSid, GetLengthSid, GetTokenInformation, IsWellKnownSid, TOKEN_USER, TokenUser,
-    WinLocalSystemSid,
+    EqualSid, GetLengthSid, GetTokenInformation, TOKEN_USER, TokenUser,
 };
+#[cfg(test)]
+use windows_sys::Win32::Security::{IsWellKnownSid, WinLocalSystemSid};
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 use super::win_handle::WinHandle;
