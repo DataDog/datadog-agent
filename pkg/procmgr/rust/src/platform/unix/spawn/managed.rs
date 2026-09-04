@@ -9,11 +9,11 @@ use tokio::process::Command;
 
 use crate::handle::ProcessHandle;
 use crate::process::ManagedProcess;
-use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
+use crate::spawn::{SpawnProfile, SpawnRequest};
 use crate::spawn_context;
 
 pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<ProcessHandle> {
-    let profile = profile_for(process.name());
+    let profile = SpawnProfile::profile_for(process.name());
     let request = SpawnRequest::from_config(process.name(), process.config(), profile)?;
     process.set_intended_user(super::super::intended_spawn_user(process.name(), profile));
     spawn_child(process.name(), request, profile)

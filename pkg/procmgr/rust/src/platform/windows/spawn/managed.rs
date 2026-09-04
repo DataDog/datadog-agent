@@ -10,7 +10,7 @@ use tokio::process::Command;
 
 use crate::handle::ProcessHandle;
 use crate::process::ManagedProcess;
-use crate::spawn::{SpawnProfile, SpawnRequest, profile_for};
+use crate::spawn::{SpawnProfile, SpawnRequest};
 use crate::spawn_context;
 
 use super::super::{
@@ -22,7 +22,7 @@ use super::primary_token::spawn_as_primary_token;
 use super::stdio::to_command_stdio;
 
 pub(crate) fn spawn_child_handle(process: &mut ManagedProcess) -> Result<ProcessHandle> {
-    let profile = profile_for(process.name());
+    let profile = SpawnProfile::profile_for(process.name());
     let request = SpawnRequest::from_config(process.name(), process.config(), profile)?;
 
     let process_name = process.name().to_owned();

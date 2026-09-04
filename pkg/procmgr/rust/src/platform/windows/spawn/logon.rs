@@ -142,8 +142,8 @@ pub(super) fn with_impersonated_token<T>(
 
 #[cfg(test)]
 mod tests {
-    use super::super::local_agent_account::AgentAccount;
     use super::*;
+    use crate::platform::windows::local_agent_account::AgentAccount;
 
     #[test]
     fn logon_domain_uses_dot_for_local_accounts() {
