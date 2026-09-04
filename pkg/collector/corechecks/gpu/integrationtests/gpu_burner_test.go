@@ -102,7 +102,7 @@ func TestGPUBurnerSingleGPUDeviceSelection(t *testing.T) {
 	for _, index := range indices {
 		t.Run(fmt.Sprintf("one-gpu-%d", index), func(t *testing.T) {
 			burner := StartGPUBurner(t, strconv.Itoa(index), 1, 100)
-			assertBurnerDevicesActive(t, burner, 1, 100)
+			assertBurnerDevicesActive(t, burner, gpuUUIDsForIndices(t, lib, []int{index}), 100)
 		})
 	}
 }
@@ -126,23 +126,40 @@ func TestGPUBurnerTwoGPUDeviceSelection(t *testing.T) {
 	for _, devices := range deviceSets {
 		t.Run(fmt.Sprintf("two-gpus-%d-%d", devices[0], devices[1]), func(t *testing.T) {
 			burner := StartGPUBurner(t, fmt.Sprintf("%d,%d", devices[0], devices[1]), 2, 100)
-			assertBurnerDevicesActive(t, burner, 2, 100)
+			assertBurnerDevicesActive(t, burner, gpuUUIDsForIndices(t, lib, devices), 100)
 		})
 	}
 }
 
-func assertBurnerDevicesActive(t *testing.T, burner *GPUBurner, expectedWorkers int, targetSM float64) {
+func gpuUUIDsForIndices(t *testing.T, lib safenvml.SafeNVML, indices []int) []string {
+	t.Helper()
+
+	uuids := make([]string, 0, len(indices))
+	for _, index := range indices {
+		device, err := lib.DeviceGetHandleByIndex(index)
+		require.NoError(t, err, "get NVML device handle for index %d", index)
+		uuid, err := device.GetUUID()
+		require.NoError(t, err, "get NVML device UUID for index %d", index)
+		uuids = append(uuids, strings.ToLower(uuid))
+	}
+	return uuids
+}
+
+func assertBurnerDevicesActive(t *testing.T, burner *GPUBurner, expectedUUIDs []string, targetSM float64) {
 	t.Helper()
 
 	metricsByUUID := collectGPUBurnerMetrics(t, gpuBurnerCollectionPasses, gpuBurnerCollectionInterval)
 	status, err := burner.Status(t.Context())
 	require.NoError(t, err)
-	require.Len(t, status.Workers, expectedWorkers)
+	require.Len(t, status.Workers, len(expectedUUIDs))
+	actualUUIDs := make([]string, 0, len(status.Workers))
 	for _, worker := range status.Workers {
+		actualUUIDs = append(actualUUIDs, strings.ToLower(worker.GPUUUID))
 		deviceMetrics := metricsByUUID[strings.ToLower(worker.GPUUUID)]
 		require.NotEmpty(t, deviceMetrics, "no metrics emitted for gpu-burner worker GPU %s", worker.GPUUUID)
 		require.NotEmpty(t, deviceMetrics["sm_active"], "sm_active was not emitted for gpu-burner worker GPU %s", worker.GPUUUID)
 	}
+	require.ElementsMatch(t, expectedUUIDs, actualUUIDs, "gpu-burner workers do not match the selected CUDA-visible devices")
 
 	type smiResult struct {
 		sample *testutil.SmiSample
