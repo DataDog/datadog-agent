@@ -173,23 +173,27 @@ func StopServer() {
 // As we have 2 different tokens for the validation, we need to validate accordingly.
 func validateToken(ipc ipc.Component) func(http.Handler) http.Handler {
 	dcaTokenValidator := util.TokenValidator(util.GetDCAAuthToken)
-	localTokenGetter := util.TokenValidator(ipc.GetAuthToken)
+	localTokenValidator := util.TokenValidator(ipc.GetAuthToken)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			path := r.URL.String()
-			var isValid bool
-			// If communication is intra-pod
-			if !isExternalPath(path) {
-				if err := localTokenGetter(w, r); err == nil {
-					isValid = true
-				}
+			// Node Agent paths use the cluster-wide DCA token, every other path is
+			// local/admin-only and requires the local IPC token. The two are not
+			// interchangeable: falling back would expose /stop, /flare and /config
+			// to any pod holding the DCA token.
+			// Match on the path alone. isExternalPath counts slash-separated
+			// segments, so including the query string would let a slash in a
+			// query value pad an admin path until it matched an external rule.
+			validateRequestToken := localTokenValidator
+			if isExternalPath(r.URL.Path) {
+				validateRequestToken = dcaTokenValidator
 			}
-			if !isValid {
-				if err := dcaTokenValidator(w, r); err != nil {
-					return
-				}
+
+			// The validator already wrote the error response.
+			if err := validateRequestToken(w, r); err != nil {
+				return
 			}
+
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -209,6 +213,7 @@ func isExternalPath(path string) bool {
 		strings.HasPrefix(path, "/api/v1/cluster/id") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/clusterchecks/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/endpointschecks/") && len(strings.Split(path, "/")) == 6 ||
+		strings.HasPrefix(path, "/api/v1/info/node/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/instrumentation/") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/metadata/namespace/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/tags/cf/apps/") && len(strings.Split(path, "/")) == 7 ||
