@@ -177,6 +177,7 @@ go_library(
         "//pkg/collector/check",
         "//pkg/collector/corechecks/net",
         "//pkg/collector/corechecks/snmp/status",
+        "//pkg/collector/corechecks/network-devices/gnmi/status",
         "//pkg/collector/python",
         "//pkg/commonchecks",
         "//pkg/config/remote/data",
