@@ -9,6 +9,13 @@
 package configstreambootstrap
 
 import (
+	"fmt"
+	"os"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
+
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -66,16 +73,103 @@ func SeedGlobalBuilder(s Settings, configFile string) {
 	cert.PersistCertFilepath(b)
 }
 
+// envOverride is a setting the local env layer was deciding the value of before the wipe.
+type envOverride struct {
+	key    string
+	envVar string
+	value  any
+}
+
+var (
+	// DisableLocalEnvLayer runs on the main goroutine at startup and the report runs on the
+	// consumer's stream goroutine; the ordering is not enforced by this package's API, so lock.
+	envOverridesMu        sync.Mutex
+	capturedEnvOverrides  []envOverride
+	lastEnvOverrideReport []string
+)
+
 // DisableLocalEnvLayer drops the env layer (nodetreemodel only) so local DD_* vars
 // can't override streamed values. Viper-backed configs cannot clear env vars.
 func DisableLocalEnvLayer(clientName string) {
 	b := pkgconfigsetup.Datadog()
 	type envVarClearer interface{ ClearEnvVars() }
-	if clearer, ok := b.(envVarClearer); ok {
-		clearer.ClearEnvVars()
-		pkglog.Infof("configstreamconsumer[%s]: local env-var layer disabled", clientName)
+	clearer, ok := b.(envVarClearer)
+	if !ok {
 		return
 	}
+	type configEnvVarLister interface{ ConfigEnvVars() map[string][]string }
+	if lister, ok := b.(configEnvVarLister); ok {
+		envOverridesMu.Lock()
+		capturedEnvOverrides = captureEnvOverrides(b, lister.ConfigEnvVars())
+		envOverridesMu.Unlock()
+	}
+	clearer.ClearEnvVars()
+	pkglog.Infof("configstreamconsumer[%s]: local env-var layer disabled", clientName)
+}
+
+// captureEnvOverrides records the settings the env layer is actually deciding. A key whose env var
+// is set but loses to a higher-precedence source was not being overridden by the env, so it is skipped.
+func captureEnvOverrides(cfg pkgconfigmodel.Reader, configEnvVars map[string][]string) []envOverride {
+	captured := make([]envOverride, 0, len(configEnvVars))
+	for key, envVars := range configEnvVars {
+		if cfg.GetSource(key) != pkgconfigmodel.SourceEnvVar {
+			continue
+		}
+		if name := winningEnvVar(envVars); name != "" {
+			captured = append(captured, envOverride{key: key, envVar: name, value: cfg.Get(key)})
+		}
+	}
+	slices.SortFunc(captured, func(a, b envOverride) int { return strings.Compare(a.key, b.key) })
+	return captured
+}
+
+// winningEnvVar mirrors nodetreemodel.buildEnvVars: the first var that is set and non-empty wins.
+func winningEnvVar(envVars []string) string {
+	for _, name := range envVars {
+		if value, isSet := os.LookupEnv(name); isSet && value != "" {
+			return name
+		}
+	}
+	return ""
+}
+
+// ReportDroppedEnvOverrides warns about settings the stream did not reproduce. It must run after
+// the first snapshot and after any post-snapshot remapping, and consumes the captured state so
+// that later value changes, which are ordinary operation, never warn.
+func ReportDroppedEnvOverrides(clientName string) {
+	envOverridesMu.Lock()
+	captured := capturedEnvOverrides
+	capturedEnvOverrides = nil
+	envOverridesMu.Unlock()
+	if len(captured) == 0 {
+		return
+	}
+
+	dropped := diffEnvOverrides(pkgconfigsetup.Datadog(), captured)
+
+	envOverridesMu.Lock()
+	lastEnvOverrideReport = dropped
+	envOverridesMu.Unlock()
+
+	if len(dropped) == 0 {
+		return
+	}
+	pkglog.Warnf("configstreamconsumer[%s]: these settings were set by DD_* env vars on this process and the core Agent streamed a different value, so the local value is lost; set them on the core Agent instead: %s",
+		clientName, strings.Join(dropped, ", "))
+}
+
+// diffEnvOverrides names the captured settings whose current value differs from the pre-wipe one.
+// Names only, never values: several of these settings are credentials, and "differs" is the signal.
+func diffEnvOverrides(cfg pkgconfigmodel.Reader, captured []envOverride) []string {
+	var dropped []string
+	for _, o := range captured {
+		// Values can be maps or slices, so == would panic.
+		if reflect.DeepEqual(cfg.Get(o.key), o.value) {
+			continue
+		}
+		dropped = append(dropped, fmt.Sprintf("%s (%s)", o.key, o.envVar))
+	}
+	return dropped
 }
 
 // AuthTokenFilepath resolves the auth-token path via pkg/api/security's fallback rules.

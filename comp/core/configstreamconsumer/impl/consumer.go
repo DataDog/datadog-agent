@@ -582,6 +582,8 @@ func (c *consumer) handleConfigEvent(event *pb.ConfigEvent) error {
 			c.applyOverrides()
 			// Finally mark the config as ready, after all other mutations are completed.
 			c.markReady()
+			// Report after applyOverrides, or a remapped value reads as a dropped one.
+			configstreambootstrap.ReportDroppedEnvOverrides(c.params.ClientName)
 		}
 	case *pb.ConfigEvent_Update:
 		if err := c.applyUpdate(e.Update); err != nil {
