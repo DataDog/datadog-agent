@@ -241,6 +241,33 @@ Existing macOS suites: `tests/agent-platform/tests/macos_install_test.go`
 (installs by hand, `ec2.WithoutAgent()`) and
 `tests/agent-data-plane/preflight-mode` (stock provisioner with agentparams).
 
+## Default image registry
+
+Two `config.Env` accessors decide where an image comes from; never hardcode a registry
+host in a component or scenario.
+
+| Accessor | Use for | AWS | GCP / Azure / local |
+|----------|---------|-----|---------------------|
+| `DatadogPublicRegistry()` | publicly released Datadog images (agent, cluster-agent, ddot-collector, operator, dogstatsd, fakeintake) | `<internal ECR>/ecr-public/datadog` | `gcr.io/datadoghq` |
+| `InternalDockerhubMirror()` | anything published to Docker Hub, including the unstable `agent-dev` images behind the FIPS and OTel variants | `<internal ECR>/dockerhub` | `registry-1.docker.io` |
+
+On AWS both are pull-through cache prefixes, so the pull stays inside the account. The AWS
+value is per-environment (`resources/aws/environmentDefaults.go`) and overridable through
+`ddinfra:aws/defaultDatadogPublicRegistry`; a test asserts every AWS environment sets it.
+
+`components/datadog/agent/docker_image.go` owns the resolution order: an explicit image tag
+> `ddagent:fullImagePath` > pipeline + SHA (`<InternalRegistry()>/agent-qa:<id>-<sha>`) >
+the OTel/FIPS dev repository > the default repository above. Only the last branch is
+registry-dependent, so a test targeting a pipeline is unaffected by any of this.
+
+Two deliberate exceptions, commented where they occur:
+
+- **Fargate** (`components/datadog/agent/ecsFargate.go`, `scenarios/aws/fakeintake/`) pins
+  `public.ecr.aws`. The ECS control plane pulls the image with the task execution role as
+  part of the service definition, so there is no host to authenticate against the cache on.
+- **`injector-dev`** (used by `tests/ssi`) is not published to public ECR, so those images
+  stay on `registry.datadoghq.com`/`gcr.io` and remain internet-dependent on AWS.
+
 ## Fakeintake image version
 
 Every fakeintake default (`scenarios/{aws,azure,gcp}/fakeintake/params.go`,
