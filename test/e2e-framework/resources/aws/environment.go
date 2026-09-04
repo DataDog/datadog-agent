@@ -44,6 +44,7 @@ const (
 	DDInfraDefaultShutdownBehavior               = "aws/defaultShutdownBehavior"
 	DDInfraDefaultInternalRegistry               = "aws/defaultInternalRegistry"
 	DDInfraDefaultInternalDockerhubMirror        = "aws/defaultInternalDockerhubMirror"
+	DDInfraDefaultDatadogPublicRegistry          = "aws/defaultDatadogPublicRegistry"
 	DDInfraUseMacosCompatibleSubnets             = "aws/useMacosCompatibleSubnets"
 	DDInfraDefaultLeaseBucket                    = "aws/defaultLeaseBucket"
 
@@ -175,6 +176,13 @@ func (e *Environment) InternalRegistry() string {
 
 func (e *Environment) InternalDockerhubMirror() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultInternalDockerhubMirror, e.envDefault.ddInfra.defaultInternalDockerhubMirror)
+}
+
+// DatadogPublicRegistry returns the pull-through cache of public.ecr.aws/datadog, the
+// registry an AWS customer pulls the Agent from. Going through the cache keeps the pull
+// inside the account.
+func (e *Environment) DatadogPublicRegistry() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultDatadogPublicRegistry, e.envDefault.ddInfra.defaultDatadogPublicRegistry)
 }
 
 // Check if the image exists in the internal registry
