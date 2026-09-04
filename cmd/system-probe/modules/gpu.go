@@ -87,7 +87,7 @@ var GPUMonitoring = &module.Factory{
 			}
 			deviceCache = p.GetDeviceCache()
 		}
-		if c.EnableEBPFProbes || c.DriverEventsEnabled {
+		if c.DriverEventsEnabled {
 			if err := deviceCache.Refresh(); err != nil {
 				log.Errorf("unable to refresh GPU device cache: %v", err)
 				startDriverEvents = false
