@@ -8,12 +8,18 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"slices"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	grpcStatus "google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -25,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -74,9 +81,10 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 		telemetryStore: newTelemetryStore(reqs.Telemetry),
 		// Services currently supported by the remote agent registry
 		remoteAgentServices: map[remoteAgentServiceName]struct{}{
-			StatusServiceName:    {},
-			FlareServiceName:     {},
-			TelemetryServiceName: {},
+			StatusServiceName:          {},
+			FlareServiceName:           {},
+			TelemetryServiceName:       {},
+			CommandProviderServiceName: {},
 		},
 		eventSubscribers: eventSubscribers,
 	}
@@ -193,13 +201,14 @@ func newTelemetryStore(telemetryComp telemetry.Component) *telemetryStore {
 // remoteAgentRegistry is the main registry for remote agents. It tracks which remote agents are currently registered, when
 // they were last seen, and handles collecting status and flare data from them on request.
 type remoteAgentRegistry struct {
-	conf           config.Component
-	ipc            ipc.Component
-	agentMap       map[string]*remoteAgentClient
-	agentMapMu     sync.Mutex
-	shutdownChan   chan struct{}
-	telemetry      telemetry.Component
-	telemetryStore *telemetryStore
+	conf              config.Component
+	ipc               ipc.Component
+	agentMap          map[string]*remoteAgentClient
+	agentMapMu        sync.Mutex
+	registrationOrder uint64
+	shutdownChan      chan struct{}
+	telemetry         telemetry.Component
+	telemetryStore    *telemetryStore
 
 	// Define the services that the remote agent supports
 	remoteAgentServices map[remoteAgentServiceName]struct{}
@@ -224,6 +233,9 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 		ra.telemetryStore.remoteAgentRegisteredError.Inc(sanitizeString(registration.AgentDisplayName))
 		return "", 0, err
 	}
+
+	ra.registrationOrder++
+	remoteAgentClient.registrationOrder = ra.registrationOrder
 
 	log.Infof("Remote agent '%s' (flavor: %s, session_id: %s) registered. (exposed services: %v)", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.Flavor, remoteAgentClient.RegisteredAgent.SessionID, remoteAgentClient.services)
 	// indexing remoteAgent client by its sessionID
@@ -358,4 +370,118 @@ func grpcErrorMessage(err error) string {
 		errorString = status.Code().String()
 	}
 	return errorString
+}
+
+type commandProviderTarget struct {
+	provider *pb.CommandProvider
+	client   *remoteAgentClient
+}
+
+// commandProviders queries each registered RemoteCommandProvider once and selects the oldest registration for every provider name.
+func (ra *remoteAgentRegistry) commandProviders(ctx context.Context) map[string]commandProviderTarget {
+	queryTimeout := ra.conf.GetDuration("remote_agent.registry.query_timeout")
+
+	ra.agentMapMu.Lock()
+	clients := make([]*remoteAgentClient, 0, len(ra.agentMap))
+	for _, client := range ra.agentMap {
+		if slices.Contains(client.services, CommandProviderServiceName) {
+			clients = append(clients, client)
+		}
+	}
+	ra.agentMapMu.Unlock()
+
+	type discoveryResult struct {
+		client   *remoteAgentClient
+		response *pb.ListCommandsResponse
+		err      error
+	}
+
+	callCtx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
+	results := make(chan discoveryResult, len(clients))
+	var wg sync.WaitGroup
+	for _, client := range clients {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			var header metadata.MD
+			response, err := client.ListCommands(callCtx, &pb.ListCommandsRequest{}, grpc.WaitForReady(true), grpc.Header(&header))
+			if err == nil {
+				err = client.validateSessionID(header)
+			}
+			results <- discoveryResult{client: client, response: response, err: err}
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	providers := make(map[string]commandProviderTarget)
+	for result := range results {
+		if result.err != nil {
+			continue
+		}
+		for _, provider := range result.response.GetProviders() {
+			if provider == nil || provider.GetName() == "" {
+				continue
+			}
+			active, ok := providers[provider.GetName()]
+			if !ok || result.client.registrationOrder < active.client.registrationOrder {
+				providers[provider.GetName()] = commandProviderTarget{provider: provider, client: result.client}
+			}
+		}
+	}
+	return providers
+}
+
+func (ra *remoteAgentRegistry) ListCommands(ctx context.Context) []*pb.CommandProvider {
+	active := ra.commandProviders(ctx)
+	providers := make([]*pb.CommandProvider, 0, len(active))
+	for _, target := range active {
+		providers = append(providers, target.provider)
+	}
+	sort.Slice(providers, func(i, j int) bool {
+		return providers[i].GetName() < providers[j].GetName()
+	})
+	return providers
+}
+
+// ExecuteCommand routes a command execution request and forwards ordered output frames to send.
+func (ra *remoteAgentRegistry) ExecuteCommand(ctx context.Context, req *pb.ExecuteCommandRequest, send func(*pb.ExecuteCommandResponse) error) error {
+	providerName := req.GetProviderName()
+	if providerName == "" {
+		return grpcStatus.Error(codes.InvalidArgument, "provider_name is required")
+	}
+
+	target, ok := ra.commandProviders(ctx)[providerName]
+	if !ok {
+		return grpcStatus.Errorf(codes.NotFound, "no remote command provider found for provider name %q", providerName)
+	}
+
+	stream, err := target.client.ExecuteCommand(ctx, req, grpc.WaitForReady(true))
+	if err != nil {
+		return err
+	}
+	header, err := stream.Header()
+	if err != nil {
+		return err
+	}
+	if err := target.client.validateSessionID(header); err != nil {
+		return grpcStatus.Errorf(codes.Unavailable, "remote command provider session validation failed: %v", err)
+	}
+	for {
+		frame, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := send(frame); err != nil {
+			return err
+		}
+	}
 }

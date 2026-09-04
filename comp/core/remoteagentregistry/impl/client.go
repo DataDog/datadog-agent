@@ -41,6 +41,9 @@ const FlareServiceName = "datadog.remoteagent.flare.v1.FlareProvider"
 // TelemetryServiceName is the service name for remote agent telemetry provider
 const TelemetryServiceName = "datadog.remoteagent.telemetry.v1.TelemetryProvider"
 
+// CommandProviderServiceName is the service name for the remote agent command provider.
+const CommandProviderServiceName = "datadog.remoteagent.command.v1.RemoteCommandProvider"
+
 type remoteAgentClient struct {
 	// agent variables
 	remoteagentregistry.RegisteredAgent
@@ -53,8 +56,13 @@ type remoteAgentClient struct {
 	pb.FlareProviderClient
 	pb.StatusProviderClient
 	pb.TelemetryProviderClient
+	pb.RemoteCommandProviderClient
+	// services are the capabilities advertised at registration. The registry uses them to avoid invoking an RPC that
+	// the remote endpoint does not implement.
 	services []remoteAgentServiceName
-	conn     *grpc.ClientConn
+	// registrationOrder determines oldest-provider selection for duplicate provider names.
+	registrationOrder uint64
+	conn              *grpc.ClientConn
 }
 
 func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (*remoteAgentClient, error) {
@@ -89,10 +97,11 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 			SessionID:            uuid.New().String(),
 		},
 		// gRPC relative
-		conn:                    conn,
-		StatusProviderClient:    pb.NewStatusProviderClient(conn),
-		FlareProviderClient:     pb.NewFlareProviderClient(conn),
-		TelemetryProviderClient: pb.NewTelemetryProviderClient(conn),
+		conn:                        conn,
+		StatusProviderClient:        pb.NewStatusProviderClient(conn),
+		FlareProviderClient:         pb.NewFlareProviderClient(conn),
+		TelemetryProviderClient:     pb.NewTelemetryProviderClient(conn),
+		RemoteCommandProviderClient: pb.NewRemoteCommandProviderClient(conn),
 	}
 
 	client.services = registration.Services
@@ -206,6 +215,7 @@ func (rac *remoteAgentClient) validateSessionID(responseMetadata metadata.MD) er
 // Returns:
 //   - []StructuredType: A slice of processed results, one per agent that supports the service.
 func callAgentsForService[PbType any, StructuredType any](
+	ctx context.Context,
 	registry *remoteAgentRegistry,
 	service remoteAgentServiceName,
 	grpcCall func(context.Context, *remoteAgentClient, ...grpc.CallOption) (PbType, error),
@@ -220,7 +230,7 @@ func callAgentsForService[PbType any, StructuredType any](
 	filteredAgents := []*remoteAgentClient{}
 
 	for _, remoteAgent := range registry.agentMap {
-		// Skip the remoteAgent if the service is not implemented
+		// Skip the remoteAgent if the service is not implemented.
 		if !slices.Contains(remoteAgent.services, service) {
 			continue
 		}
@@ -238,7 +248,7 @@ func callAgentsForService[PbType any, StructuredType any](
 	}
 
 	// Creates a context with a one second deadline for the RPC.
-	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 
 	wg.Add(agentsLen)
@@ -271,7 +281,7 @@ func callAgentsForService[PbType any, StructuredType any](
 					err = validationErr
 					registry.telemetryStore.remoteAgentActionError.Inc(registeredAgent.SanitizedDisplayName, service, sessionIDMismatch)
 
-					// Mark agent as unhealthy for removal during next cleanup cycle
+					// Mark agent as unhealthy for removal during next cleanup cycle.
 					remoteAgent.unhealthyMu.Lock()
 					remoteAgent.unhealthyReason = validationErr
 					remoteAgent.unhealthyMu.Unlock()

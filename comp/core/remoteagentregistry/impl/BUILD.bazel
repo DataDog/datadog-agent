@@ -43,11 +43,14 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "client_test.go",
+        "command_provider_flow_test.go",
         "registry_test.go",
         "services_test.go",
     ],
     embed = [":impl"],
     deps = [
+        "//cmd/agent/command",
+        "//cmd/agent/subcommands/remotecommand",
         "//comp/core/config",
         "//comp/core/flare/helpers",
         "//comp/core/ipc/def",
@@ -74,5 +77,6 @@ dd_agent_go_test(
         "@org_golang_google_grpc_examples//features/proto/echo",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",
+        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
