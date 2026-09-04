@@ -163,11 +163,11 @@ type configFilesDiscoveryFixtureFile struct {
 }
 
 type configFilesDiscoveryContainerFixture struct {
-	integrationName       string
-	configDir             string
-	containerNames        []string
-	startContainerNames   []string
-	restartContainerNames []string
+	integrationName     string
+	configDir           string
+	containerNames      []string
+	startContainerNames []string
+	agentLogSince       *string
 }
 
 type configFilePayloadExpectation struct {
@@ -182,9 +182,10 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 	redisCompose := strings.ReplaceAll(redisComposeTemplate, "{APPS_VERSION}", apps.Version)
 	agentOpts := []dockeragentparams.Option{
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_ENABLED", pulumi.StringPtr("true")),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_LOG_LEVEL", pulumi.StringPtr("debug")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_FORWARDER_USE_COMPRESSION", pulumi.StringPtr("false")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_FORWARDER_BATCH_WAIT", pulumi.StringPtr("0.1")),
-		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_HEARTBEAT_INTERVAL", pulumi.StringPtr("10s")),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_HEARTBEAT_INTERVAL", pulumi.StringPtr("1h")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_HEARTBEAT_JITTER", pulumi.StringPtr("0s")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_CONFIG_FILES_DISCOVERY_STARTUP_JITTER", pulumi.StringPtr("0s")),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-redis", pulumi.String(redisCompose)),
@@ -306,13 +307,13 @@ func (s *configFilesDiscoveryDockerSuite) prepareConfigFilesDiscoveryContainers(
 		return !isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), fixture.integrationName)
 	}, time.Minute, time.Second, "%s AD config remained scheduled after its containers stopped", fixture.integrationName)
 	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	if fixture.agentLogSince != nil {
+		*fixture.agentLogSince, err = host.Execute("date --iso-8601=ns")
+		require.NoError(t, err)
+		*fixture.agentLogSince = strings.TrimSpace(*fixture.agentLogSince)
+	}
 	_, err = host.Execute("sudo docker start " + startContainerNames)
 	require.NoError(t, err)
-	if len(fixture.restartContainerNames) > 0 {
-		_, err = host.Execute("sudo docker restart " + strings.Join(fixture.restartContainerNames, " "))
-		require.NoError(t, err)
-	}
-
 	return startFilePath
 }
 
@@ -464,11 +465,12 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresConfigFileAndEnvVarsDiscov
 func (s *configFilesDiscoveryDockerSuite) TestSparkDriverEnvVarsDiscovered() {
 	t := s.T()
 	host := s.Env().RemoteHost
+	var agentLogSince string
 	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
-		integrationName:       sparkIntegrationName,
-		containerNames:        []string{sparkMasterContainerName, sparkWorkerContainerName},
-		startContainerNames:   []string{sparkMasterContainerName, sparkWorkerContainerName},
-		restartContainerNames: []string{sparkSubmitContainerName},
+		integrationName:     sparkIntegrationName,
+		containerNames:      []string{sparkMasterContainerName, sparkWorkerContainerName, sparkSubmitContainerName},
+		startContainerNames: []string{sparkMasterContainerName, sparkWorkerContainerName},
+		agentLogSince:       &agentLogSince,
 	})
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -476,9 +478,28 @@ func (s *configFilesDiscoveryDockerSuite) TestSparkDriverEnvVarsDiscovered() {
 		if !assert.NoError(c, processErr) {
 			return
 		}
-		assert.Contains(c, processes, "org.apache.spark.deploy.worker.DriverWrapper")
+		assert.NotContains(c, processes, "org.apache.spark.deploy.worker.DriverWrapper")
 		assert.True(c, isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), sparkIntegrationName))
-	}, 2*time.Minute, 2*time.Second, "Spark Driver was not running after the cluster started")
+	}, 2*time.Minute, 2*time.Second, "Spark Driver was running before the initial collection")
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs, logErr := host.Execute("sudo docker logs --since " + agentLogSince + " " + s.Env().Agent.ContainerName + " 2>&1")
+		if !assert.NoError(c, logErr) {
+			return
+		}
+		assert.Contains(c, logs, "config files discovery skipped spark driver env collection: no DriverWrapper process detected")
+	}, 2*time.Minute, 2*time.Second, "Spark initial collection did not complete before the Driver started")
+
+	_, err := host.Execute("sudo docker start " + sparkSubmitContainerName)
+	require.NoError(t, err)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		processes, processErr := host.Execute("sudo docker top " + sparkWorkerContainerName + " -eo pid,args")
+		if !assert.NoError(c, processErr) {
+			return
+		}
+		assert.Contains(c, processes, "org.apache.spark.deploy.worker.DriverWrapper")
+	}, 2*time.Minute, 2*time.Second, "Spark Driver did not start")
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()

@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -98,6 +99,7 @@ func (sparkConfigCollector) Collect(ctx context.Context, reader configfilesdisco
 		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("identify spark driver: %w", err)
 	}
 	if !isDriver {
+		log.Debugf("config files discovery skipped spark driver env collection: no DriverWrapper process detected")
 		return configfilesdiscoveryimpl.CollectedConfig{}, nil
 	}
 
