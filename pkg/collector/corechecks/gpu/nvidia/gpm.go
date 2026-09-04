@@ -73,8 +73,8 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 	},
 }
 
-func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collector, err error) {
-	return newGPMCollectorWithMetrics(device, maps.Clone(allGpmMetrics), nil)
+func newGPMCollector(device ddnvml.Device, deps *CollectorDependencies) (c Collector, err error) {
+	return newGPMCollectorWithMetrics(device, maps.Clone(allGpmMetrics), deps)
 }
 
 func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.GpmMetricId]gpmMetric, _ *CollectorDependencies) (c Collector, err error) {
