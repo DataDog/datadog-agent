@@ -186,3 +186,54 @@ The whole PR is one new package + one line + one example + its tests.
   commands: they are the stable surface drivers plug into.
 - The test runner (`e2ectl test`), `needs` and CI plan tooling are untouched —
   they sit on top of the same snapshot contract regardless of driver.
+
+## 8. The two experiences, precisely (design elaboration)
+
+### docker-host (local, Pulumi-free)
+
+One package `cmd/e2ectl/internal/drivers/dockerhost/` (~300 lines): Driver
+(strict-decode of the `docker-host:` section, Start = privileged systemd
+container + shared localinfra fakeintake, Stop = remove both), config section,
+and installer declarations — the `script` installer is the SHARED instance
+(installscript works on `environments.Host` rehydrated from the snapshot; it
+does not know where the host is), plus an `Updatable` (build binary → scp →
+systemctl restart: the local host-agent loop without cloud).
+
+The one tricky point: host-ness. The install script needs ssh + systemd, so
+the container runs sshd + systemd (--privileged) and Start fabricates the
+`HostOutput` (address/port/credentials it generated). Confined to Start; if it
+feels wrong, the validation step may surface a `HostProvisioner` sub-interface.
+
+Total: one package + one registry line + one example. Conformance runs
+locally, fast, no credentials.
+
+### eks (remote, Pulumi — the worker split)
+
+Thin core driver (~120 lines: validate the `eks:` section, Start/Stop spawn
+the worker with the GENERIC job {action, base: "eks", params}, Installers =
+the shared k8s helm installer — zero Pulumi knowledge) + a worker provider
+(~100 lines: `Provision` over the EXISTING `eks.Provisioner` from
+testing/provisioners/aws/kubernetes, `Destroy`) + one line in the worker's
+mirror registry. The heavy machinery is all reused: the Pulumi EKS program
+exists for e2e tests; snapshot, attach, fakeintake verbs, kubeconfig handling
+are base-agnostic; in-cloud fakeintake lands in the same snapshot key.
+
+The one tricky point: image delivery. `kind load` has no EKS equivalent — a
+dev image must be pushed to a registry EKS can pull (agent-qa ECR). This
+forces one interface refinement: `installer.Kind` becomes
+`installer.Kubernetes` with a `deliver(image) error` hook — kind = kind load,
+eks = tag+push, hosts do not use it. That hook is the entire semantic
+difference between the two cluster drivers.
+
+Conformance: same harness, but cloud-gated (needs AWS credentials) — a smoke
+suite, not a local one.
+
+### The contrast (what the design buys)
+
+Both experiences end at: no switch edits, no command edits, no config-core
+edits — the registration line is the only contact with existing code. Both
+tricky points land inside the new packages (or refine one interface), not in
+generic code. The difference between them is contained in: where the code
+lives (core package vs core driver + worker provider), what is reused (host
+machinery vs the Pulumi EKS program), the one tricky point (host-ness vs
+image delivery), and conformance cost (local vs cloud-gated).
