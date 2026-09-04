@@ -327,9 +327,10 @@ func tsePlaygroundDefault() environmentDefault {
 			defaultWindowsInstanceType: "t3.large",
 			defaultInstanceStorageSize: 200,
 			defaultShutdownBehavior:    "stop",
-			// This account has no pull-through cache, so pull straight from the public registry.
-			defaultDatadogPublicRegistry: "public.ecr.aws/datadog",
-			useMacosCompatibleSubnets:    false,
+			// This account has no pull-through cache, so pull straight from the public registries.
+			defaultInternalDockerhubMirror: "registry-1.docker.io",
+			defaultDatadogPublicRegistry:   "public.ecr.aws/datadog",
+			useMacosCompatibleSubnets:      false,
 			// Not currently used to acquire macOS pool instances; defaulted to the
 			// sandbox bucket as a safe fallback.
 			leaseBucket: "datadog-agent-sandbox",
