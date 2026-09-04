@@ -842,7 +842,7 @@ func (p *EBPFProbe) applyAllowFiltersOnRouterBuffer(allowFilters []rawpacket.Fil
 	// Determine which physical buffer slot this write targets so each slot has
 	// its own Collection and the two calls in applyAllowFiltersToBothRouterBuffers
 	// do not close each other's programs.
-	active, err := probes.GetActiveRawPacketMapNumber(p.Manager)
+	active, err := probes.GetActiveRawPacketMapNumber(p.Manager.Get())
 	if err != nil {
 		return err
 	}
@@ -2965,7 +2965,7 @@ func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 }
 
 func (p *EBPFProbe) flipRawPacketRouterBuffer() error {
-	if active, err := probes.GetActiveRawPacketMapNumber(p.Manager); err != nil {
+	if active, err := probes.GetActiveRawPacketMapNumber(p.Manager.Get()); err != nil {
 		return fmt.Errorf("unable to read raw_packet_router_sel: %v", err)
 	} else if err := p.swapRawPacketRouterSelValue(active); err != nil {
 		return fmt.Errorf("unable to swap raw_packet_router_sel: %v", err)
