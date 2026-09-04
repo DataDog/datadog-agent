@@ -51,3 +51,13 @@ instances:
     ## Whether to collect topology metadata from the device.
     #
     # collect_topology: false
+
+    ## @param use_tls - boolean - optional - default: false
+    ## Whether to use TLS for the gNMI gRPC transport.
+    #
+    # use_tls: false
+
+    ## @param insecure_skip_verify - boolean - optional - default: false
+    ## Skip TLS certificate verification when use_tls is true.
+    #
+    # insecure_skip_verify: false

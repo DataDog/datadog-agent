@@ -18,8 +18,6 @@ import (
 
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/admission"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
@@ -33,12 +31,14 @@ const (
 
 // Config holds the connection and subscription settings for a gNMI client.
 type Config struct {
-	Address         string
-	Port            int
-	Username        string
-	Password        string
-	Profile         config.ProfileDefinition
-	CollectTopology bool
+	Address            string
+	Port               int
+	Username           string
+	Password           string
+	Profile            config.ProfileDefinition
+	CollectTopology    bool
+	UseTLS             bool
+	InsecureSkipVerify bool
 }
 
 // Option configures optional client behavior, primarily for tests.
@@ -70,10 +70,35 @@ const (
 	StreamStateReconnecting
 )
 
+// ConnectionStatus exposes connection diagnostics for status reporting.
+type ConnectionStatus struct {
+	LastError         string
+	LastErrorAt       time.Time
+	NextReconnectAt   time.Time
+	EverConnected     bool
+	LastConnectedAt   time.Time
+}
+
+// String returns a stable string representation of the stream state.
+func (s StreamState) String() string {
+	switch s {
+	case StreamStateNotReady:
+		return "not_ready"
+	case StreamStateConnected:
+		return "connected"
+	case StreamStateReconnecting:
+		return "reconnecting"
+	default:
+		return "unknown"
+	}
+}
+
 // Client maintains a streaming gNMI subscription and a latest-value cache.
 type Client struct {
 	cfg Config
 	opt options
+
+	transport TransportConfig
 
 	mu       sync.Mutex
 	conn     *grpc.ClientConn
@@ -86,6 +111,11 @@ type Client struct {
 	reconnectAttempts int
 	streamState       StreamState
 	everConnected     bool
+	lastConnectedAt   time.Time
+
+	lastStreamError   string
+	lastStreamErrorAt time.Time
+	nextReconnectAt   time.Time
 }
 
 // New creates a client. Call Start to open the subscription loop.
@@ -126,6 +156,10 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 	return &Client{
 		cfg:   cfg,
 		opt:   clientOpts,
+		transport: TransportConfig{
+			UseTLS:             cfg.UseTLS,
+			InsecureSkipVerify: cfg.InsecureSkipVerify,
+		},
 		cache: newCache(),
 	}, nil
 }
@@ -210,6 +244,25 @@ func (c *Client) ReceivedSamples() int {
 	return c.cache.count()
 }
 
+// TransportMode returns the configured transport security mode.
+func (c *Client) TransportMode() TransportMode {
+	return c.transport.mode()
+}
+
+// ConnectionStatus returns the latest connection error and reconnect timing.
+func (c *Client) ConnectionStatus() ConnectionStatus {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return ConnectionStatus{
+		LastError:       c.lastStreamError,
+		LastErrorAt:     c.lastStreamErrorAt,
+		NextReconnectAt: c.nextReconnectAt,
+		EverConnected:   c.everConnected,
+		LastConnectedAt: c.lastConnectedAt,
+	}
+}
+
 func (c *Client) setStreamState(state StreamState) {
 	c.mu.Lock()
 	c.streamState = state
@@ -266,11 +319,9 @@ func (c *Client) run(ctx context.Context) {
 		if err != nil {
 			c.setPostDisconnectStreamState()
 			numErrors = policy.IncError(numErrors)
-			c.mu.Lock()
-			c.reconnectAttempts = numErrors
-			c.mu.Unlock()
-
 			delay := policy.GetBackoffDuration(numErrors)
+			c.recordReconnectError(err, numErrors, delay)
+
 			timer := time.NewTimer(delay)
 			select {
 			case <-ctx.Done():
@@ -292,8 +343,6 @@ func (c *Client) connectAndReceive(ctx context.Context) error {
 	c.mu.Lock()
 	c.conn = conn
 	c.reconnectAttempts = 0
-	c.everConnected = true
-	c.streamState = StreamStateConnected
 	c.mu.Unlock()
 
 	defer func() {
@@ -305,11 +354,7 @@ func (c *Client) connectAndReceive(ctx context.Context) error {
 	}()
 
 	gnmiClient := gnmipb.NewGNMIClient(conn)
-	streamCtx := metadata.NewOutgoingContext(ctx, metadata.Pairs(
-		"username", c.cfg.Username,
-		"password", c.cfg.Password,
-	))
-	stream, err := gnmiClient.Subscribe(streamCtx)
+	stream, err := gnmiClient.Subscribe(ctx)
 	if err != nil {
 		return fmt.Errorf("open subscribe stream: %w", err)
 	}
@@ -321,6 +366,16 @@ func (c *Client) connectAndReceive(ctx context.Context) error {
 	if err := stream.Send(subscribeReq); err != nil {
 		return fmt.Errorf("send subscribe request: %w", err)
 	}
+
+	now := time.Now()
+	c.mu.Lock()
+	c.everConnected = true
+	c.lastConnectedAt = now
+	c.streamState = StreamStateConnected
+	c.lastStreamError = ""
+	c.lastStreamErrorAt = time.Time{}
+	c.nextReconnectAt = time.Time{}
+	c.mu.Unlock()
 
 	for {
 		resp, err := stream.Recv()
@@ -346,8 +401,12 @@ func (c *Client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 	}
 
 	target := net.JoinHostPort(c.cfg.Address, strconv.Itoa(c.cfg.Port))
-	// MVP uses insecure transport credentials; production TLS support is follow-up work.
-	conn, err := c.opt.dial(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	secure := c.transport.UseTLS
+	dialOpts := []grpc.DialOption{
+		grpc.WithTransportCredentials(c.transport.transportCredentials()),
+		grpc.WithPerRPCCredentials(newPassCred(c.cfg.Username, c.cfg.Password, secure)),
+	}
+	conn, err := c.opt.dial(ctx, target, dialOpts...)
 	if err != nil {
 		admission.Gate().Release()
 		return nil, fmt.Errorf("dial %s: %w", target, err)
@@ -443,5 +502,23 @@ func (c *Client) setCloseErr(err error) {
 	defer c.mu.Unlock()
 	if c.closeErr == nil {
 		c.closeErr = err
+	}
+}
+
+func (c *Client) recordReconnectError(err error, numErrors int, delay time.Duration) {
+	now := time.Now()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.reconnectAttempts = numErrors
+	if err != nil {
+		c.lastStreamError = err.Error()
+		c.lastStreamErrorAt = now
+	}
+	if delay > 0 {
+		c.nextReconnectAt = now.Add(delay)
+	} else {
+		c.nextReconnectAt = time.Time{}
 	}
 }

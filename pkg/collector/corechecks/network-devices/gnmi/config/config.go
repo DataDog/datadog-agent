@@ -35,6 +35,8 @@ type InstanceConfig struct {
 	MetadataCollectionInterval int      `yaml:"metadata_collection_interval"`
 	Tags                       []string `yaml:"tags"`
 	CollectTopology            bool     `yaml:"collect_topology"`
+	UseTLS                     bool     `yaml:"use_tls"`
+	InsecureSkipVerify         bool     `yaml:"insecure_skip_verify"`
 }
 
 // CheckConfig combines a validated instance config with its loaded profile.
