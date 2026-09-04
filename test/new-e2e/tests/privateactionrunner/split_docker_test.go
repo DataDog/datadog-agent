@@ -55,6 +55,8 @@ func (s *dockerPARSplitSuite) TestAllInOneTopologyExecutesTask() {
 	client := s.Env().FakeIntake.Client()
 	s.Require().NoError(client.FlushPAR())
 	s.waitForContainerProcessState("datadog-agent", parControlProcess, "Running", 2*time.Minute)
+	_, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr("datadog-agent", "/par-probe.sh")
+	s.Require().NoError(err, stderr)
 
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		count, err := client.GetPARDequeueCount()
