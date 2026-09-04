@@ -832,6 +832,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.traceAggregator.Reset()
 	c.agentDiscoveryAggregator.Reset()
 	c.agentTelemetryLogAggregator.Reset()
+	c.ddInjectorCrashAggregator.Reset()
 	return nil
 }
 
