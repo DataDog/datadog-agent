@@ -61,3 +61,9 @@ instances:
     ## Skip TLS certificate verification when use_tls is true.
     #
     # insecure_skip_verify: false
+
+    ## @param encoding - string - optional - default: json_ietf
+    ## gNMI subscription encoding requested from the device.
+    ## Supported values: proto, json, json_ietf
+    #
+    # encoding: json_ietf
