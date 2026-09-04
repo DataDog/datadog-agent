@@ -3467,6 +3467,25 @@ properties:
         <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
     tags:
     - template_section:KubernetesTagging
+  container_image_annotations_as_tags:
+    node_type: setting
+    type: object
+    default: {}
+    additionalProperties:
+      type: string
+    visibility: public
+    description: |-
+      The Agent can extract container image OCI annotation values and set them as tags associated to a <TAG_KEY>.
+      These tags are attached to container image entities (appearing on the Container Images page) and are also
+      applied to the containers using the image, so they show up on container.* metrics.
+      If you prefix your tag name with `+`, it will only be added to high cardinality metrics. (Supported container
+      runtimes: Containerd, CRI-O).
+    example: |2-
+
+        <ANNOTATION_NAME>: <TAG_KEY>
+        <HIGH_CARDINALITY_ANNOTATION_NAME>: +<TAG_KEY>
+    tags:
+    - template_section:KubernetesTagging
   ecs_agent_container_name:
     node_type: setting
     title: ECS integration Configuration
