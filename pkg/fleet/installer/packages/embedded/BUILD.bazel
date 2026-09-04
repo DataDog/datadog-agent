@@ -11,6 +11,11 @@ exports_files(
     visibility = ["//pkg/procmgr/rust:__pkg__"],
 )
 
+exports_files(
+    glob(["tmpl/gen/container/privateactionrunner/processes.d/*.yaml"]),
+    visibility = ["//packages/agent/product:__pkg__"],
+)
+
 # keep
 service_srcs = glob([
     "tmpl/gen/pm/processes.d/*.yaml",

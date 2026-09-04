@@ -51,6 +51,32 @@ func TestParControlUsesActiveConfigDirForFleetPolicies(t *testing.T) {
 	assert.Contains(t, string(process), "DD_FLEET_POLICIES_DIR: ${DD_CONF_DIR}/managed/datadog-agent/stable")
 }
 
+func TestContainerPARProcessDefinitions(t *testing.T) {
+	parControl, err := fs.ReadFile(genFS, "gen/container/privateactionrunner/processes.d/datadog-agent-par-control.yaml")
+	assert.NoError(t, err)
+	assert.Contains(t, string(parControl), "command: /opt/datadog-agent/embedded/bin/par-control")
+	assert.Contains(t, string(parControl), "  - /opt/datadog-agent/embedded/bin/privateactionrunner")
+	assert.Contains(t, string(parControl), "  - /etc/datadog-agent/datadog.yaml")
+	assert.Contains(t, string(parControl), "auto_start: true")
+	assert.Contains(t, string(parControl), "inherit_environment: true")
+
+	executor, err := fs.ReadFile(genFS, "gen/container/privateactionrunner/processes.d/datadog-agent-action-executor.yaml")
+	assert.NoError(t, err)
+	assert.Contains(t, string(executor), "command: /opt/datadog-agent/embedded/bin/privateactionrunner")
+	assert.Contains(t, string(executor), "  - run-executor")
+	assert.Contains(t, string(executor), "  - /etc/datadog-agent/datadog.yaml")
+	assert.Contains(t, string(executor), "auto_start: false")
+	assert.Contains(t, string(executor), "inherit_environment: true")
+}
+
+func TestHostPARProcessDefinitionsDoNotInheritDaemonEnvironment(t *testing.T) {
+	for _, name := range []string{"datadog-agent-par-control.yaml", "datadog-agent-action-executor.yaml"} {
+		process, err := fs.ReadFile(genFS, "gen/pm/processes.d/"+name)
+		assert.NoError(t, err)
+		assert.NotContains(t, string(process), "inherit_environment: true")
+	}
+}
+
 func TestProcessesEnvVarsDefinedInProcmgrService(t *testing.T) {
 	processesDir, err := fs.Sub(genFS, "gen/pm/processes.d")
 	assert.NoError(t, err)

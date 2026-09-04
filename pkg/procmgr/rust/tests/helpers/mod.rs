@@ -1070,6 +1070,13 @@ impl TestEnv {
         Self::new_inner(false)
     }
 
+    pub fn with_nested_config_dir(relative: &str) -> Self {
+        let mut env = Self::new_inner(false);
+        env.config_dir = env.env_root().join(relative);
+        std::fs::create_dir_all(&env.config_dir).expect("failed to create nested config dir");
+        env
+    }
+
     fn new_inner(create_config_dir: bool) -> Self {
         let dir = tempfile::tempdir().expect("failed to create temp dir");
         let config_dir = dir.path().join("processes.d");
@@ -1120,6 +1127,15 @@ impl TestEnv {
 
     pub fn start(self) -> Self {
         self.start_with_timeout(default_start_timeout())
+    }
+
+    pub fn start_with_daemon_env(mut self, extra_env: &[(&str, &str)]) -> Self {
+        let daemon = DaemonHandle::start_with_env(&self.config_dir, &self.socket_path, extra_env);
+        self.daemon = Some(daemon);
+        let timeout = default_start_timeout();
+        self.wait_until_ready(timeout)
+            .unwrap_or_else(|e| panic!("daemon did not become ready within {timeout:?}: {e}"));
+        self
     }
 
     pub fn start_with_timeout(mut self, timeout: Duration) -> Self {

@@ -53,6 +53,7 @@ pkg_filegroup(
         # TODO: dependency 'datadog-agent-integrations-py3'
     ] + select({
         "//packages/agent:linux_default": [
+            ":container_par_process_definitions",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/privateactionrunner/par-control:all_files_linux",
             "//pkg/procmgr/rust:all_files_linux",
@@ -160,6 +161,19 @@ pkg_files(
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "container_par_process_definitions",
+    srcs = [
+        "//pkg/fleet/installer/packages/embedded:tmpl/gen/container/privateactionrunner/processes.d/datadog-agent-action-executor.yaml",
+        "//pkg/fleet/installer/packages/embedded:tmpl/gen/container/privateactionrunner/processes.d/datadog-agent-par-control.yaml",
+    ],
+    attributes = pkg_attributes(mode = "0644"),
+    renames = {
+        "//pkg/fleet/installer/packages/embedded:tmpl/gen/container/privateactionrunner/processes.d/datadog-agent-action-executor.yaml": "privateactionrunner/processes.d/datadog-agent-action-executor.yaml",
+        "//pkg/fleet/installer/packages/embedded:tmpl/gen/container/privateactionrunner/processes.d/datadog-agent-par-control.yaml": "privateactionrunner/processes.d/datadog-agent-par-control.yaml",
+    },
 )
 
 pkg_files(

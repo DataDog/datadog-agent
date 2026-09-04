@@ -208,6 +208,14 @@ build do
 
     if linux_target?
       command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/par-control:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+
+      # Container-only activation contract: these definitions live outside the
+      # default processes.d directory and are loaded only when the Operator points
+      # dd-procmgrd at them with DD_PM_CONFIG_DIR.
+      par_processes_dir = "#{install_dir}/privateactionrunner/processes.d"
+      mkdir par_processes_dir
+      copy "pkg/fleet/installer/packages/embedded/tmpl/gen/container/privateactionrunner/processes.d/datadog-agent-par-control.yaml", par_processes_dir
+      copy "pkg/fleet/installer/packages/embedded/tmpl/gen/container/privateactionrunner/processes.d/datadog-agent-action-executor.yaml", par_processes_dir
     end
   end
 
