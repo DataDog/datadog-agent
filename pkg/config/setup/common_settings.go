@@ -1185,6 +1185,16 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dd_url", "https://app.datadoghq.com", "DD_DD_URL", "DD_URL")
 	config.BindEnvAndSetDefault("app_key", "")
 	config.BindEnvAndSetDefault("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"})
+
+	// Remote Queries (POC). On main these settings are generated into
+	// all_settings.go from pkg/config/schema/yaml/core_schema.yaml; the 7.83.x
+	// release line still registers settings by hand here, so the schema entries
+	// carried by the Remote Queries commits must be mirrored explicitly. Keep
+	// the defaults identical to the schema.
+	config.BindEnvAndSetDefault("remote_queries.match_check.enabled", false)
+	config.BindEnvAndSetDefault("remote_queries.execute.enabled", false)
+	config.BindEnvAndSetDefault("remote_queries.execute.enable_query_allowlist", true)
+	config.BindEnvAndSetDefault("remote_queries.execute.intake_test_drive", "")
 	config.SetDefault("proxy.http", "")
 	config.SetDefault("proxy.https", "")
 	config.SetDefault("proxy.no_proxy", []string{})
