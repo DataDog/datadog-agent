@@ -39,6 +39,7 @@ func TestDockerPARSplitSuite(t *testing.T) {
 		awsdocker.WithRunOptions(scendocker.WithAgentOptions(
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_ENABLED", pulumi.String("true")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", pulumi.String("true")),
+			dockeragentparams.WithAgentServiceEnvVariable("DD_PM_SOCKET_PATH", pulumi.String("/opt/datadog-agent/run/dd-procmgrd.sock")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL", pulumi.String("false")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_HOSTNAME", pulumi.String("par-split-docker-e2e")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_URN", pulumi.String(urn)),
