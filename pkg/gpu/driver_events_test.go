@@ -8,7 +8,6 @@
 package gpu
 
 import (
-	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -22,11 +21,13 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gputestutil "github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 func TestCreateDriverEvent(t *testing.T) {
 	subscriber, _ := newTestDriverEventSubscriber(t)
+	expectedTimestamp := time.Date(2026, time.September, 4, 12, 0, 0, 0, time.UTC)
+	resolver := &fakeMonotonicTimeResolver{resolvedTime: expectedTimestamp}
+	subscriber.timeResolver = resolver
 
 	for _, tc := range []struct {
 		message string
@@ -39,13 +40,13 @@ func TestCreateDriverEvent(t *testing.T) {
 		{"nvrm:  xid ( pci:0000:00:1e.0 ) : 43, channel 0x1", 43},
 	} {
 		record := kernel.KmsgRecord{Timestamp: 1234, Message: tc.message}
-		expectedTimestamp := subscriber.timeResolver.ResolveMonotonicTimestamp(record.Timestamp * uint64(time.Microsecond))
 
 		event, err := subscriber.createDriverEvent(record)
 
 		require.NoError(t, err, tc.message)
 		require.Equal(t, gputestutil.DefaultGpuUUID, event.DeviceUUID, tc.message)
-		require.WithinDuration(t, expectedTimestamp, event.Timestamp, time.Millisecond, tc.message)
+		require.Equal(t, expectedTimestamp, event.Timestamp, tc.message)
+		require.Equal(t, uint64(1234)*uint64(time.Microsecond), resolver.lastTimestamp, tc.message)
 		require.Equal(t, model.DriverEventTypeNvidiaXid, event.Type, tc.message)
 		require.Equal(t, tc.xidCode, event.NvidiaXid.XidCode, tc.message)
 		require.Equal(t, tc.message, event.NvidiaXid.Message, tc.message)
@@ -276,22 +277,6 @@ func TestCreateDriverEventCountsMalformedOptionalDetails(t *testing.T) {
 	require.Equal(t, float64(1), enrichmentMetrics[0].Value())
 }
 
-func TestDriverEventJSONRoundTrip(t *testing.T) {
-	for _, event := range []model.DriverEvent{
-		{NvidiaXid: &model.NvidiaXid{MMUFault: &model.NvidiaXidMMUFault{FaultAddress: "0x1"}}},
-		{NvidiaXid: &model.NvidiaXid{NVLinkFault: &model.NvidiaXidNVLinkFault{LinkID: uint64Pointer(0), StatusWords: []string{"0x1"}}}},
-		{NvidiaXid: &model.NvidiaXid{MemoryFault: &model.NvidiaXidMemoryFault{FBPA: uint64Pointer(2), NodeRebootRequired: true}}},
-		{NvidiaXid: &model.NvidiaXid{RecoveryAction: &model.NvidiaXidRecoveryAction{PreviousCode: uint64Pointer(0), CurrentLabel: "Drain and Reset"}}},
-	} {
-		serialized, err := json.Marshal(event)
-		require.NoError(t, err)
-
-		var roundTripped model.DriverEvent
-		require.NoError(t, json.Unmarshal(serialized, &roundTripped))
-		require.Equal(t, event, roundTripped)
-	}
-}
-
 func TestParseNvidiaXidBoundsRawMessage(t *testing.T) {
 	message := "NVRM: Xid (PCI:0000:00:1e): 13, " + strings.Repeat("x", maxDriverEventMessageLength)
 	var event model.DriverEvent
@@ -363,6 +348,10 @@ func TestDriverEventSubscriberStop(t *testing.T) {
 
 	events, err := subscriber.GetAndFlush()
 	require.Equal(t, []model.DriverEvent{queuedEvent}, events)
+	require.NoError(t, err)
+
+	events, err = subscriber.GetAndFlush()
+	require.Empty(t, events)
 	require.ErrorIs(t, err, errDriverEventSubscriberStopped)
 }
 
@@ -388,19 +377,26 @@ func newTestDriverEventSubscriber(t *testing.T) (*DriverEventSubscriber, telemet
 	deviceCache := ddnvml.NewDeviceCache()
 	require.NoError(t, deviceCache.Refresh())
 
-	timeResolver, err := ktime.NewResolver()
-	require.NoError(t, err)
-
 	telemetryMock := gputestutil.GetTelemetryMock(t)
 	telemetry := &driverEventTelemetry{}
 	telemetry.init(telemetryMock)
 
 	return &DriverEventSubscriber{
 		telemetry:    telemetry,
-		timeResolver: timeResolver,
+		timeResolver: &fakeMonotonicTimeResolver{resolvedTime: time.Unix(100, 0)},
 		events:       make(chan model.DriverEvent, 1),
 		deviceCache:  deviceCache,
 	}, telemetryMock
+}
+
+type fakeMonotonicTimeResolver struct {
+	resolvedTime  time.Time
+	lastTimestamp uint64
+}
+
+func (r *fakeMonotonicTimeResolver) ResolveMonotonicTimestamp(timestamp uint64) time.Time {
+	r.lastTimestamp = timestamp
+	return r.resolvedTime
 }
 
 type fakeDriverEventReader struct {

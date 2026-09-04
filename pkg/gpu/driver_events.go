@@ -90,13 +90,17 @@ type driverEventReader interface {
 	Stop()
 }
 
+type monotonicTimeResolver interface {
+	ResolveMonotonicTimestamp(timestamp uint64) time.Time
+}
+
 // DriverEventSubscriber reads NVIDIA Xid events from /dev/kmsg and associates them with physical GPU UUIDs.
 type DriverEventSubscriber struct {
 	reader       driverEventReader
 	records      <-chan kernel.KmsgRecord
 	unsubscribe  func()
 	telemetry    *driverEventTelemetry
-	timeResolver *ktime.Resolver
+	timeResolver monotonicTimeResolver
 
 	events      chan model.DriverEvent
 	deviceCache ddnvml.DeviceCache
@@ -159,6 +163,9 @@ func (s *DriverEventSubscriber) GetAndFlush() ([]model.DriverEvent, error) {
 		select {
 		case event, ok := <-s.events:
 			if !ok {
+				if len(events) > 0 {
+					return events, nil
+				}
 				return events, errDriverEventSubscriberStopped
 			}
 			events = append(events, event)
