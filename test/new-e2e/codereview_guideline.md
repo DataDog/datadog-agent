@@ -3,9 +3,20 @@ These guidelines are in rough "importance" order, but follow _all_ of them.
 
 ## Making tests reliable
 ### Avoiding external dependencies
+<!-- --8<-- [start:avoiding-external-deps] -->
 A major source of flaky / unrelated failures is reliance on _external dependencies_: anything outside the AWS/GCP/Azure account the test runs in and internal DD systems.
 
 We will soon block _all_ internet access from CI for security reasons, so prepare now.
+
+#### Spotting a runtime dependency
+| Smell | Example |
+|---|---|
+| A package manager on the host | `vm.Execute("sudo apt-get install -y jq")`, `yum install`, `zypper`, `choco` |
+| A download from a public host | `curl https://…`, `wget`, `Invoke-WebRequest`, `msiexec /i https://…` |
+| An image reference with no registry | `docker run busybox`, `FROM ubuntu:22.04`, `image: redis` |
+| A language package manager | `pip install`, `npm i`, `gem install`, `cargo install` |
+| A remotely-hosted manifest | `kubectl apply -f https://…`, a Helm `repository:` URL, a remote kustomize base |
+<!-- --8<-- [end:avoiding-external-deps] -->
 
 #### Docker image pulls
 It is easy to "accidentally" pull images from `docker.io` / DockerHub, a major source of flakiness due to its restrictive rate limiting.
@@ -14,16 +25,28 @@ Watch out for:
 - In a Dockerfile, `FROM ...` without specifying a registry
 - In a compose file / k8s definition: `image: ...` without specifying a registry.
 
-Use the ECR pull-through cache set up in the `datadog-agent-qa` account instead: `669783387624.dkr.ecr.us-east-1.amazonaws.com/{dockerhub, ecr-public, quay}/<your-image>:<your-tag>`.
-> Only DockerHub, public ECR and Quay are supported as upstreams (GHCR is not). If your image's upstream is unsupported, use an equivalent image from a supported one.
+<!-- --8<-- [start:registries] -->
+Use the ECR pull-through cache set up in the `datadog-agent-qa` account (`669783387624`, `us-east-1`):
 
-> Outside AWS, use your provider's registry, which is often not rate limited. Otherwise, ask #agent-devx-help to set up a pull-through cache in that Cloud environment.
+| Upstream | Prefix |
+|---|---|
+| DockerHub | `669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/…` |
+| Public ECR | `669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/…` |
+| Quay | `669783387624.dkr.ecr.us-east-1.amazonaws.com/quay/…` |
+
+- DockerHub official images keep their `library/` path: `busybox:1.37.0` becomes `…/dockerhub/library/busybox:1.37.0`.
+- Only those three upstreams are supported. **GHCR is not** — if your image is only on GHCR, use an equivalent from a supported upstream if possible, otherwise leave unproxied.
+- Pulling from `public.ecr.aws/…` or `mirror.gcr.io` **directly is not an approved alternative**, even though neither is rate limited today. Route it through the prefixes above. Existing code that does otherwise is debt, not precedent.
+- There is no pull-through cache in GCP or Azure. For a test that only ever runs on GCP, the provider's registry or `mirror.gcr.io` is acceptable — do not import that habit into an AWS test. Ask #agent-devx-help before relying on any other public mirror.
+<!-- --8<-- [end:registries] -->
+
+Do not hardcode the registry host; read it from the runner parameter store. See [ECR pull-through cache](../../docs/public/how-to/test/e2e/dependencies.md#ecr-pull-through-cache) for the idiom, the Kind caveat, and how to run such a test locally.
 
 #### System package installs (apt, yum, dnf, zypper, ...)
 If your test requires a package unavailable on a bare VM, in order of preference:
 - Avoid it (e.g. you rarely need `jq`: parse JSON in go)
 - Use a containerized environment cached via the previous method. Many tools ship prebuilt container images you can run directly.
-- Prebake it into a custom machine image, as done for the `Ubuntu2204E2E` OS flavor. See [ami-builder](https://github.com/DataDog/ami-builder/ami/images/e2e).
+- Prebake it into a custom machine image, as done for the `Ubuntu2204E2E` OS flavor. See [Custom AMIs](../../docs/public/how-to/test/e2e/custom-amis.md), which also lists what the `-e2e` images already ship.
 - Store your package installer on an internal package repository. See [Other dependencies](#other-dependencies)
 
 Running package managers on the VM exposes you to rate limiting from upstream mirrors and to _changes_ in their packages - removed, renamed, or incompatible versions. Also see [Pin your dependencies](#pin-your-dependencies).
@@ -32,7 +55,7 @@ Running package managers on the VM exposes you to rate limiting from upstream mi
 These pull from their own public registries and are subject to the same rate limiting and drift risks as system package installs. The same alternatives apply.
 
 #### Other dependencies / Internet accesses
-Avoid web requests to external websites (`ping some-website.com`, `curl some-website.com`). If you must download a tarball, installer, or package and no previous solution applies, vendor that artifact in our purpose-made S3 bucket via `RemoteHost.HostArtifactClient`. See [Confluence](https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/5040342019/E2E+-+Use+a+third+party+artifact+in+test).
+Avoid web requests to external websites (`ping some-website.com`, `curl some-website.com`). If you must download a tarball, installer, or package and no previous solution applies, vendor that artifact in our purpose-made S3 bucket via `RemoteHost.HostArtifactClient`. See [S3 artifact bucket](../../docs/public/how-to/test/e2e/dependencies.md#s3-artifact-bucket) for the read API, and [Confluence](https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/5040342019/E2E+-+Use+a+third+party+artifact+in+test) for the upload side.
 
 Remotely-hosted Kubernetes resources (Helm charts, CNI manifests like flannel, remote kustomize bases...) are a common hidden source of Internet access - both the manifest and the images it references are pulled at runtime. Vendor the manifest locally and rewrite its image references to the ECR pull-through cache.
 

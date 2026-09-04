@@ -85,22 +85,24 @@ namespace WixSetup.Datadog_Agent
             OnUpgrade(NativeDialogs.VerifyReadyDlg, Buttons.Back, new ShowDialog(Dialogs.AgentUserDialog));
 
             // Maintenance track
-            OnMaintenance(NativeDialogs.MaintenanceWelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.MaintenanceTypeDlg));
+            //
+            // Checked once here, on the way out of the Welcome dialog, the same as the fresh-install
+            // and upgrade tracks above: Change, Repair, and Remove all require a trusted
+            // configuration directory (see PrerequisitesCustomActions.EnsureSecureConfigRoot), so one
+            // check here covers all three buttons below.
+            OnMaintenance(NativeDialogs.MaintenanceWelcomeDlg, Buttons.Next,
+                new ExecuteCustomAction(agentCustomActions.EnsureSecureConfigRootUI) { Order = 1 },
+                new SpawnDialog(Dialogs.ErrorModalDialog, configRootInvalid) { Order = 2 },
+                new ShowDialog(NativeDialogs.MaintenanceTypeDlg, configRootValid) { Order = 3 });
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceWelcomeDlg));
 
-            // Change and repair write to the configuration directory, so they are checked too. Remove
-            // is deliberately not: an untrusted directory must not prevent uninstalling the Agent.
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, "ChangeButton",
                 new SetProperty("PREVIOUS_PAGE", NativeDialogs.MaintenanceTypeDlg) { Order = 1 },
-                new ExecuteCustomAction(agentCustomActions.EnsureSecureConfigRootUI) { Order = 2 },
-                new SpawnDialog(Dialogs.ErrorModalDialog, configRootInvalid) { Order = 3 },
-                new ShowDialog(NativeDialogs.CustomizeDlg, configRootValid) { Order = 4 });
+                new ShowDialog(NativeDialogs.CustomizeDlg) { Order = 2 });
 
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Repair,
                 new SetProperty("PREVIOUS_PAGE", NativeDialogs.MaintenanceTypeDlg) { Order = 1 },
-                new ExecuteCustomAction(agentCustomActions.EnsureSecureConfigRootUI) { Order = 2 },
-                new SpawnDialog(Dialogs.ErrorModalDialog, configRootInvalid) { Order = 3 },
-                new ShowDialog(Dialogs.AgentUserDialog, configRootValid) { Order = 4 });
+                new ShowDialog(Dialogs.AgentUserDialog) { Order = 2 });
 
             OnMaintenance(NativeDialogs.MaintenanceTypeDlg, Buttons.Remove,
                 new ShowDialog(NativeDialogs.VerifyReadyDlg));

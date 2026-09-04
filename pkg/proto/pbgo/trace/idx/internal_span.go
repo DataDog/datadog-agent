@@ -905,6 +905,24 @@ func (s *InternalSpan) Clone() *InternalSpan {
 	}
 }
 
+// String implements fmt.Stringer so that formatting an InternalSpan with %s or %v
+// resolves the string table instead of dumping the struct, which would otherwise
+// render as "%!s(*idx.Span=&{...})" and make log lines that report an offending
+// span (for example in the normalizer) unreadable.
+//
+// Only the fields needed to identify a span are included. Attributes are
+// deliberately omitted: they are unbounded in size and may carry request data,
+// which makes them unsuitable for a value that gets interpolated into logs. Use
+// DebugString for the full contents.
+//
+// The trace ID is not included: the idx format stores it once per chunk
+// (InternalTraceChunk.TraceID) rather than on each span, so it is not reachable
+// from here.
+func (s *InternalSpan) String() string {
+	return fmt.Sprintf("Span {Service: %s, Name: %s, Resource: %s, Type: %s, SpanID: %d}",
+		s.Service(), s.Name(), s.Resource(), s.Type(), s.span.SpanID)
+}
+
 // DebugString returns a human readable string representation of the span
 func (s *InternalSpan) DebugString() string {
 	var sb strings.Builder

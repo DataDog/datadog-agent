@@ -44,6 +44,7 @@ func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	}
 	storageCfg := DefaultStorageConfig()
 	storageCfg.TrackCorrelationHistory = true
+	storageCfg.TrackAnomalyHistory = true
 	obs.Reset(settings, storageCfg)
 
 	scorer := obs.engine.scorer
@@ -104,9 +105,7 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 }
 
 func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	filter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)

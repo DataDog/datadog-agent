@@ -15,6 +15,8 @@ from invoke.exceptions import Exit
 
 from tasks import core_checks, doc
 from tasks.build_tags import (
+    AGENT_TAGS,
+    COMMON_TAGS,
     compute_build_tags_for_flavor,
     get_default_build_tags,
 )
@@ -24,7 +26,7 @@ from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -72,14 +74,22 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
-    enable_bazel=True,
+    legacy_rtloader_cmake=False,
+    enable_bazel=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
 
-    Bazel-backed build steps are enabled by default.
-    Use `--no-enable-bazel` to keep the legacy build paths.
+    Bazel-backed rtloader install is used by default. Pass
+    `--legacy-rtloader-cmake` to use the old CMake path instead (needed e.g.
+    for a custom cmake_options override, see hacky_dev_image_build).
+
+    Pass `--enable-bazel` to compile the cmd/agent Go binary via
+    `bazel build //cmd/agent` instead of `go build`. This is for local
+    developer-desktop use only: it only supports the base flavor, no --race,
+    no --build-include/--build-exclude/--no-glibc, and is not supported when
+    targeting Windows.
 
     Example invokation:
         dda inv agent.build --build-exclude=systemd
@@ -90,13 +100,13 @@ def build(
     if not exclude_rtloader and not flavor.is_iot() and target_platform != "aix":
         # On AIX, rtloader is built natively in advance as a prerequisite.
         with gitlab_section("Install embedded rtloader", collapsed=True):
-            if enable_bazel:
+            if legacy_rtloader_cmake:
+                rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
+                rtloader_install(ctx)
+            else:
                 bazel_embedded = rtloader_install_with_bazel(ctx)
                 embedded_path = bazel_embedded
                 python_home_3 = bazel_embedded
-            else:
-                rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
-                rtloader_install(ctx)
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
@@ -112,6 +122,47 @@ def build(
 
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
+
+    if enable_bazel:
+        if exclude_rtloader:
+            raise Exit(
+                "--enable-bazel requires rtloader to be installed (it needs embedded_path to "
+                "patch the built binary's RPATH). Drop --enable-bazel or --exclude-rtloader.",
+                code=1,
+            )
+        if target_platform == "win32":
+            raise Exit(
+                "--enable-bazel is not supported when targeting Windows yet "
+                "(cmd/agent's Bazel PDB/resource-embedding path is unvalidated). "
+                "Drop --enable-bazel, or unset GOOS=windows, to use the legacy go-build path.",
+                code=1,
+            )
+        if flavor != AgentFlavor.base:
+            raise Exit(
+                f"--enable-bazel only supports the '{AgentFlavor.base.name}' flavor today "
+                f"(no cmd/agent Bazel consumer wired up for '{flavor.name}' in agent.build). "
+                "Drop --enable-bazel for this flavor.",
+                code=1,
+            )
+        if race:
+            raise Exit(
+                "--enable-bazel does not support --race yet (the //cmd/agent Bazel target "
+                "has no race-mode parameterization). Drop --enable-bazel or --race.",
+                code=1,
+            )
+        # //cmd/agent's Bazel target has a static gotags set (AGENT_TAGS | COMMON_TAGS,
+        # see cmd/agent/BUILD.bazel and bazel/rules/go/go_binary.bzl). This is exactly
+        # what build_tags computes above with no --build-include/--build-exclude/--no-glibc
+        # customization, so comparing the two catches any such customization without
+        # hand-duplicating a parallel "which flags are supported" list.
+        if set(build_tags) != AGENT_TAGS | COMMON_TAGS:
+            raise Exit(
+                "--enable-bazel requires the default agent build-tag set (no --build-include, "
+                "--build-exclude, or --no-glibc). Requested tags differ from //cmd/agent's "
+                f"static Bazel gotags by: {sorted(set(build_tags) ^ (AGENT_TAGS | COMMON_TAGS))}. "
+                "Drop --enable-bazel for this combination.",
+                code=1,
+            )
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -147,20 +198,23 @@ def build(
     schema_compress(ctx)
 
     with gitlab_section("Build agent", collapsed=True):
-        go_build(
-            ctx,
-            f"{REPO_PATH}/cmd/{flavor_cmd}",
-            mod=go_mod,
-            env=env,
-            bin_path=agent_bin,
-            race=race,
-            rebuild=rebuild,
-            gcflags=gcflags,
-            ldflags=ldflags,
-            build_tags=build_tags,
-            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
-        )
+        if enable_bazel:
+            build_binary_with_bazel(f"//cmd/{flavor_cmd}", bin_path=agent_bin, embedded_path=embedded_path)
+        else:
+            go_build(
+                ctx,
+                f"{REPO_PATH}/cmd/{flavor_cmd}",
+                mod=go_mod,
+                env=env,
+                bin_path=agent_bin,
+                race=race,
+                rebuild=rebuild,
+                gcflags=gcflags,
+                ldflags=ldflags,
+                build_tags=build_tags,
+                check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+                coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+            )
 
     with gitlab_section("Generate configuration files", collapsed=True):
         generate_config_examples(
@@ -300,7 +354,7 @@ def run(
     flavor=AgentFlavor.base.name,
     skip_build=False,
     config_path=None,
-    enable_bazel=True,
+    legacy_rtloader_cmake=False,
 ):
     """
     Execute the agent binary.
@@ -309,7 +363,7 @@ def run(
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, rebuild, race, build_include, build_exclude, flavor, enable_bazel=enable_bazel)
+        build(ctx, rebuild, race, build_include, build_exclude, flavor, legacy_rtloader_cmake=legacy_rtloader_cmake)
 
     agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
     config_path = os.path.join(BIN_PATH, "dist", "datadog.yaml") if not config_path else config_path
@@ -455,7 +509,9 @@ def hacky_dev_image_build(
             development=development,
             build_exclude=build_exclude,
             cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
-            enable_bazel=False,
+            # TODO: this is the last usage of this flag, we should remove it once this
+            # task has been deprecated long enough
+            legacy_rtloader_cmake=True,
         )
         ctx.run(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'

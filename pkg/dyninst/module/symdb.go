@@ -615,14 +615,10 @@ func (m *symdbManager) performUpload(
 	if dc, ok := m.objectLoader.(*object.DiskCache); ok {
 		extractOpts.DiskCache = dc
 	}
-	it, err := symdb.PackagesIterator(
+	it := symdb.PackagesIterator(
 		executablePath,
 		m.objectLoader,
 		extractOpts)
-	if err != nil {
-		return fmt.Errorf("failed to read symbols for process %s (service: %s, version: %s, runtime ID: %s, executable: %s): %w",
-			procID.pid, procID.service, procID.version, runtimeID, executablePath, err)
-	}
 
 	var diskCache *object.DiskCache
 	if dc, ok := m.objectLoader.(*object.DiskCache); ok {

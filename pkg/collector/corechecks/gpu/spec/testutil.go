@@ -118,9 +118,9 @@ func BuildMockOptionsForConfig(t *testing.T, config GPUConfig, archSpecs *Archit
 	}
 
 	if config.DeviceMode == DeviceModeMIG {
-		opts = append(opts, testutil.WithMIGChildUUIDs(map[int]map[int]string{0: {0: testutil.MIGUUIDs[0]}}))
-	} else {
-		opts = append(opts, testutil.WithMIGDisabled())
+		opts = append(opts, testutil.WithDeviceOptions(0,
+			testutil.WithMIGChildUUIDs(map[int]string{0: testutil.MIGUUIDs[0]}),
+		))
 	}
 
 	return opts

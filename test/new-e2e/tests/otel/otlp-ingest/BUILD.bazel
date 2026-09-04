@@ -5,6 +5,7 @@ dd_agent_go_test(
     srcs = [
         "docker_pipelines_test.go",
         "logs_tags_as_ddtags_test.go",
+        "metrics_attributes_as_tags_test.go",
         "operation_and_resource_name_logic_v2_test.go",
         "pipelines_sampling_test.go",
         "pipelines_test.go",

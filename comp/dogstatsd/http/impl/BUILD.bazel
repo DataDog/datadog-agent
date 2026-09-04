@@ -32,7 +32,7 @@ go_library(
         "//pkg/proto/pbgo/dogstatsdhttp",
         "//pkg/tagger/types",
         "//pkg/tagset",
-        "//pkg/util/strings",
+        "//pkg/util/metricname",
     ],
 )
 
@@ -63,7 +63,7 @@ dd_agent_go_test(
         "//pkg/metrics",
         "//pkg/proto/pbgo/dogstatsdhttp",
         "//pkg/tagset",
-        "//pkg/util/strings",
+        "//pkg/util/metricname",
         "@com_github_stretchr_testify//require",
     ],
 )

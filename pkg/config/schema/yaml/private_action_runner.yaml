@@ -67,6 +67,15 @@ properties:
       When true, a set of default actions are automatically
       allowed without needing to be listed in actions_allowlist.
       Set to false to disable these default actions.
+  agent_secret_management_enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    visibility: public
+    description: |-
+      Enables resolving connection credentials with the Datadog Agent secret
+      management backend. Set to false to disable Agent secret resolution for
+      Private Action Runner connections.
   http_timeout_seconds:
     node_type: setting
     type: integer

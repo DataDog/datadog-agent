@@ -36,6 +36,7 @@ exports_files(
     # We may expand this in the future, but let's limit inventiveness for now.
     visibility = [
         "@agent//bazel/rules:__subpackages__",
+        "@agent//cmd:__subpackages__",
         "@agent//packages:__subpackages__",
     ],
 )

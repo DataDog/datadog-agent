@@ -56,6 +56,9 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		{key: "discovery.service_collection_batch_size", defaultValue: 500},
 		{key: "discovery.service_collection_max_consecutive_timeouts", defaultValue: 5},
 		{key: "discovery.service_collection_min_process_age", defaultValue: time.Minute},
+		{key: "runtime_security_config.security_profile.v2.enabled", defaultValue: true},
+		{key: "runtime_security_config.security_profile.v2.max_dump_size", defaultValue: 2560},
+		{key: "runtime_security_config.security_profile.v2.event_types", defaultValue: []string{"exec", "open", "dns", "bind"}},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
 			switch expected := tc.defaultValue.(type) {
@@ -73,6 +76,8 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 				assert.Equal(t, expected, cfg.GetInt64(tc.key))
 			case string:
 				assert.Equal(t, expected, cfg.GetString(tc.key))
+			case []string:
+				assert.Equal(t, expected, cfg.GetStringSlice(tc.key))
 			default:
 				t.Fatalf("unsupported type %T for key %s", tc.defaultValue, tc.key)
 			}

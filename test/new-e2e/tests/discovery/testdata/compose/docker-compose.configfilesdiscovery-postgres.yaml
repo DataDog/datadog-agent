@@ -38,3 +38,8 @@ services:
             ]
           }
         }
+    volumes:
+      - type: bind
+        source: ${CONFIG_FILES_DISCOVERY_POSTGRES_CONFIG_DIR}/10-add-config.sh
+        target: /docker-entrypoint-initdb.d/10-add-config.sh
+        read_only: true

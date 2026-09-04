@@ -20,6 +20,8 @@ import (
 	"go.uber.org/atomic"
 )
 
+var _ = declareInlineConfig(TestEventMonitor)
+
 func TestEventMonitor(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -74,6 +76,8 @@ func TestEventMonitor(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+var _ = declareInlineConfig(TestEventMonitorNoEnvs)
 
 func TestEventMonitorNoEnvs(t *testing.T) {
 	SkipIfNotAvailable(t)

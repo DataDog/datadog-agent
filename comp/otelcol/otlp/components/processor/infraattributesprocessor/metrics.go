@@ -37,16 +37,24 @@ func newInfraAttributesMetricProcessor(
 }
 
 func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
+	// When metrics_attributes_as_tags is enabled, promote custom tagger labels (e.g. from
+	// kubernetesResourcesLabelsAsTags) so they survive the metrics translator's
+	// allowlist. The metrics path consumes them via the `datadog.container.tag.`
+	// prefix: attributes.TagsFromAttributes (metrics_translator.go) calls
+	// attributes.ContainerTagsFromResourceAttributes, which extracts that prefix
+	// into metric tags. Without promotion, custom labels that are not known DD /
+	// OTel conventions are dropped from OTLP metrics (see OTELS-1131). "duplicate"
+	// keeps the original resource attribute and additionally writes the prefixed
+	// form the translator reads.
+	promote := ContainerTagPromotionOff
+	if iamp.cfg.MetricsAttributesAsTags {
+		promote = ContainerTagPromotionDuplicate
+	}
+
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		resourceAttributes := rms.At(i).Resource().Attributes()
-		// trace_container_tag_promotion only makes sense for traces: it exists to
-		// feed trace-agent's `_dd.tags.container` promotion
-		// (ConsumeContainerTagsFromResource), which metrics never go through.
-		// The metrics path already recognizes DD-format keys directly via
-		// kubernetesDDTags, so prefixing would only strand data under
-		// `rename`. Always pass "off" here regardless of the configured mode.
-		iamp.infraTags.ProcessTags(iamp.logger, iamp.cardinality, resourceAttributes, iamp.cfg.AllowHostnameOverride, ContainerTagPromotionOff, false, nil)
+		iamp.infraTags.ProcessTags(iamp.logger, iamp.cardinality, resourceAttributes, iamp.cfg.AllowHostnameOverride, promote, false, nil)
 	}
 	return md, nil
 }

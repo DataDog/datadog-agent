@@ -16,9 +16,13 @@ docs/cloud-workload-security/
     # event types and fields of the SECL language
 --- secl.json
 
+    # workload protection agent configuration settings
+--- workload_protection_agent_config.schema.json
+
     # final documentation files
 --- agent_expressions.md # SECL part
 --- backend.md # backend event part
+--- workload_protection_agent_config.md
 ```
 
 ### Agent Expressions - SECL
@@ -64,6 +68,47 @@ These lines generate this field for all events containing a File sub-event, for 
 | `chmod.file.change_time` | int | Change time of the file |
 
 The rest of the file is copied verbatim from the template file (modulo the `raw` tags, see [Jinja 2 templates](#jinja2-templates)).
+
+### Workload Protection Agent configuration
+
+Based on:
+
+- `pkg/security/config/config.go` — `RuntimeSecurityConfig` struct and field comments
+- `pkg/security/generators/config_doc/main.go` — extracts `public` and `warning` settings to JSON
+- `docs/cloud-workload-security/workload_protection_agent_config.schema.json` — generated schema
+- `tasks/libs/cws/templates/workload_protection_agent_config.md` — Jinja2 template
+- `tasks/libs/cws/config_doc_gen.py` — renders the final Markdown
+
+Published at `/security/workload_protection/workload_protection_agent_config` (same pull mechanism as `linux_expressions.md`).
+
+#### Editing files
+
+Document settings as comments on `RuntimeSecurityConfig` fields in `config.go`:
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `description` | yes | Human-readable description |
+| `visibility` | yes | `public`, `warning`, or `private` |
+| `default_value` | recommended | Default shown in the docs |
+
+The Go type comes from the field declaration. `public` settings appear in the main table; `warning` settings under **Advanced settings**; `private` settings are omitted. YAML keys are inferred from `NewRuntimeSecurityConfig`; env vars follow the Agent convention (`DD_` + uppercase, `.` → `_`).
+
+Example:
+
+```go
+// description: Defines if the runtime security module should be enabled
+// visibility: public
+// default_value: false
+RuntimeEnabled bool
+```
+
+#### Generating the documentation
+
+```sh
+go generate ./pkg/security/config/config.go
+dda inv -e security-agent.generate-cws-documentation
+# or: bazel run //docs/cloud-workload-security:cws_docs
+```
 
 ### Backend event
 

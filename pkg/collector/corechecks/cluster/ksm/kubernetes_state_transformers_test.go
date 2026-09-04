@@ -2857,3 +2857,65 @@ func Test_removeSecret(t *testing.T) {
 		})
 	}
 }
+
+func Test_endpointAddressTransformer_emitsZeroForOppositeReadyState(t *testing.T) {
+	stripped := []string{"kube_namespace:default", "kube_endpoint:nginx", "ip:10.0.0.1"}
+
+	tests := []struct {
+		name           string
+		ready          string
+		omitReady      bool
+		wantAvailable  *float64
+		wantNotReady   *float64
+		wantGaugeCalls int
+	}{
+		{
+			name:           "ready address also reports not_ready as 0",
+			ready:          "true",
+			wantAvailable:  floatPtr(1),
+			wantNotReady:   floatPtr(0),
+			wantGaugeCalls: 2,
+		},
+		{
+			name:           "not-ready address also reports available as 0",
+			ready:          "false",
+			wantAvailable:  floatPtr(0),
+			wantNotReady:   floatPtr(1),
+			wantGaugeCalls: 2,
+		},
+		{
+			name:           "missing ready label emits nothing",
+			omitReady:      true,
+			wantGaugeCalls: 0,
+		},
+		{
+			name:           "unknown ready label emits nothing",
+			ready:          "unknown",
+			wantGaugeCalls: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := mocksender.NewMockSender(t, "ksm")
+			s.SetupAcceptAll()
+			labels := map[string]string{"namespace": "default", "endpoint": "nginx", "ip": "10.0.0.1"}
+			inputTags := []string{"kube_namespace:default", "kube_endpoint:nginx", "ip:10.0.0.1"}
+			if !tt.omitReady {
+				labels["ready"] = tt.ready
+				inputTags = append(inputTags, "ready:"+tt.ready)
+			}
+			endpointAddressTransformer(s, "kube_endpoint_address", ksmstore.DDMetric{Val: 1, Labels: labels}, "host", inputTags, time.Now())
+			if tt.wantAvailable != nil {
+				s.AssertMetric(t, "Gauge", "kubernetes_state.endpoint.address_available", *tt.wantAvailable, "host", stripped)
+			}
+			if tt.wantNotReady != nil {
+				s.AssertMetric(t, "Gauge", "kubernetes_state.endpoint.address_not_ready", *tt.wantNotReady, "host", stripped)
+			}
+			s.AssertNumberOfCalls(t, "Gauge", tt.wantGaugeCalls)
+		})
+	}
+}
+
+func floatPtr(v float64) *float64 {
+	return &v
+}

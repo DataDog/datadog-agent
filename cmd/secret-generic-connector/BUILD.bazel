@@ -9,6 +9,7 @@ go_library(
     deps = [
         "//cmd/secret-generic-connector/backend",
         "//cmd/secret-generic-connector/secret",
+        "//pkg/fips",
     ],
 )
 

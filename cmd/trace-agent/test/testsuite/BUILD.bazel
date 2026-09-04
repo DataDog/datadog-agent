@@ -16,6 +16,7 @@ go_test(
         "config_set_test.go",
         "events_test.go",
         "hostname_test.go",
+        "idx_helpers_test.go",
         "otlp_test.go",
         "span_sampling_test.go",
         "traces_test.go",

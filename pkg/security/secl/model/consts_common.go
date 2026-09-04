@@ -507,6 +507,7 @@ const (
 // SyscallDriftEventReason describes why a syscall drift event was sent
 type SyscallDriftEventReason uint64
 
+// mirrors the SYSCALL_MONITOR_REASON_* constants of the eBPF side
 const (
 	// SyscallMonitorPeriodReason means that the event was sent because the syscall cache entry was dirty for longer than syscall_monitor.period
 	SyscallMonitorPeriodReason SyscallDriftEventReason = iota + 1
@@ -697,6 +698,7 @@ func initConstants() {
 	initSetSockOptOptNameConstantsTCP()
 	initSetSockOptOptNameConstantsIPv6()
 	initRlimitConstants()
+	initCloneFlagsConstants()
 	initABIConstants()
 	initArchitectureConstants()
 	initCompressionTypeConstants()

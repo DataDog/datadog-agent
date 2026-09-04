@@ -24,13 +24,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -73,7 +73,7 @@ func (s *probeTestSuite) getProbe() *Probe {
 	// Ensure we refresh the cache quickly, but still allow some throttling
 	cfg.DeviceCacheRefreshInterval = 500 * time.Millisecond
 
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	deps := ProbeDependencies{
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
 		WorkloadMeta:   testutil.GetWorkloadMetaMock(t),
@@ -376,7 +376,7 @@ func BenchmarkProbeEventProcessing(b *testing.B) {
 	cfg.EnableFatbinParsing = false
 	cfg.AttacherDetailedLogs = false
 
-	ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(b)
 	deps := ProbeDependencies{
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(b),
 		WorkloadMeta:   testutil.GetWorkloadMetaMock(b),

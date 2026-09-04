@@ -18,7 +18,7 @@ import (
 //go:generate $GOPATH/bin/include_headers pkg/security/ebpf/c/prebuilt/probe.c pkg/ebpf/bytecode/build/runtime/runtime-security.c pkg/security/ebpf/c/include pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/runtime-security.c pkg/ebpf/bytecode/runtime/runtime-security.go runtime
 
-func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer bool) (bytecode.AssetReader, error) {
+func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer, useSyscallTaskStorage bool) (bytecode.AssetReader, error) {
 	var cflags []string
 
 	if useFentry {
@@ -37,6 +37,12 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFen
 		cflags = append(cflags, "-DUSE_RING_BUFFER=1")
 	} else {
 		cflags = append(cflags, "-DUSE_RING_BUFFER=0")
+	}
+
+	if useSyscallTaskStorage {
+		cflags = append(cflags, "-DUSE_SYSCALL_TASK_STORAGE=1")
+	} else {
+		cflags = append(cflags, "-DUSE_SYSCALL_TASK_STORAGE=0")
 	}
 
 	cflags = append(cflags, "-g")

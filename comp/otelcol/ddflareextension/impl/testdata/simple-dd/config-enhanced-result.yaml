@@ -122,6 +122,7 @@ processors:
     allow_hostname_override: false
     cardinality: 0
     logs_tags_as_ddtags: false
+    metrics_attributes_as_tags: false
     trace_container_tag_promotion: "off"
 receivers:
   otlp:

@@ -73,6 +73,8 @@ func getInterfaceIndex(iface string) (int, error) {
 	return 0, fmt.Errorf("interface %s not found", iface)
 }
 
+var _ = declare(TestDNSResolver, testOpts{networkIngressEnabled: true})
+
 func TestDNSResolver(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
@@ -83,7 +85,7 @@ func TestDNSResolver(t *testing.T) {
 		}
 	}
 
-	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

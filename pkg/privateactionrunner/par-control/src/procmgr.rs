@@ -14,6 +14,14 @@ use tonic::transport::Channel;
 // Code::Cancelled instead of hanging a dispatch.
 const PROCMGR_RPC_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// Executor lifecycle operations the orchestrator relies on. A trait so the
+/// orchestrator can be tested without a real process manager.
+pub trait ExecutorLifecycle: Send + Sync + 'static {
+    fn ensure_started(&self) -> impl std::future::Future<Output = Result<()>> + Send;
+    /// For fail-and-report: exited/crashed/failed.
+    fn has_exited(&self) -> impl std::future::Future<Output = Result<bool>> + Send;
+}
+
 #[derive(Clone)]
 pub struct ProcmgrLifecycle {
     client: ProcessManagerClient<Channel>,
@@ -108,6 +116,16 @@ impl ProcmgrLifecycle {
                     .context("process-manager returned an unknown process state")
             })
             .transpose()
+    }
+}
+
+impl ExecutorLifecycle for ProcmgrLifecycle {
+    async fn ensure_started(&self) -> Result<()> {
+        ProcmgrLifecycle::ensure_started(self).await
+    }
+
+    async fn has_exited(&self) -> Result<bool> {
+        ProcmgrLifecycle::has_exited(self).await
     }
 }
 

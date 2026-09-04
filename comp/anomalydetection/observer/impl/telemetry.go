@@ -28,6 +28,7 @@ const (
 	telemetryLogsInFlightCount               = "observer.logs.in_flight"                      // Number of logs currently queued/in flight.
 	telemetryStorageSeriesEvicted            = "observer.storage.series_evicted"              // Number of storage series evicted to enforce bounds.
 	telemetryStorageCapacityHit              = "observer.storage.capacity_hit"                // Number of times storage capacity eviction was triggered.
+	telemetryAnomalyDedupEvicted             = "observer.anomaly_dedup.evicted"               // Number of anomaly dedup entries evicted to enforce bounds or remove stale refs.
 	telemetryAdvanceSkipped                  = "observer.scheduler.advance_skipped"           // Number of advance requests skipped as already analyzed.
 	telemetryLogsInputRateLimiterDropped     = "observer.logs.input_rate_limiter.dropped"     // Logs dropped by the observer ingress rate limiter.
 	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Per-detector processing time in nanoseconds.
@@ -49,6 +50,7 @@ type observerTelemetry struct {
 	logsInFlight         telemetry.Gauge
 	storageEvicted       telemetry.Counter
 	storageCapHit        telemetry.Counter
+	anomalyDedupEvicted  telemetry.Counter
 	advanceSkipped       telemetry.Counter
 	inputRateLimiterDrop telemetry.Counter
 	processingTime       telemetry.Gauge
@@ -128,6 +130,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetryStorageCapacityHit,
 			nil,
 			"Number of times storage capacity eviction was triggered",
+		),
+		anomalyDedupEvicted: telemetryComp.NewCounter(
+			"observer",
+			telemetryAnomalyDedupEvicted,
+			[]string{"reason"},
+			"Number of anomaly dedup entries evicted by reason",
 		),
 		advanceSkipped: telemetryComp.NewCounter(
 			"observer",
@@ -235,6 +243,13 @@ func (t *observerTelemetry) recordStorageSeriesEvicted(reason string, count int)
 
 func (t *observerTelemetry) recordStorageCapacityHit() {
 	t.storageCapHit.Add(1)
+}
+
+func (t *observerTelemetry) recordAnomalyDedupEvicted(reason string, count int) {
+	if count <= 0 {
+		return
+	}
+	t.anomalyDedupEvicted.Add(float64(count), reason)
 }
 
 func (t *observerTelemetry) recordAdvanceSkipped(reason string) {

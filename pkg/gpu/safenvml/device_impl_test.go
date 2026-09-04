@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -21,7 +20,7 @@ import (
 
 func TestNewDevice(t *testing.T) {
 	// Create mock with all symbols available
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
 	)
 
@@ -29,7 +28,7 @@ func TestNewDevice(t *testing.T) {
 	WithMockNVML(t, mockNvml)
 
 	// Test device creation
-	mockDevice := testutil.GetDeviceMock(0)
+	mockDevice := mockNvml.Device(0)
 	device, err := NewPhysicalDevice(mockDevice)
 
 	// Verify results
@@ -80,7 +79,7 @@ func TestNewDeviceNVLinkLinkCount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockNvml := testutil.GetBasicNvmlMockWithOptions(
+			mockNvml := testutil.NewMockNVML(
 				append(tt.options, testutil.WithSymbolsMock(allSymbols))...,
 			)
 			WithMockNVML(t, mockNvml)
@@ -99,34 +98,20 @@ func TestNewDeviceNVLinkLinkCount(t *testing.T) {
 
 func TestNewDeviceUUIDFailure(t *testing.T) {
 	// Create mock with all symbols available
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetUUIDFunc = func() (string, nvml.Return) {
+				return "", nvml.ERROR_INVALID_ARGUMENT
+			}
+		})),
 	)
 
 	// Use WithMockNVML to set the mock
 	WithMockNVML(t, mockNvml)
 
-	// Create a mock device that fails when getting UUID
-	failingMockDevice := &nvmlmock.Device{
-		GetUUIDFunc: func() (string, nvml.Return) {
-			return "", nvml.ERROR_INVALID_ARGUMENT
-		},
-		GetCudaComputeCapabilityFunc: func() (int, int, nvml.Return) {
-			return 7, 5, nvml.SUCCESS
-		},
-		GetNumGpuCoresFunc: func() (int, nvml.Return) {
-			return testutil.DefaultGpuCores, nvml.SUCCESS
-		},
-		GetIndexFunc: func() (int, nvml.Return) {
-			return 0, nvml.SUCCESS
-		},
-		GetMemoryInfoFunc: func() (nvml.Memory, nvml.Return) {
-			return nvml.Memory{Total: testutil.DefaultTotalMemory}, nvml.SUCCESS
-		},
-	}
-
 	// Test device creation with failing UUID
-	device, err := NewPhysicalDevice(failingMockDevice)
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
 
 	// Verify failure
 	require.Error(t, err)
@@ -144,7 +129,7 @@ func TestDeviceWithMissingSymbol(t *testing.T) {
 	symbols := maps.Clone(allSymbols)
 	delete(symbols, toNativeName("GetMaxClockInfo"))
 
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(symbols),
 	)
 
@@ -152,7 +137,7 @@ func TestDeviceWithMissingSymbol(t *testing.T) {
 	WithPartialMockNVML(t, mockNvml, symbols)
 
 	// Create device
-	mockDevice := testutil.GetDeviceMock(0)
+	mockDevice := mockNvml.Device(0)
 	device, err := NewPhysicalDevice(mockDevice)
 	require.NoError(t, err)
 	require.NotNil(t, device)
@@ -173,7 +158,7 @@ func TestDeviceWithMissingSymbol(t *testing.T) {
 
 func TestDeviceSafeMethodSuccess(t *testing.T) {
 	// Create mock with all symbols available
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
 	)
 
@@ -181,7 +166,7 @@ func TestDeviceSafeMethodSuccess(t *testing.T) {
 	WithMockNVML(t, mockNvml)
 
 	// Create device
-	mockDevice := testutil.GetDeviceMock(0)
+	mockDevice := mockNvml.Device(0)
 	device, err := NewPhysicalDevice(mockDevice)
 	require.NoError(t, err)
 	require.NotNil(t, device)

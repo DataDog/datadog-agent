@@ -30,6 +30,8 @@ import (
 
 var testActivityDumpCleanupPeriod = 15 * time.Second
 
+var _ = declareInlineConfig(TestActivityDumps)
+
 func TestActivityDumps(t *testing.T) {
 	SkipIfNotAvailable(t)
 
