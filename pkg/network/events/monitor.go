@@ -167,6 +167,7 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 			p.Tags = append(p.Tags, intern.GetByString(key+":"+value))
 		}
 	}
+	log.Tracef("pid=%d tags=%+v", p.Pid, tagsFound)
 
 	if cid := ev.GetContainerID(); cid != "" {
 		p.ContainerID = intern.GetByString(cid)
