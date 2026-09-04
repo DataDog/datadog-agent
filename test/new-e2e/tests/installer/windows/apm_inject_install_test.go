@@ -61,7 +61,7 @@ func (s *testAPMInjectInstallSuite) TestExperiment() {
 	// start experiment
 	output, err = s.Installer().InstallExperiment("apm-inject-package",
 		unixinstaller.WithVersion(upgradeVersion),
-		unixinstaller.WithRegistry(currentAPMInjectRegistry),
+		unixinstaller.WithRegistry("install.datad0g.com"),
 	)
 	s.Require().NoError(err, "failed to start the apm-inject experiment: %s", output)
 
@@ -91,7 +91,7 @@ func (s *testAPMInjectInstallSuite) TestStopExperiment() {
 	// start experiment
 	output, err = s.Installer().InstallExperiment("apm-inject-package",
 		unixinstaller.WithVersion(upgradeVersion),
-		unixinstaller.WithRegistry(currentAPMInjectRegistry),
+		unixinstaller.WithRegistry("install.datad0g.com"),
 	)
 	s.Require().NoError(err, "failed to start the apm-inject experiment: %s", output)
 

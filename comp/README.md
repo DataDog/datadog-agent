@@ -72,7 +72,7 @@ Package checks implements the "checks" bundle, for all of the component based ag
 
 *Datadog Team*: windows-products
 
-Package agentcrashdetect detects and reports crashes related to Datadog Windows drivers.
+Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 
 ### [comp/checks/windowseventlog](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/windowseventlog)
 

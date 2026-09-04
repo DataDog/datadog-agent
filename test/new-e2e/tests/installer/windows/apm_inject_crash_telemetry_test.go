@@ -29,6 +29,11 @@ import (
 //go:embed fixtures/ddinjector_crash.ps1
 var runDDInjectorCrashScript string
 
+const (
+	ddInjectorCrashTestRegistry = "install.datadoghq.com"
+	ddInjectorCrashTestVersion  = "0.71.0-1"
+)
+
 type crashProcessResult struct {
 	ProcessID  uint32 `json:"process_id"`
 	ExitStatus string `json:"exit_status"`
@@ -59,8 +64,8 @@ func (s *testInjectorCrashTelemetry) TestCrashEventReachesAgentTelemetry() {
 	s.installCurrentAgentVersionWithAPMInject(
 		WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED":                      "host",
-			"DD_INSTALLER_REGISTRY_URL":                           currentAPMInjectRegistry,
-			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": s.currentAPMInjectVersion.PackageVersion(),
+			"DD_INSTALLER_REGISTRY_URL":                           ddInjectorCrashTestRegistry,
+			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": ddInjectorCrashTestVersion,
 			"DD_APM_INSTRUMENTATION_LIBRARIES":                    "dotnet:3",
 		}),
 	)
