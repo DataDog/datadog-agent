@@ -244,3 +244,111 @@ func TestUprobeMultiBoolEnv(t *testing.T) {
 		})
 	}
 }
+
+// TestAttachToBinaryWithMergedMultiProbe exercises the merged multi-attach path (MergedMultiProbe):
+// several plain uprobes that would otherwise each cost their own uprobe_multi link are collapsed
+// onto a single link bound to one dispatcher program, with a per-location cookie recording which
+// original probe each location belongs to. This is the path that takes GoTLS from five links per
+// binary down to one, which is what remains to reduce once uprobes are already collapsed. Contrast
+// with TestAttachToBinaryWithMultiAttach, where two selected probes would produce two links.
+func TestAttachToBinaryWithMergedMultiProbe(t *testing.T) {
+	if !CanUseMultiAttach() {
+		t.Skip("uprobe_multi not supported on this kernel")
+	}
+
+	mgr := &manager.Manager{}
+	mgr.InstructionPatchers = append(mgr.InstructionPatchers, markUprobesMultiAttach)
+
+	inspector := &MockBinaryInspector{}
+	config := AttacherConfig{
+		Rules: []*AttachRule{
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__main"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
+				},
+				// Collapse both probes onto one dispatcher link. uprobe__main doubles as the
+				// dispatcher program here (the test .o has no dedicated one); the attach logic is
+				// identical whether or not the dispatcher is also a covered probe.
+				MergedMultiProbe: &MergedMultiProbe{
+					DispatcherFuncName: "uprobe__main",
+					Cookies: map[string]uint64{
+						"uprobe__main":        0,
+						"uprobe__SSL_connect": 1,
+					},
+				},
+			},
+		},
+		EnableMultiAttach: true,
+	}
+
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, mgr, nil, AttacherDependencies{Inspector: inspector, ProcessMonitor: newMockProcessMonitor()})
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	require.NoError(t, ddebpf.LoadCOREAsset("uprobe_attacher-test.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		require.NoError(t, mgr.InitWithOptions(buf, opts))
+		require.NoError(t, mgr.Start())
+		t.Cleanup(func() { _ = mgr.Stop(manager.CleanAll) })
+		return nil
+	}))
+
+	// Attach to the test binary itself, which is a real ELF we can open and attach to.
+	target := utils.FilePath{HostPath: "/proc/self/exe", PID: uint32(os.Getpid())}
+
+	inspector.On("Inspect", mock.Anything, mock.Anything).Return(map[int]*InspectionResult{
+		0: {SymbolMap: map[string]bininspect.FunctionMetadata{
+			"main":        {EntryLocation: 0x1000},
+			"SSL_connect": {EntryLocation: 0x2000},
+		}},
+	}, nil)
+	inspector.On("Cleanup", mock.Anything).Return(nil)
+
+	require.NoError(t, ua.attachToBinary(target, config.Rules, NewProcInfo(ua.config.ProcRoot, target.PID)))
+
+	// Both probes collapsed onto ONE link keyed by the dispatcher, not one link per probe.
+	links := ua.fileIDToMultiLinks[target.ID]
+	require.Len(t, links, 1, "expected exactly one merged uprobe_multi link for two probes")
+	l, ok := links["uprobe__main"]
+	require.True(t, ok, "expected the single link to be keyed by the dispatcher program name")
+	require.NotNil(t, l)
+	require.NotContains(t, links, "uprobe__SSL_connect", "covered probes must not get their own link on the merged path")
+	require.Empty(t, ua.fileIDToAttachedProbes[target.ID], "per-probe attach path must not be used")
+
+	// Detaching should close the merged link and clear the bookkeeping.
+	require.NoError(t, ua.detachFromBinary(utils.FilePath{ID: target.ID}))
+	require.Empty(t, ua.fileIDToMultiLinks[target.ID], "expected the merged link to be cleared after detach")
+}
+
+// TestMergedMultiProbeMissingCookieIsError covers the merged path's cookie guard: when a rule
+// declares a MergedMultiProbe, every probe it selects must have a cookie, since the cookie is the
+// only thing that tells the dispatcher which original probe a location belongs to. A covered probe
+// with no cookie is a mistake in the rule and must fail loudly rather than attach a location the
+// dispatcher cannot route. Uses a mock manager, so it needs no eBPF assets and runs on any kernel.
+func TestMergedMultiProbeMissingCookieIsError(t *testing.T) {
+	rule := &AttachRule{
+		Targets: AttachToExecutable,
+		ProbesSelector: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__main"}},
+		},
+		MergedMultiProbe: &MergedMultiProbe{
+			DispatcherFuncName: "uprobe__dispatch",
+			Cookies:            map[string]uint64{}, // deliberately missing uprobe__main
+		},
+	}
+	config := AttacherConfig{Rules: []*AttachRule{rule}, EnableMultiAttach: true}
+
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, AttacherDependencies{ProcessMonitor: newMockProcessMonitor()})
+	require.NoError(t, err)
+	ua.useMultiAttach = true // exercise the merged path regardless of host kernel
+
+	fpath := utils.FilePath{HostPath: "/proc/self/exe", PID: uint32(os.Getpid())}
+	// The symbol resolves to a real entry location, so the probe reaches the cookie guard rather
+	// than failing earlier on zero locations.
+	inspectResult := map[string]bininspect.FunctionMetadata{"main": {EntryLocation: 0x1000}}
+
+	err = ua.attachProbeSelector(rule.ProbesSelector[0], fpath, "testuid", rule, inspectResult)
+	require.Error(t, err, "a covered probe with no declared cookie must error on the merged path")
+	require.Contains(t, err.Error(), "no dispatch cookie declared")
+}

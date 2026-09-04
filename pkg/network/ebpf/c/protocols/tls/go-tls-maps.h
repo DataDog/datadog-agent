@@ -29,4 +29,12 @@ BPF_HASH_MAP(conn_tup_by_go_tls_conn, void*, conn_tuple_t, 1)
    if goTLS is enabled. */
 BPF_HASH_MAP(go_tls_conn_by_tuple, conn_tuple_t, void*, 1)
 
+
+/* gotls_dispatch_progs holds the five GoTLS probe bodies, indexed by the attach cookie
+   that uprobe__crypto_tls_Conn_dispatch reads. A uprobe_multi link binds to exactly one
+   program, so attaching the five probes separately costs five links per binary, and a
+   link close pays the same RCU grace period as a perf_event fd close. Dispatching through
+   this array lets a single link cover all five. */
+BPF_PROG_ARRAY(gotls_dispatch_progs, GOTLS_DISPATCH_MAX)
+
 #endif //__GO_TLS_MAPS_H

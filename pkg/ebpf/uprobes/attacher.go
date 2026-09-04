@@ -83,6 +83,22 @@ type ProbeOptions struct {
 	Symbol string
 }
 
+// MergedMultiProbe describes how to collapse several probes into a single uprobe_multi
+// link. A link binds to exactly one program, so attaching N probes to a binary otherwise
+// costs N links, and each link close pays the same uninterruptible RCU grace period a
+// perf_event fd close does. Instead one dispatcher program is attached to the union of
+// every probe's locations; the attach cookie on each location tells the dispatcher which
+// of the original programs to run. Only usable when every probe in the rule attaches as a
+// plain uprobe, since one link cannot mix entry and return attach types.
+type MergedMultiProbe struct {
+	// DispatcherFuncName is the eBPF program attached in place of the individual probes.
+	DispatcherFuncName string
+
+	// Cookies maps each probe's eBPF function name to the cookie value the dispatcher
+	// switches on. Every probe covered by the rule must have an entry.
+	Cookies map[string]uint64
+}
+
 // AttachRule defines how to attach a certain set of probes. Uprobes can be attached
 // to shared libraries or executables, this structure tells the attacher which ones to
 // select and to which targets to do it.
@@ -100,6 +116,9 @@ type AttachRule struct {
 	// of the probe. This way the user can set options such as manual return detection or symbol names for probes
 	// whose names aren't valid C identifiers.
 	ProbeOptionsOverride map[string]ProbeOptions
+	// MergedMultiProbe, when set, collapses every probe selected by this rule into a single
+	// uprobe_multi link bound to one dispatcher program. Ignored unless multi-attach is in use.
+	MergedMultiProbe *MergedMultiProbe
 }
 
 // canTarget returns true if the rule matches the given AttachTarget
@@ -1153,8 +1172,69 @@ func (ua *UprobeAttacher) attachMulti(probeID manager.ProbeIdentificationPair, l
 	return nil
 }
 
+// attachMultiMerged attaches every probe point of a whole rule to a binary through a
+// single uprobe_multi link bound to a dispatcher program. Each location carries the
+// cookie identifying which of the original probes should run there. Teardown cost is per
+// attachment, so for GoTLS this is one grace period per binary rather than five.
+func (ua *UprobeAttacher) attachMultiMerged(dispatcherFuncName string, addrs, cookies []uint64, fpath utils.FilePath) error {
+	if len(addrs) == 0 {
+		return nil
+	}
+
+	// Idempotency, as in attachMulti: key on the dispatcher name within the file so a
+	// repeated AttachPID does not attach twice.
+	if links, ok := ua.fileIDToMultiLinks[fpath.ID]; ok {
+		if _, attached := links[dispatcherFuncName]; attached {
+			if ua.config.EnableDetailedLogging {
+				log.Debugf("Dispatcher %s already multi-attached to %s", dispatcherFuncName, fpath.HostPath)
+			}
+			return nil
+		}
+	}
+
+	progs, found, err := ua.manager.GetProgram(manager.ProbeIdentificationPair{EBPFFuncName: dispatcherFuncName})
+	if err != nil {
+		return fmt.Errorf("cannot look up dispatcher %s: %w", dispatcherFuncName, err)
+	}
+	if !found || len(progs) == 0 {
+		return fmt.Errorf("dispatcher %s is not loaded", dispatcherFuncName)
+	}
+
+	ex, err := link.OpenExecutable(fpath.HostPath)
+	if err != nil {
+		return fmt.Errorf("cannot open %s: %w", fpath.HostPath, err)
+	}
+
+	l, err := ex.UprobeMulti(nil, progs[0], &link.UprobeMultiOptions{Addresses: addrs, Cookies: cookies})
+	if err != nil {
+		ua.telemetry.probeAttachErrorsAddHook.Inc()
+		return fmt.Errorf("cannot multi-attach dispatcher %s to %s: %w", dispatcherFuncName, fpath.HostPath, err)
+	}
+
+	if ua.fileIDToMultiLinks[fpath.ID] == nil {
+		ua.fileIDToMultiLinks[fpath.ID] = make(map[string]link.Link)
+	}
+	ua.fileIDToMultiLinks[fpath.ID][dispatcherFuncName] = l
+
+	ua.telemetry.createdProbes.Inc()
+	ua.telemetry.attachedProbes.Inc()
+
+	if ua.config.EnableDetailedLogging {
+		log.Debugf("Multi-attached dispatcher %s to %s (PID %d), covering %d locations in one link",
+			dispatcherFuncName, fpath.HostPath, fpath.PID, len(addrs))
+	}
+
+	return nil
+}
+
 func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, fpath utils.FilePath, fpathUID string, rule *AttachRule, inspectResult map[string]bininspect.FunctionMetadata) error {
 	_, isBestEffort := selector.(*manager.BestEffort)
+
+	// When the rule declares a dispatcher, gather every probe's locations here and attach
+	// them through one link at the end instead of one link per probe.
+	merge := rule.MergedMultiProbe
+	mergeLinks := ua.useMultiAttach && merge != nil
+	var mergedAddrs, mergedCookies []uint64
 
 	for _, probeID := range selector.GetProbesIdentificationPairList() {
 		probeOpts, err := rule.getProbeOptions(probeID)
@@ -1182,6 +1262,18 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 		} else {
 			locationsToAttach = []uint64{data.EntryLocation}
 			probeTypeCode = "d"
+		}
+
+		if mergeLinks {
+			cookie, ok := merge.Cookies[probeID.EBPFFuncName]
+			if !ok {
+				return fmt.Errorf("probe %s has no dispatch cookie declared", probeID.EBPFFuncName)
+			}
+			for _, location := range locationsToAttach {
+				mergedAddrs = append(mergedAddrs, location)
+				mergedCookies = append(mergedCookies, cookie)
+			}
+			continue
 		}
 
 		if ua.useMultiAttach {
@@ -1264,6 +1356,10 @@ func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, f
 			ua.telemetry.probeAttachErrorsValidate.Inc()
 			return fmt.Errorf("error validating probes: %w", err)
 		}
+	}
+
+	if mergeLinks {
+		return ua.attachMultiMerged(merge.DispatcherFuncName, mergedAddrs, mergedCookies, fpath)
 	}
 
 	return nil
