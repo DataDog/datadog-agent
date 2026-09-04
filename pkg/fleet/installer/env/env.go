@@ -295,7 +295,7 @@ func FromEnv() *Env {
 		Site:                  getEnvOrDefault(envSite, defaultEnv.Site),
 		RemoteUpdates:         strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 		OTelCollectorEnabled:  strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
-		ProcessManagerEnabled: ProcessManagerEnabledFromEnv(),
+		ProcessManagerEnabled: getBoolEnvOrDefault(envProcessManagerEnabled, defaultEnv.ProcessManagerEnabled),
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -575,23 +575,12 @@ func getBoolEnv(env string) *bool {
 	}
 }
 
-// ProcessManagerEnabledFromEnv returns whether dd-procmgrd should be used as the process
-// manager. Precedence: an explicit DD_PROCESS_MANAGER_ENABLED in this process's own environment
-// always wins; otherwise the last value persisted by packages.SetProcessManagerEnabled (or at
-// install time) applies, so that plain CLI invocations — not just the installer daemon and its
-// subprocesses — pick up the last-chosen process manager instead of silently reverting to the
-// package default; only when nothing has ever been persisted (e.g. a host that installed before
-// this feature existed) does the default apply. Exported so callers that build an Env by hand
-// (e.g. pkg/fleet/daemon) can mirror this logic instead of duplicating it.
-func ProcessManagerEnabledFromEnv() bool {
-	v := strings.TrimSpace(os.Getenv(envProcessManagerEnabled))
-	if v != "" {
-		return !strings.EqualFold(v, "false")
+func getBoolEnvOrDefault(env string, defaultValue bool) bool {
+	v, set := os.LookupEnv(env)
+	if !set {
+		return defaultValue
 	}
-	if persisted, ok := readPersistedProcessManagerEnabled(); ok {
-		return persisted
-	}
-	return defaultEnv.ProcessManagerEnabled
+	return !strings.EqualFold(v, "false")
 }
 
 func getProxySetting(ddEnv string, env string) string {

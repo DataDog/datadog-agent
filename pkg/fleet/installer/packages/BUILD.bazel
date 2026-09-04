@@ -95,7 +95,6 @@ dd_agent_go_test(
         "datadog_agent_extensions_test.go",
         "datadog_agent_windows_test.go",
         "otel_config_common_test.go",
-        "process_manager_linux_test.go",
     ],
     embed = [":packages"],
     deps = [

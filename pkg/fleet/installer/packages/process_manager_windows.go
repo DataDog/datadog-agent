@@ -108,7 +108,7 @@ func reconcilePARServiceManager(enabled bool) error {
 // Installer" SCM service's Environment registry value (REG_MULTI_SZ, read by SCM on next
 // service start), preserving any other entries already set on that value.
 func persistProcessManagerEnabledWindows(enabled bool) error {
-	key, err := registry.OpenKey(registry.LOCAL_MACHINE, env.ProcessManagerInstallerServiceRegistryKey, registry.SET_VALUE|registry.QUERY_VALUE)
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Services\Datadog Installer`, registry.SET_VALUE|registry.QUERY_VALUE)
 	if err != nil {
 		return fmt.Errorf("failed to open Datadog Installer service registry key: %w", err)
 	}
