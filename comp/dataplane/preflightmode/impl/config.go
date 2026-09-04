@@ -131,11 +131,7 @@ var preflightModeGlobalOverrides = map[string]any{
 // Core Agent, a site-only config came out of AllSettings pointing the pre-flight -- metrics and
 // API key both -- at US1 no matter what site the operator had configured.
 //
-// hostname is the one exception to "the operator's settings as-is": it is always written in,
-// even over an operator-supplied value, because it is what the caller already resolved through
-// the hostname component (the same resolution the Core Agent itself uses -- EC2 metadata, OS
-// hostname, `hostname_file`, and so on) rather than the config's raw, usually-empty `hostname`
-// setting. Standalone-mode ADP requires this field with no fallback of its own, and childEnv
+// Standalone-mode ADP requires this field with no fallback of its own, and childEnv
 // strips DD_HOSTNAME from its environment along with the rest of the DD_ namespace, so this is
 // the only way it can learn a hostname at all.
 func buildPreflightConfig(cfg pkgconfigmodel.Reader, l listener, hostname string) map[string]any {

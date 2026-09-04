@@ -289,12 +289,7 @@ func (d *preflightModeComponent) prepare(ctx context.Context) (*exec.Cmd, listen
 		return nil, l, fmt.Errorf("unusable DogStatsD endpoint under %s: %w", workDir, err)
 	}
 
-	// The Core Agent resolves its hostname at runtime (EC2 metadata, OS hostname, etc.) but never
-	// writes the result back into its own config store, so buildPreflightConfig's snapshot of the
-	// operator's settings never contains one unless the operator set `hostname`/`DD_HOSTNAME`
-	// explicitly. Standalone-mode ADP has no other way to learn it -- childEnv strips DD_ from the
-	// child's environment -- so without this it fails outright with "Missing field 'hostname'" and
-	// the pre-flight never gets far enough to run the probe at all.
+	// See buildPreflightConfig for why this must be resolved here rather than read from config.
 	hostname, err := d.hostname.Get(ctx)
 	if err != nil {
 		return nil, l, fmt.Errorf("could not resolve the Agent's hostname: %w", err)
