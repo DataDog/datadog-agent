@@ -8,6 +8,7 @@
 package selfident
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
@@ -234,4 +236,76 @@ func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 		assert.Empty(t, s.ClusterID())
 	}
 	assert.Less(t, time.Since(start), elapsed, "later calls must return immediately from cache, not re-run resolution")
+}
+
+// stubClusterIDFuncs overrides the node-agent/cluster-agent cluster id
+// lookups for the duration of the test, restoring the real functions on
+// cleanup.
+func stubClusterIDFuncs(t *testing.T, nodeAgent, clusterAgent func() (string, error)) {
+	t.Helper()
+	origNodeAgent, origClusterAgent := nodeAgentClusterIDFunc, clusterAgentClusterIDFunc
+	nodeAgentClusterIDFunc, clusterAgentClusterIDFunc = nodeAgent, clusterAgent
+	t.Cleanup(func() {
+		nodeAgentClusterIDFunc, clusterAgentClusterIDFunc = origNodeAgent, origClusterAgent
+	})
+}
+
+// TestClusterID_ClusterAgentFlavorUsesClusterAgentLookup verifies that on the
+// Cluster Agent flavor, resolveClusterID dispatches to the Cluster-Agent-
+// specific lookup (apiserver.GetAPIClient + GetOrCreateClusterID) rather than
+// clustername.GetClusterID, which is documented as node-agent-only and is
+// broken when the Cluster Agent calls it on itself. Without this dispatch,
+// this test would instead observe the node-agent stub's value.
+func TestClusterID_ClusterAgentFlavorUsesClusterAgentLookup(t *testing.T) {
+	origFlavor := flavor.GetFlavor()
+	flavor.SetFlavor(flavor.ClusterAgent)
+	t.Cleanup(func() { flavor.SetFlavor(origFlavor) })
+
+	env.SetFeatures(t, env.Kubernetes)
+	stubClusterIDFuncs(t,
+		func() (string, error) { return "node-agent-id", nil },
+		func() (string, error) { return "cluster-agent-id", nil },
+	)
+
+	s := New(nil)
+	assert.Equal(t, "cluster-agent-id", s.ClusterID())
+}
+
+// TestClusterID_NonClusterAgentFlavorUsesNodeAgentLookup verifies that a
+// non-Cluster-Agent flavor (e.g. the node agent) keeps using
+// clustername.GetClusterID rather than the Cluster-Agent-specific lookup.
+func TestClusterID_NonClusterAgentFlavorUsesNodeAgentLookup(t *testing.T) {
+	origFlavor := flavor.GetFlavor()
+	flavor.SetFlavor(flavor.DefaultAgent)
+	t.Cleanup(func() { flavor.SetFlavor(origFlavor) })
+
+	env.SetFeatures(t, env.Kubernetes)
+	stubClusterIDFuncs(t,
+		func() (string, error) { return "node-agent-id", nil },
+		func() (string, error) { return "cluster-agent-id", nil },
+	)
+
+	s := New(nil)
+	assert.Equal(t, "node-agent-id", s.ClusterID())
+}
+
+// TestClusterID_ClusterAgentFlavorLookupError verifies that an error from the
+// Cluster-Agent-specific lookup (e.g. apiserver.GetAPIClient failing) is
+// retried and ultimately settles on empty, the same as the node-agent path.
+func TestClusterID_ClusterAgentFlavorLookupError(t *testing.T) {
+	origFlavor := flavor.GetFlavor()
+	flavor.SetFlavor(flavor.ClusterAgent)
+	t.Cleanup(func() { flavor.SetFlavor(origFlavor) })
+
+	env.SetFeatures(t, env.Kubernetes)
+	stubClusterIDFuncs(t,
+		func() (string, error) { return "node-agent-id", nil },
+		func() (string, error) { return "", errors.New("api server unreachable") },
+	)
+
+	s := New(nil)
+	s.resolveRetries = 1
+	s.resolveRetryDelay = time.Millisecond
+
+	assert.Empty(t, s.ClusterID())
 }

@@ -15,6 +15,9 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	apiservercommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -131,13 +134,29 @@ func (s *SelfIdent) ClusterID() string {
 	}
 }
 
-// resolveClusterID retries clustername.GetClusterID() a bounded number of
-// times (clustername caches a successful result process-wide, so retries
-// here only matter while the Cluster Agent hasn't answered yet) before
-// giving up and caching empty for the process lifetime.
+// nodeAgentClusterIDFunc/clusterAgentClusterIDFunc are the per-flavor cluster
+// id lookups used by resolveClusterID, overridable in tests so dispatch can
+// be verified without a real Cluster Agent or Kubernetes API server.
+var (
+	nodeAgentClusterIDFunc    = clustername.GetClusterID
+	clusterAgentClusterIDFunc = clusterAgentOwnClusterID
+)
+
+// resolveClusterID retries a bounded number of times (the underlying lookup
+// caches a successful result process-wide, so retries here only matter
+// while that hasn't happened yet) before giving up and caching empty for
+// the process lifetime. clustername.GetClusterID() is meant for the node
+// agent to call — on the Cluster Agent itself it targets an HTTP endpoint
+// designed for the node agent to reach the Cluster Agent, which is broken
+// when the Cluster Agent tries to reach itself — so the Cluster Agent
+// resolves its own cluster id the same way comp/metadata/clusteragent does.
 func (s *SelfIdent) resolveClusterID() {
+	lookup := nodeAgentClusterIDFunc
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		lookup = clusterAgentClusterIDFunc
+	}
 	for attempt := 0; ; attempt++ {
-		id, err := clustername.GetClusterID()
+		id, err := lookup()
 		if err == nil {
 			s.clusterID.Store(&id)
 			return
@@ -150,6 +169,17 @@ func (s *SelfIdent) resolveClusterID() {
 		}
 		time.Sleep(s.resolveRetryDelay)
 	}
+}
+
+// clusterAgentOwnClusterID resolves the cluster id from the Cluster Agent's
+// own Kubernetes API client, mirroring
+// comp/metadata/clusteragent/impl/cluster_agent.go's getClusterID.
+func clusterAgentOwnClusterID() (string, error) {
+	cl, err := apiserver.GetAPIClient()
+	if err != nil {
+		return "", err
+	}
+	return apiservercommon.GetOrCreateClusterID(cl.Cl.CoreV1())
 }
 
 // resolveDeploymentID makes one resolution attempt. definitive is true when
