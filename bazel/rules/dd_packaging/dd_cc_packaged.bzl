@@ -8,6 +8,8 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
+load("//bazel/rules/dd_packaging:dd_pkg_files_stripped.bzl", "dd_pkg_files_stripped")
+load("//bazel/rules/dd_strip:dd_strip.bzl", "dd_strip_debug")
 load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath", "rewrite_rpaths")
 
 def _dd_packaged_files_impl(ctx):
@@ -95,7 +97,7 @@ _dd_cc_packaged_rule = rule(
     },
 )
 
-def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
+def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, libname = "", prefix = "", dest_dir = "", strip_exclude = False, visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
     base = dest_dir if dest_dir else "lib"
     package_dest_dir = paths.join(base, prefix) if prefix else base
@@ -111,6 +113,25 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
         use_relative_rpaths = use_relative_rpaths,
         package_metadata = [],
     )
+
+    # Split the rpath-patched binary/library into stripped + debug-only
+    # outputs before packaging. The stripped output is what actually gets
+    # shipped (via the ".stripped" sibling label below); the debug output is
+    # only materialized for consumers that explicitly collect it (e.g. a
+    # future dbg package).
+    split_name = "{}_split".format(patched_name)
+    dd_strip_debug(
+        name = split_name,
+        input = ":{}".format(patched_name),
+        exclude = strip_exclude,
+        visibility = visibility,
+    )
+    dd_pkg_files_stripped(
+        name = split_name,
+        visibility = visibility,
+    )
+    stripped_input = ":{}.stripped".format(split_name)
+
     extra_files = []
     if installed_executables:
         exec_files_name = "{}_exec_files".format(name)
@@ -127,7 +148,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
     if version:
         so_symlink(
             name = packaged_lib,
-            src = ":{}".format(patched_name),
+            src = stripped_input,
             libname = resolved_libname,
             version = version,
             prefix = prefix,
@@ -137,7 +158,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
     else:
         pkg_files(
             name = packaged_lib,
-            srcs = [":{}".format(patched_name)],
+            srcs = [stripped_input],
             prefix = package_dest_dir,
             visibility = visibility,
             package_metadata = [],
@@ -201,6 +222,13 @@ dd_cc_packaged = macro(
             on Linux/macOS and bin/ on Windows (via so_symlink). Use this for
             deps with non-standard install layouts (e.g. msodbcsql/lib64).""",
             default = "",
+            configurable = False,
+        ),
+        "strip_exclude": attr.bool(
+            doc = """Skip splitting stripped/debug outputs for this target,
+            parity with omnibus's strip_exclude. The unstripped, rpath-patched
+            binary/library is packaged as-is.""",
+            default = False,
             configurable = False,
         ),
         "version": attr.string(

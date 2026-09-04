@@ -210,6 +210,17 @@ register_toolchains(
     "//bazel/toolchains/rpath_rewriter:patchelf_toolchain",
 )
 
+# ABLD-464: strip/split debug-symbol driver, one toolchain per OS plus a
+# fallback for exec platforms without one. Registered last so the specific
+# per-OS toolchains are preferred; :missing_toolchain matches everywhere and
+# would otherwise shadow them under earlier-wins resolution.
+register_toolchains(
+    "//bazel/toolchains/dd_strip:linux_toolchain",
+    "//bazel/toolchains/dd_strip:macos_toolchain",
+    "//bazel/toolchains/dd_strip:windows_toolchain",
+    "//bazel/toolchains/dd_strip:missing_toolchain",
+)
+
 find_rpmbuild = use_extension("@rules_pkg//toolchains/rpm:rpmbuild_configure.bzl", "find_system_rpmbuild_bzlmod", dev_dependency = True)
 use_repo(find_rpmbuild, "rules_pkg_rpmbuild")
 

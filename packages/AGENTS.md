@@ -214,7 +214,19 @@ This target is removed once the omnibus recipe is deleted.
 - **Version stamping**: all products currently hardcode `version = "7"`. In the future
   we will get that from the pipeine (equivalent to `build_version ENV['PACKAGE_VERSION']`).
 - **RHEL vs SUSE constraint**: omnibus distinguishes RHEL and SUSE builds in different pipelines. Going forward we'll just have different targets for them, and always build both in the same pipeline.
-- **Symbol stripping / signing**: `strip_build`, `windows_symbol_stripping_file`,
-  `inspect_binary`, and `sign_file` are not yet migrated.
+- **Symbol stripping / signing**: `dd_strip_debug` (see
+  `bazel/rules/dd_strip/dd_strip.bzl`) reimplements omnibus's `strip_build`/
+  `windows_symbol_stripping_file` split (Linux objcopy 3-step, macOS
+  strip+dsymutil, Windows unstripped-original-as-debug-artifact) and is wired
+  into `dd_cc_packaged`, `//cmd/agent:agent`, and `//cmd/loader:loader`. It is
+  NOT yet wired into the real product binaries under
+  `packages/agent/product/BUILD.bazel`, because those come from
+  `bazel/repo/prebuilt_file.bzl` (wrapping `dda`-built files, not native Bazel
+  compile/link targets) and there is nothing to attach the provider to until
+  those binaries build natively with Bazel. `inspect_binary` and `sign_file`
+  (macOS codesigning) are still not migrated; note in particular that
+  stripping currently runs after `rewrite_rpath`'s codesign step in
+  `dd_cc_packaged` with no re-sign afterward, which needs a real fix before
+  this is relied upon for signed macOS artifacts.
 - **Transitive deps**: `//packages/agent/linux:transitive_deps` is a temporary
   catch-all. It shrinks as deps grow proper Bazel targets. See ABLD-363.

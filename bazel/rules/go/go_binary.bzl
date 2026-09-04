@@ -107,10 +107,9 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
 
     Args:
       name: target name
-      gc_linkopts: Base set of link opts. rpath and stripping options are
-                   automatically added to these.
+      gc_linkopts: Base set of link opts. The rpath option is automatically
+                   added to these.
                    On linux: add RPATH
-                   On release builds: add -s -w (strip symbol table and DWARF)
       gotags: Base set of gotags for this binary. COMMON tags are added, and
               per-platform adjustments are made.
       exact_gotags: Like gotags, but if this is specified, no other tag sets are added.
@@ -168,13 +167,6 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
         "//conditions:default": [],
     })
 
-    # Strip the symbol table and DWARF debug info in release builds to reduce
-    # binary size.  Dev builds keep symbols for debugger and profiler use.
-    strip_linkopts = select({
-        "//:is_release": ["-s", "-w"],
-        "//conditions:default": [],
-    })
-
     if exact_gotags:
         # this might be select()'ed by platform. It is up to the user to sort it.
         kwargs["gotags"] = exact_gotags
@@ -190,7 +182,7 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
 
     go_binary(
         name = name,
-        gc_linkopts = (gc_linkopts or []) + run_path_linkopts + strip_linkopts,
+        gc_linkopts = (gc_linkopts or []) + run_path_linkopts,
         x_defs = select({
             "//:is_release": release_x_defs,
             "//conditions:default": dev_x_defs,

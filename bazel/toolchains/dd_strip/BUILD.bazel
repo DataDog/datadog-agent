@@ -1,0 +1,74 @@
+"""Toolchains for splitting stripped/debug outputs from binaries."""
+
+load(":configure.bzl", "linux_dd_strip_driver", "macos_dd_strip_driver", "windows_dd_strip_driver")
+load(":toolchain.bzl", "dd_strip_missing_toolchain", "dd_strip_toolchain")
+
+# Provides a strip/split driver executable accepting
+# <input> <stripped-out> <debug-out>, or no driver (missing_toolchain) to
+# signal that stripping is not available for the current platform.
+toolchain_type(
+    name = "dd_strip_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+linux_dd_strip_driver(
+    name = "linux_driver",
+)
+
+dd_strip_toolchain(
+    name = "linux_dd_strip_toolchain",
+    driver = ":linux_driver",
+)
+
+toolchain(
+    name = "linux_toolchain",
+    exec_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = ["@platforms//os:linux"],
+    toolchain = ":linux_dd_strip_toolchain",
+    toolchain_type = ":dd_strip_toolchain_type",
+)
+
+windows_dd_strip_driver(
+    name = "windows_driver",
+)
+
+dd_strip_toolchain(
+    name = "windows_dd_strip_toolchain",
+    driver = ":windows_driver",
+)
+
+toolchain(
+    name = "windows_toolchain",
+    exec_compatible_with = ["@platforms//os:windows"],
+    target_compatible_with = ["@platforms//os:windows"],
+    toolchain = ":windows_dd_strip_toolchain",
+    toolchain_type = ":dd_strip_toolchain_type",
+)
+
+macos_dd_strip_driver(
+    name = "macos_driver",
+)
+
+dd_strip_toolchain(
+    name = "macos_dd_strip_toolchain",
+    debug_is_directory = True,
+    driver = ":macos_driver",
+)
+
+toolchain(
+    name = "macos_toolchain",
+    exec_compatible_with = ["@platforms//os:macos"],
+    target_compatible_with = ["@platforms//os:macos"],
+    toolchain = ":macos_dd_strip_toolchain",
+    toolchain_type = ":dd_strip_toolchain_type",
+)
+
+dd_strip_missing_toolchain(
+    name = "missing_toolchain_impl",
+)
+
+toolchain(
+    name = "missing_toolchain",
+    toolchain = ":missing_toolchain_impl",
+    toolchain_type = ":dd_strip_toolchain_type",
+)
