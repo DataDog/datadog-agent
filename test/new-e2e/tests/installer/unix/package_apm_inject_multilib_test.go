@@ -146,8 +146,8 @@ func (s *packageApmInjectMultilibSuite) TestMultilibLauncher() {
 	host := s.Env().RemoteHost
 	content, err := s.host.ReadFile("/etc/ld.so.preload")
 	require.NoError(s.T(), err)
-	require.Contains(s.T(), string(content), "/run/datadog-apm-inject/$LIB/launcher.preload.so")
-	require.NotContains(s.T(), string(content), injectTmpfsLauncher+"\n")
+	require.Contains(s.T(), string(content), injectTmpfsDir+"/$LIB/launcher.preload.so")
+	require.NotContains(s.T(), string(content), injectTmpfsDir+"/launcher.preload.so\n")
 	require.Equal(s.T(), releasedMultilibInjectorVersion,
 		strings.TrimSpace(host.MustExecute("cat /opt/datadog-packages/datadog-apm-inject/stable/version")))
 

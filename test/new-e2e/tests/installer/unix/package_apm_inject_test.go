@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -23,11 +24,14 @@ import (
 const (
 	injectOCIPath = "/opt/datadog-packages/datadog-apm-inject"
 	injectDebPath = "/opt/datadog/apm"
-	// injectTmpfsLauncher is the launcher entry written to /etc/ld.so.preload
-	// for OCI host instrumentation on systemd hosts: a symlink on tmpfs that
-	// auto-vanishes on reboot. See apminject.defaultTmpfsInjectDir.
-	injectTmpfsLauncher = "/run/datadog-apm-inject/launcher.preload.so"
+	// See apminject.defaultTmpfsInjectDir.
+	injectTmpfsDir = "/run/datadog-apm-inject"
 )
+
+// injectTmpfsLauncherPattern matches the launcher entry written to
+// /etc/ld.so.preload for OCI host instrumentation on systemd hosts: a symlink
+// on tmpfs that auto-vanishes on reboot. See apminject.launcherPatternSuffix.
+var injectTmpfsLauncherPattern = regexp.MustCompile(regexp.QuoteMeta(injectTmpfsDir) + `/(\$LIB/)?launcher\.preload\.so`)
 
 type packageApmInjectSuite struct {
 	packageBaseSuite
@@ -531,7 +535,7 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(injectorRoot string)
 
 	if injectorRoot == injectOCIPath && s.isSystemdPID1() {
 		ociPersistentLauncher := filepath.Join(injectorRoot, "stable", "inject", "launcher.preload.so")
-		assert.Contains(s.T(), string(content), injectTmpfsLauncher)
+		assert.Regexp(s.T(), injectTmpfsLauncherPattern, string(content))
 		assert.NotContains(s.T(), string(content), ociPersistentLauncher,
 			"systemd-managed OCI host must not keep the persistent launcher path in ld.so.preload")
 		return
@@ -574,7 +578,7 @@ func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
 		// failed instrument-start after a reboot wiped /run) does not contain
 		// injectOCIPath, so without this check it would slip through — yet ld.so
 		// prints a "cannot be preloaded ... ignored" warning for it on every exec.
-		assert.NotContains(s.T(), string(content), injectTmpfsLauncher)
+		assert.NotRegexp(s.T(), injectTmpfsLauncherPattern, string(content))
 	}
 	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
 	assert.NotContains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'")

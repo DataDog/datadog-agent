@@ -207,7 +207,7 @@ func (s *packageApmInjectSuite) TestOlderAgentAPMInjectService() {
 	preload, err := s.host.ReadFile("/etc/ld.so.preload")
 	require.NoError(s.T(), err)
 	require.Contains(s.T(), string(preload), launcherPreloadPath)
-	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+	require.NotRegexp(s.T(), injectTmpfsLauncherPattern, string(preload))
 
 	oldInstallerPath := "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer"
 	help, err := host.Execute("sudo " + oldInstallerPath + " apm --help")
@@ -221,7 +221,7 @@ func (s *packageApmInjectSuite) TestOlderAgentAPMInjectService() {
 	preload, err = s.host.ReadFile("/etc/ld.so.preload")
 	require.NoError(s.T(), err)
 	require.Contains(s.T(), string(preload), launcherPreloadPath)
-	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+	require.NotRegexp(s.T(), injectTmpfsLauncherPattern, string(preload))
 	_, err = host.Execute("test -e " + launcherPreloadPath)
 	require.NoError(s.T(), err, "ld.so.preload entry is dangling")
 	_, err = host.Execute("test -e /etc/systemd/system/datadog-apm-inject.service")
@@ -294,7 +294,7 @@ func (s *packageApmInjectSuite) TestAgentDowngradeReinstallsAPMInject() {
 	preload, err := s.host.ReadFile("/etc/ld.so.preload")
 	require.NoError(s.T(), err)
 	require.Contains(s.T(), string(preload), launcherPreloadPath)
-	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+	require.NotRegexp(s.T(), injectTmpfsLauncherPattern, string(preload))
 
 	s.reboot()
 	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service", "datadog-agent.service", "datadog-agent-trace.service")
@@ -302,7 +302,7 @@ func (s *packageApmInjectSuite) TestAgentDowngradeReinstallsAPMInject() {
 	preload, err = s.host.ReadFile("/etc/ld.so.preload")
 	require.NoError(s.T(), err)
 	require.Contains(s.T(), string(preload), launcherPreloadPath)
-	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+	require.NotRegexp(s.T(), injectTmpfsLauncherPattern, string(preload))
 	_, err = host.Execute("test -e " + launcherPreloadPath)
 	require.NoError(s.T(), err, "ld.so.preload entry is dangling")
 
