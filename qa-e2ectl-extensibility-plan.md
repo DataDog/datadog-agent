@@ -131,13 +131,13 @@ stop:    driver(base).Stop()
 
 | # | Decision | Tradeoff |
 |---|---|---|
-| T1 | **Explicit registry slice vs auto-discovery** (blank imports) | Explicit: one trivial edit site, greppable, no init magic — chosen. Auto-discovery: zero edit sites but invisible wiring; Go doesn't have real plugins, so "zero" is an illusion. |
-| T2 | **Driver-owned config section vs typed shared struct** | Section: adding fields never touches the core, unknown-field rejection preserved *per driver*; cost — the core cannot render a global schema of all options, and `config.File` carries raw sections until a driver decodes them. Typed-shared: better IDE experience, worse extensibility — exactly the pain we are removing. |
-| T3 | **Interfaces in the CLI (`cmd/e2ectl/internal/driver`) vs in the framework** | CLI-owned: the driver contract is CLI UX, the framework already exposes everything needed (installers, standalone, snapshot) — chosen for now. Framework-owned: suites could reuse drivers... but that couples framework releases to CLI iteration speed. Revisit when a suite wants to start environments itself (M3+). |
+| T1 | **Explicit registry slice vs auto-discovery** (blank imports) | Explicit: one trivial edit site, greppable, no init magic — **DECIDED: explicit registry.** |
+| T2 | **Driver-owned config section vs typed shared struct** | **DECIDED: driver-owned sections, no shared typed struct.** A VM environment carrying a Kubernetes cluster name is exactly the coupling being removed; the core keeps only `base` + the common fields (`fakeintake`). Cost accepted: no global schema of all options — per-driver help later if wanted. |
+| T3 | **Interfaces in the CLI (`cmd/e2ectl/internal/driver`) vs in the framework** | **DECIDED: interfaces live in the CLI.** The framework already exposes everything a driver needs (installers, standalone, snapshot); the driver contract is CLI UX. Revisit only if a suite wants to start environments itself (M3+). |
 | T4 | **Worker mirror-registry vs special-casing EC2** | Mirror registry: uniform story, new Pulumi providers don't touch the core job struct — chosen. Special-case: less code today, but re-grows the switches every time a cloud provider lands. |
-| T5 | **Optional `Updatable` interface vs update-in-Driver** | Interface segregation: not every base can iterate locally (EC2 update = rebuild+reinstall, different, later) — chosen. In-Driver: simpler surface, but forces every driver to answer "update" somehow. |
+| T5 | **Optional `Updatable` interface vs update-in-Driver** | **DECIDED: optional `Updatable` interface.** The aspiration is that every environment ends up updatable (they all can be, in principle), but the interface stays optional so a driver can ship without it and grow it later; the CLI errors honestly ("update is not supported for <base> yet") until then. |
 | T6 | **Opaque `DriverMeta` vs typed meta fields** | Opaque: meta never grows per-driver again; cost — debugging raw JSON in `meta.json` (mitigate: drivers pretty-print it). |
-| T7 | **Over-abstraction risk (YAGNI)** | Only two bases exist today. The design must be *validated by a third driver before it hardens* (see §6 step 7) — if docker-host feels forced through the interfaces, the interfaces are wrong. |
+| T7 | **Over-abstraction risk (YAGNI)** | **DECIDED: do NOT implement docker-host now; design so it stays possible.** docker-host, eks, aks, gke all remain one-package-plus-one-line additions by construction; the validation step (§6 step 7) becomes a *paper* check: write the interface sketch for docker-host and eks, confirm nothing fights, no implementation. The interfaces are allowed to change the day a real third driver lands. |
 
 ## 5. The experience of adding a new environment (the goal)
 
@@ -152,7 +152,7 @@ What "add `docker-host`" becomes — a walkthrough:
    - `Installer` for `script`; optionally `Updatable` (binary copy + restart —
      the local host-agent iteration loop, without any cloud).
 2. **Register**: one line in `driver/registry.go`.
-3. **Add an example** yaml in `examples/`.
+3. **Add an examp:le** yaml in `examples/`.
 4. **Run the conformance test** (§6 step 6): `go test ./internal/drivers/dockerhost/`
    — the harness checks: config validation table, start→snapshot→attach
    roundtrip, fakeintake healthy, install produces an agent, stop cleans up.
@@ -237,3 +237,84 @@ generic code. The difference between them is contained in: where the code
 lives (core package vs core driver + worker provider), what is reused (host
 machinery vs the Pulumi EKS program), the one tricky point (host-ness vs
 image delivery), and conformance cost (local vs cloud-gated).
+
+## 9. T4 and T6, in detail (asked for)
+
+### T4 — the worker mirror registry vs special-casing EC2
+
+What exists today: the worker has hard-coded actions (`provision-ec2`,
+`destroy-ec2`) and the shared Job struct carries EC2-specific fields
+(`StackName`, `OS`, `Arch`, `InstanceType`, `FakeIntake`). The core spawns it
+per driver. If EKS lands in this shape: new action strings `provision-eks` /
+`destroy-eks`, new fields (`Region`, `ClusterVersion`...) in the SHARED Job
+struct, and a new switch case in worker main — the same switch-proliferation
+we are removing from the core, just relocated into the worker.
+
+The mirror-registry alternative:
+- The worker job becomes **generic forever**:
+  `{action: "provision"|"destroy", base: "<id>", params: <driver-owned JSON>,
+  env_dir, snapshot_path}`. Its shape never changes again, whatever providers
+  exist; `params` is raw JSON that the provider strict-decodes — the same
+  driver-owned-section idea as T2, applied to the worker job.
+- The worker gets its own small interface mirroring the core's Driver:
+
+  ```go
+  type Provider interface {
+      ID() string                                        // "ec2-host", "eks", ...
+      Provision(j Job) (provisioner.RawResources, error)  // writes the snapshot
+      Destroy(j Job) error
+  }
+  ```
+
+  and its own registry slice. Worker main becomes: parse job → look the
+  provider up by base → call. It never changes again.
+- Adding EKS then means: a worker provider package + one line in the worker
+  registry — no shared-struct growth, no new actions, no switch.
+
+The honest cost (why it is a tradeoff at all): two registries must agree on
+IDs (the "mirror"). Mitigations: the base IDs are constants in ONE shared
+place (`cmd/e2ectl/workerclient`: `BaseEC2Host = "ec2-host"`), so both sides
+reference the same constant; the worker fails loudly on an unknown base; and
+the pairing is exercised by the conformance harness (a core driver with no
+worker provider for a Pulumi base fails at registration, not at runtime).
+
+### T6 — opaque DriverMeta vs typed meta fields
+
+What exists today: `envstore.Meta` is one typed struct with driver-specific
+fields — `KindName` (kind), `StackName` (EC2) — sitting next to common fields.
+Generic code reads them: `kinddriver.Stop` reads `Meta.KindName`, the EC2 stop
+path reads `Meta.StackName`. Add EKS and the struct grows `Region`,
+`ClusterName`; add docker-host and it grows `ContainerID`. The generic
+bookkeeping struct becomes a union of every driver's needs — the same coupling
+as T2, in the store.
+
+The opaque-field alternative:
+```go
+type Meta struct {
+    Name, Base, Status string
+    CreatedAt    time.Time
+    FakeIntakeURL string          // common: every env with a fakeintake has a client-reachable URL
+    AgentInstalled bool
+    AgentImage, AgentVersion string
+    DriverMeta json.RawMessage    // driver-owned; the core never decodes it
+}
+```
+- kinddriver writes `{"kindName":"qa-dev","fakeintakePort":44419}` and reads
+  it back with its own strict struct; the EC2 driver writes
+  `{"stackName":"e2ectl-qa"}`; a future eks driver writes
+  `{"clusterName":...,"region":...}`. Meta NEVER grows again.
+- The tradeoff, concretely: typed fields give compile-time access
+  (`entry.Meta.KindName`), fully readable meta.json, and free columns in
+  `e2ectl list`. Opaque gives permanent genericity but a raw JSON blob in
+  meta.json that only its driver understands — debugging means knowing the
+  driver, and `list` cannot show driver-specific columns without a
+  convention. Mitigation: drivers pretty-print their blob (it stays
+  human-readable JSON), and `list` sticks to common columns; if driver
+  summaries are wanted later, drivers grow a `Summary() string` — display
+  convention, not data coupling.
+- Why the middle option (map[string]string with key conventions) was
+  rejected: same stringly-typed coupling as typed fields, minus the types.
+
+Bottom line: T2, T4 and T6 are the same decision at three layers — config
+sections, worker jobs, store metadata — **driver knowledge belongs to the
+driver, and the generic layers carry opaque payloads the driver owns**.
