@@ -22,6 +22,10 @@ var ErrNotSupported = errors.New("GPU Monitoring is not supported")
 // Config holds the configuration for the GPU monitoring probe.
 type Config struct {
 	ebpf.Config
+	// DisabledCollectors lists Agent GPU collectors that should not be created.
+	DisabledCollectors []string
+	// NVLinkFECLightErrorThreshold is the maximum corrected-error count classified as light.
+	NVLinkFECLightErrorThreshold int
 	// Enabled indicates whether the GPU monitoring probe is enabled.
 	Enabled bool
 	// EnableEBPFProbes indicates whether the GPU monitoring eBPF probes should be loaded.
@@ -79,8 +83,11 @@ type StreamConfig struct {
 // New generates a new configuration for the GPU monitoring probe.
 func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
+	agentCfg := pkgconfigsetup.Datadog()
 	return &Config{
 		Config:                       *ebpf.NewConfig(),
+		DisabledCollectors:           agentCfg.GetStringSlice("gpu.disabled_collectors"),
+		NVLinkFECLightErrorThreshold: agentCfg.GetInt("gpu.nvlink.fec_light_error_threshold"),
 		ScanProcessesInterval:        time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
 		InitialProcessSync:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
 		Enabled:                      spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),

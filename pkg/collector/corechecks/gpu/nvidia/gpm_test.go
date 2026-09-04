@@ -35,7 +35,7 @@ func TestGPMCollectorSupportDetection(t *testing.T) {
 	mockLib := nvmltestutil.SetupMockNVML(t, testutil.WithGpmSupport(false))
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-	collector, err := newGPMCollector(mockDevice, nil)
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
 	assert.Nil(t, collector)
 	assert.ErrorIs(t, err, errUnsupportedDevice)
 	assert.Equal(t, 2, mockLib.GpmSampleFreeCount(), "all allocated samples should be freed")
@@ -48,7 +48,7 @@ func TestGPMCollectorSampleAllocFailure(t *testing.T) {
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-	collector, err := newGPMCollector(mockDevice, nil)
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
 	assert.Nil(t, collector)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to allocate GPM sample")
@@ -72,7 +72,7 @@ func TestGPMCollectorAllMetricsUnsupported(t *testing.T) {
 		}),
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
-	collector, err := newGPMCollector(mockDevice, nil)
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
 	assert.Nil(t, collector)
 	assert.ErrorIs(t, err, errUnsupportedDevice)
 }
@@ -95,7 +95,7 @@ func TestGPMCollectorSomeMetricsUnsupported(t *testing.T) {
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-	collector, err := newGPMCollector(mockDevice, nil)
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
 	assert.NoError(t, err)
 	assert.NotNil(t, collector)
 	gpmCol := collector.(*gpmCollector)
@@ -184,7 +184,7 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-	collector, err := newGPMCollector(mockDevice, nil)
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
 	gpmCol := collector.(*gpmCollector)
 
