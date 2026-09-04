@@ -40,6 +40,7 @@ func TestDockerPARSplitSuite(t *testing.T) {
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_ENABLED", pulumi.String("true")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", pulumi.String("true")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL", pulumi.String("false")),
+			dockeragentparams.WithAgentServiceEnvVariable("DD_HOSTNAME", pulumi.String("par-split-docker-e2e")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_URN", pulumi.String(urn)),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_PRIVATE_KEY", pulumi.String(privateKey)),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST", pulumi.String(runCommandAction)),
