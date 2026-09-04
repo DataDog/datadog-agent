@@ -59,6 +59,7 @@ type gui struct {
 	intentMu     sync.Mutex
 
 	sysprobeConfig sysprobeconfig.Component
+	gnmiEnabled    bool
 
 	// To compute uptime
 	startTimestamp int64
@@ -120,6 +121,7 @@ func NewComponent(deps Requires) Provides {
 		logger:         deps.Log,
 		intentTokens:   make(map[string]time.Time),
 		sysprobeConfig: deps.SysprobeConfig,
+		gnmiEnabled:    deps.Config.GetBool("network_devices.gnmi.enabled"),
 	}
 
 	publicRouter := http.NewServeMux()
@@ -236,9 +238,11 @@ func (g *gui) renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 
 	e = t.Execute(w, struct {
 		RestartEnabled bool
+		GnmiEnabled    bool
 		DocURL         template.URL
 	}{
 		RestartEnabled: restartEnabled(g.sysprobeConfig),
+		GnmiEnabled:    g.gnmiEnabled,
 		DocURL:         docURL,
 	})
 	if e != nil {

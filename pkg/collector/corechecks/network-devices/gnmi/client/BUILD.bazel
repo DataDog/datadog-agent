@@ -10,6 +10,7 @@ go_library(
         "json_ietf.go",
         "path.go",
         "subscriptions.go",
+        "transport.go",
         "value.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client",
@@ -20,8 +21,8 @@ go_library(
         "//pkg/util/backoff",
         "@com_github_openconfig_gnmi//proto/gnmi",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//credentials/insecure",
-        "@org_golang_google_grpc//metadata",
     ],
 )
 

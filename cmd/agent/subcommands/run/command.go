@@ -185,6 +185,7 @@ import (
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
+	gnmiStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/status"
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
@@ -458,6 +459,9 @@ func getSharedFxOption() fx.Option {
 		}),
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
+		}),
+		fx.Provide(func(config config.Component) status.InformationProvider {
+			return status.NewInformationProvider(gnmiStatus.GetProvider(config))
 		}),
 		fx.Supply(
 			rcclient.Params{
