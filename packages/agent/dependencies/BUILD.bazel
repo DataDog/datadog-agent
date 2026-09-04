@@ -123,6 +123,7 @@ pkg_filegroup(
 package_licenses(
     name = "license_files",
     src = ":_collected_libs",
+    prefix = "/opt/datadog-agent",
 )
 
 # Temporary during migration, to call from omnibus build.

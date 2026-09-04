@@ -82,6 +82,7 @@ pkg_filegroup(
 package_licenses(
     name = "license_files",
     src = ":everything",
+    prefix = "/opt/datadog-installer",
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],

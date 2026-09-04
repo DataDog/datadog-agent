@@ -124,13 +124,18 @@ installer_deb-arm64:
     PACKAGE_REQUIRED_FILES_LIST: ""
 
 .package_iot_deb_common:
-  extends: .bazel:defs:cache:omnibus-transition
+  extends: .bazel:defs:cache:progressive
   rules:
     - when: on_success
   stage: packaging
   script:
-    - !reference [.cache_omnibus_ruby_deps, setup]
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
+    - export PACKAGE_VERSION=$(dda inv agent.version --url-safe)
+    - bazel build --config=cache ${BAZEL_EXTRA_FLAGS} //packages/iot:debian
+    - export IOT_DEB_PATH="$(bazel info execution_root)/$(bazel cquery --config=cache ${BAZEL_EXTRA_FLAGS} //packages/iot:debian --output=files)"
+    - echo "Bazel-built package at $IOT_DEB_PATH:"; sha256sum "$IOT_DEB_PATH"; dpkg-deb -c "$IOT_DEB_PATH" | grep systemd/system || echo "systemd unit NOT found in bazel-built package"
+    - mkdir -p $OMNIBUS_PACKAGE_DIR
+    - cp "$IOT_DEB_PATH" $OMNIBUS_PACKAGE_DIR/
+    - echo "Copied package(s) in $OMNIBUS_PACKAGE_DIR:"; sha256sum $OMNIBUS_PACKAGE_DIR/*.deb; dpkg-deb -c $OMNIBUS_PACKAGE_DIR/*.deb | grep systemd/system || echo "systemd unit NOT found in copied package"
     - !reference [.create_signature_and_lint_linux_packages]
   after_script:
     - !reference [.static_quality_gate_package]
@@ -143,19 +148,16 @@ installer_deb-arm64:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
-    OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-deb.txt"
     DD_PROJECT: iot-agent
 
 iot_agent_deb-x64:
   extends: [.package_iot_deb_common, .package_deb_x86]
-  needs: ["iot-agent-x64"]
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_deb_amd64"
 
 iot_agent_deb-arm64:
   extends: [.package_iot_deb_common, .package_deb_arm64]
-  needs: ["iot-agent-arm64"]
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_deb_arm64"
 
@@ -163,16 +165,10 @@ iot_agent_deb-armhf:
   extends: .package_iot_deb_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
-  needs: ["iot-agent-armhf"]
   variables:
     PACKAGE_ARCH: armhf
-    FORCED_PACKAGE_COMPRESSION_LEVEL: 5
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_iot_agent_deb_armhf"
-  script:
-    - !reference [.cache_omnibus_ruby_deps, setup]
-    # Use custom built dpkg for armhf packaging since we're on armv8/arm64
-    - PATH="/opt/dpkg-armhf/bin:$PATH" dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
-    - !reference [.create_signature_and_lint_linux_packages]
+    BAZEL_EXTRA_FLAGS: "--platforms=//bazel/platforms:linux_armv7"
 
 dogstatsd_deb-x64:
   extends: [.package_deb_common, .package_deb_x86]

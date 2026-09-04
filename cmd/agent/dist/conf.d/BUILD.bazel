@@ -87,3 +87,10 @@ pkg_filegroup(
         "//packages/agent:__subpackages__",
     ],
 )
+
+pkg_filegroup(
+    name = "iot_files",
+    srcs = [":iot_checks_files"],
+    prefix = select(CONF_DIR_SELECTOR),
+    visibility = ["//packages/iot:__pkg__"],
+)
