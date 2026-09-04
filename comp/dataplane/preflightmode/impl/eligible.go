@@ -61,8 +61,8 @@ const (
 // secretsInUse reports whether the Agent's configuration involves secrets at all, along with a human-readable reason
 // when it does.
 //
-// This is a gate on preflight mode because the pre-flight writes the Agent's configuration as the operator supplied it
-// to disk for ADP to read (see writePreflightConfig). Anything the secret resolver pulled into memory would therefore be
+// This is a gate on preflight mode because the pre-flight writes the Agent's entire resolved configuration to disk for
+// ADP to read (see writePreflightConfig). Anything the secret resolver pulled into memory would therefore be
 // materialized in plaintext in a file. The working directory is locked down to the Agent's own account and removed when
 // the run finishes, but a value the operator deliberately kept out of any file on the host should not be written to one
 // for the sake of a pre-flight check that only exists until ADP goes GA. So when secrets are involved we skip the
