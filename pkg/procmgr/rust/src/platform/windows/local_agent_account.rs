@@ -69,16 +69,14 @@ impl AgentAccount {
                     .well_known_account_sid()
                     .expect("well-known service account must have a SID")
                     .with_context(|| format!("lookup SID for {}", self.display_name()))?;
-                current_process_sid_matches(&sid).with_context(|| {
-                    format!("compare supervisor token to {}", self.display_name())
-                })
+                current_process_sid_matches(&sid)
+                    .with_context(|| format!("compare supervisor token to {}", self.display_name()))
             }
             AgentAccount::PasswordLogon { domain, user, .. } => {
                 let sid = lookup_installed_user_sid(domain, user)
                     .with_context(|| format!("lookup SID for {}", self.display_name()))?;
-                current_process_sid_matches(&sid).with_context(|| {
-                    format!("compare supervisor token to {}", self.display_name())
-                })
+                current_process_sid_matches(&sid)
+                    .with_context(|| format!("compare supervisor token to {}", self.display_name()))
             }
             AgentAccount::LocalSystem => Ok(false),
         }
