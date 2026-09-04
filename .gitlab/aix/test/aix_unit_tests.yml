@@ -7,12 +7,6 @@ tests_aix-ppc64:
   rules:
     - !reference [.except_mergequeue]
     - !reference [.on_scheduled_main]
-    - changes:
-        paths:
-          - .gitlab/aix/**/*
-        compare_to: $COMPARE_TO_BRANCH
-        # TODO: uncomment once the job is stable enough
-        # allow_failure: false
     - when: manual
       variables:
         EXTRA_TEST_FLAGS: "--only-modified-packages"
