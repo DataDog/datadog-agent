@@ -393,6 +393,7 @@ func tagsFromDimensions(dims map[string]string) []string {
 	for k, v := range dims {
 		tags = append(tags, k+":"+v)
 	}
+	slices.Sort(tags)
 	return tags
 }
 
