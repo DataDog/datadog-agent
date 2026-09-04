@@ -16,6 +16,7 @@ import (
 
 	"go.uber.org/atomic"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -27,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
@@ -55,6 +58,7 @@ type TargetMutator struct {
 	containerRegistry             string
 	mutateUnlabelled              bool
 	defaultLibVersions            []libInfo
+	apmStore                      *crstore.Store
 	ssiEnabled                    bool
 
 	// staticPolicies is local targeting: explicit targets, or enabledNamespaces
@@ -70,7 +74,7 @@ type TargetMutator struct {
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups. When on-demand instrumentation is enabled and rcClient is non-nil, the
 // mutator also subscribes to remote-config SSI policies, which are evaluated after static targets.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client) (*TargetMutator, error) {
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client, apmStore *crstore.Store) (*TargetMutator, error) {
 	// Create a map of user-configured disabled namespaces for quick lookups.
 	// Default namespaces (kube-system, datadog agent namespace) are excluded at
 	// the webhook layer via namespace selectors and not duplicated here.
@@ -103,6 +107,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		containerRegistry:             config.containerRegistry,
 		mutateUnlabelled:              config.mutateUnlabelled,
 		defaultLibVersions:            defaultLibVersions,
+		apmStore:                      apmStore,
 		ssiEnabled:                    ssiEnabled,
 		staticPolicies:                staticPolicies,
 	}
@@ -411,7 +416,7 @@ type targetInternal struct {
 }
 
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
-// Library annotations still short-circuit matching (GA precedence unchanged in this change).
+// Precedence is annotation, then DatadogInstrumentation CRD, then static and remote-config policies.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
 	target, _ := m.resolveTargetAndSSI(pod)
 	return target
@@ -424,27 +429,120 @@ func (m *TargetMutator) resolveTargetAndSSI(pod *corev1.Pod) (*targetInternal, b
 	if !result.shouldContinue {
 		return result.target, matched != nil
 	}
+
+	result = m.getTargetFromCRD(pod)
+	if !result.shouldContinue {
+		return result.target, result.target != nil
+	}
+
 	return matched, matched != nil
 }
 
-type annotationResult struct {
+type filterResult struct {
 	shouldContinue bool
 	target         *targetInternal
 }
 
+func (m *TargetMutator) getTargetFromCRD(pod *corev1.Pod) *filterResult {
+	if m.apmStore == nil {
+		return &filterResult{shouldContinue: true}
+	}
+
+	targets := workloadTargetsFromPod(pod)
+	for _, target := range targets {
+		config, ok := m.apmStore.GetAPM(target)
+		if !ok {
+			continue
+		}
+
+		if !config.Enabled {
+			return &filterResult{shouldContinue: false}
+		}
+
+		return &filterResult{shouldContinue: false, target: m.buildCRDTarget(target, config)}
+	}
+
+	return &filterResult{shouldContinue: true}
+}
+
+func workloadTargetsFromPod(pod *corev1.Pod) []crstore.WorkloadTarget {
+	ref := metav1.GetControllerOf(pod)
+	if ref == nil {
+		return nil
+	}
+
+	switch ref.Kind {
+	case kubernetes.ReplicaSetKind:
+		deploymentName := kubernetes.ParseDeploymentForReplicaSet(ref.Name)
+		if deploymentName == "" {
+			return nil
+		}
+		return []crstore.WorkloadTarget{{Kind: kubernetes.DeploymentKind, Namespace: pod.Namespace, Name: deploymentName}}
+	case kubernetes.JobKind:
+		targets := []crstore.WorkloadTarget{{Kind: kubernetes.JobKind, Namespace: pod.Namespace, Name: ref.Name}}
+		if cronJobName, _ := kubernetes.ParseCronJobForJob(ref.Name); cronJobName != "" {
+			targets = append(targets, crstore.WorkloadTarget{Kind: kubernetes.CronJobKind, Namespace: pod.Namespace, Name: cronJobName})
+		}
+		return targets
+	case kubernetes.DaemonSetKind, kubernetes.StatefulSetKind:
+		return []crstore.WorkloadTarget{{Kind: ref.Kind, Namespace: pod.Namespace, Name: ref.Name}}
+	default:
+		return nil
+	}
+}
+
+func (m *TargetMutator) buildCRDTarget(target crstore.WorkloadTarget, config crstore.APMConfig) *targetInternal {
+	libVersions := m.defaultLibVersions
+	usesDefaultLibs := true
+	if len(config.TracerVersions) > 0 {
+		pinned := getPinnedLibraries(config.TracerVersions, m.containerRegistry, true)
+		libVersions = pinned.libs
+		usesDefaultLibs = pinned.areSetToDefaults
+	}
+
+	name := fmt.Sprintf("datadoginstrumentation:%s/%s", config.CR.Namespace, config.CR.Name)
+	return &targetInternal{
+		name:            name,
+		libVersions:     libVersions,
+		envVars:         config.TracerConfigs,
+		json:            createCRDTargetJSON(name, target, config),
+		usesDefaultLibs: usesDefaultLibs,
+	}
+}
+
+func createCRDTargetJSON(name string, target crstore.WorkloadTarget, config crstore.APMConfig) string {
+	payload := struct {
+		Name           string                 `json:"name"`
+		Workload       crstore.WorkloadTarget `json:"workload"`
+		TracerVersions map[string]string      `json:"ddTraceVersions,omitempty"`
+		TracerConfigs  []corev1.EnvVar        `json:"ddTraceConfigs,omitempty"`
+	}{
+		Name:           name,
+		Workload:       target,
+		TracerVersions: config.TracerVersions,
+		TracerConfigs:  config.TracerConfigs,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Errorf("error marshalling CRD target %q: %v", name, err)
+		return fmt.Sprintf("error marshalling CRD target %q: %v", name, err)
+	}
+	return string(data)
+}
+
 // getTargetFromAnnotation determines which tracing libraries to use given
-func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResult {
+func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *filterResult {
 	// The enabled label existing takes precedence...
 	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
 	if enabledLabelExists && !enabledLabelVal {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target:         nil,
 		}
 	}
 
 	if !enabledLabelExists && !m.mutateUnlabelled {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: true,
 			target:         nil,
 		}
@@ -453,7 +551,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 	// If local lib is enabled, then we should prefer the user defined libs.
 	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
 	if len(extractedLibraries) > 0 {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: extractedLibraries,
@@ -464,7 +562,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 
 	injectAllAnnotation := strings.ToLower(annotation.LibraryVersion.Format("all"))
 	if _, found := pod.Annotations[injectAllAnnotation]; found {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: m.defaultLibVersions,
@@ -473,7 +571,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 		}
 	}
 
-	return &annotationResult{
+	return &filterResult{
 		shouldContinue: true,
 		target:         nil,
 	}

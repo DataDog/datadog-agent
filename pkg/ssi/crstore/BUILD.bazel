@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "crstore",
+    srcs = ["crstore.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ssi/crstore",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
+
+dd_agent_go_test(
+    name = "crstore_test",
+    srcs = ["crstore_test.go"],
+    embed = [":crstore"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
