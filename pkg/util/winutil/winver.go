@@ -90,11 +90,15 @@ func GetWindowsVersion() (string, error) {
 		return "", fmt.Errorf("failed to read CurrentBuildNumber: %w", err)
 	}
 
-	// A missing UBR is reported as revision zero rather than as an error: the rest of the
+	// An absent UBR is reported as revision zero rather than as an error: the rest of the
 	// version is still correct, and an installation that has had no cumulative update
-	// applied does not necessarily carry the value.
+	// applied does not necessarily carry the value. Any other failure leaves the revision
+	// unknown, and reporting it as zero would look downstream like a version change.
 	revision, _, err := key.GetIntegerValue("UBR")
 	if err != nil {
+		if !errors.Is(err, registry.ErrNotExist) {
+			return "", fmt.Errorf("failed to read UBR: %w", err)
+		}
 		revision = 0
 	}
 
@@ -164,8 +168,20 @@ type tagVSFIXEDFILEINFO struct {
 	dwFileDateLS       uint32
 }
 
+// vsFixedFileInfoSignature is the dwSignature value every VS_FIXEDFILEINFO carries.
+const vsFixedFileInfoSignature = 0xFEEF04BD
+
 // queryFixedFileInfo returns the VS_FIXEDFILEINFO at the root of a version resource block.
+//
+// The returned length and signature are both validated: VerQueryValueW can succeed on an
+// existing root block while returning a value shorter than the structure, and the version
+// resource comes from an arbitrary binary on the host, so dereferencing it unchecked would
+// read past the block.
 func queryFixedFileInfo(block []uint8) (*tagVSFIXEDFILEINFO, error) {
+	if len(block) == 0 {
+		return nil, errors.New("empty version information block")
+	}
+
 	subblock := windows.StringToUTF16Ptr("\\")
 	var infoptr unsafe.Pointer
 	var ulen uint32
@@ -176,7 +192,15 @@ func queryFixedFileInfo(block []uint8) (*tagVSFIXEDFILEINFO, error) {
 	if ret == 0 {
 		return nil, err
 	}
-	return (*tagVSFIXEDFILEINFO)(infoptr), nil
+	if infoptr == nil || ulen < uint32(unsafe.Sizeof(tagVSFIXEDFILEINFO{})) {
+		return nil, fmt.Errorf("version resource has no fixed information (%d bytes)", ulen)
+	}
+
+	ffi := (*tagVSFIXEDFILEINFO)(infoptr)
+	if ffi.dwSignature != vsFixedFileInfoSignature {
+		return nil, fmt.Errorf("unexpected VS_FIXEDFILEINFO signature 0x%x", ffi.dwSignature)
+	}
+	return ffi, nil
 }
 
 func getVersionInfo(block []uint8) (string, error) {
@@ -197,7 +221,7 @@ func getVersionInfo(block []uint8) (string, error) {
 // when the resource has no fixed information.
 func fixedFileVersion(block []uint8) string {
 	ffi, err := queryFixedFileInfo(block)
-	if err != nil || ffi == nil {
+	if err != nil {
 		return ""
 	}
 

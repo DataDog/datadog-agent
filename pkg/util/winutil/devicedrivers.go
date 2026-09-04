@@ -81,9 +81,15 @@ func EnumDeviceDrivers() ([]DeviceDriver, error) {
 
 		// A device driven by a kernel service is already reported by the service source under
 		// that service name, so nothing else about it is read here.
+		//
+		// stringProperty already reports an absent property as an empty value, so an error
+		// here means the service name is unknown rather than absent. Such a device is skipped:
+		// continuing into the service-free path below would report a service-backed driver a
+		// second time, as a device entry under a different product code.
 		service, err := stringProperty(devInfo, data, windows.SPDRP_SERVICE)
 		if err != nil {
-			log.Debugf("failed to read SPDRP_SERVICE for device %q: %v", instanceID, err)
+			log.Debugf("failed to read SPDRP_SERVICE for device %q, skipping it: %v", instanceID, err)
+			continue
 		}
 		if service != "" {
 			drivers = append(drivers, DeviceDriver{InstanceID: instanceID, Service: service})
