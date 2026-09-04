@@ -1135,6 +1135,44 @@ properties:
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_BUFFER_SIZE
             - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_BUFFER_SIZE
+          dispatcher_queue:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_ENABLED
+                - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_ENABLED
+                description: |-
+                  Set to true to enable the user-space ring-buffer dispatcher queue.
+                  Off by default. When disabled, events are handled inline on the kernel read loop.
+              size:
+                node_type: setting
+                type: integer
+                default: 500000
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE
+                - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE
+                description: Dispatcher queue capacity in bytes. Multiplied by CPU count when size_per_core is true.
+              size_per_core:
+                node_type: setting
+                type: boolean
+                default: true
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
+                - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_PER_CORE
+                description: Set to true to multiply size by the number of CPUs.
+              size_min:
+                node_type: setting
+                type: integer
+                default: 1048576
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_MIN
+                - DD_RUNTIME_SECURITY_CONFIG_EVENT_STREAM_DISPATCHER_QUEUE_SIZE_MIN
+                description: Minimum dispatcher queue capacity in bytes, applied after size and optional per-core scaling.
           kretprobe_max_active:
             node_type: setting
             type: integer

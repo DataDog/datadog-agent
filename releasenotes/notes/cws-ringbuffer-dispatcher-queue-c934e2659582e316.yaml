@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    CWS: added an optional user-space dispatcher queue for the eBPF ring-buffer
+    event stream. When enabled, events are handed off from the kernel read loop
+    to a byte-bounded queue drained by a dedicated goroutine, decoupling kernel
+    reads from user-space processing. It is disabled by default; when disabled,
+    events are handled inline as before.
