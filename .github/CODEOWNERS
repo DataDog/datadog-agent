@@ -1061,3 +1061,10 @@
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
 /**/*.bzl       @DataDog/agent-build
+
+# Packaging rules (which files go into which package) for the main agent binary, owned by agent-build.
+# Must stay last for the same reason as the /**/*.bzl rule above.
+/cmd/agent/dist/BUILD.bazel        @DataDog/agent-build
+/cmd/agent/dist/checks/BUILD.bazel @DataDog/agent-build
+/cmd/agent/dist/conf.d/BUILD.bazel @DataDog/agent-build
+/cmd/agent/dist/utils/BUILD.bazel  @DataDog/agent-build
