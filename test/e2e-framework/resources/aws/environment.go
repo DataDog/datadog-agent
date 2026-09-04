@@ -185,6 +185,17 @@ func (e *Environment) DatadogPublicRegistry() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultDatadogPublicRegistry, e.envDefault.ddInfra.defaultDatadogPublicRegistry)
 }
 
+// ecrRepositoryName returns the ECR repository name of an image, that is everything
+// after the registry host. Repository names can contain slashes, as pull-through cache
+// repositories do ("ecr-public/datadog/agent"), so only the host is stripped.
+func ecrRepositoryName(image string) string {
+	_, repositoryName, found := strings.Cut(image, "/")
+	if !found {
+		return image
+	}
+	return repositoryName
+}
+
 // Check if the image exists in the internal registry
 func (e *Environment) InternalRegistryImageTagExists(image, tag string) (bool, error) {
 
@@ -201,10 +212,12 @@ func (e *Environment) InternalRegistryImageTagExists(image, tag string) (bool, e
 		return false, err
 	}
 
+	repositoryName := ecrRepositoryName(image)
+
 	ecrClient := awsECR.NewFromConfig(cfg)
 	_, err = ecrClient.BatchGetImage(e.Ctx().Context(), &awsECR.BatchGetImageInput{
 		RegistryId:     &strings.Split(image, ".")[0],
-		RepositoryName: &strings.Split(image, "/")[len(strings.Split(image, "/"))-1],
+		RepositoryName: &repositoryName,
 		ImageIds:       []types.ImageIdentifier{{ImageTag: &tag}},
 	})
 
