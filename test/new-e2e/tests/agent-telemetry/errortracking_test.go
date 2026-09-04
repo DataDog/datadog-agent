@@ -371,17 +371,21 @@ func (s *errorTrackingSuite) TestDisabledByDefault() {
 	//
 	// The old (enabled) agent's stop() flushes its errortracking buffer as
 	// part of shutdown; those HTTP POSTs may be in-flight when UpdateEnv
-	// returns and arrive at FakeIntake after a single immediate flush call.
-	// The loop below flushes, waits one flush cycle (flush_interval_seconds:1
-	// in the disabled config), then checks that nothing new arrived. It
-	// retries until the intake is quiet for a full cycle, ensuring all
-	// residual from the shutdown drain is cleared before assert.Never starts.
+	// returns and arrive at FakeIntake after the flush below. Each retry
+	// tick is itself the observation window (flush_interval_seconds:1 in
+	// the disabled config, so 3s covers a full cycle): if logs showed up
+	// since the last flush, clear them so the next tick gets a clean
+	// window, and keep retrying until one full tick passes quiet before
+	// assert.Never starts.
+	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		assert.NoError(c, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
-		time.Sleep(2 * time.Second)
 		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
-		assert.NoError(c, err)
-		assert.Empty(c, logs, "FakeIntake still receiving agent-telemetry logs after flush")
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Empty(c, logs, "FakeIntake still receiving agent-telemetry logs after flush") {
+			assert.NoError(c, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+		}
 	}, 10*time.Second, 3*time.Second, "FakeIntake did not drain within 10s after switching to disabled config")
 
 	// Confirm nothing is forwarded. The config sets flush_interval_seconds: 1, so
