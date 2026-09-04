@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/util/log
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.64.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
+	github.com/DataDog/datadog-agent/pkg/template v0.84.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-rc.1
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.28.0
@@ -12,7 +12,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.84.0-rc.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 )

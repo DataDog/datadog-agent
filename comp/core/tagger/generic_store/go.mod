@@ -3,13 +3,13 @@ module github.com/DataDog/datadog-agent/comp/core/tagger/generic_store
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.60.0
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.84.0-rc.1
 	github.com/stretchr/testify v1.12.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.60.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.60.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.84.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.84.0-rc.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 )
 

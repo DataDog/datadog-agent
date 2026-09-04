@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/util/filesystem
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-rc.1
 	github.com/DataDog/go-acl v1.0.1
 	github.com/gofrs/flock v0.13.1
 	github.com/shirou/gopsutil/v4 v4.26.7
@@ -14,9 +14,9 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.84.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.84.0-rc.1 // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect

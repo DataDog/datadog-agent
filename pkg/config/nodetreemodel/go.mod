@@ -6,10 +6,10 @@ go 1.26.0
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6
-	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.84.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/model v0.84.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.84.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-rc.1
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/spf13/cast v1.10.0
 	github.com/stretchr/testify v1.12.1
@@ -18,11 +18,11 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.84.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.84.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.84.0-rc.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
