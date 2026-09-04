@@ -82,24 +82,22 @@ func newConfiguredGPUCheck(
 
 func TestConfigureSystemProbeCacheFeatureGating(t *testing.T) {
 	tests := []struct {
-		name                    string
-		gpuMonitoring           bool
-		enableEBPFProbes        bool
-		prmEndpointEnabled      bool
-		driverEventsEnabled     bool
-		expectStatsCache        bool
-		expectPRMCache          bool
-		expectDriverEventsCache bool
+		name                string
+		gpuMonitoring       bool
+		enableEBPFProbes    bool
+		prmEndpointEnabled  bool
+		driverEventsEnabled bool
+		expectStatsCache    bool
+		expectPRMCache      bool
 	}{
 		{
-			name:                    "all system-probe GPU features enabled",
-			gpuMonitoring:           true,
-			enableEBPFProbes:        true,
-			prmEndpointEnabled:      true,
-			driverEventsEnabled:     true,
-			expectStatsCache:        true,
-			expectPRMCache:          true,
-			expectDriverEventsCache: true,
+			name:                "all system-probe GPU features enabled",
+			gpuMonitoring:       true,
+			enableEBPFProbes:    true,
+			prmEndpointEnabled:  true,
+			driverEventsEnabled: true,
+			expectStatsCache:    true,
+			expectPRMCache:      true,
 		},
 		{
 			name:                "eBPF enabled",
@@ -118,12 +116,11 @@ func TestConfigureSystemProbeCacheFeatureGating(t *testing.T) {
 			expectPRMCache:      true,
 		},
 		{
-			name:                    "driver events enabled without eBPF",
-			gpuMonitoring:           true,
-			enableEBPFProbes:        false,
-			prmEndpointEnabled:      false,
-			driverEventsEnabled:     true,
-			expectDriverEventsCache: true,
+			name:                "driver events enabled without eBPF",
+			gpuMonitoring:       true,
+			enableEBPFProbes:    false,
+			prmEndpointEnabled:  false,
+			driverEventsEnabled: true,
 		},
 		{
 			name:                "system probe disabled",
@@ -166,11 +163,6 @@ func TestConfigureSystemProbeCacheFeatureGating(t *testing.T) {
 				require.NotNil(t, check.prmCache)
 			} else {
 				require.Nil(t, check.prmCache)
-			}
-			if tt.expectDriverEventsCache {
-				require.NotNil(t, check.driverEventsCache)
-			} else {
-				require.Nil(t, check.driverEventsCache)
 			}
 			require.Equal(t, tt.gpuMonitoring, check.gpuConfig.Enabled)
 			require.Equal(t, tt.enableEBPFProbes, check.gpuConfig.EnableEBPFProbes)

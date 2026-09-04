@@ -56,7 +56,6 @@ type Check struct {
 	deviceCache         ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
 	spCache             *nvidia.SystemProbeCache         // spCache holds system-probe GPU process metrics
 	prmCache            *nvidia.PRMCache                 // prmCache holds system-probe privileged NVLink metrics
-	driverEventsCache   *nvidia.DriverEventsCache        // driverEventsCache holds system-probe GPU driver events
 	gpuConfig           *gpuconfig.Config                // gpuConfig is shared with the system-probe GPU module
 	deviceEvtGatherer   *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
 	workloadTagCache    *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
@@ -178,11 +177,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("error creating workload tag cache: %w", err)
 	}
 	c.workloadTagCache = workloadTagCache
-	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	c.spCache = nil
 	c.prmCache = nil
-	c.driverEventsCache = nil
+	var driverEventsSource nvidia.DriverEventsSource
 	if c.gpuConfig.Enabled {
 		if c.gpuConfig.EnableEBPFProbes || c.gpuConfig.PRMEndpointEnabled || c.gpuConfig.DriverEventsEnabled {
 			client := nvidia.NewSystemProbeClient()
@@ -194,10 +192,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 				c.prmCache = nvidia.NewPRMCache(client)
 			}
 			if c.gpuConfig.DriverEventsEnabled {
-				c.driverEventsCache = nvidia.NewDriverEventsCache(client)
+				driverEventsSource = nvidia.NewDriverEventsCache(client)
 			}
 		}
 	}
+	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
 
 	return nil
 }
@@ -336,12 +335,6 @@ func (c *Check) Run() error {
 		}
 	}
 
-	if c.driverEventsCache != nil {
-		if err := c.driverEventsCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
-			log.Warnf("error refreshing system-probe driver events cache: %v", err)
-		}
-	}
-
 	// start device event gatherer if we have not already
 	if !c.deviceEvtGatherer.Started() {
 		if err := c.deviceEvtGatherer.Start(); err != nil {
@@ -350,7 +343,7 @@ func (c *Check) Run() error {
 	}
 
 	// Attempt refreshing device events
-	if err := c.deviceEvtGatherer.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+	if err := c.deviceEvtGatherer.Refresh(currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error refreshing device events cache: %v", err)
 		// Might cause empty metrics in collectors depending on device events
 	}
