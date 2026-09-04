@@ -1,0 +1,22 @@
+# Build tags whose packages are excluded from CI mutation testing.
+# Detection is structural: a package is skipped if `go list -tags=''` from
+# its module fails. This list is documentation of the expected skips.
+# Update when a new build-tag-gated subtree appears under pkg/.
+linux_bpf
+ebpf_bindata
+ebpf
+kubelet
+kubeapiserver
+docker
+containerd
+cri
+crio
+podman
+process
+npm
+trivy
+clusterchecks
+otlp
+serverless
+test
+functionaltests
