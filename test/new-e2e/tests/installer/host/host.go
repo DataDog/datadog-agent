@@ -186,11 +186,11 @@ func parseSystemdVersion(output string) (int, error) {
 // ConfigureAptMirrors hardens apt against package-mirror outages on apt-based hosts.
 // It bounds apt's per-request timeout and retries so an unreachable (or merely slow)
 // mirror fails within seconds instead of hanging until the CI job's 2h timeout, and on
-// Ubuntu rewrites the apt sources to a "mirror+file" list so apt fails over to global
-// mirrors when the regional EC2 mirror is down or degraded. us-east-1 is kept as the
-// first entry (our infra's region), with archive.ubuntu.com / ports.ubuntu.com and a
-// third-party mirror (mirror.leaseweb.net, which mirrors both amd64 and ports) as
-// fallbacks, since ports.ubuntu.com alone is shared across every non-x86 architecture
+// Ubuntu rewrites the apt sources to a "mirror+file" list so apt fails over between
+// Canonical's archive.ubuntu.com / ports.ubuntu.com endpoints and a third-party mirror
+// (mirror.leaseweb.net, which mirrors both amd64 and ports). The regional EC2 mirror is
+// intentionally omitted because slow-but-reachable failures can prevent timely failover.
+// This is especially important for ports.ubuntu.com, which is shared across non-x86 architectures
 // (arm64, armhf, ppc64el, s390x, riscv64) and is far less provisioned than the
 // amd64-only archive.ubuntu.com global CDN. The timeout/retry values mirror
 // Dockerfiles/agent/Dockerfile so CI image builds and e2e installs degrade identically.
@@ -216,8 +216,8 @@ func (h *Host) ConfigureAptMirrors() {
 	if _, err := h.remote.Execute("test -e /usr/lib/apt/methods/mirror+file"); err != nil {
 		return
 	}
-	h.remote.MustExecute(`printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)
-	h.remote.MustExecute(`printf 'http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' | sudo tee /etc/apt/mirrorlist.ports`)
+	h.remote.MustExecute(`printf 'http://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)
+	h.remote.MustExecute(`printf 'http://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' | sudo tee /etc/apt/mirrorlist.ports`)
 	h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#https\?://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#https\?://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
 }
 
