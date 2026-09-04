@@ -236,7 +236,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 	return source.Source{}, false
 }
 
-// // The unique identifier for an Azure Container App is its subscription id, resource group, and name combination
+// The unique identifier for an Azure Container App is its subscription id, resource group, and name combination
 func IsAzureContainerAppsIdentified(dims map[string]string) bool {
 	return dims["name"] != "" && dims["resource_group"] != "" && dims["subscription_id"] != ""
 }
