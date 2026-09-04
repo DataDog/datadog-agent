@@ -110,6 +110,8 @@ type ManagerV2 struct {
 
 	hostname string
 
+	startTime time.Time
+
 	profiles     map[cgroupModel.WorkloadSelector]*profile.Profile
 	profilesLock sync.Mutex
 	pathsReducer *activity_tree.PathsReducer
@@ -224,6 +226,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		remoteStorage:               remoteStorage,
 		configuredStorageRequests:   perFormatStorageRequests(configuredStorageRequests),
 		hostname:                    hostname,
+		startTime:                   time.Now(),
 		sendAnomalyDetection:        sendAnomalyDetection,
 		eventFiltering:              make(map[eventFilteringEntry]*atomic.Uint64),
 		insertionErrors:             make(map[insertionErrorKey]*atomic.Uint64),
@@ -557,7 +560,16 @@ func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSi
 	pm.persistedProfiles.Inc()
 }
 
+func (m *ManagerV2) withinStartupDelay(now time.Time) bool {
+	delay := m.config.RuntimeSecurity.SecurityProfileV2StartupDelay
+	return delay > 0 && now.Sub(m.startTime) < delay
+}
+
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
+	if m.withinStartupDelay(time.Now()) {
+		return
+	}
+
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		return

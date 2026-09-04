@@ -206,3 +206,30 @@ func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
 		assert.True(t, m.shouldSendAnomalyDetection(p, p.StartedAt().Add(time.Hour)))
 	})
 }
+
+func TestManagerV2_withinStartupDelay(t *testing.T) {
+	start := time.Now()
+	newManager := func(delay time.Duration) *ManagerV2 {
+		return &ManagerV2{
+			startTime: start,
+			config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+				SecurityProfileV2StartupDelay: delay,
+			}},
+		}
+	}
+
+	t.Run("disabled by default", func(t *testing.T) {
+		assert.False(t, newManager(0).withinStartupDelay(start))
+	})
+
+	t.Run("ignores events within the delay and resumes after it", func(t *testing.T) {
+		m := newManager(time.Minute)
+		assert.True(t, m.withinStartupDelay(start))
+		assert.True(t, m.withinStartupDelay(start.Add(time.Minute-time.Nanosecond)))
+		assert.False(t, m.withinStartupDelay(start.Add(time.Minute)))
+	})
+
+	t.Run("a backward clock jump keeps events within the delay window", func(t *testing.T) {
+		assert.True(t, newManager(time.Minute).withinStartupDelay(start.Add(-time.Hour)))
+	})
+}
