@@ -18,6 +18,7 @@ go_library(
         "resolver_ebpfless.go",
         "resolver_linux.go",
         "resolver_windows.go",
+        "span_ctx_stats.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/process",
     visibility = ["//visibility:public"],

@@ -241,6 +241,20 @@ var (
 	// Tags: -
 	MetricProcessResolverProcFallbackLimiterDrop = newRuntimeMetric(".process_resolver.proc_fallback_limiter.drop")
 
+	// Span context metrics
+
+	// MetricSpanContextProcessCtx is the counter of OTel process context read failures.
+	// Tags: status
+	MetricSpanContextProcessCtxFailed = newRuntimeMetric(".span_context.process_ctx.failed")
+	// MetricSpanContextProcessCtx is the counter of OTel process context read successes.
+	MetricSpanContextProcessCtxSuccess = newRuntimeMetric(".span_context.process_ctx.success")
+	// MetricSpanContextResolutionFailed is the counter of per-process span context reader install failures
+	// Tags: reader, status
+	MetricSpanContextResolutionFailed = newRuntimeMetric(".span_context.resolution.failed")
+	// MetricSpanContextResolution is the counter of per-process span context reader install successes
+	// Tags: reader
+	MetricSpanContextResolutionSuccess = newRuntimeMetric(".span_context.resolution.success")
+
 	// Mount resolver metrics
 
 	// MetricMountResolverCacheSize is the name of the metric used to report the size of the user space
