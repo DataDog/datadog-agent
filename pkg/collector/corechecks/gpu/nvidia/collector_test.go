@@ -199,7 +199,7 @@ func TestAllCollectorsWork(t *testing.T) {
 		testutil.WithMockAllFunctions(),
 		testutil.WithArchitecture("blackwell")) // Ensure all functions are marked as supported
 
-	eventsGatherer := NewDeviceEventsGatherer()
+	eventsGatherer := NewDeviceEventsGatherer(nil)
 	require.NoError(t, eventsGatherer.Start())
 	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
 
@@ -319,7 +319,7 @@ func TestDisabledCollectors(t *testing.T) {
 			)
 
 			// Setup dependencies
-			eventsGatherer := NewDeviceEventsGatherer()
+			eventsGatherer := NewDeviceEventsGatherer(nil)
 			require.NoError(t, eventsGatherer.Start())
 			t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
 
@@ -372,7 +372,7 @@ func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 	devices := setupMockDevices(t, testutil.WithMockAllFunctions())
 
 	// Setup dependencies with system-probe cache
-	eventsGatherer := NewDeviceEventsGatherer()
+	eventsGatherer := NewDeviceEventsGatherer(nil)
 	require.NoError(t, eventsGatherer.Start())
 	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
 
@@ -473,7 +473,7 @@ func collectMetricNames(t *testing.T, spCache *SystemProbeCache) map[string]stru
 	// helper again, which installs a fresh one. A t.Cleanup would not run until
 	// the whole test ends, leaving the first worker racing the second setup.
 	// Stop() joins the worker, so the two can never overlap.
-	eventsGatherer := NewDeviceEventsGatherer()
+	eventsGatherer := NewDeviceEventsGatherer(nil)
 	require.NoError(t, eventsGatherer.Start())
 	defer func() { require.NoError(t, eventsGatherer.Stop()) }()
 
