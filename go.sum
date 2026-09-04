@@ -3375,8 +3375,8 @@ github.com/godbus/dbus v4.1.0+incompatible h1:WqqLRTsQic3apZUK9qC5sGNfXthmPXzUZ7
 github.com/godbus/dbus v4.1.0+incompatible/go.mod h1:/YcGZj5zSblfDWMMoOzV4fas9FZnQYTkDnsGvmh2Grw=
 github.com/godbus/dbus/v5 v5.2.2 h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ=
 github.com/godbus/dbus/v5 v5.2.2/go.mod h1:3AAv2+hPq5rdnr5txxxRwiGjPXamgoIHgz9FPBfOp3c=
-github.com/godror/godror v0.50.0 h1:c0ZnGSDFT12E8HJfQwxtqcmybaIkbqACNk4lIfkkESc=
-github.com/godror/godror v0.50.0/go.mod h1:kTMcxZzRw73RT5kn9v3JkBK4kHI6dqowHotqV72ebU8=
+github.com/godror/godror v0.51.4 h1:YAkSW4c4zTQlnDHGmi0Q8FM9f2JWz/ufwx3qGWeAtAA=
+github.com/godror/godror v0.51.4/go.mod h1:+KoBDSBRHogZIik9a3SpvH0pS7iK+G8K42YEjtunqfQ=
 github.com/godror/knownpb v0.3.0 h1:+caUdy8hTtl7X05aPl3tdL540TvCcaQA6woZQroLZMw=
 github.com/godror/knownpb v0.3.0/go.mod h1:PpTyfJwiOEAzQl7NtVCM8kdPCnp3uhxsZYIzZ5PV4zU=
 github.com/gofrs/flock v0.13.1 h1:jjREztyBeSKBZYAC+mgc1laB+xsgy4kYMf3FbKF2UBo=
