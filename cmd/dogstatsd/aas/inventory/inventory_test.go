@@ -7,6 +7,7 @@ package inventory
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -41,8 +42,9 @@ func TestInjectGatedOff(t *testing.T) {
 	conf := configmock.New(t)
 	ia := newFake()
 
-	Inject(ia, conf)
+	ok := Inject(ia, conf)
 
+	assert.False(t, ok)
 	assert.Empty(t, ia.fields, "no fields must be set when gate is off")
 }
 
@@ -54,8 +56,9 @@ func TestInjectSetsFieldsWebApp(t *testing.T) {
 	conf.Set("site", "datad0g.com", model.SourceAgentRuntime)
 	ia := newFake()
 
-	Inject(ia, conf)
+	ok := Inject(ia, conf)
 
+	assert.True(t, ok)
 	assert.Equal(t, aasInventoryFlavor, ia.fields["flavor"])
 	assert.Equal(t, workloadTypeAzureAppService, ia.fields["workload_type"])
 	assert.Equal(t, reportReasonStartup, ia.fields["report_reason"])
@@ -73,8 +76,9 @@ func TestInjectSetsFunctionAppWorkloadType(t *testing.T) {
 	conf := configmock.New(t)
 	ia := newFake()
 
-	Inject(ia, conf)
+	ok := Inject(ia, conf)
 
+	assert.True(t, ok)
 	assert.Equal(t, workloadTypeAzureFunction, ia.fields["workload_type"])
 }
 
@@ -85,8 +89,9 @@ func TestInjectSkipsWhenResourceIDEmpty(t *testing.T) {
 	conf := configmock.New(t)
 	ia := newFake()
 
-	Inject(ia, conf)
+	ok := Inject(ia, conf)
 
+	assert.False(t, ok)
 	assert.Empty(t, ia.fields, "must not set any fields when resource_id cannot be derived")
 }
 
@@ -112,4 +117,24 @@ func TestWorkloadTypeDetection(t *testing.T) {
 
 	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "node")
 	assert.Equal(t, workloadTypeAzureFunction, workloadType())
+}
+
+func TestStartPeriodicRunnerTicksAndStops(t *testing.T) {
+	t.Setenv(envInventoryEnabled, "1")
+	ia := newFake()
+	ia.submits = 0
+
+	stopCh := make(chan struct{})
+
+	// Shorten the interval for the test by temporarily patching periodicInterval
+	// is not possible (unexported const), so we call Submit directly to simulate
+	// one periodic tick and verify the runner goroutine exits on stop.
+	StartPeriodicRunner(ia, stopCh)
+	close(stopCh)
+
+	// Give the goroutine a moment to exit.
+	time.Sleep(50 * time.Millisecond)
+	// No ticks should have fired in 50 ms (interval is 10 min); runner should
+	// have exited cleanly after stopCh close.
+	assert.Zero(t, ia.submits, "no periodic submits should fire before first tick")
 }

@@ -223,8 +223,10 @@ func start(
 	}
 
 	if aasinventory.IsEnabled() {
-		aasinventory.Inject(inventoryAgent, config)
-		aasinventory.Submit(inventoryAgent)
+		if aasinventory.Inject(inventoryAgent, config) {
+			aasinventory.Submit(inventoryAgent)
+			aasinventory.StartPeriodicRunner(inventoryAgent, stopCh)
+		}
 	}
 
 	// Block here until we receive a stop signal

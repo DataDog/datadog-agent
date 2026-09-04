@@ -41,6 +41,12 @@ type Capabilities struct {
 	// environment that only learns its identity after construction still reports it.
 	// Called while the component holds its lock: it must not call back in.
 	PayloadUUID func() string
+	// ForceEnabled bypasses the enable_metadata_collection config gate and
+	// unconditionally enables this inventoryagent component. Use for AAS
+	// extension dogstatsd, which has its own scoped inventory gate
+	// (DD_SERVERLESS_AAS_EXTENSION_INVENTORY_ENABLED) and must not require
+	// the global metadata collection flag to be true.
+	ForceEnabled bool
 }
 
 // NewServerlessCapabilities builds the Capabilities for serverless-init, a
