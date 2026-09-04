@@ -8,6 +8,7 @@ package dockerpermissions
 import (
 	_ "embed"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -64,27 +65,28 @@ func (t *DockerPermissionIssue) BuildIssue(context map[string]string) (*healthpl
 		DetectedAt:  "", // Will be filled by health platform
 		Source:      "docker",
 		Extra:       issueExtra,
-		Remediation: t.buildRemediation(osName),
+		Remediation: t.buildRemediation(socketPaths, osName),
 		Tags:        []string{"docker", osName},
 	}, nil
 }
 
 // buildRemediation creates OS-specific remediation
-func (t *DockerPermissionIssue) buildRemediation(osName string) *healthplatform.Remediation {
+func (t *DockerPermissionIssue) buildRemediation(socketPaths, osName string) *healthplatform.Remediation {
 	if osName == "windows" {
-		return t.buildWindows()
+		return t.buildWindows(socketPaths)
 	}
-	return t.buildLinux() // linux, darwin
+	return t.buildLinux(socketPaths) // linux, darwin
 }
 
 // buildLinux creates Linux-specific remediation steps
-func (t *DockerPermissionIssue) buildLinux() *healthplatform.Remediation {
+func (t *DockerPermissionIssue) buildLinux(socketPaths string) *healthplatform.Remediation {
 	return &healthplatform.Remediation{
 		Summary: "Add the dd-agent user to the docker group so it can connect to the Docker socket.",
 		Steps: []*healthplatform.RemediationStep{
-			{Order: 1, Text: "Add dd-agent to the docker group: sudo usermod -aG docker dd-agent"},
-			{Order: 2, Text: "Restart the datadog-agent service: sudo systemctl restart datadog-agent"},
-			{Order: 3, Text: "Verify the issue is resolved by checking agent status: datadog-agent status"},
+			{Order: 1, Text: "Confirm the permission error on the affected socket(s): ls -la " + strings.ReplaceAll(socketPaths, ",", " ")},
+			{Order: 2, Text: "Add dd-agent to the docker group: sudo usermod -aG docker dd-agent"},
+			{Order: 3, Text: "Restart the datadog-agent service: sudo systemctl restart datadog-agent"},
+			{Order: 4, Text: "Verify the issue is resolved by checking agent status: datadog-agent status"},
 		},
 		Script: &healthplatform.Script{
 			Language:        "bash",
@@ -97,14 +99,15 @@ func (t *DockerPermissionIssue) buildLinux() *healthplatform.Remediation {
 }
 
 // buildWindows creates Windows-specific remediation steps
-func (t *DockerPermissionIssue) buildWindows() *healthplatform.Remediation {
+func (t *DockerPermissionIssue) buildWindows(socketPaths string) *healthplatform.Remediation {
 	return &healthplatform.Remediation{
 		Summary: "Add the ddagentuser account to the docker-users group so it can connect to the Docker named pipe.",
 		Steps: []*healthplatform.RemediationStep{
-			{Order: 1, Text: "Open PowerShell as Administrator"},
-			{Order: 2, Text: `Add ddagentuser to the docker-users group: Add-LocalGroupMember -Group "docker-users" -Member "ddagentuser"`},
-			{Order: 3, Text: "Restart the Datadog Agent service: Restart-Service -Name datadogagent"},
-			{Order: 4, Text: "Verify the issue is resolved by checking agent status"},
+			{Order: 1, Text: "Affected named pipe(s): " + socketPaths},
+			{Order: 2, Text: "Open PowerShell as Administrator"},
+			{Order: 3, Text: `Add ddagentuser to the docker-users group: Add-LocalGroupMember -Group "docker-users" -Member "ddagentuser"`},
+			{Order: 4, Text: "Restart the Datadog Agent service: Restart-Service -Name datadogagent"},
+			{Order: 5, Text: "Verify the issue is resolved by checking agent status"},
 		},
 		Script: &healthplatform.Script{
 			Language:        "powershell",
