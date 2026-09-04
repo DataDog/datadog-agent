@@ -371,7 +371,10 @@ Refined model (agreed): the worker is the piece of code where we accept to
 import Pulumi run functions, to avoid paying Pulumi's price when we do not
 need it. The unit of extension is the **scenario run function** — the unit the
 framework already has (`scenarios/*/run.go`: `Run(ctx, env, params) error`,
-wrapped by `provisioners.NewTypedPulumiProvisioner`).
+wrapped by `provisioners.NewTypedPulumiProvisioner`). The executor's contract
+is **infra-only** (§12): the Run function provisions the empty, connectable
+infrastructure and exports the connection contract; it is invoked exactly
+twice in an environment's life (start, stop).
 
 The registry is the whole registration API:
 
@@ -410,3 +413,37 @@ Properties:
   stack config — the ai-sandbox precedent.
 - The binary name stays `e2ectl-worker` (placeholder alongside the CLI name
   decision); the role name is pulumi-executor.
+
+## 12. The executor is infra-only
+
+Agreed rule: the pulumi-executor provisions the infrastructure, gives us what
+we need to connect to it, and is then no longer needed. Agent installation
+happens the same way as with every other environment.
+
+Consequences:
+
+- **Executor contract**: provision the empty, connectable infra (VM, cluster,
+  network) and write the connection contract into the snapshot (remoteHost /
+  kubernetesCluster keys). No fakeintake, no agent, no components inside the
+  Pulumi program. Invoked exactly twice per environment: start (provision)
+  and stop (destroy). The entire life in between is Pulumi-free and uniform.
+- **Today's implementation is one small delta away**: the EC2 executor already
+  runs WithoutAgent() always; it becomes WithoutFakeIntake() always too
+  (expressible with existing provisioner options).
+- **Fakeintake becomes a core-deployed environment component**, placed
+  per-driver: kind → local docker host container (already core-side);
+  ec2-host → docker run on the VM over the ssh connection the snapshot just
+  handed over (dies with the VM — nothing to clean across the boundary);
+  remote clusters (eks/aks) → in-cluster deployment via the kubeconfig (dies
+  with the cluster). Open design point: laptop-reachability of an in-cluster
+  fakeintake on remote clusters (EKS yields a LoadBalancer for a Service;
+  kind has no LB controller, hence host-docker there) — a per-driver
+  placement decision.
+- **Cleaner Pulumi state**: the stack contains exactly the infra; fakeintake,
+  workloads and agent config are snapshot facts + core-managed, so iterating
+  on them never touches Pulumi and a stale stack can never wedge components.
+- **Convergence with the vision's lifecycle**: environment (executor: infra
+  + connection contract) → setup (core: fakeintake, later the workloads
+  section) → agent (core: installers). The Pulumi boundary sits exactly at the
+  end of phase one — which is also why the config language has three sections:
+  each phase owns one.
