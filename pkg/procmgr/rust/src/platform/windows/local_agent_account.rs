@@ -64,13 +64,25 @@ impl AgentAccount {
         if self.inherits_supervisor_token() {
             return Ok(true);
         }
-        let AgentAccount::PasswordLogon { domain, user, .. } = self else {
-            return Ok(false);
-        };
-        let sid = lookup_account_sid(domain, user)
-            .with_context(|| format!("lookup SID for {}", self.display_name()))?;
-        current_process_sid_matches(&sid)
-            .with_context(|| format!("compare supervisor token to {}", self.display_name()))
+        match self {
+            AgentAccount::LocalService | AgentAccount::NetworkService => {
+                let sid = self
+                    .well_known_account_sid()
+                    .expect("well-known service account must have a SID")
+                    .with_context(|| format!("lookup SID for {}", self.display_name()))?;
+                current_process_sid_matches(&sid).with_context(|| {
+                    format!("compare supervisor token to {}", self.display_name())
+                })
+            }
+            AgentAccount::PasswordLogon { domain, user, .. } => {
+                let sid = lookup_account_sid(domain, user)
+                    .with_context(|| format!("lookup SID for {}", self.display_name()))?;
+                current_process_sid_matches(&sid).with_context(|| {
+                    format!("compare supervisor token to {}", self.display_name())
+                })
+            }
+            AgentAccount::LocalSystem => Ok(false),
+        }
     }
 
     pub(crate) fn display_name(&self) -> String {
@@ -86,6 +98,16 @@ impl AgentAccount {
                 account_name_for_logon(domain, user)
             }
         }
+    }
+
+    fn well_known_account_sid(&self) -> Option<Result<Vec<u8>>> {
+        let (domain, user) = match self {
+            AgentAccount::LocalSystem => (NT_AUTHORITY, "SYSTEM"),
+            AgentAccount::LocalService => (NT_AUTHORITY, "LOCAL SERVICE"),
+            AgentAccount::NetworkService => (NT_AUTHORITY, "NETWORK SERVICE"),
+            _ => return None,
+        };
+        Some(lookup_account_sid(domain, user))
     }
 }
 
@@ -269,5 +291,20 @@ mod tests {
             .display_name(),
             AccountName::new("", "ddagentuser").display(),
         );
+    }
+
+    #[test]
+    fn well_known_account_sid_resolves_service_accounts() {
+        let local_service = AgentAccount::LocalService
+            .well_known_account_sid()
+            .expect("LocalService SID")
+            .expect("lookup LocalService SID");
+        assert!(is_local_service_sid(&local_service));
+
+        let network_service = AgentAccount::NetworkService
+            .well_known_account_sid()
+            .expect("NetworkService SID")
+            .expect("lookup NetworkService SID");
+        assert!(is_network_service_sid(&network_service));
     }
 }
