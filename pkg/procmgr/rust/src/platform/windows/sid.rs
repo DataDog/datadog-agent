@@ -55,6 +55,7 @@ pub(crate) fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
     }
 }
 
+#[cfg(not(test))]
 pub(crate) fn sid_to_string(sid: &[u8]) -> Result<String> {
     unsafe {
         let mut sid_string: *mut u16 = ptr::null_mut();

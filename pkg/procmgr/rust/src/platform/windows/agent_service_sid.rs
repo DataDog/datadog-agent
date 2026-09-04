@@ -12,11 +12,13 @@ use windows_sys::Win32::System::Services::{
     SC_HANDLE, SC_MANAGER_CONNECT, SERVICE_QUERY_CONFIG,
 };
 
+#[cfg(not(test))]
 use super::sid::{lookup_account_sid, sid_to_string};
+#[cfg(not(test))]
 use super::wide;
 
+#[cfg(not(test))]
 pub(crate) const DATADOG_AGENT_SERVICE: &str = "datadogagent";
-const LOCAL_SYSTEM_SID: &str = "S-1-5-18";
 
 #[cfg(not(test))]
 pub(crate) fn service_runs_as_agent_user(
@@ -64,20 +66,7 @@ fn installed_user_lookup_candidates(domain: &str, user: &str) -> Vec<(String, St
     candidates
 }
 
-pub(crate) fn datadog_agent_user_sid_string() -> Result<String> {
-    let service_user = service_start_name(DATADOG_AGENT_SERVICE)
-        .with_context(|| format!("could not get {DATADOG_AGENT_SERVICE} service user"))?;
-    let lookup_name = service_user_for_sid_lookup(&service_user);
-
-    if lookup_name.eq_ignore_ascii_case("LocalSystem") {
-        return Ok(LOCAL_SYSTEM_SID.to_string());
-    }
-
-    let sid = lookup_account_sid("", &lookup_name)
-        .with_context(|| format!("lookup SID for {lookup_name}"))?;
-    sid_to_string(&sid)
-}
-
+#[cfg(not(test))]
 fn service_start_name(service_name: &str) -> Result<String> {
     let manager = unsafe { OpenSCManagerW(ptr::null(), ptr::null(), SC_MANAGER_CONNECT) };
     if manager.is_null() {
@@ -149,6 +138,7 @@ fn sids_equal(left: &[u8], right: &[u8]) -> bool {
     unsafe { EqualSid(left.as_ptr() as *mut _, right.as_ptr() as *mut _) != 0 }
 }
 
+#[cfg(test)]
 fn service_user_for_sid_lookup(user: &str) -> String {
     let mut parts = user.splitn(2, '\\');
     let first = parts.next().unwrap_or(user);
@@ -159,8 +149,10 @@ fn service_user_for_sid_lookup(user: &str) -> String {
     }
 }
 
+#[cfg(not(test))]
 struct ServiceHandle(SC_HANDLE);
 
+#[cfg(not(test))]
 impl Drop for ServiceHandle {
     fn drop(&mut self) {
         if !self.0.is_null() {

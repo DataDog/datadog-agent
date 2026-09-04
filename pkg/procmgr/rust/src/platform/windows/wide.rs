@@ -20,6 +20,7 @@ pub(crate) fn from_ptr(ptr: *const u16) -> String {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn from_slice(slice: &[u16]) -> String {
     String::from_utf16_lossy(slice)
 }

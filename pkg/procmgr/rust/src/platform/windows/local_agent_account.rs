@@ -193,10 +193,7 @@ fn well_known_from_names(domain: &str, user: &str) -> Option<AgentAccount> {
     }
 }
 
-pub(crate) fn canonical_account_name_for_well_known_sid(sid: &[u8]) -> Option<AccountName> {
-    well_known_from_sid(sid).map(|account| account.account_name())
-}
-
+#[cfg(test)]
 pub(crate) fn agent_account_from_well_known_sid(sid: &[u8]) -> Option<AgentAccount> {
     well_known_from_sid(sid)
 }

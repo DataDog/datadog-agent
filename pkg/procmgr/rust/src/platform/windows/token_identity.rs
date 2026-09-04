@@ -23,6 +23,7 @@ use super::local_account::is_local_account;
 #[cfg(test)]
 use super::wide;
 
+#[cfg(test)]
 pub(crate) fn token_user_is_local_system(token: HANDLE) -> std::io::Result<bool> {
     if token.is_null() {
         return Err(std::io::Error::new(

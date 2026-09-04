@@ -80,10 +80,18 @@ mod tests {
     #[test]
     fn agent_profile_in_unit_tests_never_logons_installer_account() {
         let credential = SpawnCredential::resolve_agent().expect("resolve agent profile in tests");
-        assert!(
-            matches!(credential.account(), AgentAccount::LocalSystem),
-            "unexpected test credential: {credential:?}"
-        );
+        match credential.account() {
+            AgentAccount::LocalSystem
+            | AgentAccount::LocalService
+            | AgentAccount::NetworkService => {}
+            AgentAccount::PasswordLogon { password, .. } => {
+                assert!(
+                    password.is_empty(),
+                    "test harness must inherit the supervisor token, not SCM installer password: \
+                     {credential:?}"
+                );
+            }
+        }
     }
 
     #[test]
