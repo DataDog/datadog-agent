@@ -137,9 +137,7 @@ func TestLogPatternExtractor_ResetClearsClusterState(t *testing.T) {
 }
 
 func TestLogPatternExtractorTelemetryTracksActivePatterns(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.SetObserverTelemetry(newObserverTelemetry(telComp))
@@ -205,9 +203,7 @@ func TestLogPatternExtractor_ZeroConfigAppliesGCDefaults(t *testing.T) {
 }
 
 func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.SetObserverTelemetry(newObserverTelemetry(telComp))
@@ -353,9 +349,7 @@ func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 }
 
 func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	// Configure tight cap with MinClusterSizeBeforeEmit=1 so each new shape
 	// emits a metric (and therefore a context entry) on its first appearance.
