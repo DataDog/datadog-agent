@@ -1,0 +1,28 @@
+services:
+  spark-master-env-configfilesdiscovery:
+    image: 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/apache/spark:4.0.0@sha256:9e2f63442ba1a672ea70d780d56da28f42ce515d0be18840569a3054cc6d2314
+    container_name: spark-master-env-configfilesdiscovery
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.master.Master
+      - --host
+      - spark-master-env-configfilesdiscovery
+      - --port
+      - "7077"
+      - --webui-port
+      - "8080"
+    environment:
+      SPARK_MASTER_HOST: spark-master-env-configfilesdiscovery
+      SPARK_MASTER_PORT: "7077"
+      SPARK_MASTER_WEBUI_PORT: "8080"
+      SPARK_DAEMON_MEMORY: 1g
+      SPARK_LOCAL_DIRS: /tmp/spark-local
+      SPARK_RPC_AUTHENTICATION_SECRET: must-not-be-forwarded
+      SPARK_RPC_ENCRYPTION_ENABLED: "no"
+      SPARK_SSL_ENABLED: "no"
+      SPARK_MASTER_OPTS: -Dexample.secret=must-not-be-forwarded
+      SPARK_DAEMON_JAVA_OPTS: -Dexample.secret=must-not-be-forwarded
+      JAVA_TOOL_OPTIONS: -Dexample.secret=must-not-be-forwarded
+    labels:
+      com.datadoghq.ad.checks: >-
+        {"spark":{"instances":[{"spark_url":"http://%%host%%:8080","cluster_name":"configfilesdiscovery-spark","spark_cluster_mode":"spark_standalone_mode"}]}}

@@ -74,6 +74,13 @@ const (
 	postgresUser            = "configfilesdiscovery"
 )
 
+const (
+	sparkMasterContainerName = "spark-master-env-configfilesdiscovery"
+	sparkIntegrationName     = "spark"
+	sparkMasterHost          = "spark-master-env-configfilesdiscovery"
+	sparkMasterClass         = "org.apache.spark.deploy.master.Master"
+)
+
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-redis.yaml
 var redisComposeTemplate string
 
@@ -82,6 +89,9 @@ var kafkaCompose string
 
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml
 var postgresCompose string
+
+//go:embed testdata/compose/docker-compose.configfilesdiscovery-spark.yaml
+var sparkMasterCompose string
 
 const redisExplicitConfig = `port 6379
 appendonly no
@@ -176,6 +186,7 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-redis", pulumi.String(redisCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-kafka", pulumi.String(kafkaCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-postgres", pulumi.String(postgresCompose)),
+		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-spark-master", pulumi.String(sparkMasterCompose)),
 		dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
 			"CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR":    pulumi.String(redisConfigDir),
 			"CONFIG_FILES_DISCOVERY_KAFKA_CONFIG_DIR":    pulumi.String(kafkaConfigDir),
@@ -433,6 +444,53 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresConfigFileAndEnvVarsDiscov
 			assert.NotContains(c, envVars, "POSTGRESQL_LDAP_URL")
 		}
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for postgres config file discovery payload")
+}
+
+func (s *configFilesDiscoveryDockerSuite) TestSparkMasterEnvVarsDiscovered() {
+	t := s.T()
+	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
+		integrationName: sparkIntegrationName,
+		containerNames:  []string{sparkMasterContainerName},
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		processes, err := s.Env().RemoteHost.Execute("sudo docker top " + sparkMasterContainerName + " -eo pid,args")
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.Contains(c, processes, sparkMasterClass)
+		assert.True(c, isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), sparkIntegrationName))
+
+		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, err) {
+			return
+		}
+		sparkPayloads := findEnvPayloads(payloads, sparkIntegrationName)
+		if !assert.NotEmpty(c, sparkPayloads, "no Spark Master env payloads found in %+v", payloads) {
+			return
+		}
+
+		for _, payload := range sparkPayloads {
+			assertAgentDiscoveryPayload(c, payload, sparkIntegrationName)
+			assert.Empty(c, payload.ConfigFiles)
+
+			envVars := make(map[string]string, len(payload.EnvVars))
+			for _, envVar := range payload.EnvVars {
+				envVars[envVar.Name] = envVar.Value
+			}
+			assert.Equal(c, sparkMasterHost, envVars["SPARK_MASTER_HOST"])
+			assert.Equal(c, "7077", envVars["SPARK_MASTER_PORT"])
+			assert.Equal(c, "8080", envVars["SPARK_MASTER_WEBUI_PORT"])
+			assert.Equal(c, "1g", envVars["SPARK_DAEMON_MEMORY"])
+			assert.Equal(c, "/tmp/spark-local", envVars["SPARK_LOCAL_DIRS"])
+			assert.Equal(c, "no", envVars["SPARK_RPC_ENCRYPTION_ENABLED"])
+			assert.Equal(c, "no", envVars["SPARK_SSL_ENABLED"])
+			assert.NotContains(c, envVars, "SPARK_RPC_AUTHENTICATION_SECRET")
+			assert.NotContains(c, envVars, "SPARK_MASTER_OPTS")
+			assert.NotContains(c, envVars, "SPARK_DAEMON_JAVA_OPTS")
+			assert.NotContains(c, envVars, "JAVA_TOOL_OPTIONS")
+		}
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for Spark Master env var discovery payload")
 }
 
 func (s *configFilesDiscoveryDockerSuite) TestKafkaDefaultConfigFileDiscovered() {
