@@ -16,8 +16,8 @@ import (
 
 const defaultOperatorImageTag = "latest"
 
-func defaultOperatorImageRepo(config.Env) string {
-	return "registry.datadoghq.com/operator"
+func defaultOperatorImageRepo(e config.Env) string {
+	return e.DatadogPublicRegistry() + "/operator"
 }
 
 func dockerOperatorFullImagePath(e config.Env, repositoryPath, imageTag string) string {

@@ -25,23 +25,24 @@ const (
 	linuxOnlySuffix        = "-linux"
 )
 
-func defaultAgentImageRepo(config.Env) string {
-	return "registry.datadoghq.com/agent"
+func defaultAgentImageRepo(e config.Env) string {
+	return e.DatadogPublicRegistry() + "/agent"
 }
 
-func defaultClusterAgentImageRepo(config.Env) string {
-	return "registry.datadoghq.com/cluster-agent"
+func defaultClusterAgentImageRepo(e config.Env) string {
+	return e.DatadogPublicRegistry() + "/cluster-agent"
 }
 
-func defaultOTelAgentGatewayImageRepo(config.Env) string {
-	return "registry.datadoghq.com/ddot-collector"
+func defaultOTelAgentGatewayImageRepo(e config.Env) string {
+	return e.DatadogPublicRegistry() + "/ddot-collector"
 }
 
 // defaultDevAgentImageRepo holds the FIPS and OTel agent variants. Its tags float on
 // main rather than tracking a build, so this is only a fallback for runs that have no
-// pipeline image to use.
-func defaultDevAgentImageRepo(config.Env) string {
-	return "datadog/agent-dev"
+// pipeline image to use. These images are only published to Docker Hub, so they resolve
+// through the Docker Hub mirror rather than [config.Env.DatadogPublicRegistry].
+func defaultDevAgentImageRepo(e config.Env) string {
+	return e.InternalDockerhubMirror() + "/datadog/agent-dev"
 }
 
 // DockerAgentFullImagePath resolves the node-agent image using the standard

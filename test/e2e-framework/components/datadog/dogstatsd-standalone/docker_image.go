@@ -14,8 +14,8 @@ import (
 
 const defaultDogstatsdImageTag = "latest"
 
-func defaultDogstatsdImageRepo(config.Env) string {
-	return "registry.datadoghq.com/dogstatsd"
+func defaultDogstatsdImageRepo(e config.Env) string {
+	return e.DatadogPublicRegistry() + "/dogstatsd"
 }
 
 func dockerDogstatsdFullImagePath(e config.Env, repositoryPath string) string {
