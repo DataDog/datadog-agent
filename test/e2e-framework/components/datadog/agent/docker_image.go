@@ -57,6 +57,12 @@ func DockerClusterAgentFullImagePath(e config.Env) string {
 	return dockerClusterAgentFullImagePath(e, "", "", false)
 }
 
+// DockerOTelAgentFullImagePath resolves the OTel ("full") variant of the node-agent
+// image using the standard environment settings.
+func DockerOTelAgentFullImagePath(e config.Env) string {
+	return dockerAgentFullImagePath(e, "", "", true, false, false, false)
+}
+
 // dockerAgentFullImagePath resolves the node-agent image. Precedence:
 // an explicit imageTag > the environment-level full image path > pipeline+SHA >
 // the environment-level version > latest. That is, a caller asking for a specific
