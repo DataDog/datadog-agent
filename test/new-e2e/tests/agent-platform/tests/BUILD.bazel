@@ -15,6 +15,7 @@ dd_agent_go_test(
     ],
     data = ["//cmd/agent:macos/uninstall_mac_os.sh"],
     deps = [
+        "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/scenarios/aws/ec2",
         "//test/e2e-framework/testing/components",

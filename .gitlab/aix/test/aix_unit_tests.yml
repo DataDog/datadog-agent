@@ -15,7 +15,7 @@ tests_aix-ppc64:
   script:
     - 'echo "=== AIX: running unit tests ==="'
     - >
-      ssh -tt -p $AIX_PORT $AIX_USER@$AIX_HOST
+      ssh -tt -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -p $AIX_PORT $AIX_USER@$AIX_HOST
       "bash -c '
         set -eu
         cd $AIX_AGENT_SRC
