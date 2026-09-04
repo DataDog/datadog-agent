@@ -91,11 +91,30 @@ go_library(
 
 dd_agent_go_test(
     name = "module_test",
-    srcs = ["server_test.go"],
+    srcs = [
+        "server_linux_test.go",
+        "server_test.go",
+    ],
     embed = [":module"],
     deps = [
         "//pkg/security/config",
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/model",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/probe",
+            "//pkg/security/resolvers/usersessions",
+            "//pkg/security/serializers",
+            "@com_github_go_openapi_testify_v2//require",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/probe",
+            "//pkg/security/resolvers/usersessions",
+            "//pkg/security/serializers",
+            "@com_github_go_openapi_testify_v2//require",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
 )
