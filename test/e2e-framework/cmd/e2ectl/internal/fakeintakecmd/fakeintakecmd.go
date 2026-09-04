@@ -59,32 +59,42 @@ func Metrics(url, name string, asJSON bool) error {
 		return err
 	}
 	if name == "" {
-		names, err := c.GetMetricNames()
+		// One HTTP call for everything, parsed locally: a FilterMetrics call per
+		// metric name re-fetches the full payload set every time and is
+		// quadratic (minutes with a warm fakeintake — found the hard way).
+		const metricsEndpoint = "/api/v2/series" // mirrors fakeintake client's private metricsEndpoint
+		payloads, err := c.GetRawPayloads(metricsEndpoint)
 		if err != nil {
 			return err
 		}
-		sort.Strings(names)
-		type count struct {
-			Name  string `json:"name"`
-			Count int    `json:"count"`
-		}
-		counts := make([]count, 0, len(names))
-		for _, n := range names {
-			series, err := c.FilterMetrics(n)
+		counts := map[string]int{}
+		for _, p := range payloads {
+			series, err := aggregator.ParseMetricSeries(p)
 			if err != nil {
 				return err
 			}
-			counts = append(counts, count{Name: n, Count: len(series)})
-		}
-		if asJSON {
-			return json.NewEncoder(os.Stdout).Encode(counts)
+			for _, s := range series {
+				counts[s.Metric]++
+			}
 		}
 		if len(counts) == 0 {
 			fmt.Println("(no metrics yet)")
 			return nil
 		}
-		for _, c := range counts {
-			fmt.Printf("%-70s %d payloads\n", c.Name, c.Count)
+		if asJSON {
+			type count struct {
+			Name  string `json:"name"`
+			Count int    `json:"count"`
+		}
+			out := make([]count, 0, len(counts))
+			for n, cnt := range counts {
+				out = append(out, count{Name: n, Count: cnt})
+			}
+			sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+			return json.NewEncoder(os.Stdout).Encode(out)
+		}
+		for _, n := range sortedKeys(counts) {
+			fmt.Printf("%-70s %d payloads\n", n, counts[n])
 		}
 		return nil
 	}
@@ -127,4 +137,13 @@ func Health(url string) error {
 	}
 	fmt.Println("fakeintake is healthy")
 	return nil
+}
+
+func sortedKeys(m map[string]int) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
