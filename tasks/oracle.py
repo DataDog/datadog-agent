@@ -47,7 +47,9 @@ def start_docker(ctx, verbose=False) -> None:
 
         healthy = False
         attempts = 0
-        while attempts < 120:
+        # Matches the compose healthcheck's own budget (48 retries x 5s); a lower value here
+        # gives up while the healthcheck is still legitimately retrying.
+        while attempts < 240:
             health_check = ctx.run(
                 "docker inspect --format \"{{json .State.Health.Status }}\" compose-oracle-1 | jq", hide=True
             )

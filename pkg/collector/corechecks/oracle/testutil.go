@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -127,6 +128,52 @@ func getSysConnection(t *testing.T) (*sql.DB, error) {
 	databaseUrl := go_ora.BuildUrl(connection.Server, connection.Port, connection.ServiceName, connection.Username, connection.Password, nil)
 	conn, err := sql.Open("oracle", databaseUrl)
 	return conn, err
+}
+
+const (
+	dbReadyTimeoutDefault = 10 * time.Minute
+	dbReadyPollInterval   = 5 * time.Second
+)
+
+// waitForDatabase blocks until the database answers a trivial query. Opening the CDB on
+// first boot takes minutes, and in CI nothing gates the tests on it: GitLab starts the
+// service container and only waits for it to be running, while tasks/oracle.py skips the
+// local readiness poll whenever CI is set. Without this, the first connection lands
+// mid-boot and every test fails with ORA-12514.
+//
+// Override the budget with ORACLE_TEST_READY_TIMEOUT (any time.ParseDuration value).
+func waitForDatabase(t testing.TB) {
+	timeout := dbReadyTimeoutDefault
+	if raw := os.Getenv("ORACLE_TEST_READY_TIMEOUT"); raw != "" {
+		parsed, err := time.ParseDuration(raw)
+		require.NoErrorf(t, err, "invalid ORACLE_TEST_READY_TIMEOUT %q", raw)
+		timeout = parsed
+	}
+
+	connection := getConnectData(t, useSysUser)
+	databaseUrl := go_ora.BuildUrl(connection.Server, connection.Port, connection.ServiceName, connection.Username, connection.Password, nil)
+
+	start := time.Now()
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		err := pingDatabase(databaseUrl)
+		if err != nil {
+			// Printed every attempt on purpose: a changing error (ORA-12514 -> ORA-01033 ->
+			// success) is how you tell a slow boot from a database that never opens.
+			fmt.Printf("Waiting for database (%s elapsed): %s\n", time.Since(start).Round(time.Second), err)
+		}
+		assert.NoError(c, err)
+	}, timeout, dbReadyPollInterval, "database never became ready")
+	fmt.Printf("Database ready after %s\n", time.Since(start).Round(time.Second))
+}
+
+func pingDatabase(databaseUrl string) error {
+	db, err := sql.Open("oracle", databaseUrl)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	_, err = db.Exec("SELECT 1 FROM dual")
+	return err
 }
 
 func newTestCheck(t testing.TB, connectConfig config.ConnectionConfig, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {

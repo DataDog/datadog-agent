@@ -78,6 +78,8 @@ func TestMain(m *testing.M) {
 		return
 	}
 
+	waitForDatabase(t)
+
 	print("Running initdb.d sql files...")
 	// This is a bit of a hack to get a db connection without a testing.T
 	// Ideally we should pull the connection logic out
@@ -85,6 +87,13 @@ func TestMain(m *testing.M) {
 	sysCheck, _ := newSysCheck(t, "", "")
 	t.Cleanup(sysCheck.Teardown)
 	sysCheck.Run()
+	// Run leaves db nil when it fails to connect, and dereferencing it here would panic.
+	// A panic runs the deferred m.Run() above, so the whole suite would execute against a
+	// database that was never initialized and report dozens of failures instead of one.
+	if sysCheck.db == nil {
+		fmt.Println("Error connecting as sys: no database handle after Run")
+		os.Exit(1)
+	}
 	_, err := sysCheck.db.Exec("SELECT 1 FROM dual")
 	if err != nil {
 		fmt.Printf("Error executing select check: %s\n", err)
