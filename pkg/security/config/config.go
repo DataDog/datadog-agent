@@ -1246,6 +1246,14 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		}
 	}
 
+	if c.SecurityProfileV2AnomalyStabilizationPeriod < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.anomaly_stabilization.period: %s, must not be negative", c.SecurityProfileV2AnomalyStabilizationPeriod)
+	}
+
+	if c.SecurityProfileV2StartupDelay < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.startup_delay: %s, must not be negative", c.SecurityProfileV2StartupDelay)
+	}
+
 	c.sanitizePlatform()
 
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
