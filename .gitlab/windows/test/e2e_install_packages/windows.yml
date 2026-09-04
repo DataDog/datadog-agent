@@ -1,18 +1,4 @@
-.on_ddinjector_crash_telemetry_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
-  - changes:
-      paths:
-        - comp/checks/agentcrashdetect/**/*
-        - comp/core/agenttelemetry/impl/defaultProfiles.yaml
-        - test/fakeintake/aggregator/apmTelemetryAggregator.go
-        - test/fakeintake/client/client.go
-        - test/new-e2e/tests/installer/windows/BUILD.bazel
-        - test/new-e2e/tests/installer/windows/apm_inject_base_suite.go
-        - test/new-e2e/tests/installer/windows/apm_inject_crash_telemetry_test.go
-        - test/new-e2e/tests/installer/windows/apm_inject_injector_stats_test.go
-        - test/new-e2e/tests/installer/windows/fixtures/ddinjector_crash.ps1
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
+# NOTE: If a new job is added, be sure to upate .gitlab/test/e2e_test_junit_upload.yml
 
 .new-e2e_with_version:
   variables:
@@ -323,27 +309,6 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsAPMInject/TestInstallFromMSIWithJava$"
       - EXTRA_PARAMS: --run "TestInjectorStats/TestQueryStatsViaSystemProbe$"
       - EXTRA_PARAMS: --run "TestInjectorStats/TestQueryStatsAfterInjection$"
+      - EXTRA_PARAMS: --run "TestInjectorCrashTelemetry$/TestCrashEventReachesAgentTelemetry$"
       - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestInstallScriptStartsSystemProbe$"
       - EXTRA_PARAMS: --run "TestSystemProbeConfig/TestStandaloneInstallDoesNotStartSystemProbe$"
-
-new-e2e-ddinjector-crash-telemetry:
-  extends: .new_e2e_template
-  rules:
-    - !reference [.on_ddinjector_crash_telemetry_or_e2e_changes]
-    - !reference [.manual]
-  needs:
-    - !reference [.needs_new_e2e_template]
-    - deploy_windows_testing-a7
-    - deploy_installer_oci
-    - deploy_agent_oci
-  before_script:
-    - CURRENT_AGENT_ASSERT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_ASSERT_VERSION
-    - CURRENT_AGENT_ASSERT_PACKAGE_VERSION=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_ASSERT_PACKAGE_VERSION
-    - !reference [.new_e2e_template, before_script]
-  variables:
-    TARGETS: ./tests/installer/windows
-    TEAM: windows-products
-    FLEET_INSTALL_METHOD: "windows"
-    E2E_USE_AWS_PROFILE: "false"
-    MAX_RETRIES_FLAG: "--max-retries=0"
-    EXTRA_PARAMS: --run "TestInjectorCrashTelemetry$/TestCrashEventReachesAgentTelemetry$"

@@ -254,7 +254,6 @@ new-e2e-privateactionrunner             @DataDog/action-platform
 new-e2e-discovery                       @DataDog/agent-discovery
 # --- Windows-only jobs (single owner: windows-products) ---
 new-e2e-windows-*                       @DataDog/windows-products
-new-e2e-ddinjector-crash-telemetry*     @DataDog/windows-products
 # --- Shared-ownership overrides (must come after the per-category rules above) ---
 new-e2e-installer-windows*              @DataDog/fleet @DataDog/windows-products
 new-e2e-windows-security-agent          @DataDog/windows-products @DataDog/agent-security
