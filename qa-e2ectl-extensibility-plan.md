@@ -134,7 +134,7 @@ stop:    driver(base).Stop()
 | T1 | **Explicit registry slice vs auto-discovery** (blank imports) | Explicit: one trivial edit site, greppable, no init magic — **DECIDED: explicit registry.** |
 | T2 | **Driver-owned config section vs typed shared struct** | **DECIDED: driver-owned sections, no shared typed struct.** A VM environment carrying a Kubernetes cluster name is exactly the coupling being removed; the core keeps only `base` + the common fields (`fakeintake`). Cost accepted: no global schema of all options — per-driver help later if wanted. |
 | T3 | **Interfaces in the CLI (`cmd/e2ectl/internal/driver`) vs in the framework** | **DECIDED: interfaces live in the CLI.** The framework already exposes everything a driver needs (installers, standalone, snapshot); the driver contract is CLI UX. Revisit only if a suite wants to start environments itself (M3+). |
-| T4 | **Worker mirror-registry vs special-casing EC2** | Mirror registry: uniform story, new Pulumi providers don't touch the core job struct — chosen. Special-case: less code today, but re-grows the switches every time a cloud provider lands. |
+| T4 | **Worker mirror-registry vs special-casing EC2** | **DECIDED: the worker is the *pulumi-executor* — the only binary allowed to import Pulumi run functions — with a registry of *scenarios* (see §11): base name → params decoder + run function.** The CLI's decision is one line: run the scenario named `<base>` with this config section as opaque params. Provision and destroy come from the same registration. Special-casing was rejected: it re-grows the switches on every cloud provider. |
 | T5 | **Optional `Updatable` interface vs update-in-Driver** | **DECIDED: optional `Updatable` interface.** The aspiration is that every environment ends up updatable (they all can be, in principle), but the interface stays optional so a driver can ship without it and grow it later; the CLI errors honestly ("update is not supported for <base> yet") until then. |
 | T6 | **Opaque `DriverMeta` vs typed meta fields** | Opaque: meta never grows per-driver again; cost — debugging raw JSON in `meta.json` (mitigate: drivers pretty-print it). |
 | T7 | **Over-abstraction risk (YAGNI)** | **DECIDED: do NOT implement docker-host now; design so it stays possible.** docker-host, eks, aks, gke all remain one-package-plus-one-line additions by construction; the validation step (§6 step 7) becomes a *paper* check: write the interface sketch for docker-host and eks, confirm nothing fights, no implementation. The interfaces are allowed to change the day a real third driver lands. |
@@ -364,3 +364,49 @@ cloud provisioning. A provider gaining a non-Pulumi implementation can move
 to the core registry; full de-Pulumization would dissolve the worker and
 merge the mirrors back into one registry. The design degrades toward
 simplicity, never away from it.
+
+## 11. The worker as pulumi-executor: the scenario registry
+
+Refined model (agreed): the worker is the piece of code where we accept to
+import Pulumi run functions, to avoid paying Pulumi's price when we do not
+need it. The unit of extension is the **scenario run function** — the unit the
+framework already has (`scenarios/*/run.go`: `Run(ctx, env, params) error`,
+wrapped by `provisioners.NewTypedPulumiProvisioner`).
+
+The registry is the whole registration API:
+
+    worker.RegisterScenario("ec2-host", func(raw json.RawMessage) (worker.Executor, error) {
+        var p ec2.Params                 // the driver-owned config section maps 1:1
+        if err := strictdecode(raw, &p); err != nil { return nil, err }
+        prov := ec2.Provisioner(p)       // wraps the run function
+        return worker.FromTyped[environments.Host](prov), nil
+    })
+
+Worker main is a generic, forever-static engine: lookup by base →
+strict-decode params → provision (ProvisionE + WriteSnapshotFile) or destroy
+(standalone.Destroy, same provisioner rebuilt from the stored config).
+
+Properties:
+- **The config section IS the params struct**: the driver-owned section
+  (T2) strict-decodes into the very Params the run function takes — one
+  schema, yaml tags, no duplication. The CLI passes the section as opaque
+  bytes; the scenario decodes what it owns (the T2/T4/T6 rule).
+- **Provision and destroy share the registration**: standalone.Destroy
+  needs the provisioner the create used — deterministic rebuild from the
+  stored config, no destroy-side duplication.
+- **Type erasure in one place**: registry entries produce
+  TypedProvisioner[Host], TypedProvisioner[Kubernetes]... — the
+  FromTyped[Env] adapter captures the Env type once per registration so the
+  engine stores type-erased Executors. Five lines, written once.
+- **Adding a Pulumi environment = write a Run function + a Params struct +
+  one RegisterScenario line + the thin core driver** (validate the section,
+  spawn the executor, reuse shared installers). Much of EKS's Run likely
+  already exists in the framework's EKS provisioner.
+- **docker-host never enters the executor**: no run function, no
+  registration — the two-worlds split stays crisp; the executor exists
+  precisely so the core can be full of local drivers without a
+  *pulumi.Context.
+- Params flow as direct function arguments (closure), not through Pulumi
+  stack config — the ai-sandbox precedent.
+- The binary name stays `e2ectl-worker` (placeholder alongside the CLI name
+  decision); the role name is pulumi-executor.
