@@ -2,30 +2,10 @@ ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
 ARG BASE_IMAGE_REGISTRY=docker.io
 
-FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS nosys-seccomp
-ARG CI
-ENV DEBIAN_FRONTEND=noninteractive
-RUN if [ "$CI" = "true" ]; then \
-    printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' > /etc/apt/apt.conf.d/99datadog-mirror-resilience && \
-    printf 'http://us-east-1.ec2.archive.ubuntu.com/ubuntu\nhttp://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' > /etc/apt/mirrorlist.main && \
-    printf 'http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\nhttp://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' > /etc/apt/mirrorlist.ports && \
-    if [ -f /etc/apt/sources.list ]; then \
-      sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-             -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-             -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
-    fi && \
-    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
-      sed -i -E \
-        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*archive\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-east-1.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
-        -e 's#^(URIs:[[:space:]]+)https?://security\.ubuntu\.com/ubuntu/?[[:space:]]*$#\1http://us-east-1.ec2.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu http://mirror.leaseweb.net/ubuntu#' \
-        -e 's#^(URIs:[[:space:]]+)https?://[a-z0-9.-]*ports\.ubuntu\.com/ubuntu-ports/?[[:space:]]*$#\1http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports http://ports.ubuntu.com/ubuntu-ports http://mirror.leaseweb.net/ubuntu-ports#' \
-        /etc/apt/sources.list.d/ubuntu.sources; \
-    fi; \
-    fi
-RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
-COPY nosys-seccomp/nosys.c   /tmp/nosys.c
-COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
-RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c -lseccomp
+# nosys.so is no longer built here. It's compiled from Dockerfiles/agent's
+# nosys-seccomp stage and handed in via the `artifacts` build context (see
+# .docker_build_cluster_agent in .gitlab/deploy/container_build/docker_linux.yml),
+# so this image doesn't need its own gcc/libseccomp-dev toolchain stage.
 
 FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS release-base
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
@@ -82,9 +62,8 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH" \
 #  same time for speed.
 # For agent install and operation: ca-certificates, tzdata, adduser
 # For TSE operations: curl
-RUN apt-get update \
-    && apt full-upgrade -y \
-    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\
+RUN apt-get update && apt full-upgrade -y \
+    && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser \
     && rm -rf \
       /var/cache/debconf/*-old \
       /var/lib/apt/lists/* \
@@ -150,7 +129,7 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
     && chmod u=r,g=r,o= /etc/datadog-agent/private-action-runner/*
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
-COPY --from=nosys-seccomp /tmp/nosys.so /lib/x86_64-linux-gnu/nosys.so
+COPY --from=artifacts nosys.so /lib/x86_64-linux-gnu/nosys.so
 ENV LD_PRELOAD=/lib/x86_64-linux-gnu/nosys.so
 
 # Incompatible with the custom metrics API on port 443
