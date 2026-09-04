@@ -41,7 +41,7 @@ const (
 // Fakeintake URL wiring (DD_DD_URL) is handled automatically by the e2e framework's
 // configureFakeintake when fakeintake is present. See SetupPARTaskSigning for the
 // signing identity dequeued tasks need to pass verification.
-// %s parameters: clusterName, runnerURN, privateKeyB64, systemServiceOperatorPolicy
+// Parameters: clusterName, splitEnabled, runnerURN, privateKeyB64, systemServiceOperatorPolicy
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
@@ -49,6 +49,7 @@ datadog:
   clusterName: "%s"
   privateActionRunner:
     enabled: true
+    splitEnabled: %t
     selfEnroll: false
     urn: "%s"
     privateKey: "%s"
@@ -67,7 +68,7 @@ agents:
 // parK8sProvisioner provisions a Kind-on-EC2 cluster with:
 //   - fakeintake deployed as ECS Fargate (HTTP, no load balancer) — PAR polls its OPMS endpoints
 //   - Datadog Agent with PAR enabled (custom image via --agent-image CLI flag)
-func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner {
+func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provisioners.Provisioner {
 	p := provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("par-k8s",
 		func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 			name := "kind"
@@ -142,6 +143,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				kubernetesagentparams.WithHelmValues(fmt.Sprintf(
 					parHelmValuesTemplate,
 					ctx.Stack(),
+					splitEnabled,
 					runnerURN,
 					privateKeyB64,
 					systemServiceOperatorPolicy,
