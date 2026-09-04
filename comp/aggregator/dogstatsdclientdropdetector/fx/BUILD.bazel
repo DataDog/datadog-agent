@@ -1,5 +1,4 @@
 load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "fx",
@@ -9,24 +8,5 @@ go_library(
     deps = [
         "//comp/aggregator/dogstatsdclientdropdetector/impl",
         "//pkg/util/fxutil",
-    ],
-)
-
-dd_agent_go_test(
-    name = "fx_test",
-    srcs = ["fx_test.go"],
-    embed = [":fx"],
-    deps = [
-        "//comp/aggregator/dogstatsdclientdropdetector/def",
-        "//comp/core/config",
-        "//comp/core/hostname/hostnameinterface/def",
-        "//comp/core/hostname/hostnameinterface/mock",
-        "//comp/core/log/def",
-        "//comp/core/log/mock",
-        "//comp/healthplatform/store/def",
-        "//comp/healthplatform/store/mock",
-        "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//require",
-        "@org_uber_go_fx//:fx",
     ],
 )
