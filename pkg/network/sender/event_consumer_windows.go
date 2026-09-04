@@ -77,7 +77,10 @@ func (d *directSenderConsumer) collectProcesses() error {
 	if !d.fetchProcesses {
 		return nil
 	}
+	return d.loadCurrentProcesses()
+}
 
+func (d *directSenderConsumer) loadCurrentProcesses() error {
 	procs, err := d.procprobe.ProcessesByPID(time.Now(), false)
 	if err != nil {
 		return err
