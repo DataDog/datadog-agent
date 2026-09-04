@@ -1137,6 +1137,12 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		if !event.ProcessContext.Process.ContainerContext.IsNull() {
 			if event.GetEventType() == model.ExecEventType {
 				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
+
+				// For a script, exec.file names the script and the interpreter running
+				// it is reachable only through this field. Both files count as in use.
+				if event.Exec.Process.HasInterpreter() {
+					p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.LinuxBinprm.FileEvent)
+				}
 			} else if event.GetEventType() == model.FileOpenEventType {
 				// force resolution of the file path
 				p.fieldHandlers.ResolveFilePath(event, &event.Open.File)

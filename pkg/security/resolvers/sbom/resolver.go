@@ -355,6 +355,12 @@ func (r *Resolver) refreshScan(sbom *SBOM) {
 }
 
 func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {
+	// an embedder may build the resolver without workloadmeta, in which case the
+	// image SBOM is simply out of reach and forwarding stays disabled
+	if r.wmeta == nil {
+		return nil, errors.New("no workloadmeta client")
+	}
+
 	container, err := r.wmeta.GetContainer(string(containerID))
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get container metadata for '%s': %v", containerID, err)
@@ -970,6 +976,33 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		}
 		r.queueWorkload(sbom)
 	}
+}
+
+// LastPackageAccess returns the time the named package of a workload was last seen
+// running, and whether the workload holds that package at all.
+func (r *Resolver) LastPackageAccess(id containerutils.ContainerID, name string) (time.Time, bool) {
+	sbom := r.getSBOM(id)
+	if sbom == nil {
+		return time.Time{}, false
+	}
+
+	sbom.RLock()
+	defer sbom.RUnlock()
+
+	if sbom.data == nil {
+		return time.Time{}, false
+	}
+
+	sbom.data.mu.RLock()
+	defer sbom.data.mu.RUnlock()
+
+	for i := range sbom.data.packages {
+		if sbom.data.packages[i].Name == name {
+			return sbom.data.packages[i].LastAccess, true
+		}
+	}
+
+	return time.Time{}, false
 }
 
 // GetWorkload returns the sbom of a provided ID
