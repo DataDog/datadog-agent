@@ -208,7 +208,7 @@ func mustNewValue(t *testing.T, v interface{}) *structpb.Value {
 // TestRunBlocksUntilConfigStreamSnapshot verifies that for each agent the consumer
 // blocks fxutil.OneShot until the first snapshot arrives from the mock core.
 func TestRunBlocksUntilConfigStreamSnapshot(t *testing.T) {
-	agents := []string{"trace-agent", "process-agent", "security-agent", "system-probe"}
+	agents := []string{"trace-agent", "process-agent", "security-agent", "system-probe", "host-profiler"}
 	for _, agentName := range agents {
 		t.Run(agentName, func(t *testing.T) {
 			// Rebuild the env var layer on each lookup so a stale schema from other
