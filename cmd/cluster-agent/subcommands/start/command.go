@@ -359,7 +359,7 @@ func start(log log.Component,
 	}()
 
 	// Create the Leader election engine and initialize it
-	leaderelection.CreateGlobalLeaderEngine(mainCtx)
+	leaderelection.CreateGlobalLeaderEngine(mainCtx, telemetry)
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
 		return err

@@ -30,7 +30,6 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -80,23 +79,16 @@ type LeaderEngine struct {
 	leaderMetric telemetry.Gauge
 }
 
-func newLeaderEngine(ctx context.Context) *LeaderEngine {
+func newLeaderEngine(ctx context.Context, tm telemetry.Component) *LeaderEngine {
 	return &LeaderEngine{
 		ctx:             ctx,
 		LeaseName:       pkgconfigsetup.Datadog().GetString("leader_lease_name"),
 		LeaderNamespace: namespace.GetResourcesNamespace(),
 		ServiceName:     pkgconfigsetup.Datadog().GetString("cluster_agent.kubernetes_service_name"),
-		leaderMetric:    metrics.NewLeaderMetric(),
+		leaderMetric:    metrics.NewLeaderMetric(tm),
 		subscribers:     []chan struct{}{},
 		LeaseDuration:   defaultLeaderLeaseDuration,
 	}
-}
-
-// ResetGlobalLeaderEngine is a helper to remove the current LeaderEngine global
-// It is ONLY to be used for tests
-func ResetGlobalLeaderEngine() {
-	globalLeaderEngine = nil
-	telemetryimpl.GetCompatComponent().Reset()
 }
 
 // Initialize initializes the leader engine
@@ -121,9 +113,9 @@ func GetLeaderEngine() (*LeaderEngine, error) {
 }
 
 // CreateGlobalLeaderEngine returns a non initialized leader engine client
-func CreateGlobalLeaderEngine(ctx context.Context) *LeaderEngine {
+func CreateGlobalLeaderEngine(ctx context.Context, tm telemetry.Component) *LeaderEngine {
 	if globalLeaderEngine == nil {
-		globalLeaderEngine = newLeaderEngine(ctx)
+		globalLeaderEngine = newLeaderEngine(ctx, tm)
 		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "leaderElection",
 			AttemptMethod:     globalLeaderEngine.init,

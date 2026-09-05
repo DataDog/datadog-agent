@@ -710,7 +710,7 @@ func startAgent(
 
 	// Create the Leader election engine without initializing it
 	if cfg.GetBool("leader_election") {
-		leaderelection.CreateGlobalLeaderEngine(ctx)
+		leaderelection.CreateGlobalLeaderEngine(ctx, tlm)
 	}
 
 	// Setup stats telemetry handler
