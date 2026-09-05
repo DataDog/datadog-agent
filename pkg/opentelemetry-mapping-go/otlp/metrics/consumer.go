@@ -152,3 +152,13 @@ type TagsConsumer interface {
 	// ConsumeTag consumes a tag
 	ConsumeTag(tag string)
 }
+
+// TagSetConsumer is a multi-tag source consumer.
+// It is an optional interface implemented by consumers that emit dedicated
+// running metrics for workloads requiring multiple identity dimensions.
+type TagSetConsumer interface {
+	// ConsumeTagSet consumes a workload-specific tag set. metricSuffix is
+	// appended to "otel.datadog_exporter.metrics.running." by the Datadog
+	// exporter consumer.
+	ConsumeTagSet(metricSuffix string, tags []string)
+}
