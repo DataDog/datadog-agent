@@ -151,7 +151,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
 
 # azure-app-services build for Windows
 windows_zip_agent_binaries_x64-a7:
-  extends: .windows_zip_base
+  extends: .windows_zip_bazel_base
   variables:
     OMNIBUS_TARGET: agent-binaries
 
