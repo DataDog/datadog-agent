@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fixed the post-upgrade restore of the third-party ``datadog-uwsgi-stats``
+    integration. Because its distribution name carries the ``datadog-`` prefix,
+    the restore looked for it in the Datadog integration repository, which does
+    not host it; the resulting ``NoSuchDatadogPackage`` error failed the whole
+    Agent package upgrade (for example ``apt upgrade``) in its post-install
+    step. The package is now restored from PyPI using the embedded ``pip``,
+    like the other third-party distributions sharing that prefix.
