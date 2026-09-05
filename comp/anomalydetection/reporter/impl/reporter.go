@@ -23,9 +23,22 @@ import (
 const (
 	// telemetryReportsOngoing counts advances where at least one already-seen correlation was still active.
 	telemetryReportsOngoing = "observer.reports.ongoing"
-	// telemetryReportsEmitted counts new correlation patterns seen for the first time (would-have-been event reports).
+	// telemetryReportsEmitted counts report events produced locally, partitioned by kind.
 	telemetryReportsEmitted = "observer.reports.emitted"
+
+	reportKindCorrelation    = "correlation"
+	reportKindEpisodeStarted = "episode_started"
+	reportKindEpisodeEnded   = "episode_ended"
 )
+
+func newReportsEmittedCounter(telemetry telemetryComp.Component) telemetryComp.Counter {
+	return telemetry.NewCounter(
+		"observer",
+		telemetryReportsEmitted,
+		[]string{"kind"},
+		"Number of report events produced locally, partitioned by kind",
+	)
+}
 
 // Requires defines the dependencies for the live reporter component.
 type Requires struct {
@@ -53,12 +66,7 @@ func NewComponent(req Requires) (Provides, error) {
 		nil,
 		"Number of advances with at least one ongoing (already-seen) active anomaly correlation",
 	)
-	emittedCounter := req.Telemetry.NewCounter(
-		"observer",
-		telemetryReportsEmitted,
-		nil,
-		"Number of new anomaly correlation patterns detected for the first time",
-	)
+	emittedCounter := newReportsEmittedCounter(req.Telemetry)
 
 	reporters := []reporterdef.Reporter{&stdoutReporter{
 		ongoingCounter: ongoingCounter,
@@ -112,11 +120,11 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 	newlyDetected := make(map[string]struct{}, len(output.CorrelatorEvents))
 
 	// Log all correlator events at info level and drive the emitted counter.
-	// emittedCounter counts only CorrelationDetected events (new pattern first-seen
-	// or recurrence); episode events are not counted.
 	for _, ce := range output.CorrelatorEvents {
 		switch ce.Kind {
 		case observerdef.CorrelatorEventEpisodeStarted:
+			r.emittedCounter.Add(1, reportKindEpisodeStarted)
+			emitted = true
 			if r.stdoutEnabled {
 				message := formatScorerContributorMessage(ce.Contributors, r.storage)
 				if message == "" {
@@ -127,6 +135,8 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 				}
 			}
 		case observerdef.CorrelatorEventEpisodeEnded:
+			r.emittedCounter.Add(1, reportKindEpisodeEnded)
+			emitted = true
 			if r.stdoutEnabled {
 				logging.Infof("reporter scorer episode ended: scorer=%s pattern=%s t=%d duration=%ds",
 					ce.CorrelatorName, ce.Correlation.Pattern, ce.Timestamp,
@@ -134,7 +144,7 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) bool {
 			}
 		case observerdef.CorrelatorEventCorrelationDetected:
 			newlyDetected[ce.Correlation.Pattern] = struct{}{}
-			r.emittedCounter.Add(1)
+			r.emittedCounter.Add(1, reportKindCorrelation)
 			emitted = true
 			if r.stdoutEnabled {
 				logging.Infof("reporter anomaly detection report: pattern=%s title=%q members=%d",
