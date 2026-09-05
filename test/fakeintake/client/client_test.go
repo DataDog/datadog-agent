@@ -871,4 +871,27 @@ func TestClient(t *testing.T) {
 		assert.Empty(t, logs[0].Message)
 	})
 
+	t.Run("GetDDInjectorCrashes", func(t *testing.T) {
+		payload := `{"request_type":"ddinjector-crash","payload":{"ddinjector_crash":{"process_name":"crashy.exe","process_id":4242,"exit_status":"0xc0000005","elapsed_ms":123,"phase":"post_injection"}}}`
+		response, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+			Payloads: []api.Payload{
+				{Data: []byte(payload), Encoding: "application/json"},
+			},
+		})
+		require.NoError(t, err)
+
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(response)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		crashes, err := client.GetDDInjectorCrashes()
+		require.NoError(t, err)
+		require.Len(t, crashes, 1)
+		assert.Equal(t, "crashy.exe", crashes[0].ProcessName)
+		assert.Equal(t, uint32(4242), crashes[0].ProcessID)
+		assert.Equal(t, "post_injection", crashes[0].Phase)
+	})
+
 }
