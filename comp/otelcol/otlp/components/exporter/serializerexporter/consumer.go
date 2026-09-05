@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -98,7 +100,7 @@ type serializerConsumer struct {
 	apmReceiverAddr string
 	ipath           ingestionPath
 	hosts           map[string]struct{}
-	ecsFargateTags  map[string]struct{}
+	fargateTagSets  map[tagSetKey][]string
 }
 
 // ingestionPath specifies which ingestion path is using the serializer exporter
@@ -209,8 +211,13 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 		for host := range c.hosts {
 			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
 		}
-		for ecsFargateTag := range c.ecsFargateTags {
-			taskArn := strings.Split(ecsFargateTag, ":")[1]
+		for _, tags := range c.fargateTagSets {
+			prefix := string(source.AWSECSFargateKind) + ":"
+			idx := slices.IndexFunc(tags, func(t string) bool { return strings.HasPrefix(t, prefix) })
+			if idx == -1 {
+				continue
+			}
+			taskArn := strings.TrimPrefix(tags[idx], prefix)
 			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
 	case agentOTLPIngest:
@@ -324,7 +331,13 @@ func (c *serializerConsumer) ConsumeHost(host string) {
 	c.hosts[host] = struct{}{}
 }
 
-// ConsumeTag implements the metrics.TagsConsumer interface.
-func (c *serializerConsumer) ConsumeTag(tag string) {
-	c.ecsFargateTags[tag] = struct{}{}
+// ConsumeTagSet implements the metrics.TagSetConsumer interface.
+func (c *serializerConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
+	if metricSuffix != "fargate" {
+		return
+	}
+	sorted := slices.Clone(tags)
+	slices.Sort(sorted)
+	dedupKey := tagSetKey{metricSuffix: metricSuffix, sortedTags: strings.Join(sorted, ",")}
+	c.fargateTagSets[dedupKey] = sorted
 }

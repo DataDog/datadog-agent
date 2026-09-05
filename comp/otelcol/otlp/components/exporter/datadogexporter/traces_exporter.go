@@ -88,9 +88,9 @@ func (exp *traceExporter) consumeTraces(
 		}
 		switch src.Kind {
 		case source.HostnameKind:
-			hosts[src.Identifier] = struct{}{}
+			hosts[src.Identifier] = struct{}{} //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		case source.AWSECSFargateKind:
-			ecsFargateArns[src.Identifier] = struct{}{}
+			ecsFargateArns[src.Identifier] = struct{}{} //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		case source.InvalidKind:
 		}
 	}

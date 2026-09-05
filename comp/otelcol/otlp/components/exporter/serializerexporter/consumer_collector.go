@@ -7,23 +7,31 @@ package serializerexporter
 
 import (
 	"fmt"
+	"slices"
 	"strings"
-
-	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/exporter"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter"
 )
+
+// tagSetKey namespaces a ConsumeTagSet dedup key by metricSuffix, so that two
+// different workload types can never collide in seenTagSets even if their
+// tag content happens to coincide. sortedTags is derived from tags themselves
+// (sorted and joined) so that two calls with identical tags always dedup
+type tagSetKey struct {
+	metricSuffix string
+	sortedTags   string
+}
 
 // collectorConsumer is a consumer OSS collector uses to send metrics to the DataDog.
 type collectorConsumer struct {
 	*serializerConsumer
-	seenHosts map[string]struct{}
-	seenTags  map[string]struct{}
-	buildInfo component.BuildInfo
+	seenHosts   map[string]struct{}
+	seenTagSets map[tagSetKey][]string // value: full "key:value" tag slice for the metric
+	buildInfo   component.BuildInfo
 	// getPushTime returns a Unix time in nanoseconds, representing the time pushing metrics.
 	// It will be overwritten in tests.
 	getPushTime func() uint64
@@ -41,17 +49,13 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 		series = append(series, runningMetric)
 	}
 
-	var nonFargateTags []string
-	for tag := range c.seenTags {
-		if strings.HasPrefix(tag, string(source.AWSECSFargateKind)+":") {
-			series = append(series, exporterFargateMetrics(timestamp, append(buildTags, tag)))
-		} else {
-			nonFargateTags = append(nonFargateTags, tag)
-		}
+	for k, tags := range c.seenTagSets {
+		allTags := append(slices.Clone(buildTags), tags...)
+		series = append(series, exporterWorkloadMetrics(k.metricSuffix, timestamp, allTags))
 	}
-	if (len(c.seenHosts) > 0 && len(c.seenTags) == 0) || len(nonFargateTags) > 0 {
-		tags := append(buildTags, nonFargateTags...)
-		series = append(series, exporterDefaultMetrics("metrics", "", timestamp, tags))
+
+	if len(c.seenHosts) > 0 && len(c.seenTagSets) == 0 {
+		series = append(series, exporterDefaultMetrics("metrics", "", timestamp, buildTags))
 	}
 
 	for _, lang := range languageTags {
@@ -70,9 +74,12 @@ func (c *collectorConsumer) ConsumeHost(host string) {
 	c.seenHosts[host] = struct{}{}
 }
 
-// ConsumeTag implements the metrics.TagsConsumer interface.
-func (c *collectorConsumer) ConsumeTag(tag string) {
-	c.seenTags[tag] = struct{}{}
+// ConsumeTagSet implements the metrics.TagSetConsumer interface.
+func (c *collectorConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
+	sorted := slices.Clone(tags)
+	slices.Sort(sorted)
+	dedupKey := tagSetKey{metricSuffix: metricSuffix, sortedTags: strings.Join(sorted, ",")}
+	c.seenTagSets[dedupKey] = sorted
 }
 
 // exporterDefaultMetrics creates built-in metrics to report that an exporter is running
@@ -93,10 +100,13 @@ func exporterDefaultMetrics(exporterType string, hostname string, timestamp uint
 	return metrics
 }
 
-// exporterFargateMetrics creates a built-in metric to report that a Fargate exporter is running.
-func exporterFargateMetrics(timestamp uint64, tags []string) *metrics.Serie {
+// exporterWorkloadMetrics creates a built-in metric to report that a
+// workload-specific exporter (e.g. Fargate, Azure Container Apps) is
+// running. The resulting metric name is
+// "otel.datadog_exporter.metrics.running.<metricSuffix>".
+func exporterWorkloadMetrics(metricSuffix string, timestamp uint64, tags []string) *metrics.Serie {
 	return &metrics.Serie{
-		Name: "otel.datadog_exporter.metrics.running.fargate",
+		Name: "otel.datadog_exporter.metrics.running." + metricSuffix,
 		Points: []metrics.Point{
 			{
 				Ts:    float64(timestamp),
