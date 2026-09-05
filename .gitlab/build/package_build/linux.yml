@@ -38,8 +38,8 @@
   needs: ["build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
   variables:
     PACKAGE_ARCH: amd64
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"
 
 .agent_build_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -48,8 +48,8 @@
     ["build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
   variables:
     PACKAGE_ARCH: arm64
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 .agent_base_flavor:
   variables:
@@ -88,15 +88,15 @@ datadog-agent-7-arm64-fips:
   tags: ["arch:amd64", "specific:true"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"
 
 .toolchain-common-arm64:
   tags: ["arch:arm64", "specific:true"]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 # ----- IoT -----
 

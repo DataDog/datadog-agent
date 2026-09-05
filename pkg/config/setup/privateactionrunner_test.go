@@ -17,6 +17,20 @@ func TestPrivateActionRunnerApiKeyOnlyEnrollmentDefaultTrue(t *testing.T) {
 	assert.True(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
 }
 
+func TestPrivateActionRunnerAgentSecretManagementEnabledDefaultTrue(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.GetBool(PARAgentSecretManagementEnabled))
+}
+
+func TestPrivateActionRunnerAgentSecretManagementEnabledFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_AGENT_SECRET_MANAGEMENT_ENABLED", "false")
+
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.GetBool(PARAgentSecretManagementEnabled))
+}
+
 func TestPrivateActionRunnerApiKeyOnlyEnrollmentFromEnv(t *testing.T) {
 	t.Setenv("DD_PRIVATE_ACTION_RUNNER_API_KEY_ONLY_ENROLLMENT", "false")
 

@@ -58,9 +58,11 @@ if [ ! -L "$EMBEDDED" ] || [ "$(readlink "$EMBEDDED" 2>/dev/null)" != "$EMBEDDED
     ln -sf "$EMBEDDED_DESTDIR" "$EMBEDDED"
 fi
 
-# ── Check required tools ──────────────────────────────────────────────────────
-# Fail early with a clear message if a required build tool is missing.
-
+# ── Build-specific prerequisite: Rust SDK ───────────────────────────────────
+# The host toolchain (gcc, go, git, cmake, protoc, the -devel libs, ...) is
+# provisioned and verified by packaging/aix/setup-host.sh; build.sh assumes
+# it has been run. Fail fast here with a clear message if Rust is missing —
+# the build needs it for stages 05/06/07/08.
 check_tool() {
     _tool=$1; _pkg=${2:-$1}
     if ! command -v "$_tool" >/dev/null 2>&1; then
@@ -69,55 +71,6 @@ check_tool() {
         exit 1
     fi
 }
-
-check_tool git        git
-check_tool curl       curl
-check_tool xz         xz
-check_tool zstd       zstd
-check_tool make       make
-check_tool cmake      cmake
-check_tool gcc        gcc
-check_tool bash       bash
-check_tool protoc     protobuf
-check_tool python3.12 python3.12
-check_tool go         golang
-check_tool dump       bos.perf.tools
-check_tool mkinstallp bos.adt.insttools
-
-check_tool strip binutils
-
-# Several libraries are taken from AIX Toolbox (source builds fail on AIX).
-# Check that all required -devel packages are installed.
-check_aix_devel() {
-    _hdr=$1; _pkg=$2
-    if [ ! -f "$_hdr" ]; then
-        printf 'ERROR: %s not found (required for build)\n' "$_hdr" >&2
-        printf '       Install with: yum install %s\n' "$_pkg" >&2
-        exit 1
-    fi
-}
-check_aix_devel /opt/freeware/include/ffi.h          libffi-devel
-check_aix_devel /opt/freeware/lib64/libffi.a          libffi-devel
-check_aix_devel /opt/freeware/include/ncurses.h       ncurses-devel
-check_aix_devel /opt/freeware/lib64/libncursesw.a     ncurses-devel
-check_aix_devel /opt/freeware/include/readline/readline.h  readline-devel
-check_aix_devel /opt/freeware/lib64/libreadline.a     readline-devel
-
-check_aix_devel /opt/freeware/include/libxslt/xslt.h  libxslt-devel
-check_aix_devel /opt/freeware/lib/libxslt.a           libxslt-devel
-# libexslt ships with libxslt-devel; stage 01 copies it silently if present.
-check_aix_devel /opt/freeware/lib/libexslt.a          libxslt-devel
-
-# ── Source shared environment ─────────────────────────────────────────────────
-
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=/dev/null
-. "$SCRIPT_DIR/lib/env.sh"
-
-# Rust SDK cargo — checked after env.sh so RUST_VERSION is available.
-# Required by stage 05 (ADP), stage 06 (cryptography, ~15 min), stage 07
-# (pydantic-core, ~52 min), and stage 08 (jellyfish). Failing here avoids
-# wasting that time.
 check_tool "/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin/cargo" \
     "rust${RUST_VERSION}.ppc cargo${RUST_VERSION}.ppc rust${RUST_VERSION}-std-static.ppc"
 

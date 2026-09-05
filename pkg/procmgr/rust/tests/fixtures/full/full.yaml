@@ -1,0 +1,10 @@
+command: {{python}}
+args:
+  - {{script}}
+description: a test process
+working_dir: {{root}}
+env:
+  MY_VAR: hello
+restart: always
+after:
+  - other

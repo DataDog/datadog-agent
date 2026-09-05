@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use crate::config::Config;
 use crate::executor::{Dispatcher, Outcome};
 use crate::opms::{HealthCheck, HeartbeatResult, Opms, PublishResult, Task};
 use crate::procmgr::ExecutorLifecycle;
@@ -32,6 +33,26 @@ pub struct Params {
     pub publish_max_backoff: Duration,
     /// Must remain shorter than par-control's process-manager stop timeout.
     pub drain_timeout: Duration,
+}
+
+impl Params {
+    pub fn from_config(config: &Config) -> Self {
+        Params {
+            pool_size: config.task_concurrency,
+            loop_interval: config.loop_interval,
+            ready_timeout: config.ready_timeout,
+            heartbeat_interval: config.heartbeat_interval,
+            health_check_interval: config.health_check_interval,
+            min_backoff: config.min_backoff,
+            max_backoff: config.max_backoff,
+            wait_before_retry: config.wait_before_retry,
+            max_attempts: config.max_attempts,
+            publish_max_attempts: 3,
+            publish_min_backoff: Duration::from_secs(1),
+            publish_max_backoff: Duration::from_secs(5),
+            drain_timeout: Duration::from_secs(170),
+        }
+    }
 }
 
 /// Exponential dequeue backoff: `min_backoff * 2^(attempt-1)`, capped at `max_backoff`.

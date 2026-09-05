@@ -23,10 +23,10 @@ import (
 
 const (
 	// logsIntakeURLTemplate is the template for building the logs intake URL for each site.
-	logsIntakeURLTemplate = "https://http-intake.logs.%s/api/v2/logs"
+	logsIntakeURLTemplate = config.DebuggerLogsEndpointPrefix + "%s" + config.DebuggerLogsEndpointPath
 
 	// debuggerIntakeURLTemplate specifies the template for obtaining the intake URL along with the site.
-	debuggerIntakeURLTemplate = "https://debugger-intake.%s/api/v2/debugger"
+	debuggerIntakeURLTemplate = config.DebuggerIntakeEndpointPrefix + "%s" + config.DebuggerIntakeEndpointPath
 
 	// ddTagsQueryStringMaxLen is the maximum number of characters we send as ddtags in the intake query string.
 	// This limit is not imposed by the event platform intake, it's a safeguard we've added to guarantee an upper
