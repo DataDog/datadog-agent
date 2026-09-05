@@ -47,6 +47,7 @@ var (
 		// queue_0_rx_xdp_redirect: 0
 		"ena": {
 			"rx_bad_csum",
+			"rx_csum_bad",
 			"rx_bad_desc_num",
 			"rx_bad_req_id",
 			"rx_bytes",
