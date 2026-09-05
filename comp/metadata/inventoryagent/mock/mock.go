@@ -45,6 +45,9 @@ func (m *inventoryagentMock) Get() map[string]interface{} {
 // Refresh is a mocked function
 func (m *inventoryagentMock) Refresh() {}
 
+// Submit is an empty function on this mock
+func (m *inventoryagentMock) Submit() {}
+
 // MockModule defines the fx options for the mock component.
 //
 // Usage:

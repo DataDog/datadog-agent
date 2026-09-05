@@ -147,6 +147,35 @@ func TestMicroVMGetEnhancedMetricTagsMissingARN(t *testing.T) {
 	assert.Equal(t, result.Base["resource_id"], result.Usage["resource_id"])
 }
 
+func TestMicroVMGetInventoryData(t *testing.T) {
+	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, testImageARN)
+	m := &MicroVM{}
+
+	inv := m.GetInventoryData()
+
+	assert.Equal(t, InventoryData{
+		WorkloadType: workloadTypeAWSMicroVM,
+		ResourceID:   testImageARN,
+		ResourceName: "my-image",
+		Region:       "us-east-1",
+		AWSAccountID: "123456789012",
+	}, inv)
+}
+
+// TestMicroVMGetInventoryDataMissingARN pins that a missing image ARN still
+// yields the workload type, with resource_id / region left empty (mapped to
+// nullable downstream columns) rather than substituting "unknown".
+func TestMicroVMGetInventoryDataMissingARN(t *testing.T) {
+	m := &MicroVM{}
+
+	inv := m.GetInventoryData()
+
+	assert.Equal(t, workloadTypeAWSMicroVM, inv.WorkloadType)
+	assert.Empty(t, inv.ResourceID)
+	assert.Empty(t, inv.ResourceName)
+	assert.Empty(t, inv.Region)
+}
+
 // Compile-time guard: *MicroVM must satisfy the CloudService interface,
 // including the new Run method.
 var _ CloudService = (*MicroVM)(nil)

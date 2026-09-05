@@ -177,7 +177,7 @@ func TestGetMetaDataCloudRunTypePrefixes(t *testing.T) {
 }
 
 func TestGetCloudRunTags(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
+	service := &CloudRun{}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
@@ -206,7 +206,7 @@ func TestGetCloudRunTags(t *testing.T) {
 }
 
 func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
+	service := &CloudRun{}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
@@ -242,7 +242,7 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 }
 
 func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{spanNamespace: cloudRunFunctionTagPrefix}
+	service := &CloudRun{isFunction: true}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
 		return map[string]string{
@@ -282,6 +282,67 @@ func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 		"gcrfx.function_signature_type": "test_signature",
 		"gcrfx.resource_name":           "projects/test_project/locations/test_region/services/test_service/functions/test_target",
 	}, tags)
+}
+
+func TestCloudRunServiceGetInventoryData(t *testing.T) {
+	service := &CloudRun{}
+
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{
+			"container_id":     "test_container",
+			"location":         "test_region",
+			"project_id":       "test_project",
+			"gcr.container_id": "test_container",
+			"gcr.location":     "test_region",
+			"gcr.project_id":   "test_project",
+		}
+	}
+
+	t.Setenv("K_SERVICE", "test_service")
+	t.Setenv("K_REVISION", "test_revision")
+
+	inv := service.GetInventoryData()
+
+	assert.Equal(t, InventoryData{
+		WorkloadType:     workloadTypeCloudRunService,
+		ResourceID:       "//run.googleapis.com/projects/test_project/locations/test_region/services/test_service/revisions/test_revision",
+		ParentResourceID: "//run.googleapis.com/projects/test_project/locations/test_region/services/test_service",
+		ResourceName:     "test_service",
+		Region:           "test_region",
+		GCPProjectID:     "test_project",
+		DeploymentID:     "test_revision",
+	}, inv)
+}
+
+func TestCloudRunFunctionGetInventoryData(t *testing.T) {
+	service := &CloudRun{isFunction: true}
+
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{
+			"container_id":       "test_container",
+			"location":           "test_region",
+			"project_id":         "test_project",
+			"gcrfx.container_id": "test_container",
+			"gcrfx.location":     "test_region",
+			"gcrfx.project_id":   "test_project",
+		}
+	}
+
+	t.Setenv("K_SERVICE", "test_service")
+	t.Setenv("K_REVISION", "test_revision")
+	t.Setenv("FUNCTION_TARGET", "test_target")
+
+	inv := service.GetInventoryData()
+
+	assert.Equal(t, InventoryData{
+		WorkloadType:     workloadTypeCloudRunFunction,
+		ResourceID:       "projects/test_project/locations/test_region/services/test_service/functions/test_target",
+		ParentResourceID: "//run.googleapis.com/projects/test_project/locations/test_region/services/test_service",
+		ResourceName:     "test_service",
+		Region:           "test_region",
+		GCPProjectID:     "test_project",
+		DeploymentID:     "test_revision",
+	}, inv)
 }
 
 func TestCloudRunShutdownEmitsMetrics(t *testing.T) {

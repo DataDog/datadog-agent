@@ -179,6 +179,20 @@ type MetricTagSetterFunc func([]string)
 // SetMetricTags implements MetricTagSetter.
 func (f MetricTagSetterFunc) SetMetricTags(tags []string) { f(tags) }
 
+// InventorySubmitter enqueues a serverless inventory metadata payload for the
+// current MicroVM instance. The server owns the instance id (from the /run
+// body or the stored value at /resume) and hands it to the callback, mirroring
+// the tag-setter trio; the callback consumes it.
+type InventorySubmitter interface {
+	SubmitInventory(microVMID string)
+}
+
+// InventorySubmitterFunc wraps a bare function so it satisfies InventorySubmitter.
+type InventorySubmitterFunc func(string)
+
+// SubmitInventory implements InventorySubmitter.
+func (f InventorySubmitterFunc) SubmitInventory(id string) { f(id) }
+
 // runBody is the JSON payload sent by the MicroVM platform on /run.
 type runBody struct {
 	MicroVMID string `json:"microvmId"`
@@ -201,12 +215,13 @@ type Server struct {
 	enabledHooks HookToggles // per-hook forwarding opt-in; only meaningful when fwd != nil
 	heartbeat    *Heartbeat  // nil-safe; nil disables periodic heartbeat emission
 
-	logsTagSetter       LogsTagSetter     // nil-safe; set via SetLogsTagSetter after construction
-	baseLogTags         []string          // startup log tag snapshot; lambda_microvm_id is appended at /run
-	traceTagSetter      TraceTagSetter    // nil-safe; set via SetTraceTagSetter after construction
-	baseTraceTags       map[string]string // startup trace tag snapshot; lambda_microvm_id is added at /run
-	metricTagSetter     MetricTagSetter   // nil-safe; set via SetMetricTagSetter after construction
-	baseUsageMetricTags []string          // startup enhanced usage metric tag snapshot; instance:<id> is appended at /run
+	logsTagSetter       LogsTagSetter      // nil-safe; set via SetLogsTagSetter after construction
+	baseLogTags         []string           // startup log tag snapshot; lambda_microvm_id is appended at /run
+	traceTagSetter      TraceTagSetter     // nil-safe; set via SetTraceTagSetter after construction
+	baseTraceTags       map[string]string  // startup trace tag snapshot; lambda_microvm_id is added at /run
+	metricTagSetter     MetricTagSetter    // nil-safe; set via SetMetricTagSetter after construction
+	baseUsageMetricTags []string           // startup enhanced usage metric tag snapshot; instance:<id> is appended at /run
+	inventorySubmitter  InventorySubmitter // nil-safe; set via SetInventorySubmitter after construction
 
 	httpServer *http.Server
 	listener   net.Listener // set once ListenAndServe binds successfully
@@ -315,6 +330,15 @@ func (s *Server) SetTraceTagSetter(setter TraceTagSetter, baseTraceTags map[stri
 func (s *Server) SetMetricTagSetter(setter MetricTagSetter, baseUsageMetricTags []string) {
 	s.metricTagSetter = setter
 	s.baseUsageMetricTags = baseUsageMetricTags
+}
+
+// SetInventorySubmitter wires an InventorySubmitter into the server. Optional;
+// nil is a no-op (inventory submission disabled), as production callers do when
+// their own InventorySubmitter is nil. If called, it must happen before the
+// first /run request. The server passes the per-instance MicroVM id to the
+// submitter on /run (from the request body) and /resume (from the stored id).
+func (s *Server) SetInventorySubmitter(setter InventorySubmitter) {
+	s.inventorySubmitter = setter
 }
 
 // listen binds the TCP port synchronously. Call before serve so the socket is
@@ -697,6 +721,9 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 		if s.metricTagSetter != nil {
 			s.metricTagSetter.SetMetricTags(append(append([]string{}, s.baseUsageMetricTags...), "instance:"+body.MicroVMID))
 		}
+		if s.inventorySubmitter != nil {
+			s.inventorySubmitter.SubmitInventory(body.MicroVMID)
+		}
 	} else {
 		log.Info("MicroVM lifecycle: run")
 	}
@@ -717,6 +744,9 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: resume")
 	s.heartbeat.Start()
+	if s.inventorySubmitter != nil {
+		s.inventorySubmitter.SubmitInventory(s.instanceID.Load())
+	}
 	s.dispatchHook(resumeMetricName, pathResume, noFlush, s.enabledHooks.Resume, w, r)
 }
 

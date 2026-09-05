@@ -8042,21 +8042,15 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    tags:
-    - full-agent-only:true
   inventories_first_run_delay:
     node_type: setting
     type: integer
     default: 60
-    tags:
-    - full-agent-only:true
     comment: Seconds to wait to sent metadata payload to the backend after startup
   inventories_max_interval:
     node_type: setting
     type: integer
     default: 0
-    tags:
-    - full-agent-only:true
     comment: |-
       when updating the default here also update pkg/metadata/inventories/README.md
       0 == default interval from inventories
@@ -8064,8 +8058,6 @@ properties:
     node_type: setting
     type: integer
     default: 0
-    tags:
-    - full-agent-only:true
     comment: 0 == default interval from inventories
   iot_host:
     node_type: setting
@@ -9023,6 +9015,12 @@ properties:
         default: false
         tags:
         - no-env
+      inventory_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_SERVERLESS_INIT_INVENTORY_ENABLED
       logs_enabled:
         node_type: setting
         type: boolean

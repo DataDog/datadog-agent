@@ -20,12 +20,7 @@ import (
 )
 
 // ContainerApp has helper functions for getting specific Azure Container App data
-type ContainerApp struct {
-	//nolint:revive // TODO(SERV) Fix revive linter
-	SubscriptionId string
-	//nolint:revive // TODO(SERV) Fix revive linter
-	ResourceGroup string
-}
+type ContainerApp struct{}
 
 const (
 	//nolint:revive // TODO(SERV) Fix revive linter
@@ -65,32 +60,40 @@ const (
 	regionFallback                = "unknown"
 )
 
+// resolveRegion derives the Azure region from the environment's DNS suffix,
+// falling back to regionFallback when the suffix has an unexpected format.
+// GetTags and GetInventoryData share it as the single source of truth.
+func (c *ContainerApp) resolveRegion() string {
+	appDNSSuffix := os.Getenv(ContainerAppDNSSuffix)
+	appDNSSuffixTokens := strings.Split(appDNSSuffix, ".")
+	if len(appDNSSuffixTokens) >= 3 {
+		return appDNSSuffixTokens[len(appDNSSuffixTokens)-3]
+	}
+	ddlog.Debugf("CONTAINER_APP_ENV_DNS_SUFFIX has unexpected format %q, defaulting region to %s", appDNSSuffix, regionFallback)
+	return regionFallback
+}
+
+// containerAppCCRID builds the app-level Canonical Cloud Resource ID. It is the
+// stable parent that revision-level CCRIDs nest under.
+func containerAppCCRID(subscriptionID, resourceGroup, appName string) string {
+	return fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", subscriptionID, resourceGroup, strings.ToLower(appName))
+}
+
+// containerAppRevisionCCRID extends an app CCRID with the revision segment.
+func containerAppRevisionCCRID(appCCRID, revision string) string {
+	return fmt.Sprintf("%s/revisions/%s", appCCRID, revision)
+}
+
 // GetTags returns a map of Azure-related tags
 func (c *ContainerApp) GetTags() map[string]string {
 	appName := os.Getenv(ContainerAppNameEnvVar)
-	appDNSSuffix := os.Getenv(ContainerAppDNSSuffix)
-
-	appDNSSuffixTokens := strings.Split(appDNSSuffix, ".")
-	region := regionFallback
-	if len(appDNSSuffixTokens) >= 3 {
-		region = appDNSSuffixTokens[len(appDNSSuffixTokens)-3]
-	} else {
-		ddlog.Debugf("CONTAINER_APP_ENV_DNS_SUFFIX has unexpected format %q, defaulting region to %s", appDNSSuffix, regionFallback)
-	}
+	region := c.resolveRegion()
 
 	revision := os.Getenv(ContainerAppRevision)
 	replica := os.Getenv(ContainerAppReplicaName)
 
-	// Check ContainerApp struct first, then fall back to environment variables
-	subscriptionID := c.SubscriptionId
-	if subscriptionID == "" {
-		subscriptionID = os.Getenv(AzureSubscriptionIdEnvVar)
-	}
-
-	resourceGroup := c.ResourceGroup
-	if resourceGroup == "" {
-		resourceGroup = os.Getenv(AzureResourceGroupEnvVar)
-	}
+	subscriptionID := os.Getenv(AzureSubscriptionIdEnvVar)
+	resourceGroup := os.Getenv(AzureResourceGroupEnvVar)
 
 	// There are some duplicate tags here because we are updating billing and adding
 	// an abbreviated namespace per Azure environment. We must maintain backwards
@@ -121,13 +124,41 @@ func (c *ContainerApp) GetTags() map[string]string {
 	}
 
 	if subscriptionID != "" && resourceGroup != "" {
-		resourceID := fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", subscriptionID, resourceGroup, strings.ToLower(appName))
+		resourceID := containerAppCCRID(subscriptionID, resourceGroup, appName)
 		tags["resource_id"] = resourceID
 		tags[acaResourceID] = resourceID
-
 	}
 
 	return tags
+}
+
+// GetInventoryData derives the inventory metadata fields for Azure Container
+// Apps. The app-level CCRID is the stable parent; the resource_id is the
+// revision under it and the revision is also reported as the deployment_id. The
+// CCRIDs require both subscription id and resource group and are left empty
+// otherwise, matching GetTags.
+func (c *ContainerApp) GetInventoryData() InventoryData {
+	subscriptionID := os.Getenv(AzureSubscriptionIdEnvVar)
+	resourceGroup := os.Getenv(AzureResourceGroupEnvVar)
+	appName := os.Getenv(ContainerAppNameEnvVar)
+	revision := os.Getenv(ContainerAppRevision)
+
+	var resourceID, parentResourceID string
+	if subscriptionID != "" && resourceGroup != "" {
+		parentResourceID = containerAppCCRID(subscriptionID, resourceGroup, appName)
+		resourceID = containerAppRevisionCCRID(parentResourceID, revision)
+	}
+
+	return InventoryData{
+		WorkloadType:        workloadTypeAzureContainerApp,
+		ResourceID:          resourceID,
+		ParentResourceID:    parentResourceID,
+		ResourceName:        appName,
+		Region:              c.resolveRegion(),
+		AzureSubscriptionID: subscriptionID,
+		AzureResourceGroup:  resourceGroup,
+		DeploymentID:        revision,
+	}
 }
 
 func (c *ContainerApp) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
@@ -172,10 +203,7 @@ func (c *ContainerApp) GetSource() metrics.MetricSource {
 
 // NewContainerApp returns a new ContainerApp instance
 func NewContainerApp() *ContainerApp {
-	return &ContainerApp{
-		SubscriptionId: "",
-		ResourceGroup:  "",
-	}
+	return &ContainerApp{}
 }
 
 // Run uses the default run behaviour for ContainerApp.
@@ -189,16 +217,11 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 	// and DD_AZURE_RESOURCE_GROUP.
 	// These environment variables are optional for now. Once we go GA,
 	// return an error if these are not set.
-	//nolint:revive // TODO(SERV) Fix revive linter
-	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
-		c.SubscriptionId = subscriptionId
-	} else {
+	if _, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); !exists {
 		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
 	}
 
-	if resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar); exists {
-		c.ResourceGroup = resourceGroup
-	} else {
+	if _, exists := os.LookupEnv(AzureResourceGroupEnvVar); !exists {
 		log.Fatalf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
 	}
 

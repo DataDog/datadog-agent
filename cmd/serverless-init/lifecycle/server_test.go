@@ -143,6 +143,73 @@ func TestHandleRunParsesInstanceID(t *testing.T) {
 	assert.Equal(t, "vm-abc123", id, "instance ID must be stored on the server for lifecycle metric tags")
 }
 
+// mockInventorySubmitter records the ids passed to SubmitInventory.
+type mockInventorySubmitter struct {
+	mu  sync.Mutex
+	ids []string
+}
+
+func (m *mockInventorySubmitter) SubmitInventory(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ids = append(m.ids, id)
+}
+
+func (m *mockInventorySubmitter) getIDs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string{}, m.ids...)
+}
+
+// TestHandleRun_InventorySubmitter_InvokedWithInstanceID verifies /run hands
+// the instance id from the request body to the inventory submitter.
+func TestHandleRun_InventorySubmitter_InvokedWithInstanceID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	sub := &mockInventorySubmitter{}
+	srv.SetInventorySubmitter(sub)
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+
+	assert.Equal(t, []string{"vm-abc123"}, sub.getIDs())
+}
+
+// TestHandleRun_InventorySubmitter_NotInvokedWithoutInstanceID verifies that an
+// empty /run body does not trigger an inventory submission — the payload can't
+// be finalized without the per-instance id.
+func TestHandleRun_InventorySubmitter_NotInvokedWithoutInstanceID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	sub := &mockInventorySubmitter{}
+	srv.SetInventorySubmitter(sub)
+
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
+
+	assert.Empty(t, sub.getIDs())
+}
+
+// TestHandleResume_InventorySubmitter_InvokedWithStoredID verifies /resume
+// resubmits inventory with the id captured earlier at /run.
+func TestHandleResume_InventorySubmitter_InvokedWithStoredID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	sub := &mockInventorySubmitter{}
+	srv.SetInventorySubmitter(sub)
+	srv.instanceID.Store("vm-abc123")
+
+	srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+
+	assert.Equal(t, []string{"vm-abc123"}, sub.getIDs())
+}
+
+// TestHandleRun_NilInventorySubmitter_NoPanic verifies /run is safe when no
+// inventory submitter is wired (the production default when inventory is off).
+func TestHandleRun_NilInventorySubmitter_NoPanic(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	assert.NotPanics(t, func() {
+		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+	})
+}
+
 // TestHandleRun_BodyReadError_Returns500 verifies that a body read failure
 // aborts the handler before any state is mutated, rather than silently
 // proceeding with a truncated/empty body. errReader is defined in
