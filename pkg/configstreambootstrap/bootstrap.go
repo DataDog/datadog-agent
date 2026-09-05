@@ -9,10 +9,6 @@
 package configstreambootstrap
 
 import (
-	"math"
-
-	"google.golang.org/protobuf/types/known/structpb"
-
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
@@ -96,23 +92,7 @@ func IPCCertFilepath() string {
 	return pkgconfigsetup.Datadog().GetString("ipc_cert_file_path")
 }
 
-// ApplySetting writes one streamed setting to the global config, preserving the source.
-func ApplySetting(key string, value *structpb.Value, source string) {
-	pkgconfigsetup.Datadog().Set(key, pbValueToGo(value), pkgconfigmodel.Source(source))
-}
-
-// pbValueToGo converts a protobuf Value to a Go value. It preserves integer types that structpb widens to float64.
-// Bounded to |x| <= 2^53 — beyond that float64 loses integer precision.
-func pbValueToGo(v *structpb.Value) any {
-	if v == nil {
-		return nil
-	}
-	result := v.AsInterface()
-	if f, ok := result.(float64); ok {
-		const maxExactInt = 1 << 53
-		if !math.IsNaN(f) && !math.IsInf(f, 0) && f >= -maxExactInt && f <= maxExactInt && f == math.Trunc(f) {
-			return int64(f)
-		}
-	}
-	return result
+// Config returns the global config builder the streamed settings are written to.
+func Config() pkgconfigmodel.Config {
+	return pkgconfigsetup.Datadog()
 }
