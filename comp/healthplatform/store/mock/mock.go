@@ -26,6 +26,8 @@ type Mock struct {
 	resolvedIDs   []string
 	reportErrOnID string
 	reportErr     error
+	resourceType  string
+	resourceID    string
 }
 
 // Option configures the mock store returned by New.
@@ -47,9 +49,23 @@ func WithReportIssueError(issueID string, err error) Option {
 	}
 }
 
+// WithResourceIdentity overrides the resourceType/resourceID returned by
+// ResourceIdentity, which otherwise defaults to ("host", "test-host").
+func WithResourceIdentity(resourceType, resourceID string) Option {
+	return func(m *Mock) {
+		m.resourceType = resourceType
+		m.resourceID = resourceID
+	}
+}
+
 // New returns a mock health platform store for testing.
 func New(t testing.TB, opts ...Option) *Mock {
-	m := &Mock{t: t, issues: make(map[string]*healthplatformpayload.Issue)}
+	m := &Mock{
+		t:            t,
+		issues:       make(map[string]*healthplatformpayload.Issue),
+		resourceType: "host",
+		resourceID:   "test-host",
+	}
 	for _, o := range opts {
 		o(m)
 	}
@@ -181,4 +197,13 @@ func (m *Mock) GetActiveIssueIDsByIssueName(issueName string) []string {
 // deployment_id collapse should assert against selfident directly.
 func (m *Mock) IssueDiscriminator(hostID string) string {
 	return hostID
+}
+
+// ResourceIdentity returns the resourceType/resourceID configured via
+// WithResourceIdentity, defaulting to ("host", "test-host"), ignoring
+// hostname.
+func (m *Mock) ResourceIdentity(_ string) (string, string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.resourceType, m.resourceID
 }
