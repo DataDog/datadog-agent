@@ -17,6 +17,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
@@ -132,13 +133,13 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 	if v1Enabled {
 		informers[apiserver.ValidatingWebhooksInformer] = ctx.ValidatingInformers.Admissionregistration().V1().ValidatingWebhookConfigurations().Informer()
 		informers[apiserver.MutatingWebhooksInformer] = ctx.MutatingInformers.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
-		getValidatingWebhookStatus = getValidatingWebhookStatusV1
-		getMutatingWebhookStatus = getMutatingWebhookStatusV1
+		admcommon.GetValidatingWebhookStatus = admcommon.GetValidatingWebhookStatusV1
+		admcommon.GetMutatingWebhookStatus = admcommon.GetMutatingWebhookStatusV1
 	} else {
 		informers[apiserver.ValidatingWebhooksInformer] = ctx.ValidatingInformers.Admissionregistration().V1beta1().ValidatingWebhookConfigurations().Informer()
 		informers[apiserver.MutatingWebhooksInformer] = ctx.MutatingInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations().Informer()
-		getValidatingWebhookStatus = getValidatingWebhookStatusV1beta1
-		getMutatingWebhookStatus = getMutatingWebhookStatusV1beta1
+		admcommon.GetValidatingWebhookStatus = admcommon.GetValidatingWebhookStatusV1beta1
+		admcommon.GetMutatingWebhookStatus = admcommon.GetMutatingWebhookStatusV1beta1
 	}
 
 	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)

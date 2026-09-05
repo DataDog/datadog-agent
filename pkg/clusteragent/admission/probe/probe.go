@@ -43,6 +43,10 @@ type Probe struct {
 	logLimiter     *log.Limit
 	diagnosticHint string
 
+	webhookName       string
+	mutationEnabled   bool
+	validationEnabled bool
+
 	healthPlatform healthplatformdef.Component
 
 	stats Stats
@@ -92,13 +96,16 @@ func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, namespace str
 	}
 
 	return &Probe{
-		k8sClient:      k8sClient,
-		isLeaderFunc:   isLeaderFunc,
-		namespace:      namespace,
-		interval:       interval,
-		gracePeriod:    time.Duration(datadogConfig.GetInt("admission_controller.probe.grace_period")) * time.Second,
-		logLimiter:     log.NewLogLimit(1, 10*time.Minute),
-		healthPlatform: healthPlatform,
+		k8sClient:         k8sClient,
+		isLeaderFunc:      isLeaderFunc,
+		namespace:         namespace,
+		interval:          interval,
+		gracePeriod:       time.Duration(datadogConfig.GetInt("admission_controller.probe.grace_period")) * time.Second,
+		logLimiter:        log.NewLogLimit(1, 10*time.Minute),
+		healthPlatform:    healthPlatform,
+		webhookName:       datadogConfig.GetString("admission_controller.webhook_name"),
+		mutationEnabled:   datadogConfig.GetBool("admission_controller.mutation.enabled"),
+		validationEnabled: datadogConfig.GetBool("admission_controller.validation.enabled"),
 	}
 }
 
@@ -215,10 +222,10 @@ func (p *Probe) runProbe(ctx context.Context) {
 		return
 	}
 
-	p.handleError(err)
+	p.handleError(ctx, err)
 }
 
-func (p *Probe) handleError(err error) {
+func (p *Probe) handleError(ctx context.Context, err error) {
 	if k8serrors.IsForbidden(err) {
 		msg := fmt.Sprintf("The cluster agent service account does not have permission to create configmaps in namespace %q. Grant configmap creation RBAC to enable connectivity probing.", p.namespace)
 		p.stats.mu.Lock()
@@ -232,6 +239,23 @@ func (p *Probe) handleError(err error) {
 	}
 
 	if errors.Is(err, errProbeNotReceived) {
+		exists, existsErr := p.webhookExists(ctx)
+		if existsErr == nil && !exists {
+			if p.logLimiter.ShouldLog() {
+				log.Errorf("Admission controller probe failed: webhook configuration %q does not exist — it was never created, commonly because the certificate secret is missing or unreadable.", p.webhookName)
+			}
+			p.reportHealthIssue("The admission webhook configuration does not exist in the cluster; it was never created, commonly because the certificate secret is missing or unreadable.")
+			return
+		}
+
+		if existsErr != nil {
+			if p.logLimiter.ShouldLog() {
+				log.Warnf("Admission controller probe: could not determine whether the webhook configuration exists: %v", existsErr)
+			}
+			p.reportHealthIssue(fmt.Sprintf("Could not determine whether the admission webhook configuration exists: %v. The probe cannot rule out either a missing webhook or a network connectivity issue.", existsErr))
+			return
+		}
+
 		if p.logLimiter.ShouldLog() {
 			log.Errorf(
 				"Admission controller probe failed: the webhook did not handle the probe configmap. "+
@@ -240,20 +264,51 @@ func (p *Probe) handleError(err error) {
 				p.diagnosticHint,
 			)
 		}
-		p.reportHealthIssue()
+		p.reportHealthIssue("")
 		return
 	}
 
 	if p.logLimiter.ShouldLog() {
 		log.Errorf("Admission controller probe failed: %v", err)
 	}
-	p.reportHealthIssue()
+	p.reportHealthIssue("")
 }
 
-func (p *Probe) reportHealthIssue() {
-	issue, buildErr := (&admissionprobe.AdmissionProbeIssue{}).BuildIssue(map[string]string{
+// webhookExists reports whether the enabled webhook configuration objects
+// exist in the cluster. False+nil means confirmed missing; non-nil error
+// means existence could not be determined.
+func (p *Probe) webhookExists(ctx context.Context) (bool, error) {
+	if p.mutationEnabled {
+		_, err := admcommon.GetMutatingWebhookStatus(ctx, p.webhookName, p.k8sClient)
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, fmt.Errorf("checking mutating webhook configuration: %w", err)
+		}
+	}
+
+	if p.validationEnabled {
+		_, err := admcommon.GetValidatingWebhookStatus(ctx, p.webhookName, p.k8sClient)
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, fmt.Errorf("checking validating webhook configuration: %w", err)
+		}
+	}
+
+	return true, nil
+}
+
+func (p *Probe) reportHealthIssue(issueDescription string) {
+	context := map[string]string{
 		"remediation": p.diagnosticHint,
-	})
+	}
+	if issueDescription != "" {
+		context["issue"] = issueDescription
+	}
+	issue, buildErr := (&admissionprobe.AdmissionProbeIssue{}).BuildIssue(context)
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        healthIssueID,
