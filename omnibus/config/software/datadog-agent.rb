@@ -16,7 +16,6 @@ unless do_repackage?
   # creates required build directories
   dependency 'datadog-agent-prepare'
 
-  dependency "python3"
   dependency 'datadog-agent-integrations-py3'
 
   build do

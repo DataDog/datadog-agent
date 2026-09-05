@@ -10,8 +10,26 @@ load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR", "PYTHON_MAJOR_MI
 load("@pythons_hub//:versions.bzl", "DEFAULT_PYTHON_VERSION")
 load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//visibility:private"],
+)
+
+license(
+    name = "license",
+    # 2.0 is the license version, not the python version.
+    license_kinds = ["@rules_license//licenses/spdx:Python-2.0"],
+    # Instead of the LICENSE file upstream, we use the license text previously approved
+    # and locally cached at https://dd-agent-omnibus.s3.amazonaws.com/licenses/Python-2.0"
+    # Switching to the upstream one would add historical notes that point to obsolete
+    # license terms, making the actual license obligations less clear and costing 4K of disk space.
+    license_text = "Python-2.0",
+    visibility = ["//visibility:public"],
+)
 
 DEFAULT_PYTHON = "@python_{}//:python3".format(DEFAULT_PYTHON_VERSION.replace(".", "_"))
 
