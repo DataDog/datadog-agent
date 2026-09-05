@@ -449,6 +449,20 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 		"ray.io/v1/rayjobs",
 		"ray.io/v1/rayservices",
 
+		// KServe
+		"serving.kserve.io/v1alpha1/clusterstoragecontainers",
+		"serving.kserve.io/v1alpha2/llminferenceserviceconfigs",
+		"serving.kserve.io/v1alpha2/llminferenceservices",
+		"serving.kserve.io/v1alpha1/localmodelcaches",
+		"serving.kserve.io/v1alpha1/localmodelnamespacecaches",
+		"serving.kserve.io/v1alpha1/localmodelnodegroups",
+		"serving.kserve.io/v1alpha1/localmodelnodes",
+		"serving.kserve.io/v1alpha1/clusterservingruntimes",
+		"serving.kserve.io/v1alpha1/inferencegraphs",
+		"serving.kserve.io/v1beta1/inferenceservices",
+		"serving.kserve.io/v1alpha1/servingruntimes",
+		"serving.kserve.io/v1alpha1/trainedmodels",
+
 		// Gateway API
 		"gateway.networking.k8s.io/v1/gateways",
 		"gateway.networking.k8s.io/v1/httproutes",
@@ -496,6 +510,35 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 	}
 
 	require.ElementsMatch(t, expectedConfigs, foundConfigs)
+}
+
+func TestNewBuiltinKServeCRDConfigs(t *testing.T) {
+	cfg := mockconfig.New(t)
+	cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", true)
+
+	var kserveConfigs []builtinCRDConfig
+	for _, config := range newBuiltinCRDConfigs() {
+		if config.group == KServeAPIGroup {
+			kserveConfigs = append(kserveConfigs, config)
+		}
+	}
+
+	expectedConfigs := []builtinCRDConfig{
+		newBuiltinCRDConfig(KServeAPIGroup, "clusterstoragecontainers", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "llminferenceserviceconfigs", true, "v1alpha2", "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "llminferenceservices", true, "v1alpha2", "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelcaches", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnamespacecaches", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnodegroups", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnodes", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "clusterservingruntimes", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "inferencegraphs", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "inferenceservices", true, "v1beta1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "servingruntimes", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "trainedmodels", true, "v1alpha1"),
+	}
+
+	require.ElementsMatch(t, expectedConfigs, kserveConfigs)
 }
 
 func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
