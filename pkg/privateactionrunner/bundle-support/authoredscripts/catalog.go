@@ -7,10 +7,18 @@
 
 package authoredscripts
 
+import "errors"
+
+var ErrPackageNotConfigured = errors.New("authored-script package is not configured")
+
 // Descriptor identifies an immutable published artifact variant.
 type Descriptor struct {
 	Package string
 	Version string
 	URL     string
 	SHA256  string
+}
+
+type Catalog interface {
+	Lookup(key string) (Descriptor, error)
 }
