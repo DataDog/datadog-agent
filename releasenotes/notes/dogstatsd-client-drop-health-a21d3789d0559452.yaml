@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add opt-in experimental Agent Health issue detection for sustained payload drops reported by Go,
+    Python, and Java DogStatsD clients using Unix domain sockets. Detection is
+    disabled by default; set ``dogstatsd_client_drop_detection.enabled`` to
+    ``true`` to enable it. Each issue provides client-specific remediation and
+    resolves after the Agent observes sustained recovery.

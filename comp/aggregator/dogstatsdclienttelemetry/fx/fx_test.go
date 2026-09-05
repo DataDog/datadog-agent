@@ -13,10 +13,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	dogstatsdclientdropdetector "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/def"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type noopDropDetector struct{}
+
+func (*noopDropDetector) ObserveClientBytes(string, dogstatsdclientdropdetector.ClientByteMetric, float64) {
+}
+func (*noopDropDetector) CompleteFinalDogStatsDSerieFlush() {}
 
 type dependencies struct {
 	fx.In
@@ -25,7 +32,11 @@ type dependencies struct {
 }
 
 func TestModuleProvidesFinalDogStatsDSerieObserver(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, Module(), telemetrymock.Module())
+	deps := fxutil.Test[dependencies](t,
+		Module(),
+		telemetrymock.Module(),
+		fx.Provide(func() dogstatsdclientdropdetector.Component { return &noopDropDetector{} }),
+	)
 
 	require.Len(t, deps.Observers, 1)
 }
