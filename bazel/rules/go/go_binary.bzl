@@ -95,7 +95,14 @@ def _make_agent_version_url_safe():
         return env_vars.PACKAGE_VERSION
     return release_json.get("current_milestone") + "-localbuild"
 
-def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = None, agent_version = None, **kwargs):
+def dd_agent_go_binary(
+        name,
+        gc_linkopts = None,
+        gotags = None,
+        exact_gotags = None,
+        agent_version = None,
+        extra_version_symbols = None,
+        **kwargs):
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
     Accepts all go_binary attributes.  x_defs and gc_linkopts are merged with
@@ -116,6 +123,10 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
       exact_gotags: Like gotags, but if this is specified, no other tag sets are added.
       agent_version: overrides pkg/version.AgentVersion and AgentVersionURLSafe (URL-safe
                      encoded) instead of deriving them from PACKAGE_VERSION/release.json.
+      extra_version_symbols: additional x_defs symbols (e.g.
+                     "github.com/DataDog/datadog-agent/cmd/foo.appVersion") to stamp with
+                     the same AgentVersion value, for binaries whose main package reads
+                     its own version variable instead of pkg/version.AgentVersion.
       **kwargs: arguments to be forwarded to go_binary
     """
     # TODO: When --stamp support is in place, also inject:
@@ -143,6 +154,10 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
         _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
         _SETUP_PKG + ".defaultRunPath": _RUN_PATH_DEV,
     }
+    for symbol in extra_version_symbols or []:
+        release_x_defs.setdefault(symbol, agent_version)
+        dev_x_defs.setdefault(symbol, agent_version)
+
     existing_x_defs = kwargs.pop("x_defs", {})
     release_x_defs.update(existing_x_defs)
     dev_x_defs.update(existing_x_defs)
