@@ -562,7 +562,19 @@ go_deps.module_override(
     path = "sigs.k8s.io/kustomize/api",
 )
 
+# gopacket's pcap package cgo-includes <pcap.h> and links -lpcap, but the
+# hermetic toolchain sysroot ships no libpcap headers/library. Patch the
+# vendored BUILD.bazel to pull them from the vendored @libpcap archive via
+# cdeps instead of the (absent) system library.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_gopacket:pcap-cdeps.patch"],
+    path = "github.com/google/gopacket",
+)
+
 inject_repo(go_deps, "systemd")
+
+inject_repo(go_deps, "libpcap")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 
