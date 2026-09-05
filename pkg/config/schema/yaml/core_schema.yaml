@@ -8833,6 +8833,8 @@ properties:
   security_agent:
     node_type: section
     type: object
+    visibility: public
+    description: Settings specific to the security Agent process.
     properties:
       cmd_port:
         node_type: setting
@@ -8940,6 +8942,16 @@ properties:
             node_type: setting
             type: string
             default: ''
+      log_level:
+        node_type: setting
+        type: string
+        default: ''
+        env_vars:
+        - DD_SECURITY_AGENT_LOG_LEVEL
+        visibility: public
+        description: |-
+          Overrides the global `log_level` for the security Agent only.
+          Leave empty to use the global `log_level`.
       log_file:
         node_type: setting
         type: string
