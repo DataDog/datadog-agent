@@ -20,6 +20,14 @@ dd_agent_go_binary(
         "@platforms//os:windows": ["//cmd/secret-generic-connector/windows_resources:rsrc"],
         "//conditions:default": [],
     }),
+    # FIPS mode needs cgo for the OpenSSL/systemcrypto bindings; Windows cgo is
+    # provided by dd_agent_go_binary's default for the .syso resource file.
+    cgo = select({
+        "//packages/agent:fips_flavor": True,
+        "@platforms//os:windows": True,
+        "//conditions:default": False,
+    }),
     embed = [":secret-generic-connector_lib"],
+    extra_version_symbols = ["github.com/DataDog/datadog-agent/cmd/secret-generic-connector.appVersion"],
     visibility = ["//visibility:public"],
 )
