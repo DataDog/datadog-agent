@@ -58,6 +58,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
@@ -94,20 +95,17 @@ const (
 )
 
 func httpSupported() bool {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		return false
-	}
 	return kv >= usmconfig.MinimumKernelVersion
 }
 
 func httpsSupported() bool {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		return false
-	}
 	return usmconfig.TLSSupported(tracertestutil.Config())
 }
 
 func classificationSupported(config *config.Config) bool {
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+		return fentry.ClassificationSupported(config)
+	}
 	return kprobe.ClassificationSupported(config)
 }
 
@@ -139,7 +137,9 @@ type USMSuite struct {
 }
 
 func TestUSMSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
+	// WithFentry: this suite builds a connection tracer, so the fentry pass
+	// actually exercises fentry code (unlike the pkg/network/usm monitor tests).
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModesWithFentry(), "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
 }
@@ -518,9 +518,6 @@ func (s *USMSuite) TestTLSClassification() {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if ebpftest.GetBuildMode() == ebpftest.Fentry {
-				t.Skip("protocol classification not supported for fentry tracer")
-			}
 			t.Cleanup(func() { tr.RemoveClient(clientID) })
 			t.Cleanup(func() { _ = tr.Pause() })
 
