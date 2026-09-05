@@ -229,6 +229,108 @@ instances:
       #
       # collection_interval: 600
 
+    ## Configure collection of table and column metadata. Requires `dbm: true` or
+    ## `data_observability.enabled: true`.
+    #
+    # schemas:
+
+      ## @param enabled - boolean - optional - default: false
+      ## Enable collection of table and column metadata.
+      #
+      # enabled: false
+
+      ## @param collection_interval - int - optional - default: 600
+      ## The interval in seconds between schema collections.
+      #
+      # collection_interval: 600
+
+      ## @param payload_chunk_size - int - optional - default: 1000
+      ## The maximum number of tables (or views) collected before a schema payload is split into
+      ## another chunk.
+      #
+      # payload_chunk_size: 1000
+
+      ## @param collect_views - boolean - optional - default: true
+      ## Enable collection of view metadata alongside table metadata.
+      #
+      # collect_views: true
+
+      ## @param max_views - int - optional - default: 1000
+      ## The maximum number of views collected per container (CDB root or PDB). Extra views are
+      ## dropped and the collection is flagged as truncated.
+      #
+      # max_views: 1000
+
+      ## @param max_tables - int - optional - default: 300
+      ## The maximum number of tables collected per container (CDB root or PDB). Extra tables are
+      ## dropped and the collection is flagged as truncated.
+      #
+      # max_tables: 300
+
+      ## @param max_columns - int - optional - default: 50
+      ## The maximum number of columns collected per table or view. Extra columns are dropped and
+      ## the collection is flagged as truncated.
+      #
+      # max_columns: 50
+
+      ## @param max_query_duration - int - optional - default: 60
+      ## The maximum number of seconds a single schema collection query is allowed to run before
+      ## it is cancelled.
+      #
+      # max_query_duration: 60
+
+      ## @param include_schemas - list of strings - optional
+      ## A list of regular expressions used to match schema (owner) names to include.
+      ## When set, only schemas matching at least one pattern are collected.
+      #
+      # include_schemas:
+      #   - <SCHEMA_REGEX>
+
+      ## @param exclude_schemas - list of strings - optional
+      ## A list of regular expressions used to match schema (owner) names to exclude.
+      ## Exclusions are applied after `include_schemas`.
+      #
+      # exclude_schemas:
+      #   - <SCHEMA_REGEX>
+
+      ## @param include_tables - list of strings - optional
+      ## A list of regular expressions used to match table and view names to include.
+      ## When set, only tables and views matching at least one pattern are collected.
+      #
+      # include_tables:
+      #   - <TABLE_REGEX>
+
+      ## @param exclude_tables - list of strings - optional
+      ## A list of regular expressions used to match table and view names to exclude.
+      ## Exclusions are applied after `include_tables`.
+      #
+      # exclude_tables:
+      #   - <TABLE_REGEX>
+
+      ## @param include_databases - list of strings - optional
+      ## A list of regular expressions used to match container names (CDB root or PDB) to include.
+      ## When set, only containers matching at least one pattern are collected.
+      #
+      # include_databases:
+      #   - <DATABASE_REGEX>
+
+      ## @param exclude_databases - list of strings - optional
+      ## A list of regular expressions used to match container names (CDB root or PDB) to exclude.
+      ## Exclusions are applied after `include_databases`.
+      #
+      # exclude_databases:
+      #   - <DATABASE_REGEX>
+
+    ## Configure Data Observability. Schema collection is enabled when either `dbm: true` or
+    ## `data_observability.enabled: true` is set.
+    #
+    # data_observability:
+
+      ## @param enabled - boolean - optional - default: false
+      ## Set to `true` to enable Data Observability without enabling Database Monitoring.
+      #
+      # enabled: false
+
     ## Configure collection of process memory usage
     #
     # processes:

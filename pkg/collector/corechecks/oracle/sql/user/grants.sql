@@ -44,19 +44,47 @@ declare
     'gv_$lock',
     'dba_objects',
     'cdb_data_files',
-    'dba_data_files'
+    'dba_data_files',
+    'cdb_users',
+    'cdb_objects',
+    'cdb_tables',
+    'cdb_object_tables',
+    'cdb_tab_cols',
+    'cdb_tab_comments',
+    'cdb_col_comments',
+    'cdb_indexes',
+    'cdb_ind_columns',
+    'cdb_constraints',
+    'cdb_cons_columns',
+    'cdb_part_tables',
+    'cdb_part_key_columns',
+    'cdb_tab_modifications',
+    'cdb_external_tables',
+    'cdb_external_locations',
+    'cdb_mviews',
+    'cdb_views',
+    'cdb_blockchain_tables',
+    'cdb_immutable_tables'
   );
   command varchar2(4000);
   object_name varchar2(30);
+  -- CDB_* views are CONTAINERS()-based: a grant without container=all only applies in
+  -- CDB$ROOT, so the query silently sees root's rows only in every PDB, with no error.
+  -- RDS's grant_sys_object has no container=all equivalent, but that is moot there --
+  -- RDS master users are always local, so connection_type is never CDB on RDS.
+  container_clause varchar2(20) := '';
 begin
+   if :connection_type = :connection_type_cdb then
+      container_clause := ' container=all';
+   end if;
    for i in 1..array.count loop
       if :hostingType = :hostingTypeSelfManaged then
-        command := 'grant select on ' || array(i) || ' to &&user';
+        command := 'grant select on ' || array(i) || ' to &&user' || container_clause;
       elsif :hostingType = :hostingTypeRDS then
         command := 'begin rdsadmin.rdsadmin_util.grant_sys_object(''' || upper(array(i)) || ''',''&&user'',''SELECT'', p_grant_option => false); end;';
       elsif :hostingType = :hostingTypeOCI then
         object_name := replace(array(i), 'V_$', 'V$');
-        command := 'grant select on ' || array(i) || ' to &&user with grant option';
+        command := 'grant select on ' || array(i) || ' to &&user with grant option' || container_clause;
       end if;
       begin
          execute immediate command;

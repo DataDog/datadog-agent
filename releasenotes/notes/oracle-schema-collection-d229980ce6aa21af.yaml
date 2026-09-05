@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    [oracle] Add Oracle database schema collection. The Agent can now collect
+    metadata about the containers/PDBs, schemas, tables, views, columns,
+    indexes, and constraints of the Oracle databases it monitors, and emits
+    it for Datadog products to consume. Schema collection is disabled by
+    default: set ``schemas.enabled: true`` on an instance that also has
+    ``dbm: true`` or ``data_observability.enabled: true``.
+    Collection can be tuned and scoped down through additional ``schemas.*``
+    options, such as table/column limits and include/exclude filters.
