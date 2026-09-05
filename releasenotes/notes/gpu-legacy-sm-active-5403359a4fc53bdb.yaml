@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    gpum: Add ``gpu.legacy_sm_active`` config toggle. When enabled on GPM-capable NVIDIA GPUs,
+    ``gpu.sm_active`` reports the GPM SM utilization value while
+    ``gpu.sm_utilization`` remains available.

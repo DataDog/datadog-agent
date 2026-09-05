@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    The runtime usage properties merged onto container image SBOMs
+    (``LastSeenRunning``, ``HasSetSuidBit`` and ``RunningAsRoot``) now reach OS
+    packages alone. The system-probe report is matched to components by name and
+    version, so a language package sharing an OS package's name and version took
+    the timestamp and flags of the OS package that had run. Components whose purl
+    places them outside the dpkg, rpm and apk databases are left out of the match.

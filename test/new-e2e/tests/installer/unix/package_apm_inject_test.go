@@ -14,6 +14,7 @@ import (
 	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
@@ -480,13 +481,16 @@ func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()
 		assert.NoError(s.T(), err)
+		// The convert-traces feature is enabled by default, so the agent
+		// serializes tracer payloads in the v1 string-indexed idx format
+		// (AgentPayload.IdxTracerPayloads) and leaves the legacy
+		// TracerPayloads field empty. The trace ID lives on the chunk as the
+		// full 128 bits; its lowest 8 bytes are the legacy 64-bit trace ID.
 		for _, tracePayload := range tracePayloads {
-			for _, tracerPayload := range tracePayload.TracerPayloads {
+			for _, tracerPayload := range tracePayload.IdxTracerPayloads {
 				for _, chunk := range tracerPayload.Chunks {
-					for _, span := range chunk.Spans {
-						if span.TraceID == traceID {
-							return true
-						}
+					if fakeintakeclient.IdxChunkTraceID(chunk) == traceID {
+						return true
 					}
 				}
 			}

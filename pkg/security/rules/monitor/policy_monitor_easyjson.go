@@ -2109,7 +2109,7 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor7(
 			if in.IsNull() {
 				in.Skip()
 			} else {
-				out.Policy = string(in.String())
+				out.Policy = rules.NetworkFilterPolicy(in.String())
 			}
 		case "scope":
 			if in.IsNull() {

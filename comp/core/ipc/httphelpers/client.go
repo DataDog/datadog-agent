@@ -182,7 +182,12 @@ func (s *ipcClient) do(req *http.Request, contentType string, onChunk func([]byt
 	client.Timeout = params.Timeout
 
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Authorization", "Bearer "+s.authToken)
+	if params.NoAuthToken {
+		// Ensure no Authorization is sent, even if the caller pre-set the header.
+		req.Header.Del("Authorization")
+	} else {
+		req.Header.Set("Authorization", "Bearer "+s.authToken)
+	}
 
 	r, err := client.Do(req)
 
@@ -294,6 +299,12 @@ func WithCloseConnection(req *ipc.RequestParams) {
 // WithLeaveConnectionOpen is a request option that leaves the connection open after the request
 func WithLeaveConnectionOpen(req *ipc.RequestParams) {
 	req.Close = false
+}
+
+// WithoutAuthToken skips attaching the IPC bearer token to the request.
+// Use for unauthenticated endpoints (expvar, pprof, /telemetry) that do not verify the token.
+func WithoutAuthToken(req *ipc.RequestParams) {
+	req.NoAuthToken = true
 }
 
 // WithContext is a request option that sets the context for the request

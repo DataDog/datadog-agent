@@ -57,7 +57,7 @@ func (s *dockerTestSuite) TestDockerProcessCheck() {
 		assert.Empty(t, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 
 		// Verify the process component is running in the core agent
-		assert.ElementsMatch(t, status.ProcessComponentStatus.Expvars.Map.EnabledChecks, []string{"process", "rtprocess"})
+		assert.ElementsMatch(t, status.ProcessComponentStatus.Expvars.Map.EnabledChecks, []string{"process", "rtprocess", "service_discovery"})
 	}, 2*time.Minute, 5*time.Second)
 
 	// Flush fake intake to remove any early payloads
@@ -116,7 +116,7 @@ func (s *dockerTestSuite) TestProcessCheckWithIO() {
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, true)
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess", "service_discovery"}, true)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -144,7 +144,7 @@ func (s *dockerTestSuite) TestProcessChecksWithNPM() {
 	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(scendocker.WithAgentOptions(agentOpts...))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess", "connections"}, false)
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess", "service_discovery", "connections"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload

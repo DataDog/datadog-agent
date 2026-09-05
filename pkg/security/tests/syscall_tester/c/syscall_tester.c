@@ -20,6 +20,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 #include <netdb.h>
 #include <linux/un.h>
 #include <linux/prctl.h>
@@ -1149,45 +1150,19 @@ int test_tracer_memfd(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-int test_tracer_memfd_with_keys(int argc, char **argv) {
-    // TracerMetadata with threadlocal_attribute_keys=["http.method", "http.target", "http.user"]
-    const char tracer_data[] =
-        "\x89"                                    // fixmap with 9 entries
-        "\xae" "schema_version" "\x02"            // "schema_version": 2
-        "\xaf" "tracer_language" "\xa3" "cpp"     // "tracer_language": "cpp"
-        "\xae" "tracer_version" "\xa5" "0.0.1"   // "tracer_version": "0.0.1"
-        "\xa8" "hostname" "\xa4" "test"           // "hostname": "test"
-        "\xac" "service_name"
-        "\xac" "test-service"
-        "\xab" "service_env"
-        "\xa8" "test-env"
-        "\xaf" "service_version"
-        "\xa5" "1.0.0"
-        "\xac" "process_tags"
-        "\xb0" "custom.tag:value"
-        "\xba" "threadlocal_attribute_keys"       // key (26 chars)
-        "\x93"                                    // fixarray with 3 elements
-        "\xab" "http.method"                      // str (11 chars)
-        "\xab" "http.target"                      // str (11 chars)
-        "\xa9" "http.user";                       // str (9 chars)
-
-    int fd = memfd_create("datadog-tracer-info-keytest0", MFD_ALLOW_SEALING);
-    if (fd < 0) {
-        err(1, "%s failed", "memfd_create");
+int test_unshare_flags(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please specify the unshare flags as an integer\n");
+        return EXIT_FAILURE;
     }
 
-    ssize_t written = write(fd, tracer_data, sizeof(tracer_data) - 1);
-    if (written != (ssize_t)(sizeof(tracer_data) - 1)) {
-        err(1, "%s failed: wrote %zd bytes, expected %lu", "write", written, sizeof(tracer_data) - 1);
+    long flags = strtol(argv[1], NULL, 0);
+
+    if (syscall(SYS_unshare, (int)flags) < 0) {
+        perror("unshare");
+        return EXIT_FAILURE;
     }
 
-    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
-        err(1, "%s failed", "fcntl F_ADD_SEALS");
-    }
-
-    sleep(3);
-
-    close(fd);
     return EXIT_SUCCESS;
 }
 
@@ -1205,6 +1180,82 @@ int test_new_netns_exec(int argc, char **argv) {
     execv(argv[1], argv + 1);
     fprintf(stderr, "execv failed: %s\n", argv[1]);
     return EXIT_FAILURE;
+}
+
+// send_fd sends the file descriptor payload_fd over the unix socket sock_fd using SCM_RIGHTS.
+static int send_fd(int sock_fd, int payload_fd) {
+    char data = 'x';
+    struct iovec io = {.iov_base = &data, .iov_len = 1};
+    union {
+        char buf[CMSG_SPACE(sizeof(int))];
+        struct cmsghdr align;
+    } u;
+    memset(&u, 0, sizeof(u));
+
+    struct msghdr msg = {0};
+    msg.msg_iov = &io;
+    msg.msg_iovlen = 1;
+    msg.msg_control = u.buf;
+    msg.msg_controllen = sizeof(u.buf);
+
+    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    memcpy(CMSG_DATA(cmsg), &payload_fd, sizeof(int));
+
+    if (sendmsg(sock_fd, &msg, 0) < 0) {
+        perror("sendmsg");
+        return -1;
+    }
+    return 0;
+}
+
+// test_create_socket_send_fd creates a socket of the requested domain/type and sends it back to the
+// parent over the unix socket inherited as fd 3 (via SCM_RIGHTS). The socket is created by this
+// (child) process, so the cgroup/sock_create hook records this process's pid in sk_storage_pid.
+int test_create_socket_send_fd(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Please specify a socket domain (ipv4/ipv6/unix) and type (tcp/udp)\n");
+        return EXIT_FAILURE;
+    }
+
+    int domain;
+    if (strcmp(argv[1], "ipv4") == 0) {
+        domain = AF_INET;
+    } else if (strcmp(argv[1], "ipv6") == 0) {
+        domain = AF_INET6;
+    } else if (strcmp(argv[1], "unix") == 0) {
+        domain = AF_UNIX;
+    } else {
+        fprintf(stderr, "invalid domain: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+
+    int type;
+    if (strcmp(argv[2], "tcp") == 0) {
+        type = SOCK_STREAM;
+    } else if (strcmp(argv[2], "udp") == 0) {
+        type = SOCK_DGRAM;
+    } else {
+        fprintf(stderr, "invalid type: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    int fd = socket(domain, type, 0);
+    if (fd < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    // fd 3 is the unix socket passed by the parent through which we send our socket fd
+    if (send_fd(3, fd) < 0) {
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    close(fd);
+    return EXIT_SUCCESS;
 }
 
 int test_network_flow_send_udp4(int argc, char **argv) {
@@ -1904,6 +1955,143 @@ int test_dnsloop(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+// subreaper test: sets the current process as a subreaper, forks a child that
+// forks a grandchild and immediately exits. The grandchild is reparented to the
+// subreaper, performs 50 fork/exit cycles to stress the process cache, then
+// opens the file given as argument.
+// Usage: syscall_tester subreaper <filepath>
+int test_subreaper(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: subreaper <filepath>\n");
+        return EXIT_FAILURE;
+    }
+    char *filepath = argv[1];
+
+    if (prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0) {
+        perror("prctl PR_SET_CHILD_SUBREAPER");
+        return EXIT_FAILURE;
+    }
+
+    pid_t child = fork();
+    if (child < 0) {
+        perror("fork (child)");
+        return EXIT_FAILURE;
+    }
+
+    if (child == 0) {
+        // child: fork a grandchild and exit immediately
+        pid_t grandchild = fork();
+        if (grandchild < 0) {
+            perror("fork (grandchild)");
+            _exit(EXIT_FAILURE);
+        }
+        if (grandchild == 0) {
+            // Build a chain of 50 fork/exit: each process forks a child,
+            // the parent exits, and the last child in the chain opens the file.
+            // Every intermediate process is reparented to the subreaper.
+            for (int i = 0; i < 50; i++) {
+                pid_t p = fork();
+                if (p < 0) {
+                    // fork failed: this process opens the file instead
+                    break;
+                }
+                if (p > 0) {
+                    // parent: exit, child will be reparented to subreaper
+                    _exit(EXIT_SUCCESS);
+                }
+                // child: continue the loop to fork the next level
+            }
+
+            // Wait for the previous process in the chain to exit and for
+            // the kernel to complete reparenting before opening the file.
+            sleep(1);
+
+            int fd = open(filepath, O_RDONLY | O_CREAT, 0400);
+            if (fd > 0)
+                close(fd);
+
+            _exit(EXIT_SUCCESS);
+        }
+        // child exits, grandchild will be reparented to the subreaper
+        _exit(EXIT_SUCCESS);
+    }
+
+    // subreaper: wait for child, then wait for all reparented descendants.
+    // With the fork/exit chain, every intermediate process is reparented to
+    // this subreaper. We must stay alive and reap them all so that the last
+    // child in the chain still has us as its parent when it opens the file.
+    waitpid(child, NULL, 0);
+    while (waitpid(-1, NULL, 0) > 0) {}
+
+    return EXIT_SUCCESS;
+}
+
+// subreaper-with-var: sets the current process as a subreaper, forks an
+// intermediate child which opens <trigger_file> (to fire a rule that sets an
+// inherited process-scoped SECL variable), then forks a grandchild and exits.
+// The grandchild waits for the kernel to complete reparenting onto the
+// subreaper, then opens <check_file>. The intermediate is now gone from the
+// grandchild's parent chain, so a rule reading the inherited variable on the
+// <check_file> event must rely on a pre-reparent snapshot to still see the
+// value set on the intermediate.
+// Usage: syscall_tester subreaper-with-var <trigger_file> <check_file>
+int test_subreaper_with_var(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Usage: subreaper-with-var <trigger_file> <check_file>\n");
+        return EXIT_FAILURE;
+    }
+    char *trigger_file = argv[1];
+    char *check_file = argv[2];
+
+    if (prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0) {
+        perror("prctl PR_SET_CHILD_SUBREAPER");
+        return EXIT_FAILURE;
+    }
+
+    pid_t child = fork();
+    if (child < 0) {
+        perror("fork (child)");
+        return EXIT_FAILURE;
+    }
+
+    if (child == 0) {
+        // intermediate: open trigger_file so the set-variable rule fires on
+        // this process scope, then fork a grandchild and exit.
+        int fd = open(trigger_file, O_RDONLY | O_CREAT, 0400);
+        if (fd > 0)
+            close(fd);
+
+        // give the agent a moment to process the trigger event before we exit
+        sleep(1);
+
+        pid_t grandchild = fork();
+        if (grandchild < 0) {
+            perror("fork (grandchild)");
+            _exit(EXIT_FAILURE);
+        }
+        if (grandchild == 0) {
+            // grandchild: wait for the kernel reparenting to settle, then open
+            // check_file so the inheritance-check rule evaluates against the
+            // post-reparent process context.
+            sleep(2);
+
+            int gfd = open(check_file, O_RDONLY | O_CREAT, 0400);
+            if (gfd > 0)
+                close(gfd);
+
+            _exit(EXIT_SUCCESS);
+        }
+        // intermediate exits; the kernel reparents grandchild onto the subreaper
+        _exit(EXIT_SUCCESS);
+    }
+
+    // subreaper: wait for the intermediate, then reap the reparented grandchild
+    waitpid(child, NULL, 0);
+    while (waitpid(-1, NULL, 0) > 0) {}
+
+    return EXIT_SUCCESS;
+}
+
 /* clone3 is not wrapped by glibc, call it directly. */
 static pid_t sys_clone3(void *args, size_t size) {
     return (pid_t)syscall(__NR_clone3, args, size);
@@ -2062,10 +2250,12 @@ int main(int argc, char **argv) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
         } else if (strcmp(cmd, "tracer-memfd") == 0) {
             exit_code = test_tracer_memfd(sub_argc, sub_argv);
-        } else if (strcmp(cmd, "tracer-memfd-with-keys") == 0) {
-            exit_code = test_tracer_memfd_with_keys(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "create_socket_send_fd") == 0) {
+            exit_code = test_create_socket_send_fd(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "unshare-flags") == 0) {
+            exit_code = test_unshare_flags(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {
@@ -2100,6 +2290,10 @@ int main(int argc, char **argv) {
             exit_code = test_udploop(sub_argc, sub_argv);
         } else if (strcmp(cmd, "dnsloop") == 0) {
             exit_code = test_dnsloop(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "subreaper") == 0) {
+            exit_code = test_subreaper(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "subreaper-with-var") == 0) {
+            exit_code = test_subreaper_with_var(sub_argc, sub_argv);
         } else if (strcmp(cmd, "process-clone-into-cgroup") == 0) {
             exit_code = test_clone_into_cgroup(sub_argc, sub_argv);
         } else {

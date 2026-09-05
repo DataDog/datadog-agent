@@ -100,13 +100,12 @@ func TestSymDBSnapshot(t *testing.T) {
 					defer sem.Acquire()()
 					binaryPath := testprogs.MustGetBinary(t, prog, cfg)
 					t.Logf("exploring binary: %s", binaryPath)
-					it, err := symdb.PackagesIterator(
+					it := symdb.PackagesIterator(
 						binaryPath,
 						object.NewInMemoryLoader(),
 						symdb.ExtractOptions{
 							Scope: symdb.ExtractScopeMainModuleOnly,
 						})
-					require.NoError(t, err, "failed to open iterator on %s", binaryPath)
 
 					cs := newCapturingServer(t)
 					defer cs.close()

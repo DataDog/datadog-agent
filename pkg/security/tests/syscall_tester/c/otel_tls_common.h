@@ -7,6 +7,11 @@
 // context record and then trigger a syscall for the eBPF reader to observe. Each
 // tester defines otel_thread_ctx_v1 itself, never static, so the symbol lands in
 // a symbol table the agent's resolver can read.
+//
+// Everything these testers publish about themselves goes in their OTel process
+// context: a writer of thread contexts need not be a Datadog tracer, and this
+// one is not one. The tracer metadata memfd a tracer would also seal is covered
+// by the ddtracego testers instead.
 
 #ifndef OTEL_TLS_COMMON_H
 #define OTEL_TLS_COMMON_H
@@ -15,17 +20,11 @@
 #define _GNU_SOURCE
 #endif
 
-#include <fcntl.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/syscall.h>
-#include <unistd.h>
 
-#ifndef MFD_ALLOW_SEALING
-#define MFD_ALLOW_SEALING 0x0002U
-#endif
+#include "otel_process_ctx_common.h"
 
 // The memfd seals reached glibc's fcntl.h in 2.25, and these testers are built
 // against a 2.23 sysroot so they can run on every KMT host and inside the
@@ -82,47 +81,20 @@ static inline void otel_u64_to_be_bytes(uint64_t val, uint8_t *out) {
     out[7] = (uint8_t)(val);
 }
 
-// Sealing this memfd is what makes the agent resolve the process's
-// otel_thread_ctx_v1 TLS symbol; callers sleep afterwards to let it finish
-// before publishing a record.
-static inline int otel_create_tracer_memfd(void) {
-    const char tracer_data[] =
-        "\x86"
-        "\xae" "schema_version" "\x02"
-        "\xaf" "tracer_language" "\xa3" "cpp"
-        "\xae" "tracer_version" "\xa5" "0.0.1"
-        "\xa8" "hostname" "\xa4" "test"
-        "\xac" "service_name" "\xa8" "oteltest"
-        "\xba" "threadlocal_attribute_keys"
-        "\x93"
-        "\xab" "http.method"
-        "\xab" "http.target"
-        "\xa9" "http.user";
+// The names the key indexes of the records below select, in the order they are
+// indexed by.
+static const char *const otel_attribute_keys[] = {"http.method", "http.target", "http.user"};
 
-    // On the stack, as a tracer building a per-process suffix would have it: a
-    // literal sits in rodata this object may not have touched yet.
-    const char memfd_name[] = "datadog-tracer-info-oteltest";
-
-    int fd = syscall(SYS_memfd_create, memfd_name, MFD_ALLOW_SEALING);
-    if (fd < 0) {
-        perror("memfd_create");
-        return -1;
-    }
-
-    ssize_t written = write(fd, tracer_data, sizeof(tracer_data) - 1);
-    if (written != (ssize_t)(sizeof(tracer_data) - 1)) {
-        perror("memfd write");
-        close(fd);
-        return -1;
-    }
-
-    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
-        perror("memfd seal");
-        close(fd);
-        return -1;
-    }
-
-    return fd;
+// Publishes the process context of a writer using the plain thread-local schema.
+// It is what makes the agent resolve this process's otel_thread_ctx_v1 TLS
+// symbol, and what names the attributes of the records it publishes.
+static inline int otel_publish_process_ctx(void) {
+    uint8_t payload[512];
+    size_t payload_size = otel_pb_string_attribute(payload, "threadlocal.schema_version", "tlsdesc_v1_dev");
+    payload_size += otel_pb_string_array_attribute(payload + payload_size, "threadlocal.attribute_key_map",
+                                                   otel_attribute_keys,
+                                                   sizeof(otel_attribute_keys) / sizeof(otel_attribute_keys[0]));
+    return otel_process_ctx_publish(payload, payload_size);
 }
 
 static inline void otel_fill_record(struct otel_record_with_attrs *record, char *trace_arg, char *span_arg) {
@@ -137,8 +109,8 @@ static inline void otel_fill_record(struct otel_record_with_attrs *record, char 
     otel_u64_to_be_bytes(trace_lo, &record->header.trace_id[8]);
     otel_u64_to_be_bytes(span_id, record->header.span_id);
 
-    // A key index selects an entry of the threadlocal_attribute_keys list from
-    // the tracer-info blob above.
+    // A key index selects an entry of the attribute key map published in the
+    // process context above.
     uint8_t *p = record->attrs_data;
     int off = 0;
 

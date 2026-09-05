@@ -34,6 +34,10 @@ func (t *noopImpl) Handler() http.Handler {
 func (t *noopImpl) Reset() {
 }
 
+func (t *noopImpl) CanonicalMetricHelp(string) (string, bool) {
+	return "", false
+}
+
 func (t *noopImpl) NewCounter(subsystem, name string, tags []string, help string) telemetry.Counter {
 	return t.NewCounterWithOpts(subsystem, name, tags, help, telemetry.DefaultOptions)
 }

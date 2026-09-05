@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    DogStatsD diagnostic commands (``dogstatsd-stats``, ``dogstatsd-capture``,
+    ``dogstatsd-replay``, ``dogstatsd top``, and ``dogstatsd dump-contexts``)
+    now print a clear error message and exit when invoked against the Core Agent
+    while the Agent Data Plane is configured to handle DogStatsD traffic. In that
+    mode the Core Agent's DogStatsD pipeline is dormant and the commands would
+    silently produce empty or misleading results. Use the equivalent commands
+    through the ``agent-data-plane`` binary instead.

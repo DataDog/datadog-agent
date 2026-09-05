@@ -73,26 +73,84 @@ func TestBuildPreflightConfigCarriesOperatorSettings(t *testing.T) {
 	requireEq(t, got, "proxy.https", "http://proxy.internal:3128")
 }
 
-// TestBuildPreflightConfigCarriesTheWholeAgentConfig documents the deliberate choice to base
-// the preflight config on AllSettings, defaults included, rather than only the settings the
-// operator touched.
+// TestBuildPreflightConfigCarriesOnlyOperatorSettings documents the choice to base the preflight
+// config on AllSettingsWithoutDefault: everything the operator configured, and nothing they did
+// not.
 //
-// The point of the pre-flight is for ADP to see the configuration it would really run with,
-// and passing everything through is the closest approximation. It is safe because ADP
-// ignores keys it does not recognise: verified against agent-data-plane 1.4.0 by running it
-// with the full Core Agent config, including Core-Agent-only sections, with no resulting
-// warning or error (see TestBuildPreflightConfigPassesThroughCoreAgentOnlySettings).
-func TestBuildPreflightConfigCarriesTheWholeAgentConfig(t *testing.T) {
+// The point of the pre-flight is for ADP to see the configuration it would really run with, and a
+// normally-supervised ADP is started with `--config /etc/datadog-agent/datadog.yaml` -- the
+// operator's settings, with ADP's own defaults underneath. Passing the Agent's defaults instead
+// would be a different configuration, not a more faithful one, and for dd_url it was an actively
+// wrong one (see TestBuildPreflightConfigDropsUnsetDDURL).
+//
+// Passing the operator's settings through wholesale is safe because ADP ignores keys it does not
+// recognise: verified against agent-data-plane 1.4.0 by running it with the full Core Agent
+// config, including Core-Agent-only sections, with no resulting warning or error (see
+// TestBuildPreflightConfigPassesThroughCoreAgentOnlySettings).
+func TestBuildPreflightConfigCarriesOnlyOperatorSettings(t *testing.T) {
 	cfg := configmock.New(t)
+	cfg.Set("forwarder_timeout", 42, pkgconfigmodel.SourceFile)
 
 	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
 
-	// Defaults ADP shares with the Agent come through, so it forwards the way the Agent
-	// would.
-	_, present := get(t, got, "forwarder_timeout")
-	assert.True(t, present, "the Agent's forwarder settings should reach ADP")
-	_, present = get(t, got, "site")
-	assert.True(t, present, "the Agent's site should reach ADP")
+	// A setting the operator tuned reaches ADP, so it forwards the way the Agent would.
+	requireEq(t, got, "forwarder_timeout", 42)
+
+	// One they never touched does not, so ADP applies its own default rather than the Agent's.
+	_, present := get(t, got, "logs_config")
+	assert.False(t, present, "a section the operator never configured should not reach ADP")
+}
+
+// TestBuildPreflightConfigCarriesEnvSourcedSettings is the case that matters most in a container,
+// where the operator configures the Agent entirely through DD_ variables and datadog.yaml is
+// close to empty.
+//
+// It is load-bearing for the pre-flight specifically: childEnv strips the whole DD_ namespace from
+// the preflight process, so the generated file is the only channel these settings have. A dump
+// that dropped them would leave ADP with no api_key and no site at all.
+func TestBuildPreflightConfigCarriesEnvSourcedSettings(t *testing.T) {
+	t.Setenv("DD_API_KEY", "0123456789abcdef0123456789abcdef")
+	t.Setenv("DD_SITE", "datad0g.com")
+
+	cfg := configmock.New(t)
+	// The Agent resolves DD_PROXY_* into the config at startup rather than leaving it on the env
+	// layer, writing it back as config-post-init; mirror that here so the dump under test is the
+	// one the real preflight sees.
+	cfg.Set("proxy.https", "http://proxy.internal:3128", pkgconfigmodel.SourceConfigPostInit)
+
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+
+	requireEq(t, got, "api_key", "0123456789abcdef0123456789abcdef")
+	requireEq(t, got, "site", "datad0g.com")
+	requireEq(t, got, "proxy.https", "http://proxy.internal:3128")
+}
+
+// TestBuildPreflightConfigDropsUnsetDDURL is the regression this policy exists for.
+//
+// dd_url's default is a non-empty https://app.datadoghq.com, and an explicit dd_url beats `site`
+// in ADP just as it does in the Core Agent. Rendered as a default by AllSettings, it pointed the
+// pre-flight -- metrics and API key both -- at US1 regardless of the configured site.
+func TestBuildPreflightConfigDropsUnsetDDURL(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("site", "datad0g.com", pkgconfigmodel.SourceFile)
+
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+
+	_, present := get(t, got, "dd_url")
+	assert.False(t, present, "an unset dd_url must not reach ADP as though it were configured")
+	requireEq(t, got, "site", "datad0g.com")
+}
+
+// TestBuildPreflightConfigKeepsConfiguredDDURL is the other half: a dd_url the operator really set
+// is part of the configuration ADP is meant to run against, and must survive.
+func TestBuildPreflightConfigKeepsConfiguredDDURL(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("site", "datad0g.com", pkgconfigmodel.SourceFile)
+	cfg.Set("dd_url", "https://app.datad0g.com", pkgconfigmodel.SourceFile)
+
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+
+	requireEq(t, got, "dd_url", "https://app.datad0g.com")
 }
 
 func TestBuildPreflightConfigOverrides(t *testing.T) {

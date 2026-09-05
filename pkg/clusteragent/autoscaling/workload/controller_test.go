@@ -8,6 +8,7 @@
 package workload
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -27,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
 	clock "k8s.io/utils/clock/testing"
@@ -1713,4 +1716,100 @@ func condition(conditionType datadoghqcommon.DatadogPodAutoscalerConditionType, 
 		Message:            message,
 		LastTransitionTime: metav1.NewTime(transitionTime),
 	}
+}
+
+// newStatusTestController builds a workload Controller wired to a fake dynamic
+// client for directly exercising the status-write / upsert helpers, bypassing the
+// full reconcile/action-assertion machinery.
+func newStatusTestController(t *testing.T, testTime time.Time, objects ...runtime.Object) (*Controller, *fake.FakeDynamicClient) {
+	t.Helper()
+	require.NoError(t, datadoghq.AddToScheme(kscheme.Scheme))
+
+	fakeClient := fake.NewSimpleDynamicClient(kscheme.Scheme, objects...)
+	informer := dynamicinformer.NewDynamicSharedInformerFactory(fakeClient, 0)
+	dpaStore := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
+	hashHeap := autoscaling.NewHashHeap(testMaxAutoscalerObjects, dpaStore, (*model.PodAutoscalerInternal).CreationTimestamp)
+
+	c, err := NewController(
+		clock.NewFakeClock(testTime),
+		"cluster-id1",
+		record.NewFakeRecorder(100),
+		nil, nil, nil,
+		fakeClient,
+		informer,
+		func() bool { return true },
+		dpaStore,
+		newFakePodWatcher(),
+		nil,
+		hashHeap,
+		nil,
+	)
+	require.NoError(t, err)
+	return c, fakeClient
+}
+
+func statusTestSpec() datadoghq.DatadogPodAutoscalerSpec {
+	return datadoghq.DatadogPodAutoscalerSpec{
+		TargetRef: autoscalingv2.CrossVersionObjectReference{
+			Kind:       "Deployment",
+			Name:       "app-0",
+			APIVersion: "apps/v1",
+		},
+		Owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+	}
+}
+
+// TestUpdateAutoscalerStatusAndUpsertRequeuesOnConflict reproduces the reported
+// scenario: the status write hits a 409 because the resourceVersion carried from the
+// informer cache is stale. The reconcile must requeue (and surface the error) so a
+// subsequent pass restarts the full process with a fresh object from the cache,
+// instead of silently dropping the update.
+func TestUpdateAutoscalerStatusAndUpsertRequeuesOnConflict(t *testing.T) {
+	testTime := time.Now()
+	ns, name := "default", "dpa-0"
+	key := ns + "/" + name
+	spec := statusTestSpec()
+	_, dpaTyped := newFakePodAutoscaler(ns, name, 1, testTime, spec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+
+	c, fakeClient := newStatusTestController(t, testTime, dpaTyped)
+	fakeClient.PrependReactor("update", "datadogpodautoscalers", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		if action.GetSubresource() != "status" {
+			return false, nil, nil
+		}
+		return true, nil, k8serrors.NewConflict(podAutoscalerGVR.GroupResource(), name, errors.New("stale resourceVersion"))
+	})
+
+	internal := model.FakePodAutoscalerInternal{Namespace: ns, Name: name, Spec: &spec}.Build()
+	item, _ := c.store.Get(key)
+	defer item.Release()
+
+	result, err := c.updateAutoscalerStatusAndUpsert(context.Background(), item, ns, name, nil, internal, dpaTyped)
+
+	require.Error(t, err, "the status conflict must be surfaced so Process() counts the retry")
+	assert.True(t, result.ShouldRequeue(), "a status-update conflict must requeue the reconcile")
+	// The latest recommendation is still persisted to the store despite the failed
+	// status write, so scaling keeps honoring the configured metric.
+	_, found := c.store.Peek(key)
+	assert.True(t, found, "internal state should be upserted even when the status write fails")
+}
+
+// TestUpdateAutoscalerStatusAndUpsertNoConflict verifies that a successful (or no-op)
+// status write does not requeue, preserving the steady-state behavior.
+func TestUpdateAutoscalerStatusAndUpsertNoConflict(t *testing.T) {
+	testTime := time.Now()
+	ns, name := "default", "dpa-0"
+	key := ns + "/" + name
+	spec := statusTestSpec()
+	_, dpaTyped := newFakePodAutoscaler(ns, name, 1, testTime, spec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+
+	c, _ := newStatusTestController(t, testTime, dpaTyped)
+
+	internal := model.FakePodAutoscalerInternal{Namespace: ns, Name: name, Spec: &spec}.Build()
+	item, _ := c.store.Get(key)
+	defer item.Release()
+
+	result, err := c.updateAutoscalerStatusAndUpsert(context.Background(), item, ns, name, nil, internal, dpaTyped)
+
+	require.NoError(t, err)
+	assert.False(t, result.ShouldRequeue(), "a successful status write must not requeue")
 }

@@ -90,7 +90,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	c.SetMaxMemCPU(env.IsContainerized())
 
-	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
+	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64, _ model.Source) {
 		log.Debugf("OnUpdate: %s", setting)
 		if setting != apiKeyConfigKey {
 			return

@@ -368,6 +368,8 @@ func (r *ContainerizedAttacherRunner) RunAttacher(t *testing.T, configName Attac
 		ebpfCfg.KernelHeadersDownloadDir: ebpfCfg.KernelHeadersDownloadDir,
 		ebpfCfg.RuntimeCompilerOutputDir: ebpfCfg.RuntimeCompilerOutputDir,
 		ebpfCfg.BTFOutputDir:             ebpfCfg.BTFOutputDir,
+		"/usr/src":                       "/usr/src",             // for system kernel headers
+		"/lib/modules":                   "/lib/modules",         // for system kernel headers
 		"/etc/os-release":                "/host/etc/os-release", // for correct BTF detection
 		"/sys":                           "/sys",
 		"/proc":                          "/host/proc",

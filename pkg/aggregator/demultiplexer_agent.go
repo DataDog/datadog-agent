@@ -35,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // DemultiplexerWithAggregator is a Demultiplexer running an Aggregator.
@@ -641,7 +641,7 @@ func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher filterlist.Ta
 
 // SetSamplersFilterList triggers a reconfiguration of the filter list
 // applied in the samplers.
-func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher) {
+func (d *AgentDemultiplexer) SetSamplersFilterList(filterList metricname.Matcher, histoFilterList metricname.Matcher) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 

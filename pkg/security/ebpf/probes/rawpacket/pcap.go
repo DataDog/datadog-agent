@@ -32,10 +32,10 @@ const (
 
 	// raw packet data, see kernel definition
 	// pahole /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime-security-syscall-wrapper.o -y raw_packet_event_t -E --structs -V
-	// Layout: kevent_t[0:16] + process_context_t[16:56] + span_context_t[56:88] + go_labels_context_t[88:96] + cgroup_context_t[96:112] + network_device_context_t[112:120] + len[120:124] + data[124:]
+	// Layout: kevent_t[0:16] + process_context_t[16:64] + span_context_t[64:96] + go_labels_context_t[96:104] + cgroup_context_t[104:120] + network_device_context_t[120:128] + len[128:132] + data[132:]
 	structRawPacketEventPidOffset      = 16
-	structRawPacketEventCgroupIdOffset = 96
-	structRawPacketEventDataOffset     = 124
+	structRawPacketEventCgroupIdOffset = 104
+	structRawPacketEventDataOffset     = 132
 
 	// payload size
 	structRawPacketEventDataSize = 256

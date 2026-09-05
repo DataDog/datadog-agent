@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 )
 
-// team: agent-runtimes
+// team: fleet-remediation
 
 // Component is the component type
 type Component interface {

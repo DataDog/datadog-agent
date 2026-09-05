@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Entries of ``metric_filterlist`` (and of the deprecated
+    ``statsd_metric_blocklist``) ending with ``*`` are now prefix patterns
+    matching every metric name starting with the rest of the entry, so exact
+    names and prefixes can be mixed in the same list. For example
+    ``foo.bar.*`` drops every metric whose name starts with ``foo.bar.``, while
+    ``foo.bar`` still drops only that exact name. This applies to lists read
+    from the configuration file as well as to lists received from Remote
+    Configuration. ``metric_filterlist_match_prefix``, which turns every entry
+    of the list into a prefix, is unaffected and still supported.

@@ -91,6 +91,21 @@ func (k *Version) HasBpfGetCurrentCgroupIDForSchedCLS() bool {
 	return false
 }
 
+// HasSkLookupForSchedCLS returns true if the kernel supports bpf_sk_lookup_tcp/udp for the Sched CLS program type
+func (k *Version) HasSkLookupForSchedCLS() bool {
+	return false
+}
+
+// HasSKStorageInSchedCLS returns true if the kernel supports bpf_sk_storage_get in Sched CLS programs
+func (k *Version) HasSKStorageInSchedCLS() bool {
+	return false
+}
+
+// HasSKStorageInCgroupSock returns true if the kernel supports bpf_sk_storage_get in cgroup/sock programs
+func (k *Version) HasSKStorageInCgroupSock() bool {
+	return false
+}
+
 // HasBpfGetCurrentCgroupID returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type
 // Kernel version >= 4.18
 func (k *Version) HasBpfGetCurrentCgroupID() bool {
@@ -100,5 +115,29 @@ func (k *Version) HasBpfGetCurrentCgroupID() bool {
 // HasBpfGetSocketCookieForCgroupSocket returns if the kernel supports bpf_get_socket_cookie for Cgroup Socket program type
 // https://github.com/torvalds/linux/commit/c5dbb89fc2ac013afe67b9e4fcb3743c02b567cd
 func (k *Version) HasBpfGetSocketCookieForCgroupSocket() bool {
+	return false
+}
+
+// HasTaskStorage returns true if the kernel supports BPF_MAP_TYPE_TASK_STORAGE maps
+// here it's not, since we are built without eBPF support
+func (k *Version) HasTaskStorage() bool {
+	return false
+}
+
+// HasTaskStorageInKprobePrograms returns true if the kernel supports using task local storage in kprobe programs
+// here it's not, since we are built without eBPF support
+func (k *Version) HasTaskStorageInKprobePrograms() bool {
+	return false
+}
+
+// HasTaskStorageInTracingPrograms returns true if the kernel supports using task local storage in tracing (fentry) programs
+// here it's not, since we are built without eBPF support
+func (k *Version) HasTaskStorageInTracingPrograms() bool {
+	return false
+}
+
+// HasTaskStorageInTracePointPrograms returns true if the kernel supports using task local storage in tracepoint programs
+// here it's not, since we are built without eBPF support
+func (k *Version) HasTaskStorageInTracePointPrograms() bool {
 	return false
 }

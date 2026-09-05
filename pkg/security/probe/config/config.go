@@ -100,6 +100,9 @@ type Config struct {
 	// EventStreamKretprobeMaxActive specifies the maximum number of active kretprobe at a given time
 	EventStreamKretprobeMaxActive int
 
+	// EventStreamUseSyscallTaskStorage specifies whether to use a task storage map to store syscall context
+	EventStreamUseSyscallTaskStorage bool
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -137,6 +140,10 @@ type Config struct {
 
 	// NetworkIngressEnabled defines if the network ingress probes should be activated
 	NetworkIngressEnabled bool
+
+	// NetworkSkLookupPidResolutionEnabled defines if the TC classifiers should resolve packet PIDs
+	// through bpf_sk_lookup and sk-local storage. When disabled, the flow_pid map is used instead.
+	NetworkSkLookupPidResolutionEnabled bool
 
 	// NetworkRawPacketEnabled defines if the network raw packet is enabled
 	NetworkRawPacketEnabled bool
@@ -216,20 +223,22 @@ func NewConfig() (*Config, error) {
 		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
 		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
 		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),
+		EventStreamUseSyscallTaskStorage:   getBool("event_stream.use_syscall_task_storage"),
 
-		EnvsWithValue:               getStringSlice("envs_with_value"),
-		NetworkEnabled:              getBool("network.enabled"),
-		NetworkIngressEnabled:       getBool("network.ingress.enabled"),
-		NetworkRawPacketEnabled:     getBool("network.raw_packet.enabled"),
-		NetworkRawPacketLimiterRate: getInt("network.raw_packet.limiter_rate"),
-		NetworkRawPacketFilter:      getString("network.raw_packet.filter"),
-		NetworkPrivateIPRanges:      getStringSlice("network.private_ip_ranges"),
-		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
-		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
-		SyscallsMonitorEnabled:      getBool("syscalls_monitor.enabled"),
-		DNSResolverCacheSize:        getInt("dns_resolution.cache_size"),
-		DNSResolverCnameMaxDepth:    getInt("dns_resolution.cname_max_depth"),
-		DNSResolutionEnabled:        getBool("dns_resolution.enabled"),
+		EnvsWithValue:                       getStringSlice("envs_with_value"),
+		NetworkEnabled:                      getBool("network.enabled"),
+		NetworkIngressEnabled:               getBool("network.ingress.enabled"),
+		NetworkSkLookupPidResolutionEnabled: getBool("network.sk_lookup_pid_resolution.enabled"),
+		NetworkRawPacketEnabled:             getBool("network.raw_packet.enabled"),
+		NetworkRawPacketLimiterRate:         getInt("network.raw_packet.limiter_rate"),
+		NetworkRawPacketFilter:              getString("network.raw_packet.filter"),
+		NetworkPrivateIPRanges:              getStringSlice("network.private_ip_ranges"),
+		NetworkExtraPrivateIPRanges:         getStringSlice("network.extra_private_ip_ranges"),
+		StatsPollingInterval:                time.Duration(getInt("events_stats.polling_interval")) * time.Second,
+		SyscallsMonitorEnabled:              getBool("syscalls_monitor.enabled"),
+		DNSResolverCacheSize:                getInt("dns_resolution.cache_size"),
+		DNSResolverCnameMaxDepth:            getInt("dns_resolution.cname_max_depth"),
+		DNSResolutionEnabled:                getBool("dns_resolution.enabled"),
 
 		// runtime compilation
 		RuntimeCompilationEnabled: getBool("runtime_compilation.enabled"),

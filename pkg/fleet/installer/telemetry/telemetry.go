@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -25,6 +27,18 @@ const (
 	envSamplingPriority = "DATADOG_SAMPLING_PRIORITY"
 	telemetrySubdomain  = "instrumentation-telemetry-intake"
 )
+
+// reGovCloudSite matches GovCloud sites (e.g. "ddog-gov.com", "xxxx99.ddog-gov.com").
+// No instrumentation telemetry intake backend exists on GovCloud, so telemetry is
+// disabled outright for these sites rather than attempting (and failing) to send.
+// This mirrors the equivalent exclusion for the resident agent's own telemetry in
+// pkg/config/utils/telemetry.go's IsAgentTelemetryEnabled.
+// Expects a normalized (lowercase, no trailing DNS root dot) site — see normalizeSite.
+var reGovCloudSite = regexp.MustCompile(`^(?:.+\.)?ddog-gov\.com$`)
+
+func normalizeSite(site string) string {
+	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(site)), ".")
+}
 
 // Telemetry handles the telemetry for fleet components.
 type Telemetry struct {
@@ -56,8 +70,13 @@ func newTelemetry(client *http.Client, apiKey string, site string, service strin
 		env = "staging"
 	}
 
+	siteSupportsTelemetry := !reGovCloudSite.MatchString(normalizeSite(site))
+	if !siteSupportsTelemetry {
+		log.Debugf("telemetry disabled: no instrumentation telemetry intake exists for GovCloud site %q", site)
+	}
+
 	return &Telemetry{
-		telemetryClient: newClient(client, []*endpoint{e}, service, site == "datad0g.com"),
+		telemetryClient: newClient(client, []*endpoint{e}, service, site == "datad0g.com", siteSupportsTelemetry),
 		done:            make(chan struct{}),
 		flushed:         make(chan struct{}),
 		env:             env,

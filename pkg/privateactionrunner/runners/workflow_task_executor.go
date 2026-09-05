@@ -50,12 +50,13 @@ func NewWorkflowTaskExecutor(
 	encryptionStore *encryptioncontext.Store,
 	ha helmactions.Component,
 	ka kubeactions.Component,
+	secretResolver resolver.SecretResolver,
 ) *WorkflowTaskExecutor {
 	return &WorkflowTaskExecutor{
 		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka),
 		config:       configuration,
 		taskVerifier: taskVerifier,
-		resolver:     resolver.NewPrivateCredentialResolver(),
+		resolver:     resolver.NewPrivateCredentialResolver(secretResolver, configuration.AgentSecretManagementEnabled),
 	}
 }
 

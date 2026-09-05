@@ -39,7 +39,7 @@ The cardinality option sets the [TagCardinality](../../../../../../comp/core/tag
 
 ### Container tag promotion
 
-**This option only affects the traces pipeline.** `_dd.tags.container` promotion is a trace-agent-specific mechanism; logs, metrics, and profiles never go through it, so the logs/metrics/profiles processors always behave as `off` regardless of this setting. (Metrics in particular already recognize DD-format keys directly, so prefixing them would only risk stranding data under `rename`.)
+**This option only affects the traces pipeline.** `_dd.tags.container` promotion is a trace-agent-specific mechanism, so `trace_container_tag_promotion` governs traces alone; logs and profiles never go through it and always behave as `off` regardless of this setting. The metrics pipeline has its own, separate promotion switch — see [Metrics attributes as tags](#metrics-attributes-as-tags).
 
 Downstream (trace-agent / Datadog exporter) only promotes a resource attribute into `_dd.tags.container` (visible in the Infrastructure tab of a span) if its key matches a known DD or OTel container-tag convention, or if it carries the `datadog.container.tag.` prefix. Custom tags emitted by this processor — for example tags produced by `podLabelsAsTags` — fall into neither category and are therefore silently dropped from container tags.
 
@@ -66,6 +66,25 @@ processors:
   infraattributes:
     cardinality: 2
     trace_container_tag_promotion: duplicate
+```
+
+### Metrics attributes as tags
+
+**This option only affects the metrics pipeline.** By default, custom tags emitted by this processor — for example tags produced by [`kubernetesResourcesLabelsAsTags` / `kubernetesResourcesAnnotationsAsTags`](https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#custom-tags) — are written as plain resource attributes. The metrics translator only promotes resource attributes into metric tags when their key matches a known DD or OTel convention, or carries the `datadog.container.tag.` prefix, so these custom tags are silently dropped from metrics.
+
+The `metrics_attributes_as_tags` option closes this gap by also writing each custom tag under its `datadog.container.tag.<key>` prefixed form (equivalent to `duplicate` promotion), which the translator recognizes and turns into a real metric tag.
+
+* `metrics_attributes_as_tags: false` *(default)* — custom tags remain plain resource attributes and are dropped from metrics. Existing behavior.
+* `metrics_attributes_as_tags: true` — each non-exempt custom tag is additionally written under its `datadog.container.tag.<key>` prefixed key, so it surfaces as a real Datadog metric tag. The same exemptions listed under [Container tag promotion](#container-tag-promotion) apply (known conventions, USM keys, and already-prefixed keys are never re-prefixed).
+
+**Interaction with `resource_attributes_as_tags` (Datadog exporter).** `resource_attributes_as_tags` promotes *every* resource attribute onto metrics as a tag, so it already surfaces the same custom tags this option targets — the two are redundant. Enabling both is not recommended: the exporter then dumps the internal `datadog.container.tag.<key>` copy verbatim, leaking that namespace as a literal metric tag alongside the intended `<key>` tag. In core-agent OTLP ingestion (`otlp_config.metrics`) the two are treated as mutually exclusive — `resource_attributes_as_tags` takes precedence and `metrics_attributes_as_tags` is ignored (with a warning). For DDOT, where the processor and exporter are configured independently, enable at most one of them.
+
+Example:
+```
+processors:
+  infraattributes:
+    cardinality: 2
+    metrics_attributes_as_tags: true
 ```
 
 ### Log tags as ddtags

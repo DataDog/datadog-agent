@@ -40,10 +40,10 @@ var (
 	}
 	// WindowsPlatforms is the list of supported Windows platforms.
 	WindowsPlatforms = []e2eos.Descriptor{
-		e2eos.WindowsServer2016,
-		e2eos.WindowsServer2019,
-		e2eos.WindowsServer2022,
-		e2eos.WindowsServer2025,
+		e2eos.WindowsServer2016E2E,
+		e2eos.WindowsServer2019E2E,
+		e2eos.WindowsServer2022E2E,
+		e2eos.WindowsServer2025E2E,
 	}
 	// AllPlatforms is the list of all supported platforms.
 	AllPlatforms = append(LinuxPlatforms, WindowsPlatforms...)

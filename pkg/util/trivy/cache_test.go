@@ -26,6 +26,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"go.uber.org/goleak"
 )
 
 var (
@@ -376,6 +377,17 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 
 	persistentCache := cache.(*ScannerCache).cache
 	require.Equal(t, 2*len(serializedBlobInfo)+len(serializedArtifactInfo), persistentCache.GetCurrentCachedObjectTotalSize())
+}
+
+func TestCustomBoltCache_CloseStopsTelemetry(t *testing.T) {
+	deps := createCacheDeps(t)
+	ignoreExisting := goleak.IgnoreCurrent()
+
+	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
+	require.NoError(t, err)
+	require.NoError(t, cache.Close())
+
+	goleak.VerifyNone(t, ignoreExisting)
 }
 
 func newTestArtifactInfo() types.ArtifactInfo {

@@ -153,6 +153,7 @@ func yamlSet() map[string][]byte {
 		// The files are always the same, nothing to resolve from the template
 		"datadog-agent-ddot.yaml":            mustRenderYAMLConfig("datadog-agent-ddot.yaml", installerTemplateData{}),
 		"datadog-agent-action-executor.yaml": mustRenderYAMLConfig("datadog-agent-action-executor.yaml", installerTemplateData{}),
+		"datadog-agent-par-control.yaml":     mustRenderYAMLConfig("datadog-agent-par-control.yaml", installerTemplateData{}),
 	}
 }
 

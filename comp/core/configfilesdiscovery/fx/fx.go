@@ -68,6 +68,7 @@ func newOptionalComponent(reqs Requires) Provides {
 			collectors.KafkaIntegrationName:    collectors.NewKafka(),
 			collectors.PostgresIntegrationName: collectors.NewPostgres(),
 			collectors.RedisIntegrationName:    collectors.NewRedis(),
+			collectors.SparkIntegrationName:    collectors.NewSpark(),
 		},
 	})
 	return Provides{Comp: option.New(provides.Comp)}

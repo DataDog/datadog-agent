@@ -27,12 +27,13 @@ test/e2e-framework/
 │   ├── datadog/          # Pulumi components: agent, agentparams, fakeintake
 │   │   ├── agentparams/  # Agent configuration options (WithAgentConfig, etc.)
 │   │   └── fakeintake/   # Fakeintake deployment component
-│   ├── os/               # OS descriptors (Ubuntu, Windows, etc.)
+│   ├── os/               # OS descriptors (Ubuntu2204E2E, WindowsServer2025, etc.)
 │   ├── kubernetes/       # K8s components (KinD, OpenShift, Helm addons)
 │   ├── docker/           # Docker compose components
 │   └── remote/           # Remote host SSH management
 ├── resources/
 │   └── aws/              # Low-level Pulumi resources (EC2, ECS, EKS, IAM)
+│                         # + platforms.json: descriptor -> AMI ID table
 ├── common/
 │   └── config/           # Configuration (AWS account, key pairs, agent params)
 └── README.md             # Full setup and troubleshooting guide
@@ -66,7 +67,7 @@ as the AWS example below does.
 // Host on AWS EC2
 awshost.Provisioner(
     awshost.WithRunOptions(
-        ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204)),
+        ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204E2E)),
         ec2.WithAgentOptions(
             agentparams.WithAgentConfig(config),
             agentparams.WithIntegration("check.d", checkConfig),
@@ -74,6 +75,14 @@ awshost.Provisioner(
     ),
 )
 ```
+
+Prefer the `-e2e` descriptors (`Ubuntu2204E2E`, not `Ubuntu2204`): they resolve to
+Packer-built AMIs with Docker, the AWS CLI, `jq`, `ansible` and friends prebaked,
+so a test never installs them at runtime. They are already the Linux defaults
+(`UbuntuDefault = Ubuntu2204E2E`), so passing no OS at all is also correct.
+Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
+`docs/public/how-to/test/e2e/custom-amis.md` and
+`docs/public/how-to/test/e2e/dependencies.md`.
 
 ### Kubernetes resource ownership
 
@@ -266,6 +275,8 @@ strictly-increasing CI check, publish jobs).
 - `components/datadog/agentparams/params.go` — agent configuration options
 - `scenarios/aws/ec2/run.go` — EC2 + Agent + FakeIntake Pulumi program
 - `common/config/environment.go` — Pulumi config management
+- `components/os/{linux,windows}_descriptors.go` — OS descriptors and flavor defaults
+- `resources/aws/platforms.json` + `platforms.go` — descriptor -> AMI ID table and `GetAMI`
 - `README.md` — setup guide, troubleshooting, examples
 
 ## Keeping this file accurate

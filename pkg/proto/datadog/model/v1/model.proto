@@ -154,6 +154,11 @@ message ConfigSetting {
   string source = 1;
   string key = 2;
   google.protobuf.Value value = 3;
+  // Empty for a plain set. For a removal it names the layer that was cleared, and 'source' and
+  // 'value' then describe what the key resolves to without it -- for a declared setting that
+  // bottoms out at its default. 'source' is empty only for an undeclared key, which leaves the
+  // config entirely. Clients that keep a single layer can ignore this and just apply the value.
+  string unset_source = 4;
 }
 
 message ConfigSnapshot {

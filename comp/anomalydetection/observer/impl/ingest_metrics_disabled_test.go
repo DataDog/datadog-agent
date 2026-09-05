@@ -21,9 +21,7 @@ import (
 // ObserveMetric calls while logs and log-derived virtual metrics still
 // reach the engine.
 func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	defaultFilter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)

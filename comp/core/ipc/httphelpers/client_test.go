@@ -464,3 +464,15 @@ func TestIPCEndpointErrorMap(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, err.Error(), "something went wrong")
 }
+
+// Verifies WithoutAuthToken prevents the IPC client from attaching the bearer token.
+func TestWithoutAuthToken(t *testing.T) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		assert.Empty(t, r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+	}
+	client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)
+
+	_, err := client.Get(ts.URL, WithoutAuthToken)
+	require.NoError(t, err)
+}

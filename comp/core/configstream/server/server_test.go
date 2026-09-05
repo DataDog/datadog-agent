@@ -59,6 +59,11 @@ func (m *mockComp) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.ConfigEven
 // mockRemoteAgentRegistry is a mock of the remoteagentregistry.Component interface
 type mockRemoteAgentRegistry struct {
 	mock.Mock
+
+	mu sync.Mutex
+	// refreshResults are returned in order; the last one repeats. Empty means always registered.
+	refreshResults []bool
+	refreshCount   int
 }
 
 func (m *mockRemoteAgentRegistry) RegisterRemoteAgent(_ *remoteagentregistry.RegistrationData) (string, uint32, error) {
@@ -66,8 +71,24 @@ func (m *mockRemoteAgentRegistry) RegisterRemoteAgent(_ *remoteagentregistry.Reg
 }
 
 func (m *mockRemoteAgentRegistry) RefreshRemoteAgent(_ string) bool {
-	// Always return true for tests (agent is registered)
-	return true
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.refreshCount++
+	if len(m.refreshResults) == 0 {
+		return true
+	}
+	result := m.refreshResults[0]
+	if len(m.refreshResults) > 1 {
+		m.refreshResults = m.refreshResults[1:]
+	}
+	return result
+}
+
+func (m *mockRemoteAgentRegistry) refreshes() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.refreshCount
 }
 
 func (m *mockRemoteAgentRegistry) ReportRemoteAgentEvent(_ string, _ []remoteagentregistry.RemoteAgentEvent) error {
@@ -83,8 +104,14 @@ func (m *mockRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregi
 }
 
 func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
+	server, comp, stream, eventsCh, _ := setupTestWithRegistry(ctx, t, sessionID, &mockRemoteAgentRegistry{})
+	return server, comp, stream, eventsCh
+}
+
+func setupTestWithRegistry(ctx context.Context, t *testing.T, sessionID string, mockRAR *mockRemoteAgentRegistry) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent, *mockRemoteAgentRegistry) {
 	cfg := configmock.New(t)
 	cfg.Set("remote_agent.configstream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
+	cfg.Set("remote_agent.registry.recommended_refresh_interval", 20*time.Millisecond, model.SourceAgentRuntime)
 
 	comp := &mockComp{}
 
@@ -92,12 +119,10 @@ func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *m
 	ctxWithMetadata := metadata.NewIncomingContext(ctx, md)
 	stream := &mockStream{ctx: ctxWithMetadata}
 
-	mockRAR := &mockRemoteAgentRegistry{}
-
 	server := NewServer(cfg, comp, mockRAR)
 	eventsCh := make(chan *pb.ConfigEvent, 1)
 
-	return server, comp, stream, eventsCh
+	return server, comp, stream, eventsCh, mockRAR
 }
 
 func TestStreamConfigEventsErrors(t *testing.T) {
@@ -235,5 +260,56 @@ func TestRARAuthorization(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, codes.Unauthenticated, status.Code(err))
 		require.ErrorContains(t, err, "session_id cannot be empty")
+	})
+}
+
+// The RAR reaper drops sessions idle past idle_timeout, and an open stream is not activity
+// on its own, so the server refreshes for as long as it holds the stream.
+func TestStreamConfigEventsKeepsSessionAlive(t *testing.T) {
+	testReq := &pb.ConfigStreamRequest{Name: "test-client"}
+
+	t.Run("refreshes the session while the stream is open", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		server, comp, stream, eventsCh, rar := setupTestWithRegistry(ctx, t, "test-session-id", &mockRemoteAgentRegistry{})
+		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), func() {}).Once()
+
+		done := make(chan error, 1)
+		go func() { done <- server.StreamConfigEvents(testReq, stream) }()
+
+		// One refresh authorizes the stream; the rest are the keepalive doing its job.
+		require.Eventually(t, func() bool { return rar.refreshes() >= 3 }, 5*time.Second, 10*time.Millisecond,
+			"server should keep refreshing the session while streaming")
+
+		cancel()
+		select {
+		case err := <-done:
+			assert.ErrorIs(t, err, context.Canceled)
+		case <-time.After(5 * time.Second):
+			t.Fatal("stream did not return after context cancellation")
+		}
+	})
+
+	t.Run("closes the stream once the session is gone", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Authorize the stream, then report the session as reaped.
+		rar := &mockRemoteAgentRegistry{refreshResults: []bool{true, false}}
+		server, comp, stream, eventsCh, _ := setupTestWithRegistry(ctx, t, "test-session-id", rar)
+		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), func() {}).Once()
+
+		done := make(chan error, 1)
+		go func() { done <- server.StreamConfigEvents(testReq, stream) }()
+
+		select {
+		case err := <-done:
+			require.Error(t, err)
+			assert.Equal(t, codes.PermissionDenied, status.Code(err),
+				"client needs PermissionDenied to know it must re-register")
+		case <-time.After(5 * time.Second):
+			t.Fatal("stream stayed open after the session was reaped")
+		}
 	})
 }

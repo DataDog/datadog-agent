@@ -16,7 +16,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/option v0.82.0
-	github.com/DataDog/datadog-api-client-go/v2 v2.63.0
+	github.com/DataDog/datadog-api-client-go/v2 v2.64.0
 	github.com/apache/arrow-go/v18 v18.7.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/fx v1.24.0
@@ -92,8 +92,8 @@ require (
 	github.com/acobaugh/osrelease v0.1.0 // indirect
 	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/apache/thrift v0.24.0 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.43.7 // indirect
-	github.com/aws/smithy-go v1.27.8 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.44.0 // indirect
+	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.0 // indirect
@@ -105,9 +105,10 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
-	github.com/gofrs/flock v0.13.0 // indirect
+	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jsimonetti/rtnetlink/v2 v2.0.3 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -157,7 +158,7 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260810153831-ec0a7760b754 // indirect
-	google.golang.org/grpc v1.83.1 // indirect
+	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	k8s.io/apimachinery v0.35.6 // indirect
 )

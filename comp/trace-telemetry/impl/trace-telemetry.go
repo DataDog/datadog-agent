@@ -133,7 +133,7 @@ func (t *tracetelemetryImpl) getTraceAgentExpvars() (traceAgentExpvars, error) {
 	timeout := t.config.GetDuration("server_timeout") * time.Second
 
 	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-	resp, err := t.client.Get(url, httphelpers.WithCloseConnection, httphelpers.WithTimeout(timeout))
+	resp, err := t.client.Get(url, httphelpers.WithCloseConnection, httphelpers.WithTimeout(timeout), httphelpers.WithoutAuthToken)
 	if err != nil {
 		return traceAgentExpvars{}, err
 	}

@@ -1,4 +1,3 @@
-import contextlib
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -188,28 +187,6 @@ def get_pulumi_passphrase(cfg: Config | None) -> str | None:
     if passphrase:
         return passphrase
     return None
-
-
-@contextlib.contextmanager
-def use_local_pulumi_passphrase(profile_path: str | None = None):
-    """
-    Temporarily export the Pulumi passphrase persisted in the local config
-    (~/.test_infra_config.yaml by default) as PULUMI_CONFIG_PASSPHRASE, so pulumi CLI
-    commands can decrypt secrets (e.g. a VM password) non-interactively even if the
-    passphrase isn't already exported in the caller's shell. Restores the previous
-    value on exit. No-op if the config has no passphrase recorded.
-    """
-    passphrase = get_pulumi_passphrase(get_local_config(profile_path))
-    previous = os.environ.get("PULUMI_CONFIG_PASSPHRASE")
-    if passphrase:
-        os.environ["PULUMI_CONFIG_PASSPHRASE"] = passphrase
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop("PULUMI_CONFIG_PASSPHRASE", None)
-        else:
-            os.environ["PULUMI_CONFIG_PASSPHRASE"] = previous
 
 
 def get_api_key(cfg: Config | None) -> str:

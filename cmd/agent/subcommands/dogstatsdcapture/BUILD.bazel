@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/command",
+        "//cmd/agent/subcommands/dogstatsdcommon",
         "//comp/core",
         "//comp/core/config",
         "//comp/core/ipc/def",

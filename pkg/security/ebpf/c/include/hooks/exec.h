@@ -32,12 +32,12 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
-    // exec is called from a non leader thread:
-    //   - we need to remember that this thread will change its pid to the thread group leader's in the flush_old_exec kernel function,
-    //     before sending the event to userspace
-    //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
-    //     the corresponding exit event
     if (tgid != pid) {
+        // exec is called from a non leader thread:
+        //   - we need to remember that this thread will change its pid to the thread group leader's in the flush_old_exec kernel function,
+        //     before sending the event to userspace
+        //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
+        //     the corresponding exit event
         bpf_map_update_elem(&exec_pid_transfer, &tgid, &pid_tgid, BPF_ANY);
     }
 
@@ -229,10 +229,12 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         return 0;
     }
 
-    event->pid_entry.ppid = ppid;
-    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value
+    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value.
+    // Override ppid: fill_process_context set it to the grandparent (parent's real_parent), but for
+    // the child the ppid is the parent PID.
     event->process.pid = pid;
     event->process.tid = pid;
+    event->process.ppid = ppid;
 
     event->pid_entry.fork_flags = syscall->fork.flags;
 

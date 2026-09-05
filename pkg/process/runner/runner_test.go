@@ -125,6 +125,77 @@ func TestHasContainers(t *testing.T) {
 	assert.Equal(1, getContainerCount(&collectorContainerRealTime))
 }
 
+type statusNamedCheck struct {
+	checks.Check
+	statusNames []string
+}
+
+func (c statusNamedCheck) StatusNames() []string { return c.statusNames }
+
+func TestEnabledCheckNames(t *testing.T) {
+	tests := []struct {
+		name            string
+		checkName       string
+		statusNames     []string
+		realTimeAllowed bool
+		expected        []string
+	}{
+		{
+			name:     "no checks enabled",
+			expected: []string{},
+		},
+		{
+			name:            "process collection enabled",
+			checkName:       checks.ProcessCheckName,
+			statusNames:     []string{checks.ProcessCheckName},
+			realTimeAllowed: true,
+			expected:        []string{checks.ProcessCheckName, checks.RTProcessCheckName},
+		},
+		{
+			name:            "service discovery enabled",
+			checkName:       checks.ProcessCheckName,
+			statusNames:     []string{checks.ServiceDiscoveryCheckName},
+			realTimeAllowed: true,
+			expected:        []string{checks.ServiceDiscoveryCheckName},
+		},
+		{
+			name:            "both features enabled",
+			checkName:       checks.ProcessCheckName,
+			statusNames:     []string{checks.ProcessCheckName, checks.ServiceDiscoveryCheckName},
+			realTimeAllowed: true,
+			expected:        []string{checks.ProcessCheckName, checks.RTProcessCheckName, checks.ServiceDiscoveryCheckName},
+		},
+		{
+			name:        "realtime disabled",
+			checkName:   checks.ProcessCheckName,
+			statusNames: []string{checks.ProcessCheckName},
+			expected:    []string{checks.ProcessCheckName},
+		},
+		{
+			name:      "unrelated check remains visible",
+			checkName: checks.ConnectionsCheckName,
+			expected:  []string{checks.ConnectionsCheckName},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			enabledChecks := []checks.Check{}
+			if tc.checkName != "" {
+				check := checkmocks.NewCheck(t)
+				check.On("Name").Return(tc.checkName)
+				enabledChecks = append(enabledChecks, check)
+				if tc.statusNames != nil {
+					enabledChecks[0] = statusNamedCheck{Check: check, statusNames: tc.statusNames}
+				}
+			}
+
+			actual := enabledCheckNames(enabledChecks, tc.realTimeAllowed)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
 func TestDisableRealTimeProcessCheck(t *testing.T) {
 	tests := []struct {
 		name            string
