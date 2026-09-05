@@ -9,6 +9,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.go import go_build
@@ -37,10 +38,19 @@ def build(
     no_strip_binary=False,
     arch_suffix=False,
     injector_only=False,
+    enable_bazel=False,
 ):
     """
     Build cws-instrumentation
+
+    enable_bazel: build via `bazel build //cmd/cws-instrumentation:cws-instrumentation` instead of
+    `go build`, then copy the result to the same place. Developer opt-in only; defaults to off.
     """
+    if enable_bazel:
+        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        build_binary_with_bazel("//cmd/cws-instrumentation:cws-instrumentation", args=bazel_args, bin_path=BIN_PATH)
+        return
+
     if build_tags is None:
         build_tags = []
     ldflags, gcflags, env = get_build_flags(ctx, static=static)
