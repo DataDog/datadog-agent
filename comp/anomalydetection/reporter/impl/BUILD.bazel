@@ -28,10 +28,13 @@ dd_agent_go_test(
     srcs = [
         "notify_test.go",
         "payload_test.go",
+        "reporter_event_test.go",
     ],
     embed = [":impl"],
     deps = [
         "//comp/anomalydetection/observer/def",
+        "//comp/anomalydetection/reporter/def",
+        "//pkg/logs/message",
         "@com_github_stretchr_testify//assert",
     ],
 )
