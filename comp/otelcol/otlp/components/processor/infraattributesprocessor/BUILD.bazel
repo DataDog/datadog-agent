@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "infraattributesprocessor",
     srcs = [
+        "cache.go",
         "common.go",
         "config.go",
         "doc.go",
@@ -58,6 +59,8 @@ go_library(
 dd_agent_go_test(
     name = "infraattributesprocessor_test",
     srcs = [
+        "cache_test.go",
+        "common_bench_test.go",
         "config_test.go",
         "factory_test.go",
         "logs_ddtags_test.go",
@@ -70,9 +73,11 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":infraattributesprocessor"],
     deps = [
+        "//comp/core/tagger/origindetection",
         "//comp/core/tagger/types",
         "//comp/otelcol/otlp/testutil",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/util/option",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_opentelemetry_go_collector_component//:component",
@@ -85,8 +90,10 @@ dd_agent_go_test(
         "@io_opentelemetry_go_collector_pdata//pmetric",
         "@io_opentelemetry_go_collector_pdata//ptrace",
         "@io_opentelemetry_go_collector_pdata_pprofile//:pprofile",
+        "@io_opentelemetry_go_collector_processor//:processor",
         "@io_opentelemetry_go_collector_processor_processortest//:processortest",
         "@io_opentelemetry_go_otel//semconv/v1.21.0:v1_21_0",
         "@io_opentelemetry_go_otel//semconv/v1.22.0:v1_22_0",
+        "@org_uber_go_zap//:zap",
     ],
 )
