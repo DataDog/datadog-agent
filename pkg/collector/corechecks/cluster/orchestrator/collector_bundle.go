@@ -47,6 +47,7 @@ const (
 	EKSAPIGroup             = "eks.amazonaws.com"
 	DynamoAPIGroup          = "nvidia.com"
 	KubeRayAPIGroup         = "ray.io"
+	KubeAIAPIGroup          = "kubeai.org"
 
 	// Gateway API
 	GatewayAPIGroup = "gateway.networking.k8s.io"
@@ -571,6 +572,9 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(KubeRayAPIGroup, "raycronjobs", isOOTBCRDEnabled, "v1"),
 		newBuiltinCRDConfig(KubeRayAPIGroup, "rayjobs", isOOTBCRDEnabled, "v1", "v1alpha1"),
 		newBuiltinCRDConfig(KubeRayAPIGroup, "rayservices", isOOTBCRDEnabled, "v1", "v1alpha1"),
+
+		// KubeAI resources
+		newBuiltinCRDConfig(KubeAIAPIGroup, "models", isOOTBCRDEnabled, "v1"),
 
 		// Gateway API resources
 		newBuiltinCRDConfig(GatewayAPIGroup, "gateways", isGatewayAPIEnabled, "v1", "v1beta1"),
