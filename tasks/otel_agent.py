@@ -8,6 +8,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -37,7 +38,7 @@ def byoc_release(ctx, version: str):
 
 
 @task
-def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
+def build(ctx, byoc=False, flavor=AgentFlavor.base.name, enable_bazel=False):
     """
     Build the otel agent
     """
@@ -55,38 +56,47 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
         os.remove(bin_path)
 
     flavor = AgentFlavor[flavor]
-    env = {"GO111MODULE": "on"}
-    build_tags = get_default_build_tags(build="otel-agent", flavor=flavor)
-    ldflags = get_version_ldflags(ctx)
-    ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
-    if os.environ.get("DELVE"):
-        gcflags = "all=-N -l"
+
+    if enable_bazel:
+        if byoc:
+            raise NotImplementedError("--enable-bazel does not support --byoc.")
+        if sys.platform == 'win32' or cross_compiling_windows:
+            raise NotImplementedError("--enable-bazel does not support building for Windows.")
+        bazel_args = [f"--//packages/agent:flavor={flavor.name}"]
+        build_binary_with_bazel("//cmd/otel-agent:otel-agent", args=bazel_args, bin_path=bin_path)
     else:
-        gcflags = ""
+        env = {"GO111MODULE": "on"}
+        build_tags = get_default_build_tags(build="otel-agent", flavor=flavor)
+        ldflags = get_version_ldflags(ctx)
+        ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
+        if os.environ.get("DELVE"):
+            gcflags = "all=-N -l"
+        else:
+            gcflags = ""
 
-    # generate windows resources
-    if sys.platform == 'win32' or cross_compiling_windows:
-        build_messagetable(ctx)
-        vars = versioninfo_vars(ctx)
-        build_rc(
+        # generate windows resources
+        if sys.platform == 'win32' or cross_compiling_windows:
+            build_messagetable(ctx)
+            vars = versioninfo_vars(ctx)
+            build_rc(
+                ctx,
+                "cmd/otel-agent/windows_resources/otel-agent.rc",
+                vars=vars,
+                out="cmd/otel-agent/rsrc.syso",
+            )
+
+        go_build(
             ctx,
-            "cmd/otel-agent/windows_resources/otel-agent.rc",
-            vars=vars,
-            out="cmd/otel-agent/rsrc.syso",
+            f"{REPO_PATH}/cmd/otel-agent",
+            mod="readonly",
+            build_tags=build_tags,
+            ldflags=ldflags,
+            gcflags=gcflags,
+            bin_path=bin_path,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+            coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+            env=env,
         )
-
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/otel-agent",
-        mod="readonly",
-        build_tags=build_tags,
-        ldflags=ldflags,
-        gcflags=gcflags,
-        bin_path=bin_path,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-        coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
-        env=env,
-    )
 
     dist_folder = os.path.join(BIN_DIR, "dist")
     if os.path.exists(dist_folder):
