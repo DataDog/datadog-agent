@@ -48,7 +48,7 @@ normalize-path = "0.2"
 p256 = { version = "0.14", default-features = false }
 phf = { version = "0.14", features = ["macros"] }
 rawzip = "0.5.0"
-reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots-no-provider"] }
+reqwest = { version = "0.13.0", default-features = false, features = ["rustls-tls-native-roots-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "std", "tls12"] }
 rustls-native-certs = { version = "0.8", default-features = false }
 rustls-pki-types = { version = "1", default-features = false, features = ["std"] }
