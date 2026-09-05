@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:go_test file
+
 go_library(
     name = "procutil",
     srcs = [
@@ -87,35 +89,98 @@ go_library(
 )
 
 dd_agent_go_test(
-    name = "procutil_test",
-    srcs = [
-        "data_scrubber_fallback_test.go",
-        "data_scrubber_test.go",
-        "data_scrubber_windows_test.go",
-        "process_linux_test.go",
-        "process_model_test.go",
-        "process_windows_test.go",
-        "process_windows_toolhelp_test.go",
-    ],
+    name = "process_linux_test",
+    srcs = ["process_linux_test.go"],
     data = glob(["testdata/**"]),
     embed = [":procutil"],
-    deps = [
-        "@com_github_stretchr_testify//assert",
-    ] + select({
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_shirou_gopsutil_v4//host",
             "@com_github_shirou_gopsutil_v4//process",
+            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "@com_github_shirou_gopsutil_v4//host",
             "@com_github_shirou_gopsutil_v4//process",
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:windows": [
-            "//pkg/util/winutil",
+            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),
+)
+
+dd_agent_go_test(
+    name = "process_model_test",
+    srcs = ["process_model_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
+
+dd_agent_go_test(
+    name = "process_windows_test",
+    srcs = ["process_windows_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "process_windows_toolhelp_test",
+    srcs = ["process_windows_toolhelp_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "data_scrubber_fallback_test",
+    srcs = [
+        "data_scrubber_fallback_test.go",
+        "data_scrubber_test.go",  # keep
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+    deps = ["@com_github_stretchr_testify//assert"],  # keep
+)
+
+dd_agent_go_test(
+    name = "data_scrubber_windows_test",
+    srcs = [
+        "data_scrubber_test.go",  # keep
+        "data_scrubber_windows_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "data_scrubber_test",
+    srcs = ["data_scrubber_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":procutil"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )
