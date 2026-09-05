@@ -19,6 +19,8 @@ go_library(
         "packages_default.go",
         "packages_linux.go",
         "packages_windows.go",
+        "process_manager_linux.go",
+        "process_manager_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages",
     visibility = ["//visibility:public"],

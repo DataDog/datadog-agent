@@ -257,6 +257,7 @@ func RootCommands() []*cobra.Command {
 		isInstalledCommand(),
 		apmCommands(),
 		extensionsCommands(),
+		processManagerCommands(),
 		getStateCommand(),
 		statusCommand(),
 		postinstCommand(),
@@ -646,6 +647,42 @@ func packageCommand() *cobra.Command {
 	}
 
 	return cmd
+}
+
+// processManagerCommands lets an operator switch between dd-procmgrd and the native service
+// manager (systemd/SCM) for the components the installer supervises (ddot, PAR executor, ...).
+func processManagerCommands() *cobra.Command {
+	parent := &cobra.Command{
+		Use:     "process-manager [command]",
+		Short:   "Enable or disable dd-procmgrd as the process manager",
+		GroupID: "installer",
+	}
+	parent.AddCommand(processManagerEnableCommand(), processManagerDisableCommand())
+	return parent
+}
+
+func processManagerEnableCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "enable",
+		Short: "Use dd-procmgrd to manage extension processes (ddot, PAR executor, ...)",
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			c := newCmd("process_manager_enable")
+			defer func() { c.stop(err) }()
+			return packages.SetProcessManagerEnabled(c.ctx, true)
+		},
+	}
+}
+
+func processManagerDisableCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "disable",
+		Short: "Use the native service manager (systemd/SCM) to manage extension processes",
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			c := newCmd("process_manager_disable")
+			defer func() { c.stop(err) }()
+			return packages.SetProcessManagerEnabled(c.ctx, false)
+		},
+	}
 }
 
 // extensionsCommands are the extensions installer commands

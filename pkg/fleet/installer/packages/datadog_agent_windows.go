@@ -143,14 +143,18 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
-	if err := ensureADPProcmgrConfig(); err != nil {
+	processManagerEnabled := env.FromEnv().ProcessManagerEnabled
+	if err := ensureADPProcmgrConfig(processManagerEnabled); err != nil {
 		return fmt.Errorf("failed to write ADP process manager config: %w", err)
 	}
-	if err := ensurePARProcmgrConfig(); err != nil {
+	if err := ensurePARProcmgrConfig(processManagerEnabled); err != nil {
 		return fmt.Errorf("failed to write PAR process manager config: %w", err)
 	}
-	if err := ensurePARExecutorProcmgrConfig(); err != nil {
+	if err := ensurePARExecutorProcmgrConfig(processManagerEnabled); err != nil {
 		return fmt.Errorf("failed to write PAR executor process manager config: %w", err)
+	}
+	if err := persistProcessManagerEnabledWindows(processManagerEnabled); err != nil {
+		log.Warnf("failed to persist process manager state: %v", err)
 	}
 
 	// No need to explicitly start the Agent here
@@ -203,13 +207,16 @@ func resolveDatadogProgramFilesInstallRoot() (string, error) {
 	return installRoot, nil
 }
 
-func ensureADPProcmgrConfig() error {
+// ensureADPProcmgrConfig writes or removes ADP's dd-procmgr config depending on enabled.
+// enabled is passed explicitly (rather than read internally) so the process-manager flip
+// command can apply a value that hasn't been persisted to the environment yet.
+func ensureADPProcmgrConfig(enabled bool) error {
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
 
-	if env.FromEnv().ProcessManagerEnabled {
+	if enabled {
 		return processmanager.WriteADPProcmgrConfig(installRoot)
 	}
 	if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
@@ -218,13 +225,13 @@ func ensureADPProcmgrConfig() error {
 	return nil
 }
 
-func ensurePARProcmgrConfig() error {
+func ensurePARProcmgrConfig(enabled bool) error {
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
 
-	if env.FromEnv().ProcessManagerEnabled {
+	if enabled {
 		return processmanager.WritePARProcmgrConfig(installRoot)
 	}
 	if err := processmanager.RemovePARProcmgrConfig(installRoot); err != nil {
@@ -233,13 +240,13 @@ func ensurePARProcmgrConfig() error {
 	return nil
 }
 
-func ensurePARExecutorProcmgrConfig() error {
+func ensurePARExecutorProcmgrConfig(enabled bool) error {
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
 
-	if env.FromEnv().ProcessManagerEnabled {
+	if enabled {
 		return processmanager.WritePARExecutorProcmgrConfig(installRoot)
 	}
 	if err := processmanager.RemovePARExecutorProcmgrConfig(installRoot); err != nil {

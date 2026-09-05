@@ -269,6 +269,7 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err = retireLegacyProcmgrUnits(ctx); err != nil {
 		log.Warnf("failed to retire legacy procmgr units: %v", err)
 	}
+
 	return nil
 }
 
