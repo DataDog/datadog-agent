@@ -8,12 +8,15 @@ package flare
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -91,24 +94,81 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 	confMock.SetInTest("process_config.cmd_port", port)
 }
 
-func setupProcessAPIServer(t *testing.T) {
-	_ = fxutil.Test[processapiserver.Component](t, fx.Options(
-		processapiserverimpl.Module(),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		mocktelemetry.Module(),
-		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Supply(
-			status.Params{
-				PythonVersionGetFunc: func() string { return "n/a" },
-			},
-		),
-		taggerfx.Module(),
-		statusimpl.Module(),
-		settingsmock.MockModule(),
-		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-	))
+// maxBindAttempts bounds retries when a freshly-picked port loses the bind
+// race to something else between being picked and the real server binding it.
+const maxBindAttempts = 5
+
+// wsaeAddrInUse is WSAEADDRINUSE, the raw Winsock error code Go's net
+// package passes through unmodified on Windows binds; it doesn't map to the
+// stdlib syscall.EADDRINUSE constant, which is a different synthetic value.
+const wsaeAddrInUse = syscall.Errno(10048)
+
+// isAddrInUse reports whether err is a failure to bind because the port was
+// already taken.
+func isAddrInUse(err error) bool {
+	if runtime.GOOS == "windows" {
+		return errors.Is(err, wsaeAddrInUse)
+	}
+	return errors.Is(err, syscall.EADDRINUSE)
+}
+
+// freeTCPPort asks the OS for a currently-free TCP port.
+func freeTCPPort(t testing.TB) int {
+	t.Helper()
+	l, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
+}
+
+// setupProcessAPIServer starts the real process-agent API server on a
+// freshly-picked port, retrying with a new port if the previous pick lost
+// the bind race. Unlike probing a port and reusing its number later, each
+// attempt is a real bind, so there's no gap between checking and using it.
+func setupProcessAPIServer(t *testing.T, cfg model.Config) {
+	var lastErr error
+	for attempt := 0; attempt < maxBindAttempts; attempt++ {
+		cfg.SetInTest("process_config.cmd_port", freeTCPPort(t))
+
+		var comp processapiserver.Component
+		app := fx.New(
+			fxutil.FxAgentBase(),
+			fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+			fx.Populate(&comp),
+			processapiserverimpl.Module(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			mocktelemetry.Module(),
+			workloadmetafx.Module(workloadmeta.NewParams()),
+			fx.Supply(
+				status.Params{
+					PythonVersionGetFunc: func() string { return "n/a" },
+				},
+			),
+			taggerfx.Module(),
+			statusimpl.Module(),
+			settingsmock.MockModule(),
+			fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		)
+
+		startCtx, cancel := context.WithTimeout(context.Background(), fx.DefaultTimeout)
+		err := app.Start(startCtx)
+		cancel()
+		if err == nil {
+			t.Cleanup(func() {
+				stopCtx, cancel := context.WithTimeout(context.Background(), fx.DefaultTimeout)
+				defer cancel()
+				require.NoError(t, app.Stop(stopCtx))
+			})
+			return
+		}
+		if !isAddrInUse(err) {
+			t.Fatalf("failed to start process API server: %v", err)
+		}
+		lastErr = err
+	}
+	t.Fatalf("could not bind process API server after %d attempts: %v", maxBindAttempts, lastErr)
 }
 
 func TestVersionHistory(t *testing.T) {
@@ -181,16 +241,9 @@ process_config:
 	})
 
 	t.Run("verify auth", func(t *testing.T) {
-		listener, err := net.Listen("tcp", ":0")
-		require.NoError(t, err)
-		port := listener.Addr().(*net.TCPAddr).Port
-		listener.Close()
-
 		cfg := configmock.New(t)
-		cfg.SetInTest("process_config.cmd_port", port)
 		cfg.SetInTest("process_config.process_discovery.enabled", true)
-		cfg.SetInTest("process_config.cmd_port", port)
-		setupProcessAPIServer(t)
+		setupProcessAPIServer(t, cfg)
 
 		content, err := remoteProvider.getProcessAgentFullConfig()
 		require.NoError(t, err)
@@ -288,16 +341,9 @@ func TestProcessAgentChecks(t *testing.T) {
 		mock.AssertFileContent(string(expectedProcessDiscoveryJSON), "process_discovery_check_output.json")
 	})
 	t.Run("verify auth", func(t *testing.T) {
-		listener, err := net.Listen("tcp", ":0")
-		require.NoError(t, err)
-		port := listener.Addr().(*net.TCPAddr).Port
-		listener.Close()
-
 		cfg := configmock.New(t)
-		cfg.SetInTest("process_config.cmd_port", port)
 		cfg.SetInTest("process_config.process_discovery.enabled", true)
-		cfg.SetInTest("process_config.cmd_port", port)
-		setupProcessAPIServer(t)
+		setupProcessAPIServer(t, cfg)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
 		remoteProvider := RemoteFlareProvider{
