@@ -30,6 +30,9 @@ import (
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
 var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
+// errNetworkProbeKernelUnsupported is reported when the OS kernel version check fails.
+var errNetworkProbeKernelUnsupported = errors.New("kernel version not supported by network probe")
+
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
 const maxConntrackDumpSize = 3000
@@ -39,11 +42,15 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	// Checking whether the current OS + kernel version is supported by the tracer
 	if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
-		return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
+		initErr := fmt.Errorf("%w: %w: %s", ErrSysprobeUnsupported, errNetworkProbeKernelUnsupported, err)
+		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
+		return nil, initErr
 	}
+	// Kernel is supported — defer resolving the kernel issue until after tracer init so
+	// that the async resolve goroutine cannot race with and overwrite a subsequent failure report.
 
 	if ncfg.NPMEnabled {
-		log.Info("enabling network performance monitoring (NPM)")
+		log.Info("enabling cloud network monitoring (CNM)")
 	}
 	if ncfg.ServiceMonitoringEnabled {
 		log.Info("enabling universal service monitoring (USM)")
@@ -51,8 +58,19 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
 	if err != nil {
-		return nil, err
+		initErr := categorizeTracerError(err)
+		// Start the kernel-issue resolve goroutine before the blocking report so
+		// it has time to deliver while the process is alive. reportNetworkProbeInitFailure
+		// blocks for up to ReportMaxWait (30 s); the resolve goroutine fires after its
+		// 2 s initial backoff, giving it ~28 s before system-probe may exit.
+		// The two operations target different issue IDs so there is no store race.
+		resolveNetworkProbeKernelIssue(deps)
+		reportNetworkProbeInitFailure(deps, initErr, ncfg.NPMEnabled, ncfg.ServiceMonitoringEnabled)
+		return nil, initErr
 	}
+	// Tracer fully initialized: resolve the kernel issue and check USM state.
+	resolveNetworkProbeKernelIssue(deps)
+	checkAndReportUSMState(deps, ncfg)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var connsSender sender.Sender
@@ -95,7 +113,10 @@ type networkTracer struct {
 }
 
 func (nt *networkTracer) GetStats() map[string]any {
-	stats, _ := nt.tracer.GetStats()
+	stats, err := nt.tracer.GetStats()
+	if err != nil {
+		log.Debugf("network tracer: error getting stats: %v", err)
+	}
 	return stats
 }
 
