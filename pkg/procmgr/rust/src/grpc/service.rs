@@ -55,6 +55,21 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         }))
     }
 
+    async fn get_metrics(
+        &self,
+        request: Request<proto::GetMetricsRequest>,
+    ) -> Result<Response<proto::GetMetricsResponse>, Status> {
+        let name_or_uuid = request.into_inner().name_or_uuid;
+        if name_or_uuid.is_empty() {
+            return Err(Status::invalid_argument("name_or_uuid is required"));
+        }
+        let procs = self.mgr.processes().await;
+        let proc = resolve_process(&procs, &name_or_uuid)?;
+        Ok(Response::new(proto::GetMetricsResponse {
+            metrics: Some(process_to_metrics(proc)),
+        }))
+    }
+
     async fn get_status(
         &self,
         _request: Request<proto::GetStatusRequest>,
@@ -233,6 +248,20 @@ fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
     }
 }
 
+fn process_to_metrics(proc: &ManagedProcess) -> proto::ProcessMetrics {
+    proto::ProcessMetrics {
+        name: proc.name().to_owned(),
+        uuid: proc.uuid().to_owned(),
+        pid: proc.pid().unwrap_or(0),
+        state: proto::ProcessState::from(proc.state()).into(),
+        restart_count: proc.restart_count(),
+        last_exit_code: proc.last_exit_code(),
+        last_signal: proc.last_signal(),
+        rss_bytes: None,
+        cpu_percent: None,
+    }
+}
+
 #[allow(clippy::result_large_err)]
 fn parse_restart_policy(s: &str) -> Result<RestartPolicy, Status> {
     match s {
@@ -391,6 +420,25 @@ mod tests {
         assert_eq!(proto.args, expected_args);
         assert_eq!(proto.pid, 0);
         assert_eq!(proto.state, proto::ProcessState::Created as i32);
+    }
+
+    #[test]
+    fn test_process_to_metrics_matches_supervision_fields() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let cfg = ProcessConfig {
+            command: cmd.to_string(),
+            args,
+            ..Default::default()
+        };
+        let proc = ManagedProcess::new_config("m1".to_string(), test_helpers::test_uuid(), cfg);
+        let m = process_to_metrics(&proc);
+        assert_eq!(m.name, "m1");
+        assert_eq!(m.uuid, test_helpers::test_uuid());
+        assert_eq!(m.pid, 0);
+        assert_eq!(m.state, proto::ProcessState::Created as i32);
+        assert_eq!(m.restart_count, 0);
+        assert!(m.rss_bytes.is_none());
+        assert!(m.cpu_percent.is_none());
     }
 
     #[test]
