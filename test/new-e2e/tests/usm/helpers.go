@@ -143,6 +143,9 @@ func fetchAndAssertTaggedConnections(t *testing.T, fi *fi.Client, label string, 
 			return false
 		}
 		stats = getConnectionStats(t, cnx, []int32{portA, portB}, "process_context:")
+		logStatsForPort(t, label, stats, portA)
+		logStatsForPort(t, label, stats, portB)
+
 		return stats.connsByPort[portA] >= minPerPort && stats.connsByPort[portB] >= minPerPort &&
 			stats.untaggedByPort[portA] == 0 && stats.untaggedByPort[portB] == 0
 	}, 180*time.Second, 5*time.Second, "%s: timed out waiting for tagged connections on both ports (%d: %d/%d untagged, %d: %d/%d untagged)",
@@ -150,6 +153,12 @@ func fetchAndAssertTaggedConnections(t *testing.T, fi *fi.Client, label string, 
 
 	assertTaggedConnectionsOnPort(t, stats, label, portA, minPerPort)
 	assertTaggedConnectionsOnPort(t, stats, label, portB, minPerPort)
+}
+
+func logStatsForPort(t *testing.T, label string, stats connectionStats, port int32) {
+	t.Logf("%s: port%d=%d untagged=%d missingByTag=%v tags=%v",
+		label, port, stats.connsByPort[port], stats.untaggedByPort[port],
+		stats.missingByTagPort[port], stats.tagsByPort[port])
 }
 
 // connectionStats holds the results of counting connections on test ports from FakeIntake.

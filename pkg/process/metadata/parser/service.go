@@ -115,7 +115,7 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 		meta := d.extractServiceMetadata(proc)
 		if meta != nil {
 			if log.ShouldLog(log.TraceLvl) {
-				log.Tracef("detected service metadata: %v", meta)
+				log.Tracef("detected service metadata pid=%d metadata=%v", proc.Pid, meta)
 			}
 			serviceByPID[proc.Pid] = meta
 		}
@@ -143,7 +143,7 @@ func (d *ServiceExtractor) ExtractSingle(proc *procutil.Process) {
 	meta := d.extractServiceMetadata(proc)
 	if meta != nil {
 		if log.ShouldLog(log.TraceLvl) {
-			log.Tracef("detected service metadata: %v", meta)
+			log.Tracef("detected service metadata pid=%d metadata=%v", proc.Pid, meta)
 		}
 		d.serviceByPID[proc.Pid] = meta
 	}
@@ -184,6 +184,9 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	}
 
 	if meta, ok := d.serviceByPID[pid]; ok {
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("Found process_context for pid:%v service tags:%s", pid, meta.serviceContext)
+		}
 		return []string{meta.serviceContext}
 	}
 	return nil
