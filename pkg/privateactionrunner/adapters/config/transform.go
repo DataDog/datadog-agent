@@ -99,6 +99,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RShellAllowedCommands:          rshellAllowedCommands(config),
 		RShellAllowedSystemServices:    rshellAllowedSystemServices(config),
 		RShellDisableDetailedTelemetry: config.GetBool(setup.PARRestrictedShellDisableDetailedTelemetry),
+		AgentSecretManagementEnabled:   config.GetBool(setup.PARAgentSecretManagementEnabled),
 		OpmsExtraHeaders:               config.GetStringMapString(setup.PAROpmsExtraHeaders),
 		DDHost:                         ddHost,
 		DDApiHost:                      "api." + ddSite,

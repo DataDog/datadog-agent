@@ -23,8 +23,8 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
-	"github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
@@ -241,7 +241,7 @@ func TestTimeSamplerFinalDogStatsDSerieObserversReceiveOnlyUnfilteredFinalSeries
 		SampleRate: 1,
 	}, 1001, tagMatcher)
 
-	filter := strings.NewMatcher([]string{"filtered.metric"}, false)
+	filter := metricname.NewMatcher([]string{"filtered.metric"}, false)
 	series, _ := flushSerieWithFilterList(sampler, 1020, &filter, true)
 
 	require.Len(t, series, 1)
@@ -750,7 +750,7 @@ func TestFlushMissingContext(t *testing.T) {
 }
 func testFlushFilterList(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := strings.NewMatcher([]string{
+	matcher := metricname.NewMatcher([]string{
 		"test.histogram.avg",
 		"test.histogram.count",
 	}, false)
@@ -1015,7 +1015,7 @@ func flushSerie(sampler *TimeSampler, timestamp float64, forceFlushAll bool) (me
 	return series, sketches
 }
 
-func flushSerieWithFilterList(sampler *TimeSampler, timestamp float64, filter *strings.Matcher, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
+func flushSerieWithFilterList(sampler *TimeSampler, timestamp float64, filter *metricname.Matcher, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 

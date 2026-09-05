@@ -28,7 +28,6 @@ import (
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -262,11 +261,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("%s: %w", metricProcessingRulesConfigKey, err)
 	}
 
-	telemetryComp := deps.Telemetry
-	if telemetryComp == nil {
-		telemetryComp = noopsimpl.GetCompatComponent()
-	}
-	obsTelemetry := newObserverTelemetry(telemetryComp)
+	obsTelemetry := newObserverTelemetry(deps.Telemetry)
 
 	// Upgrade the raw scorer (no telemetry) to one with gauges. The catalog
 	// returns a plain *anomalyScorer; here we reconstruct it with the watcher
@@ -292,6 +287,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
+	eng.onAnomalyDedupEvicted = obsTelemetry.recordAnomalyDedupEvicted
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
 	eng.onProcessingTime = obsTelemetry.recordProcessingTime
 	eng.onDetectorEmission = obsTelemetry.recordDetectorEmission
@@ -719,7 +715,8 @@ func aggSuffix(agg observerdef.Aggregate) string {
 	return observerdef.AggregateString(agg)
 }
 
-// RawAnomalies returns a copy of currently tracked raw anomalies.
+// RawAnomalies returns replay/debug history when anomaly history is enabled.
+// Live production mode returns an empty slice.
 func (o *observerImpl) RawAnomalies() []observerdef.Anomaly {
 	return o.engine.RawAnomalies()
 }
