@@ -48,8 +48,8 @@ github.com/googleapis/enterprise-certificate-proxy v0.3.17 h1:73NfMHdiqo9JFU9+7a
 github.com/googleapis/enterprise-certificate-proxy v0.3.17/go.mod h1:rSEsBUemEBZEexP2y6jPp16LUmUbjmSbcPMQizR0o4k=
 github.com/googleapis/gax-go/v2 v2.23.0 h1:Tchl7qkvE7Ip3y+ztvNufYFvkfqTe7NfLTYGIdJRLuE=
 github.com/googleapis/gax-go/v2 v2.23.0/go.mod h1:rBQKOVJCdb8IFEzg+FCwlt1LP/xMDGuqUXhUG+XMXEg=
-github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3 h1:B+8ClL/kCQkRiU82d9xajRPKYMrB7E0MbtzWVi1K4ns=
-github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3/go.mod h1:NbCUVmiS4foBGBHOYlCT25+YmGpJ32dZPi75pGEUpj4=
+github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4 h1:9ZJYjPEJpcleIKcqysXOo14NLQYwu23fzmKRFpIjPjc=
+github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4/go.mod h1:0xydIeg2omQ9DH6zYMP24Kk57793rnLUvP8fwdbFvz8=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/klauspost/compress v1.19.2 h1:hMRETovs/pu/dVWN7zIT1PGG8t509MwT6bO7XSi26R8=
