@@ -29,15 +29,16 @@ import (
 )
 
 const (
-	inFlightMap            = "redis_in_flight"
-	keyInFlightMap         = "redis_key_in_flight"
-	processTailCall        = "socket__redis_process"
-	tlsProcessTailCall     = "uprobe__redis_tls_process"
-	tlsTerminationTailCall = "uprobe__redis_tls_termination"
-	name                   = "redis"
-	keyedEventStream       = "redis_with_key"
-	netifProbe             = "tracepoint__net__netif_receive_skb_redis"
-	netifProbe414          = "netif_receive_skb_core_redis_4_14"
+	inFlightMap                  = "redis_in_flight"
+	keyInFlightMap               = "redis_key_in_flight"
+	processTailCall              = "socket__redis_process"
+	tlsProcessTailCall           = "uprobe__redis_tls_process"
+	tlsTerminationTailCall       = "uprobe__redis_tls_termination"
+	kprobeTLSTerminationTailCall = "kprobe__redis_tls_termination"
+	name                         = "redis"
+	keyedEventStream             = "redis_with_key"
+	netifProbe                   = "tracepoint__net__netif_receive_skb_redis"
+	netifProbe414                = "netif_receive_skb_core_redis_4_14"
 )
 
 type protocol struct {
@@ -96,6 +97,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramRedisTermination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSTerminationProgramsMap,
+			Key:           uint32(protocols.ProgramRedisTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeTLSTerminationTailCall,
 			},
 		},
 	},

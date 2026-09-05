@@ -1,0 +1,15 @@
+---
+enhancements:
+  - |
+    On Linux kernels 6.10 and later, Universal Service Monitoring (USM) now
+    attaches its TLS uprobes using ``uprobe_multi`` bpf_links, binding all of a
+    program's probe points to a single link instead of one perf event per point.
+    Because each perf event teardown pays an uninterruptible RCU grace period at
+    process exit, the previous per-probe scheme made ``system-probe`` shutdown
+    time scale with the number of monitored TLS binaries, which could delay a
+    rollout of the node agent by minutes on busy hosts. Collapsing the
+    attachments onto a single link per program makes shutdown time largely
+    independent of how many binaries are traced. Hosts on kernels older than
+    6.10, or without ``uprobe_multi`` support, keep the existing per-probe attach
+    behavior. Set ``DD_USM_ENABLE_UPROBE_MULTI`` to a false value to force the
+    per-probe attach path back on without downgrading the agent.

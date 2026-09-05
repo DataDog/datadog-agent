@@ -381,8 +381,8 @@ int uprobe__redis_tls_process(struct pt_regs *ctx) {
 
 // Handles termination of TLS Redis connections.
 // Cleans up connection state for TLS connections.
-SEC("uprobe/redis_tls_termination")
-int uprobe__redis_tls_termination(struct pt_regs *ctx) {
+// Shared body for the uprobe- and kprobe-typed entry points below.
+static __always_inline int __redis_tls_termination(struct pt_regs *ctx) {
     const __u32 zero = 0;
 
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -396,6 +396,17 @@ int uprobe__redis_tls_termination(struct pt_regs *ctx) {
     redis_tcp_termination(&tup);
 
     return 0;
+}
+
+SEC("uprobe/redis_tls_termination")
+int uprobe__redis_tls_termination(struct pt_regs *ctx) {
+    return __redis_tls_termination(ctx);
+}
+
+// Kprobe-typed copy of the program above; see tls_finish_from_kprobe in protocols/tls/https.h.
+SEC("kprobe/redis_tls_termination")
+int kprobe__redis_tls_termination(struct pt_regs *ctx) {
+    return __redis_tls_termination(ctx);
 }
 
 #endif /* __REDIS_DECODING_H */

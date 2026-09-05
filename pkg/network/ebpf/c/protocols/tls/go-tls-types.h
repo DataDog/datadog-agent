@@ -96,4 +96,16 @@ typedef struct {
     __u64 b_len;
 } go_tls_write_args_data_t;
 
+
+// Index into gotls_dispatch_progs, and the attach cookie value that selects it.
+// Keep in sync with goTLSDispatchCookies in pkg/network/usm/ebpf_gotls.go.
+enum gotls_dispatch_prog {
+    GOTLS_CONN_WRITE = 0,
+    GOTLS_CONN_WRITE_RETURN = 1,
+    GOTLS_CONN_READ = 2,
+    GOTLS_CONN_READ_RETURN = 3,
+    GOTLS_CONN_CLOSE = 4,
+    GOTLS_DISPATCH_MAX = 5,
+};
+
 #endif //__GO_TLS_TYPES_H

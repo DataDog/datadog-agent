@@ -213,7 +213,15 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
     bpf_tail_call_compat(ctx, &tls_process_progs, PROG_KAFKA);
 }
 
-static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, bool skip_http) {
+// tls_finish_prepare picks the termination program for a connection and stages the
+// tail-call arguments. It returns false -- leaving *out_prog untouched -- when there is
+// nothing to terminate: the common case is a connection whose classified protocol has no
+// termination program (the switch default), so callers correctly just return. The one
+// abnormal case, a failed per-CPU args lookup, logs before it returns false.
+//
+// Split out of tls_finish so the same logic can dispatch through either termination
+// array; see tls_finish_from_kprobe below for why there are two.
+static __always_inline bool tls_finish_prepare(conn_tuple_t *t, bool skip_http, protocol_prog_t *out_prog) {
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
@@ -233,7 +241,7 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
         // The termination, both for TLS and plaintext, for HTTP traffic is taken care of in the socket filter.
         // Until we split the TLS and plaintext management for HTTP traffic, there are flows (such as those being called from tcp_close)
         // in which we don't want to terminate HTTP traffic, but instead leave it to the socket filter.
-        if (skip_http) {return;}
+        if (skip_http) {return false;}
         prog = PROG_HTTP_TERMINATION;
         final_tuple = normalized_tuple;
         break;
@@ -254,18 +262,51 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
         final_tuple = normalized_tuple;
         break;
     default:
-        return;
+        return false;
     }
 
     const __u32 zero = 0;
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
         log_debug("dispatcher failed to save arguments for tls tail call");
-        return;
+        return false;
     }
     bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
     bpf_memcpy(&args->tup, &final_tuple, sizeof(conn_tuple_t));
+    *out_prog = prog;
+    return true;
+}
+
+static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, bool skip_http) {
+    protocol_prog_t prog;
+    if (!tls_finish_prepare(t, skip_http, &prog)) {
+        return;
+    }
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
+}
+
+// tls_finish_from_kprobe is the kprobe-typed counterpart of tls_finish, for callers attached
+// as kprobes rather than uprobes (currently kprobe__tcp_close).
+//
+// USM's uprobes are loaded with expected_attach_type BPF_TRACE_UPROBE_MULTI so they can
+// share uprobe_multi links instead of holding one perf_event fd per attachment. A
+// PROG_ARRAY locks onto the expected_attach_type of its first member and rejects any
+// other with -EINVAL (kernel/bpf/core.c, __bpf_prog_map_compatible; upstream 4540aed51b12
+// "bpf: Enforce expected_attach_type for tailcall compatibility", in 6.12.y since 6.12.53),
+// so once tls_process_progs is owned by those uprobes a kprobe can neither be inserted into
+// it nor tail-call through it. tls_termination_progs is a kprobe-typed mirror of the
+// termination programs.
+//
+// HTTP is always skipped here, exactly as the original tls_finish(ctx, &t, true) call
+// did: HTTP termination for both TLS and plaintext traffic is handled by the socket
+// filter. Hardcoding it rather than taking a parameter keeps the large http_process path
+// from being duplicated into the object for a branch that can never be taken.
+static __always_inline void tls_finish_from_kprobe(struct pt_regs *ctx, conn_tuple_t *t) {
+    protocol_prog_t prog;
+    if (!tls_finish_prepare(t, true, &prog)) {
+        return;
+    }
+    bpf_tail_call_compat(ctx, &tls_termination_progs, prog);
 }
 
 static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
