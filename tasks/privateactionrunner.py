@@ -6,6 +6,7 @@ from invoke.tasks import task
 from tasks.build_tags import get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.constants import REPO_PATH
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import bin_name, get_build_flags
@@ -23,7 +24,15 @@ def build(
     flavor=AgentFlavor.base.name,
     rebuild=False,
     go_mod="readonly",
+    enable_bazel=False,
 ):
+    """Build the privateactionrunner binary."""
+    if enable_bazel:
+        if sys.platform == 'win32':
+            raise NotImplementedError("--enable-bazel does not support Windows.")
+        build_binary_with_bazel("//cmd/privateactionrunner:privateactionrunner", bin_path=BIN_PATH)
+        return
+
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path)
 
     if sys.platform == 'win32':
