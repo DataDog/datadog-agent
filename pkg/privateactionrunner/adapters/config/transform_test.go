@@ -428,6 +428,24 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 }
 
+func TestFromDDConfigPARRestrictedShellPrivilegedDefaultsAndOverrides(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.RShellPrivilegedEnabled)
+	assert.Equal(t, setup.RShellPrivilegedSocketDefault, cfg.RShellPrivilegedSocket)
+
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedEnabled, true)
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedSocket, "/run/custom-rshell.sock")
+	cfg, err = FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.RShellPrivilegedEnabled)
+	assert.Equal(t, "/run/custom-rshell.sock", cfg.RShellPrivilegedSocket)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
@@ -639,6 +657,40 @@ private_action_runner:
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 	assert.Nil(t, cfg.RShellAllowedSystemServices)
+	assert.False(t, cfg.RShellDisableDetailedTelemetry)
+	assert.True(t, cfg.AgentSecretManagementEnabled)
+}
+
+func TestFromDDConfigPARAgentSecretManagementDisabled(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARAgentSecretManagementEnabled, false)
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.AgentSecretManagementEnabled)
+}
+
+func TestFromDDConfigPARRestrictedShellDisableDetailedTelemetryUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.RShellDisableDetailedTelemetry)
+}
+
+func TestFromDDConfigPARRestrictedShellDisableDetailedTelemetrySet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellDisableDetailedTelemetry, true)
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.RShellDisableDetailedTelemetry)
 }
 
 func TestNewMetricsClient(t *testing.T) {

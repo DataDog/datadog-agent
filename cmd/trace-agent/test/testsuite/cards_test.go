@@ -110,7 +110,9 @@ apm_config:
 			}
 			waitForTrace(t, &r, func(v *pb.AgentPayload) {
 				payloadsEqual(t, traces, v)
-				assert.Equal(t, tt.out, v.TracerPayloads[0].Chunks[0].Spans[0].Meta["credit_card_number"])
+				tp := v.IdxTracerPayloads[0]
+				cardNumber, _ := idxStrAttr(tp.Strings, tp.Chunks[0].Spans[0].Attributes, "credit_card_number")
+				assert.Equal(t, tt.out, cardNumber)
 			})
 		})
 	}

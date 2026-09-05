@@ -81,8 +81,9 @@
         DOCKER_NO_CACHE=""
       fi
     # Build image, use target none label to avoid replication
+    # Force Docker media types to prevent buildx from switching to OCI manifests (#incident-59848)
     - |-
-      docker buildx build --push --pull --platform linux/$ARCH \
+      docker buildx build --output=type=image,push=true,oci-mediatypes=false --pull --platform linux/$ARCH \
         ${CACHE_SOURCE} \
         ${DOCKER_NO_CACHE} \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
@@ -546,6 +547,27 @@ docker_build_secret_generic_connector_arm64:
       artifacts: true
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_arm64"
+
+# FIPS variant: the FIPS binary is CGO/boringcrypto, so it is dynamically linked and needs glibc at
+# runtime - it cannot run on scratch. Build it against the public Ubuntu glibc base via a dedicated build
+# context (Dockerfiles/secret-generic-connector-fips).
+.docker_build_secret_generic_connector_fips:
+  extends: .docker_build_secret_generic_connector
+  variables:
+    TAG_SUFFIX: -fips
+    BUILD_CONTEXT: Dockerfiles/secret-generic-connector-fips
+
+docker_build_secret_generic_connector_fips_amd64:
+  extends: [.docker_build_secret_generic_connector_fips, .docker_build_amd64]
+  needs:
+    - job: secret_generic_connector_fips-build_amd64
+      artifacts: true
+
+docker_build_secret_generic_connector_fips_arm64:
+  extends: [.docker_build_secret_generic_connector_fips, .docker_build_arm64]
+  needs:
+    - job: secret_generic_connector_fips-build_arm64
+      artifacts: true
 
 # build the dogstatsd image
 .docker_build_dogstatsd:

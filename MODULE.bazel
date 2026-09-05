@@ -19,6 +19,10 @@ env_vars(
         # For some tests we want to run with higher compression, but
         # not break caching and rebuild the binaries.
         "FORCED_PACKAGE_COMPRESSION_LEVEL",
+        # Lets a caller force pkg/version.AgentVersion to an explicit value,
+        # overriding the PACKAGE_VERSION/release.json-derived default.
+        # Used by host-profiler's nightly/dev-branch version override.
+        "FORCE_AGENT_VERSION",
         # This is the build pipeline id, which is used in some symlink paths.
         "PACKAGE_VERSION",
         # macOS code signing: control whether to enable code signing
@@ -59,10 +63,10 @@ archive_override(
     urls = ["https://github.com/bazel-contrib/supply-chain/archive/d88044594228c41619f4e31eda5ca88adf3c6026.zip"],
 )
 
-bazel_dep(name = "bazel_lib", version = "3.7.1")
+bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
-bazel_dep(name = "gazelle", version = "0.53.0")
+bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "gcc_toolchain", version = "0.12.1")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.2")
 bazel_dep(name = "platforms", version = "1.1.0")
@@ -76,8 +80,8 @@ bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
 bazel_dep(name = "rules_python", version = "2.3.2")
 bazel_dep(name = "rules_rs", version = "0.0.27")
-bazel_dep(name = "rules_rust", version = "0.73.0")
-bazel_dep(name = "rules_rust_prost", version = "0.73.0")
+bazel_dep(name = "rules_rust", version = "0.74.0")
+bazel_dep(name = "rules_rust_prost", version = "0.74.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "toml.bzl", version = "0.4.1")
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
@@ -94,12 +98,17 @@ single_version_override(
     version = "35.1",
 )
 
-single_version_override(
+# Temporary until rules_go cuts a release >0.63.0, to pick up build info improvements: bazel-contrib/rules_go#4694
+# (main module) and bazel-contrib/rules_go#4700 (checksum qualifiers)
+archive_override(
     module_name = "rules_go",
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
     ],
+    sha256 = "9f066d4ad363d049b7b6c3c7f64d73e5ba36caf065fab51848a540a49ab1bb49",
+    strip_prefix = "rules_go-f6afe7478c645595839adc211644e6e5474d9fd3",
+    urls = ["https://github.com/bazel-contrib/rules_go/archive/f6afe7478c645595839adc211644e6e5474d9fd3.tar.gz"],  # master as of September 3, 2026
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
@@ -113,15 +122,6 @@ archive_override(
     sha256 = "9923c6c8855b153f837a953760159908507f571b4b77cb24ed862dda1de20f90",
     strip_prefix = "rules_pkg-401969d4367c42dcbb45d33a637eae87788d025e",
     urls = ["https://github.com/bazelbuild/rules_pkg/archive/401969d4367c42dcbb45d33a637eae87788d025e.tar.gz"],  # main as of April 22, 2026
-)
-
-single_version_override(
-    module_name = "rules_rust",
-    patch_strip = 1,
-    patches = [
-        # Derives `-Cdlltool=<linker-dir>/dlltool.exe` automatically
-        "//bazel/patches:rules_rust-derive-dlltool-from-linker.patch",
-    ],
 )
 
 # Temporary until https://github.com/bazel-contrib/toolchains_llvm/pull/790 lands in a release

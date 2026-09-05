@@ -20,11 +20,12 @@ const (
 	PARSkipConnectionCreation = "private_action_runner.skip_connection_creation"
 
 	// General config
-	PARTaskConcurrency       = "private_action_runner.task_concurrency"
-	PARTaskTimeoutSeconds    = "private_action_runner.task_timeout_seconds"
-	PARIdleTimeoutSeconds    = "private_action_runner.idle_timeout_seconds"
-	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
-	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
+	PARTaskConcurrency              = "private_action_runner.task_concurrency"
+	PARTaskTimeoutSeconds           = "private_action_runner.task_timeout_seconds"
+	PARIdleTimeoutSeconds           = "private_action_runner.idle_timeout_seconds"
+	PARActionsAllowlist             = "private_action_runner.actions_allowlist"
+	PARDefaultActionsEnabled        = "private_action_runner.default_actions_enabled"
+	PARAgentSecretManagementEnabled = "private_action_runner.agent_secret_management_enabled"
 
 	// HTTP Action related
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
@@ -32,12 +33,18 @@ const (
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
 	// Restricted Shell
-	PARRestrictedShellAllowedPaths          = "private_action_runner.restricted_shell.allowed_paths"
-	PARRestrictedShellAllowedCommands       = "private_action_runner.restricted_shell.allowed_commands"
-	PARRestrictedShellAllowedSystemServices = "private_action_runner.restricted_shell.allowed_system_services"
-	RShellPathAllowAll                      = "/"
-	RShellPathAllowMapContainerizedKey      = "containerized"
-	RShellPathAllowMapDefaultKey            = "default"
+	PARRestrictedShellAllowedPaths             = "private_action_runner.restricted_shell.allowed_paths"
+	PARRestrictedShellAllowedCommands          = "private_action_runner.restricted_shell.allowed_commands"
+	PARRestrictedShellAllowedSystemServices    = "private_action_runner.restricted_shell.allowed_system_services"
+	PARRestrictedShellDisableDetailedTelemetry = "private_action_runner.restricted_shell.disable_detailed_telemetry"
+	PARRestrictedShellPrivilegedEnabled        = "private_action_runner.restricted_shell.privileged.enabled"
+	PARRestrictedShellPrivilegedSocket         = "private_action_runner.restricted_shell.privileged.socket"
+	RShellCommandNamespacePrefix               = "rshell:"
+	RShellCommandAllowAllWildcard              = RShellCommandNamespacePrefix + "*"
+	RShellPathAllowAll                         = "/"
+	RShellPathAllowMapContainerizedKey         = "containerized"
+	RShellPathAllowMapDefaultKey               = "default"
+	RShellPrivilegedSocketDefault              = "/run/datadog/rshell-privileged.sock"
 
 	// Meant for internal usage
 	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"

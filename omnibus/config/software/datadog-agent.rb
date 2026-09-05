@@ -17,8 +17,21 @@ unless do_repackage?
   dependency 'datadog-agent-prepare'
 
   dependency "python3"
+  dependency 'datadog-agent-integrations-py3'
 
-  dependency 'datadog-agent-dependencies'
+  build do
+      command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
+          :live_stream => Omnibus.logger.live_stream(:info)
+  end
+  build do
+      # Delete empty folders that can still be present when building
+      # without the omnibus cache.
+      # When the cache gets used, git will transparently remove empty dirs for us
+      # We do this here since we are done building our dependencies, but haven't
+      # started creating the agent directories, which might be empty but that we
+      # still want to keep
+      command "find #{install_dir} -type d -empty -delete"
+  end
 end
 
 source path: '..',
@@ -191,6 +204,11 @@ build do
       copy 'bin/privateactionrunner/privateactionrunner.exe.pdb', "#{install_dir}/bin/agent"
     elsif not heroku_target?
       copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
+    end
+
+    if linux_target?
+      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/rshell:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/par-control:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     end
   end
 

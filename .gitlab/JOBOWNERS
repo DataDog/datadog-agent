@@ -31,7 +31,7 @@ tests_windows_secagent*                 @DataDog/windows-products @DataDog/agent
 tests_flavor_*                          @DataDog/agent-runtimes
 tests_flavor_dogstatsd*                 @DataDog/agent-metric-pipelines
 tests_rtloader*                         @DataDog/agent-runtimes
-tests_serverless-init*                  @DataDog/serverless-azure-gcp
+tests_serverless-init*                  @DataDog/serverless-azure-and-gcp
 security_go_generate_check              @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
@@ -53,10 +53,13 @@ cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
 secret_generic_connector-build*      @DataDog/fleet-automation
+secret_generic_connector_fips-build* @DataDog/fleet-automation
 build_windows_container_entrypoint   @DataDog/windows-products
 # Cross-compiled binary builds for validation purpose
 cross_build_agent-binary_aix_ppc64        @DataDog/agent-build
 cross_build_trace_agent-binary_aix_ppc64  @DataDog/agent-build
+# AIX/ppc64 unit tests
+aix_unit_tests                       @DataDog/agent-devx @DataDog/agent-runtimes
 
 # Package deps build
 generate_minimized_btfs_*            @DataDog/ebpf-platform
@@ -149,6 +152,8 @@ publish_winget*                        @DataDog/windows-products
 windows_bootstrapper_deploy            @DataDog/windows-products
 qa_*_oci                               @DataDog/agent-delivery
 qa_installer_script*                   @DataDog/agent-delivery
+generate_config_templates              @DataDog/fleet-automation
+generate_config_json_schema            @DataDog/fleet-automation
 
 # Deploy containers and tags
 deploy_containers*                     @Datadog/agent-delivery

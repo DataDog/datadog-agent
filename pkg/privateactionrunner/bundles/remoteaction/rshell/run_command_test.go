@@ -26,6 +26,8 @@ import (
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/rshell/interp"
+	"github.com/DataDog/rshell/privilegedhelper"
+	"google.golang.org/protobuf/proto"
 )
 
 func makeTask(command string, allowedCommands []string) *types.Task {
@@ -638,6 +640,63 @@ func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
 	assert.Contains(t, result.Stderr, "command not allowed")
 }
 
+func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
+	tests := []struct {
+		name    string
+		handler *RunCommandHandler
+	}{
+		{name: "read-only", handler: newDefaultRunCommandHandler()},
+		{name: "remediation", handler: newDefaultRunRemediationCommandHandler()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
+			task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
+			task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
+
+			_, err := tt.handler.Run(context.Background(), task, nil)
+			require.ErrorContains(t, err, "disabled by local configuration")
+		})
+	}
+}
+
+func TestWholeScriptRootIsRejected(t *testing.T) {
+	handler := newDefaultRunRemediationCommandHandler()
+	task := makeTask("truncate -s 0 /var/log/app.log", []string{"rshell:truncate"})
+	task.Data.Attributes.Inputs["effectivePermissions"] = "Root"
+
+	_, err := handler.Run(context.Background(), task, nil)
+	require.ErrorContains(t, err, "whole-script root execution is not supported")
+}
+
+func TestPrivilegedHelperTaskWireCompatibility(t *testing.T) {
+	for _, actionName := range []string{"runCommand", "runRemediationCommand"} {
+		t.Run(actionName, func(t *testing.T) {
+			agentTask := &privateactionspb.PrivateActionTask{
+				ActionName:     actionName,
+				BundleId:       "com.datadoghq.remoteaction.rshell",
+				OrgId:          42,
+				TaskId:         "task-1",
+				ConnectionInfo: &privateactionspb.ConnectionInfo{RunnerId: "runner-1"},
+				SystemInputs: &privateactionspb.SystemInputs{Input: &privateactionspb.SystemInputs_RemoteAction{
+					RemoteAction: &privateactionspb.RemoteAction{AllowedCommands: []string{"rshell:cat"}, AllowedPaths: []string{"/root:ro"}},
+				}},
+			}
+			wire, err := proto.Marshal(agentTask)
+			require.NoError(t, err)
+			var helperTask privilegedhelper.PrivateActionTask
+			require.NoError(t, proto.Unmarshal(wire, &helperTask))
+			assert.Equal(t, agentTask.ActionName, helperTask.ActionName)
+			assert.Equal(t, agentTask.BundleId, helperTask.BundleId)
+			assert.Equal(t, agentTask.OrgId, helperTask.OrgId)
+			assert.Equal(t, agentTask.TaskId, helperTask.TaskId)
+			assert.Equal(t, agentTask.ConnectionInfo.RunnerId, helperTask.ConnectionInfo.RunnerId)
+			assert.Equal(t, agentTask.SystemInputs.GetRemoteAction().AllowedCommands, helperTask.SystemInputs.GetRemoteAction().AllowedCommands)
+			assert.Equal(t, agentTask.SystemInputs.GetRemoteAction().AllowedPaths, helperTask.SystemInputs.GetRemoteAction().AllowedPaths)
+		})
+	}
+}
+
 func TestRunCommandMissingRemoteActionPolicyBlocksExecution(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
 	task := &types.Task{}
@@ -701,6 +760,20 @@ func TestRunCommandSystemInputsOverrideLegacyInputAllowlists(t *testing.T) {
 
 func TestRunCommandWithBackendAllowedCommand(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
+
+	out, err := handler.Run(context.Background(),
+		makeTask("echo hello", []string{"rshell:echo"}), nil)
+
+	require.NoError(t, err)
+	result := out.(*RunCommandOutputs)
+	assert.Equal(t, 0, result.ExitCode)
+	assert.Equal(t, "hello\n", result.Stdout)
+}
+
+func TestRunCommandWithDisableDetailedTelemetryStillExecutes(t *testing.T) {
+	cfg := defaultRunCommandHandlerConfig()
+	cfg.DisableDetailedTelemetry = true
+	handler := NewRunCommandHandler(cfg)
 
 	out, err := handler.Run(context.Background(),
 		makeTask("echo hello", []string{"rshell:echo"}), nil)

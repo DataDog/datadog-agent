@@ -105,6 +105,8 @@ agent flavors and binaries.
 
 ### [comp/core/agenttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/agenttelemetry)
 
+*Datadog Team*: fleet-remediation
+
 Package agenttelemetry implements a component to generate Agent telemetry
 
 ### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
@@ -146,7 +148,7 @@ Package configsync implements synchronizing the configuration using the core age
 
 ### [comp/core/delegatedauth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/delegatedauth)
 
-*Datadog Team*: credential-management
+*Datadog Team*: credential-management delegated-auth-login
 
 Package delegatedauth manages cloud-based delegated authentication for the agent.
 It fetches and refreshes Datadog API keys from cloud providers and writes them
@@ -257,6 +259,8 @@ component temporarily wraps pkg/config.
 Package tagger provides the tagger interface for the Datadog Agent
 
 ### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/telemetry)
+
+*Datadog Team*: fleet-remediation
 
 Package telemetry defines the interfaces for the telemetry component.
 
@@ -444,7 +448,7 @@ Package kubehealth provides a dependency-injectible health object for kubernetes
 
 ### [comp/logs/severityprovider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/severityprovider)
 
-*Datadog Team*: agent-log-pipelines q-branch
+*Datadog Team*: agent-log-pipelines agent-anomaly-detection
 
 Package severityprovider defines the severity provider component.
 
@@ -846,26 +850,26 @@ Package updater is the updater component.
 
 ### [comp/anomalydetection/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/logssource)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
 Package logssource provides a component that feeds container and kubelet
 journald logs into the observer without requiring the logs agent to be enabled.
 
 ### [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
 Package observer provides a component for observing data flowing through the agent.
 
 ### [comp/anomalydetection/recorder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/recorder)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
 Package recorder provides a middleware component for recording and replaying observer data.
 
 ### [comp/anomalydetection/reporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/reporter)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
 Package reporter defines the reporter component contracts.
 Concrete reporters are provided through the `anomalydetection_reporters` Fx group.

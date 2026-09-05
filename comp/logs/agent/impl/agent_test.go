@@ -306,6 +306,9 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 }
 
 func (suite *AgentTestSuite) TestGetPipelineProvider() {
+	metrics.ResetMissedBytesForTest()
+	defer metrics.ResetMissedBytesForTest()
+
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 
@@ -313,10 +316,15 @@ func (suite *AgentTestSuite) TestGetPipelineProvider() {
 	endpoints := config.NewEndpoints(endpoint, nil, true, false)
 
 	agent, _, _ := createAgent(suite, endpoints)
+	assert.False(suite.T(), metrics.LogsAgentRunning())
+
 	agent.Start()
 	defer agent.Stop()
 
 	assert.NotNil(suite.T(), agent.GetPipelineProvider())
+	// Sole production call site of MarkLogsAgentRunning; if it goes, the check
+	// returns errLogsAgentNotRunning forever and the feature never fires.
+	assert.True(suite.T(), metrics.LogsAgentRunning())
 }
 
 func (suite *AgentTestSuite) TestAgentLiveness() {

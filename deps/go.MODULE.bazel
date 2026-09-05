@@ -56,6 +56,14 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=trivy_no_javadb"],
     path = "github.com/aquasecurity/trivy",
 )
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:go_visibility @@//pkg/privateactionrunner/rshell:__pkg__",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry @@//pkg/fleet/installer/telemetry:telemetry",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state:state",
+    ],
+    path = "github.com/DataDog/rshell",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",
@@ -148,7 +156,6 @@ use_repo(
     "com_github_frapposelli_wwhrd",
     "com_github_freddierice_go_losetup",
     "com_github_fsnotify_fsnotify",
-    "com_github_ghodss_yaml",
     "com_github_glaslos_ssdeep",
     "com_github_go_delve_delve",
     "com_github_go_enry_go_license_detector_v4",
@@ -159,7 +166,6 @@ use_repo(
     "com_github_go_viper_mapstructure_v2",
     "com_github_go_zookeeper_zk",
     "com_github_gobwas_glob",
-    "com_github_goccy_go_yaml",
     "com_github_gocomply_scap",
     "com_github_godbus_dbus_v5",
     "com_github_godror_godror",
@@ -211,6 +217,7 @@ use_repo(
     "com_github_kouhin_envflag",
     "com_github_kr_pretty",
     "com_github_kraken_hpc_go_fork",
+    "com_github_landlock_lsm_go_landlock",
     "com_github_lightstep_go_expohisto",
     "com_github_lorenzosaino_go_sysctl",
     "com_github_lxn_walk",
@@ -319,7 +326,6 @@ use_repo(
     "com_github_safchain_baloum",
     "com_github_safchain_ethtool",
     "com_github_samber_lo",
-    "com_github_santhosh_tekuri_jsonschema_v5",
     "com_github_santhosh_tekuri_jsonschema_v6",
     "com_github_sassoftware_go_rpmutils",
     "com_github_secure_systems_lab_go_securesystemslib",
@@ -453,6 +459,8 @@ use_repo(
     "io_opentelemetry_go_otel_sdk",
     "io_opentelemetry_go_otel_sdk_metric",
     "io_opentelemetry_go_otel_trace",
+    "io_opentelemetry_go_proto_slim_otlp",
+    "io_opentelemetry_go_proto_slim_otlp_processcontext_v1development",
     "io_temporal_go_api",
     "io_temporal_go_sdk",
     "net_pgregory_rapid",
