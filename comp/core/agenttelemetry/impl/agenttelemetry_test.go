@@ -3145,7 +3145,7 @@ func TestAgentTelemetrySendRegisteredEvent(t *testing.T) {
 	var topPayload map[string]interface{}
 	err = json.Unmarshal(cl.(*clientMock).body, &topPayload)
 	require.NoError(t, err)
-	fmt.Print(string(cl.(*clientMock).body))
+	fmt.Println(string(cl.(*clientMock).body))
 
 	v, ok, err2 := jsonquery.RunSingleOutput(".payload.message", topPayload)
 	require.NoError(t, err2)
