@@ -1,0 +1,472 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//go:build windows
+
+// Package powershell implements a Windows core check that runs admin-allowlisted,
+// read-only PowerShell Get-* cmdlets and maps their output to metrics and tags.
+package powershell
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+)
+
+const (
+	// CheckName is the name of the check
+	CheckName = "powershell"
+
+	// allowlistFileName is the fixed name of the admin-owned allowlist, always
+	// read from the installer's admin-only <ProgramData>\Datadog\protected dir.
+	allowlistFileName = "powershell_allowlist.yaml"
+
+	// defaultMaxOutputBytes bounds the JSON captured from a single cmdlet
+	// invocation when the instance does not override it.
+	defaultMaxOutputBytes = 10 * 1024 * 1024
+
+	// maxOutputBytesCeiling caps what an instance may ask for. The bound exists to
+	// keep a runaway cmdlet from exhausting Agent memory, so it stays absolute.
+	maxOutputBytesCeiling = 100 * 1024 * 1024
+
+	// maxStderrBytes bounds diagnostic output captured from a single cmdlet
+	// invocation. Stderr is only used for error reporting, so it needs a much
+	// smaller cap than the JSON payload on stdout.
+	maxStderrBytes = 64 * 1024
+
+	// waitDelay bounds how long Wait may block on the child's I/O pipes after the
+	// process itself has exited or been killed.
+	waitDelay = 5 * time.Second
+)
+
+// requiredEnvVars is the restricted environment passed to powershell.exe. It
+// includes PSModulePath so server-role modules (FailoverClusters, PKI, ...)
+// auto-load, plus the minimum Windows vars PowerShell needs to run.
+var requiredEnvVars = []string{
+	"SYSTEMROOT", "SYSTEMDRIVE", "COMSPEC", "PATH", "PATHEXT",
+	"WINDIR", "TEMP", "TMP", "PSMODULEPATH", "PROGRAMFILES", "PROGRAMW6432",
+}
+
+// PowershellCheck runs one allowlisted Get-* cmdlet instance.
+type PowershellCheck struct {
+	core.CheckBase
+	instance  *instanceConfig
+	allowlist *allowlist
+}
+
+// Configure parses the instance config, loads and verifies the admin allowlist,
+// and validates the instance against it. It fails closed on any problem.
+func (c *PowershellCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
+	c.BuildID(integrationConfigDigest, data, initConfig)
+	if err := c.CommonConfigure(senderManager, initConfig, data, source, provider); err != nil {
+		return err
+	}
+
+	// Structural validation first, so malformed configs are logged clearly and
+	// all schema errors are surfaced at once.
+	if err := validateInstanceSchema(data); err != nil {
+		return err
+	}
+
+	inst, err := parseInstanceConfig(data)
+	if err != nil {
+		log.Errorf("invalid config: %s", err)
+		return fmt.Errorf("invalid powershell check config: %w", err)
+	}
+
+	al, err := loadAllowlist()
+	if err != nil {
+		log.Errorf("could not load allowlist: %s", err)
+		return fmt.Errorf("could not load PowerShell allowlist: %w", err)
+	}
+	if err := al.validateInstance(inst); err != nil {
+		log.Errorf("cmdlet %s rejected by allowlist: %s", inst.Cmdlet, err)
+		return fmt.Errorf("instance rejected by allowlist: %w", err)
+	}
+
+	c.instance = inst
+	// Read once and reused by Run. After an allowlist edit, the Agent must be
+	// restarted to reload the check and the allowlist.
+	c.allowlist = al
+
+	log.Infof("configured cmdlet %s: module %s, %d parameter(s), %d filter(s), %d metric(s), %d join(s), timeout %ds",
+		inst.Cmdlet, al.AllowedCmdlets[inst.Cmdlet].Module,
+		len(inst.Parameters), len(inst.Where), len(inst.Metrics), len(inst.TagQueries), inst.Timeout)
+
+	s, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+	s.FinalizeCheckServiceTag()
+	return nil
+}
+
+// Run invokes the cmdlet, maps its output to metrics/tags, and commits.
+func (c *PowershellCheck) Run() error {
+	s, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+	defer s.Commit()
+
+	start := time.Now()
+
+	rows, err := c.runCmdlet(c.instance.Cmdlet, c.instance.Parameters, c.instance.Where, c.instance.selectProperties())
+	if err != nil {
+		return fmt.Errorf("cmdlet %q failed: %w", c.instance.Cmdlet, err)
+	}
+	if len(rows) == 0 {
+		log.Warnf("cmdlet %s returned no rows; no metrics submitted this interval", c.instance.Cmdlet)
+	}
+
+	joins := c.runTagQueries()
+
+	for _, row := range rows {
+		tags := buildTags(c.instance, row, joins)
+		for i := range c.instance.Metrics {
+			if err := c.submitMetric(s, &c.instance.Metrics[i], row, tags); err != nil {
+				return err
+			}
+		}
+	}
+
+	for i := range c.instance.TagBy {
+		tb := &c.instance.TagBy[i]
+		missing := 0
+		for _, row := range rows {
+			if tagValue(row[tb.Property]) == "" {
+				missing++
+			}
+		}
+		switch {
+		case len(rows) > 0 && missing == len(rows):
+			log.Warnf("cmdlet %s: tag_by %s had no value on any of the %d rows; check the property name against the cmdlet's real output (lookups are case-sensitive)",
+				c.instance.Cmdlet, tb.Property, len(rows))
+		case missing > 0:
+			log.Debugf("cmdlet %s: tag_by %s had no value on %d of %d rows",
+				c.instance.Cmdlet, tb.Property, missing, len(rows))
+		}
+	}
+
+	log.Debugf("cmdlet %s run complete: %d metrics from %d rows in %s",
+		c.instance.Cmdlet, len(rows)*len(c.instance.Metrics), len(rows),
+		time.Since(start).Round(time.Millisecond))
+	return nil
+}
+
+// runTagQueries resolves each tag_queries join into a map from link-target
+// value to the joined target-property value. A failing join yields a nil map
+// (its tags are simply omitted) rather than failing the whole run.
+func (c *PowershellCheck) runTagQueries() []map[string]string {
+	if len(c.instance.TagQueries) == 0 {
+		return nil
+	}
+	joins := make([]map[string]string, len(c.instance.TagQueries))
+	for i := range c.instance.TagQueries {
+		q := &c.instance.TagQueries[i]
+		// Joins resolve against the full target set: a where clause narrows this
+		// instance's own rows, not the rows it looks tags up in.
+		rows, err := c.runCmdlet(q.TargetCmdlet, nil, nil, []string{q.LinkTargetProperty, q.TargetProperty})
+		if err != nil {
+			log.Warnf("tag_queries cmdlet %s failed, skipping join: %s", q.TargetCmdlet, err)
+			continue
+		}
+		m := make(map[string]string, len(rows))
+		for _, row := range rows {
+			key := tagValue(row[q.LinkTargetProperty])
+			val := tagValue(row[q.TargetProperty])
+			if key != "" && val != "" {
+				m[key] = val
+			}
+		}
+		if len(m) == 0 {
+			log.Warnf("tag_queries cmdlet %s returned %d rows but no usable %s/%s pairs; the join will add no tags",
+				q.TargetCmdlet, len(rows), q.LinkTargetProperty, q.TargetProperty)
+		} else {
+			log.Debugf("tag_queries cmdlet %s resolved %d lookup keys from %d rows",
+				q.TargetCmdlet, len(m), len(rows))
+		}
+		joins[i] = m
+	}
+	return joins
+}
+
+// submitMetric coerces a row property to a float and submits it under the
+// configured metric type. Virtual (literal 1) metrics always submit 1.
+//
+// A non-virtual metric whose property is missing from the output or whose value
+// is not numeric is a configuration error: there is no point running a check
+// that cannot produce a metric value. It returns an error in that case so the
+// whole run fails loudly (logged at error level and surfaced in `agent status`)
+// rather than silently emitting nothing.
+func (c *PowershellCheck) submitMetric(s sender.Sender, m *metricEntry, row map[string]interface{}, tags []string) error {
+	var value float64
+	if m.isVirtual() {
+		value = 1
+	} else {
+		// resolveValue applies `mapping` and `default_value`, so a metric that
+		// configures either cannot reach the error paths below.
+		raw, present := row[m.Property]
+		f, ok := m.resolveValue(raw)
+		if !ok {
+			if !present {
+				return fmt.Errorf("metric %q: property %q is not present in the output of cmdlet %q", m.Name, m.Property, c.instance.Cmdlet)
+			}
+			return fmt.Errorf("metric %q: property %q value %v is not numeric, and no 'mapping' or 'default_value' applies", m.Name, m.Property, raw)
+		}
+		value = f
+	}
+
+	name := c.instance.metricName(m)
+	switch m.Type {
+	case "rate":
+		s.Rate(name, value, "", tags)
+	case "count":
+		s.Count(name, value, "", tags)
+	case "monotonic_count":
+		s.MonotonicCount(name, value, "", tags)
+	case "histogram":
+		s.Histogram(name, value, "", tags)
+	case "distribution":
+		s.Distribution(name, value, "", tags)
+	default:
+		s.Gauge(name, value, "", tags)
+	}
+	return nil
+}
+
+// runCmdlet builds the command and its payload, spawns a one-shot powershell.exe
+// under a timeout with a restricted environment, and parses the JSON output. The
+// script holds no configuration, so it is logged as is.
+func (c *PowershellCheck) runCmdlet(cmdlet string, params []parameterEntry, where []whereEntry, selectProps []string) ([]map[string]interface{}, error) {
+	// The allowlist may pin the cmdlet to a module; enforce it at runtime.
+	var module string
+	if c.allowlist != nil {
+		module = c.allowlist.AllowedCmdlets[cmdlet].Module
+	}
+	script, payload, err := buildCommand(cmdlet, module, params, where, selectProps)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("generated script for cmdlet %s:\n%s", cmdlet, script)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.instance.Timeout)*time.Second)
+	defer cancel()
+
+	// RemoteSigned is set only so auto-loaded modules (PKI, FailoverClusters)
+	// import under a Restricted machine policy.
+	cmd := exec.CommandContext(ctx, "powershell.exe",
+		"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned",
+		"-Command", script)
+	cmd.Env = restrictedEnv()
+
+	// Copied on a goroutine while the preamble reads to EOF, so neither side stalls.
+	cmd.Stdin = bytes.NewReader(payload)
+
+	stdout := &cappedBuffer{limit: c.instance.MaxOutputBytes}
+	stderr := &cappedBuffer{limit: maxStderrBytes}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+
+	// Wait blocks until every process holding the pipes closes them, so an
+	// auto-loaded module spawning a helper could otherwise wedge it past the deadline.
+	cmd.WaitDelay = waitDelay
+
+	cmdStart := time.Now()
+	runErr := cmd.Run()
+	stderrMessage := strings.TrimSpace(string(stderr.Bytes()))
+	stderrTruncation := ""
+	if stderr.truncated {
+		stderrTruncation = fmt.Sprintf(" [truncated after %d bytes]", maxStderrBytes)
+	}
+	if runErr != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("timed out after %ds%s", c.instance.Timeout, stderrTruncation)
+		}
+		if errors.Is(runErr, exec.ErrWaitDelay) {
+			return nil, fmt.Errorf("cmdlet exited but its output pipes stayed open for more than %s%s", waitDelay, stderrTruncation)
+		}
+		return nil, fmt.Errorf("%w (stderr: %s%s)", runErr, stderrMessage, stderrTruncation)
+	}
+
+	if stderrMessage != "" || stderr.truncated {
+		log.Warnf("cmdlet %s wrote to stderr but exited successfully: %.512s%s", cmdlet, stderrMessage, stderrTruncation)
+	}
+
+	if stdout.truncated {
+		return nil, fmt.Errorf("output exceeded %d bytes", c.instance.MaxOutputBytes)
+	}
+	if n := len(stdout.Bytes()); n > c.instance.MaxOutputBytes*8/10 {
+		log.Warnf("cmdlet %s produced %d bytes, over 80%% of the %d byte cap", cmdlet, n, c.instance.MaxOutputBytes)
+	}
+
+	rows, err := parseRows(stdout.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("cmdlet %s returned %d rows (%d bytes, %s)",
+		cmdlet, len(rows), len(stdout.Bytes()), time.Since(cmdStart).Round(time.Millisecond))
+
+	return rows, nil
+}
+
+// parseRows decodes the compact JSON emitted by the dispatcher command into a
+// list of rows. Empty output (no results) yields an empty slice.
+func parseRows(out []byte) ([]map[string]interface{}, error) {
+	trimmed := bytes.TrimSpace(out)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		return nil, nil
+	}
+
+	var rows []map[string]interface{}
+	if err := json.Unmarshal(trimmed, &rows); err == nil {
+		return rows, nil
+	}
+
+	var single map[string]interface{}
+	if err := json.Unmarshal(trimmed, &single); err != nil {
+		return nil, fmt.Errorf("could not parse cmdlet JSON output: %w", err)
+	}
+	return []map[string]interface{}{single}, nil
+}
+
+// loadAllowlist opens the fixed allowlist path once, verifies admin ownership
+// and reads it through that same handle (so it can't be swapped mid-check), then
+// parses it. Any failure is fatal (fail closed).
+func loadAllowlist() (*allowlist, error) {
+	path, err := allowlistPath()
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("could not open allowlist %s: %w", path, err)
+	}
+	defer f.Close()
+
+	if err := verifyAdminOwned(f); err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, fmt.Errorf("could not read allowlist %s: %w", path, err)
+	}
+	al, err := parseAllowlist(data)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("loaded allowlist %s (version %d, %d cmdlets accepted)", path, al.Version, len(al.AllowedCmdlets))
+	return al, nil
+}
+
+// allowlistPath returns the fixed, non-configurable allowlist location inside
+// the installer's admin-only protected directory.
+func allowlistPath() (string, error) {
+	base, err := winutil.GetProgramDataDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, "protected", allowlistFileName), nil
+}
+
+// verifyAdminOwned fails unless the file's owner is Administrators or SYSTEM —
+// the guard that an admin placed the allowlist. It reads ownership from the
+// handle, not the path, so the check binds to the exact file being read.
+func verifyAdminOwned(f *os.File) error {
+	sd, err := windows.GetSecurityInfo(windows.Handle(f.Fd()), windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION)
+	if err != nil {
+		return fmt.Errorf("could not read owner of %s: %w", f.Name(), err)
+	}
+	owner, _, err := sd.Owner()
+	if err != nil {
+		return fmt.Errorf("could not read owner of %s: %w", f.Name(), err)
+	}
+	admins, err := windows.CreateWellKnownSid(windows.WinBuiltinAdministratorsSid)
+	if err != nil {
+		return err
+	}
+	system, err := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+	if err != nil {
+		return err
+	}
+	if !windows.EqualSid(owner, admins) && !windows.EqualSid(owner, system) {
+		return fmt.Errorf("allowlist %s must be owned by Administrators or SYSTEM", f.Name())
+	}
+	return nil
+}
+
+// restrictedEnv returns a filtered copy of the process environment limited to
+// requiredEnvVars.
+func restrictedEnv() []string {
+	allowed := make(map[string]struct{}, len(requiredEnvVars))
+	for _, name := range requiredEnvVars {
+		allowed[name] = struct{}{}
+	}
+	var env []string
+	for _, e := range os.Environ() {
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		if _, ok := allowed[strings.ToUpper(parts[0])]; ok {
+			env = append(env, e)
+		}
+	}
+	return env
+}
+
+// cappedBuffer accumulates output up to a byte limit, discarding the rest so a
+// runaway cmdlet cannot exhaust memory.
+type cappedBuffer struct {
+	buf       bytes.Buffer
+	limit     int
+	truncated bool
+}
+
+func (c *cappedBuffer) Write(p []byte) (int, error) {
+	if remaining := c.limit - c.buf.Len(); remaining > 0 {
+		if len(p) > remaining {
+			c.buf.Write(p[:remaining])
+			c.truncated = true
+		} else {
+			c.buf.Write(p)
+		}
+	} else {
+		c.truncated = true
+	}
+	// Always report a full write so the child process does not see a broken pipe.
+	return len(p), nil
+}
+
+func (c *cappedBuffer) Bytes() []byte { return c.buf.Bytes() }
+
+// Factory creates a new check factory
+func Factory() option.Option[func() check.Check] {
+	return option.New(newCheck)
+}
+
+func newCheck() check.Check {
+	return &PowershellCheck{
+		CheckBase: core.NewCheckBase(CheckName),
+	}
+}

@@ -50,6 +50,7 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
+        "allowance_test.go",
         "basic_test.go",
         "config_test.go",
         "localips_test.go",
