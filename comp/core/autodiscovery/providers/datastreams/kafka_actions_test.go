@@ -279,3 +279,46 @@ func TestActionsControllerNoMatchingKafkaConsumer(t *testing.T) {
 	assert.Equal(t, state.ApplyStateError, updateStatus["config_1"].State)
 	assert.Contains(t, updateStatus["config_1"].Error, "kafka_consumer integration")
 }
+
+func TestActionsControllerKafkaActionsDisabled(t *testing.T) {
+	allowedKafkaConsumerCfg := integration.Config{
+		Name: kafkaConsumerIntegrationName,
+		Instances: []integration.Data{integration.Data(`
+kafka_connect_str: localhost:9092
+`)},
+		InitConfig: integration.Data{},
+	}
+	kafkaConsumerCfg := integration.Config{
+		Name: kafkaConsumerIntegrationName,
+		Instances: []integration.Data{integration.Data(`
+kafka_connect_str: localhost:9092
+allow_kafka_actions: false
+`)},
+		InitConfig: integration.Data{},
+	}
+	c := &actionsController{
+		ac: getMockedAutodiscoveryActions(
+			t,
+			[]integration.Config{allowedKafkaConsumerCfg, kafkaConsumerCfg},
+		),
+		rcclient:      &mockedRcClient{},
+		configChanges: make(chan integration.ConfigChanges, 10),
+	}
+	actionsJSON, err := json.Marshal(map[string]any{"delete_topic": map[string]any{"topic": "test-topic"}})
+	require.NoError(t, err)
+	serializedConfig, err := json.Marshal(kafkaActionsConfig{
+		Actions:          actionsJSON,
+		BootstrapServers: "localhost:9092",
+	})
+	require.NoError(t, err)
+	updateStatus := make(map[string]state.ApplyStatus)
+
+	c.update(
+		map[string]state.RawConfig{"config_1": {Config: serializedConfig}},
+		func(path string, status state.ApplyStatus) { updateStatus[path] = status },
+	)
+
+	assert.Equal(t, state.ApplyStateError, updateStatus["config_1"].State)
+	assert.Contains(t, updateStatus["config_1"].Error, "kafka actions are disabled")
+	assert.Empty(t, c.configChanges)
+}

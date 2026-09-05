@@ -161,7 +161,7 @@ func (c *actionsController) update(updates map[string]state.RawConfig, applyStat
 	for _, parsed := range remoteConfigs {
 		auth, base, err := extractKafkaAuthFromInstance(cfgs, parsed.bootstrapServers)
 		if err != nil {
-			log.Errorf("Failed to extract Kafka auth for config %s: %v", parsed.path, err)
+			log.Errorf("Failed to prepare Kafka action config %s: %v", parsed.path, err)
 			applyStateCallback(parsed.path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
@@ -248,6 +248,8 @@ func parseActionsConfig(updates map[string]state.RawConfig, applyStateCallback f
 
 func extractKafkaAuthFromInstance(cfgs []integration.Config, bootstrapServers string) (map[string]any, *integration.Config, error) {
 	out := make(map[string]any)
+	var matchedAuth map[string]any
+	var matchedConfig *integration.Config
 
 	for cfgIdx := range cfgs {
 		cfg := cfgs[cfgIdx]
@@ -259,6 +261,9 @@ func extractKafkaAuthFromInstance(cfgs []integration.Config, bootstrapServers st
 		// It is a fallback in case matching by bootstrap_servers fails in some cases.
 		if bootstrapServers == "" {
 			if len(cfg.Instances) > 0 {
+				if !kafkaActionsAllowed(cfg.Instances[0]) {
+					return nil, &cfg, errors.New("kafka actions are disabled by the matching kafka_consumer instance")
+				}
 				auth := extractAuthFromInstanceData(cfg.Instances[0])
 				return auth, &cfg, nil
 			}
@@ -289,16 +294,33 @@ func extractKafkaAuthFromInstance(cfgs []integration.Config, bootstrapServers st
 			}
 
 			if connectStr != "" && normalizeBootstrapServers(connectStr) == bootstrapServers {
-				auth := extractAuthFromInstanceData(instanceData)
-				return auth, &cfg, nil
+				if !kafkaActionsAllowed(instanceData) {
+					return nil, &cfg, errors.New("kafka actions are disabled by the matching kafka_consumer instance")
+				}
+				if matchedConfig == nil {
+					matchedAuth = extractAuthFromInstanceData(instanceData)
+					matchedConfig = &cfg
+				}
 			}
 		}
 	}
 
+	if matchedConfig != nil {
+		return matchedAuth, matchedConfig, nil
+	}
 	if bootstrapServers == "" {
 		return out, nil, errors.New("kafka_consumer integration not found on this node")
 	}
 	return out, nil, fmt.Errorf("kafka_consumer integration with bootstrap_servers=%s not found", bootstrapServers)
+}
+
+func kafkaActionsAllowed(instanceData integration.Data) bool {
+	var instance map[string]any
+	if err := yaml.Unmarshal(instanceData, &instance); err != nil {
+		return true
+	}
+	allowed, configured := instance["allow_kafka_actions"].(bool)
+	return !configured || allowed
 }
 
 func extractAuthFromInstanceData(instanceData integration.Data) map[string]any {

@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    DSM: Add an ``allow_kafka_actions`` option to the ``kafka_consumer`` integration. Set it to ``false`` to prevent
+    the Agent from executing one-time Kafka actions against the configured cluster without disabling other Remote
+    Configuration features.
