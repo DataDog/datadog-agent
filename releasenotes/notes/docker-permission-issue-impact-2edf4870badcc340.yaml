@@ -1,0 +1,9 @@
+---
+other:
+  - |
+    The health platform issue raised when the Agent cannot reach the Docker
+    socket now reports that Docker-backed container metrics, container image
+    collection and container image vulnerability scanning are unavailable. It
+    previously reported only that log collection would fall back to socket
+    tailing, which cannot happen when the socket itself is the thing that is
+    unreachable.
