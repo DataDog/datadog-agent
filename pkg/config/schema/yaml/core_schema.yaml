@@ -5157,6 +5157,15 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
+          log_tokenizer_fuzzy_extractor:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                comment: POC extractor that reuses the Logs tokenizer and groups patterns with an Observer-specific 0.5 positional-match threshold.
           rrcf:
             node_type: section
             type: object
