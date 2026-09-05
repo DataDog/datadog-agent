@@ -11,20 +11,22 @@ import (
 
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	helmactionsimpl "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/impl"
+	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	batchv1 "k8s.io/api/batch/v1"
 )
 
 type HelmRollbackHandler struct {
 	ha helmactions.Component
+	ka kubeactions.Component
 }
 
-func NewRollbackHandler(ha helmactions.Component) types.Action {
+func NewRollbackHandler(ha helmactions.Component, ka kubeactions.Component) types.Action {
 	return &HelmRollbackHandler{
 		ha: ha,
+		ka: ka,
 	}
 }
 
@@ -41,23 +43,67 @@ func (rh *HelmRollbackHandler) Run(ctx context.Context, task *types.Task,
 		return nil, err
 	}
 
+	report := newReport(helmactions.HelmRollbackAction, task)
+	report.ResourceNamespace = in.ReleaseNamespace
+	report.ResourceName = in.Release
+
+	// Carried separately from RollbackInputs (which is only ever the decoded
+	// wire-format inputs) so the Job watcher can report completion back to EVP
+	// against this task once the Job reaches a terminal state, long after
+	// Run() has returned.
+	meta := helmactions.TaskMeta{
+		ActionID: report.ActionID,
+		OrgID:    report.OrgID,
+	}
+
+	// Inform KA backend about job reception
+	rh.ka.ReportReceived(report)
+
 	client, err := support.KubeClient(credential)
 	if err != nil {
-		return nil, err
+		return rh.reportPreflightFailure(report, err)
 	}
 
-	executor := helmactionsimpl.NewRollbackExecutor(client)
-	job, err := executor.Run(ctx, in)
+	job, err := helmactionsimpl.NewRollbackExecutor(client).Run(ctx, in, meta)
 	if err != nil {
-		return nil, fmt.Errorf("create helm rollback job in %s: %w", in.JobNamespace, err)
+		return rh.reportPreflightFailure(report, fmt.Errorf("helm rollback executor: %w", err))
 	}
 
-	log.Infof("[HelmActions] Created rollback job %s/%s for release %s/%s (revision=%d)",
-		job.Namespace, job.Name, in.ReleaseNamespace, in.Release, in.Revision)
-
-	rh.ha.OnRollback(&in, job)
+	// Since Helm Rollback is long running action report progress event that it has started
+	rh.ka.ReportProgress(report, "Rollback started")
+	// Notify helm actions tracking
+	rh.ha.OnRollback(&in, meta, job)
 
 	return &HelmRollbackOutputs{
 		Job: job,
 	}, nil
+}
+
+// reportPreflightFailure emits the terminal failed action_executed event for a
+// preflight failure (input validation, Kubernetes client construction) that
+// happens before the executor runs, then returns the error. Without it these
+// early returns would report nothing to EVP, leaving the kube-actions row stuck
+// in its pending state since the writer advances status only from EVP events.
+// Callers musцt have already emitted ReportReceived for the report.
+func (rh *HelmRollbackHandler) reportPreflightFailure(report kubeactions.ActionReport, err error) (any, error) {
+	rh.ka.ReportResult(report, kubeactions.ExecutionResult{
+		Status:  kubeactions.StatusFailed,
+		Message: err.Error(),
+	})
+	return nil, err
+}
+
+// newReport builds an ActionReport from the action type and task metadata (org ID and job ID).
+//
+// ActionID is taken from TaskID since if created using kube_actions API it is so.
+func newReport(actionType string, task *types.Task) kubeactions.ActionReport {
+	report := kubeactions.ActionReport{
+		ActionType: actionType,
+	}
+
+	if task != nil && task.Data.Attributes != nil {
+		report.ActionID = task.Data.ID
+		report.OrgID = task.Data.Attributes.OrgId
+	}
+	return report
 }
