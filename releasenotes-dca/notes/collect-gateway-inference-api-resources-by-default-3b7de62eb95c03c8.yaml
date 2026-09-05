@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Collect Gateway API and Gateway API Inference Extension custom resources
+    in Orchestrator Explorer by default. Set
+    ``orchestrator_explorer.custom_resources.ootb.gateway_api`` to ``false``
+    to opt out.

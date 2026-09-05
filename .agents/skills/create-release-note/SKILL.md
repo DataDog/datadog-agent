@@ -1,12 +1,14 @@
 ---
 name: create-release-note
-description: Create a reno release note for a PR or change
+description: Create a reno release note for a PR or change. Use when asked to create, add, or write a release note or changelog entry.
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
 argument-hint: "[topic]"
 model: sonnet
 ---
 
 Create a release note file using the reno format. Release notes are **mandatory** for all PRs unless labeled `changelog/no-changelog`.
+
+**Ownership:** maintained by `@DataDog/agent-devx`.
 
 ## Instructions
 
@@ -39,12 +41,12 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the top
 Generate the file using reno:
 
 ```bash
-reno new <topic> --no-edit
+reno new <topic>
 ```
 
 Or for non-default directories:
 ```bash
-reno --rel-notes-dir <directory> new <topic> --no-edit
+reno --rel-notes-dir <directory> new <topic>
 ```
 
 This creates a file at `<directory>/notes/<topic>-<hash>.yaml` with a template.

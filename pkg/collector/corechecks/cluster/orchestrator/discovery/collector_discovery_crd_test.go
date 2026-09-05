@@ -223,11 +223,40 @@ func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 		name             string
 		setup            func() *DiscoveryCollector
 		groupName        string
+		resourceName     string
 		preferredVersion string
 		fallbackVersions []string
 		expectedVersion  string
 		expectedFound    bool
 	}{
+		{
+			name: "skips a version only exposed by another resource in the group",
+			setup: func() *DiscoveryCollector {
+				return &DiscoveryCollector{
+					cache: DiscoveryCache{
+						Groups: []*v1.APIGroup{
+							{
+								Name: "ray.io",
+								Versions: []v1.GroupVersionForDiscovery{
+									{Version: "v1"},
+									{Version: "v1alpha1"},
+								},
+							},
+						},
+						CollectorForVersion: map[CollectorVersion]struct{}{
+							{GroupVersion: "ray.io/v1", Kind: "rayjobs"}:           {},
+							{GroupVersion: "ray.io/v1alpha1", Kind: "rayclusters"}: {},
+						},
+					},
+				}
+			},
+			groupName:        "ray.io",
+			resourceName:     "rayclusters",
+			preferredVersion: "v1",
+			fallbackVersions: []string{"v1alpha1"},
+			expectedVersion:  "v1alpha1",
+			expectedFound:    true,
+		},
 		{
 			name: "returns preferred version when available",
 			setup: func() *DiscoveryCollector {
@@ -416,7 +445,7 @@ func TestDiscoveryCollector_OptimalVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dc := tt.setup()
-			version, found := dc.OptimalVersion(tt.groupName, tt.preferredVersion, tt.fallbackVersions)
+			version, found := dc.OptimalVersion(tt.groupName, tt.resourceName, tt.preferredVersion, tt.fallbackVersions)
 
 			assert.Equal(t, tt.expectedFound, found, "OptimalVersion() found mismatch")
 			assert.Equal(t, tt.expectedVersion, version, "OptimalVersion() version mismatch")
