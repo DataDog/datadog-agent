@@ -235,8 +235,8 @@
 
 /chocolatey/ @DataDog/windows-products
 
-/cmd/                                               @DataDog/fleet-remediation
 /cmd/trace-agent/                                   @DataDog/agent-apm
+/cmd/agent/                                         @DataDog/agent-runtimes
 /cmd/agent/subcommands/controlsvc                   @DataDog/windows-products
 /cmd/agent/subcommands/otel                         @DataDog/opentelemetry-agent
 /cmd/agent/subcommands/check                        @DataDog/agent-runtimes @DataDog/agent-integrations
@@ -283,12 +283,16 @@
 /cmd/cluster-agent/subcommands/start/agent_task.go  @DataDog/container-platform @DataDog/fleet
 /cmd/cluster-agent-cloudfoundry/                    @DataDog/agent-integrations
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go  @DataDog/agent-integrations
+/cmd/config-stream-client/                          @DataDog/fleet-automation
 /cmd/cws-instrumentation/                           @DataDog/agent-security
 /cmd/dogstatsd/                                     @DataDog/agent-metric-pipelines
+/cmd/internal/                                      @DataDog/agent-build
+/cmd/iot-agent/                                     @DataDog/agent-runtimes
 /cmd/loader/                                        @DataDog/agent-runtimes @DataDog/agent-apm
 /cmd/otel-agent/                                    @DataDog/opentelemetry-agent
 /cmd/privateactionrunner                            @DataDog/action-platform
 /cmd/process-agent/                                 @DataDog/container-experiences
+/cmd/secrethelper/                                  @DataDog/fleet-automation
 /cmd/serverless-init/                               @DataDog/serverless-azure-and-gcp
 /cmd/sbomgen/                                       @DataDog/agent-security
 /cmd/system-probe/                                  @DataDog/ebpf-platform
@@ -318,6 +322,7 @@
 /cmd/security-agent/subcommands/compliance/         @DataDog/agent-cspm @DataDog/agent-security
 /cmd/installer/                                     @DataDog/fleet @DataDog/windows-products
 /cmd/host-profiler/                                 @DataDog/opentelemetry-agent @DataDog/profiling-full-host
+/cmd/testdata/                                      @DataDog/agent-integrations @DataDog/agent-runtimes
 
 /dev/    @DataDog/agent-devx
 /devenv/ @DataDog/agent-devx
