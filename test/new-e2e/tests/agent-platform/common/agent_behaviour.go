@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"regexp"
 	"strings"
 	"testing"
@@ -378,10 +379,29 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 			tt.Skip("System-probe is flaky on Ubuntu 14.04")
 		}
 		ebpfPath := "/opt/datadog-agent/embedded/share/system-probe/ebpf"
-		output, err := client.Host.Execute(fmt.Sprintf("find %s -name '*.o'", ebpfPath))
+		// The large CWS objects are shipped compressed (system-probe decompresses
+		// them when loading), so both forms have to be collected here.
+		output, err := client.Host.Execute(
+			fmt.Sprintf(`find %s \( -name '*.o' -o -name '*.o.gz' -o -name '*.o.xz' \)`, ebpfPath),
+		)
 		require.NoError(tt, err)
-		files := strings.Split(strings.TrimSpace(output), "\n")
-		require.Greater(tt, len(files), 0, "ebpf object files should be present")
+
+		var files []string
+		for _, file := range strings.Split(output, "\n") {
+			if file = strings.TrimSpace(file); file != "" {
+				files = append(files, file)
+			}
+		}
+		require.NotEmpty(tt, files, "ebpf object files should be present")
+
+		cwsInstalled := false
+		for _, file := range files {
+			if strings.Contains(path.Base(file), "runtime-security") {
+				cwsInstalled = true
+				break
+			}
+		}
+		require.True(tt, cwsInstalled, "the CWS ebpf objects should be installed, got %v", files)
 
 		_, err = client.Host.Execute("command -v readelf")
 		if err != nil {
@@ -398,12 +418,51 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 		archMetadata := fmt.Sprintf("<arch:%s>", hostArch)
 
 		for _, file := range files {
-			file = strings.TrimSpace(file)
-			ddMetadata, err := client.Host.Execute("readelf -p dd_metadata " + file)
+			objectPath, cleanup, ok := plainEbpfObjectPath(tt, client, file)
+			if !ok {
+				continue
+			}
+			ddMetadata, err := client.Host.Execute("readelf -p dd_metadata " + objectPath)
+			cleanup()
 			require.NoError(tt, err, "readelf should not error, file is %s", file)
 			require.Contains(tt, ddMetadata, archMetadata, "invalid arch metadata")
 		}
 	})
+}
+
+// plainEbpfObjectPath returns a path on the host to a plain ELF copy of an
+// installed eBPF asset, decompressing it first for the objects the package ships
+// as .gz or .xz. The returned cleanup removes the temporary copy, if any.
+//
+// It reports false — after logging why — when the host lacks the decompressor
+// the asset needs: the Agent decodes these in-process, so a missing CLI tool is
+// a gap in the test host rather than a packaging defect.
+func plainEbpfObjectPath(t *testing.T, client *TestClient, remotePath string) (string, func(), bool) {
+	noCleanup := func() {}
+
+	var tool string
+	switch {
+	case strings.HasSuffix(remotePath, ".gz"):
+		tool = "gzip"
+	case strings.HasSuffix(remotePath, ".xz"):
+		tool = "xz"
+	default:
+		return remotePath, noCleanup, true
+	}
+
+	if _, err := client.Host.Execute("command -v " + tool); err != nil {
+		t.Logf("skipping %s: %s is not available on the host", remotePath, tool)
+		return "", noCleanup, false
+	}
+
+	tmpPath := "/tmp/" + strings.TrimSuffix(strings.TrimSuffix(path.Base(remotePath), ".gz"), ".xz")
+	cleanup := func() { _, _ = client.Host.Execute("rm -f " + tmpPath) }
+	if _, err := client.Host.Execute(fmt.Sprintf("%s -dc %s > %s", tool, remotePath, tmpPath)); err != nil {
+		cleanup()
+		require.NoError(t, err, "should be able to decompress %s", remotePath)
+		return "", noCleanup, false
+	}
+	return tmpPath, cleanup, true
 }
 
 // CheckADPEnabled runs tests to check that the Agent behaves properly with ADP enabled
