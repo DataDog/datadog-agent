@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add support for retrieving DogStatsD context cardinality summaries through remote Agent actions.
