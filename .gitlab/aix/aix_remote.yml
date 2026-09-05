@@ -59,6 +59,24 @@
       git checkout "$CI_COMMIT_SHA"
       EOF
     
+    # IBM MQ Client (required by the packaging build for pymqi). It's an
+    # installp fileset from IBM Fix Central (not on the AIX Toolbox), so the
+    # Linux runner fetches the archive from MASS and transfers it to the AIX
+    # host; setup-host.sh installs it. Skipped when already installed.
+    - |
+      if ! ssh -T -p $AIX_PORT $AIX_USER@$AIX_HOST 'lslpp -Lq mqm.base.runtime >/dev/null 2>&1'; then
+        echo "=== AIX: fetching IBM MQ Client from MASS ==="
+        curl -fSL \
+          -H "$(ddtool auth token rapid-dependency-management-mass --datacenter us1.ddbuild.io --http-header)" \
+          "https://mass-read.us1.ddbuild.io/internal/artifact/datadog-agent/aix/mqc/9.2.0.0/9.2.0.0-IBM-MQC-AixPPC64.tar.Z" \
+          -o /tmp/mqclient.tar.Z
+        echo "=== AIX: transferring IBM MQ Client to the AIX host ==="
+        scp -P $AIX_PORT /tmp/mqclient.tar.Z $AIX_USER@$AIX_HOST:/opt/dd-build/mqclient.tar.Z
+        rm -f /tmp/mqclient.tar.Z
+      else
+        echo "=== AIX: IBM MQ Client already installed ==="
+      fi
+
     # Host setup (tools, etc)
     # -tt forces a PTY so the remote script's stdout/stderr stream live to the job log.
     - 'echo "=== AIX: provisioning host (setup-host.sh) ==="'
