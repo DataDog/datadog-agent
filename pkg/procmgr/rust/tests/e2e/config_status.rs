@@ -23,6 +23,19 @@ fn test_cli_config_basic() {
 }
 
 #[test]
+fn test_daemon_loads_dedicated_directory_from_dd_pm_config_dir() {
+    let env = TestEnv::with_nested_config_dir("privateactionrunner/processes.d")
+        .with_config("par-control", test_helpers::sleep_config_yaml())
+        .start();
+
+    let config_dir = env.config_dir().display().to_string();
+    env.cli_config()
+        .assert_success()
+        .assert_field("Location", &config_dir)
+        .assert_field("Loaded Processes", "1");
+}
+
+#[test]
 fn test_cli_config_json() {
     let env = TestEnv::new()
         .with_config("svc-a", test_helpers::sleep_config_yaml())

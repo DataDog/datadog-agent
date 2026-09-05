@@ -515,9 +515,11 @@ impl ManagedProcess {
 }
 
 fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig) -> Result<()> {
-    cmd.env_clear();
-    #[cfg(windows)]
-    platform::apply_child_baseline_env(cmd);
+    if !config.inherit_environment {
+        cmd.env_clear();
+        #[cfg(windows)]
+        platform::apply_child_baseline_env(cmd);
+    }
 
     if let Some(ref raw_path) = config.environment_file {
         let raw_path = expand_env_vars(raw_path);
@@ -1019,6 +1021,52 @@ pub mod tests {
             "child should NOT see PROCMGRD_TEST_SECRET"
         );
         unsafe { std::env::remove_var("PROCMGRD_TEST_SECRET") };
+    }
+
+    #[tokio::test]
+    async fn test_spawn_inherits_parent_env_when_enabled() {
+        // SAFETY: single-threaded test runtime; no concurrent env access.
+        unsafe { std::env::set_var("PROCMGRD_TEST_INHERITED", "available") };
+        let (sh, flag) = test_helpers::shell_cmd();
+        #[cfg(unix)]
+        let script = "test \"$PROCMGRD_TEST_INHERITED\" = 'available'";
+        #[cfg(windows)]
+        let script = "if not \"%PROCMGRD_TEST_INHERITED%\"==\"available\" exit 1";
+        let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
+        cfg.inherit_environment = true;
+        let mut proc =
+            ManagedProcess::new_config("inherited-env".into(), test_helpers::test_uuid(), cfg);
+        proc.spawn().unwrap();
+        let status = proc.wait().await.unwrap();
+        assert_eq!(
+            status.code(),
+            Some(0),
+            "child should inherit the daemon environment"
+        );
+        unsafe { std::env::remove_var("PROCMGRD_TEST_INHERITED") };
+    }
+
+    #[tokio::test]
+    async fn test_explicit_env_overrides_inherited_env() {
+        // SAFETY: this test uses a unique key and removes it before returning.
+        unsafe { std::env::set_var("PROCMGRD_TEST_OVERRIDE", "parent") };
+        let (sh, flag) = test_helpers::shell_cmd();
+        #[cfg(unix)]
+        let script = "test \"$PROCMGRD_TEST_OVERRIDE\" = 'definition'";
+        #[cfg(windows)]
+        let script = "if not \"%PROCMGRD_TEST_OVERRIDE%\"==\"definition\" exit 1";
+        let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
+        cfg.inherit_environment = true;
+        cfg.env.insert(
+            "PROCMGRD_TEST_OVERRIDE".to_string(),
+            "definition".to_string(),
+        );
+        let mut proc =
+            ManagedProcess::new_config("env-override".into(), test_helpers::test_uuid(), cfg);
+        proc.spawn().unwrap();
+        let status = proc.wait().await.unwrap();
+        assert_eq!(status.code(), Some(0));
+        unsafe { std::env::remove_var("PROCMGRD_TEST_OVERRIDE") };
     }
 
     #[tokio::test]

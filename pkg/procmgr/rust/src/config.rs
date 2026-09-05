@@ -181,6 +181,10 @@ pub struct ProcessConfig {
     pub args: Vec<String>,
     #[serde(default)]
     pub env: HashMap<String, String>,
+    /// Inherit dd-procmgrd's environment before applying environment_file and env.
+    /// Disabled by default so unrelated definitions retain the sanitized child environment.
+    #[serde(default)]
+    pub inherit_environment: bool,
     pub environment_file: Option<String>,
     pub working_dir: Option<String>,
     /// Parsed for forward-compatibility but not yet acted upon.
@@ -221,6 +225,7 @@ impl Default for ProcessConfig {
             command: String::new(),
             args: vec![],
             env: HashMap::new(),
+            inherit_environment: false,
             environment_file: None,
             working_dir: None,
             pidfile: None,
@@ -357,6 +362,7 @@ stdout: inherit
 stderr: inherit
 auto_start: true
 condition_path_exists: /usr/bin/sleep
+inherit_environment: true
 "#;
         fs::write(dir.path().join("test-proc.yaml"), yaml).unwrap();
 
@@ -371,6 +377,7 @@ condition_path_exists: /usr/bin/sleep
         assert_eq!(np.config.working_dir.as_deref(), Some("/tmp"));
         assert_eq!(np.config.pidfile.as_deref(), Some("/tmp/test.pid"));
         assert!(np.config.auto_start);
+        assert!(np.config.inherit_environment);
         assert_eq!(
             np.config.condition_path_exists.as_deref(),
             Some("/usr/bin/sleep")
@@ -392,6 +399,7 @@ condition_path_exists: /usr/bin/sleep
         assert!(np.config.args.is_empty());
         assert!(np.config.env.is_empty());
         assert!(np.config.auto_start);
+        assert!(!np.config.inherit_environment);
         assert_eq!(np.config.stdout, "inherit");
         assert_eq!(np.config.stderr, "inherit");
         assert!(np.config.condition_path_exists.is_none());

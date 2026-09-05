@@ -21,6 +21,10 @@ EXPECTED_PRESENT = [
 EXPECTED_ABSENT = [
     # This will be symlinked by an entrypoint script if no set by user
     "/etc/datadog-agent/datadog.yaml",
+    # PAR split mode is activated only when dd-procmgrd is explicitly pointed
+    # at its dedicated process-definition directory.
+    "/opt/datadog-agent/processes.d/datadog-agent-par-control.yaml",
+    "/opt/datadog-agent/processes.d/datadog-agent-action-executor.yaml",
 ]
 
 EXPECTED_CHECKSUMS = {
@@ -39,6 +43,39 @@ class TestFiles(unittest.TestCase):
     def test_files_absent(self):
         for file in EXPECTED_ABSENT:
             self.assertFalse(os.path.isfile(file), file + " should NOT be present")
+
+    def test_par_split_process_definitions(self):
+        process_dir = "/opt/datadog-agent/privateactionrunner/processes.d"
+        definitions = {
+            "datadog-agent-par-control.yaml": [
+                "command: /opt/datadog-agent/embedded/bin/par-control",
+                "  - /opt/datadog-agent/embedded/bin/privateactionrunner",
+                "  - /etc/datadog-agent/datadog.yaml",
+                "auto_start: true",
+                "inherit_environment: true",
+            ],
+            "datadog-agent-action-executor.yaml": [
+                "command: /opt/datadog-agent/embedded/bin/privateactionrunner",
+                "  - run-executor",
+                "  - /etc/datadog-agent/datadog.yaml",
+                "auto_start: false",
+                "inherit_environment: true",
+            ],
+        }
+
+        par_control_is_shipped = os.path.isfile(
+            "/opt/datadog-agent/embedded/bin/par-control"
+        )
+        for name, expected_lines in definitions.items():
+            definition = os.path.join(process_dir, name)
+            if not par_control_is_shipped:
+                self.assertFalse(os.path.exists(definition), definition)
+                continue
+            self.assertTrue(os.path.isfile(definition), definition)
+            with open(definition) as f:
+                contents = f.read()
+            for line in expected_lines:
+                self.assertIn(line, contents)
 
     def test_files_checksums(self):
         for file, digest in iteritems(EXPECTED_CHECKSUMS):
