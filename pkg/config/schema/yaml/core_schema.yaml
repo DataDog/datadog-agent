@@ -5769,6 +5769,93 @@ properties:
     - golang_type:duration
     comment: If not zero, the agent will log a warning if a check is running for longer
       than this timeout
+  checks:
+    node_type: section
+    type: object
+    properties:
+      sdc_compression_all:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          A plain string-slice env var binding does not comma-split its value
+          (it falls back to whitespace-splitting only), so
+          DD_CHECKS_SDC_COMPRESSION_CHECKS=foo,bar would otherwise become a
+          single-element ["foo,bar"] instead of ["foo","bar"].
+          When true, every check gets SDC-compressed metrics, regardless of
+          checks.sdc_compression_checks.
+      sdc_compression_alpha:
+        node_type: setting
+        type: number
+        default: 0.3
+        tags:
+        - golang_type:float64
+      sdc_compression_checks:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: comma_separated
+        items:
+          type: string
+        comment: |-
+          Check names that should have their metrics streaming-compressed via
+          Swinging Door Trending/Compression (SDC). Experimental; see
+          pkg/aggregator/check_sampler_sdc.go and
+          pkg/aggregator/internal/sdc/eligibility.go. Ignored when
+          checks.sdc_compression_all is true.
+      sdc_compression_dry_run:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: "When true, SDC-compressed checks still run every sample through\
+          \ the\ncompressor for measurement (see the checksampler_sdc_samples_total\
+          \ /\nchecksampler_sdc_breakpoints_total telemetry), but ship their original,\n\
+          uncompressed data \u2014 nothing the compressor produces is actually sent."
+      sdc_compression_epsilon:
+        node_type: setting
+        type: number
+        default: 0.02
+        tags:
+        - golang_type:float64
+        comment: |-
+          SDC compressor tuning (see pkg/aggregator/internal/sdc.Config): the
+          shipped tolerance is max(sdc_compression_epsilon*scale,
+          sdc_compression_floor), where scale is an EWMA (smoothing factor
+          sdc_compression_alpha) of the signal's magnitude. sdc_compression_warmup
+          leading samples per context ship verbatim and seed the scale estimate
+          before compression engages.
+      sdc_compression_floor:
+        node_type: setting
+        type: number
+        default: 0.001
+        tags:
+        - golang_type:float64
+        comment: "Setting this to 0 disables the floor entirely: tolerance becomes\
+          \ purely\nsdc_compression_epsilon*scale, however small that gets for a\n\
+          near-zero-scale signal \u2014 see checksampler_sdc_floor_bound_samples_total\n\
+          for visibility into how often the floor binds with a non-zero value."
+      sdc_compression_max_silent_flushes:
+        node_type: setting
+        type: integer
+        default: 1
+        comment: |-
+          How many consecutive aggregator flush cycles a compressed context
+          can have a pending sample with no natural breakpoint before it
+          force-ships a point anyway (so a flat signal doesn't go silent
+          forever). Counted in flush cycles, not check-run commits, so the
+          same value means the same real-world duration for every check
+          regardless of its own min_collection_interval. 1 (the default)
+          ships a heartbeat on every flush that has no natural breakpoint
+          pending — the behavior-preserving choice for checks whose
+          min_collection_interval matches the flush interval; for checks
+          running faster than the flush interval, this means compression
+          now engages starting at the default instead of not at all. 0 or
+          negative disables the heartbeat entirely (pure compression; a
+          flat signal can go silent indefinitely).
+      sdc_compression_warmup:
+        node_type: setting
+        type: integer
+        default: 2
   clc_runner_enabled:
     node_type: setting
     type: boolean
