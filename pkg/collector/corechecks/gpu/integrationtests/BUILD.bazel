@@ -3,15 +3,30 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "integrationtests",
-    srcs = ["doc.go"],
+    srcs = [
+        "doc.go",
+        "gpu_burner_helper.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/integrationtests",
     visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
     name = "integrationtests_test",
     srcs = [
         "check_test.go",
+        "gpu_burner_test.go",
         "nvml_test.go",
     ],
     embed = [":integrationtests"],
