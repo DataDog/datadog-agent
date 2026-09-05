@@ -1163,14 +1163,21 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 10 {
+	if len(data) < 4 {
+		return 0, ErrNotEnoughData
+	}
+	e.CredentialSource = CredentialSource(binary.NativeEndian.Uint32(data[0:4])).String()
+
+	// the HTTP payload captured by the kernel follows the credential source
+	body := data[4:]
+	if len(body) < 10 {
 		return 0, ErrNotEnoughData
 	}
 
-	firstWord := strings.SplitN(string(data[0:10]), " ", 2)
+	firstWord := strings.SplitN(string(body[0:10]), " ", 2)
 	switch {
 	case strings.HasPrefix(firstWord[0], "HTTP"):
-		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(data)), nil)
+		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(body)), nil)
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS response: %v", err)
 		}
@@ -1206,7 +1213,7 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 		http.MethodOptions,
 		http.MethodTrace,
 	}, firstWord[0]):
-		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(data)))
+		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(body)))
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS request: %v", err)
 		}
@@ -1241,9 +1248,11 @@ func (e *IMDSEvent) fillFromIMDSHeader(header http.Header, url string) {
 		} else {
 			e.CloudProvider = IMDSAWSCloudProvider
 
-			// check if this is an IMDSv2 request
-			e.AWS.IsIMDSv2 = len(header.Get("x-aws-ec2-metadata-token-ttl-seconds")) > 0 ||
-				len(header.Get("x-aws-ec2-metadata-token")) > 0
+			// v1/v2 only applies to the instance metadata service
+			if e.CredentialSource == CredentialSourceIMDSStr {
+				e.AWS.IsIMDSv2 = len(header.Get("x-aws-ec2-metadata-token-ttl-seconds")) > 0 ||
+					len(header.Get("x-aws-ec2-metadata-token")) > 0
+			}
 		}
 	}
 }

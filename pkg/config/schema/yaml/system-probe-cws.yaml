@@ -256,6 +256,14 @@ properties:
         node_type: setting
         type: string
         default: localhost:5678
+  eks_pod_identity_ipv4:
+    node_type: setting
+    type: string
+    default: 169.254.170.23
+  eks_pod_identity_ipv6:
+    node_type: setting
+    type: string
+    default: fd00:ec2::23
   enforcement:
     node_type: section
     type: object
