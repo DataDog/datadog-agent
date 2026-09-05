@@ -8,6 +8,7 @@
 package dockerpermissions
 
 import (
+	"errors"
 	"os"
 	"path"
 	"runtime"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 const (
@@ -26,7 +26,10 @@ const (
 	socketTimeout = 500 * time.Millisecond
 )
 
-// Check checks if Docker socket exists but is not reachable (permission issue)
+// Check reports an issue for every Docker socket/named pipe that exists but
+// whose root cause of being unreachable is a permission-denied error, via
+// checkSocketPermission. Any other dial failure (busy socket, no listener,
+// connection refused) is not a permission problem and is not reported.
 func Check() ([]runnerdef.IssueReport, error) {
 	// Check if DOCKER_HOST is set - if so, skip the check as user has custom config
 	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
@@ -35,8 +38,7 @@ func Check() ([]runnerdef.IssueReport, error) {
 
 	var unreachableSockets []string
 	for _, socketPath := range getDockerSocketPaths() {
-		exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
-		if exists && !reachable {
+		if err := checkSocketPermission(socketPath, socketTimeout); errors.Is(err, os.ErrPermission) {
 			unreachableSockets = append(unreachableSockets, socketPath)
 		}
 	}
@@ -48,8 +50,8 @@ func Check() ([]runnerdef.IssueReport, error) {
 				IssueName: IssueName,
 				Source:    "docker",
 				Context: map[string]string{
-					"dockerDirs": strings.Join(unreachableSockets, ","),
-					"os":         runtime.GOOS,
+					"socketPaths": strings.Join(unreachableSockets, ","),
+					"os":          runtime.GOOS,
 				},
 				Tags: []string{"docker-socket", "permissions"},
 			},
