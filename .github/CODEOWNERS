@@ -235,7 +235,7 @@
 
 /chocolatey/ @DataDog/windows-products
 
-/cmd/                                               @DataDog/fleet-remediation
+/cmd/                                               @DataDog/agent-build
 /cmd/trace-agent/                                   @DataDog/agent-apm
 /cmd/agent/subcommands/controlsvc                   @DataDog/windows-products
 /cmd/agent/subcommands/otel                         @DataDog/opentelemetry-agent
