@@ -72,6 +72,7 @@ func TestStatusWithProfileError(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("snmp_profile_errors", "error")
 	profileExpVar := expvar.Get("snmpProfileErrors").(*expvar.Map)
+	t.Cleanup(func() { profileExpVar.Init() })
 	errors := []string{"error1", "error2"}
 	profileExpVar.Set("foobar", expvar.Func(func() interface{} {
 		return strings.Join(errors, "\n")
@@ -187,6 +188,7 @@ func TestStatusAutodiscoveryMultipleSubnets(t *testing.T) {
 	snmpConfig3 := listenerConfig.Configs[2]
 
 	autodiscoveryExpVar := expvar.Get("snmpAutodiscovery").(*expvar.Map)
+	t.Cleanup(func() { autodiscoveryExpVar.Init() })
 
 	autodiscoveryStatus1 := listeners.AutodiscoveryStatus{DevicesFoundList: []string{}, CurrentDevice: "", DevicesScannedCount: 0}
 	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig1.Network, 0), &autodiscoveryStatus1)
@@ -288,15 +290,16 @@ func TestStatusLegacyDiscoveryMultipleSubnets(t *testing.T) {
 	}
 
 	autodiscoveryExpVar := expvar.Get("snmpDiscovery").(*expvar.Map)
+	t.Cleanup(func() { autodiscoveryExpVar.Init() })
 
 	autodiscoveryStatus1 := listeners.AutodiscoveryStatus{DevicesFoundList: []string{}, CurrentDevice: "", DevicesScannedCount: 0}
 	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig1.Network, 0), &autodiscoveryStatus1)
 
 	autodiscoveryStatus2 := listeners.AutodiscoveryStatus{DevicesFoundList: []string{"127.0.10.1", "127.0.10.2"}, CurrentDevice: "127.0.10.2", DevicesScannedCount: 3}
-	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig2.Network, 0), &autodiscoveryStatus2)
+	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig2.Network, 1), &autodiscoveryStatus2)
 
 	autodiscoveryStatus3 := listeners.AutodiscoveryStatus{DevicesFoundList: []string{}, CurrentDevice: "127.0.10.3", DevicesScannedCount: 4}
-	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig3.Network, 0), &autodiscoveryStatus3)
+	autodiscoveryExpVar.Set(listeners.GetSubnetVarKey(snmpConfig3.Network, 2), &autodiscoveryStatus3)
 
 	provider := Provider{}
 	tests := []struct {
