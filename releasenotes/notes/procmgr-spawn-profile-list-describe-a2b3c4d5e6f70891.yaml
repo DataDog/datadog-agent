@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    dd-procmgr: Expose spawn profile and intended user in list and describe output.
+    Describe also reports runtime_user for running processes.
