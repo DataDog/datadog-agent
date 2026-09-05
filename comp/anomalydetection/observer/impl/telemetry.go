@@ -18,7 +18,7 @@ const (
 	// correct if the emitted name changes.
 	observerTelemetryMetricPrefix            = "datadog.agent.observer."
 	telemetryObservationsAccepted            = "observer.observations.accepted"               // Observations accepted by the observer admission boundary.
-	telemetryObservationsDropped             = "observer.observations.dropped"                // Observations dropped when the observer channel is full.
+	telemetryObservationsDropped             = "observer.observations.dropped"                // Observations dropped when a bounded observer admission queue is full.
 	telemetryRRCFScore                       = "observer.rrcf.score"                          // Latest RRCF score per detector.
 	telemetryRRCFThreshold                   = "observer.rrcf.threshold"                      // Current RRCF anomaly threshold per detector.
 	telemetryLogPatternExtractorPatternCount = "observer.log_pattern_extractor.pattern_count" // Current number of active log patterns.
@@ -75,7 +75,7 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			"observer",
 			telemetryObservationsDropped,
 			[]string{"kind", "source"},
-			"Observations dropped because the internal channel was full, tagged by kind and source",
+			"Observations dropped because a bounded observer admission queue was full, tagged by kind and source",
 		),
 		rrcfScore: telemetryComp.NewGauge(
 			"observer",
@@ -181,7 +181,14 @@ func (t *observerTelemetry) recordObservationAccepted(kind, source string) {
 }
 
 func (t *observerTelemetry) recordObservationDropped(kind, source string) {
-	t.observationsDropped.Add(1, kind, source)
+	t.recordObservationsDropped(kind, source, 1)
+}
+
+func (t *observerTelemetry) recordObservationsDropped(kind, source string, count uint64) {
+	if count == 0 {
+		return
+	}
+	t.observationsDropped.Add(float64(count), kind, source)
 }
 
 func (t *observerTelemetry) recordRRCFScore(detectorName string, score float64) {

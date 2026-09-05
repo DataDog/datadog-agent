@@ -402,12 +402,14 @@ func NewComponent(deps Requires) (Provides, error) {
 		logsfilter.WarnInvalidMinSeverity("anomaly_detection.logs.internal.min_severity", minSeverity)
 		logsfilter.WarnRateLimitDiscrepancies("anomaly_detection.logs.internal", maxRateLow, maxRateMedium, maxRateHigh)
 		agentLogsHandle := obs.GetHandle("agent_logs")
-		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
+		agentLogTap := installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
 			obsTelemetry.recordInputRateLimiterDropped("internal", priority)
+		}, func(count uint64) {
+			obsTelemetry.recordObservationsDropped("logs", "internal", count)
 		}, logsRules)
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
-				pkglog.SetLogObserver(nil)
+				agentLogTap.stop()
 				return nil
 			},
 		})
