@@ -8699,6 +8699,14 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      test_subscriber:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
     tags:
     - full-agent-only:true
   remote_policies:
