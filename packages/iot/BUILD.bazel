@@ -17,14 +17,11 @@ package_name_variables(
     name = "variables",
 )
 
-# TODO: Add the iot-agent binary and component targets here, analogous to
-# //packages/agent/dependencies:all_files and //packages/install_dir:embedded.
 # The main build dependency from iot-agent.rb is 'datadog-iot-agent'.
 pkg_filegroup(
     name = "iot_components",
     srcs = [
-        # TODO: //packages/iot/dependencies:all_files
-        # TODO: //packages/install_dir:embedded (iot-specific variant)
+        "//packages/agent/iot:all_files",
     ],
 )
 
@@ -48,16 +45,24 @@ pkg_filegroup(
     srcs = [
         ":everything",
         ":license_files",
+        "//cmd/agent/dist/conf.d:iot_files",
+        "//packages/agent/iot:example_config",
+        "//packages/agent/iot:system_dirs",
     ],
     prefix = "/opt/datadog-agent",
 )
 
+# Only a source for the debian package, which requires a single tar as input.
 pkg_tar(
-    name = "whole_distro_tar",
-    srcs = [":whole_distro"],
+    name = "whole_distro_deb_tar",
+    srcs = [
+        ":whole_distro",
+        "//packages/agent/iot/debian:all_files",
+    ],
     compression_level = get_compression_level(),
     extension = "tar.xz",
     owner = "0.0",
+    visibility = ["//visibility:private"],
 )
 
 _DESCRIPTION = """Datadog IoT Agent
@@ -73,7 +78,7 @@ See http://www.datadoghq.com/ for more information
 pkg_deb(
     name = "debian",
     conflicts = ["datadog-agent"],
-    data = ":whole_distro_tar",
+    data = ":whole_distro_deb_tar",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     # epoch 1
@@ -95,7 +100,10 @@ pkg_deb(
 pkg_rpm(
     name = "rpm",
     package_name = "datadog-iot-agent",
-    srcs = [":whole_distro"],
+    srcs = [
+        ":whole_distro",
+        "//packages/agent/iot/redhat:all_files",
+    ],
     conflicts = ["datadog-agent"],
     description = _DESCRIPTION,
     epoch = "1",
