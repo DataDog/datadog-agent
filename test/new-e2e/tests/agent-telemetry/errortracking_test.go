@@ -192,7 +192,7 @@ func dumpAPMTelemetryPayloadsOnFailure(t *testing.T, env *environments.Host) {
 			continue
 		}
 		for _, l := range env.Payload.Logs {
-			t.Logf("payload[%d]: agent-logs record, tags=%q", i, l.Tags)
+			t.Logf("payload[%d]: agent-logs record, tags=%q, received_at=%s", i, l.Tags, p.Timestamp.UTC().Format(time.RFC3339))
 		}
 	}
 }
@@ -345,7 +345,6 @@ func (s *errorTrackingSuite) TestDisabledByDefault() {
 			ec2.WithAgentOptions(errorTrackingAgentOptions(errorTrackingDisabledConfig)...),
 		),
 	))
-	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
 	// Core agent's check error uses a regex ("ERROR.*Error running check"),
 	// unlike the other three binaries' fixed-string messages, so it can't
@@ -367,6 +366,27 @@ func (s *errorTrackingSuite) TestDisabledByDefault() {
 	waitForLocalErrorOccurrence(s.T(), env, "/var/log/datadog/system-probe.log", systemProbeFilterErrorMessage,
 		"timed out waiting for filter unmarshal error to appear in system-probe log", false)
 	triggerTraceAgentReceiverError(s.T(), env)
+
+	// Wait for FakeIntake to stabilise before asserting silence.
+	//
+	// The old (enabled) agent's stop() flushes its errortracking buffer as
+	// part of shutdown; those HTTP POSTs may be in-flight when UpdateEnv
+	// returns and arrive at FakeIntake after the flush below. Each retry
+	// tick is itself the observation window (flush_interval_seconds:1 in
+	// the disabled config, so 3s covers a full cycle): if logs showed up
+	// since the last flush, clear them so the next tick gets a clean
+	// window, and keep retrying until one full tick passes quiet before
+	// assert.Never starts.
+	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Empty(c, logs, "FakeIntake still receiving agent-telemetry logs after flush") {
+			assert.NoError(c, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+		}
+	}, 10*time.Second, 3*time.Second, "FakeIntake did not drain within 10s after switching to disabled config")
 
 	// Confirm nothing is forwarded. The config sets flush_interval_seconds: 1, so
 	// 5 s covers five flush cycles: if a regression enabled the forwarder, it would
