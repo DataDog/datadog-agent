@@ -1,0 +1,29 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+
+# The tools-tagged dependency anchor is product metadata, not a Bazel source.
+# gazelle:exclude deps.go
+
+dd_agent_go_binary(
+    name = "rshell",
+    cgo = False,
+    embed = ["@com_github_datadog_rshell//cmd/rshell:rshell_lib"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "all_files_linux",
+    srcs = [":rshell"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files_linux"],
+    target_compatible_with = ["@platforms//os:linux"],
+)

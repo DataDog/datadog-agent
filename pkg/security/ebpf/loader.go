@@ -20,20 +20,22 @@ import (
 
 // ProbeLoader defines an eBPF ProbeLoader
 type ProbeLoader struct {
-	config            *config.Config
-	bytecodeReader    bytecode.AssetReader
-	useSyscallWrapper bool
-	useRingBuffer     bool
-	useFentry         bool
+	config                *config.Config
+	bytecodeReader        bytecode.AssetReader
+	useSyscallWrapper     bool
+	useRingBuffer         bool
+	useFentry             bool
+	useSyscallTaskStorage bool
 }
 
 // NewProbeLoader returns a new Loader
-func NewProbeLoader(config *config.Config, useSyscallWrapper, useRingBuffer bool, useFentry bool) *ProbeLoader {
+func NewProbeLoader(config *config.Config, useSyscallWrapper, useRingBuffer, useFentry, useSyscallTaskStorage bool) *ProbeLoader {
 	return &ProbeLoader{
-		config:            config,
-		useSyscallWrapper: useSyscallWrapper,
-		useRingBuffer:     useRingBuffer,
-		useFentry:         useFentry,
+		config:                config,
+		useSyscallWrapper:     useSyscallWrapper,
+		useRingBuffer:         useRingBuffer,
+		useFentry:             useFentry,
+		useSyscallTaskStorage: useSyscallTaskStorage,
 	}
 }
 
@@ -50,7 +52,7 @@ func (l *ProbeLoader) Load() (bytecode.AssetReader, bool, error) {
 	var err error
 	var runtimeCompiled bool
 	if l.config.RuntimeCompilationEnabled {
-		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper, l.useFentry, l.useRingBuffer)
+		l.bytecodeReader, err = getRuntimeCompiledPrograms(l.config, l.useSyscallWrapper, l.useFentry, l.useRingBuffer, l.useSyscallTaskStorage)
 		if err != nil {
 			seclog.Warnf("error compiling runtime-security probe, falling back to pre-compiled: %s", err)
 		} else {

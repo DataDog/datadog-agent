@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend"
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
+	_ "github.com/DataDog/datadog-agent/pkg/fips" // Enforce FIPS-only mode in FIPS builds.
 )
 
 var appVersion = "dev"

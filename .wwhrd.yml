@@ -17,6 +17,9 @@ allowlist:
   - FreeBSD
 
 overrides:
+  # libcap/psx is dual-licensed under BSD-3-Clause OR GPL-2.0-only. Select the
+  # permissive option; automatic detection otherwise prefers the GPL text.
+  "kernel.org/pub/linux/libs/security/libcap/psx": BSD-3-Clause
   # https://github.com/bmizerany/pat/blob/master/LICENSE
   "github.com/bmizerany/pat": MIT
   # https://github.com/xi2/xz/blob/master/LICENSE

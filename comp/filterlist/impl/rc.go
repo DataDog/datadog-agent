@@ -98,7 +98,9 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	}
 
 	metricNames := fl.buildMetricFilterListConfig(metricFilterListUpdates)
-	metricNames = normalizeMetricNames(metricNames, fl.log)
+	// RC lists mark their prefixes per entry with `*`, and are applied with the
+	// global prefix mode off (see SetMetricFilterList below).
+	metricNames = normalizeMetricNames(metricNames, false, fl.log)
 
 	if len(metricNames) > 0 {
 		// update the runtime config to be consistent
@@ -141,7 +143,8 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 }
 
 // buildMetricFilterListConfig builds the metrics to be used for the metric filterlist,
-// Metric names are deduped.
+// Metric names are deduped. They are passed through as-is, so a name ending with
+// `*` is a prefix pattern, exactly like one coming from the configuration file.
 func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []string {
 	metrics := make(map[string]struct{})
 	for _, update := range metricFilterListUpdates {

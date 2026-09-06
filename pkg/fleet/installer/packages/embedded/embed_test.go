@@ -38,6 +38,27 @@ func TestGetSystemdUnitEmbedsAllVariants(t *testing.T) {
 	}
 }
 
+func TestGetSystemdUnitEmbedsPrivilegedRshellVariants(t *testing.T) {
+	units := []string{
+		"datadog-agent-rshell-privileged.service",
+		"datadog-agent-rshell-privileged-exp.service",
+		"datadog-agent-rshell-privileged.socket",
+		"datadog-agent-rshell-privileged-exp.socket",
+	}
+	for _, unitType := range []UnitType{UnitTypeOCI, UnitTypeDebRpm} {
+		for _, unit := range units {
+			for _, ambiantCapabilitiesSupported := range []bool{true, false} {
+				name := fmt.Sprintf("%s/%s/ambiantCapabilitiesSupported=%t", unitType, unit, ambiantCapabilitiesSupported)
+				t.Run(name, func(t *testing.T) {
+					content, err := GetSystemdUnit(unit, unitType, ambiantCapabilitiesSupported)
+					require.NoError(t, err)
+					assert.NotEmpty(t, content)
+				})
+			}
+		}
+	}
+}
+
 // TestGetProcmgrUnitEmbedsAllVariants is the procmgr-unit-set equivalent of
 // TestGetSystemdUnitEmbedsAllVariants: it ensures every unit GetProcmgrUnit can construct at
 // runtime is actually compiled into procmgrUnits, for both the ambient-capability and "-nc"

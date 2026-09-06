@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcommon"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -75,7 +76,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdCaptureCmd}
 }
 
-func dogstatsdCapture(_ log.Component, _ config.Component, cliParams *cliParams, ipc ipc.Component) error {
+func dogstatsdCapture(_ log.Component, config config.Component, cliParams *cliParams, ipc ipc.Component) error {
+	if err := dogstatsdcommon.CheckDataPlaneOwnsDogstatsd(config); err != nil {
+		return err
+	}
+
 	fmt.Printf("Starting a dogstatsd traffic capture session...\n\n")
 
 	ctx, cancel := context.WithCancel(context.Background())
