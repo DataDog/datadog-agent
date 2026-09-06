@@ -29,6 +29,8 @@ pkg_filegroup(
         # "//packages/agent/dependencies:all_files",
         ":dirs",
         ":example_config",
+        ":security_agent_example_config",
+        ":application_monitoring_example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
         "//rtloader:all_files",
@@ -88,8 +90,10 @@ pkg_filegroup(
 pkg_filegroup(
     name = "all_install_dir_files",
     srcs = [
+        ":application_monitoring_example_config",
         ":dirs",
         ":example_config",
+        ":security_agent_example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
     ],
@@ -131,6 +135,24 @@ pkg_files(
     renames = {
         "//pkg/config:agent_config": "datadog.yaml.example",
     },
+)
+
+pkg_files(
+    name = "security_agent_example_config",
+    srcs = select({
+        "//packages/agent:heroku_flavor": [],
+        "//conditions:default": ["//pkg/config:security_agent_example_config_src"],
+    }),
+    prefix = select(ETC_DIR_SELECTOR),
+)
+
+pkg_files(
+    name = "application_monitoring_example_config",
+    srcs = select({
+        "@platforms//os:linux": ["//pkg/config:application_monitoring_example_config_src"],
+        "//conditions:default": [],
+    }),
+    prefix = select(ETC_DIR_SELECTOR),
 )
 
 pkg_files(

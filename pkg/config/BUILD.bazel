@@ -56,9 +56,14 @@ schema_template_config(
 # TODO: Add targets for each package, as needed: dca, dcacf.
 # That would get easier if we auto-pick the schema based on the build type.
 
-# Static example configs, checked in rather than schema-rendered. Exported so
-# //packages/agent/product can package them without a copy of its own.
-exports_files([
-    "example/security-agent.yaml.example",
-    "example/application_monitoring.yaml.example",
-])
+# Static example configs, checked in rather than schema-rendered. filegroups
+# so //packages/agent/product can package them without a copy of its own.
+filegroup(
+    name = "security_agent_example_config_src",
+    srcs = ["example/security-agent.yaml.example"],
+)
+
+filegroup(
+    name = "application_monitoring_example_config_src",
+    srcs = ["example/application_monitoring.yaml.example"],
+)
