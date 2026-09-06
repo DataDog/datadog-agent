@@ -187,6 +187,7 @@ dd_agent_go_test(
     embed = [":process"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/security/metrics",
             "//pkg/security/probe/config",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/path",
@@ -200,6 +201,7 @@ dd_agent_go_test(
             "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/security/metrics",
             "//pkg/security/probe/config",
             "//pkg/security/resolvers/cgroup",
             "//pkg/security/resolvers/path",
