@@ -3,18 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-#[path = "../helpers/mod.rs"]
-mod helpers;
+mod profile;
 
-mod cli_contracts;
-mod config_status;
-mod create;
-mod daemon;
-mod ddot;
-mod describe;
-mod env_files;
-mod fixtures;
-mod list;
-mod process_control;
-mod reload;
-mod restart_burst;
+pub(crate) use profile::SpawnProfile;
