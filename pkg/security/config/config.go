@@ -850,6 +850,11 @@ type RuntimeSecurityConfig struct {
 	// default_value: fd00:ec2::23
 	EKSPodIdentityIPv6 string
 
+	// description: ECSIPv4 is used to provide a custom IPv4 address for the ECS task credential endpoint
+	// visibility: private
+	// default_value: 169.254.170.2
+	ECSIPv4 string
+
 	// description: EventGRPCServer defines which process should be used to send events and activity dumps
 	// visibility: private
 	// default_value: ""
@@ -1108,6 +1113,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EKSPodIdentityIPv4: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.eks_pod_identity_ipv4"),
 		EKSPodIdentityIPv6: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.eks_pod_identity_ipv6"),
 
+		// ECS
+		ECSIPv4: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.ecs_ipv4"),
+
 		// event
 		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_grpc_server"),
 
@@ -1179,6 +1187,7 @@ func (c *RuntimeSecurityConfig) CredentialEndpoints() ([]CredentialEndpoint, err
 		{"runtime_security_config.imds_ipv4", c.IMDSIPv4, true, model.CredentialSourceIMDS},
 		{"runtime_security_config.eks_pod_identity_ipv4", c.EKSPodIdentityIPv4, true, model.CredentialSourceEKSPodIdentity},
 		{"runtime_security_config.eks_pod_identity_ipv6", c.EKSPodIdentityIPv6, false, model.CredentialSourceEKSPodIdentity},
+		{"runtime_security_config.ecs_ipv4", c.ECSIPv4, true, model.CredentialSourceECS},
 	}
 
 	var out []CredentialEndpoint
