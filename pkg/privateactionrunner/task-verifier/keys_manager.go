@@ -28,10 +28,15 @@ type UpdateCallback func(map[string]state.RawConfig, func(string, state.ApplySta
 type keysManager struct {
 	rcClient               rcclient.Client
 	stopChan               chan bool
-	keys                   map[string]types.DecodedKey
+	keys                   map[string]storedKey
 	mu                     sync.RWMutex
 	ready                  chan struct{}
 	firstCallbackCompleted bool
+}
+
+type storedKey struct {
+	key        types.DecodedKey
+	targetPath string
 }
 
 // NewKeyManager returns a key manager backed by Remote Config.
@@ -48,7 +53,7 @@ func NewKeyManager(rcClient rcclient.Client) KeysManager {
 func NewKeyManagerWithCallback() (KeysManager, UpdateCallback) {
 	manager := &keysManager{
 		stopChan: make(chan bool),
-		keys:     make(map[string]types.DecodedKey),
+		keys:     make(map[string]storedKey),
 		ready:    make(chan struct{}),
 	}
 	return manager, manager.AgentConfigUpdateCallback
@@ -61,10 +66,26 @@ func (k *keysManager) Start(ctx context.Context) {
 	}
 }
 
-func (k *keysManager) GetKey(keyId string) types.DecodedKey {
+func (k *keysManager) GetKey(keyId string) (types.DecodedKey, *types.DirectorKeyProof) {
 	k.mu.RLock()
-	defer k.mu.RUnlock()
-	return k.keys[keyId]
+	entry, ok := k.keys[keyId]
+	k.mu.RUnlock()
+	if !ok {
+		return nil, nil
+	}
+	if k.rcClient == nil {
+		return entry.key, nil
+	}
+	proof, ok := k.rcClient.GetConfigTUFProof(entry.targetPath)
+	if !ok {
+		return entry.key, nil
+	}
+	return entry.key, &types.DirectorKeyProof{
+		Roots:      proof.Roots,
+		Targets:    proof.Targets,
+		TargetPath: proof.TargetPath,
+		TargetFile: proof.TargetFile,
+	}
 }
 
 func (k *keysManager) WaitForReady() {
@@ -75,19 +96,19 @@ func (k *keysManager) AgentConfigUpdateCallback(update map[string]state.RawConfi
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	k.keys = make(map[string]types.DecodedKey) // clear the current keys
-	for configId, rawConfig := range update {
+	k.keys = make(map[string]storedKey) // clear the current keys
+	for configPath, rawConfig := range update {
 		decodedKey, err := decode(rawConfig)
 		if err != nil {
 			log.Error("Failed to decode remote config", log.ErrorField(err))
-			callback(configId, state.ApplyStatus{
+			callback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
 			continue
 		}
-		k.keys[rawConfig.Metadata.ID] = decodedKey
-		callback(configId, state.ApplyStatus{
+		k.keys[rawConfig.Metadata.ID] = storedKey{key: decodedKey, targetPath: configPath}
+		callback(configPath, state.ApplyStatus{
 			State: state.ApplyStateAcknowledged,
 		})
 	}
