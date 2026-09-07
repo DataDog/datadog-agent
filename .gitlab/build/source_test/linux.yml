@@ -208,6 +208,7 @@ tests_gpu:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e gpu.download-gpu-burner --output-path "$CI_PROJECT_DIR"
+    - export GPU_BURNER_BIN="$CI_PROJECT_DIR/gpu-burner/gpu-burner"
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.manage_coverage_cache]

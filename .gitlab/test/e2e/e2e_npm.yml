@@ -35,6 +35,7 @@ new-e2e-npm-docker:
 new-e2e-npm-eks-init:
   stage: e2e_init
   extends: .new_e2e_template
+  timeout: 1h 05m
   needs:
     - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
