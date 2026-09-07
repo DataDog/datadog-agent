@@ -13,7 +13,7 @@ from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING, REPO_PATH
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import bin_name
+from tasks.libs.common.utils import bin_name, get_build_flags
 from tasks.libs.releasing.version import get_version
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -59,25 +59,27 @@ def build(
             out="cmd/secret-generic-connector/rsrc.syso",
         )
 
+    ldflags, gcflags, env = get_build_flags(ctx)
+
     # ldflags: -s -w to reduce binary size, -s not compatible with FIPS
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
-    ldflags = f"-X main.appVersion={version}"
+    ldflags += f" -X main.appVersion={version}"
     if strip_binary:
         if fips_mode:
             ldflags += " -w"
         else:
             ldflags += " -s -w"
 
-    # gcflags: -l disables inlining to reduce binary size
+    # gcflags: -l disables inlining to reduce binary size.
+    # get_build_flags() only sets gcflags for DELVE/NO_GO_OPT, and both already disable inlining,
+    # so only fall back to our own flag when it left gcflags empty.
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
-    gcflags = "all=-l"
+    if not gcflags:
+        gcflags = "all=-l"
 
     # FIPS mode requires CGO for BoringCrypto bindings
     # Non-FIPS builds use CGO_ENABLED=0 for static binary
-    env = {
-        "GO111MODULE": "on",
-        "CGO_ENABLED": "1" if fips_mode else "0",
-    }
+    env["CGO_ENABLED"] = "1" if fips_mode else "0"
 
     build_tags = get_default_build_tags(
         build="secret-generic-connector", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
