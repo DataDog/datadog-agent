@@ -91,6 +91,20 @@
       git checkout "$CI_COMMIT_SHA"
       EOF
     
+    # IBM MQ Client (required by the host-setup script for packaging).
+    - |
+      if ! aix_run_cmd lslpp -Lq mqm.base.runtime ; then
+        echo "=== AIX: fetching IBM MQ Client from MASS ==="
+        curl -fSL \
+          -H "$(ddtool auth token rapid-dependency-management-mass --datacenter us1.ddbuild.io --http-header)" \
+          "https://mass-read.us1.ddbuild.io/internal/artifact/datadog-agent/aix/mqc/9.2.0.0/9.2.0.0-IBM-MQC-AixPPC64.tar.Z" \
+          -o /tmp/mqclient.tar.Z
+        echo "=== AIX: transferring IBM MQ Client to the AIX host ==="
+        copy_file_to_aix /tmp/mqclient.tar.Z /opt/dd-build/mqclient.tar.Z
+      else
+        echo "=== AIX: IBM MQ Client already installed ==="
+      fi
+
     # Host setup (tools, etc)
     # -tt forces a PTY so the remote script's stdout/stderr stream live to the job log.
     - 'echo "=== AIX: provisioning host (setup-host.sh) ==="'

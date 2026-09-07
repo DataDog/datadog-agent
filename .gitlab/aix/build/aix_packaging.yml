@@ -1,0 +1,27 @@
+---
+package_aix-ppc64:
+  stage: packaging
+  extends: .aix_remote
+  # avoid blocking nightly pipelines on errors
+  allow_failure: true
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_scheduled_main]
+    - changes:
+        paths:
+          - .gitlab/aix/aix_remote.yml
+          - .gitlab/aix/build/aix_packaging.yml
+        compare_to: $COMPARE_TO_BRANCH
+      # TODO: uncomment once the job is stable enough
+      # allow_failure: false
+    - !reference [.manual]
+  script:
+    - 'echo "=== AIX: running packaging build (build.sh) ==="'
+    - aix_run_cmd env AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh
+    # Retrieve the built .bff from the AIX host and expose it as a job artifact.
+    - 'echo "=== AIX: retrieving .bff artifact ==="'
+    - copy_file_from_aix /opt/dd-build/*.bff $CI_PROJECT_DIR/
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - "$CI_PROJECT_DIR/*.bff"

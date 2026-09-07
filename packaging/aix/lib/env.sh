@@ -134,7 +134,7 @@ export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
 
 # ── PATH and Go toolchain ─────────────────────────────────────────────────────
 
-GOPATH=/home/gopath
+GOPATH=$BUILD_DIR/gopath
 GOROOT=/opt/go
 CGO_ENABLED=1
 CGO_CFLAGS="-I/opt/freeware/include"
