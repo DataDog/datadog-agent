@@ -10,6 +10,7 @@ package tests
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -29,6 +30,7 @@ import (
 )
 
 var _ = declare(TestSBOMRuntimeEvidence, testOpts{enableSBOM: true})
+var _ = declare(TestSBOMScriptInterpreterInUse, testOpts{enableSBOM: true})
 
 type functionalSBOMSource struct {
 	indexes chan *usage.Index
@@ -116,6 +118,70 @@ func TestSBOMRuntimeEvidence(t *testing.T) {
 	})
 }
 
+// TestSBOMScriptInterpreterInUse checks that executing a shebang script marks
+// the package shipping its interpreter. No rule asks for a package field, so
+// the exec observation is the only path that can mark the package in use.
+func TestSBOMScriptInterpreterInUse(t *testing.T) {
+	SkipIfNotAvailable(t)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("test needs to start a nested container")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("docker is unavailable")
+	}
+
+	source := newFunctionalSBOMSource()
+	test, err := newTestModule(t, nil, nil, withSBOMIndexSource(source))
+	require.NoError(t, err)
+	defer test.Close()
+
+	scriptPath, _, err := test.Path("sbom-interpreter.sh")
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	defer os.Remove(scriptPath)
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("eBPF probe is unsupported")
+	}
+
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	require.NoError(t, err)
+	dockerWrapper.Run(t, "interpreter-package", func(t *testing.T, _ wrapperType, cmdFunc func(string, []string, []string) *exec.Cmd) {
+		out, err := cmdFunc("/usr/bin/readlink", []string{"-f", "/bin/sh"}, nil).CombinedOutput()
+		require.NoErrorf(t, err, "failed to resolve /bin/sh: %s", out)
+		interpreterPath := strings.TrimSpace(string(out))
+		require.NotEmpty(t, interpreterPath)
+
+		containerID := containerutils.ContainerID(dockerWrapper.containerID)
+		source.indexes <- interpreterEvidenceIndex(containerID, "/bin/sh", interpreterPath)
+
+		require.NoError(t, retry(t, func() error {
+			last, held := p.Resolvers.SBOMResolver.LastPackageAccess(containerID, "dash")
+			if !held {
+				return errors.New("interpreter index is not active yet")
+			}
+			if !last.IsZero() {
+				return errors.New("dash was observed before the script ran")
+			}
+			return nil
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)), backoff.WithMaxElapsedTime(10*time.Second)))
+
+		out, err = cmdFunc(scriptPath, nil, nil).CombinedOutput()
+		require.NoErrorf(t, err, "failed to execute shebang script: %s", out)
+		require.NoError(t, retry(t, func() error {
+			last, held := p.Resolvers.SBOMResolver.LastPackageAccess(containerID, "dash")
+			if !held {
+				return errors.New("interpreter index no longer contains dash")
+			}
+			if last.IsZero() {
+				return errors.New("shebang exec left dash idle")
+			}
+			return nil
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)), backoff.WithMaxElapsedTime(10*time.Second)))
+	})
+}
+
 func packagePaths(t *testing.T, cmdFunc func(string, []string, []string) *exec.Cmd, pkg, contains string) []string {
 	t.Helper()
 	out, err := cmdFunc("/usr/bin/dpkg-query", []string{"-L", pkg}, nil).CombinedOutput()
@@ -157,6 +223,23 @@ func runtimeEvidenceIndex(containerID containerutils.ContainerID, libPaths []str
 		index.Refs = append(index.Refs, entry.ref)
 		index.Activations = append(index.Activations, false)
 	}
+	return index
+}
+
+func interpreterEvidenceIndex(containerID containerutils.ContainerID, paths ...string) *usage.Index {
+	index := &usage.Index{
+		Scan:        usage.ContainerScan(string(containerID)),
+		Generation:  1,
+		IndexID:     "urn:uuid:functional-script-interpreter",
+		Status:      usage.Ready,
+		Components:  []usage.Component{{Name: "dash", Reportable: true}},
+		Activations: make([]bool, len(paths)),
+	}
+	for _, path := range paths {
+		index.Hashes = append(index.Hashes, murmur3.StringSum64(path))
+		index.Refs = append(index.Refs, 0)
+	}
+	sort.Slice(index.Hashes, func(i, j int) bool { return index.Hashes[i] < index.Hashes[j] })
 	return index
 }
 
