@@ -1355,6 +1355,9 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsageCalledConcurrentlyForSameMoun
 
 	// Calling Run one after the other (not concurrently) for the same
 	// mountpoint is fine and reports metrics each time.
+	diskCheck = diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
+		return &gopsutil_disk.UsageStat{Path: "/", Total: 1024, Free: 512, Used: 512}, nil
+	})
 	assert.Nil(t, diskCheck.Run())
 	assert.Equal(t, 2, totalCalls())
 	assert.Nil(t, diskCheck.Run())
