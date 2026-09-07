@@ -4,11 +4,11 @@ dd_agent_go_test(
     name = "data-security_test",
     srcs = ["postgres_scan_test.go"],
     data = [
-        "fixtures/datadog.yaml",
+        "fixtures/datadog-agent.yaml",
         "fixtures/datasecurity.yaml",
     ],
     embedsrcs = [
-        "fixtures/datadog.yaml",
+        "fixtures/datadog-agent.yaml",
         "fixtures/datasecurity.yaml",
     ],
     deps = [

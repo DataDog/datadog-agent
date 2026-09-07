@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
-//go:embed fixtures/datadog.yaml
+//go:embed fixtures/datadog-agent.yaml
 var agentConfig string
 
 //go:embed fixtures/datasecurity.yaml
