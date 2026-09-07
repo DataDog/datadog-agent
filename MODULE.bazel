@@ -66,7 +66,7 @@ archive_override(
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
-bazel_dep(name = "gazelle", version = "0.53.0")
+bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "gcc_toolchain", version = "0.12.1")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.2")
 bazel_dep(name = "platforms", version = "1.1.0")
@@ -88,15 +88,6 @@ bazel_dep(name = "toolchains_llvm", version = "1.8.0")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
-
-# Temporary until gazelle cuts a release >0.53.0, to pick up build info improvements: bazel-contrib/bazel-gazelle#2407
-# (package metadata) and bazel-contrib/bazel-gazelle#2409 (checksum qualifiers)
-archive_override(
-    module_name = "gazelle",
-    sha256 = "f661997d326e2616ed6db4fbf86a99b2663fc1e4f5aa94d182603e2ec3ec0e21",
-    strip_prefix = "bazel-gazelle-48a1c5337c1c106ae9eedc5e1ae700925a61bc6f",
-    urls = ["https://github.com/bazel-contrib/bazel-gazelle/archive/48a1c5337c1c106ae9eedc5e1ae700925a61bc6f.tar.gz"],  # master as of August 31, 2026
-)
 
 single_version_override(
     module_name = "protobuf",

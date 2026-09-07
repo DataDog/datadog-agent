@@ -9,20 +9,15 @@ package test
 
 import (
 	"bytes"
-	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	"math/big"
 	"net"
 	"os"
 	"os/exec"
@@ -34,16 +29,13 @@ import (
 	yaml "go.yaml.in/yaml/v2"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/status"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
-	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	utiltest "github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -62,59 +54,8 @@ var (
 	buildOnce sync.Once
 )
 
-// grpcServer stands in for the core agent: a spawned trace-agent will not finish starting
-// up until it has registered and seeded its config from one.
 type grpcServer struct {
 	pb.UnimplementedAgentSecureServer
-
-	mu        sync.Mutex
-	sessionID string
-	settings  []*pb.ConfigSetting
-}
-
-func (g *grpcServer) setSettings(settings []*pb.ConfigSetting) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.settings = settings
-}
-
-func (g *grpcServer) RegisterRemoteAgent(_ context.Context, _ *pb.RegisterRemoteAgentRequest) (*pb.RegisterRemoteAgentResponse, error) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	g.sessionID = "trace-agent-test-session"
-	return &pb.RegisterRemoteAgentResponse{
-		SessionId:                      g.sessionID,
-		RecommendedRefreshIntervalSecs: 60,
-	}, nil
-}
-
-func (g *grpcServer) RefreshRemoteAgent(_ context.Context, req *pb.RefreshRemoteAgentRequest) (*pb.RefreshRemoteAgentResponse, error) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if req.SessionId != g.sessionID {
-		return nil, status.Errorf(codes.NotFound, "session_id %q not found", req.SessionId)
-	}
-	return &pb.RefreshRemoteAgentResponse{}, nil
-}
-
-// StreamConfigEvents sends the runner's config as a snapshot. A remote agent's configuration
-// is the stream, so anything omitted here is unset for it.
-func (g *grpcServer) StreamConfigEvents(_ *pb.ConfigStreamRequest, stream pb.AgentSecure_StreamConfigEventsServer) error {
-	g.mu.Lock()
-	settings := g.settings
-	g.mu.Unlock()
-
-	if err := stream.Send(&pb.ConfigEvent{
-		Event: &pb.ConfigEvent_Snapshot{
-			Snapshot: &pb.ConfigSnapshot{SequenceId: 1, Settings: settings},
-		},
-	}); err != nil {
-		return err
-	}
-	<-stream.Context().Done()
-	return nil
 }
 
 type agentRunner struct {
@@ -127,10 +68,8 @@ type agentRunner struct {
 	bindir               string      // the temporary directory where the trace-agent binary is located
 	verbose              bool
 	agentServer          *grpc.Server
-	coreAgent            *grpcServer
 	agentServerListerner net.Listener
 	authToken            string
-	ipcCertPEM           []byte // cert+key PEM, as the agent's ipc_cert_file_path expects
 }
 
 // CleanupCachedBinaries removes the temporary directory created for cached binaries.
@@ -213,7 +152,7 @@ func newAgentRunner(ddAddr string, verbose bool, buildSecretBackend bool) (*agen
 		}
 	}
 
-	tlsKeyPair, ipcCertPEM, err := buildSelfSignedTLSCertificate("127.0.0.1")
+	tlsKeyPair, err := buildSelfSignedTLSCertificate("127.0.0.1")
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate TLS certificate: %v", err)
 	}
@@ -230,15 +169,13 @@ func newAgentRunner(ddAddr string, verbose bool, buildSecretBackend bool) (*agen
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(authToken))),
 	}
 
-	// Start dummy gRPc server mocking the core agent. Ephemeral, since the port reaches the
-	// agent through cmd_port and a fixed one collides with the previous test's runner.
-	serverListener, err := net.Listen("tcp", "127.0.0.1:0")
+	// Start dummy gRPc server mocking the core agent
+	serverListener, err := net.Listen("tcp", "127.0.0.1:5051")
 	if err != nil {
-		return nil, fmt.Errorf("unable to listen for the mock core agent: %v", err)
+		return nil, ErrNotInstalled
 	}
 	s := grpc.NewServer(serverOpts...)
-	coreAgent := &grpcServer{}
-	pb.RegisterAgentSecureServer(s, coreAgent)
+	pb.RegisterAgentSecureServer(s, &grpcServer{})
 
 	go func() {
 		err := s.Serve(serverListener)
@@ -253,10 +190,8 @@ func newAgentRunner(ddAddr string, verbose bool, buildSecretBackend bool) (*agen
 		log:                  newSafeBuffer(),
 		verbose:              verbose,
 		agentServer:          s,
-		coreAgent:            coreAgent,
 		agentServerListerner: serverListener,
 		authToken:            authToken,
-		ipcCertPEM:           ipcCertPEM,
 	}, nil
 }
 
@@ -401,16 +336,9 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 		v.Set("apm_config.enable_v1_trace_endpoint", true, pkgconfigmodel.SourceFile)
 	}
 
-	// The consumer verifies the IPC cert against cmd_host, the certificate's only SAN.
-	v.Set("cmd_host", "127.0.0.1", pkgconfigmodel.SourceFile)
 	v.Set("cmd_port", s.agentServerListerner.Addr().(*net.TCPAddr).Port, pkgconfigmodel.SourceFile)
-	v.Set("auth_token_file_path", filepath.Join(s.bindir, "auth_token"), pkgconfigmodel.SourceFile)
-	v.Set("ipc_cert_file_path", filepath.Join(s.bindir, "ipc_cert.pem"), pkgconfigmodel.SourceFile)
 
-	settings := v.AllSettings()
-	s.coreAgent.setSettings(configSettings(settings))
-
-	out, err := yaml.Marshal(settings)
+	out, err := yaml.Marshal(v.AllSettings())
 	if err != nil {
 		return "", err
 	}
@@ -435,95 +363,27 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 	if err := authTokenFile.Close(); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(filepath.Join(s.bindir, "ipc_cert.pem"), s.ipcCertPEM, 0600); err != nil {
-		return "", err
-	}
 	return confFile.Name(), nil
 }
 
-// configSettings is the generated config overlaid with the DD_* environment. A remote agent
-// ignores its own env layer, so a test's t.Setenv only reaches it through the stream.
-func configSettings(settings map[string]interface{}) []*pb.ConfigSetting {
-	flat := map[string]interface{}{}
-	flattenConfigSettings("", settings, flat)
-	for key, value := range envConfigSettings() {
-		flat[key] = value
-	}
-
-	out := make([]*pb.ConfigSetting, 0, len(flat))
-	for key, raw := range flat {
-		value, err := structpb.NewValue(raw)
-		if err != nil {
-			continue
-		}
-		out = append(out, &pb.ConfigSetting{Key: key, Value: value, Source: "file"})
-	}
-	return out
-}
-
-func flattenConfigSettings(prefix string, settings map[string]interface{}, out map[string]interface{}) {
-	for key, raw := range settings {
-		if prefix != "" {
-			key = prefix + "." + key
-		}
-		if nested, ok := raw.(map[string]interface{}); ok {
-			flattenConfigSettings(key, nested, out)
-			continue
-		}
-		out[key] = raw
-	}
-}
-
-// envConfigSettings resolves DD_* through the agent's schema, the only thing that knows each
-// variable's key (DD_APM_ANALYZED_SPANS is apm_config.analyzed_spans).
-func envConfigSettings() map[string]interface{} {
-	cfg := create.NewConfig("datadog")
-	pkgconfigsetup.InitConfig(cfg)
-	cfg.BuildSchema()
-
-	out := map[string]interface{}{}
-	for _, key := range cfg.AllKeysLowercased() {
-		if cfg.GetSource(key) == pkgconfigmodel.SourceEnvVar {
-			out[key] = cfg.Get(key)
-		}
-	}
-	return out
-}
-
-// buildSelfSignedTLSCertificate returns the fake core agent's key pair and the cert+key PEM
-// the spawned agent reads as its IPC cert. The key must be EC: the only type that loader takes.
-func buildSelfSignedTLSCertificate(host string) (*tls.Certificate, []byte, error) {
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+func buildSelfSignedTLSCertificate(host string) (*tls.Certificate, error) {
+	hosts := []string{host}
+	_, certPEM, key, err := security.GenerateRootCert(hosts, 2048)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to generate private key: %v", err)
-	}
-	template := &x509.Certificate{
-		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "trace-agent-test"},
-		NotBefore:             time.Now().Add(-time.Hour),
-		NotAfter:              time.Now().Add(24 * time.Hour),
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
-		IPAddresses:           []net.IP{net.ParseIP(host)},
-		IsCA:                  true,
-		BasicConstraintsValid: true,
-	}
-	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privKey.PublicKey, privKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to generate certificate: %v", err)
-	}
-	keyDER, err := x509.MarshalECPrivateKey(privKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to marshal private key: %v", err)
+		return nil, errors.New("unable to generate certificate")
 	}
 
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	// PEM encode the private key
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key),
+	})
 
 	pair, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to generate TLS key pair: %v", err)
+		return nil, fmt.Errorf("unable to generate TLS key pair: %v", err)
 	}
-	return &pair, append(certPEM, keyPEM...), nil
+
+	return &pair, nil
 }
 
 func generateAuthenticationToken() (string, error) {
