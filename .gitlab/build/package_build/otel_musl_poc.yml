@@ -5,7 +5,7 @@ otel-agent-musl-poc:
   tags: ["arch:amd64", "specific:true"]
   needs: []
   script:
-    - apk add --no-cache python3 py3-pip go musl-dev gcc git bash curl
+    - apk add --no-cache python3 py3-pip go musl-dev gcc git bash curl aws-cli
     - pip install --break-system-packages dda
     - dda inv -- -e otel-agent.build
     - file ./bin/otel-agent/otel-agent
