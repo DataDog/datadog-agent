@@ -1,0 +1,28 @@
+---
+clusterAgent:
+  admissionController:
+    configMode: "hostip"
+  env:
+    - name: DD_APPSEC_PROXY_ENABLED
+      value: "true"
+    # JSON list: activates the Envoy Gateway watcher in the cluster-agent.
+    - name: DD_APPSEC_PROXY_PROXIES
+      value: '["envoy-gateway"]'
+    - name: DD_CLUSTER_AGENT_APPSEC_INJECTOR_ENABLED
+      value: "true"
+    - name: DD_CLUSTER_AGENT_APPSEC_INJECTOR_MODE
+      value: "sidecar"
+    - name: DD_ADMISSION_CONTROLLER_APPSEC_SIDECAR_IMAGE
+      value: "ghcr.io/datadog/dd-trace-go/service-extensions-callout"
+    - name: DD_ADMISSION_CONTROLLER_APPSEC_SIDECAR_IMAGE_TAG
+      value: "latest"
+    - name: DD_ADMISSION_CONTROLLER_APPSEC_SIDECAR_PORT
+      value: "8080"
+    - name: DD_ADMISSION_CONTROLLER_APPSEC_SIDECAR_HEALTH_PORT
+      value: "8081"
+    # UDS path shared between envoy and the sidecar via emptyDir volume.
+    - name: DD_ADMISSION_CONTROLLER_APPSEC_SIDECAR_UDS_PATH
+      value: "/var/run/datadog/extproc.sock"
+    # Must match the Envoy Gateway proxy UID (65532) for shared volume access.
+    - name: DD_ADMISSION_CONTROLLER_APPSEC_SIDECAR_RUN_AS_USER
+      value: "65532"

@@ -1,0 +1,24 @@
+---
+# e2e stage - asm-go owned jobs
+# Owned by: asm-go
+
+.on_e2e_or_appsec_injection_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/clusteragent/appsec/**/*
+        - pkg/clusteragent/admission/mutate/appsec/**/*
+        - test/new-e2e/tests/appsec-injection/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+new-e2e-appsec-injection:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_e2e_or_appsec_injection_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/appsec-injection
+    TEAM: asm-go
+    EXTRA_PARAMS: --run TestEnvoyGatewaySidecarUDS
