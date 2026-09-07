@@ -23,12 +23,18 @@ func TestNVLinkStatelessCollectorUnsupportedBeforeHopper(t *testing.T) {
 	require.ErrorIs(t, err, errUnsupportedDevice)
 }
 
-func TestNVLinkStatelessCollectorCollectsPerLinkErrorCounters(t *testing.T) {
+func TestNVLinkStatelessCollectorCollectsHopperErrorCounters(t *testing.T) {
 	counterValues := map[nvml.NvLinkErrorCounter]uint64{
-		nvml.NVLINK_ERROR_DL_REPLAY:    1,
-		nvml.NVLINK_ERROR_DL_RECOVERY:  2,
-		nvml.NVLINK_ERROR_DL_CRC_FLIT:  3,
-		nvml.NVLINK_ERROR_DL_ECC_DATA:  4,
+		nvml.NVLINK_ERROR_DL_REPLAY:   1,
+		nvml.NVLINK_ERROR_DL_RECOVERY: 2,
+		nvml.NVLINK_ERROR_DL_CRC_FLIT: 3,
+		nvml.NVLINK_ERROR_DL_ECC_DATA: 4,
+	}
+	expectedByName := map[string]float64{
+		"nvlink.errors.replay":   1,
+		"nvlink.errors.recovery": 2,
+		"nvlink.errors.crc.flit": 3,
+		"nvlink.errors.ecc":      4,
 	}
 
 	device := setupMockDevice(t,
@@ -45,55 +51,25 @@ func TestNVLinkStatelessCollectorCollectsPerLinkErrorCounters(t *testing.T) {
 		}),
 	)
 
-	collector, err := newNVLinkStatelessCollector(device, nil)
+	statelessCollector, err := newNVLinkStatelessCollector(device, nil)
+	require.NoError(t, err)
+	statelessSamples, err := statelessCollector.Collect()
 	require.NoError(t, err)
 
-	collected, err := collector.Collect()
-	require.NoError(t, err)
-
-	metricsByName := make(map[string][]*Metric)
-	for _, sample := range requireMetrics(t, collected) {
-		metricsByName[sample.Name] = append(metricsByName[sample.Name], sample)
-	}
-
-	require.Len(t, metricsByName["nvlink.errors.replay"], 2)
-	require.Len(t, metricsByName["nvlink.errors.recovery"], 2)
-	require.Len(t, metricsByName["nvlink.errors.crc.flit"], 2)
-	require.Len(t, metricsByName["nvlink.errors.ecc"], 2)
-
-	for _, metric := range metricsByName["nvlink.errors.replay"] {
+	counts := make(map[string]int, len(expectedByName))
+	for _, metric := range requireMetrics(t, statelessSamples) {
 		require.Equal(t, Medium, metric.Priority())
-		require.Equal(t, float64(1), metric.Value)
 		require.Equal(t, metrics.GaugeType, metric.Type)
+		require.Equal(t, expectedByName[metric.Name], metric.Value)
+		counts[metric.Name]++
 	}
-}
-
-func TestNVLinkStatelessCollectorWinsOverNVLinkFieldsOnHopper(t *testing.T) {
-	counterValues := map[nvml.NvLinkErrorCounter]uint64{
-		nvml.NVLINK_ERROR_DL_REPLAY:   10,
-		nvml.NVLINK_ERROR_DL_RECOVERY: 20,
-		nvml.NVLINK_ERROR_DL_CRC_FLIT: 30,
-		nvml.NVLINK_ERROR_DL_ECC_DATA: 40,
+	for name := range expectedByName {
+		require.Equal(t, 2, counts[name])
 	}
-
-	device := setupMockDevice(t,
-		testutil.WithArchitecture("hopper"),
-		testutil.WithNVLinkLinkCount(1),
-		testutil.WithCustomHook(func(d *testutil.MockDevice) {
-			d.GetNvLinkErrorCounterFunc = func(_ int, counter nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
-				return counterValues[counter], nvml.SUCCESS
-			}
-		}),
-	)
 
 	fieldsCollector, err := newNVLinkFieldsCollector(device, nil)
 	require.NoError(t, err)
-	statelessCollector, err := newNVLinkStatelessCollector(device, nil)
-	require.NoError(t, err)
-
 	fieldsSamples, err := fieldsCollector.Collect()
-	require.NoError(t, err)
-	statelessSamples, err := statelessCollector.Collect()
 	require.NoError(t, err)
 
 	deduped := requireMetrics(t, RemoveDuplicateSamples(map[CollectorName][]Sample{
@@ -101,18 +77,15 @@ func TestNVLinkStatelessCollectorWinsOverNVLinkFieldsOnHopper(t *testing.T) {
 		nvlinkStateless: statelessSamples,
 	}))
 
-	replayMetrics := filterMetricsByName(deduped, "nvlink.errors.replay")
-	require.Len(t, replayMetrics, 1)
-	require.Equal(t, Medium, replayMetrics[0].Priority())
-	require.Equal(t, float64(10), replayMetrics[0].Value)
-}
-
-func filterMetricsByName(metrics []*Metric, name string) []*Metric {
-	var out []*Metric
-	for _, metric := range metrics {
-		if metric.Name == name {
-			out = append(out, metric)
+	var replayMetrics []*Metric
+	for _, metric := range deduped {
+		if metric.Name == "nvlink.errors.replay" {
+			replayMetrics = append(replayMetrics, metric)
 		}
 	}
-	return out
+	require.Len(t, replayMetrics, 2)
+	for _, metric := range replayMetrics {
+		require.Equal(t, Medium, metric.Priority())
+		require.Equal(t, float64(1), metric.Value)
+	}
 }
