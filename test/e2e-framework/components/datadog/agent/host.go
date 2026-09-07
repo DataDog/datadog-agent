@@ -13,20 +13,18 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils/yamlutil"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	remoteComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-type HostAgentOutput struct {
-	components.JSONImporter
-
-	Host        remoteComp.HostOutput `json:"host"`
-	FIPSEnabled bool                  `json:"fipsEnabled"`
-}
+// HostAgentOutput moved to the Pulumi-free components/outputs package.
+type HostAgentOutput = outputs.HostAgentOutput
 
 // HostAgent is an installer for the Agent on a remote host
 type HostAgent struct {
@@ -215,7 +213,7 @@ func (h *HostAgent) updateCoreAgentConfig(
 		var err error
 		for _, extraConfig := range extraConfigs {
 			// recursively merge the extra config into the base config
-			baseConfig, err = utils.MergeYAMLWithSlices(baseConfig, extraConfig)
+			baseConfig, err = yamlutil.MergeYAMLWithSlices(baseConfig, extraConfig)
 			if err != nil {
 				return "", err
 			}

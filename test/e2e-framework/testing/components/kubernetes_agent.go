@@ -6,12 +6,12 @@
 package components
 
 import (
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
 // KubernetesAgent is an agent running in a Kubernetes cluster
 type KubernetesAgent struct {
-	agent.KubernetesAgentOutput
+	outputs.KubernetesAgentOutput
 
 	// Client cannot be initialized inline as it requires other information to create client
 	// Client agentclient.Agent // Do we need to communicate with the Agent, currently tests do not

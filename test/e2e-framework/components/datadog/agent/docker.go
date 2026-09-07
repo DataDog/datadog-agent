@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	remoteComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 )
 
@@ -24,13 +25,8 @@ const (
 	agentContainerName = "datadog-agent"
 )
 
-type DockerAgentOutput struct {
-	components.JSONImporter
-
-	DockerManager docker.ManagerOutput `json:"dockerManager"`
-	ContainerName string               `json:"containerName"`
-	FIPSEnabled   bool                 `json:"fipsEnabled"`
-}
+// DockerAgentOutput moved to the Pulumi-free components/outputs package.
+type DockerAgentOutput = outputs.DockerAgentOutput
 
 // DockerAgent is a Docker installer on a remote Host
 type DockerAgent struct {

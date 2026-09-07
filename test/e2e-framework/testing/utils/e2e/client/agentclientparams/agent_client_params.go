@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os/types"
 )
 
 // Params defines the parameters for the Agent client.
@@ -49,7 +49,7 @@ type Option func(*Params)
 
 // NewParams creates a new instance of Agent client params
 // default ShouldWaitForReady: true
-func NewParams(osfam osComp.Family, options ...Option) *Params {
+func NewParams(osfam types.Family, options ...Option) *Params {
 	p := &Params{
 		ShouldWaitForReady: true,
 		AuthTokenPath:      defaultAuthTokenPath(osfam),
@@ -147,13 +147,13 @@ func WithWaitForTick(d time.Duration) Option {
 	}
 }
 
-func defaultAuthTokenPath(osfam osComp.Family) string {
+func defaultAuthTokenPath(osfam types.Family) string {
 	switch osfam {
-	case osComp.LinuxFamily:
+	case types.LinuxFamily:
 		return "/etc/datadog-agent/auth_token"
-	case osComp.WindowsFamily:
+	case types.WindowsFamily:
 		return "C:\\ProgramData\\Datadog\\auth_token"
-	case osComp.MacOSFamily:
+	case types.MacOSFamily:
 		return "/opt/datadog-agent/etc/auth_token"
 	}
 	panic(fmt.Sprintf("unsupported OS family %d", osfam))

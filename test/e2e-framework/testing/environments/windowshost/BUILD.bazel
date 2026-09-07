@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "windowshost",
+    srcs = ["host_win.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments/windowshost",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/components/outputs",
+        "//test/e2e-framework/scenarios/outputs/windowshost",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/utils/common",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+    ],
+)

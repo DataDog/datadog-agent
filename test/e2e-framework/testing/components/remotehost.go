@@ -9,13 +9,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 
-	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os/types"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
 // RemoteHost represents a remote host
 type RemoteHost struct {
-	remote.HostOutput
+	outputs.HostOutput
 
 	*client.Host
 	context common.Context

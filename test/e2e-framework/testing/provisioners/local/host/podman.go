@@ -9,7 +9,7 @@ package localhost
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
@@ -33,7 +33,7 @@ type ProvisionerParams struct {
 	name              string
 	agentOptions      []agentparams.Option
 	fakeintakeOptions []fakeintake.Option
-	extraConfigParams runner.ConfigMap
+	extraConfigParams infraconfig.ConfigMap
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -41,7 +41,7 @@ func newProvisionerParams() *ProvisionerParams {
 		name:              defaultName,
 		agentOptions:      []agentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
-		extraConfigParams: runner.ConfigMap{},
+		extraConfigParams: infraconfig.ConfigMap{},
 	}
 }
 
@@ -81,7 +81,7 @@ func WithoutAgent() ProvisionerOption {
 }
 
 // WithExtraConfigParams adds extra config parameters to the environment
-func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
+func WithExtraConfigParams(configMap infraconfig.ConfigMap) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.extraConfigParams = configMap
 		return nil

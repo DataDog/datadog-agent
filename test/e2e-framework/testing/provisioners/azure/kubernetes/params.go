@@ -9,7 +9,7 @@ package azurekubernetes
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -29,7 +29,7 @@ type ProvisionerParams struct {
 	aksOptions                     []aks.Option
 	workloadAppFuncs               []WorkloadAppFunc
 	agentDependentWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
-	extraConfigParams              runner.ConfigMap
+	extraConfigParams              infraconfig.ConfigMap
 }
 
 func newProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
@@ -83,7 +83,7 @@ func WithAKSOptions(opts ...aks.Option) ProvisionerOption {
 }
 
 // WithExtraConfigParams adds extra config parameters to the environment
-func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
+func WithExtraConfigParams(configMap infraconfig.ConfigMap) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.extraConfigParams = configMap
 		return nil

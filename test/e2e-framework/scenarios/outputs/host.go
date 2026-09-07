@@ -13,10 +13,7 @@
 package outputs
 
 import (
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
@@ -25,10 +22,10 @@ import (
 // - Scenarios (main.go) to use lightweight outputs.Host without test dependencies
 // - Provisioners (test code) to use environments.Host with full client support
 type HostOutputs interface {
-	RemoteHostOutput() *remote.HostOutput
-	FakeIntakeOutput() *fakeintake.FakeintakeOutput
-	AgentOutput() *agent.HostAgentOutput
-	UpdaterOutput() *updater.HostUpdaterOutput
+	RemoteHostOutput() *compout.HostOutput
+	FakeIntakeOutput() *compout.FakeintakeOutput
+	AgentOutput() *compout.HostAgentOutput
+	UpdaterOutput() *compout.HostUpdaterOutput
 	DisableFakeIntake()
 	DisableAgent()
 	DisableUpdater()
@@ -38,39 +35,39 @@ type HostOutputs interface {
 // Host contains the outputs for a Host environment.
 // This struct is lightweight and does not import test client dependencies.
 type Host struct {
-	RemoteHost *remote.HostOutput
-	FakeIntake *fakeintake.FakeintakeOutput
-	Agent      *agent.HostAgentOutput
-	Updater    *updater.HostUpdaterOutput
+	RemoteHost *compout.HostOutput
+	FakeIntake *compout.FakeintakeOutput
+	Agent      *compout.HostAgentOutput
+	Updater    *compout.HostUpdaterOutput
 }
 
 // NewHost creates a new Host output struct with all fields initialized.
 func NewHost() *Host {
 	return &Host{
-		RemoteHost: &remote.HostOutput{},
-		FakeIntake: &fakeintake.FakeintakeOutput{},
-		Agent:      &agent.HostAgentOutput{},
-		Updater:    &updater.HostUpdaterOutput{},
+		RemoteHost: &compout.HostOutput{},
+		FakeIntake: &compout.FakeintakeOutput{},
+		Agent:      &compout.HostAgentOutput{},
+		Updater:    &compout.HostUpdaterOutput{},
 	}
 }
 
 // RemoteHostOutput returns the remote host output for exporting
-func (h *Host) RemoteHostOutput() *remote.HostOutput {
+func (h *Host) RemoteHostOutput() *compout.HostOutput {
 	return h.RemoteHost
 }
 
 // FakeIntakeOutput returns the fakeintake output for exporting (may be nil)
-func (h *Host) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+func (h *Host) FakeIntakeOutput() *compout.FakeintakeOutput {
 	return h.FakeIntake
 }
 
 // AgentOutput returns the agent output for exporting (may be nil)
-func (h *Host) AgentOutput() *agent.HostAgentOutput {
+func (h *Host) AgentOutput() *compout.HostAgentOutput {
 	return h.Agent
 }
 
 // UpdaterOutput returns the updater output for exporting (may be nil)
-func (h *Host) UpdaterOutput() *updater.HostUpdaterOutput {
+func (h *Host) UpdaterOutput() *compout.HostUpdaterOutput {
 	return h.Updater
 }
 

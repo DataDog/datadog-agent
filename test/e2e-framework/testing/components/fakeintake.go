@@ -9,12 +9,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
 // FakeIntake represents a FakeIntake instance
 type FakeIntake struct {
-	fakeintake.FakeintakeOutput
+	outputs.FakeintakeOutput
 
 	client *client.Client
 }

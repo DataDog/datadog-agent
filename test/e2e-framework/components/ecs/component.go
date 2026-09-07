@@ -7,16 +7,12 @@ package ecs
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// The type that is used to import the ECS Cluster component
-type ClusterOutput struct {
-	components.JSONImporter
-
-	ClusterName string `json:"clusterName"`
-	ClusterArn  string `json:"clusterArn"`
-}
+// ClusterOutput moved to the Pulumi-free components/outputs package.
+type ClusterOutput = outputs.ECSClusterOutput
 
 // Cluster represents a ECS cluster
 type Cluster struct {

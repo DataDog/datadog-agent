@@ -6,38 +6,37 @@
 package outputs
 
 import (
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
+	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
 // ECSOutputs is the interface for ECS environment outputs.
 type ECSOutputs interface {
-	ECSClusterOutput() *ecs.ClusterOutput
-	FakeIntakeOutput() *fakeintake.FakeintakeOutput
+	ECSClusterOutput() *compout.ECSClusterOutput
+	FakeIntakeOutput() *compout.FakeintakeOutput
 	DisableFakeIntake()
 }
 
 // ECS contains the outputs for an ECS environment.
 type ECS struct {
-	ECSCluster *ecs.ClusterOutput
-	FakeIntake *fakeintake.FakeintakeOutput
+	ECSCluster *compout.ECSClusterOutput
+	FakeIntake *compout.FakeintakeOutput
 }
 
 // NewECS creates a new ECS output struct with all fields initialized.
 func NewECS() *ECS {
 	return &ECS{
-		ECSCluster: &ecs.ClusterOutput{},
-		FakeIntake: &fakeintake.FakeintakeOutput{},
+		ECSCluster: &compout.ECSClusterOutput{},
+		FakeIntake: &compout.FakeintakeOutput{},
 	}
 }
 
 // ECSClusterOutput returns the ECS cluster output for exporting
-func (e *ECS) ECSClusterOutput() *ecs.ClusterOutput {
+func (e *ECS) ECSClusterOutput() *compout.ECSClusterOutput {
 	return e.ECSCluster
 }
 
 // FakeIntakeOutput returns the fakeintake output for exporting (may be nil)
-func (e *ECS) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+func (e *ECS) FakeIntakeOutput() *compout.FakeintakeOutput {
 	return e.FakeIntake
 }
 

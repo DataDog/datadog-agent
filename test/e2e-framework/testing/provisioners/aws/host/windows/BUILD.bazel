@@ -8,9 +8,9 @@ go_library(
     deps = [
         "//test/e2e-framework/resources/aws",
         "//test/e2e-framework/scenarios/aws/ec2/windows",
-        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/environments/windowshost",
         "//test/e2e-framework/testing/provisioners",
-        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/infraconfig",
         "//test/e2e-framework/testing/utils/optional",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],

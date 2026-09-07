@@ -14,8 +14,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils/yamlutil"
+	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -77,7 +77,7 @@ func Install(_ context.Context, env *environments.Host, p Params) error {
 	if env.Agent == nil {
 		env.Agent = &components.RemoteHostAgent{}
 	}
-	env.Agent.HostAgentOutput = agent.HostAgentOutput{Host: env.RemoteHost.HostOutput}
+	env.Agent.HostAgentOutput = compout.HostAgentOutput{Host: env.RemoteHost.HostOutput}
 	if err := env.Agent.InitFromHost(env.RemoteHost); err != nil {
 		return fmt.Errorf("initializing installed Agent: %w", err)
 	}
@@ -117,7 +117,7 @@ logs_config.force_use_http: true
 	if extraConfig == "" {
 		return config, nil
 	}
-	merged, err := utils.MergeYAMLWithSlices(config, extraConfig)
+	merged, err := yamlutil.MergeYAMLWithSlices(config, extraConfig)
 	if err != nil {
 		return "", fmt.Errorf("merging Agent config: %w", err)
 	}

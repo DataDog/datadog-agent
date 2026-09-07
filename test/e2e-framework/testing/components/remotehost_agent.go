@@ -13,12 +13,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
 // RemoteHostAgent represents an Agent running directly on a Host
 type RemoteHostAgent struct {
-	agent.HostAgentOutput
+	outputs.HostAgentOutput
 
 	Client        agentclient.Agent
 	ClientOptions []agentclientparams.Option

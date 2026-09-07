@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "e2ectl-worker_lib",
+    srcs = [
+        "executor.go",
+        "main.go",
+        "scenarios.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl-worker",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//test/e2e-framework/cmd/e2ectl/workerclient",
+        "//test/e2e-framework/cmd/internal/envconfig/ec2host",
+        "//test/e2e-framework/cmd/internal/envconfig/fixtures",
+        "//test/e2e-framework/components/os/types",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioner",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/standalone",
+    ],
+)
+
+go_binary(
+    name = "e2ectl-worker",
+    embed = [":e2ectl-worker_lib"],
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "e2ectl-worker_test",
+    srcs = [
+        "executor_test.go",
+        "scenarios_test.go",
+    ],
+    embed = [":e2ectl-worker_lib"],
+    deps = [
+        "//test/e2e-framework/cmd/e2ectl/workerclient",
+        "//test/e2e-framework/cmd/internal/envconfig/fixtures",
+        "//test/e2e-framework/components/outputs",
+        "//test/e2e-framework/testing/provisioner",
+        "//test/e2e-framework/testing/standalone",
+    ],
+)

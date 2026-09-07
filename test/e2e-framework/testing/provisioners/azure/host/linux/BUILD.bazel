@@ -18,7 +18,7 @@ go_library(
         "//test/e2e-framework/scenarios/azure/fakeintake",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",
-        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/infraconfig",
         "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
         "//test/e2e-framework/testing/utils/optional",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",

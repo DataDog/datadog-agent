@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -26,7 +26,7 @@ const (
 
 type ProvisionerParams struct {
 	awsEnv            *aws.Environment
-	extraConfigParams runner.ConfigMap
+	extraConfigParams infraconfig.ConfigMap
 	runOptions        []ec2docker.Option
 }
 
@@ -36,7 +36,7 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := &ProvisionerParams{
 		awsEnv:            nil,
 		runOptions:        nil,
-		extraConfigParams: runner.ConfigMap{},
+		extraConfigParams: infraconfig.ConfigMap{},
 	}
 
 	err := optional.ApplyOptions(params, opts)
@@ -54,7 +54,7 @@ func WithEnv(env *aws.Environment) ProvisionerOption {
 	}
 }
 
-func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
+func WithExtraConfigParams(configMap infraconfig.ConfigMap) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.extraConfigParams = configMap
 		return nil

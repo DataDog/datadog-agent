@@ -1,0 +1,106 @@
+# e2ectl
+
+Create and reuse Agent development environments. Local kind provisioning and Agent
+installation do not require Pulumi; EC2 provisioning uses `e2ectl-worker`.
+
+## Discover available environment types
+
+```sh
+e2ectl environments
+e2ectl environments --json
+```
+
+This lists the environment **types registered in the CLI**, their descriptions and
+supported installers. An installer marked `(update)` implements the update capability.
+It does not query cloud accounts or inspect existing infrastructure.
+
+`e2ectl list` is different: it lists the **instances you have already created** in the
+local environment store (`E2ECTL_HOME`, default `~/.e2ectl`).
+
+## Generate a starter configuration
+
+```sh
+# Print annotated YAML to stdout:
+e2ectl init --base kind
+
+# Create a new private file:
+e2ectl init --base kind --output my-kind.yaml
+e2ectl init --base ec2-host --output my-vm.yaml
+```
+
+The default output is stdout; `--output -` selects it explicitly. File output refuses
+to overwrite an existing path, including symlinks. There is no overwrite/force option.
+
+Generation is offline: it needs no credentials, environment store, Docker, kind or
+Pulumi executor. It does not deploy anything. The generated YAML comes from annotated Go config structs and is validated against
+the registered schema, optional semantic hooks and installer. It contains editable
+example versions—not a live snapshot or credentials. Examples are not runtime defaults. Review the comments and choose your desired versions,
+architecture and instance size before starting an environment.
+
+For kind, `environment.kind.version` selects the Kubernetes `kindest/node` image, not
+the version of the kind CLI installed on your machine. `nodes` counts extra workers,
+in addition to the control-plane node.
+
+After reviewing your config:
+
+```sh
+e2ectl start --config my-kind.yaml --name my-kind
+e2ectl install --env my-kind
+e2ectl fakeintake metrics --env my-kind
+e2ectl stop --env my-kind
+```
+
+Runtime prerequisites still apply when you actually provision or install. Kind needs
+local Docker and kind. EC2 needs the configured Pulumi/AWS environment and a matching
+executor binary. Agent installation reads credentials from the existing runner profile
+(`~/.test_infra_config.yaml` or `E2E_API_KEY`; Helm also reads `E2E_APP_KEY`). Credentials
+are deliberately not generated into the starter configuration.
+
+## Build
+
+From the repository root:
+
+```sh
+# The core is sufficient for discovery, config generation and local kind operations.
+bazel build //test/e2e-framework/cmd/e2ectl:e2ectl
+
+# Also build the executor for EC2 provisioning.
+bazel build //test/e2e-framework/cmd/e2ectl-worker:e2ectl-worker
+```
+
+Use `bazel cquery <target> --output=files` to locate the built executable. Place the
+executor beside the core binary when using EC2, or set `E2ECTL_WORKER` explicitly.
+Building a Bazel target does not replace a separate `./e2ectl` copy automatically.
+
+## Adding an environment type
+
+1. Declare a data-only config type and schema in `cmd/internal/envconfig/<type>`, shared
+   with the executor when using Pulumi. Annotate fields with names, defaults, examples,
+   constraints and descriptions.
+2. Implement the typed `driver.Implementation[Config]` lifecycle and installers.
+   `ID()` and `Description()` remain required; no handwritten YAML or mandatory
+   `Validate` method is needed.
+3. Register explicitly in `internal/driver/registry.go`, for example:
+
+   ```go
+   Define(ec2config.Schema, "script", &ec2host.Driver{})
+   ```
+
+`Define` prepares a typed configuration before execution and generates examples from
+its schema. The driver receives that prepared value rather than decoding raw YAML again.
+The second argument is an explicit default installer for full-config generation.
+
+Optional `Validate(params Config) error` is detected on the driver and runs after
+automatic validation/defaulting. Put semantic rules that must also run in the executor
+in a shared `configschema.Validator[Config]` registered with the shared schema instead.
+Both forms must be pure: `init` also validates examples, without runtime credentials or
+network access. Availability and authentication checks stay in execution.
+
+See [`cmd/internal/configschema/README.md`](../internal/configschema/README.md) for the
+annotation vocabulary, optional validators and normalization rules. The generated active
+configuration must pass schema and installer validation; required fields without an
+example/default/selector override produce an explicit generation error.
+
+The executor protocol also carries normalized common fixture options separately from
+provider parameters, preserving `fakeintake: false`. The CLI checks the executor protocol
+before provisioning, so rebuild **both binaries** after protocol changes.

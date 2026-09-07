@@ -169,6 +169,42 @@ provisioner-specific representations and update `env.Agent`. The same installer
 therefore works with Pulumi, `StaticStackProvisioner`, or another provisioner.
 State serialization and persistence belong to the caller that owns that state.
 
+`e2ectl environments [--json]` lists registered environment types, while
+`e2ectl list` lists created instances. `e2ectl init --base <type>` prints an
+annotated starter config; `--output <path>` creates a new private file and refuses
+to overwrite an existing path. Both commands are offline. Declare data-only
+config types in `cmd/internal/envconfig` and register them through `driver.Define`;
+`Description` remains required, while validation/defaults/examples come from the
+schema annotations. Do not add duplicate worker parameter structs or handwritten
+YAML templates. Optional `Validate(params)` hooks run after automatic validation;
+cloud rules needed at both process boundaries belong on the shared schema. See
+`cmd/e2ectl/README.md` and `cmd/internal/configschema/README.md`.
+
+Forward normalized parameter YAML to the executor, not a re-marshalled struct
+with `omitempty`: explicit false/zero values and defaults must survive the process
+boundary. The executor uses `DecodeResolved` to require already-materialized defaults
+and rejects old protocol versions; rebuild both binaries after contract changes.
+`init` validates complete generated examples, including semantic and installer rules,
+without resolving credentials or provisioning infrastructure.
+
+For `e2ectl`, Pulumi-backed scenarios keep fakeintake deployment in Pulumi:
+EC2 uses the existing ECS Fargate fakeintake, controlled by
+`environment.fakeintake`, with `WithoutAgent()` always. The core reads the
+exported endpoint and installs the Agent separately; it must not deploy a second
+fakeintake over SSH on the Agent VM. Local kind continues to run fakeintake in
+local Docker and does not need the Pulumi executor.
+
+For a typed provisioner, persist both the returned environment and raw resources
+with `provisioner.WriteSnapshotFileForEnv`. Pulumi exports use component-generated
+names (such as `dd-Host-*`), not necessarily the canonical names used by static
+attachment (`remoteHost`). The writer records `_bindings` to preserve that mapping;
+writing only raw resources loses it. Use `UpdateSnapshotResource` when adding or
+replacing a component outside Pulumi, so its binding is updated too. Legacy
+canonical snapshots remain supported; legacy Pulumi snapshots require explicit
+bindings rather than guessing which resource represents a component. Snapshots
+contain connection credentials and must remain private. Callers must check the
+components required by their operation even when optional components are absent.
+
 ## Beyond out of the box environments
 
 The stock environments are highly customizable via provisioner options (OS,

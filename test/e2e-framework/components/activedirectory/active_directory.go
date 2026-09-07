@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
@@ -19,12 +20,8 @@ import (
 	"github.com/pulumiverse/pulumi-time/sdk/go/time"
 )
 
-// Output is an object that models the output of the resource creation
-// from the Component.
-// See https://www.pulumi.com/docs/concepts/resources/components/#registering-component-outputs
-type Output struct {
-	components.JSONImporter
-}
+// Output moved to the Pulumi-free components/outputs package.
+type Output = outputs.ActiveDirectoryOutput
 
 // Component is an Active Directory domain component.
 // See https://www.pulumi.com/docs/concepts/resources/components/

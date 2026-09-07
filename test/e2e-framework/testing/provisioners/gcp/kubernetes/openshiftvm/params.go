@@ -9,7 +9,7 @@ package gcpopenshiftvm
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -56,7 +56,7 @@ type ProvisionerParams struct {
 	workloadAppFuncs               []WorkloadAppFunc
 	agentDependentWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
 	deployArgoRollout              bool
-	extraConfigParams              runner.ConfigMap
+	extraConfigParams              infraconfig.ConfigMap
 }
 
 func newProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
@@ -148,7 +148,7 @@ func WithAgentDependentWorkloadApp(appFunc kubeComp.AgentDependentWorkloadAppFun
 }
 
 // WithExtraConfigParams adds extra config parameters to the environment
-func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
+func WithExtraConfigParams(configMap infraconfig.ConfigMap) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.extraConfigParams = configMap
 		return nil

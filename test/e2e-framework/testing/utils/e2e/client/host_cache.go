@@ -13,8 +13,8 @@ import (
 
 	"github.com/cenkalti/backoff/v7"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
-	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os/types"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
 const (
@@ -31,9 +31,9 @@ func (c *unimplementedHostCache) Get(_ string, _ string) error {
 	return errors.New("not implemented")
 }
 
-func hostArtifactsClientFactory(sshExecutor *sshExecutor, osFlavor oscomp.Flavor, cloudProvider components.CloudProviderIdentifier, _ oscomp.Architecture) HostArtifactClient {
+func hostArtifactsClientFactory(sshExecutor *sshExecutor, osFlavor oscomp.Flavor, cloudProvider outputs.CloudProviderIdentifier, _ oscomp.Architecture) HostArtifactClient {
 	switch cloudProvider {
-	case components.CloudProviderAWS:
+	case outputs.CloudProviderAWS:
 		switch osFlavor {
 		case oscomp.Debian, oscomp.Ubuntu, oscomp.AmazonLinux, oscomp.CentOS, oscomp.RedHat, oscomp.RockyLinux, oscomp.Fedora, oscomp.Suse, oscomp.AlmaLinux:
 			return &hostArtifactsClient{

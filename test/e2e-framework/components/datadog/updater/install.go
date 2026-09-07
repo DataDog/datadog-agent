@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	remoteComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -22,9 +23,8 @@ import (
 //go:embed install_script.sh
 var installScript string
 
-type HostUpdaterOutput struct {
-	components.JSONImporter
-}
+// HostUpdaterOutput moved to the Pulumi-free components/outputs package.
+type HostUpdaterOutput = outputs.HostUpdaterOutput
 
 // HostUpdater is an installer for the Agent on a virtual machine
 type HostUpdater struct {

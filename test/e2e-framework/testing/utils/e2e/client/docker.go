@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/client"
@@ -36,7 +36,7 @@ type Docker struct {
 
 // NewDocker creates a new instance of Docker
 // NOTE: docker+ssh does not support password protected SSH keys.
-func NewDocker(ctx Context, dockerOutput docker.ManagerOutput) (*Docker, error) {
+func NewDocker(ctx Context, dockerOutput outputs.ManagerOutput) (*Docker, error) {
 	deamonURL := fmt.Sprintf("ssh://%v@%v", dockerOutput.Host.Username, dockerOutput.Host.Address)
 
 	sshOpts := []string{"-o", "StrictHostKeyChecking no"}

@@ -39,7 +39,7 @@ go_library(
         "//test/e2e-framework/scenarios/aws/ec2",
         "//test/e2e-framework/scenarios/aws/fakeintake",
         "//test/e2e-framework/scenarios/outputs",
-        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/infraconfig",
         "//test/e2e-framework/testing/utils/optional",
         "@com_github_pulumi_pulumi_aws_sdk_v7//go/aws/ec2",
         "@com_github_pulumi_pulumi_aws_sdk_v7//go/aws/eks",

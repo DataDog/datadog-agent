@@ -25,8 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os/types"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -76,7 +76,7 @@ type Host struct {
 
 // NewHost creates a new ssh client to connect to a remote host with
 // reconnect retry logic
-func NewHost(context Context, hostOutput remote.HostOutput) (*Host, error) {
+func NewHost(context Context, hostOutput outputs.HostOutput) (*Host, error) {
 	var privateSSHKey []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StoreKey(hostOutput.CloudProvider+parameters.PrivateKeyPathSuffix), "")

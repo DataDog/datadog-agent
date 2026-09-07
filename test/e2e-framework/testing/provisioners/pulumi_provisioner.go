@@ -15,7 +15,7 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/infra"
 )
 
@@ -30,7 +30,7 @@ type PulumiEnvRunFunc[Env any] func(ctx *pulumi.Context, env *Env) error
 type PulumiProvisioner[Env any] struct {
 	id           string
 	runFunc      PulumiEnvRunFunc[Env]
-	configMap    runner.ConfigMap
+	configMap    infraconfig.ConfigMap
 	diagnoseFunc func(ctx context.Context, stackName string) (string, error)
 }
 
@@ -40,7 +40,7 @@ var (
 )
 
 // NewTypedPulumiProvisioner returns a new PulumiProvisioner.
-func NewTypedPulumiProvisioner[Env any](id string, runFunc PulumiEnvRunFunc[Env], configMap runner.ConfigMap) *PulumiProvisioner[Env] {
+func NewTypedPulumiProvisioner[Env any](id string, runFunc PulumiEnvRunFunc[Env], configMap infraconfig.ConfigMap) *PulumiProvisioner[Env] {
 	if id == "" {
 		id = pulumiProvisionerDefaultID
 	}
@@ -53,7 +53,7 @@ func NewTypedPulumiProvisioner[Env any](id string, runFunc PulumiEnvRunFunc[Env]
 }
 
 // NewUntypedPulumiProvisioner returns a new PulumiProvisioner without env binding.
-func NewUntypedPulumiProvisioner(id string, runFunc pulumi.RunFunc, configMap runner.ConfigMap) *PulumiProvisioner[any] {
+func NewUntypedPulumiProvisioner(id string, runFunc pulumi.RunFunc, configMap infraconfig.ConfigMap) *PulumiProvisioner[any] {
 	return NewTypedPulumiProvisioner(id, func(ctx *pulumi.Context, _ *any) error {
 		return runFunc(ctx)
 	}, configMap)

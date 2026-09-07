@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils/yamlutil"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
@@ -468,7 +469,7 @@ func buildConfigMapData(otelConfig string, fakeIntake *fakeintake.Fakeintake) (p
 		if err := yaml.Unmarshal([]byte(otelConfig), &base); err != nil {
 			return nil, fmt.Errorf("parse otelConfig: %w", err)
 		}
-		merged := utils.MergeMaps(base, override, false)
+		merged := yamlutil.MergeMaps(base, override, false)
 		out, err := yaml.Marshal(merged)
 		if err != nil {
 			return nil, fmt.Errorf("marshal merged otelConfig: %w", err)

@@ -11,12 +11,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
 // DockerAgent represents an Agent running in a Docker container
 type DockerAgent struct {
-	agent.DockerAgentOutput
+	outputs.DockerAgentOutput
 
 	// Client cannot be initialized inline as it requires other information to create client
 	Client        agentclient.Agent

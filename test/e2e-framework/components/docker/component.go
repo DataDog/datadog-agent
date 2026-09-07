@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	remoteComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
@@ -30,11 +31,8 @@ const (
 	defaultTimeout                      = 300
 )
 
-type ManagerOutput struct {
-	components.JSONImporter
-
-	Host remoteComp.HostOutput `json:"host"`
-}
+// ManagerOutput moved to the Pulumi-free components/outputs package.
+type ManagerOutput = outputs.ManagerOutput
 
 type Manager struct {
 	pulumi.ResourceState

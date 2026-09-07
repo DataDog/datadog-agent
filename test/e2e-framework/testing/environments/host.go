@@ -12,16 +12,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	ostypes "github.com/DataDog/datadog-agent/test/e2e-framework/components/os/types"
+	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
@@ -45,7 +41,7 @@ func (e *Host) Init(_ common.Context) error {
 }
 
 // RemoteHostOutput implements outputs.HostOutputs
-func (e *Host) RemoteHostOutput() *remote.HostOutput {
+func (e *Host) RemoteHostOutput() *compout.HostOutput {
 	if e.RemoteHost == nil {
 		e.RemoteHost = &components.RemoteHost{}
 	}
@@ -53,7 +49,7 @@ func (e *Host) RemoteHostOutput() *remote.HostOutput {
 }
 
 // FakeIntakeOutput implements outputs.HostOutputs
-func (e *Host) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+func (e *Host) FakeIntakeOutput() *compout.FakeintakeOutput {
 	if e.FakeIntake == nil {
 		e.FakeIntake = &components.FakeIntake{}
 	}
@@ -61,7 +57,7 @@ func (e *Host) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
 }
 
 // AgentOutput implements outputs.HostOutputs
-func (e *Host) AgentOutput() *agent.HostAgentOutput {
+func (e *Host) AgentOutput() *compout.HostAgentOutput {
 	if e.Agent == nil {
 		e.Agent = &components.RemoteHostAgent{}
 	}
@@ -69,7 +65,7 @@ func (e *Host) AgentOutput() *agent.HostAgentOutput {
 }
 
 // UpdaterOutput implements outputs.HostOutputs
-func (e *Host) UpdaterOutput() *updater.HostUpdaterOutput {
+func (e *Host) UpdaterOutput() *compout.HostUpdaterOutput {
 	if e.Updater == nil {
 		e.Updater = &components.RemoteHostUpdater{}
 	}
@@ -107,7 +103,7 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 	// add Agent diagnose
 	if e.Agent != nil {
 		diagnoses = append(diagnoses, "==== Agent ====")
-		dstPath, err := generateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
+		dstPath, err := components.GenerateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
 		}
@@ -118,55 +114,10 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 	return strings.Join(diagnoses, "\n"), nil
 }
 
-func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *components.RemoteHost, outputDir string) (string, error) {
-	if agent == nil || host == nil {
-		return "", errors.New("Agent or RemoteHost component is not initialized, cannot generate flare")
-	}
-	// generate a flare, it will fallback to local flare generation if the running agent cannot be reached
-	// todo skip uploading it to backend, requires further changes in agent executor
-	// to redirect stdin to null, on linux adding `</dev/null`
-	// on windows prepending command with `@() |`, pre-piping with an empty array
-	// discard error, flare command might return error if there is no intake, but it the archive is still generated
-	// --keep-archive prevents the agent from deleting the local archive after a successful upload,
-	// since we need it to still be on disk afterwards to download it below.
-	flareCommandOutput, err := agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--keep-archive"}))
-
-	lines := []string{flareCommandOutput}
-	if err != nil {
-		lines = append(lines, err.Error())
-	}
-	// on error, the flare output is in the error message
-	flareCommandOutput = strings.Join(lines, "\n")
-
-	// find <path to flare>.zip in flare command output
-	// (?m) is a flag that allows ^ and $ to match the beginning and end of each line
-	re := regexp.MustCompile(`(?m)^(.+\.zip) is going to be uploaded to Datadog$`)
-	matches := re.FindStringSubmatch(flareCommandOutput)
-	if len(matches) < 2 {
-		return "", fmt.Errorf("output does not contain the path to the flare archive, output: %s", flareCommandOutput)
-	}
-	flarePath := matches[1]
-	flareFileInfo, err := host.Lstat(flarePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to stat flare archive: %w", err)
-	}
-	dstPath := filepath.Join(outputDir, flareFileInfo.Name())
-
-	err = host.EnsureFileIsReadable(flarePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to ensure flare archive is readable: %w", err)
-	}
-	err = host.GetFile(flarePath, dstPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to download flare archive: %w", err)
-	}
-	return dstPath, nil
-}
-
-func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec, error) {
+func (e *Host) getAgentCoverageCommands(family ostypes.Family) ([]CoverageTargetSpec, error) {
 	var targets []CoverageTargetSpec
 	switch family {
-	case os.LinuxFamily:
+	case ostypes.LinuxFamily:
 		targets = []CoverageTargetSpec{{
 			AgentName:       "datadog-agent",
 			CoverageCommand: []string{"sudo", "datadog-agent", "coverage", "generate"},
@@ -188,7 +139,7 @@ func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec,
 			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/system-probe", "coverage", "generate"},
 			Required:        false,
 		}}
-	case os.WindowsFamily:
+	case ostypes.WindowsFamily:
 		installPath := client.DefaultWindowsAgentInstallPath(e.RemoteHost.Host)
 		targets = []CoverageTargetSpec{{
 			AgentName:       "datadog-agent",

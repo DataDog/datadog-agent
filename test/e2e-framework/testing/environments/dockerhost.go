@@ -12,10 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
@@ -43,7 +40,7 @@ func (e *DockerHost) Init(_ common.Context) error {
 }
 
 // RemoteHostOutput implements outputs.DockerHostOutputs
-func (e *DockerHost) RemoteHostOutput() *remote.HostOutput {
+func (e *DockerHost) RemoteHostOutput() *compout.HostOutput {
 	if e.RemoteHost == nil {
 		e.RemoteHost = &components.RemoteHost{}
 	}
@@ -51,7 +48,7 @@ func (e *DockerHost) RemoteHostOutput() *remote.HostOutput {
 }
 
 // FakeIntakeOutput implements outputs.DockerHostOutputs
-func (e *DockerHost) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+func (e *DockerHost) FakeIntakeOutput() *compout.FakeintakeOutput {
 	if e.FakeIntake == nil {
 		e.FakeIntake = &components.FakeIntake{}
 	}
@@ -59,7 +56,7 @@ func (e *DockerHost) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
 }
 
 // DockerAgentOutput implements outputs.DockerHostOutputs
-func (e *DockerHost) DockerAgentOutput() *agent.DockerAgentOutput {
+func (e *DockerHost) DockerAgentOutput() *compout.DockerAgentOutput {
 	if e.Agent == nil {
 		e.Agent = &components.DockerAgent{}
 	}
@@ -67,7 +64,7 @@ func (e *DockerHost) DockerAgentOutput() *agent.DockerAgentOutput {
 }
 
 // DockerOutput implements outputs.DockerHostOutputs
-func (e *DockerHost) DockerOutput() *docker.ManagerOutput {
+func (e *DockerHost) DockerOutput() *compout.ManagerOutput {
 	if e.Docker == nil {
 		e.Docker = &components.RemoteHostDocker{}
 	}

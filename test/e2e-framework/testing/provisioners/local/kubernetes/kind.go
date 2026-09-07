@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
@@ -39,7 +39,7 @@ type ProvisionerParams struct {
 	agentOptions        []kubernetesagentparams.Option
 	preAgentHooks       []PreAgentHook
 	fakeintakeOptions   []fakeintake.Option
-	extraConfigParams   runner.ConfigMap
+	extraConfigParams   infraconfig.ConfigMap
 	workloadAppFuncs    []kubeComp.WorkloadAppFunc
 	depWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
 	// standaloneDdotFunc, when non-nil, deploys a standalone DDOT (Datadog
@@ -60,7 +60,7 @@ func newProvisionerParams() *ProvisionerParams {
 		agentOptions:      []kubernetesagentparams.Option{},
 		preAgentHooks:     []PreAgentHook{},
 		fakeintakeOptions: []fakeintake.Option{},
-		extraConfigParams: runner.ConfigMap{},
+		extraConfigParams: infraconfig.ConfigMap{},
 	}
 }
 
@@ -122,7 +122,7 @@ func WithoutAgent() ProvisionerOption {
 }
 
 // WithExtraConfigParams adds extra config parameters to the environment
-func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
+func WithExtraConfigParams(configMap infraconfig.ConfigMap) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.extraConfigParams = configMap
 		return nil

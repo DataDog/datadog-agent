@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
@@ -19,7 +19,7 @@ import (
 type ProvisionerParams struct {
 	awsEnv            *aws.Environment
 	runOptions        []eks.RunOption
-	extraConfigParams runner.ConfigMap
+	extraConfigParams infraconfig.ConfigMap
 }
 
 // GetProvisionerParams return ProvisionerParams from options opts setup
@@ -27,7 +27,7 @@ func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := &ProvisionerParams{
 		awsEnv:            nil,
 		runOptions:        []eks.RunOption{},
-		extraConfigParams: runner.ConfigMap{},
+		extraConfigParams: infraconfig.ConfigMap{},
 	}
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {
@@ -53,7 +53,7 @@ func WithRunOptions(opts ...eks.RunOption) ProvisionerOption {
 	}
 }
 
-func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
+func WithExtraConfigParams(configMap infraconfig.ConfigMap) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.extraConfigParams = configMap
 		return nil

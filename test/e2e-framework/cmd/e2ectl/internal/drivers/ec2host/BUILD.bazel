@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "ec2host",
+    srcs = ["ec2host.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/drivers/ec2host",
+    visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
+    deps = [
+        "//test/e2e-framework/cmd/e2ectl/internal/config",
+        "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+        "//test/e2e-framework/cmd/e2ectl/internal/installer",
+        "//test/e2e-framework/cmd/e2ectl/workerclient",
+        "//test/e2e-framework/cmd/internal/envconfig/ec2host",
+        "//test/e2e-framework/components/outputs",
+        "//test/e2e-framework/testing/provisioner",
+    ],
+)
+
+dd_agent_go_test(
+    name = "ec2host_test",
+    srcs = ["ec2host_test.go"],
+    embed = [":ec2host"],
+    deps = [
+        "//test/e2e-framework/cmd/e2ectl/internal/config",
+        "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+        "//test/e2e-framework/cmd/e2ectl/workerclient",
+        "//test/e2e-framework/cmd/internal/envconfig/ec2host",
+        "//test/e2e-framework/cmd/internal/envconfig/fixtures",
+        "//test/e2e-framework/testing/provisioner",
+    ],
+)

@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "provisioner",
+    srcs = [
+        "file_provisioner.go",
+        "provisioner.go",
+        "snapshot.go",
+        "snapshot_bindings.go",
+        "static_stack.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner",
+    visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/components/outputs"],
+)
+
+dd_agent_go_test(
+    name = "provisioner_test",
+    srcs = [
+        "snapshot_bindings_test.go",
+        "snapshot_test.go",
+        "static_stack_test.go",
+    ],
+    embed = [":provisioner"],
+    deps = ["//test/e2e-framework/components/outputs"],
+)

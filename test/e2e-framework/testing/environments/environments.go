@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
@@ -33,8 +33,8 @@ func CreateEnv[Env any]() (*Env, []reflect.StructField, []reflect.Value, error) 
 		}
 
 		importKeyFromTag := field.Tag.Get(importKey)
-		isImportable := field.Type.Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
-		isPtrImportable := reflect.PointerTo(field.Type).Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
+		isImportable := field.Type.Implements(reflect.TypeOf((*outputs.Importable)(nil)).Elem())
+		isPtrImportable := reflect.PointerTo(field.Type).Implements(reflect.TypeOf((*outputs.Importable)(nil)).Elem())
 
 		// Produce meaningful error in case we have an importKey but field is not importable
 		if importKeyFromTag != "" && !isImportable {
@@ -66,10 +66,10 @@ func CreateEnv[Env any]() (*Env, []reflect.StructField, []reflect.Value, error) 
 // importable fields of an environment, and initializes each imported component.
 //
 // fields and values are the importable fields/values returned by [CreateEnv]; resources
-// is the [provisioners.RawResources] map returned by the provisioner. ctx is passed to
+// is the [provisioner.RawResources] map returned by the provisioner. ctx is passed to
 // every component implementing [common.Initializable]. It is decoupled from *testing.T so
 // non-test callers (e.g. a standalone binary) can drive provisioning.
-func BuildEnvFromResources(ctx common.Context, resources provisioners.RawResources, fields []reflect.StructField, values []reflect.Value) error {
+func BuildEnvFromResources(ctx common.Context, resources provisioner.RawResources, fields []reflect.StructField, values []reflect.Value) error {
 	if len(fields) != len(values) {
 		panic("fields and values must have the same length")
 	}
@@ -92,7 +92,7 @@ func BuildEnvFromResources(ctx common.Context, resources provisioners.RawResourc
 			continue
 		}
 
-		importable := fieldValue.Interface().(components.Importable)
+		importable := fieldValue.Interface().(outputs.Importable)
 		resourceKey := importable.Key()
 		if importKeyFromTag != "" {
 			resourceKey = importKeyFromTag

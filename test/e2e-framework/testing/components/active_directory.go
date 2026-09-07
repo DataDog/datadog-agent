@@ -5,9 +5,9 @@
 
 package components
 
-import "github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
+import "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 
 // RemoteActiveDirectory represents an Active Directory domain on a remote machine
 type RemoteActiveDirectory struct {
-	activedirectory.Output
+	outputs.ActiveDirectoryOutput
 }

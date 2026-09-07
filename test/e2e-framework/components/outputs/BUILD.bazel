@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "outputs",
+    srcs = [
+        "components.go",
+        "fakeintake.go",
+        "outputs.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/os/types",
+        "//test/fakeintake/server/rcstore",
+    ],
+)

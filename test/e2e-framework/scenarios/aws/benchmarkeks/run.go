@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils/yamlutil"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/churn"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/kwok"
@@ -175,7 +176,7 @@ func Run(ctx *pulumi.Context) error {
 			kubernetesagentparams.WithClusterAgentFullImagePath(param.clusterAgentImagePath),
 			kubernetesagentparams.WithAgentVersion(param.agentVersion),
 			kubernetesagentparams.WithClusterAgentVersion(param.clusterAgentVersion),
-			kubernetesagentparams.WithHelmValues(utils.YAMLMustMarshal(map[string]any{
+			kubernetesagentparams.WithHelmValues(yamlutil.YAMLMustMarshal(map[string]any{
 				"datadog": map[string]any{
 					"nodeLabelsAsTags": map[string]any{
 						"benchmark.datadoghq.com/role":    "role",

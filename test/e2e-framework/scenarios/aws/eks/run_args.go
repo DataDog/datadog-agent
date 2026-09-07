@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
@@ -31,7 +31,7 @@ type RunParams struct {
 	agentOptions        []kubernetesagentparams.Option
 	fakeintakeOptions   []fakeintake.Option
 	eksOptions          []Option
-	extraConfigParams   runner.ConfigMap
+	extraConfigParams   infraconfig.ConfigMap
 	workloadAppFuncs    []kubecomp.WorkloadAppFunc
 	depWorkloadAppFuncs []kubecomp.AgentDependentWorkloadAppFunc
 	operatorOptions     []operatorparams.Option
@@ -58,7 +58,7 @@ func GetRunParams(opts ...RunOption) *RunParams {
 		agentOptions:        []kubernetesagentparams.Option{},
 		fakeintakeOptions:   []fakeintake.Option{},
 		eksOptions:          []Option{},
-		extraConfigParams:   runner.ConfigMap{},
+		extraConfigParams:   infraconfig.ConfigMap{},
 		workloadAppFuncs:    []kubecomp.WorkloadAppFunc{},
 		depWorkloadAppFuncs: []kubecomp.AgentDependentWorkloadAppFunc{},
 		operatorOptions:     []operatorparams.Option{},
@@ -177,7 +177,7 @@ func WithoutAgent() RunOption {
 }
 
 // WithExtraConfigParams adds extra config parameters to the environment
-func WithExtraConfigParams(configMap runner.ConfigMap) RunOption {
+func WithExtraConfigParams(configMap infraconfig.ConfigMap) RunOption {
 	return func(params *RunParams) error {
 		params.extraConfigParams = configMap
 		return nil

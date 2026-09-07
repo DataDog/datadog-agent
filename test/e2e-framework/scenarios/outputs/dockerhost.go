@@ -6,57 +6,54 @@
 package outputs
 
 import (
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	compout "github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
 // DockerHostOutputs is the interface for DockerHost environment outputs.
 type DockerHostOutputs interface {
-	RemoteHostOutput() *remote.HostOutput
-	FakeIntakeOutput() *fakeintake.FakeintakeOutput
-	DockerAgentOutput() *agent.DockerAgentOutput
-	DockerOutput() *docker.ManagerOutput
+	RemoteHostOutput() *compout.HostOutput
+	FakeIntakeOutput() *compout.FakeintakeOutput
+	DockerAgentOutput() *compout.DockerAgentOutput
+	DockerOutput() *compout.ManagerOutput
 	DisableFakeIntake()
 	DisableAgent()
 }
 
 // DockerHost contains the outputs for a DockerHost environment.
 type DockerHost struct {
-	RemoteHost *remote.HostOutput
-	FakeIntake *fakeintake.FakeintakeOutput
-	Agent      *agent.DockerAgentOutput
-	Docker     *docker.ManagerOutput
+	RemoteHost *compout.HostOutput
+	FakeIntake *compout.FakeintakeOutput
+	Agent      *compout.DockerAgentOutput
+	Docker     *compout.ManagerOutput
 }
 
 // NewDockerHost creates a new DockerHost output struct with all fields initialized.
 func NewDockerHost() *DockerHost {
 	return &DockerHost{
-		RemoteHost: &remote.HostOutput{},
-		FakeIntake: &fakeintake.FakeintakeOutput{},
-		Agent:      &agent.DockerAgentOutput{},
-		Docker:     &docker.ManagerOutput{},
+		RemoteHost: &compout.HostOutput{},
+		FakeIntake: &compout.FakeintakeOutput{},
+		Agent:      &compout.DockerAgentOutput{},
+		Docker:     &compout.ManagerOutput{},
 	}
 }
 
 // RemoteHostOutput returns the remote host output for exporting
-func (h *DockerHost) RemoteHostOutput() *remote.HostOutput {
+func (h *DockerHost) RemoteHostOutput() *compout.HostOutput {
 	return h.RemoteHost
 }
 
 // FakeIntakeOutput returns the fakeintake output for exporting (may be nil)
-func (h *DockerHost) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+func (h *DockerHost) FakeIntakeOutput() *compout.FakeintakeOutput {
 	return h.FakeIntake
 }
 
 // DockerAgentOutput returns the Docker agent output for exporting (may be nil)
-func (h *DockerHost) DockerAgentOutput() *agent.DockerAgentOutput {
+func (h *DockerHost) DockerAgentOutput() *compout.DockerAgentOutput {
 	return h.Agent
 }
 
 // DockerOutput returns the Docker manager output for exporting
-func (h *DockerHost) DockerOutput() *docker.ManagerOutput {
+func (h *DockerHost) DockerOutput() *compout.ManagerOutput {
 	return h.Docker
 }
 
