@@ -94,7 +94,7 @@ func (c *deviceEventsCollector) Collect() ([]Sample, error) {
 		return nil, nil
 	}
 
-	events := c.eventsCache.GetXIDEvents(c.Device().GetDeviceInfo().UUID)
+	events := c.eventsCache.getXIDEvents(c.Device().GetDeviceInfo().UUID)
 
 	intervalCounts := make(map[uint64]int)
 	var samples []Sample
@@ -326,9 +326,9 @@ func (c *DeviceEventsGatherer) getOrCreateXIDMerger(deviceUUID string) *xidEvent
 	return merger
 }
 
-// GetEvents returns the latest batch of cached events for the given device UUID.
-// Calls to GetEvents are idempotent up until the next invocation of Refresh.
-func (c *DeviceEventsGatherer) GetEvents(deviceUUID string) ([]observedDeviceEvent, error) {
+// getEvents returns the latest batch of cached events for the given device UUID.
+// Calls to getEvents are idempotent up until the next invocation of Refresh.
+func (c *DeviceEventsGatherer) getEvents(deviceUUID string) ([]observedDeviceEvent, error) {
 	if cache := c.getDeviceCache(deviceUUID); cache != nil {
 		return c.getDeviceCache(deviceUUID).latestEvents, nil
 	}
@@ -336,8 +336,8 @@ func (c *DeviceEventsGatherer) GetEvents(deviceUUID string) ([]observedDeviceEve
 	return nil, nil
 }
 
-// GetXIDEvents returns the latest finalized XID event batch for a device.
-func (c *DeviceEventsGatherer) GetXIDEvents(deviceUUID string) []xidEvent {
+// getXIDEvents returns the latest finalized XID event batch for a device.
+func (c *DeviceEventsGatherer) getXIDEvents(deviceUUID string) []xidEvent {
 	if merger := c.xidMergers[deviceUUID]; merger != nil {
 		return merger.GetEvents()
 	}

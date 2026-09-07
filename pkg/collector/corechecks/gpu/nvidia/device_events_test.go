@@ -52,7 +52,7 @@ func TestDeviceEventsGatherer_GetWithUnregistered(t *testing.T) {
 
 	assert.Empty(t, gatherer.GetRegisteredDeviceUUIDs())
 
-	events, err := gatherer.GetEvents("some-uuid")
+	events, err := gatherer.getEvents("some-uuid")
 	require.NoError(t, err)
 	assert.Empty(t, events)
 }
@@ -95,7 +95,7 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 	require.Equal(t, uuid, gatherer.GetRegisteredDeviceUUIDs()[0])
 
 	// no events should be available initially
-	events, err := gatherer.GetEvents(uuid)
+	events, err := gatherer.getEvents(uuid)
 	require.NoError(t, err)
 	assert.Empty(t, events)
 
@@ -108,14 +108,14 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 	sentAt := time.Now()
 	gatheredDeviceEvents <- sampleDeviceEvent
 	time.Sleep(time.Duration(float64(eventSetWaitTimeout) * 1.2)) // wait for timeout (with some tolerance)
-	events, err = gatherer.GetEvents(uuid)
+	events, err = gatherer.getEvents(uuid)
 	require.NoError(t, err)
 	assert.Empty(t, events)
 
 	// after refreshing, the event should be present
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		require.NoError(c, gatherer.Refresh(time.Now()))
-		events, err = gatherer.GetEvents(uuid)
+		events, err = gatherer.getEvents(uuid)
 		require.NoError(c, err)
 		require.Len(c, events, 1)
 	}, 200*time.Millisecond, 2*time.Millisecond)
@@ -128,14 +128,14 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 
 	// make sure the latest events cache is consistent up until the next refresh
 	for i := 0; i < 10; i++ {
-		events, err = gatherer.GetEvents(uuid)
+		events, err = gatherer.getEvents(uuid)
 		require.NoError(t, err)
 		require.Len(t, events, 1)
 	}
 
 	// after refresh, latest events cache should be empty (no new events gathered)
 	require.NoError(t, gatherer.Refresh(time.Now()))
-	events, err = gatherer.GetEvents(uuid)
+	events, err = gatherer.getEvents(uuid)
 	require.NoError(t, err)
 	require.Empty(t, events)
 }
@@ -168,7 +168,7 @@ func TestDeviceEventsGathererRefreshesSourcesIndependently(t *testing.T) {
 		require.Equal(t, 1, source.refreshCalls)
 		require.Equal(t, []xidEvent{
 			newNVMLXIDEvent(newObservedXIDEvent("GPU-1", 31, timestamp, 1, 2)),
-		}, gatherer.GetXIDEvents("GPU-1"))
+		}, gatherer.getXIDEvents("GPU-1"))
 	})
 
 	t.Run("collects system-probe events without NVML events", func(t *testing.T) {
@@ -185,10 +185,10 @@ func TestDeviceEventsGathererRefreshesSourcesIndependently(t *testing.T) {
 		require.Equal(t, 1, source.refreshCalls)
 		require.Equal(t, []xidEvent{
 			newDriverOnlyXIDEvent(newDriverXIDEvent("GPU-1", 31, timestamp, "kernel message")),
-		}, gatherer.GetXIDEvents("GPU-1"))
+		}, gatherer.getXIDEvents("GPU-1"))
 		require.Equal(t, []xidEvent{
 			newDriverOnlyXIDEvent(newDriverXIDEvent("GPU-2", 31, timestamp, "other kernel message")),
-		}, gatherer.GetXIDEvents("GPU-2"))
+		}, gatherer.getXIDEvents("GPU-2"))
 	})
 }
 
