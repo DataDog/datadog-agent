@@ -61,9 +61,11 @@
         # pass the script encoded in base64 to avoid quoting and stdin issues:
         # - base64 makes the payload safe to embed in the ssh command line
         # - the script is decoded to a temp file and run with `bash <file>` so
-        #   that stdin remains the PTY. 
+        #   that stdin remains the PTY (piping it into `bash -s` instead would
+        #   leave children with an EOF'd pipe as stdin, which breaks tools
+        #   that forward stdin to subprocesses, eg invoke)
         ssh -tt $AIX_SSH_COMMON_OPTS $AIX_SSH_DEST \
-          "f=\$\$; echo $encoded | openssl enc -base64 -d -A > /tmp/aix_run_cmd.\$f && bash /tmp/aix_run_cmd.\$f; rc=\$?; rm -f /tmp/aix_run_cmd.\$f; exit \$rc"
+          "script_file=\$(mktemp); echo $encoded | openssl enc -base64 -d -A > \"\$script_file\" && bash \"\$script_file\"; rc=\$?; rm -f \"\$script_file\"; exit \$rc"
       }
     - copy_file_from_aix () { scp $AIX_SSH_COMMON_OPTS "$AIX_SSH_DEST:$1" "$2" ; }
     - copy_file_to_aix () { scp $AIX_SSH_COMMON_OPTS "$1" "$AIX_SSH_DEST:$2" ; }
@@ -93,4 +95,4 @@
     # Host setup (tools, etc)
     # -tt forces a PTY so the remote script's stdout/stderr stream live to the job log.
     - 'echo "=== AIX: provisioning host (setup-host.sh) ==="'
-    - aix_run_cmd sh $AIX_AGENT_SRC/packaging/aix/setup-host.sh
+    - aix_run_cmd "cd $AIX_AGENT_SRC && sh packaging/aix/setup-host.sh"
