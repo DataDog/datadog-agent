@@ -5,7 +5,7 @@
 # FIPS OpenSSL — it only needs glibc for the dynamically linked CGO binary (a scratch base, as used
 # by the non-FIPS image, cannot run a dynamically linked binary). We use the same public,
 # customer-reproducible Ubuntu base as the agent/cluster-agent images.
-ARG BASE_IMAGE_UBUNTU_VERSION=24.04
+ARG BASE_IMAGE_UBUNTU_VERSION=26.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
 ARG BASE_IMAGE_REGISTRY=docker.io
 
