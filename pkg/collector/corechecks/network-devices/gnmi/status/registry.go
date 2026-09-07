@@ -17,6 +17,7 @@ type DeviceState struct {
 	Address           string
 	Port              int
 	Profile           string
+	DeviceName        string
 	CollectTopology   bool
 	Started           bool
 	StreamState       string
@@ -24,6 +25,7 @@ type DeviceState struct {
 	ReconnectCount    int
 	ReceivedSamples   int
 	CachedPaths       int
+	MetricsCollected  int
 	SubscriptionPaths []string
 	EverConnected     bool
 	LastConnectedAt   int64
@@ -109,18 +111,20 @@ func listDevices() []DeviceState {
 	return devices
 }
 
-func listDevicesForDisplay() []DeviceState {
+func listDevicesForDisplay() []DeviceDisplay {
 	devices := listDevices()
 	now := time.Now()
 
+	out := make([]DeviceDisplay, 0, len(devices))
 	for i := range devices {
 		if devices[i].NextReconnectAt > 0 {
 			nextReconnect := time.Unix(0, devices[i].NextReconnectAt)
 			devices[i].NextReconnectDue = !nextReconnect.After(now)
 		}
+		out = append(out, buildDeviceDisplay(devices[i]))
 	}
 
-	return devices
+	return out
 }
 
 // resetRegistryForTesting clears all registered devices.
