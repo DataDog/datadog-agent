@@ -37,13 +37,14 @@ const (
 type Check struct {
 	core.CheckBase
 
-	mu                 sync.Mutex
-	config             *config.CheckConfig
-	interval           time.Duration
-	client             *client.Client
-	started            bool
-	lastMetadataReport time.Time
-	status             gnmistatus.Component
+	mu                      sync.Mutex
+	config                  *config.CheckConfig
+	interval                time.Duration
+	client                  *client.Client
+	started                 bool
+	lastMetadataReport      time.Time
+	interfaceBandwidthState report.BandwidthState
+	status                  gnmistatus.Component
 }
 
 // Factory creates a new check factory. The statusRegistry records device
@@ -54,9 +55,10 @@ func Factory(statusRegistry gnmistatus.Component) option.Option[func() check.Che
 
 func newCheck(statusRegistry gnmistatus.Component) check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
-		interval:  time.Duration(config.DefaultMinCollectionInterval) * time.Second,
-		status:    statusRegistry,
+		CheckBase:               core.NewCheckBase(CheckName),
+		interval:                time.Duration(config.DefaultMinCollectionInterval) * time.Second,
+		interfaceBandwidthState: report.NewBandwidthState(),
+		status:                  statusRegistry,
 	}
 }
 
@@ -110,6 +112,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.client = gnmiClient
 	c.started = false
 	c.lastMetadataReport = time.Time{}
+	c.interfaceBandwidthState = report.NewBandwidthState()
 
 	c.status.RegisterDevice(
 		checkConfig.Instance.Address,
@@ -158,8 +161,16 @@ func (c *Check) Run() error {
 		return err
 	}
 
+	c.mu.Lock()
+	bandwidthState := c.interfaceBandwidthState
+	// Prune even when no fresh samples arrive (for example after a device disconnects).
+	bandwidthState.PruneInactive(now, 3*c.interval)
+	c.mu.Unlock()
 	if len(freshSnapshot) > 0 {
 		if err := report.ReportMetrics(s, checkConfig, freshSnapshot, snapshot); err != nil {
+			return err
+		}
+		if err := report.ReportDerivedMetrics(s, checkConfig, freshSnapshot, bandwidthState); err != nil {
 			return err
 		}
 	}
@@ -210,6 +221,7 @@ func (c *Check) Cancel() {
 	c.config = nil
 	c.started = false
 	c.lastMetadataReport = time.Time{}
+	c.interfaceBandwidthState = nil
 	c.mu.Unlock()
 
 	if address != "" {

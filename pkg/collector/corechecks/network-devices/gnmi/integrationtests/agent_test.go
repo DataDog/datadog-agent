@@ -33,6 +33,14 @@ import (
 
 const (
 	interfaceStatsProfile = `
+metadata:
+  device:
+    hostname: /openconfig/system/state/hostname
+  interface:
+    keys:
+      interface: name
+    name: /openconfig/interfaces/interface/state/name
+    ifindex: /openconfig/interfaces/interface/state/ifindex
 metrics:
   - path: /openconfig/interfaces/interface/state/counters/in-octets
     metric: snmp.ifHCInOctets
@@ -79,6 +87,7 @@ func TestGNMICheckLoadsFromConfDAndReportsThroughSender(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(checkInstance.ID(), senderManager)
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
@@ -102,19 +111,34 @@ func TestGNMICheckLoadsFromConfDAndReportsThroughSender(t *testing.T) {
 
 	mockSender.AssertCalled(t, "MonotonicCount", "snmp.ifHCInOctets", float64(42), "", mock.Anything)
 	mockSender.AssertCalled(t, "MonotonicCount", "snmp.ifHCOutOctets", float64(84), "", mock.Anything)
+	// Throughput rates need two device samples and are submitted as gauges.
+	mockSender.AssertNotCalled(t, "Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.stream_state", mock.Anything, "", mock.Anything)
 	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.received_samples", mock.Anything, "", mock.Anything)
 	mockSender.AssertCalled(t, "Commit")
 
 	time.Sleep(1100 * time.Millisecond)
+	// Second counter samples, at least 1.1s after the first ones.
+	require.NoError(t, server.SendUpdate(event.StreamID, fakeserver.InterfaceInOctetsUpdate("eth0", 1042)))
+	require.NoError(t, server.SendUpdate(event.StreamID, fakeserver.InterfaceOutOctetsUpdate("eth0", 2084)))
 
 	require.Eventually(t, func() bool {
 		if err := checkInstance.Run(); err != nil {
 			return false
 		}
 		metadataEvent, ok := findMetadataEvent(mockSender)
-		return ok && len(metadataEvent.Devices) == 1 && len(metadataEvent.Interfaces) == 1
+		_, hasInRate := lastGauge(mockSender, "snmp.ifHCInOctets.rate")
+		_, hasOutRate := lastGauge(mockSender, "snmp.ifHCOutOctets.rate")
+		return ok && len(metadataEvent.Devices) == 1 && len(metadataEvent.Interfaces) == 1 && hasInRate && hasOutRate
 	}, 2*time.Second, 10*time.Millisecond)
+
+	// rate = counter delta / time between the two device samples (> 1.1s)
+	inRate, _ := lastGauge(mockSender, "snmp.ifHCInOctets.rate")
+	outRate, _ := lastGauge(mockSender, "snmp.ifHCOutOctets.rate")
+	assert.Greater(t, inRate, 0.0)
+	assert.LessOrEqual(t, inRate, 1000/1.1)
+	assert.Greater(t, outRate, 0.0)
+	assert.LessOrEqual(t, outRate, 2000/1.1)
 
 	mockSender.AssertCalled(t, "EventPlatformEvent", mock.Anything, "network-devices-metadata")
 
@@ -202,6 +226,16 @@ func hasMonotonicCount(mockSender *mocksender.MockSender, metric string) bool {
 	return false
 }
 
+func lastGauge(mockSender *mocksender.MockSender, metric string) (float64, bool) {
+	value, found := 0.0, false
+	for _, call := range mockSender.Calls {
+		if call.Method == "Gauge" && call.Arguments[0] == metric {
+			value, found = call.Arguments.Get(1).(float64), true
+		}
+	}
+	return value, found
+}
+
 func extractMetadataEvent(t *testing.T, mockSender *mocksender.MockSender) devicemetadata.NetworkDevicesMetadata {
 	t.Helper()
 
@@ -267,7 +301,7 @@ func interfaceNameUpdate(interfaceName string) *gnmipb.Update {
 	}
 }
 
-func interfaceIfIndexUpdate(interfaceName string, ifIndex uint64) *gnmipb.Update {
+func interfaceIfIndexUpdate(interfaceName string, ifIndex int32) *gnmipb.Update {
 	return &gnmipb.Update{
 		Path: &gnmipb.Path{
 			Elem: []*gnmipb.PathElem{
@@ -278,7 +312,7 @@ func interfaceIfIndexUpdate(interfaceName string, ifIndex uint64) *gnmipb.Update
 				{Name: "ifindex"},
 			},
 		},
-		Val: fakeserver.ScalarUint64(ifIndex),
+		Val: fakeserver.ScalarInt64(int64(ifIndex)),
 	}
 }
 
