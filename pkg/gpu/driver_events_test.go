@@ -22,11 +22,11 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gputestutil "github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 func TestCreateDriverEvent(t *testing.T) {
 	subscriber, _ := newTestDriverEventSubscriber(t)
+	observedAt := time.Date(2026, time.September, 4, 12, 0, 0, 0, time.UTC)
 
 	for _, tc := range []struct {
 		message string
@@ -38,14 +38,13 @@ func TestCreateDriverEvent(t *testing.T) {
 		{"NVRM: Xid (PCI:0000:00:1e): 154, GPU recovery action changed", 154},
 		{"nvrm:  xid ( pci:0000:00:1e.0 ) : 43, channel 0x1", 43},
 	} {
-		record := kernel.KmsgRecord{Timestamp: 1234, Message: tc.message}
-		expectedTimestamp := subscriber.timeResolver.ResolveMonotonicTimestamp(record.Timestamp * uint64(time.Microsecond))
+		record := kernel.KmsgRecord{Timestamp: 1234, ObservedAt: observedAt, Message: tc.message}
 
 		event, err := subscriber.createDriverEvent(record)
 
 		require.NoError(t, err, tc.message)
 		require.Equal(t, gputestutil.DefaultGpuUUID, event.DeviceUUID, tc.message)
-		require.WithinDuration(t, expectedTimestamp, event.Timestamp, time.Millisecond, tc.message)
+		require.Equal(t, observedAt, event.Timestamp, tc.message)
 		require.Equal(t, model.DriverEventTypeNvidiaXid, event.Type, tc.message)
 		require.Equal(t, tc.xidCode, event.NvidiaXid.XidCode, tc.message)
 		require.Equal(t, tc.message, event.NvidiaXid.Message, tc.message)
@@ -388,18 +387,14 @@ func newTestDriverEventSubscriber(t *testing.T) (*DriverEventSubscriber, telemet
 	deviceCache := ddnvml.NewDeviceCache()
 	require.NoError(t, deviceCache.Refresh())
 
-	timeResolver, err := ktime.NewResolver()
-	require.NoError(t, err)
-
 	telemetryMock := gputestutil.GetTelemetryMock(t)
 	telemetry := &driverEventTelemetry{}
 	telemetry.init(telemetryMock)
 
 	return &DriverEventSubscriber{
-		telemetry:    telemetry,
-		timeResolver: timeResolver,
-		events:       make(chan model.DriverEvent, 1),
-		deviceCache:  deviceCache,
+		telemetry:   telemetry,
+		events:      make(chan model.DriverEvent, 1),
+		deviceCache: deviceCache,
 	}, telemetryMock
 }
 

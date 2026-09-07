@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -92,11 +91,10 @@ type driverEventReader interface {
 
 // DriverEventSubscriber reads NVIDIA Xid events from /dev/kmsg and associates them with physical GPU UUIDs.
 type DriverEventSubscriber struct {
-	reader       driverEventReader
-	records      <-chan kernel.KmsgRecord
-	unsubscribe  func()
-	telemetry    *driverEventTelemetry
-	timeResolver *ktime.Resolver
+	reader      driverEventReader
+	records     <-chan kernel.KmsgRecord
+	unsubscribe func()
+	telemetry   *driverEventTelemetry
 
 	events      chan model.DriverEvent
 	deviceCache ddnvml.DeviceCache
@@ -121,11 +119,6 @@ func NewDriverEventSubscriber(component telemetry.Component, deviceCache ddnvml.
 		return nil, fmt.Errorf("driver event queue size must be positive, got %d", cfg.QueueSize)
 	}
 
-	timeResolver, err := ktime.NewResolver()
-	if err != nil {
-		return nil, fmt.Errorf("create kernel time resolver: %w", err)
-	}
-
 	reader, err := kernel.NewKmsgReader(component)
 	if err != nil {
 		return nil, fmt.Errorf("create kmsg reader: %w", err)
@@ -138,14 +131,13 @@ func NewDriverEventSubscriber(component telemetry.Component, deviceCache ddnvml.
 	}
 	driverEventsTelemetryDefinitions.init(component)
 	subscriber := &DriverEventSubscriber{
-		reader:       reader,
-		telemetry:    &driverEventsTelemetryDefinitions,
-		records:      records,
-		unsubscribe:  unsubscribe,
-		timeResolver: timeResolver,
-		events:       make(chan model.DriverEvent, cfg.QueueSize),
-		deviceCache:  deviceCache,
-		done:         make(chan struct{}),
+		reader:      reader,
+		telemetry:   &driverEventsTelemetryDefinitions,
+		records:     records,
+		unsubscribe: unsubscribe,
+		events:      make(chan model.DriverEvent, cfg.QueueSize),
+		deviceCache: deviceCache,
+		done:        make(chan struct{}),
 	}
 	go subscriber.run()
 	return subscriber, nil
@@ -159,6 +151,9 @@ func (s *DriverEventSubscriber) GetAndFlush() ([]model.DriverEvent, error) {
 		select {
 		case event, ok := <-s.events:
 			if !ok {
+				if len(events) > 0 {
+					return events, nil
+				}
 				return events, errDriverEventSubscriberStopped
 			}
 			events = append(events, event)
@@ -215,7 +210,9 @@ func (s *DriverEventSubscriber) createDriverEvent(record kernel.KmsgRecord) (mod
 		return event, errors.New("can't find PCI bus ID in message")
 	}
 
-	event.Timestamp = s.timeResolver.ResolveMonotonicTimestamp(record.Timestamp * uint64(time.Microsecond))
+	// The raw kmsg timestamp cannot be reliably converted to wall time; use the
+	// timestamp captured by KmsgReader when it observed the record instead.
+	event.Timestamp = record.ObservedAt
 
 	var (
 		enrichmentFailed bool
