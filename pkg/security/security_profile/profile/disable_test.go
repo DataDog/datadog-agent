@@ -29,7 +29,7 @@ func processNodes(n int) []*activity_tree.ProcessNode {
 	for i := 0; i < n; i++ {
 		nodes = append(nodes, &activity_tree.ProcessNode{
 			NodeBase: activity_tree.NewNodeBase(),
-			Process: model.Process{
+			Process: activity_tree.ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/proc" + strconv.Itoa(i),
 					BasenameStr: "proc" + strconv.Itoa(i),

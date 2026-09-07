@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0
@@ -9,7 +9,7 @@ require (
 
 require (
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
-	github.com/klauspost/compress v1.19.1 // indirect
+	github.com/klauspost/compress v1.19.2 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

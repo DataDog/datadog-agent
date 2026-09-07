@@ -223,6 +223,23 @@ cross-platform by design: the binary runs on the CI host while the *target VM* i
 `foo_win_test.go` carry no Go build constraint (`_win` is not a `GOOS` — only `_windows` is), and constraining them
 would stop Windows suites from ever running from Linux CI.
 
+#### A directory-scoped run deletes `write_pb_go` rules
+
+The `write_pb_go` extension (`bazel/rules/write_pb_go/_gazelle_extension.go`) matches a
+`go_library` holding checked-in `*.pb.go` files against the `go_proto_library` that generates them. It
+accumulates `go_proto_library` info as Gazelle walks directories and relies on the proto directory being
+visited *before* the Go directory (there is a `TODO` on that traversal-order dependency). A scoped run
+never visits the proto directory, so the match fails and the extension deletes the rule as stale:
+
+```sh
+bazel run //:gazelle -- pkg/proto/pbgo/trace   # DELETES the write_pb_go rule (and its load)
+bazel run //:gazelle                           # keeps it — the proto dir is visited too
+```
+
+So for any directory with checked-in generated `.pb.go` files (`pkg/proto/pbgo/...`), run Gazelle
+repo-wide, or `git diff` the BUILD file afterwards and restore the `write_pb_go` rule plus its
+`load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")`.
+
 #### `@//` in a generated dep means Gazelle found no target
 
 A label like `"@//test/new-e2e/tests/windows/common"` (rather than `"//test/..."`) is Gazelle's module-path fallback: the
@@ -1072,7 +1089,7 @@ When a `verify_generated_files` test fails, run the corresponding
 
 ```bash
 # Update a single cgo godefs output
-bazel run //pkg/ebpf:types_godefs
+bazel run //pkg/ebpf/lockcontention:types_godefs
 ```
 
 Runtime compilation integrity hash files (`pkg/ebpf/bytecode/runtime/*.go`) are

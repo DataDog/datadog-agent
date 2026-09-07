@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
-	github.com/klauspost/compress v1.19.1
+	github.com/klauspost/compress v1.19.2
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

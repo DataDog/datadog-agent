@@ -377,3 +377,132 @@ auth:
 		})
 	}
 }
+
+func TestParsingMinCollectionIntervalFromYAML(t *testing.T) {
+	var tests = []struct {
+		name     string
+		interval string
+		expected time.Duration
+	}{
+		{
+			name:     "duration string with units",
+			interval: "1m30s",
+			expected: 90 * time.Second,
+		},
+		{
+			name:     "duration string without units",
+			interval: "60",
+			expected: 60 * time.Second,
+		},
+		{
+			name:     "duration string with only seconds unit",
+			interval: "45s",
+			expected: 45 * time.Second,
+		},
+		{
+			name:     "upper boundary for conversion",
+			interval: "999999",
+			expected: 999999 * time.Second,
+		},
+		{
+			name:     "upper boundary for conversion",
+			interval: "1000000",
+			expected: time.Millisecond,
+		},
+		{
+			name:     "negative duration string",
+			interval: "-30s",
+			expected: defaultCheckInterval, // should fall back to default on error
+		},
+	}
+
+	var newConfigs = func(interval string) ([]byte, []byte) {
+		initConfig := `
+namespace: default
+min_collection_interval: ` + interval + `
+ssh:
+  insecure_skip_verify: true
+`
+		instanceConfig := `
+ip_address: 192.168.0.1
+auth:
+  password: 'password'
+  username: 'admin'
+`
+		return []byte(initConfig), []byte(instanceConfig)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			initConfig, instanceConfig := newConfigs(tt.interval)
+			cfg, err := NewNcmCheckContext(instanceConfig, initConfig)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, cfg.MinCollectionInterval)
+		})
+	}
+}
+
+func TestParsingInventoryReportMaxIntervalFromYAML(t *testing.T) {
+	var tests = []struct {
+		name     string
+		interval string
+		expected time.Duration
+	}{
+		{
+			name:     "duration string with units",
+			interval: "1m30s",
+			expected: 90 * time.Second,
+		},
+		{
+			name:     "duration string without units",
+			interval: "60",
+			expected: 60 * time.Second,
+		},
+		{
+			name:     "duration string with only seconds unit",
+			interval: "45s",
+			expected: 45 * time.Second,
+		},
+		{
+			name:     "upper boundary for conversion",
+			interval: "999999",
+			expected: 999999 * time.Second,
+		},
+		{
+			name:     "upper boundary for conversion",
+			interval: "1000000",
+			expected: time.Millisecond,
+		},
+		{
+			name:     "negative duration string",
+			interval: "-30s",
+			expected: defaultInventoryReportMaxInterval, // should fall back to default on error
+		},
+	}
+
+	var newConfigs = func(interval string) ([]byte, []byte) {
+		initConfig := `
+namespace: default
+min_collection_interval: 60
+inventory_report_max_interval: ` + interval + `
+ssh:
+  insecure_skip_verify: true
+`
+		instanceConfig := `
+ip_address: 192.168.0.1
+auth:
+  password: 'password'
+  username: 'admin'
+`
+		return []byte(initConfig), []byte(instanceConfig)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			initConfig, instanceConfig := newConfigs(tt.interval)
+			cfg, err := NewNcmCheckContext(instanceConfig, initConfig)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, cfg.InventoryReportMaxInterval)
+		})
+	}
+}

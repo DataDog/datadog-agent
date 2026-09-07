@@ -1,4 +1,4 @@
 github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 h1:zDAogP70WYpLD6MiIjQ9tHZYmkfbFcsfGb26CMf99To=
 github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571/go.mod h1:oyU0k4j1rV2Cxqy/hdGZzmVg3nJtHahZBImIK9ejcDA=
-github.com/klauspost/compress v1.19.1 h1:VsB4HPswih7mmZ8WleSFQ75c/Ui1M4trX5oAsJnhSlk=
-github.com/klauspost/compress v1.19.1/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
+github.com/klauspost/compress v1.19.2 h1:hMRETovs/pu/dVWN7zIT1PGG8t509MwT6bO7XSi26R8=
+github.com/klauspost/compress v1.19.2/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=

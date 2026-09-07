@@ -1,9 +1,18 @@
 {{
     "go.buildTags": "{build_tags}",
     "go.testTags": "{build_tags}",
-    "go.lintTool": "golangci-lint",
+    "go.lintTool": "bazelisk",
     "go.buildFlags": ["-buildvcs=false"],
     "go.lintFlags": [
+        "run",
+        "//internal/tools:golangci-lint",
+        "--",
+        "run",
+        "--issues-exit-code=0",
+        "--output.text.print-issued-lines=false",
+        "--show-stats=false",
+        "--output.text.path=stdout",
+        "--path-mode=abs",
         "--build-tags",
         "{build_tags}"
     ],

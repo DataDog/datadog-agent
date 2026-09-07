@@ -1,22 +1,9 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
-load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
 
 # gazelle:exclude include_headers_gen.go
-# gazelle:exclude types_linux_test.go
 # gazelle:go_test file
 
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
-
-exports_files([
-    "types_linux.go",
-    "types_linux_test.go",
-])
-
-cgo_godefs(
-    name = "types_godefs",
-    src = "types.go",
-    visibility = ["//visibility:public"],
-)
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
 genrule(
@@ -40,8 +27,8 @@ test_suite(
     name = "verify_generated_files",
     tests = [
         # ── Linux cgo_godefs ───────────────────────────────────────────
-        ":types_godefs_test",
-        ":types_godefs_test_file_test",
+        "//pkg/ebpf/lockcontention:types_godefs_test",
+        "//pkg/ebpf/lockcontention:types_godefs_test_file_test",
         "//pkg/ebpf/telemetry:types_godefs_test",
         "//pkg/ebpf/telemetry:types_godefs_test_file_test",
         "//pkg/network/ebpf:conntrack_types_godefs_test",
@@ -187,8 +174,6 @@ go_library(
         "ebpf.go",
         "ksyms.go",
         "ksyms_bpf.go",
-        "lockcontention.go",
-        "lockcontention_noop.go",
         "manager.go",
         "map_cleaner.go",
         "mappings.go",
@@ -201,11 +186,8 @@ go_library(
         "rc_btf.go",
         "status_codes.go",
         "time.go",
-        "types_linux.go",
     ],
-    cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf",
-    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/setup",
@@ -215,9 +197,6 @@ go_library(
         "//pkg/system-probe/config",
         "//pkg/util/kernel",
     ] + select({
-        "@rules_go//go/platform:aix": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
         "@rules_go//go/platform:android": [
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/impl",
@@ -241,26 +220,7 @@ go_library(
             "@com_github_cilium_ebpf//rlimit",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_datadog_ebpf_manager//tracefs",
-            "@com_github_prometheus_client_golang//prometheus",
             "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:darwin": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
-        "@rules_go//go/platform:ios": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
-        "@rules_go//go/platform:js": [
-            "@com_github_prometheus_client_golang//prometheus",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/telemetry/def",
@@ -285,44 +245,10 @@ go_library(
             "@com_github_cilium_ebpf//rlimit",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_datadog_ebpf_manager//tracefs",
-            "@com_github_prometheus_client_golang//prometheus",
             "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
-        "@rules_go//go/platform:osx": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
-        "@rules_go//go/platform:qnx": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "@com_github_prometheus_client_golang//prometheus",
-        ],
-        "@rules_go//go/platform:windows": [
-            "@com_github_prometheus_client_golang//prometheus",
         ],
         "//conditions:default": [],
     }),
-)
-
-# keep
-dd_agent_go_test(
-    name = "types_linux_test",
-    srcs = ["types_linux_test.go"],
-    embed = [":ebpf"],
-    gotags_sets = [["bpf"]],
-    # keep
-    deps = [
-        "//pkg/ebpf/ebpftest:cgo_align",
-    ],
 )
 
 # keep
@@ -389,21 +315,6 @@ dd_agent_go_test(
     gotags_sets = [["bpf"]],
     tags = ["requires_ebpf"],
     deps = ["@com_github_stretchr_testify//assert"],
-)
-
-# keep
-dd_agent_go_test(
-    name = "lockcontention_test",
-    srcs = ["lockcontention_test.go"],
-    embed = [":ebpf"],
-    gotags_sets = [["bpf"]],
-    include_default = False,
-    deps = [
-        "//pkg/util/kernel",
-        "//pkg/util/testutil/flake",
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_stretchr_testify//require",
-    ],
 )
 
 # keep

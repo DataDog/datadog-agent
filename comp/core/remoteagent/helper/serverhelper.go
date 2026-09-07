@@ -127,8 +127,9 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		if sessionID == "" {
 			return nil, errors.New("remote agent is not registered yet")
 		}
-		err = grpc.SetHeader(ctx, metadata.New(map[string]string{"session_id": sessionID}))
-		if err != nil {
+		// Use a local err so concurrent RPCs (this interceptor runs per request) don't
+		// race on the outer err captured from NewUnimplementedRemoteAgentServer.
+		if err := grpc.SetHeader(ctx, metadata.New(map[string]string{"session_id": sessionID})); err != nil {
 			return nil, err
 		}
 		return handler(ctx, req)

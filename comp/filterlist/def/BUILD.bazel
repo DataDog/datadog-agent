@@ -8,5 +8,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/filterlist/def",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/util/strings"],
+    deps = ["//pkg/util/metricname"],
 )

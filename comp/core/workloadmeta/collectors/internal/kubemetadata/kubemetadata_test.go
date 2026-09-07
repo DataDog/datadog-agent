@@ -13,13 +13,17 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -141,6 +145,28 @@ func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLa
 
 func (f *FakeDCAClient) SupportsNamespaceMetadataCollection() bool {
 	return f.LocalVersion.Major >= 7 && f.LocalVersion.Minor >= 55
+}
+
+// TestDisabledCLCRunner verifies that the collector refuses to start (with a
+// non-retriable "disabled" error) on Cluster Checks Runners, since they are
+// never scheduled with a locally-reachable kubelet and would otherwise retry
+// kubelet.GetKubeUtil() forever, generating noisy WARN logs.
+func TestDisabledCLCRunner(t *testing.T) {
+	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
+
+	cfg := compconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"clc_runner_enabled": true,
+		"config_providers":   []map[string]interface{}{{"name": "clusterchecks"}},
+	})
+
+	c := &collector{
+		id:  collectorID,
+		cfg: cfg,
+	}
+
+	err := c.Start(context.Background(), nil)
+	require.Error(t, err)
+	assert.True(t, pkgerrors.IsDisabled(err))
 }
 
 func TestCollector_selectPullBasedProvider(t *testing.T) {

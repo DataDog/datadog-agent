@@ -7,15 +7,12 @@ package httpimpl
 
 import (
 	"fmt"
-	"slices"
-	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // payloadStats counts what a single payload contributed. Accumulated as the
@@ -39,7 +36,7 @@ type iteratorCommon struct {
 	reader     *reader.MetricDataReader
 	origin     origin
 	hostname   string
-	filterList utilstrings.Matcher
+	filterList metricname.Matcher
 	stats      payloadStats
 	err        error
 }
@@ -73,23 +70,12 @@ func (it *iteratorCommon) nextUnfilteredMetric() bool {
 	}
 }
 
+// processTags merges the origin tags with the tags sent by the client. The
+// reader has already dropped the legacy dd.internal.card tag from the tagset
+// dictionary, cardinality only comes from the type column.
 func (it *iteratorCommon) processTags() tagset.CompositeTags {
-	clientTags := it.reader.Tags()
-	cardTag := slices.IndexFunc(clientTags, func(s string) bool {
-		return strings.HasPrefix(s, constants.CardinalityTagPrefix)
-	})
-	if cardTag < 0 {
-		return tagset.NewCompositeTags(it.origin.getTags(), clientTags)
-	}
-	card, _ := strings.CutPrefix(clientTags[cardTag], constants.CardinalityTagPrefix)
-	clientTags = remove(slices.Clone(clientTags), cardTag)
-	return tagset.NewCompositeTags(it.origin.getTagsWith(card), clientTags)
-}
-
-func remove(s []string, i int) []string {
-	j := len(s) - 1
-	s[i], s[j] = s[j], ""
-	return s[:j]
+	originTags := it.origin.getTagsWith(it.reader.TagCardinality())
+	return tagset.NewCompositeTags(originTags, it.reader.Tags())
 }
 
 type seriesIterator struct {
@@ -97,7 +83,7 @@ type seriesIterator struct {
 	buffer metrics.Serie
 }
 
-func newSeriesIterator(payload *pb.Payload, origin origin, hostname string, filterList utilstrings.Matcher) (*seriesIterator, error) {
+func newSeriesIterator(payload *pb.Payload, origin origin, hostname string, filterList metricname.Matcher) (*seriesIterator, error) {
 	it := &seriesIterator{
 		iteratorCommon: iteratorCommon{
 			reader:     reader.NewMetricDataReader(payload.MetricData),

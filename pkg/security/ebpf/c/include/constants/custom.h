@@ -18,7 +18,7 @@
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
 #define MAX_ARRAY_ELEMENT_SIZE 4096
-#define MAX_ARRAY_ELEMENT_PER_TAIL 27
+#define MAX_ARRAY_ELEMENT_PER_TAIL 26
 #define MAX_ARGS_ELEMENTS (MAX_ARRAY_ELEMENT_PER_TAIL * (32 / 2)) // split tailcall limit
 #define MAX_ARGS_READ_PER_TAIL 160
 
@@ -103,6 +103,12 @@ enum TC_RAWPACKET_KEYS {
 #define SYSCALL_MONITOR_TYPE_DUMP 1
 #define SYSCALL_MONITOR_TYPE_DRIFT 2
 
+// reasons for sending a syscall monitor event, mirrored by model.SyscallDriftEventReason
+#define SYSCALL_MONITOR_REASON_NONE 0
+#define SYSCALL_MONITOR_REASON_PERIOD 1
+#define SYSCALL_MONITOR_REASON_EXIT 2
+#define SYSCALL_MONITOR_REASON_EXECVE 3
+
 #define SELINUX_WRITE_BUFFER_LEN 64
 #define SELINUX_ENFORCE_STATUS_DISABLE_KEY 0
 #define SELINUX_ENFORCE_STATUS_ENFORCE_KEY 1
@@ -113,6 +119,12 @@ enum TC_RAWPACKET_KEYS {
 #ifndef USE_RING_BUFFER
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 #define USE_RING_BUFFER 1
+#endif
+#endif
+
+#ifndef USE_SYSCALL_TASK_STORAGE
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+#define USE_SYSCALL_TASK_STORAGE 1
 #endif
 #endif
 
@@ -133,6 +145,15 @@ enum TC_RAWPACKET_KEYS {
 #define MAX_SYSCALL_CTX_ENTRIES 8192
 #define MAX_SYSCALL_ARG_MAX_SIZE 128
 #define MAX_SYSCALL_CTX_SIZE MAX_SYSCALL_ARG_MAX_SIZE * 3 + 4 + 1 // id + types octet + 3 args
+
+// Go pprof-label context: raw key/value pairs are dumped into the go_labels_ctx
+// ring by eBPF.
+#define GO_LABELS_CTX_KEY_SIZE 32
+#define GO_LABELS_CTX_VAL_SIZE 64
+#define GO_LABELS_CTX_MAX_PAIRS 10
+#define GO_LABELS_CTX_MAX_ENTRIES 4096
+
+#define OTEL_SPAN_ATTRS_MAX_ENTRIES 4096
 
 __attribute__((always_inline)) u64 is_cgroup_activity_dumps_enabled() {
     u64 cgroup_activity_dumps_enabled;
@@ -252,10 +273,24 @@ static __attribute__((always_inline)) u64 is_sk_storage_supported() {
     return is_sk_storage_supported;
 }
 
+// is_sk_lookup_pid_enabled returns whether TC pid resolution uses bpf_sk_lookup + sk-local storage
+// instead of the flow_pid map.
+static __attribute__((always_inline)) u64 is_sk_lookup_pid_enabled() {
+    u64 is_sk_lookup_pid_enabled;
+    LOAD_CONSTANT("sk_lookup_pid_enabled", is_sk_lookup_pid_enabled);
+    return is_sk_lookup_pid_enabled;
+}
+
 static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
     u64 is_network_flow_monitor_enabled;
     LOAD_CONSTANT("is_network_flow_monitor_enabled", is_network_flow_monitor_enabled);
     return is_network_flow_monitor_enabled;
+}
+
+static __attribute__((always_inline)) u64 is_span_tracking_enabled() {
+    u64 is_span_tracking_enabled;
+    LOAD_CONSTANT("is_span_tracking_enabled", is_span_tracking_enabled);
+    return is_span_tracking_enabled;
 }
 
 #define SYSCTL_OK 1

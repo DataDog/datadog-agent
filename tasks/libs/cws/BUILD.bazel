@@ -26,3 +26,12 @@ py_binary(
     visibility = ["//docs/cloud-workload-security:__pkg__"],
     deps = [":cws_common"],
 )
+
+py_binary(
+    name = "config_doc_gen",
+    srcs = ["config_doc_gen.py"],
+    data = glob(["templates/*.md"]),
+    main = "config_doc_gen.py",
+    visibility = ["//docs/cloud-workload-security:__pkg__"],
+    deps = [":cws_common"],
+)

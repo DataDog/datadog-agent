@@ -99,7 +99,7 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 	}
 
 	// Create process resolver with shared dependencies
-	processResolver, err := process.NewTestEBPFResolver(timeResolver, pathResolver, mountResolver, userGroupResolver)
+	processResolver, err := process.NewTestEBPFResolver(probeConfig, timeResolver, pathResolver, mountResolver, userGroupResolver)
 	if err != nil {
 		tb.Fatalf("failed to create test process resolver: %v", err)
 	}

@@ -118,6 +118,7 @@ import (
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -313,7 +314,9 @@ func start(log log.Component,
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
 
-	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
+	// The leader engine can be created while registering other subcommands, so use the
+	// process-wide context shared by those commands.
+	mainCtx, mainCtxCancel := pkgcommon.GetMainCtxCancel()
 	defer mainCtxCancel()
 
 	signalCh := make(chan os.Signal, 1)
@@ -432,6 +435,7 @@ func start(log log.Component,
 		StopCh:                      stopCh,
 		DatadogClient:               dc,
 		InstrumentationHandlers:     instrHandlers,
+		Telemetry:                   telemetry,
 	}
 
 	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
@@ -660,7 +664,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions, secretResolver)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -759,6 +763,7 @@ func start(log log.Component,
 
 	// Cancel the main context to stop components
 	mainCtxCancel()
+	le.WaitForLeaderElection()
 
 	// If kubeactions are enabled, stop the config retriever
 	if kubeactionsRetriever != nil {
@@ -851,6 +856,7 @@ func startPrivateActionRunner(
 	demux demultiplexer.Component,
 	ha helmactions.Component,
 	ka kubeactionscomp.Component,
+	secretResolver secrets.Component,
 ) (func(), error) {
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
@@ -868,7 +874,7 @@ func startPrivateActionRunner(
 		metricsClient = &ddgostatsd.NoOpClient{}
 	}
 
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient, ha, ka)
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, secretResolver, metricsClient, ha, ka)
 	if err != nil {
 		return nil, err
 	}

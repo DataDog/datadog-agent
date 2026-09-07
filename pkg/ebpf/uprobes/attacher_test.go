@@ -51,6 +51,91 @@ func TestInternalProcessesRegex(t *testing.T) {
 	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/process-agent"))
 	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/security-agent"))
 	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/otel-agent"))
+	require.True(t, internalProcessRegex.MatchString("/opt/datadog-agent/embedded/bin/host-profiler"))
+	require.False(t, internalProcessRegex.MatchString("/opt/customer/bin/host-profiler"))
+}
+
+func TestAttachLibraryHonorsExcludeInternal(t *testing.T) {
+	const (
+		pid     = uint32(1)
+		libPath = "/usr/lib/libssl.so.3"
+	)
+
+	tests := []struct {
+		name               string
+		exe                string
+		excludeTargets     ExcludeMode
+		createProcess      bool
+		expectedError      error
+		expectRegistration bool
+	}{
+		{
+			name:           "host profiler is excluded",
+			exe:            "/opt/datadog-agent/embedded/bin/host-profiler",
+			excludeTargets: ExcludeInternal,
+			createProcess:  true,
+			expectedError:  ErrInternalDDogProcessRejected,
+		},
+		{
+			name:               "non-internal process is registered",
+			exe:                "/usr/bin/curl",
+			excludeTargets:     ExcludeInternal,
+			createProcess:      true,
+			expectRegistration: true,
+		},
+		{
+			name:               "internal exclusion is opt-in",
+			exe:                "/opt/datadog-agent/embedded/bin/host-profiler",
+			createProcess:      true,
+			expectRegistration: true,
+		},
+		{
+			name:           "process no longer exists",
+			excludeTargets: ExcludeInternal,
+			expectedError:  os.ErrNotExist,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var entries []kernel.FakeProcFSEntry
+			if tt.createProcess {
+				entries = append(entries, kernel.FakeProcFSEntry{Pid: pid, Cmdline: tt.exe, Command: tt.exe, Exe: tt.exe})
+			}
+			procRoot := kernel.CreateFakeProcFS(t, entries)
+
+			config := AttacherConfig{
+				ProcRoot:       procRoot,
+				ExcludeTargets: tt.excludeTargets,
+				Rules: []*AttachRule{
+					{
+						Targets:          AttachToSharedLibraries,
+						LibraryNameRegex: regexp.MustCompile(`libssl\.so`),
+					},
+				},
+				SharedLibsLibsets: []sharedlibraries.Libset{sharedlibraries.LibsetCrypto},
+			}
+			ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, AttacherDependencies{ProcessMonitor: newMockProcessMonitor()})
+			require.NoError(t, err)
+
+			registry := &MockFileRegistry{}
+			if tt.expectRegistration {
+				registry.On("Register", libPath, pid, mock.Anything, mock.Anything).Return(nil).Once()
+			}
+			ua.fileRegistry = registry
+
+			err = ua.AttachLibrary(libPath, pid)
+			if tt.expectedError == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tt.expectedError)
+			}
+			registry.AssertExpectations(t)
+			if !tt.expectRegistration {
+				registry.AssertNotCalled(t, "Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+			}
+		})
+	}
 }
 
 func TestAttachPidReturnsCorrectErrors(t *testing.T) {
@@ -411,25 +496,6 @@ func TestAttachToBinaryContainerdTmpReturnsErrEnvironment(t *testing.T) {
 
 	err = ua.attachToBinary(utils.FilePath{PID: uint32(os.Getpid()), HostPath: "/foo/tmpmounts/containerd-mount/bar"}, nil, nil)
 	require.ErrorIs(t, err, utils.ErrEnvironment)
-}
-
-func TestGetExecutablePath(t *testing.T) {
-	exe := "/bin/bash"
-	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 1, Cmdline: "", Command: exe, Exe: exe}})
-	config := AttacherConfig{
-		ProcRoot: procRoot,
-	}
-	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, AttacherDependencies{ProcessMonitor: newMockProcessMonitor()})
-	require.NoError(t, err)
-	require.NotNil(t, ua)
-
-	path, err := ua.getExecutablePath(1)
-	require.NoError(t, err, "failed to get executable path for existing PID")
-	require.Equal(t, path, exe)
-
-	path, err = ua.getExecutablePath(404)
-	require.Error(t, err, "should fail to get executable path for non-existing PID")
-	require.Empty(t, path, "should return empty path for non-existing PID")
 }
 
 const mapsFileSample = `
