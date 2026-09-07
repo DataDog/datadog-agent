@@ -37,7 +37,6 @@ import sys
 from dataclasses import dataclass, field
 from enum import IntEnum
 from functools import cached_property
-from typing import override
 
 # ============================== CONSTANTS ============================== #
 
@@ -75,7 +74,6 @@ class MatchTier(IntEnum):
     TOKEN = 3  # share at least one distinctive token
     NONE = 4  # no relationship found
 
-    @override
     def __str__(self) -> str:
         return self.name.lower()
 
@@ -223,7 +221,6 @@ class Incident:
             "url": self.url,
         }
 
-    @override
     def __str__(self) -> str:
         """The three-line block `search` prints per incident."""
         resolved = self.resolved[:19] if self.resolved else "-"
