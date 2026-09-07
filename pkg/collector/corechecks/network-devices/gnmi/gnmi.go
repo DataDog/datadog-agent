@@ -34,12 +34,13 @@ const (
 type Check struct {
 	core.CheckBase
 
-	mu                 sync.Mutex
-	config             *config.CheckConfig
-	interval           time.Duration
-	client             *client.Client
-	started            bool
-	lastMetadataReport time.Time
+	mu                     sync.Mutex
+	config                 *config.CheckConfig
+	interval               time.Duration
+	client                 *client.Client
+	started                bool
+	lastMetadataReport     time.Time
+	interfaceBandwidthState report.BandwidthState
 }
 
 // Factory creates a new check factory.
@@ -49,8 +50,9 @@ func Factory() option.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
-		interval:  time.Duration(config.DefaultMinCollectionInterval) * time.Second,
+		CheckBase:               core.NewCheckBase(CheckName),
+		interval:                time.Duration(config.DefaultMinCollectionInterval) * time.Second,
+		interfaceBandwidthState: report.NewBandwidthState(),
 	}
 }
 
@@ -106,6 +108,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.client = gnmiClient
 	c.started = false
 	c.lastMetadataReport = time.Time{}
+	c.interfaceBandwidthState = report.NewBandwidthState()
 
 	gnmiStatus.RegisterDevice(
 		checkConfig.Instance.Address,
@@ -158,6 +161,13 @@ func (c *Check) Run() error {
 		if err := report.ReportMetrics(s, checkConfig, freshSnapshot, snapshot); err != nil {
 			return err
 		}
+
+		c.mu.Lock()
+		bandwidthState := c.interfaceBandwidthState
+		c.mu.Unlock()
+		if err := report.ReportDerivedMetrics(s, checkConfig, freshSnapshot, bandwidthState); err != nil {
+			return err
+		}
 	}
 
 	readyForMetadata := gnmiClient.StreamState() == client.StreamStateConnected &&
@@ -206,6 +216,7 @@ func (c *Check) Cancel() {
 	c.config = nil
 	c.started = false
 	c.lastMetadataReport = time.Time{}
+	c.interfaceBandwidthState = nil
 	c.mu.Unlock()
 
 	if address != "" {
