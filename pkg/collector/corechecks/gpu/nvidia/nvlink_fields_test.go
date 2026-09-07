@@ -357,6 +357,67 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 	}
 }
 
+func TestFieldsCollector_NvlinkErrorCounterPriority(t *testing.T) {
+	tests := []struct {
+		name             string
+		metricName       string
+		unsupportedField uint32
+		expectPriority   MetricPriority
+		expectValue      float64
+	}{
+		{
+			name:           "replay newer wins after dedup",
+			metricName:     "nvlink.errors.replay",
+			expectPriority: MediumLow,
+			expectValue:    float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_ERROR_DL_REPLAY].Value),
+		},
+		{
+			name:             "replay legacy selected when newer unsupported",
+			metricName:       "nvlink.errors.replay",
+			unsupportedField: nvml.FI_DEV_NVLINK_ERROR_DL_REPLAY,
+			expectPriority:   Low,
+			expectValue:      float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL].Value),
+		},
+		{
+			name:           "crc.flit newer wins after dedup",
+			metricName:     "nvlink.errors.crc.flit",
+			expectPriority: MediumLow,
+			expectValue:    float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_ERROR_DL_CRC].Value),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := []testutil.NvmlMockOption{testutil.WithNVLinkLinkCount(1)}
+			if tt.unsupportedField != 0 {
+				opts = append(opts, testutil.WithUnsupportedFields(tt.unsupportedField))
+			}
+			device := setupMockDevice(t, opts...)
+
+			collector, err := newNVLinkFieldsCollector(device, nil)
+			require.NoError(t, err)
+
+			collected, err := collector.Collect()
+			require.NoError(t, err)
+
+			deduped := requireMetrics(t, RemoveDuplicateSamples(map[CollectorName][]Sample{
+				nvlinkFields: collected,
+			}))
+
+			var matches []*Metric
+			for _, m := range deduped {
+				if m.Name == tt.metricName {
+					matches = append(matches, m)
+				}
+			}
+
+			require.Len(t, matches, 1, "exactly one %s metric should survive dedup", tt.metricName)
+			require.Equal(t, tt.expectPriority, matches[0].Priority())
+			require.Equal(t, tt.expectValue, matches[0].Value)
+		})
+	}
+}
+
 func TestNVlinkFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigured(t *testing.T) {
 	device := setupMockDevice(t, testutil.WithInvalidArgumentFields(nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS), testutil.WithNVLinkLinkCount(1))
 
