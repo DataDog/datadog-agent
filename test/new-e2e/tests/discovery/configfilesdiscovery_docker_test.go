@@ -78,6 +78,7 @@ const (
 	sparkMasterContainerName  = "spark-driver-configfilesdiscovery-master"
 	sparkWorkerContainerName  = "spark-driver-configfilesdiscovery-worker"
 	sparkSubmitContainerName  = "spark-driver-configfilesdiscovery-submit"
+	sparkConfigPath           = "/opt/configfilesdiscovery/spark-defaults.conf"
 	sparkIntegrationName      = "spark"
 	sparkDriverMemory         = "2g"
 	sparkLocalDirs            = "/tmp/configfilesdiscovery-spark"
@@ -461,7 +462,7 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresConfigFileAndEnvVarsDiscov
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for postgres config file discovery payload")
 }
 
-func (s *configFilesDiscoveryDockerSuite) TestSparkDriverEnvVarsDiscovered() {
+func (s *configFilesDiscoveryDockerSuite) TestSparkDriverConfigFileAndEnvVarsDiscovered() {
 	t := s.T()
 	host := s.Env().RemoteHost
 	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
@@ -492,7 +493,18 @@ func (s *configFilesDiscoveryDockerSuite) TestSparkDriverEnvVarsDiscovered() {
 
 		for _, payload := range sparkPayloads {
 			assertAgentDiscoveryPayload(c, payload, sparkIntegrationName)
-			assert.Empty(c, payload.ConfigFiles)
+			sparkConfigs := findConfigFilePayloads([]*aggregator.AgentDiscoveryPayload{payload}, sparkIntegrationName, sparkConfigPath)
+			if !assert.NotEmpty(c, sparkConfigs, "no Spark config file in payload %+v", payload) {
+				continue
+			}
+			for _, sparkConfig := range sparkConfigs {
+				assertConfigFilePayload(c, sparkConfig, configFilePayloadExpectation{
+					integrationName: sparkIntegrationName,
+					configPath:      sparkConfigPath,
+					payloadFormat:   agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_PROPERTIES,
+				})
+				assert.Contains(c, string(sparkConfig.config.Content), "spark.app.name configfilesdiscovery-driver")
+			}
 
 			envVars := make(map[string]string, len(payload.EnvVars))
 			for _, envVar := range payload.EnvVars {

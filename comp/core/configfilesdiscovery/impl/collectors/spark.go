@@ -8,13 +8,23 @@ package collectors
 import (
 	"context"
 	"fmt"
+	"path"
+	"strings"
 
+	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	// SparkIntegrationName is the Autodiscovery check name for Spark.
-	SparkIntegrationName = "spark"
+	SparkIntegrationName        = "spark"
+	sparkConfigPayloadFormat    = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_PROPERTIES
+	sparkDefaultsConfigFileName = "spark-defaults.conf"
+	sparkSubmitClass            = "org.apache.spark.deploy.SparkSubmit"
+	sparkPropertiesFileOption   = "--properties-file"
+	sparkDriverRoleTag          = "spark_process_role:driver"
+	sparkDDTagsPrefix           = "-Ddd.tags="
 
 	// sparkStandaloneDriverClass is launched by a Spark Standalone Worker for
 	// applications submitted in cluster deploy mode. It is the stable process
@@ -79,15 +89,27 @@ var sparkEnvAllowlist = map[string]struct{}{
 	"SPARK_WORKER_WEBUI_PORT":                {},
 }
 
+// Spark's Apache and Bitnami images keep the default properties file in
+// different locations. The paths are individual priority groups so the
+// collector selects the Apache path when both happen to be readable.
+var sparkDefaultConfigPathGroups = [][]string{
+	{"/opt/spark/conf/" + sparkDefaultsConfigFileName},
+	{"/opt/bitnami/spark/conf/" + sparkDefaultsConfigFileName},
+}
+
 // NewSpark returns a collector for Spark Standalone Drivers running in cluster
-// deploy mode. Other Spark deployment modes do not have a portable,
-// unambiguous Driver process identity available through ConfigReader.
+// deploy mode. It reads the driver's Spark properties file in addition to its
+// supporting non-secret environment metadata. Other Spark deployment modes do
+// not have a portable, unambiguous Driver process identity available through
+// ConfigReader.
 func NewSpark() configfilesdiscoveryimpl.ConfigCollector {
 	return sparkConfigCollector{}
 }
 
 // CanCollectFromProcess returns whether a process event identifies a Spark
-// Standalone Driver and can trigger the one-shot recollection fallback.
+// Standalone Driver and can trigger the one-shot recollection fallback. A
+// SparkSubmit process needs the exact driver role tag to avoid collecting from
+// submitting clients and other Spark roles.
 func (sparkConfigCollector) CanCollectFromProcess(commandline configfilesdiscoveryimpl.TargetCommandline) bool {
 	return isSparkDriverCommand(commandline.Args)
 }
@@ -101,17 +123,153 @@ func (sparkConfigCollector) Collect(ctx context.Context, reader configfilesdisco
 		return configfilesdiscoveryimpl.CollectedConfig{}, nil
 	}
 
-	envVars, err := readEnvVars(ctx, reader, includeSparkEnvVar)
-	if err != nil {
-		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read spark env vars: %w", err)
-	}
-	if len(envVars) == 0 {
-		return configfilesdiscoveryimpl.CollectedConfig{}, nil
+	envVars, envErr := readEnvVars(ctx, reader, includeSparkEnvVar)
+	if envErr != nil {
+		log.Debugf("config files discovery skipped spark driver env var collection: %v", envErr)
+		envVars = nil
 	}
 
+	file, ok, err := readSparkConfigFile(
+		ctx,
+		reader,
+		envVars,
+	)
+	if err != nil {
+		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect spark driver config file: %w", err)
+	}
+	if !ok {
+		if envErr != nil {
+			return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read spark driver env vars: %w", envErr)
+		}
+		if len(envVars) == 0 {
+			log.Debugf("config files discovery skipped spark driver config collection: no config file or selected env vars detected")
+			return configfilesdiscoveryimpl.CollectedConfig{}, nil
+		}
+
+		log.Debugf("config files discovery collected spark driver env vars without a config file")
+		return configfilesdiscoveryimpl.CollectedConfig{EnvVars: envVars}, nil
+	}
+
+	file.PayloadFormat = sparkConfigPayloadFormat
 	return configfilesdiscoveryimpl.CollectedConfig{
-		EnvVars: envVars,
+		ConfigFiles: []configfilesdiscoveryimpl.ConfigFile{file},
+		EnvVars:     envVars,
 	}, nil
+}
+
+// sparkFallbackConfigArg uses Spark's documented configuration-directory
+// override. When it is absent, readConfigFile considers known image defaults.
+func sparkFallbackConfigArg(envVars []configfilesdiscoveryimpl.ConfigEnvVar) string {
+	for _, envVar := range envVars {
+		if envVar.Name == "SPARK_CONF_DIR" && envVar.Value != "" {
+			return path.Join(envVar.Value, sparkDefaultsConfigFileName)
+		}
+	}
+	return ""
+}
+
+// readSparkConfigFile preserves Spark's configuration precedence while keeping
+// SPARK_CONF_DIR local to this collector. A properties file explicitly named
+// by SparkSubmit is authoritative; SPARK_CONF_DIR is only an optional hint.
+func readSparkConfigFile(
+	ctx context.Context,
+	reader configfilesdiscoveryimpl.ConfigReader,
+	envVars []configfilesdiscoveryimpl.ConfigEnvVar,
+) (configfilesdiscoveryimpl.ConfigFile, bool, error) {
+	fallbackConfigArg := sparkFallbackConfigArg(envVars)
+	if fallbackConfigArg == "" {
+		return readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkMatchesSubmitCommandline, "", sparkDefaultConfigPathGroups...)
+	}
+
+	file, ok, err := readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkMatchesSubmitCommandline, "")
+	if err != nil || ok {
+		return file, ok, err
+	}
+
+	runtimeCommandline, err := reader.ReadRuntimeCommandline(ctx)
+	if err != nil {
+		return configfilesdiscoveryimpl.ConfigFile{}, false, nil
+	}
+	configPath, resolved := resolveConfigPath(fallbackConfigArg, runtimeCommandline.WorkingDir)
+	if !resolved {
+		return configfilesdiscoveryimpl.ConfigFile{}, false, nil
+	}
+	file, err = reader.ReadFile(ctx, configPath)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return configfilesdiscoveryimpl.ConfigFile{}, false, ctxErr
+		}
+		return configfilesdiscoveryimpl.ConfigFile{}, false, nil
+	}
+	return file, true, nil
+}
+
+// sparkGetPropertiesFileFromCommandline returns the explicit properties file
+// passed to SparkSubmit. An explicit path is authoritative over SPARK_CONF_DIR
+// and image defaults.
+func sparkGetPropertiesFileFromCommandline(args []string) (string, bool) {
+	args = unwrapShellCommandline(args)
+	for i, arg := range args {
+		if arg != sparkSubmitClass && path.Base(arg) != "spark-submit" {
+			continue
+		}
+		for i++; i < len(args); i++ {
+			switch {
+			case args[i] == sparkPropertiesFileOption && i+1 < len(args):
+				return args[i+1], true
+			case strings.HasPrefix(args[i], sparkPropertiesFileOption+"="):
+				return strings.TrimPrefix(args[i], sparkPropertiesFileOption+"="), true
+			}
+			if !strings.HasPrefix(args[i], "-") {
+				return "", false
+			}
+			if sparkSubmitOptionsWithValue[args[i]] && i+1 < len(args) {
+				i++
+			}
+		}
+		return "", false
+	}
+	return "", false
+}
+
+var sparkSubmitOptionsWithValue = map[string]bool{
+	"--archives":             true,
+	"--class":                true,
+	"--conf":                 true,
+	"--deploy-mode":          true,
+	"--driver-class-path":    true,
+	"--driver-cores":         true,
+	"--driver-java-options":  true,
+	"--driver-library-path":  true,
+	"--driver-memory":        true,
+	"--exclude-packages":     true,
+	"--executor-cores":       true,
+	"--executor-memory":      true,
+	"--files":                true,
+	"--jars":                 true,
+	"--keytab":               true,
+	"--kill":                 true,
+	"--master":               true,
+	"--name":                 true,
+	"--num-executors":        true,
+	"--packages":             true,
+	"--principal":            true,
+	"--proxy-user":           true,
+	"--py-files":             true,
+	"--queue":                true,
+	"--repositories":         true,
+	"--resource":             true,
+	"--status":               true,
+	"--total-executor-cores": true,
+}
+
+func sparkMatchesSubmitCommandline(args []string) bool {
+	for _, arg := range unwrapShellCommandline(args) {
+		if arg == sparkSubmitClass || path.Base(arg) == "spark-submit" {
+			return true
+		}
+	}
+	return false
 }
 
 func includeSparkEnvVar(name string) bool {
@@ -135,8 +293,33 @@ func isSparkDriver(ctx context.Context, reader configfilesdiscoveryimpl.ConfigRe
 }
 
 func isSparkDriverCommand(args []string) bool {
-	for _, arg := range unwrapShellCommandline(args) {
+	args = unwrapShellCommandline(args)
+	for _, arg := range args {
 		if arg == sparkStandaloneDriverClass {
+			return true
+		}
+	}
+
+	return sparkSubmitHasDriverRoleTag(args)
+}
+
+func sparkSubmitHasDriverRoleTag(args []string) bool {
+	for i, arg := range args {
+		if arg != sparkSubmitClass {
+			continue
+		}
+		for _, tagArg := range args[:i] {
+			if strings.HasPrefix(tagArg, sparkDDTagsPrefix) && sparkTagsContainDriverRole(strings.TrimPrefix(tagArg, sparkDDTagsPrefix)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func sparkTagsContainDriverRole(tags string) bool {
+	for _, tag := range strings.Split(tags, ",") {
+		if strings.TrimSpace(tag) == sparkDriverRoleTag {
 			return true
 		}
 	}
