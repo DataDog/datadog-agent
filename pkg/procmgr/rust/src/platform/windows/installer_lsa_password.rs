@@ -32,12 +32,12 @@ pub(crate) fn read_installer_agent_password() -> Result<Option<String>> {
     let mut key_w = super::wide::null_terminated(INSTALLER_AGENT_PASSWORD_LSA_KEY);
     let key_name = lsa_unicode_string(&mut key_w);
 
-    let mut object_attributes: LSA_OBJECT_ATTRIBUTES = unsafe { std::mem::zeroed() };
+    let object_attributes: LSA_OBJECT_ATTRIBUTES = unsafe { std::mem::zeroed() };
     let mut policy_handle: LSA_HANDLE = 0;
     let status = unsafe {
         LsaOpenPolicy(
             ptr::null(),
-            &mut object_attributes,
+            &object_attributes,
             POLICY_GET_PRIVATE_INFORMATION as u32,
             &mut policy_handle,
         )
