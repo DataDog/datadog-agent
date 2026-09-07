@@ -9,7 +9,6 @@
 package symbolcopier
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -137,10 +136,7 @@ func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInf
 
 	args = append(args, inputPath, outputPath)
 
-	var stderrBuf bytes.Buffer
 	cmd := exec.CommandContext(ctx, "objcopy", args...)
-	cmd.Stderr = &stderrBuf
-
 	if !testing.Testing() {
 		// Because ambient capabilities are per-thread and this is a cgo binary (syscall.AllThreadsSyscall is disabled
 		// under cgo), the ambient raise cannot be done process-wide. Instead it is done per-exec here
