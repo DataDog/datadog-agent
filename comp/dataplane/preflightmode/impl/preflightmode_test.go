@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -314,7 +315,8 @@ func newHarness(t *testing.T, mode string, tweak func(pkgconfigmodel.Config)) *h
 
 	tlm := telemetrymock.New(t)
 	lc := &testLifecycle{}
-	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm})
+	hostnameComp, _ := hostnamemock.NewMock("test-host")
+	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm, Hostname: hostnameComp})
 
 	comp, ok := p.Comp.(*preflightModeComponent)
 	require.True(t, ok)
@@ -736,7 +738,8 @@ func TestPreflightModeInertWhenBinaryMissing(t *testing.T) {
 	lc := &testLifecycle{}
 	tlm := telemetrymock.New(t)
 
-	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm})
+	hostnameComp, _ := hostnamemock.NewMock("test-host")
+	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm, Hostname: hostnameComp})
 	comp, ok := p.Comp.(*preflightModeComponent)
 	require.True(t, ok)
 
@@ -761,7 +764,8 @@ func TestPreflightModeReportsUnusableBinary(t *testing.T) {
 	lc := &testLifecycle{}
 	tlm := telemetrymock.New(t)
 
-	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm})
+	hostnameComp, _ := hostnamemock.NewMock("test-host")
+	p := NewComponent(Requires{Lc: lc, Config: cfg, Log: logmock.New(t), Telemetry: tlm, Hostname: hostnameComp})
 	comp, ok := p.Comp.(*preflightModeComponent)
 	require.True(t, ok)
 
@@ -798,7 +802,7 @@ func TestPreflightModeUnbindableSocketPath(t *testing.T) {
 func TestPreflightModePrepareRestrictsWorkDir(t *testing.T) {
 	h := newHarness(t, modeNormal, nil)
 
-	_, _, err := h.comp.prepare()
+	_, _, err := h.comp.prepare(context.Background())
 	require.NoError(t, err)
 
 	workDir := filepath.Join(h.cfg.GetString("run_path"), workDirName)

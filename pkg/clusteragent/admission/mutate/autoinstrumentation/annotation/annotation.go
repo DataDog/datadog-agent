@@ -33,7 +33,7 @@ const (
 	// TracerConfigs sets tracer configuration options (injected as environment variables) during
 	// Local SDK Injection. It is the annotation-based equivalent of the targets[].ddTraceConfigs
 	// config option. The value is a JSON array of objects matching the ddTraceConfigs schema, and
-	// every entry's name must start with the DD_ prefix.
+	// every entry's name must start with the DD_ or OTEL_ prefix.
 	// Example value: [{"name":"DD_PROFILING_ENABLED","value":"true"}]
 	TracerConfigs = "admission.datadoghq.com/apm-inject.tracer-configs"
 	// LibraryVersion sets the library to use during Local SDK Injection.

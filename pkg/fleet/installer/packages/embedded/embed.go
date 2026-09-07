@@ -11,6 +11,7 @@ import (
 	"errors"
 	"io/fs"
 	"path"
+	"strings"
 )
 
 // ScriptDDCleanup is the embedded dd-cleanup script.
@@ -30,7 +31,7 @@ var ScriptDDHostInstall []byte
 
 // systemdUnits holds the unit set for the systemd service manager
 //
-//go:embed tmpl/gen/sd
+//go:embed tmpl/gen/sd tmpl/gen/r
 var systemdUnits embed.FS
 
 // procmgrUnits holds the unit set for the procmgr service manager: the .service for systemd units
@@ -75,6 +76,9 @@ const (
 
 // GetSystemdUnit returns the unit for the given name, for the plain systemd service manager.
 func GetSystemdUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
+	if strings.HasPrefix(name, "datadog-agent-rshell-privileged") {
+		return systemdUnits.ReadFile(path.Join("tmpl/gen/r", shortFlavorDir(unitType, ambiantCapabilitiesSupported), name))
+	}
 	return systemdUnits.ReadFile(path.Join("tmpl/gen/sd", flavorDir(unitType, ambiantCapabilitiesSupported), name))
 }
 
@@ -97,4 +101,15 @@ func flavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
 		return string(unitType)
 	}
 	return string(unitType) + "-nc"
+}
+
+func shortFlavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
+	dir := map[UnitType]string{
+		UnitTypeOCI:    "o",
+		UnitTypeDebRpm: "d",
+	}[unitType]
+	if !ambiantCapabilitiesSupported {
+		dir += "n"
+	}
+	return dir
 }

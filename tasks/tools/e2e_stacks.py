@@ -44,4 +44,4 @@ def destroy_remote_stack_api(stack: str, ctx: Context | None = None):
         exit_code = 1
         stderr = str(e)
 
-    return exit_code, f"Failed to destroy stack {stack} using the API", stderr, stack
+    return exit_code, "Stack cleanup request submitted to stackcleaner" if exit_code == 0 else "", stderr, stack

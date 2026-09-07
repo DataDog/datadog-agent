@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod spawn_identity;
+
+pub use spawn_identity::{expected_agent_spawn_user, expected_runtime_user_for_pid};
+
 #[cfg(unix)]
 use nix::sys::signal::{self, Signal};
 #[cfg(unix)]
@@ -202,6 +206,9 @@ pub struct DescribeExpect {
     pub has_stdout_path: Option<bool>,
     pub has_stderr_path: Option<bool>,
     pub pid_alive: Option<bool>,
+    pub profile: Option<String>,
+    pub user: Option<String>,
+    pub runtime_user: Option<String>,
 }
 
 impl DescribeSnapshot {
@@ -278,6 +285,14 @@ impl DescribeSnapshot {
         assert_describe_present("uuid", &self.uuid, expected.has_uuid, self);
         assert_describe_present("stdout", &self.stdout, expected.has_stdout_path, self);
         assert_describe_present("stderr", &self.stderr, expected.has_stderr_path, self);
+        assert_describe_field("profile", &self.profile, &expected.profile, self);
+        assert_describe_field("user", &self.user, &expected.user, self);
+        assert_describe_field(
+            "runtime_user",
+            &self.runtime_user,
+            &expected.runtime_user,
+            self,
+        );
         if let Some(expected_alive) = expected.pid_alive {
             let alive = self.pid > 0 && pid_is_alive(self.pid as u32);
             assert_eq!(

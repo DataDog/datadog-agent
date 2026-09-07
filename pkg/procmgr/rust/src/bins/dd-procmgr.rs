@@ -218,9 +218,33 @@ fn format_last_exit(exit_code: Option<i32>, signal: Option<i32>) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// list
-// ---------------------------------------------------------------------------
+fn print_fixed_width_table(headers: &[&str], rows: &[Vec<String>]) {
+    let widths: Vec<usize> = headers
+        .iter()
+        .enumerate()
+        .map(|(col, header)| {
+            rows.iter()
+                .filter_map(|row| row.get(col))
+                .map(String::len)
+                .fold(header.len(), usize::max)
+        })
+        .collect();
+
+    let format_row = |cells: &[&str]| {
+        cells
+            .iter()
+            .zip(&widths)
+            .map(|(cell, &width)| format!("{cell:<width$}"))
+            .collect::<Vec<_>>()
+            .join("  ")
+    };
+
+    println!("{}", format_row(headers));
+    for row in rows {
+        let cells: Vec<&str> = row.iter().map(String::as_str).collect();
+        println!("{}", format_row(&cells));
+    }
+}
 
 async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
@@ -239,6 +263,8 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                     "name": p.name,
                     "state": state_name(p.state),
                     "pid": p.pid,
+                    "profile": p.profile,
+                    "user": p.user,
                     "command": p.command,
                     "args": p.args,
                     "restart_count": p.restart_count,
@@ -256,11 +282,23 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         return Ok(());
     }
 
-    let rows: Vec<[String; 7]> = resp
+    const HEADERS: &[&str] = &[
+        "NAME",
+        "UUID",
+        "STATE",
+        "PID",
+        "PROFILE",
+        "USER",
+        "RESTARTS",
+        "LAST EXIT",
+        "COMMAND",
+    ];
+
+    let rows: Vec<Vec<String>> = resp
         .processes
         .iter()
         .map(|p| {
-            [
+            vec![
                 p.name.clone(),
                 short_uuid(&p.uuid).to_string(),
                 state_name(p.state).to_string(),
@@ -269,6 +307,8 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                 } else {
                     "-".to_string()
                 },
+                p.profile.clone(),
+                p.user.clone(),
                 p.restart_count.to_string(),
                 format_last_exit(p.last_exit_code, p.last_signal),
                 p.command.clone(),
@@ -276,65 +316,9 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
         })
         .collect();
 
-    let headers = [
-        "NAME",
-        "UUID",
-        "STATE",
-        "PID",
-        "RESTARTS",
-        "LAST EXIT",
-        "COMMAND",
-    ];
-    let widths: Vec<usize> = (0..7)
-        .map(|col| {
-            rows.iter()
-                .map(|r| r[col].len())
-                .max()
-                .unwrap_or(0)
-                .max(headers[col].len())
-        })
-        .collect();
-
-    println!(
-        "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {}",
-        headers[0],
-        headers[1],
-        headers[2],
-        headers[3],
-        headers[4],
-        headers[5],
-        headers[6],
-        w0 = widths[0],
-        w1 = widths[1],
-        w2 = widths[2],
-        w3 = widths[3],
-        w4 = widths[4],
-        w5 = widths[5],
-    );
-    for row in &rows {
-        println!(
-            "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}  {:<w4$}  {:<w5$}  {}",
-            row[0],
-            row[1],
-            row[2],
-            row[3],
-            row[4],
-            row[5],
-            row[6],
-            w0 = widths[0],
-            w1 = widths[1],
-            w2 = widths[2],
-            w3 = widths[3],
-            w4 = widths[4],
-            w5 = widths[5],
-        );
-    }
+    print_fixed_width_table(HEADERS, &rows);
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// describe
-// ---------------------------------------------------------------------------
 
 async fn cmd_describe(
     client: &mut ProcessManagerClient<Channel>,
@@ -358,6 +342,8 @@ async fn cmd_describe(
             "description": detail.description,
             "state": state_name(detail.state),
             "pid": detail.pid,
+            "profile": detail.profile,
+            "user": detail.user,
             "command": detail.command,
             "args": detail.args,
             "working_dir": detail.working_dir,
@@ -372,6 +358,7 @@ async fn cmd_describe(
             "condition_path_exists": detail.condition_path_exists,
             "after": detail.after,
             "before": detail.before,
+            "runtime_user": detail.runtime_user,
         });
         println!("{}", serde_json::to_string_pretty(&val).unwrap());
         return Ok(());
@@ -392,6 +379,11 @@ async fn cmd_describe(
     println!("UUID:                {}", detail.uuid);
     println!("State:               {}", state_name(detail.state));
     println!("PID:                 {}", pid_str);
+    println!("Profile:             {}", detail.profile);
+    println!("User:                {}", detail.user);
+    if !detail.runtime_user.is_empty() {
+        println!("Runtime User:        {}", detail.runtime_user);
+    }
     println!("Command:             {}", detail.command);
     println!("Args:                {}", args_str);
     if !detail.description.is_empty() {
@@ -428,10 +420,6 @@ async fn cmd_describe(
     }
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// status
-// ---------------------------------------------------------------------------
 
 async fn cmd_status(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
@@ -490,10 +478,6 @@ fn format_duration(secs: u64) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// config
-// ---------------------------------------------------------------------------
-
 async fn cmd_config(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
         .get_config(proto::GetConfigRequest {})
@@ -518,10 +502,6 @@ async fn cmd_config(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
     println!("Runtime Processes:   {}", resp.runtime_processes);
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// start
-// ---------------------------------------------------------------------------
 
 async fn cmd_start(
     client: &mut ProcessManagerClient<Channel>,
@@ -555,10 +535,6 @@ async fn cmd_start(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// stop
-// ---------------------------------------------------------------------------
-
 async fn cmd_stop(
     client: &mut ProcessManagerClient<Channel>,
     name_or_uuid: &str,
@@ -586,10 +562,6 @@ async fn cmd_stop(
     println!("  State:  {}", state_name(resp.state));
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// create
-// ---------------------------------------------------------------------------
 
 #[allow(clippy::too_many_arguments)]
 async fn cmd_create(
@@ -646,10 +618,6 @@ async fn cmd_create(
     }
     Ok(())
 }
-
-// ---------------------------------------------------------------------------
-// reload
-// ---------------------------------------------------------------------------
 
 async fn cmd_reload(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
     let resp = client
