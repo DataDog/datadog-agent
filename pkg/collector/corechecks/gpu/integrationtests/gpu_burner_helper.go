@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -57,6 +58,9 @@ type GPUBurner struct {
 	cmd       *exec.Cmd
 	stderr    bytes.Buffer
 	done      chan error
+	mu        sync.Mutex
+	exited    bool
+	exitErr   error
 }
 
 func requireGPUBurner(t *testing.T) string {
@@ -108,17 +112,23 @@ func StartGPUBurner(t *testing.T, visibleDevices string, workers int, targetSM i
 	t.Logf("starting gpu-burner: CUDA_VISIBLE_DEVICES=%q command=%s", visibleDevices, burner.cmd.String())
 	require.NoError(t, burner.cmd.Start(), "start gpu-burner")
 	go func() {
-		burner.done <- burner.cmd.Wait()
+		err := burner.cmd.Wait()
+		burner.mu.Lock()
+		burner.exited = true
+		burner.exitErr = err
+		burner.mu.Unlock()
+		burner.done <- err
 	}()
 
 	t.Cleanup(func() {
-		select {
-		case err := <-burner.done:
+		burner.mu.Lock()
+		exited, err := burner.exited, burner.exitErr
+		burner.mu.Unlock()
+		if exited {
 			if err != nil {
 				t.Errorf("gpu-burner exited unexpectedly: %v\nstderr:\n%s", err, burner.stderr.String())
 			}
 			return
-		default:
 		}
 
 		cancel()

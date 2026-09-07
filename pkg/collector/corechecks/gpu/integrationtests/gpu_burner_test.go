@@ -35,7 +35,12 @@ const (
 	gpuBurnerCollectionInterval = 5 * time.Second
 )
 
-func collectGPUBurnerMetrics(t *testing.T, passes int, interval time.Duration) map[string]map[string][]gpuspec.MetricObservation {
+type smiResult struct {
+	sample *testutil.SmiSample
+	err    error
+}
+
+func collectGPUBurnerMetrics(t *testing.T, passes int, interval time.Duration, smiUUIDs []string) (map[string]map[string][]gpuspec.MetricObservation, map[string]smiResult) {
 	t.Helper()
 	require.Positive(t, passes)
 	require.Positive(t, interval)
@@ -58,14 +63,30 @@ func collectGPUBurnerMetrics(t *testing.T, passes int, interval time.Duration) m
 	require.NoError(t, checkInstance.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	t.Cleanup(checkInstance.Cancel)
 
+	smiResults := make([]smiResult, len(smiUUIDs))
+	var smiWG sync.WaitGroup
+
 	// Run once to initialize rate-derived collectors, then collect multiple
-	// intervals while the burner is active. Keep every observation so callers
-	// can validate how metric values evolve across the collection window.
+	// intervals while the burner is active. Start nvidia-smi dmon after the
+	// penultimate run: its three one-second samples overlap most of the final
+	// five-second Agent collection interval.
 	require.NoError(t, checkInstance.Run())
-	for range passes {
+	for pass := range passes {
 		time.Sleep(interval)
 		require.NoError(t, checkInstance.Run())
+		if pass != passes-2 {
+			continue
+		}
+		for i, uuid := range smiUUIDs {
+			smiWG.Add(1)
+			go func(i int, uuid string) {
+				defer smiWG.Done()
+				sample, err := testutil.CollectSmiSample(uuid)
+				smiResults[i] = smiResult{sample: sample, err: err}
+			}(i, uuid)
+		}
 	}
+	smiWG.Wait()
 
 	metricsByUUID := make(map[string]map[string][]gpuspec.MetricObservation)
 	for metricName, observations := range gpu.GetEmittedGPUMetrics(mockSender) {
@@ -81,7 +102,11 @@ func collectGPUBurnerMetrics(t *testing.T, passes int, interval time.Duration) m
 			metricsByUUID[uuid][metricName] = append(metricsByUUID[uuid][metricName], observation)
 		}
 	}
-	return metricsByUUID
+	samplesByUUID := make(map[string]smiResult, len(smiUUIDs))
+	for i, uuid := range smiUUIDs {
+		samplesByUUID[strings.ToLower(uuid)] = smiResults[i]
+	}
+	return metricsByUUID, samplesByUUID
 }
 
 func TestGPUBurnerSingleGPUDeviceSelection(t *testing.T) {
@@ -148,7 +173,7 @@ func gpuUUIDsForIndices(t *testing.T, lib safenvml.SafeNVML, indices []int) []st
 		require.NoError(t, err, "get NVML device handle for index %d", index)
 		uuid, err := device.GetUUID()
 		require.NoError(t, err, "get NVML device UUID for index %d", index)
-		uuids = append(uuids, strings.ToLower(uuid))
+		uuids = append(uuids, uuid)
 	}
 	return uuids
 }
@@ -156,41 +181,30 @@ func gpuUUIDsForIndices(t *testing.T, lib safenvml.SafeNVML, indices []int) []st
 func assertBurnerDevicesActive(t *testing.T, burner *GPUBurner, expectedUUIDs []string, targetSM float64) {
 	t.Helper()
 
-	metricsByUUID := collectGPUBurnerMetrics(t, gpuBurnerCollectionPasses, gpuBurnerCollectionInterval)
 	status, err := burner.Status(t.Context())
 	require.NoError(t, err)
 	require.Len(t, status.Workers, len(expectedUUIDs))
 	actualUUIDs := make([]string, 0, len(status.Workers))
 	for _, worker := range status.Workers {
 		actualUUIDs = append(actualUUIDs, strings.ToLower(worker.GPUUUID))
+	}
+	expectedUUIDKeys := make([]string, 0, len(expectedUUIDs))
+	for _, uuid := range expectedUUIDs {
+		expectedUUIDKeys = append(expectedUUIDKeys, strings.ToLower(uuid))
+	}
+	require.ElementsMatch(t, expectedUUIDKeys, actualUUIDs, "gpu-burner workers do not match the selected CUDA-visible devices")
+
+	metricsByUUID, smiResults := collectGPUBurnerMetrics(t, gpuBurnerCollectionPasses, gpuBurnerCollectionInterval, expectedUUIDs)
+	for _, worker := range status.Workers {
+		require.NotNil(t, worker.Metrics)
 		deviceMetrics := metricsByUUID[strings.ToLower(worker.GPUUUID)]
 		require.NotEmpty(t, deviceMetrics, "no metrics emitted for gpu-burner worker GPU %s", worker.GPUUUID)
 		require.NotEmpty(t, deviceMetrics["sm_active"], "sm_active was not emitted for gpu-burner worker GPU %s", worker.GPUUUID)
-	}
-	require.ElementsMatch(t, expectedUUIDs, actualUUIDs, "gpu-burner workers do not match the selected CUDA-visible devices")
-
-	type smiResult struct {
-		sample *testutil.SmiSample
-		err    error
-	}
-	smiResults := make([]smiResult, len(status.Workers))
-	var smiWG sync.WaitGroup
-	for i, worker := range status.Workers {
-		smiWG.Add(1)
-		go func(i int, uuid string) {
-			defer smiWG.Done()
-			sample, err := testutil.CollectSmiSample(uuid)
-			smiResults[i] = smiResult{sample: sample, err: err}
-		}(i, worker.GPUUUID)
-	}
-	smiWG.Wait()
-	for i, worker := range status.Workers {
-		require.NotNil(t, worker.Metrics)
-		deviceMetrics := metricsByUUID[strings.ToLower(worker.GPUUUID)]
 		require.InDelta(t, targetSM, worker.Metrics.SMActive, smActiveDelta, "gpu-burner status SM activity differs from target")
 		requireMetricNearValue(t, deviceMetrics, "sm_active", targetSM, smActiveDelta)
-		require.NoError(t, smiResults[i].err, "collect nvidia-smi sample for GPU %s", worker.GPUUUID)
-		requireMetricsMatchSmi(t, deviceMetrics, smiResults[i].sample)
+		smiResult := smiResults[strings.ToLower(worker.GPUUUID)]
+		require.NoError(t, smiResult.err, "collect nvidia-smi sample for GPU %s", worker.GPUUUID)
+		requireMetricsMatchSmi(t, deviceMetrics, smiResult.sample)
 	}
 }
 
