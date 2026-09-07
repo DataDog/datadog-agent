@@ -23,7 +23,7 @@ tests_aix-ppc64:
     - 'echo "=== AIX: running unit tests ==="'
     - |
       aix_run_cmd <<EOF
-      set -eu
+      set -eux
       cd $AIX_AGENT_SRC
       . ./packaging/aix/lib/env.sh
       python3.12 -m invoke -e test $EXTRA_TEST_FLAGS --build-exclude=python --build-cpus=2
