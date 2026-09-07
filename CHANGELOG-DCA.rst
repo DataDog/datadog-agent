@@ -2,6 +2,142 @@
 Release Notes
 =============
 
+.. _Release Notes_7.83.0:
+
+7.83.0
+======
+
+.. _Release Notes_7.83.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-03
+Pinned to datadog-agent v7.83.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7830>`_.
+
+
+.. _Release Notes_7.83.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The ``<namespace>`` part of a ``datadogmetric@<namespace>:<name>`` external metric
+  reference is now ignored. The referenced ``DatadogMetric`` is always looked up in the
+  namespace of the ``HorizontalPodAutoscaler`` or ``WatermarkPodAutoscaler`` that holds
+  the reference, so referencing a ``DatadogMetric`` owned by another namespace is no
+  longer supported. Such a reference now resolves to a ``DatadogMetric`` that does not
+  exist, which leaves the autoscaler without a metric value and unable to scale.
+  
+  To find out whether you are affected, list every external metric reference that carries
+  an explicit namespace:
+  
+  .. code-block:: shell
+  
+    kubectl get hpa --all-namespaces -o yaml | grep -E 'datadogmetric@[a-z0-9-]+:'
+    kubectl get wpa --all-namespaces -o yaml | grep -E 'datadogmetric@[a-z0-9-]+:'
+  
+  References whose namespace is the namespace of the autoscaler holding them keep working
+  unchanged. For every reference pointing at another namespace, create a ``DatadogMetric``
+  with the same query in the autoscaler's own namespace and point the autoscaler at it.
+  The namespace can now be left out entirely, ``datadogmetric@<name>`` is a valid
+  reference that resolves in the autoscaler's namespace.
+
+
+.. _Release Notes_7.83.0_New Features:
+
+New Features
+------------
+
+- Add the ``kubernetes_state.pod.terminating`` gauge to the Kubernetes State
+  Core check. The metric reports a value of 1 for each pod from the moment
+  its deletion timestamp is set until the pod leaves the informer.
+
+- ``DatadogInstrumentation`` checks and logs configurations can now target Argo
+  ``Rollout`` workloads.
+
+
+.. _Release Notes_7.83.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the ``kube_argo_rollout`` tag to pod metrics emitted by the Kubernetes
+  State Core check for pods managed by Argo Rollouts.
+
+- Add the ``-l`` and ``--list`` options to ``datadog-cluster-agent status``
+  to list available status sections. A section name can now be passed to the
+  command to display only that section.
+
+- The Cluster Agent's Prometheus HTTP Service Discovery provider now applies
+  the OpenMetrics check template's ``rename_labels`` mapping to the tags
+  derived from the SD target labels, in addition to the labels scraped from
+  each target. Previously ``rename_labels`` only affected scraped metric
+  labels, so a label supplied by the SD endpoint could not be renamed.
+  No configuration change is required: the existing
+  ``rename_labels`` in the ``check_template`` now covers both sources.
+
+- The cluster-agent KSM auto-sharding dispatcher
+  (``cluster_checks.ksm_sharding_enabled``) now supports a single
+  ``kubernetes_state_core`` config that combines a shardable
+  ``cluster_unassigned`` instance with a ``cluster_aggregates_only`` instance.
+  The ``cluster_unassigned`` instance is sharded by resource type
+  (pods/nodes/others) as before, and the ``cluster_aggregates_only`` instance
+  (which does a full-pod watch and cannot be sharded) is dispatched alongside
+  the pods shard. Previously such a multi-instance config disabled sharding.
+  This lets KSM auto-sharding and the cluster-aggregate ``.total`` fix be
+  enabled together from one config.
+
+- The Cluster Agent now uses a single ``ListWatch`` call to track Kubernetes
+  Node metadata, instead of one call per node.
+
+- Karpenter ``NodePool`` autoscaling now tries to automatically resolve
+  which ``EC2NodeClass``/``NodeClass`` to use when more than one exists for
+  a given provider, based on the ``NodePool``'s ``kubernetes.io/os`` and
+  ``kubernetes.io/arch`` requirements. Each NodeClass's own
+  ``kubernetes.io/os``/``kubernetes.io/arch`` labels are preferred when
+  present, falling back to matching tokens in the NodeClass name (e.g.
+  ``linux-amd64``) otherwise; if neither signal uniquely identifies a
+  NodeClass, or the label- and name-based signals disagree, the ambiguity
+  is left unresolved. Previously, having more than one NodeClass of the
+  same provider type always caused NodePool creation/update to fail with a
+  "too many NodeClasses found" error; this is still the outcome when the
+  disambiguation above can't resolve to a single NodeClass.
+  Additionally, when both a manual Karpenter ``EC2NodeClass`` and an EKS
+  Auto Mode ``NodeClass`` exist in the cluster, the EKS Auto Mode
+  ``NodeClass`` is now preferred; previously the ``EC2NodeClass`` was
+  always preferred.
+
+
+.. _Release Notes_7.83.0_Security Notes:
+
+Security Notes
+--------------
+
+- The Cluster Agent external metrics provider now resolves ``datadogmetric@`` references
+  in the namespace of the requesting object rather than the namespace embedded in the
+  metric name. Previously, a workload could read the value of a ``DatadogMetric`` owned by
+  another namespace, and keep that ``DatadogMetric`` active so that its Datadog queries
+  kept running.
+
+
+.. _Release Notes_7.83.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix ``kubernetes_state.container.cpu_requested`` and
+  ``kubernetes_state.container.memory_requested`` to use the effective
+  requests reported by Kubernetes after an in-place vertical resize. Pod
+  spec requests remain the fallback when status resources are unavailable.
+
+- The Cluster Agent no longer opens a second, redundant cluster-wide
+  ``ListWatch`` for Kubernetes Nodes. Setting ``kubernetes_node_labels_as_tags``
+  or ``kubernetes_node_annotations_as_tags`` used to start an extra
+  Node metadata watch in addition to the one already used to populate the
+  Node cache; that extra watch has been removed and label/annotation-as-tags
+  extraction now relies solely on the existing Node cache.
+
+
 .. _Release Notes_7.82.3:
 
 7.82.3

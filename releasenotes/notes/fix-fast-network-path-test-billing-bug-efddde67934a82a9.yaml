@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+fixes:
   - |
-    Add Helm rollback action
+    Fix bug which made fast network path test billed to customer
