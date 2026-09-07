@@ -169,7 +169,8 @@ function loadStatus(page) {
   // Clear the page and add the loading sign (this request can take a few seconds)
   $("#" + page + "_status").html('<i class="fa fa-spinner fa-pulse fa-3x fa-fw center"></i>');
 
-  sendMessage("agent/status/" + page, "", "post",
+  var query = page === "gnmi" ? "?verbose=true" : "";
+  sendMessage("agent/status/" + page + query, "", "post",
   function(data, status, xhr){
       $("#" + page + "_status").html(DOMPurify.sanitize(data));
   });
@@ -249,6 +250,26 @@ function trimData(data) {
 $(document).on('click', '.load_more', function (e) {
   e.preventDefault();
   loadMore();
+});
+
+// Delegate input handler for gNMI device filter (works after DOMPurify sanitization)
+$(document).on('input', '#gnmi-device-filter', function () {
+  var query = this.value.trim().toLowerCase();
+  var rows = document.querySelectorAll('.gnmi-device-row');
+  var visibleCount = 0;
+  rows.forEach(function(row) {
+    var haystack = row.getAttribute('data-search') || '';
+    if (query === '' || haystack.indexOf(query) !== -1) {
+      row.style.display = '';
+      visibleCount++;
+    } else {
+      row.style.display = 'none';
+    }
+  });
+  var countSpan = document.getElementById('gnmi-device-filter-count');
+  if (countSpan) {
+    countSpan.textContent = query !== '' ? 'Showing ' + visibleCount + ' of ' + rows.length + ' devices' : '';
+  }
 });
 
 // Delegate change handler for software inventory filter (works after DOMPurify sanitization)

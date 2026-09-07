@@ -1,0 +1,15 @@
+{{- if .devices }}
+<div class="stat">
+  <span class="stat_title">gNMI Devices</span>
+  <span class="stat_data">
+{{- range $device := .devices }}
+    <span class="{{$device.StatusLevel}}">{{$device.StatusLabel}}</span> {{$device.DeviceName}} ({{$device.Address}}:{{$device.Port}}) &mdash; {{$device.StreamState}}, samples {{$device.ReceivedSamples}}, metrics {{$device.MetricsCollected}}{{- if $device.LastError }} &mdash; {{$device.LastError}}{{- end }}</br>
+{{- end }}
+  </span>
+</div>
+{{- else }}
+<div class="stat">
+  <span class="stat_title">gNMI Devices</span>
+  <span class="stat_data">No gNMI devices configured.</span>
+</div>
+{{- end -}}

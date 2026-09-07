@@ -12,9 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/gnmipb"
 )
 
 // CacheKey identifies a cached value by normalized path and gNMI path keys.

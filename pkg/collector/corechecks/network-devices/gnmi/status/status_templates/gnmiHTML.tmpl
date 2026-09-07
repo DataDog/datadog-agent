@@ -1,52 +1,76 @@
 {{- if .devices }}
 <div class="stat">
   <span class="stat_title">gNMI Devices</span>
-  <span class="stat_data">
+  <div style="margin: 0.75em 0;">
+    <label for="gnmi-device-filter"><strong>Filter devices:</strong></label>
+    <input id="gnmi-device-filter" type="search" placeholder="Search by name, IP, profile, state, or error" style="margin-left: 0.5em; padding: 0.35em 0.5em; min-width: 20em; border-radius: 4px; border: 1px solid #ccc;">
+    <span id="gnmi-device-filter-count" style="margin-left: 1em; color: #666;"></span>
+  </div>
+  <div class="stat_data">
+    <table id="gnmi_devices_table" style="width: 100%; border-collapse: collapse;">
+      <tr>
+        <th style="text-align: left;">Status</th>
+        <th style="text-align: left;">Device</th>
+        <th style="text-align: left;">IP</th>
+        <th style="text-align: left;">State</th>
+        <th style="text-align: left;">Last connected</th>
+        <th style="text-align: left;">Last error</th>
+        <th style="text-align: right;">Metrics</th>
+      </tr>
 {{- range $device := .devices }}
-    <strong>{{$device.Address}}:{{$device.Port}}</strong> (profile: {{$device.Profile}})</br>
-    Started: {{$device.Started}}</br>
-    Stream state: {{$device.StreamState}}</br>
-    Transport: {{$device.Transport}}</br>
-    Reconnect count: {{$device.ReconnectCount}}</br>
-    Received samples: {{$device.ReceivedSamples}}</br>
-    Cached paths: {{$device.CachedPaths}}</br>
-    Collect topology: {{$device.CollectTopology}}</br>
-    {{- if or (eq $device.StreamState "reconnecting") (eq $device.StreamState "not_ready") }}
-    <span class="stat_subtitle">Connection details</span>
-    <span class="stat_subdata">
+      <tr class="gnmi-device-row" data-search="{{$device.SearchText}}">
+        <td><span class="{{$device.StatusLevel}}">{{$device.StatusLabel}}</span></td>
+        <td>{{$device.DeviceName}}<br><span style="color: #666;">{{$device.Profile}}</span></td>
+        <td>{{$device.Address}}:{{$device.Port}}</td>
+        <td>{{$device.StreamState}}</td>
+        <td>
+        {{- if $device.LastConnectedAt }}
+          {{ formatUnixTime $device.LastConnectedAt }}<br><span style="color: #666;">{{ formatUnixTimeSince $device.LastConnectedAt }}</span>
+        {{- else }}
+          -
+        {{- end }}
+        </td>
+        <td>
+        {{- if $device.LastError }}
+          {{$device.LastError}}
+        {{- else if eq $device.StreamState "reconnecting" }}
+          waiting for next reconnect attempt
+        {{- else }}
+          -
+        {{- end }}
+        </td>
+        <td style="text-align: right;">{{$device.MetricsCollected}}</td>
+      </tr>
+{{- end }}
+    </table>
+  </div>
+  <details style="margin-top: 1em;">
+    <summary>Connection details</summary>
+    <div class="stat_data" style="margin-top: 0.5em;">
+{{- range $device := .devices }}
+      <strong>{{$device.DeviceName}} ({{$device.Address}}:{{$device.Port}})</strong></br>
+      Transport: {{$device.Transport}} | Reconnect count: {{$device.ReconnectCount}} | Cached paths: {{$device.CachedPaths}} | Samples: {{$device.ReceivedSamples}} | Topology: {{$device.CollectTopology}}</br>
+      {{- if or (eq $device.StreamState "reconnecting") (eq $device.StreamState "not_ready") }}
       Ever connected: {{$device.EverConnected}}</br>
-      {{- if $device.LastConnectedAt }}
-      Last connected: {{ formatUnixTime $device.LastConnectedAt }} ({{ formatUnixTimeSince $device.LastConnectedAt }})</br>
-      {{- end }}
-      {{- if $device.LastError }}
-      Last error: {{$device.LastError}}</br>
       {{- if $device.LastErrorAt }}
       Error time: {{ formatUnixTime $device.LastErrorAt }} ({{ formatUnixTimeSince $device.LastErrorAt }})</br>
-      {{- end }}
-      {{- else if eq $device.StreamState "reconnecting" }}
-      Last error: waiting for next reconnect attempt</br>
       {{- end }}
       {{- if $device.NextReconnectDue }}
       Next reconnect: retrying now (scheduled {{ formatUnixTime $device.NextReconnectAt }})</br>
       {{- else if $device.NextReconnectAt }}
       Next reconnect: {{ formatUnixTime $device.NextReconnectAt }} ({{ formatUnixTimeSince $device.NextReconnectAt }})</br>
       {{- end }}
-      {{- if $device.StatusUpdatedAt }}
-      Status updated: {{ formatUnixTime $device.StatusUpdatedAt }} ({{ formatUnixTimeSince $device.StatusUpdatedAt }})</br>
       {{- end }}
-    </span>
-    {{- else if $device.LastError }}
-    Last error: {{$device.LastError}}</br>
-    {{- end }}
-    {{- if $device.SubscriptionPaths }}
-    Subscription paths:</br>
-    {{- range $path := $device.SubscriptionPaths }}
-      - {{$path}}</br>
-    {{- end }}
-    {{- end }}
-    </br>
-{{ end -}}
-  </span>
+      {{- if $device.SubscriptionPaths }}
+      Subscription paths:</br>
+      {{- range $path := $device.SubscriptionPaths }}
+        - {{$path}}</br>
+      {{- end }}
+      {{- end }}
+      </br>
+{{- end }}
+    </div>
+  </details>
 </div>
 {{- else }}
 <div class="stat">

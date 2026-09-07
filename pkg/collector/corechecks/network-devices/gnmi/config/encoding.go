@@ -8,16 +8,24 @@ package config
 import (
 	"fmt"
 	"strings"
-
-	gnmi "github.com/openconfig/gnmi/proto/gnmi"
 )
 
-// DefaultEncoding is the gNMI subscription encoding requested from devices.
-// JSON_IETF is the most widely supported encoding on vendor implementations.
-const DefaultEncoding = gnmi.Encoding_JSON_IETF
+// Encoding identifies the value encoding requested from a gNMI target.
+type Encoding int32
+
+// Values match the Encoding enum in the gNMI wire protocol.
+const (
+	encodingJSON     Encoding = 0
+	encodingProto    Encoding = 2
+	encodingJSONIETF Encoding = 4
+
+	// DefaultEncoding is the gNMI subscription encoding requested from devices.
+	// JSON_IETF is the most widely supported encoding on vendor implementations.
+	DefaultEncoding = encodingJSONIETF
+)
 
 // ParseEncoding converts a user-facing encoding string to a gNMI encoding enum.
-func ParseEncoding(raw string) (gnmi.Encoding, error) {
+func ParseEncoding(raw string) (Encoding, error) {
 	trimmed := strings.TrimSpace(strings.ToLower(raw))
 	if trimmed == "" {
 		return DefaultEncoding, nil
@@ -25,24 +33,24 @@ func ParseEncoding(raw string) (gnmi.Encoding, error) {
 
 	switch trimmed {
 	case "proto", "protobuf":
-		return gnmi.Encoding_PROTO, nil
+		return encodingProto, nil
 	case "json":
-		return gnmi.Encoding_JSON, nil
+		return encodingJSON, nil
 	case "json_ietf", "json-ietf", "jsonietf":
-		return gnmi.Encoding_JSON_IETF, nil
+		return encodingJSONIETF, nil
 	default:
 		return 0, fmt.Errorf("unsupported encoding %q: use proto, json, or json_ietf", raw)
 	}
 }
 
 // EncodingName returns a stable string representation of a gNMI encoding.
-func EncodingName(encoding gnmi.Encoding) string {
+func EncodingName(encoding Encoding) string {
 	switch encoding {
-	case gnmi.Encoding_PROTO:
+	case encodingProto:
 		return "proto"
-	case gnmi.Encoding_JSON:
+	case encodingJSON:
 		return "json"
-	case gnmi.Encoding_JSON_IETF:
+	case encodingJSONIETF:
 		return "json_ietf"
 	default:
 		return "unknown"

@@ -8,10 +8,10 @@ package client
 import (
 	"testing"
 
-	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/gnmipb"
 )
 
 func TestSubscribePathFromMetric(t *testing.T) {

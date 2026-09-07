@@ -8,9 +8,8 @@ package client
 import (
 	"strings"
 
-	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/gnmipb"
 )
 
 // SubscriptionSpec describes a gNMI path subscription with optional keyed segments.
