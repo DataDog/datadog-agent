@@ -1311,6 +1311,56 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 	m.AssertNotCalled(t, "Gauge", "system.disk.in_use", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
+func TestGivenADiskCheckWithDefaultConfig_WhenUsageCalledConcurrentlyForSameMountpoint_ThenOnlyOneCallProceedsButSequentialCallsAreFine(t *testing.T) {
+	setupDefaultMocks()
+	entered := make(chan struct{}, 1)
+	unblock := make(chan struct{})
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
+		entered <- struct{}{}
+		<-unblock
+		return &gopsutil_disk.UsageStat{Path: "/", Total: 1024, Free: 512, Used: 512}, nil
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{partitionsTrue[0]}, nil
+	})
+	m := configureCheck(t, diskCheck, nil, nil)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- diskCheck.Run()
+	}()
+	// Wait until the first Run has started calling diskUsage for "/" and is blocked in it.
+	<-entered
+
+	// A second, concurrent Run for the same mountpoint should be skipped rather
+	// than calling diskUsage again, so no metrics are reported for it yet.
+	err := diskCheck.Run()
+	assert.Nil(t, err)
+	m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
+
+	close(unblock)
+	assert.Nil(t, <-done)
+	// "system.disk.total" is reported once per successful diskUsage call for "/",
+	// so counting it tells us how many of the Run calls actually got through.
+	totalCalls := func() int {
+		count := 0
+		for _, call := range m.Calls {
+			if call.Method == "Gauge" && call.Arguments.String(0) == "system.disk.total" {
+				count++
+			}
+		}
+		return count
+	}
+	assert.Equal(t, 1, totalCalls(), "the concurrent Run should have been skipped, not called diskUsage again")
+
+	// Calling Run one after the other (not concurrently) for the same
+	// mountpoint is fine and reports metrics each time.
+	assert.Nil(t, diskCheck.Run())
+	assert.Equal(t, 2, totalCalls())
+	assert.Nil(t, diskCheck.Run())
+	assert.Equal(t, 3, totalCalls())
+}
+
 func TestGivenADiskCheckWithDefaultConfig_WhenPartitionDiscoveryTimeout_ThenErrorReturned(t *testing.T) {
 	setupDefaultMocks()
 	// Use an explicit unblock channel to simulate a syscall that ignores
