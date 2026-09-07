@@ -135,11 +135,118 @@ impl Drop for PolicyHandle {
 mod tests {
     use super::*;
 
+    const MSI_CS: &str = include_str!(
+        "../../../../../../tools/windows/DatadogAgentInstaller/CustomActions/ConfigureUserCustomActions.cs"
+    );
+    const FLEET_GO: &str = include_str!(
+        "../../../../../../pkg/fleet/installer/packages/user/windows/user.go"
+    );
+
     #[test]
-    fn installer_agent_password_lsa_key_matches_msi() {
+    fn installer_lsa_key_matches_msi_and_fleet() {
         assert_eq!(
+            csharp_agent_password_key(MSI_CS),
             INSTALLER_AGENT_PASSWORD_LSA_KEY,
+            "drift from MSI ConfigureUserCustomActions.AgentPasswordPrivateDataKey"
+        );
+        assert_eq!(
+            go_agent_password_key(FLEET_GO),
+            INSTALLER_AGENT_PASSWORD_LSA_KEY,
+            "drift from fleet agentPasswordPrivateDataKey"
+        );
+    }
+
+    #[test]
+    fn csharp_key_parser_reads_interpolated_lsa_name() {
+        let src = r#"
+            public static string AgentPasswordPrivateDataKey()
+            {
+                var secretType = "L$";
+                return $"{secretType}datadog_ddagentuser_password";
+            }
+        "#;
+        assert_eq!(
+            csharp_agent_password_key(src),
             "L$datadog_ddagentuser_password"
         );
+    }
+
+    #[test]
+    fn go_key_parser_reads_returned_literal() {
+        let src = r#"
+            func agentPasswordPrivateDataKey() string {
+                return "L$datadog_ddagentuser_password"
+            }
+        "#;
+        assert_eq!(go_agent_password_key(src), "L$datadog_ddagentuser_password");
+    }
+
+    fn csharp_agent_password_key(src: &str) -> String {
+        let body = function_body(src, "AgentPasswordPrivateDataKey()");
+        if let Some(literal) = returned_quoted_string(body) {
+            return literal.to_string();
+        }
+        let prefix = assigned_quoted_string(body, "secretType")
+            .expect("MSI AgentPasswordPrivateDataKey must assign secretType");
+        let suffix = interpolated_return_suffix(body, "secretType").expect(
+            "MSI AgentPasswordPrivateDataKey must return $\"{secretType}...\" or a string literal",
+        );
+        format!("{prefix}{suffix}")
+    }
+
+    fn go_agent_password_key(src: &str) -> String {
+        let body = function_body(src, "func agentPasswordPrivateDataKey()");
+        returned_quoted_string(body)
+            .expect("fleet agentPasswordPrivateDataKey must return a string literal")
+            .to_string()
+    }
+
+    fn function_body<'a>(src: &'a str, signature: &str) -> &'a str {
+        let start = src
+            .find(signature)
+            .unwrap_or_else(|| panic!("missing {signature}"));
+        let after = &src[start + signature.len()..];
+        let open = after
+            .find('{')
+            .unwrap_or_else(|| panic!("missing '{{' after {signature}"));
+        brace_inner(&after[open..])
+    }
+
+    fn brace_inner(src: &str) -> &str {
+        let mut depth = 0;
+        for (i, b) in src.bytes().enumerate() {
+            match b {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return &src[1..i];
+                    }
+                }
+                _ => {}
+            }
+        }
+        panic!("unbalanced braces");
+    }
+
+    fn returned_quoted_string(body: &str) -> Option<&str> {
+        let marker = "return \"";
+        let start = body.find(marker)? + marker.len();
+        let end = body[start..].find('"')?;
+        Some(&body[start..start + end])
+    }
+
+    fn assigned_quoted_string<'a>(body: &'a str, var: &str) -> Option<&'a str> {
+        let marker = format!("{var} = \"");
+        let start = body.find(&marker)? + marker.len();
+        let end = body[start..].find('"')?;
+        Some(&body[start..start + end])
+    }
+
+    fn interpolated_return_suffix<'a>(body: &'a str, var: &str) -> Option<&'a str> {
+        let marker = format!("return $\"{{{var}}}");
+        let start = body.find(&marker)? + marker.len();
+        let end = body[start..].find('"')?;
+        Some(&body[start..start + end])
     }
 }

@@ -250,6 +250,10 @@ dd_procmgrd_lib_test(
             ("shutdown_graceful_stop_signal", "test_shutdown_graceful_stop_signal"),
         ],
     ),
+    compile_data = [
+        "//pkg/fleet/installer/packages/user/windows:user.go",
+        "//tools/windows/DatadogAgentInstaller/CustomActions:ConfigureUserCustomActions.cs",
+    ],
     env = _DD_PROCMGRD_TEST_ENV,
 )
 
