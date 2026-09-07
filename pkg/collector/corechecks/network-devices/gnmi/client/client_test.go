@@ -185,13 +185,15 @@ func TestExplicitJSONEncoding(t *testing.T) {
 	host, port, err := hostPort(server.Addr())
 	require.NoError(t, err)
 
+	encoding, err := config.ParseEncoding("json")
+	require.NoError(t, err)
 	c, err := client.New(client.Config{
 		Address:  host,
 		Port:     port,
 		Username: "user",
 		Password: "pass",
 		Profile:  testProfile(),
-		Encoding: gnmipb.Encoding_JSON,
+		Encoding: encoding,
 	}, client.WithReconnectDelays(50*time.Millisecond, 200*time.Millisecond))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, c.Close()) })
