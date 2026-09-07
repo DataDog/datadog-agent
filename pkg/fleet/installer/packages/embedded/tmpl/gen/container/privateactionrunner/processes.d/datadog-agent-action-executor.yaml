@@ -1,0 +1,16 @@
+description: Datadog Private Action Runner - On-Demand Executor
+command: /opt/datadog-agent/embedded/bin/privateactionrunner
+args:
+  - run-executor
+  - --cfgpath
+  - /etc/datadog-agent/datadog.yaml
+auto_start: false
+inherit_environment: true
+condition_path_exists: /opt/datadog-agent/embedded/bin/privateactionrunner
+restart: never
+environment_file: -/etc/datadog-agent/environment
+env:
+  DD_FLEET_POLICIES_DIR: /etc/datadog-agent/managed/datadog-agent/stable
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+stdout: inherit
+stderr: inherit

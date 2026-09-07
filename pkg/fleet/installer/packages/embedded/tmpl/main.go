@@ -56,11 +56,12 @@ func generate(outputDir string) error {
 var embedded embed.FS
 
 type installerTemplateData struct {
-	InstallDir       string
-	EtcDir           string
-	FleetPoliciesDir string
-	PIDDir           string
-	Stable           bool
+	InstallDir         string
+	EtcDir             string
+	FleetPoliciesDir   string
+	PIDDir             string
+	Stable             bool
+	InheritEnvironment bool
 }
 
 type templateData struct {
@@ -157,12 +158,18 @@ func unitSetProcmgr(stableData, expData installerTemplateData, ambiantCapabiliti
 	return units
 }
 
-func yamlSet() map[string][]byte {
+func yamlSet(data installerTemplateData) map[string][]byte {
 	return map[string][]byte{
-		// The files are always the same, nothing to resolve from the template
 		"datadog-agent-ddot.yaml":            mustRenderYAMLConfig("datadog-agent-ddot.yaml", installerTemplateData{}),
-		"datadog-agent-action-executor.yaml": mustRenderYAMLConfig("datadog-agent-action-executor.yaml", installerTemplateData{}),
-		"datadog-agent-par-control.yaml":     mustRenderYAMLConfig("datadog-agent-par-control.yaml", installerTemplateData{}),
+		"datadog-agent-action-executor.yaml": mustRenderYAMLConfig("datadog-agent-action-executor.yaml", data),
+		"datadog-agent-par-control.yaml":     mustRenderYAMLConfig("datadog-agent-par-control.yaml", data),
+	}
+}
+
+func parYAMLSet(data installerTemplateData) map[string][]byte {
+	return map[string][]byte{
+		"datadog-agent-action-executor.yaml": mustRenderYAMLConfig("datadog-agent-action-executor.yaml", data),
+		"datadog-agent-par-control.yaml":     mustRenderYAMLConfig("datadog-agent-par-control.yaml", data),
 	}
 }
 
@@ -173,6 +180,17 @@ func windowsProcmgrYAMLFile(yamlFile, windowsFile string, codegen installerTempl
 }
 
 var (
+	hostProcmgrYAMLData = installerTemplateData{
+		InstallDir:       "${DD_INSTALL_DIR}",
+		EtcDir:           "${DD_CONF_DIR}",
+		FleetPoliciesDir: "${DD_CONF_DIR}/managed/datadog-agent/stable",
+	}
+	containerProcmgrYAMLData = installerTemplateData{
+		InstallDir:         "/opt/datadog-agent",
+		EtcDir:             "/etc/datadog-agent",
+		FleetPoliciesDir:   "/etc/datadog-agent/managed/datadog-agent/stable",
+		InheritEnvironment: true,
+	}
 	stableDataOCI = installerTemplateData{
 		InstallDir:       "/opt/datadog-packages/datadog-agent/stable",
 		EtcDir:           "/etc/datadog-agent",
@@ -242,7 +260,8 @@ var (
 		{subdir: "pm/debrpm", units: unitSetProcmgr(stableDataDebRpm, expDataDebRpm, true)},
 		{subdir: "pm/oci-nc", units: unitSetProcmgr(stableDataOCI, expDataOCI, false)},
 		{subdir: "pm/debrpm-nc", units: unitSetProcmgr(stableDataDebRpm, expDataDebRpm, false)},
-		{subdir: "pm/processes.d", units: yamlSet()},
+		{subdir: "pm/processes.d", units: yamlSet(hostProcmgrYAMLData)},
+		{subdir: "container/privateactionrunner/processes.d", units: parYAMLSet(containerProcmgrYAMLData)},
 	}
 	windowsEmbeddedLayouts = []embeddedLayout{
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},

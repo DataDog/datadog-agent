@@ -94,6 +94,30 @@ fn test_cli_child_does_not_inherit_parent_env() {
     assert_eq!(json[0]["last_exit_code"], 0);
 }
 
+#[cfg(unix)]
+#[test]
+fn test_cli_child_inherits_parent_env_when_enabled() {
+    let env = TestEnv::new()
+        .with_config(
+            "inherited-env",
+            concat!(
+                "command: /bin/sh\n",
+                "args:\n",
+                "  - '-c'\n",
+                "  - 'test \"$PAR_CONTAINER_ENV\" = \"from-container\"'\n",
+                "inherit_environment: true\n",
+                "restart: never\n",
+            ),
+        )
+        .start_with_daemon_env(&[("PAR_CONTAINER_ENV", "from-container")]);
+
+    env.daemon().wait_for_log_default("[inherited-env] exited with");
+
+    let json = env.cli_list_json().stdout_json();
+    assert_eq!(json[0]["state"], "Exited");
+    assert_eq!(json[0]["last_exit_code"], 0);
+}
+
 #[test]
 fn test_cli_optional_environment_file_skipped_when_missing() {
     let (sh, flag) = test_helpers::shell_cmd();
