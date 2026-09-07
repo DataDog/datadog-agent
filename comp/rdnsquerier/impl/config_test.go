@@ -9,9 +9,17 @@ import (
 	"testing"
 	"time"
 
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 )
+
+func testSysprobe(t testing.TB, npmEnabled bool) sysprobeconfig.Component {
+	return sysprobeconfigmock.NewMockWithOverrides(t, map[string]any{
+		"network_config.enabled": npmEnabled,
+	})
+}
 
 func TestConfig(t *testing.T) {
 	var tests = []struct {
@@ -20,27 +28,27 @@ func TestConfig(t *testing.T) {
 		expectedConfig rdnsQuerierConfig
 	}{
 		{
-			name:       "enabled by default via basic Network Path tests",
+			name:       "disabled by default without CNM",
 			configYaml: ``,
 			expectedConfig: rdnsQuerierConfig{
-				enabled:  true,
-				workers:  defaultWorkers,
-				chanSize: defaultChanSize,
+				enabled:  false,
+				workers:  10,
+				chanSize: 5000,
 				cache: cacheConfig{
 					enabled:         true,
-					entryTTL:        defaultCacheEntryTTL,
-					cleanInterval:   defaultCacheCleanInterval,
-					persistInterval: defaultCachePersistInterval,
-					maxRetries:      defaultCacheMaxRetries,
-					maxSize:         defaultCacheMaxSize,
+					entryTTL:        24 * time.Hour,
+					cleanInterval:   2 * time.Hour,
+					persistInterval: 2 * time.Hour,
+					maxRetries:      10,
+					maxSize:         1_000_000,
 				},
 				rateLimiter: rateLimiterConfig{
 					enabled:                true,
-					limitPerSec:            defaultRateLimitPerSec,
-					limitThrottledPerSec:   defaultRateLimitThrottledPerSec,
-					throttleErrorThreshold: defaultRateLimitThrottleErrorThreshold,
-					recoveryIntervals:      defaultRateLimitRecoveryIntervals,
-					recoveryInterval:       defaultRateLimitRecoveryInterval,
+					limitPerSec:            1000,
+					limitThrottledPerSec:   1,
+					throttleErrorThreshold: 10,
+					recoveryIntervals:      5,
+					recoveryInterval:       5 * time.Second,
 				},
 			},
 		},
@@ -338,18 +346,21 @@ reverse_dns_enrichment:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := mock.NewFromYAML(t, tt.configYaml)
-			testConfig := newConfig(mockConfig)
+			testConfig := newConfig(mockConfig, testSysprobe(t, false))
 			assert.Equal(t, tt.expectedConfig, *testConfig)
 		})
 	}
 }
 
-func TestConfigEnabledForBasicNetworkPathTests(t *testing.T) {
-	mockConfig := mock.NewFromYAML(t, `
+func TestConfigBasicTestsRequireCNM(t *testing.T) {
+	empty := mock.NewFromYAML(t, ``)
+	assert.False(t, newConfig(empty, testSysprobe(t, false)).enabled)
+	assert.True(t, newConfig(empty, testSysprobe(t, true)).enabled)
+
+	optOut := mock.NewFromYAML(t, `
 network_path:
   connections_monitoring:
-    basic_tests_enabled: true
+    basic_tests_enabled: false
 `)
-
-	assert.True(t, newConfig(mockConfig).enabled)
+	assert.False(t, newConfig(optOut, testSysprobe(t, true)).enabled)
 }

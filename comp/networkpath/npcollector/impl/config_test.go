@@ -17,9 +17,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
+
+func testSysprobe(t testing.TB, npmEnabled bool) sysprobeconfig.Component {
+	return sysprobeconfigmock.NewMockWithOverrides(t, map[string]any{
+		"network_config.enabled": npmEnabled,
+	})
+}
 
 func TestNetworkPathCollectorEnabled(t *testing.T) {
 	config := &collectorConfigs{
@@ -51,7 +59,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
-				basicTestsEnabled:            true,
+				basicTestsEnabled:            false,
 				netflowMonitoringEnabled:     false,
 				workers:                      4,
 				timeout:                      1000 * time.Millisecond,
@@ -125,7 +133,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
-				basicTestsEnabled:            true,
+				basicTestsEnabled:            false,
 				netflowMonitoringEnabled:     false,
 				workers:                      8,
 				timeout:                      5000 * time.Millisecond,
@@ -172,7 +180,7 @@ func TestNewConfig(t *testing.T) {
 			mockConfig := config.NewMockWithOverrides(t, tt.configOverride)
 			mockLogger := logmock.New(t)
 
-			result := newConfig(mockConfig, mockLogger)
+			result := newConfig(mockConfig, testSysprobe(t, false), mockLogger)
 
 			require.NotNil(t, result)
 			assert.Equal(t, tt.expectedConfig, result)
@@ -187,7 +195,7 @@ func TestNewConfigInvalidFilters(t *testing.T) {
 	})
 	mockLogger := logmock.New(t)
 
-	result := newConfig(mockConfig, mockLogger)
+	result := newConfig(mockConfig, testSysprobe(t, false), mockLogger)
 
 	// Should still return a config even with unmarshalling error
 	require.NotNil(t, result)
@@ -196,6 +204,7 @@ func TestNewConfigInvalidFilters(t *testing.T) {
 }
 
 func TestNewConfigFiltersFromEnv(t *testing.T) {
+	sysprobe := testSysprobe(t, false)
 	t.Setenv("DD_NETWORK_PATH_COLLECTOR_FILTERS", `[
 		{"match_domain":"*.example.com","type":"exclude"},
 		{"match_domain":"^api-[0-9]+\\.example\\.com$","match_domain_strategy":"regex","type":"include"},
@@ -203,7 +212,7 @@ func TestNewConfigFiltersFromEnv(t *testing.T) {
 	]`)
 
 	mockConfig := config.NewMock(t)
-	result := newConfig(mockConfig, logmock.New(t))
+	result := newConfig(mockConfig, sysprobe, logmock.New(t))
 
 	require.Equal(t, []connfilter.Config{
 		{
@@ -220,4 +229,24 @@ func TestNewConfigFiltersFromEnv(t *testing.T) {
 			MatchIP: "10.0.0.0/8",
 		},
 	}, result.filterConfig)
+}
+
+func TestNewConfigBasicTestsRequireCNM(t *testing.T) {
+	logger := logmock.New(t)
+	empty := map[string]any{"network_path.collector.filters": []map[string]any{}}
+
+	withoutCNM := newConfig(config.NewMockWithOverrides(t, empty), testSysprobe(t, false), logger)
+	assert.False(t, withoutCNM.basicTestsEnabled)
+	assert.False(t, withoutCNM.networkPathCollectorEnabled())
+
+	withCNM := newConfig(config.NewMockWithOverrides(t, empty), testSysprobe(t, true), logger)
+	assert.True(t, withCNM.basicTestsEnabled)
+	assert.True(t, withCNM.networkPathCollectorEnabled())
+
+	optOut := newConfig(config.NewMockWithOverrides(t, map[string]any{
+		"network_path.connections_monitoring.basic_tests_enabled": false,
+		"network_path.collector.filters":                          []map[string]any{},
+	}), testSysprobe(t, true), logger)
+	assert.False(t, optOut.basicTestsEnabled)
+	assert.False(t, optOut.networkPathCollectorEnabled())
 }
