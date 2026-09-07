@@ -14,6 +14,9 @@ use windows_sys::Win32::Security::{
 
 use super::agent_service_sid::lookup_installed_user_sid;
 #[cfg(not(test))]
+use super::agent_service_sid::{DATADOG_AGENT_SERVICE, service_runs_as_agent_user};
+#[cfg(not(test))]
+use super::installer_lsa_password::read_installer_agent_password;
 use super::local_account::is_local_account;
 use super::sid::create_well_known_sid;
 use super::token_identity::current_process_sid_matches;
@@ -228,10 +231,34 @@ fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Resu
         bail!("domain agent account {display} is not supported");
     }
 
-    bail!(
-        "agent user password is not available for local account {display}; \
-         run dd-procmgrd as the installed agent account"
+    let scm_service_matches_agent =
+        service_runs_as_agent_user(DATADOG_AGENT_SERVICE, &domain, &user)?;
+    let installer_password =
+        read_installer_agent_password().context("read installer agent password from LSA")?;
+    info!(
+        "local agent account inputs for {display}: service_account_matches={scm_service_matches_agent}, installer_password_present={}",
+        installer_password
+            .as_ref()
+            .is_some_and(|password| !password.is_empty())
     );
+
+    let password = installer_password
+        .filter(|password| !password.is_empty())
+        .with_context(|| {
+            format!(
+                "agent user password is not available for local account {display}; \
+                 ensure the installer stored L$datadog_ddagentuser_password (7.66+) or run \
+                 dd-procmgrd as the installed agent account"
+            )
+        })?;
+
+    let logon_domain = stored_logon_domain(&domain, sid)?;
+    Ok(AgentAccount::PasswordLogon {
+        registry_domain: domain,
+        logon_domain,
+        user,
+        password,
+    })
 }
 
 #[cfg(not(test))]

@@ -4,6 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 mod agent_service_sid;
+#[cfg(not(test))]
+mod installer_lsa_password;
 mod child_env;
 mod console;
 mod job_object;
