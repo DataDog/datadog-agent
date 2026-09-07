@@ -21,6 +21,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -636,6 +637,36 @@ func waitForServiceCollectionCall(t *testing.T, calls <-chan time.Time) time.Tim
 	}
 }
 
+type tickerRegistrationClock struct {
+	clock.Clock
+	tickerRegistered chan<- time.Duration
+}
+
+func (c *tickerRegistrationClock) Ticker(d time.Duration) *clock.Ticker {
+	ticker := c.Clock.Ticker(d)
+	c.tickerRegistered <- d
+	return ticker
+}
+
+func watchServiceCollectionTickerRegistration(c collectorTest) <-chan time.Duration {
+	tickerRegistered := make(chan time.Duration, 1)
+	c.collector.clock = &tickerRegistrationClock{
+		Clock:            c.mockClock,
+		tickerRegistered: tickerRegistered,
+	}
+	return tickerRegistered
+}
+
+func waitForServiceCollectionTicker(t *testing.T, tickerRegistered <-chan time.Duration) {
+	t.Helper()
+	select {
+	case interval := <-tickerRegistered:
+		require.Equal(t, serviceCollectionStartupRetryInterval, interval)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for startup retry ticker registration")
+	}
+}
+
 func TestCollectServicesRunsImmediatelyAndAtRegularInterval(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 	c.mockClock.Set(baseTime)
@@ -695,6 +726,7 @@ func TestCollectServicesRetriesOnlyUntilFirstRegularInterval(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	calls := make(chan time.Time, 8)
 	done := make(chan struct{})
+	retryTickerRegistered := watchServiceCollectionTickerRegistration(c)
 	collectionTicker := c.mockClock.Ticker(collectionInterval)
 	go func() {
 		defer close(done)
@@ -705,6 +737,7 @@ func TestCollectServicesRetriesOnlyUntilFirstRegularInterval(t *testing.T) {
 	}()
 
 	assert.Equal(t, baseTime, waitForServiceCollectionCall(t, calls))
+	waitForServiceCollectionTicker(t, retryTickerRegistered)
 	for elapsed := serviceCollectionStartupRetryInterval; elapsed < collectionInterval; elapsed += serviceCollectionStartupRetryInterval {
 		c.mockClock.Add(serviceCollectionStartupRetryInterval)
 		assert.Equal(t, baseTime.Add(elapsed), waitForServiceCollectionCall(t, calls))
@@ -738,6 +771,7 @@ func TestCollectServicesStopsStartupRetriesAfterNonRetryableResult(t *testing.T)
 	defer cancel()
 	calls := make(chan time.Time, 3)
 	callCount := 0
+	retryTickerRegistered := watchServiceCollectionTickerRegistration(c)
 	collectionTicker := c.mockClock.Ticker(time.Minute)
 	go c.collector.collectServices(ctx, collectionTicker, time.Minute, func(context.Context, bool) bool {
 		callCount++
@@ -746,6 +780,7 @@ func TestCollectServicesStopsStartupRetriesAfterNonRetryableResult(t *testing.T)
 	})
 
 	assert.Equal(t, baseTime, waitForServiceCollectionCall(t, calls))
+	waitForServiceCollectionTicker(t, retryTickerRegistered)
 	c.mockClock.Add(serviceCollectionStartupRetryInterval)
 	assert.Equal(t, baseTime.Add(serviceCollectionStartupRetryInterval), waitForServiceCollectionCall(t, calls))
 	c.mockClock.Add(serviceCollectionStartupRetryInterval)
@@ -772,6 +807,7 @@ func TestCollectServicesCachedRetriesInitiallyEmptyProcessCache(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	attempts := make(chan struct{}, 2)
+	retryTickerRegistered := watchServiceCollectionTickerRegistration(c)
 	collectionTicker := c.mockClock.Ticker(time.Minute)
 	go c.collector.collectServices(ctx, collectionTicker, time.Minute, func(ctx context.Context, startup bool) bool {
 		retry := c.collector.collectServicesCachedOnce(ctx, startup)
@@ -784,6 +820,7 @@ func TestCollectServicesCachedRetriesInitiallyEmptyProcessCache(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for initial cached service collection")
 	}
+	waitForServiceCollectionTicker(t, retryTickerRegistered)
 	assert.Equal(t, 0, requests())
 
 	c.collector.mux.Lock()

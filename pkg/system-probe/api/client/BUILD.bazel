@@ -33,6 +33,7 @@ dd_agent_go_test(
     embed = [":client"],
     deps = [
         "//pkg/system-probe/api/server/testutil",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
