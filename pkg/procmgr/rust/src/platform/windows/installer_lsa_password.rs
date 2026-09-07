@@ -3,25 +3,31 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+/// Keep in sync with MSI `ConfigureUserCustomActions.AgentPasswordPrivateDataKey`
+/// and fleet `agentPasswordPrivateDataKey`.
+pub(crate) const INSTALLER_AGENT_PASSWORD_LSA_KEY: &str = "L$datadog_ddagentuser_password";
+
+#[cfg(not(test))]
 use std::ptr;
+#[cfg(not(test))]
 use std::sync::atomic::{Ordering, compiler_fence};
 
+#[cfg(not(test))]
 use anyhow::{Result, bail};
+#[cfg(not(test))]
 use windows_sys::Win32::Security::Authentication::Identity::{
     LSA_HANDLE, LSA_OBJECT_ATTRIBUTES, LSA_UNICODE_STRING, LsaClose, LsaFreeMemory, LsaOpenPolicy,
     LsaRetrievePrivateData, POLICY_GET_PRIVATE_INFORMATION,
 };
 
-/// Keep in sync with MSI `ConfigureUserCustomActions.AgentPasswordPrivateDataKey`
-/// and fleet `agentPasswordPrivateDataKey`.
-pub(crate) const INSTALLER_AGENT_PASSWORD_LSA_KEY: &str = "L$datadog_ddagentuser_password";
-
+#[cfg(not(test))]
 const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 
 /// Read the ddagentuser password stored by the 7.66+ installer in LSA.
 ///
 /// Requires `POLICY_GET_PRIVATE_INFORMATION` (LocalSystem / administrators). Not
 /// available to ddagentuser; callers on the supervisor-inherit path must not use this.
+#[cfg(not(test))]
 pub(crate) fn read_installer_agent_password() -> Result<Option<String>> {
     let mut key_w = super::wide::null_terminated(INSTALLER_AGENT_PASSWORD_LSA_KEY);
     let key_name = lsa_unicode_string(&mut key_w);
@@ -58,6 +64,7 @@ pub(crate) fn read_installer_agent_password() -> Result<Option<String>> {
 }
 
 /// `Length` / `MaximumLength` are byte counts, not UTF-16 units.
+#[cfg(not(test))]
 fn lsa_unicode_string(wide: &mut [u16]) -> LSA_UNICODE_STRING {
     let char_count = wide.len().saturating_sub(1);
     LSA_UNICODE_STRING {
@@ -71,10 +78,12 @@ fn lsa_unicode_string(wide: &mut [u16]) -> LSA_UNICODE_STRING {
 ///
 /// Matches fleet `retrieve_private_data` cleanup in
 /// `pkg/fleet/installer/packages/user/windows/lsa.c`.
+#[cfg(not(test))]
 struct LsaSecret {
     data: *mut LSA_UNICODE_STRING,
 }
 
+#[cfg(not(test))]
 impl LsaSecret {
     fn into_password(self) -> Option<String> {
         if self.data.is_null() {
@@ -92,6 +101,7 @@ impl LsaSecret {
     }
 }
 
+#[cfg(not(test))]
 impl Drop for LsaSecret {
     fn drop(&mut self) {
         if self.data.is_null() {
@@ -108,6 +118,7 @@ impl Drop for LsaSecret {
     }
 }
 
+#[cfg(not(test))]
 fn secure_zero(ptr: *mut u8, len: usize) {
     for i in 0..len {
         unsafe {
@@ -117,10 +128,12 @@ fn secure_zero(ptr: *mut u8, len: usize) {
     compiler_fence(Ordering::SeqCst);
 }
 
+#[cfg(not(test))]
 struct PolicyHandle {
     handle: LSA_HANDLE,
 }
 
+#[cfg(not(test))]
 impl Drop for PolicyHandle {
     fn drop(&mut self) {
         if self.handle != 0 {
