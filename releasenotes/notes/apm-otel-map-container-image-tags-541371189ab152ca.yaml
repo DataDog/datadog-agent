@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    OTel mapping code now maps the `container.image.tags` resource attribute to the `image_tag` tag,
+    OTel mapping code now maps the ``container.image.tags`` resource attribute to the ``image_tag`` tag,
     extracting the first element when an array-typed attribute is provided.
