@@ -4,10 +4,10 @@
 // Copyright 2026-present Datadog, Inc.
 
 mod agent_service_sid;
-#[cfg(not(test))]
-mod installer_lsa_password;
 mod child_env;
 mod console;
+#[cfg(not(test))]
+mod installer_lsa_password;
 mod job_object;
 mod local_account;
 mod local_agent_account;
