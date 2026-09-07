@@ -294,6 +294,7 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 				Direction:         formatDirection(conn.Direction),
 				Family:            formatFamily(conn.Family),
 				Domain:            getDNSNameForIP(conns, conn.Dest),
+				Domains:           getDNSNamesForIP(conns, conn.Dest),
 				IntraHost:         conn.IntraHost,
 				SystemProbeConn:   conn.Pid == d.sysProbePID,
 				SentBytes:         conn.Last.SentBytes,
