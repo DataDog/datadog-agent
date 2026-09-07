@@ -8,7 +8,6 @@
 package pclntab_test
 
 import (
-	"context"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -110,8 +109,7 @@ func checkGoPCLnTabExtraction(t *testing.T, exe string, goMinorVersion int) {
 	}
 
 	symbolFile := exe + ".dbg"
-	testContext := context.WithValue(t.Context(), symbolcopier.TestFlag(true), 1)
-	err = symbolcopier.CopySymbols(testContext, exe, symbolFile, goPCLnTabInfo, nil, false)
+	err = symbolcopier.CopySymbols(t.Context(), exe, symbolFile, goPCLnTabInfo, nil, false)
 	require.NoError(t, err)
 	efSymbol, err := pfelf.Open(symbolFile)
 	require.NoError(t, err)
@@ -120,7 +118,7 @@ func checkGoPCLnTabExtraction(t *testing.T, exe string, goMinorVersion int) {
 	checkGoPCLnTab(t, efSymbol, goPCLnTabInfo)
 
 	exeStripped := exe + ".stripped"
-	out, err := exec.CommandContext(testContext, "objcopy", "-S", exe, exeStripped).CombinedOutput() // #nosec G204
+	out, err := exec.CommandContext(t.Context(), "objcopy", "-S", exe, exeStripped).CombinedOutput() // #nosec G204
 	require.NoError(t, err, "failed to rename section: %s\n%s", err, out)
 
 	ef2, err := pfelf.Open(exeStripped)
@@ -134,7 +132,7 @@ func checkGoPCLnTabExtraction(t *testing.T, exe string, goMinorVersion int) {
 	checkGoPCLnTab(t, ef2, goPCLnTabInfo2)
 
 	symbolFile2 := exeStripped + ".dbg"
-	err = symbolcopier.CopySymbols(testContext, exeStripped, symbolFile2, goPCLnTabInfo2, nil, false)
+	err = symbolcopier.CopySymbols(t.Context(), exeStripped, symbolFile2, goPCLnTabInfo2, nil, false)
 	require.NoError(t, err)
 	efSymbol2, err := pfelf.Open(symbolFile2)
 	require.NoError(t, err)
