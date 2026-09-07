@@ -31,6 +31,14 @@ import (
 
 const (
 	interfaceStatsProfile = `
+metadata:
+  device:
+    hostname: /openconfig/system/state/hostname
+  interface:
+    keys:
+      interface: name
+    name: /openconfig/interfaces/interface/state/name
+    ifindex: /openconfig/interfaces/interface/state/ifindex
 metrics:
   - path: /openconfig/interfaces/interface/state/counters/in-octets
     metric: snmp.ifHCInOctets
@@ -80,6 +88,7 @@ func TestGNMICheckLoadsFromConfDAndReportsThroughSender(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(checkInstance.ID(), senderManager)
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
@@ -103,6 +112,8 @@ func TestGNMICheckLoadsFromConfDAndReportsThroughSender(t *testing.T) {
 
 	mockSender.AssertCalled(t, "MonotonicCount", "snmp.ifHCInOctets", float64(42), "", mock.Anything)
 	mockSender.AssertCalled(t, "MonotonicCount", "snmp.ifHCOutOctets", float64(84), "", mock.Anything)
+	mockSender.AssertCalled(t, "Rate", "snmp.ifHCInOctets.rate", float64(42), "", mock.Anything)
+	mockSender.AssertCalled(t, "Rate", "snmp.ifHCOutOctets.rate", float64(84), "", mock.Anything)
 	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.stream_state", mock.Anything, "", mock.Anything)
 	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.received_samples", mock.Anything, "", mock.Anything)
 	mockSender.AssertCalled(t, "Commit")
@@ -267,7 +278,7 @@ func interfaceNameUpdate(interfaceName string) *gnmipb.Update {
 	}
 }
 
-func interfaceIfIndexUpdate(interfaceName string, ifIndex uint64) *gnmipb.Update {
+func interfaceIfIndexUpdate(interfaceName string, ifIndex int32) *gnmipb.Update {
 	return &gnmipb.Update{
 		Path: &gnmipb.Path{
 			Elem: []*gnmipb.PathElem{
@@ -278,7 +289,7 @@ func interfaceIfIndexUpdate(interfaceName string, ifIndex uint64) *gnmipb.Update
 				{Name: "ifindex"},
 			},
 		},
-		Val: fakeserver.ScalarUint64(ifIndex),
+		Val: fakeserver.ScalarInt64(int64(ifIndex)),
 	}
 }
 
