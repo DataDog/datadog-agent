@@ -32,6 +32,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 )
@@ -293,6 +295,125 @@ func (s *packageInUseSuite) TestPackageInUseLanguages() {
 			}, 14*time.Minute, 15*time.Second, "%s never reported a %s component as in use", l.name, l.purlPrefix)
 		})
 	}
+}
+
+// TestRuntimeEvidence covers the boundaries that distinguish code use from a
+// package-owned file access, plus the short-lived-container lifecycle that can
+// otherwise lose a process's only observation before the next report tick.
+func (s *packageInUseSuite) TestRuntimeEvidence() {
+	ubuntu := pkgInUseDistros[1]
+	alpine := pkgInUseDistros[2]
+
+	s.Run("exit-before-flush", func() {
+		s.keepActive(ubuntu)
+		s.waitPackageMeasured(ubuntu.repo, ubuntu.inUsePkg)
+		startedAt := s.nodeEpoch(ubuntu)
+		// Let workloadmeta associate the short-lived cgroup with its container,
+		// while still exiting well before the ten-second usage report interval.
+		s.runShortLivedPod(ubuntu.workload, "gzip --version >/dev/null 2>&1; sleep 2")
+
+		s.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{CollectT: collect, errors: []error{}}
+			collect = nil //nolint:ineffassign
+			ts, present, inUse := s.packageUsage(c, ubuntu.repo, ubuntu.inUsePkg)
+			require.Truef(c, present, "%s carries no %s property", ubuntu.inUsePkg, propLastSeenRunning)
+			s.T().Logf("PKG-IN-USE[exit] %s LastSeenRunning=%d startedAt=%d; in-use components=%v", ubuntu.inUsePkg, ts, startedAt, inUse)
+			assert.GreaterOrEqualf(c, ts, startedAt,
+				"%s observation from the exited container was not retained", ubuntu.inUsePkg)
+		}, 5*time.Minute, 15*time.Second, "short-lived container usage was lost before enrichment")
+	})
+
+	s.Run("executable-mapping", func() {
+		const mappedPkg = "libtinfo6"
+		s.keepActive(ubuntu)
+		s.waitPackageMeasured(ubuntu.repo, mappedPkg)
+		startedAt := s.nodeEpoch(ubuntu)
+		s.podExec(ubuntu, "/bin/bash", "-c", "true")
+
+		s.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{CollectT: collect, errors: []error{}}
+			collect = nil //nolint:ineffassign
+			ts, present, inUse := s.packageUsage(c, ubuntu.repo, mappedPkg)
+			require.Truef(c, present, "%s carries no %s property", mappedPkg, propLastSeenRunning)
+			s.T().Logf("PKG-IN-USE[mmap] %s LastSeenRunning=%d startedAt=%d; in-use components=%v", mappedPkg, ts, startedAt, inUse)
+			assert.GreaterOrEqualf(c, ts, startedAt,
+				"executing bash did not attribute its executable %s mapping", mappedPkg)
+		}, 5*time.Minute, 15*time.Second, "executable library mapping never appeared as package usage")
+	})
+
+	s.Run("data-read", func() {
+		const dataPkg = "alpine-baselayout-data"
+		s.keepActive(alpine)
+		s.waitPackageMeasured(alpine.repo, dataPkg)
+		before, err := strconv.ParseInt(s.packageProperty(alpine.repo, dataPkg, propLastSeenRunning), 10, 64)
+		require.NoError(s.T(), err)
+		require.Zerof(s.T(), before, "%s was already marked in use before the data read", dataPkg)
+
+		startedAt := s.nodeEpoch(alpine)
+		s.podExec(alpine, "sh", "-c", "cat /etc/passwd >/dev/null; curl --version >/dev/null 2>&1")
+		s.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{CollectT: collect, errors: []error{}}
+			collect = nil //nolint:ineffassign
+			controlTS, _, _ := s.packageUsage(c, alpine.repo, alpine.inUsePkg)
+			dataTS, present, inUse := s.packageUsage(c, alpine.repo, dataPkg)
+			require.GreaterOrEqualf(c, controlTS, startedAt,
+				"the curl control has not crossed the usage pipeline yet")
+			require.Truef(c, present, "%s carries no %s property", dataPkg, propLastSeenRunning)
+			s.T().Logf("PKG-IN-USE[data] %s LastSeenRunning=%d; %s(control)=%d; in-use components=%v", dataPkg, dataTS, alpine.inUsePkg, controlTS, inUse)
+			assert.Zerof(c, dataTS, "reading /etc/passwd incorrectly marked %s in use", dataPkg)
+		}, 5*time.Minute, 15*time.Second, "ordinary data read changed package usage")
+	})
+}
+
+func (s *packageInUseSuite) waitPackageMeasured(repo, pkg string) {
+	s.EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{CollectT: collect, errors: []error{}}
+		collect = nil //nolint:ineffassign
+		_, present, _ := s.packageUsage(c, repo, pkg)
+		require.Truef(c, present, "%s carries no %s property yet", pkg, propLastSeenRunning)
+	}, 14*time.Minute, 15*time.Second, "%s never became measurable", pkg)
+}
+
+// runShortLivedPod reuses the already-deployed target's exact mirrored image
+// and pull secrets, waits for its one-shot command to finish, then removes it.
+func (s *packageInUseSuite) runShortLivedPod(workload, script string) {
+	ctx := context.Background()
+	pods := s.Env().KubernetesCluster.Client().CoreV1().Pods(sbomtargets.Namespace)
+	targets, err := pods.List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", workload).String(),
+	})
+	require.NoError(s.T(), err)
+	require.NotEmptyf(s.T(), targets.Items, "no %s target pod found", workload)
+
+	const name = "sbom-exit-before-flush"
+	err = pods.Delete(ctx, name, metav1.DeleteOptions{})
+	require.Truef(s.T(), err == nil || apierrors.IsNotFound(err), "failed to remove previous short-lived pod: %v", err)
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		_, err := pods.Get(ctx, name, metav1.GetOptions{})
+		assert.Truef(c, apierrors.IsNotFound(err), "pod get error = %v", err)
+	}, time.Minute, time.Second, "previous short-lived pod was not deleted")
+
+	target := targets.Items[0]
+	_, err = pods.Create(ctx, &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{"app": name}},
+		Spec: corev1.PodSpec{
+			RestartPolicy:    corev1.RestartPolicyNever,
+			ImagePullSecrets: target.Spec.ImagePullSecrets,
+			Containers: []corev1.Container{{
+				Name:    "main",
+				Image:   target.Spec.Containers[0].Image,
+				Command: []string{"sh", "-c", script},
+			}},
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(s.T(), err)
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		pod, err := pods.Get(ctx, name, metav1.GetOptions{})
+		require.NoError(c, err)
+		assert.Equal(c, corev1.PodSucceeded, pod.Status.Phase)
+	}, 5*time.Minute, 2*time.Second, "short-lived package-usage pod did not complete")
+	require.NoError(s.T(), pods.Delete(ctx, name, metav1.DeleteOptions{}))
 }
 
 // langExec runs a shell snippet in the language workload's pod.
@@ -898,7 +1019,7 @@ func (s *packageInUseSuite) TestZZDumpAgentDiagnostics() {
 // in-use binary is never touched here, so it stays not-in-use until the in-use
 // phase. `cat` is owned by the distro's controlPkg (the positive control).
 func (s *packageInUseSuite) keepActive(d pkgInUseDistro) {
-	script := `nohup sh -c 'while true; do cat /etc/os-release >/dev/null 2>&1; sleep 12; done' </dev/null >/dev/null 2>&1 &`
+	script := `if [ ! -s /tmp/sbom-keepalive.pid ] || ! kill -0 "$(cat /tmp/sbom-keepalive.pid)" 2>/dev/null; then nohup sh -c 'echo $$ > /tmp/sbom-keepalive.pid; while true; do cat /etc/os-release >/dev/null 2>&1; sleep 12; done' </dev/null >/dev/null 2>&1 & fi`
 	stdout, stderr := s.podExec(d, "sh", "-c", script)
 	s.T().Logf("PKG-IN-USE[%s] keepalive: stdout=%q stderr=%q", d.name, stdout, stderr)
 }

@@ -133,7 +133,7 @@ func access(path string, mode uint16) (*model.ProcessContext, *model.FileEvent) 
 	}
 }
 
-func TestResolvePackageAttributesAndReports(t *testing.T) {
+func TestResolveAndObservePackage(t *testing.T) {
 	r := newTestResolver(t, newFakeSource())
 	idx := containerIndex(1)
 	r.setIndex(idx)
@@ -146,6 +146,10 @@ func TestResolvePackageAttributesAndReports(t *testing.T) {
 	if comp.Name != "base-files" {
 		t.Errorf("component = %q, want base-files", comp.Name)
 	}
+	if baseline := r.workloadFor(testContainer).report(); baseline == nil || len(baseline.Usage) != 0 {
+		t.Fatalf("lookup changed usage: %+v", baseline)
+	}
+	r.ObservePackage(pc, file, usage.ExecEvidence)
 
 	// A file no index names is left unattributed rather than guessed at.
 	_, unknown := access("/etc/hosts", 0)
@@ -165,6 +169,27 @@ func TestResolvePackageAttributesAndReports(t *testing.T) {
 	}
 }
 
+func TestLastPackageAccess(t *testing.T) {
+	r := newTestResolver(t, newFakeSource())
+	r.setIndex(containerIndex(1))
+
+	last, held := r.LastPackageAccess(testContainer, "base-files")
+	if !held || !last.IsZero() {
+		t.Fatalf("idle package access = (%v, %v), want (zero, true)", last, held)
+	}
+
+	pc, file := access("/usr/lib/os-release", 0)
+	r.ObservePackage(pc, file, usage.ExecEvidence)
+	last, held = r.LastPackageAccess(testContainer, "base-files")
+	if !held || last.IsZero() {
+		t.Fatalf("observed package access = (%v, %v), want (non-zero, true)", last, held)
+	}
+
+	if last, held = r.LastPackageAccess(testContainer, "missing"); held || !last.IsZero() {
+		t.Fatalf("missing package access = (%v, %v), want (zero, false)", last, held)
+	}
+}
+
 func TestResolvePackageDoesNotReportUnstampableComponent(t *testing.T) {
 	r := newTestResolver(t, newFakeSource())
 	idx := containerIndex(1)
@@ -178,6 +203,7 @@ func TestResolvePackageDoesNotReportUnstampableComponent(t *testing.T) {
 	if comp := r.ResolvePackage(pc, file); comp == nil || comp.Name != "base-files" {
 		t.Fatalf("package resolution lost unstampable component: %#v", comp)
 	}
+	r.ObservePackage(pc, file, usage.ExecEvidence)
 	if report := r.workloadFor(testContainer).report(); report != nil {
 		t.Errorf("unstampable component entered usage report: %+v", report)
 	}
@@ -191,9 +217,9 @@ func TestResolvePackageKeepsFlagsSticky(t *testing.T) {
 	// reached. The setuid observation describes the package rather than the last
 	// file touched, so it holds.
 	pc, setuid := access("/usr/bin/touch", 0o4755)
-	r.ResolvePackage(pc, setuid)
+	r.ObservePackage(pc, setuid, usage.ExecEvidence)
 	_, plain := access("/usr/bin/touch", 0o755)
-	r.ResolvePackage(pc, plain)
+	r.ObservePackage(pc, plain, usage.ExecEvidence)
 
 	report := r.workloadFor(testContainer).report()
 	if report == nil || len(report.Usage) != 1 {
@@ -207,12 +233,34 @@ func TestResolvePackageKeepsFlagsSticky(t *testing.T) {
 	}
 }
 
+func TestPackageActivationEvidenceRejectsOSDataFiles(t *testing.T) {
+	r := newTestResolver(t, newFakeSource())
+	r.setIndex(containerIndex(1))
+	if baseline := r.workloadFor(testContainer).report(); baseline == nil {
+		t.Fatal("no initial baseline")
+	}
+
+	pc, file := access("/usr/lib/os-release", 0o644)
+	if comp := r.ResolvePackage(pc, file); comp == nil || comp.Name != "base-files" {
+		t.Fatalf("data file did not resolve for package fields: %#v", comp)
+	}
+	r.ObservePackage(pc, file, usage.PackageActivationEvidence)
+	if report := r.workloadFor(testContainer).report(); report != nil {
+		t.Errorf("ordinary data-file open changed usage: %+v", report)
+	}
+
+	r.ObservePackage(pc, file, usage.ExecutableMappingEvidence)
+	if report := r.workloadFor(testContainer).report(); report == nil || len(report.Usage) != 1 || report.Usage[0].Ref != 0 {
+		t.Errorf("executable mapping was not observed: %+v", report)
+	}
+}
+
 func TestNewGenerationDropsEarlierUsage(t *testing.T) {
 	r := newTestResolver(t, newFakeSource())
 	r.setIndex(containerIndex(1))
 
 	pc, file := access("/usr/lib/os-release", 0)
-	r.ResolvePackage(pc, file)
+	r.ObservePackage(pc, file, usage.ExecEvidence)
 
 	// The workload was read again, so what was observed against the table this
 	// one replaces can no longer be trusted.
@@ -232,7 +280,7 @@ func TestNewIndexIDDropsEarlierUsage(t *testing.T) {
 	r := newTestResolver(t, newFakeSource())
 	r.setIndex(containerIndex(1))
 	pc, file := access("/usr/lib/os-release", 0)
-	r.ResolvePackage(pc, file)
+	r.ObservePackage(pc, file, usage.ExecEvidence)
 
 	next := containerIndex(1)
 	next.IndexID = "urn:uuid:after-core-restart"
@@ -248,7 +296,7 @@ func TestQueuedAccessesReplayOnIndexArrival(t *testing.T) {
 
 	// The access arrives before the table that describes it.
 	pc, file := access("/usr/lib/os-release", 0)
-	if got := r.ResolvePackage(pc, file); got != nil {
+	if got := r.ObservePackage(pc, file, usage.ExecEvidence); got != nil {
 		t.Fatalf("resolved %q with no index", got.Name)
 	}
 
@@ -290,7 +338,7 @@ func TestObservationSurvivesContainerExit(t *testing.T) {
 	r.mu.Unlock()
 
 	pc, file := access("/usr/bin/touch", 0o755)
-	r.ResolvePackage(pc, file)
+	r.ObservePackage(pc, file, usage.ExecEvidence)
 	r.Delete(testContainer)
 	r.flushOnce()
 
@@ -353,7 +401,7 @@ func TestObservationSurvivesAFailedSend(t *testing.T) {
 	r.setIndex(containerIndex(1))
 
 	pc, file := access("/usr/lib/os-release", 0)
-	r.ResolvePackage(pc, file)
+	r.ObservePackage(pc, file, usage.ExecEvidence)
 
 	w := r.workloadFor(testContainer)
 	report := w.report()

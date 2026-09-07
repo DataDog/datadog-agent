@@ -44,6 +44,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -104,6 +105,31 @@ var (
 		model.OTelProcessCtxEventType.String(),
 	}
 )
+
+func sbomMMapApprovers() rules.Approvers {
+	const field eval.Field = "mmap.protection"
+	return rules.Approvers{
+		field: {{Field: field, Value: int(unix.PROT_EXEC), Type: eval.BitmaskValueType}},
+	}
+}
+
+// addSBOMMMapFilter makes executable mappings observable without admitting the
+// complete mmap stream. Rule-derived approvers remain in force and are ORed
+// with the internal PROT_EXEC requirement.
+func addSBOMMMapFilter(report *kfilters.FilterReport) {
+	eventType := model.MMapEventType.String()
+	mmapReport := report.ApproverReports[eventType]
+	if mmapReport == nil {
+		mmapReport = &kfilters.ApproverReport{Mode: kfilters.PolicyModeDeny}
+		report.ApproverReports[eventType] = mmapReport
+	}
+	if mmapReport.Approvers == nil {
+		mmapReport.Approvers = make(rules.Approvers)
+	}
+	for field, values := range sbomMMapApprovers() {
+		mmapReport.Approvers[field] = mmapReport.Approvers[field].Merge(values...)
+	}
+}
 
 var _ PlatformProbe = (*EBPFProbe)(nil)
 
@@ -553,6 +579,11 @@ func (p *EBPFProbe) initEBPFManager() error {
 
 	if err := p.Manager.Start(); err != nil {
 		return err
+	}
+	if p.config.RuntimeSecurity.SBOMResolverEnabled {
+		if err := p.setApprovers(model.MMapEventType.String(), sbomMMapApprovers()); err != nil {
+			return fmt.Errorf("apply SBOM mmap approver: %w", err)
+		}
 	}
 
 	p.applyDefaultFilterPolicies()
@@ -1012,8 +1043,11 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		// Replay mmaped files (only needed if SBOM resolver is enabled)
 		if p.config.RuntimeSecurity.SBOMResolverEnabled {
 			var err error
-			if mmapedFiles, err = procfs.GetMmapedFiles(entry.Pid); err != nil {
+			var truncated bool
+			if mmapedFiles, truncated, err = procfs.GetMmapedFiles(entry.Pid); err != nil {
 				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
+			} else if truncated {
+				seclog.Debugf("mmaped files snapshot reached the %d-file limit for (pid: %v)", procfs.MaxMmapedFilesPerProcess, entry.Pid)
 			}
 		}
 
@@ -1048,6 +1082,9 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 			openEvent := p.newOpenEventFromReplay(re.event.ProcessCacheEntry, file)
 			openEvent.Source = model.EventSourceReplay
 			p.DispatchEvent(openEvent, notifyConsumers)
+			if p.Resolvers.SBOMResolver != nil && !openEvent.ProcessContext.Process.ContainerContext.IsNull() {
+				p.Resolvers.SBOMResolver.ObservePackage(openEvent.ProcessContext, &openEvent.Open.File, usage.ExecutableMappingEvidence)
+			}
 			p.putBackPoolEvent(openEvent)
 		}
 
@@ -1135,14 +1172,19 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	// handle sbom resolution
 	if p.Resolvers.SBOMResolver != nil {
 		if !event.ProcessContext.Process.ContainerContext.IsNull() {
-			if event.GetEventType() == model.ExecEventType {
-				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
-			} else if event.GetEventType() == model.FileOpenEventType {
+			switch event.GetEventType() {
+			case model.ExecEventType:
+				p.Resolvers.SBOMResolver.ObservePackage(event.ProcessContext, &event.Exec.Process.FileEvent, usage.ExecEvidence)
+			case model.MMapEventType:
+				if event.MMap.Retval != 0 || event.MMap.Flags&unix.MAP_ANONYMOUS != 0 || event.MMap.Protection&unix.PROT_EXEC == 0 {
+					break
+				}
+				p.fieldHandlers.ResolveFilePath(event, &event.MMap.File)
+				p.Resolvers.SBOMResolver.ObservePackage(event.ProcessContext, &event.MMap.File, usage.ExecutableMappingEvidence)
+			case model.FileOpenEventType:
 				// force resolution of the file path
 				p.fieldHandlers.ResolveFilePath(event, &event.Open.File)
-
-				// NOTE(safchain) pass the file path & the required metadata to the resolver instead of the file event
-				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Open.File)
+				p.Resolvers.SBOMResolver.ObservePackage(event.ProcessContext, &event.Open.File, usage.PackageActivationEvidence)
 			}
 		}
 	}
@@ -2444,6 +2486,9 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	// event types enabled either by event handlers or by rules
 	requestedEventTypes := append([]eval.EventType{}, defaultEventTypes...)
 	requestedEventTypes = append(requestedEventTypes, ruleSetEventTypes...)
+	if p.config.RuntimeSecurity.SBOMResolverEnabled && !slices.Contains(requestedEventTypes, model.MMapEventType.String()) {
+		requestedEventTypes = append(requestedEventTypes, model.MMapEventType.String())
+	}
 	for eventType, handlers := range p.probe.eventConsumers {
 		if len(handlers) == 0 {
 			continue
@@ -2820,6 +2865,9 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 	filterReport, err := kfilters.ComputeFilters(p.config.Probe, rs)
 	if err != nil {
 		return nil, false, err
+	}
+	if p.config.RuntimeSecurity.SBOMResolverEnabled {
+		addSBOMMMapFilter(filterReport)
 	}
 
 	if p.config.Probe.EnableDiscarders {

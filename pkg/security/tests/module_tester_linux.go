@@ -776,6 +776,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			TTYFallbackEnabled:       true,
 			EBPFLessEnabled:          ebpfLessEnabled,
 			DNSPort:                  opts.staticOpts.dnsPort,
+			SBOMIndexSource:          opts.sbomIndexSource,
 		},
 	}
 

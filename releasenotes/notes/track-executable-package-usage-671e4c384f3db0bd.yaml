@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix SBOM runtime package-usage reporting so packages loaded as executable
+    mappings are marked in use, ordinary package data reads do not produce
+    false positives, and observations from short-lived containers are not lost
+    before the next report.

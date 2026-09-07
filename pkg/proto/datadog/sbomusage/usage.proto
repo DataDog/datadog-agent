@@ -52,6 +52,9 @@ message Index {
     repeated uint32    refs       = 5;
     repeated uint64    hashes     = 6;
     string             indexId    = 7; // opaque identity of the exact BOM/index instance
+    // activations is parallel to hashes and refs. A true entry may be used as
+    // language-package activation evidence on an open event.
+    repeated bool      activations = 8;
 }
 
 message IndexRequest {

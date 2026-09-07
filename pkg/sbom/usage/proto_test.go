@@ -14,14 +14,15 @@ import (
 
 func TestIndexProtoRoundTripPreservesIndexIdentity(t *testing.T) {
 	in := &Index{
-		Scan:       "image:x",
-		Generation: 7,
-		IndexID:    "urn:uuid:index",
-		Status:     Ready,
-		Components: []Component{{BOMRef: "core-only", Purl: "pkg:generic/a@1", Name: "a"}},
-		Refs:       []uint32{0},
-		Hashes:     []uint64{42},
-		Paths:      []string{"/not-sent"},
+		Scan:        "image:x",
+		Generation:  7,
+		IndexID:     "urn:uuid:index",
+		Status:      Ready,
+		Components:  []Component{{BOMRef: "core-only", Purl: "pkg:generic/a@1", Name: "a"}},
+		Refs:        []uint32{0},
+		Hashes:      []uint64{42},
+		Activations: []bool{true},
+		Paths:       []string{"/not-sent"},
 	}
 	out := IndexFromProto(IndexToProto(in))
 	if out.Scan != in.Scan || out.Generation != in.Generation || out.IndexID != in.IndexID {
@@ -35,6 +36,9 @@ func TestIndexProtoRoundTripPreservesIndexIdentity(t *testing.T) {
 	}
 	if !out.Components[0].Reportable {
 		t.Error("component reportability did not cross the wire")
+	}
+	if len(out.Activations) != 1 || !out.Activations[0] {
+		t.Errorf("activation evidence was not preserved: %v", out.Activations)
 	}
 	if out.Paths != nil {
 		t.Errorf("paths crossed the wire: %v", out.Paths)

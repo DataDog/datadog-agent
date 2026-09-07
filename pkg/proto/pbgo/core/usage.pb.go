@@ -262,14 +262,17 @@ func (x *Component) GetReportable() bool {
 // belong to several components. The file names stay with the agent that built
 // the table; a consumer matches the hash of the path it resolved.
 type Index struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ScanId        string                 `protobuf:"bytes,1,opt,name=scanId,proto3" json:"scanId,omitempty"`
-	Generation    uint64                 `protobuf:"varint,2,opt,name=generation,proto3" json:"generation,omitempty"`
-	Status        IndexStatus            `protobuf:"varint,3,opt,name=status,proto3,enum=datadog.sbomusage.IndexStatus" json:"status,omitempty"`
-	Components    []*Component           `protobuf:"bytes,4,rep,name=components,proto3" json:"components,omitempty"`
-	Refs          []uint32               `protobuf:"varint,5,rep,packed,name=refs,proto3" json:"refs,omitempty"`
-	Hashes        []uint64               `protobuf:"varint,6,rep,packed,name=hashes,proto3" json:"hashes,omitempty"`
-	IndexId       string                 `protobuf:"bytes,7,opt,name=indexId,proto3" json:"indexId,omitempty"` // opaque identity of the exact BOM/index instance
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	ScanId     string                 `protobuf:"bytes,1,opt,name=scanId,proto3" json:"scanId,omitempty"`
+	Generation uint64                 `protobuf:"varint,2,opt,name=generation,proto3" json:"generation,omitempty"`
+	Status     IndexStatus            `protobuf:"varint,3,opt,name=status,proto3,enum=datadog.sbomusage.IndexStatus" json:"status,omitempty"`
+	Components []*Component           `protobuf:"bytes,4,rep,name=components,proto3" json:"components,omitempty"`
+	Refs       []uint32               `protobuf:"varint,5,rep,packed,name=refs,proto3" json:"refs,omitempty"`
+	Hashes     []uint64               `protobuf:"varint,6,rep,packed,name=hashes,proto3" json:"hashes,omitempty"`
+	IndexId    string                 `protobuf:"bytes,7,opt,name=indexId,proto3" json:"indexId,omitempty"` // opaque identity of the exact BOM/index instance
+	// activations is parallel to hashes and refs. A true entry may be used as
+	// language-package activation evidence on an open event.
+	Activations   []bool `protobuf:"varint,8,rep,packed,name=activations,proto3" json:"activations,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -351,6 +354,13 @@ func (x *Index) GetIndexId() string {
 		return x.IndexId
 	}
 	return ""
+}
+
+func (x *Index) GetActivations() []bool {
+	if x != nil {
+		return x.Activations
+	}
+	return nil
 }
 
 type IndexRequest struct {
@@ -845,7 +855,7 @@ const file_datadog_sbomusage_usage_proto_rawDesc = "" +
 	"\n" +
 	"reportable\x18\n" +
 	" \x01(\bR\n" +
-	"reportable\"\xfb\x01\n" +
+	"reportable\"\x9d\x02\n" +
 	"\x05Index\x12\x16\n" +
 	"\x06scanId\x18\x01 \x01(\tR\x06scanId\x12\x1e\n" +
 	"\n" +
@@ -857,7 +867,8 @@ const file_datadog_sbomusage_usage_proto_rawDesc = "" +
 	"components\x12\x12\n" +
 	"\x04refs\x18\x05 \x03(\rR\x04refs\x12\x16\n" +
 	"\x06hashes\x18\x06 \x03(\x04R\x06hashes\x12\x18\n" +
-	"\aindexId\x18\a \x01(\tR\aindexId\"\x0e\n" +
+	"\aindexId\x18\a \x01(\tR\aindexId\x12 \n" +
+	"\vactivations\x18\b \x03(\bR\vactivations\"\x0e\n" +
 	"\fIndexRequest\"\x8e\x01\n" +
 	"\vIndexUpdate\x12E\n" +
 	"\fcapabilities\x18\x01 \x01(\v2\x1f.datadog.sbomusage.CapabilitiesH\x00R\fcapabilities\x120\n" +

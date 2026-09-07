@@ -19,6 +19,19 @@ import (
 	"time"
 )
 
+// Evidence says why a file proves that a component was running.
+type Evidence uint8
+
+const (
+	// ExecEvidence is an executable selected by execve.
+	ExecEvidence Evidence = 1 << iota
+	// ExecutableMappingEvidence is a file-backed mapping with execute permission.
+	ExecutableMappingEvidence
+	// PackageActivationEvidence is a language artifact or metadata file whose
+	// open is the package manager's observable activation signal.
+	PackageActivationEvidence
+)
+
 // ScanID names what a scan describes. It carries the kind as well as the
 // identity, so a consumer can tell an image apart from one container's own
 // filesystem without knowing how either identity is spelled.
@@ -96,15 +109,15 @@ type Component struct {
 
 // Index is the file-to-component table of one exact scan/BOM instance.
 //
-// Hashes, Refs and Paths are parallel and sorted by hash, so a lookup is a
-// binary search that returns a range rather than a single entry: one path can
-// belong to several components, as every module compiled into a Go binary
-// belongs to the one file.
+// Hashes, Refs, Activations and Paths are parallel and sorted by hash, so a
+// lookup is a binary search that returns a range rather than a single entry:
+// one path can belong to several components, as every module compiled into a
+// Go binary belongs to the one file.
 //
-// The builder fills all three. Only the hashes cross the process boundary,
-// except to a consumer that asked for paths because it builds kernel-side
-// filters from them, and an index received over the wire therefore carries one
-// form or the other rather than both.
+// The builder fills all four. Hashes, refs and activation flags cross the
+// process boundary. Paths are sent only to a consumer that asks for them to
+// build kernel-side filters, and an index received over the wire therefore
+// carries hashes or paths rather than both.
 type Index struct {
 	Scan       ScanID
 	Generation uint64
@@ -115,7 +128,11 @@ type Index struct {
 	Components []Component
 	Hashes     []uint64
 	Refs       []uint32
-	Paths      []string
+	// Activations is parallel to Hashes and Refs. A true entry may be
+	// observed through an open event; every entry may be observed through an
+	// exec or executable mapping.
+	Activations []bool
+	Paths       []string
 
 	// UnmappedComponents is core-agent-local diagnostic state. These components
 	// remain available to system-probe package resolution but cannot be stamped
@@ -131,6 +148,20 @@ type Index struct {
 // that wants a single answer can take the first and one that wants them all can
 // range. It returns nil when the hash names no component.
 func (idx *Index) Lookup(hash uint64) []uint32 {
+	return idx.lookup(hash, ExecEvidence)
+}
+
+// LookupEvidence returns the components for which path hash is evidence of
+// runtime use. Opens are deliberately narrower than execs and executable
+// mappings: only language activation entries admit them.
+func (idx *Index) LookupEvidence(hash uint64, evidence Evidence) []uint32 {
+	return idx.lookup(hash, evidence)
+}
+
+func (idx *Index) lookup(hash uint64, evidence Evidence) []uint32 {
+	if evidence&(ExecEvidence|ExecutableMappingEvidence|PackageActivationEvidence) == 0 {
+		return nil
+	}
 	first, found := slices.BinarySearch(idx.Hashes, hash)
 	if !found {
 		return nil
@@ -139,6 +170,11 @@ func (idx *Index) Lookup(hash uint64) []uint32 {
 	var refs []uint32
 	app := -1
 	for i := first; i < len(idx.Hashes) && idx.Hashes[i] == hash; i++ {
+		if evidence&(ExecEvidence|ExecutableMappingEvidence) == 0 &&
+			evidence&PackageActivationEvidence != 0 &&
+			(i >= len(idx.Activations) || !idx.Activations[i]) {
+			continue
+		}
 		ref := idx.Refs[i]
 		if int(ref) >= len(idx.Components) {
 			continue

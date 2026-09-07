@@ -25,11 +25,11 @@ type MmapedFile struct {
 
 // GetMmapedFiles returns the list of executable memory-mapped files for a given process
 // Uses the shared GetMappedFiles utility with FilterExecutableRegularFiles
-func GetMmapedFiles(pid uint32) ([]MmapedFile, error) {
+func GetMmapedFiles(pid uint32) ([]MmapedFile, bool, error) {
 	// Use shared parsing utilities to get executable regular files (not [vdso], [stack], etc.)
-	paths, err := GetMappedFiles(int32(pid), MaxMmapedFilesPerProcess, FilterExecutableRegularFiles)
+	paths, truncated, err := GetMappedFilesWithTruncation(int32(pid), MaxMmapedFilesPerProcess, FilterExecutableRegularFiles)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	mmapedFiles := make([]MmapedFile, 0, len(paths))
@@ -40,7 +40,7 @@ func GetMmapedFiles(pid uint32) ([]MmapedFile, error) {
 		})
 	}
 
-	return mmapedFiles, nil
+	return mmapedFiles, truncated, nil
 }
 
 // statMmapedFile returns the metadata of a memory-mapped file. It has to be

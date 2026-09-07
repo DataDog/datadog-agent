@@ -81,8 +81,9 @@ type observed struct {
 // merged per path and the drain stamps them all with one timestamp, so only the
 // sticky flags have to be kept.
 type pendingAccess struct {
-	suid   bool
-	asRoot bool
+	suid     bool
+	asRoot   bool
+	evidence usage.Evidence
 }
 
 // workload holds the index of one scan and the usage observed against it. Usage
@@ -376,8 +377,8 @@ func (r *Resolver) flushOnce() {
 }
 
 // ResolvePackage returns the component that owns the given file, or nil when no
-// index attributes it. It records the access, so the component is reported in
-// use on the next flush.
+// index attributes it. Resolution alone is not evidence that code ran: package
+// fields can be requested for a data-file event.
 //
 // A path can belong to several components, every module compiled into one Go
 // binary being the case that matters. All of them are recorded, and the one
@@ -391,14 +392,38 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	containerID := pc.Process.ContainerContext.ContainerID
 	w := r.workloadFor(containerID)
 	if w == nil {
-		r.queuePending(containerID, file.PathnameStr, file.Mode, pc.Process.Credentials.UID)
+		return nil
+	}
+
+	refs := w.index.Lookup(murmur3.StringSum64(file.PathnameStr))
+	if len(refs) == 0 {
+		return nil
+	}
+
+	comp := w.index.Component(refs[0])
+	seclog.Tracef("file '%s' belongs to %s in container '%s'", file.PathnameStr, comp.Name, containerID)
+	return comp
+}
+
+// ObservePackage records file as evidence that its component ran and returns
+// the component chosen for package-field enrichment. Execs and executable
+// mappings admit any indexed file. Opens admit only language activation entries.
+func (r *Resolver) ObservePackage(pc *model.ProcessContext, file *model.FileEvent, evidence usage.Evidence) *usage.Component {
+	if !file.IsPathnameStrResolved {
+		return nil
+	}
+
+	containerID := pc.Process.ContainerContext.ContainerID
+	w := r.workloadFor(containerID)
+	if w == nil {
+		r.queuePending(containerID, file.PathnameStr, file.Mode, pc.Process.Credentials.UID, evidence)
 		return nil
 	}
 
 	suid := file.Mode&setuidBit != 0
 	asRoot := pc.Process.Credentials.UID == 0
 
-	refs := w.index.Lookup(murmur3.StringSum64(file.PathnameStr))
+	refs := w.index.LookupEvidence(murmur3.StringSum64(file.PathnameStr), evidence)
 	if len(refs) == 0 {
 		r.unattributed.Inc()
 		return nil
@@ -447,15 +472,43 @@ func (r *Resolver) workloadFor(containerID containerutils.ContainerID) *workload
 	return r.workloads[scan]
 }
 
+// LastPackageAccess returns the latest observation for the named component and
+// whether the workload index contains it. It is primarily useful to diagnostics
+// and functional tests that need to distinguish an idle component from one the
+// current index cannot measure.
+func (r *Resolver) LastPackageAccess(containerID containerutils.ContainerID, name string) (time.Time, bool) {
+	w := r.workloadFor(containerID)
+	if w == nil {
+		return time.Time{}, false
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	var last time.Time
+	var held bool
+	for ref := range w.index.Components {
+		if w.index.Components[ref].Name != name {
+			continue
+		}
+		held = true
+		if observed := w.usage[uint32(ref)]; observed.lastSeen.After(last) {
+			last = observed.lastSeen
+		}
+	}
+	return last, held
+}
+
 // queuePending stores an access that arrived before the index it needs.
-func (r *Resolver) queuePending(containerID containerutils.ContainerID, path string, mode uint16, uid uint32) {
+func (r *Resolver) queuePending(containerID containerutils.ContainerID, path string, mode uint16, uid uint32, evidence usage.Evidence) {
 	if containerID == "" {
 		return
 	}
 
 	access := pendingAccess{
-		suid:   mode&setuidBit != 0,
-		asRoot: uid == 0,
+		suid:     mode&setuidBit != 0,
+		asRoot:   uid == 0,
+		evidence: evidence,
 	}
 
 	r.pendingLock.Lock()
@@ -470,6 +523,7 @@ func (r *Resolver) queuePending(containerID containerutils.ContainerID, path str
 	if previous, ok := accesses[path]; ok {
 		access.suid = access.suid || previous.suid
 		access.asRoot = access.asRoot || previous.asRoot
+		access.evidence |= previous.evidence
 	} else if len(accesses) >= maxPendingPaths {
 		seclog.Debugf("dropping queued access '%s' for container '%s': too many queued", path, containerID)
 		return
@@ -492,7 +546,7 @@ func (r *Resolver) replayPending(containerID containerutils.ContainerID, w *work
 	seclog.Debugf("replaying %d queued accesses for container '%s'", len(accesses), containerID)
 	now := time.Now()
 	for path, access := range accesses {
-		for _, ref := range w.index.Lookup(murmur3.StringSum64(path)) {
+		for _, ref := range w.index.LookupEvidence(murmur3.StringSum64(path), access.evidence) {
 			w.record(ref, now, access.suid, access.asRoot, r.cfg.SBOMResolverEnrichmentInterval)
 		}
 	}

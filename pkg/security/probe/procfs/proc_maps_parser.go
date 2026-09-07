@@ -98,10 +98,17 @@ type MapsFilterFunc func(entry MapsEntry) bool
 //
 // Returns a deduplicated list of file paths matching the filter
 func GetMappedFiles(pid int32, maxFiles int, filter MapsFilterFunc) ([]string, error) {
+	files, _, err := GetMappedFilesWithTruncation(pid, maxFiles, filter)
+	return files, err
+}
+
+// GetMappedFilesWithTruncation is GetMappedFiles with an additional result that
+// reports whether another distinct matching file existed beyond maxFiles.
+func GetMappedFilesWithTruncation(pid int32, maxFiles int, filter MapsFilterFunc) ([]string, bool, error) {
 	mapsPath := kernel.HostProc(strconv.Itoa(int(pid)), "maps")
 	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer mapsFile.Close()
 
@@ -113,7 +120,8 @@ func GetMappedFiles(pid int32, maxFiles int, filter MapsFilterFunc) ([]string, e
 	seenPaths := make(map[string]struct{})
 	scanner := bufio.NewScanner(mapsFile)
 
-	for scanner.Scan() && len(files) < maxFiles {
+	truncated := false
+	for scanner.Scan() {
 		entry, ok := ParseMapsLine(scanner.Bytes())
 		if !ok || entry.Pathname == "" {
 			continue
@@ -128,12 +136,16 @@ func GetMappedFiles(pid int32, maxFiles int, filter MapsFilterFunc) ([]string, e
 		if _, seen := seenPaths[entry.Pathname]; seen {
 			continue
 		}
+		if len(files) == maxFiles {
+			truncated = true
+			break
+		}
 
 		seenPaths[entry.Pathname] = struct{}{}
 		files = append(files, entry.Pathname)
 	}
 
-	return files, scanner.Err()
+	return files, truncated, scanner.Err()
 }
 
 // Common filter functions

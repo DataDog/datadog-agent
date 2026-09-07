@@ -22,9 +22,30 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
+
+func TestAddSBOMMMapFilter(t *testing.T) {
+	eventType := model.MMapEventType.String()
+	report := &kfilters.FilterReport{ApproverReports: make(map[eval.EventType]*kfilters.ApproverReport)}
+	addSBOMMMapFilter(report)
+
+	got := report.ApproverReports[eventType]
+	require.NotNil(t, got)
+	assert.Equal(t, kfilters.PolicyModeDeny, got.Mode)
+	values := got.Approvers["mmap.protection"]
+	require.Len(t, values, 1)
+	assert.Equal(t, int(unix.PROT_EXEC), values[0].Value)
+
+	got.Approvers["mmap.file.name"] = rules.FilterValues{{Field: "mmap.file.name", Value: "libexample.so", Type: eval.ScalarValueType}}
+	addSBOMMMapFilter(report)
+	assert.Len(t, got.Approvers["mmap.protection"], 1, "internal approver duplicated on reload")
+	assert.Len(t, got.Approvers["mmap.file.name"], 1, "rule-derived approver was replaced")
+}
 
 // selfExeInode returns the inode of the running test binary.
 func selfExeInode(t *testing.T) uint64 {

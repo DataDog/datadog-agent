@@ -62,6 +62,14 @@ func names(idx *usage.Index, path string) []string {
 	return out
 }
 
+func observedNames(idx *usage.Index, path string, evidence usage.Evidence) []string {
+	var out []string
+	for _, ref := range idx.LookupEvidence(murmur3.StringSum64(path), evidence) {
+		out = append(out, idx.Component(ref).Name)
+	}
+	return out
+}
+
 func TestBuildUsageIndexSources(t *testing.T) {
 	gzip := pkgWithPurl("gzip", "1.12")
 	gzip.InstalledFiles = []string{"/usr/bin/gzip", "/usr/share/man/man1/gzip.1.gz"}
@@ -115,6 +123,16 @@ func TestBuildUsageIndexSources(t *testing.T) {
 				t.Errorf("lookup mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+
+	if got := observedNames(idx, "/usr/share/man/man1/gzip.1.gz", usage.PackageActivationEvidence); got != nil {
+		t.Errorf("OS data file became activation evidence: %v", got)
+	}
+	if diff := cmp.Diff([]string{"commons-io"}, observedNames(idx, "/opt/app/lib/commons-io-2.11.0.jar", usage.PackageActivationEvidence)); diff != "" {
+		t.Errorf("language artifact activation mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]string{"gzip"}, observedNames(idx, "/usr/bin/gzip", usage.ExecEvidence)); diff != "" {
+		t.Errorf("exec evidence mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -245,8 +263,8 @@ func TestBuildUsageIndexCarriesPaths(t *testing.T) {
 		{Class: types.ClassOSPkg, Type: ftypes.RedHat, Packages: []ftypes.Package{gzip}},
 	}}, "image:sha256:x", 1, "")
 
-	if len(idx.Paths) != len(idx.Hashes) || len(idx.Paths) != len(idx.Refs) {
-		t.Fatalf("paths/hashes/refs lengths differ: %d/%d/%d", len(idx.Paths), len(idx.Hashes), len(idx.Refs))
+	if len(idx.Paths) != len(idx.Hashes) || len(idx.Paths) != len(idx.Refs) || len(idx.Paths) != len(idx.Activations) {
+		t.Fatalf("paths/hashes/refs/activations lengths differ: %d/%d/%d/%d", len(idx.Paths), len(idx.Hashes), len(idx.Refs), len(idx.Activations))
 	}
 	if !slices.Contains(idx.Paths, "/usr/bin/gzip") {
 		t.Errorf("paths = %v, want it to carry /usr/bin/gzip", idx.Paths)
@@ -293,6 +311,18 @@ func TestFillDistinguishesMultiMappingFromHashCollision(t *testing.T) {
 			t.Errorf("hash collisions = %d, want 1", idx.HashCollisions)
 		}
 	})
+}
+
+func TestFillMergesActivationEvidence(t *testing.T) {
+	idx := &usage.Index{Scan: "image:x"}
+	fillWithHasher(idx, []indexEntry{
+		{path: "/opt/app/pkg.gemspec", ref: 0},
+		{path: "/opt/app/pkg.gemspec", ref: 0, activation: true},
+	}, func(string) uint64 { return 7 })
+
+	if len(idx.Hashes) != 1 || len(idx.Activations) != 1 || !idx.Activations[0] {
+		t.Fatalf("merged entry = hashes %v activations %v, want one activation", idx.Hashes, idx.Activations)
+	}
 }
 
 func runtimeProperty(comp *cyclonedx_v1_4.Component, name string) string {

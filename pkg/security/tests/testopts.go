@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -87,6 +88,8 @@ type tmOpts struct {
 	dynamicOpts dynamicTestOpts
 	forceReload bool
 
+	sbomIndexSource sbom.IndexSource
+
 	// staticOptsSet distinguishes "no static opts" from "the default config,
 	// explicitly": an empty testOpts is a legitimate config, so the zero value
 	// of staticOpts cannot answer that on its own.
@@ -114,6 +117,16 @@ func withDynamicOpts(opts dynamicTestOpts) optFunc {
 
 func withForceReload() optFunc {
 	return func(tmo *tmOpts) {
+		tmo.forceReload = true
+	}
+}
+
+// withSBOMIndexSource supplies the core-agent side of the usage stream to a
+// functional test. The source is part of the probe, so changing it forces a new
+// module rather than reusing the process-wide one.
+func withSBOMIndexSource(source sbom.IndexSource) optFunc {
+	return func(tmo *tmOpts) {
+		tmo.sbomIndexSource = source
 		tmo.forceReload = true
 	}
 }

@@ -16,13 +16,14 @@ import (
 // cost several times the bytes for nothing.
 func IndexToProto(idx *Index) *pb.Index {
 	out := &pb.Index{
-		ScanId:     string(idx.Scan),
-		Generation: idx.Generation,
-		IndexId:    idx.IndexID,
-		Status:     pb.IndexStatus(idx.Status),
-		Components: make([]*pb.Component, 0, len(idx.Components)),
-		Refs:       idx.Refs,
-		Hashes:     idx.Hashes,
+		ScanId:      string(idx.Scan),
+		Generation:  idx.Generation,
+		IndexId:     idx.IndexID,
+		Status:      pb.IndexStatus(idx.Status),
+		Components:  make([]*pb.Component, 0, len(idx.Components)),
+		Refs:        idx.Refs,
+		Hashes:      idx.Hashes,
+		Activations: idx.Activations,
 	}
 	refCounts := make(map[string]int, len(idx.Components))
 	indexed := make([]bool, len(idx.Components))
@@ -60,13 +61,14 @@ func IndexToProto(idx *Index) *pb.Index {
 // IndexFromProto converts an index back from its wire form.
 func IndexFromProto(in *pb.Index) *Index {
 	idx := &Index{
-		Scan:       ScanID(in.GetScanId()),
-		Generation: in.GetGeneration(),
-		IndexID:    in.GetIndexId(),
-		Status:     Status(in.GetStatus()),
-		Components: make([]Component, 0, len(in.GetComponents())),
-		Refs:       in.GetRefs(),
-		Hashes:     in.GetHashes(),
+		Scan:        ScanID(in.GetScanId()),
+		Generation:  in.GetGeneration(),
+		IndexID:     in.GetIndexId(),
+		Status:      Status(in.GetStatus()),
+		Components:  make([]Component, 0, len(in.GetComponents())),
+		Refs:        in.GetRefs(),
+		Hashes:      in.GetHashes(),
+		Activations: in.GetActivations(),
 	}
 
 	for _, comp := range in.GetComponents() {

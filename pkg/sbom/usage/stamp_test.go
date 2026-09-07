@@ -358,6 +358,28 @@ func TestLookupPrefersApplication(t *testing.T) {
 	}
 }
 
+func TestLookupEvidence(t *testing.T) {
+	idx := &Index{
+		Components:  []Component{{Name: "os-data"}, {Name: "language"}},
+		Hashes:      []uint64{7, 7},
+		Refs:        []uint32{0, 1},
+		Activations: []bool{false, true},
+	}
+
+	if got := idx.LookupEvidence(7, PackageActivationEvidence); len(got) != 1 || got[0] != 1 {
+		t.Errorf("activation refs = %v, want [1]", got)
+	}
+	if got := idx.LookupEvidence(7, ExecutableMappingEvidence); len(got) != 2 {
+		t.Errorf("executable mapping refs = %v, want both components", got)
+	}
+	if got := idx.LookupEvidence(7, 0); got != nil {
+		t.Errorf("empty evidence returned refs: %v", got)
+	}
+	if got := idx.LookupEvidence(7, Evidence(1<<7)); got != nil {
+		t.Errorf("unknown evidence returned refs: %v", got)
+	}
+}
+
 func TestTableIsSafeUnderConcurrentUse(t *testing.T) {
 	idx := testIndex()
 	table := NewTable(idx)

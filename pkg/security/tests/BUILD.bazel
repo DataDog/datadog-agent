@@ -48,6 +48,7 @@ go_library(
         "//pkg/security/config",
         "//pkg/security/events",
         "//pkg/security/proto/api",
+        "//pkg/security/resolvers/sbom",
         "//pkg/security/resolvers/tags",
         "//pkg/security/rules/bundled",
         "//pkg/security/secl/compiler/eval",
@@ -214,6 +215,7 @@ dd_agent_go_test(
         "rename_test.go",
         "replay_test.go",
         "rmdir_test.go",
+        "sbom_runtime_test.go",
         "security_profile_test.go",
         "selftests_test.go",
         "selinux_test.go",
@@ -257,8 +259,12 @@ dd_agent_go_test(
     include_default = False,
     tags = ["manual"],
     deps = [
+        "//pkg/sbom/usage",
+        "//pkg/security/resolvers/sbom",
+        "//pkg/security/secl/containerutils",
         "//pkg/security/secl/rules",
         "//pkg/util/log",
+        "@com_github_twmb_murmur3//:murmur3",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/config/env",

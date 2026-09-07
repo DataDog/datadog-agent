@@ -2,7 +2,8 @@
 	"filters": {
 		"pkg/security": {
 			"run-only": [
-				"TestChmod"
+				"TestChmod",
+				"TestSBOMRuntimeEvidence"
 			]
 		}
 	}

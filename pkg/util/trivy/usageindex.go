@@ -44,8 +44,9 @@ var usrMergedDirs = []string{"/bin/", "/sbin/", "/lib/", "/lib64/"}
 // indexEntry is one (file, component) pair before the table is sorted by hash.
 // A file can name several components, so entries are not unique by path.
 type indexEntry struct {
-	path string
-	ref  uint32
+	path       string
+	ref        uint32
+	activation bool
 }
 
 // BuildUsageIndex derives the file-to-component table of report, so a runtime
@@ -73,11 +74,11 @@ func BuildUsageIndex(report *types.Report, componentRefs map[string]string, inde
 	idx := &usage.Index{Scan: scan, Generation: generation, IndexID: indexID, Status: usage.Ready}
 
 	var entries []indexEntry
-	add := func(file string, ref uint32) {
+	add := func(file string, ref uint32, activation bool) {
 		if file == "" {
 			return
 		}
-		entries = append(entries, indexEntry{path: absClean(file), ref: ref})
+		entries = append(entries, indexEntry{path: absClean(file), ref: ref, activation: activation})
 	}
 
 	for _, result := range report.Results {
@@ -106,14 +107,17 @@ func BuildUsageIndex(report *types.Report, componentRefs map[string]string, inde
 			})
 
 			for _, file := range pkg.InstalledFiles {
-				add(file, ref)
+				add(file, ref, false)
 			}
-			add(pkg.FilePath, ref)
-			add(binaryTarget, ref)
+			// A language artifact path is a deliberately narrow proxy for
+			// activation where an image scan cannot enumerate the source files
+			// an interpreter opens. An OS package's data files never get it.
+			add(pkg.FilePath, ref, result.Class == types.ClassLangPkg)
+			add(binaryTarget, ref, false)
 
 			if result.Type == ftypes.PythonPkg {
 				for _, file := range pythonCodeFiles(root, pkg.FilePath) {
-					add(file, ref)
+					add(file, ref, true)
 				}
 			}
 		}
@@ -153,7 +157,7 @@ func usrMergedAliases(entries []indexEntry) []indexEntry {
 		if _, taken := claimed[alias]; taken {
 			continue
 		}
-		aliases = append(aliases, indexEntry{path: alias, ref: e.ref})
+		aliases = append(aliases, indexEntry{path: alias, ref: e.ref, activation: e.activation})
 	}
 	return aliases
 }
@@ -170,14 +174,15 @@ func fill(idx *usage.Index, entries []indexEntry) {
 // on an accidental collision in a fixed hash implementation.
 func fillWithHasher(idx *usage.Index, entries []indexEntry, hashPath func(string) uint64) {
 	type hashed struct {
-		hash uint64
-		path string
-		ref  uint32
+		hash       uint64
+		path       string
+		ref        uint32
+		activation bool
 	}
 
 	all := make([]hashed, 0, len(entries))
 	for _, e := range entries {
-		all = append(all, hashed{hash: hashPath(e.path), path: e.path, ref: e.ref})
+		all = append(all, hashed{hash: hashPath(e.path), path: e.path, ref: e.ref, activation: e.activation})
 	}
 	slices.SortFunc(all, func(a, b hashed) int {
 		if a.hash != b.hash {
@@ -191,6 +196,7 @@ func fillWithHasher(idx *usage.Index, entries []indexEntry, hashPath func(string
 
 	idx.Hashes = make([]uint64, 0, len(all))
 	idx.Refs = make([]uint32, 0, len(all))
+	idx.Activations = make([]bool, 0, len(all))
 	idx.Paths = make([]string, 0, len(all))
 
 	collisions := 0
@@ -203,14 +209,20 @@ func fillWithHasher(idx *usage.Index, entries []indexEntry, hashPath func(string
 			}
 		}
 		if distinct {
-			for k := i; k < j; k++ {
-				// One path repeated for the same component adds nothing.
-				if k > i && all[k].ref == all[k-1].ref {
-					continue
+			for k := i; k < j; {
+				// One path repeated for the same component is one entry, but
+				// activation is sticky across the sources that named it.
+				next := k + 1
+				activation := all[k].activation
+				for next < j && all[next].ref == all[k].ref {
+					activation = activation || all[next].activation
+					next++
 				}
 				idx.Hashes = append(idx.Hashes, all[k].hash)
 				idx.Refs = append(idx.Refs, all[k].ref)
+				idx.Activations = append(idx.Activations, activation)
 				idx.Paths = append(idx.Paths, all[k].path)
+				k = next
 			}
 		} else {
 			collisions++
