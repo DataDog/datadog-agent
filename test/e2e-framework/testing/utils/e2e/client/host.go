@@ -38,6 +38,15 @@ const (
 	// Waiting for only 10s as we expect remote to be ready when provisioning
 	sshRetryInterval = 2 * time.Second
 	sshMaxRetries    = 20
+
+	// Windows OpenSSH maps sharing violations (Agent still reading a config file,
+	// Defender scanning it) to SSH_FX_FAILURE. Retry with backoff instead of
+	// failing the test on the first lock: on a CPU-throttled burstable instance
+	// (e.g. t3.large) the lock can outlast a short constant retry window.
+	sftpWriteInitialInterval = 250 * time.Millisecond
+	sftpWriteMaxInterval     = 1500 * time.Millisecond
+	sftpWriteMaxElapsedTime  = 5 * time.Second
+	sftpWriteMaxTries        = 10
 )
 
 type buildCommandFn func(command string, envVars EnvVar) string
@@ -325,6 +334,7 @@ func (h *Host) readFileWithClient(sftpClient *sftp.Client, path string) ([]byte,
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
 	var content bytes.Buffer
 	_, err = io.Copy(&content, f)
@@ -347,21 +357,50 @@ func (h *Host) ReadFilePrivileged(path string) ([]byte, error) {
 	return h.readFileWithClient(h.getSFTPPrivilegedClient(), path)
 }
 
+// isTransientSFTPFailure reports whether err is SSH_FX_FAILURE. Windows OpenSSH
+// uses that generic code for sharing violations; other SFTP codes (permission
+// denied, no such file) are not retried.
+func isTransientSFTPFailure(err error) bool {
+	var status *sftp.StatusError
+	return errors.As(err, &status) && status.FxCode() == sftp.ErrSSHFxFailure
+}
+
 // WriteFile write content to the file and returns the number of bytes written and error if any
 func (h *Host) WriteFile(path string, content []byte) (int64, error) {
 	h.context.Logf("Writing to file at %s", path)
 	path = h.convertPathSeparator(path)
-	sftpClient := h.getSFTPClient()
-	defer sftpClient.Close()
 
-	f, err := sftpClient.Create(path)
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
+	var written int64
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
+		sftpClient := h.getSFTPClient()
+		defer sftpClient.Close()
 
-	reader := bytes.NewReader(content)
-	return io.Copy(f, reader)
+		f, err := sftpClient.Create(path)
+		if err != nil {
+			if isTransientSFTPFailure(err) {
+				return nil, err
+			}
+			return nil, backoff.Permanent(err)
+		}
+		defer f.Close()
+
+		written, err = io.Copy(f, bytes.NewReader(content))
+		if err != nil {
+			if isTransientSFTPFailure(err) {
+				return nil, err
+			}
+			return nil, backoff.Permanent(err)
+		}
+		return nil, nil
+	}, backoff.WithBackOff(&backoff.ExponentialBackOff{
+		InitialInterval:     sftpWriteInitialInterval,
+		RandomizationFactor: backoff.DefaultRandomizationFactor,
+		Multiplier:          backoff.DefaultMultiplier,
+		MaxInterval:         sftpWriteMaxInterval,
+	}), backoff.WithMaxElapsedTime(sftpWriteMaxElapsedTime), backoff.WithMaxTries(sftpWriteMaxTries), backoff.WithNotify(func(err error, d time.Duration) {
+		h.context.Logf("Retrying SFTP write to %s after %v: %v", path, d, err)
+	}))
+	return written, err
 }
 
 // AppendFile append content to the file and returns the number of bytes appened and error if any
