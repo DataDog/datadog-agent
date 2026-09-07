@@ -336,7 +336,9 @@ const (
 // 2. Custom container tags prefixed by datadog.container.tag;
 // 3. Datadog semantic conventions (pre-mapped tags, usually from the infraattributes processor).
 //
-// Only string-type resource attributes will be extracted as container tags.
+// Only string-type resource attributes will be extracted as container tags,
+// with the exception of the array-valued `container.image.tags` attribute,
+// from which we extract the first element when present.
 // In the case of duplicates between the three sources, OTel conventions take priority over custom tags,
 // which take priority over pre-mapped tags.
 //
