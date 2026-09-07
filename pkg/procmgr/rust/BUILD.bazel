@@ -149,11 +149,11 @@ pkg_install(
 
 rust_test(
     name = "dd-procmgrd_test",
-    crate = ":dd-procmgrd-lib",
     compile_data = [
         "//pkg/fleet/installer/packages/user/windows:user.go",
         "//tools/windows/DatadogAgentInstaller/CustomActions:ConfigureUserCustomActions.cs",
     ],
+    crate = ":dd-procmgrd-lib",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
