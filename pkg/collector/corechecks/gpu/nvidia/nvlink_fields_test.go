@@ -438,13 +438,10 @@ func TestNVlinkFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigur
 
 	fc, ok := collector.(*nvlinkFieldsCollector)
 	require.True(t, ok, "expected *nvlinkFieldsCollector")
+	require.NotEmpty(t, fc.requests)
 
-	foundNvlinkEffective := false
-	for _, metric := range fc.metrics {
-		if metric.name == "nvlink.errors.effective" {
-			foundNvlinkEffective = true
-		}
+	for _, request := range fc.requests {
+		require.NotEqual(t, uint32(nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS), request.field.FieldId,
+			"nvlink.errors.effective should not be enrolled when INVALID_ARGUMENT is mapped to unsupported")
 	}
-
-	require.False(t, foundNvlinkEffective, "nvlink.errors.effective should be removed when INVALID_ARGUMENT is explicitly mapped to unsupported")
 }

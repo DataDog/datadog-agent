@@ -124,6 +124,8 @@ func newNVLinkFieldsCollectorWithMetrics(device ddnvml.Device, metrics map[uint3
 			return nil, fmt.Errorf("get supported NVLink ports: %w", err)
 		}
 		return nil, fmt.Errorf("%w: no supported NVLink field metrics found", errUnsupportedDevice)
+	} else if err != nil {
+		log.Warnf("nvlink: errors while discovering port support, still continuing with %d metrics: %v", len(c.requests), err)
 	}
 
 	return c, nil
@@ -240,17 +242,14 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) 
 			continue
 		}
 
-		// Skip unsupported field/port combinations. Inactive NVLink ports can report
-		// NOT_SUPPORTED even when the same field works on active ports, so do not remove
-		// the metric globally here. Fields that are unsupported on every port simply
-		// never get a request added below.
-		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) {
+		// We assume that a metric that returns "unsupported" is a permanent failure, so we
+		// skip it for this port. Other ports might still be supported (e.g., inactive ports).
+		// Other failures can be transient, so we keep collecting them later.
+		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) || (val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT) && fieldValueMetric.markUnsupportedOnInvalidArgument) {
+			log.Warnf("nvlink: fields collector skipping metric %s for port %d because it's not supported, error: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
 			continue
-		}
-		if val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT) && fieldValueMetric.markUnsupportedOnInvalidArgument {
-			log.Warnf("nvlink: fields collector removing metric %s because it's not supported, error: %s", fieldValueMetric.name, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
-			delete(c.metrics, val.FieldId)
-			continue
+		} else if val.NvmlReturn != uint32(nvml.SUCCESS) {
+			log.Warnf("nvlink: fields collector saw error %s for metric %s, port %d. Will keep collecting it later", nvml.ErrorString(nvml.Return(val.NvmlReturn)), fieldValueMetric.name, port)
 		}
 
 		c.addRequest(fieldValueMetric, port)
