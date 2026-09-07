@@ -9,23 +9,21 @@
 package client
 
 import (
-	"errors"
-	"os"
-	"syscall"
-
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"syscall"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// OpenPrivileged opens a file in system-probe and returns the file descriptor.
-// This function uses a custom HTTP client that can handle file descriptor transfer.
+// OpenPrivileged opens a file through system-probe.
 func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	return openPrivileged(socketPath, filePath, false)
 }
@@ -140,16 +138,12 @@ func maybeOpenPrivileged(path string, originalError error, noFollow bool) (*os.F
 	return file, nil
 }
 
-// Open attempts to open a file with normal path resolution. If opening fails
-// with permission denied, the file may be opened via system-probe when
-// privileged logs is enabled.
+// Open opens a file directly or through system-probe when permission is denied.
 func Open(path string) (*os.File, error) {
 	return open(path, false)
 }
 
-// OpenNoFollow attempts to open a file without following symbolic links in any
-// path component. If opening fails with permission denied, the file may be
-// opened via system-probe with the same no-follow behavior.
+// OpenNoFollow is like Open but rejects symbolic links in every path component.
 func OpenNoFollow(path string) (*os.File, error) {
 	return open(path, true)
 }
