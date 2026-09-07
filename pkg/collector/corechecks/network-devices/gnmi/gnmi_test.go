@@ -76,6 +76,7 @@ use_tls: false
 	mockSender := mocksender.NewMockSender(t, "")
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("EventPlatformEvent", mock.Anything, "network-devices-metadata").Return()
 	mockSender.On("Commit").Return()
 

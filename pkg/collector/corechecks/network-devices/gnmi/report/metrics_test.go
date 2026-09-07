@@ -120,6 +120,19 @@ func TestReportMetrics(t *testing.T) {
 						"dd.internal.resource:ndm_interface:default:" + deviceAddress + ":42",
 					},
 				},
+				{
+					method: "Rate",
+					name:   "snmp.ifHCInOctets.rate",
+					value:  2_000_000,
+					tags: []string{
+						"device_ip:" + deviceAddress,
+						"device_id:default:" + deviceAddress,
+						"interface:eth0",
+						"interface_index:42",
+						"interface_alias:uplink",
+						"dd.internal.resource:ndm_interface:default:" + deviceAddress + ":42",
+					},
+				},
 			},
 		},
 		{
@@ -311,6 +324,12 @@ func TestReportMetrics(t *testing.T) {
 					value:  42,
 					tags:   append(baseTags, "interface:eth0"),
 				},
+				{
+					method: "Rate",
+					name:   "snmp.ifHCInOctets.rate",
+					value:  42,
+					tags:   append(baseTags, "interface:eth0"),
+				},
 			},
 		},
 		{
@@ -356,6 +375,7 @@ func TestReportMetrics(t *testing.T) {
 
 			gaugeCalls := 0
 			monotonicCalls := 0
+			rateCalls := 0
 			for _, want := range tt.wantMetrics {
 				mockSender.AssertMetric(t, want.method, want.name, want.value, "", want.tags)
 				switch want.method {
@@ -363,10 +383,13 @@ func TestReportMetrics(t *testing.T) {
 					gaugeCalls++
 				case "MonotonicCount":
 					monotonicCalls++
+				case "Rate":
+					rateCalls++
 				}
 			}
 			mockSender.AssertNumberOfCalls(t, "Gauge", gaugeCalls)
 			mockSender.AssertNumberOfCalls(t, "MonotonicCount", monotonicCalls)
+			mockSender.AssertNumberOfCalls(t, "Rate", rateCalls)
 		})
 	}
 }
