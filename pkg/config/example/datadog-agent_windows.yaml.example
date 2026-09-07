@@ -2231,6 +2231,12 @@ api_key:
 #
 #     enabled: true
 
+#     # @param basic_tests_enabled - boolean - optional - default: true
+#     # @env DD_NETWORK_PATH_CONNECTIONS_MONITORING_BASIC_TESTS_ENABLED - boolean - optional - default: true
+#     # Enables basic Network Path Dynamic Tests for a representative subset of eligible Cloud Network Monitoring paths. Requires Cloud Network Monitoring and system-probe traceroute. Set to false to opt out. Standard connection-monitoring Dynamic Tests take precedence when both options are enabled.
+#
+#     basic_tests_enabled: false
+
 #   # @param collector - custom object - optional
 #   # Configuration related to Network Path Collector used for Network Path Dynamic Test
 #   # to monitor network traffic connections on the host.
