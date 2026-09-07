@@ -207,9 +207,21 @@ properties:
           related settings) that rshell would otherwise attach to its "run"
           telemetry span for each runCommand/runRemediationCommand
           invocation. Other rshell telemetry (exit code, timing, command
-          counts) is unaffected. Set this to true if the commands executed
-          through the Private Action Runner's restricted shell are too
-          sensitive to forward to Datadog telemetry.
+           counts) is unaffected. Set this to true if the commands executed
+           through the Private Action Runner's restricted shell are too
+           sensitive to forward to Datadog telemetry.
+      privileged:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          socket:
+            node_type: setting
+            type: string
+            default: /run/datadog/rshell-privileged.sock
   skip_connection_creation:
     node_type: setting
     type: boolean

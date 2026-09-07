@@ -29,6 +29,7 @@ go_library(
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/log/def",
             "//comp/core/telemetry/def",
             "//comp/dataplane/preflightmode/def",
@@ -43,6 +44,7 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/log/def",
             "//comp/core/telemetry/def",
             "//comp/dataplane/preflightmode/def",
@@ -78,6 +80,7 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/log/def",
             "//comp/core/telemetry/def",
             "//comp/dataplane/preflightmode/def",
@@ -99,6 +102,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/log/def",
             "//comp/core/telemetry/def",
             "//comp/dataplane/preflightmode/def",
@@ -155,6 +159,7 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface/def",
             "//comp/core/log/def",
             "//comp/core/telemetry/def",
             "//comp/dataplane/preflightmode/def",
@@ -185,6 +190,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//comp/core/hostname/hostnameinterface/mock",
             "//comp/core/log/mock",
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/mock",
@@ -197,6 +203,7 @@ dd_agent_go_test(
             "@in_gopkg_yaml_v3//:yaml_v3",
         ],
         "@rules_go//go/platform:darwin": [
+            "//comp/core/hostname/hostnameinterface/mock",
             "//comp/core/log/mock",
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/mock",
@@ -209,6 +216,7 @@ dd_agent_go_test(
             "@in_gopkg_yaml_v3//:yaml_v3",
         ],
         "@rules_go//go/platform:ios": [
+            "//comp/core/hostname/hostnameinterface/mock",
             "//comp/core/log/mock",
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/mock",
@@ -221,6 +229,7 @@ dd_agent_go_test(
             "@in_gopkg_yaml_v3//:yaml_v3",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/hostname/hostnameinterface/mock",
             "//comp/core/log/mock",
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/mock",
