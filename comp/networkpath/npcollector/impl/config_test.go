@@ -51,7 +51,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
-				basicTestsEnabled:            false,
+				basicTestsEnabled:            true,
 				netflowMonitoringEnabled:     false,
 				workers:                      4,
 				timeout:                      1000 * time.Millisecond,
@@ -125,7 +125,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expectedConfig: &collectorConfigs{
 				connectionsMonitoringEnabled: false,
-				basicTestsEnabled:            false,
+				basicTestsEnabled:            true,
 				netflowMonitoringEnabled:     false,
 				workers:                      8,
 				timeout:                      5000 * time.Millisecond,
