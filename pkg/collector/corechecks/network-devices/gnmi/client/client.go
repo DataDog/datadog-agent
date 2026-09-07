@@ -50,7 +50,7 @@ type Config struct {
 	// A zero value selects DefaultSampleInterval. It is never sent as 0:
 	// targets may reject a zero sample_interval with Unimplemented.
 	SampleInterval time.Duration
-	Encoding       gnmipb.Encoding
+	Encoding       config.Encoding
 }
 
 // Option configures optional client behavior, primarily for tests.
@@ -490,7 +490,7 @@ func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
 		Request: &gnmipb.SubscribeRequest_Subscribe{
 			Subscribe: &gnmipb.SubscriptionList{
 				Mode:         gnmipb.SubscriptionList_STREAM,
-				Encoding:     c.cfg.Encoding,
+				Encoding:     gnmipb.Encoding(c.cfg.Encoding),
 				Subscription: subscriptions,
 			},
 		},

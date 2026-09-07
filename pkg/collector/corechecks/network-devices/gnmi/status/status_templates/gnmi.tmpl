@@ -9,6 +9,7 @@
     Reconnect count: {{$device.ReconnectCount}}
     Received samples: {{$device.ReceivedSamples}}
     Cached paths: {{$device.CachedPaths}}
+    Metrics collected: {{$device.MetricsCollected}}
     Collect topology: {{$device.CollectTopology}}
   {{- if or (eq $device.StreamState "reconnecting") (eq $device.StreamState "not_ready") }}
     Connection details:
