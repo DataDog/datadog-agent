@@ -44,14 +44,14 @@ def build(
     Build cws-instrumentation
 
     enable_bazel: build via bazel instead of `go build`, then copy the result to the same place.
-    Builds the `cws-instrumentation-injector-only` target when combined with --injector-only.
+    Builds the `cws-instrumentation-injector_only` target when combined with --injector-only.
     Developer opt-in only; defaults to off. Not compatible with --arch-suffix.
     """
     if enable_bazel:
         if arch_suffix:
             raise NotImplementedError("--enable-bazel does not support --arch-suffix.")
         target = (
-            "//cmd/cws-instrumentation:cws-instrumentation-injector-only"
+            "//cmd/cws-instrumentation:cws-instrumentation-injector_only"
             if injector_only
             else "//cmd/cws-instrumentation:cws-instrumentation"
         )
