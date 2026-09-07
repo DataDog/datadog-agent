@@ -119,6 +119,27 @@ func TestGetWithoutEUDM(t *testing.T) {
 	}
 }
 
+func TestGetInfraModeTags(t *testing.T) {
+	tests := []struct {
+		mode string
+		want string
+	}{
+		{"none", "infra_mode:none"},
+		{"basic", "infra_mode:basic"},
+		{"cloud_cost_only", "infra_mode:cloud_cost_only"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.mode, func(t *testing.T) {
+			mockConfig, ctx := setupTest(t)
+			mockConfig.SetInTest("infrastructure_mode", tt.mode)
+
+			hostTags := Get(ctx, false, mockConfig)
+			assert.Contains(t, hostTags.System, tt.want)
+		})
+	}
+}
+
 func TestGetWithEUDM(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
 	mockConfig.SetInTest("infrastructure_mode", "end_user_device")
