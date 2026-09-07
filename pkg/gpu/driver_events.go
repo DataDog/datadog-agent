@@ -110,10 +110,10 @@ type DriverEventSubscriberConfig struct {
 // NewDriverEventSubscriber starts a reader for future NVIDIA Xid kernel messages.
 func NewDriverEventSubscriber(component telemetry.Component, deviceCache ddnvml.DeviceCache, cfg DriverEventSubscriberConfig) (*DriverEventSubscriber, error) {
 	if component == nil {
-		return nil, fmt.Errorf("driver event telemetry component is nil")
+		return nil, errors.New("driver event telemetry component is nil")
 	}
 	if deviceCache == nil {
-		return nil, fmt.Errorf("GPU device cache is nil")
+		return nil, errors.New("GPU device cache is nil")
 	}
 	if cfg.QueueSize <= 0 {
 		return nil, fmt.Errorf("driver event queue size must be positive, got %d", cfg.QueueSize)
