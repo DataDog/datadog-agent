@@ -362,6 +362,10 @@ func TestDriverEventSubscriberStop(t *testing.T) {
 
 	events, err := subscriber.GetAndFlush()
 	require.Equal(t, []model.DriverEvent{queuedEvent}, events)
+	require.NoError(t, err)
+
+	events, err = subscriber.GetAndFlush()
+	require.Empty(t, events)
 	require.ErrorIs(t, err, errDriverEventSubscriberStopped)
 }
 
