@@ -151,9 +151,8 @@ mod tests {
     const MSI_CS: &str = include_str!(
         "../../../../../../tools/windows/DatadogAgentInstaller/CustomActions/ConfigureUserCustomActions.cs"
     );
-    const FLEET_GO: &str = include_str!(
-        "../../../../../../pkg/fleet/installer/packages/user/windows/user.go"
-    );
+    const FLEET_GO: &str =
+        include_str!("../../../../../../pkg/fleet/installer/packages/user/windows/user.go");
 
     #[test]
     fn installer_lsa_key_matches_msi_and_fleet() {
