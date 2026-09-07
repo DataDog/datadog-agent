@@ -99,10 +99,14 @@ func TestGPUBurnerSingleGPUDeviceSelection(t *testing.T) {
 	if count > 1 {
 		indices = append(indices, 1)
 	}
+	expectedUUIDsByIndex := make(map[int][]string, len(indices))
+	for _, index := range indices {
+		expectedUUIDsByIndex[index] = gpuUUIDsForIndices(t, lib, []int{index})
+	}
 	for _, index := range indices {
 		t.Run(fmt.Sprintf("one-gpu-%d", index), func(t *testing.T) {
 			burner := StartGPUBurner(t, strconv.Itoa(index), 1, 100)
-			assertBurnerDevicesActive(t, burner, gpuUUIDsForIndices(t, lib, []int{index}), 100)
+			assertBurnerDevicesActive(t, burner, expectedUUIDsByIndex[index], 100)
 		})
 	}
 }
@@ -123,10 +127,14 @@ func TestGPUBurnerTwoGPUDeviceSelection(t *testing.T) {
 	if count >= 4 {
 		deviceSets = append(deviceSets, []int{2, 3})
 	}
-	for _, devices := range deviceSets {
+	expectedUUIDsBySet := make([][]string, len(deviceSets))
+	for i, devices := range deviceSets {
+		expectedUUIDsBySet[i] = gpuUUIDsForIndices(t, lib, devices)
+	}
+	for i, devices := range deviceSets {
 		t.Run(fmt.Sprintf("two-gpus-%d-%d", devices[0], devices[1]), func(t *testing.T) {
 			burner := StartGPUBurner(t, fmt.Sprintf("%d,%d", devices[0], devices[1]), 2, 100)
-			assertBurnerDevicesActive(t, burner, gpuUUIDsForIndices(t, lib, devices), 100)
+			assertBurnerDevicesActive(t, burner, expectedUUIDsBySet[i], 100)
 		})
 	}
 }

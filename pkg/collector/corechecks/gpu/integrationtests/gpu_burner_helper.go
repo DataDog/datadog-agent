@@ -98,7 +98,10 @@ func StartGPUBurner(t *testing.T, visibleDevices string, workers int, targetSM i
 	)
 	burner.cmd = exec.CommandContext(ctx, command[0], args...)
 	burner.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	burner.cmd.Env = append(os.Environ(), "CUDA_VISIBLE_DEVICES="+visibleDevices)
+	burner.cmd.Env = append(os.Environ(),
+		"CUDA_DEVICE_ORDER=PCI_BUS_ID",
+		"CUDA_VISIBLE_DEVICES="+visibleDevices,
+	)
 	burner.cmd.Stderr = &burner.stderr
 	t.Logf("starting gpu-burner: CUDA_VISIBLE_DEVICES=%q command=%s", visibleDevices, burner.cmd.String())
 	require.NoError(t, burner.cmd.Start(), "start gpu-burner")
