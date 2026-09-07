@@ -62,16 +62,26 @@ func normalizeGNMIPath(path *gnmipb.Path) (string, map[string]string) {
 		return "", nil
 	}
 
-	segments := make([]string, 0, len(path.GetElem()))
+	segments := canonicalizePathSegments(path.GetElem())
 	keys := make(map[string]string)
 	for _, elem := range path.GetElem() {
-		segments = append(segments, elem.GetName())
 		for key, value := range elem.GetKey() {
 			keys[key] = value
 		}
 	}
 
+	if len(segments) == 0 {
+		return "", keys
+	}
 	return "/" + strings.Join(segments, "/"), keys
+}
+
+func canonicalizePathSegments(elems []*gnmipb.PathElem) []string {
+	segments := make([]string, 0, len(elems)+1)
+	for _, elem := range elems {
+		segments = append(segments, expandModuleQualifiedSegment(elem.GetName())...)
+	}
+	return segments
 }
 
 func subscribePathFromMetric(metric config.MetricConfig) (*gnmipb.Path, error) {
