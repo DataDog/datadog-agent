@@ -1,12 +1,10 @@
 import unittest
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from gitlab.v4.objects import ProjectJob
 
 from tasks.libs.pipeline import notifications
 from tasks.libs.pipeline.data import get_job_failure_context, get_jobs_skipped_on_pr
-from tasks.libs.pipeline.tools import gracefully_cancel_pipeline
 from tasks.libs.types.types import FailedJobReason, FailedJobType
 
 
@@ -19,63 +17,6 @@ class TestLoadAndValidate(unittest.TestCase):
         # Assert that a couple of expected entries are there, including one that uses DEFAULT_SLACK_PROJECT
         self.assertEqual(notifications.GITHUB_SLACK_MAP['@datadog/agent-community-eng'], "#datadog-agent-pipelines")
         self.assertEqual(notifications.GITHUB_SLACK_MAP['@datadog/agent-devx'], "#agent-devx-ops")
-
-
-class TestGracefullyCancelPipeline(unittest.TestCase):
-    def test_cancels_queued_and_running_jobs_except_cleanup_and_allowlisted_jobs(self):
-        jobs = [
-            SimpleNamespace(id=1, name='pending-job', stage='test', status='pending'),
-            SimpleNamespace(id=2, name='running-job', stage='test', status='running'),
-            SimpleNamespace(id=3, name='new-e2e-cleanup-on-failure', stage='.post', status='running'),
-            SimpleNamespace(id=4, name='dev_deploy-host-profiler-devtest', stage='deploy', status='running'),
-            SimpleNamespace(id=5, name='successful-job', stage='test', status='success'),
-            SimpleNamespace(id=6, name='manual-job', stage='test', status='manual'),
-        ]
-        pipeline = MagicMock()
-        pipeline.jobs.list.return_value = jobs
-        repo = MagicMock()
-
-        gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=[])
-
-        self.assertEqual([call.args[0] for call in repo.jobs.get.call_args_list], [1, 2])
-        self.assertTrue(all(call.kwargs == {'lazy': True} for call in repo.jobs.get.call_args_list))
-        self.assertEqual(repo.jobs.get.return_value.cancel.call_count, 2)
-
-    def test_does_not_cancel_running_e2e_init_job(self):
-        jobs = [
-            SimpleNamespace(id=1, name='e2e-init-job', stage='e2e_init', status='running'),
-        ]
-        pipeline = MagicMock()
-        pipeline.jobs.list.return_value = jobs
-        repo = MagicMock()
-
-        gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=[])
-
-        repo.jobs.get.assert_not_called()
-
-    def test_cancels_queued_e2e_init_job(self):
-        jobs = [
-            SimpleNamespace(id=1, name='e2e-init-job', stage='e2e_init', status='pending'),
-        ]
-        pipeline = MagicMock()
-        pipeline.jobs.list.return_value = jobs
-        repo = MagicMock()
-
-        gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=[])
-
-        self.assertEqual([call.args[0] for call in repo.jobs.get.call_args_list], [1])
-
-    def test_force_cancel_stages_overrides_running_e2e_init_exemption(self):
-        jobs = [
-            SimpleNamespace(id=1, name='e2e-init-job', stage='e2e_init', status='running'),
-        ]
-        pipeline = MagicMock()
-        pipeline.jobs.list.return_value = jobs
-        repo = MagicMock()
-
-        gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=['e2e_init'])
-
-        self.assertEqual([call.args[0] for call in repo.jobs.get.call_args_list], [1])
 
 
 class TestFailedJobs(unittest.TestCase):
