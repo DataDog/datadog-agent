@@ -350,11 +350,16 @@ func (c *Client) applyUpdate(update *gnmipb.Update, timestamp time.Time) {
 	}
 
 	key := cacheKeyFromGNMIPath(update.GetPath())
-	c.cache.set(key, CacheEntry{
+	entry := CacheEntry{
 		Value:     value,
 		Timestamp: timestamp,
 		Keys:      cloneKeys(key.Keys),
-	})
+	}
+	c.cache.set(key, entry)
+
+	for _, leaf := range flattenJSONLeaves(key.Path, key.Keys, value, timestamp) {
+		c.cache.set(leaf.Key, leaf.Entry)
+	}
 }
 
 func (c *Client) applyDelete(path *gnmipb.Path) {
