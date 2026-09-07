@@ -25,9 +25,7 @@ import (
 
 func TestCreateDriverEvent(t *testing.T) {
 	subscriber, _ := newTestDriverEventSubscriber(t)
-	expectedTimestamp := time.Date(2026, time.September, 4, 12, 0, 0, 0, time.UTC)
-	resolver := &fakeMonotonicTimeResolver{resolvedTime: expectedTimestamp}
-	subscriber.timeResolver = resolver
+	observedAt := time.Date(2026, time.September, 4, 12, 0, 0, 0, time.UTC)
 
 	for _, tc := range []struct {
 		message string
@@ -39,14 +37,13 @@ func TestCreateDriverEvent(t *testing.T) {
 		{"NVRM: Xid (PCI:0000:00:1e): 154, GPU recovery action changed", 154},
 		{"nvrm:  xid ( pci:0000:00:1e.0 ) : 43, channel 0x1", 43},
 	} {
-		record := kernel.KmsgRecord{Timestamp: 1234, Message: tc.message}
+		record := kernel.KmsgRecord{Timestamp: 1234, ObservedAt: observedAt, Message: tc.message}
 
 		event, err := subscriber.createDriverEvent(record)
 
 		require.NoError(t, err, tc.message)
 		require.Equal(t, gputestutil.DefaultGpuUUID, event.DeviceUUID, tc.message)
-		require.Equal(t, expectedTimestamp, event.Timestamp, tc.message)
-		require.Equal(t, uint64(1234)*uint64(time.Microsecond), resolver.lastTimestamp, tc.message)
+		require.Equal(t, observedAt, event.Timestamp, tc.message)
 		require.Equal(t, model.DriverEventTypeNvidiaXid, event.Type, tc.message)
 		require.Equal(t, tc.xidCode, event.NvidiaXid.XidCode, tc.message)
 		require.Equal(t, tc.message, event.NvidiaXid.Message, tc.message)
@@ -382,21 +379,10 @@ func newTestDriverEventSubscriber(t *testing.T) (*DriverEventSubscriber, telemet
 	telemetry.init(telemetryMock)
 
 	return &DriverEventSubscriber{
-		telemetry:    telemetry,
-		timeResolver: &fakeMonotonicTimeResolver{resolvedTime: time.Unix(100, 0)},
-		events:       make(chan model.DriverEvent, 1),
-		deviceCache:  deviceCache,
+		telemetry:   telemetry,
+		events:      make(chan model.DriverEvent, 1),
+		deviceCache: deviceCache,
 	}, telemetryMock
-}
-
-type fakeMonotonicTimeResolver struct {
-	resolvedTime  time.Time
-	lastTimestamp uint64
-}
-
-func (r *fakeMonotonicTimeResolver) ResolveMonotonicTimestamp(timestamp uint64) time.Time {
-	r.lastTimestamp = timestamp
-	return r.resolvedTime
 }
 
 type fakeDriverEventReader struct {
