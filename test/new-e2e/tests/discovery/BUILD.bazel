@@ -12,6 +12,10 @@ dd_agent_go_test(
     ],
     data = [
         "config/helm-values.tmpl",
+        "testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-redis.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-spark.yaml",
         "testdata/config/agent_config.yaml",
         "testdata/config/agent_process_autodiscovery.yaml",
         "testdata/config/agent_process_config.yaml",
@@ -32,6 +36,10 @@ dd_agent_go_test(
     }),
     embedsrcs = [
         "config/helm-values.tmpl",
+        "testdata/compose/docker-compose.configfilesdiscovery-kafka.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-redis.yaml",
+        "testdata/compose/docker-compose.configfilesdiscovery-spark.yaml",
         "testdata/config/agent_config.yaml",
         "testdata/config/agent_process_autodiscovery.yaml",
         "testdata/config/agent_process_config.yaml",
