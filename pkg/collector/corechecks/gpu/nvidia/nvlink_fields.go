@@ -252,10 +252,6 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) 
 			delete(c.metrics, val.FieldId)
 			continue
 		}
-		if val.NvmlReturn != uint32(nvml.SUCCESS) {
-			log.Warnf("nvlink: fields collector skipping metric %s for port %d during discovery: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
-			continue
-		}
 
 		c.addRequest(fieldValueMetric, port)
 		addedRequests++

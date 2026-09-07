@@ -296,7 +296,7 @@ func TestNVLinkFieldsCollectorInactivePortsDoNotRemoveActivePortMetrics(t *testi
 	require.Equal(t, 4, speedMetrics, "active NVLink ports should still emit nvlink.speed")
 }
 
-func TestNVLinkFieldsCollectorSkipsTransientDiscoveryErrorsPerField(t *testing.T) {
+func TestNVLinkFieldsCollectorEnrollsFieldsDespiteTransientDiscoveryErrors(t *testing.T) {
 	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			for i := range fv {
@@ -321,38 +321,12 @@ func TestNVLinkFieldsCollectorSkipsTransientDiscoveryErrorsPerField(t *testing.T
 			priority:     MediumLow,
 			metricType:   metrics.GaugeType,
 		},
-		nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX: {
-			name:                "nvlink.throughput.data.rx",
-			fieldValueID:        nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
-			addTotalMetric:      true,
-			metricType:          metrics.GaugeType,
-			rateCalculationMode: PerSecondRateCalculation,
-		},
 	})
 	require.NoError(t, err)
 
-	collected, err := collector.Collect()
-	require.NoError(t, err)
-
-	speedByPort := make(map[string]int)
-	throughputByPort := make(map[string]int)
-	for _, metric := range requireMetrics(t, collected) {
-		switch metric.Name {
-		case "nvlink.speed":
-			for _, tag := range metric.Tags() {
-				speedByPort[tag]++
-			}
-		case "nvlink.throughput.data.rx":
-			for _, tag := range metric.Tags() {
-				throughputByPort[tag]++
-			}
-		}
-	}
-
-	require.Equal(t, 1, speedByPort["nvlink_port:1"])
-	require.NotContains(t, speedByPort, "nvlink_port:2")
-	require.Equal(t, 1, throughputByPort["nvlink_port:1"])
-	require.Equal(t, 1, throughputByPort["nvlink_port:2"])
+	_, err = collector.Collect()
+	require.Error(t, err)
+	require.ErrorContains(t, err, nvml.ErrorString(nvml.ERROR_UNKNOWN))
 }
 
 func TestNVLinkFieldsCollectorReturnsErrorsForUnsupportedCollectedFields(t *testing.T) {
