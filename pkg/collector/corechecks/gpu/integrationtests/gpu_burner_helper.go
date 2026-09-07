@@ -30,9 +30,12 @@ import (
 const (
 	gpuBurnerBinEnv             = "GPU_BURNER_BIN"
 	gpuBurnerStartupLimit       = 90 * time.Second
+	gpuBurnerStatusTimeout      = 5 * time.Second
 	gpuBurnerRunTime            = 30
 	gpuBurnerCalibrationSeconds = 10
 )
+
+var gpuBurnerHTTPClient = &http.Client{Timeout: gpuBurnerStatusTimeout}
 
 // GPUBurnerMetrics is the live GPU metric snapshot returned by gpu-burner.
 type GPUBurnerMetrics struct {
@@ -161,7 +164,7 @@ func (burner *GPUBurner) Status(ctx context.Context) (GPUBurnerStatus, error) {
 	if err != nil {
 		return GPUBurnerStatus{}, fmt.Errorf("create status request: %w", err)
 	}
-	response, err := http.DefaultClient.Do(request)
+	response, err := gpuBurnerHTTPClient.Do(request)
 	if err != nil {
 		return GPUBurnerStatus{}, fmt.Errorf("fetch gpu-burner status: %w", err)
 	}
