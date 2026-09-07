@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    GPU Monitoring: ``gpu.device.total``, ``gpu.memory.limit``,
+    ``gpu.core.limit``, and ``gpu.memory.bar1.total`` are reported on the cadence
+    set by the new ``gpu.static_metrics_reporting_interval`` setting instead of
+    the GPU check's collection interval. Set it to ``0`` to report them on every
+    check run.
