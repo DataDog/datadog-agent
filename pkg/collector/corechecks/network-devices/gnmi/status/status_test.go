@@ -33,9 +33,11 @@ func TestStatusWithDevices(t *testing.T) {
 	})
 	UpdateDevice("10.0.0.1", 57400, func(device *DeviceState) {
 		device.Started = true
+		device.DeviceName = "router-1"
 		device.StreamState = "connected"
 		device.ReconnectCount = 2
 		device.ReceivedSamples = 42
+		device.MetricsCollected = 17
 		device.CachedPaths = 17
 		device.LastError = "start gNMI client failed: dial failed"
 	})
@@ -50,34 +52,57 @@ func TestStatusWithDevices(t *testing.T) {
 			err := provider.JSON(false, stats)
 			require.NoError(t, err)
 
-			devices, ok := stats["devices"].([]DeviceState)
+			devices, ok := stats["devices"].([]DeviceDisplay)
 			require.True(t, ok)
 			require.Len(t, devices, 1)
 			assert.Equal(t, "10.0.0.1", devices[0].Address)
 			assert.Equal(t, 57400, devices[0].Port)
+			assert.Equal(t, "router-1", devices[0].DeviceName)
 			assert.Equal(t, "connected", devices[0].StreamState)
 			assert.Equal(t, 42, devices[0].ReceivedSamples)
+			assert.Equal(t, 17, devices[0].MetricsCollected)
+			assert.Equal(t, statusLevelOK, devices[0].StatusLevel)
 		}},
-		{"Text", func(t *testing.T) {
+		{"Text summary", func(t *testing.T) {
 			b := new(bytes.Buffer)
 			err := provider.Text(false, b)
 			require.NoError(t, err)
 
 			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
-			assert.Contains(t, output, "10.0.0.1:57400 (profile: interface-stats)")
-			assert.Contains(t, output, "Stream state: connected")
-			assert.Contains(t, output, "Received samples: 42")
+			assert.Contains(t, output, "router-1")
+			assert.Contains(t, output, "10.0.0.1:57400")
+			assert.Contains(t, output, "state=connected")
+			assert.Contains(t, output, "metrics=17")
+			assert.NotContains(t, output, "Subscription paths:")
+		}},
+		{"Text verbose", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := provider.Text(true, b)
+			require.NoError(t, err)
+
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 			assert.Contains(t, output, "/openconfig/system/state/hostname")
 		}},
-		{"HTML", func(t *testing.T) {
+		{"HTML summary", func(t *testing.T) {
 			b := new(bytes.Buffer)
 			err := provider.HTML(false, b)
 			require.NoError(t, err)
 
 			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 			assert.Contains(t, output, "<span class=\"stat_title\">gNMI Devices</span>")
+			assert.Contains(t, output, "router-1")
 			assert.Contains(t, output, "10.0.0.1:57400")
-			assert.Contains(t, output, "Stream state: connected</br>")
+			assert.NotContains(t, output, "gnmi_devices_table")
+		}},
+		{"HTML verbose", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := provider.HTML(true, b)
+			require.NoError(t, err)
+
+			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
+			assert.Contains(t, output, "gnmi_devices_table")
+			assert.Contains(t, output, "gnmi-device-filter")
+			assert.Contains(t, output, "router-1")
 		}},
 	}
 
@@ -96,7 +121,7 @@ func TestStatusWithoutDevices(t *testing.T) {
 	stats := make(map[string]interface{})
 	require.NoError(t, provider.JSON(false, stats))
 
-	devices, ok := stats["devices"].([]DeviceState)
+	devices, ok := stats["devices"].([]DeviceDisplay)
 	require.True(t, ok)
 	assert.Empty(t, devices)
 
@@ -126,10 +151,13 @@ func TestStatusWithReconnectingDevice(t *testing.T) {
 	require.NoError(t, provider.Text(false, b))
 
 	output := strings.ReplaceAll(b.String(), "\r\n", "\n")
-	assert.Contains(t, output, "Stream state: reconnecting")
-	assert.Contains(t, output, "Connection details:")
-	assert.Contains(t, output, "Ever connected: true")
+	assert.Contains(t, output, "state=reconnecting")
 	assert.Contains(t, output, "receive subscribe response")
+
+	b = new(bytes.Buffer)
+	require.NoError(t, provider.Text(true, b))
+	output = strings.ReplaceAll(b.String(), "\r\n", "\n")
+	assert.Contains(t, output, "Connection details:")
 	assert.Contains(t, output, "Next reconnect:")
 }
 
@@ -140,4 +168,20 @@ func TestUnregisterDevice(t *testing.T) {
 	UnregisterDevice("10.0.0.2", 57400)
 
 	assert.Empty(t, listDevices())
+}
+
+func TestDeviceStatusLevel(t *testing.T) {
+	level, label := deviceStatusLevel(DeviceState{StreamState: "connected"})
+	assert.Equal(t, statusLevelOK, level)
+	assert.Equal(t, "Connected", label)
+
+	level, label = deviceStatusLevel(DeviceState{StreamState: "reconnecting"})
+	assert.Equal(t, statusLevelWarning, level)
+	assert.Equal(t, "Reconnecting", label)
+
+	level, _ = deviceStatusLevel(DeviceState{
+		StreamState: "reconnecting",
+		LastError:   "boom",
+	})
+	assert.Equal(t, statusLevelError, level)
 }

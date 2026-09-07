@@ -135,8 +135,6 @@ func (c *Check) Run() error {
 		return errors.New("gNMI check is not configured")
 	}
 
-	c.updateStatusFromClient(gnmiClient, checkConfig)
-
 	now := time.Now()
 	snapshot := gnmiClient.Snapshot()
 	stalenessThreshold := report.DefaultStalenessThreshold(c.interval)
@@ -161,6 +159,8 @@ func (c *Check) Run() error {
 	readyForMetadata := gnmiClient.StreamState() == client.StreamStateConnected &&
 		gnmiClient.Synchronized() &&
 		report.InterfaceSnapshotComplete(snapshot, checkConfig.Profile.Metadata)
+
+	c.updateStatusFromClient(gnmiClient, checkConfig, snapshot)
 
 	if readyForMetadata {
 		if err := report.ReportInterfaceStatus(s, checkConfig, snapshot); err != nil {
@@ -255,7 +255,7 @@ func (c *Check) ensureClientStarted() error {
 	return nil
 }
 
-func (c *Check) updateStatusFromClient(gnmiClient *client.Client, checkConfig *config.CheckConfig) {
+func (c *Check) updateStatusFromClient(gnmiClient *client.Client, checkConfig *config.CheckConfig, snapshot []client.CachedValue) {
 	streamState := gnmiClient.StreamState()
 	connStatus := gnmiClient.ConnectionStatus()
 
@@ -265,7 +265,9 @@ func (c *Check) updateStatusFromClient(gnmiClient *client.Client, checkConfig *c
 		device.Transport = string(gnmiClient.TransportMode())
 		device.ReconnectCount = gnmiClient.ReconnectAttempts()
 		device.ReceivedSamples = gnmiClient.ReceivedSamples()
-		device.CachedPaths = len(gnmiClient.Snapshot())
+		device.CachedPaths = len(snapshot)
+		device.MetricsCollected = countProfileMetricValues(checkConfig.Profile, snapshot)
+		device.DeviceName = deviceHostname(snapshot, checkConfig.Profile.Metadata)
 		device.EverConnected = connStatus.EverConnected
 		device.LastConnectedAt = timeToUnixNano(connStatus.LastConnectedAt)
 
@@ -312,4 +314,41 @@ func formatSubscriptionPaths(specs []client.SubscriptionSpec) []string {
 		paths = append(paths, spec.String())
 	}
 	return paths
+}
+
+func deviceHostname(snapshot []client.CachedValue, metadata config.MetadataConfig) string {
+	hostnamePath := metadata.Resolved().Device.Hostname
+	for _, item := range snapshot {
+		if item.Key.Path != hostnamePath {
+			continue
+		}
+		if value, ok := item.Entry.Value.(string); ok && value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func countProfileMetricValues(profile config.ProfileDefinition, snapshot []client.CachedValue) int {
+	if len(profile.Metrics) == 0 || len(snapshot) == 0 {
+		return 0
+	}
+
+	byPath := make(map[string]int, len(snapshot))
+	for _, item := range snapshot {
+		byPath[item.Key.Path]++
+	}
+
+	total := 0
+	for _, metric := range profile.Metrics {
+		path := metric.Path
+		if path == "" {
+			continue
+		}
+		if path[0] != '/' {
+			path = "/" + path
+		}
+		total += byPath[path]
+	}
+	return total
 }
