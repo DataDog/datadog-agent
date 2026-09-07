@@ -41,7 +41,7 @@
     - eval $(ssh-agent -s)
     - ssh-add ~/.ssh/aix_ci_key
     # Add the port to the config so script steps don't need -p.
-    - echo "Host $AIX_HOST\n  Port $AIX_PORT" >> ~/.ssh/config
+    - echo -e "Host $AIX_HOST\n  Port $AIX_PORT" >> ~/.ssh/config
     - chmod 644 ~/.ssh/config
 
     # Helpers for connecting to the AIX host.
