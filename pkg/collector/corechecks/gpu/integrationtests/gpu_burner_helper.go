@@ -56,6 +56,7 @@ type GPUBurner struct {
 	statusURL string
 	cmd       *exec.Cmd
 	stderr    bytes.Buffer
+	done      chan error
 }
 
 func requireGPUBurner(t *testing.T) string {
@@ -81,9 +82,10 @@ func StartGPUBurner(t *testing.T, visibleDevices string, workers int, targetSM i
 	command := strings.Fields(requireGPUBurner(t))
 	require.NotEmpty(t, command)
 	port := reserveLoopbackPort(t)
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	burner := &GPUBurner{
 		statusURL: "http://127.0.0.1:" + strconv.Itoa(port) + "/status",
+		done:      make(chan error, 1),
 	}
 	args := append(command[1:],
 		"--api-host", "127.0.0.1",
@@ -105,18 +107,27 @@ func StartGPUBurner(t *testing.T, visibleDevices string, workers int, targetSM i
 	burner.cmd.Stderr = &burner.stderr
 	t.Logf("starting gpu-burner: CUDA_VISIBLE_DEVICES=%q command=%s", visibleDevices, burner.cmd.String())
 	require.NoError(t, burner.cmd.Start(), "start gpu-burner")
+	go func() {
+		burner.done <- burner.cmd.Wait()
+	}()
 
 	t.Cleanup(func() {
+		select {
+		case err := <-burner.done:
+			if err != nil {
+				t.Errorf("gpu-burner exited unexpectedly: %v\nstderr:\n%s", err, burner.stderr.String())
+			}
+			return
+		default:
+		}
+
 		cancel()
 		if burner.cmd.Process != nil {
 			if err := syscall.Kill(-burner.cmd.Process.Pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
 				t.Errorf("stop gpu-burner process group: %v", err)
 			}
 		}
-		err := burner.cmd.Wait()
-		if err != nil && ctx.Err() == nil {
-			t.Errorf("gpu-burner exited unexpectedly: %v\nstderr:\n%s", err, burner.stderr.String())
-		}
+		<-burner.done
 	})
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
