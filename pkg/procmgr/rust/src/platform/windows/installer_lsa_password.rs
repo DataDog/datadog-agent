@@ -4,6 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use std::ptr;
+use std::sync::atomic::{Ordering, compiler_fence};
 
 use anyhow::{Result, bail};
 use windows_sys::Win32::Security::Authentication::Identity::{
@@ -22,67 +23,109 @@ const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 /// Requires `POLICY_GET_PRIVATE_INFORMATION` (LocalSystem / administrators). Not
 /// available to ddagentuser; callers on the supervisor-inherit path must not use this.
 pub(crate) fn read_installer_agent_password() -> Result<Option<String>> {
-    read_lsa_private_data(INSTALLER_AGENT_PASSWORD_LSA_KEY)
-}
+    let mut key_w = super::wide::null_terminated(INSTALLER_AGENT_PASSWORD_LSA_KEY);
+    let key_name = lsa_unicode_string(&mut key_w);
 
-fn read_lsa_private_data(key: &str) -> Result<Option<String>> {
-    let mut key_w = super::wide::null_terminated(key);
-    let key_len = key_w.len().saturating_sub(1);
-    let key_name = LSA_UNICODE_STRING {
-        Length: (key_len * 2) as u16,
-        MaximumLength: (key_w.len() * 2) as u16,
-        Buffer: key_w.as_mut_ptr(),
-    };
-
-    unsafe {
-        let object_attributes: LSA_OBJECT_ATTRIBUTES = std::mem::zeroed();
-        let mut policy_handle: LSA_HANDLE = 0;
-
-        let status = LsaOpenPolicy(
+    let mut object_attributes: LSA_OBJECT_ATTRIBUTES = unsafe { std::mem::zeroed() };
+    let mut policy_handle: LSA_HANDLE = 0;
+    let status = unsafe {
+        LsaOpenPolicy(
             ptr::null(),
-            &object_attributes,
+            &mut object_attributes,
             POLICY_GET_PRIVATE_INFORMATION as u32,
             &mut policy_handle,
+        )
+    };
+    if status != 0 {
+        bail!("LsaOpenPolicy: NTSTATUS {status:#010x}");
+    }
+    let policy = PolicyHandle {
+        handle: policy_handle,
+    };
+
+    let mut secret = ptr::null_mut();
+    let status = unsafe { LsaRetrievePrivateData(policy.handle, &key_name, &mut secret) };
+    if status == STATUS_OBJECT_NAME_NOT_FOUND {
+        return Ok(None);
+    }
+    if status != 0 {
+        bail!(
+            "LsaRetrievePrivateData({INSTALLER_AGENT_PASSWORD_LSA_KEY}): NTSTATUS {status:#010x}"
         );
-        if status != 0 {
-            bail!("LsaOpenPolicy: NTSTATUS {status:#010x}");
-        }
+    }
 
-        let policy = PolicyHandle(policy_handle);
-        let mut secret: *mut LSA_UNICODE_STRING = ptr::null_mut();
-        let status = LsaRetrievePrivateData(policy.0, &key_name, &mut secret);
+    Ok(LsaSecret { data: secret }.into_password())
+}
 
-        if status == STATUS_OBJECT_NAME_NOT_FOUND {
-            return Ok(None);
-        }
-        if status != 0 {
-            bail!("LsaRetrievePrivateData({key}): NTSTATUS {status:#010x}");
-        }
-        if secret.is_null() {
-            return Ok(None);
-        }
-
-        let secret_ref = &*secret;
-        let char_count = secret_ref.Length as usize / 2;
-        let password = if char_count == 0 {
-            String::new()
-        } else {
-            let slice = std::slice::from_raw_parts(secret_ref.Buffer, char_count);
-            String::from_utf16_lossy(slice)
-        };
-
-        LsaFreeMemory(secret as _);
-        Ok(Some(password))
+/// `Length` / `MaximumLength` are byte counts, not UTF-16 units.
+fn lsa_unicode_string(wide: &mut [u16]) -> LSA_UNICODE_STRING {
+    let char_count = wide.len().saturating_sub(1);
+    LSA_UNICODE_STRING {
+        Length: (char_count * 2) as u16,
+        MaximumLength: (wide.len() * 2) as u16,
+        Buffer: wide.as_mut_ptr(),
     }
 }
 
-struct PolicyHandle(LSA_HANDLE);
+/// LSA-owned private data. Drop zeros the password bytes, then `LsaFreeMemory`.
+///
+/// Matches fleet `retrieve_private_data` cleanup in
+/// `pkg/fleet/installer/packages/user/windows/lsa.c`.
+struct LsaSecret {
+    data: *mut LSA_UNICODE_STRING,
+}
+
+impl LsaSecret {
+    fn into_password(self) -> Option<String> {
+        if self.data.is_null() {
+            return None;
+        }
+        unsafe {
+            let secret = &*self.data;
+            if secret.Buffer.is_null() || secret.Length == 0 {
+                return None;
+            }
+            let char_count = secret.Length as usize / 2;
+            let slice = std::slice::from_raw_parts(secret.Buffer, char_count);
+            Some(String::from_utf16_lossy(slice))
+        }
+    }
+}
+
+impl Drop for LsaSecret {
+    fn drop(&mut self) {
+        if self.data.is_null() {
+            return;
+        }
+        unsafe {
+            let secret = &*self.data;
+            if !secret.Buffer.is_null() && secret.Length > 0 {
+                secure_zero(secret.Buffer.cast(), secret.Length as usize);
+            }
+            LsaFreeMemory(self.data.cast());
+            self.data = ptr::null_mut();
+        }
+    }
+}
+
+fn secure_zero(ptr: *mut u8, len: usize) {
+    for i in 0..len {
+        unsafe {
+            ptr::write_volatile(ptr.add(i), 0);
+        }
+    }
+    compiler_fence(Ordering::SeqCst);
+}
+
+struct PolicyHandle {
+    handle: LSA_HANDLE,
+}
 
 impl Drop for PolicyHandle {
     fn drop(&mut self) {
-        if self.0 != 0 {
+        if self.handle != 0 {
             unsafe {
-                LsaClose(self.0);
+                LsaClose(self.handle);
             }
         }
     }
