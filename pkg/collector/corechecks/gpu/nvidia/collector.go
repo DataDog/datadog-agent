@@ -37,15 +37,15 @@ const (
 	sampling  CollectorName = "sampling"  // Consolidates process, samples
 
 	// Specialized collectors (kept separate)
-	field        CollectorName = "fields"
-	gpm          CollectorName = "gpm"
-	ebpf         CollectorName = "ebpf"
-	deviceEvents CollectorName = "device_events"
-	nvlinkPLR    CollectorName = "nvlink_plr"
-	nvlinkFEC    CollectorName = "nvlink_fec"
+	field           CollectorName = "fields"
+	gpm             CollectorName = "gpm"
+	ebpf            CollectorName = "ebpf"
+	deviceEvents    CollectorName = "device_events"
+	nvlinkPLR       CollectorName = "nvlink_plr"
+	nvlinkFEC       CollectorName = "nvlink_fec"
 	nvlinkFields    CollectorName = "nvlink_fields"
 	nvlinkStateless CollectorName = "nvlink_stateless"
-	nvlinkGPM      CollectorName = "nvlink_gpm"
+	nvlinkGPM       CollectorName = "nvlink_gpm"
 )
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
@@ -59,14 +59,14 @@ var factory = map[CollectorName]subsystemBuilder{
 	sampling:  newSamplingCollector,  // Consolidates process, samples
 
 	// Specialized collectors that remain unchanged (complex or unique logic)
-	field:        newFieldsCollector,
-	nvlinkPLR:    newNVLinkPLRCollector,
-	nvlinkFEC:    newNVLinkFECCollector,
-	nvlinkFields:   newNVLinkFieldsCollector,
+	field:           newFieldsCollector,
+	nvlinkPLR:       newNVLinkPLRCollector,
+	nvlinkFEC:       newNVLinkFECCollector,
+	nvlinkFields:    newNVLinkFieldsCollector,
 	nvlinkStateless: newNVLinkStatelessCollector,
-	nvlinkGPM:      newNVLinkGPMCollector,
-	gpm:          newGPMCollector,
-	deviceEvents: newDeviceEventsCollector,
+	nvlinkGPM:       newNVLinkGPMCollector,
+	gpm:             newGPMCollector,
+	deviceEvents:    newDeviceEventsCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
