@@ -125,6 +125,9 @@ func newNVLinkFieldsCollectorWithMetrics(device ddnvml.Device, metrics map[uint3
 		}
 		return nil, fmt.Errorf("%w: no supported NVLink field metrics found", errUnsupportedDevice)
 	}
+	if err != nil {
+		return nil, fmt.Errorf("get supported NVLink ports: %w", err)
+	}
 
 	return c, nil
 }
@@ -233,7 +236,7 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) 
 	}
 
 	var errs []error
-	addedRequests := 0
+	var pendingMetrics []nvlinkFieldValueMetric
 	for _, val := range fields {
 		fieldValueMetric, ok := c.metrics[val.FieldId]
 		if !ok {
@@ -257,16 +260,22 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) 
 			continue
 		}
 
-		c.addRequest(fieldValueMetric, port)
-		addedRequests++
+		pendingMetrics = append(pendingMetrics, fieldValueMetric)
 	}
 
-	if addedRequests == 0 {
+	if len(pendingMetrics) == 0 {
 		// All metrics were removed, so we return an error to indicate that the device is unsupported.
 		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
 	}
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
 
-	return nil, errors.Join(errs...)
+	for _, metric := range pendingMetrics {
+		c.addRequest(metric, port)
+	}
+
+	return nil, nil
 }
 
 // addRequest adds a request for a metric to the collector. If the request already exists, it adds the port to the existing request.

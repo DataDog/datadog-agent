@@ -296,6 +296,44 @@ func TestNVLinkFieldsCollectorInactivePortsDoNotRemoveActivePortMetrics(t *testi
 	require.Equal(t, 4, speedMetrics, "active NVLink ports should still emit nvlink.speed")
 }
 
+func TestNVLinkFieldsCollectorReturnsDiscoveryErrorsWhenSomeRequestsSucceed(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
+			for i := range fv {
+				if fv[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
+					testutil.ApplyMockFieldValue(&fv[i], testutil.NewFieldValue(2))
+					continue
+				}
+				if fv[i].ScopeId == 1 && fv[i].FieldId == nvml.FI_DEV_NVLINK_GET_SPEED {
+					fv[i].NvmlReturn = uint32(nvml.ERROR_UNKNOWN)
+					continue
+				}
+				testutil.ApplyMockFieldValue(&fv[i], testutil.DefaultFieldValues[fv[i].FieldId])
+			}
+			return nvml.SUCCESS
+		}
+	}), testutil.WithNVLinkLinkCount(2))
+
+	_, err := newNVLinkFieldsCollectorWithMetrics(device, map[uint32]nvlinkFieldValueMetric{
+		nvml.FI_DEV_NVLINK_GET_SPEED: {
+			name:         "nvlink.speed",
+			fieldValueID: nvml.FI_DEV_NVLINK_GET_SPEED,
+			priority:     MediumLow,
+			metricType:   metrics.GaugeType,
+		},
+		nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX: {
+			name:                "nvlink.throughput.data.rx",
+			fieldValueID:        nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
+			addTotalMetric:      true,
+			metricType:          metrics.GaugeType,
+			rateCalculationMode: PerSecondRateCalculation,
+		},
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "get supported NVLink ports")
+	require.ErrorContains(t, err, nvml.ErrorString(nvml.ERROR_UNKNOWN))
+}
+
 func TestNVLinkFieldsCollectorReturnsErrorsForUnsupportedCollectedFields(t *testing.T) {
 	collecting := false
 	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
