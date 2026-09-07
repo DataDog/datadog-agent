@@ -43,12 +43,20 @@ def build(
     """
     Build cws-instrumentation
 
-    enable_bazel: build via `bazel build //cmd/cws-instrumentation:cws-instrumentation` instead of
-    `go build`, then copy the result to the same place. Developer opt-in only; defaults to off.
+    enable_bazel: build via bazel instead of `go build`, then copy the result to the same place.
+    Builds the `cws-instrumentation-injector-only` target when combined with --injector-only.
+    Developer opt-in only; defaults to off. Not compatible with --arch-suffix.
     """
     if enable_bazel:
+        if arch_suffix:
+            raise NotImplementedError("--enable-bazel does not support --arch-suffix.")
+        target = (
+            "//cmd/cws-instrumentation:cws-instrumentation-injector-only"
+            if injector_only
+            else "//cmd/cws-instrumentation:cws-instrumentation"
+        )
         bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
-        build_binary_with_bazel("//cmd/cws-instrumentation:cws-instrumentation", args=bazel_args, bin_path=BIN_PATH)
+        build_binary_with_bazel(target, args=bazel_args, bin_path=BIN_PATH)
         return
 
     if build_tags is None:
