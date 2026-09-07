@@ -7,107 +7,47 @@ package provisioner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"reflect"
-	"strings"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 )
 
-const (
-	staticStackProvisionerDefaultID = "static-stack"
-)
+const staticStackProvisionerDefaultID = "static-stack"
 
-// StaticStackProvisioner is a provisioner that reads a single JSON file and
-// populates a typed environment directly.
+// StaticStackProvisioner reads a snapshot and binds its resources to a typed
+// environment without running Pulumi. Destroy is a no-op: the caller owns the
+// existing infrastructure.
 //
-// # JSON file format
+// # Snapshot format
 //
-// The file must be a JSON object whose top-level keys are resource names.  Each
-// value is the raw JSON payload for that resource.  Keys prefixed with "_" are
-// treated as metadata and are ignored.
+// Top-level keys name resources; keys starting with "_" are metadata. The
+// optional _bindings object maps component keys to exported resource names:
 //
 //	{
-//	  "_source": "pulumi-stack-my-stack",
-//	  "kubernetesCluster": { "clusterName": "my-cluster", "kubeConfig": "…" },
-//	  "fakeIntake":        { "host": "localhost", "port": 8080 },
-//	  "agent":             { "version": "7.x" }
+//	  "_bindings": {"remoteHost": "dd-Host-aws-vm"},
+//	  "dd-Host-aws-vm": {"address": "example", "port": 22, "username": "ubuntu"}
 //	}
 //
-// # Field naming and key resolution
+// WriteSnapshotFileForEnv captures bindings from a provisioned environment.
+// Without bindings, existing canonical snapshots are still supported: a field
+// named RemoteHost looks up "remoteHost", or the field's explicit `import` tag.
+// Unknown resource names are never guessed by inspecting their contents.
 //
-// For each exported pointer field in *Env that implements [outputs.Importable],
-// the provisioner derives a resource key using the following priority order:
+// # Component fields
 //
-//  1. The value of the `import` struct tag, when present.
-//  2. The field name with its first letter lowercased (lowerCamelCase).
+// Exported pointer fields implementing outputs.Importable are bound, including
+// visible fields in value-embedded structs. Missing optional components are set
+// to nil. A binding to a missing resource is an error; a non-empty snapshot with
+// no matching component fields is also an error rather than a silently empty
+// environment. Callers must still check the components required by their
+// operation (for example RemoteHost for a host installation).
 //
-// The derived key is then looked up in the JSON object:
-//   - Match found: [outputs.Importable.SetKey] is called so that
-//     [environments.BuildEnvFromResources] can unmarshal the payload into the field.
-//   - No match: the field is set to nil and silently skipped.
-//
-// # Naming convention
-//
-// For the provisioner to wire a field automatically, the corresponding JSON key
-// must equal the lowerCamelCase form of the Go field name — unless the field
-// carries an explicit `import` tag that overrides it.
-//
-// Given this environment struct:
-//
-//	type MyEnv struct {
-//	    KubernetesCluster *components.KubernetesCluster `import:"kubernetesCluster"` // explicit tag
-//	    FakeIntake        *components.FakeIntake                                      // → key "fakeIntake"
-//	    Agent             *components.KubernetesAgent                                 // → key "agent"
-//	}
-//
-// The expected JSON keys are "kubernetesCluster", "fakeIntake", and "agent".
-// A field whose JSON key is absent from the file is set to nil (not an error);
-// a JSON key that has no matching field is silently ignored.
-//
-// Use the `import` tag when the field name and the JSON key diverge — for
-// example when a legacy snapshot uses a different naming convention, or when
-// two fields of the same type would otherwise produce duplicate keys.
-//
-// # Embedded structs and nesting
-//
-// The provisioner inspects only the direct fields of *Env — it does not recurse
-// into embedded structs.
-//
-// Value-embedded structs (e.g. CoverageBase in environments.Host) are silently
-// skipped because they have kind Struct, not Ptr.  This is harmless as long as
-// those helpers carry no [outputs.Importable] fields themselves.
-//
-//	// OK — CoverageBase is a value embed with no Importable fields.
-//	// wireEnv skips it and still finds RemoteHost, FakeIntake, Agent, Updater.
-//	type Host struct {
-//	    CoverageBase                      // skipped (Struct, not Ptr)
-//	    RemoteHost *components.RemoteHost // → key "remoteHost"
-//	    FakeIntake *components.FakeIntake // → key "fakeIntake"
-//	    Agent      *components.RemoteHostAgent  // → key "agent"
-//	    Updater    *components.RemoteHostUpdater // → key "updater"
-//	}
-//
-// Embedding another environment struct by value does NOT work: its component
-// pointer fields are invisible to wireEnv because Go reflection reports only
-// the direct (non-promoted) fields at the outermost level.
-//
-//	// NOT OK — RemoteHost, FakeIntake, Agent, Updater inside Host are never seen.
-//	type ExtendedHost struct {
-//	    Host                            // skipped (Struct, not Ptr); its fields are invisible
-//	    ExtraComp *components.FakeIntake // → key "extraComp" (only this is wired)
-//	}
-//
-// If you need to extend an existing environment, declare all component pointer
-// fields directly on the outer struct and use `import` tags where the JSON keys
-// must match a specific name.
-//
-// This design means no `import` struct tags need to be added to built-in
-// environment types such as [environments.Kubernetes], and no Pulumi provisioner
-// code needs to change.
+// An explicit import tag takes precedence, matching BuildEnvFromResources. Its
+// binding, if present, must refer to the tagged key itself. A nil embedded parent
+// returns an error instead of panicking during reflection.
 type StaticStackProvisioner[Env any] struct {
 	id       string
 	filePath string
@@ -115,115 +55,78 @@ type StaticStackProvisioner[Env any] struct {
 
 var _ TypedProvisioner[any] = &StaticStackProvisioner[any]{}
 
-// NewStaticStackProvisioner returns a new StaticStackProvisioner.
+// NewStaticStackProvisioner returns a provisioner for a single snapshot file.
 // Pass an empty id to use the default ("static-stack").
-// filePath must be the path to a single JSON descriptor file.
 func NewStaticStackProvisioner[Env any](id string, filePath string) *StaticStackProvisioner[Env] {
 	if id == "" {
 		id = staticStackProvisionerDefaultID
 	}
-	return &StaticStackProvisioner[Env]{
-		id:       id,
-		filePath: filePath,
-	}
+	return &StaticStackProvisioner[Env]{id: id, filePath: filePath}
 }
 
 // ID returns the provisioner's identifier.
-func (fp *StaticStackProvisioner[Env]) ID() string {
-	return fp.id
-}
+func (fp *StaticStackProvisioner[Env]) ID() string { return fp.id }
 
-// ProvisionEnv reads the JSON file, expands its top-level keys into [RawResources],
-// and wires the matching fields in *env.
-func (fp *StaticStackProvisioner[Env]) ProvisionEnv(_ context.Context, _ string, _ io.Writer, env *Env) (RawResources, error) {
-	resources, err := fp.readResources()
+// ProvisionEnv reads the snapshot and wires its matching component fields.
+func (fp *StaticStackProvisioner[Env]) ProvisionEnv(_ context.Context, _ string, logger io.Writer, env *Env) (RawResources, error) {
+	if logger != nil {
+		fmt.Fprintf(logger, "Reading snapshot: %s\n", fp.filePath)
+	}
+	resources, meta, err := ReadSnapshotFile(fp.filePath)
 	if err != nil {
 		return nil, err
 	}
-
-	if err := fp.wireEnv(env, resources); err != nil {
-		return nil, err
+	bindings, err := decodeSnapshotBindings(resources, meta)
+	if err != nil {
+		return nil, fmt.Errorf("snapshot %s: %w", fp.filePath, err)
 	}
-
+	if err := fp.wireEnv(env, resources, bindings); err != nil {
+		return nil, fmt.Errorf("snapshot %s: %w", fp.filePath, err)
+	}
 	return resources, nil
 }
 
-// Destroy is a no-op for the StaticStackProvisioner.
+// Destroy does not delete infrastructure when attaching to an existing snapshot.
 func (fp *StaticStackProvisioner[Env]) Destroy(context.Context, string, io.Writer) error {
 	return nil
 }
 
-// readResources reads the single JSON file and expands its top-level keys into
-// separate RawResources entries.  Keys prefixed with "_" are ignored.
-func (fp *StaticStackProvisioner[Env]) readResources() (RawResources, error) {
-	fmt.Printf("Reading file: %s\n", fp.filePath)
-	data, err := os.ReadFile(fp.filePath)
+func (fp *StaticStackProvisioner[Env]) wireEnv(env *Env, resources RawResources, bindings map[string]string) error {
+	value, fields, err := snapshotFields(env)
 	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", fp.filePath, err)
+		return err
 	}
-
-	var topLevel map[string]json.RawMessage
-	if err := json.Unmarshal(data, &topLevel); err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", fp.filePath, err)
-	}
-
-	resources := make(RawResources, len(topLevel))
-	for key, value := range topLevel {
-		if strings.HasPrefix(key, "_") {
-			continue // skip metadata fields (e.g. _source)
+	matched := 0
+	for _, field := range fields {
+		component, err := value.FieldByIndexErr(field.Index)
+		if err != nil {
+			return fmt.Errorf("accessing component %s: %w", field.Name, err)
 		}
-		resources[key] = []byte(value)
-	}
-	return resources, nil
-}
-
-// wireEnv iterates over the exported fields of *Env.  For each field that
-// implements [outputs.Importable] it resolves a resource key (see the
-// [StaticStackProvisioner] type-level doc for the full naming rules) and then:
-//   - match found: calls SetKey so that BuildEnvFromResources can locate and
-//     unmarshal the payload.
-//   - no match: sets the field to nil so that BuildEnvFromResources skips it
-//     without error.
-func (fp *StaticStackProvisioner[Env]) wireEnv(env *Env, resources RawResources) error {
-	importableType := reflect.TypeOf((*outputs.Importable)(nil)).Elem()
-
-	envValue := reflect.ValueOf(env).Elem()
-	envType := envValue.Type()
-
-	for i := range envType.NumField() {
-		field := envType.Field(i)
-		if !field.IsExported() {
-			continue
-		}
-
-		fieldValue := envValue.Field(i)
-
-		// Only handle pointer-to-struct fields (all component types are pointers).
-		if fieldValue.Kind() != reflect.Ptr {
-			continue
-		}
-
-		if !field.Type.Implements(importableType) {
-			continue
-		}
-
-		// Derive the canonical resource key: prefer the `import` tag, fall back
-		// to the field name with its first letter lowercased.
-		key := field.Tag.Get("import")
-		if key == "" {
-			name := field.Name
-			key = strings.ToLower(name[:1]) + name[1:]
-		}
-
-		if _, found := resources[key]; found {
-			if fieldValue.IsNil() {
-				fieldValue.Set(reflect.New(field.Type.Elem()))
+		canonical := snapshotFieldKey(field)
+		key := canonical
+		if bound, ok := bindings[canonical]; ok {
+			if tag := field.Tag.Get("import"); tag != "" && bound != tag {
+				return fmt.Errorf("binding for %s conflicts with its import tag %q", field.Name, tag)
 			}
-			fieldValue.Interface().(outputs.Importable).SetKey(key)
-		} else {
-			// Mark the component as not provisioned so BuildEnvFromResources skips it.
-			fieldValue.Set(reflect.Zero(field.Type))
+			key = bound
 		}
+		if _, ok := resources[key]; ok {
+			if component.IsNil() {
+				component.Set(reflect.New(field.Type.Elem()))
+			}
+			component.Interface().(outputs.Importable).SetKey(key)
+			matched++
+		} else {
+			component.Set(reflect.Zero(field.Type))
+		}
+	}
+	if len(resources) > 0 && len(fields) > 0 && matched == 0 {
+		keys := make([]string, 0, len(resources))
+		for key := range resources {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		return fmt.Errorf("no resources match %T (available keys: %v); re-export with WriteSnapshotFileForEnv or add explicit %s mappings for this legacy snapshot", env, keys, SnapshotBindingsKey)
 	}
 	return nil
 }

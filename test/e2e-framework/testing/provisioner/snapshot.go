@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -32,9 +33,11 @@ import (
 // instead of resources.
 const SnapshotMetadataPrefix = "_"
 
-// WriteSnapshotFile writes resources and metadata to path as a snapshot file.
-// meta keys are stored as-is; keys not starting with "_" are rejected to keep
-// the resource namespace clean.
+// WriteSnapshotFile atomically writes a private snapshot (0600), including when
+// replacing a previously permissive file. Snapshots may contain credentials.
+// Metadata keys without the "_" prefix are prefixed automatically.
+// For a typed provisioner's outputs, use WriteSnapshotFileForEnv to also retain
+// the bindings between component fields and exported resource keys.
 func WriteSnapshotFile(path string, resources RawResources, meta map[string]any) error {
 	out := make(map[string]json.RawMessage, len(resources)+len(meta))
 	for k, v := range resources {
@@ -61,7 +64,23 @@ func WriteSnapshotFile(path string, resources RawResources, meta map[string]any)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	f, err := os.CreateTemp(filepath.Dir(path), ".snapshot-*.json")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), path)
 }
 
 // ReadSnapshotFile reads a snapshot file into its raw resources and metadata.
@@ -86,12 +105,19 @@ func ReadSnapshotFile(path string) (resources RawResources, meta map[string]json
 	return resources, meta, nil
 }
 
-// ReadSnapshotResource decodes the resource stored under key in the snapshot at
-// path into target.
+// ReadSnapshotResource decodes a component into target, resolving its _bindings
+// entry when present. Legacy canonical keys and raw resource keys also work.
 func ReadSnapshotResource(path, key string, target any) error {
-	resources, _, err := ReadSnapshotFile(path)
+	resources, meta, err := ReadSnapshotFile(path)
 	if err != nil {
 		return err
+	}
+	bindings, err := decodeSnapshotBindings(resources, meta)
+	if err != nil {
+		return fmt.Errorf("snapshot %s: %w", path, err)
+	}
+	if bound, ok := bindings[key]; ok {
+		key = bound
 	}
 	raw, ok := resources[key]
 	if !ok {

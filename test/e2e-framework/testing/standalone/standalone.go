@@ -86,7 +86,8 @@ func Provision[Env any](ctx common.Context, stackName string, p provisioner.Prov
 // ProvisionE is [Provision] that also returns the RawResources produced by the
 // provisioner. Callers that need to persist an environment snapshot (so the
 // environment can be re-attached later without re-provisioning) use ProvisionE and
-// write the returned resources with provisioner.WriteSnapshotFile.
+// pass both env and resources to provisioner.WriteSnapshotFileForEnv. The resource
+// names alone do not preserve the component bindings assigned by the provisioner.
 func ProvisionE[Env any](ctx common.Context, stackName string, p provisioner.Provisioner) (*Env, provisioner.RawResources, error) {
 	pCtx, cancel := context.WithTimeout(context.Background(), createTimeout)
 	defer cancel()

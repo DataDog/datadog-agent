@@ -7,6 +7,7 @@ go_library(
         "file_provisioner.go",
         "provisioner.go",
         "snapshot.go",
+        "snapshot_bindings.go",
         "static_stack.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner",
@@ -16,6 +17,11 @@ go_library(
 
 dd_agent_go_test(
     name = "provisioner_test",
-    srcs = ["snapshot_test.go"],
+    srcs = [
+        "snapshot_bindings_test.go",
+        "snapshot_test.go",
+        "static_stack_test.go",
+    ],
     embed = [":provisioner"],
+    deps = ["//test/e2e-framework/components/outputs"],
 )

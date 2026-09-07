@@ -46,11 +46,11 @@ func registerScenario(base string, b Builder) {
 func fromTyped[Env any](p provisioner.TypedProvisioner[Env]) Executor {
 	return Executor{
 		Provision: func(ctx *standalone.Context, stackName, snapshotPath string) error {
-			_, resources, err := standalone.ProvisionE[Env](ctx, stackName, p)
+			env, resources, err := standalone.ProvisionE[Env](ctx, stackName, p)
 			if err != nil {
 				return err
 			}
-			return provisioner.WriteSnapshotFile(snapshotPath, resources, map[string]any{
+			return provisioner.WriteSnapshotFileForEnv(snapshotPath, env, resources, map[string]any{
 				"source": "e2ectl-worker",
 				"stack":  stackName,
 			})

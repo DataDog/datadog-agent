@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "e2ectl-worker_lib",
@@ -25,4 +26,15 @@ go_binary(
     name = "e2ectl-worker",
     embed = [":e2ectl-worker_lib"],
     visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "e2ectl-worker_test",
+    srcs = ["executor_test.go"],
+    embed = [":e2ectl-worker_lib"],
+    deps = [
+        "//test/e2e-framework/components/outputs",
+        "//test/e2e-framework/testing/provisioner",
+        "//test/e2e-framework/testing/standalone",
+    ],
 )

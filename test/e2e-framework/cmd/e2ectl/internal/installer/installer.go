@@ -191,24 +191,11 @@ func LoadKindImage(entry envstore.Entry, image string) error {
 // writeAgentToSnapshot persists the agent component into the snapshot so the
 // snapshot stays the single source of truth.
 func writeAgentToSnapshot(entry envstore.Entry, output any) error {
-	resources, meta, err := provisioner.ReadSnapshotFile(entry.SnapshotPath())
-	if err != nil {
-		return err
-	}
 	data, err := json.Marshal(output)
 	if err != nil {
 		return err
 	}
-	resources["agent"] = data
-	return provisioner.WriteSnapshotFile(entry.SnapshotPath(), resources, snapshotMeta(meta))
-}
-
-func snapshotMeta(meta map[string]json.RawMessage) map[string]any {
-	out := make(map[string]any, len(meta))
-	for k, v := range meta {
-		out[k] = v
-	}
-	return out
+	return provisioner.UpdateSnapshotResource(entry.SnapshotPath(), "agent", data)
 }
 
 // splitImageRef splits "gcr.io/datadoghq/agent:tag" into
