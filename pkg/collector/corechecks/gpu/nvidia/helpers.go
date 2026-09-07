@@ -253,16 +253,17 @@ func getSupportedNvlinkPorts(device ddnvml.Device, sampleCollector func(int) ([]
 	}
 
 	var ports []int
-	var portErrors []error
+	var fatalErrors []error
 	for port := 1; port <= totalPorts; port++ {
 		_, err := sampleCollector(port)
 		if err != nil {
-			portErrors = append(portErrors, fmt.Errorf("collect samples for port %d: %w", port, err))
-
 			if ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice) {
-				// only ignore ports if the error is because the API is unsupported
+				// Inactive or unsupported NVLink ports are expected on some devices.
 				continue
 			}
+
+			fatalErrors = append(fatalErrors, fmt.Errorf("collect samples for port %d: %w", port, err))
+			continue
 		}
 
 		ports = append(ports, port)
@@ -272,5 +273,5 @@ func getSupportedNvlinkPorts(device ddnvml.Device, sampleCollector func(int) ([]
 		return nil, fmt.Errorf("%w: no supported NVLink ports found", errUnsupportedDevice)
 	}
 
-	return ports, errors.Join(portErrors...)
+	return ports, errors.Join(fatalErrors...)
 }

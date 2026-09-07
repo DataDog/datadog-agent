@@ -119,8 +119,11 @@ func newNVLinkFieldsCollectorWithMetrics(device ddnvml.Device, metrics map[uint3
 	c.metrics = maps.Clone(metrics)
 
 	_, err := getSupportedNvlinkPorts(device, c.discoverPortMetrics)
-	if err != nil {
-		return nil, fmt.Errorf("get supported NVLink ports: %w", err)
+	if len(c.requests) == 0 {
+		if err != nil {
+			return nil, fmt.Errorf("get supported NVLink ports: %w", err)
+		}
+		return nil, fmt.Errorf("%w: no supported NVLink field metrics found", errUnsupportedDevice)
 	}
 
 	return c, nil
@@ -238,13 +241,15 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) 
 			continue
 		}
 
-		// Check first if the field returned unsupported. If it's not supported, we remove
-		// this metric from the collector, even if it's after a later run. The assumption here
-		// is that unsupported fields are returned from the start, and their status does not change.
-		// This way, we avoid having different functions to collect metrics and to check for support.
-		// We also assume that if a field is not supported for a port, it's not supported for any other port.
-		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) || (val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT) && fieldValueMetric.markUnsupportedOnInvalidArgument) {
-			log.Warnf("nvlink: fields collector removing metric %s for port %d because it's not supported, error: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
+		// Skip unsupported field/port combinations. Inactive NVLink ports can report
+		// NOT_SUPPORTED even when the same field works on active ports, so do not remove
+		// the metric globally here. Fields that are unsupported on every port simply
+		// never get a request added below.
+		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) {
+			continue
+		}
+		if val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT) && fieldValueMetric.markUnsupportedOnInvalidArgument {
+			log.Warnf("nvlink: fields collector removing metric %s because it's not supported, error: %s", fieldValueMetric.name, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
 			delete(c.metrics, val.FieldId)
 			continue
 		} else if val.NvmlReturn != uint32(nvml.SUCCESS) {
