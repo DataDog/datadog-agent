@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add ``private_action_runner.site`` and ``private_action_runner.api_key``
+    settings so the Private Action Runner can communicate with a Datadog site
+    different from the rest of the Agent.

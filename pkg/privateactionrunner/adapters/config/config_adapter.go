@@ -32,6 +32,7 @@ type Config struct {
 	AgentSecretManagementEnabled   bool
 	DDHost                         string
 	DDApiHost                      string
+	APIKey                         string
 	Modes                          []modes.Mode
 	OrgId                          int64
 	PrivateKey                     *ecdsa.PrivateKey

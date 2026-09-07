@@ -125,6 +125,7 @@ type CoreAgentService struct {
 	tagsGetter    func() []string
 	traceAgentEnv string
 	agentVersion  string
+	apiKeyPath    string
 	site          string
 	configRoot    string
 	directorRoot  string
@@ -355,6 +356,7 @@ type options struct {
 	site                           string
 	rcKey                          string
 	apiKey                         string
+	apiKeyPath                     string
 	parJWT                         string
 	traceAgentEnv                  string
 	databaseFileName               string
@@ -391,6 +393,7 @@ var defaultSubscriptionProductMappings = productsMappings{
 var defaultOptions = options{
 	rcKey:                               "",
 	apiKey:                              "",
+	apiKeyPath:                          "api_key",
 	parJWT:                              "",
 	traceAgentEnv:                       "",
 	databaseFileName:                    "remote-config.db",
@@ -501,6 +504,11 @@ func WithRcKey(rcKey string) func(s *options) {
 // WithAPIKey sets the service API key
 func WithAPIKey(apiKey string) func(s *options) {
 	return func(s *options) { s.apiKey = apiKey }
+}
+
+// WithAPIKeyPath sets the configuration path watched for API key updates.
+func WithAPIKeyPath(apiKeyPath string) func(s *options) {
+	return func(s *options) { s.apiKeyPath = apiKeyPath }
 }
 
 // WithPARJWT sets the JWT for the private action runner
@@ -636,6 +644,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		clock:                 clock,
 		traceAgentEnv:         options.traceAgentEnv,
 		agentVersion:          agentVersion,
+		apiKeyPath:            options.apiKeyPath,
 		stopConfigPoller:      make(chan struct{}),
 		disableConfigPollLoop: options.disableConfigPollLoop,
 		site:                  options.site,
@@ -1176,7 +1185,7 @@ func makeFileMetaMap(targetFileMetas []*pbgo.TargetFileMeta) (map[string]data.Fi
 
 func (s *CoreAgentService) apiKeyUpdateCallback() model.NotificationReceiver {
 	return func(setting string, _ model.Source, _, newvalue any, _ uint64, _ model.Source) {
-		if setting != "api_key" {
+		if setting != s.apiKeyPath {
 			return
 		}
 

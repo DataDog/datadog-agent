@@ -8,9 +8,36 @@ package rcclient
 import (
 	"testing"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
+
+func TestServiceParamsPreserveDefaultRemoteConfigWhenUnset(t *testing.T) {
+	cfg := configmock.New(t)
+	params := serviceParams(cfg)
+
+	if params.BaseURLOverride != "" || len(params.Options) != 0 {
+		t.Fatalf("expected no Remote Config overrides when PAR backend settings are unset")
+	}
+}
+
+func TestServiceParamsUsePrivateActionRunnerSite(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("site", "datadoghq.eu")
+	cfg.SetInTest("api_key", "uk1-api-key")
+	cfg.SetInTest(setup.PARSite, "datadoghq.com")
+	cfg.SetInTest(setup.PARAPIKey, "us1-api-key")
+
+	params := serviceParams(cfg)
+	if params.BaseURLOverride != "https://config.datadoghq.com." {
+		t.Fatalf("expected US1 PAR Remote Config URL, got %q", params.BaseURLOverride)
+	}
+	if len(params.Options) == 0 {
+		t.Fatal("expected PAR Remote Config authentication and root overrides")
+	}
+}
 
 type testComponent struct{}
 

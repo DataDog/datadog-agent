@@ -1019,6 +1019,43 @@ func TestWithApiKeyUpdate(t *testing.T) {
 
 }
 
+func TestWithApiKeyPathUpdate(t *testing.T) {
+	api := &mockAPI{}
+	uptaneClient := &mockCoreAgentUptane{}
+	updatedKey := "notUpdated"
+
+	api.On("UpdateAPIKey", mock.Anything).Run(func(args mock.Arguments) {
+		updatedKey = args.Get(0).(string)
+	})
+	orgResponse := pbgo.OrgDataResponse{Uuid: "firstUuid"}
+	api.On("FetchOrgData", mock.Anything).Return(&orgResponse, nil)
+	uptaneClient.On("StoredOrgUUID").Return("firstUuid", nil)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("run_path", t.TempDir())
+	service, err := NewService(
+		cfg,
+		"Remote Config",
+		"https://localhost",
+		"localhost",
+		getHostTags,
+		&telemetryReporter{},
+		agentVersion,
+		WithAPIKey("initialKey"),
+		WithAPIKeyPath("private_action_runner.api_key"),
+		uptaneFactoryOption(uptaneClient),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, service.Stop()) })
+	service.api = api
+	service.mu.uptane = uptaneClient
+
+	cfg.SetInTest("api_key", "root-update")
+	assert.Equal(t, "notUpdated", updatedKey)
+	cfg.SetInTest("private_action_runner.api_key", "par-update")
+	assert.Equal(t, "par-update", updatedKey)
+}
+
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	api := &mockAPI{}
 	uptaneClient := &mockCoreAgentUptane{}

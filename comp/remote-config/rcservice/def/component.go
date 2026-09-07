@@ -19,6 +19,8 @@ import (
 type Params struct {
 	// Options is the set of options for the remote config service.
 	Options []remoteconfig.Option
+	// BaseURLOverride replaces the backend URL derived from Agent configuration.
+	BaseURLOverride string
 }
 
 // Component is the component type.

@@ -92,6 +92,9 @@ func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
 
 	baseRawURL := configUtils.GetMainEndpoint(deps.Cfg, "https://config.", "remote_configuration.rc_dd_url")
+	if deps.Params != nil && deps.Params.BaseURLOverride != "" {
+		baseRawURL = deps.Params.BaseURLOverride
+	}
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
 
 	options := []remoteconfig.Option{

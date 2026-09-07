@@ -3,13 +3,25 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "rcclient",
-    srcs = ["rc_client_adapter.go"],
+    srcs = [
+        "backend.go",
+        "rc_client_adapter.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
         "//comp/remote-config/rcclient/def",
+        "//comp/remote-config/rcservice/def",
+        "//pkg/config/model",
+        "//pkg/config/remote/client",
         "//pkg/config/remote/data",
+        "//pkg/config/remote/service",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/privateactionrunner/adapters/config",
         "//pkg/remoteconfig/state",
+        "//pkg/version",
     ],
 )
 
@@ -18,7 +30,9 @@ dd_agent_go_test(
     srcs = ["rc_client_adapter_test.go"],
     embed = [":rcclient"],
     deps = [
+        "//pkg/config/mock",
         "//pkg/config/remote/data",
+        "//pkg/config/setup",
         "//pkg/remoteconfig/state",
     ],
 )

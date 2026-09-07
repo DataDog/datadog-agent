@@ -1593,6 +1593,21 @@ api_key:
 #
 #   enabled: true
 
+#   # @param site - string - optional - default: ""
+#   # @env DD_PRIVATE_ACTION_RUNNER_SITE - string - optional - default: ""
+#   # The Datadog site used by the Private Action Runner for control-plane
+#   # communication. When unset, the top-level site setting is used.
+#
+#   site: ""
+
+#   # @param api_key - string - required
+#   # @env DD_PRIVATE_ACTION_RUNNER_API_KEY - string - optional - default: ""
+#   # The Datadog API key used by the Private Action Runner for control-plane
+#   # authentication and telemetry. When unset, the top-level api_key setting
+#   # is used. This setting supports secret backend references.
+#
+#   api_key: ""
+
 #   # @param self_enroll - boolean - optional - default: true
 #   # @env DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL - boolean - optional - default: true
 #   # Automatically enroll the Private Action Runner on startup.
@@ -1657,3 +1672,21 @@ api_key:
 #   # Allow HTTP actions to reach cloud instance metadata service (IMDS) endpoints.
 #
 #   http_allow_imds_endpoint: false
+
+#   # @param restricted_shell - custom object - optional
+#   # Configuration for Private Action Runner restricted shell actions.
+#
+#   restricted_shell:
+
+#     # @param disable_detailed_telemetry - boolean - optional - default: false
+#     # @env DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_DISABLE_DETAILED_TELEMETRY - boolean - optional - default: false
+#     # When true, suppresses the raw command text and effective sandbox
+#     # configuration (allowed paths, commands, system services, mode, and
+#     # related settings) that rshell would otherwise attach to its "run"
+#     # telemetry span for each runCommand/runRemediationCommand
+#     # invocation. Other rshell telemetry (exit code, timing, command
+#     #  counts) is unaffected. Set this to true if the commands executed
+#     #  through the Private Action Runner's restricted shell are too
+#     #  sensitive to forward to Datadog telemetry.
+#
+#     disable_detailed_telemetry: false

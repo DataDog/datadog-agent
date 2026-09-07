@@ -81,7 +81,7 @@ func run(logger log.Component, cfg config.Component, hostnameComp hostname.Compo
 	} else {
 		autoconnections.CreateConnectionsIfEnabled(
 			ctx, cfg, parCfg,
-			cfg.GetString("api_key"), cfg.GetString("app_key"), urnParts.RunnerID,
+			cfg.GetString("app_key"), urnParts.RunnerID,
 			result, autoconnections.NewBasicTagsProvider(),
 		)
 	}

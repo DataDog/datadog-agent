@@ -17,6 +17,7 @@ import (
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
@@ -28,6 +29,8 @@ import (
 )
 
 const defaultIdentityFileName = "privateactionrunner_private_identity.json"
+
+var newPublicClient = opms.NewPublicClient
 
 // Result contains the result of a successful enrollment
 type Result struct {
@@ -103,7 +106,7 @@ func SelfEnroll(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	publicClient := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
+	publicClient := newPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
@@ -149,12 +152,12 @@ func enrollmentBaseURL(cfg configModel.Reader, ddSite string) string {
 
 // Enroll performs self-enrollment using config and an agent identifier.
 func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
-	mainEndpoint := configutils.GetMainEndpoint(cfg, "https://api.", "dd_url")
-	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
+	backend := parconfig.ResolveBackend(cfg)
+	ddSite := backend.Site
 	if ddSite == "" {
 		ddSite = "datadoghq.com"
 	}
-	apiKey := cfg.GetString("api_key")
+	apiKey := backend.APIKey
 	extraHeaders := cfg.GetStringMapString(setup.PAROpmsExtraHeaders)
 
 	runnerNamePrefix := agentIdentifier.Hostname
@@ -194,7 +197,7 @@ func SelfEnrollApiKeyOnly(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	publicClient := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
+	publicClient := newPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 

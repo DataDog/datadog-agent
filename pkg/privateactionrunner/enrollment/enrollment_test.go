@@ -6,14 +6,46 @@
 package enrollment
 
 import (
+	"context"
 	"testing"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/par"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
+
+type recordingPublicClient struct {
+	apiKey string
+}
+
+func (c *recordingPublicClient) EnrollWithApiKey(
+	context.Context, string, string, string, []modes.Mode, *jose.JSONWebKey, string, string, string,
+) (*par.CreateRunnerResponse, error) {
+	return nil, assert.AnError
+}
+
+func (c *recordingPublicClient) EnrollWithApiKeyOnly(
+	_ context.Context,
+	apiKey string,
+	_ string,
+	_ []modes.Mode,
+	_ *jose.JSONWebKey,
+	_ string,
+	_ string,
+	_ string,
+) (*par.CreateRunnerResponse, error) {
+	c.apiKey = apiKey
+	return &par.CreateRunnerResponse{OrgID: 42, RunnerID: "runner"}, nil
+}
 
 func TestEnrollmentBaseURL(t *testing.T) {
 	cfg := configmock.New(t)
@@ -23,6 +55,29 @@ func TestEnrollmentBaseURL(t *testing.T) {
 
 	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
 	assert.Equal(t, "http://fakeintake.test:8080", enrollmentBaseURL(cfg, "datadoghq.com"))
+}
+
+func TestEnrollUsesPrivateActionRunnerBackend(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("site", "datadoghq.eu")
+	cfg.SetInTest("api_key", "uk1-api-key")
+	cfg.SetInTest(setup.PARSite, "datadoghq.com")
+	cfg.SetInTest(setup.PARAPIKey, "us1-api-key")
+
+	recorder := &recordingPublicClient{}
+	var baseURL string
+	originalNewPublicClient := newPublicClient
+	newPublicClient = func(_ configmodel.Reader, url string, _ map[string]string) opms.PublicClient {
+		baseURL = url
+		return recorder
+	}
+	t.Cleanup(func() { newPublicClient = originalNewPublicClient })
+
+	result, err := Enroll(context.Background(), cfg, &AgentIdentifier{Hostname: "host"})
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.datadoghq.com", baseURL)
+	assert.Equal(t, "us1-api-key", recorder.apiKey)
+	assert.Equal(t, "urn:dd:apps:on-prem-runner:us1:42:runner", result.URN)
 }
 
 func TestShouldReenroll_NodeAgent(t *testing.T) {

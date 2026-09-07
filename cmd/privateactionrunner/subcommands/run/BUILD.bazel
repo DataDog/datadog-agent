@@ -44,6 +44,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/privateactionrunner/adapters/constants",
+        "//pkg/privateactionrunner/adapters/rcclient",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/version",

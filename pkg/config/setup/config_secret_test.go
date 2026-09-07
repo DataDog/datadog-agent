@@ -192,3 +192,18 @@ func TestAllFlattenedExcludesDottedAdditionalEndpointsChildrenAfterSecretResolut
 	assert.NotContains(t, flattened, "additional_endpoints.https://url1.com")
 	assert.NotContains(t, flattened, "additional_endpoints.https://url2.eu")
 }
+
+func TestPrivateActionRunnerAPIKeySecretResolution(t *testing.T) {
+	config := newTestConf(t)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	require.NoError(t, os.WriteFile(configPath, nil, 0o600))
+	config.SetConfigFile(configPath)
+	config.SetInTest("secret_backend_command", "some_command")
+	config.SetInTest(PARAPIKey, "ENC[par_api_key]")
+
+	resolver := secretsmock.New(t)
+	resolver.SetSecrets(map[string]string{"par_api_key": "resolved-par-api-key"})
+
+	require.NoError(t, LoadDatadog(config, resolver, delegatedauthmock.New(t), nil))
+	assert.Equal(t, "resolved-par-api-key", config.GetString(PARAPIKey))
+}

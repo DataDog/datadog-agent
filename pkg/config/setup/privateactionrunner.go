@@ -8,6 +8,8 @@ package setup
 const (
 	PAREnabled = "private_action_runner.enabled"
 	PARLogFile = "private_action_runner.log_file"
+	PARSite    = "private_action_runner.site"
+	PARAPIKey  = "private_action_runner.api_key"
 
 	// Identity / enrollment configuration
 	PARSelfEnroll             = "private_action_runner.self_enroll"

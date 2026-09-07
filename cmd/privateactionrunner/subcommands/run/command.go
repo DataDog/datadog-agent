@@ -43,6 +43,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	parconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
+	parrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -116,6 +117,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		remotehostnameimpl.Module(),
 		ipcfx.ModuleReadWrite(),
 		rcservicefx.Module(),
+		fx.Provide(parrcclient.ServiceParams),
 		rcclientfx.Module(),
 		fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
 		getTaggerModule(),

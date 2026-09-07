@@ -76,7 +76,7 @@ func enrollAndPersist(ctx context.Context, cfg config.Component, agentID *enroll
 	if err == nil {
 		if urn, err := parutil.ParseRunnerURN(result.URN); err == nil {
 			autoconnections.CreateConnectionsIfEnabled(
-				ctx, cfg, parCfg, cfg.GetString("api_key"), cfg.GetString("app_key"), urn.RunnerID,
+				ctx, cfg, parCfg, cfg.GetString("app_key"), urn.RunnerID,
 				result, autoconnections.NewBasicTagsProvider(),
 			)
 		}

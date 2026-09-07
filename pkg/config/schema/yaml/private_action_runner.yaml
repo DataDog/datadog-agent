@@ -19,6 +19,24 @@ properties:
     visibility: public
     description: Set to true to enable the Private Action Runner.
     example: 'true'
+  site:
+    node_type: setting
+    type: string
+    default: ''
+    visibility: public
+    description: |-
+      The Datadog site used by the Private Action Runner for control-plane
+      communication. When unset, the top-level site setting is used.
+  api_key:
+    node_type: setting
+    type: string
+    default: ''
+    sensitive: true
+    visibility: public
+    description: |-
+      The Datadog API key used by the Private Action Runner for control-plane
+      authentication and telemetry. When unset, the top-level api_key setting
+      is used. This setting supports secret backend references.
   self_enroll:
     node_type: setting
     type: boolean
@@ -151,6 +169,8 @@ properties:
   restricted_shell:
     node_type: section
     type: object
+    visibility: public
+    description: Configuration for Private Action Runner restricted shell actions.
     properties:
       allowed_commands:
         node_type: setting

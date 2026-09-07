@@ -1045,6 +1045,14 @@ func TestPrivateActionRunnerPrivateKey(t *testing.T) {
 		`private_key: "********"`)
 }
 
+func TestPrivateActionRunnerAPIKey(t *testing.T) {
+	assertClean(t,
+		`private_action_runner:
+  api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`private_action_runner:
+  api_key: "****************************bbbb"`)
+}
+
 func TestHideKeyExceptLastChars(t *testing.T) {
 	tests := []struct {
 		name     string

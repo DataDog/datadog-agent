@@ -32,7 +32,7 @@ func CreateConnectionsIfEnabled(
 	ctx context.Context,
 	cfg model.Reader,
 	parCfg *parconfig.Config,
-	apiKey, appKey, runnerID string,
+	appKey, runnerID string,
 	enrollmentResult *enrollment.Result,
 	tagsProvider TagsProvider,
 ) {
@@ -51,7 +51,7 @@ func CreateConnectionsIfEnabled(
 		return
 	}
 
-	client, err := NewConnectionsAPIClient(cfg, parCfg.DatadogSite, apiKey, appKey)
+	client, err := NewConnectionsAPIClient(cfg, parCfg.DatadogSite, parCfg.APIKey, appKey)
 	if err != nil {
 		log.Warnf("Failed to create connections API client: %v", err)
 		return

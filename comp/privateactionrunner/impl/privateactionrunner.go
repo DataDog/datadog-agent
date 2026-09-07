@@ -448,7 +448,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 
 	p.telemetry = telemetry.NewTelemetry(
 		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
-		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
+		configutils.SanitizeAPIKey(cfg.APIKey),
 		cfg.DatadogSite,
 		observability.ParService,
 	)
@@ -533,7 +533,7 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 //   - true:  enroll with API key only (app key ignored, no auto-connections)
 //   - false: enroll with API key + app key (app key required, auto-connections created)
 func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
-	apiKey := p.coreConfig.GetString("api_key")
+	apiKey := cfg.APIKey
 	apiKeyOnlyEnrollment := p.coreConfig.GetBool(privateactionrunner.PARApiKeyOnlyEnrollment)
 
 	if apiKeyOK, err := util.ValidateAPIKey(apiKey); err != nil {
@@ -578,7 +578,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	cfg.RunnerId = urnParts.RunnerID
 
 	autoconnections.CreateConnectionsIfEnabled(
-		ctx, p.coreConfig, cfg, apiKey, appKey, urnParts.RunnerID,
+		ctx, p.coreConfig, cfg, appKey, urnParts.RunnerID,
 		enrollmentResult, autoconnections.NewTagsProvider(p.tagger),
 	)
 

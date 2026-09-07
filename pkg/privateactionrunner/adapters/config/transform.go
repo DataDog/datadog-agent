@@ -14,7 +14,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	setupconstants "github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
@@ -34,9 +36,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	if metricsClient == nil {
 		metricsClient = &statsd.NoOpClient{}
 	}
-	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
-	ddHost := getDatadogHost(mainEndpoint)
-	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
+	backend := ResolveBackend(config)
 	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
 	urn := config.GetString(setup.PARUrn)
 
@@ -103,15 +103,47 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RShellPrivilegedSocket:         config.GetString(setup.PARRestrictedShellPrivilegedSocket),
 		AgentSecretManagementEnabled:   config.GetBool(setup.PARAgentSecretManagementEnabled),
 		OpmsExtraHeaders:               config.GetStringMapString(setup.PAROpmsExtraHeaders),
-		DDHost:                         ddHost,
-		DDApiHost:                      "api." + ddSite,
+		DDHost:                         backend.Host,
+		DDApiHost:                      "api." + backend.Site,
+		APIKey:                         backend.APIKey,
 		Modes:                          []modes.Mode{modes.ModePull},
 		OrgId:                          orgID,
 		PrivateKey:                     privateKey,
 		RunnerId:                       runnerID,
 		Urn:                            urn,
-		DatadogSite:                    ddSite,
+		DatadogSite:                    backend.Site,
 	}, nil
+}
+
+// Backend identifies the Datadog control plane and credential used by PAR.
+// Site and APIKey are resolved together so every PAR integration uses the same
+// precedence rules.
+type Backend struct {
+	Site   string
+	Host   string
+	APIKey string
+}
+
+// ResolveBackend resolves PAR-specific backend settings, falling back to the
+// existing Agent settings independently when a nested value is empty.
+func ResolveBackend(config model.Reader) Backend {
+	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
+	site := strings.TrimSpace(config.GetString("site"))
+	if site == "" {
+		site = setupconstants.DefaultSite
+	}
+	host := getDatadogHost(mainEndpoint)
+
+	if parSite := strings.TrimSpace(config.GetString(setup.PARSite)); parSite != "" {
+		site = parSite
+	}
+
+	apiKey := config.GetString(setup.PARAPIKey)
+	if apiKey == "" {
+		apiKey = config.GetString("api_key")
+	}
+
+	return Backend{Site: site, Host: host, APIKey: apiKey}
 }
 
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {

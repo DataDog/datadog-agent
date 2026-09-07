@@ -17,6 +17,16 @@ func TestPrivateActionRunnerApiKeyOnlyEnrollmentDefaultTrue(t *testing.T) {
 	assert.True(t, cfg.GetBool(PARApiKeyOnlyEnrollment))
 }
 
+func TestPrivateActionRunnerBackendOverridesFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_SITE", "datadoghq.com")
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_API_KEY", "par-api-key")
+
+	cfg := newTestConf(t)
+
+	assert.Equal(t, "datadoghq.com", cfg.GetString(PARSite))
+	assert.Equal(t, "par-api-key", cfg.GetString(PARAPIKey))
+}
+
 func TestPrivateActionRunnerAgentSecretManagementEnabledDefaultTrue(t *testing.T) {
 	cfg := newTestConf(t)
 

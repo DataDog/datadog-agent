@@ -40,6 +40,7 @@ go_library(
         "//comp/serializer/logscompression/fx",
         "//pkg/config/settings",
         "//pkg/config/setup",
+        "//pkg/privateactionrunner/adapters/rcclient",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/version",

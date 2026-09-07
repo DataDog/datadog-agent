@@ -166,6 +166,22 @@ func TestBootstrapUsesDDURLForFakeintake(t *testing.T) {
 	assert.Equal(t, "http://fakeintake.test:8080", resolved.OPMSBaseURL)
 }
 
+func TestBootstrapUsesPrivateActionRunnerUS1Site(t *testing.T) {
+	cfg := splitConfig(t, map[string]interface{}{
+		"site":                              "datadoghq.eu",
+		"api_key":                           "uk1-api-key",
+		"private_action_runner.site":        "datadoghq.com",
+		"private_action_runner.api_key":     "us1-api-key",
+		"private_action_runner.urn":         validURN(),
+		"private_action_runner.private_key": validPrivateKey(t),
+	})
+
+	resolved, err := runBootstrap(t, cfg, failIfEnrolled(t))
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.datadoghq.com", resolved.OPMSBaseURL)
+}
+
 func writeIdentity(t *testing.T, cfg coreconfig.Component, urn, key, hostname string) {
 	t.Helper()
 	result := &enrollment.Result{URN: urn, Hostname: hostname}

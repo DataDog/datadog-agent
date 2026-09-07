@@ -113,6 +113,7 @@ import (
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	parrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
@@ -539,6 +540,26 @@ func start(log log.Component,
 		}
 	}
 
+	parRCClient := rcClient
+	if rcEnabled && config.GetBool("private_action_runner.enabled") && parrcclient.HasBackendOverride(config) {
+		var stopPARRemoteConfig func() error
+		parRCClient, stopPARRemoteConfig, err = parrcclient.NewBackend(
+			config,
+			hostnameGetter.GetSafe(mainCtx),
+			clusterName,
+			clusterID,
+		)
+		if err != nil {
+			log.Errorf("Failed to start Private Action Runner remote configuration: %v", err)
+		} else {
+			defer func() {
+				if err := stopPARRemoteConfig(); err != nil {
+					log.Errorf("Failed to stop Private Action Runner remote configuration: %v", err)
+				}
+			}()
+		}
+	}
+
 	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
 	// don't import cmd/agent
 
@@ -664,7 +685,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions, secretResolver)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, parRCClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions, secretResolver)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {

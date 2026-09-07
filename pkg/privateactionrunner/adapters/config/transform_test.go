@@ -192,18 +192,18 @@ func TestFromDDConfig(t *testing.T) {
 			expectedDDSite: "ddog-gov.com",
 		},
 		{
-			name:           "dd_url overrides site",
+			name:           "dd_url does not override control-plane site",
 			site:           "datadoghq.com",
 			ddURL:          "https://api.datadoghq.eu.",
 			expectedDDHost: "api.datadoghq.eu",
-			expectedDDSite: "datadoghq.eu",
+			expectedDDSite: "datadoghq.com",
 		},
 		{
 			name:           "custom domain via dd_url",
 			site:           "",
 			ddURL:          "https://custom.endpoint.example.com.",
 			expectedDDHost: "custom.endpoint.example.com",
-			expectedDDSite: "",
+			expectedDDSite: "datadoghq.com",
 		},
 	}
 
@@ -235,6 +235,32 @@ func TestFromDDConfig(t *testing.T) {
 			assert.Equal(t, "api."+tt.expectedDDSite, cfg.DDApiHost, "DDApiHost should be api.<site>")
 		})
 	}
+}
+
+func TestFromDDConfigPrefersPrivateActionRunnerBackend(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("site", "datadoghq.eu")
+	mockConfig.SetInTest("api_key", "uk1-api-key")
+	mockConfig.SetInTest(setup.PARSite, "datadoghq.com")
+	mockConfig.SetInTest(setup.PARAPIKey, "us1-api-key")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", cfg.DatadogSite)
+	assert.Equal(t, "api.datadoghq.com", cfg.DDApiHost)
+	assert.Equal(t, "us1-api-key", cfg.APIKey)
+}
+
+func TestFromDDConfigFallsBackToRootBackend(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("site", "datadoghq.eu")
+	mockConfig.SetInTest("api_key", "uk1-api-key")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", cfg.DatadogSite)
+	assert.Equal(t, "api.datadoghq.eu", cfg.DDApiHost)
+	assert.Equal(t, "uk1-api-key", cfg.APIKey)
 }
 
 func TestFromDDConfigMetricsClient(t *testing.T) {
