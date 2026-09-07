@@ -222,6 +222,7 @@ func submitMetric(s sender.Sender, metric config.MetricConfig, value float64, ta
 	case config.MetricTypeGauge:
 		s.Gauge(metric.Metric, value, "", tags)
 	case config.MetricTypeMonotonicCount:
+		// <metric>.rate is emitted by ReportDerivedMetrics from device timestamps.
 		s.MonotonicCount(metric.Metric, value, "", tags)
 	}
 }
