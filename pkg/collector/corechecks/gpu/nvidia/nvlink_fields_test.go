@@ -209,7 +209,7 @@ func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
 	require.Equal(t, 1, rawTXTotalCount, "expected exactly one raw TX total metric")
 }
 
-func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
+func TestNVLinkFieldsCollectorSkipsUnsupportedFieldEnrollment(t *testing.T) {
 	var requestedFieldsByScope = make(map[uint32][]uint32)
 	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
@@ -245,6 +245,12 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	for _, request := range collector.requests {
+		require.NotEqual(t, uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS), request.field.FieldId,
+			"unsupported fields should not be enrolled")
+	}
+
 	collected, err := collector.Collect()
 	require.NoError(t, err)
 
@@ -323,6 +329,15 @@ func TestNVLinkFieldsCollectorEnrollsFieldsDespiteTransientDiscoveryErrors(t *te
 		},
 	})
 	require.NoError(t, err)
+
+	var enrolledPort2Speed bool
+	for _, request := range collector.requests {
+		if request.field.FieldId == nvml.FI_DEV_NVLINK_GET_SPEED && request.field.ScopeId == 1 {
+			enrolledPort2Speed = true
+			require.Contains(t, request.ports, 2)
+		}
+	}
+	require.True(t, enrolledPort2Speed, "port 2 speed should be enrolled despite transient discovery error")
 
 	_, err = collector.Collect()
 	require.Error(t, err)
