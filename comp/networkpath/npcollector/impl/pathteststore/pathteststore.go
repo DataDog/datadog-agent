@@ -132,6 +132,7 @@ func NewPathtestStore(config Config, logger log.Component, statsdClient ddgostat
 
 // Flush will flush specific Pathtest context (distinct hash) if nextRun is reached
 // once a Pathtest context is flushed nextRun will be updated to the next flush time
+// except for one-shot contexts, which are removed after their first flush attempt.
 //
 // ttl:
 // ttl defines the duration we should keep a specific PathtestContext in `Store.contexts`
@@ -160,7 +161,15 @@ func (f *Store) Flush() []*PathtestContext {
 			}
 			continue
 		}
-		if ptConfigCtx.nextRun.After(now) || !f.rateLimiter.AllowN(now, 1) {
+		if ptConfigCtx.nextRun.After(now) {
+			continue
+		}
+		allowed := f.rateLimiter.AllowN(now, 1)
+		if ptConfigCtx.Pathtest.RunOnce {
+			// One-shot paths consume their opportunity even when rate-limited.
+			delete(f.contexts, key)
+		}
+		if !allowed {
 			continue
 		}
 		if !ptConfigCtx.lastFlushTime.IsZero() {
@@ -191,8 +200,11 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 		// Refresh attribution from the latest admission without creating a second
 		// context for the same path.
 		pathtestCtx.Pathtest.TestConfigID = pathtestToAdd.TestConfigID
+		pathtestCtx.Pathtest.TestConfigName = pathtestToAdd.TestConfigName
 		pathtestCtx.Pathtest.TestConfigSource = pathtestToAdd.TestConfigSource
+		pathtestCtx.Pathtest.DynamicTestProfile = pathtestToAdd.DynamicTestProfile
 		pathtestCtx.Pathtest.Tags = slices.Clone(pathtestToAdd.Tags)
+		pathtestCtx.Pathtest.RunOnce = pathtestToAdd.RunOnce
 		pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
 		return
 	}

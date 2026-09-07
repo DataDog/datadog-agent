@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -496,31 +497,38 @@ func TestOnChange_ErrorUnsetsConfigurationField(t *testing.T) {
 
 // Recovery monitor logs warning when component stays unhealthy through the entire probe window.
 func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
-	client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
-	defer client.Stop()
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer func() {
+			client.Stop()
+			synctest.Wait()
+		}()
 
-	h := newStubHandler(testFlag1)
-	h.healthy.Store(false) // Unhealthy throughout
-	require.NoError(t, client.SubscribeWithHandler(h))
+		h := newStubHandler(testFlag1)
+		h.healthy.Store(false) // Unhealthy throughout
+		require.NoError(t, client.SubscribeWithHandler(h))
 
-	sendUpdate(client, Flag{
-		Name:                             string(testFlag1),
-		Enabled:                          true,
-		HealthCheckDurationSeconds:       1, // Short window so test is fast
-		HealthCheckFailuresBeforeRecover: 1,
+		sendUpdate(client, Flag{
+			Name:                             string(testFlag1),
+			Enabled:                          true,
+			HealthCheckDurationSeconds:       1, // Short window so test is fast
+			HealthCheckFailuresBeforeRecover: 1,
+		})
+
+		// Wait for SafeRecover
+		waitChan(t, h.recoverCh, 3*time.Second)
+
+		// Advance virtual time past the recovery probe window (1s) so
+		// the context deadline fires and the recovery goroutine exits.
+		time.Sleep(1500 * time.Millisecond)
+		synctest.Wait()
+
+		// SafeRecover should only have been called once
+		select {
+		case <-h.recoverCh:
+			t.Fatal("SafeRecover should not be called a second time during recovery probing")
+		default:
+			// expected: recovery monitor gave up gracefully
+		}
 	})
-
-	// Wait for SafeRecover
-	waitChan(t, h.recoverCh, 3*time.Second)
-
-	// Wait for the recovery probe window to expire
-	time.Sleep(1500 * time.Millisecond)
-
-	// SafeRecover should only have been called once
-	select {
-	case <-h.recoverCh:
-		t.Fatal("SafeRecover should not be called a second time during recovery probing")
-	default:
-		// expected: recovery monitor gave up gracefully
-	}
 }

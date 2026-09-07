@@ -9,7 +9,6 @@
 package probe
 
 import (
-	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -26,8 +25,12 @@ import (
 
 type FakeProcessKillerOS struct{}
 
-func (fpk *FakeProcessKillerOS) Kill(_ uint32, _ *killContext) error {
-	return nil // fake kill
+func (fpk *FakeProcessKillerOS) Kill(_ uint32, kcs []killContext) ([]uint32, []uint32) {
+	killedPids := make([]uint32, 0, len(kcs))
+	for _, kc := range kcs {
+		killedPids = append(killedPids, uint32(kc.pid)) // fake kill
+	}
+	return nil, killedPids
 }
 
 func (fpk *FakeProcessKillerOS) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
@@ -1015,11 +1018,16 @@ type FakeProcessKillerOSWithFailures struct {
 	failPids map[int]bool
 }
 
-func (fpk *FakeProcessKillerOSWithFailures) Kill(_ uint32, pc *killContext) error {
-	if fpk.failPids[pc.pid] {
-		return errors.New("fake kill failure")
+func (fpk *FakeProcessKillerOSWithFailures) Kill(_ uint32, kcs []killContext) ([]uint32, []uint32) {
+	var failedPids, killedPids []uint32
+	for _, kc := range kcs {
+		if fpk.failPids[kc.pid] {
+			failedPids = append(failedPids, uint32(kc.pid))
+		} else {
+			killedPids = append(killedPids, uint32(kc.pid))
+		}
 	}
-	return nil
+	return failedPids, killedPids
 }
 
 func (fpk *FakeProcessKillerOSWithFailures) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {

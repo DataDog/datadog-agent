@@ -28,7 +28,6 @@ go_library(
         "//comp/core/diagnose/def",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/secrets/def",
-        "//comp/core/secrets/noop-impl",
         "//comp/def",
         "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatformreceiver/def",

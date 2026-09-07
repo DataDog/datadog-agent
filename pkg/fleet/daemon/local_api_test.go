@@ -135,7 +135,8 @@ func TestAPIStatus(t *testing.T) {
 	remoteConfigState := &pbgo.ClientUpdater{
 		Packages: []*pbgo.PackageState{
 			{
-				Package: "test-package",
+				Package:       "test-package",
+				ProcessStates: map[string]string{"ddot": "running"},
 				Task: &pbgo.PackageStateTask{
 					State: pbgo.TaskState_DONE,
 				},

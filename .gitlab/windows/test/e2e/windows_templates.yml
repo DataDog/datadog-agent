@@ -1,0 +1,9 @@
+---
+# Windows e2e shared templates.
+
+.new_e2e_template_needs_windows_x64:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - windows_msi_and_bosh_zip_x64-a7
+    - windows_msi_and_bosh_zip_x64-a7-fips

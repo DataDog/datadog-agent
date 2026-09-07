@@ -119,8 +119,8 @@ func kubernetesReadFileCommand(cleanPath string) []string {
 	return []string{"head", "-c", strconv.Itoa(kubernetesReadFileOutputLimit), cleanPath}
 }
 
-func (r *kubernetesConfigReader) ReadEnvVars(ctx context.Context, names []string) (map[string]string, error) {
-	if len(names) == 0 {
+func (r *kubernetesConfigReader) ReadEnvVars(ctx context.Context, predicate ConfigEnvVarPredicate) (map[string]string, error) {
+	if predicate == nil {
 		return map[string]string{}, nil
 	}
 
@@ -132,7 +132,7 @@ func (r *kubernetesConfigReader) ReadEnvVars(ctx context.Context, names []string
 		return map[string]string{}, nil
 	}
 
-	return filterEnvVars(spec.Process.Env, names), nil
+	return filterEnvVars(spec.Process.Env, predicate), nil
 }
 
 func (r *kubernetesConfigReader) ReadRuntimeCommandline(ctx context.Context) (TargetCommandline, error) {

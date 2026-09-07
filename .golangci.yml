@@ -305,6 +305,12 @@ linters:
             - github.com/DataDog/datadog-agent/pkg/util/log.Printf
             - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
             - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Tracef
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Debugf
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Infof
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Warnf
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Errorf
+            - github.com/DataDog/datadog-agent/pkg/trace/log.Criticalf
             - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Tracef
             - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Debugf
             - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Infof

@@ -15,6 +15,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -180,8 +182,12 @@ func TestDoGet(t *testing.T) {
 	})
 
 	t.Run("timeout", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, _ *http.Request) {
-			time.Sleep(100 * time.Millisecond)
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-r.Context().Done():
+			case <-time.After(3 * time.Second):
+				t.Error("server handler did not unblock within 3 seconds")
+			}
 			w.WriteHeader(http.StatusOK)
 		}
 		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)
@@ -193,6 +199,123 @@ func TestDoGet(t *testing.T) {
 		require.True(t, errors.As(err, &netErr))
 		assert.True(t, netErr.Timeout())
 	})
+}
+
+func TestTLSHandshakeTimeoutClosesBlackholeConnection(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	accepted := make(chan net.Conn, 1)
+	peerClosed := make(chan error, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			peerClosed <- err
+			return
+		}
+		defer conn.Close()
+		accepted <- conn
+
+		// Consume the ClientHello, then deliberately never complete the TLS handshake.
+		header := make([]byte, 5)
+		if _, err := io.ReadFull(conn, header); err != nil {
+			peerClosed <- err
+			return
+		}
+		if _, err := io.ReadFull(conn, make([]byte, int(header[3])<<8|int(header[4]))); err != nil {
+			peerClosed <- err
+			return
+		}
+
+		_, err = conn.Read(make([]byte, 1))
+		peerClosed <- err
+	}()
+
+	var peer net.Conn
+	t.Cleanup(func() {
+		_ = listener.Close()
+		if peer != nil {
+			_ = peer.Close()
+		}
+	})
+
+	conf := config.NewMock(t)
+	conf.Set("server_timeout", 1, pkgconfigmodel.SourceAgentRuntime)
+	conf.Set("tls_handshake_timeout", 100*time.Millisecond, pkgconfigmodel.SourceAgentRuntime)
+	timeout := ipcTLSHandshakeTimeout(conf, conf.GetDuration("server_timeout")*time.Second)
+	client := NewClient(testToken, nil, conf)
+	requestDone := make(chan error, 1)
+	go func() {
+		_, err := client.Get("https://" + listener.Addr().String())
+		requestDone <- err
+	}()
+
+	select {
+	case peer = <-accepted:
+	case err := <-peerClosed:
+		require.NoError(t, err, "listener did not receive a TLS ClientHello")
+	case <-time.After(time.Second):
+		require.Fail(t, "client did not connect to the listener")
+	}
+
+	select {
+	case err := <-requestDone:
+		require.Error(t, err)
+	case <-time.After(timeout + time.Second):
+		require.Fail(t, "TLS handshake did not time out")
+	}
+
+	// The transport timeout must close the socket, not merely return from Client.Do.
+	select {
+	case err := <-peerClosed:
+		require.Error(t, err)
+	case <-time.After(time.Second):
+		require.Fail(t, "TLS handshake socket remained open")
+	}
+
+	require.Eventually(t, func() bool {
+		stacks := make([]byte, 1<<20)
+		return !strings.Contains(string(stacks[:runtime.Stack(stacks, true)]), "crypto/tls.(*Conn).clientHandshake")
+	}, time.Second, 10*time.Millisecond, "TLS handshake goroutine remained parked")
+}
+
+func TestIPCTLSHandshakeTimeout(t *testing.T) {
+	tests := []struct {
+		name                string
+		serverTimeout       int
+		tlsHandshakeTimeout time.Duration
+		expected            time.Duration
+	}{
+		{
+			name:                "uses the configured TLS handshake timeout",
+			serverTimeout:       30,
+			tlsHandshakeTimeout: 10 * time.Second,
+			expected:            10 * time.Second,
+		},
+		{
+			name:                "caps the TLS handshake timeout at the server timeout",
+			serverTimeout:       5,
+			tlsHandshakeTimeout: 10 * time.Second,
+			expected:            5 * time.Second,
+		},
+		{
+			name:                "does not disable the timeout when the TLS setting is zero",
+			serverTimeout:       5,
+			tlsHandshakeTimeout: 0,
+			expected:            5 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := config.NewMock(t)
+			conf.Set("server_timeout", tt.serverTimeout, pkgconfigmodel.SourceAgentRuntime)
+			conf.Set("tls_handshake_timeout", tt.tlsHandshakeTimeout, pkgconfigmodel.SourceAgentRuntime)
+
+			serverTimeout := conf.GetDuration("server_timeout") * time.Second
+			assert.Equal(t, tt.expected, ipcTLSHandshakeTimeout(conf, serverTimeout))
+		})
+	}
 }
 
 func TestPostChunk(t *testing.T) {
@@ -340,4 +463,16 @@ func TestIPCEndpointErrorMap(t *testing.T) {
 	_, err = end.DoGet()
 	require.Error(t, err)
 	assert.Equal(t, err.Error(), "something went wrong")
+}
+
+// Verifies WithoutAuthToken prevents the IPC client from attaching the bearer token.
+func TestWithoutAuthToken(t *testing.T) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		assert.Empty(t, r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+	}
+	client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)
+
+	_, err := client.Get(ts.URL, WithoutAuthToken)
+	require.NoError(t, err)
 }

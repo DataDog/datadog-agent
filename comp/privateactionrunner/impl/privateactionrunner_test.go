@@ -9,11 +9,49 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestExecutorIdleTimeout(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		idleSeconds int
+		want        time.Duration
+	}{
+		{name: "disabled", idleSeconds: 0, want: 0},
+		{name: "negative is disabled", idleSeconds: -1, want: 0},
+		{name: "uses configured duration", idleSeconds: 60, want: time.Minute},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, executorIdleTimeout(tt.idleSeconds))
+		})
+	}
+}
+
+func TestSplitDeploymentSupported(t *testing.T) {
+	tests := []struct {
+		name          string
+		goos          string
+		containerized bool
+		fipsEnabled   bool
+		want          bool
+	}{
+		{name: "linux host", goos: "linux", want: true},
+		{name: "linux container", goos: "linux", containerized: true},
+		{name: "linux FIPS host", goos: "linux", fipsEnabled: true},
+		{name: "unsupported host platform", goos: "windows"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, splitDeploymentSupported(tt.goos, tt.containerized, tt.fipsEnabled))
+		})
+	}
+}
 
 func TestStopCleansUpMetricsClient(t *testing.T) {
 	tests := []struct {

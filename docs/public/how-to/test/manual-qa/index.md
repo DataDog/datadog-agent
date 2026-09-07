@@ -7,7 +7,7 @@ realistic environment.
 
 ## Prerequisites
 
-Complete the [one-time setup](../e2e.md#one-time-setup) from the E2E testing guide
+Complete the [one-time setup](../e2e/index.md#one-time-setup) from the E2E testing guide
 before creating any environment.
 
 If you do not want to rely on fake intake, and send data to the real Datadog backend, you should make sure you set a valid API in ~/.test_infra_config.yaml
@@ -45,4 +45,4 @@ Pass `--no-interactive` to any scenario to disable the clipboard prompt and desk
 
 ## See Also
 
-- [Running E2E tests](../e2e.md) — automated test execution against the same infrastructure
+- [Running E2E tests](../e2e/running.md) — automated test execution against the same infrastructure

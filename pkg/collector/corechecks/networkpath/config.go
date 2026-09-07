@@ -43,6 +43,8 @@ type InitConfig struct {
 type InstanceConfig struct {
 	// TestConfigID identifies the scheduled Network Path test config that produced this instance.
 	TestConfigID string `yaml:"test_config_id"`
+	// TestConfigName is the user-facing name of the scheduled Network Path test config.
+	TestConfigName string `yaml:"test_config_name"`
 
 	DestHostname string `yaml:"hostname"`
 
@@ -76,6 +78,7 @@ type InstanceConfig struct {
 // Network Path integration
 type CheckConfig struct {
 	TestConfigID       string
+	TestConfigName     string
 	DestHostname       string
 	DestPort           uint16
 	SourceService      string
@@ -120,6 +123,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c := &CheckConfig{}
 
 	c.TestConfigID = instance.TestConfigID
+	c.TestConfigName = instance.TestConfigName
 	c.DestHostname = instance.DestHostname
 	c.DestPort = instance.DestPort
 	c.SourceService = instance.SourceService

@@ -576,7 +576,7 @@ network_devices:
 	assert.Equal(t, "legacySnmpVersion", legacyConfig.Version)
 	assert.Equal(t, "127.2.0.0/30", legacyConfig.Network)
 	warnings := corecfg.Warnings()
-	assert.Equal(t, 0, warnings.Count())
+	assert.Equal(t, 0, len(warnings))
 }
 
 func Test_NamespaceConfig(t *testing.T) {
@@ -1049,4 +1049,61 @@ network_devices:
 	assert.NoError(t, err)
 
 	assert.False(t, conf.Deduplicate)
+}
+
+func Test_DeviceTagsSource(t *testing.T) {
+	// legacy snmp_listener key: resource by default
+	configmock.NewFromYAML(t, `
+snmp_listener:
+  configs:
+   - network: 127.0.0.1/30
+`)
+
+	conf, err := snmp.NewListenerConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, "resource", conf.DeviceTagsSource)
+	assert.Equal(t, "resource", conf.Configs[0].DeviceTagsSource)
+
+	// legacy snmp_listener key: set to agent
+	configmock.NewFromYAML(t, `
+snmp_listener:
+  device_tags_source: agent
+  configs:
+   - network: 127.0.0.1/30
+`)
+
+	conf, err = snmp.NewListenerConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, "agent", conf.DeviceTagsSource)
+	assert.Equal(t, "agent", conf.Configs[0].DeviceTagsSource)
+
+	// network_devices.autodiscovery key: resource by default
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.0.0.1/30
+`)
+
+	conf, err = snmp.NewListenerConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, "resource", conf.DeviceTagsSource)
+	assert.Equal(t, "resource", conf.Configs[0].DeviceTagsSource)
+
+	// network_devices.autodiscovery key: set to agent, with a per-config override
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    device_tags_source: agent
+    configs:
+     - network: 127.0.0.1/30
+     - network: 127.0.0.2/30
+       device_tags_source: both
+`)
+
+	conf, err = snmp.NewListenerConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, "agent", conf.DeviceTagsSource)
+	assert.Equal(t, "agent", conf.Configs[0].DeviceTagsSource)
+	assert.Equal(t, "both", conf.Configs[1].DeviceTagsSource)
 }

@@ -51,8 +51,9 @@ type remoteConfigEnvelope struct {
 	Type string   `json:"type"`
 	Tags []string `json:"tags,omitempty"`
 	// TestConfigID identifies the scheduled test definition shared by all endpoints in Config.
-	TestConfigID string           `json:"test_config_id"`
-	Config       *scheduledConfig `json:"config"`
+	TestConfigID   string           `json:"test_config_id"`
+	TestConfigName string           `json:"test_config_name"`
+	Config         *scheduledConfig `json:"config"`
 }
 
 type scheduledConfig struct {
@@ -77,6 +78,8 @@ type endpointConfig struct {
 type networkPathInstanceConfig struct {
 	// TestConfigID identifies the scheduled Network Path test config that produced this instance.
 	TestConfigID string `yaml:"test_config_id"`
+	// TestConfigName is the user-facing name of the scheduled Network Path test config.
+	TestConfigName string `yaml:"test_config_name,omitempty"`
 
 	Hostname string  `yaml:"hostname"`
 	Port     *uint16 `yaml:"port,omitempty"`
@@ -273,7 +276,7 @@ func parseConfig(raw []byte) ([]integration.Config, error) {
 
 	configs := make([]integration.Config, 0, len(envelope.Config.Tests))
 	for i, endpoint := range envelope.Config.Tests {
-		instance, err := translateEndpoint(testConfigID, envelope.Tags, endpoint)
+		instance, err := translateEndpoint(testConfigID, envelope.TestConfigName, envelope.Tags, endpoint)
 		if err != nil {
 			return nil, fmt.Errorf("invalid Network Path config at tests[%d]: %w", i, err)
 		}
@@ -293,7 +296,7 @@ func parseConfig(raw []byte) ([]integration.Config, error) {
 	return configs, nil
 }
 
-func translateEndpoint(testConfigID string, configTags []string, endpoint endpointConfig) (networkPathInstanceConfig, error) {
+func translateEndpoint(testConfigID, testConfigName string, configTags []string, endpoint endpointConfig) (networkPathInstanceConfig, error) {
 	hostname := strings.TrimSpace(endpoint.Hostname)
 	if hostname == "" {
 		return networkPathInstanceConfig{}, errors.New("hostname is required")
@@ -301,6 +304,7 @@ func translateEndpoint(testConfigID string, configTags []string, endpoint endpoi
 
 	instance := networkPathInstanceConfig{
 		TestConfigID:          testConfigID,
+		TestConfigName:        testConfigName,
 		Hostname:              hostname,
 		SourceService:         endpoint.SourceService,
 		DestinationService:    endpoint.DestinationService,

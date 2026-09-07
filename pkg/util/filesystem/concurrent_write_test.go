@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"crypto/rand"
@@ -53,7 +54,6 @@ func newMockArtiFactory(t *testing.T) (string, *MockArtiFactory) {
 }
 
 func TestFetchArtifact(t *testing.T) {
-	t.Parallel()
 	location, mockFactory := newMockArtiFactory(t)
 
 	_, err := TryFetchArtifact(location, mockFactory)
@@ -72,10 +72,9 @@ func TestFetchArtifact(t *testing.T) {
 }
 
 func TestCreateNewArtifact(t *testing.T) {
-	t.Parallel()
 	location, mockFactory := newMockArtiFactory(t)
 
-	artifact, err := FetchOrCreateArtifact(context.Background(), location, mockFactory)
+	artifact, err := FetchOrCreateArtifact(t.Context(), location, mockFactory)
 	assert.NoError(t, err)
 	assert.Equal(t, mockFactory.data, artifact)
 
@@ -93,7 +92,10 @@ func TestCreateNewArtifact(t *testing.T) {
 }
 
 func TestContextCancellation(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, syncTestContextCancellation)
+}
+
+func syncTestContextCancellation(t *testing.T) {
 	location, mockFactory := newMockArtiFactory(t)
 
 	// Ensure the artifact file does not exist
@@ -107,7 +109,7 @@ func TestContextCancellation(t *testing.T) {
 	defer lockFile.Unlock()
 
 	// Create a context with a timeout to simulate cancellation
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 
 	// Call FetchOrCreateArtifact with the context
@@ -119,7 +121,10 @@ func TestContextCancellation(t *testing.T) {
 }
 
 func TestHandleMultipleConcurrentWrites(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, syncTestHandleMultipleConcurrentWrites)
+}
+
+func syncTestHandleMultipleConcurrentWrites(t *testing.T) {
 	dir := t.TempDir()
 	location := path.Join(dir, "test_artifact")
 
@@ -145,7 +150,7 @@ func TestHandleMultipleConcurrentWrites(t *testing.T) {
 				id:            i,
 				dataGenerator: generator,
 			}
-			res, err := FetchOrCreateArtifact(context.Background(), location, instance)
+			res, err := FetchOrCreateArtifact(t.Context(), location, instance)
 			results <- res
 			return err
 		})
@@ -173,7 +178,10 @@ func TestHandleMultipleConcurrentWrites(t *testing.T) {
 }
 
 func TestKeepTryingLockingIfPermissionDenied(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, syncTestKeepTryingLockingIfPermissionDenied)
+}
+
+func syncTestKeepTryingLockingIfPermissionDenied(t *testing.T) {
 	location, mockFactory := newMockArtiFactory(t)
 	lockFilePath := location + lockSuffix
 
@@ -189,7 +197,7 @@ func TestKeepTryingLockingIfPermissionDenied(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a context with a timeout to simulate cancellation
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	// Calling FetchOrCreateArtifact in a goroutine to simulate a concurrent call
@@ -199,8 +207,8 @@ func TestKeepTryingLockingIfPermissionDenied(t *testing.T) {
 		return err
 	})
 
-	// Wait for a while to ensure FetchOrCreateArtifact tried at least once to acquire the lock
-	time.Sleep(1 * time.Second)
+	// Wait for FetchOrCreateArtifact to try at least once to acquire the lock
+	synctest.Wait()
 
 	// Make the lock file readable again and release it
 	err = os.Chmod(lockFilePath, 0o600)

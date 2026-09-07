@@ -151,6 +151,18 @@ func TestConvert(t *testing.T) {
 			agentConfig:    "extensions/other-extensions/dd-wired/acfg.yaml",
 		},
 		{
+			name:           "extensions/reuse-unwired/all-extensions",
+			provided:       "extensions/reuse-unwired/all-extensions/config.yaml",
+			expectedResult: "extensions/reuse-unwired/all-extensions/config-result.yaml",
+			agentConfig:    "extensions/reuse-unwired/all-extensions/acfg.yaml",
+		},
+		{
+			name:           "extensions/reuse-unwired/duplicates",
+			provided:       "extensions/reuse-unwired/duplicates/config.yaml",
+			expectedResult: "extensions/reuse-unwired/duplicates/config-result.yaml",
+			agentConfig:    "extensions/reuse-unwired/duplicates/acfg.yaml",
+		},
+		{
 			name:           "extensions/no-changes/datadog",
 			provided:       "extensions/no-changes/datadog/config.yaml",
 			expectedResult: "extensions/no-changes/datadog/config.yaml",
@@ -717,4 +729,62 @@ func filterLogsBySubstring(logs *observer.ObservedLogs, substr string) []observe
 		}
 	}
 	return filtered
+}
+
+func TestFindExistingExtensionID(t *testing.T) {
+	tests := []struct {
+		name     string
+		exts     map[string]any
+		compName string
+		want     string
+	}{
+		{"canonical wins over suffixed", map[string]any{"ddflare/z": nil, "ddflare/a": nil, "ddflare": nil}, "ddflare", "ddflare"},
+		{"lexicographically-first when no canonical", map[string]any{"pprof/c": nil, "pprof/a": nil, "pprof/b": nil}, "pprof", "pprof/a"},
+		{"single suffixed instance", map[string]any{"zpages/custom": nil}, "zpages", "zpages/custom"},
+		{"no matching base name returns empty", map[string]any{"zpages/x": nil}, "pprof", ""},
+		{"no extensions section returns empty", nil, "pprof", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := map[string]any{}
+			if tt.exts != nil {
+				m["extensions"] = tt.exts
+			}
+			conf := confmap.NewFromStringMap(m)
+			assert.Equal(t, tt.want, findExistingExtensionID(conf, tt.compName))
+		})
+	}
+}
+
+func TestReuseExtension(t *testing.T) {
+	c := &ddConverter{logger: zap.NewNop()}
+
+	t.Run("wires an existing unwired extension into service::extensions", func(t *testing.T) {
+		conf := confmap.NewFromStringMap(map[string]any{
+			"extensions": map[string]any{"pprof/custom": nil},
+			"service":    map[string]any{"extensions": []any{}},
+		})
+		assert.True(t, c.reuseExtension(conf, "pprof"))
+		assert.Equal(t, []any{"pprof/custom"}, conf.Get("service::extensions"))
+	})
+
+	t.Run("returns false without an existing extension", func(t *testing.T) {
+		conf := confmap.NewFromStringMap(map[string]any{
+			"service": map[string]any{"extensions": []any{}},
+		})
+		assert.False(t, c.reuseExtension(conf, "pprof"))
+	})
+
+	t.Run("reports found and logs a warning when the service section is missing", func(t *testing.T) {
+		core, logs := observer.New(zapcore.WarnLevel)
+		c := &ddConverter{logger: zap.New(core)}
+		conf := confmap.NewFromStringMap(map[string]any{
+			"extensions": map[string]any{"pprof/custom": nil},
+		})
+		// Found (so the caller must not add a duplicate), left unwired, but no
+		// longer silent: a warning is emitted.
+		assert.True(t, c.reuseExtension(conf, "pprof"))
+		assert.Nil(t, conf.Get("service::extensions"))
+		assert.NotEmpty(t, filterLogsBySubstring(logs, "Could not wire existing extension"))
+	})
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf && test
+//go:build linux && bpf && test
 
 package uprobes
 
@@ -368,6 +368,8 @@ func (r *ContainerizedAttacherRunner) RunAttacher(t *testing.T, configName Attac
 		ebpfCfg.KernelHeadersDownloadDir: ebpfCfg.KernelHeadersDownloadDir,
 		ebpfCfg.RuntimeCompilerOutputDir: ebpfCfg.RuntimeCompilerOutputDir,
 		ebpfCfg.BTFOutputDir:             ebpfCfg.BTFOutputDir,
+		"/usr/src":                       "/usr/src",             // for system kernel headers
+		"/lib/modules":                   "/lib/modules",         // for system kernel headers
 		"/etc/os-release":                "/host/etc/os-release", // for correct BTF detection
 		"/sys":                           "/sys",
 		"/proc":                          "/host/proc",

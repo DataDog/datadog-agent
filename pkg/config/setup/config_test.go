@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -236,42 +235,6 @@ func TestUnexpectedWhitespace(t *testing.T) {
 		assert.Contains(t, warnings[0], tc.expectedPosition)
 		assert.Contains(t, warnings[0], tc.expectedPosition)
 	}
-}
-
-func TestUnknownKeysWarning(t *testing.T) {
-	yaml := `
-a: 21
-aa: 21
-b:
-  c:
-    d: "test"
-`
-	conf := confFromYAML(t, yaml)
-
-	res := findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"a", "aa", "b.c.d"}, res)
-
-	conf.SetDefault("a", 0)
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa", "b.c.d"}, res)
-
-	conf.SetInTest("a", 12)
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa", "b.c.d"}, res)
-
-	// testing that nested value are correctly detected
-	conf.SetDefault("b.c", map[string]string{})
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa"}, res)
-
-	conf.SetInTest("unknown_key.unknown_subkey", "true")
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa", "unknown_key.unknown_subkey"}, res)
 }
 
 func TestUnknownVarsWarning(t *testing.T) {
@@ -828,6 +791,43 @@ network_path:
 
 		assert.Equal(t, filtersBefore, config.Get("network_path.collector.filters"))
 	})
+}
+
+func TestInfrastructureModeEndUserDeviceEnablesLogonDuration(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: end_user_device
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.True(t, config.GetBool("logon_duration.enabled"),
+		"end_user_device mode should auto-enable logon_duration")
+}
+
+func TestInfrastructureModeNonEUDLeavesLogonDurationDefault(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: none
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("logon_duration.enabled"),
+		"non-EUD modes should leave logon_duration at its default (false)")
+}
+
+func TestInfrastructureModeEndUserDeviceLogonDurationUserOverride(t *testing.T) {
+	// An explicit user setting must win over the EUD default, since SourceInfraMode
+	// sits below file config in priority.
+	datadogYaml := `
+infrastructure_mode: end_user_device
+logon_duration:
+  enabled: false
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("logon_duration.enabled"),
+		"explicit user logon_duration.enabled=false should override the EUD default")
 }
 
 func TestApplyUseDogstatsdSuppression(t *testing.T) {
@@ -1567,15 +1567,9 @@ additional_endpoints:
 	)
 }
 
-func TestServerlessConfigNumComponents(t *testing.T) {
-	// Enforce the number of config "components" reachable by the serverless agent
-	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, commonConfigComponents, 24)
-}
-
 func TestServerlessConfigInit(t *testing.T) {
 	conf := newEmptyMockConf(t)
-	initCommonConfigComponents(conf)
+	initCommonBase(conf)
 
 	// ensure some core configs are declared
 	assert.True(t, conf.IsKnown("api_key"))

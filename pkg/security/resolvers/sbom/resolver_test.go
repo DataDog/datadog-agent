@@ -9,6 +9,7 @@ package sbom
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -321,4 +322,57 @@ func TestProcessPendingFileEventsEnrichesPackages(t *testing.T) {
 	if !sbom.invalidated {
 		t.Errorf("sbom was not marked for forwarding")
 	}
+}
+
+// TestSharedDataConcurrentForwardingAndResolve checks that the forwarding snapshot
+// (copy of packages) and the package enrichment (LastAccess/SuidBit/AccessedByRoot
+// writes) are safe when they run on different SBOMs sharing the same *Data via the
+// dataCache. The SBOM lock is per-container, so without the Data-level lock the
+// copy and the writes race on the shared packages slice.
+func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
+	data := newData([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "shadow-utils"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}}, false)
+
+	sbomA := NewSBOM("container-a", nil, "image:tag")
+	sbomA.data = data
+	sbomA.state.Store(computedState)
+
+	sbomB := NewSBOM("container-b", nil, "image:tag")
+	sbomB.data = data
+	sbomB.state.Store(computedState)
+
+	r := newPendingFileEventsResolver(t)
+
+	var wg sync.WaitGroup
+
+	// Writer: simulate ResolvePackage enriching packages on sbomA (writes
+	// LastAccess/SuidBit/AccessedByRoot on the shared Data).
+	wg.Go(func() {
+		for range 2000 {
+			r.queuePendingFileEvent("container-a", "/usr/bin/su", 04755, 0)
+			sbomA.Lock()
+			r.processPendingFileEvents(sbomA)
+			sbomA.Unlock()
+		}
+	})
+
+	// Reader: simulate triggerForwarding.func1 snapshotting packages on sbomB
+	// (reads the shared Data via copy()).
+	wg.Go(func() {
+		for range 2000 {
+			sbomB.Lock()
+			if sbomB.data != nil && len(sbomB.data.packages) > 0 {
+				sbomB.data.mu.RLock()
+				packages := make([]sbomtypes.Package, len(sbomB.data.packages))
+				copy(packages, sbomB.data.packages)
+				sbomB.data.mu.RUnlock()
+				_ = packages
+			}
+			sbomB.Unlock()
+		}
+	})
+
+	wg.Wait()
 }

@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    APM : The trace-agent EVP proxy now forwards the ``DD-EVP-ORIGIN`` and
+    ``DD-EVP-ORIGIN-VERSION`` request headers to Event Platform intake.
+    Previously these headers were stripped by the proxy allowlist, so server
+    SDK metadata (SDK name and version) was lost at the Agent even when the
+    SDK sent it. Values are forwarded unchanged; the Agent does not
+    synthesize defaults for requests that omit them.

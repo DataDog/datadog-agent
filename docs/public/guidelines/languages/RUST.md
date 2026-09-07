@@ -20,7 +20,7 @@ bazel_dep(name = "rules_rust", version = "0.68.1")
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
 rust.toolchain(
     edition = "2024",
-    versions = ["1.92.0"],
+    versions = ["1.94.0"],
 )
 use_repo(rust, "rust_toolchains")
 
@@ -29,7 +29,7 @@ register_toolchains("@rust_toolchains//:all")
 
 This configuration:
 - Uses **Rust 2024 edition** as the default
-- Pins to **Rust 1.92.0** for reproducible builds
+- Pins to **Rust 1.94.0** for reproducible builds
 - Registers toolchains for all supported platforms
 
 > **Important:** This is a global toolchain configuration that is used across the entire codebase of `datadog-agent`. The configuration in <<<repo("MODULE.bazel")>>> **should not be changed** without proper testing to ensure

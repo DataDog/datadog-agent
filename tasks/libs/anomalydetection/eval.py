@@ -42,9 +42,19 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations). This study
 # evaluates scorer-produced correlation periods only.
-DETECTORS = ["bocpd", "cusum", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
+DETECTORS = ["bocpd", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
+
+# The testbench applies these shorter warmups for interactive and headless
+# evaluation. Eval-generated configs name every detector, so carry the profile
+# explicitly: otherwise an enabled-only entry would lock the Go parser to its
+# production defaults and bypass the testbench profile.
+TESTBENCH_WARMUP_PARAMS = {
+    "bocpd": {"warmup_points": 40},
+    "holt_residual": {"warmup_points": 15, "residual_window": 25},
+    "tukey_biweight": {"window_size": 40, "min_points": 40},
+}
 ABLATION_CORRELATORS = ["anomaly_scorer"]
-SUPPORTED_CORRELATORS = ["anomaly_scorer", "cross_signal", "time_cluster"]
+SUPPORTED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 
 # Correlators always represented in generated configs. time_cluster defaults on
 # in the testbench, so scorer-only trials must explicitly disable it.
@@ -444,6 +454,9 @@ def random_component_combinations(
 def _component_base_config(name: str, enabled: bool) -> dict:
     """Base JSON config for a component in eval-generated testbench params."""
     cfg: dict[str, object] = {"enabled": enabled}
+    # Keep generated Optuna and combination configs aligned with testbench-only
+    # detector warmups. Sampled values below can intentionally override these.
+    cfg.update(TESTBENCH_WARMUP_PARAMS.get(name, {}))
     if enabled and name == "anomaly_scorer":
         # The scorer only contributes to Gaussian F1 when it emits Medium- or
         # High-severity episodes as anomaly_periods. Keep cooldown at zero so
@@ -513,7 +526,6 @@ def _sample_component_params(trial, component: str) -> dict:
         return {
             "alpha": alpha,
             "beta": alpha * beta_ratio,
-            "residual_window": trial.suggest_int("holt_residual.residual_window", 20, 90),
             "z_threshold": trial.suggest_float("holt_residual.z_threshold", 2.5, 8.0),
             "confirm_m": trial.suggest_int("holt_residual.confirm_m", 1, 3),
             "min_deviation_mad": trial.suggest_float("holt_residual.min_deviation_mad", 1.5, 6.0),
@@ -521,10 +533,7 @@ def _sample_component_params(trial, component: str) -> dict:
         }
 
     def sample_tukey_biweight() -> dict:
-        window_size = trial.suggest_int("tukey_biweight.window_size", 30, 120)
         return {
-            "window_size": window_size,
-            "min_points": window_size,
             "biweight_c": trial.suggest_float("tukey_biweight.biweight_c", 3.5, 6.0),
             "z_threshold": trial.suggest_float("tukey_biweight.z_threshold", 2.5, 10.0),
             "score_every": trial.suggest_int("tukey_biweight.score_every", 1, 6),
@@ -543,12 +552,6 @@ def _sample_component_params(trial, component: str) -> dict:
             # "prior_variance_scale": trial.suggest_float("bocpd.prior_variance_scale", 1.0, 50.0),
             # "min_variance": trial.suggest_float("bocpd.min_variance", 0.01, 5.0, log=True),
             # "recovery_points": trial.suggest_int("bocpd.recovery_points", 3, 40),
-        },
-        "cusum": lambda: {
-            # "min_points": trial.suggest_int("cusum.min_points", 3, 30),
-            # "baseline_fraction": trial.suggest_float("cusum.baseline_fraction", 0.05, 0.5),
-            # "slack_factor": trial.suggest_float("cusum.slack_factor", 0.1, 2.0),
-            "threshold_factor": trial.suggest_float("cusum.threshold_factor", 2.0, 10.0),
         },
         "holt_residual": sample_holt_residual,
         "rrcf": lambda: {

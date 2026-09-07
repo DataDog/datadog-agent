@@ -100,7 +100,7 @@ func TestMacosInstallScript(t *testing.T) {
 	extraConfigMap.Set("ddinfra:aws/useMacosCompatibleSubnets", "true", false)
 	e2e.Run(t, &macosInstallSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault)), ec2.WithoutAgent()),
+			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault), ec2.WithInternetAccess()), ec2.WithoutAgent()),
 			awshost.WithExtraConfigParams(extraConfigMap),
 		)),
 	)
@@ -622,16 +622,14 @@ EOF`, macosAPMSentinelService))
 			return
 		}
 
+		// The convert-traces feature is enabled by default, so the agent
+		// serializes tracer payloads in the v1 string-indexed idx format
+		// (AgentPayload.IdxTracerPayloads) and leaves the legacy
+		// TracerPayloads field empty.
 		var found bool
 		for _, payload := range payloads {
-			for _, tracerPayload := range payload.TracerPayloads {
-				for _, chunk := range tracerPayload.Chunks {
-					for _, span := range chunk.Spans {
-						if span.Service == macosAPMSentinelService {
-							found = true
-						}
-					}
-				}
+			if client.IdxPayloadHasService(payload, macosAPMSentinelService) {
+				found = true
 			}
 		}
 		assert.True(c, found, "%s trace should be collected in trace payloads", macosAPMSentinelService)

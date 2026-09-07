@@ -18,14 +18,19 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -79,6 +84,10 @@ func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
 	conn, err := grpc.NewClient(
 		"passthrough:///"+socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMessageSize*2),
+			grpc.MaxCallSendMsgSize(maxMessageSize*2),
+		),
 		grpc.WithContextDialer(func(dialCtx context.Context, _ string) (net.Conn, error) {
 			return Dial(dialCtx, socketPath, 2*time.Second)
 		}),
@@ -114,6 +123,95 @@ func runAction(t *testing.T, client pb.ExecutorClient, taskBytes []byte) *pb.Act
 	}
 	require.NotNil(t, result, "RunAction stream ended without a terminal ActionResult")
 	return result
+}
+
+func taskWithEncodedSize(t *testing.T, target int) []byte {
+	t.Helper()
+	const prefix = `{"data":{"id":"task","attributes":{"padding":"`
+	const suffix = `"}}}`
+	padding := target - len(prefix) - len(suffix)
+	require.Positive(t, padding)
+	for {
+		raw := []byte(prefix + strings.Repeat("a", padding) + suffix)
+		size := proto.Size(&pb.RunActionRequest{Task: raw})
+		if size == target {
+			return raw
+		}
+		padding += target - size
+		require.Positive(t, padding)
+	}
+}
+
+func outputWithEncodedSize(t *testing.T, target int) string {
+	t.Helper()
+	padding := target
+	for {
+		output := strings.Repeat("a", padding)
+		outputJSON, err := json.Marshal(output)
+		require.NoError(t, err)
+		size := proto.Size(&pb.RunActionResponse{
+			Event: &pb.RunActionResponse_Result{
+				Result: &pb.ActionResult{
+					Outcome: &pb.ActionResult_Output{Output: outputJSON},
+				},
+			},
+		})
+		if size == target {
+			return output
+		}
+		padding += target - size
+		require.Positive(t, padding)
+	}
+}
+
+func receiveRunActionError(client pb.ExecutorClient, task []byte) error {
+	stream, err := client.RunAction(context.Background(), &pb.RunActionRequest{Task: task})
+	if err != nil {
+		return err
+	}
+	_, err = stream.Recv()
+	return err
+}
+
+func TestServeEnforcesRequestMessageLimit(t *testing.T) {
+	fake := &fakeExecutor{
+		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+		output:   map[string]interface{}{},
+	}
+	srv := NewServer(fake, "test-version")
+	srv.SetReady(true)
+	client := startTestServer(t, srv)
+
+	below := taskWithEncodedSize(t, maxMessageSize-1)
+	result := runAction(t, client, below)
+	require.NotNil(t, result.GetOutput())
+
+	above := taskWithEncodedSize(t, maxMessageSize+1)
+	err := receiveRunActionError(client, above)
+	require.Error(t, err)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
+}
+
+func TestServeEnforcesResponseMessageLimit(t *testing.T) {
+	below := outputWithEncodedSize(t, maxMessageSize-1)
+	fake := &fakeExecutor{
+		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+		output:   below,
+	}
+	srv := NewServer(fake, "test-version")
+	srv.SetReady(true)
+	client := startTestServer(t, srv)
+
+	result := runAction(t, client, []byte(`{"data":{"id":"task-1"}}`))
+	belowJSON, err := json.Marshal(below)
+	require.NoError(t, err)
+	assert.Equal(t, belowJSON, result.GetOutput())
+
+	above := outputWithEncodedSize(t, maxMessageSize+1)
+	fake.output = above
+	err = receiveRunActionError(client, []byte(`{"data":{"id":"task-2"}}`))
+	require.Error(t, err)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
 }
 
 func TestServeRunActionStreamsOutputAndForwardsRawTask(t *testing.T) {
@@ -392,4 +490,71 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	defer shortCancel()
 	_, err = anon.Health(shortCtx, &pb.HealthRequest{})
 	require.Error(t, err, "client without a valid cert must be rejected")
+}
+
+func TestServeExitsWhenIdle(t *testing.T) {
+	mockClock := clock.NewMock()
+	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv.clock = mockClock
+	srv.touch()
+	srv.SetReady(true)
+
+	socketPath := testListenAddr(t)
+	lis, err := Listen(socketPath)
+	require.NoError(t, err)
+
+	served := make(chan error, 1)
+	idleTimedOut := false
+	const idleTimeout = time.Minute
+	go func() {
+		served <- Serve(context.Background(), lis, srv, ServeOptions{
+			DrainTimeout: 2 * time.Second,
+			IdleTimeout:  idleTimeout,
+			OnIdleTimeout: func() {
+				idleTimedOut = true
+			},
+		})
+	}()
+
+	for range 2 * idleCheckDivisor {
+		mockClock.Add(idleTimeout / idleCheckDivisor)
+		select {
+		case err := <-served:
+			require.NoError(t, err, "an idle exit is a clean exit, so procmgr leaves it down")
+			require.True(t, idleTimedOut)
+			return
+		default:
+		}
+	}
+	t.Fatal("idle executor did not exit")
+}
+
+func TestIdleTracking(t *testing.T) {
+	mockClock := clock.NewMock()
+	srv := NewServer(&fakeExecutor{}, "test-version")
+	srv.clock = mockClock
+	srv.touch()
+
+	const timeout = time.Minute
+	mockClock.Add(2 * timeout)
+	assert.Zero(t, srv.idleFor(), "an unready executor must not idle out")
+
+	srv.SetReady(true)
+	assert.Zero(t, srv.idleFor(), "becoming ready should reset the idle clock")
+
+	_, err := srv.Health(context.Background(), &pb.HealthRequest{})
+	require.NoError(t, err)
+	mockClock.Add(time.Second)
+	assert.Equal(t, time.Second, srv.idleFor(), "health checks should not count as activity")
+
+	srv.startActivity()
+	mockClock.Add(2 * timeout)
+	assert.Zero(t, srv.idleFor(), "activity should suppress the idle state")
+	health, err := srv.Health(context.Background(), &pb.HealthRequest{})
+	require.NoError(t, err)
+	assert.Zero(t, health.ActiveActions, "non-action activity must not affect action accounting")
+	srv.finishActivity()
+
+	mockClock.Add(timeout)
+	assert.Equal(t, timeout, srv.idleFor())
 }

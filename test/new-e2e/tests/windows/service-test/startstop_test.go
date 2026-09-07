@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -78,6 +79,10 @@ const defaultTimeoutScale = 1
 
 // Default scaling of timeouts for tests with driver verifier. This needs to be generous.
 const driverVerifierTimeoutScale = 10
+
+// Driver Verifier adds substantial kernel-mode overhead; use a 4-vCPU VM so
+// user-mode services aren't starved for CPU and can still make SCM deadlines.
+const driverVerifierInstanceType = "t3.xlarge"
 
 type onServiceStateMismatch func(host *components.RemoteHost, serviceName, actual string)
 
@@ -442,18 +447,20 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 	s.Require().Empty(entries, "should not have errors or warnings from agents in the event log")
 }
 
-func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agentConfig string, securityAgentConfig string) {
-	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
-		awsHostWindows.WithRunOptions(
-			scenwindows.WithAgentOptions(
-				agentparams.WithAgentConfig(agentConfig),
-				agentparams.WithSystemProbeConfig(systemProbeConfig),
-				agentparams.WithSecurityAgentConfig(securityAgentConfig),
-			),
-			scenwindows.WithAgentClientOptions(
-				agentclientparams.WithSkipWaitForAgentReady(),
-			),
+func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agentConfig string, securityAgentConfig string, extraRunOpts ...scenwindows.RunOption) {
+	runOpts := []scenwindows.RunOption{
+		scenwindows.WithAgentOptions(
+			agentparams.WithAgentConfig(agentConfig),
+			agentparams.WithSystemProbeConfig(systemProbeConfig),
+			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 		),
+		scenwindows.WithAgentClientOptions(
+			agentclientparams.WithSkipWaitForAgentReady(),
+		),
+	}
+	runOpts = append(runOpts, extraRunOpts...)
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
+		awsHostWindows.WithRunOptions(runOpts...),
 	))}
 	e2e.Run(t, s, opts...)
 }
@@ -1118,7 +1125,8 @@ func TestDriverVerifierOnServiceBehaviorAgentCommand(t *testing.T) {
 	s := &dvAgentServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
+	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // TestDriverVerifierOnServiceBehaviorPowerShell tests the the same as TestServiceBehaviorPowerShell
@@ -1127,7 +1135,8 @@ func TestDriverVerifierOnServiceBehaviorPowerShell(t *testing.T) {
 	s := &dvPowerShellServiceCommandSuite{}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig)
+	run(t, s, systemProbeConfig, agentConfig, securityAgentConfig,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe tests the same as TestServiceBehaviorWhenDisabledSystemProbe
@@ -1142,7 +1151,8 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeDisabled, agentConfig, securityAgentConfigDisabled)
+	run(t, s, systemProbeDisabled, agentConfig, securityAgentConfigDisabled,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent tests the same as TestServiceBehaviorWhenDisabledProcessAgent
@@ -1158,7 +1168,8 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeDisabled, agentConfigPADisabled, securityAgentConfigDisabled)
+	run(t, s, systemProbeDisabled, agentConfigPADisabled, securityAgentConfigDisabled,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent tests the same as TestServiceBehaviorWhenDisabledTraceAgent
@@ -1170,7 +1181,8 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfigTADisabled, securityAgentConfig)
+	run(t, s, systemProbeConfig, agentConfigTADisabled, securityAgentConfig,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller tests the same as TestServiceBehaviorWhenDisabledInstaller
@@ -1182,7 +1194,8 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller(t *testing.T) {
 	}
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
-	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig)
+	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig,
+		scenwindows.WithEC2InstanceOptions(ec2.WithInstanceType(driverVerifierInstanceType)))
 }
 
 // Driver verifier tests end

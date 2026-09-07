@@ -90,10 +90,19 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 
 	config.Set("use_v2_api.series", true, pkgconfigmodel.SourceDefault)
 
-	// The serializer exporter forces zlib compression (metricscompressionfx
-	// fx-otel), which is incompatible with the v3 metrics intake.
+	// Scope: this function only runs for the standalone OSS Datadog exporter shipped in
+	// opentelemetry-collector-contrib. That is the single path today where
+	// serializerexporter builds its own serializer (the `f.s == nil` branch in
+	// factory.go); DDOT (cmd/otel-agent) and the core Agent's OTLP ingestion both inject
+	// an already-built serializer and never reach this code.
+	//
+	// On this OSS path the compressor is wired by the caller (initSerializerInternal) via
+	// metricscompression/fx-otel → NewCompressorReqOtel → a hardcoded zlib.New(). The
+	// serializer uses that compressor object directly, so the serializer_compressor_kind
+	// = zstd set above has no effect here: series are sent zlib-compressed
+	// (Content-Encoding: deflate). Only the v2 intake accepts zlib, so v3 is disabled below.
 	config.Set("use_v3_api.series.enabled", "false", pkgconfigmodel.SourceAgentRuntime)
-	config.Set("serializer_experimental_use_v3_api.series.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
 	// Serializer: allow user to blacklist any kind of payload to be sent
 	config.Set("enable_payloads.events", true, pkgconfigmodel.SourceDefault)

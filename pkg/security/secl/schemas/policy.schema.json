@@ -228,7 +228,11 @@
           "type": "string"
         },
         "policy": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "drop",
+            "allow"
+          ]
         },
         "scope": {
           "type": "string",

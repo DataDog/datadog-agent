@@ -12,6 +12,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
+	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
@@ -48,12 +49,14 @@ func NewWorkflowTaskExecutor(
 	ipcClient ipc.HTTPClient,
 	encryptionStore *encryptioncontext.Store,
 	ha helmactions.Component,
+	ka kubeactions.Component,
+	secretResolver resolver.SecretResolver,
 ) *WorkflowTaskExecutor {
 	return &WorkflowTaskExecutor{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha),
+		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka),
 		config:       configuration,
 		taskVerifier: taskVerifier,
-		resolver:     resolver.NewPrivateCredentialResolver(),
+		resolver:     resolver.NewPrivateCredentialResolver(secretResolver, configuration.AgentSecretManagementEnabled),
 	}
 }
 
@@ -73,6 +76,10 @@ func (e *WorkflowTaskExecutor) PrepareTask(
 		return nil, task, err
 	}
 	logger.Info("task verified successfully", log.String(observability.TaskIDTagName, unwrappedTask.Data.ID))
+	// The privileged helper independently verifies the original envelope. Keep
+	// it attached after successful PAR verification; never reconstruct signed
+	// bytes from the decoded task.
+	unwrappedTask.Data.Attributes.SignedEnvelope = task.Data.Attributes.SignedEnvelope
 
 	// JobId is generated on dequeue so its not part of the signature, it will be checked by the backend when publishing the result
 	unwrappedTask.Data.Attributes.JobId = task.Data.Attributes.JobId
@@ -136,7 +143,10 @@ func (e *WorkflowTaskExecutor) RunTask(
 		)
 	}
 	if !e.config.IsActionAllowed(bundleName, actionName) {
-		return nil, util.DefaultActionError(fmt.Errorf("action %s is not in the allow list", fqn))
+		return nil, util.DefaultActionError(fmt.Errorf(
+			"action %s is not allowlisted in the private action runner config. Update the agent config `actionsAllowlist` or the environment variable `DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST`",
+			fqn,
+		))
 	}
 
 	logger := log.FromContext(ctx)

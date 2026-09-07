@@ -15,10 +15,17 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/gotype",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/object",
-        "//pkg/util/safeelf",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/object",
+            "//pkg/util/safeelf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/object",
+            "//pkg/util/safeelf",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
@@ -29,14 +36,22 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":gotype"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
-    tags = ["manual"],
-    target_compatible_with = ["@platforms//os:linux"],
-    deps = [
-        "//pkg/dyninst/gotype/gotypeprinter",
-        "//pkg/dyninst/object",
-        "//pkg/dyninst/testprogs",
-        "@com_github_stretchr_testify//require",
-    ],
+    tags = ["requires_ebpf"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/gotype/gotypeprinter",
+            "//pkg/dyninst/object",
+            "//pkg/dyninst/testprogs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/gotype/gotypeprinter",
+            "//pkg/dyninst/object",
+            "//pkg/dyninst/testprogs",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

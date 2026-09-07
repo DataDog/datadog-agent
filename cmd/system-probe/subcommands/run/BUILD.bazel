@@ -66,7 +66,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/settings",
         "//pkg/config/utils",
-        "//pkg/ebpf",
+        "//pkg/ebpf/lockcontention",
         "//pkg/ebpf/telemetry",
         "//pkg/runtime",
         "//pkg/system-probe/api/module",
@@ -104,7 +104,12 @@ dd_agent_go_test(
     embed = [":run"],
     deps = [
         "//cmd/system-probe/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
         "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/log/mock",
@@ -112,7 +117,6 @@ dd_agent_go_test(
             "//comp/core/sysprobeconfig/mock",
             "//pkg/discovery/module/splite",
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/log/mock",
@@ -120,7 +124,6 @@ dd_agent_go_test(
             "//comp/core/sysprobeconfig/mock",
             "//pkg/discovery/module/splite",
             "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

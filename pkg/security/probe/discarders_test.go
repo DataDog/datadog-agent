@@ -10,6 +10,7 @@ package probe
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -430,22 +431,24 @@ func BenchmarkParentDiscarder(b *testing.B) {
 }
 
 func TestIsRecentlyAdded(t *testing.T) {
-	var id inodeDiscarders
+	synctest.Test(t, func(t *testing.T) {
+		var id inodeDiscarders
 
-	if id.isRecentlyAdded(1, 2, uint64(time.Now().UnixNano())) {
-		t.Error("shouldn't be marked as added")
-	}
-	id.recentlyAdded(1, 2, uint64(time.Now().UnixNano()))
+		if id.isRecentlyAdded(1, 2, uint64(time.Now().UnixNano())) {
+			t.Error("shouldn't be marked as added")
+		}
+		id.recentlyAdded(1, 2, uint64(time.Now().UnixNano()))
 
-	if !id.isRecentlyAdded(1, 2, uint64(time.Now().UnixNano())) {
-		t.Error("should be marked as added")
-	}
+		if !id.isRecentlyAdded(1, 2, uint64(time.Now().UnixNano())) {
+			t.Error("should be marked as added")
+		}
 
-	time.Sleep(time.Duration(recentlyAddedTimeout))
+		time.Sleep(time.Duration(recentlyAddedTimeout))
 
-	if id.isRecentlyAdded(1, 2, uint64(time.Now().UnixNano())) {
-		t.Error("shouldn't be marked as added")
-	}
+		if id.isRecentlyAdded(1, 2, uint64(time.Now().UnixNano())) {
+			t.Error("shouldn't be marked as added")
+		}
+	})
 }
 
 func TestIsRecentlyAddedCollision(t *testing.T) {

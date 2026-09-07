@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -376,20 +375,12 @@ func (p *Profile) GetTags() []string {
 	return tags
 }
 
-// ScrubProcessArgsEnvs scrubs the process arguments and environment variables
-func (p *Profile) ScrubProcessArgsEnvs(resolver *process.EBPFResolver) {
-	p.Lock()
-	defer p.Unlock()
-
-	p.ActivityTree.ScrubProcessArgsEnvs(resolver)
-}
-
 // Snapshot collects procfs data for all the processes in the activity tree
 func (p *Profile) Snapshot(newEvent func() *model.Event) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.ActivityTree.Snapshot(newEvent)
+	p.ActivityTree.Snapshot(newEvent, p.Metadata.ContainerID)
 }
 
 // GetWorkloadSelector returns the workload selector

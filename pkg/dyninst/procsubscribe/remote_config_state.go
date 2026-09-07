@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package procsubscribe
 
@@ -68,6 +68,34 @@ func (s *subscriberState) onScanUpdate(
 		removed := removed
 		log.Tracef("process subscriber: onScanUpdate: added=%v, removed=%v", added, removed)
 	}
+	// Removals come first: a scan that observes a pid being reused reports the
+	// exit of the old process and the discovery of the new one together, and
+	// they are only told apart here by that pid.
+	var removals []process.ID
+	for _, removedPID := range removed {
+		pid := int32(removedPID)
+		runtimeID, ok := s.pidToRuntime[pid]
+		if !ok {
+			continue
+		}
+		delete(s.pidToRuntime, pid)
+		delete(s.tracked, runtimeID)
+		removals = append(removals, process.ID{PID: pid})
+		if s.streamEstablished {
+			effects.untrack(runtimeID)
+		}
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef(
+				"process subscriber: reporting removal for pid %d",
+				pid,
+			)
+		}
+	}
+
+	if len(removals) > 0 {
+		effects.emitUpdate(process.ProcessesUpdate{Removals: removals})
+	}
+
 	for _, proc := range added {
 		runtimeID := proc.TracerMetadata.RuntimeID
 		if runtimeID == "" {
@@ -100,31 +128,6 @@ func (s *subscriberState) onScanUpdate(
 		}
 
 		s.pidToRuntime[pid.PID] = runtimeID
-	}
-
-	var removals []process.ID
-	for _, removedPID := range removed {
-		pid := int32(removedPID)
-		runtimeID, ok := s.pidToRuntime[pid]
-		if !ok {
-			continue
-		}
-		delete(s.pidToRuntime, pid)
-		delete(s.tracked, runtimeID)
-		removals = append(removals, process.ID{PID: pid})
-		if s.streamEstablished {
-			effects.untrack(runtimeID)
-		}
-		if log.ShouldLog(log.TraceLvl) {
-			log.Tracef(
-				"process subscriber: reporting removal for pid %d",
-				pid,
-			)
-		}
-	}
-
-	if len(removals) > 0 {
-		effects.emitUpdate(process.ProcessesUpdate{Removals: removals})
 	}
 }
 

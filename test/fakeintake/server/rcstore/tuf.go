@@ -208,6 +208,11 @@ func BuildRootJSON(key ed25519.PrivateKey, keyID, publicKeyHex string) ([]byte, 
 // GenerateTUFMetas builds targets/snapshot/timestamp at the given version from
 // the supplied configs, alongside the cached root bytes.
 func GenerateTUFMetas(cfgs []Config, key ed25519.PrivateKey, keyID string, root []byte, version uint64) (RepoMetas, error) {
+	return GenerateTUFMetasWithExpiration(cfgs, key, keyID, root, version, TUFExpires)
+}
+
+// GenerateTUFMetasWithExpiration builds metadata with a caller-provided non-root expiry.
+func GenerateTUFMetasWithExpiration(cfgs []Config, key ed25519.PrivateKey, keyID string, root []byte, version uint64, expires string) (RepoMetas, error) {
 	targetsMap := make(map[string]any, len(cfgs))
 	for _, c := range cfgs {
 		targetsMap[c.Path()] = map[string]any{
@@ -219,7 +224,7 @@ func GenerateTUFMetas(cfgs []Config, key ed25519.PrivateKey, keyID string, root 
 
 	targetsSigned := map[string]any{
 		"_type":        "targets",
-		"expires":      TUFExpires,
+		"expires":      expires,
 		"spec_version": "1.0",
 		"targets":      targetsMap,
 		"version":      version,
@@ -231,7 +236,7 @@ func GenerateTUFMetas(cfgs []Config, key ed25519.PrivateKey, keyID string, root 
 
 	snapshotSigned := map[string]any{
 		"_type":   "snapshot",
-		"expires": TUFExpires,
+		"expires": expires,
 		"meta": map[string]any{
 			"targets.json": map[string]any{
 				"hashes":  map[string]any{"sha256": sha256Hex(targetsJSON)},
@@ -249,7 +254,7 @@ func GenerateTUFMetas(cfgs []Config, key ed25519.PrivateKey, keyID string, root 
 
 	timestampSigned := map[string]any{
 		"_type":   "timestamp",
-		"expires": TUFExpires,
+		"expires": expires,
 		"meta": map[string]any{
 			"snapshot.json": map[string]any{
 				"hashes":  map[string]any{"sha256": sha256Hex(snapshotJSON)},

@@ -343,3 +343,13 @@ reverse_dns_enrichment:
 		})
 	}
 }
+
+func TestConfigEnabledForBasicNetworkPathTests(t *testing.T) {
+	mockConfig := mock.NewFromYAML(t, `
+network_path:
+  connections_monitoring:
+    basic_tests_enabled: true
+`)
+
+	assert.True(t, newConfig(mockConfig).enabled)
+}

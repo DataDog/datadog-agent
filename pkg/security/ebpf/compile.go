@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && !ebpf_bindata && !btfhubsync && !cws_go_generate
+//go:build linux && bpf && !ebpf_bindata && !btfhubsync && !cws_go_generate
 
 // Package ebpf holds ebpf related files
 package ebpf
@@ -18,7 +18,7 @@ import (
 //go:generate $GOPATH/bin/include_headers pkg/security/ebpf/c/prebuilt/probe.c pkg/ebpf/bytecode/build/runtime/runtime-security.c pkg/security/ebpf/c/include pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/runtime-security.c pkg/ebpf/bytecode/runtime/runtime-security.go runtime
 
-func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer bool) (bytecode.AssetReader, error) {
+func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer, useSyscallTaskStorage bool) (bytecode.AssetReader, error) {
 	var cflags []string
 
 	if useFentry {
@@ -37,6 +37,12 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFen
 		cflags = append(cflags, "-DUSE_RING_BUFFER=1")
 	} else {
 		cflags = append(cflags, "-DUSE_RING_BUFFER=0")
+	}
+
+	if useSyscallTaskStorage {
+		cflags = append(cflags, "-DUSE_SYSCALL_TASK_STORAGE=1")
+	} else {
+		cflags = append(cflags, "-DUSE_SYSCALL_TASK_STORAGE=0")
 	}
 
 	cflags = append(cflags, "-g")

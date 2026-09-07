@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "client.go",
         "config.go",
+        "endpoints.go",
         "mock_remote_client.go",
         "peer_tags.go",
     ],

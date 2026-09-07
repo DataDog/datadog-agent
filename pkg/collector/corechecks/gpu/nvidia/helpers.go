@@ -94,9 +94,10 @@ func filterSupportedAPIs(device ddnvml.Device, apiCalls []apiCallInfo) []apiCall
 	for _, apiCall := range apiCalls {
 		// Test API support by calling the handler with timestamp=0 and ignoring results
 		_, _, err := apiCall.Handler(device, 0)
-		if err == nil || !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
-			supportedAPIs = append(supportedAPIs, apiCall)
+		if err != nil && (ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice)) {
+			continue
 		}
+		supportedAPIs = append(supportedAPIs, apiCall)
 	}
 
 	return supportedAPIs
@@ -144,24 +145,14 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 	return tagsMapping
 }
 
-func metricValuesToPointers(metrics []Metric) []*Metric {
-	pointers := make([]*Metric, 0, len(metrics))
-	for _, metric := range metrics {
-		metricCopy := metric
-		pointers = append(pointers, &metricCopy)
-	}
-
-	return pointers
-}
-
-// RemoveDuplicateMetrics filters metrics by priority across collectors while preserving all metrics within each collector.
-// For each metric name, it finds the collector with the highest priority metric of that name, then includes
-// ALL metrics with that name from the winning collector. This preserves multiple metrics with the same name
+// RemoveDuplicateSamples filters samples by priority across collectors while preserving all samples within each collector.
+// For each sample key, it finds the collector with the highest priority sample for that key, then includes
+// ALL samples with that key from the winning collector. This preserves multiple metrics with the same name
 // but different tags (e.g., multiple memory.usage metrics with different PIDs) from the same collector,
 // while still allowing cross-collector deduplication based on priority.
 //
-// Input: map from collector ID to slice of metrics from that collector
-// Output: flat slice of metrics with duplicates removed according to the priority rules
+// Input: map from collector ID to samples from that collector
+// Output: flat slice of samples with duplicates removed according to the priority rules
 //
 // Example:
 //
@@ -183,38 +174,39 @@ func metricValuesToPointers(metrics []Metric) []*Metric {
 //	{Name: "fan.speed", Priority: 0}                           // From CollectorB (unique)
 //
 // ]
-func RemoveDuplicateMetrics(allMetrics map[CollectorName][]*Metric) []*Metric {
-	// Map metric name -> collector ID -> []Metric (with that name)
-	nameToCollectorMetrics := make(map[string]map[CollectorName]map[MetricPriority][]*Metric)
+func RemoveDuplicateSamples(allSamples map[CollectorName][]Sample) []Sample {
+	// Map sample key -> collector ID -> priority -> samples.
+	keyToCollectorSamples := make(map[string]map[CollectorName]map[MetricPriority][]Sample)
 
-	for collectorID, metrics := range allMetrics {
-		for _, m := range metrics {
-			if _, ok := nameToCollectorMetrics[m.Name]; !ok {
-				nameToCollectorMetrics[m.Name] = make(map[CollectorName]map[MetricPriority][]*Metric)
+	for collectorID, samples := range allSamples {
+		for _, sample := range samples {
+			key := sample.Key()
+			if _, ok := keyToCollectorSamples[key]; !ok {
+				keyToCollectorSamples[key] = make(map[CollectorName]map[MetricPriority][]Sample)
 			}
-			if _, ok := nameToCollectorMetrics[m.Name][collectorID]; !ok {
-				nameToCollectorMetrics[m.Name][collectorID] = make(map[MetricPriority][]*Metric)
+			if _, ok := keyToCollectorSamples[key][collectorID]; !ok {
+				keyToCollectorSamples[key][collectorID] = make(map[MetricPriority][]Sample)
 			}
-			nameToCollectorMetrics[m.Name][collectorID][m.Priority] = append(nameToCollectorMetrics[m.Name][collectorID][m.Priority], m)
+			priority := sample.Priority()
+			keyToCollectorSamples[key][collectorID][priority] = append(keyToCollectorSamples[key][collectorID][priority], sample)
 		}
 	}
 
-	var result []*Metric
+	var result []Sample
 
-	// For each metric name, pick all matching metrics from the collector with the highest-priority metric of that name
-	for _, collectorMetrics := range nameToCollectorMetrics {
+	// For each sample key, pick all matching samples from the collector with the highest-priority sample.
+	for _, collectorSamples := range keyToCollectorSamples {
 		maxPriority := Low
-		var winningMetrics []*Metric
-		for _, priorityMetrics := range collectorMetrics {
-			for priority, metrics := range priorityMetrics {
+		var winningSamples []Sample
+		for _, prioritySamples := range collectorSamples {
+			for priority, samples := range prioritySamples {
 				if priority >= maxPriority {
 					maxPriority = priority
-					winningMetrics = metrics
+					winningSamples = samples
 				}
 			}
 		}
-		// Add all metrics for that name from the winning collector
-		result = append(result, winningMetrics...)
+		result = append(result, winningSamples...)
 	}
 
 	return result
@@ -240,11 +232,6 @@ func fieldValueForField(device ddnvml.Device, fieldID uint32, fieldName string) 
 	return value, nil
 }
 
-// GetNVLinkCount returns the number of NVLink ports on the device.
-func GetNVLinkCount(device ddnvml.Device) (int, error) {
-	return fieldValueForField(device, nvml.FI_DEV_NVLINK_LINK_COUNT, "FI_DEV_NVLINK_LINK_COUNT")
-}
-
 // GetC2CLinkCount returns the number of C2C links on the device.
 func GetC2CLinkCount(device ddnvml.Device) (int, error) {
 	return fieldValueForField(device, nvml.FI_DEV_C2C_LINK_COUNT, "FI_DEV_C2C_LINK_COUNT")
@@ -255,19 +242,12 @@ func nvlinkPortTag(port int) string {
 }
 
 // portIsAlwaysSupported is a placeholder that can be used in getSupportedNvlinkPorts to indicate that a port is always supported.
-func portIsAlwaysSupported(_ int) ([]*Metric, error) {
-	return []*Metric{{Name: "always_supported"}}, nil
+func portIsAlwaysSupported(_ int) ([]Sample, error) {
+	return []Sample{&Metric{Name: "always_supported"}}, nil
 }
 
-func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]*Metric, error)) ([]int, error) {
-	totalPorts, err := GetNVLinkCount(device)
-	if err != nil {
-		if ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice) {
-			return nil, fmt.Errorf("%w: get NVLink link count: %w", errUnsupportedDevice, err)
-		}
-		return nil, fmt.Errorf("get NVLink link count: %w", err)
-	}
-
+func getSupportedNvlinkPorts(device ddnvml.Device, sampleCollector func(int) ([]Sample, error)) ([]int, error) {
+	totalPorts := device.GetDeviceInfo().NVLinkLinkCount
 	if totalPorts <= 0 {
 		return nil, fmt.Errorf("%w: no NVLink ports found", errUnsupportedDevice)
 	}
@@ -275,9 +255,9 @@ func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]
 	var ports []int
 	var portErrors []error
 	for port := 1; port <= totalPorts; port++ {
-		_, err := metricCollector(port)
+		_, err := sampleCollector(port)
 		if err != nil {
-			portErrors = append(portErrors, fmt.Errorf("collect metrics for port %d: %w", port, err))
+			portErrors = append(portErrors, fmt.Errorf("collect samples for port %d: %w", port, err))
 
 			if ddnvml.IsAPIUnsupportedOnDevice(err, device) || errors.Is(err, errUnsupportedDevice) {
 				// only ignore ports if the error is because the API is unsupported

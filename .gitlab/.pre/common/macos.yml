@@ -70,11 +70,6 @@
       dda self pip install awscli==1.29.45
     fi
 
-.vault_login:
-  # Point the CLI to our internal vault
-  - export VAULT_ADDR=https://vault.us1.ddbuild.io
-  - vault login -method=aws -no-print
-
 .aws_retry_config:
   - export AWS_RETRY_MODE=standard
   - export AWS_RETRY_MAX_ATTEMPTS=5
@@ -87,11 +82,16 @@
       aud: ci-identities
   variables:
     AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}/.aws/credentials-by-job-id/${CI_JOB_ID}
+    # Forbid the AWS SDK/CLI from falling back to the EC2 instance profile via IMDS, so a
+    # missing or expired CI Identities credentials file fails loudly instead of silently
+    # succeeding under the runner's instance role. Only affects the AWS SDK/CLI: the raw
+    # `curl 169.254.169.254` in .macos_runner_maintenance keeps working.
+    AWS_EC2_METADATA_DISABLED: "true"
   before_script:
-    - !reference [.vault_login]
     - !reference [.aws_retry_config]
     # Drop GOPROXY entries not usable from macOS runners, before any go command.
     - !reference [.sanitize_goproxy]
+    - !reference [.bazel:recover_from_canceled_job]
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))
@@ -99,6 +99,10 @@
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
+    # Populate AWS_SHARED_CREDENTIALS_FILE via CI Identities. macOS runners no longer
+    # carry an IAM instance role, so any `aws` call made by the job (e.g. the
+    # agent-version.cache download in `dda inv agent.build`) needs these credentials.
+    - ci-identities-gitlab-job-client assume-role
     - export GOCACHE="$TMPDIR/go-build"
     - dda inv -- -e install-tools --verbose
 

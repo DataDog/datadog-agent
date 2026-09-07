@@ -77,11 +77,13 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.kubernetes.core": sets.New[string]("action3"),
 				"com.datadoghq.kubernetes.apps": sets.New[string]("action4"),
 				"com.datadoghq.remoteaction":    sets.New[string]("action5"),
+				"com.datadoghq.mongodb":         sets.New[string]("action6"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
 				"com.datadoghq.script":                sets.New[string]("testConnection", "enrichScript"),
 				"com.datadoghq.gitlab.users":          sets.New[string]("testConnection"),
 				"com.datadoghq.kubernetes.core":       sets.New[string]("testConnection"),
+				"com.datadoghq.mongodb":               sets.New[string]("testConnection"),
 				"com.datadoghq.remoteaction":          sets.New[string]("testConnection"),
 				"com.datadoghq.remoteaction.internal": sets.New[string]("prepareEncryption"),
 			},
@@ -349,6 +351,31 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		_, hasK8sApps := allowlist["com.datadoghq.kubernetes.apps"]
 		assert.False(t, hasK8sApps)
 	})
+
+	t.Run("kubeactions bundle is auto-allowed when kubeactions.enabled is true", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", true)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		for _, action := range []string{"deletePod", "restartDeployment", "patchDeployment", "rollbackDeployment", "getResource"} {
+			assert.True(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has(action), "expected %s to be allowed", action)
+		}
+	})
+
+	t.Run("kubeactions bundle is not allowed when kubeactions.enabled is false", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
+		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
+		assert.False(t, has)
+	})
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
@@ -399,6 +426,24 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedDefaultsAndOverrides(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.RShellPrivilegedEnabled)
+	assert.Equal(t, setup.RShellPrivilegedSocketDefault, cfg.RShellPrivilegedSocket)
+
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedEnabled, true)
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedSocket, "/run/custom-rshell.sock")
+	cfg, err = FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.RShellPrivilegedEnabled)
+	assert.Equal(t, "/run/custom-rshell.sock", cfg.RShellPrivilegedSocket)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
@@ -612,6 +657,40 @@ private_action_runner:
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 	assert.Nil(t, cfg.RShellAllowedSystemServices)
+	assert.False(t, cfg.RShellDisableDetailedTelemetry)
+	assert.True(t, cfg.AgentSecretManagementEnabled)
+}
+
+func TestFromDDConfigPARAgentSecretManagementDisabled(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARAgentSecretManagementEnabled, false)
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.AgentSecretManagementEnabled)
+}
+
+func TestFromDDConfigPARRestrictedShellDisableDetailedTelemetryUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.RShellDisableDetailedTelemetry)
+}
+
+func TestFromDDConfigPARRestrictedShellDisableDetailedTelemetrySet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellDisableDetailedTelemetry, true)
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.RShellDisableDetailedTelemetry)
 }
 
 func TestNewMetricsClient(t *testing.T) {

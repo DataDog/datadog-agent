@@ -41,6 +41,7 @@ instances:
     ## Linux only.
     ## The location of the conntrack executable in order to get the stats from conntrack -S.
     ## It will be run with sudo by default, so an entry needs to be added to the sudoers file.
+    ## Allowed locations for this to run /usr/bin/, /usr/sbin/, /sbin/, /nix/store/.
     ## By default, these metrics will not be sent.
     #
     # conntrack_path: "None"

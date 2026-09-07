@@ -68,7 +68,7 @@ type StateView interface {
 	GetSeriesRange(ref observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) *observerdef.Series
 	ScenarioBounds() (start, end int64, ok bool)
 
-	// Anomalies
+	// Anomalies (full history is available only when replay/debug tracking is enabled)
 	Anomalies() []observerdef.Anomaly
 	TotalAnomalyCount() int
 
@@ -92,8 +92,8 @@ type StateView interface {
 	LatestDataTime() int64
 	MaxTimestamp() int64
 
-	// Storage stats (excluding a given namespace, typically TelemetryNamespace)
-	TotalSeriesCount(excludeNamespace string) int
+	// Storage stats
+	TotalSeriesCount() int
 	TotalSampleCount(excludeNamespace string) int64
 
 	// GetSeriesAll returns all points for a series.

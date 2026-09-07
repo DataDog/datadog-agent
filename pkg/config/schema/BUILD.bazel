@@ -34,6 +34,7 @@ filegroup(
         "yaml/internal_profiling.yaml",
         "yaml/logs_config.yaml",
         "yaml/multi_region_failover.yaml",
+        "yaml/network_devices.yaml",
         "yaml/orchestrator_explorer.yaml",
         "yaml/otelcollector.yaml",
         "yaml/private_action_runner.yaml",

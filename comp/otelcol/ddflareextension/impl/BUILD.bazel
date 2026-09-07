@@ -20,7 +20,6 @@ go_library(
         "//comp/otelcol/ddflareextension/impl/internal/metadata",
         "//comp/otelcol/ddflareextension/types",
         "//pkg/api/coverage",
-        "//pkg/api/security",
         "//pkg/util/option",
         "//pkg/version",
         "@com_github_google_uuid//:uuid",
@@ -95,6 +94,5 @@ dd_agent_go_test(
         "@io_opentelemetry_go_collector_receiver_nopreceiver//:nopreceiver",
         "@io_opentelemetry_go_collector_receiver_otlpreceiver//:otlpreceiver",
         "@io_opentelemetry_go_collector_service//telemetry/otelconftelemetry",
-        "@org_uber_go_zap//:zap",
     ],
 )

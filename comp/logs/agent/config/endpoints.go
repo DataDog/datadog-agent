@@ -340,7 +340,7 @@ func (e *Endpoint) onConfigUpdate(l *LogsConfigKeys) {
 // onConfigUpdateFromReaderMainEndpoint handles configuration change notification to update the internal API key of the
 // endpoint if it is the main endpoint
 func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
-	config.OnUpdate(func(key string, _ model.Source, oldVal interface{}, newVal interface{}, _ uint64) {
+	config.OnUpdate(func(key string, _ model.Source, oldVal interface{}, newVal interface{}, _ uint64, _ model.Source) {
 		if key != e.configSettingPath {
 			return
 		}
@@ -366,7 +366,7 @@ func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
 // onConfigUpdateAdditionalEndpoints handles configuration change notification to update the internal API key of the
 // endpoint, when the endpoint is an additional endpoint
 func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
-	l.getConfig().OnUpdate(func(key string, _ model.Source, _ interface{}, _ interface{}, _ uint64) {
+	l.getConfig().OnUpdate(func(key string, _ model.Source, _ interface{}, _ interface{}, _ uint64, _ model.Source) {
 		if key != e.configSettingPath {
 			return
 		}

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Disable GPU parallel collection by default to avoid triggering NVML concurrency bugs.

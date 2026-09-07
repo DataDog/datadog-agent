@@ -42,6 +42,10 @@ const (
 	otelSeverityNumber = otelNamespace + ".severity_number"
 	otelSeverityText   = otelNamespace + ".severity_text"
 	otelTimestamp      = otelNamespace + ".timestamp"
+	otelScopeName      = otelNamespace + ".scope.name"
+	otelScopeVersion   = otelNamespace + ".scope.version"
+	otelLibraryName    = otelNamespace + ".library.name"    // deprecated alias for otel.scope.name
+	otelLibraryVersion = otelNamespace + ".library.version" // deprecated alias for otel.scope.version
 	otelEventName      = otelNamespace + ".event_name"
 )
 const (
@@ -92,6 +96,16 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 			l.Message = v.AsString()
 		case "status", "severity", "level", "syslog.severity":
 			status = v.AsString()
+		case otelLibraryName:
+			// Deprecated alias: only takes effect if the canonical otel.scope.name attribute
+			// isn't also present, since attribute iteration order isn't guaranteed.
+			if _, ok := lr.Attributes().Get(otelScopeName); !ok {
+				l.AdditionalProperties[otelScopeName] = v.AsString()
+			}
+		case otelLibraryVersion:
+			if _, ok := lr.Attributes().Get(otelScopeVersion); !ok {
+				l.AdditionalProperties[otelScopeVersion] = v.AsString()
+			}
 		case "traceid", "trace_id", "contextmap.traceid", "oteltraceid":
 			traceID, err := decodeTraceID(v.AsString())
 			if err != nil {
@@ -127,17 +141,38 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 		return true
 	})
 	res.Attributes().Range(func(k string, v pcommon.Value) bool {
-		// "hostname" and "service" are reserved keywords in HTTPLogItem
-		// Prefix the keys so they aren't overwritten when marshalling
-		if k == "hostname" || k == "service" {
+		switch k {
+		case "hostname", "service":
+			// "hostname" and "service" are reserved keywords in HTTPLogItem
+			// Prefix the keys so they aren't overwritten when marshalling
 			l.AdditionalProperties["otel."+k] = v.AsString()
-		} else {
+		case otelLibraryName:
+			if _, ok := res.Attributes().Get(otelScopeName); !ok {
+				l.AdditionalProperties[otelScopeName] = v.AsString()
+			}
+		case otelLibraryVersion:
+			if _, ok := res.Attributes().Get(otelScopeVersion); !ok {
+				l.AdditionalProperties[otelScopeVersion] = v.AsString()
+			}
+		default:
 			l.AdditionalProperties[k] = v.AsString()
 		}
 		return true
 	})
 	for k, v := range scope.Attributes().Range {
 		l.AdditionalProperties[k] = v.AsString()
+	}
+	// The instrumentation scope's Name/Version are canonical but processed last, so only
+	// fill them in if a log or resource attribute hasn't already set otel.scope.name/version.
+	if name := scope.Name(); name != "" {
+		if _, ok := l.AdditionalProperties[otelScopeName]; !ok {
+			l.AdditionalProperties[otelScopeName] = name
+		}
+	}
+	if version := scope.Version(); version != "" {
+		if _, ok := l.AdditionalProperties[otelScopeVersion]; !ok {
+			l.AdditionalProperties[otelScopeVersion] = version
+		}
 	}
 	if traceID := lr.TraceID(); !traceID.IsEmpty() {
 		l.AdditionalProperties[ddTraceID] = strconv.FormatUint(traceIDToUint64(traceID), 10)

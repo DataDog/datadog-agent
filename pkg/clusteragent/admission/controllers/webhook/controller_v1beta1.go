@@ -35,6 +35,7 @@ import (
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,7 +54,7 @@ type ControllerV1beta1 struct {
 }
 
 // NewControllerV1beta1 returns a new Webhook Controller using admissionregistration/v1beta1.
-func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingWebhookInformer admissioninformers.ValidatingWebhookConfigurationInformer, mutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, datadogConfig config.Component, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory, csiDriverWatcher libraryinjection.CSIDriverWatcher) *ControllerV1beta1 {
+func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingWebhookInformer admissioninformers.ValidatingWebhookConfigurationInformer, mutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, datadogConfig config.Component, rcClient *rcclient.Client, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory, csiDriverWatcher libraryinjection.CSIDriverWatcher) *ControllerV1beta1 {
 	controller := &ControllerV1beta1{}
 	controller.clientSet = client
 	controller.config = config
@@ -70,7 +71,7 @@ func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinform
 	)
 	controller.isLeaderFunc = isLeaderFunc
 	controller.leadershipStateNotif = leadershipStateNotif
-	controller.webhooks = controller.generateWebhooks(datadogConfig, wmeta, demultiplexer, pp, sh, filterStore, handlers, informerFactory, csiDriverWatcher)
+	controller.webhooks = controller.generateWebhooks(datadogConfig, wmeta, rcClient, demultiplexer, pp, sh, filterStore, handlers, informerFactory, csiDriverWatcher)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -413,6 +414,7 @@ func (c *ControllerV1beta1) generateTemplates() {
 }
 
 func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resources []common.WebhookResourceRule, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition, timeout int32) admiv1beta1.ValidatingWebhook {
+	namespaceSelector = common.EnsureAKSSelectors(namespaceSelector)
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -456,6 +458,7 @@ func (c *ControllerV1beta1) getValidatingWebhookSkeleton(nameSuffix, path string
 }
 
 func (c *ControllerV1beta1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1beta1.OperationType, resources []common.WebhookResourceRule, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition, timeout int32) admiv1beta1.MutatingWebhook {
+	namespaceSelector = common.EnsureAKSSelectors(namespaceSelector)
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := c.config.getServicePort()

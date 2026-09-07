@@ -90,8 +90,11 @@ dd_agent_go_test(
     ],
     embed = [":trivy"],
     gotags_sets = [[
+        "cel",
         "containerd",
         "crio",
+        "docker",
+        "kubelet",
         "trivy",
     ]],
     include_default = False,
@@ -120,5 +123,6 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
+        "@org_uber_go_goleak//:goleak",
     ],
 )

@@ -56,15 +56,17 @@ deploy_deb_testing-a7_x64:
   extends:
     - .deploy_deb_testing-a7
   needs:
-    [
-      "installer_deb-amd64",
-      "agent_deb-x64-a7",
-      "agent_deb-x64-a7-fips",
-      "agent_heroku_deb-x64-a7",
-      "iot_agent_deb-x64",
-      "dogstatsd_deb-x64",
-      "ddot_deb-x64",
-    ]
+    - "installer_deb-amd64"
+    - "agent_deb-x64-a7"
+    - "agent_deb-x64-a7-fips"
+    - "agent_heroku_deb-x64-a7"
+    - "iot_agent_deb-x64"
+    - "dogstatsd_deb-x64"
+    - "ddot_deb-x64"
+    # deb-s3 rewrites the repository index, so uploads to it must not overlap. The job below only
+    # exists on pipelines that publish datadog-fips-proxy.
+    - job: deploy_fips_proxy_testing-a7_x64
+      optional: true
   script:
     # setup_signing_keys_package must be done *before* setup_signing
     # because setup_signing replaces gpg with gpg-vault
@@ -118,14 +120,16 @@ deploy_rpm_testing-a7_x64:
   extends:
     - .deploy_rpm_testing-a7
   needs:
-    [
-      "installer_rpm-amd64",
-      "agent_rpm-x64-a7",
-      "agent_rpm-x64-a7-fips",
-      "iot_agent_rpm-x64",
-      "dogstatsd_rpm-x64",
-      "ddot_rpm-x64",
-    ]
+    - "installer_rpm-amd64"
+    - "agent_rpm-x64-a7"
+    - "agent_rpm-x64-a7-fips"
+    - "iot_agent_rpm-x64"
+    - "dogstatsd_rpm-x64"
+    - "ddot_rpm-x64"
+    # rpm-s3 rewrites the repository metadata, so uploads to it must not overlap. The job below only
+    # exists on pipelines that publish datadog-fips-proxy.
+    - job: deploy_fips_proxy_testing-a7_x64
+      optional: true
   script:
     - *setup_signing
     - |
@@ -199,6 +203,44 @@ deploy_suse_rpm_testing_arm64-a7:
         tools/ci/signing/sign_rpm_package.sh "$package" $GPG_TEST_KEY_ID out/
       done
     - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $GPG_TEST_KEY_ID --repodata-store-public-key out/datadog-*-7.*aarch64.rpm
+
+# The install script installs datadog-fips-proxy from the same repository as the Agent, but that legacy
+# package is released from another repository, so the install script FIPS tests can only exercise the
+# Agent packages built by this pipeline if a copy of it is published alongside them. It is a job of its
+# own rather than part of the Agent uploads so that only the pipelines running those tests pay for it.
+# x86_64 only, which is all those tests cover. Drop this job with datadog-fips-proxy itself.
+deploy_fips_proxy_testing-a7_x64:
+  rules:
+    # test_install_script, the only consumer, runs on deploy pipelines; the change rule keeps this job
+    # exercised when its own definition moves. Unlike its neighbors it must never be manual: the Agent
+    # package uploads need it, and a needs edge on an untriggered manual job skips them, optional or not.
+    - !reference [.on_deploy]
+    - !reference [.except_mergequeue]
+    - changes:
+        paths:
+          - .gitlab/deploy/e2e_testing_deploy/e2e_deploy.yml
+        compare_to: $COMPARE_TO_BRANCH
+  stage: e2e_deploy
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  tags: ["arch:amd64", "specific:true"]
+  # Nothing to wait for: the package comes from the public repositories.
+  needs: []
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+    # The install script installs this unversioned, but the package is frozen and pending deprecation,
+    # so pinning keeps a release of it from changing what Agent pipelines publish.
+    FIPS_PROXY_VERSION: 1.1.29-1
+  script:
+    - *setup_signing
+    - tools/ci/retry.sh curl -fsSLO "https://yum.datadoghq.com/stable/7/x86_64/datadog-fips-proxy-${FIPS_PROXY_VERSION}.x86_64.rpm"
+    # The deb sits under deb-s3's pool layout, pool/<first letter>/<first two letters>/.
+    - tools/ci/retry.sh curl -fsSLO "https://apt.datadoghq.com/pool/d/da/datadog-fips-proxy_${FIPS_PROXY_VERSION}_amd64.deb"
+    # yum verifies package signatures against the testing keys, which the released package is not signed with.
+    - tools/ci/signing/sign_rpm_package.sh "datadog-fips-proxy-${FIPS_PROXY_VERSION}.x86_64.rpm" $GPG_TEST_KEY_ID out/
+    - python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $GPG_TEST_KEY_ID "out/datadog-fips-proxy-${FIPS_PROXY_VERSION}.x86_64.rpm"
+    # apt only verifies the repository metadata, which deb-s3 signs with the testing key.
+    - deb-s3 upload -c "stable-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo sha512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} "datadog-fips-proxy_${FIPS_PROXY_VERSION}_amd64.deb"
+    - deb-s3 upload -c "stable-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$GPG_TEST_KEY_ID --gpg_options="--batch --digest-algo sha512" --preserve_versions --visibility public --prefix datadog-agent/pipeline-${DD_PIPELINE_ID} "datadog-fips-proxy_${FIPS_PROXY_VERSION}_amd64.deb"
 
 export_testing_public_key:
   rules:

@@ -122,7 +122,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 	mockConfig.SetInTest("expvar_port", port)
 	mockConfig.SetInTest("apm_config.enabled", true)
 	mockConfig.SetInTest("apm_config.debug.port", httpsPort)
-	mockConfig.SetInTest("apm_config.receiver_timeout", "10")
+	mockConfig.SetInTest("apm_config.receiver_timeout", 10)
 	mockConfig.SetInTest("process_config.expvar_port", port)
 	mockConfig.SetInTest("security_agent.expvar_port", port)
 
@@ -193,7 +193,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	mockConfig.SetInTest("expvar_port", port)
 	mockConfig.SetInTest("apm_config.enabled", true)
 	mockConfig.SetInTest("apm_config.debug.port", 0)
-	mockConfig.SetInTest("apm_config.receiver_timeout", "10")
+	mockConfig.SetInTest("apm_config.receiver_timeout", 10)
 	mockConfig.SetInTest("process_config.expvar_port", port)
 	mockConfig.SetInTest("security_agent.expvar_port", port)
 
@@ -258,7 +258,7 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 	mockConfig.SetInTest("security_agent.expvar_port", 0)
 	mockConfig.SetInTest("apm_config.enabled", true)
 	mockConfig.SetInTest("apm_config.debug.port", 0)
-	mockConfig.SetInTest("process_config.enabled", true)
+	mockConfig.SetInTest("process_config.enabled", "true")
 	mockConfig.SetInTest("process_config.expvar_port", 0)
 
 	mockSysProbeConfig := configmock.NewSystemProbe(t)

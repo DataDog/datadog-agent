@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed container image SBOMs being reported as in use after their last
+    container had stopped. On Kubernetes nodes, an image that had run a
+    container once kept that flag until the Agent was restarted.

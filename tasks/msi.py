@@ -505,7 +505,7 @@ def test(ctx, vstudio_root=None, arch="x64", debug=False):
     if not ctx.run(
         'dda inv -- -e schema.template '
         '--schema=./pkg/config/schema/yaml/core_schema.yaml '
-        '--build-type=agent-py3 '
+        '--build-type=datadog-agent '
         '--os-target=windows '
         f'--output="{build_outdir}\\datadog.yaml"',
         warn=True,

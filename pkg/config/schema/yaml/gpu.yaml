@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/gpu.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/gpu.yaml
 node_type: section
 type: object
 visibility: public
@@ -19,6 +19,15 @@ properties:
       Set to true to enable the GPU check in the core Agent.
       Required for GPU monitoring on non-containerized Linux hosts.
       Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
+  legacy_sm_active:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Set to true to restore the legacy mapping of GPM SM utilization to
+      gpu.sm_active, matching the behavior of DCGM. On GPM-capable GPUs, the high-priority GPM value is
+      reported as both gpu.sm_active and gpu.sm_utilization.
   nccl:
     node_type: section
     type: object
@@ -100,7 +109,7 @@ properties:
   parallel_collectors:
     node_type: setting
     type: boolean
-    default: true
+    default: false
   sp_process_metrics_request_timeout:
     node_type: setting
     type: string

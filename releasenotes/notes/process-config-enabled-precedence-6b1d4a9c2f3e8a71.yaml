@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The deprecated ``process_config.enabled`` setting no longer overrides
+    ``process_config.container_collection.enabled`` and
+    ``process_config.process_collection.enabled`` when those are configured
+    directly, whether through the configuration file, an environment variable,
+    or any higher-precedence source. Previously, setting
+    ``DD_PROCESS_CONFIG_ENABLED=false`` together with
+    ``DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED=false`` left container
+    collection enabled. ``process_config.enabled`` still applies to whichever of
+    the two settings is left unset, so configurations that only use the
+    deprecated setting are unaffected.

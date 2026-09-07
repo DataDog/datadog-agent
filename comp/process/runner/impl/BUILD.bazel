@@ -43,7 +43,6 @@ dd_agent_go_test(
         "//comp/process/submitter/mock",
         "//comp/process/types",
         "//pkg/util/fxutil",
-        "//pkg/util/testutil/flake",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_stretchr_testify//assert",
         "@org_uber_go_fx//:fx",

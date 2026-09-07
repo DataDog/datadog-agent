@@ -175,6 +175,39 @@ func TestEdgeCases(t *testing.T) {
 	}
 }
 
+// TestInvalidStable_TerminalCases covers case-(a) inputs that the
+// TestValidator_InvalidStable property test over-skips because the
+// couldBeJSONPrefix filter conservatively excludes any head whose
+// leading non-whitespace byte could begin a multi-byte token. These
+// inputs start with a "prefix-looking" byte but are actually
+// terminal-invalid because a later byte breaks the token they
+// appeared to be building.
+//
+// Each case: Write(head) must return Invalid, then Write(tail) must
+// still return Invalid — extension cannot rescue a terminally-invalid
+// head. Anchors @invariant InvalidStable, case (a).
+func TestInvalidStable_TerminalCases(t *testing.T) {
+	cases := []struct {
+		name string
+		head string
+		tail string
+	}{
+		{"mid-number parse error", "1abc", "def"},
+		{"mid-keyword parse error", "truex", "yz"},
+		{"invalid after negative sign", "-x", "yz"},
+		{"invalid literal prefix", "nulL", "0"},
+		{"hex-like number", "0x1", "23"},
+		{"double decimal", "1.2.3", "0"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			v := NewIncrementalJSONValidator()
+			assert.Equal(t, Invalid, v.Write([]byte(tc.head)), "precondition: head should be Invalid")
+			assert.Equal(t, Invalid, v.Write([]byte(tc.tail)), "InvalidStable violated: extension recovered from terminal-invalid head")
+		})
+	}
+}
+
 func TestLargeComplexJson(t *testing.T) {
 	jsonString := `{
     "id": "test-123",

@@ -1,10 +1,12 @@
 # GPU architecture capability matrix used by the GPU corecheck.
 # Schema:
-# - nvlink_generations.<generation>.supported_fields: field IDs introduced in that NVLink generation; older generation fields are always supported
+# - nvlink_generations.<version>.supported_fields: field IDs introduced at that NVML
+#   GetNvLinkVersion value (1=1.0, 2=2.0, 3=2.2, 4=3.0, 5=3.1, 6=4.0, 7=5.0);
+#   older version fields are always supported
 # - c2c.supported_fields: field IDs supported when NVLink-C2C is available
 # - architectures.<architecture_name>:
 #   - capabilities.gpm: bool  (whether the architecture supports GPU Performance Metrics or not)
-#   - capabilities.nvlink: int (highest NVLink generation supported by this architecture/mode, or 0)
+#   - capabilities.nvlink: int (highest NVML NVLink version supported by this architecture/mode, or 0)
 #   - capabilities.c2c: bool (whether this architecture/mode supports NVLink-C2C)
 #   - capabilities.unsupported_fields_by_device_mode (list of conditional exclusions for the GetFields API)
 #       - device_modes: [physical|mig|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode. If not included, the fields are unsupported in all modes.)
@@ -12,7 +14,7 @@
 #   - support (optional): mode-specific capabilities and additional unsupported_fields entries
 #   - unsupported_device_modes: [mig|physical|vgpu, ...] (the list of device modes that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
 nvlink_generations:
-  1:
+  1: # NVLink 1.0
     supported_fields:
       - FI_DEV_NVLINK_LINK_COUNT
       - FI_DEV_NVLINK_SPEED_MBPS_COMMON
@@ -25,14 +27,14 @@ nvlink_generations:
       - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
       - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
       - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
-  2:
+  2: # NVLink 2.0
     supported_fields: []
-  3:
+  4: # NVLink 3.0
     supported_fields:
       - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
-  4:
+  6: # NVLink 4.0
     supported_fields: []
-  5:
+  7: # NVLink 5.0
     supported_fields:
       - FI_DEV_NVLINK_GET_SPEED
       - FI_DEV_NVLINK_COUNT_EFFECTIVE_BER
@@ -144,7 +146,7 @@ architectures:
   ampere:
     capabilities:
       gpm: false
-      nvlink: 3
+      nvlink: 4
       c2c: false
       unsupported_fields_by_device_mode:
         - device_modes: [mig, vgpu]
@@ -164,7 +166,7 @@ architectures:
   hopper:
     capabilities:
       gpm: true
-      nvlink: 4
+      nvlink: 6
       c2c: true
       unsupported_fields_by_device_mode:
         - device_modes: [mig, vgpu]
@@ -212,7 +214,7 @@ architectures:
   blackwell:
     capabilities:
       gpm: true
-      nvlink: 5
+      nvlink: 7
       c2c: true
       unsupported_fields_by_device_mode:
         - device_modes: [mig, vgpu]

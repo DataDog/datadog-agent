@@ -1,0 +1,58 @@
+# The executable filter is what makes looking at every process on every scan
+# affordable: a process that is not running a Go binary never costs a tracer
+# metadata read. Both processes here run the same binary, which is also the case
+# where the per executable cache saves the second analysis; that the cache
+# actually does so is checked against real binaries in
+# TestSyntheticProcfsScanWork.
+#
+# Such a process backs off on the same schedule as every other verdict rather
+# than being ruled out, because exec keeps a pid and a start time and can turn
+# it into a Go binary later. See exec_into_go_binary.
+- !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+- !create-process
+  pid: 1001
+  start_time: 50
+  executable: {path: "/usr/bin/python3", ino: 7, go_binary: false}
+  tracer_metadata: {language: "go", service: "not-a-go-binary"}
+- !create-process
+  pid: 1002
+  start_time: 50
+  executable: {path: "/usr/bin/python3", ino: 7, go_binary: false}
+  tracer_metadata: {language: "go", service: "not-a-go-binary"}
+- !scan {}
+- !advance-time {to: 110}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  executable: {path: "/usr/bin/python3", ino: 7, go_binary: false}
+  tracer_metadata: {language: "go", service: "not-a-go-binary"}
+---
+command: !create-process
+  pid: 1002
+  start_time: 50
+  executable: {path: "/usr/bin/python3", ino: 7, go_binary: false}
+  tracer_metadata: {language: "go", service: "not-a-go-binary"}
+---
+command: !scan {}
+state:
+  current_time: 100
+  candidates: [{pid: 1001, start_time: 50, attempts: 1, next_attempt: 110}, {pid: 1002, start_time: 50, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001, 1002]
+---
+command: !advance-time {to: 110}
+---
+command: !scan {}
+state:
+  current_time: 110
+  candidates: [{pid: 1001, start_time: 50, attempts: 2, next_attempt: 130}, {pid: 1002, start_time: 50, attempts: 2, next_attempt: 130}]
+  processes_in_procfs: [1001, 1002]

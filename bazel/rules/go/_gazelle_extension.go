@@ -486,10 +486,40 @@ func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, config
 	if len(matches) > 0 {
 		return mergeTagSets(matches)
 	}
-	if referencesAnyTag(expr, configuredTags) || !deriveTagSets {
-		return mergeTagSets(matches)
+	if !deriveTagSets {
+		return nil
+	}
+	if referencesAnyTag(expr, configuredTags) {
+		return canonicalizedTagSets(expr, baseTags, configuredTagSets)
 	}
 	return minimalTagSets(expr, baseTags)
+}
+
+// canonicalizedTagSets handles constraints that pair a canonical tag with tags
+// no canonical set declares, such as `trivy && containerd` where the only set
+// naming containerd is {cel, containerd}. The set alone cannot satisfy the
+// constraint, but the grouping it expresses still holds, so each minimal set is
+// grown by the canonical sets it touches. Growth is measured against the
+// minimal set rather than the accumulating result: canonical sets frequently
+// share a tag, and re-scanning would chain them all together.
+//
+// A constraint that contradicts the grouping — `kubeapiserver && !kubelet`
+// against {cel, clusterchecks, kubeapiserver, kubelet, orchestrator} — survives
+// no such growth and still yields nothing.
+func canonicalizedTagSets(expr constraint.Expr, baseTags map[string]bool, configuredTagSets [][]string) [][]string {
+	var out [][]string
+	for _, minimal := range minimalTagSets(expr, baseTags) {
+		candidate := minimal
+		for _, tagSet := range configuredTagSets {
+			if stringSetsIntersect(minimal, tagSet) {
+				candidate = normalizeTagSet(append(append([]string(nil), candidate...), tagSet...))
+			}
+		}
+		if canSatisfy(expr, activeTagSet(baseTags, candidate)) {
+			out = append(out, candidate)
+		}
+	}
+	return mergeTagSets(out)
 }
 
 func referencesAnyTag(expr constraint.Expr, tags map[string]bool) bool {

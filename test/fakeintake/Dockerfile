@@ -2,13 +2,31 @@
 # syntax=docker/dockerfile:1
 ARG GO_BASE_IMAGE_REGISTRY=docker.io
 ARG ALPINE_BASE_IMAGE_REGISTRY=docker.io
-ARG GO_VERSION=1.26.5
+ARG GO_VERSION=1.26.7
 
 ## Build
 FROM ${GO_BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION} AS build
 
 # need gcc to build with CGO_ENABLED=1
 # need musl-dev to get stdlib.h
+ARG CI
+# APT mirror resilience in CI. The golang base is Debian, so apt uses
+# deb.debian.org (a CDN). We rewrite the deb822 URIs: to an ordered list with
+# Debian's AWS/CloudFront mirror (cdn-aws.deb.debian.org) first and deb.debian.org
+# as fallback, and bound each request with a short timeout + Retries 1 so a slow
+# mirror becomes a fast error that fails over. (Debian has no EC2 archive mirror
+# like Ubuntu's; cdn-aws is its AWS-region CDN.)
+RUN if [ "$CI" = "true" ]; then \
+  printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' > /etc/apt/apt.conf.d/99datadog-mirror-resilience && \
+  for f in /etc/apt/sources.list.d/debian.sources; do \
+    if [ -f "$f" ]; then \
+      sed -i -E \
+        -e 's#^(URIs:[[:space:]]+)https?://deb\.debian\.org/debian/?[[:space:]]*$#\1http://cdn-aws.deb.debian.org/debian http://deb.debian.org/debian#' \
+        -e 's#^(URIs:[[:space:]]+)https?://deb\.debian\.org/debian-security/?[[:space:]]*$#\1http://cdn-aws.deb.debian.org/debian-security http://deb.debian.org/debian-security#' \
+        "$f"; \
+    fi; \
+  done; \
+  fi
 RUN apt update && apt install --no-install-recommends -y musl-dev gcc musl-tools && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -38,7 +56,9 @@ RUN go build -o /fakeintake cmd/server/main.go
 ## Deploy
 FROM ${ALPINE_BASE_IMAGE_REGISTRY}/library/alpine:3.24.1
 
-RUN apk add curl
+# --timeout (global flag, before the subcommand) bounds each network operation so
+# a slow Alpine CDN fails fast instead of hanging the build. Default is 60s.
+RUN apk --timeout 10 add curl
 
 COPY --from=build /fakeintake /fakeintake
 

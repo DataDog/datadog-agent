@@ -9,7 +9,10 @@
 // The health platform collects health signals from various agent components,
 // persists detected issues, and forwards reports to the Datadog intake.
 //
-// This bundle does not depend on any other bundles.
+// This bundle does not depend on any other bundles, except that the store
+// component requires workloadmeta's fx module to also be wired (used to
+// resolve this agent's DaemonSet/cluster identity; see
+// comp/healthplatform/issueregistry/utils/selfident).
 package healthplatform
 
 import (
@@ -30,6 +33,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"     // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"         // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig" // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/missedbytes"           // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"       // registers templates via init()
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	runnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/runner/fx"

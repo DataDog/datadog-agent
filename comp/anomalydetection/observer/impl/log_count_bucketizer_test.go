@@ -199,7 +199,7 @@ func TestEngineCapacityEvictionDropsIdleBucketizerState(t *testing.T) {
 	assert.Nil(t, storage.GetSeries(
 		"fixed_log_count", "log.fixed.count", logTags, observerdef.AggregateAverage,
 	))
-	assert.Equal(t, 1, storage.TotalSeriesCount(""))
+	assert.Equal(t, 1, storage.TotalSeriesCount())
 }
 
 func TestLogCountBucketConfigFromAgent(t *testing.T) {

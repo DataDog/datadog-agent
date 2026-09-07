@@ -179,6 +179,15 @@ type probe struct{}
 
 func (p *probe) Close() {}
 
+func (p *probe) ProcessFromPID(pid int32) (*Process, error) {
+	psi, err := readPsinfo(pid)
+	if err != nil {
+		return nil, err
+	}
+	proc := psinfoToProcess(psi, pid)
+	return proc, nil
+}
+
 func (p *probe) ProcessesByPID(_ time.Time, _ bool) (map[int32]*Process, error) {
 	pids, err := listPIDs()
 	if err != nil {

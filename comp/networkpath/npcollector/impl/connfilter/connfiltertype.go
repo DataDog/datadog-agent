@@ -32,5 +32,6 @@ type Config struct {
 	MatchDomainStrategy MatchDomainStrategyType `mapstructure:"match_domain_strategy"`
 	MatchIP             string                  `mapstructure:"match_ip"`
 	TestConfigID        string                  `mapstructure:"-"`
+	TestConfigName      string                  `mapstructure:"-"`
 	Tags                []string                `mapstructure:"-"`
 }

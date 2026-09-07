@@ -6,6 +6,7 @@
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::parse_environment_file;
 use crate::platform;
+use crate::spawn::SpawnProfile;
 use crate::state::ProcessState;
 use anyhow::{Context, Result, bail};
 use log::{info, warn};
@@ -99,6 +100,8 @@ pub struct ManagedProcess {
     stop_requested: bool,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
+    profile: SpawnProfile,
+    user: String,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
 }
@@ -116,6 +119,8 @@ impl ManagedProcess {
 
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
+        let profile = SpawnProfile::profile_for(&name);
+        let user = platform::intended_spawn_user(&name, profile);
         Self {
             name,
             uuid,
@@ -128,6 +133,8 @@ impl ManagedProcess {
             stop_requested: false,
             origin,
             last_exit_status: None,
+            profile,
+            user,
             #[cfg(windows)]
             job_object: None,
         }
@@ -155,6 +162,14 @@ impl ManagedProcess {
 
     pub fn config(&self) -> &ProcessConfig {
         &self.config
+    }
+
+    pub(crate) fn profile(&self) -> SpawnProfile {
+        self.profile
+    }
+
+    pub fn user(&self) -> &str {
+        &self.user
     }
 
     pub fn restart_count(&self) -> u32 {
@@ -537,7 +552,19 @@ fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig
         }
     }
     for (k, v) in &config.env {
-        cmd.env(k, expand_env_vars(v));
+        match v.strip_prefix('-') {
+            Some(template) => match try_expand_env_vars(template) {
+                Some(val) => {
+                    cmd.env(k, val);
+                }
+                None => {
+                    info!("[{name}] optional env var {k} references an unset variable, omitting");
+                }
+            },
+            None => {
+                cmd.env(k, expand_env_vars(v));
+            }
+        }
     }
     Ok(())
 }
@@ -553,6 +580,15 @@ fn apply_child_environment(cmd: &mut Command, name: &str, config: &ProcessConfig
 /// as a startup failure rather than silently resolving to an empty path.
 fn expand_env_vars(input: &str) -> String {
     expand_vars_with(input, |name| std::env::var(name).ok())
+}
+
+/// Like [`expand_env_vars`], but for values prefixed with `-` in an `env:` map entry: returns
+/// `None` (instead of a string with a literal `${VAR}` left in place) if any referenced variable
+/// is unset, so the caller can omit the env var entirely. This lets a single process definition
+/// shared by the stable and experiment dd-procmgr export an env var only when the supervising
+/// dd-procmgr itself has it set, without the child seeing an unresolved placeholder.
+fn try_expand_env_vars(input: &str) -> Option<String> {
+    try_expand_vars_with(input, |name| std::env::var(name).ok())
 }
 
 /// Core of [`expand_env_vars`] with the variable lookup injected, so it can be unit-tested without
@@ -586,6 +622,26 @@ fn expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> Str
     }
     out.push_str(rest);
     out
+}
+
+/// Core of [`try_expand_env_vars`] with the variable lookup injected, so it can be
+/// unit-tested without mutating the process environment. Unlike [`expand_vars_with`], this does
+/// not warn on an unresolved variable and returns `None` for the whole input as soon as one is
+/// found, since the caller treats that as "omit this optional value" rather than a
+/// misconfiguration.
+fn try_expand_vars_with(input: &str, lookup: impl Fn(&str) -> Option<String>) -> Option<String> {
+    let mut out = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(start) = rest.find("${") {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        let end = after.find('}')?;
+        let name = &after[..end];
+        out.push_str(&lookup(name)?);
+        rest = &after[end + 1..];
+    }
+    out.push_str(rest);
+    Some(out)
 }
 
 fn apply_child_stdio(cmd: &mut Command, config: &ProcessConfig) {
@@ -670,6 +726,28 @@ pub mod tests {
             expand_vars_with("${MISSING}/x", lookup),
             "${MISSING}/x",
             "unset variables must be left literal so misconfiguration fails loudly"
+        );
+    }
+
+    #[test]
+    fn test_try_expand_vars_substitutes_known() {
+        let lookup = |name: &str| match name {
+            "DD_INVENTORIES_FIRST_RUN_DELAY" => Some("5".to_string()),
+            _ => None,
+        };
+        assert_eq!(
+            try_expand_vars_with("${DD_INVENTORIES_FIRST_RUN_DELAY}", lookup),
+            Some("5".to_string())
+        );
+    }
+
+    #[test]
+    fn test_try_expand_vars_none_when_unset() {
+        let lookup = |_: &str| None;
+        assert_eq!(
+            try_expand_vars_with("${DD_INVENTORIES_FIRST_RUN_DELAY}", lookup),
+            None,
+            "an unset optional variable must yield None so the caller can omit the env var"
         );
     }
 

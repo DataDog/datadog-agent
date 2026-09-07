@@ -48,7 +48,7 @@ func Test_inventorychecksImpl_getJMXChecksMetadata(t *testing.T) {
 	t.Cleanup(jmx.ClearStatus)
 
 	// When I get the JMX checks metatdata
-	jmxMetadata := ic.getJMXChecksMetadata()
+	jmxMetadata := ic.getJMXChecksMetadata(true)
 
 	// Then the metadata should be populated
 	require.NotEmpty(t, jmxMetadata)
@@ -60,4 +60,13 @@ func Test_inventorychecksImpl_getJMXChecksMetadata(t *testing.T) {
 	assert.Equal(t,
 		"1.2.3", jCheck[0]["java.version"],
 		"Could not get Java version", jCheck[0])
+	assert.Contains(t, jCheck[0], "init_config")
+	assert.Contains(t, jCheck[0], "instance")
+
+	// And without the configs, only the identifying fields are returned
+	jCheckNoConfigs := ic.getJMXChecksMetadata(false)["JMXFetch_check"]
+	require.NotEmpty(t, jCheckNoConfigs)
+	assert.NotContains(t, jCheckNoConfigs[0], "init_config")
+	assert.NotContains(t, jCheckNoConfigs[0], "instance")
+	assert.Equal(t, "1.0.1", jCheckNoConfigs[0]["jmxfetch.version"])
 }

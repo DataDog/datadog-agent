@@ -45,7 +45,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	result := logsmapping.TranslateK8sObjects(ld, e.orchestratorExporter.manifestCache, e.set.Logger)
+	result := logsmapping.TranslateK8sObjects(ld, e.orchestratorExporter.manifestCache, e.set.Logger, false)
 
 	hostname, err := e.orchestratorExporter.config.Hostname.Get(ctx)
 	if err != nil || hostname == "" {
@@ -57,7 +57,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) error {
 			zap.Int("chunk_index", i),
 			zap.Int("chunk_size", len(chunk)))
 
-		payload := logsmapping.ToManifestPayload(chunk, hostname, result.ClusterName, result.ClusterID)
+		payload := logsmapping.ToManifestPayload(chunk, hostname, result.ClusterName, result.ClusterID, agentmodel.OriginCollector_datadogExporter)
 
 		if err := sendManifestPayload(ctx, e.orchestratorExporter.config.Endpoint, e.orchestratorExporter.config.Key, payload, hostname, result.ClusterID, e.set.Logger); err != nil {
 			e.set.Logger.Error("Failed to send collector manifest chunk",

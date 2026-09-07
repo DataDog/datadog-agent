@@ -12,10 +12,17 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/dwarf/dwarfutil",
-        "//pkg/dyninst/ir",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/dwarf/dwarfutil",
+            "//pkg/dyninst/ir",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/dwarf/dwarfutil",
+            "//pkg/dyninst/ir",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
@@ -25,7 +32,7 @@ dd_agent_go_test(
         "parse_test.go",
     ],
     embed = [":loclist"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
-    target_compatible_with = ["@platforms//os:linux"],
+    tags = ["requires_ebpf"],
 )

@@ -6,6 +6,7 @@ from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.modules import GoModule
+from tasks.schema.generate import codegen as schema_codegen
 from tasks.test_core import LintResult
 
 
@@ -64,6 +65,9 @@ def lint_flavor(
 ):
     """Runs linters for given flavor, build tags, and modules."""
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     # Compute full list of targets to run linters against
     targets = []
     for module in modules:
@@ -93,7 +97,7 @@ def lint_flavor(
     )
     for lint_result in lint_results:
         result.lint_outputs.append(lint_result)
-        if lint_result.exited != 0:
+        if lint_result.returncode != 0:
             result.failed = True
 
     return result, execution_times

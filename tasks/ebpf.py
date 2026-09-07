@@ -164,7 +164,7 @@ def collect_verification_stats(
         build_object_files(ctx)
         build_cws_object_files(ctx)
 
-    ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
+    ctx.run("go build -tags bpf pkg/ebpf/verifier/calculator/main.go")
 
     arch = Arch.local()
     env = {"DD_SYSTEM_PROBE_BPF_DIR": f"./{get_ebpf_build_dir(arch)}"}

@@ -139,6 +139,11 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchDepNames": ["istio.io/**"],
+        "groupName": "istio"
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["k8s.io/**"],
         "matchUpdateTypes": ["patch"],
         "groupName": "k8s-io"
@@ -252,6 +257,15 @@
       },
       {
         "customType": "regex",
+        "managerFilePatterns": ["test/regression/config.yaml"],
+        "matchStrings": [
+          "  version: (?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "DataDog/lading",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
         "managerFilePatterns": [
           "Dockerfiles/agent-ddot/Dockerfile.agent-otel"
         ],
@@ -282,6 +296,19 @@
         "currentValueTemplate": "master",
         "depNameTemplate": "integrations-core",
         "packageNameTemplate": "https://github.com/DataDog/integrations-core",
+        "datasourceTemplate": "git-refs",
+        "registryUrlTemplate": ""
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["tasks/gpu.py"],
+        "matchStrings": [
+          "GPU_BURNER_VERSION = \"(?<currentDigest>[a-f0-9]{8})\""
+        ],
+        "autoReplaceStringTemplate": "GPU_BURNER_VERSION = \"{{{replace '^(.{8}).*$' '$1' newDigest}}}\"",
+        "currentValueTemplate": "main",
+        "depNameTemplate": "gpu-burner",
+        "packageNameTemplate": "https://github.com/DataDog/gpu-burner",
         "datasourceTemplate": "git-refs",
         "registryUrlTemplate": ""
       },

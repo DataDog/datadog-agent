@@ -33,8 +33,9 @@ dd_agent_go_test(
     name = "test_test",
     srcs = ["privileged_logs_test.go"],
     embed = [":test"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
+    tags = ["requires_ebpf"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/config/mock",
