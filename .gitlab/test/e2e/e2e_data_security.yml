@@ -1,0 +1,27 @@
+---
+# e2e stage - data security jobs
+# Owned by: sensitive-data-scanner
+
+.on_data_security_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/collector/sharedlibrary/**/*
+        - pkg/collector/sharedlibrary/rustchecks/checks/datasecurity/**/*
+        - pkg/util/filesystem/**/*
+        - comp/core/autodiscovery/providers/datasecurity/**/*
+        - comp/forwarder/eventplatform/**/*
+        - test/new-e2e/tests/data-security/**/*
+        - test/e2e-framework/components/integration/postgres/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+new-e2e-data-security:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_data_security_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/data-security
+    TEAM: sensitive-data-scanner
+    EXTRA_PARAMS: --skip "Windows"
+    ON_NIGHTLY_FIPS: "true"
