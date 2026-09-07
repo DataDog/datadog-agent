@@ -75,7 +75,7 @@ func (h *RunPredefinedScriptHandler) Run(
 		defer cancel()
 	}
 
-	cmd, err := NewPredefinedScriptCommand(ctx, evaluatedCommand, script.AllowedEnvVars)
+	cmd, err := NewPredefinedScriptCommand(ctx, evaluatedCommand, script.AllowedEnvVars, credentials.EnvironmentVariables)
 	if err != nil {
 		return nil, fmt.Errorf("invalid command arguments: %w", err)
 	}

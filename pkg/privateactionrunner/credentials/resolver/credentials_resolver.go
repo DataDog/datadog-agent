@@ -90,15 +90,17 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 		if err != nil {
 			return nil, err
 		}
-		tokens, details = privateconnection.ExtractConnectionDetails(&privateactionspb.ConnectionInfo{Tokens: resolvedTokens})
+		resolvedConnection := &privateactionspb.ConnectionInfo{Tokens: resolvedTokens}
+		tokens, details = privateconnection.ExtractConnectionDetails(resolvedConnection)
 		credentialTokens, err := resolveTokenAuthTokens(ctx, tokens)
 		if err != nil {
 			return nil, err
 		}
 		return &privateconnection.PrivateCredentials{
-			Tokens:      credentialTokens,
-			Type:        privateconnection.TokenAuthType,
-			HttpDetails: details,
+			Tokens:               credentialTokens,
+			EnvironmentVariables: privateconnection.ExtractEnvironmentVariables(resolvedConnection),
+			Type:                 privateconnection.TokenAuthType,
+			HttpDetails:          details,
 		}, nil
 	}
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)

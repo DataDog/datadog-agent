@@ -17,9 +17,10 @@ const (
 )
 
 type PrivateCredentials struct {
-	Type        AuthType
-	Tokens      []PrivateCredentialsToken
-	HttpDetails HttpDetails
+	Type                 AuthType
+	Tokens               []PrivateCredentialsToken
+	EnvironmentVariables []PrivateCredentialsToken
+	HttpDetails          HttpDetails
 }
 
 type PrivateCredentialsToken struct {
