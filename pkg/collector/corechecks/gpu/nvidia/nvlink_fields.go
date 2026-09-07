@@ -125,9 +125,6 @@ func newNVLinkFieldsCollectorWithMetrics(device ddnvml.Device, metrics map[uint3
 		}
 		return nil, fmt.Errorf("%w: no supported NVLink field metrics found", errUnsupportedDevice)
 	}
-	if err != nil {
-		return nil, fmt.Errorf("get supported NVLink ports: %w", err)
-	}
 
 	return c, nil
 }
@@ -235,12 +232,11 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) 
 		return nil, err
 	}
 
-	var errs []error
-	var pendingMetrics []nvlinkFieldValueMetric
+	var addedRequests int
 	for _, val := range fields {
 		fieldValueMetric, ok := c.metrics[val.FieldId]
 		if !ok {
-			errs = append(errs, fmt.Errorf("unexpected field value ID %d", val.FieldId))
+			log.Warnf("nvlink: fields collector skipping unexpected field value ID %d for port %d", val.FieldId, port)
 			continue
 		}
 
@@ -255,24 +251,18 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) 
 			log.Warnf("nvlink: fields collector removing metric %s because it's not supported, error: %s", fieldValueMetric.name, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
 			delete(c.metrics, val.FieldId)
 			continue
-		} else if val.NvmlReturn != uint32(nvml.SUCCESS) {
-			errs = append(errs, fmt.Errorf("failed to get field value %s for port %d: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
+		}
+		if val.NvmlReturn != uint32(nvml.SUCCESS) {
+			log.Warnf("nvlink: fields collector skipping metric %s for port %d during discovery: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
 			continue
 		}
 
-		pendingMetrics = append(pendingMetrics, fieldValueMetric)
+		c.addRequest(fieldValueMetric, port)
+		addedRequests++
 	}
 
-	if len(pendingMetrics) == 0 {
-		// All metrics were removed, so we return an error to indicate that the device is unsupported.
+	if addedRequests == 0 {
 		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
-	}
-	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
-	}
-
-	for _, metric := range pendingMetrics {
-		c.addRequest(metric, port)
 	}
 
 	return nil, nil

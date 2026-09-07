@@ -296,7 +296,7 @@ func TestNVLinkFieldsCollectorInactivePortsDoNotRemoveActivePortMetrics(t *testi
 	require.Equal(t, 4, speedMetrics, "active NVLink ports should still emit nvlink.speed")
 }
 
-func TestNVLinkFieldsCollectorReturnsDiscoveryErrorsWhenSomeRequestsSucceed(t *testing.T) {
+func TestNVLinkFieldsCollectorSkipsTransientDiscoveryErrorsPerField(t *testing.T) {
 	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
 			for i := range fv {
@@ -314,7 +314,7 @@ func TestNVLinkFieldsCollectorReturnsDiscoveryErrorsWhenSomeRequestsSucceed(t *t
 		}
 	}), testutil.WithNVLinkLinkCount(2))
 
-	_, err := newNVLinkFieldsCollectorWithMetrics(device, map[uint32]nvlinkFieldValueMetric{
+	collector, err := newNVLinkFieldsCollectorWithMetrics(device, map[uint32]nvlinkFieldValueMetric{
 		nvml.FI_DEV_NVLINK_GET_SPEED: {
 			name:         "nvlink.speed",
 			fieldValueID: nvml.FI_DEV_NVLINK_GET_SPEED,
@@ -329,9 +329,30 @@ func TestNVLinkFieldsCollectorReturnsDiscoveryErrorsWhenSomeRequestsSucceed(t *t
 			rateCalculationMode: PerSecondRateCalculation,
 		},
 	})
-	require.Error(t, err)
-	require.ErrorContains(t, err, "get supported NVLink ports")
-	require.ErrorContains(t, err, nvml.ErrorString(nvml.ERROR_UNKNOWN))
+	require.NoError(t, err)
+
+	collected, err := collector.Collect()
+	require.NoError(t, err)
+
+	speedByPort := make(map[string]int)
+	throughputByPort := make(map[string]int)
+	for _, metric := range requireMetrics(t, collected) {
+		switch metric.Name {
+		case "nvlink.speed":
+			for _, tag := range metric.Tags() {
+				speedByPort[tag]++
+			}
+		case "nvlink.throughput.data.rx":
+			for _, tag := range metric.Tags() {
+				throughputByPort[tag]++
+			}
+		}
+	}
+
+	require.Equal(t, 1, speedByPort["nvlink_port:1"])
+	require.NotContains(t, speedByPort, "nvlink_port:2")
+	require.Equal(t, 1, throughputByPort["nvlink_port:1"])
+	require.Equal(t, 1, throughputByPort["nvlink_port:2"])
 }
 
 func TestNVLinkFieldsCollectorReturnsErrorsForUnsupportedCollectedFields(t *testing.T) {
