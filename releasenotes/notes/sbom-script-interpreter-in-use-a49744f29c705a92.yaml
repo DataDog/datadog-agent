@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The runtime usage properties on container image SBOMs now mark the package
+    shipping a script's interpreter as running. An exec whose target is a script
+    reports the script itself, which no package owns, so the shell a script ran
+    under stayed unmarked: ``dash`` on Debian, ``bash`` on RHEL.

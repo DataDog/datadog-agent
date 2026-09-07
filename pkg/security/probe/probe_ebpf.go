@@ -1175,6 +1175,11 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			switch event.GetEventType() {
 			case model.ExecEventType:
 				p.Resolvers.SBOMResolver.ObservePackage(event.ProcessContext, &event.Exec.Process.FileEvent, usage.ExecEvidence)
+				// For an interpreted executable, exec.file names the requested file
+				// and LinuxBinprm names the interpreter that runs it. Both are code use.
+				if event.Exec.Process.HasInterpreter() {
+					p.Resolvers.SBOMResolver.ObservePackage(event.ProcessContext, &event.Exec.Process.LinuxBinprm.FileEvent, usage.ExecEvidence)
+				}
 			case model.MMapEventType:
 				if event.MMap.Retval != 0 || event.MMap.Flags&unix.MAP_ANONYMOUS != 0 || event.MMap.Protection&unix.PROT_EXEC == 0 {
 					break

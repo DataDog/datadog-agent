@@ -3,7 +3,8 @@
 		"pkg/security": {
 			"run-only": [
 				"TestChmod",
-				"TestSBOMRuntimeEvidence"
+				"TestSBOMRuntimeEvidence",
+				"TestSBOMScriptInterpreterInUse"
 			]
 		}
 	}
