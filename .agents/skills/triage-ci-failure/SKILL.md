@@ -53,7 +53,7 @@ Note that in the verdict rather than treating the failure as final.
 
 For each failed job, look at its `failure_reason`, i.e. the failure reason as determined by gitlab.
 Treat it as an aditionnal data point, not the be-all-end-all. For example, a `runner_system_failure` can be caused by a change of this PR (e.g. a malformed `image:`).
-See @references/signal.md for more details.
+See @references/signals.md for more details.
 
 ## Step 2 — CI Visibility baseline
 
@@ -88,7 +88,11 @@ Read the match tier in the output (`exact`, `base`, `prefix`, `token`, `none`) �
 .agents/skills/triage-ci-failure/scripts/incidents.py timeline <IR-nnnnn>
 ```
 
-This is where you find out whether the incident is already fixed (look for a rollback, a merged fix PR, a transition to `stable`/`resolved`) or still open.
+This is where you find out how far along the fix is — not just whether one exists.
+- `stable` usually means a rollback or workaround has already landed and the affected job(s) should pass again on a rebase.
+- `resolved` (or `completed`) is the stronger signal: the incident is fully closed out.
+
+Look for a rollback, a merged fix PR, or an explicit state transition to tell which.
 
 If nothing matches, widen deliberately rather than re-running the same call — escalate through the tier ladder in `references/signals.md`:
 1. *(default, above)* `services:datadog-agent-ci`, default window.
@@ -97,14 +101,20 @@ If nothing matches, widen deliberately rather than re-running the same call — 
 
 ## Step 4 — Read the log
 
-Skip this if Step 3 already produced a confident, timeline-corroborated verdict.
+Always do a quick sanity check here, even when Step 3 was conclusive — a time-and-name correlation is strong evidence but not proof.
+Skim the job's diff against `main` and the last ~50 lines of its log, and confirm the failure signature actually looks like what the incident describes.
 
-Otherwise, work through @references/evidence.md's cookbook.
+You can obtain the job's log via `ddgl`:
+```bash
+ddgl logs --job <ID> [--output <some_file>]
+```
+
+If it lines up, you're done — the full cookbook below is skippable.
+If it doesn't, or Step 3 didn't produce a confident match at all, work through @references/evidence.md's cookbook.
 
 You're looking for two things:
 1. the command that actually failed and its exit status
 2. whether the failure happened in the job's own work or in its setup/teardown.
-
 
 ## Step 5 — Verdict
 
@@ -113,8 +123,9 @@ State your verdict among the below options, as well as a recommended course of a
 | blame | incident status | Suggested action |
 |---|---|---|
 | `pr-code` | — | Propose the smallest concrete fix. Don't apply it. |
-| `upstream` | unresolved | Don't suggest rebasing yet. Report the incident. |
-| `upstream` | resolved | Rebase onto latest `main` and re-run. Name the fixing commit/PR if the timeline gave you one. |
+| `upstream` | active, still breaking | Don't suggest rebasing yet. Report the incident. |
+| `upstream` | stable | Suggest a rebase and retry — `stable` usually means a rollback or workaround already landed — but say plainly that this is a weaker signal than `resolved`: the underlying fix may still be in progress. |
+| `upstream` | resolved | Rebase onto latest `main` and re-run with confidence. Name the fixing commit/PR if the timeline gave you one. |
 | `upstream` | none declared | Say CI looks broken on `main` with nothing declared for it — worth surfacing loudly. |
 | `infra` | any | Suggest a retry. Note whether the job already burned its one automatic retry (`references/signals.md`). |
 | `flake` | any | Suggest a retry, citing the measured cross-branch failure rate from Step 2 as the reason — not just a feeling. |
@@ -125,6 +136,8 @@ these, so a caller like `/follow-pr` can act on it without re-deriving your
 reasoning:
 
 ```
-Incident: IR-59848 (stable, unresolved) — https://app.datadoghq.com/incidents/59848
+Incident: IR-59848 (active, still breaking) — https://app.datadoghq.com/incidents/59848
+Incident: IR-59848 (stable, probably safe to retry) — https://app.datadoghq.com/incidents/59848
+Incident: IR-59848 (resolved) — https://app.datadoghq.com/incidents/59848
 Incident: none
 ```

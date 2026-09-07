@@ -103,16 +103,17 @@ Invoke `/triage-ci-failure` on the pipeline id from the `[FINAL]` line. It class
 failed job as caused by an active incident, infra/platform flakiness, a code regression, or
 ordinary flakiness, and ends with a verdict plus an `Incident: ...` line per job.
 
-Act on the verdict in context — there is no file or schema to read back, only the
-conversation. If any job's verdict names an **unresolved** incident, continue to
-[Step 6](#step-6-watch-an-unresolved-incident). Otherwise this is where the investigation
-ends: report the verdict, and if it's PR-caused, the proposed fix (still don't apply it).
+Act on the verdict in context — there is no file or schema to read back, only the conversation.
+The `Incident:` line tells you what to do next:
+- **active, still breaking** — continue to [Step 6](#step-6-watch-an-unresolved-incident) andwait it out.
+- **stable** or **resolved** — tell the user it's safe to rebase onto `main` and re-run, saying plainly that `stable` is a weaker signal than `resolved` (the fix may still be in progress).
+  Investigation ends here.
+- **none, or no incident at all** — report the verdict, and if it's PR-caused, the proposed fix (still don't apply it). Investigation ends here.
 
 ## Step 6: watch an unresolved incident
 
-Only entered when `/triage-ci-failure` reported `Incident: IR-xxxxx (... unresolved)` for a
-failed job — this is the other half of watching a PR through: the pipeline is red because
-of something outside the PR, and it will stay red until that something is fixed.
+Only entered when `/triage-ci-failure` reported an incident that's still **active and breaking** for a failed job — this is the other half of watching a PR through:
+the pipeline is red because of something outside the PR, and it will stay red until that something changes.
 
 Poll the incident on an interval (a few minutes is reasonable; don't busy-loop):
 
@@ -120,9 +121,8 @@ Poll the incident on an interval (a few minutes is reasonable; don't busy-loop):
 .agents/skills/triage-ci-failure/scripts/incidents.py timeline <IR-nnnnn>
 ```
 
-Watch for a state transition to `stable`/`resolved`, or a note describing a rollback or a
-merged fix. Once the timeline says it's fixed, confirm recovery before telling the user to
-act — check that the job is passing again on `main`:
+Watch for a state transition off `active` — to `stable` (a rollback or workaround has likely landed; rebasing is probably safe even if the root cause isn't fully fixed yet) or `resolved`/`completed` (the stronger signal).
+Once either happens, confirm recovery before telling the user to act — check that the job is passing again on `main`:
 
 ```bash
 pup cicd events aggregate \
@@ -130,6 +130,4 @@ pup cicd events aggregate \
   --compute=count --group-by='@ci.status' --from='2h'
 ```
 
-Once `main` is clean, tell the user the incident is resolved and it's time to rebase onto
-`main` and re-run. If the incident stays open for a long time, periodically restate its
-current state rather than going silent.
+Once `main` is clean, tell the user it's time to rebase onto `main` and re-run.
