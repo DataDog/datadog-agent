@@ -5,11 +5,11 @@
 
 // e2ectl-worker is the pulumi-executor: the piece of code where we accept to
 // import Pulumi run functions, so the rest of the CLI never pays Pulumi's
-// price. It executes the scenarios registered in scenarios.go — provision
-// the infrastructure, write the snapshot, destroy — and does nothing else:
-// the infra-only contract (extensibility plan §12) means agent installation,
-// fakeintake and iteration all happen in the core, exactly like for local
-// environments.
+// price. It executes the scenarios registered in scenarios.go: provision
+// infrastructure and optional fakeintake, write the snapshot, and destroy
+// the stack. Agent installation and iteration happen outside Pulumi in the
+// core. Local environments remain independent of this executor, including
+// their local Docker fakeintake.
 //
 // The engine is generic and forever-static (executor.go): parse the job,
 // look the scenario up by base, strict-decode the params, provision or

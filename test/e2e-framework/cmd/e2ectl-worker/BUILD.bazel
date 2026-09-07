@@ -30,7 +30,10 @@ go_binary(
 
 dd_agent_go_test(
     name = "e2ectl-worker_test",
-    srcs = ["executor_test.go"],
+    srcs = [
+        "executor_test.go",
+        "scenarios_test.go",
+    ],
     embed = [":e2ectl-worker_lib"],
     deps = [
         "//test/e2e-framework/components/outputs",

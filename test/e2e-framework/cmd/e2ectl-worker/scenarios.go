@@ -24,35 +24,34 @@ func init() {
 	registerScenario(workerclient.BaseEC2Host, buildEC2Host)
 }
 
-// ec2Params is the scenario side of the driver's config section: one schema,
-// the section IS the run function's params (strict-decoded here).
+// ec2Params contains the host-specific section plus the common fakeintake
+// toggle forwarded by the driver. Omission preserves the framework default
+// (fakeintake enabled); explicit false disables it.
 type ec2Params struct {
 	OS           string `yaml:"os"`
 	Arch         string `yaml:"arch"`
 	InstanceType string `yaml:"instance-type,omitempty"`
+	FakeIntake   *bool  `yaml:"fakeintake,omitempty"`
+}
+
+func (p ec2Params) fakeintakeEnabled() bool {
+	return p.FakeIntake == nil || *p.FakeIntake
 }
 
 // buildEC2Host strict-decodes the params and wraps the existing framework
 // run function (the awshost provisioner over the EC2 scenario).
 //
-// Infra-only contract (§12 of the extensibility plan): the executor hands
-// back an EMPTY, connectable VM — WithoutAgent and WithoutFakeIntake always.
-// The fakeintake and the agent are deployed by the core, from the snapshot,
-// exactly like every other environment.
+// Pulumi owns the infrastructure and the optional ECS Fargate fakeintake,
+// as in the existing E2E scenario. Agent installation always remains a
+// separate non-Pulumi operation in the core CLI.
 func buildEC2Host(params string) (Executor, error) {
-	if params == "" {
-		return Executor{}, fmt.Errorf("empty params (os and arch required)")
-	}
-	var p ec2Params
-	dec := yaml.NewDecoder(strings.NewReader(params))
-	dec.KnownFields(true)
-	if err := dec.Decode(&p); err != nil {
+	p, err := decodeEC2Params(params)
+	if err != nil {
 		return Executor{}, err
 	}
 
 	opts := []ec2.Option{
 		ec2.WithoutAgent(),
-		ec2.WithoutFakeIntake(),
 		ec2.WithEC2InstanceOptions(
 			ec2.WithOSArch(osDescriptor(p.OS), e2eostypes.ArchitectureFromString(p.Arch)),
 		),
@@ -60,8 +59,24 @@ func buildEC2Host(params string) (Executor, error) {
 	if p.InstanceType != "" {
 		opts = append(opts, ec2.WithEC2InstanceOptions(ec2.WithInstanceType(p.InstanceType)))
 	}
+	if !p.fakeintakeEnabled() {
+		opts = append(opts, ec2.WithoutFakeIntake())
+	}
 
 	return fromTyped[environments.Host](awshost.Provisioner(awshost.WithRunOptions(opts...))), nil
+}
+
+func decodeEC2Params(params string) (ec2Params, error) {
+	var p ec2Params
+	if params == "" {
+		return p, fmt.Errorf("empty params (os and arch required)")
+	}
+	dec := yaml.NewDecoder(strings.NewReader(params))
+	dec.KnownFields(true)
+	if err := dec.Decode(&p); err != nil {
+		return p, err
+	}
+	return p, nil
 }
 
 func osDescriptor(name string) e2eostypes.Descriptor {

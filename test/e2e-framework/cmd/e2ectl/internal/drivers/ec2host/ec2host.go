@@ -3,16 +3,13 @@
 // This product contains software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present, Datadog, Inc.
 
-// Package ec2host is the EC2 host driver. The core side is thin and Pulumi-
-// free: provisioning runs in the pulumi-executor (the worker) with the
-// GENERIC job {action, base, params}; per the infra-only contract the
-// executor hands back an empty, connectable VM, and everything afterwards —
-// fakeintake deployment, agent install, iteration — happens in the core,
-// exactly like every other environment.
+// Package ec2host is the EC2 host driver. The Pulumi executor provisions the
+// VM and, when enabled, the framework's ECS Fargate fakeintake. The core reads
+// their connection outputs from the snapshot and installs the Agent separately
+// through the non-Pulumi installer. No container runtime is needed on the VM.
 package ec2host
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 
@@ -20,9 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/installer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/workerclient"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/standalone"
+
+	"go.yaml.in/yaml/v3"
 )
 
 // Driver is the EC2 host driver.
@@ -31,9 +29,8 @@ type Driver struct{}
 // ID implements driver.Driver.
 func (d *Driver) ID() string { return workerclient.BaseEC2Host }
 
-// Section is the driver-owned config section (`environment.ec2-host`).
-// It is ALSO the scenario params handed to the executor (one schema: the
-// config section IS the run function's params).
+// Section is the host-specific config (`environment.ec2-host`). executorParams
+// forwards these fields together with the common environment.fakeintake option.
 type Section struct {
 	OS           string `yaml:"os"`
 	Arch         string `yaml:"arch"`
@@ -72,17 +69,20 @@ func (d *Driver) Installers() []installer.Installer {
 	return []installer.Installer{&installer.HostScript{}}
 }
 
-// Start implements driver.Driver: the executor provisions the VM, then the
-// core deploys the fakeintake on it (infra-only executor, §12 of the plan).
+// Start provisions the VM and optional fakeintake together through Pulumi.
+// Agent installation is a separate, non-Pulumi operation.
 func (d *Driver) Start(cfg *config.File, entry envstore.Entry, store *envstore.Store) error {
-	meta := entry.Meta
+	params, err := executorParams(cfg)
+	if err != nil {
+		return err
+	}
 	stack := stackName(entry.Name) // deterministic: recomputed at stop time, never stored
 
 	fmt.Println("provisioning EC2 host (Pulumi executor), this takes a few minutes...")
 	if err := workerclient.Run(entry.Dir, workerclient.Job{
 		Action:    workerclient.ActionProvision,
 		Base:      d.ID(),
-		Params:    string(cfg.Environment.Section),
+		Params:    params,
 		StackName: stack,
 		EnvDir:    entry.Dir,
 	}); err != nil {
@@ -91,14 +91,13 @@ func (d *Driver) Start(cfg *config.File, entry envstore.Entry, store *envstore.S
 		return err
 	}
 
-	if cfg.FakeIntakeEnabled() {
-		if err := deployFakeintakeOnHost(entry, &meta); err != nil {
-			return fmt.Errorf("deploying the fakeintake on the VM: %w", err)
-		}
+	if err := readFakeintakeOutput(entry, cfg.FakeIntakeEnabled(), &entry.Meta); err != nil {
+		entry.Meta.Status = envstore.StatusError
+		_ = store.UpdateMeta(entry)
+		return err
 	}
 
-	meta.Status = envstore.StatusReady
-	entry.Meta = meta
+	entry.Meta.Status = envstore.StatusReady
 	return store.UpdateMeta(entry)
 }
 
@@ -108,11 +107,15 @@ func (d *Driver) Stop(entry envstore.Entry, store *envstore.Store) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("destroying EC2 host (Pulumi executor)...")
+	params, err := executorParams(cfg)
+	if err != nil {
+		return err
+	}
+	fmt.Println("destroying EC2 host and its fakeintake (Pulumi executor)...")
 	if err := workerclient.Run(entry.Dir, workerclient.Job{
 		Action:    workerclient.ActionDestroy,
 		Base:      d.ID(),
-		Params:    string(cfg.Environment.Section),
+		Params:    params,
 		StackName: stackName(entry.Name),
 		EnvDir:    entry.Dir,
 	}); err != nil {
@@ -121,57 +124,44 @@ func (d *Driver) Stop(entry envstore.Entry, store *envstore.Store) error {
 	return store.Delete(entry.Name)
 }
 
-// deployFakeintakeOnHost runs the fakeintake container on the VM over the ssh
-// connection the snapshot just handed over, and records it in the snapshot
-// and meta — the same component, the same lifecycle, as on every environment.
-func deployFakeintakeOnHost(entry envstore.Entry, meta *envstore.Meta) error {
-	p := provisioner.NewStaticStackProvisioner[environments.Host]("", entry.SnapshotPath())
-	ctx := standalone.NewContext(entry.Dir)
-	env, _, err := standalone.ProvisionE[environments.Host](ctx, "attach", p)
+// executorParams forwards the common fakeintake option as part of this
+// scenario's parameters. The generic executor job does not gain an EC2 field,
+// and environment.ec2-host remains limited to host-specific settings.
+func executorParams(cfg *config.File) (string, error) {
+	var params struct {
+		Section    `yaml:",inline"`
+		FakeIntake bool `yaml:"fakeintake"`
+	}
+	if err := config.StrictDecode(cfg.Environment.Section, &params.Section); err != nil {
+		return "", fmt.Errorf("environment.ec2-host: %w", err)
+	}
+	params.FakeIntake = cfg.FakeIntakeEnabled()
+	data, err := yaml.Marshal(params)
 	if err != nil {
-		return fmt.Errorf("attaching to the VM from its snapshot: %w", err)
+		return "", fmt.Errorf("encoding EC2 scenario parameters: %w", err)
 	}
-
-	const fiPort = 8080 // the fakeintake's container port, mapped on the VM
-	cmd := fmt.Sprintf(
-		"sudo docker run -d --name e2ectl-fakeintake --restart unless-stopped -p %d:80 %s --rc-key-data=%s",
-		fiPort, fakeintakeImage, fakeintakeSeed)
-	if _, err := env.RemoteHost.Execute(cmd); err != nil {
-		return fmt.Errorf("running the fakeintake container (is docker installed on the VM?): %w", err)
-	}
-
-	fiKey, err := json.Marshal(map[string]any{
-		"host":   env.RemoteHost.Address,
-		"scheme": "http",
-		"port":   fiPort,
-		"url":    fmt.Sprintf("http://%s:%d", env.RemoteHost.Address, fiPort),
-	})
-	if err != nil {
-		return err
-	}
-	resources, snapMeta, err := provisioner.ReadSnapshotFile(entry.SnapshotPath())
-	if err != nil {
-		return err
-	}
-	resources["fakeIntake"] = fiKey
-	anyMeta := make(map[string]any, len(snapMeta))
-	for k, v := range snapMeta {
-		anyMeta[k] = v
-	}
-	if err := provisioner.WriteSnapshotFile(entry.SnapshotPath(), resources, anyMeta); err != nil {
-		return err
-	}
-	meta.FakeIntakePort = fiPort
-	meta.FakeIntakeURL = fmt.Sprintf("http://%s:%d", env.RemoteHost.Address, fiPort)
-	return nil
+	return string(data), nil
 }
 
-// The image and the RC seed mirror components/outputs (kept in sync; the core
-// stays Pulumi-free).
-const (
-	fakeintakeImage = "public.ecr.aws/datadog/fakeintake:latest"
-	fakeintakeSeed  = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
-)
+// readFakeintakeOutput uses the endpoint exported by the Pulumi scenario,
+// including its resource binding. It does not connect to or mutate the VM.
+func readFakeintakeOutput(entry envstore.Entry, enabled bool, meta *envstore.Meta) error {
+	if !enabled {
+		meta.FakeIntakeURL = ""
+		meta.FakeIntakePort = 0
+		return nil
+	}
+	var fi outputs.FakeintakeOutput
+	if err := provisioner.ReadSnapshotResource(entry.SnapshotPath(), "fakeIntake", &fi); err != nil {
+		return fmt.Errorf("reading Pulumi-provisioned fakeintake: %w", err)
+	}
+	if fi.URL == "" {
+		return fmt.Errorf("snapshot %s has no URL for the Pulumi-provisioned fakeintake", entry.SnapshotPath())
+	}
+	meta.FakeIntakeURL = fi.URL
+	meta.FakeIntakePort = int(fi.Port)
+	return nil
+}
 
 // stackName derives the Pulumi stack name deterministically from the
 // environment name: nothing to store, rebuildable at stop time.

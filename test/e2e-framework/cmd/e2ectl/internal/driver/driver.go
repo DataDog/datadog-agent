@@ -29,8 +29,9 @@ type Driver interface {
 	// Validate strict-decodes and validates the driver's own config section
 	// (cfg.Environment.Section). Generic fields are already validated.
 	Validate(cfg *config.File) []error
-	// Start provisions the environment and writes its snapshot; it also
-	// deploys the local fakeintake when cfg.FakeIntakeEnabled().
+	// Start provisions the environment and writes its snapshot. Fakeintake
+	// follows the driver's provisioning path: Pulumi for cloud scenarios,
+	// local Docker for kind, when cfg.FakeIntakeEnabled().
 	Start(cfg *config.File, entry envstore.Entry, store *envstore.Store) error
 	// Stop destroys the environment and removes the entry.
 	Stop(entry envstore.Entry, store *envstore.Store) error
