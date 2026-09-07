@@ -46,7 +46,7 @@ BPF_ARRAY_MAP(go_labels_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(go_labels_ctx, struct go_labels_ctx_entry_t, GO_LABELS_CTX_MAX_ENTRIES)
 BPF_ARRAY_MAP(otel_attrs_gen_id, u32, 1)
 BPF_ARRAY_MAP(otel_span_attrs, struct otel_span_attrs_t, OTEL_SPAN_ATTRS_MAX_ENTRIES)
-BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 6)
+BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 5)
 BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 BPF_ARRAY_MAP(in_upper_layer_approvers, struct event_mask_filter_t, 1)
 

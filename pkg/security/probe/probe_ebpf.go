@@ -2401,6 +2401,13 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 			}
 		}
 	}
+	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		for _, e := range p.config.RuntimeSecurity.SecurityProfileV2EventTypes {
+			if e.String() == eventType {
+				return true
+			}
+		}
+	}
 	return false
 }
 
@@ -2412,8 +2419,6 @@ func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 		return p.config.RuntimeSecurity.EventSamplingConnectEnabled
 	case model.BindEventType.String():
 		return p.config.RuntimeSecurity.EventSamplingBindEnabled
-	case model.DNSEventType.String():
-		return p.config.RuntimeSecurity.EventSamplingDNSEnabled
 	}
 	return false
 }
@@ -3203,18 +3208,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
-			Name:  "event_sampling_dns_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDNSEnabled),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_dns_rate",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSRate),
-		},
-		manager.ConstantEditor{
-			Name:  "event_sampling_dns_threshold",
-			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
-		},
-		manager.ConstantEditor{
 			Name:  "dynamic_sampling_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
 		},
@@ -3323,7 +3316,6 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingOpenEnabled,
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
 		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
-		EventSamplingDNSEnabled:       p.config.RuntimeSecurity.EventSamplingDNSEnabled,
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
