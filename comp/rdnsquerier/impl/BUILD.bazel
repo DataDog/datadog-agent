@@ -17,9 +17,9 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/core/log/mock",
         "//comp/core/sysprobeconfig/def",
         "//comp/core/sysprobeconfig/mock",
-        "//comp/core/log/mock",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
         "//comp/def",
