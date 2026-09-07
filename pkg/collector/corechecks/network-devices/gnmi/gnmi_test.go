@@ -79,6 +79,7 @@ min_collection_interval: 15
 	mockSender := mocksender.NewMockSender(t, "")
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	err = checkInstance.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstance, []byte(""), "test", "test")
