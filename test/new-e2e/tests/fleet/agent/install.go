@@ -8,6 +8,7 @@ package agent
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,11 +30,12 @@ const (
 type InstallOption func(*installParams)
 
 type installParams struct {
-	remoteUpdates        bool
-	stablePackages       bool
-	stagingPackages      string
-	pipelineID           string
-	otelCollectorEnabled bool
+	remoteUpdates         bool
+	stablePackages        bool
+	stagingPackages       string
+	pipelineID            string
+	otelCollectorEnabled  bool
+	processManagerEnabled *bool
 }
 
 var defaultInstallParams = &installParams{
@@ -75,6 +77,15 @@ func WithPipelineID(pipelineID string) InstallOption {
 func WithOTelCollectorEnabled() InstallOption {
 	return func(p *installParams) {
 		p.otelCollectorEnabled = true
+	}
+}
+
+// WithProcessManagerEnabled sets DD_PROCESS_MANAGER_ENABLED during installation,
+// selecting whether the agent is managed by dd-procmgrd (true) or plain systemd
+// units (false). Linux only.
+func WithProcessManagerEnabled(enabled bool) InstallOption {
+	return func(p *installParams) {
+		p.processManagerEnabled = &enabled
 	}
 }
 
@@ -133,6 +144,9 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 	}
 	if params.otelCollectorEnabled {
 		env["DD_OTELCOLLECTOR_ENABLED"] = "true"
+	}
+	if params.processManagerEnabled != nil {
+		env["DD_PROCESS_MANAGER_ENABLED"] = strconv.FormatBool(*params.processManagerEnabled)
 	}
 	if !params.stablePackages && params.stagingPackages == "" {
 		env["TESTING_KEYS_URL"] = "apttesting.datad0g.com/test-keys"

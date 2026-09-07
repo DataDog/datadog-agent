@@ -37,7 +37,7 @@ func TestFleetConfig(t *testing.T) {
 }
 
 func (s *configSuite) TestConfig() {
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
@@ -57,7 +57,7 @@ func (s *configSuite) TestConfig() {
 }
 
 func (s *configSuite) TestMultipleConfigs() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates())...)
 	defer s.Agent.MustUninstall()
 
 	for i := 0; i < 3; i++ {
@@ -106,7 +106,7 @@ func (s *configSuite) TestMultipleConfigs() {
 // other tags untouched. The new environment value is supplied as a typed jq
 // argument rather than being baked into the transform text.
 func (s *configSuite) TestConfigJQReplaceTag() {
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	// Seed a realistic multi-tag config.
@@ -172,7 +172,7 @@ func (s *configSuite) TestConfigJQReplaceTag() {
 }
 
 func (s *configSuite) TestConfigFailureCrash() {
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
@@ -187,7 +187,7 @@ func (s *configSuite) TestConfigFailureCrash() {
 }
 
 func (s *configSuite) TestConfigFailureTimeout() {
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 	s.Agent.MustSetExperimentTimeout(60 * time.Second)
 	defer s.Agent.MustUnsetExperimentTimeout()
@@ -210,7 +210,7 @@ func (s *configSuite) TestConfigFailureTimeout() {
 }
 
 func (s *configSuite) TestConfigFailureHealth() {
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
@@ -235,7 +235,7 @@ func (s *configSuite) TestConfigFilePermissions() {
 		s.T().Skip("Skipping file permission test on Windows (POSIX permissions not applicable)")
 	}
 
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	// Configure multiple files with different permission requirements
@@ -316,7 +316,7 @@ func (s *configSuite) TestConfigFilePermissions() {
 }
 
 func (s *configSuite) TestConfigWithSecrets() {
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
@@ -338,7 +338,7 @@ func (s *configSuite) TestConfigWithSecrets() {
 }
 
 func (s *configSuite) TestSystemProbeConfig() {
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	// Configure system-probe settings with runtime security
@@ -380,7 +380,7 @@ func (s *configSuite) TestExperimentIntegrationLoaded() {
 		s.T().Skip("Skipping on Windows: experiment agent config paths are Linux-specific")
 	}
 
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	nginxConfig := `{"init_config": {}, "instances": [{"nginx_status_url": "http://localhost:8080/nginx_status"}]}`
@@ -423,7 +423,7 @@ func (s *configSuite) TestExperimentIntegrationLoaded() {
 // correctly preserves the stable_config_version and does not overwrite it
 // with the experiment deployment ID.
 func (s *configSuite) TestConfigRollbackDeploymentID() {
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	// Get initial remote config state
@@ -519,7 +519,7 @@ const ddotBrokenPatch = `{"exporters":{"debug":{"verbosity":"not-a-valid-verbosi
 // experiment, and verifies the collector runs the experiment config during the experiment and the
 // promoted config after promotion.
 func (s *configSuite) TestDDOTConfigUpdateAndPromote() {
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	s.Installer.MustInstallExtension(getAgentPackageURL(s.T(), ""), "ddot")
@@ -549,7 +549,7 @@ func (s *configSuite) TestDDOTConfigUpdateAndPromote() {
 // TestDDOTConfigUpdateRollback verifies that stopping a DDOT config experiment restores the stable
 // otel-config.yaml and the collector runs it again.
 func (s *configSuite) TestDDOTConfigUpdateRollback() {
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	s.Installer.MustInstallExtension(getAgentPackageURL(s.T(), ""), "ddot")
@@ -581,7 +581,7 @@ func (s *configSuite) TestDDOTConfigUpdateRollback() {
 // config must actually be applied to the running DDOT, proving the experiment collector reads the
 // experiment config rather than the stable one.
 func (s *configSuite) TestDDOTConfigBadConfigRollsBack() {
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	s.Installer.MustInstallExtension(getAgentPackageURL(s.T(), ""), "ddot")
@@ -619,7 +619,7 @@ func (s *configSuite) TestDDOTConfigFailureReportsFailedAndReverts() {
 		s.T().Skip("DDOT runs under dd-procmgrd with a separate experiment config directory only on Linux")
 	}
 
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	s.Installer.MustInstallExtension(getAgentPackageURL(s.T(), ""), "ddot")

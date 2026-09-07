@@ -69,7 +69,7 @@ func (s *extensionsSuite) SetupSuite() {
 // TestExtensionInstallAndRemove tests installing and removing an extension
 func (s *extensionsSuite) TestExtensionInstallAndRemove() {
 	// Install agent with datadog-installer
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	// Install package with extension directly from file:// URL (without using catalog)
@@ -109,7 +109,7 @@ func (s *extensionsSuite) TestExtensionInstallAndRemove() {
 // TestExtensionSaveAndRestore tests saving and restoring extensions
 func (s *extensionsSuite) TestExtensionSaveAndRestore() {
 	// Install agent with datadog-installer
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	// Install package with extension directly from file:// URL (without using catalog)
@@ -175,7 +175,7 @@ func (s *extensionsSuite) TestExtensionSaveAndRestore() {
 // experiment moves to ships it, so this also verifies DDOT transitions to a dd-procmgrd-supervised
 // process on Linux.
 func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
-	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
+	s.Agent.MustInstall(s.InstallOptions(agent.WithStagingPackages(stagingAgentVersion))...)
 	defer s.Agent.MustUninstall()
 
 	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
@@ -220,7 +220,7 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
 		s.T().Skip("Skipping test on Windows -- incident-50789")
 	}
-	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
+	s.Agent.MustInstall(s.InstallOptions(agent.WithStagingPackages(stagingAgentVersion))...)
 	defer s.Agent.MustUninstall()
 
 	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
@@ -254,7 +254,7 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 // during a fresh agent install, the DDOT extension is automatically installed and running
 // by the postinstall hook — without any explicit extension install call.
 func (s *extensionsSuite) TestDDOTAutoInstalledWithEnvVar() {
-	s.Agent.MustInstall(agent.WithOTelCollectorEnabled())
+	s.Agent.MustInstall(s.InstallOptions(agent.WithOTelCollectorEnabled())...)
 	defer s.Agent.MustUninstall()
 
 	switch s.Env().RemoteHost.OSFamily {
@@ -273,7 +273,7 @@ func (s *extensionsSuite) TestDDOTAutoInstalledWithEnvVar() {
 // TestDDOTExtension tests installing DDOT as an extension on all platforms
 func (s *extensionsSuite) TestDDOTExtension() {
 	// Install base agent
-	s.Agent.MustInstall()
+	s.Agent.MustInstall(s.InstallOptions()...)
 	defer s.Agent.MustUninstall()
 
 	s.Installer.MustInstallExtension(getAgentPackageURL(s.T(), ""), "ddot")
