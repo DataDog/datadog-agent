@@ -169,6 +169,24 @@ provisioner-specific representations and update `env.Agent`. The same installer
 therefore works with Pulumi, `StaticStackProvisioner`, or another provisioner.
 State serialization and persistence belong to the caller that owns that state.
 
+For `e2ectl`, Pulumi-backed scenarios keep fakeintake deployment in Pulumi:
+EC2 uses the existing ECS Fargate fakeintake, controlled by
+`environment.fakeintake`, with `WithoutAgent()` always. The core reads the
+exported endpoint and installs the Agent separately; it must not deploy a second
+fakeintake over SSH on the Agent VM. Local kind continues to run fakeintake in
+local Docker and does not need the Pulumi executor.
+
+For a typed provisioner, persist both the returned environment and raw resources
+with `provisioner.WriteSnapshotFileForEnv`. Pulumi exports use component-generated
+names (such as `dd-Host-*`), not necessarily the canonical names used by static
+attachment (`remoteHost`). The writer records `_bindings` to preserve that mapping;
+writing only raw resources loses it. Use `UpdateSnapshotResource` when adding or
+replacing a component outside Pulumi, so its binding is updated too. Legacy
+canonical snapshots remain supported; legacy Pulumi snapshots require explicit
+bindings rather than guessing which resource represents a component. Snapshots
+contain connection credentials and must remain private. Callers must check the
+components required by their operation even when optional components are absent.
+
 ## Beyond out of the box environments
 
 The stock environments are highly customizable via provisioner options (OS,

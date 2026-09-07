@@ -211,3 +211,77 @@ Two defects confirmed against HEAD (24a2d190cb2), verified from the supervisor s
   resources)` inverse of wireEnv), or make Export use import-tag names; add a
   wireEnv roundtrip test with a fake Importable env at the provisioners/provisioner
   boundary.
+
+### EC2 post-provision panic: persist the component bindings
+
+A failed EC2 environment had a snapshot containing `dd-Host-aws-vm`, but no
+`remoteHost` key. Static attachment silently dropped the host; fakeintake setup
+then dereferenced `env.RemoteHost`. The VM allocation had already succeeded.
+
+The executor now uses `WriteSnapshotFileForEnv`, which records an explicit
+`_bindings` map from canonical component names to the provisioner's export names.
+Resources retain their original names. Static attachment consumes this map,
+retains compatibility with canonical kind snapshots, and rejects snapshots with
+broken bindings or no matching components rather than returning an empty env.
+Post-install resource updates adjust the corresponding binding as well.
+
+Snapshot replacement is private (0600) and atomic. Fakeintake setup also checks
+that its host/client is initialized before issuing remote commands.
+
+Regression coverage uses a fake typed exporter assigning `dd-Host-aws-vm` via
+`SetKey`, the real executor write path, then a fresh static attachment. Additional
+tests cover multiple hosts, embedding/import tags, optional components, malformed
+bindings, private replacement and the missing-host panic guard. All are offline;
+no EC2 resources were created or destroyed during this fix.
+
+Legacy snapshots already written with export-name keys need an explicit binding
+repair; do not guess among multiple hosts, recreate the VM, or mark an unfinished
+setup Ready merely to bypass the CLI's status check. Running environment state
+has not been modified by this fix.
+
+### A rebuilt CLI can still launch an outdated executor
+
+A subsequent failure came from a mixed executable pair: the adjacent `e2ectl`
+was rebuilt at 10:55, but `e2ectl-worker` was still the 09:30 build. The new
+reader correctly rejected another snapshot written without `_bindings` by the
+old executor. Building with Bazel had updated `bazel-bin`, not the executable
+pair used by `./e2ectl` (the override `E2ECTL_WORKER` was unset in this session).
+
+Both adjacent executables have now been rebuilt and replaced from the Bazel
+outputs, with SHA-256 equality checked. No AWS calls or running environment
+state changes were made. Existing snapshots without bindings still require
+explicit in-place repair and completion of their unfinished setup; replacing
+a binary cannot retroactively add metadata to already-written snapshots.
+
+The supported build task should install both artifacts when the executor is
+requested, and the protocol/version check in the follow-up plan should reject
+an incompatible executor before allocating infrastructure.
+
+### Updated fakeintake ownership: follow the provisioning backend
+
+Decision: for Pulumi-backed scenarios, keep fakeintake in Pulumi. This supersedes
+prior notes/plans proposing core-side Docker-over-SSH fakeintake deployment.
+
+The EC2 driver now forwards `environment.fakeintake` into the scenario parameters.
+The executor always disables Agent installation, but only disables fakeintake
+when explicitly requested. The stock EC2 scenario provisions fakeintake through
+ECS Fargate; its endpoint and binding are exported alongside the VM. The core
+only reads that endpoint. The SSH/Docker deployment function and its duplicate
+image/RC-seed constants have been removed. Agent installation stays in-process
+through the same no-Pulumi installer, and local kind keeps its Docker fakeintake.
+
+Existing environments from the earlier VM-only executor will not gain a cloud
+fakeintake by repairing bindings alone: the Pulumi stack must be reconciled with
+the updated scenario to create it. Do not pretend it exists or mark incomplete
+setup Ready. No cloud infrastructure is changed by the source/tests update.
+
+Validation: the five focused Bazel test targets pass (executor, config, driver,
+EC2 driver and snapshot tests); the core still has no Pulumi dependency targets.
+Both adjacent executables were rebuilt and installed with verified hashes.
+
+Linking initially failed because the main filesystem was full. Only generated
+test executables from this session were removed from Bazel outputs after copying
+them to `/tmp/e2ectl-test-binaries-22s3kyhu`; no shared cache, source, Docker image
+or environment was deleted. The previous executable pair was backed up to
+`/tmp/e2ectl-previous-pair-e4caxval` before replacement. Disk space remains very low
+(about 140 MB free after the update), so subsequent large builds may fail again.

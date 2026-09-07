@@ -1,3 +1,7 @@
+# Locally built e2ectl executables (keep source and BUILD targets, not binaries)
+/e2ectl
+/e2ectl-worker
+
 # Binaries for programs and plugins
 *.exe
 *.exe~

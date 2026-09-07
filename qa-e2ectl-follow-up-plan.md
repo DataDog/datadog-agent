@@ -17,7 +17,8 @@ extension contracts so future environments do not require editing generic comman
 Keep the decisions already made:
 - Explicit registration; contracts remain in the CLI.
 - Driver-owned parameters, not a union of VM/Kubernetes/cloud fields.
-- The Pulumi executor imports and runs infrastructure scenarios only.
+- The Pulumi executor provisions infrastructure and the scenario's optional fakeintake;
+  Agent installation/update remains outside Pulumi.
 - Agent installation uses the existing non-Pulumi installers.
 - Update is an optional capability, although every environment may eventually support it.
 - Do not implement docker-host, EKS or AKS in this work. Validate their fit through
@@ -51,7 +52,7 @@ changes must preserve the Pulumi-free CLI dependency boundary.
 | Lifecycle orchestration | Validation order, locking, checkpoints, status, applying successful results | Provider-specific parameters |
 | Driver | Infrastructure acquisition/destruction and driver-owned resource identity | The entire environment-store implementation |
 | Installer/update capability | Installer options, target compatibility, artifact preparation/delivery, installation | Pulumi execution |
-| Pulumi executor | Registered scenario execution and durable infrastructure outputs | Agent/fakeintake installation or readiness |
+| Pulumi executor | Registered infrastructure/fakeintake scenario execution and durable outputs | Agent installation or readiness |
 | Existing framework | Typed components, clients, installers, scenario building blocks | CLI-specific registration policy |
 
 Keep three kinds of information distinct, even if initially stored together:
@@ -266,27 +267,24 @@ registration work. Removing switches stops being merely cosmetic.
 
 ### Changes
 
-- Keep the executor infra-only: no Agent or fakeintake application resources in its
-  Pulumi program. Reuse the existing EC2 scenario for the VM and connection outputs.
-- Make the core's fakeintake setup explicit and retryable: check/install a supported
-  container runtime outside Pulumi, or select an explicitly documented pre-baked runtime
-  image. Do not assume a plain Ubuntu VM already contains Docker.
-- Separate the fakeintake address used by the Agent from the address used by the CLI.
-  For EC2, the Agent can use a VM-local endpoint while the CLI connects through SSH
-  forwarding; prefer this to exposing an unauthenticated intake on a public port.
-  For kind, retain the local Docker placement but test reachability from both the node
-  and CLI; binding all interfaces is not a portable or automatically safe substitute.
-- Put reusable placement logic into component setup helpers (local Docker and SSH-host
-  now). Drivers select a placement; setup records its handles/endpoints and readiness.
-  Remote Kubernetes placement remains a future adapter, not another special case here.
-- Handle reused containers, failed image pulls, missing runtimes and unreachable endpoints
-  with explicit errors/checkpoints. Only mark setup ready after health checks succeed.
+- Keep fakeintake deployment in Pulumi for Pulumi-backed scenarios. EC2 reuses the
+  existing VM + ECS Fargate fakeintake scenario, always with `WithoutAgent()`.
+- Forward `environment.fakeintake` to the executor's scenario parameters. False disables
+  provisioning; default/true keeps the framework's fakeintake. Destroy removes both
+  through the same Pulumi stack.
+- Remove the core's SSH/Docker deployment step and read the fakeintake endpoint from
+  the executor snapshot using its explicit binding. No Docker prerequisite on the VM.
+- Preserve the ability to distinguish Agent-facing and CLI-facing access when private
+  networking requires it; follow the framework scenario's endpoint conventions rather
+  than assuming fakeintake lives on the Agent VM.
+- Local kind retains its local Docker fakeintake and remains independent of the executor.
+  Handle local container failures and endpoint reachability with explicit checkpoints.
 
 ### Acceptance and gain
 
-Fake-command tests cover runtime absent/present, retry after partial setup and endpoint
-selection. A separately gated AWS smoke must demonstrate provision → attach → fakeintake
-setup → install-script → received heartbeat → destroy. If credentials are unavailable,
+Offline tests cover fakeintake flag forwarding and binding-aware endpoint reads, including
+missing outputs and disabled fakeintake. A separately gated AWS smoke must demonstrate
+Pulumi VM + fakeintake provisioning → attach → install-script → received heartbeat → destroy. If credentials are unavailable,
 record that gate as unverified; compilation is not EC2 workflow acceptance.
 
 **Gain:** the first cloud use case works with existing infrastructure conventions and

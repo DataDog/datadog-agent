@@ -394,26 +394,22 @@ access and lifecycle—not only by removing switches.
 
 ### Files and changes
 
-**`C/internal/drivers/ec2host/ec2host.go`**
-- Replace `deployFakeintakeOnHost`'s assumptions with a setup component using the existing
-  Pulumi-free remote-host client.
-- Resolve/check the container runtime. Use a documented pre-baked runtime image, or a
-  bounded idempotent core-side bootstrap for the supported Ubuntu variants. Record that
-  requirement explicitly; do not silently put fakeintake back into the Pulumi scenario.
-- Run the container with stable ownership labels and record its ID. Retry reconciles the
-  owned container rather than failing blindly on an existing name.
-- Bind the Agent-facing intake to the VM-local interface by default, rather than exposing
-  an unauthenticated public port. Use the same-host endpoint in the Agent configuration.
+**Ownership update:** Pulumi-backed scenarios keep fakeintake deployment in Pulumi;
+local kind keeps it in Docker. The earlier SSH-host placement proposal is superseded.
 
-**New setup/access helpers under `C/internal/`**
-- A setup component returns its runtime descriptor, owned resources and readiness result.
-  Implement only local-Docker and SSH-host placement now.
-- Add an access adapter for CLI inspection through SSH forwarding. A command obtains a
-  usable client endpoint plus a close function; a transient local tunnel URL must not be
-  persisted as though it remains valid after the command exits.
-- Represent `AgentEndpoint` and `ClientAccess` separately in the fakeintake component's
-  runtime state. A direct endpoint and an SSH-forwarded endpoint are different access
-  descriptions, not one guessed string.
+**`C/internal/drivers/ec2host/ec2host.go`**
+- Remove `deployFakeintakeOnHost`, its Docker/SSH execution and duplicate image/RC constants.
+- Forward the common `environment.fakeintake` flag in the EC2 scenario request without
+  adding EC2-specific fields to the generic worker envelope.
+- Read the Pulumi-exported `fakeIntake` endpoint through its snapshot binding and populate
+  common metadata. A missing requested fakeintake is an explicit error, not a nil dereference.
+- Keep Agent installation in-process through the existing install-script adapter.
+
+**Access conventions**
+- Use the framework scenario's exported endpoint, not a guessed VM-local port.
+- Preserve the distinction between Agent-facing and CLI-facing access for future private
+  networking adapters. Do not introduce an SSH tunnel or a second fakeintake placement
+  for EC2 as a prerequisite of this change.
 
 **Kind driver/local Docker helper**
 - Keep fakeintake local in Docker. Prefer Docker-assigned host ports over reserving a port
@@ -421,24 +417,24 @@ access and lifecycle—not only by removing switches.
 - Resolve/test reachability from the kind node as well as the CLI. Restrict published
   access where possible; do not rely on the host's outbound IP as a portable solution
   for Linux, Docker Desktop and remote Docker daemons.
-- Feed both placement implementations through the lifecycle checkpoints from step 3.
-  Failed setup remains visible and repairable; health verification precedes Ready.
+- Feed local setup through the lifecycle checkpoints from step 3. Failed setup remains
+  visible and repairable; health verification precedes Ready.
 
 **Executor scenario**
-- Continue reusing EC2 `WithoutAgent()` and `WithoutFakeIntake()` infrastructure provisioning.
-- Return the connection descriptor. Do not require Agent credentials/readiness to complete
-  infrastructure provisioning. Infrastructure prerequisites belong to the scenario/config;
-  application setup belongs to core components.
+- Reuse the EC2 framework's ECS Fargate fakeintake deployment. Always set `WithoutAgent()`;
+  set `WithoutFakeIntake()` only when `environment.fakeintake` is false.
+- Export VM and fakeintake resources together with their bindings; the Pulumi stack owns
+  their destruction. The core consumes the descriptor, then installs the Agent separately.
 
 ### Tests and gain
 
-Use fake remote execution to cover missing runtime, repeated setup, failed image pull,
-container-name collision, health failure and tunnel cleanup. Add a separately gated AWS
-smoke for VM → fakeintake → install-script → observed heartbeat → destroy. If unavailable,
-report this gate unverified; do not equate a build with a successful EC2 deployment.
+Test default/true/false fakeintake flag forwarding, strict executor decoding, bound
+fakeintake outputs and missing endpoint errors without AWS access. Add a separately gated
+AWS smoke for Pulumi VM + fakeintake → install-script → observed heartbeat → destroy. If
+unavailable, report this gate unverified; a build is not a successful EC2 deployment.
 
-**Gain:** EC2 uses the same post-provision installation model without requiring publicly
-reachable fakeintake ports. The access model can later serve private EKS/AKS clusters.
+**Gain:** EC2 reuses existing infrastructure and fakeintake provisioning rather than
+introducing a Docker-on-VM setup path; Agent installation stays uniform and Pulumi-free.
 
 ## 7. Consolidate fakeintake querying and dependency selection
 
