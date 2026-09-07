@@ -6,7 +6,11 @@ go_library(
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config",
     visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
-    deps = ["@in_yaml_go_yaml_v3//:yaml"],
+    deps = [
+        "//test/e2e-framework/cmd/internal/configschema",
+        "//test/e2e-framework/cmd/internal/envconfig/fixtures",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
 )
 
 dd_agent_go_test(

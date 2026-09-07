@@ -169,6 +169,24 @@ provisioner-specific representations and update `env.Agent`. The same installer
 therefore works with Pulumi, `StaticStackProvisioner`, or another provisioner.
 State serialization and persistence belong to the caller that owns that state.
 
+`e2ectl environments [--json]` lists registered environment types, while
+`e2ectl list` lists created instances. `e2ectl init --base <type>` prints an
+annotated starter config; `--output <path>` creates a new private file and refuses
+to overwrite an existing path. Both commands are offline. Declare data-only
+config types in `cmd/internal/envconfig` and register them through `driver.Define`;
+`Description` remains required, while validation/defaults/examples come from the
+schema annotations. Do not add duplicate worker parameter structs or handwritten
+YAML templates. Optional `Validate(params)` hooks run after automatic validation;
+cloud rules needed at both process boundaries belong on the shared schema. See
+`cmd/e2ectl/README.md` and `cmd/internal/configschema/README.md`.
+
+Forward normalized parameter YAML to the executor, not a re-marshalled struct
+with `omitempty`: explicit false/zero values and defaults must survive the process
+boundary. The executor uses `DecodeResolved` to require already-materialized defaults
+and rejects old protocol versions; rebuild both binaries after contract changes.
+`init` validates complete generated examples, including semantic and installer rules,
+without resolving credentials or provisioning infrastructure.
+
 For `e2ectl`, Pulumi-backed scenarios keep fakeintake deployment in Pulumi:
 EC2 uses the existing ECS Fargate fakeintake, controlled by
 `environment.fakeintake`, with `WithoutAgent()` always. The core reads the

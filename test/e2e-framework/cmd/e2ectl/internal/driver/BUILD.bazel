@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "driver.go",
         "registry.go",
+        "template.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/driver",
     visibility = ["//test/e2e-framework/cmd/e2ectl:__subpackages__"],
@@ -15,12 +16,24 @@ go_library(
         "//test/e2e-framework/cmd/e2ectl/internal/drivers/kind",
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
         "//test/e2e-framework/cmd/e2ectl/internal/installer",
+        "//test/e2e-framework/cmd/internal/configschema",
+        "//test/e2e-framework/cmd/internal/envconfig/ec2host",
+        "//test/e2e-framework/cmd/internal/envconfig/kind",
     ],
 )
 
 dd_agent_go_test(
     name = "driver_test",
-    srcs = ["driver_test.go"],
+    srcs = [
+        "driver_test.go",
+        "template_test.go",
+        "typed_test.go",
+    ],
     embed = [":driver"],
-    deps = ["//test/e2e-framework/cmd/e2ectl/internal/config"],
+    deps = [
+        "//test/e2e-framework/cmd/e2ectl/internal/config",
+        "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+        "//test/e2e-framework/cmd/e2ectl/internal/installer",
+        "//test/e2e-framework/cmd/internal/configschema",
+    ],
 )

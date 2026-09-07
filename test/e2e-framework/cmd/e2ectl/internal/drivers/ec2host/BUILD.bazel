@@ -11,9 +11,9 @@ go_library(
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
         "//test/e2e-framework/cmd/e2ectl/internal/installer",
         "//test/e2e-framework/cmd/e2ectl/workerclient",
+        "//test/e2e-framework/cmd/internal/envconfig/ec2host",
         "//test/e2e-framework/components/outputs",
         "//test/e2e-framework/testing/provisioner",
-        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -24,6 +24,9 @@ dd_agent_go_test(
     deps = [
         "//test/e2e-framework/cmd/e2ectl/internal/config",
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+        "//test/e2e-framework/cmd/e2ectl/workerclient",
+        "//test/e2e-framework/cmd/internal/envconfig/ec2host",
+        "//test/e2e-framework/cmd/internal/envconfig/fixtures",
         "//test/e2e-framework/testing/provisioner",
     ],
 )

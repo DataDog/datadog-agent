@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package envstore is e2ectl's named-environment store. Each environment lives
 // in its own directory under $E2ECTL_HOME/envs (default ~/.e2ectl) and holds:
@@ -101,6 +101,10 @@ func (s *Store) Create(name string, cfg *config.File, meta Meta) (Entry, error) 
 	if name == "" {
 		return Entry{}, errors.New("environment name is required")
 	}
+	cfgData := cfg.Source()
+	if len(cfgData) == 0 {
+		return Entry{}, errors.New("cannot store config without its parsed source")
+	}
 	entry := Entry{
 		Name: name,
 		Dir:  filepath.Join(s.EnvsDir(), name),
@@ -125,11 +129,7 @@ func (s *Store) Create(name string, cfg *config.File, meta Meta) (Entry, error) 
 
 	// store a copy of the config used at creation time: it is the source of
 	// truth for teardown and later install/update runs
-	cfgData, err := os.ReadFile(cfg.Path)
-	if err != nil {
-		return entry, fmt.Errorf("storing config copy: %w", err)
-	}
-	if err := os.WriteFile(entry.ConfigPath(), cfgData, 0o644); err != nil {
+	if err := os.WriteFile(entry.ConfigPath(), cfgData, 0o600); err != nil {
 		return entry, err
 	}
 

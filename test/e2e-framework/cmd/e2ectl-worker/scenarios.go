@@ -1,89 +1,57 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product contains software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 package main
 
 import (
 	"fmt"
-	"strings"
-
-	e2eostypes "github.com/DataDog/datadog-agent/test/e2e-framework/components/os/types"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/workerclient"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-
+	ec2config "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/ec2host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/fixtures"
+	e2eostypes "github.com/DataDog/datadog-agent/test/e2e-framework/components/os/types"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
-
-	"go.yaml.in/yaml/v3"
 )
 
-func init() {
-	registerScenario(workerclient.BaseEC2Host, buildEC2Host)
+// Explicit scenario registration. Only this binary imports Pulumi run functions.
+var scenarios = map[string]Builder{
+	workerclient.BaseEC2Host: buildEC2Host,
 }
 
-// ec2Params contains the host-specific section plus the common fakeintake
-// toggle forwarded by the driver. Omission preserves the framework default
-// (fakeintake enabled); explicit false disables it.
-type ec2Params struct {
-	OS           string `yaml:"os"`
-	Arch         string `yaml:"arch"`
-	InstanceType string `yaml:"instance-type,omitempty"`
-	FakeIntake   *bool  `yaml:"fakeintake,omitempty"`
-}
-
-func (p ec2Params) fakeintakeEnabled() bool {
-	return p.FakeIntake == nil || *p.FakeIntake
-}
-
-// buildEC2Host strict-decodes the params and wraps the existing framework
-// run function (the awshost provisioner over the EC2 scenario).
-//
-// Pulumi owns the infrastructure and the optional ECS Fargate fakeintake,
-// as in the existing E2E scenario. Agent installation always remains a
-// separate non-Pulumi operation in the core CLI.
-func buildEC2Host(params string) (Executor, error) {
-	p, err := decodeEC2Params(params)
+func buildEC2Host(params string, fixtureConfig fixtures.Config) (Executor, error) {
+	// Same type, annotations, defaults and optional semantic validator as the CLI.
+	p, err := ec2config.Schema.DecodeResolved([]byte(params), "environment.ec2-host")
 	if err != nil {
 		return Executor{}, err
 	}
-
+	desc, err := osDescriptor(p.OS)
+	if err != nil {
+		return Executor{}, err
+	}
 	opts := []ec2.Option{
 		ec2.WithoutAgent(),
-		ec2.WithEC2InstanceOptions(
-			ec2.WithOSArch(osDescriptor(p.OS), e2eostypes.ArchitectureFromString(p.Arch)),
-		),
+		ec2.WithEC2InstanceOptions(ec2.WithOSArch(desc, e2eostypes.ArchitectureFromString(p.Arch))),
 	}
 	if p.InstanceType != "" {
 		opts = append(opts, ec2.WithEC2InstanceOptions(ec2.WithInstanceType(p.InstanceType)))
 	}
-	if !p.fakeintakeEnabled() {
+	if !fixtureConfig.FakeIntake {
 		opts = append(opts, ec2.WithoutFakeIntake())
 	}
-
 	return fromTyped[environments.Host](awshost.Provisioner(awshost.WithRunOptions(opts...))), nil
 }
 
-func decodeEC2Params(params string) (ec2Params, error) {
-	var p ec2Params
-	if params == "" {
-		return p, fmt.Errorf("empty params (os and arch required)")
-	}
-	dec := yaml.NewDecoder(strings.NewReader(params))
-	dec.KnownFields(true)
-	if err := dec.Decode(&p); err != nil {
-		return p, err
-	}
-	return p, nil
-}
-
-func osDescriptor(name string) e2eostypes.Descriptor {
+func osDescriptor(name string) (e2eostypes.Descriptor, error) {
 	switch name {
 	case "ubuntu-24.04":
-		return e2eostypes.Ubuntu2404
+		return e2eostypes.Ubuntu2404, nil
+	case "ubuntu-22.04":
+		return e2eostypes.Ubuntu2204, nil
 	default:
-		return e2eostypes.Ubuntu2204
+		return e2eostypes.Descriptor{}, fmt.Errorf("no EC2 OS mapping for %q", name)
 	}
 }

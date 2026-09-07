@@ -1,15 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product contains software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/workerclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/fixtures"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/standalone"
 )
@@ -25,19 +25,7 @@ type Executor struct {
 // Builder turns the raw driver-owned config section (YAML) into an Executor.
 // This is the whole registration API: a scenario registers its base name
 // and one builder that strict-decodes its params and wraps its run function.
-type Builder func(params string) (Executor, error)
-
-// scenarios is the worker-side registry (the mirror of the core's driver
-// registry — see the extensibility plan, T4). Adding a Pulumi environment:
-// write the scenario run function, register a builder here, done.
-var scenarios = map[string]Builder{}
-
-func registerScenario(base string, b Builder) {
-	if _, dup := scenarios[base]; dup {
-		panic(fmt.Sprintf("scenario %q registered twice", base))
-	}
-	scenarios[base] = b
-}
+type Builder func(params string, fixtures fixtures.Config) (Executor, error)
 
 // fromTyped adapts a typed provisioner into the type-erased Executor:
 // provision writes the snapshot (with the stack name as metadata — the
@@ -64,6 +52,12 @@ func fromTyped[Env any](p provisioner.TypedProvisioner[Env]) Executor {
 // runJob is the generic, forever-static engine: lookup by base, strict-decode
 // params, provision or destroy.
 func runJob(j workerclient.Job) error {
+	if j.ProtocolVersion != workerclient.ProtocolVersion || j.Fixtures == nil {
+		return fmt.Errorf("incompatible executor job; rebuild both binaries (expected protocol %d and fixture settings)", workerclient.ProtocolVersion)
+	}
+	if j.Action != workerclient.ActionProvision && j.Action != workerclient.ActionDestroy {
+		return fmt.Errorf("unknown action %q", j.Action)
+	}
 	build, ok := scenarios[j.Base]
 	if !ok {
 		known := make([]string, 0, len(scenarios))
@@ -72,7 +66,7 @@ func runJob(j workerclient.Job) error {
 		}
 		return fmt.Errorf("no scenario registered for base %q (registered: %v)", j.Base, known)
 	}
-	exec, err := build(j.Params)
+	exec, err := build(j.Params, *j.Fixtures)
 	if err != nil {
 		return fmt.Errorf("decoding scenario %q params: %w", j.Base, err)
 	}
@@ -87,5 +81,3 @@ func runJob(j workerclient.Job) error {
 		return fmt.Errorf("unknown action %q (supported: %s, %s)", j.Action, workerclient.ActionProvision, workerclient.ActionDestroy)
 	}
 }
-
-var _ = os.Stderr

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product contains software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 package driver
 
@@ -16,7 +16,12 @@ func TestRegistryInvariants(t *testing.T) {
 	if len(IDs()) == 0 {
 		t.Fatal("no drivers registered")
 	}
+	seen := make(map[string]bool)
 	for _, id := range IDs() {
+		if seen[id] {
+			t.Fatalf("duplicate driver ID %q would hide an environment from discovery", id)
+		}
+		seen[id] = true
 		d, err := Get(id)
 		if err != nil {
 			t.Fatalf("Get(%q): %v", id, err)
@@ -72,8 +77,8 @@ agent:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if errs := d.Validate(f); len(errs) != 1 || !strings.Contains(errs[0].Error(), "environment.kind.version") {
-		t.Fatalf("expected a field-anchored kind section error, got: %v", errs)
+	if _, err := d.Prepare(f); err == nil || !strings.Contains(err.Error(), "environment.kind.version") {
+		t.Fatalf("expected a field-anchored kind section error, got: %v", err)
 	}
 
 	// ec2-host: missing section
@@ -90,7 +95,7 @@ agent:
 		t.Fatalf("generic validation should pass, got: %v", errs)
 	}
 	d, _ = Get(f.Environment.Base)
-	if errs := d.Validate(f); len(errs) == 0 || !strings.Contains(errs[0].Error(), "environment.ec2-host") {
-		t.Fatalf("expected a field-anchored ec2-host section error, got: %v", errs)
+	if _, err := d.Prepare(f); err == nil || !strings.Contains(err.Error(), "environment.ec2-host") {
+		t.Fatalf("expected a field-anchored ec2-host section error, got: %v", err)
 	}
 }

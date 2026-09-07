@@ -1,73 +1,62 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product contains software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
-// Package config defines and validates the e2ectl environment configuration
-// (schema v1). Validation is deliberately strict: unknown fields, invalid
-// types and invalid combinations all fail with field-anchored errors, before
-// any environment is touched.
-//
-// The environment section is: common fields (base, fakeintake) plus ONE
-// driver-owned section named after the base. The core validates what it owns;
-// the driver strict-decodes its own section (config.StrictDecode), so
-// unknown-field rejection works per driver and the core never grows
-// per-environment types.
+// Package config parses the common e2ectl envelope. Environment-specific fields
+// are prepared by the schema associated with the selected driver registration.
 package config
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/configschema"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/fixtures"
 	"go.yaml.in/yaml/v3"
 )
 
-// SchemaVersion is the only config schema version supported so far.
 const SchemaVersion = 1
 
-// File is an e2ectl environment configuration file.
 type File struct {
-	Schema      int         `yaml:"schema"`
-	Environment Environment `yaml:"environment"`
-	Agent       Agent       `yaml:"agent"`
-
-	// Path is the file this config was loaded from; set by Load, not part of
-	// the YAML schema.
-	Path string `yaml:"-"`
+	Schema      int
+	Environment Environment
+	Agent       Agent
+	Path        string
+	source      []byte
 }
 
-// Environment describes the environment to create: the common fields the
-// core owns, plus the raw driver-owned section.
+// Source returns the input that was parsed, not a later re-read of a file an
+// operator may edit while a long-running install or update is in progress.
+func (f *File) Source() []byte { return bytes.Clone(f.source) }
+
+// Environment is the common envelope, not a union of provider parameters.
 type Environment struct {
-	Base string `yaml:"base"`
-	// FakeIntake defaults to true. Pointer so "explicitly false" is representable.
-	FakeIntake *bool `yaml:"fakeintake,omitempty"`
-	// Section is the raw driver-owned section (the environment key matching
-	// base), strict-decoded by the driver. Nil when absent.
-	Section []byte `yaml:"-"`
+	Base        string
+	Fixtures    fixtures.Config
+	Section     []byte
+	SectionNode *yaml.Node // original positions for schema diagnostics
 }
 
-// Agent describes how the Datadog agent is installed on the environment.
-// The install method's own rules (version vs image requirements) live in
-// the installers; the core checks only the generic shapes.
+// Agent contains the existing common Agent fields. Examples are shared here,
+// rather than repeated in each environment template. Installer-specific semantic
+// rules are still checked by the selected installer.
 type Agent struct {
-	Install      string            `yaml:"install"`
-	Version      string            `yaml:"version,omitempty"`
-	Image        string            `yaml:"image,omitempty"`
-	APIKey       string            `yaml:"api-key,omitempty"`
-	Config       string            `yaml:"config,omitempty"`
+	Install      string            `yaml:"install" config:"required" description:"Agent installation method selected for this environment."`
+	Version      string            `yaml:"version,omitempty" example:"7.69.0" description:"Released Agent version to test; for local images use image instead."`
+	Image        string            `yaml:"image,omitempty" description:"Existing local development image, with a semver-shaped tag."`
+	APIKey       string            `yaml:"api-key,omitempty" config:"secret"`
+	Config       string            `yaml:"config,omitempty" description:"Additional datadog.yaml configuration."`
 	Integrations map[string]string `yaml:"integrations,omitempty"`
 }
 
-// FakeIntakeEnabled reports whether the fakeintake should be deployed.
-func (f *File) FakeIntakeEnabled() bool {
-	if f.Environment.FakeIntake == nil {
-		return true
-	}
-	return *f.Environment.FakeIntake
-}
+var agentSchema = configschema.Must[Agent]()
+
+func (f *File) FakeIntakeEnabled() bool { return f.Environment.Fixtures.FakeIntake }
 
 var (
 	versionRegexp      = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
@@ -76,153 +65,97 @@ var (
 	semverTagRegexp    = regexp.MustCompile(`^\d+\.\d+\.\d+(-[a-zA-Z0-9._-]+)?$`)
 )
 
-// imageTag returns the tag part of an image reference (after the last ':').
-func imageTag(ref string) string {
-	for i := len(ref) - 1; i >= 0; i-- {
-		if ref[i] == ':' {
-			return ref[i+1:]
-		}
-	}
-	return ""
-}
-
-// Load reads and validates the configuration at path. All validation errors
-// are accumulated so the file can be fixed in a single pass.
 func Load(path string) (*File, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	f, errs := Parse(data)
-	if len(errs) > 0 {
-		return nil, &Errors{errs: errs}
+	if err := NewErrors(errs); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	f.Path = path
 	return f, nil
 }
 
-// Parse validates the raw content of a configuration file.
 func Parse(data []byte) (*File, []error) {
-	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return nil, []error{fmt.Errorf("invalid YAML: %w", err)}
+	root, err := configschema.ParseDocument(data)
+	if err != nil {
+		return nil, []error{err}
 	}
-	if len(doc.Content) == 0 {
-		return nil, []error{errf("config", "empty file")}
+	members, err := configschema.Mapping(root, "config")
+	if err != nil {
+		return nil, []error{err}
 	}
-	root := doc.Content[0]
-	if root.Kind != yaml.MappingNode {
-		return nil, []error{errf("config", "expected a mapping at the top level")}
-	}
-
 	f := &File{}
 	var errs []error
-	var envNode, agentNode *yaml.Node
-
-	for i := 0; i+1 < len(root.Content); i += 2 {
-		k, v := root.Content[i], root.Content[i+1]
-		switch k.Value {
-		case "schema":
-			var s int
-			if err := v.Decode(&s); err != nil {
-				errs = append(errs, errf("schema", "not an integer: %v", err))
-			} else {
-				f.Schema = s
-			}
-		case "environment":
-			envNode = v
-		case "agent":
-			agentNode = v
-		default:
-			errs = append(errs, errf(k.Value, "unknown top-level field (supported: schema, environment, agent)"))
+	for key := range members {
+		if key != "schema" && key != "environment" && key != "agent" {
+			errs = append(errs, errf(key, "unknown top-level field (supported: schema, environment, agent)"))
 		}
 	}
-
-	if envNode != nil {
-		if err := f.parseEnvironment(envNode); err != nil {
-			errs = append(errs, err)
+	if n := members["schema"]; n != nil {
+		if n.Tag != "!!int" || n.Decode(&f.Schema) != nil {
+			errs = append(errs, errf("schema", "expected an integer"))
 		}
 	}
-	if agentNode != nil {
-		agentData, err := yaml.Marshal(agentNode)
-		if err != nil {
-			errs = append(errs, errf("agent", "decoding: %v", err))
-		} else if err := strictDecode(agentData, &f.Agent); err != nil {
-			errs = append(errs, errf("agent", "%v", err))
-		}
+	if f.Schema != SchemaVersion {
+		errs = append(errs, errf("schema", "must be %d", SchemaVersion))
 	}
-
-	errs = append(errs, f.validate()...)
-	if len(errs) > 0 {
+	if err := f.parseEnvironment(members["environment"]); err != nil {
+		errs = append(errs, err)
+	}
+	f.Agent, _, err = agentSchema.DecodeNode(members["agent"], "agent")
+	if err != nil {
+		errs = append(errs, err)
+	} else {
+		errs = append(errs, f.validateAgent()...)
+	}
+	if len(errs) != 0 {
 		return nil, errs
 	}
+	f.source = bytes.Clone(data)
 	return f, nil
 }
 
-// parseEnvironment walks the environment mapping: the common fields are
-// decoded here; exactly one driver-owned section (the key matching base) is
-// preserved raw for the driver.
-func (f *File) parseEnvironment(node *yaml.Node) error {
-	if node.Kind != yaml.MappingNode {
-		return errf("environment", "expected a mapping")
+func (f *File) parseEnvironment(n *yaml.Node) error {
+	if n == nil {
+		return errf("environment.base", "missing")
 	}
-	env := &f.Environment
-	var sectionNode *yaml.Node
-	for i := 0; i+1 < len(node.Content); i += 2 {
-		k, v := node.Content[i], node.Content[i+1]
-		switch k.Value {
+	members, err := configschema.Mapping(n, "environment")
+	if err != nil {
+		return err
+	}
+	base := members["base"]
+	if base == nil || base.Tag != "!!str" || base.Value == "" {
+		return errf("environment.base", "expected a nonempty string")
+	}
+	f.Environment.Base = base.Value
+	fixtureNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	// Iterate original input order for diagnostics, independently of base's position.
+	for i := 0; i < len(n.Content); i += 2 {
+		key, value := n.Content[i], n.Content[i+1]
+		switch key.Value {
 		case "base":
-			var s string
-			if err := v.Decode(&s); err != nil {
-				return errf("environment.base", "not a string: %v", err)
-			}
-			env.Base = s
 		case "fakeintake":
-			var b bool
-			if err := v.Decode(&b); err != nil {
-				return errf("environment.fakeintake", "not a boolean: %v", err)
-			}
-			env.FakeIntake = &b
+			fixtureNode.Content = append(fixtureNode.Content, key, value)
 		default:
-			if env.Base != "" && k.Value == env.Base {
-				// the driver-owned section, named after the base
-				if sectionNode != nil {
-					return errf("environment."+k.Value, "duplicated")
-				}
-				sectionNode = v
-				continue
+			if key.Value != base.Value {
+				return errf("environment."+key.Value, "not supported for base %q (only the %q section is)", base.Value, base.Value)
 			}
-			if env.Base == "" {
-				return errf("environment.base", "must come before the %q section so the section can be attributed to a base", k.Value)
+			f.Environment.SectionNode = value
+			f.Environment.Section, err = configschema.Encode(value)
+			if err != nil {
+				return err
 			}
-			return errf("environment."+k.Value, "not supported for base %q (only the %q section is)", env.Base, env.Base)
 		}
 	}
-	if sectionNode != nil {
-		data, err := yaml.Marshal(sectionNode)
-		if err != nil {
-			return errf("environment."+env.Base, "decoding section: %v", err)
-		}
-		env.Section = data
-	}
-	return nil
+	f.Environment.Fixtures, _, err = fixtures.Schema.DecodeNode(fixtureNode, "environment")
+	return err
 }
 
-// validate returns every validation error found in the file (generic rules
-// only; driver sections are validated by their drivers, installer rules by
-// the installers).
-func (f *File) validate() []error {
+func (f *File) validateAgent() []error {
 	var errs []error
-
-	if f.Schema == 0 {
-		errs = append(errs, errf("schema", "missing (must be %d)", SchemaVersion))
-	} else if f.Schema != SchemaVersion {
-		errs = append(errs, errf("schema", "unsupported version %d (supported: %d)", f.Schema, SchemaVersion))
-	}
-	if f.Environment.Base == "" {
-		errs = append(errs, errf("environment.base", "missing"))
-	}
-
 	a := &f.Agent
 	if a.Install == "" {
 		errs = append(errs, errf("agent.install", "missing"))
@@ -232,67 +165,57 @@ func (f *File) validate() []error {
 	}
 	if a.Image != "" {
 		if !imageRefRegexp.MatchString(a.Image) {
-			errs = append(errs, errf("agent.image",
-				"%q is not a fully-qualified image reference with tag (expected e.g. \"gcr.io/datadoghq/agent:7.99.0-e2ectl\")", a.Image))
-		} else if !semverTagRegexp.MatchString(imageTag(a.Image)) {
-			// The Datadog Helm chart derives feature comparisons (semverCompare)
-			// from the agent image tag, so the tag must parse as semver.
-			errs = append(errs, errf("agent.image",
-				"tag %q is not semver-shaped (expected e.g. \"7.99.0-e2ectl\"; the Helm chart runs version comparisons on it)", imageTag(a.Image)))
+			errs = append(errs, errf("agent.image", "expected a fully-qualified image reference with tag"))
+		} else if !semverTagRegexp.MatchString(a.Image[strings.LastIndex(a.Image, ":")+1:]) {
+			errs = append(errs, errf("agent.image", "tag is not semver-shaped (expected e.g. \"7.99.0-e2ectl\")"))
 		}
 	}
 	if a.Config != "" {
 		var cfg map[string]any
 		if err := yaml.Unmarshal([]byte(a.Config), &cfg); err != nil {
-			errs = append(errs, errf("agent.config", "not valid YAML: %v", err))
+			errs = append(errs, errf("agent.config", "not valid YAML"))
 		}
 	}
 	for folder := range a.Integrations {
 		if !integrationPattern.MatchString(folder) {
-			errs = append(errs, errf("agent.integrations",
-				"%q is not a valid conf.d folder name (expected e.g. \"custom_logs.d\")", folder))
+			errs = append(errs, errf("agent.integrations", "%q is not a valid conf.d folder name", folder))
 		}
 	}
 	return errs
 }
 
-// StrictDecode strict-decodes raw YAML into out (unknown fields are errors).
-// Drivers use it for their own config sections.
-func StrictDecode(raw []byte, out any) error {
-	return strictDecode(raw, out)
+// Example composes the generated environment schema with the shared fixture and
+// Agent schemas. Only envelope names/selectors are specified here, not provider
+// fields. Secret-store contents and live environment state are never consulted.
+func Example(base, description, install string, section *yaml.Node) ([]byte, error) {
+	fixtureNode, err := fixtures.Schema.Example(nil)
+	if err != nil {
+		return nil, err
+	}
+	agent, err := agentSchema.Example(map[string]any{"install": install})
+	if err != nil {
+		return nil, err
+	}
+	str := func(v string) *yaml.Node { return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: v} }
+	env := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{str("base"), str(base)}}
+	env.Content = append(env.Content, fixtureNode.Content...)
+	env.Content = append(env.Content, str(base), section)
+	root := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", HeadComment: description + "\nGenerated starter config: review example values before provisioning.\nCredentials come from the runner profile, not this file.", Content: []*yaml.Node{
+		str("schema"), {Kind: yaml.ScalarNode, Tag: "!!int", Value: fmt.Sprint(SchemaVersion)},
+		str("environment"), env,
+		str("agent"), agent,
+	}}
+	return configschema.Encode(root)
 }
 
-func strictDecode(raw []byte, out any) error {
+// StrictDecode remains for legacy callers; new typed registrations use Schema.
+func StrictDecode(raw []byte, out any) error {
 	dec := yaml.NewDecoder(strings.NewReader(string(raw)))
 	dec.KnownFields(true)
-	if err := dec.Decode(out); err != nil {
-		return err
-	}
-	return nil
+	return dec.Decode(out)
 }
 
-// Errors aggregates validation errors.
-type Errors struct {
-	errs []error
-}
-
-func (e *Errors) Error() string {
-	parts := make([]string, 0, len(e.errs))
-	for _, err := range e.errs {
-		parts = append(parts, err.Error())
-	}
-	return strings.Join(parts, "\n")
-}
-
+func NewErrors(errs []error) error { return errors.Join(errs...) }
 func errf(field, format string, args ...any) error {
 	return fmt.Errorf("%s: %s", field, fmt.Sprintf(format, args...))
-}
-
-// NewErrors wraps validation errors collected outside config (driver sections,
-// installer rules) into the same aggregate error.
-func NewErrors(errs []error) error {
-	if len(errs) == 0 {
-		return nil
-	}
-	return &Errors{errs: errs}
 }

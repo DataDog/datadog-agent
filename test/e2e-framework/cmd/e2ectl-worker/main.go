@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product contains software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 // e2ectl-worker is the pulumi-executor: the piece of code where we accept to
 // import Pulumi run functions, so the rest of the CLI never pays Pulumi's
@@ -17,14 +17,20 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/workerclient"
 )
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--protocol-version" {
+		fmt.Println(workerclient.ProtocolVersion)
+		return
+	}
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "usage: e2ectl-worker <job.json>")
 		os.Exit(2)
@@ -34,8 +40,13 @@ func main() {
 	if err != nil {
 		fatal("reading job: %v", err)
 	}
-	if err := json.Unmarshal(data, &j); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&j); err != nil {
 		fatal("parsing job: %v", err)
+	}
+	if err := dec.Decode(new(any)); err != io.EOF {
+		fatal("expected a single executor job")
 	}
 	if err := runJob(j); err != nil {
 		fatal("%v", err)

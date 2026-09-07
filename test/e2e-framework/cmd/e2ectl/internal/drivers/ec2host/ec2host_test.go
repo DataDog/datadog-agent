@@ -6,59 +6,63 @@
 package ec2host
 
 import (
-	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/workerclient"
+	ec2config "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/ec2host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/fixtures"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
 )
 
-func TestExecutorParamsForwardsFakeintake(t *testing.T) {
-	enabled, disabled := true, false
+func TestTypedExecutorRoundtrip(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		value *bool
-		want  bool
+		name, raw string
+		want      bool
 	}{
 		{name: "default", want: true},
-		{name: "enabled", value: &enabled, want: true},
-		{name: "disabled", value: &disabled, want: false},
+		{name: "enabled", raw: "fakeintake: true", want: true},
+		{name: "disabled", raw: "fakeintake: false", want: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			section := []byte("os: ubuntu-22.04\narch: amd64\ninstance-type: t3.medium\n")
-			cfg := &config.File{Environment: config.Environment{Section: bytes.Clone(section), FakeIntake: tc.value}}
-			encoded, err := executorParams(cfg)
+			p, normalized, err := ec2config.Schema.Decode([]byte("os: ubuntu-22.04\ninstance-type: t3.medium"), "input")
 			if err != nil {
 				t.Fatal(err)
 			}
-			var got struct {
-				Section    `yaml:",inline"`
-				FakeIntake *bool `yaml:"fakeintake"`
-			}
-			if err := config.StrictDecode([]byte(encoded), &got); err != nil {
+			fixtureConfig, _, err := fixtures.Schema.Decode([]byte(tc.raw), "fixtures")
+			if err != nil {
 				t.Fatal(err)
 			}
-			if got.FakeIntake == nil || *got.FakeIntake != tc.want {
-				t.Fatalf("fakeintake toggle was not explicitly forwarded: %v", got.FakeIntake)
+			cfg := &config.File{Environment: config.Environment{Section: normalized, Fixtures: fixtureConfig}}
+			job := executorJob(workerclient.ActionProvision, cfg, envstore.Entry{Name: "test", Dir: t.TempDir()})
+			data, err := json.Marshal(job)
+			if err != nil {
+				t.Fatal(err)
 			}
-			if got.OS != "ubuntu-22.04" || got.Arch != "amd64" || got.InstanceType != "t3.medium" {
-				t.Fatalf("host-specific parameters were lost: %+v", got.Section)
+			var received workerclient.Job
+			if err := json.Unmarshal(data, &received); err != nil {
+				t.Fatal(err)
 			}
-			if !bytes.Equal(cfg.Environment.Section, section) {
-				t.Fatal("encoding the executor request modified the user's section")
+			got, _, err := ec2config.Schema.Decode([]byte(received.Params), "executor")
+			if err != nil || got != p {
+				t.Fatalf("typed handoff changed parameters: %+v %v", got, err)
+			}
+			if got.Arch != "amd64" {
+				t.Fatal("declared default was not materialized")
+			}
+			if received.ProtocolVersion != workerclient.ProtocolVersion || received.Fixtures == nil || received.Fixtures.FakeIntake != tc.want {
+				t.Fatalf("fixture/default/version lost in transport: %+v", received)
 			}
 		})
 	}
 }
 
-func TestExecutorParamsRejectsFakeintakeInHostSection(t *testing.T) {
-	cfg := &config.File{Environment: config.Environment{
-		Section: []byte("os: ubuntu-22.04\narch: amd64\nfakeintake: false\n"),
-	}}
-	if _, err := executorParams(cfg); err == nil {
-		t.Fatal("the host section must not override environment.fakeintake")
+func TestFixtureOptionIsNotAnEC2Field(t *testing.T) {
+	if _, _, err := ec2config.Schema.Decode([]byte("os: ubuntu-22.04\nfakeintake: false"), "input"); err == nil {
+		t.Fatal("fixture settings belong to their shared schema, not the EC2 type")
 	}
 }
 

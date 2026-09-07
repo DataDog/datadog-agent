@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product contains software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 // Package kind is the local kind driver: kind CLI + local docker fakeintake,
 // no Pulumi anywhere. The whole cluster lifecycle is core-side; the snapshot
@@ -14,12 +14,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/installer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/localinfra"
+	kindconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/kind"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
 )
 
@@ -29,34 +29,9 @@ type Driver struct{}
 // ID implements driver.Driver.
 func (d *Driver) ID() string { return "kind" }
 
-// Section is the driver-owned config section (`environment.kind`).
-type Section struct {
-	// Version is a full kindest/node tag version, e.g. "1.31.0".
-	Version string `yaml:"version,omitempty"`
-	// Nodes is the number of worker nodes in addition to the control plane.
-	Nodes int `yaml:"nodes,omitempty"`
-}
-
-var versionRegexp = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
-
-// Validate implements driver.Driver: the kind section's own rules.
-func (d *Driver) Validate(cfg *config.File) []error {
-	if cfg.Environment.Section == nil {
-		return nil // the section is optional; kind defaults apply
-	}
-	var s Section
-	if err := config.StrictDecode(cfg.Environment.Section, &s); err != nil {
-		return []error{fmt.Errorf("environment.kind: %v", err)}
-	}
-	var errs []error
-	if s.Version != "" && !versionRegexp.MatchString(s.Version) {
-		errs = append(errs, fmt.Errorf(
-			"environment.kind.version: %q is not a full version (expected e.g. \"1.31.0\", it maps to kindest/node:v1.31.0)", s.Version))
-	}
-	if s.Nodes < 0 {
-		errs = append(errs, fmt.Errorf("environment.kind.nodes: must be >= 0"))
-	}
-	return errs
+// Description describes the environment without inspecting local infrastructure.
+func (d *Driver) Description() string {
+	return "Local kind cluster and optional Docker fakeintake"
 }
 
 // Installers implements driver.Driver: the shared helm installer, with kind
@@ -68,10 +43,10 @@ func (d *Driver) Installers() []installer.Installer {
 }
 
 // Start implements driver.Driver.
-func (d *Driver) Start(cfg *config.File, entry envstore.Entry, store *envstore.Store) error {
+func (d *Driver) Start(params kindconfig.Config, cfg *config.File, entry envstore.Entry, store *envstore.Store) error {
 	meta := entry.Meta
 
-	if err := createCluster(entry, cfg); err != nil {
+	if err := createCluster(entry, params); err != nil {
 		return fmt.Errorf("creating kind cluster: %w", err)
 	}
 
@@ -129,7 +104,7 @@ func (d *Driver) Start(cfg *config.File, entry envstore.Entry, store *envstore.S
 
 // Stop implements driver.Driver. The cluster name is derived from the snapshot
 // (the single source of truth), so no driver bookkeeping lives in the meta.
-func (d *Driver) Stop(entry envstore.Entry, store *envstore.Store) error {
+func (d *Driver) Stop(_ kindconfig.Config, _ *config.File, entry envstore.Entry, store *envstore.Store) error {
 	var cluster struct {
 		ClusterName string `json:"clusterName"`
 	}
@@ -150,23 +125,17 @@ func (d *Driver) Stop(entry envstore.Entry, store *envstore.Store) error {
 	return store.Delete(entry.Name)
 }
 
-func createCluster(entry envstore.Entry, cfg *config.File) error {
+func createCluster(entry envstore.Entry, params kindconfig.Config) error {
 	args := []string{"create", "cluster", "--name", entry.Name, "--kubeconfig", entry.KubeconfigPath()}
-	if cfg.Environment.Section != nil {
-		var s Section
-		if err := config.StrictDecode(cfg.Environment.Section, &s); err != nil {
+	if params.Version != "" {
+		args = append(args, "--image", "kindest/node:v"+params.Version)
+	}
+	if params.Nodes > 0 {
+		cfgPath := filepath.Join(entry.Dir, "kind-config.yaml")
+		if err := writeKindConfig(cfgPath, params.Nodes); err != nil {
 			return err
 		}
-		if s.Version != "" {
-			args = append(args, "--image", "kindest/node:v"+s.Version)
-		}
-		if s.Nodes > 0 {
-			cfgPath := filepath.Join(entry.Dir, "kind-config.yaml")
-			if err := writeKindConfig(cfgPath, s.Nodes); err != nil {
-				return err
-			}
-			args = append(args, "--config", cfgPath)
-		}
+		args = append(args, "--config", cfgPath)
 	}
 	cmd := exec.Command("kind", args...)
 	cmd.Stdout = os.Stdout

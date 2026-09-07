@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product contains software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 package config
 
@@ -91,7 +91,7 @@ func TestParseSectionNotMatchingBaseIsRejected(t *testing.T) {
 	}
 }
 
-func TestParseSectionBeforeBaseIsRejected(t *testing.T) {
+func TestParseSectionBeforeBaseIsAccepted(t *testing.T) {
 	bad := `
 schema: 1
 environment:
@@ -101,9 +101,9 @@ environment:
 agent:
   install: helm
 `
-	_, errs := Parse([]byte(bad))
-	if len(errs) == 0 {
-		t.Fatal("expected an error (base must come before its section)")
+	f, errs := Parse([]byte(bad))
+	if len(errs) != 0 || f.Environment.Base != "kind" || f.Environment.SectionNode == nil {
+		t.Fatalf("mapping key order must not affect parsing: %v", errs)
 	}
 }
 

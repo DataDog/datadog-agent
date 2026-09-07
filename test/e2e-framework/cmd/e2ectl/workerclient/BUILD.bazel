@@ -5,4 +5,5 @@ go_library(
     srcs = ["workerclient.go"],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/workerclient",
     visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/cmd/internal/envconfig/fixtures"],
 )

@@ -10,6 +10,7 @@ go_library(
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
         "//test/e2e-framework/cmd/e2ectl/internal/installer",
         "//test/e2e-framework/cmd/e2ectl/internal/localinfra",
+        "//test/e2e-framework/cmd/internal/envconfig/kind",
         "//test/e2e-framework/testing/provisioner",
     ],
 )

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product contains software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 // Package main is the e2ectl CLI: the fast, Pulumi-free surface. The commands
 // are registry-driven — there is no switch on environment type anywhere;
@@ -40,9 +40,11 @@ func cmdStart(args []string) error {
 	if err != nil {
 		return err
 	}
-	if errs := d.Validate(cfg); len(errs) > 0 {
-		return config.NewErrors(errs)
+	prepared, err := d.Prepare(cfg)
+	if err != nil {
+		return err
 	}
+	cfg = prepared.Config
 	store, err := envstore.New()
 	if err != nil {
 		return err
@@ -52,7 +54,7 @@ func cmdStart(args []string) error {
 		return err
 	}
 
-	if err := d.Start(cfg, entry, store); err != nil {
+	if err := prepared.Start(entry, store); err != nil {
 		return err
 	}
 
@@ -146,6 +148,9 @@ func cmdInstall(args []string) error {
 	if err := inst.Install(cfg, entry); err != nil {
 		return err
 	}
+	if err := saveAppliedConfig(cfg, entry); err != nil {
+		return err
+	}
 	entry.Meta.AgentInstalled = true
 	entry.Meta.AgentVersion = cfg.Agent.Version
 	entry.Meta.AgentImage = cfg.Agent.Image
@@ -204,30 +209,56 @@ func cmdUpdate(args []string) error {
 	if err := updatable.Update(cfg, entry); err != nil {
 		return err
 	}
+	if err := saveAppliedConfig(cfg, entry); err != nil {
+		return err
+	}
 	entry.Meta.AgentInstalled = true
 	entry.Meta.AgentImage = cfg.Agent.Image
 	return store.UpdateMeta(entry)
 }
 
-// loadOrStoredConfig returns the config from path when given, replacing the
-// stored copy, else the environment's stored config.
+// Parse and prepare without writing: schema errors and optional Validate(params)
+// failures must not replace the stored config or touch the environment.
 func loadOrStoredConfig(path string, entry envstore.Entry) (*config.File, error) {
-	if path != "" {
-		cfg, err := config.Load(path)
-		if err != nil {
-			return nil, err
-		}
-		// the provided config becomes the environment's source of truth
-		cfgData, err := os.ReadFile(cfg.Path)
-		if err != nil {
-			return nil, err
-		}
-		if err = os.WriteFile(entry.ConfigPath(), cfgData, 0o644); err != nil {
-			return nil, err
-		}
-		return cfg, nil
+	if path == "" {
+		path = entry.ConfigPath()
 	}
-	return entry.LoadConfig()
+	cfg, err := config.Load(path)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Environment.Base != entry.Meta.Base {
+		return nil, fmt.Errorf("config base %q does not match environment base %q", cfg.Environment.Base, entry.Meta.Base)
+	}
+	d, err := driver.Get(cfg.Environment.Base)
+	if err != nil {
+		return nil, err
+	}
+	prepared, err := d.Prepare(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return prepared.Config, nil
+}
+
+func saveAppliedConfig(cfg *config.File, entry envstore.Entry) error {
+	data := cfg.Source()
+	if len(data) == 0 {
+		return fmt.Errorf("cannot persist config without its parsed source")
+	}
+	f, err := os.CreateTemp(entry.Dir, ".config-*.yaml")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), entry.ConfigPath())
 }
 
 // buildAgentImage runs the repo's dev image build, tagging the result exactly

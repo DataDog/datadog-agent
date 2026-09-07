@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ec2host",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/ec2host",
+    visibility = ["//test/e2e-framework/cmd:__subpackages__"],
+    deps = ["//test/e2e-framework/cmd/internal/configschema"],
+)

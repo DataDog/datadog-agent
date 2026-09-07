@@ -285,3 +285,35 @@ them to `/tmp/e2ectl-test-binaries-22s3kyhu`; no shared cache, source, Docker im
 or environment was deleted. The previous executable pair was backed up to
 `/tmp/e2ectl-previous-pair-e4caxval` before replacement. Disk space remains very low
 (about 140 MB free after the update), so subsequent large builds may fail again.
+
+### Offline discovery and schema-backed starter config generation
+
+`e2ectl environments [--json]` lists registered types; `list` still lists created
+instances. `e2ectl init --base <type>` emits annotated YAML, or creates a new
+private file with `--output`. Existing files and symlinks are never overwritten.
+
+The initial embedded templates have been replaced by annotated data-only config
+types in `cmd/internal/envconfig`, shared between the CLI and executor. Explicit
+`driver.Define` registrations require descriptions and select a default installer;
+the generic adapter supplies validation, defaults and example generation. Drivers
+no longer need handwritten YAML, a duplicate executor struct or a mandatory
+validator. Optional `Validate(params)` hooks run after automatic validation;
+rules required at both boundaries belong to the shared schema.
+
+Examples remain separate from runtime defaults. Normalized transport preserves
+explicit false/zero and materialized defaults; the executor requires resolved
+values and a matching protocol. Both binaries must be rebuilt together. Nested
+secret fields cannot escape through parent examples/defaults or overrides.
+
+Before emission, complete examples pass the parser, shared semantic rules and
+installer validation. These checks do not require environment state, the executor
+or runtime credentials. Kind's `version` remains the Kubernetes node-image
+version, not the version of the kind executable.
+
+Validation: seven focused Bazel test targets pass, including schema/default and
+semantic-hook tests, normalized fixture transport, snapshot handoff, config
+persistence, offline discovery and output-file protection. Both binaries were
+rebuilt; the core dependency graph contains no Pulumi packages. Actual offline
+smoke checks took about 0.09 seconds per command, with an unavailable executor.
+Invalid driver config was rejected before creating environment state. Only
+example files under `/tmp` were created; no infrastructure was provisioned.

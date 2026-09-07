@@ -12,13 +12,14 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//test/e2e-framework/cmd/e2ectl/workerclient",
+        "//test/e2e-framework/cmd/internal/envconfig/ec2host",
+        "//test/e2e-framework/cmd/internal/envconfig/fixtures",
         "//test/e2e-framework/components/os/types",
         "//test/e2e-framework/scenarios/aws/ec2",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioner",
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/standalone",
-        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -36,6 +37,8 @@ dd_agent_go_test(
     ],
     embed = [":e2ectl-worker_lib"],
     deps = [
+        "//test/e2e-framework/cmd/e2ectl/workerclient",
+        "//test/e2e-framework/cmd/internal/envconfig/fixtures",
         "//test/e2e-framework/components/outputs",
         "//test/e2e-framework/testing/provisioner",
         "//test/e2e-framework/testing/standalone",
