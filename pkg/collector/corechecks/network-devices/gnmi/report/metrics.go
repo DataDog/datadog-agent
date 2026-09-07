@@ -219,5 +219,6 @@ func submitMetric(s sender.Sender, metric config.MetricConfig, value float64, ta
 		s.Gauge(metric.Metric, value, "", tags)
 	case config.MetricTypeMonotonicCount:
 		s.MonotonicCount(metric.Metric, value, "", tags)
+		s.Rate(metric.Metric+".rate", value, "", tags)
 	}
 }

@@ -31,13 +31,21 @@ import (
 
 const (
 	interfaceStatsProfile = `
+metadata:
+  device:
+    hostname: /openconfig/system/state/hostname
+  interface:
+    keys:
+      interface: name
+    name: /openconfig/interfaces/interface/state/name
+    ifindex: /openconfig/interfaces/interface/state/ifindex
 metrics:
-  - path: /interfaces/interface/state/counters/in-octets
+  - path: /openconfig/interfaces/interface/state/counters/in-octets
     metric: snmp.ifHCInOctets
     type: monotonic_count
     tags:
       interface: name
-  - path: /interfaces/interface/state/counters/out-octets
+  - path: /openconfig/interfaces/interface/state/counters/out-octets
     metric: snmp.ifHCOutOctets
     type: monotonic_count
     tags:
@@ -81,6 +89,7 @@ func TestGNMICheckLoadsFromConfDAndReportsThroughSender(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(checkInstance.ID(), senderManager)
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
@@ -104,6 +113,8 @@ func TestGNMICheckLoadsFromConfDAndReportsThroughSender(t *testing.T) {
 
 	mockSender.AssertCalled(t, "MonotonicCount", "snmp.ifHCInOctets", float64(42), "", mock.Anything)
 	mockSender.AssertCalled(t, "MonotonicCount", "snmp.ifHCOutOctets", float64(84), "", mock.Anything)
+	mockSender.AssertCalled(t, "Rate", "snmp.ifHCInOctets.rate", float64(42), "", mock.Anything)
+	mockSender.AssertCalled(t, "Rate", "snmp.ifHCOutOctets.rate", float64(84), "", mock.Anything)
 	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.stream_state", mock.Anything, "", mock.Anything)
 	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.received_samples", mock.Anything, "", mock.Anything)
 	mockSender.AssertCalled(t, "Commit")
@@ -184,6 +195,7 @@ func publishDeviceTelemetry(t *testing.T, server *fakeserver.Server, streamID in
 	require.NoError(t, server.SendUpdate(streamID, fakeserver.InterfaceOutOctetsUpdate("eth0", 84)))
 	require.NoError(t, server.SendUpdate(streamID, hostnameUpdate("gnmi-router-1")))
 	require.NoError(t, server.SendUpdate(streamID, interfaceNameUpdate("eth0")))
+	require.NoError(t, server.SendUpdate(streamID, interfaceIfIndexUpdate("eth0", 1)))
 }
 
 func hasMonotonicCount(mockSender *mocksender.MockSender, metric string) bool {
@@ -222,6 +234,7 @@ func hostnameUpdate(hostname string) *gnmipb.Update {
 	return &gnmipb.Update{
 		Path: &gnmipb.Path{
 			Elem: []*gnmipb.PathElem{
+				{Name: "openconfig"},
 				{Name: "system"},
 				{Name: "state"},
 				{Name: "hostname"},
@@ -235,6 +248,7 @@ func interfaceNameUpdate(interfaceName string) *gnmipb.Update {
 	return &gnmipb.Update{
 		Path: &gnmipb.Path{
 			Elem: []*gnmipb.PathElem{
+				{Name: "openconfig"},
 				{Name: "interfaces"},
 				{Name: "interface", Key: map[string]string{"name": interfaceName}},
 				{Name: "state"},
@@ -242,6 +256,21 @@ func interfaceNameUpdate(interfaceName string) *gnmipb.Update {
 			},
 		},
 		Val: fakeserver.ScalarString(interfaceName),
+	}
+}
+
+func interfaceIfIndexUpdate(interfaceName string, ifIndex int32) *gnmipb.Update {
+	return &gnmipb.Update{
+		Path: &gnmipb.Path{
+			Elem: []*gnmipb.PathElem{
+				{Name: "openconfig"},
+				{Name: "interfaces"},
+				{Name: "interface", Key: map[string]string{"name": interfaceName}},
+				{Name: "state"},
+				{Name: "ifindex"},
+			},
+		},
+		Val: fakeserver.ScalarInt64(int64(ifIndex)),
 	}
 }
 
