@@ -2377,8 +2377,8 @@ func (r fakeConfigReader) ReadFile(context.Context, VerifiedConfigFilePath) (Con
 	return ConfigFile{}, errors.New("not implemented")
 }
 
-// FindFiles is not implemented by this test reader.
-func (r fakeConfigReader) FindFiles(context.Context, VerifiedConfigFilePattern, int, ConfigFilePathMatcher) ([]VerifiedConfigFilePath, bool, error) {
+// ReadMatchingFiles is not implemented by this test reader.
+func (r fakeConfigReader) ReadMatchingFiles(context.Context, ConfigFileSearch, int, ConfigFilePathMatcher) ([]ConfigFileReadResult, bool, error) {
 	return nil, false, errors.New("not implemented")
 }
 

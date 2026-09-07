@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"slices"
 	"strings"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -79,25 +80,25 @@ func (r *dockerConfigReader) ReadFile(ctx context.Context, filePath VerifiedConf
 	return readConfigFileFromDockerArchive(body, filePath.String())
 }
 
-// FindFiles uses searchPattern to copy a conservative set of Docker archive
-// entries, then returns the paths accepted by matches in lexical order.
-func (r *dockerConfigReader) FindFiles(ctx context.Context, searchPattern VerifiedConfigFilePattern, maxMatches int, matches ConfigFilePathMatcher) ([]VerifiedConfigFilePath, bool, error) {
+// ReadMatchingFiles reads matching regular files from an archive rooted where
+// Docker can observe, rather than traverse, symlinks below the trusted root.
+func (r *dockerConfigReader) ReadMatchingFiles(ctx context.Context, search ConfigFileSearch, maxMatches int, matches ConfigFilePathMatcher) ([]ConfigFileReadResult, bool, error) {
 	if maxMatches <= 0 {
 		return nil, false, errors.New("maximum file matches must be positive")
 	}
 
-	searchRoot := filePatternSearchRoot(searchPattern)
+	searchRoot := configFileSearchRoot(search)
 	body, err := r.client.getFile(ctx, r.containerID, searchRoot.String())
 	if err != nil {
 		return nil, false, fmt.Errorf("copy config file pattern root from docker container: %w", err)
 	}
 	defer body.Close()
 
-	paths, err := findRegularFilesInDockerArchive(body, searchRoot, matches)
+	results, limited, err := readMatchingRegularFilesFromDockerArchive(body, searchRoot, search, maxMatches, matches)
 	if err != nil {
 		return nil, false, err
 	}
-	return sortAndLimitFilePaths(paths, maxMatches)
+	return results, limited, nil
 }
 
 func (r *dockerConfigReader) ReadEnvVars(ctx context.Context, predicate ConfigEnvVarPredicate) (map[string]string, error) {
@@ -190,18 +191,20 @@ func cleanTarPath(filePath string) string {
 	return strings.TrimPrefix(path.Clean(filePath), "/")
 }
 
-// findRegularFilesInDockerArchive returns paths for regular archive entries
-// accepted by matches.
-func findRegularFilesInDockerArchive(r io.Reader, searchRoot VerifiedConfigFilePath, matches ConfigFilePathMatcher) ([]VerifiedConfigFilePath, error) {
+// readMatchingRegularFilesFromDockerArchive returns bounded matching regular
+// files in lexical order without following symlink archive entries.
+func readMatchingRegularFilesFromDockerArchive(r io.Reader, searchRoot VerifiedConfigFilePath, search ConfigFileSearch, maxMatches int, matches ConfigFilePathMatcher) ([]ConfigFileReadResult, bool, error) {
 	tr := tar.NewReader(r)
-	var paths []VerifiedConfigFilePath
+	var results []ConfigFileReadResult
+	seen := make(map[VerifiedConfigFilePath]struct{})
+	limited := false
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("read docker archive: %w", err)
+			return nil, false, fmt.Errorf("read docker archive: %w", err)
 		}
 		if !isRegularTarEntry(header) {
 			continue
@@ -211,15 +214,47 @@ func findRegularFilesInDockerArchive(r io.Reader, searchRoot VerifiedConfigFileP
 		if err != nil {
 			continue
 		}
+		if !search.Contains(entryPath) {
+			continue
+		}
 		matched, err := matches(entryPath)
 		if err != nil {
-			return nil, fmt.Errorf("match docker archive entry %q: %w", header.Name, err)
+			return nil, false, fmt.Errorf("match docker archive entry %q: %w", header.Name, err)
 		}
-		if matched {
-			paths = append(paths, entryPath)
+		if !matched {
+			continue
+		}
+		if _, found := seen[entryPath]; found {
+			continue
+		}
+		seen[entryPath] = struct{}{}
+
+		if len(results) == maxMatches {
+			limited = true
+			if entryPath.String() > results[len(results)-1].Path().String() {
+				continue
+			}
+		}
+
+		content, truncated, err := readLimitedFileContent(tr, maxConfigFileSize)
+		if err != nil {
+			return nil, false, fmt.Errorf("read docker archive entry %q: %w", header.Name, err)
+		}
+		file := ConfigFile{
+			Path:      entryPath.String(),
+			Content:   content,
+			Truncated: truncated,
+		}
+		results = append(results, NewConfigFileReadResult(entryPath, file))
+		slices.SortFunc(results, func(left, right ConfigFileReadResult) int {
+			return strings.Compare(left.Path().String(), right.Path().String())
+		})
+		if len(results) > maxMatches {
+			results = results[:maxMatches]
+			limited = true
 		}
 	}
-	return paths, nil
+	return results, limited, nil
 }
 
 // verifyDockerArchiveEntryPath verifies and returns the absolute container path

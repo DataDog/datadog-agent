@@ -174,7 +174,7 @@ func TestKubernetesReaderReadFileErrors(t *testing.T) {
 	}
 }
 
-func TestKubernetesReaderFindFiles(t *testing.T) {
+func TestKubernetesReaderReadMatchingFiles(t *testing.T) {
 	tests := []struct {
 		name        string
 		pattern     string
@@ -190,7 +190,7 @@ func TestKubernetesReaderFindFiles(t *testing.T) {
 			maxMatches:  2,
 			stdout:      []byte("/etc/redis/redis.conf\x00"),
 			wantPaths:   []string{"/etc/redis/redis.conf"},
-			wantCommand: []string{"find", "/etc/redis/redis.conf", "-type", "f", "-path", "/etc/redis/redis.conf", "-print0"},
+			wantCommand: []string{"find", "-P", "/etc/redis/redis.conf", "-type", "f", "-path", "/etc/redis/redis.conf", "-print0"},
 		},
 		{
 			name:        "wildcard parses nul delimited names and limits lexically",
@@ -199,7 +199,13 @@ func TestKubernetesReaderFindFiles(t *testing.T) {
 			stdout:      []byte("/etc/redis/conf.d/z.conf\x00/etc/redis/conf.d/a file.conf\x00/etc/redis/conf.d/b.conf\x00/etc/redis/conf.d/a file.conf\x00/outside.conf\x00"),
 			wantPaths:   []string{"/etc/redis/conf.d/a file.conf", "/etc/redis/conf.d/b.conf"},
 			wantLimited: true,
-			wantCommand: []string{"find", "/etc/redis/conf.d", "-type", "f", "-path", "/etc/redis/conf.d/*.conf", "-print0"},
+			wantCommand: []string{"find", "-P", "/etc/redis/conf.d", "-type", "f", "-path", "/etc/redis/conf.d/*.conf", "-print0"},
+		},
+		{
+			name:        "intermediate symlink is not traversed",
+			pattern:     "/etc/redis/link/token",
+			maxMatches:  1,
+			wantCommand: []string{"find", "-P", "/etc/redis/link", "-type", "f", "-path", "/etc/redis/link/token", "-print0"},
 		},
 	}
 
@@ -208,19 +214,21 @@ func TestKubernetesReaderFindFiles(t *testing.T) {
 			client := &fakeKubernetesClient{stdout: tt.stdout}
 			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
-			paths, limited, err := reader.FindFiles(context.Background(), verifyTestConfigFilePattern(t, tt.pattern), tt.maxMatches, matchTestFilePattern(tt.pattern))
+			search := verifyTestConfigFileSearch(t, "/etc/redis", tt.pattern)
+			results, limited, err := reader.ReadMatchingFiles(context.Background(), search, tt.maxMatches, matchTestFilePattern(tt.pattern))
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantPaths, verifiedConfigFilePathStrings(paths))
+			files := readConfigFileResults(t, results)
+			assert.Equal(t, tt.wantPaths, configFilePaths(files))
 			assert.Equal(t, tt.wantLimited, limited)
-			require.Len(t, client.execCalls, 1)
+			require.Len(t, client.execCalls, 1+len(tt.wantPaths))
 			assert.Equal(t, tt.wantCommand, client.execCalls[0].cmd)
 			assert.Equal(t, kubernetesReadFileTimeout, client.execCalls[0].timeout)
 		})
 	}
 }
 
-func TestKubernetesReaderFindFilesErrors(t *testing.T) {
+func TestKubernetesReaderReadMatchingFilesErrors(t *testing.T) {
 	expectedErr := errors.New("exec failed")
 	tests := []struct {
 		name          string
@@ -242,10 +250,11 @@ func TestKubernetesReaderFindFilesErrors(t *testing.T) {
 			client := &fakeKubernetesClient{execErr: tt.execErr, exitCode: tt.exitCode}
 			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
 
-			paths, limited, err := reader.FindFiles(context.Background(), verifyTestConfigFilePattern(t, tt.pattern), tt.maxMatches, matchTestFilePattern(tt.pattern))
+			search := verifyTestConfigFileSearch(t, "/etc/redis", tt.pattern)
+			results, limited, err := reader.ReadMatchingFiles(context.Background(), search, tt.maxMatches, matchTestFilePattern(tt.pattern))
 
 			require.Error(t, err)
-			assert.Nil(t, paths)
+			assert.Nil(t, results)
 			assert.False(t, limited)
 			assert.Len(t, client.execCalls, tt.wantExecCalls)
 			if tt.wantErrorIs != nil {
@@ -253,6 +262,31 @@ func TestKubernetesReaderFindFilesErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestKubernetesReaderReadMatchingFilesRetainsReadErrorsInOrder(t *testing.T) {
+	client := &fakeKubernetesClient{
+		execResults: []kubernetesExecResult{
+			{stdout: []byte("/etc/redis/a.conf\x00/etc/redis/b.conf\x00")},
+			{},
+			{stdout: []byte("/etc/redis/b.conf\x00port 6380\n")},
+		},
+	}
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+	search := verifyTestConfigFileSearch(t, "/etc/redis", "/etc/redis/*.conf")
+
+	results, limited, err := reader.ReadMatchingFiles(context.Background(), search, 2, matchTestFilePattern("/etc/redis/*.conf"))
+
+	require.NoError(t, err)
+	assert.False(t, limited)
+	require.Len(t, results, 2)
+	assert.Equal(t, "/etc/redis/a.conf", results[0].Path().String())
+	_, err = results[0].Read()
+	require.Error(t, err)
+	assert.Equal(t, "/etc/redis/b.conf", results[1].Path().String())
+	file, err := results[1].Read()
+	require.NoError(t, err)
+	assert.Equal(t, []byte("port 6380\n"), file.Content)
 }
 
 func TestKubernetesReaderReadEnvVarsSkipsSpecForNilPredicate(t *testing.T) {
@@ -371,15 +405,16 @@ func TestKubernetesReaderReadRuntimeCommandlineSurfacesSpecErrors(t *testing.T) 
 }
 
 type fakeKubernetesClient struct {
-	execCalls  []kubernetesExecCall
-	stdout     []byte
-	stderr     []byte
-	exitCode   int32
-	execErr    error
-	specCalls  []string
-	spec       *containerdoci.Spec
-	specErr    error
-	closeCalls int
+	execCalls   []kubernetesExecCall
+	execResults []kubernetesExecResult
+	stdout      []byte
+	stderr      []byte
+	exitCode    int32
+	execErr     error
+	specCalls   []string
+	spec        *containerdoci.Spec
+	specErr     error
+	closeCalls  int
 }
 
 type kubernetesExecCall struct {
@@ -388,14 +423,29 @@ type kubernetesExecCall struct {
 	timeout     time.Duration
 }
 
+type kubernetesExecResult struct {
+	stdout   []byte
+	stderr   []byte
+	exitCode int32
+	err      error
+}
+
 func (c *fakeKubernetesClient) execSync(_ context.Context, containerID string, cmd []string, timeout time.Duration) ([]byte, []byte, int32, error) {
 	c.execCalls = append(c.execCalls, kubernetesExecCall{
 		containerID: containerID,
 		cmd:         append([]string(nil), cmd...),
 		timeout:     timeout,
 	})
+	if len(c.execResults) != 0 {
+		result := c.execResults[0]
+		c.execResults = c.execResults[1:]
+		return result.stdout, result.stderr, result.exitCode, result.err
+	}
 	if c.execErr != nil {
 		return nil, nil, 0, c.execErr
+	}
+	if len(cmd) > 8 && cmd[8] == "-exec" {
+		return append([]byte(cmd[6]), 0), nil, 0, nil
 	}
 	return c.stdout, c.stderr, c.exitCode, nil
 }

@@ -726,14 +726,14 @@ func TestRedisCollectorTraversesIncludesDepthFirst(t *testing.T) {
 			Content: []byte("include conf.d/*.conf\n"),
 		},
 		files: map[string]configfilesdiscoveryimpl.ConfigFile{
-			"/etc/redis/conf.d/a.conf": {Path: "/etc/redis/conf.d/a.conf", Content: []byte("include /etc/redis/nested.conf\n")},
-			"/etc/redis/conf.d/b.conf": {Path: "/etc/redis/conf.d/b.conf", Content: []byte("include /etc/redis/conf.d/a.conf\n")},
+			"/etc/redis/conf.d/a.conf": {Path: "/etc/redis/conf.d/a.conf", Content: []byte("include /etc/redis/conf.d/b.conf\n")},
+			"/etc/redis/conf.d/b.conf": {Path: "/etc/redis/conf.d/b.conf", Content: []byte("include /etc/redis/nested.conf\n")},
 			"/etc/redis/nested.conf":   {Path: "/etc/redis/nested.conf", Content: []byte("port 6380\n")},
 		},
 		findFiles: map[string][]string{
 			"/etc/redis/conf.d/*.conf": {"/etc/redis/conf.d/a.conf", "/etc/redis/conf.d/b.conf"},
+			"/etc/redis/conf.d/b.conf": {"/etc/redis/conf.d/b.conf"},
 			"/etc/redis/nested.conf":   {"/etc/redis/nested.conf"},
-			"/etc/redis/conf.d/a.conf": {"/etc/redis/conf.d/a.conf"},
 		},
 	}
 
@@ -744,8 +744,8 @@ func TestRedisCollectorTraversesIncludesDepthFirst(t *testing.T) {
 	assert.Equal(t, []string{
 		"/etc/redis/redis.conf",
 		"/etc/redis/conf.d/a.conf",
-		"/etc/redis/nested.conf",
 		"/etc/redis/conf.d/b.conf",
+		"/etc/redis/nested.conf",
 	}, redisConfigFilePaths(collected.ConfigFiles))
 	for _, file := range collected.ConfigFiles {
 		assert.Equal(t, redisConfigPayloadFormat, file.PayloadFormat)
@@ -960,39 +960,48 @@ func (r *redisCollectorTestReader) ReadFile(_ context.Context, path configfilesd
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
 }
 
-// FindFiles returns configured paths accepted by matches, bounded by
-// maxMatches, and reports whether additional paths were omitted.
-func (r *redisCollectorTestReader) FindFiles(
+// ReadMatchingFiles returns configured files accepted by matches, bounded by
+// maxMatches, and reports whether additional files were omitted.
+func (r *redisCollectorTestReader) ReadMatchingFiles(
 	_ context.Context,
-	pattern configfilesdiscoveryimpl.VerifiedConfigFilePattern,
+	search configfilesdiscoveryimpl.ConfigFileSearch,
 	maxMatches int,
 	matches configfilesdiscoveryimpl.ConfigFilePathMatcher,
-) ([]configfilesdiscoveryimpl.VerifiedConfigFilePath, bool, error) {
-	patternValue := pattern.String()
+) ([]configfilesdiscoveryimpl.ConfigFileReadResult, bool, error) {
+	patternValue := search.Pattern().String()
 	r.findFilesCalls = append(r.findFilesCalls, patternValue)
 	if err := r.findFilesErr[patternValue]; err != nil {
 		return nil, false, err
 	}
-	var paths []configfilesdiscoveryimpl.VerifiedConfigFilePath
+	var results []configfilesdiscoveryimpl.ConfigFileReadResult
 	for _, filePath := range r.findFiles[patternValue] {
 		verifiedPath, err := configfilesdiscoveryimpl.VerifyConfigFilePath(configfilesdiscoveryimpl.UnverifiedConfigFilePath(filePath))
 		if err != nil {
 			return nil, false, err
+		}
+		if !search.Contains(verifiedPath) {
+			continue
 		}
 		matched, err := matches(verifiedPath)
 		if err != nil {
 			return nil, false, err
 		}
 		if matched {
-			paths = append(paths, verifiedPath)
+			r.readFileCalls = append(r.readFileCalls, filePath)
+			file, found := r.files[filePath]
+			if !found {
+				results = append(results, configfilesdiscoveryimpl.NewConfigFileReadError(verifiedPath, errors.New("file not found")))
+				continue
+			}
+			results = append(results, configfilesdiscoveryimpl.NewConfigFileReadResult(verifiedPath, file))
 		}
 	}
 	limited := r.findFilesLimited[patternValue]
-	if len(paths) > maxMatches {
-		paths = paths[:maxMatches]
+	if len(results) > maxMatches {
+		results = results[:maxMatches]
 		limited = true
 	}
-	return paths, limited, nil
+	return results, limited, nil
 }
 
 func (r *redisCollectorTestReader) ReadEnvVars(_ context.Context, predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {

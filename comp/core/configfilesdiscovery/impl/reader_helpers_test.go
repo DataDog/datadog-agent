@@ -68,16 +68,43 @@ func verifyTestConfigFilePattern(t testing.TB, value string) VerifiedConfigFileP
 	return verified
 }
 
-// verifiedConfigFilePathStrings returns the string representation of paths.
-func verifiedConfigFilePathStrings(paths []VerifiedConfigFilePath) []string {
-	if paths == nil {
+// verifyTestConfigFileSearch returns a scoped search or fails the current test.
+func verifyTestConfigFileSearch(t testing.TB, root string, pattern string) ConfigFileSearch {
+	t.Helper()
+	search, err := NewConfigFileSearch(
+		verifyTestConfigFilePath(t, root),
+		verifyTestConfigFilePattern(t, pattern),
+	)
+	require.NoError(t, err)
+	return search
+}
+
+// configFilePaths returns the paths of files in their existing order.
+func configFilePaths(files []ConfigFile) []string {
+	if files == nil {
 		return nil
 	}
-	values := make([]string, 0, len(paths))
-	for _, path := range paths {
-		values = append(values, path.String())
+	paths := make([]string, 0, len(files))
+	for _, file := range files {
+		paths = append(paths, file.Path)
 	}
-	return values
+	return paths
+}
+
+// readConfigFileResults returns the successfully read files or fails the
+// current test when a result contains a read error.
+func readConfigFileResults(t testing.TB, results []ConfigFileReadResult) []ConfigFile {
+	t.Helper()
+	if results == nil {
+		return nil
+	}
+	files := make([]ConfigFile, 0, len(results))
+	for _, result := range results {
+		file, err := result.Read()
+		require.NoError(t, err)
+		files = append(files, file)
+	}
+	return files
 }
 
 func TestVerifyConfigFileLocations(t *testing.T) {
@@ -95,8 +122,44 @@ func TestVerifyConfigFileLocations(t *testing.T) {
 	assert.Equal(t, "/etc/redis/*.conf", verifiedPattern.String())
 }
 
-func TestFilePatternSearchRoot(t *testing.T) {
-	assert.Equal(t, "/etc/redis/redis.conf", filePatternSearchRoot(verifyTestConfigFilePattern(t, "/etc/redis/redis.conf")).String())
-	assert.Equal(t, "/etc/redis/conf.d", filePatternSearchRoot(verifyTestConfigFilePattern(t, "/etc/redis/conf.d/*.conf")).String())
-	assert.Equal(t, "/etc/redis", filePatternSearchRoot(verifyTestConfigFilePattern(t, "/etc/redis/file[0-9]?.conf")).String())
+func TestNewConfigFileSearch(t *testing.T) {
+	root := verifyTestConfigFilePath(t, "/etc/redis")
+	pattern := verifyTestConfigFilePattern(t, "/etc/redis/conf.d/*.conf")
+
+	search, err := NewConfigFileSearch(root, pattern)
+
+	require.NoError(t, err)
+	assert.Equal(t, root, search.Root())
+	assert.Equal(t, pattern, search.Pattern())
+	assert.True(t, search.Contains(verifyTestConfigFilePath(t, "/etc/redis/conf.d/a.conf")))
+	assert.False(t, search.Contains(verifyTestConfigFilePath(t, "/etc/redis-other/a.conf")))
+}
+
+func TestNewConfigFileSearchRejectsPatternOutsideRoot(t *testing.T) {
+	_, err := NewConfigFileSearch(
+		verifyTestConfigFilePath(t, "/etc/redis"),
+		verifyTestConfigFilePattern(t, "/etc/redis-other/*.conf"),
+	)
+
+	require.Error(t, err)
+}
+
+func TestConfigFileSearchRoot(t *testing.T) {
+	tests := []struct {
+		root    string
+		pattern string
+		want    string
+	}{
+		{root: "/etc/redis", pattern: "/etc/redis/redis.conf", want: "/etc/redis/redis.conf"},
+		{root: "/etc/redis", pattern: "/etc/redis/conf.d/*.conf", want: "/etc/redis/conf.d"},
+		{root: "/etc/redis", pattern: "/etc/redis/conf.d/nested/*.conf", want: "/etc/redis/conf.d"},
+		{root: "/etc/redis", pattern: "/etc/redis/file[0-9]?.conf", want: "/etc/redis"},
+		{root: "/", pattern: "/etc/redis/*.conf", want: "/etc"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.pattern, func(t *testing.T) {
+			search := verifyTestConfigFileSearch(t, tt.root, tt.pattern)
+			assert.Equal(t, tt.want, configFileSearchRoot(search).String())
+		})
+	}
 }

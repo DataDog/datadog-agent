@@ -176,8 +176,8 @@ func (r *postgresCollectorTestReader) ReadFile(context.Context, configfilesdisco
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("not implemented")
 }
 
-// FindFiles is not implemented by this test reader.
-func (r *postgresCollectorTestReader) FindFiles(context.Context, configfilesdiscoveryimpl.VerifiedConfigFilePattern, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.VerifiedConfigFilePath, bool, error) {
+// ReadMatchingFiles is not implemented by this test reader.
+func (r *postgresCollectorTestReader) ReadMatchingFiles(context.Context, configfilesdiscoveryimpl.ConfigFileSearch, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.ConfigFileReadResult, bool, error) {
 	return nil, false, errors.New("not implemented")
 }
 

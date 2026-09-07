@@ -640,8 +640,8 @@ func (r *kafkaCollectorTestReader) ReadFile(_ context.Context, path configfilesd
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
 }
 
-// FindFiles is not implemented by this test reader.
-func (r *kafkaCollectorTestReader) FindFiles(context.Context, configfilesdiscoveryimpl.VerifiedConfigFilePattern, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.VerifiedConfigFilePath, bool, error) {
+// ReadMatchingFiles is not implemented by this test reader.
+func (r *kafkaCollectorTestReader) ReadMatchingFiles(context.Context, configfilesdiscoveryimpl.ConfigFileSearch, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.ConfigFileReadResult, bool, error) {
 	return nil, false, errors.New("not implemented")
 }
 

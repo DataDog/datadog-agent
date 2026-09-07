@@ -43,7 +43,7 @@ type redisIncludeTraversal struct {
 	ctx             context.Context
 	reader          configfilesdiscoveryimpl.ConfigReader
 	workingDir      string
-	rootDir         string
+	rootDir         configfilesdiscoveryimpl.VerifiedConfigFilePath
 	files           []configfilesdiscoveryimpl.ConfigFile
 	visited         map[configfilesdiscoveryimpl.VerifiedConfigFilePath]struct{}
 	totalBytes      int
@@ -149,7 +149,7 @@ func collectRedisConfigFiles(
 		ctx:        ctx,
 		reader:     reader,
 		workingDir: workingDir,
-		rootDir:    path.Dir(rootPath.String()),
+		rootDir:    rootPath.Dir(),
 		files:      []configfilesdiscoveryimpl.ConfigFile{root},
 		visited:    map[configfilesdiscoveryimpl.VerifiedConfigFilePath]struct{}{rootPath: {}},
 		totalBytes: len(root.Content),
@@ -178,7 +178,7 @@ func (t *redisIncludeTraversal) collectFileIncludes(file configfilesdiscoveryimp
 
 // collectInclude resolves one include directive and collects its matching files.
 func (t *redisIncludeTraversal) collectInclude(include string, parentPath string, depth int) {
-	pattern, err := resolveRedisIncludePattern(include, t.workingDir, t.rootDir)
+	pattern, err := resolveRedisIncludePattern(include, t.workingDir, t.rootDir.String())
 	if err != nil {
 		log.Debugf("config files discovery skipped unsafe or unresolved redis include %q from %q: %v", include, parentPath, err)
 		return
@@ -195,16 +195,24 @@ func (t *redisIncludeTraversal) collectInclude(include string, parentPath string
 		if err != nil || !matched {
 			return matched, err
 		}
-		if !isRedisPathWithinRoot(filePath.String(), t.rootDir) {
-			log.Debugf("config files discovery skipped redis include match %q outside root directory %q", filePath.String(), t.rootDir)
+		if !isRedisPathWithinRoot(filePath.String(), t.rootDir.String()) {
+			log.Debugf("config files discovery skipped redis include match %q outside root directory %q", filePath.String(), t.rootDir.String())
 			return false, nil
 		}
-		_, visited := t.visited[filePath]
-		return !visited, nil
+		if _, visited := t.visited[filePath]; visited {
+			return false, nil
+		}
+		return true, nil
+	}
+
+	search, err := configfilesdiscoveryimpl.NewConfigFileSearch(t.rootDir, pattern)
+	if err != nil {
+		log.Debugf("config files discovery skipped unsafe redis include %q from %q: %v", include, parentPath, err)
+		return
 	}
 
 	t.includeSearches++
-	matches, matchesLimited, err := t.reader.FindFiles(t.ctx, pattern, redisMaxConfigFiles-len(t.files), matchesUnvisitedPath)
+	matches, matchesLimited, err := t.reader.ReadMatchingFiles(t.ctx, search, redisMaxConfigFiles-len(t.files), matchesUnvisitedPath)
 	if err != nil {
 		log.Debugf("config files discovery skipped redis include %q from %q: %v", include, parentPath, err)
 		return
@@ -218,24 +226,25 @@ func (t *redisIncludeTraversal) collectInclude(include string, parentPath string
 	t.collectMatchingFiles(matches, depth)
 }
 
-// collectMatchingFiles reads and traverses matched include paths in order.
-func (t *redisIncludeTraversal) collectMatchingFiles(matches []configfilesdiscoveryimpl.VerifiedConfigFilePath, depth int) {
+// collectMatchingFiles adds and traverses matched include files in order.
+func (t *redisIncludeTraversal) collectMatchingFiles(matches []configfilesdiscoveryimpl.ConfigFileReadResult, depth int) {
 	for _, match := range matches {
 		if len(t.files) >= redisMaxConfigFiles || t.totalBytes >= redisMaxAggregateBytes {
 			t.limited = true
 			return
 		}
-		if _, found := t.visited[match]; found {
+		matchPath := match.Path()
+		if _, visited := t.visited[matchPath]; visited {
 			continue
 		}
-		t.visited[match] = struct{}{}
+		t.visited[matchPath] = struct{}{}
 
-		includedFile, err := t.reader.ReadFile(t.ctx, match)
+		includedFile, err := match.Read()
 		if err != nil {
-			log.Debugf("config files discovery skipped unreadable redis include %q: %v", match.String(), err)
+			log.Debugf("config files discovery skipped unreadable redis include %q: %v", matchPath.String(), err)
 			continue
 		}
-		includedFile.Path = match.String()
+		includedFile.Path = matchPath.String()
 		includedFile.PayloadFormat = redisConfigPayloadFormat
 		remainingBytes := redisMaxAggregateBytes - t.totalBytes
 		if len(includedFile.Content) > remainingBytes {

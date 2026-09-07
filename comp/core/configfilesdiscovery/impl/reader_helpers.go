@@ -36,26 +36,22 @@ func filterEnvVars(envEntries []string, predicate ConfigEnvVarPredicate) map[str
 	return env
 }
 
-// filePatternSearchRoot returns the literal path or the longest directory
-// prefix before the first component containing pattern metacharacters.
-func filePatternSearchRoot(pattern VerifiedConfigFilePattern) VerifiedConfigFilePath {
-	patternValue := pattern.String()
-	if !hasFilePatternMeta(patternValue) {
-		return VerifiedConfigFilePath{value: patternValue}
+// configFileSearchRoot returns a search root that never requires the runtime
+// to traverse a path component below the trusted root. Directory traversal
+// can therefore observe and reject symlinks instead of following them.
+func configFileSearchRoot(search ConfigFileSearch) VerifiedConfigFilePath {
+	root := search.Root().String()
+	pattern := search.Pattern().String()
+	if pattern == root {
+		return search.Root()
 	}
 
-	parts := strings.Split(strings.TrimPrefix(patternValue, "/"), "/")
-	fixedParts := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if hasFilePatternMeta(part) {
-			break
-		}
-		fixedParts = append(fixedParts, part)
+	relativePattern := strings.TrimPrefix(pattern, root)
+	firstComponent, _, _ := strings.Cut(strings.TrimPrefix(relativePattern, "/"), "/")
+	if firstComponent == "" || hasFilePatternMeta(firstComponent) {
+		return search.Root()
 	}
-	if len(fixedParts) == 0 {
-		return VerifiedConfigFilePath{value: "/"}
-	}
-	return VerifiedConfigFilePath{value: "/" + path.Join(fixedParts...)}
+	return VerifiedConfigFilePath{value: path.Join(root, firstComponent)}
 }
 
 // hasFilePatternMeta returns whether pattern contains a supported file-pattern

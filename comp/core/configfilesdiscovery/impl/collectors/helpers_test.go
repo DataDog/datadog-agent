@@ -292,8 +292,8 @@ func (r *configFileTestReader) ReadFile(ctx context.Context, path configfilesdis
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
 }
 
-// FindFiles is not implemented by this test reader.
-func (r *configFileTestReader) FindFiles(context.Context, configfilesdiscoveryimpl.VerifiedConfigFilePattern, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.VerifiedConfigFilePath, bool, error) {
+// ReadMatchingFiles is not implemented by this test reader.
+func (r *configFileTestReader) ReadMatchingFiles(context.Context, configfilesdiscoveryimpl.ConfigFileSearch, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.ConfigFileReadResult, bool, error) {
 	return nil, false, errors.New("not implemented")
 }
 

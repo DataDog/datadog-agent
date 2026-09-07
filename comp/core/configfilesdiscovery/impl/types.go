@@ -93,6 +93,11 @@ func (p VerifiedConfigFilePath) String() string {
 	return p.value
 }
 
+// Dir returns the verified parent directory of the path.
+func (p VerifiedConfigFilePath) Dir() VerifiedConfigFilePath {
+	return VerifiedConfigFilePath{value: path.Dir(p.value)}
+}
+
 // UnverifiedConfigFilePattern is a config file search pattern that has not
 // crossed the runtime reader's path-validation boundary.
 type UnverifiedConfigFilePattern string
@@ -117,6 +122,79 @@ func VerifyConfigFilePattern(unverified UnverifiedConfigFilePattern) (VerifiedCo
 // String returns the cleaned absolute pattern.
 func (p VerifiedConfigFilePattern) String() string {
 	return p.value
+}
+
+// ConfigFileSearch confines a verified file pattern to a verified root
+// directory. Its fields are private so values can only be created through
+// NewConfigFileSearch.
+type ConfigFileSearch struct {
+	root    VerifiedConfigFilePath
+	pattern VerifiedConfigFilePattern
+}
+
+// NewConfigFileSearch returns a search whose pattern is confined to root.
+func NewConfigFileSearch(root VerifiedConfigFilePath, pattern VerifiedConfigFilePattern) (ConfigFileSearch, error) {
+	if !isConfigFilePathWithin(pattern.String(), root.String()) {
+		return ConfigFileSearch{}, fmt.Errorf("config file pattern %q is outside root directory %q", pattern.String(), root.String())
+	}
+	return ConfigFileSearch{root: root, pattern: pattern}, nil
+}
+
+// Root returns the verified root directory for the search.
+func (s ConfigFileSearch) Root() VerifiedConfigFilePath {
+	return s.root
+}
+
+// Pattern returns the verified pattern confined by the search.
+func (s ConfigFileSearch) Pattern() VerifiedConfigFilePattern {
+	return s.pattern
+}
+
+// Contains returns whether filePath is confined to the search root.
+func (s ConfigFileSearch) Contains(filePath VerifiedConfigFilePath) bool {
+	return isConfigFilePathWithin(filePath.String(), s.root.String())
+}
+
+// ConfigFileReadResult represents one matched path and either its bounded file
+// contents or the error that prevented the runtime reader from reading it.
+type ConfigFileReadResult struct {
+	path    VerifiedConfigFilePath
+	file    ConfigFile
+	readErr error
+}
+
+// NewConfigFileReadResult returns a successful read result for path.
+func NewConfigFileReadResult(path VerifiedConfigFilePath, file ConfigFile) ConfigFileReadResult {
+	file.Path = path.String()
+	return ConfigFileReadResult{path: path, file: file}
+}
+
+// NewConfigFileReadError returns a failed read result for path. A nil error is
+// replaced so the result cannot represent an invalid failed state.
+func NewConfigFileReadError(path VerifiedConfigFilePath, err error) ConfigFileReadResult {
+	if err == nil {
+		err = errors.New("config file read failed without an error")
+	}
+	return ConfigFileReadResult{path: path, readErr: err}
+}
+
+// Path returns the verified path associated with the result.
+func (r ConfigFileReadResult) Path() VerifiedConfigFilePath {
+	return r.path
+}
+
+// Read returns the config file or the runtime read error.
+func (r ConfigFileReadResult) Read() (ConfigFile, error) {
+	if r.readErr != nil {
+		return ConfigFile{}, r.readErr
+	}
+	return r.file, nil
+}
+
+// isConfigFilePathWithin returns whether filePath is root or one of its
+// descendants, respecting path-component boundaries.
+func isConfigFilePathWithin(filePath string, root string) bool {
+	return root == "/" || filePath == root || strings.HasPrefix(filePath, root+"/")
 }
 
 // verifyConfigFileLocation returns a cleaned absolute path or pattern after
@@ -149,11 +227,10 @@ type ConfigFilePathMatcher func(VerifiedConfigFilePath) (bool, error)
 type ConfigReader interface {
 	Runtime() RuntimeType
 	ReadFile(context.Context, VerifiedConfigFilePath) (ConfigFile, error)
-	// FindFiles uses searchPattern as a conservative runtime-compatible candidate
-	// filter, then returns regular-file paths accepted by matches in lexical
-	// order. It returns at most maxMatches paths and reports whether additional
-	// matches were omitted.
-	FindFiles(ctx context.Context, searchPattern VerifiedConfigFilePattern, maxMatches int, matches ConfigFilePathMatcher) (paths []VerifiedConfigFilePath, limited bool, err error)
+	// ReadMatchingFiles reads regular files accepted by matches within search in
+	// lexical order. It returns at most maxMatches files and reports whether
+	// additional matches were omitted.
+	ReadMatchingFiles(ctx context.Context, search ConfigFileSearch, maxMatches int, matches ConfigFilePathMatcher) (results []ConfigFileReadResult, limited bool, err error)
 	ReadEnvVars(context.Context, ConfigEnvVarPredicate) (map[string]string, error)
 	ReadRuntimeCommandline(context.Context) (TargetCommandline, error)
 	ReadLiveProcessCommandlines(context.Context) []TargetCommandline
