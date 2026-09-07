@@ -105,16 +105,18 @@ func (p normalizedPath) id() string {
 }
 
 func (p normalizedPath) cacheKey() CacheKey {
-	segments := make([]string, 0, len(p.elements))
+	segments := canonicalizePathSegments(p.elements)
 	keys := make(map[string]string)
 	for _, elem := range p.elements {
-		segments = append(segments, elem.name)
 		for name, value := range elem.keys {
 			keys[name] = value
 		}
 	}
 	if len(keys) == 0 {
 		keys = nil
+	}
+	if len(segments) == 0 {
+		return CacheKey{Keys: keys}
 	}
 	return CacheKey{Path: "/" + strings.Join(segments, "/"), Keys: keys}
 }
@@ -164,6 +166,14 @@ func joinGNMIPaths(prefix, path *gnmipb.Path) *gnmipb.Path {
 		joined.Elem = append(joined.Elem, path.GetElem()...)
 	}
 	return joined
+}
+
+func canonicalizePathSegments(elems []pathElement) []string {
+	segments := make([]string, 0, len(elems)+1)
+	for _, elem := range elems {
+		segments = append(segments, expandModuleQualifiedSegment(elem.name)...)
+	}
+	return segments
 }
 
 func subscribePathFromMetric(metric config.MetricConfig) (*gnmipb.Path, error) {
