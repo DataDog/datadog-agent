@@ -54,9 +54,18 @@ func nocgoEncoderOptions(level Level) []kzstd.EOption {
 		kzstd.WithEncoderConcurrency(conc),
 		kzstd.WithLowerEncoderMem(true),
 		kzstd.WithWindowSize(window),
-		// WithZeroFrames ensures empty input produces a valid zstd frame
-		// instead of empty output, so the result can be decompressed by the
-		// CGO backend. See https://github.com/klauspost/compress/pull/155.
+		// WithZeroFrames(true) ensures empty input produces a valid zstd frame.
+		// Without this, klauspost/compress returns empty output for empty
+		// input, which the CGO zstd library cannot decompress. By enabling
+		// WithZeroFrames we ensure that the cgo and nocgo zstd strategies are
+		// identical in their behavior.
+		//
+		// See also FuzzCrossCompatibility.
+		//
+		// REF
+		//  * https://github.com/klauspost/compress/pull/155 ->
+		//  * https://github.com/IBM/sarama/pull/1477 ->
+		//  * https://github.com/IBM/sarama/issues/1252
 		kzstd.WithZeroFrames(true),
 	}
 }

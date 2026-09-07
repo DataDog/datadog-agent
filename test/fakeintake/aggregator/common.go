@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/zstd"
+	"github.com/DataDog/zstd"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
@@ -179,7 +179,7 @@ func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser
 	case encodingDeflate:
 		rc, err = zlib.NewReader(bytes.NewReader(payload))
 	case encodingZstd:
-		rc, err = zstd.NewReader(bytes.NewReader(payload))
+		rc = zstd.NewReader(bytes.NewReader(payload))
 	default:
 		rc = io.NopCloser(bytes.NewReader(payload))
 	}
