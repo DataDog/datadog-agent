@@ -509,7 +509,6 @@ func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) 
 		UploadID:        delivery.GetUploadId(),
 		BaseURL:         delivery.GetBaseUrl(),
 		Token:           delivery.GetToken(),
-		PartBytes:       int(delivery.GetPartBytes()),
 	}
 	if limits := delivery.GetLimits(); limits != nil {
 		out.Limits = &remotequeriesimpl.RemoteQueryUploadLimits{
@@ -688,8 +687,9 @@ func stringAttributes(metadata map[string]interface{}, exclude ...string) map[st
 }
 
 // progressAttributes extends stringAttributes with the flattened run progress stats the
-// integration reports (rowsEmitted, pagesEmitted, partsEmitted, bytesEmitted,
-// elapsedMs). The stats are compact counters, never bulk result bytes.
+// integration reports (rowsEmitted, pagesEmitted, bytesEmitted, elapsedMs). The stats
+// are compact counters, never bulk result bytes, and any other optional stats keys the
+// integration reports flatten through the same generic path.
 func progressAttributes(metadata map[string]interface{}, exclude ...string) map[string]string {
 	attrs := stringAttributes(metadata, exclude...)
 	if stats, ok := metadata["stats"].(map[string]interface{}); ok {

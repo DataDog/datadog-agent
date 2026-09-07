@@ -66,7 +66,6 @@ type ResultDeliveryInputs struct {
 	UploadID        string                `json:"uploadId"`
 	BaseURL         string                `json:"baseUrl"`
 	Token           string                `json:"token"`
-	PartBytes       int64                 `json:"partBytes"`
 	Limits          *DeliveryLimitsInputs `json:"limits"`
 }
 
@@ -236,7 +235,6 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 			UploadId:        delivery.UploadID,
 			BaseUrl:         delivery.BaseURL,
 			Token:           delivery.Token,
-			PartBytes:       delivery.PartBytes,
 		}
 		if limits := delivery.Limits; limits != nil {
 			protoDelivery.Limits = &pb.RemoteQueryUploadLimits{

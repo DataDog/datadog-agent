@@ -36,7 +36,6 @@ func resultDeliveryInputs() map[string]interface{} {
 		"uploadId":        testUploadID,
 		"baseUrl":         testBaseURL,
 		"token":           testToken,
-		"partBytes":       8388608,
 		"limits": map[string]interface{}{
 			"maxFileBytes":   33554432,
 			"maxResultBytes": 10737418240,
@@ -122,7 +121,6 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	assert.Equal(t, testUploadID, delivery.GetUploadId())
 	assert.Equal(t, testBaseURL, delivery.GetBaseUrl())
 	assert.Equal(t, testToken, delivery.GetToken())
-	assert.Equal(t, int64(8388608), delivery.GetPartBytes())
 	require.NotNil(t, delivery.GetLimits())
 	assert.Equal(t, int64(33554432), delivery.GetLimits().GetMaxFileBytes())
 	assert.Equal(t, int64(10737418240), delivery.GetLimits().GetMaxResultBytes())
@@ -234,7 +232,7 @@ func TestExecuteActionRejectsMissingResultDeliveryBeforeRPC(t *testing.T) {
 		{name: "missing delivery", resultDelivery: nil},
 		{name: "missing limits", resultDelivery: map[string]interface{}{
 			"runId": testRunID, "taskId": testTaskID, "artifactVersion": 1,
-			"uploadId": testUploadID, "baseUrl": testBaseURL, "token": testToken, "partBytes": 8388608,
+			"uploadId": testUploadID, "baseUrl": testBaseURL, "token": testToken,
 		}},
 	}
 	for _, tt := range tests {

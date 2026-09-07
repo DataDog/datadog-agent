@@ -201,7 +201,6 @@ type RemoteQueryResultDelivery struct {
 	UploadId        string                   `protobuf:"bytes,4,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
 	BaseUrl         string                   `protobuf:"bytes,5,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
 	Token           string                   `protobuf:"bytes,6,opt,name=token,proto3" json:"token,omitempty"`
-	PartBytes       int64                    `protobuf:"varint,7,opt,name=part_bytes,json=partBytes,proto3" json:"part_bytes,omitempty"`
 	Limits          *RemoteQueryUploadLimits `protobuf:"bytes,8,opt,name=limits,proto3" json:"limits,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -277,13 +276,6 @@ func (x *RemoteQueryResultDelivery) GetToken() string {
 		return x.Token
 	}
 	return ""
-}
-
-func (x *RemoteQueryResultDelivery) GetPartBytes() int64 {
-	if x != nil {
-		return x.PartBytes
-	}
-	return 0
 }
 
 func (x *RemoteQueryResultDelivery) GetLimits() *RemoteQueryUploadLimits {
@@ -499,8 +491,8 @@ func (x *RemoteQueryStreamFinal) GetAttributes() map[string]string {
 }
 
 // RemoteQueryUploadReceipt is the compact run receipt: exactly uploadId,
-// pageCount, totalRows, totalBytes. Bucket names, object paths, part counts,
-// and checksums are owned by the intake control plane.
+// pageCount, totalRows, totalBytes. Bucket names, object paths, and checksums
+// are owned by the intake control plane.
 type RemoteQueryUploadReceipt struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UploadId      string                 `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
@@ -937,17 +929,15 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x10max_schema_bytes\x18\x05 \x01(\x03R\x0emaxSchemaBytes\x12\x1b\n" +
 	"\tmax_pages\x18\x06 \x01(\x03R\bmaxPages\x12\x1d\n" +
 	"\n" +
-	"timeout_ms\x18\a \x01(\x03R\ttimeoutMs\"\xa4\x02\n" +
+	"timeout_ms\x18\a \x01(\x03R\ttimeoutMs\"\x8b\x02\n" +
 	"\x19RemoteQueryResultDelivery\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12)\n" +
 	"\x10artifact_version\x18\x03 \x01(\x05R\x0fartifactVersion\x12\x1b\n" +
 	"\tupload_id\x18\x04 \x01(\tR\buploadId\x12\x19\n" +
 	"\bbase_url\x18\x05 \x01(\tR\abaseUrl\x12\x14\n" +
-	"\x05token\x18\x06 \x01(\tR\x05token\x12\x1d\n" +
-	"\n" +
-	"part_bytes\x18\a \x01(\x03R\tpartBytes\x12?\n" +
-	"\x06limits\x18\b \x01(\v2'.datadog.api.v1.RemoteQueryUploadLimitsR\x06limits\"\x89\x02\n" +
+	"\x05token\x18\x06 \x01(\tR\x05token\x12?\n" +
+	"\x06limits\x18\b \x01(\v2'.datadog.api.v1.RemoteQueryUploadLimitsR\x06limitsJ\x04\b\a\x10\b\"\x89\x02\n" +
 	"\x19RemoteQueryExecuteRequest\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x129\n" +
 	"\x06target\x18\x02 \x01(\v2!.datadog.api.v1.RemoteQueryTargetR\x06target\x12\x14\n" +

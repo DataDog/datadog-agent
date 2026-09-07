@@ -32,7 +32,7 @@ import (
 //  1. The requestJSON forwarded to the integration emits the fixed operation
 //     produce_json_pages and carries the target, the query, the explicit includeSchema
 //     flag, and the full resultDelivery: runId, taskId, artifactVersion, uploadId,
-//     baseUrl, token, partBytes, and the seven nested limits including timeoutMs.
+//     baseUrl, token, and the seven nested limits including timeoutMs.
 //  2. The requestJSON does NOT carry the org API key or POC application key and carries
 //     no CSV/COPY-era fields: there is no format, no copyLimits, and no inline path.
 //  3. The Agent passes emit straight through: the events the integration emits surface
@@ -64,7 +64,6 @@ func syntheticForwardDelivery() *RemoteQueryResultDelivery {
 		UploadID:        syntheticForwardUploadID,
 		BaseURL:         syntheticForwardBaseURL,
 		Token:           syntheticForwardToken,
-		PartBytes:       1 << 20, // 1 MiB
 		Limits: &RemoteQueryUploadLimits{
 			MaxFileBytes:   32 << 20, // 32 MiB page cap
 			MaxResultBytes: 32 << 20, // 32 MiB total cap
@@ -120,7 +119,6 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 			"uploadId": "upload-243021",
 			"baseUrl": "https://dd.datad0g.com/api/unstable/its-agent-intake",
 			"token": "scoped-upload-token-243021",
-			"partBytes": 1048576,
 			"limits": {
 				"maxFileBytes": 33554432,
 				"maxResultBytes": 33554432,

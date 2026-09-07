@@ -162,9 +162,8 @@ func clickHouseProofQueries() map[string]struct{} {
 // effective values; the Agent enforces these ceilings fail-closed so an oversized or
 // malformed handle never reaches the integration. The page cap ceiling matches the
 // its-agent-intake platform ceiling; the total cap matches the backend-owned 10 GiB result
-// ceiling; the part cap matches the 128 MiB multipart part clamp.
+// ceiling.
 const (
-	remoteQueryUploadMaxPartBytes   = 128 << 20 // 128 MiB hard part cap
 	remoteQueryUploadMaxFileBytes   = 128 << 20 // 128 MiB hard page cap ceiling
 	remoteQueryUploadMaxResultBytes = 10 << 30  // 10 GiB hard total cap
 )
@@ -292,7 +291,6 @@ type RemoteQueryResultDelivery struct {
 	UploadID        string
 	BaseURL         string
 	Token           string
-	PartBytes       int
 	Limits          *RemoteQueryUploadLimits
 }
 
@@ -336,12 +334,6 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*Re
 	if delivery.Token == "" {
 		return nil, errors.New("result_delivery.token is required")
 	}
-	if delivery.PartBytes < 1 {
-		return nil, errors.New("result_delivery.partBytes must be at least 1")
-	}
-	if delivery.PartBytes > remoteQueryUploadMaxPartBytes {
-		return nil, fmt.Errorf("result_delivery.partBytes must not exceed %d", remoteQueryUploadMaxPartBytes)
-	}
 	limits := delivery.Limits
 	if limits == nil {
 		return nil, errors.New("result_delivery.limits is required")
@@ -378,9 +370,6 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*Re
 	}
 	if limits.MaxFileBytes > limits.MaxResultBytes {
 		return nil, errors.New("result_delivery.limits.maxFileBytes must not exceed maxResultBytes")
-	}
-	if delivery.PartBytes > limits.MaxFileBytes {
-		return nil, errors.New("result_delivery.partBytes must not exceed limits.maxFileBytes")
 	}
 	return delivery, nil
 }
@@ -458,7 +447,6 @@ type remoteQueryResultDeliveryRequestJSON struct {
 	UploadID        string                              `json:"uploadId"`
 	BaseURL         string                              `json:"baseUrl"`
 	Token           string                              `json:"token"`
-	PartBytes       *int                                `json:"partBytes"`
 	Limits          *remoteQueryUploadLimitsRequestJSON `json:"limits"`
 }
 
@@ -525,7 +513,7 @@ func mapResultDeliveryTypeError(err error) error {
 		return errLimitsMustBeObject
 	case "runId", "taskId", "uploadId", "baseUrl", "token":
 		return remoteQueryDeliveryTypeError{message: fmt.Sprintf("resultDelivery.%s must be a string", typeErr.Field)}
-	case "artifactVersion", "partBytes":
+	case "artifactVersion":
 		return remoteQueryDeliveryTypeError{message: fmt.Sprintf("resultDelivery.%s must be an integer", typeErr.Field)}
 	default:
 		return err
@@ -561,7 +549,6 @@ type remoteQueryResultDeliveryJSON struct {
 	UploadID        string                      `json:"uploadId"`
 	BaseURL         string                      `json:"baseUrl"`
 	Token           string                      `json:"token"`
-	PartBytes       int                         `json:"partBytes"`
 	Limits          remoteQueryUploadLimitsJSON `json:"limits"`
 }
 
@@ -652,9 +639,6 @@ func resultDeliveryFromWire(delivery *remoteQueryResultDeliveryRequestJSON) (*Re
 	if delivery.ArtifactVersion == nil {
 		return nil, errors.New("result_delivery.artifactVersion is required")
 	}
-	if delivery.PartBytes == nil {
-		return nil, errors.New("result_delivery.partBytes is required")
-	}
 	limits := delivery.Limits
 	if limits == nil {
 		return nil, errors.New("result_delivery.limits is required")
@@ -687,7 +671,6 @@ func resultDeliveryFromWire(delivery *remoteQueryResultDeliveryRequestJSON) (*Re
 		UploadID:        delivery.UploadID,
 		BaseURL:         delivery.BaseURL,
 		Token:           delivery.Token,
-		PartBytes:       *delivery.PartBytes,
 		Limits: &RemoteQueryUploadLimits{
 			MaxFileBytes:   *limits.MaxFileBytes,
 			MaxResultBytes: *limits.MaxResultBytes,
@@ -839,7 +822,6 @@ func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 			UploadID:        req.ResultDelivery.UploadID,
 			BaseURL:         req.ResultDelivery.BaseURL,
 			Token:           req.ResultDelivery.Token,
-			PartBytes:       req.ResultDelivery.PartBytes,
 			Limits: remoteQueryUploadLimitsJSON{
 				MaxFileBytes:   limits.MaxFileBytes,
 				MaxResultBytes: limits.MaxResultBytes,

@@ -61,7 +61,6 @@ func validRemoteQueryResultDeliveryProto() *pb.RemoteQueryResultDelivery {
 		UploadId:        "upload-proof",
 		BaseUrl:         "https://dd.datad0g.com/api/unstable/its-agent-intake",
 		Token:           "scoped-upload-token",
-		PartBytes:       64 << 20,
 		Limits: &pb.RemoteQueryUploadLimits{
 			MaxFileBytes:   128 << 20,
 			MaxResultBytes: 10 << 30,
@@ -95,7 +94,6 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesPagedJSONContract(t *testing
 	assert.Equal(t, "task-proof", req.ResultDelivery.TaskID)
 	assert.Equal(t, remotequeriesimpl.RemoteQueryArtifactVersion, req.ResultDelivery.ArtifactVersion)
 	assert.Equal(t, "upload-proof", req.ResultDelivery.UploadID)
-	assert.Equal(t, 64<<20, req.ResultDelivery.PartBytes)
 	require.NotNil(t, req.ResultDelivery.Limits)
 	assert.Equal(t, &remotequeriesimpl.RemoteQueryUploadLimits{
 		MaxFileBytes:   128 << 20,
@@ -189,7 +187,7 @@ func TestRemoteQueryStreamEventFromCheckEventMapsMetadata(t *testing.T) {
 func TestRemoteQueryStreamEventFromCheckEventSurfacesCompactReceipt(t *testing.T) {
 	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
 		Type:         "final",
-		MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":3,"totalRows":123456,"totalBytes":987654},"stats":{"rowsEmitted":123456,"pagesEmitted":3,"partsEmitted":12,"bytesEmitted":987654,"elapsedMs":4321}}`,
+		MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":3,"totalRows":123456,"totalBytes":987654},"stats":{"rowsEmitted":123456,"pagesEmitted":3,"bytesEmitted":987654,"elapsedMs":4321}}`,
 	}, "postgres")
 
 	require.NoError(t, err)
@@ -207,7 +205,6 @@ func TestRemoteQueryStreamEventFromCheckEventSurfacesCompactReceipt(t *testing.T
 	attrs := event.GetFinal().GetAttributes()
 	assert.Equal(t, "123456", attrs["stats.rowsEmitted"])
 	assert.Equal(t, "3", attrs["stats.pagesEmitted"])
-	assert.Equal(t, "12", attrs["stats.partsEmitted"])
 	assert.Equal(t, "987654", attrs["stats.bytesEmitted"])
 	assert.Equal(t, "4321", attrs["stats.elapsedMs"])
 }

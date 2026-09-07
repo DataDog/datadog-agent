@@ -434,11 +434,6 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 			wantError: "resultDelivery.runId must be a string",
 		},
 		{
-			name:      "string partBytes",
-			body:      fmt.Sprintf(`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":%s}`, deliveryJSONObject(t, "partBytes", "8388608")),
-			wantError: "resultDelivery.partBytes must be an integer",
-		},
-		{
 			name:      "string maxFileBytes",
 			body:      fmt.Sprintf(`{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":%s}`, deliveryJSONObject(t, "limits.maxFileBytes", "33554432")),
 			wantError: "resultDelivery.limits.maxFileBytes must be an integer",
@@ -464,9 +459,9 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 }
 
 // validDeliveryJSON is a compact, fully valid backend-injected result delivery. The
-// values mirror the POC defaults: 8 MiB parts, 32 MiB pages, 10 GiB total cap, 1024
-// columns, 1 MiB schema, 128 pages, 30s timeout.
-const validDeliveryJSON = `{"runId":"run-proof","taskId":"task-proof","artifactVersion":1,"uploadId":"upload-proof","baseUrl":"https://dd.datad0g.com/api/unstable/its-agent-intake","token":"scoped-upload-token","partBytes":8388608,"limits":{"maxFileBytes":33554432,"maxResultBytes":10737418240,"maxRowBytes":33554432,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":128,"timeoutMs":30000}}`
+// values mirror the POC defaults: 32 MiB pages, 10 GiB total cap, 1024 columns, 1 MiB
+// schema, 128 pages, 30s timeout.
+const validDeliveryJSON = `{"runId":"run-proof","taskId":"task-proof","artifactVersion":1,"uploadId":"upload-proof","baseUrl":"https://dd.datad0g.com/api/unstable/its-agent-intake","token":"scoped-upload-token","limits":{"maxFileBytes":33554432,"maxResultBytes":10737418240,"maxRowBytes":33554432,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":128,"timeoutMs":30000}}`
 
 // deliveryJSONObject returns the valid delivery JSON with one field overridden. Nested
 // limit fields use the "limits.<field>" path.
@@ -532,7 +527,6 @@ func TestParseExecuteRequestBuildsTypedPagedJSONRequest(t *testing.T) {
 	assert.Equal(t, "upload-proof", parsed.ResultDelivery.UploadID)
 	assert.Equal(t, "https://dd.datad0g.com/api/unstable/its-agent-intake", parsed.ResultDelivery.BaseURL)
 	assert.Equal(t, "scoped-upload-token", parsed.ResultDelivery.Token)
-	assert.Equal(t, 8<<20, parsed.ResultDelivery.PartBytes)
 	require.NotNil(t, parsed.ResultDelivery.Limits)
 	assert.Equal(t, &RemoteQueryUploadLimits{
 		MaxFileBytes:   32 << 20,
@@ -609,7 +603,6 @@ func TestParseExecuteRequestRejectsOmittedResultDeliveryFields(t *testing.T) {
 		{name: "missing uploadId", delivery: deliveryJSONWithout(t, "uploadId"), wantError: "result_delivery.uploadId is required"},
 		{name: "missing baseUrl", delivery: deliveryJSONWithout(t, "baseUrl"), wantError: "result_delivery.baseUrl is required"},
 		{name: "missing token", delivery: deliveryJSONWithout(t, "token"), wantError: "result_delivery.token is required"},
-		{name: "missing partBytes", delivery: deliveryJSONWithout(t, "partBytes"), wantError: "result_delivery.partBytes is required"},
 		{name: "missing limits", delivery: deliveryJSONWithout(t, "limits"), wantError: "result_delivery.limits is required"},
 		{name: "missing maxFileBytes", delivery: deliveryJSONWithout(t, "limits.maxFileBytes"), wantError: "result_delivery.limits.maxFileBytes is required"},
 		{name: "missing maxResultBytes", delivery: deliveryJSONWithout(t, "limits.maxResultBytes"), wantError: "result_delivery.limits.maxResultBytes is required"},
@@ -679,7 +672,6 @@ func pagedTestDelivery() *RemoteQueryResultDelivery {
 		UploadID:        "upload-proof",
 		BaseURL:         "https://dd.datad0g.com/api/unstable/its-agent-intake",
 		Token:           "scoped-upload-token",
-		PartBytes:       8 << 20,
 		Limits: &RemoteQueryUploadLimits{
 			MaxFileBytes:   32 << 20,
 			MaxResultBytes: 10 << 30,
@@ -733,9 +725,6 @@ func TestNewRemoteQueryExecuteRequestValidation(t *testing.T) {
 		{name: "uploadId with separators", mutate: func(d *RemoteQueryResultDelivery) { d.UploadID = "upload/proof" }, wantErr: "result_delivery.uploadId contains invalid characters"},
 		{name: "missing baseUrl", mutate: func(d *RemoteQueryResultDelivery) { d.BaseURL = "" }, wantErr: "result_delivery.baseUrl is required"},
 		{name: "missing token", mutate: func(d *RemoteQueryResultDelivery) { d.Token = "" }, wantErr: "result_delivery.token is required"},
-		{name: "zero partBytes", mutate: func(d *RemoteQueryResultDelivery) { d.PartBytes = 0 }, wantErr: "result_delivery.partBytes must be at least 1"},
-		{name: "partBytes above 128 MiB cap", mutate: func(d *RemoteQueryResultDelivery) { d.PartBytes = (128 << 20) + 1 }, wantErr: fmt.Sprintf("result_delivery.partBytes must not exceed %d", remoteQueryUploadMaxPartBytes)},
-		{name: "partBytes above page cap", mutate: func(d *RemoteQueryResultDelivery) { d.PartBytes = (32 << 20) + 1 }, wantErr: "result_delivery.partBytes must not exceed limits.maxFileBytes"},
 		{name: "nil limits", mutate: func(d *RemoteQueryResultDelivery) { d.Limits = nil }, wantErr: "result_delivery.limits is required"},
 		{name: "zero maxFileBytes", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxFileBytes = 0 }, wantErr: "result_delivery.limits.maxFileBytes must be at least 1"},
 		{name: "maxFileBytes above 128 MiB ceiling", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxFileBytes = (128 << 20) + 1 }, wantErr: fmt.Sprintf("result_delivery.limits.maxFileBytes must not exceed %d", remoteQueryUploadMaxFileBytes)},
@@ -821,7 +810,6 @@ func TestRemoteQueryExecuteServiceDispatchesPagedJSONRequest(t *testing.T) {
 			"uploadId": "upload-proof",
 			"baseUrl": "https://dd.datad0g.com/api/unstable/its-agent-intake",
 			"token": "scoped-upload-token",
-			"partBytes": 8388608,
 			"limits": {"maxFileBytes": 33554432, "maxResultBytes": 10737418240, "maxRowBytes": 33554432, "maxColumns": 1024, "maxSchemaBytes": 1048576, "maxPages": 128, "timeoutMs": 30000}
 		}
 	}`, runner.streamSeen)
@@ -1013,32 +1001,14 @@ func (f *fakeStreamRunnerCheck) RunRemoteQueryStream(integration string, request
 }
 
 const (
-	remoteQueryPagedPartCap     = 128 << 20 // 128 MiB hard part cap
 	remoteQueryPagedFileCeiling = 128 << 20 // 128 MiB hard page cap ceiling
 	remoteQueryPagedTotalCap    = 10 << 30  // 10 GiB hard total cap
 )
 
 // TestRemoteQueryResultDeliveryPagedCaps proves the forwarding caps fail closed at the
-// exact platform ceilings: 128 MiB parts and pages, 10 GiB total result bytes.
+// exact platform ceilings: 128 MiB pages, 10 GiB total result bytes.
 func TestRemoteQueryResultDeliveryPagedCaps(t *testing.T) {
 	target := RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}
-
-	t.Run("128 MiB part accepted", func(t *testing.T) {
-		delivery := pagedTestDelivery()
-		delivery.PartBytes = remoteQueryPagedPartCap
-		delivery.Limits.MaxFileBytes = remoteQueryPagedFileCeiling
-		delivery.Limits.MaxRowBytes = remoteQueryPagedFileCeiling
-		_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, false, delivery)
-		require.NoError(t, err)
-	})
-
-	t.Run("128 MiB plus one part rejected", func(t *testing.T) {
-		delivery := pagedTestDelivery()
-		delivery.PartBytes = remoteQueryPagedPartCap + 1
-		_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, false, delivery)
-		require.Error(t, err)
-		assert.EqualError(t, err, fmt.Sprintf("result_delivery.partBytes must not exceed %d", remoteQueryPagedPartCap))
-	})
 
 	t.Run("128 MiB page accepted", func(t *testing.T) {
 		delivery := pagedTestDelivery()
@@ -1078,7 +1048,6 @@ func TestRemoteQueryResultDeliveryPagedCaps(t *testing.T) {
 // backend-owned cap verbatim.
 func TestRemoteQueryResultDelivery10GiBJSONFidelity(t *testing.T) {
 	delivery := pagedTestDelivery()
-	delivery.PartBytes = 64 << 20
 	delivery.Limits.MaxFileBytes = 128 << 20
 	delivery.Limits.MaxRowBytes = 128 << 20
 	delivery.Limits.MaxResultBytes = 10 << 30
@@ -1089,7 +1058,6 @@ func TestRemoteQueryResultDelivery10GiBJSONFidelity(t *testing.T) {
 
 	requestJSON, err := marshalExecuteRequest(req.internal())
 	require.NoError(t, err)
-	assert.Contains(t, requestJSON, `"partBytes":67108864`)
 	assert.Contains(t, requestJSON, `"maxResultBytes":10737418240`)
 	assert.Contains(t, requestJSON, `"timeoutMs":30000`)
 	assert.NotContains(t, requestJSON, "api_key")

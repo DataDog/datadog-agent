@@ -55,7 +55,9 @@ message RemoteQueryResultDelivery {
     string upload_id = 4;
     string base_url = 5;
     string token = 6;
-    int64 part_bytes = 7;
+    // 7 was part_bytes: the direct-page contract uploads one complete bounded page
+    // per request, so no public part sizing crosses the AgentSecure boundary.
+    reserved 7;
     RemoteQueryUploadLimits limits = 8;
 }
 
@@ -89,8 +91,8 @@ message RemoteQueryStreamFinal {
 }
 
 // RemoteQueryUploadReceipt is the compact run receipt: exactly uploadId,
-// pageCount, totalRows, totalBytes. Bucket names, object paths, part counts,
-// and checksums are owned by the intake control plane.
+// pageCount, totalRows, totalBytes. Bucket names, object paths, and checksums
+// are owned by the intake control plane.
 message RemoteQueryUploadReceipt {
     string upload_id = 1;
     int64 page_count = 2;
