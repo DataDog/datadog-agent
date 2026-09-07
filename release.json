@@ -2,8 +2,8 @@
     "base_branch": "main",
     "current_milestone": "7.85.0",
     "dependencies": {
-        "INTEGRATIONS_CORE_VERSION": "fa16a103168054346c2adb382caf6ab7d225de40",
-        "INTEGRATIONS_WHEELS_STORAGE": "stable",
+        "INTEGRATIONS_CORE_VERSION": "4d836b6ec4a3ccd8164e2525d37d6a39667b12a6",
+        "INTEGRATIONS_WHEELS_STORAGE": "dev",
         "JMXFETCH_HASH": "3eb735171a3e41518c4101a6aee06fee8b93092d015769c2e470eecadb4bd11b",
         "JMXFETCH_VERSION": "0.52.0",
         "OMNIBUS_RUBY_VERSION": "6b9608d93cd620f3d9173254fee74c5b820b604b",
