@@ -21,6 +21,7 @@ new-e2e-windows-fips-compliance-test:
 
 new-e2e-windows-service-test:
   extends: .new_e2e_template
+  timeout: 50m
   needs:
     - !reference [.needs_new_e2e_template]
     - windows_msi_and_bosh_zip_x64-a7
