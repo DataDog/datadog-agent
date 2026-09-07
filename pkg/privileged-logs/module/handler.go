@@ -51,7 +51,6 @@ func (f *privilegedLogsModule) logFileAccess(path string) {
 	log.Infof("Received request to open file: %s", path)
 }
 
-// openFileHandler handles requests to open a file and transfer its file descriptor
 func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Request) {
 	// We need to read the body fully before hijacking the connection
 	body, err := io.ReadAll(r.Body)

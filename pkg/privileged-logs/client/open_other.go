@@ -18,13 +18,8 @@ func Open(path string) (*os.File, error) {
 	return os.Open(path)
 }
 
-// OpenNoFollow is not supported on non-Linux platforms. Symlink rejection is
-// only meaningful for process_log-discovered paths, and process_log discovery
-// (based on /proc/<pid>/fd) is Linux-only, so there is no caller on macOS or
-// Windows. Return ErrUnsupported rather than silently falling back to a plain
-// open, which would give callers the false impression that symlink-swap
-// protection is active.
-func OpenNoFollow(path string) (*os.File, error) {
+// OpenNoFollow is not supported on non-Linux platforms.
+func OpenNoFollow(_ string) (*os.File, error) {
 	return nil, errors.ErrUnsupported
 }
 
