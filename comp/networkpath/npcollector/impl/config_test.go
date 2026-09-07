@@ -33,15 +33,15 @@ func TestNetworkPathCollectorEnabled(t *testing.T) {
 	config := &collectorConfigs{
 		connectionsMonitoringEnabled: true,
 	}
-	assert.True(t, config.networkPathCollectorEnabled())
-
-	config.connectionsMonitoringEnabled = false
 	assert.False(t, config.networkPathCollectorEnabled())
 
-	config.basicTestsEnabled = true
+	config.connectionDynamicTestsEnabled = true
 	assert.True(t, config.networkPathCollectorEnabled())
 
-	config.basicTestsEnabled = false
+	config.connectionDynamicTestsEnabled = false
+	config.basicTestsEnabled = true
+	assert.False(t, config.networkPathCollectorEnabled())
+
 	config.netflowMonitoringEnabled = true
 	assert.True(t, config.networkPathCollectorEnabled())
 }
@@ -58,14 +58,15 @@ func TestNewConfig(t *testing.T) {
 				"network_path.collector.filters": []map[string]any{},
 			},
 			expectedConfig: &collectorConfigs{
-				connectionsMonitoringEnabled: false,
-				basicTestsEnabled:            false,
-				netflowMonitoringEnabled:     false,
-				workers:                      4,
-				timeout:                      1000 * time.Millisecond,
-				maxTTL:                       30,
-				pathtestInputChanSize:        1000,
-				pathtestProcessingChanSize:   1000,
+				connectionsMonitoringEnabled:  false,
+				basicTestsEnabled:             false,
+				connectionDynamicTestsEnabled: false,
+				netflowMonitoringEnabled:      false,
+				workers:                       4,
+				timeout:                       1000 * time.Millisecond,
+				maxTTL:                        30,
+				pathtestInputChanSize:         1000,
+				pathtestProcessingChanSize:    1000,
 				storeConfig: pathteststore.Config{
 					ContextsLimit:    1000,
 					TTL:              70 * time.Minute,
@@ -132,14 +133,15 @@ func TestNewConfig(t *testing.T) {
 				},
 			},
 			expectedConfig: &collectorConfigs{
-				connectionsMonitoringEnabled: false,
-				basicTestsEnabled:            false,
-				netflowMonitoringEnabled:     false,
-				workers:                      8,
-				timeout:                      5000 * time.Millisecond,
-				maxTTL:                       64,
-				pathtestInputChanSize:        200,
-				pathtestProcessingChanSize:   200,
+				connectionsMonitoringEnabled:  false,
+				basicTestsEnabled:             false,
+				connectionDynamicTestsEnabled: false,
+				netflowMonitoringEnabled:      false,
+				workers:                       8,
+				timeout:                       5000 * time.Millisecond,
+				maxTTL:                        64,
+				pathtestInputChanSize:         200,
+				pathtestProcessingChanSize:    200,
 				storeConfig: pathteststore.Config{
 					ContextsLimit:    10000,
 					TTL:              120 * time.Second,
@@ -237,10 +239,12 @@ func TestNewConfigBasicTestsRequireCNM(t *testing.T) {
 
 	withoutCNM := newConfig(config.NewMockWithOverrides(t, empty), testSysprobe(t, false), logger)
 	assert.False(t, withoutCNM.basicTestsEnabled)
+	assert.False(t, withoutCNM.connectionDynamicTestsEnabled)
 	assert.False(t, withoutCNM.networkPathCollectorEnabled())
 
 	withCNM := newConfig(config.NewMockWithOverrides(t, empty), testSysprobe(t, true), logger)
 	assert.True(t, withCNM.basicTestsEnabled)
+	assert.True(t, withCNM.connectionDynamicTestsEnabled)
 	assert.True(t, withCNM.networkPathCollectorEnabled())
 
 	optOut := newConfig(config.NewMockWithOverrides(t, map[string]any{
@@ -248,5 +252,22 @@ func TestNewConfigBasicTestsRequireCNM(t *testing.T) {
 		"network_path.collector.filters":                          []map[string]any{},
 	}), testSysprobe(t, true), logger)
 	assert.False(t, optOut.basicTestsEnabled)
+	assert.False(t, optOut.connectionDynamicTestsEnabled)
 	assert.False(t, optOut.networkPathCollectorEnabled())
+
+	standardWithoutCNM := newConfig(config.NewMockWithOverrides(t, map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.filters":              []map[string]any{},
+	}), testSysprobe(t, false), logger)
+	assert.True(t, standardWithoutCNM.connectionsMonitoringEnabled)
+	assert.False(t, standardWithoutCNM.connectionDynamicTestsEnabled)
+	assert.False(t, standardWithoutCNM.networkPathCollectorEnabled())
+
+	standardWithCNM := newConfig(config.NewMockWithOverrides(t, map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.filters":              []map[string]any{},
+	}), testSysprobe(t, true), logger)
+	assert.True(t, standardWithCNM.connectionsMonitoringEnabled)
+	assert.True(t, standardWithCNM.connectionDynamicTestsEnabled)
+	assert.True(t, standardWithCNM.networkPathCollectorEnabled())
 }

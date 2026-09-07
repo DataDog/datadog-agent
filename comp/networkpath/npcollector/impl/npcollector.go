@@ -104,7 +104,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 	}
 
 	var basicSelector *basicSelector
-	if collectorConfigs.basicTestsEnabled && !collectorConfigs.connectionsMonitoringEnabled {
+	if collectorConfigs.connectionDynamicTestsEnabled && !collectorConfigs.connectionsMonitoringEnabled {
 		basicSelector = newBasicSelector()
 	}
 
@@ -294,7 +294,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 }
 
 func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	if !s.collectorConfigs.connectionsMonitoringEnabled && !s.collectorConfigs.basicTestsEnabled {
+	if !s.collectorConfigs.connectionDynamicTestsEnabled {
 		return
 	}
 

@@ -114,14 +114,14 @@ network_devices:
 			},
 		},
 		{
-			name: "default config when Network Path Collector is enabled",
+			name: "standard tests without CNM do not enable reverse DNS",
 			configYaml: `
 network_path:
   connections_monitoring:
     enabled: true
 `,
 			expectedConfig: rdnsQuerierConfig{
-				enabled:  true,
+				enabled:  false,
 				workers:  defaultWorkers,
 				chanSize: defaultChanSize,
 				cache: cacheConfig{
@@ -363,4 +363,12 @@ network_path:
     basic_tests_enabled: false
 `)
 	assert.False(t, newConfig(optOut, testSysprobe(t, true)).enabled)
+
+	standard := mock.NewFromYAML(t, `
+network_path:
+  connections_monitoring:
+    enabled: true
+`)
+	assert.False(t, newConfig(standard, testSysprobe(t, false)).enabled)
+	assert.True(t, newConfig(standard, testSysprobe(t, true)).enabled)
 }

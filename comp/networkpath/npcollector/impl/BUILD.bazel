@@ -33,6 +33,7 @@ go_library(
         "//comp/rdnsquerier/impl-none",
         "//comp/remote-config/rcclient/types",
         "//pkg/config/remote/data",
+        "//pkg/config/setup",
         "//pkg/config/structure",
         "//pkg/logs/message",
         "//pkg/network/tracer/networkfilter",

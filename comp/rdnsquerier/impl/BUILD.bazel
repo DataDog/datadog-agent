@@ -25,6 +25,7 @@ go_library(
         "//comp/def",
         "//comp/rdnsquerier/def",
         "//comp/rdnsquerier/impl-none",
+        "//pkg/config/setup",
         "//pkg/persistentcache",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
