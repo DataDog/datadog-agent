@@ -58,9 +58,15 @@
         fi
         local encoded
         encoded=$(printf '%s' "$script" | base64 -w0)
-        # pass the script encoded in base64 to avoid issues with stdin
+        # pass the script encoded in base64 to avoid quoting and stdin issues:
+        # - base64 makes the payload safe to embed in the ssh command line
+        # - the script is decoded to a temp file and run with `bash <file>` so
+        #   that stdin remains the PTY (blocked reads). Piping the script into
+        #   `bash -s` instead would leave children with an EOF'd pipe as stdin,
+        #   which breaks tools that forward stdin to subprocesses (e.g. invoke
+        #   crashes with BrokenPipeError when its subprocesses exit fast).
         ssh -tt $AIX_SSH_COMMON_OPTS $AIX_SSH_DEST \
-          "echo $encoded | openssl enc -base64 -d -A | bash -s"
+          "f=\$\$; echo $encoded | openssl enc -base64 -d -A > /tmp/aix_run_cmd.\$f && bash /tmp/aix_run_cmd.\$f; rc=\$?; rm -f /tmp/aix_run_cmd.\$f; exit \$rc"
       }
     - copy_file_from_aix () { scp $AIX_SSH_COMMON_OPTS "$AIX_SSH_DEST:$1" "$2" ; }
     - copy_file_to_aix () { scp $AIX_SSH_COMMON_OPTS "$1" "$AIX_SSH_DEST:$2" ; }
