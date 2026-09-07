@@ -182,12 +182,14 @@ def update_metrics_allowlist(ctx, allowlist_path: str = DEFAULT_ALLOWLIST_PATH):
     help={
         "metadata_path": f"Path to gpu/metadata.csv (default: {DEFAULT_METADATA_PATH})",
         "default_interval": "Default interval value for metrics missing metadata.interval",
+        "include_histograms": "Include histogram metrics in metadata.csv",
     },
 )
 def update_metadata(
     ctx,
     metadata_path: str = DEFAULT_METADATA_PATH,
     default_interval: int = 16,
+    include_histograms: bool = False,
 ):
     """
     Update integrations-core GPU metadata.csv entries from the shared GPU spec.
@@ -198,6 +200,8 @@ def update_metadata(
         f"--metadata-path {shlex.quote(metadata_path)} "
         f"--default-interval {int(default_interval)}"
     )
+    if include_histograms:
+        command += " --include-histograms"
     print(f"== Updating GPU metadata at {metadata_path} ==")
     ctx.run(command)
 
