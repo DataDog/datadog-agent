@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -238,8 +238,6 @@ func TestGPMCollectorLegacySMActive(t *testing.T) {
 				}),
 			)
 			mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
-			config := configmock.New(t)
-			config.SetInTest(legacySMActiveConfig, tc.legacySMActive)
 
 			collector, err := newGPMCollectorWithMetrics(
 				mockDevice,
@@ -249,7 +247,7 @@ func TestGPMCollectorLegacySMActive(t *testing.T) {
 						metricType: metrics.GaugeType,
 					},
 				},
-				&CollectorDependencies{Config: config},
+				&CollectorDependencies{Config: gpuconfig.Config{LegacySMActive: tc.legacySMActive}},
 			)
 			require.NoError(t, err)
 

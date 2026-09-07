@@ -26,6 +26,8 @@ type Config struct {
 	DisabledCollectors []string
 	// NVLinkFECLightErrorThreshold is the maximum corrected-error count classified as light.
 	NVLinkFECLightErrorThreshold int
+	// LegacySMActive indicates whether the legacy sm_active metric should be emitted.
+	LegacySMActive bool
 	// Enabled indicates whether the GPU monitoring probe is enabled.
 	Enabled bool
 	// EnableEBPFProbes indicates whether the GPU monitoring eBPF probes should be loaded.
@@ -88,6 +90,7 @@ func New() *Config {
 		Config:                       *ebpf.NewConfig(),
 		DisabledCollectors:           agentCfg.GetStringSlice("gpu.disabled_collectors"),
 		NVLinkFECLightErrorThreshold: agentCfg.GetInt("gpu.nvlink.fec_light_error_threshold"),
+		LegacySMActive:               agentCfg.GetBool("gpu.legacy_sm_active"),
 		ScanProcessesInterval:        time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
 		InitialProcessSync:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
 		Enabled:                      spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),
