@@ -610,6 +610,80 @@ func (s *configSuite) TestDDOTConfigBadConfigRollsBack() {
 	verifyDDOTRunning(s.T(), s.Agent)
 }
 
+// A failing DDOT does not end the experiment on its own: the core agent does not read
+// otel-config.yaml so the experiment agent stays healthy, and dd-procmgrd keeps retrying its child
+// forever rather than giving up. The reported DDOT process state is therefore the only signal that
+// tells the backend this experiment must not be promoted.
+func (s *configSuite) TestDDOTConfigFailureReportsFailedAndReverts() {
+	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
+		s.T().Skip("DDOT runs under dd-procmgrd with a separate experiment config directory only on Linux")
+	}
+
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	s.Installer.MustInstallExtension(getAgentPackageURL(s.T(), ""), "ddot")
+	defer func() { _, _ = s.Installer.RemoveExtension("datadog-agent", "ddot") }()
+
+	verifyDDOTRunning(s.T(), s.Agent)
+	s.assertCollectorConfigPath(false)
+	s.assertReportedDDOTProcessState("running")
+
+	stableConfigBefore := s.readActiveOTelConfig(false)
+	stateBefore, err := s.Backend.RemoteConfigStatusPackage("datadog-agent")
+	s.Require().NoError(err)
+
+	err = s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID:   "ddot-config-broken-revert",
+		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/otel-config.yaml", Patch: []byte(ddotBrokenPatch)}},
+	}, nil)
+	s.Require().NoError(err)
+
+	s.Require().Contains(s.readActiveOTelConfig(true), "not-a-valid-verbosity")
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		status, err := s.Agent.Status()
+		assert.NoError(c, err)
+		assert.True(c, status.OtelAgent.Error != "" || status.OtelAgent.AgentVersion == "",
+			"DDOT should be unhealthy while running the broken experiment config")
+	}, 2*time.Minute, 5*time.Second)
+
+	s.assertReportedDDOTProcessState("failed")
+
+	stateFailed, err := s.Backend.RemoteConfigStatusPackage("datadog-agent")
+	s.Require().NoError(err)
+	s.Require().NotEmpty(stateFailed.ExperimentConfigVersion, "the host should still be in experiment")
+	s.Require().NotContains(s.readActiveOTelConfig(false), "not-a-valid-verbosity",
+		"the broken config must never reach the stable configuration")
+
+	err = s.Backend.StopConfigExperiment()
+	s.Require().NoError(err)
+
+	stateReverted, err := s.Backend.RemoteConfigStatusPackage("datadog-agent")
+	s.Require().NoError(err)
+	s.Require().Empty(stateReverted.ExperimentConfigVersion,
+		"experiment_config_version should be cleared by the revert")
+	s.Require().Equal(stateBefore.StableConfigVersion, stateReverted.StableConfigVersion,
+		"stable_config_version should be unchanged: the experiment was never promoted")
+	s.Require().Equal(stableConfigBefore, s.readActiveOTelConfig(false),
+		"the stable otel-config.yaml should be restored")
+	verifyDDOTRunning(s.T(), s.Agent)
+	s.assertCollectorConfigPath(false)
+	s.assertReportedDDOTProcessState("running")
+}
+
+// assertReportedDDOTProcessState waits for the DDOT process state the installer daemon reports to
+// the backend as part of the datadog-agent package state to reach want. The daemon refreshes that
+// state every installer.refresh_interval (30s), so this polls well past one refresh.
+func (s *configSuite) assertReportedDDOTProcessState(want string) {
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		state, err := s.Backend.RemoteConfigStatusPackage("datadog-agent")
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.Equal(c, want, state.ProcessStates["ddot"])
+	}, 3*time.Minute, 10*time.Second)
+}
+
 // readActiveOTelConfig returns the contents of the otel-config.yaml the collector is (or will be)
 // running. On Linux the experiment config lives in a separate directory (/etc/datadog-agent-exp);
 // on Windows config experiments are applied in place to the stable data directory (the -exp
