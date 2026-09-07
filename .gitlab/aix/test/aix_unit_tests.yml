@@ -14,7 +14,7 @@ tests_aix-ppc64:
     EXTRA_TEST_FLAGS: ""
   script:
     - 'echo "=== AIX: running unit tests ==="'
-    - >
+    - |
       aix_run_cmd <<EOF
       set -eu
       cd $AIX_AGENT_SRC
