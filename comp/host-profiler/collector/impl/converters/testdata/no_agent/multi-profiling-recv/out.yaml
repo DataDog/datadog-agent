@@ -17,8 +17,73 @@ processors:
               key: telemetry.distro.version
               value: 7.0.0-test
     resourcedetection/dd-autoconfigured:
+        aks:
+            resource_attributes:
+                cloud.platform:
+                    enabled: false
+                cloud.provider:
+                    enabled: false
+                k8s.cluster.name:
+                    enabled: true
         detectors:
+            - env
             - system
+            - kubeadm
+            - eks
+            - gcp
+            - aks
+        eks:
+            resource_attributes:
+                cloud.platform:
+                    enabled: false
+                cloud.provider:
+                    enabled: false
+                k8s.cluster.name:
+                    enabled: true
+        fail_on_missing_metadata: false
+        gcp:
+            resource_attributes:
+                cloud.account.id:
+                    enabled: false
+                cloud.availability_zone:
+                    enabled: false
+                cloud.platform:
+                    enabled: false
+                cloud.provider:
+                    enabled: false
+                cloud.region:
+                    enabled: false
+                faas.instance:
+                    enabled: false
+                faas.name:
+                    enabled: false
+                faas.version:
+                    enabled: false
+                gcp.cloud_run.job.execution:
+                    enabled: false
+                gcp.cloud_run.job.task_index:
+                    enabled: false
+                gcp.gce.instance_group_manager.name:
+                    enabled: false
+                gcp.gce.instance_group_manager.region:
+                    enabled: false
+                gcp.gce.instance_group_manager.zone:
+                    enabled: false
+                host.id:
+                    enabled: false
+                host.name:
+                    enabled: false
+                host.type:
+                    enabled: false
+                k8s.cluster.name:
+                    enabled: true
+        kubeadm:
+            resource_attributes:
+                k8s.cluster.name:
+                    enabled: true
+        override: false
+        retry:
+            enabled: false
         system:
             resource_attributes:
                 host.arch:
