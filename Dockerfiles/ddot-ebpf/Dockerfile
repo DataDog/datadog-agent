@@ -25,9 +25,14 @@ COPY host-profiler* /workspace
 
 # Update and install necessary packages
 RUN \
+        apt-get update && \
+        apt-get install -y --no-install-recommends libcap2-bin && \
         mkdir -p /workspace/datadog-agent/bin/host-profiler/dist && \
         cp /workspace/host-profiler /workspace/datadog-agent/bin/host-profiler/ && \
-        cp /workspace/host-profiler-config.yaml /workspace/datadog-agent/bin/host-profiler/dist/host-profiler-config.yaml
+        cp /workspace/host-profiler-config.yaml /workspace/datadog-agent/bin/host-profiler/dist/host-profiler-config.yaml && \
+        setcap cap_bpf,cap_perfmon,cap_sys_ptrace,cap_sys_resource,cap_dac_read_search,cap_syslog,cap_checkpoint_restore,cap_ipc_lock=ep \
+          /workspace/datadog-agent/bin/host-profiler/host-profiler && \
+        rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 # ------------------------------
 # Inject the full host profiler in the base image
@@ -65,12 +70,9 @@ RUN if [ "$CI" = "true" ]; then \
       /etc/apt/sources.list.d/ubuntu.sources; \
   fi; \
   fi
-# Host profiler requires objcopy; libcap2-bin is only needed to set file capabilities during the build.
+# Host profiler requires objcopy.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends binutils libcap2-bin && \
-    setcap cap_bpf,cap_perfmon,cap_sys_ptrace,cap_sys_resource,cap_dac_read_search,cap_syslog,cap_checkpoint_restore,cap_ipc_lock=ep \
-      /opt/datadog-agent/embedded/bin/host-profiler && \
-    apt-get purge -y --auto-remove libcap2-bin && \
+    apt-get install -y --no-install-recommends binutils && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 # backward-compatibility symlink as some existing Helm charts / operator may reference the old binary name
 RUN ln -s /opt/datadog-agent/embedded/bin/host-profiler /opt/datadog-agent/embedded/bin/full-host-profiler
