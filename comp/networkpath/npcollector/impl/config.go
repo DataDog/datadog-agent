@@ -13,8 +13,8 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/enablement"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
@@ -59,7 +59,7 @@ func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Compo
 	return &collectorConfigs{
 		connectionsMonitoringEnabled:  agentConfig.GetBool("network_path.connections_monitoring.enabled"),
 		basicTestsEnabled:             agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && sysprobeConfig.GetBool("network_config.enabled"),
-		connectionDynamicTestsEnabled: setup.ConnectionDynamicTestsEnabled(agentConfig, sysprobeConfig),
+		connectionDynamicTestsEnabled: enablement.ConnectionDynamicTestsEnabled(agentConfig, sysprobeConfig),
 		netflowMonitoringEnabled:      agentConfig.GetBool("network_path.netflow_monitoring.enabled"),
 		workers:                       agentConfig.GetInt("network_path.collector.workers"),
 		timeout:                       agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,

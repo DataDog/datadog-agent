@@ -23,6 +23,7 @@ go_library(
     deps = [
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/networkpath/enablement",
         "//pkg/system-probe/config/types",
         "//pkg/util/defaultpaths",
         "//pkg/util/flavor",

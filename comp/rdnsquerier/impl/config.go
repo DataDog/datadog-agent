@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/enablement"
 )
 
 type rdnsQuerierConfig struct {
@@ -60,7 +60,7 @@ const (
 func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Component) *rdnsQuerierConfig {
 	netflowRDNSEnrichmentEnabled := agentConfig.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled")
 	networkPathRDNSEnrichmentEnabled := agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled") &&
-		pkgconfigsetup.ConnectionDynamicTestsEnabled(agentConfig, sysprobeConfig)
+		enablement.ConnectionDynamicTestsEnabled(agentConfig, sysprobeConfig)
 
 	c := &rdnsQuerierConfig{
 		enabled:  netflowRDNSEnrichmentEnabled || networkPathRDNSEnrichmentEnabled,

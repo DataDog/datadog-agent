@@ -3,18 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package setup
+package enablement
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestConnectionDynamicTestsEnabled(t *testing.T) {
-	core := newTestConf(t)
-	sysprobe := newEmptyMockConf(t)
-	InitSystemProbeConfig(sysprobe)
+	core := mock.New(t)
+	sysprobe := mock.NewSystemProbe(t)
 
 	assert.False(t, ConnectionDynamicTestsEnabled(core, sysprobe))
 

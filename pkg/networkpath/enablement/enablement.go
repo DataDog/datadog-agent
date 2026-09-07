@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package setup
+// Package enablement reports whether connection-based Network Path Dynamic Tests
+// should run. It lives outside pkg/config/setup so comp/ can call it without
+// violating the pkgconfigusage depguard.
+package enablement
 
 import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"

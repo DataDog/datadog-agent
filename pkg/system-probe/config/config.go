@@ -16,6 +16,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/enablement"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -256,7 +257,7 @@ func load() (*types.Config, error) {
 // is unset, CNM Dynamic Tests enable traceroute only when CNM is also enabled.
 // It logs a warning when Dynamic Tests require traceroute but it was explicitly disabled.
 func tracerouteEnabled(cfg, coreCfg pkgconfigmodel.Reader) bool {
-	dynamicTestsEnabled := pkgconfigsetup.ConnectionDynamicTestsEnabled(coreCfg, cfg)
+	dynamicTestsEnabled := enablement.ConnectionDynamicTestsEnabled(coreCfg, cfg)
 	enabled := cfg.GetBool(tracerouteNS("enabled"))
 
 	if !enabled && !cfg.IsConfigured(tracerouteNS("enabled")) {
