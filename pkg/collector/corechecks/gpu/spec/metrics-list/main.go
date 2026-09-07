@@ -192,7 +192,12 @@ func earliestSupportedArchitecture(specs *gpuspec.Specs, metricSpec gpuspec.Metr
 	slices.SortFunc(architectures, compareArchitectureName)
 
 	for _, arch := range architectures {
-		if metricSpec.SupportsArchitecture(arch) {
+		if !metricSpec.SupportsArchitecture(arch) {
+			continue
+		}
+		archSpec := specs.Architectures.Architectures[arch]
+		capabilities := archSpec.EffectiveCapabilities(gpuspec.DeviceModePhysical)
+		if metricSpec.SupportsCapabilities(capabilities) {
 			return arch
 		}
 	}

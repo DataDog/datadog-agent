@@ -19,6 +19,6 @@ type TaskVerifier interface {
 // KeysManager manages the signing keys used to verify task envelopes.
 type KeysManager interface {
 	Start(ctx context.Context)
-	GetKey(keyId string) types.DecodedKey
+	GetKey(keyId string) (types.DecodedKey, *types.DirectorKeyProof)
 	WaitForReady()
 }

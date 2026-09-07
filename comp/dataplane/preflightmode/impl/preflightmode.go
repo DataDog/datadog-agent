@@ -22,6 +22,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	preflightmode "github.com/DataDog/datadog-agent/comp/dataplane/preflightmode/def"
@@ -103,6 +104,7 @@ type Requires struct {
 	Config    configcomp.Component
 	Log       logcomp.Component
 	Telemetry telemetry.Component
+	Hostname  hostnameinterface.Component
 }
 
 // Provides defines what this component provides
@@ -113,6 +115,7 @@ type Provides struct {
 type preflightModeComponent struct {
 	log      logcomp.Component
 	config   configcomp.Component
+	hostname hostnameinterface.Component
 	reporter *reporter
 
 	// binPath is the ADP binary to run.
@@ -165,6 +168,7 @@ func NewComponent(reqs Requires) Provides {
 	comp := &preflightModeComponent{
 		log:      reqs.Log,
 		config:   reqs.Config,
+		hostname: reqs.Hostname,
 		reporter: reporter,
 		binPath:  binPath,
 		out:      newCapture(reqs.Log),
@@ -265,7 +269,7 @@ func (d *preflightModeComponent) workDir() string {
 // run performs one complete pre-flight: prepare, spawn, probe, stop, scan, report.
 // prepare sets up the working directory and generated config, returning a command ready to
 // start along with the endpoint ADP will bind.
-func (d *preflightModeComponent) prepare() (*exec.Cmd, listener, error) {
+func (d *preflightModeComponent) prepare(ctx context.Context) (*exec.Cmd, listener, error) {
 	workDir := d.workDir()
 	// A run that was killed mid-flight may have left a stale socket and config behind.
 	if err := os.RemoveAll(workDir); err != nil {
@@ -285,7 +289,13 @@ func (d *preflightModeComponent) prepare() (*exec.Cmd, listener, error) {
 		return nil, l, fmt.Errorf("unusable DogStatsD endpoint under %s: %w", workDir, err)
 	}
 
-	cfgPath, err := writePreflightConfig(d.config, l, workDir)
+	// See buildPreflightConfig for why this must be resolved here rather than read from config.
+	hostname, err := d.hostname.Get(ctx)
+	if err != nil {
+		return nil, l, fmt.Errorf("could not resolve the Agent's hostname: %w", err)
+	}
+
+	cfgPath, err := writePreflightConfig(d.config, l, workDir, hostname)
 	if err != nil {
 		return nil, l, err
 	}
@@ -334,7 +344,7 @@ func (d *preflightModeComponent) run(ctx context.Context) {
 		}
 	}()
 
-	cmd, l, err := d.prepare()
+	cmd, l, err := d.prepare(ctx)
 	if err != nil {
 		d.log.Warnf("Agent Data Plane preflight mode could not prepare a run: %v", err)
 		o.add(findingSpawnFailed)

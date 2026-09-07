@@ -136,6 +136,15 @@ func unitSetSystemd(stableData, expData installerTemplateData, ambiantCapabiliti
 	return units
 }
 
+func unitSetPrivilegedRshell(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
+	return map[string][]byte{
+		"datadog-agent-rshell-privileged.service":     mustReadUnit("datadog-agent-rshell-privileged.service", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-privileged-exp.service": mustReadUnit("datadog-agent-rshell-privileged.service", expData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-privileged.socket":      mustReadUnit("datadog-agent-rshell-privileged.socket", stableData, ambiantCapabilitiesSupported, false),
+		"datadog-agent-rshell-privileged-exp.socket":  mustReadUnit("datadog-agent-rshell-privileged.socket", expData, ambiantCapabilitiesSupported, false),
+	}
+}
+
 // For memory efficiency, procmgr units only defines the units that are different from the systemd units.
 // Getting the procmgr units will fallback to the systemd units if not find.
 func unitSetProcmgr(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
@@ -221,6 +230,12 @@ var (
 		{subdir: "sd/debrpm", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, true)},
 		{subdir: "sd/oci-nc", units: unitSetSystemd(stableDataOCI, expDataOCI, false)},
 		{subdir: "sd/debrpm-nc", units: unitSetSystemd(stableDataDebRpm, expDataDebRpm, false)},
+		// The rshell-only paths are short enough for Windows checkouts without
+		// renaming the existing generated systemd fixture tree.
+		{subdir: "r/o", units: unitSetPrivilegedRshell(stableDataOCI, expDataOCI, true)},
+		{subdir: "r/d", units: unitSetPrivilegedRshell(stableDataDebRpm, expDataDebRpm, true)},
+		{subdir: "r/on", units: unitSetPrivilegedRshell(stableDataOCI, expDataOCI, false)},
+		{subdir: "r/dn", units: unitSetPrivilegedRshell(stableDataDebRpm, expDataDebRpm, false)},
 	}
 	procmgrEmbeddedLayouts = []embeddedLayout{
 		{subdir: "pm/oci", units: unitSetProcmgr(stableDataOCI, expDataOCI, true)},

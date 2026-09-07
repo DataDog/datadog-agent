@@ -59,6 +59,8 @@ type rcClient struct {
 	IPC               ipc.Component
 }
 
+var _ rcclient.TUFProofProvider = (*rcClient)(nil)
+
 // Dependencies defines the dependencies for the rcclient component.
 type Dependencies struct {
 	compdef.In
@@ -364,6 +366,14 @@ func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]st
 		return
 	}
 	rc.client.Subscribe(string(product), fn)
+}
+
+// GetConfigTUFProof returns the current Director proof for a Remote Config target.
+func (rc *rcClient) GetConfigTUFProof(targetPath string) (state.ConfigTUFProof, bool) {
+	if rc.client == nil {
+		return state.ConfigTUFProof{}, false
+	}
+	return rc.client.GetConfigTUFProof(targetPath)
 }
 
 func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {

@@ -64,7 +64,7 @@ func TestBuildPreflightConfigCarriesOperatorSettings(t *testing.T) {
 	cfg.Set("site", "datadoghq.eu", pkgconfigmodel.SourceFile)
 	cfg.Set("proxy.https", "http://proxy.internal:3128", pkgconfigmodel.SourceFile)
 
-	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
 
 	// The whole premise of the pre-flight is that ADP runs against the operator's real
 	// configuration, api_key and proxy included.
@@ -91,7 +91,7 @@ func TestBuildPreflightConfigCarriesOnlyOperatorSettings(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("forwarder_timeout", 42, pkgconfigmodel.SourceFile)
 
-	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
 
 	// A setting the operator tuned reaches ADP, so it forwards the way the Agent would.
 	requireEq(t, got, "forwarder_timeout", 42)
@@ -118,7 +118,7 @@ func TestBuildPreflightConfigCarriesEnvSourcedSettings(t *testing.T) {
 	// one the real preflight sees.
 	cfg.Set("proxy.https", "http://proxy.internal:3128", pkgconfigmodel.SourceConfigPostInit)
 
-	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
 
 	requireEq(t, got, "api_key", "0123456789abcdef0123456789abcdef")
 	requireEq(t, got, "site", "datad0g.com")
@@ -134,7 +134,7 @@ func TestBuildPreflightConfigDropsUnsetDDURL(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("site", "datad0g.com", pkgconfigmodel.SourceFile)
 
-	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
 
 	_, present := get(t, got, "dd_url")
 	assert.False(t, present, "an unset dd_url must not reach ADP as though it were configured")
@@ -148,7 +148,7 @@ func TestBuildPreflightConfigKeepsConfiguredDDURL(t *testing.T) {
 	cfg.Set("site", "datad0g.com", pkgconfigmodel.SourceFile)
 	cfg.Set("dd_url", "https://app.datad0g.com", pkgconfigmodel.SourceFile)
 
-	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
 
 	requireEq(t, got, "dd_url", "https://app.datad0g.com")
 }
@@ -157,7 +157,7 @@ func TestBuildPreflightConfigOverrides(t *testing.T) {
 	cfg := configmock.New(t)
 	workDir := t.TempDir()
 
-	got := buildPreflightConfig(cfg, newListener(workDir))
+	got := buildPreflightConfig(cfg, newListener(workDir), "test-host")
 
 	requireEq(t, got, DataPlaneEnabled, true)
 	requireEq(t, got, "data_plane.dogstatsd.enabled", true)
@@ -186,6 +186,36 @@ func TestBuildPreflightConfigOverrides(t *testing.T) {
 	requireEq(t, got, "dogstatsd_non_local_traffic", false)
 }
 
+// TestBuildPreflightConfigInjectsResolvedHostname guards the fix for the pre-flight failing
+// outright on any host that does not set `hostname`/`DD_HOSTNAME` explicitly: the Core Agent
+// resolves its hostname at runtime (EC2 metadata, OS hostname, etc.) but never writes the
+// result back into its own config store, so AllSettingsWithoutDefault's `hostname` is empty on
+// the overwhelming majority of real hosts. Standalone-mode ADP has no fallback for a missing
+// `hostname` and childEnv strips DD_HOSTNAME from its environment, so the caller-resolved
+// hostname passed into buildPreflightConfig is the only way it ever learns one.
+func TestBuildPreflightConfigInjectsResolvedHostname(t *testing.T) {
+	cfg := configmock.New(t)
+
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "resolved-host")
+
+	requireEq(t, got, "hostname", "resolved-host")
+}
+
+// TestBuildPreflightConfigOverridesOperatorHostname documents that the resolved hostname wins
+// even over a `hostname` the operator configured directly: buildPreflightConfig is always
+// handed the same value the Core Agent already resolved through that setting (see fromConfig
+// in pkg/util/hostname/common.go), so overriding it can only ever replace it with itself.
+// Passing it through unconditionally, rather than only when the config's own value is empty,
+// keeps this function from needing to duplicate the Core Agent's hostname resolution order.
+func TestBuildPreflightConfigOverridesOperatorHostname(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("hostname", "operator-configured-host", pkgconfigmodel.SourceFile)
+
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "operator-configured-host")
+
+	requireEq(t, got, "hostname", "operator-configured-host")
+}
+
 // TestBuildPreflightConfigShrinksFootprint covers the settings that exist only to keep the
 // preflight process small. Each one is a buffer or cache ADP allocates up front and holds for the
 // whole run, sized by default for production traffic that a one-metric pre-flight never sends.
@@ -198,7 +228,7 @@ func TestBuildPreflightConfigShrinksFootprint(t *testing.T) {
 	cfg.Set("dogstatsd_buffer_size", 65536, pkgconfigmodel.SourceFile)
 	cfg.Set("dogstatsd_string_interner_size", 131072, pkgconfigmodel.SourceFile)
 
-	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
 
 	requireEq(t, got, "dogstatsd_buffer_size", 512)
 	requireEq(t, got, "dogstatsd_string_interner_size", 1)
@@ -227,7 +257,7 @@ func TestBuildPreflightConfigOverridesOperatorLogging(t *testing.T) {
 	cfg.Set("log_to_console", false, pkgconfigmodel.SourceFile)
 	cfg.Set("log_level", "debug", pkgconfigmodel.SourceFile)
 
-	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
 
 	requireEq(t, got, "disable_file_logging", true)
 	requireEq(t, got, "log_format_json", true)
@@ -295,7 +325,7 @@ func TestBuildPreflightConfigClearsMetricNamespace(t *testing.T) {
 	// is how the original version of this test passed while guarding nothing.
 	require.Equal(t, "acme.", cfg.GetString("statsd_metric_namespace"))
 
-	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
 
 	requireEq(t, got, "statsd_metric_namespace", "")
 	requireEq(t, got, "statsd_metric_namespace_blacklist", []string{})
@@ -314,7 +344,7 @@ func TestBuildPreflightConfigDisablesDiskRetryQueue(t *testing.T) {
 	// Set on an unknown key is a silent no-op, so prove the Given clause took.
 	require.Equal(t, int64(500_000_000), cfg.GetInt64("forwarder_storage_max_size_in_bytes"))
 
-	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
 
 	requireEq(t, got, "forwarder_storage_max_size_in_bytes", 0)
 }
@@ -332,7 +362,7 @@ func TestBuildPreflightConfigOverridesOperatorListeners(t *testing.T) {
 
 	workDir := t.TempDir()
 	l := newListener(workDir)
-	got := buildPreflightConfig(cfg, l)
+	got := buildPreflightConfig(cfg, l, "test-host")
 
 	requireEq(t, got, "dogstatsd_port", 0)
 	requireEq(t, got, "dogstatsd_stream_socket", "")
@@ -364,7 +394,7 @@ func TestBuildPreflightConfigPassesThroughCoreAgentOnlySettings(t *testing.T) {
 	cfg.Set(DataPlanePreflightMode, true, pkgconfigmodel.SourceFile)
 	cfg.Set("otlp_config.receiver.protocols.grpc.endpoint", "0.0.0.0:4317", pkgconfigmodel.SourceFile)
 
-	got := buildPreflightConfig(cfg, newListener(t.TempDir()))
+	got := buildPreflightConfig(cfg, newListener(t.TempDir()), "test-host")
 
 	_, present := get(t, got, DataPlanePreflightMode)
 	assert.True(t, present, "ADP ignores keys it does not recognise, so stripping is unnecessary")
@@ -377,7 +407,7 @@ func TestWritePreflightConfig(t *testing.T) {
 	cfg.Set("api_key", "0123456789abcdef0123456789abcdef", pkgconfigmodel.SourceFile)
 
 	workDir := t.TempDir()
-	path, err := writePreflightConfig(cfg, newListener(workDir), workDir)
+	path, err := writePreflightConfig(cfg, newListener(workDir), workDir, "test-host")
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(workDir, preflightConfigFileName), path)
 

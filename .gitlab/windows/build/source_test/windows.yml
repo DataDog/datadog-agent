@@ -73,6 +73,7 @@
 tests_windows-x64:
   extends: .tests_windows_base
   #parallel: 10
+  timeout: 1h 20m
   variables:
     ARCH: "x64"
 
