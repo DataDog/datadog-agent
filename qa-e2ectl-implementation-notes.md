@@ -185,3 +185,29 @@ Tricky points found while executing:
 - Docker on the VM: the ec2 post-provision fakeintake runs `docker` on the host;
   the plain awshost image may not ship it — flagged for the (untestable, no
   creds) EC2 path: the scenario may need WithDocker like the dockerhost envs.
+
+### 10. Review findings (independent review pass, 2026-09-07)
+
+Two defects confirmed against HEAD (24a2d190cb2), verified from the supervisor side:
+
+- **Runner BUILD breakage**: `test/e2e-framework/testing/runner/configmap_test.go:26`
+  calls the pre-migration `BuildStackParameters` (undefined under the `test` tag;
+  `go vet -tags test ./testing/runner/` fails), and the BUILD.bazel still embeds the
+  test file. Test-tag compilation of the runner package is broken.
+
+- **Snapshot contract breakage (traces to the M1 design)**: `components.Export` keys
+  each Importable by its component *export name* (dd-Host-*/dd-HostAgent-*), so
+  `ProvisionE`'s RawResources carry export-name keys; `StaticStackProvisioner.wireEnv`
+  matches field-name/`import`-tag keys and nils everything else; `WriteSnapshotFile`
+  preserves keys verbatim. Net: the documented roundtrip (ProvisionE →
+  WriteSnapshotFile → StaticStack reattach) loses ALL components for stock
+  Pulumi-provisioned envs. The kind driver is unaffected only because kinddriver
+  hand-synthesizes canonical keys; the EC2 path (provision-ec2 → install-host) carries
+  the bug live (never cloud-tested). The snapshot tests assert format substrings, never
+  a wireEnv roundtrip — the gap that let this through.
+
+  Fix direction when picked up: canonicalize at write time from the *wired env*
+  (SetKey happened during BuildEnvFromResources — a `CanonicalResources(env,
+  resources)` inverse of wireEnv), or make Export use import-tag names; add a
+  wireEnv roundtrip test with a fake Importable env at the provisioners/provisioner
+  boundary.
