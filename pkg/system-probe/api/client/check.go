@@ -52,15 +52,18 @@ type startChecker struct {
 	mutex          sync.Mutex
 	startTime      time.Time
 	startupTimeout time.Duration
+	warningLimit   *log.Limit
 	started        bool
 	inFlight       chan struct{}
 }
 
 // getStartChecker is a memoized function that returns the singleton startChecker.
 var getStartChecker = funcs.MemoizeNoError[*startChecker](func() *startChecker {
+	startupTimeout := pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time")
 	return &startChecker{
 		startTime:      time.Now(),
-		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
+		startupTimeout: startupTimeout,
+		warningLimit:   log.NewLogLimit(1, startupTimeout),
 	}
 })
 
@@ -118,7 +121,9 @@ func (c *startChecker) ensureStarted(ctx context.Context, client *http.Client) e
 			// For the first few minutes after startup, only emit warnings
 			// instead of reporting errors from the check, to allow a reasonable
 			// time for system-probe to become ready to serve requests
-			log.Warnf("system-probe not started yet: %v", err)
+			if c.warningLimit == nil || c.warningLimit.ShouldLog() {
+				log.Warnf("system-probe not started yet: %v", err)
+			}
 
 			// Callers should check for this error and not propagate it to avoid
 			// error logs from the check infrastructure.

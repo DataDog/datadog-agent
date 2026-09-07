@@ -69,6 +69,8 @@ const (
 	serviceCollectionBatchSizeConfigKey              = "discovery.service_collection_batch_size"
 	serviceCollectionMaxConsecutiveTimeoutsConfigKey = "discovery.service_collection_max_consecutive_timeouts"
 	serviceCollectionMinProcessAgeConfigKey          = "discovery.service_collection_min_process_age"
+
+	serviceCollectionStartupRetryInterval = 2 * time.Second
 )
 
 type collector struct {
@@ -270,10 +272,10 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 		if c.isProcessDataCollectionEnabled() {
 			log.Debug("Starting cached service collection (process data collection enabled)")
-			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval))
+			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval), serviceCollectionInterval)
 		} else {
 			log.Debug("Starting non-cached service collection (process data collection disabled)")
-			go c.collectServicesNoCache(ctx, c.clock.Ticker(serviceCollectionInterval))
+			go c.collectServicesNoCache(ctx, c.clock.Ticker(serviceCollectionInterval), serviceCollectionInterval)
 		}
 	}
 
@@ -689,14 +691,14 @@ func (c *collector) getProcessEntitiesFromServices(newPids []int32, heartbeatPid
 }
 
 // updateServices retrieves service discovery data for alive processes and returns workloadmeta entities
-func (c *collector) updateServices(ctx context.Context, alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, core.PidSet) {
+func (c *collector) updateServices(ctx context.Context, alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, core.PidSet, error) {
 	if c.serviceDiscoveryDisabledByTimeouts() {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	newPids, heartbeatPids := c.filterPidsToRequest(alivePids, procs)
 	if len(newPids) == 0 && len(heartbeatPids) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	resp, successfulNewPids, successfulHeartbeatPids, err := c.getDiscoveryServicesBatched(ctx, newPids, heartbeatPids)
@@ -708,7 +710,7 @@ func (c *collector) updateServices(ctx context.Context, alivePids core.PidSet, p
 	}
 
 	if len(successfulNewPids) == 0 && len(successfulHeartbeatPids) == 0 {
-		return nil, nil
+		return nil, nil, err
 	}
 
 	pidsToService := make(map[int32]*model.Service, len(successfulNewPids)+len(successfulHeartbeatPids))
@@ -733,13 +735,13 @@ func (c *collector) updateServices(ctx context.Context, alivePids core.PidSet, p
 		gpuPids.Add(int32(pid))
 	}
 
-	return c.getProcessEntitiesFromServices(successfulNewPids, successfulHeartbeatPids, pidsToService, injectedPids, gpuPids), injectedPids
+	return c.getProcessEntitiesFromServices(successfulNewPids, successfulHeartbeatPids, pidsToService, injectedPids, gpuPids), injectedPids, err
 }
 
-func (c *collector) updateServicesNoCache(ctx context.Context, alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
-	entities, _ := c.updateServices(ctx, alivePids, procs)
+func (c *collector) updateServicesNoCache(ctx context.Context, alivePids core.PidSet, procs map[int32]*procutil.Process) ([]*workloadmeta.Process, error) {
+	entities, _, err := c.updateServices(ctx, alivePids, procs)
 	if len(entities) == 0 {
-		return nil
+		return nil, err
 	}
 
 	pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
@@ -768,7 +770,7 @@ func (c *collector) updateServicesNoCache(ctx context.Context, alivePids core.Pi
 		}
 	}
 
-	return entities
+	return entities, err
 }
 
 // getProcessDataForServices returns alive pids and processes
@@ -909,39 +911,55 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 	}
 }
 
-func (c *collector) collectServicesNoCache(ctx context.Context, collectionTicker *clock.Ticker) {
-	ctx, cancel := context.WithCancel(ctx)
+// collectServices runs an initial collection immediately, then collects at the
+// configured interval. If the initial request reaches system-probe before it is
+// ready, collectOnce asks for short retries until either one succeeds or the
+// first regular collection is due.
+func (c *collector) collectServices(ctx context.Context, collectionTicker *clock.Ticker, collectionInterval time.Duration, collectOnce func(context.Context, bool) bool) {
 	defer collectionTicker.Stop()
-	defer cancel()
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+
+	startupDeadline := c.clock.Now().Add(collectionInterval)
+	retryAtStartup := collectOnce(ctx, true)
+
+	var startupRetryTicker *clock.Ticker
+	var startupRetryC <-chan time.Time
+	if retryAtStartup && c.clock.Now().Add(serviceCollectionStartupRetryInterval).Before(startupDeadline) {
+		startupRetryTicker = c.clock.Ticker(serviceCollectionStartupRetryInterval)
+		startupRetryC = startupRetryTicker.C
+		log.Debugf("service discovery is not ready; retrying every %s until the first regular collection", serviceCollectionStartupRetryInterval)
+	}
+	stopStartupRetries := func() {
+		if startupRetryTicker != nil {
+			startupRetryTicker.Stop()
+			startupRetryTicker = nil
+			startupRetryC = nil
+		}
+	}
+	defer stopStartupRetries()
+
 	for {
 		select {
-		case <-collectionTicker.C:
-			alivePids, procs, err := c.getProcessDataForServices()
-			if err != nil {
-				log.Errorf("Error getting processes for service discovery: %v", err)
+		case <-startupRetryC:
+			if !collectOnce(ctx, true) {
+				log.Debugf("startup service collection retries finished after %s", collectionInterval-c.clock.Until(startupDeadline))
+				stopStartupRetries()
 				continue
 			}
-			if len(alivePids) == 0 {
-				continue // no processes to check
+
+			// Do not schedule an accelerated retry at or after the first regular
+			// collection. This keeps the startup behavior bounded by the configured
+			// interval instead of relying on a fixed attempt count.
+			if !c.clock.Now().Add(serviceCollectionStartupRetryInterval).Before(startupDeadline) {
+				stopStartupRetries()
 			}
-
-			wlmServiceEntities := c.updateServicesNoCache(ctx, alivePids, procs)
-			deletedProcesses := c.findDeletedProcesses(procs)
-
-			if len(wlmServiceEntities) > 0 || len(deletedProcesses) > 0 {
-				c.processEventsCh <- &Event{
-					Type:    EventTypeServiceDiscovery,
-					Created: wlmServiceEntities,
-					Deleted: deletedProcesses,
-				}
-			}
-
-			c.mux.Lock()
-			c.lastCollectedProcesses = procs
-			c.mux.Unlock()
-
-			c.cleanDiscoveryMaps(alivePids)
-			c.updateDiscoveredServicesMetric()
+		case <-collectionTicker.C:
+			stopStartupRetries()
+			collectOnce(ctx, false)
 		case <-ctx.Done():
 			log.Infof("The %s service collector has stopped", collectorID)
 			return
@@ -949,64 +967,114 @@ func (c *collector) collectServicesNoCache(ctx context.Context, collectionTicker
 	}
 }
 
-// collectServices captures service discovery data for alive processes
-func (c *collector) collectServicesCached(ctx context.Context, collectionTicker *clock.Ticker) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer collectionTicker.Stop()
-	defer cancel()
-	for {
-		select {
-		case <-collectionTicker.C:
-			alivePids, procs, err := c.getCachedProcessData()
-			if err != nil {
-				log.Errorf("Error getting processes for service discovery: %v", err)
-				continue
-			}
+func (c *collector) collectServicesNoCache(ctx context.Context, collectionTicker *clock.Ticker, collectionInterval time.Duration) {
+	c.collectServices(ctx, collectionTicker, collectionInterval, c.collectServicesNoCacheOnce)
+}
 
-			var wlmDeletedProcs []*workloadmeta.Process
-			for pid := range c.pidHeartbeats {
-				if alivePids.Has(pid) {
-					continue
-				}
+// collectServicesNoCacheOnce performs one non-cached service collection and
+// reports whether the startup scheduler should retry because system-probe is
+// not ready yet.
+func (c *collector) collectServicesNoCacheOnce(ctx context.Context, _ bool) bool {
+	alivePids, procs, err := c.getProcessDataForServices()
+	if err != nil {
+		log.Errorf("Error getting processes for service discovery: %v", err)
+		return false
+	}
+	if len(alivePids) == 0 {
+		return false // no processes to check
+	}
 
-				wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindProcess,
-						ID:   strconv.Itoa(int(pid)),
-					},
-				})
-			}
+	wlmServiceEntities, err := c.updateServicesNoCache(ctx, alivePids, procs)
+	deletedProcesses := c.findDeletedProcesses(procs)
 
-			// Check for deleted processes whose injection status we reported (but had no service)
-			for pid := range c.knownInjectionStatusPids {
-				if alivePids.Has(pid) {
-					continue
-				}
-
-				wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindProcess,
-						ID:   strconv.Itoa(int(pid)),
-					},
-				})
-			}
-
-			wlmServiceEntities, _ := c.updateServices(ctx, alivePids, procs)
-
-			if len(wlmServiceEntities) > 0 || len(wlmDeletedProcs) > 0 {
-				c.processEventsCh <- &Event{
-					Type:    EventTypeServiceDiscovery,
-					Created: wlmServiceEntities,
-					Deleted: wlmDeletedProcs,
-				}
-			}
-
-			c.cleanDiscoveryMaps(alivePids)
-			c.updateDiscoveredServicesMetric()
-		case <-ctx.Done():
-			log.Infof("The %s service collector has stopped", collectorID)
-			return
+	if len(wlmServiceEntities) > 0 || len(deletedProcesses) > 0 {
+		if !c.sendProcessEvent(ctx, &Event{
+			Type:    EventTypeServiceDiscovery,
+			Created: wlmServiceEntities,
+			Deleted: deletedProcesses,
+		}) {
+			return false
 		}
+	}
+
+	c.mux.Lock()
+	c.lastCollectedProcesses = procs
+	c.mux.Unlock()
+
+	c.cleanDiscoveryMaps(alivePids)
+	c.updateDiscoveredServicesMetric()
+	return errors.Is(err, errServiceDiscoveryRequestStartup)
+}
+
+// collectServices captures service discovery data for alive processes
+func (c *collector) collectServicesCached(ctx context.Context, collectionTicker *clock.Ticker, collectionInterval time.Duration) {
+	c.collectServices(ctx, collectionTicker, collectionInterval, c.collectServicesCachedOnce)
+}
+
+// collectServicesCachedOnce performs one cached service collection and reports
+// whether the startup scheduler should retry. An empty cache is retryable
+// because the process collector populates it concurrently during startup.
+func (c *collector) collectServicesCachedOnce(ctx context.Context, startup bool) bool {
+	alivePids, procs, err := c.getCachedProcessData()
+	if err != nil {
+		log.Errorf("Error getting processes for service discovery: %v", err)
+		return false
+	}
+	if startup && len(alivePids) == 0 {
+		return true
+	}
+
+	var wlmDeletedProcs []*workloadmeta.Process
+	for pid := range c.pidHeartbeats {
+		if alivePids.Has(pid) {
+			continue
+		}
+
+		wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(pid)),
+			},
+		})
+	}
+
+	// Check for deleted processes whose injection status we reported (but had no service)
+	for pid := range c.knownInjectionStatusPids {
+		if alivePids.Has(pid) {
+			continue
+		}
+
+		wlmDeletedProcs = append(wlmDeletedProcs, &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(pid)),
+			},
+		})
+	}
+
+	wlmServiceEntities, _, err := c.updateServices(ctx, alivePids, procs)
+
+	if len(wlmServiceEntities) > 0 || len(wlmDeletedProcs) > 0 {
+		if !c.sendProcessEvent(ctx, &Event{
+			Type:    EventTypeServiceDiscovery,
+			Created: wlmServiceEntities,
+			Deleted: wlmDeletedProcs,
+		}) {
+			return false
+		}
+	}
+
+	c.cleanDiscoveryMaps(alivePids)
+	c.updateDiscoveredServicesMetric()
+	return errors.Is(err, errServiceDiscoveryRequestStartup)
+}
+
+func (c *collector) sendProcessEvent(ctx context.Context, event *Event) bool {
+	select {
+	case c.processEventsCh <- event:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 
