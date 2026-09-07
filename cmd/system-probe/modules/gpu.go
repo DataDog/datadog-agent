@@ -71,7 +71,8 @@ var GPUMonitoring = &module.Factory{
 
 		deviceCache := ddnvml.NewDeviceCache()
 		var p *gpu.Probe
-		var driverEventSubscriber *gpu.DriverEventSubscriber
+		var driverEventSubscriber driverEventSubscriber
+		startDriverEvents := c.DriverEventsEnabled
 		var err error
 		if c.EnableEBPFProbes {
 			probeDeps := gpu.ProbeDependencies{
@@ -88,24 +89,20 @@ var GPUMonitoring = &module.Factory{
 		}
 		if c.EnableEBPFProbes || c.DriverEventsEnabled {
 			if err := deviceCache.Refresh(); err != nil {
-				if p != nil {
-					p.Close()
-				}
-				cancel()
-				return nil, fmt.Errorf("refresh GPU device cache: %w", err)
+				log.Errorf("unable to refresh GPU device cache: %v", err)
+				startDriverEvents = false
+			} else {
+				go refreshDeviceCache(ctx, deviceCache, c.DeviceCacheRefreshInterval)
 			}
-			go refreshDeviceCache(ctx, deviceCache, c.DeviceCacheRefreshInterval)
 		}
-		if c.DriverEventsEnabled {
-			driverEventSubscriber, err = gpu.NewDriverEventSubscriber(deps.Telemetry, deviceCache, gpu.DriverEventSubscriberConfig{
+		if startDriverEvents {
+			subscriber, err := gpu.NewDriverEventSubscriber(deps.Telemetry, deviceCache, gpu.DriverEventSubscriberConfig{
 				QueueSize: driverEventQueueSize,
 			})
 			if err != nil {
-				if p != nil {
-					p.Close()
-				}
-				cancel()
-				return nil, fmt.Errorf("unable to start GPU driver event subscriber: %w", err)
+				log.Errorf("unable to start GPU driver event subscriber: %v", err)
+			} else {
+				driverEventSubscriber = subscriber
 			}
 		}
 
