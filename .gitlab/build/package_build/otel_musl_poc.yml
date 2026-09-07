@@ -1,0 +1,13 @@
+---
+otel-agent-musl-poc:
+  stage: package_build
+  image: registry.ddbuild.io/images/mirror/library/alpine:3.20
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  script:
+    - apk add --no-cache python3 py3-pip go musl-dev gcc git bash curl
+    - pip install --break-system-packages dda
+    - dda inv -- -e otel-agent.build
+    - file ./bin/otel-agent/otel-agent
+    - file ./bin/otel-agent/otel-agent | grep -q "musl" || (echo "binary is not musl-linked, this validation job is broken" && exit 1)
+    - echo "otel-agent builds cleanly against real musl (Alpine), no glibc override needed"
