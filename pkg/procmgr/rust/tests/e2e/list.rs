@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::helpers::{ProcessExpect, TestEnv, pid_is_alive};
+use crate::helpers::{ProcessExpect, TestEnv, expected_agent_spawn_user, pid_is_alive};
 use dd_procmgrd::test_helpers;
 
 #[test]
@@ -11,6 +11,12 @@ fn list_empty_when_no_processes() {
     let procmgr = TestEnv::new().start();
     procmgr.require_status().assert_ready();
     procmgr.require_list().assert_empty();
+
+    let out = procmgr.cli_list_json();
+    out.assert_success();
+    let json = out.stdout_json();
+    let arr = json.as_array().expect("expected JSON array");
+    assert!(arr.is_empty(), "expected empty array, got {json}");
 }
 
 #[test]
@@ -30,21 +36,7 @@ fn list_shows_running_and_created_mix() {
 }
 
 #[test]
-fn list_shows_exited_with_last_exit_code() {
-    let env = TestEnv::new()
-        .with_process("exit_ok")
-        .with_process("exit_fail");
-    let procmgr = env.start();
-    procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
-    procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
-    let list = procmgr.require_list();
-    list.assert_len(2);
-    list.assert_last_exit_code("exit_ok", 0);
-    list.assert_last_exit_code("exit_fail", 1);
-}
-
-#[test]
-fn test_cli_list_terminal_table_fields() {
+fn list_terminal_table_fields() {
     let procmgr = TestEnv::new()
         .with_process("exit_ok")
         .with_process("exit_fail")
@@ -52,7 +44,13 @@ fn test_cli_list_terminal_table_fields() {
     procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
     procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
 
+    let list = procmgr.require_list();
+    list.assert_len(2);
+    list.assert_last_exit_code("exit_ok", 0);
+    list.assert_last_exit_code("exit_fail", 1);
+
     let python = test_helpers::python_exe();
+    let expected_user = expected_agent_spawn_user();
     procmgr
         .cli_list()
         .assert_success()
@@ -61,6 +59,8 @@ fn test_cli_list_terminal_table_fields() {
             &[
                 ("STATE", "Exited"),
                 ("PID", "-"),
+                ("PROFILE", "agent"),
+                ("USER", &expected_user),
                 ("LAST EXIT", "exit 0"),
                 ("COMMAND", &python),
             ],
@@ -70,6 +70,8 @@ fn test_cli_list_terminal_table_fields() {
             &[
                 ("STATE", "Failed"),
                 ("PID", "-"),
+                ("PROFILE", "agent"),
+                ("USER", &expected_user),
                 ("LAST EXIT", "exit 1"),
                 ("COMMAND", &python),
             ],
@@ -78,7 +80,7 @@ fn test_cli_list_terminal_table_fields() {
 }
 
 #[test]
-fn test_cli_list_json() {
+fn list_json() {
     let env = TestEnv::new()
         .with_config("sleeper", test_helpers::sleep_config_yaml())
         .start();
@@ -104,15 +106,6 @@ fn test_cli_list_json() {
     let pid = entry["pid"].as_u64().expect("pid should be a number") as u32;
     assert!(pid > 0, "running process should have a PID");
     assert!(pid_is_alive(pid), "PID {pid} should be alive");
-}
-
-#[test]
-fn test_cli_list_json_empty() {
-    let env = TestEnv::new().start();
-
-    let out = env.cli_list_json();
-    out.assert_success();
-    let json = out.stdout_json();
-    let arr = json.as_array().expect("expected JSON array");
-    assert!(arr.is_empty(), "expected empty array, got {json}");
+    assert_eq!(entry["profile"], "agent");
+    assert_eq!(entry["user"], expected_agent_spawn_user());
 }
