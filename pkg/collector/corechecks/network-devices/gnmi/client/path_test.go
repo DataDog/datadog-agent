@@ -44,3 +44,15 @@ func TestCacheKeyFromGNMIPath(t *testing.T) {
 	require.Equal(t, "/interfaces/interface/state/counters/in-octets", key.Path)
 	require.Equal(t, map[string]string{"name": "eth0"}, key.Keys)
 }
+
+func TestCacheKeyFromGNMIPathModulePrefixedSegments(t *testing.T) {
+	path := &gnmipb.Path{
+		Elem: []*gnmipb.PathElem{
+			{Name: "openconfig-system:system"},
+			{Name: "state"},
+		},
+	}
+
+	key := cacheKeyFromGNMIPath(path)
+	require.Equal(t, "/openconfig/system/state", key.Path)
+}
