@@ -5,6 +5,7 @@
 new-e2e-otel-eks-init:
   stage: e2e_init
   extends: .new_e2e_template
+  timeout: 1h 05m
   rules:
     - !reference [.on_otel_or_e2e_changes]
     - !reference [.manual]

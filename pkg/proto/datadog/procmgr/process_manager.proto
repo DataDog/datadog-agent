@@ -44,6 +44,8 @@ message Process {
   uint32 restart_count = 7;
   optional int32 last_exit_code = 8;
   optional int32 last_signal = 9;
+  string profile = 10;
+  string user = 11;
 }
 
 message ListResponse {
@@ -74,6 +76,9 @@ message ProcessDetail {
   uint32 restart_count = 17;
   optional int32 last_exit_code = 18;
   optional int32 last_signal = 19;
+  string profile = 20;
+  string user = 21;
+  string runtime_user = 22;
 }
 
 message DescribeResponse {

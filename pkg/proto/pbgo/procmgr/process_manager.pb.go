@@ -140,6 +140,8 @@ type Process struct {
 	RestartCount  uint32                 `protobuf:"varint,7,opt,name=restart_count,json=restartCount,proto3" json:"restart_count,omitempty"`
 	LastExitCode  *int32                 `protobuf:"varint,8,opt,name=last_exit_code,json=lastExitCode,proto3,oneof" json:"last_exit_code,omitempty"`
 	LastSignal    *int32                 `protobuf:"varint,9,opt,name=last_signal,json=lastSignal,proto3,oneof" json:"last_signal,omitempty"`
+	Profile       string                 `protobuf:"bytes,10,opt,name=profile,proto3" json:"profile,omitempty"`
+	User          string                 `protobuf:"bytes,11,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -235,6 +237,20 @@ func (x *Process) GetLastSignal() int32 {
 		return *x.LastSignal
 	}
 	return 0
+}
+
+func (x *Process) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *Process) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
 }
 
 type ListResponse struct {
@@ -346,6 +362,9 @@ type ProcessDetail struct {
 	RestartCount        uint32                 `protobuf:"varint,17,opt,name=restart_count,json=restartCount,proto3" json:"restart_count,omitempty"`
 	LastExitCode        *int32                 `protobuf:"varint,18,opt,name=last_exit_code,json=lastExitCode,proto3,oneof" json:"last_exit_code,omitempty"`
 	LastSignal          *int32                 `protobuf:"varint,19,opt,name=last_signal,json=lastSignal,proto3,oneof" json:"last_signal,omitempty"`
+	Profile             string                 `protobuf:"bytes,20,opt,name=profile,proto3" json:"profile,omitempty"`
+	User                string                 `protobuf:"bytes,21,opt,name=user,proto3" json:"user,omitempty"`
+	RuntimeUser         string                 `protobuf:"bytes,22,opt,name=runtime_user,json=runtimeUser,proto3" json:"runtime_user,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -511,6 +530,27 @@ func (x *ProcessDetail) GetLastSignal() int32 {
 		return *x.LastSignal
 	}
 	return 0
+}
+
+func (x *ProcessDetail) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *ProcessDetail) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *ProcessDetail) GetRuntimeUser() string {
+	if x != nil {
+		return x.RuntimeUser
+	}
+	return ""
 }
 
 type DescribeResponse struct {
@@ -1322,7 +1362,7 @@ var File_datadog_procmgr_process_manager_proto protoreflect.FileDescriptor
 const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\n" +
 	"%datadog/procmgr/process_manager.proto\x12\x0fdatadog.procmgr\"\r\n" +
-	"\vListRequest\"\xbf\x02\n" +
+	"\vListRequest\"\xed\x02\n" +
 	"\aProcess\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
@@ -1333,14 +1373,17 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\rrestart_count\x18\a \x01(\rR\frestartCount\x12)\n" +
 	"\x0elast_exit_code\x18\b \x01(\x05H\x00R\flastExitCode\x88\x01\x01\x12$\n" +
 	"\vlast_signal\x18\t \x01(\x05H\x01R\n" +
-	"lastSignal\x88\x01\x01B\x11\n" +
+	"lastSignal\x88\x01\x01\x12\x18\n" +
+	"\aprofile\x18\n" +
+	" \x01(\tR\aprofile\x12\x12\n" +
+	"\x04user\x18\v \x01(\tR\x04userB\x11\n" +
 	"\x0f_last_exit_codeB\x0e\n" +
 	"\f_last_signal\"F\n" +
 	"\fListResponse\x126\n" +
 	"\tprocesses\x18\x01 \x03(\v2\x18.datadog.procmgr.ProcessR\tprocesses\"3\n" +
 	"\x0fDescribeRequest\x12 \n" +
 	"\fname_or_uuid\x18\x01 \x01(\tR\n" +
-	"nameOrUuid\"\xd3\x05\n" +
+	"nameOrUuid\"\xa4\x06\n" +
 	"\rProcessDetail\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -1364,7 +1407,10 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\rrestart_count\x18\x11 \x01(\rR\frestartCount\x12)\n" +
 	"\x0elast_exit_code\x18\x12 \x01(\x05H\x00R\flastExitCode\x88\x01\x01\x12$\n" +
 	"\vlast_signal\x18\x13 \x01(\x05H\x01R\n" +
-	"lastSignal\x88\x01\x01\x1a6\n" +
+	"lastSignal\x88\x01\x01\x12\x18\n" +
+	"\aprofile\x18\x14 \x01(\tR\aprofile\x12\x12\n" +
+	"\x04user\x18\x15 \x01(\tR\x04user\x12!\n" +
+	"\fruntime_user\x18\x16 \x01(\tR\vruntimeUser\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x11\n" +
