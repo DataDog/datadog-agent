@@ -1313,7 +1313,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 
 func TestGivenADiskCheckWithDefaultConfig_WhenUsageCalledConcurrentlyForSameMountpoint_ThenOnlyOneCallProceedsButSequentialCallsAreFine(t *testing.T) {
 	setupDefaultMocks()
-	entered := make(chan struct{}, 1)
+	entered := make(chan struct{}, 3)
 	unblock := make(chan struct{})
 	diskCheck := createDiskCheck(t)
 	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
