@@ -826,15 +826,18 @@ func (c *Client) FlushServerAndResetAggregators() error {
 }
 
 func (c *Client) flushPayloads() error {
-	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/flushPayloads")
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error code %v", resp.StatusCode)
-	}
-	return nil
+	_, err := backoff.Retry(context.Background(), func() (struct{}, error) {
+		resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/flushPayloads")
+		if err != nil {
+			return struct{}{}, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return struct{}{}, fmt.Errorf("error code %v", resp.StatusCode)
+		}
+		return struct{}{}, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(c.getBackoffDelay)), backoff.WithMaxTries(c.getBackoffRetries))
+	return err
 }
 
 // GetConnections fetches fakeintake on `/api/v1/connections` endpoint and returns
