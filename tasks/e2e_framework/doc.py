@@ -20,6 +20,7 @@ bottlerocket_node_group: str = "Install a bottlerocket node group (default True)
 windows_node_group: str = "Install a Windows node group (default False)"
 gpu_node_group: str = "Install a GPU node group (default False)"
 gpu_instance_type: str = "Instance type for GPU node group (default g4dn.xlarge)"
+eks_auto_mode: str = "Enable EKS Auto Mode (default False). Disables managed node groups and Fargate; nodes are managed by AWS via Karpenter."
 fakeintake: str = "Use a dedicated fake Datadog intake (default False)"
 use_aws_vault: str = "Wrap aws command with aws-vault, default to True"
 interactive: str = "Enable interactive mode, if set to False notifications and copy to clipboard are disabled"

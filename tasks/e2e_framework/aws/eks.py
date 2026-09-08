@@ -25,6 +25,7 @@ scenario_name = "aws/eks"
         "windows_node_group": doc.windows_node_group,
         "gpu_node_group": doc.gpu_node_group,
         "gpu_instance_type": doc.gpu_instance_type,
+        "auto_mode": doc.eks_auto_mode,
         "instance_type": aws_doc.instance_type,
         "full_image_path": doc.full_image_path,
         "cluster_agent_full_image_path": doc.cluster_agent_full_image_path,
@@ -51,6 +52,7 @@ def create_eks(
     windows_node_group: bool = False,
     gpu_node_group: bool = False,
     gpu_instance_type: str | None = None,
+    auto_mode: bool | None = False,
     instance_type: str | None = None,
     full_image_path: str | None = None,
     cluster_agent_full_image_path: str | None = None,
@@ -71,6 +73,15 @@ def create_eks(
         linux_arm_node_group = False
         bottlerocket_node_group = False
 
+    # EKS Auto Mode manages its own nodes via Karpenter, so managed node groups
+    # and Fargate are mutually exclusive with it.
+    if auto_mode:
+        linux_node_group = False
+        linux_arm_node_group = False
+        bottlerocket_node_group = False
+        windows_node_group = False
+        gpu_node_group = False
+
     extra_flags = {
         "ddinfra:aws/eks/linuxARMNodeGroup": linux_arm_node_group,
         "ddinfra:aws/eks/linuxBottlerocketNodeGroup": bottlerocket_node_group,
@@ -78,6 +89,7 @@ def create_eks(
         "ddinfra:aws/eks/windowsNodeGroup": windows_node_group,
         "ddinfra:aws/eks/gpuNodeGroup": gpu_node_group,
         "ddinfra:aws/eks/gpuInstanceType": gpu_instance_type if gpu_instance_type else "g4dn.xlarge",
+        "ddinfra:aws/eks/autoMode": auto_mode,
         "ddagent:localChartPath": local_chart_path,
         "ddtestworkload:deployArgoRollout": install_argorollout,
         "ddinfra:kubernetesVersion": kube_version,

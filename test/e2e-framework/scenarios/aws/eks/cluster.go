@@ -71,21 +71,30 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			return err
 		}
 
-		// Cluster role
-		clusterRole, err := localEks.GetClusterRole(e, "eks-cluster-role")
+		// Cluster role. Auto Mode requires additional managed policies and a trust
+		// policy that grants "sts:TagSession" in addition to "sts:AssumeRole".
+		var clusterRole *awsIam.Role
+		if params.AutoMode {
+			clusterRole, err = localEks.GetAutoModeClusterRole(e, "eks-cluster-role")
+		} else {
+			clusterRole, err = localEks.GetClusterRole(e, "eks-cluster-role")
+		}
 		if err != nil {
 			return err
 		}
 
-		// IAM Node role
-		linuxNodeRole, err := localEks.GetNodeRole(e, "eks-linux-node-role")
-		if err != nil {
-			return err
-		}
+		// IAM Node role. Not needed under EKS Auto Mode, which manages its own node role.
+		var linuxNodeRole, windowsNodeRole *awsIam.Role
+		if !params.AutoMode {
+			linuxNodeRole, err = localEks.GetNodeRole(e, "eks-linux-node-role")
+			if err != nil {
+				return err
+			}
 
-		windowsNodeRole, err := localEks.GetNodeRole(e, "eks-windows-node-role")
-		if err != nil {
-			return err
+			windowsNodeRole, err = localEks.GetNodeRole(e, "eks-windows-node-role")
+			if err != nil {
+				return err
+			}
 		}
 
 		// Create an EKS cluster with the default configuration.
@@ -99,11 +108,7 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			PrivateSubnetIds:             pulumi.ToStringArray(e.DefaultSubnets()),
 			VpcId:                        pulumi.StringPtr(e.DefaultVPCID()),
 			SkipDefaultNodeGroup:         pulumi.BoolRef(true),
-			InstanceRoles: awsIam.RoleArray{
-				linuxNodeRole,
-				windowsNodeRole,
-			},
-			ServiceRole: clusterRole,
+			ServiceRole:                  clusterRole,
 			ProviderCredentialOpts: &eks.KubeconfigOptionsArgs{
 				ProfileName: pulumi.String(e.Profile()),
 			},
@@ -127,8 +132,26 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			},
 		}
 
-		// Fargate Configuration (enabled by default)
-		if !params.DisableFargate {
+		if params.AutoMode {
+			// EKS Auto Mode manages compute, networking and storage for the data
+			// plane; see https://docs.aws.amazon.com/eks/latest/userguide/automode.html
+			// Auto Mode requires access entries, which need authentication mode "API"
+			// or "API_AND_CONFIG_MAP" ("CONFIG_MAP" is unsupported). API_AND_CONFIG_MAP
+			// is used to keep the RoleMappings-based aws-auth ConfigMap entries above working.
+			authMode := eks.AuthenticationModeApiAndConfigMap
+			clusterArgs.AuthenticationMode = &authMode
+			clusterArgs.AutoMode = &eks.AutoModeOptionsArgs{
+				Enabled: true,
+			}
+		} else {
+			clusterArgs.InstanceRoles = awsIam.RoleArray{
+				linuxNodeRole,
+				windowsNodeRole,
+			}
+		}
+
+		// Fargate Configuration (enabled by default, incompatible with Auto Mode)
+		if !params.DisableFargate && !params.AutoMode {
 			var fargateProfileSelectors awsEks.FargateProfileSelectorArray
 			if fargateNamespace := e.EKSFargateNamespace(); fargateNamespace != "" {
 				fargateProfileSelectors = awsEks.FargateProfileSelectorArray{
@@ -211,8 +234,8 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			return err
 		}
 
-		// Create configuration for POD subnets if any
-		if podSubnets := e.EKSPODSubnets(); len(podSubnets) > 0 {
+		// Create configuration for POD subnets if any (custom CNI networking, not used under Auto Mode)
+		if podSubnets := e.EKSPODSubnets(); len(podSubnets) > 0 && !params.AutoMode {
 			eniConfigs, err := localEks.NewENIConfigs(e, podSubnets, append(lo.Map(e.DefaultSecurityGroups(), func(sg string, _ int) pulumi.StringInput { return pulumi.String(sg) }), cluster.EksCluster.VpcConfig().ClusterSecurityGroupId().Elem()), pulumi.Provider(eksKubeProvider), pulumi.Parent(comp))
 			if err != nil {
 				return err
@@ -268,29 +291,29 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			nodeDeps = append(nodeDeps, eniConfigs, dsPatch)
 		}
 
-		// Create managed node groups
-		if params.LinuxNodeGroup {
+		// Create managed node groups (mutually exclusive with Auto Mode, which manages its own nodes)
+		if params.LinuxNodeGroup && !params.AutoMode {
 			_, err = localEks.NewAL2023LinuxNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}
 		}
 
-		if params.LinuxARMNodeGroup {
+		if params.LinuxARMNodeGroup && !params.AutoMode {
 			_, err := localEks.NewAL2023LinuxARMNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}
 		}
 
-		if params.BottleRocketNodeGroup {
+		if params.BottleRocketNodeGroup && !params.AutoMode {
 			_, err := localEks.NewBottlerocketNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}
 		}
 
-		if params.WindowsNodeGroup {
+		if params.WindowsNodeGroup && !params.AutoMode {
 			// Applying necessary Windows configuration if Windows nodes
 			// Custom networking is not available for Windows nodes, using normal subnets IPs
 			winCNIPatch, err := corev1.NewConfigMapPatch(e.Ctx(), e.Namer.ResourceName("eks-cni-cm"), &corev1.ConfigMapPatchArgs{
@@ -316,7 +339,7 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			}
 		}
 
-		if params.GPUNodeGroup {
+		if params.GPUNodeGroup && !params.AutoMode {
 			// Create GPU node group first so the node exists for the device plugin to schedule on
 			gpuNodeGroup, err := localEks.NewGPULinuxNodeGroup(e, cluster, linuxNodeRole, params.GPUInstanceType, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {

@@ -73,6 +73,7 @@ const (
 	DDInfraEksWindowsNodeGroup                     = "aws/eks/windowsNodeGroup"
 	DDInfraEksGPUNodeGroup                         = "aws/eks/gpuNodeGroup"
 	DDInfraEksGPUInstanceType                      = "aws/eks/gpuInstanceType"
+	DDInfraEksAutoMode                             = "aws/eks/autoMode"
 	DDInfraEksAccountAdminSSORole                  = "aws/eks/accountAdminSSORole"
 	DDInfraEksReadOnlySSORole                      = "aws/eks/readOnlySSORole"
 )
@@ -431,6 +432,10 @@ func (e *Environment) EKSGPUNodeGroup() bool {
 
 func (e *Environment) EKSGPUInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraEksGPUInstanceType, e.envDefault.ddInfra.eks.gpuInstanceType)
+}
+
+func (e *Environment) EKSAutoMode() bool {
+	return e.GetBoolWithDefault(e.InfraConfig, DDInfraEksAutoMode, e.envDefault.ddInfra.eks.autoMode)
 }
 
 func (e *Environment) EKSAccountAdminSSORole() string {

@@ -18,6 +18,7 @@ type Params struct {
 	GPUNodeGroup          bool
 	GPUInstanceType       string
 	DisableFargate        bool
+	AutoMode              bool
 }
 
 type Option = func(*Params) error
@@ -78,6 +79,16 @@ func WithoutFargate() Option {
 	}
 }
 
+// WithAutoMode enables EKS Auto Mode. Auto Mode manages nodes via Karpenter,
+// so it is mutually exclusive with managed node groups and Fargate.
+// See https://docs.aws.amazon.com/eks/latest/userguide/automode.html
+func WithAutoMode() Option {
+	return func(p *Params) error {
+		p.AutoMode = true
+		return nil
+	}
+}
+
 func buildClusterOptionsFromConfigMap(e aws.Environment) []Option {
 	clusterOptions := []Option{}
 	// Add the cluster options from the config map
@@ -95,6 +106,9 @@ func buildClusterOptionsFromConfigMap(e aws.Environment) []Option {
 	}
 	if e.EKSGPUNodeGroup() {
 		clusterOptions = append(clusterOptions, WithGPUNodeGroup(e.EKSGPUInstanceType()))
+	}
+	if e.EKSAutoMode() {
+		clusterOptions = append(clusterOptions, WithAutoMode())
 	}
 	return clusterOptions
 }

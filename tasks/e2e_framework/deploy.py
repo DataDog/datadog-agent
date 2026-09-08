@@ -131,8 +131,14 @@ def deploy(
         if commit_sha:
             flags["ddagent:commit_sha"] = commit_sha
 
-    if install_agent:
+    # Standalone dogstatsd deployment needs API key even when the Agent is not installed.
+    # Pass it whenever one is configured, but only make it a hard requirement for scenarios
+    # that actually install the Agent.
+    try:
         flags["ddagent:apiKey"] = config.get_api_key(cfg)
+    except Exit:
+        if install_agent:
+            raise
 
     # When using fakeintake, enable dual shipping to send data to both fakeintake and Datadog
     # Otherwise pulumi will configure the agent to send data directly to fakeintake
