@@ -63,6 +63,7 @@ AIX_CORECHECKS = [
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
     "battery",
+    "powershell",
     "sbom",
     "thermal",
     "windows_registry",

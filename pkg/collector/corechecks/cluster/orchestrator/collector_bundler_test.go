@@ -443,6 +443,12 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 		"nvidia.com/v1alpha1/dynamomodels",
 		"nvidia.com/v1alpha1/dynamoworkermetadatas",
 
+		// KubeRay
+		"ray.io/v1/rayclusters",
+		"ray.io/v1/raycronjobs",
+		"ray.io/v1/rayjobs",
+		"ray.io/v1/rayservices",
+
 		// Gateway API
 		"gateway.networking.k8s.io/v1/gateways",
 		"gateway.networking.k8s.io/v1/httproutes",

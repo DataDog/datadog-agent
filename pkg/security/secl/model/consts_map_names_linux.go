@@ -87,6 +87,7 @@ var bpfMapNames = []string{
 	"open_flags_rdon",
 	"open_samples",
 	"otel_attrs_gen_",
+	"otel_process_ct",
 	"otel_span_attrs",
 	"otel_tls",
 	"packets",
