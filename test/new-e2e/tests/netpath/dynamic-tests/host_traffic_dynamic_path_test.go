@@ -201,12 +201,12 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.schedule.pathtest_count")
 		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.flush.pathtest_count")
 
-		netpaths, err := fakeintake.GetLatestNetpathEvents()
+		netpaths, err := fakeintake.GetNetpathEvents()
 		require.NoError(c, err)
 		require.NotEmpty(c, netpaths, "no network path events")
 
-		match := findHostTrafficNetworkPath(netpaths, hostTrafficRemoteConfigDomain)
-		require.NotNil(c, match, "no RC-admitted host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
+		match := findHostTrafficNetworkPathByClass(netpaths, hostTrafficRemoteConfigDomain, payload.DynamicTestClassCore)
+		require.NotNil(c, match, "no core-marked host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
 
 		assert.Equal(c, payload.PathOriginNetworkTraffic, match.Origin)
 		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
@@ -383,6 +383,10 @@ func (s *hostTrafficDynamicPathSuite) logRemoteFile(host *components.RemoteHost,
 }
 
 func findHostTrafficNetworkPath(netpaths []*aggregator.Netpath, domain string) *aggregator.Netpath {
+	return findHostTrafficNetworkPathByClass(netpaths, domain, "")
+}
+
+func findHostTrafficNetworkPathByClass(netpaths []*aggregator.Netpath, domain string, class payload.DynamicTestClass) *aggregator.Netpath {
 	for _, np := range netpaths {
 		if np == nil {
 			continue
@@ -390,7 +394,8 @@ func findHostTrafficNetworkPath(netpaths []*aggregator.Netpath, domain string) *
 		if np.Origin == payload.PathOriginNetworkTraffic &&
 			np.Protocol == payload.ProtocolTCP &&
 			np.Destination.Hostname == domain &&
-			np.Destination.Port == 80 {
+			np.Destination.Port == 80 &&
+			(class == "" || np.DynamicTestClass == class) {
 			return np
 		}
 	}

@@ -41,7 +41,7 @@ test/fakeintake/
 | `/api/v2/sbom` | SBOMAggregator | `GetSBOMIDs()` / `FilterSBOMs()` |
 | `/api/v2/orch` | OrchestratorAggregator | `GetOrchestratorResources()` |
 | `/api/v2/ndmflow` | NDMFlowAggregator | GetNDMFlows() |
-| `/api/v2/netpath` | NetpathAggregator | `GetLatestNetpathEvents()` |
+| `/api/v2/netpath` | NetpathAggregator | `GetNetpathEvents()` / `GetLatestNetpathEvents()` |
 | `/api/v2/agenthealth` | AgentHealthAggregator | GetAgentHealth() |
 | `/support/flare` | Flare parser | `GetLatestFlare()` |
 | `/api/v0.1/configurations` | (TUF-signed RC) | `RCStats()` (poll counter) |
