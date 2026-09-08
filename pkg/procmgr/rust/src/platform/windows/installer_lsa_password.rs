@@ -24,10 +24,6 @@ use super::secure_utf16::{SecureUtf16String, secure_zero_bytes};
 #[cfg(not(test))]
 const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 
-/// Read the ddagentuser password stored by the 7.66+ installer in LSA.
-///
-/// Requires `POLICY_GET_PRIVATE_INFORMATION` (LocalSystem / administrators). Not
-/// available to ddagentuser; callers on the supervisor-inherit path must not use this.
 #[cfg(not(test))]
 pub(crate) fn read_installer_agent_password() -> Result<Option<SecureUtf16String>> {
     let mut key_w = super::wide::null_terminated(INSTALLER_AGENT_PASSWORD_LSA_KEY);
@@ -64,7 +60,6 @@ pub(crate) fn read_installer_agent_password() -> Result<Option<SecureUtf16String
     Ok(LsaSecret { data: secret }.into_password())
 }
 
-/// `Length` / `MaximumLength` are byte counts, not UTF-16 units.
 #[cfg(not(test))]
 fn lsa_unicode_string(wide: &mut [u16]) -> LSA_UNICODE_STRING {
     let char_count = wide.len().saturating_sub(1);
@@ -75,10 +70,6 @@ fn lsa_unicode_string(wide: &mut [u16]) -> LSA_UNICODE_STRING {
     }
 }
 
-/// LSA-owned private data. Drop zeros the password bytes, then `LsaFreeMemory`.
-///
-/// Matches fleet `retrieve_private_data` cleanup in
-/// `pkg/fleet/installer/packages/user/windows/lsa.c`.
 #[cfg(not(test))]
 struct LsaSecret {
     data: *mut LSA_UNICODE_STRING,
