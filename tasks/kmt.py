@@ -2007,7 +2007,7 @@ def explain_ci_failure(ctx: Context, pipeline: str | None = None):
         infra_fail_table: list[list[str]] = []
         for failed_job in group_jobs:
             try:
-                boot_log = setup_job.get_vm_boot_log(failed_job.distro, failed_job.vmset)
+                boot_log = setup_job.get_vm_boot_log(failed_job.distro, failed_job.vmset, failed_job.shard)
             except Exception as e:
                 error(f"[x] error getting boot log for {failed_job.distro}: {e}")
                 continue
@@ -2016,7 +2016,7 @@ def explain_ci_failure(ctx: Context, pipeline: str | None = None):
                 error(f"[x] no boot log present for {failed_job.distro}")
                 continue
 
-            vmdata = setup_job.get_vm(failed_job.distro, failed_job.vmset)
+            vmdata = setup_job.get_vm(failed_job.distro, failed_job.vmset, failed_job.shard)
             if vmdata is None:
                 error("[x] could not find VM in stack.output")
                 continue

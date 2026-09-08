@@ -130,3 +130,49 @@ func selectGroup(m *testing.M, group string) bool {
 	}
 	return true
 }
+
+// selectShard trims each table to the shard-th of shards slices, striping
+// entries by the index of their name in sorted order. It runs after
+// selectGroup, so by then a table holds only one group's entries and sorting
+// its names stripes within that group, spreading an expensive group (e.g.
+// inline-config, which rebuilds the module per test) evenly across shards
+// instead of landing it wholly in one.
+//
+// The shard of a test is a pure function of its name, exactly like groupOf,
+// which is what keeps the assignment identical under gotestsum's
+// --rerun-fails: it re-invokes the binary with -test.run set to a single test
+// name, after this trimming has already run in TestMain.
+//
+// It reports false only when the test tables cannot be reached; shards <= 1
+// is a no-op success, matching an unsharded run.
+func selectShard(m *testing.M, shard, shards int) bool {
+	if shards <= 1 {
+		return true
+	}
+	tables, ok := entryTables(m)
+	if !ok {
+		return false
+	}
+
+	for _, table := range tables {
+		names := make([]string, table.Len())
+		for i := range table.Len() {
+			names[i] = table.Index(i).FieldByName("Name").String()
+		}
+		sortedNames := slices.Clone(names)
+		slices.Sort(sortedNames)
+		rank := make(map[string]int, len(sortedNames))
+		for i, name := range sortedNames {
+			rank[name] = i
+		}
+
+		kept := reflect.MakeSlice(table.Type(), 0, table.Len())
+		for i := range table.Len() {
+			if rank[names[i]]%shards == shard-1 {
+				kept = reflect.Append(kept, table.Index(i))
+			}
+		}
+		table.Set(kept)
+	}
+	return true
+}
