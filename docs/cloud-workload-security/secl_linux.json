@@ -530,7 +530,7 @@
         {
           "name": "process.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.ancestors.sid",
@@ -1570,7 +1570,7 @@
         {
           "name": "process.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.parent.sid",
@@ -1665,7 +1665,7 @@
         {
           "name": "process.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.sid",
@@ -3308,7 +3308,7 @@
         {
           "name": "exec.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "exec.sid",
@@ -3907,7 +3907,7 @@
         {
           "name": "exit.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "exit.sid",
@@ -5925,7 +5925,7 @@
         {
           "name": "ptrace.tracee.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.sid",
@@ -6965,7 +6965,7 @@
         {
           "name": "ptrace.tracee.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.parent.sid",
@@ -7060,7 +7060,7 @@
         {
           "name": "ptrace.tracee.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.sid",
@@ -8329,7 +8329,7 @@
         {
           "name": "setrlimit.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.sid",
@@ -9369,7 +9369,7 @@
         {
           "name": "setrlimit.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.parent.sid",
@@ -9464,7 +9464,7 @@
         {
           "name": "setrlimit.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.sid",
@@ -10310,7 +10310,7 @@
         {
           "name": "signal.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.ancestors.sid",
@@ -11350,7 +11350,7 @@
         {
           "name": "signal.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.parent.sid",
@@ -11445,7 +11445,7 @@
         {
           "name": "signal.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.sid",
@@ -11959,6 +11959,25 @@
         },
         {
           "name": "unload_module.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
+      "name": "unshare",
+      "definition": "A process created new namespaces",
+      "type": "Kernel",
+      "from_agent_version": "7.84",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "unshare.flags",
+          "definition": "Namespace flags requested by the unshare call",
+          "property_doc_link": "unshare-flags-doc"
+        },
+        {
+          "name": "unshare.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
         }
@@ -14806,7 +14825,7 @@
     },
     {
       "name": "*.ppid",
-      "link": "common-process-ppid-doc",
+      "link": "common-pidcontext-ppid-doc",
       "type": "int",
       "definition": "Parent process ID",
       "prefixes": [
@@ -14862,6 +14881,7 @@
         "splice",
         "unlink",
         "unload_module",
+        "unshare",
         "utimes"
       ],
       "constants": "Error constants",
@@ -17312,6 +17332,18 @@
       "examples": []
     },
     {
+      "name": "unshare.flags",
+      "link": "unshare-flags-doc",
+      "type": "int",
+      "definition": "Namespace flags requested by the unshare call",
+      "prefixes": [
+        "unshare"
+      ],
+      "constants": "Clone flags",
+      "constants_link": "clone-flags",
+      "examples": []
+    },
+    {
       "name": "utimes.syscall.path",
       "link": "utimes-syscall-path-doc",
       "type": "string",
@@ -18629,6 +18661,69 @@
         },
         {
           "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Clone flags",
+      "link": "clone-flags",
+      "description": "Clone flags are the supported namespace flags for the unshare syscall.",
+      "all": [
+        {
+          "name": "CLONE_NEWNS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWCGROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUTS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWIPC",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUSER",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWPID",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWNET",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FILES",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SYSVSEM",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_THREAD",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SIGHAND",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_VM",
           "architecture": "all"
         }
       ]

@@ -1459,7 +1459,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 			{
 				NetworkFilter: &rules.NetworkFilterDefinition{
 					BPFFilter: "port 53",
-					Policy:    "drop",
+					Policy:    rules.NetworkFilterPolicyDrop,
 					Scope:     "process",
 				},
 			},
