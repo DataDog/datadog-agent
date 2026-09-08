@@ -23,11 +23,11 @@ use super::sid::sid_to_string;
 use super::wide;
 
 #[cfg(not(test))]
-#[allow(dead_code)] // wired in A4-lsa
+#[allow(dead_code)]
 pub(crate) const DATADOG_AGENT_SERVICE: &str = "datadogagent";
 
 #[cfg(not(test))]
-#[allow(dead_code)] // wired in A4-lsa
+#[allow(dead_code)]
 pub(crate) fn service_runs_as_agent_user(
     service_name: &str,
     domain: &str,

@@ -53,7 +53,7 @@ pub(crate) enum AgentAccount {
         domain: String,
         user: String,
     },
-    #[allow(dead_code)] // wired in A4-lsa
+    #[allow(dead_code)]
     PasswordLogon {
         domain: String,
         user: String,

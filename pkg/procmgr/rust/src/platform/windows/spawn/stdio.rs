@@ -101,9 +101,7 @@ fn open_stdio_file_as_account(
     if credential.reuses_supervisor_token() {
         return Ok(MappedStdioHandle(open_append_file(path)?));
     }
-    bail!(
-        "file stdio for non-supervisor credentials requires LogonUser (not implemented in this PR)"
-    );
+    bail!("file stdio for non-supervisor credentials requires LogonUser");
 }
 
 fn open_append_file(path: &str) -> Result<HANDLE> {
