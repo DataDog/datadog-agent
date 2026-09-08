@@ -1025,9 +1025,7 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 			if !a.Blacklister.AllowsStat(b) {
 				continue
 			}
-			if shouldObfuscate {
-				a.obfuscateStatsGroup(b)
-			}
+			a.obfuscateStatsGroup(b, shouldObfuscate)
 			b.Resource, _ = a.TruncateResource(b.Resource)
 			a.Replacer.ReplaceStatsGroup(b)
 			group.Stats[n] = b

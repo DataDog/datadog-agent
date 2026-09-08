@@ -7,6 +7,7 @@ package agent
 
 import (
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -85,6 +86,64 @@ func (o *obfuscateSpanV0) MapFilteredAttributes(shouldMap func(k string) bool, m
 			o.span.Meta[k] = newV
 		}
 	}
+}
+
+type obfuscateSpanStatsGroup struct {
+	group    *pb.ClientGroupedStats
+	resource string
+}
+
+func (o *obfuscateSpanStatsGroup) GetAttributeAsString(key string) (string, bool) {
+	if key == tagDBMS && o.group.DBType != "" {
+		return o.group.DBType, true
+	}
+	for _, tags := range [][]string{o.group.AdditionalMetricTags, o.group.SpanDerivedPrimaryTags} {
+		for _, tag := range tags {
+			k, value, found := strings.Cut(tag, ":")
+			if found && k == key {
+				return value, true
+			}
+		}
+	}
+	return "", false
+}
+
+func (o *obfuscateSpanStatsGroup) SetStringAttribute(key string, value string) {
+	o.MapFilteredAttributes(func(k string) bool { return k == key }, func(_, _ string) string { return value })
+}
+
+func (o *obfuscateSpanStatsGroup) Type() string {
+	return o.group.Type
+}
+
+func (o *obfuscateSpanStatsGroup) Resource() string {
+	return o.resource
+}
+
+func (o *obfuscateSpanStatsGroup) SetResource(resource string) {
+	o.resource = resource
+}
+
+func (o *obfuscateSpanStatsGroup) Service() string {
+	return o.group.Service
+}
+
+func (o *obfuscateSpanStatsGroup) MapFilteredAttributes(shouldMap func(k string) bool, mapper func(k, v string) string) {
+	mapTags := func(tags []string) {
+		for i, tag := range tags {
+			key, value, found := strings.Cut(tag, ":")
+			if !found || key == "" || !shouldMap(key) {
+				continue
+			}
+			newValue := mapper(key, value)
+			if newValue != value {
+				tags[i] = key + ":" + newValue
+			}
+		}
+	}
+
+	mapTags(o.group.SpanDerivedPrimaryTags)
+	mapTags(o.group.AdditionalMetricTags)
 }
 
 // ObfuscateSQLSpan obfuscates a SQL span
@@ -290,20 +349,11 @@ func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue) {
 	}
 }
 
-func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
-	o := a.lazyInitObfuscator()
-
-	switch b.Type {
-	case "sql", "cassandra":
-		oq, err := o.ObfuscateSQLStringForDBMS(b.Resource, b.DBType)
-		if err != nil {
-			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
-			b.Resource = textNonParsable
-		} else {
-			b.Resource = oq.Query
-		}
-	case "redis", "valkey":
-		b.Resource = o.QuantizeRedisString(b.Resource)
+func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats, obfuscateResource bool) {
+	span := &obfuscateSpanStatsGroup{group: b, resource: b.Resource}
+	a.obfuscateSpanInternal(span)
+	if obfuscateResource {
+		b.Resource = span.resource
 	}
 }
 

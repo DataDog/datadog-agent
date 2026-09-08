@@ -53,9 +53,169 @@ func TestObfuscateStatsGroup(t *testing.T) {
 		{statsGroup("valkey", "ADD 1, 2"), "ADD"},
 		{statsGroup("other", "ADD 1, 2"), "ADD 1, 2"},
 	} {
-		agnt.obfuscateStatsGroup(tt.in)
+		agnt.obfuscateStatsGroup(tt.in, true)
 		assert.Equal(t, tt.in.Resource, tt.out)
 	}
+}
+
+func TestObfuscateStatsGroupTags(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		typ      string
+		key      string
+		value    string
+		resource string
+		dbType   string
+		config   *config.ObfuscationConfig
+	}{
+		{
+			name:   "credit-card",
+			typ:    "custom",
+			key:    "customer.card",
+			value:  "4111111111111111",
+			config: &config.ObfuscationConfig{CreditCards: obfuscate.CreditCardsConfig{Enabled: true}},
+		},
+		{
+			name:     "sql",
+			typ:      "sql",
+			key:      "sql.query",
+			value:    "SELECT 1 FROM users",
+			resource: "SELECT 1 FROM users",
+			dbType:   "postgresql",
+			config:   &config.ObfuscationConfig{},
+		},
+		{
+			name:     "redis",
+			typ:      "redis",
+			key:      "redis.raw_command",
+			value:    "SET key value",
+			resource: "SET key value",
+			config:   &config.ObfuscationConfig{Redis: obfuscate.RedisConfig{Enabled: true}},
+		},
+		{
+			name:     "valkey",
+			typ:      "valkey",
+			key:      "valkey.raw_command",
+			value:    "SET key value",
+			resource: "SET key value",
+			config:   &config.ObfuscationConfig{Valkey: obfuscate.ValkeyConfig{Enabled: true}},
+		},
+		{
+			name:   "memcached",
+			typ:    "memcached",
+			key:    "memcached.command",
+			value:  "set key 0 0 0\r\nvalue",
+			config: &config.ObfuscationConfig{Memcached: obfuscate.MemcachedConfig{Enabled: true}},
+		},
+		{
+			name:   "http",
+			typ:    "web",
+			key:    "http.url",
+			value:  "http://example.com/1/2?secret=value",
+			config: &config.ObfuscationConfig{HTTP: obfuscate.HTTPConfig{RemovePathDigits: true, RemoveQueryString: true}},
+		},
+		{
+			name:   "mongodb",
+			typ:    "mongodb",
+			key:    "mongodb.query",
+			value:  `{"find":"users","filter":{"email":"test@example.com"}}`,
+			config: &config.ObfuscationConfig{Mongo: obfuscate.JSONConfig{Enabled: true}},
+		},
+		{
+			name:   "elasticsearch",
+			typ:    "elasticsearch",
+			key:    "elasticsearch.body",
+			value:  `{"query":{"match":{"user":"alice"}}}`,
+			config: &config.ObfuscationConfig{ES: obfuscate.JSONConfig{Enabled: true}},
+		},
+		{
+			name:   "opensearch",
+			typ:    "opensearch",
+			key:    "opensearch.body",
+			value:  `{"query":{"match":{"user":"alice"}}}`,
+			config: &config.ObfuscationConfig{OpenSearch: obfuscate.JSONConfig{Enabled: true}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.New()
+			cfg.Obfuscation = tt.config
+			o := cfg.Obfuscation.Export(cfg)
+			agnt := &Agent{conf: cfg, obfuscatorConf: &o}
+			meta := map[string]string{tt.key: tt.value}
+			if tt.dbType != "" {
+				meta[tagDBMS] = tt.dbType
+			}
+			span := &pb.Span{Type: tt.typ, Service: "service", Resource: tt.resource, Meta: meta}
+			group := &pb.ClientGroupedStats{
+				Service:                "service",
+				Type:                   tt.typ,
+				Resource:               tt.resource,
+				DBType:                 tt.dbType,
+				SpanDerivedPrimaryTags: []string{tt.key + ":" + tt.value},
+				AdditionalMetricTags:   []string{tt.key + ":" + tt.value},
+			}
+
+			agnt.ObfuscateSpan(span)
+			agnt.obfuscateStatsGroup(group, true)
+
+			expectedTag := tt.key + ":" + span.Meta[tt.key]
+			assert.NotEqual(t, tt.value, span.Meta[tt.key], "test input must exercise obfuscation")
+			assert.Equal(t, span.Resource, group.Resource)
+			assert.Equal(t, []string{expectedTag}, group.SpanDerivedPrimaryTags)
+			assert.Equal(t, []string{expectedTag}, group.AdditionalMetricTags)
+		})
+	}
+}
+
+func TestObfuscateStatsGroupTagEdgeCases(t *testing.T) {
+	const cardNumber = "4111111111111111"
+	t.Run("duplicates-safe-keys-and-malformed-tags", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Obfuscation.CreditCards.Enabled = true
+		cfg.Obfuscation.CreditCards.KeepValues = []string{"keep.card"}
+		o := cfg.Obfuscation.Export(cfg)
+		agnt := &Agent{conf: cfg, obfuscatorConf: &o}
+		group := &pb.ClientGroupedStats{
+			Type: "custom",
+			SpanDerivedPrimaryTags: []string{
+				"customer.card:" + cardNumber,
+				"customer.card:" + cardNumber,
+				"account_id:" + cardNumber,
+				"keep.card:" + cardNumber,
+				"missing-value-separator",
+				":" + cardNumber,
+			},
+		}
+
+		agnt.obfuscateStatsGroup(group, false)
+
+		assert.Equal(t, []string{
+			"customer.card:?",
+			"customer.card:?",
+			"account_id:" + cardNumber,
+			"keep.card:" + cardNumber,
+			"missing-value-separator",
+			":" + cardNumber,
+		}, group.SpanDerivedPrimaryTags)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		cfg := config.New()
+		o := cfg.Obfuscation.Export(cfg)
+		agnt := &Agent{conf: cfg, obfuscatorConf: &o}
+		tags := []string{
+			"customer.card:" + cardNumber,
+			"http.url:http://example.com/1/2?secret=value",
+		}
+		group := &pb.ClientGroupedStats{
+			Type:                 "web",
+			AdditionalMetricTags: append([]string(nil), tags...),
+		}
+
+		agnt.obfuscateStatsGroup(group, false)
+
+		assert.Equal(t, tags, group.AdditionalMetricTags)
+	})
 }
 
 // TestObfuscateDefaults ensures that running the obfuscator with no config continues to obfuscate/quantize
