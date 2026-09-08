@@ -17,6 +17,8 @@ retract (
 
 // Internal deps fix version
 replace (
+	// Temporary: branch theop-dd/fix-panic-update-probes
+	github.com/DataDog/ebpf-manager => github.com/DataDog/ebpf-manager v0.8.5-0.20260915084748-37ddcf109f98
 	// Use a patched version of go-cmp to avoid disabling dead code elimination
 	// Commit from https://github.com/DataDog/go-cmp/tree/dce-patch/v0.7.0
 	github.com/google/go-cmp => github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d
