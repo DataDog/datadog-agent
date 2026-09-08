@@ -3,19 +3,21 @@
 load("@rules_pkg//pkg:providers.bzl", "PackageVariablesInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
 load("@rules_testing//lib:util.bzl", "util")
-load(":package_naming.bzl", "package_name_variables")
+load(":package_naming.bzl", "flavor_naming_subject", "package_name_variables")
 
-# -- Transitions for flavor testing ------------------------------------------
-# Each transition forces //packages/agent:flavor to a specific value so we can
-# verify _inject_flavor() output without changing the default flag in the repo.
+# -- Transitions for flavor/fips testing -------------------------------------
+# Each transition forces //packages/agent:flavor or the target platform to a
+# specific value so we can verify _inject_flavor() output without changing
+# the default flag in the repo. fips is orthogonal to flavor (see
+# //bazel/platforms:crypto), so it is forced via --platforms, not the flag.
 
 def _fips_transition_impl(_settings, _attr):
-    return {"//packages/agent:flavor": "fips"}
+    return {"//command_line_option:platforms": ["//bazel/platforms:linux_x86_64_fips"]}
 
 _fips_transition = transition(
     implementation = _fips_transition_impl,
     inputs = [],
-    outputs = ["//packages/agent:flavor"],
+    outputs = ["//command_line_option:platforms"],
 )
 
 def _heroku_transition_impl(_settings, _attr):
@@ -98,7 +100,7 @@ def _test_base_flavor_product_name_impl(env, target):
 
 def _test_fips_flavor_product_name(name):
     util.helper_target(
-        package_name_variables,
+        flavor_naming_subject,
         name = name + "_inner",
         product_name = "datadog-agent",
     )
@@ -123,7 +125,7 @@ def _test_fips_flavor_product_name_impl(env, target):
 
 def _test_fips_flavor_multiword(name):
     util.helper_target(
-        package_name_variables,
+        flavor_naming_subject,
         name = name + "_inner",
         product_name = "datadog-agent-dbg",
     )
@@ -147,7 +149,7 @@ def _test_fips_flavor_multiword_impl(env, target):
 
 def _test_fips_flavor_single_word(name):
     util.helper_target(
-        package_name_variables,
+        flavor_naming_subject,
         name = name + "_inner",
         product_name = "agent",
     )
