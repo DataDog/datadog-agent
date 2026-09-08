@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -345,6 +346,17 @@ func preInstallDatadogAgent(ctx HookContext) error {
 // postInstallDatadogAgent creates the state directories, registers the Agent as a package, and
 // loads the stable job set.
 func postInstallDatadogAgent(ctx HookContext) error {
+	if ctx.PackageType == PackageTypeOCI {
+		// The OCI layer wraps a .pkg installer payload rather than raw binaries, mirroring how
+		// datadog_agent_windows.go wraps an MSI: doInstall's Create() call has already moved the
+		// extracted layer into the package repository and flipped stable/experiment to it before
+		// this hook runs, so registerPackageRepository has nothing left to do. What remains is
+		// running the wrapped .pkg, whose own postinstall script performs the filesystem setup
+		// (see installFilesystem) and loads the launchd jobs (see installStableJobs) -- the same
+		// script a real .dmg install runs directly.
+		return installWrappedPackage(ctx)
+	}
+
 	if err := installFilesystem(ctx, defaultAgentLayout); err != nil {
 		return err
 	}
@@ -355,6 +367,39 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
 	return installStableJobs(ctx)
+}
+
+// installWrappedPackage runs the .pkg installer payload an OCI-delivered Agent package wraps.
+//
+// macOS has no OCI/MSI-equivalent silent-install mechanism of its own: the only way to run a .pkg
+// non-interactively is Apple's installer(8). ctx.PackagePath is the version directory Create()
+// already moved the extracted OCI layer into (repository.Repository.StablePath() or
+// ExperimentPath(), via hooksCLI.getPath()), so the payload to run is whatever single .pkg that
+// layer contains.
+func installWrappedPackage(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("install_wrapped_package")
+	defer func() {
+		span.Finish(err)
+	}()
+
+	matches, err := filepath.Glob(filepath.Join(ctx.PackagePath, "*.pkg"))
+	if err != nil {
+		return fmt.Errorf("failed to look for a .pkg in %s: %w", ctx.PackagePath, err)
+	}
+	if len(matches) == 0 {
+		return fmt.Errorf("no .pkg found in %s", ctx.PackagePath)
+	}
+	if len(matches) > 1 {
+		return fmt.Errorf("multiple .pkg found in %s: %v", ctx.PackagePath, matches)
+	}
+
+	cmd := telemetry.CommandContext(ctx, "installer", "-pkg", matches[0], "-target", "/")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err = cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run installer on %s: %w", matches[0], err)
+	}
+	return nil
 }
 
 // preRemoveDatadogAgent stops and removes both job sets.

@@ -41,10 +41,10 @@ import (
 // does not embed suite.FleetSuite or use its Backend: FleetSuite's dispatch methods are CLI-only by
 // design, and this suite never calls them.
 //
-// Installation is out of scope: SetupSuite asserts the OCI package repository is already
-// registered (the precondition InstallConfigExperiment needs) rather than installing anything
-// itself. See the "Known limitation" comment on SetupSuite below for why this currently blocks a
-// real run.
+// SetupSuite installs the Agent itself (see its doc comment) rather than relying on the
+// provisioner's own agent install, so it can also synthesize and exercise the OCI-delivered
+// install path (installWrappedPackage) and register the OCI package repository that
+// InstallConfigExperiment needs.
 type configMacOSSuite struct {
 	e2e.BaseSuite[environments.Host]
 
@@ -74,15 +74,17 @@ func TestFleetConfigMacOS(t *testing.T) {
 	))
 }
 
-// SetupSuite provisions the suite's helpers and unlocks Remote Config task delivery once.
+// SetupSuite provisions the suite's helpers, installs the Agent, and unlocks Remote Config task
+// delivery once.
 //
-// Known limitation, not fixed here: the real .dmg's postinst (omnibus/package-scripts/agent-dmg/postinst)
-// only calls install-stable-jobs today, not the full postInstall hook -- so registerPackageRepository
-// never runs on a genuinely .dmg-installed host, and InstallConfigExperiment fails with ENOENT
-// (exactly the bug commit a51af836394 fixed for the manually-driven `installer hooks postInstall`
-// path this session used, but not for postinst). Until postinst also registers the package
-// repository (or the separate installation test set does it), the check below fails fast with a
-// clear message instead of leaving every test in this suite to fail deep inside a cryptic ENOENT.
+// The provisioner brings up a bare host (no ec2.WithAgentOptions): installation happens here,
+// through agent.Agent.Install's macOS path (installMacOSPipeline, test/new-e2e/tests/fleet/agent/install.go),
+// rather than through the provisioner's own agentparams-driven install, specifically because this
+// suite also needs the OCI package repository registered -- a real .dmg install alone does not do
+// that yet (see priv_notes/fix-macos-dmg-register-package-repository.md) -- and needs
+// postInstallDatadogAgent's PackageType == PackageTypeOCI branch (installWrappedPackage) actually
+// exercised, which nothing else in CI does today (see
+// priv_notes/proposal-macos-oci-e2e-install.md).
 func (s *configMacOSSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
@@ -90,11 +92,12 @@ func (s *configMacOSSuite) SetupSuite() {
 	s.Agent = agent.New(s.T, s.Env())
 	s.Host = fleethost.New(s.Env())
 
+	s.Agent.MustInstall()
+
 	_, err := s.Env().RemoteHost.Execute(
 		"test -L /opt/datadog-packages/datadog-agent/stable && test -L /opt/datadog-packages/datadog-agent/experiment")
 	require.NoError(s.T(), err, "the OCI package repository is not registered on this host "+
-		"(registerPackageRepository has not run). This suite assumes installation -- including "+
-		"package-repository registration -- was already done; see the SetupSuite doc comment.")
+		"(registerPackageRepository has not run) even after installMacOSPipeline")
 
 	// Unlocks UPDATER_TASK delivery for the life of the daemon process. Any oci:// URL with a
 	// well-formed sha256 digest satisfies validatePackage; the package is never fetched.

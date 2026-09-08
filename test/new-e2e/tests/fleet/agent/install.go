@@ -23,6 +23,11 @@ import (
 const (
 	linuxInstallScriptURL     = "https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh"
 	windowsInstallerLatestURL = "https://s3.amazonaws.com/dd-agent/datadog-installer-x86_64.exe"
+	macOSInstallScriptURL     = "https://install.datadoghq.com/scripts/install_mac_os.sh"
+	// macOSTestingBucket is the bucket deploy_dmg_testing-a7_<arch> publishes pipeline .dmg builds
+	// to (.gitlab/deploy/e2e_testing_deploy/e2e_deploy.yml), and the same one
+	// test/e2e-framework/components/datadog/agent/host_macos.go points DD_REPO_URL at.
+	macOSTestingBucket = "https://dd-agent-macostesting.s3.amazonaws.com"
 )
 
 // InstallOption is an optional function parameter type for InstallParams options
@@ -90,6 +95,8 @@ func (a *Agent) Install(options ...InstallOption) error {
 		return a.installLinuxInstallScript(params)
 	case e2eos.WindowsFamily:
 		return a.installWindowsInstallExe(params)
+	case e2eos.MacOSFamily:
+		return a.installMacOSPipeline(params)
 	default:
 		return fmt.Errorf("unsupported OS family: %v", a.host.RemoteHost.OSFamily)
 	}
@@ -199,6 +206,80 @@ func (a *Agent) installWindowsInstallExe(params *installParams) error {
 	};
 	& $tempFile`, installerURL), client.WithEnvVariables(env))
 	return err
+}
+
+// macOSPipelineArch maps the host's architecture onto the segment deploy_dmg_testing-a7_<arch>
+// uses in the macOS testing bucket's pipeline prefix: the host reports "x86_64", but the bucket
+// prefix (and host_macos.go's DD_REPO_URL) uses "x64". arm64 matches on both sides.
+func macOSPipelineArch(arch e2eos.Architecture) string {
+	if arch == e2eos.AMD64Arch {
+		return "x64"
+	}
+	return string(arch)
+}
+
+// installMacOSPipeline installs the pipeline build the same way host_macos.go's Pulumi-level
+// install does -- the official install script with DD_REPO_URL pointing at the pipeline's
+// prefix in the macOS testing bucket -- and then exercises postInstallDatadogAgent's
+// PackageType == PackageTypeOCI branch (installWrappedPackage,
+// pkg/fleet/installer/packages/datadog_agent_darwin.go), which nothing else does today: macOS
+// still ships as a .dmg, and no CI job publishes a real macOS OCI artifact.
+//
+// It does so by synthesizing, locally on the host, the on-disk shape doInstall's Create() call
+// would leave behind for a genuine OCI artifact -- a version directory in the package repository
+// holding the .pkg payload, with stable/experiment symlinks pointing at it -- extracted from the
+// same pipeline .dmg, then driving the installer's generic `hooks` CLI command
+// (pkg/fleet/installer/commands/hooks.go) against it directly. As a side effect this also
+// registers the OCI package repository (/opt/datadog-packages/datadog-agent/{stable,experiment}),
+// which the real .dmg's postinst does not do yet (see
+// priv_notes/fix-macos-dmg-register-package-repository.md) and which configMacOSSuite's
+// SetupSuite requires.
+func (a *Agent) installMacOSPipeline(params *installParams) error {
+	arch := macOSPipelineArch(a.host.RemoteHost.Architecture)
+	repoURL := fmt.Sprintf("%s/ci/datadog-agent/pipeline-%s-%s", macOSTestingBucket, params.pipelineID, arch)
+
+	// DD_API_KEY/DD_SITE are set only on the bash invocation (a simple command), not on the
+	// whole script: a shell VAR=val prefix cannot apply to a compound statement like the `for`
+	// loop below it, so passing them via client.WithEnvVariables (which prepends them to the
+	// entire command string) breaks with "parse error near `for'".
+	installScript := fmt.Sprintf(
+		`for i in 1 2 3 4 5; do curl -fsSL %s -o /tmp/e2e-install-mac-os.sh && break || sleep $i; done && `+
+			`DD_API_KEY=%s DD_SITE=datadoghq.com DD_REPO_URL=%s DD_INSTALL_ONLY=true bash /tmp/e2e-install-mac-os.sh`,
+		macOSInstallScriptURL, apiKey(), repoURL)
+	if _, err := a.host.RemoteHost.Execute(installScript); err != nil {
+		return fmt.Errorf("failed to run the pipeline install script: %w", err)
+	}
+
+	const (
+		dmgPath    = "/tmp/e2e-oci-payload.dmg"
+		mountPoint = "/tmp/e2e-oci-payload-mount"
+		packageDir = "/opt/datadog-packages/datadog-agent"
+		versionDir = packageDir + "/e2e-oci-test"
+		installer  = "/opt/datadog-agent/embedded/bin/installer"
+	)
+	defer a.host.RemoteHost.Execute(fmt.Sprintf(`sudo hdiutil detach %s || true`, mountPoint))
+
+	synthesizeOCIShape := fmt.Sprintf(
+		`sudo rm -f %s && sudo curl -fsSL --retry 3 -o %s %s/datadog-agent-7-latest.dmg && `+
+			`sudo hdiutil attach %s -mountpoint %s -nobrowse && `+
+			`sudo mkdir -p %s && sudo cp "$(find %s -name '*.pkg' | head -n1)" %s/ && `+
+			`sudo hdiutil detach %s && `+
+			`sudo ln -sfn %s %s/stable && sudo ln -sfn %s %s/experiment`,
+		dmgPath, dmgPath, repoURL,
+		dmgPath, mountPoint,
+		versionDir, mountPoint, versionDir,
+		mountPoint,
+		versionDir, packageDir, versionDir, packageDir)
+	if _, err := a.host.RemoteHost.Execute(synthesizeOCIShape); err != nil {
+		return fmt.Errorf("failed to synthesize the on-disk OCI package shape: %w", err)
+	}
+
+	hookContext := fmt.Sprintf(`{"hook":"postInstall","package":"datadog-agent","package_type":"oci","package_path":%q}`, versionDir)
+	if _, err := a.host.RemoteHost.Execute(fmt.Sprintf(`sudo %s hooks '%s'`, installer, hookContext)); err != nil {
+		return fmt.Errorf("failed to run postInstall through the OCI package_type branch: %w", err)
+	}
+
+	return nil
 }
 
 // Uninstall uninstalls the agent.
