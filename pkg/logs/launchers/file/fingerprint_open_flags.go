@@ -7,7 +7,6 @@ package file
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -35,15 +34,10 @@ type openFlagsErrorReporter struct {
 	// reported holds the sources written to since the last reset, so a scan retracts exactly
 	// what the previous one recorded; the scanned source list can omit an active tailer's source.
 	reported []*sources.ReplaceableSource
-
-	// logLimit rate limits the warning for an unusable open_flags configuration.
-	// A persistent failure is retried on every scan, so without this the warning
-	// would repeat for the lifetime of the Agent.
-	logLimit *log.Limit
 }
 
 func newOpenFlagsErrorReporter() *openFlagsErrorReporter {
-	return &openFlagsErrorReporter{logLimit: log.NewLogLimit(5, 10*time.Minute)}
+	return &openFlagsErrorReporter{}
 }
 
 // reset drops the failures recorded since the previous scan.
@@ -68,13 +62,15 @@ func (r *openFlagsErrorReporter) report(file *tailer.File, err error) {
 	info.SetMessage(file.Path, fmt.Sprintf("Fingerprinting with the configured open flags failed for this file: %v", err))
 	r.reported = append(r.reported, file.Source)
 
-	if r.logLimit.ShouldLog() {
-		log.Warnf(
-			"Fingerprinting with the configured open_flags failed for %q (%v). "+
-				"An active tailer will keep reading its open descriptor, but rotation detection is unavailable until fingerprinting recovers. "+
-				"Remove open_flags from the source, or scope the source so it only matches files that support them.",
-			file.Path,
-			err,
-		)
-	}
+	// Intentionally unlimited: a persistent open_flags failure is retried on every
+	// scan and each attempt is logged. This is noisy by design until scan errors get
+	// their own accumulated status section. Until then a repeating warning is the
+	// only durable signal that a file's rotation detection has gone dark.
+	log.Warnf(
+		"Fingerprinting with the configured open_flags failed for %q (%v). "+
+			"An active tailer will keep reading its open descriptor, but rotation detection is unavailable until fingerprinting recovers. "+
+			"Remove open_flags from the source, or scope the source so it only matches files that support them.",
+		file.Path,
+		err,
+	)
 }
