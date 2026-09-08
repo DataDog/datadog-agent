@@ -7,11 +7,6 @@
 // process to the shared inventoryagent component so it can emit a serverless
 // inventory payload. All AAS-specific metadata derivation lives here; the
 // shared component stays generic.
-//
-// Temporary: the payload currently uses flavor "serverless-compat" so rows
-// land in the existing serverless_compat_agent REDAPL table for the sanity
-// test. Once serverless_extension_agent is created in dd-source and EPRW,
-// change aasInventoryFlavor to "serverless-extension".
 package inventory
 
 import (
@@ -27,8 +22,7 @@ import (
 
 const periodicInterval = 10 * time.Minute
 
-// TODO(SVLS-9604): change to "serverless-extension" once serverless_extension_agent schema exists.
-const aasInventoryFlavor = "serverless-compat"
+const aasInventoryFlavor = "serverless-extension"
 
 const (
 	reportReasonStartup  = "startup"
@@ -73,8 +67,7 @@ func workloadType() string {
 // cannot be derived (required REDAPL key; prevents a dangling row).
 //
 // Fields use unprefixed names (resource_id, workload_type, …) as required by
-// the EPRW decoder. extension_version is omitted for the temporary
-// serverless-compat sanity test; add it when switching to serverless-extension.
+// the EPRW decoder.
 func Inject(ia inventoryagent.Component, conf configmodel.Reader) bool {
 	if !IsEnabled() {
 		return false
@@ -98,6 +91,7 @@ func Inject(ia inventoryagent.Component, conf configmodel.Reader) bool {
 	ia.Set("azure_subscription_id", aasTags[traceutil.AASSubscriptionID])
 	ia.Set("azure_resource_group", aasTags[traceutil.AASResourceGroup])
 	ia.Set("runtime", aasTags[traceutil.AASRuntime])
+	ia.Set("extension_version", aasTags[traceutil.AASExtensionVersion])
 
 	ia.Set("dd_env", conf.GetString("env"))
 	ia.Set("dd_site", conf.GetString("site"))
