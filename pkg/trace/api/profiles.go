@@ -29,9 +29,9 @@ import (
 
 const (
 	// profilingURLTemplate specifies the template for obtaining the profiling URL along with the site.
-	profilingURLTemplate = "https://intake.profile.%s/api/v2/profile"
+	profilingURLTemplate = config.ProfilingEndpointPrefix + "%s" + config.ProfilingEndpointPath
 	// profilingURLDefault specifies the default intake API URL.
-	profilingURLDefault = "https://intake.profile.datadoghq.com/api/v2/profile"
+	profilingURLDefault = config.ProfilingEndpointPrefix + "datadoghq.com" + config.ProfilingEndpointPath
 	// profilingV1EndpointSuffix suffix identifying a user-configured V1 endpoint
 	profilingV1EndpointSuffix = "v1/input"
 )
@@ -91,6 +91,8 @@ func mainProfilingURL(conf *config.AgentConfig) string {
 		}
 		return v
 	}
+	// The component config loader resolves DDURL. Keep the Site/default fallback
+	// for standalone pkg/trace callers that construct AgentConfig directly.
 	if conf.Site != "" {
 		return fmt.Sprintf(profilingURLTemplate, conf.Site)
 	}

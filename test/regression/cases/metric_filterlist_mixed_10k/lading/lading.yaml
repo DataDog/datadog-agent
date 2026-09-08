@@ -27,41 +27,35 @@
 # so `{{000000-000499}}` expands to 3-digit ".000".."{.499}" and matches nothing.
 # Character ranges are fixed-width by construction.
 #
-# The rendered file is IDENTICAL across all three mixed tiers -- only each
-# case's datadog.yaml (metric_filterlist size) differs. That is what makes the
-# tiers comparable.
+# This file used to be shared, byte-identical, across three mixed tiers
+# (10k/50k/100k). The 50k and 100k tiers were dropped: at the original 60
+# MiB/s offered load (48 + 4 + 4 + 4) every tier of this sweep crashed. Only
+# the 10k tier remains, and the traffic below has been reduced to the
+# 16/1.5/1.5/1 MiB/s (20 MiB/s total) split this file's own comments already
+# called out as the safer, memory-focused alternative.
 #
-# Total offered load is 60 MiB/s (48 + 4 + 4 + 4). 200 MiB/s was tried for the
-# exact-only sweep and crashed every tier through three memory_allotment
-# increases, so this sweep starts where that one ended up. Measured cost of the
-# older 3-generator mix was ~10.5 CPU millicores per MiB/s, so 60 MiB/s is
-# ~630 mc, ~11% of the 6-CPU allotment.
-#
-# WARNING: at this rate the per-tier MEMORY signal is small relative to
-# run-to-run variance (~200 MB observed vs a ~29 MB filterlist effect in the
-# exact-only sweep). These cases are for the FILTERING PATH: throughput, CPU,
-# and the filtered/forwarded split. For a memory answer, drop the generators to
-# 16/1.5/1.5/1 (20 MiB/s) and re-run.
+# Measured cost of the older 3-generator mix was ~10.5 CPU millicores per
+# MiB/s, so 20 MiB/s is ~210 mc, well under the 6-CPU allotment.
 #
 # Traffic mix -- four generators, so each arm of the matcher is measured
 # separately instead of being averaged into one "match" number:
 #
-#   background (48 MiB/s, ~80% of budget): representative random DogStatsD
+#   background (16 MiB/s, ~80% of budget): representative random DogStatsD
 #     traffic, the same distribution as cases/quality_gate_metrics_logs. Names
 #     are pseudo-random and do not collide with the filterlist, so this is the
 #     bulk "evaluate and forward" load.
 #
-#   prefix_hit (4 MiB/s): names that EXTEND a `<name>*` entry
+#   prefix_hit (1.5 MiB/s): names that EXTEND a `<name>*` entry
 #     (`...prefix.aaaaXY<pad>.hit`) and are therefore equal to no entry at all.
 #     A drop here can only have come from the prefix arm of the matcher
 #     (`testPrefixes` -> `strings.HasPrefix`), which is what this sweep exists
 #     to measure.
 #
-#   exact_hit (4 MiB/s): names equal to an exact entry, hitting the sorted
+#   exact_hit (1.5 MiB/s): names equal to an exact entry, hitting the sorted
 #     binary-search arm. Same rate and same shape as prefix_hit, so the two
 #     paths can be compared directly.
 #
-#   miss (4 MiB/s): names from the disjoint smp.filterlist.bench.nomatch.*
+#   miss (1 MiB/s): names from the disjoint smp.filterlist.bench.nomatch.*
 #     namespace, never present in any filterlist and never covered by any
 #     prefix entry. This is the worst case for a forwarded metric: it pays for
 #     a full prefix scan AND a full exact scan before being kept.
@@ -114,7 +108,7 @@ generator:
             distribution: 5
             set: 0
             histogram: 0
-      bytes_per_second: "48 MiB"
+      bytes_per_second: "16 MiB"
       maximum_prebuild_cache_size_bytes: "500 MiB"
 
   - id: prefix_hit
@@ -161,7 +155,7 @@ generator:
           # none, so only the prefix arm can drop them. Needs lading >= 0.32.
           metric_names:
             - "smp.filterlist.bench.prefix.aaaa{{a-z}}{{a-z}}xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.hit"
-      bytes_per_second: "4 MiB"
+      bytes_per_second: "1.5 MiB"
       maximum_prebuild_cache_size_bytes: "50 MiB"
 
   - id: exact_hit
@@ -207,7 +201,7 @@ generator:
           # exact-hit corpus, every name present verbatim in metric_filterlist.
           metric_names:
             - "smp.filterlist.bench.exact.aaaa{{a-z}}{{a-z}}xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-      bytes_per_second: "4 MiB"
+      bytes_per_second: "1.5 MiB"
       maximum_prebuild_cache_size_bytes: "50 MiB"
 
   - id: miss
@@ -254,7 +248,7 @@ generator:
           # entry, so every one of these is evaluated in full and forwarded.
           metric_names:
             - "smp.filterlist.bench.nomatch.aaaa{{a-z}}{{a-z}}xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-      bytes_per_second: "4 MiB"
+      bytes_per_second: "1 MiB"
       maximum_prebuild_cache_size_bytes: "50 MiB"
 
 blackhole:

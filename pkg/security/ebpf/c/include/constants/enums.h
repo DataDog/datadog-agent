@@ -56,7 +56,7 @@ enum event_type
     EVENT_VETH_PAIR_NS,
     EVENT_ACCEPT,
     EVENT_BIND,
-    EVENT_UNSHARE_MNTNS,
+    EVENT_UNSHARE,
     EVENT_SYSCALLS,
     EVENT_IMDS,
     EVENT_ON_DEMAND,
@@ -79,6 +79,8 @@ enum event_type
     EVENT_SETSID,
     EVENT_NOP,
     EVENT_SOCKET,
+    EVENT_UNSHARE_MNTNS,
+    EVENT_OTEL_PROCESS_CTX,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -160,6 +162,12 @@ enum MONITOR_KEYS
 enum tls_format
 {
     DEFAULT_TLS_FORMAT
+};
+
+enum otel_runtime_language
+{
+    OTEL_RUNTIME_NATIVE = 0,
+    OTEL_RUNTIME_GOLANG = 1,
 };
 
 enum bpf_cmd_def

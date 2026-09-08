@@ -19,9 +19,6 @@ target:
     ENTRYPOINT: privateactionrunner
     DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
-    # This performance test has no Remote Config server, so bypass signing-key
-    # readiness while still exercising idle OPMS polling against lading.
-    DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION: "true"
     DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS: "true"
     # Expose /telemetry so SMP can capture Go runtime metrics for the runner.
     DD_INTERNAL_PAR_ENABLE_TELEMETRY: "true"

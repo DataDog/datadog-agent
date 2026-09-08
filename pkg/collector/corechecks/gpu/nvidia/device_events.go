@@ -76,20 +76,21 @@ func newDeviceEventsCollectorWithCache(device ddnvml.Device, cache deviceEventsC
 	}, nil
 }
 
-func (c *deviceEventsCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *deviceEventsCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *deviceEventsCollector) Name() CollectorName {
 	return deviceEvents
 }
 
-func (c *deviceEventsCollector) Collect() ([]*Metric, error) {
+func (c *deviceEventsCollector) Collect() ([]Sample, error) {
 	if !c.ensureDeviceRegistered() {
 		return nil, nil
 	}
 
-	events, err := c.eventsCache.GetEvents(c.DeviceUUID())
+	events, err := c.eventsCache.GetEvents(c.Device().GetDeviceInfo().UUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed collecting device events: %w", err)
 	}
@@ -105,7 +106,7 @@ func (c *deviceEventsCollector) Collect() ([]*Metric, error) {
 		c.accumulatedCounts[evt.EventData]++
 	}
 
-	var metricsOut []*Metric
+	var samples []Sample
 	// iterate through accumulated counts so that we always emit metrics for XID codes we have seen previously, even
 	// if they were not seen in the current interval
 	for xidCode, accumulatedCount := range c.accumulatedCounts {
@@ -119,24 +120,22 @@ func (c *deviceEventsCollector) Collect() ([]*Metric, error) {
 			"origin:" + xidOrigin,
 		}
 
-		metricsOut = append(metricsOut, &Metric{
-			Name:     xidErrorsCountMetricName,
-			Value:    float64(intervalCounts[xidCode]),
-			Type:     metrics.CountType,
-			Priority: Medium,
-			Tags:     tags,
+		samples = append(samples, &Metric{
+			baseSample: baseSample{priority: Medium, tags: tags},
+			Name:       xidErrorsCountMetricName,
+			Value:      float64(intervalCounts[xidCode]),
+			Type:       metrics.CountType,
 		})
 
-		metricsOut = append(metricsOut, &Metric{
-			Name:     xidErrorsTotalMetricName,
-			Value:    float64(accumulatedCount),
-			Type:     metrics.GaugeType,
-			Priority: Medium,
-			Tags:     tags,
+		samples = append(samples, &Metric{
+			baseSample: baseSample{priority: Medium, tags: tags},
+			Name:       xidErrorsTotalMetricName,
+			Value:      float64(accumulatedCount),
+			Type:       metrics.GaugeType,
 		})
 	}
 
-	return metricsOut, nil
+	return samples, nil
 }
 
 // note: watching device events seems to require specific permission/status with the NVIDIA driver,
@@ -156,9 +155,9 @@ func (c *deviceEventsCollector) ensureDeviceRegistered() bool {
 	c.registrationAttempts++
 	if err := c.eventsCache.RegisterDevice(c.device); err != nil {
 		if c.registrationAttempts == 1 {
-			log.Warnf("could not register %s to device events gatherer, will retry up to %d times: %v", c.DeviceUUID(), deviceMaxRegistrationAttempts, err)
+			log.Warnf("could not register %s to device events gatherer, will retry up to %d times: %v", c.Device().GetDeviceInfo().UUID, deviceMaxRegistrationAttempts, err)
 		} else if c.registrationAttempts >= deviceMaxRegistrationAttempts {
-			log.Warnf("could not register %s to device events gatherer after %d attempts, skipping collection: %v", c.DeviceUUID(), deviceMaxRegistrationAttempts, err)
+			log.Warnf("could not register %s to device events gatherer after %d attempts, skipping collection: %v", c.Device().GetDeviceInfo().UUID, deviceMaxRegistrationAttempts, err)
 		}
 		return false
 	}

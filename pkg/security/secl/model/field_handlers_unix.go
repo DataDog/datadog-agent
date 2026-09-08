@@ -1033,6 +1033,7 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Unlink.SyscallContext)
 		}
 	case "unload_module":
+	case "unshare":
 	case "utimes":
 		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Utimes.File)
 		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Utimes.File)

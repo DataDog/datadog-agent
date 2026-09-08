@@ -15,7 +15,6 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/util/log",
-        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
 

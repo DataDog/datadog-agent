@@ -113,8 +113,7 @@ def process_input_args(
     lint=False,
 ):
     """
-    Takes the input module, targets and flavor arguments from dda inv test and dda inv coverage.upload-to-codecov,
-    sets default values for them & casts them to the expected types.
+    Normalize module, target, and flavor arguments for Go test and lint invoke tasks.
     """
     if only_modified_packages:
         from tasks import get_modified_packages

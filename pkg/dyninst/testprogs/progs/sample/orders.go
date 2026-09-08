@@ -39,5 +39,4 @@ func executeServerFuncs(ctx context.Context) {
 
 	s := &Server{name: "orders"}
 	s.handleOrder(ctx, &Request{ID: 1, Customer: "Alice", Total: 42.50})
-	s.handleOrder(ctx, &Request{ID: 2, Customer: "Bob", Total: -1})
 }

@@ -134,7 +134,7 @@ func (ev *Event) GetProcessPpid() uint32 {
 	if ev.BaseEvent.ProcessContext == nil {
 		return uint32(0)
 	}
-	return ev.BaseEvent.ProcessContext.Process.PPid
+	return ev.BaseEvent.ProcessContext.Process.PIDContext.PPid
 }
 
 // GetProcessUid returns the value of the field, resolving if necessary

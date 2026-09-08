@@ -1,4 +1,4 @@
-# Mixed metric_filterlist scaling experiment -- tier: 10k entries
+# Mixed metric_filterlist scaling experiment -- 10k entries
 # (5,000 prefix `<name>*` entries, each with 8 exceptions, + 5,000
 # exact entries).
 #
@@ -11,35 +11,38 @@
 #
 # NOT a `quality_gate_` case. Those are the strongest performance claims made
 # about the Agent (see test/regression/README.md) and are additionally synced
-# into smp-playground every week. These three cases are a measurement sweep
-# whose bounds have not been established, so they deliberately carry no
-# `checks:` block.
+# into smp-playground every week. This is a measurement case whose bounds have
+# not been established, so it deliberately carries no `checks:` block.
+#
+# This was originally a three-tier sweep (10k/50k/100k). The 50k and 100k
+# tiers were dropped -- every tier crashed at the original 60 MiB/s offered
+# load -- leaving only this 10k case, with the traffic in lading/lading.yaml
+# reduced to 20 MiB/s (see that file for the breakdown and rationale).
 #
 # WHAT IT MEASURES: the cost of a metric_filterlist that is HALF PREFIX RULES,
 # every one of them carrying EXCEPTIONS. This branch gave
-# `pkg/util/strings.Matcher` two arms beyond the sorted `exact` one:
+# `pkg/util/metricname.Matcher` two arms beyond the sorted `exact` one:
 # `prefixes` (unconditional, testPrefixes + strings.HasPrefix) and `guarded`
 # (prefixes with exceptions, searched the same way then checked against that
 # entry's own exception matcher). Since every prefix entry here has exceptions,
 # `prefixes` is empty and the prefix half is entirely `guarded` -- the worst
-# layout for the feature. Read the three tiers against EACH OTHER: 10k vs 50k
-# vs 100k differ only in rule count, because lading/lading.yaml is
-# byte-identical across them.
+# layout for the feature.
 #
 # NOTE ON THE BASELINE SIDE: the Regression Detector compares this commit's
 # image against the merge base of the base branch, which has neither prefix nor
 # exception support and cannot even parse the object form of an entry. The
 # baseline therefore filters only the exact half and does strictly less work,
-# so a comparison-vs-baseline delta on these cases is "feature off vs on"
+# so a comparison-vs-baseline delta on this case is "feature off vs on"
 # rather than a like-for-like regression.
 #
-# lading drives the two arms separately, 60 MiB/s total:
+# lading drives the two arms separately, 20 MiB/s total (see
+# lading/lading.yaml):
 #
-#   background  48 MiB/s  random names, evaluated then forwarded
-#   prefix_hit   4 MiB/s  ...bench.prefix.<idx><pad>.hit -> guarded arm, dropped
+#   background   16 MiB/s  random names, evaluated then forwarded
+#   prefix_hit  1.5 MiB/s  ...bench.prefix.<idx><pad>.hit -> guarded arm, dropped
 #                          (pays a full exception-matcher miss on every hit)
-#   exact_hit    4 MiB/s  ...bench.exact.<idx><pad>      -> exact arm, dropped
-#   miss         4 MiB/s  ...bench.nomatch.<idx><pad>    -> both arms, forwarded
+#   exact_hit   1.5 MiB/s  ...bench.exact.<idx><pad>      -> exact arm, dropped
+#   miss          1 MiB/s  ...bench.nomatch.<idx><pad>    -> both arms, forwarded
 #
 # Every name ON THE WIRE is exactly 88 characters in all four namespaces, so
 # hit-vs-miss differences cannot be an artefact of name length. Prefix ENTRIES
@@ -52,19 +55,17 @@ erratic: false
 
 target:
   name: datadog-agent
-  # NOTE: exceptions add ~2 MiB (10k) to ~21 MiB (100k) of config file that the
-  # Agent parses at startup and holds in the config layer, on top of the
-  # per-entry exception matchers. With optimization_goal: memory that lands in
-  # the signal, so a tier-over-tier memory delta is matcher cost AND config
-  # cost, not matcher cost alone.
+  # NOTE: exceptions add ~2 MiB of config file that the Agent parses at
+  # startup and holds in the config layer, on top of the per-entry exception
+  # matchers. With optimization_goal: memory that lands in the signal, so the
+  # memory delta is matcher cost AND config cost, not matcher cost alone.
   #
   # Inherited from the smp-playground sweep, where 8192 MiB was reached by
   # three successive increases after replicates crashed at 200 MiB/s of
-  # DogStatsD traffic. This sweep offers 60 MiB/s, where local measurement of
-  # these same case files peaked at ~1.0-1.2 GB, so this is generous rather
-  # than measured -- 2-4 GiB is very likely enough. Trim it (and cpu_allotment)
-  # once the first runs report actual `total_pss_bytes`; note that every
-  # enabled case in this directory currently sits at cpu 4 / <= 700 MiB.
+  # DogStatsD traffic; this case's own 60 MiB/s offering also crashed, which is
+  # why lading/lading.yaml now offers 20 MiB/s instead. Trim this allotment
+  # (and cpu_allotment) once a run at the reduced rate reports actual
+  # `total_pss_bytes`.
   cpu_allotment: 6
   memory_allotment: 8192 MiB
 

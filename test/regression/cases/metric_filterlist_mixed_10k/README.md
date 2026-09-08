@@ -1,28 +1,29 @@
 # `metric_filterlist_mixed_10k`
 
-One tier of a three-tier sweep measuring what a **`metric_filterlist` that is
-half prefix rules, each one carrying exceptions** costs the Agent:
+Measures what a **`metric_filterlist` that is half prefix rules, each one
+carrying exceptions** costs the Agent:
 
 | case | entries | exceptions |
 |---|---|---|
 | `metric_filterlist_mixed_10k` | 5,000 prefix + 5,000 exact | 40,000 |
-| `metric_filterlist_mixed_50k` | 25,000 + 25,000 | 200,000 |
-| `metric_filterlist_mixed_100k` | 50,000 + 50,000 | 400,000 |
 
 **Every prefix entry carries 8 exceptions**, so the prefix half is entirely made
 of *guarded* rules: `Matcher` searches them in a separate arm from the
 unconditional prefixes, and a hit there has to consult that entry's own
 exception matcher before the metric can be dropped.
 
-This tier holds **5,000 prefix entries** (`<name>*`), each carrying 8
+This case holds **5,000 prefix entries** (`<name>*`), each carrying 8
 exceptions (40,000 in total), and **5,000 exact entries**.
-`lading/lading.yaml` is byte-identical across all three tiers, so the only
-difference between them is the number of rules.
+
+This was originally one tier of a three-tier sweep (10k/50k/100k, sharing a
+byte-identical `lading/lading.yaml`). The 50k and 100k tiers were dropped, and
+the traffic below was reduced from 60 MiB/s to 20 MiB/s: every tier crashed at
+the original rate.
 
 ## Why
 
-`pkg/util/strings.Matcher` has three arms: `exact`, scanned by binary search;
-`prefixes`, the unconditional prefixes, scanned by binary search plus
+`pkg/util/metricname.Matcher` has three arms: `exact`, scanned by binary
+search; `prefixes`, the unconditional prefixes, scanned by binary search plus
 `strings.HasPrefix`; and `guarded`, the prefixes carrying exceptions, scanned
 the same way but followed by a search of the matching entry's exception matcher.
 A hit pays for one arm, a miss pays for all of them. Per-entry `*` prefixes and
@@ -34,14 +35,18 @@ whole prefix half lives in `guarded`. That is the worst layout for the feature:
 no prefix can be dropped as unconditional, and every prefix hit pays for an
 exception lookup.
 
-## Traffic (60 MiB/s total)
+## Traffic (20 MiB/s total)
 
 | generator | rate | names | path exercised |
 |---|---|---|---|
-| `background` | 48 MiB/s | random, as `quality_gate_metrics_logs` | evaluate, forward |
-| `prefix_hit` | 4 MiB/s | `…bench.prefix.<idx><pad>.hit` | guarded arm + exception lookup, dropped |
-| `exact_hit` | 4 MiB/s | `…bench.exact.<idx><pad>` | exact arm, dropped |
-| `miss` | 4 MiB/s | `…bench.nomatch.<idx><pad>` | **all three** arms, forwarded |
+| `background` | 16 MiB/s | random, as `quality_gate_metrics_logs` | evaluate, forward |
+| `prefix_hit` | 1.5 MiB/s | `…bench.prefix.<idx><pad>.hit` | guarded arm + exception lookup, dropped |
+| `exact_hit` | 1.5 MiB/s | `…bench.exact.<idx><pad>` | exact arm, dropped |
+| `miss` | 1 MiB/s | `…bench.nomatch.<idx><pad>` | **all three** arms, forwarded |
+
+This was reduced from the original 48/4/4/4 MiB/s (60 MiB/s total), which
+crashed every tier of this sweep. See `lading/lading.yaml` for the rationale
+behind the specific split.
 
 Every name on the wire is exactly 88 characters in all four namespaces, so
 hit-vs-miss differences cannot come from name length. Prefix *entries* are 84
@@ -50,7 +55,7 @@ and its drop can only have come from the guarded-prefix arm.
 
 The two halves live in **disjoint namespaces** (`…bench.prefix` /
 `…bench.exact`) because `NewMatcher` silently drops prefixes covered by shorter
-prefixes and exact entries covered by a prefix — otherwise this tier would
+prefixes and exact entries covered by a prefix — otherwise this case would
 compile to fewer than 10k live rules while still claiming 10k.
 
 Exceptions live in a third disjoint namespace, `…bench.except`, for two reasons.
@@ -63,16 +68,16 @@ none is compacted away and each entry really does carry 8.
 
 The exceptions are **written out per entry rather than shared through a YAML
 anchor**: the Agent's YAML decoder rejects a document whose alias expansion
-exceeds 10% of decoded nodes, which at 25,000 and 50,000 prefix entries allows
-about one aliased exception. That is what caps the list at 8 — see
+exceeds 10% of decoded nodes, which at scale allows only about one aliased
+exception. That is what caps the list at 8 — see
 `test/regression/scripts/add_filterlist_exceptions.py`.
 
 ## Reading the results
 
-Compare the three tiers **against each other** on the comparison side. The
-Regression Detector's baseline is the merge base of the base branch, which has
-neither prefix nor exception support and cannot even parse the object form an
-entry with exceptions is written in: it filters only the exact half and does
+Compare this case's comparison run against its own baseline. The Regression
+Detector's baseline is the merge base of the base branch, which has neither
+prefix nor exception support and cannot even parse the object form an entry
+with exceptions is written in: it filters only the exact half and does
 strictly less work, so baseline-vs-comparison is "feature off vs on", not a
 like-for-like regression.
 
@@ -83,8 +88,8 @@ Generated by the smp-playground harness, not hand-authored:
 ```
 cd experiments/regression/agent/metric_filterlist_scaling
 python3 scripts/generate_filterlist_cases.py --mixed
-# then copy cases/quality_gate_metric_filterlist_mixed_* here, dropping the
-# quality_gate_ prefix (these are a measurement sweep, not a quality gate)
+# then copy cases/quality_gate_metric_filterlist_mixed_10k here, dropping the
+# quality_gate_ prefix (this is a measurement case, not a quality gate)
 ```
 
 That harness also validates every generated case, including against the real
@@ -96,6 +101,9 @@ Then re-apply the exceptions, which the harness does not know about yet:
 ```
 python3 test/regression/scripts/add_filterlist_exceptions.py
 ```
+
+Re-apply the traffic reduction documented above (`lading/lading.yaml`) after
+regenerating, since the harness template still renders the original rates.
 
 ## Local run
 

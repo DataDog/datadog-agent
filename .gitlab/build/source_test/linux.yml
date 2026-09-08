@@ -56,40 +56,10 @@ tests_linux-x64-py3:
     - .linux_x64
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
     - !reference [.upload_coverage_datadog]
   variables:
     CONDA_ENV: ddpy3
-
-tests_flavor_iot_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
-  variables:
-    CONDA_ENV: ddpy3
-    FLAVORS: '--flavor iot'
-
-tests_flavor_dogstatsd_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
-  variables:
-    CONDA_ENV: ddpy3
-    FLAVORS: '--flavor dogstatsd'
-
-tests_flavor_heroku_linux-x64:
-  extends:
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
-  variables:
-    CONDA_ENV: ddpy3
-    FLAVORS: '--flavor heroku'
 
 tests_linux-arm64-py3:
   extends:
@@ -100,7 +70,7 @@ tests_linux-arm64-py3:
     - !reference [.retrieve_linux_go_tools_deps_arm64]
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
     - !reference [.upload_coverage_datadog]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
@@ -194,8 +164,6 @@ new-e2e-unit-tests:
   after_script:
     - !reference [.upload_junit_source]
   variables:
-    KUBERNETES_MEMORY_REQUEST: 12Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
     GIT_DEPTH: 1  # Overrides .linux_tests: this job does not use --only-impacted-packages or coverage cache
   timeout: 20m  # Not less than 20m because job startup can take time.
@@ -212,9 +180,11 @@ tests_gpu:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    - dda inv -- -e gpu.download-gpu-burner --output-path "$CI_PROJECT_DIR"
+    - export GPU_BURNER_BIN="$CI_PROJECT_DIR/gpu-burner/gpu-burner"
   after_script:
     - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
+    - !reference [.manage_coverage_cache]
     - !reference [.upload_coverage_datadog]
   variables:
     FLAVORS: ''

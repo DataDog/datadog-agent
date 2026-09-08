@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // Field names of the object form of a metric filterlist entry.
@@ -37,7 +37,7 @@ type MetricFilterListEntry struct {
 // it into matcher rules. A malformed entry is reported and skipped rather than
 // failing the whole list, so that one bad line does not silently disable the
 // filtering of everything else.
-func loadMetricFilterList(cfg config.Component, logger log.Component, key string) []utilstrings.Rule {
+func loadMetricFilterList(cfg config.Component, logger log.Component, key string) []metricname.Rule {
 	raw := cfg.Get(key)
 	if raw == nil {
 		return nil
@@ -47,9 +47,9 @@ func loadMetricFilterList(cfg config.Component, logger log.Component, key string
 	// configuration and from the tests. The YAML and JSON loaders produce a
 	// `[]interface{}` whose elements are either a string or a map.
 	if names, ok := raw.([]string); ok {
-		rules := make([]utilstrings.Rule, 0, len(names))
+		rules := make([]metricname.Rule, 0, len(names))
 		for _, name := range names {
-			rules = append(rules, utilstrings.Rule{Pattern: name})
+			rules = append(rules, metricname.Rule{Pattern: name})
 		}
 		return rules
 	}
@@ -60,7 +60,7 @@ func loadMetricFilterList(cfg config.Component, logger log.Component, key string
 		return nil
 	}
 
-	rules := make([]utilstrings.Rule, 0, len(entries))
+	rules := make([]metricname.Rule, 0, len(entries))
 	for i, entry := range entries {
 		rule, err := parseMetricFilterListEntry(entry)
 		if err != nil {
@@ -75,9 +75,9 @@ func loadMetricFilterList(cfg config.Component, logger log.Component, key string
 
 // parseMetricFilterListEntry reads one entry of a metric filterlist, in either
 // its plain metric name or its object form.
-func parseMetricFilterListEntry(entry interface{}) (utilstrings.Rule, error) {
+func parseMetricFilterListEntry(entry interface{}) (metricname.Rule, error) {
 	if name, ok := entry.(string); ok {
-		return utilstrings.Rule{Pattern: name}, nil
+		return metricname.Rule{Pattern: name}, nil
 	}
 
 	// The YAML and JSON loaders do not agree on the key type of a map, and a
@@ -85,37 +85,37 @@ func parseMetricFilterListEntry(entry interface{}) (utilstrings.Rule, error) {
 	// normalise instead of listing the map types.
 	fields, err := cast.ToStringMapE(entry)
 	if err != nil {
-		return utilstrings.Rule{}, fmt.Errorf("expected a metric name or a %q object, got %T", metricNameField, entry)
+		return metricname.Rule{}, fmt.Errorf("expected a metric name or a %q object, got %T", metricNameField, entry)
 	}
 
 	for field := range fields {
 		if field != metricNameField && field != exceptField {
-			return utilstrings.Rule{}, fmt.Errorf("unknown field %q, only %q and %q are supported", field, metricNameField, exceptField)
+			return metricname.Rule{}, fmt.Errorf("unknown field %q, only %q and %q are supported", field, metricNameField, exceptField)
 		}
 	}
 
 	name, err := cast.ToStringE(fields[metricNameField])
 	if err != nil {
-		return utilstrings.Rule{}, fmt.Errorf("invalid %q: %s", metricNameField, err)
+		return metricname.Rule{}, fmt.Errorf("invalid %q: %s", metricNameField, err)
 	}
 	if name == "" {
-		return utilstrings.Rule{}, fmt.Errorf("missing %q", metricNameField)
+		return metricname.Rule{}, fmt.Errorf("missing %q", metricNameField)
 	}
 
 	var except []string
 	if raw := fields[exceptField]; raw != nil {
 		if except, err = cast.ToStringSliceE(raw); err != nil {
-			return utilstrings.Rule{}, fmt.Errorf("invalid %q for %q: %s", exceptField, name, err)
+			return metricname.Rule{}, fmt.Errorf("invalid %q for %q: %s", exceptField, name, err)
 		}
 	}
 
-	return utilstrings.Rule{Pattern: name, Except: except}, nil
+	return metricname.Rule{Pattern: name, Except: except}, nil
 }
 
 // metricFilterListEntries renders the rules back into the shape the
 // configuration holds them in, so that setting the list from remote
 // configuration keeps `agent config` readable and re-parseable.
-func metricFilterListEntries(rules []utilstrings.Rule) []interface{} {
+func metricFilterListEntries(rules []metricname.Rule) []interface{} {
 	entries := make([]interface{}, 0, len(rules))
 	for _, rule := range rules {
 		if len(rule.Except) == 0 {

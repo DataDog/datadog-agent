@@ -109,19 +109,19 @@ func (c *ebpfCollector) Name() CollectorName {
 	return ebpf
 }
 
-// DeviceUUID returns the UUID of the device this collector monitors.
-func (c *ebpfCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *ebpfCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 // Collect returns system-probe process metrics for this device with high priority.
 // Returns empty slice if cache is invalid or no metrics found for this device.
 // core.usage and core.limit metrics get higher priority from eBPF collector than from the process collector,
-func (c *ebpfCollector) Collect() ([]*Metric, error) {
+func (c *ebpfCollector) Collect() ([]Sample, error) {
 	// Check cache validity
 	if !c.cache.IsValid() {
 		log.Debugf("ebpf collector: cache not valid")
-		return []*Metric{}, nil
+		return []Sample{}, nil
 	}
 
 	// Get device info for filtering and limit metrics
@@ -134,7 +134,7 @@ func (c *ebpfCollector) Collect() ([]*Metric, error) {
 		c.activeMetrics[key] = false
 	}
 
-	var deviceMetrics []*Metric
+	var deviceSamples []Sample
 	var allWorkloadIDs []workloadmeta.EntityID
 
 	stats := c.cache.GetStats()
@@ -156,25 +156,24 @@ func (c *ebpfCollector) Collect() ([]*Metric, error) {
 		allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
 		// Add per-process usage metrics
-		deviceMetrics = append(deviceMetrics,
+		deviceSamples = append(deviceSamples,
 			&Metric{
-				Name:                "process.core.usage",
-				Value:               metrics.UsedCores,
-				Type:                ddmetrics.GaugeType,
-				AssociatedWorkloads: workloads,
+				baseSample: baseSample{associatedWorkloads: workloads},
+				Name:       "process.core.usage",
+				Value:      metrics.UsedCores,
+				Type:       ddmetrics.GaugeType,
 			},
 			&Metric{
-				Name:                "process.memory.usage",
-				Value:               float64(metrics.Memory.CurrentBytes),
-				Type:                ddmetrics.GaugeType,
-				AssociatedWorkloads: workloads,
+				baseSample: baseSample{associatedWorkloads: workloads},
+				Name:       "process.memory.usage",
+				Value:      float64(metrics.Memory.CurrentBytes),
+				Type:       ddmetrics.GaugeType,
 			},
 			&Metric{
-				Name:                "process.sm_active",
-				Value:               metrics.ActiveTimePct,
-				Type:                ddmetrics.GaugeType,
-				Priority:            Low,
-				AssociatedWorkloads: workloads,
+				baseSample: baseSample{priority: Low, associatedWorkloads: workloads},
+				Name:       "process.sm_active",
+				Value:      metrics.ActiveTimePct,
+				Type:       ddmetrics.GaugeType,
 			},
 		)
 
@@ -193,25 +192,24 @@ func (c *ebpfCollector) Collect() ([]*Metric, error) {
 			allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
 			// Emit zero metrics for inactive processes
-			deviceMetrics = append(deviceMetrics,
+			deviceSamples = append(deviceSamples,
 				&Metric{
-					Name:                "process.core.usage",
-					Value:               0,
-					Type:                ddmetrics.GaugeType,
-					AssociatedWorkloads: workloads,
+					baseSample: baseSample{associatedWorkloads: workloads},
+					Name:       "process.core.usage",
+					Value:      0,
+					Type:       ddmetrics.GaugeType,
 				},
 				&Metric{
-					Name:                "process.memory.usage",
-					Value:               0,
-					Type:                ddmetrics.GaugeType,
-					AssociatedWorkloads: workloads,
+					baseSample: baseSample{associatedWorkloads: workloads},
+					Name:       "process.memory.usage",
+					Value:      0,
+					Type:       ddmetrics.GaugeType,
 				},
 				&Metric{
-					Name:                "process.sm_active",
-					Value:               0,
-					Type:                ddmetrics.GaugeType,
-					Priority:            Low,
-					AssociatedWorkloads: workloads,
+					baseSample: baseSample{priority: Low, associatedWorkloads: workloads},
+					Name:       "process.sm_active",
+					Value:      0,
+					Type:       ddmetrics.GaugeType,
 				},
 			)
 
@@ -221,19 +219,18 @@ func (c *ebpfCollector) Collect() ([]*Metric, error) {
 	}
 
 	// Emit limit metrics with aggregated PID tags
-	deviceMetrics = append(deviceMetrics,
+	deviceSamples = append(deviceSamples,
 		&Metric{
-			Name:                "core.limit",
-			Value:               float64(devInfo.CoreCount),
-			Type:                ddmetrics.GaugeType,
-			Priority:            Medium,
-			AssociatedWorkloads: allWorkloadIDs,
+			baseSample: baseSample{priority: Medium, associatedWorkloads: allWorkloadIDs},
+			Name:       "core.limit",
+			Value:      float64(devInfo.CoreCount),
+			Type:       ddmetrics.GaugeType,
 		},
 		&Metric{
-			Name:                "memory.limit",
-			Value:               float64(devInfo.Memory),
-			Type:                ddmetrics.GaugeType,
-			AssociatedWorkloads: allWorkloadIDs,
+			baseSample: baseSample{associatedWorkloads: allWorkloadIDs},
+			Name:       "memory.limit",
+			Value:      float64(devInfo.Memory),
+			Type:       ddmetrics.GaugeType,
 		},
 	)
 
@@ -247,22 +244,22 @@ func (c *ebpfCollector) Collect() ([]*Metric, error) {
 		}
 	}
 
-	deviceMetrics = append(deviceMetrics,
+	deviceSamples = append(deviceSamples,
 		&Metric{
-			Name:     "sm_active",
-			Value:    activeTimePct,
-			Type:     ddmetrics.GaugeType,
-			Priority: Low,
+			baseSample: baseSample{priority: Low},
+			Name:       "sm_active",
+			Value:      activeTimePct,
+			Type:       ddmetrics.GaugeType,
 			// No AssociatedWorkloads - device-wide metric
 		},
 		&Metric{
-			Name:     "gr_engine_active",
-			Value:    activeTimePct,
-			Type:     ddmetrics.GaugeType,
-			Priority: Low,
+			baseSample: baseSample{priority: Low},
+			Name:       "gr_engine_active",
+			Value:      activeTimePct,
+			Type:       ddmetrics.GaugeType,
 			// No AssociatedWorkloads - device-wide metric
 		},
 	)
 
-	return deviceMetrics, nil
+	return deviceSamples, nil
 }

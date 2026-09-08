@@ -14,7 +14,7 @@ from invoke.tasks import task
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
@@ -47,6 +47,8 @@ BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
 
+BAZEL_TARGET = "//cmd/security-agent:security-agent"
+
 
 @task(iterable=["build_tags"])
 def build(
@@ -58,10 +60,25 @@ def build(
     go_mod="readonly",
     static=False,
     fips_mode=False,
+    enable_bazel=False,
 ):
     """
     Build the security agent
     """
+
+    if enable_bazel:
+        if build_tags:
+            raise NotImplementedError("--enable-bazel does not support --build-tags.")
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if install_path is not None:
+            raise NotImplementedError("--enable-bazel does not support --install-path.")
+        if static:
+            raise NotImplementedError("--enable-bazel does not support --static.")
+
+        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
+        return
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
 
@@ -271,6 +288,41 @@ def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
     )
 
 
+OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifacts"
+
+
+# The OTel TLS testers go through Bazel rather than the ninja rules above so
+# they link against the hermetic crosstool-NG sysroot: glibc 2.23, of which only
+# 2.17 symbols end up referenced. The host toolchain would link them against the
+# build image's glibc instead, which is newer than every KMT host and than the
+# ubuntu:20.04 image RunMultiMode's docker leg uses, and every dynamically
+# linked variant would then be skipped outside the newest legs.
+#
+# musl is covered by TestResolveOTelTLSMuslDTV in
+# pkg/security/resolvers/process/otel_tls_test.go instead: the only thing musl
+# changes is the DTV layout its libc reports, which is resolved entirely in
+# user space and needs neither eBPF nor a VM.
+def build_otel_tls_artifacts(build_dir, arch: Arch):
+    if arch.is_cross_compiling():
+        # Both crosstool-NG toolchains are exec_compatible_with their own CPU,
+        # so there is no toolchain that targets the other architecture.
+        print("Skipping the OTel TLS glibc testers while cross-compiling")
+        return
+
+    bazel("build", OTEL_TLS_BAZEL_TARGET)
+
+    # The filegroup is the one list of artifacts; asking Bazel for its files
+    # keeps this from drifting from the BUILD file.
+    execroot = bazel("info", "execution_root", capture_output=True).strip()
+    artifacts = bazel("cquery", "--output=files", OTEL_TLS_BAZEL_TARGET, capture_output=True).split()
+
+    for artifact in artifacts:
+        src = os.path.join(execroot, artifact)
+        dst = os.path.join(build_dir, os.path.basename(artifact))
+        shutil.copy2(src, dst)
+        os.chmod(dst, 0o755)
+
+
 def create_dir_if_needed(dir):
     try:
         os.makedirs(dir)
@@ -299,6 +351,7 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
+    build_otel_tls_artifacts(build_dir, arch)
     build_go_syscall_tester(ctx, build_dir, arch=arch)
 
 

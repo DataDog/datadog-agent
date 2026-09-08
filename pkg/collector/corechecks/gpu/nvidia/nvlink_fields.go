@@ -126,15 +126,16 @@ func newNVLinkFieldsCollectorWithMetrics(device ddnvml.Device, metrics map[uint3
 	return c, nil
 }
 
-func (c *nvlinkFieldsCollector) DeviceUUID() string {
-	return c.device.GetDeviceInfo().UUID
+// Device returns the device this collector monitors.
+func (c *nvlinkFieldsCollector) Device() ddnvml.Device {
+	return c.device
 }
 
 func (c *nvlinkFieldsCollector) Name() CollectorName {
 	return nvlinkFields
 }
 
-func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
+func (c *nvlinkFieldsCollector) Collect() ([]Sample, error) {
 	if len(c.requests) == 0 {
 		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
 	}
@@ -152,7 +153,7 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 		return nil, err
 	}
 
-	var metrics []*Metric
+	var samples []Sample
 	var errs []error
 	for i, val := range fields {
 		request := c.requests[i]
@@ -170,13 +171,12 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 		}
 
 		for _, port := range request.ports {
-			metrics = append(metrics, &Metric{
+			samples = append(samples, &Metric{
+				baseSample:          baseSample{priority: fieldValueMetric.priority, tags: []string{nvlinkPortTag(port)}},
 				Name:                fieldValueMetric.name,
 				Value:               value,
 				Type:                fieldValueMetric.metricType,
-				Priority:            fieldValueMetric.priority,
 				RateCalculationMode: fieldValueMetric.rateCalculationMode,
-				Tags:                []string{nvlinkPortTag(port)},
 			})
 		}
 
@@ -200,19 +200,19 @@ func (c *nvlinkFieldsCollector) Collect() ([]*Metric, error) {
 			continue
 		}
 
-		metrics = append(metrics, &Metric{
+		samples = append(samples, &Metric{
+			baseSample:          baseSample{priority: metric.priority},
 			Name:                metric.name + ".total",
 			Value:               total,
 			Type:                metric.metricType,
-			Priority:            metric.priority,
 			RateCalculationMode: metric.rateCalculationMode,
 		})
 	}
 
-	return metrics, errors.Join(errs...)
+	return samples, errors.Join(errs...)
 }
 
-func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]*Metric, error) {
+func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) {
 	if len(c.metrics) == 0 {
 		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
 	}

@@ -7,12 +7,11 @@ package filterlistimpl
 
 import (
 	"encoding/json"
-	"fmt"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 	"github.com/twmb/murmur3"
 )
 
@@ -75,8 +74,6 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	for configPath, v := range updates {
 		fl.log.Debugf("received filterlist config: %q", string(v.Config))
 
-		fmt.Println("\033[035m", string(v.Config), "\033[0m")
-
 		var config statsdFilterListUpdate
 		if err := json.Unmarshal(v.Config, &config); err != nil {
 			applyStateCallback(configPath, state.ApplyStatus{
@@ -105,6 +102,9 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	}
 
 	metricRules := fl.buildMetricFilterListConfig(metricFilterListUpdates)
+	// RC lists mark their prefixes per entry with `*`, and are applied with the
+	// global prefix mode off (see SetMetricFilterRules below).
+	metricRules = normalizeMetricRules(metricRules, false, fl.log)
 
 	if len(metricRules) > 0 {
 		// update the runtime config to be consistent
@@ -155,21 +155,21 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 // interchangeable, and the matcher applies each entry's exceptions to its own
 // match, so keeping both is what makes a metric excepted by only one of them
 // still get dropped.
-func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []utilstrings.Rule {
-	var rules []utilstrings.Rule
+func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []metricname.Rule {
+	var rules []metricname.Rule
 	seen := make(map[string]struct{})
 
 	for _, update := range metricFilterListUpdates {
 		for _, metric := range update.ByName.Metrics {
 			if len(metric.Except) > 0 {
-				rules = append(rules, utilstrings.Rule{Pattern: metric.Name, Except: metric.Except})
+				rules = append(rules, metricname.Rule{Pattern: metric.Name, Except: metric.Except})
 				continue
 			}
 			if _, ok := seen[metric.Name]; ok {
 				continue
 			}
 			seen[metric.Name] = struct{}{}
-			rules = append(rules, utilstrings.Rule{Pattern: metric.Name})
+			rules = append(rules, metricname.Rule{Pattern: metric.Name})
 		}
 	}
 

@@ -23,6 +23,22 @@ var GitAncestorOnMain = "main"
 func TestMain(m *testing.M) {
 	flag.Parse()
 
+	if listGroups {
+		// Only advertise groups the suite can also apply, or the runner would
+		// launch one unrestricted pass per group.
+		if _, ok := entryTables(m); !ok {
+			fmt.Fprintln(os.Stderr, "cannot reach the test tables, not grouping the suite")
+			os.Exit(1)
+		}
+		printGroups()
+		os.Exit(0)
+	}
+
+	if testGroup != "" && !selectGroup(m, testGroup) {
+		fmt.Fprintf(os.Stderr, "unknown test group %q\n", testGroup)
+		os.Exit(1)
+	}
+
 	fmt.Printf("Using git ref %s as common ancestor between HEAD and main branch\n", GitAncestorOnMain)
 
 	preTestsHook()
@@ -43,10 +59,16 @@ var (
 	logPatterns     stringSlice
 	logTags         stringSlice
 	ebpfLessEnabled bool
+	listGroups      bool
+	testGroup       string
 )
 
 func init() {
 	flag.StringVar(&logLevelStr, "loglevel", log.WarnStr, "log level")
 	flag.Var(&logPatterns, "logpattern", "List of log pattern")
 	flag.Var(&logTags, "logtag", "List of log tag")
+	flag.BoolVar(&listGroups, "list-groups", false,
+		"print the groups the suite partitions into, one per line, then exit")
+	flag.StringVar(&testGroup, "group", "",
+		"run only the tests in the named group; -test.run and -test.skip are unaffected")
 }
