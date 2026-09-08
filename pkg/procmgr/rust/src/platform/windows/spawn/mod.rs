@@ -6,6 +6,7 @@
 mod credential;
 mod managed;
 mod primary_token;
+mod startup_info_ex;
 mod stdio;
 mod suspended;
 mod token_handle;

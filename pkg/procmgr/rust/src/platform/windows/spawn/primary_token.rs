@@ -9,14 +9,15 @@ use std::os::windows::ffi::OsStrExt;
 use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_SUSPENDED,
-    CREATE_UNICODE_ENVIRONMENT, CreateProcessAsUserW, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
-    STARTUPINFOW,
+    CREATE_UNICODE_ENVIRONMENT, CreateProcessAsUserW, EXTENDED_STARTUPINFO_PRESENT,
+    PROCESS_INFORMATION,
 };
 
 use crate::spawn::SpawnRequest;
 
 use super::super::wide;
 use super::credential::SpawnCredential;
+use super::startup_info_ex::StartupInfoEx;
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 use super::suspended::SuspendedChild;
 use super::token_handle::TokenHandle;
@@ -62,18 +63,18 @@ pub(super) fn spawn_as_primary_token(
     )?;
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 
-    let mut si: STARTUPINFOW = unsafe { mem::zeroed() };
-    si.cb = mem::size_of::<STARTUPINFOW>() as u32;
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = stdin_handle.raw();
-    si.hStdOutput = stdout_handle.raw();
-    si.hStdError = stderr_handle.raw();
+    let mut startup_info = StartupInfoEx::with_stdio_handles(
+        stdin_handle.raw(),
+        stdout_handle.raw(),
+        stderr_handle.raw(),
+    )?;
 
     let dw_creation_flags = CREATE_SUSPENDED
         | CREATE_NEW_PROCESS_GROUP
         | CREATE_NEW_CONSOLE
         | CREATE_NO_WINDOW
-        | CREATE_UNICODE_ENVIRONMENT;
+        | CREATE_UNICODE_ENVIRONMENT
+        | EXTENDED_STARTUPINFO_PRESENT;
 
     let mut pi: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     let ok = unsafe {
@@ -90,7 +91,7 @@ pub(super) fn spawn_as_primary_token(
                 .as_ref()
                 .map(|w| w.as_ptr())
                 .unwrap_or(std::ptr::null()),
-            &si,
+            startup_info.startup_info(),
             &mut pi,
         )
     };
