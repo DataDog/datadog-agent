@@ -289,6 +289,8 @@ func (suite *LauncherTestSuite) TestFileNameToID() {
 		{"example_test_5678abcd.log", "example_test:5678abcd"},
 		{"integration with spaces_5678.log", "integration with spaces:5678"},
 		{"file_with_multiple_underscores_9999.log", "file_with_multiple_underscores:9999"},
+		{"nounderscore.log", "nounderscore"},
+		{"_1234.log", ":1234"},
 	}
 
 	for _, tt := range tests {
@@ -297,6 +299,39 @@ func (suite *LauncherTestSuite) TestFileNameToID() {
 			assert.Equal(suite.T(), tt.expected, result)
 		})
 	}
+}
+
+// TestIndividualLogSizeBoundary pins the individual-log size check: a log whose size exactly
+// equals fileSizeMax is written, while one byte more is rejected.
+func (suite *LauncherTestSuite) TestIndividualLogSizeBoundary() {
+	suite.s.combinedUsageMax = 10 * 1024 * 1024
+
+	logContent := "hello"
+	logSize := int64(len(logContent) + 1) // +1 for the trailing newline the launcher writes
+
+	// fileSizeMax exactly equals the log size: the log fits and is written.
+	suite.s.fileSizeMax = logSize
+	atLimitPath := filepath.Join(suite.s.runPath, "atlimit_1.log")
+	f, err := suite.fs.Create(atLimitPath)
+	assert.NoError(suite.T(), err)
+	f.Close()
+
+	// fileSizeMax one byte below the log size: the log is rejected.
+	suite.s.fileSizeMax = logSize // keep at-limit for the first call; lowered for the second below
+	suite.s.Start(nil, nil, nil, nil)
+
+	suite.s.receiveLogs(integrations.IntegrationLog{Log: logContent, IntegrationID: "atlimit:1"})
+	assert.Equal(suite.T(), logSize, suite.s.integrationToFile["atlimit:1"].size, "log exactly at fileSizeMax should be written")
+
+	overPath := filepath.Join(suite.s.runPath, "over_2.log")
+	f2, err := suite.fs.Create(overPath)
+	assert.NoError(suite.T(), err)
+	f2.Close()
+	suite.s.scanInitialFiles(suite.s.runPath)
+	suite.s.fileSizeMax = logSize - 1 // now the same log is one byte too big
+
+	suite.s.receiveLogs(integrations.IntegrationLog{Log: logContent, IntegrationID: "over:2"})
+	assert.Equal(suite.T(), int64(0), suite.s.integrationToFile["over:2"].size, "log larger than fileSizeMax should be rejected")
 }
 
 // TestFileExceedsSingleFileLimit ensures individual files cannot exceed file
