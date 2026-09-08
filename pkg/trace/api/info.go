@@ -59,16 +59,53 @@ var serviceOriginTags = map[string]struct{}{
 }
 
 type reducedObfuscationConfig struct {
-	ElasticSearch        bool                      `json:"elastic_search"`
-	Mongo                bool                      `json:"mongo"`
-	SQLExecPlan          bool                      `json:"sql_exec_plan"`
-	SQLExecPlanNormalize bool                      `json:"sql_exec_plan_normalize"`
-	SQLObfuscationMode   obfuscate.ObfuscationMode `json:"sql_obfuscation_mode"`
-	HTTP                 obfuscate.HTTPConfig      `json:"http"`
-	RemoveStackTraces    bool                      `json:"remove_stack_traces"`
-	Redis                obfuscate.RedisConfig     `json:"redis"`
-	Valkey               obfuscate.ValkeyConfig    `json:"valkey"`
-	Memcached            obfuscate.MemcachedConfig `json:"memcached"`
+	ElasticSearch        bool                         `json:"elastic_search"`
+	Mongo                bool                         `json:"mongo"`
+	SQLExecPlan          bool                         `json:"sql_exec_plan"`
+	SQLExecPlanNormalize bool                         `json:"sql_exec_plan_normalize"`
+	SQLObfuscationMode   obfuscate.ObfuscationMode    `json:"sql_obfuscation_mode"`
+	TagReplaceRules      []*reducedTagReplaceRule     `json:"tag_replace_rules"`
+	HTTP                 reducedHTTPConfig            `json:"http"`
+	RemoveStackTraces    bool                         `json:"remove_stack_traces"`
+	Redis                obfuscate.RedisConfig        `json:"redis"`
+	Valkey               obfuscate.ValkeyConfig       `json:"valkey"`
+	Memcached            obfuscate.MemcachedConfig    `json:"memcached"`
+	CreditCards          obfuscate.CreditCardsConfig  `json:"credit_cards"`
+	SQL                  reducedSQLConfig             `json:"sql"`
+	Elasticsearch        reducedJSONObfuscationConfig `json:"elasticsearch"`
+	OpenSearch           reducedJSONObfuscationConfig `json:"opensearch"`
+	MongoDB              reducedJSONObfuscationConfig `json:"mongodb"`
+}
+
+type reducedTagReplaceRule struct {
+	Name    string `json:"name"`
+	Pattern string `json:"pattern"`
+	Repl    string `json:"repl"`
+}
+
+type reducedHTTPConfig struct {
+	RemoveQueryString bool `json:"remove_query_string"`
+	RemovePathDigits  bool `json:"remove_path_digits"`
+}
+
+type reducedSQLConfig struct {
+	ReplaceDigits                 bool                      `json:"replace_digits"`
+	KeepSQLAlias                  bool                      `json:"keep_sql_alias"`
+	DollarQuotedFunc              bool                      `json:"dollar_quoted_func"`
+	KeepNull                      bool                      `json:"keep_null"`
+	KeepBoolean                   bool                      `json:"keep_boolean"`
+	KeepPositionalParameter       bool                      `json:"keep_positional_parameter"`
+	KeepTrailingSemicolon         bool                      `json:"keep_trailing_semicolon"`
+	KeepIdentifierQuotation       bool                      `json:"keep_identifier_quotation"`
+	ReplaceBindParameter          bool                      `json:"replace_bind_parameter"`
+	RemoveSpaceBetweenParentheses bool                      `json:"remove_space_between_parentheses"`
+	KeepJSONPath                  bool                      `json:"keep_json_path"`
+	ObfuscationMode               obfuscate.ObfuscationMode `json:"obfuscation_mode"`
+}
+
+type reducedJSONObfuscationConfig struct {
+	Enabled  bool     `json:"enabled"`
+	KeepKeys []string `json:"keep_keys"`
 }
 
 type reducedConfig struct {
@@ -108,17 +145,52 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		}
 	}
 	var oconf reducedObfuscationConfig
+	if rules := r.conf.ReplaceTags; rules != nil {
+		oconf.TagReplaceRules = make([]*reducedTagReplaceRule, len(rules))
+		for i, rule := range rules {
+			if rule == nil {
+				continue
+			}
+			oconf.TagReplaceRules[i] = &reducedTagReplaceRule{
+				Name:    rule.Name,
+				Pattern: rule.Pattern,
+				Repl:    rule.Repl,
+			}
+		}
+	}
 	if o := r.conf.Obfuscation; o != nil {
+		exported := o.Export(r.conf)
 		oconf.ElasticSearch = o.ES.Enabled
 		oconf.Mongo = o.Mongo.Enabled
 		oconf.SQLExecPlan = o.SQLExecPlan.Enabled
 		oconf.SQLExecPlanNormalize = o.SQLExecPlanNormalize.Enabled
 		oconf.SQLObfuscationMode = r.conf.EffectiveSQLObfuscationMode()
-		oconf.HTTP = o.HTTP
+		oconf.HTTP = reducedHTTPConfig{
+			RemoveQueryString: o.HTTP.RemoveQueryString,
+			RemovePathDigits:  o.HTTP.RemovePathDigits,
+		}
 		oconf.RemoveStackTraces = o.RemoveStackTraces
 		oconf.Redis = o.Redis
 		oconf.Valkey = o.Valkey
 		oconf.Memcached = o.Memcached
+		oconf.CreditCards = o.CreditCards
+		oconf.SQL = reducedSQLConfig{
+			ReplaceDigits:                 exported.SQL.ReplaceDigits,
+			KeepSQLAlias:                  exported.SQL.KeepSQLAlias,
+			DollarQuotedFunc:              exported.SQL.DollarQuotedFunc,
+			KeepNull:                      exported.SQL.KeepNull,
+			KeepBoolean:                   exported.SQL.KeepBoolean,
+			KeepPositionalParameter:       exported.SQL.KeepPositionalParameter,
+			KeepTrailingSemicolon:         exported.SQL.KeepTrailingSemicolon,
+			KeepIdentifierQuotation:       exported.SQL.KeepIdentifierQuotation,
+			ReplaceBindParameter:          exported.SQL.ReplaceBindParameter,
+			RemoveSpaceBetweenParentheses: exported.SQL.RemoveSpaceBetweenParentheses,
+			KeepJSONPath:                  exported.SQL.KeepJSONPath,
+			ObfuscationMode:               exported.SQL.ObfuscationMode,
+		}
+		oconf.Elasticsearch = reducedJSONObfuscationConfig{Enabled: o.ES.Enabled, KeepKeys: o.ES.KeepValues}
+		oconf.OpenSearch = reducedJSONObfuscationConfig{Enabled: o.OpenSearch.Enabled, KeepKeys: o.OpenSearch.KeepValues}
+		oconf.MongoDB = reducedJSONObfuscationConfig{Enabled: o.Mongo.Enabled, KeepKeys: o.Mongo.KeepValues}
 	}
 
 	// We check that endpoints contains stats, even though we know this version of the
