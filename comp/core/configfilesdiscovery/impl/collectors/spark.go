@@ -7,6 +7,7 @@ package collectors
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"strings"
@@ -97,11 +98,10 @@ var sparkDefaultConfigPathGroups = [][]string{
 	{"/opt/bitnami/spark/conf/" + sparkDefaultsConfigFileName},
 }
 
-// NewSpark returns a collector for Spark Standalone Drivers running in cluster
-// deploy mode. It reads the driver's Spark properties file in addition to its
-// supporting non-secret environment metadata. Other Spark deployment modes do
-// not have a portable, unambiguous Driver process identity available through
-// ConfigReader.
+// NewSpark returns a collector for Spark drivers. It identifies Spark
+// Standalone drivers by their DriverWrapper class and SparkSubmit drivers by
+// their explicit spark_process_role:driver JVM tag. It reads the driver's Spark
+// properties file in addition to supporting non-secret environment metadata.
 func NewSpark() configfilesdiscoveryimpl.ConfigCollector {
 	return sparkConfigCollector{}
 }
@@ -177,19 +177,23 @@ func readSparkConfigFile(
 	envVars []configfilesdiscoveryimpl.ConfigEnvVar,
 ) (configfilesdiscoveryimpl.ConfigFile, bool, error) {
 	fallbackConfigArg := sparkFallbackConfigArg(envVars)
+	runtimeCommandline, runtimeErr := reader.ReadRuntimeCommandline(ctx)
 	if fallbackConfigArg == "" {
-		return readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkMatchesSubmitCommandline, "", sparkDefaultConfigPathGroups...)
-	}
-
-	file, ok, err := readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkMatchesSubmitCommandline, "")
-	if err != nil || ok {
+		file, ok, err := readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkMatchesSubmitCommandline, "", sparkDefaultConfigPathGroups...)
+		if err != nil && runtimeErr != nil && errors.Is(err, runtimeErr) {
+			return configfilesdiscoveryimpl.ConfigFile{}, false, nil
+		}
 		return file, ok, err
 	}
 
-	runtimeCommandline, err := reader.ReadRuntimeCommandline(ctx)
-	if err != nil {
-		return configfilesdiscoveryimpl.ConfigFile{}, false, nil
+	file, ok, err := readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkMatchesSubmitCommandline, "")
+	if err != nil && (runtimeErr == nil || !errors.Is(err, runtimeErr)) {
+		return file, ok, err
 	}
+	if ok {
+		return file, ok, nil
+	}
+
 	configPath, resolved := resolveConfigPath(fallbackConfigArg, runtimeCommandline.WorkingDir)
 	if !resolved {
 		return configfilesdiscoveryimpl.ConfigFile{}, false, nil

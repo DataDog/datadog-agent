@@ -121,6 +121,28 @@ func TestSparkCollectorReadsExplicitPropertiesFile(t *testing.T) {
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigFile{{Path: "/etc/spark/driver.conf", Content: []byte("spark.app.name=example\n"), PayloadFormat: sparkConfigPayloadFormat}}, collected.ConfigFiles)
 }
 
+func TestSparkCollectorCollectsSparkSubmitDriverConfigAndEnvVars(t *testing.T) {
+	reader := &sparkCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{
+			"java",
+			"-Ddd.tags=env:test," + sparkDriverRoleTag,
+			sparkSubmitClass,
+			sparkPropertiesFileOption,
+			"/etc/spark/driver.conf",
+		}},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			"/etc/spark/driver.conf": {Path: "/etc/spark/driver.conf", Content: []byte("spark.app.name=submit-driver\n")},
+		},
+		env: map[string]string{"SPARK_DRIVER_MEMORY": "2g"},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "SPARK_DRIVER_MEMORY", Value: "2g"}}, collected.EnvVars)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigFile{{Path: "/etc/spark/driver.conf", Content: []byte("spark.app.name=submit-driver\n"), PayloadFormat: sparkConfigPayloadFormat}}, collected.ConfigFiles)
+}
+
 func TestSparkCollectorReadsSparkConfDir(t *testing.T) {
 	const configPath = "/opt/custom/spark-conf/spark-defaults.conf"
 	reader := &sparkCollectorTestReader{
@@ -197,6 +219,23 @@ func TestSparkCollectorCollectsConfigWhenEnvReadFails(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, collected.ConfigFiles, 1)
 	assert.Empty(t, collected.EnvVars)
+}
+
+func TestSparkCollectorCollectsEnvAfterRuntimeInspectionErrorWithoutConfigFile(t *testing.T) {
+	runtimeErr := errors.New("inspect unavailable")
+	reader := &sparkCollectorTestReader{
+		runtimeCommandlineErr: runtimeErr,
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
+			{Args: []string{"/opt/spark/bin/spark-class", sparkStandaloneDriverClass}},
+		},
+		env: map[string]string{"SPARK_LOCAL_DIRS": "/tmp/spark"},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, collected.ConfigFiles)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "SPARK_LOCAL_DIRS", Value: "/tmp/spark"}}, collected.EnvVars)
 }
 
 func TestSparkCollectorFindsLiveDriverAfterRuntimeInspectionError(t *testing.T) {
