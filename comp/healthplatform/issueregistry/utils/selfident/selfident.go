@@ -173,6 +173,14 @@ func (s *SelfIdent) startClusterResolve() <-chan struct{} {
 		return s.clusterResolving
 	}
 	done := make(chan struct{})
+	// Re-check the cache under the lock: another resolver may have populated it
+	// between the caller's Load and here. Returning an already-closed channel
+	// lets the caller read the cached id immediately instead of waiting out the
+	// timeout behind a fresh (and possibly slow) redundant lookup.
+	if s.clusterID.Load() != nil {
+		close(done)
+		return done
+	}
 	s.clusterResolving = done
 	go func() {
 		// Clear clusterResolving before closing done so that a caller woken by
