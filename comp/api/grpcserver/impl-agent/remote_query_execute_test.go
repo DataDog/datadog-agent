@@ -156,7 +156,7 @@ func TestRemoteQueryExecuteRequestFromProtoPreserves10GiBInt64Fidelity(t *testin
 	})
 	require.NoError(t, err)
 	require.NotNil(t, req.ResultDelivery.Limits)
-	assert.Equal(t, int(tenGiB), req.ResultDelivery.Limits.MaxResultBytes)
+	assert.Equal(t, tenGiB, req.ResultDelivery.Limits.MaxResultBytes)
 
 	overflowProto := validRemoteQueryResultDeliveryProto()
 	overflowProto.Limits.MaxResultBytes = tenGiBPlusOne

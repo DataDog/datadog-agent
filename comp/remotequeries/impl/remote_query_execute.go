@@ -165,8 +165,10 @@ func clickHouseProofQueries() map[string]struct{} {
 // its-agent-intake platform ceiling; the total cap matches the backend-owned 10 GiB result
 // ceiling.
 const (
-	remoteQueryUploadMaxFileBytes   = 128 << 20 // 128 MiB hard page cap ceiling
-	remoteQueryUploadMaxResultBytes = 10 << 30  // 10 GiB hard total cap
+	// Typed int64: the 10 GiB total cap overflows 32-bit int (armhf) wherever an
+	// untyped use would default to int (comparisons, fmt.Errorf arguments).
+	remoteQueryUploadMaxFileBytes   int64 = 128 << 20 // 128 MiB hard page cap ceiling
+	remoteQueryUploadMaxResultBytes int64 = 10 << 30  // 10 GiB hard total cap
 )
 
 var (
@@ -269,11 +271,13 @@ type RemoteQueryExecuteTarget struct {
 // result contract. Every value is server-owned: the Agent forwards them opaquely and the
 // integration enforces them.
 type RemoteQueryUploadLimits struct {
-	MaxFileBytes   int
-	MaxResultBytes int
-	MaxRowBytes    int
+	// Byte limits are int64 so the 10 GiB total cap is representable on 32-bit
+	// platforms (armhf); row/column/page counts and the timeout stay int.
+	MaxFileBytes   int64
+	MaxResultBytes int64
+	MaxRowBytes    int64
 	MaxColumns     int
-	MaxSchemaBytes int
+	MaxSchemaBytes int64
 	MaxPages       int
 	TimeoutMs      int
 }
@@ -452,13 +456,13 @@ type remoteQueryResultDeliveryRequestJSON struct {
 }
 
 type remoteQueryUploadLimitsRequestJSON struct {
-	MaxFileBytes   *int `json:"maxFileBytes"`
-	MaxResultBytes *int `json:"maxResultBytes"`
-	MaxRowBytes    *int `json:"maxRowBytes"`
-	MaxColumns     *int `json:"maxColumns"`
-	MaxSchemaBytes *int `json:"maxSchemaBytes"`
-	MaxPages       *int `json:"maxPages"`
-	TimeoutMs      *int `json:"timeoutMs"`
+	MaxFileBytes   *int64 `json:"maxFileBytes"`
+	MaxResultBytes *int64 `json:"maxResultBytes"`
+	MaxRowBytes    *int64 `json:"maxRowBytes"`
+	MaxColumns     *int   `json:"maxColumns"`
+	MaxSchemaBytes *int64 `json:"maxSchemaBytes"`
+	MaxPages       *int   `json:"maxPages"`
+	TimeoutMs      *int   `json:"timeoutMs"`
 }
 
 func (d *remoteQueryResultDeliveryRequestJSON) UnmarshalJSON(data []byte) error {
@@ -554,13 +558,13 @@ type remoteQueryResultDeliveryJSON struct {
 }
 
 type remoteQueryUploadLimitsJSON struct {
-	MaxFileBytes   int `json:"maxFileBytes"`
-	MaxResultBytes int `json:"maxResultBytes"`
-	MaxRowBytes    int `json:"maxRowBytes"`
-	MaxColumns     int `json:"maxColumns"`
-	MaxSchemaBytes int `json:"maxSchemaBytes"`
-	MaxPages       int `json:"maxPages"`
-	TimeoutMs      int `json:"timeoutMs"`
+	MaxFileBytes   int64 `json:"maxFileBytes"`
+	MaxResultBytes int64 `json:"maxResultBytes"`
+	MaxRowBytes    int64 `json:"maxRowBytes"`
+	MaxColumns     int   `json:"maxColumns"`
+	MaxSchemaBytes int64 `json:"maxSchemaBytes"`
+	MaxPages       int   `json:"maxPages"`
+	TimeoutMs      int   `json:"timeoutMs"`
 }
 
 type remoteQueryTargetJSON struct {

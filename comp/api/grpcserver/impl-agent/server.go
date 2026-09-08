@@ -512,11 +512,13 @@ func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) 
 	}
 	if limits := delivery.GetLimits(); limits != nil {
 		out.Limits = &remotequeriesimpl.RemoteQueryUploadLimits{
-			MaxFileBytes:   int(limits.GetMaxFileBytes()),
-			MaxResultBytes: int(limits.GetMaxResultBytes()),
-			MaxRowBytes:    int(limits.GetMaxRowBytes()),
+			// Byte limits pass through as int64: truncating to int would silently
+			// corrupt the 10 GiB total cap on 32-bit platforms (armhf).
+			MaxFileBytes:   limits.GetMaxFileBytes(),
+			MaxResultBytes: limits.GetMaxResultBytes(),
+			MaxRowBytes:    limits.GetMaxRowBytes(),
 			MaxColumns:     int(limits.GetMaxColumns()),
-			MaxSchemaBytes: int(limits.GetMaxSchemaBytes()),
+			MaxSchemaBytes: limits.GetMaxSchemaBytes(),
 			MaxPages:       int(limits.GetMaxPages()),
 			TimeoutMs:      int(limits.GetTimeoutMs()),
 		}
