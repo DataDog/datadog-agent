@@ -636,13 +636,18 @@ func waitForServiceCollectionCall(t *testing.T, calls <-chan time.Time) time.Tim
 	}
 }
 
+func waitForServiceStartupSignal(t *testing.T, signal <-chan struct{}, description string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for %s", description)
+	}
+}
+
 func TestCollectServicesSchedulesRegularIntervalFromStartupCollection(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 	c.mockClock.Set(baseTime)
-	socketPath, _ := startScriptedServiceDiscoveryServer(t, func(_ int, _ core.Params) serviceDiscoveryTestResponse {
-		return serviceDiscoveryTestResponse{response: &model.ServicesResponse{}}
-	})
-	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	processesReady := make(chan struct{})
@@ -651,7 +656,9 @@ func TestCollectServicesSchedulesRegularIntervalFromStartupCollection(t *testing
 	collectionTimer := c.mockClock.Timer(time.Minute)
 	go func() {
 		defer close(done)
-		c.collector.collectServices(ctx, collectionTimer, time.Minute, processesReady, func(context.Context) {
+		c.collector.collectServices(ctx, collectionTimer, time.Minute, processesReady, func(context.Context) error {
+			return nil
+		}, func(context.Context) {
 			calls <- c.mockClock.Now()
 		})
 	}()
@@ -682,13 +689,60 @@ func TestCollectServicesSchedulesRegularIntervalFromStartupCollection(t *testing
 	}
 }
 
+func TestCollectServicesWaitsForSystemProbeStartup(t *testing.T) {
+	c := setUpCollectorTest(t, nil, nil, nil)
+	c.mockClock.Set(baseTime)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	processesReady := make(chan struct{})
+	close(processesReady)
+	waitStarted := make(chan struct{})
+	systemProbeReady := make(chan struct{})
+	calls := make(chan time.Time, 1)
+	done := make(chan struct{})
+	collectionTimer := c.mockClock.Timer(time.Minute)
+	go func() {
+		defer close(done)
+		c.collector.collectServices(ctx, collectionTimer, time.Minute, processesReady, func(ctx context.Context) error {
+			close(waitStarted)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-systemProbeReady:
+				return nil
+			}
+		}, func(context.Context) {
+			calls <- c.mockClock.Now()
+		})
+	}()
+
+	waitForServiceStartupSignal(t, waitStarted, "system-probe startup wait to begin")
+	select {
+	case callTime := <-calls:
+		t.Fatalf("service collection ran before system-probe readiness at %s", callTime)
+	default:
+	}
+
+	close(systemProbeReady)
+	assert.Equal(t, baseTime, waitForServiceCollectionCall(t, calls))
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for service collection to stop")
+	}
+}
+
 func TestCollectServicesDoesNotRunAfterCancellation(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	called := false
-	c.collector.collectServices(ctx, c.mockClock.Timer(time.Minute), time.Minute, nil, func(context.Context) {
+	c.collector.collectServices(ctx, c.mockClock.Timer(time.Minute), time.Minute, nil, func(ctx context.Context) error {
+		return ctx.Err()
+	}, func(context.Context) {
 		called = true
 	})
 
@@ -709,20 +763,33 @@ func TestCollectServicesRegularIntervalCancelsStartupWait(t *testing.T) {
 	c.mockClock.Set(baseTime)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	processesReady := make(chan struct{})
+	waitStarted := make(chan struct{})
+	waitCanceled := make(chan struct{})
+	systemProbeReady := make(chan struct{})
 	calls := make(chan time.Time, 2)
 	done := make(chan struct{})
 	collectionTimer := c.mockClock.Timer(time.Minute)
 	go func() {
 		defer close(done)
-		c.collector.collectServices(ctx, collectionTimer, time.Minute, processesReady, func(context.Context) {
+		c.collector.collectServices(ctx, collectionTimer, time.Minute, nil, func(ctx context.Context) error {
+			close(waitStarted)
+			select {
+			case <-ctx.Done():
+				close(waitCanceled)
+				return ctx.Err()
+			case <-systemProbeReady:
+				return nil
+			}
+		}, func(context.Context) {
 			calls <- c.mockClock.Now()
 		})
 	}()
 
+	waitForServiceStartupSignal(t, waitStarted, "system-probe startup wait to begin")
 	c.mockClock.Add(time.Minute)
 	assert.Equal(t, baseTime.Add(time.Minute), waitForServiceCollectionCall(t, calls))
-	close(processesReady)
+	waitForServiceStartupSignal(t, waitCanceled, "system-probe startup wait cancellation")
+	close(systemProbeReady)
 	select {
 	case callTime := <-calls:
 		t.Fatalf("unexpected startup collection after periodic collection took over at %s", callTime)

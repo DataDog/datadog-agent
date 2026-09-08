@@ -925,12 +925,12 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 // ready, then waits the configured interval after each collection before
 // collecting again. If the initial timer expires before startup readiness,
 // periodic collection takes over.
-func (c *collector) collectServices(ctx context.Context, collectionTimer *clock.Timer, collectionInterval time.Duration, processesReady <-chan struct{}, collectOnce func(context.Context)) {
+func (c *collector) collectServices(ctx context.Context, collectionTimer *clock.Timer, collectionInterval time.Duration, processesReady <-chan struct{}, waitForSystemProbe func(context.Context) error, collectOnce func(context.Context)) {
 	defer collectionTimer.Stop()
 
 	startupCtx, cancelStartup := context.WithCancel(ctx)
 	defer cancelStartup()
-	startupReady := c.waitForServiceStartup(startupCtx, processesReady)
+	startupReady := waitForServiceStartup(startupCtx, processesReady, waitForSystemProbe)
 
 	for {
 		select {
@@ -956,7 +956,7 @@ func (c *collector) collectServices(ctx context.Context, collectionTimer *clock.
 	}
 }
 
-func (c *collector) waitForServiceStartup(ctx context.Context, processesReady <-chan struct{}) <-chan error {
+func waitForServiceStartup(ctx context.Context, processesReady <-chan struct{}, waitForSystemProbe func(context.Context) error) <-chan error {
 	ready := make(chan error, 1)
 	go func() {
 		if processesReady != nil {
@@ -967,13 +967,13 @@ func (c *collector) waitForServiceStartup(ctx context.Context, processesReady <-
 			case <-processesReady:
 			}
 		}
-		ready <- c.sysProbeClient.WaitForStartup(ctx)
+		ready <- waitForSystemProbe(ctx)
 	}()
 	return ready
 }
 
 func (c *collector) collectServicesNoCache(ctx context.Context, collectionTimer *clock.Timer, collectionInterval time.Duration) {
-	c.collectServices(ctx, collectionTimer, collectionInterval, nil, c.collectServicesNoCacheOnce)
+	c.collectServices(ctx, collectionTimer, collectionInterval, nil, c.sysProbeClient.WaitForStartup, c.collectServicesNoCacheOnce)
 }
 
 // collectServicesNoCacheOnce performs one non-cached service collection.
@@ -1010,7 +1010,7 @@ func (c *collector) collectServicesNoCacheOnce(ctx context.Context) {
 
 // collectServices captures service discovery data for alive processes
 func (c *collector) collectServicesCached(ctx context.Context, collectionTimer *clock.Timer, collectionInterval time.Duration, processesReady <-chan struct{}) {
-	c.collectServices(ctx, collectionTimer, collectionInterval, processesReady, c.collectServicesCachedOnce)
+	c.collectServices(ctx, collectionTimer, collectionInterval, processesReady, c.sysProbeClient.WaitForStartup, c.collectServicesCachedOnce)
 }
 
 // collectServicesCachedOnce performs one cached service collection.
