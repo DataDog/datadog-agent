@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -105,6 +106,45 @@ func TestNewCollector(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestIsEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		set      bool
+		value    bool
+		expected bool
+	}{
+		{
+			name:     "enabled by default",
+			set:      false,
+			expected: true,
+		},
+		{
+			name:     "core agent IPC explicitly enabled",
+			set:      true,
+			value:    true,
+			expected: true,
+		},
+		{
+			name:     "core agent IPC disabled",
+			set:      true,
+			value:    false,
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			if test.set {
+				cfg.Set("remote_agent.core_agent_ipc.enabled", test.value, model.SourceAgentRuntime)
+			}
+
+			handler := &streamHandler{Reader: cfg}
+			assert.Equal(t, test.expected, handler.IsEnabled())
 		})
 	}
 }
@@ -219,14 +259,16 @@ func TestCollection(t *testing.T) {
 	require.NoError(t, err)
 
 	// gRPC client
+	cfg := configmock.New(t)
 	collector := &remote.GenericCollector{
 		CollectorID: "generic-test-collector",
 		Catalog:     workloadmeta.Remote,
 		StreamHandler: &streamHandler{
-			port: port,
-			ipc:  ipcComp,
+			port:   port,
+			ipc:    ipcComp,
+			Reader: cfg,
 		},
-		Config: configmock.New(t),
+		Config: cfg,
 		IPC:    ipcComp,
 	}
 
