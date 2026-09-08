@@ -907,6 +907,7 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 				processesReady = nil
 			}
 			if !c.sendProcessEvent(ctx, event) {
+				log.Infof("The %s collector has stopped", collectorID)
 				return
 			}
 		}
