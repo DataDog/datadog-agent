@@ -12,6 +12,7 @@ mod local_account;
 mod local_agent_account;
 mod process;
 mod runtime_user;
+mod secure_utf16;
 mod sid;
 mod spawn;
 mod token_identity;
