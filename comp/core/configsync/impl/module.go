@@ -45,6 +45,13 @@ type configSync struct {
 
 // NewComponent creates a new configsync component.
 func NewComponent(deps Requires) (configsync.Component, error) {
+	// Nothing to sync from when this agent cannot reach the core agent by design
+	// (e.g. system-probe inside a microVM).
+	if !deps.Config.GetBool("remote_agent.core_agent_ipc.enabled") {
+		deps.Log.Info("configsync disabled: core agent IPC is disabled")
+		return configSync{}, nil
+	}
+
 	configRefreshIntervalSec := deps.Config.GetInt("agent_ipc.config_refresh_interval")
 	if configRefreshIntervalSec <= 0 {
 		deps.Log.Infof("configsync disabled: agent_ipc.config_refresh_interval invalid: %d)", configRefreshIntervalSec)
