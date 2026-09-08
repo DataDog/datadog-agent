@@ -3,10 +3,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 # gazelle:exclude parse.go
 # gazelle:exclude postgres_provisioner.go
 
-# NOTE: parse.go and postgres_provisioner.go are non-test helpers kept in the
-# go_test target below rather than a separate go_library, so the whole package
-# builds as one test binary (postgres_provisioner.go also references
-# postgresScanEnv, defined only in postgres_scan_test.go).
+# parse.go and postgres_provisioner.go are excluded above (they use test-only
+# symbols), so they are listed in the go_test srcs and their deps kept by hand.
 dd_agent_go_test(
     name = "data-security_test",
     srcs = [
@@ -22,6 +20,7 @@ dd_agent_go_test(
         "fixtures/datadog-agent.yaml",
         "fixtures/datasecurity.yaml",
     ],
+    # keep
     deps = [
         "//test/e2e-framework/common/utils",
         "//test/e2e-framework/components/datadog/agent",
