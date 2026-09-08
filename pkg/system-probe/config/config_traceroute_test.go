@@ -20,7 +20,6 @@ import (
 func TestBasicDynamicTestSettingIsRegistered(t *testing.T) {
 	coreCfg := mock.New(t)
 	require.True(t, coreCfg.IsKnown("network_path.connections_monitoring.basic_tests_enabled"))
-	require.True(t, coreCfg.GetBool("network_path.connections_monitoring.basic_tests_enabled"))
 }
 
 func TestTracerouteModule(t *testing.T) {
@@ -29,25 +28,23 @@ func TestTracerouteModule(t *testing.T) {
 		name                    string
 		npmEnabled              bool
 		standardTestsEnabled    bool
-		basicTestsEnabled       *bool
+		basicTestsEnabled       bool
 		tracerouteEnabled       *bool
 		expectTracerouteEnabled bool
 		expectWarning           bool
 	}{
 		{name: "disabled by default"},
-		{name: "NPM enables traceroute via default basic tests", npmEnabled: true, expectTracerouteEnabled: true},
+		{name: "NPM alone does not enable traceroute", npmEnabled: true},
 		{name: "standard tests require NPM", standardTestsEnabled: true},
-		{name: "explicit basic tests require NPM", basicTestsEnabled: boolPtr(true)},
+		{name: "basic tests require NPM", basicTestsEnabled: true},
 		{name: "standard tests enable traceroute", npmEnabled: true, standardTestsEnabled: true, expectTracerouteEnabled: true},
-		{name: "explicit basic tests enable traceroute", npmEnabled: true, basicTestsEnabled: boolPtr(true), expectTracerouteEnabled: true},
-		{name: "explicit basic false opts out", npmEnabled: true, basicTestsEnabled: boolPtr(false)},
+		{name: "basic tests enable traceroute", npmEnabled: true, basicTestsEnabled: true, expectTracerouteEnabled: true},
 		{name: "explicit true enables traceroute", tracerouteEnabled: boolPtr(true), expectTracerouteEnabled: true},
-		{name: "explicit false without dynamic tests", npmEnabled: true, basicTestsEnabled: boolPtr(false), tracerouteEnabled: boolPtr(false)},
+		{name: "explicit false without dynamic tests", npmEnabled: true, tracerouteEnabled: boolPtr(false)},
 		{name: "explicit false with standard tests but without NPM does not warn", standardTestsEnabled: true, tracerouteEnabled: boolPtr(false)},
-		{name: "explicit false with basic tests but without NPM does not warn", basicTestsEnabled: boolPtr(true), tracerouteEnabled: boolPtr(false)},
+		{name: "explicit false with basic tests but without NPM does not warn", basicTestsEnabled: true, tracerouteEnabled: boolPtr(false)},
 		{name: "explicit false overrides standard tests", npmEnabled: true, standardTestsEnabled: true, tracerouteEnabled: boolPtr(false), expectWarning: true},
-		{name: "explicit false overrides default basic tests", npmEnabled: true, tracerouteEnabled: boolPtr(false), expectWarning: true},
-		{name: "explicit false overrides explicit basic tests", npmEnabled: true, basicTestsEnabled: boolPtr(true), tracerouteEnabled: boolPtr(false), expectWarning: true},
+		{name: "explicit false overrides basic tests", npmEnabled: true, basicTestsEnabled: true, tracerouteEnabled: boolPtr(false), expectWarning: true},
 	}
 
 	var logs bytes.Buffer
@@ -61,9 +58,7 @@ func TestTracerouteModule(t *testing.T) {
 			coreCfg := mock.New(t)
 			sysprobeCfg := mock.NewSystemProbe(t)
 			coreCfg.SetInTest("network_path.connections_monitoring.enabled", test.standardTestsEnabled)
-			if test.basicTestsEnabled != nil {
-				coreCfg.SetInTest("network_path.connections_monitoring.basic_tests_enabled", *test.basicTestsEnabled)
-			}
+			coreCfg.SetInTest("network_path.connections_monitoring.basic_tests_enabled", test.basicTestsEnabled)
 			sysprobeCfg.SetInTest("network_config.enabled", test.npmEnabled)
 			if test.tracerouteEnabled != nil {
 				sysprobeCfg.SetInTest("traceroute.enabled", *test.tracerouteEnabled)
