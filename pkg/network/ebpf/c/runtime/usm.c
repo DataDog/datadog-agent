@@ -317,6 +317,24 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Close) {
     return 0;
 }
 
+// Attached once per binary in place of the five individual GoTLS uprobes. One
+// uprobe_multi link covers many offsets but binds to a single program, so attaching the
+// five probes separately means five links per binary -- and each link close pays the same
+// uninterruptible RCU grace period that a perf_event fd close does. Here the attach
+// cookie identifies which probe fired and doubles as the tail-call index, so one link
+// serves all five. Tail-calling rather than inlining the five bodies keeps each within
+// its own instruction budget, which is why the dispatcher stays this small.
+SEC("uprobe/crypto/tls.(*Conn).dispatch")
+int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_dispatch) {
+    u64 cookie = bpf_get_attach_cookie(ctx);
+    if (cookie >= GOTLS_DISPATCH_MAX) {
+        return 0;
+    }
+    bpf_tail_call_compat(ctx, &gotls_dispatch_progs, cookie);
+    return 0;
+}
+
+
 static __always_inline void* get_tls_base(struct task_struct* task) {
 #if defined(__TARGET_ARCH_x86)
     // X86 (RUNTIME & CO-RE)

@@ -138,8 +138,8 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
 
 // http2_tls_termination is responsible for cleaning up the state of the HTTP2
 // decoding once the TLS connection is terminated.
-SEC("uprobe/http2_tls_termination")
-int uprobe__http2_tls_termination(struct pt_regs *ctx) {
+// Shared body for the uprobe- and kprobe-typed entry points below.
+static __always_inline int __http2_tls_termination(struct pt_regs *ctx) {
     const __u32 zero = 0;
 
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -160,5 +160,16 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
     bpf_map_delete_elem(&http2_incomplete_frames, &args->tup);
 
     return 0;
+}
+
+SEC("uprobe/http2_tls_termination")
+int uprobe__http2_tls_termination(struct pt_regs *ctx) {
+    return __http2_tls_termination(ctx);
+}
+
+// Kprobe-typed copy of the program above; see tls_finish_from_kprobe in protocols/tls/https.h.
+SEC("kprobe/http2_tls_termination")
+int kprobe__http2_tls_termination(struct pt_regs *ctx) {
+    return __http2_tls_termination(ctx);
 }
 #endif

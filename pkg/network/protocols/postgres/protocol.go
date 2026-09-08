@@ -33,19 +33,20 @@ const (
 	// KernelTelemetryMap is the map for getting kernel metrics
 	KernelTelemetryMap = "postgres_telemetry"
 	// InFlightMap is the name of the in-flight map.
-	InFlightMap               = "postgres_in_flight"
-	scratchBufferMap          = "postgres_scratch_buffer"
-	iterationsMap             = "postgres_iterations"
-	handleTailCall            = "socket__postgres_handle"
-	handleResponseTailCall    = "socket__postgres_handle_response"
-	parseMessageTailCall      = "socket__postgres_process_parse_message"
-	tlsHandleTailCall         = "uprobe__postgres_tls_handle"
-	tlsParseMessageTailCall   = "uprobe__postgres_tls_process_parse_message"
-	tlsTerminationTailCall    = "uprobe__postgres_tls_termination"
-	tlsHandleResponseTailCall = "uprobe__postgres_tls_handle_response"
-	eventStream               = "postgres"
-	netifProbe                = "tracepoint__net__netif_receive_skb_postgres"
-	netifProbe414             = "netif_receive_skb_core_postgres_4_14"
+	InFlightMap                  = "postgres_in_flight"
+	scratchBufferMap             = "postgres_scratch_buffer"
+	iterationsMap                = "postgres_iterations"
+	handleTailCall               = "socket__postgres_handle"
+	handleResponseTailCall       = "socket__postgres_handle_response"
+	parseMessageTailCall         = "socket__postgres_process_parse_message"
+	tlsHandleTailCall            = "uprobe__postgres_tls_handle"
+	tlsParseMessageTailCall      = "uprobe__postgres_tls_process_parse_message"
+	tlsTerminationTailCall       = "uprobe__postgres_tls_termination"
+	kprobeTLSTerminationTailCall = "kprobe__postgres_tls_termination"
+	tlsHandleResponseTailCall    = "uprobe__postgres_tls_handle_response"
+	eventStream                  = "postgres"
+	netifProbe                   = "tracepoint__net__netif_receive_skb_postgres"
+	netifProbe414                = "netif_receive_skb_core_postgres_4_14"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
@@ -139,6 +140,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramPostgresTermination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSTerminationProgramsMap,
+			Key:           uint32(protocols.ProgramPostgresTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeTLSTerminationTailCall,
 			},
 		},
 		{

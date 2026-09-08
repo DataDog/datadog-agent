@@ -561,6 +561,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		ScanProcessesInterval:          nativeTLSScanTerminatedProcessesInterval,
 		EnableDetailedLogging:          false,
 		OnSyncCallback:                 o.cleanupDeadPids,
+		EnableMultiAttach:              uprobes.CanUseMultiAttach(),
 	}
 
 	var err error

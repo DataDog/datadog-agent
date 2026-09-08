@@ -19,8 +19,14 @@ import (
 
 // Programs maps used for tail calls
 const (
-	ProtocolDispatcherProgramsMap               = "protocols_progs"
-	TLSDispatcherProgramsMap                    = "tls_process_progs"
+	ProtocolDispatcherProgramsMap = "protocols_progs"
+	TLSDispatcherProgramsMap      = "tls_process_progs"
+	// TLSTerminationProgramsMap is the kprobe-typed mirror of the termination entries in
+	// TLSDispatcherProgramsMap. USM's uprobes are loaded with expected_attach_type
+	// BPF_TRACE_UPROBE_MULTI so they can share uprobe_multi links, and a PROG_ARRAY rejects
+	// members whose expected_attach_type differs from its owner's, so kprobe__tcp_close needs
+	// its own array to reach the termination programs.
+	TLSTerminationProgramsMap                   = "tls_termination_progs"
 	ProtocolDispatcherClassificationPrograms    = "dispatcher_classification_progs"
 	TLSProtocolDispatcherClassificationPrograms = "tls_dispatcher_classification_progs"
 

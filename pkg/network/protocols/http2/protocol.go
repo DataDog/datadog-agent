@@ -62,12 +62,13 @@ const (
 	// TelemetryMap is the name of the map that collects telemetry for plaintext and TLS encrypted HTTP/2 traffic.
 	TelemetryMap = "http2_telemetry"
 
-	tlsFirstFrameTailCall    = "uprobe__http2_tls_handle_first_frame"
-	tlsFilterTailCall        = "uprobe__http2_tls_filter"
-	tlsHeadersParserTailCall = "uprobe__http2_tls_headers_parser"
-	tlsDynamicTableCleaner   = "uprobe__http2_dynamic_table_cleaner"
-	tlsEOSParserTailCall     = "uprobe__http2_tls_eos_parser"
-	tlsTerminationTailCall   = "uprobe__http2_tls_termination"
+	tlsFirstFrameTailCall        = "uprobe__http2_tls_handle_first_frame"
+	tlsFilterTailCall            = "uprobe__http2_tls_filter"
+	tlsHeadersParserTailCall     = "uprobe__http2_tls_headers_parser"
+	tlsDynamicTableCleaner       = "uprobe__http2_dynamic_table_cleaner"
+	tlsEOSParserTailCall         = "uprobe__http2_tls_eos_parser"
+	tlsTerminationTailCall       = "uprobe__http2_tls_termination"
+	kprobeTLSTerminationTailCall = "kprobe__http2_tls_termination"
 )
 
 // Spec is the protocol spec for HTTP/2.
@@ -207,6 +208,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP2Termination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSTerminationProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2Termination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: kprobeTLSTerminationTailCall,
 			},
 		},
 	},

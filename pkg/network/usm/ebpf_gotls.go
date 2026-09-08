@@ -53,9 +53,27 @@ const (
 	connWriteRetProbe = "uprobe__crypto_tls_Conn_Write__return"
 	connCloseProbe    = "uprobe__crypto_tls_Conn_Close"
 
+	// connDispatchProbe is attached in place of the five probes above when uprobe_multi is
+	// available. It reads the attach cookie and tail-calls the right one.
+	connDispatchProbe = "uprobe__crypto_tls_Conn_dispatch"
+
+	// goTLSDispatchProgsMap is the program array connDispatchProbe tail-calls through.
+	goTLSDispatchProgsMap = "gotls_dispatch_progs"
+
 	// GoTLSAttacherName holds the name used for the uprobe attacher of go-tls programs. Used for tests.
 	GoTLSAttacherName = "go-tls"
 )
+
+// goTLSDispatchCookies maps each GoTLS probe to its attach cookie, which doubles as its
+// index in gotls_dispatch_progs. Must match enum gotls_dispatch_prog in
+// pkg/network/ebpf/c/protocols/tls/go-tls-types.h.
+var goTLSDispatchCookies = map[string]uint64{
+	connWriteProbe:    0,
+	connWriteRetProbe: 1,
+	connReadProbe:     2,
+	connReadRetProbe:  3,
+	connCloseProbe:    4,
+}
 
 type pid = uint32
 
@@ -81,6 +99,7 @@ var goTLSSpec = &protocols.ProtocolSpec{
 		{Name: goTLSWriteArgsMap},
 		{Name: connectionTupleByGoTLSMap},
 		{Name: goTLSConnByTupleMap},
+		{Name: goTLSDispatchProgsMap},
 	},
 	Probes: []*manager.Probe{
 		{
@@ -104,6 +123,48 @@ var goTLSSpec = &protocols.ProtocolSpec{
 			},
 		},
 		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: connCloseProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: connDispatchProbe,
+			},
+		},
+	},
+	TailCalls: []manager.TailCallRoute{
+		{
+			ProgArrayName: goTLSDispatchProgsMap,
+			Key:           0,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: connWriteProbe,
+			},
+		},
+		{
+			ProgArrayName: goTLSDispatchProgsMap,
+			Key:           1,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: connWriteRetProbe,
+			},
+		},
+		{
+			ProgArrayName: goTLSDispatchProgsMap,
+			Key:           2,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: connReadProbe,
+			},
+		},
+		{
+			ProgArrayName: goTLSDispatchProgsMap,
+			Key:           3,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: connReadRetProbe,
+			},
+		},
+		{
+			ProgArrayName: goTLSDispatchProgsMap,
+			Key:           4,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: connCloseProbe,
 			},
@@ -153,12 +214,20 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 				connWriteRetProbe: {IsManualReturn: true, Symbol: bininspect.WriteGoTLSFunc},
 				connCloseProbe:    {IsManualReturn: false, Symbol: bininspect.CloseGoTLSFunc},
 			},
+			// All five GoTLS probes attach as plain uprobes -- the __return ones sit at the
+			// function's RET offsets rather than using uretprobes -- so a single link can
+			// carry every location and let the dispatcher sort them out by cookie.
+			MergedMultiProbe: &uprobes.MergedMultiProbe{
+				DispatcherFuncName: connDispatchProbe,
+				Cookies:            goTLSDispatchCookies,
+			},
 		}},
 		ExcludeTargets:                 uprobes.ExcludeInternal,
 		PerformInitialScan:             false, // the process monitor will scan for new processes at startup
 		EnablePeriodicScanNewProcesses: true,
 		ScanProcessesInterval:          scanTerminatedProcessesInterval,
 		OnSyncCallback:                 prog.cleanupDeadPids,
+		EnableMultiAttach:              uprobes.CanUseMultiAttach(),
 	}
 
 	if c.GoTLSExcludeSelf {
