@@ -54,7 +54,6 @@ type startChecker struct {
 	mutex          sync.Mutex
 	startTime      time.Time
 	startupTimeout time.Duration
-	warningLimit   *log.Limit
 	started        bool
 	startedCh      chan struct{}
 	inFlight       chan struct{}
@@ -66,7 +65,6 @@ var getStartChecker = funcs.MemoizeNoError[*startChecker](func() *startChecker {
 	return &startChecker{
 		startTime:      time.Now(),
 		startupTimeout: startupTimeout,
-		warningLimit:   log.NewLogLimit(1, startupTimeout),
 		startedCh:      make(chan struct{}),
 	}
 })
@@ -76,6 +74,10 @@ var getStartChecker = funcs.MemoizeNoError[*startChecker](func() *startChecker {
 // should be checked with IgnoreStartupError(), to avoid propagating errors to
 // the check infrastructure.
 func (c *startChecker) ensureStarted(ctx context.Context, client *http.Client) error {
+	return c.ensureStartedWarn(ctx, client, true)
+}
+
+func (c *startChecker) ensureStartedWarn(ctx context.Context, client *http.Client, warn bool) error {
 	for {
 		c.mutex.Lock()
 		if c.started {
@@ -129,7 +131,7 @@ func (c *startChecker) ensureStarted(ctx context.Context, client *http.Client) e
 			// For the first few minutes after startup, only emit warnings
 			// instead of reporting errors from the check, to allow a reasonable
 			// time for system-probe to become ready to serve requests
-			if c.warningLimit == nil || c.warningLimit.ShouldLog() {
+			if warn {
 				log.Warnf("system-probe not started yet: %v", err)
 			}
 
@@ -160,7 +162,7 @@ func waitForStartupRetry(ctx context.Context, started <-chan struct{}, delay tim
 func (c *startChecker) waitUntilStarted(ctx context.Context, client *http.Client, wait startupRetryWait) error {
 	retryInterval := startupRetryInitialInterval
 	for {
-		if err := c.ensureStarted(ctx, client); err != nil {
+		if err := c.ensureStartedWarn(ctx, client, false); err != nil {
 			if !errors.Is(err, ErrNotStartedYet) {
 				return err
 			}

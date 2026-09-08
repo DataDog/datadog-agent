@@ -6,8 +6,6 @@
 package client
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -23,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func startTestServer(t *testing.T, handler http.Handler) (string, *httptest.Server) {
@@ -44,7 +41,6 @@ func resetStartupChecker() {
 	checker.mutex.Lock()
 	defer checker.mutex.Unlock()
 	checker.startTime = time.Now()
-	checker.warningLimit = log.NewLogLimit(1, checker.startupTimeout)
 	checker.started = false
 	checker.startedCh = make(chan struct{})
 	checker.inFlight = nil
@@ -281,29 +277,6 @@ func TestStartCheckerWaiterRetriesAfterProbeOwnerCancellation(t *testing.T) {
 	mu.Lock()
 	assert.Equal(t, 2, calls)
 	mu.Unlock()
-}
-
-func TestStartCheckerRateLimitsStartupWarnings(t *testing.T) {
-	var logs bytes.Buffer
-	writer := bufio.NewWriter(&logs)
-	logger, err := log.LoggerFromWriterWithMinLevelAndLvlFuncCtxMsgFormat(writer, log.WarnLvl)
-	require.NoError(t, err)
-	log.SetupLogger(logger, log.WarnStr)
-	t.Cleanup(func() { log.SetupLogger(log.Default(), log.InfoStr) })
-
-	httpClient := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
-		return nil, errors.New("system-probe unavailable")
-	})}
-	checker := &startChecker{
-		startTime:      time.Now(),
-		startupTimeout: time.Minute,
-		warningLimit:   log.NewLogLimit(1, time.Hour),
-	}
-
-	require.ErrorIs(t, checker.ensureStarted(context.Background(), httpClient), ErrNotStartedYet)
-	require.ErrorIs(t, checker.ensureStarted(context.Background(), httpClient), ErrNotStartedYet)
-	require.NoError(t, writer.Flush())
-	assert.Equal(t, 1, strings.Count(logs.String(), "system-probe not started yet"))
 }
 
 func TestWaitUntilStartedBacksOffUntilReady(t *testing.T) {
