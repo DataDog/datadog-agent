@@ -118,6 +118,16 @@ func TestExecute_StartFailure_NeverCallsOnAlive(t *testing.T) {
 	assert.False(t, onAliveCalled, "OnAlive must not be called when cmd.Start fails")
 }
 
+func waitForAlive(t *testing.T, alive <-chan struct{}, result <-chan error) {
+	t.Helper()
+
+	select {
+	case <-alive:
+	case err := <-result:
+		t.Fatalf("command returned before OnAlive: %v", err)
+	}
+}
+
 // On a successful run, execute must call OnAlive after cmd.Start and OnDead
 // via defer after cmd.Wait. The OnAlive hook holds execution until the test
 // observes the state, avoiding a scheduler-dependent mid-run probe.
@@ -137,7 +147,7 @@ func TestExecute_SuccessfulRun_InvokesHooksInOrder(t *testing.T) {
 	go func() {
 		result <- execute(&serverlessLog.Config{}, []string{"sh", "-c", "sleep 0.5"}, hooks)
 	}()
-	<-alive
+	waitForAlive(t, alive, result)
 	assert.True(t, child.IsAlive(), "OnAlive must fire before cmd.Wait returns")
 	close(release)
 	err := <-result
@@ -168,7 +178,7 @@ func TestRunInit_MicroVM_ChildSupplied_TracksLiveness(t *testing.T) {
 	go func() {
 		result <- RunInit(&serverlessLog.Config{}, hooks)
 	}()
-	<-alive
+	waitForAlive(t, alive, result)
 	assert.True(t, child.IsAlive(), "child must be marked alive while RunInit is blocked")
 	close(release)
 	err := <-result
