@@ -21,7 +21,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -634,27 +633,6 @@ func waitForServiceCollectionCall(t *testing.T, calls <-chan time.Time) time.Tim
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for service collection")
 		return time.Time{}
-	}
-}
-
-func TestResetTimerDiscardsExpiredValue(t *testing.T) {
-	mockClock := clock.NewMock()
-	timer := mockClock.Timer(time.Minute)
-	mockClock.Add(time.Minute)
-
-	resetTimer(timer, time.Minute)
-	select {
-	case tick := <-timer.C:
-		t.Fatalf("timer retained stale expiry at %s", tick)
-	default:
-	}
-
-	mockClock.Add(time.Minute)
-	select {
-	case tick := <-timer.C:
-		assert.Equal(t, mockClock.Now(), tick)
-	default:
-		t.Fatal("reset timer did not expire after a full interval")
 	}
 }
 

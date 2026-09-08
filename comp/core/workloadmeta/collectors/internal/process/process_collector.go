@@ -939,7 +939,8 @@ func (c *collector) collectServices(ctx context.Context, collectionTimer *clock.
 			cancelStartup()
 			if err == nil {
 				collectOnce(ctx)
-				resetTimer(collectionTimer, collectionInterval)
+				// The real clock wraps time.Timer, whose Reset discards stale values since Go 1.23.
+				collectionTimer.Reset(collectionInterval)
 			} else if !errors.Is(err, context.Canceled) {
 				log.Debugf("startup service collection readiness check stopped: %v", err)
 			}
@@ -947,22 +948,12 @@ func (c *collector) collectServices(ctx context.Context, collectionTimer *clock.
 			cancelStartup()
 			startupReady = nil
 			collectOnce(ctx)
-			resetTimer(collectionTimer, collectionInterval)
+			collectionTimer.Reset(collectionInterval)
 		case <-ctx.Done():
 			log.Infof("The %s service collector has stopped", collectorID)
 			return
 		}
 	}
-}
-
-func resetTimer(timer *clock.Timer, interval time.Duration) {
-	if !timer.Stop() {
-		select {
-		case <-timer.C:
-		default:
-		}
-	}
-	timer.Reset(interval)
 }
 
 func (c *collector) waitForServiceStartup(ctx context.Context, processesReady <-chan struct{}) <-chan error {
