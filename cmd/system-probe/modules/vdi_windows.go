@@ -26,7 +26,7 @@ func init() { registerModule(VDI) }
 var VDI = &module.Factory{
 	Name: config.VDIModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-		return newVDIModule(dcv.NewCollector(dcv.CommandRunner{})), nil
+		return newVDIModule(dcv.NewCollector(dcv.NewCommandRunner())), nil
 	},
 }
 

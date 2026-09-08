@@ -9,12 +9,22 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/vdi/provider/dcv",
     visibility = ["//visibility:public"],
-    deps = ["//pkg/vdi/model"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/vdi/model",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/svc/mgr",
+        ],
+        "//conditions:default": ["//pkg/vdi/model"],
+    }),
 )
 
 dd_agent_go_test(
     name = "dcv_test",
-    srcs = ["dcv_test.go"],
+    srcs = [
+        "dcv_test.go",
+        "runner_windows_test.go",
+    ],
     embed = [":dcv"],
     deps = [
         "//pkg/vdi/model",

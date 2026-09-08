@@ -24,12 +24,10 @@ import (
 )
 
 const (
-	// DefaultExecutable is the protected default installation path for the DCV CLI.
-	DefaultExecutable = `C:\Program Files\NICE\DCV\Server\bin\dcv.exe`
-	commandTimeout    = 5 * time.Second
-	cacheTTL          = 10 * time.Second
-	maxOutputBytes    = 1 << 20
-	maxSessions       = 128
+	commandTimeout = 5 * time.Second
+	cacheTTL       = 10 * time.Second
+	maxOutputBytes = 1 << 20
+	maxSessions    = 128
 )
 
 var sessionLinePattern = regexp.MustCompile(`^Session:\s+(.+?)\s+\(owner:(.*?)\s+type:(?:virtual|console)(?:\s+.*)?\)$`)
