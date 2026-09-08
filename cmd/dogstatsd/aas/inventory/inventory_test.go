@@ -50,6 +50,7 @@ func TestInjectGatedOff(t *testing.T) {
 
 func TestInjectSetsFieldsWebApp(t *testing.T) {
 	t.Setenv(envInventoryEnabled, "1")
+	t.Setenv("DD_AAS_DOTNET_EXTENSION_VERSION", "3.12.0")
 	aasEnv(t)
 	conf := configmock.New(t)
 	conf.Set("env", "staging", model.SourceAgentRuntime)
@@ -59,13 +60,14 @@ func TestInjectSetsFieldsWebApp(t *testing.T) {
 	ok := Inject(ia, conf)
 
 	assert.True(t, ok)
-	assert.Equal(t, aasInventoryFlavor, ia.fields["flavor"])
+	assert.Equal(t, "serverless-extension", ia.fields["flavor"])
 	assert.Equal(t, workloadTypeAzureAppService, ia.fields["workload_type"])
 	assert.Equal(t, reportReasonStartup, ia.fields["report_reason"])
 	assert.Equal(t, "staging", ia.fields["dd_env"])
 	assert.Equal(t, "datad0g.com", ia.fields["dd_site"])
 	assert.NotEmpty(t, ia.fields["resource_id"])
 	assert.Equal(t, "my-app", ia.fields["resource_name"])
+	assert.Contains(t, ia.fields, "extension_version", "extension_version must be set for serverless_aas_extension_agent")
 	assert.Zero(t, ia.submits, "Inject must not call Submit")
 }
 
