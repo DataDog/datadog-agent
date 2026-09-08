@@ -218,6 +218,16 @@ func TestSparkCollectorCanCollectFromProcess(t *testing.T) {
 		Args: []string{"java", "-Ddd.tags=spark_process_role:driver-helper", sparkSubmitClass},
 	}))
 	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{
+			"java",
+			sparkSubmitClass,
+			"--deploy-mode",
+			"cluster",
+			"--driver-java-options",
+			"-Ddd.tags=" + sparkDriverRoleTag,
+		},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
 		Args: []string{"java", "-Ddd.tags=" + sparkDriverRoleTag, "org.apache.spark.deploy.worker.Worker"},
 	}))
 	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{

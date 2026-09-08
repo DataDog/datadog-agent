@@ -144,17 +144,19 @@ func isSparkDriver(ctx context.Context, reader configfilesdiscoveryimpl.ConfigRe
 
 func isSparkDriverCommand(args []string) bool {
 	args = unwrapShellCommandline(args)
-	isSparkSubmit := false
-	for _, arg := range args {
+	for i, arg := range args {
 		if arg == sparkStandaloneDriverClass {
 			return true
 		}
 		if arg == sparkSubmitClass {
-			isSparkSubmit = true
+			// JVM system properties precede the main class. SparkSubmit options
+			// after it can configure a remote driver and do not identify this
+			// process as a driver.
+			return hasSparkDriverRoleTag(args[:i])
 		}
 	}
 
-	return isSparkSubmit && hasSparkDriverRoleTag(args)
+	return false
 }
 
 func hasSparkDriverRoleTag(args []string) bool {
