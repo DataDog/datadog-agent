@@ -36,6 +36,21 @@ func (m *instanceShardingManager) isEnabled() bool {
 	return m.enabled
 }
 
+// label satisfies shardingStrategy.
+func (m *instanceShardingManager) label() string {
+	return "instance-sharded"
+}
+
+// shouldShard satisfies shardingStrategy; see shouldShardInstances.
+func (m *instanceShardingManager) shouldShard(config integration.Config) bool {
+	return m.shouldShardInstances(config)
+}
+
+// createShardedConfigs satisfies shardingStrategy; see createShardedInstanceConfigs.
+func (m *instanceShardingManager) createShardedConfigs(config integration.Config) ([]integration.Config, error) {
+	return m.createShardedInstanceConfigs(config), nil
+}
+
 // shouldShardInstances returns true if config is eligible for instance sharding:
 func (m *instanceShardingManager) shouldShardInstances(config integration.Config) bool {
 	if !config.ClusterCheck {

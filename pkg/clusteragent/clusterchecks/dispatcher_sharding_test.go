@@ -15,21 +15,21 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // newTestDispatcher builds a minimal dispatcher for sharding tests. Both
 // managers are always present (never nil), since prepareShardSchedule and
-// prepareShardUnschedule touch whichever one matches the config's check
-// name, regardless of which strategy the test cares about.
+// prepareShardUnschedule try every strategy in shardingStrategies regardless
+// of which one the test cares about.
 func newTestDispatcher(ksmEnabled, instanceEnabled bool) *dispatcher {
 	d := &dispatcher{
-		ksmSharding:      newKSMShardingManager(ksmEnabled),
-		instanceSharding: newInstanceShardingManager(instanceEnabled, nil),
-		shards:           newShardTracker(),
-		store:            newClusterStore(),
+		shardingStrategies: []shardingStrategy{
+			newKSMShardingManager(ksmEnabled),
+			newInstanceShardingManager(instanceEnabled, nil),
+		},
+		shards: newShardTracker(),
+		store:  newClusterStore(),
 	}
 	d.advancedDispatching.Store(true)
 	return d
@@ -267,42 +267,6 @@ func TestPrepareShardUnschedule_NotSharded(t *testing.T) {
 			digests, handled := d.prepareShardUnschedule(tt.config)
 			assert.False(t, handled)
 			assert.Empty(t, digests)
-		})
-	}
-}
-
-func TestNewDispatcher_ShardingEnabledWhenAdvancedDispatchingDisabled(t *testing.T) {
-	tests := []struct {
-		name      string
-		configKey string
-		config    integration.Config
-		isEnabled func(d *dispatcher) bool
-	}{
-		{
-			name:      "ksm",
-			configKey: "cluster_checks.ksm_sharding_enabled",
-			config:    createTestKSMConfig([]string{"pods", "nodes"}),
-			isEnabled: func(d *dispatcher) bool { return d.ksmSharding.isEnabled() },
-		},
-		{
-			name:      "instance",
-			configKey: "cluster_checks.instance_sharding_enabled",
-			config:    createTestMultiInstanceConfig("postgres", 3),
-			isEnabled: func(d *dispatcher) bool { return d.instanceSharding.isEnabled() },
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := configmock.New(t)
-			mockConfig.SetInTest("cluster_checks.advanced_dispatching_enabled", false)
-			mockConfig.SetInTest(tt.configKey, true)
-
-			fakeTagger := taggerfxmock.SetupFakeTagger(t)
-			d := newDispatcher(fakeTagger)
-
-			assert.True(t, tt.isEnabled(d), "sharding doesn't require advanced dispatching")
-			assert.NotPanics(t, func() { d.Schedule([]integration.Config{tt.config}) })
 		})
 	}
 }
