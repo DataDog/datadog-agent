@@ -9,8 +9,6 @@ pub(crate) const INSTALLER_AGENT_PASSWORD_LSA_KEY: &str = "L$datadog_ddagentuser
 
 #[cfg(not(test))]
 use std::ptr;
-#[cfg(not(test))]
-use std::sync::atomic::{Ordering, compiler_fence};
 
 #[cfg(not(test))]
 use anyhow::{Result, bail};
@@ -21,6 +19,9 @@ use windows_sys::Win32::Security::Authentication::Identity::{
 };
 
 #[cfg(not(test))]
+use super::secure_utf16::{SecureUtf16String, secure_zero_bytes};
+
+#[cfg(not(test))]
 const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 
 /// Read the ddagentuser password stored by the 7.66+ installer in LSA.
@@ -28,7 +29,7 @@ const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC000_0034u32 as i32;
 /// Requires `POLICY_GET_PRIVATE_INFORMATION` (LocalSystem / administrators). Not
 /// available to ddagentuser; callers on the supervisor-inherit path must not use this.
 #[cfg(not(test))]
-pub(crate) fn read_installer_agent_password() -> Result<Option<String>> {
+pub(crate) fn read_installer_agent_password() -> Result<Option<SecureUtf16String>> {
     let mut key_w = super::wide::null_terminated(INSTALLER_AGENT_PASSWORD_LSA_KEY);
     let key_name = lsa_unicode_string(&mut key_w);
 
@@ -85,7 +86,7 @@ struct LsaSecret {
 
 #[cfg(not(test))]
 impl LsaSecret {
-    fn into_password(self) -> Option<String> {
+    fn into_password(self) -> Option<SecureUtf16String> {
         if self.data.is_null() {
             return None;
         }
@@ -96,7 +97,7 @@ impl LsaSecret {
             }
             let char_count = secret.Length as usize / 2;
             let slice = std::slice::from_raw_parts(secret.Buffer, char_count);
-            Some(String::from_utf16_lossy(slice))
+            Some(SecureUtf16String::from_utf16_units(slice))
         }
     }
 }
@@ -110,22 +111,15 @@ impl Drop for LsaSecret {
         unsafe {
             let secret = &*self.data;
             if !secret.Buffer.is_null() && secret.Length > 0 {
-                secure_zero(secret.Buffer.cast(), secret.Length as usize);
+                secure_zero_bytes(std::slice::from_raw_parts_mut(
+                    secret.Buffer.cast(),
+                    secret.Length as usize,
+                ));
             }
             LsaFreeMemory(self.data.cast());
             self.data = ptr::null_mut();
         }
     }
-}
-
-#[cfg(not(test))]
-fn secure_zero(ptr: *mut u8, len: usize) {
-    for i in 0..len {
-        unsafe {
-            ptr::write_volatile(ptr.add(i), 0);
-        }
-    }
-    compiler_fence(Ordering::SeqCst);
 }
 
 #[cfg(not(test))]

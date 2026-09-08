@@ -18,6 +18,7 @@ use super::agent_service_sid::{DATADOG_AGENT_SERVICE, service_runs_as_agent_user
 #[cfg(not(test))]
 use super::installer_lsa_password::read_installer_agent_password;
 use super::local_account::is_local_account;
+use super::secure_utf16::SecureUtf16String;
 use super::sid::create_well_known_sid;
 use super::token_identity::current_process_sid_matches;
 #[cfg(not(test))]
@@ -63,7 +64,7 @@ pub(crate) enum AgentAccount {
         registry_domain: String,
         logon_domain: String,
         user: String,
-        password: String,
+        password: SecureUtf16String,
     },
 }
 
@@ -382,7 +383,7 @@ mod tests {
                 registry_domain: "WIN-HOST".to_string(),
                 logon_domain: String::new(),
                 user: "ddagentuser".to_string(),
-                password: "secret".to_string(),
+                password: SecureUtf16String::from_utf8("secret"),
             }
             .display_name(),
             r"WIN-HOST\ddagentuser",
