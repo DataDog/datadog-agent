@@ -155,6 +155,8 @@ const (
 	SocketEventType
 	// UnshareMountNsEventType is sent when a new mount is created from a mount namespace copy
 	UnshareMountNsEventType
+	// OTelProcessCtxEventType is sent when a process publishes its OTel process context
+	OTelProcessCtxEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -360,6 +362,8 @@ func (t EventType) String() string {
 		return "nop"
 	case SocketEventType:
 		return "socket"
+	case OTelProcessCtxEventType:
+		return "otel_process_ctx"
 	default:
 		return "unknown"
 	}

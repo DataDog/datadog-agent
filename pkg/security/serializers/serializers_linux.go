@@ -353,8 +353,8 @@ type ProcessSerializer struct {
 type TracerSerializer struct {
 	// Captured APM span context for this process.
 	Trace *TraceSerializer `json:"trace,omitempty"`
-	// Metadata from APM tracer instrumentation (for example, schema version, language,
-	// version, or thread-local attribute keys).
+	// Metadata from APM tracer instrumentation (for example, schema version,
+	// language, or version).
 	Metadata *tracermetadata.TracerMetadata `json:"metadata,omitempty"`
 }
 

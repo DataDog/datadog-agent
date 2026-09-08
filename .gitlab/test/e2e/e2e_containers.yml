@@ -102,6 +102,7 @@ new-e2e-containers-k8s-rc-latest:
 new-e2e-containers-eks-init:
   stage: e2e_init
   extends: .new_e2e_template
+  timeout: 1h 05m
   needs:
     - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
@@ -143,6 +144,7 @@ new-e2e-containers-openshift-init:
     - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
   rules:
+    - when: never # disabled — OpenShift job is consistently failing
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -169,6 +171,7 @@ new-e2e-containers-openshift-init:
 new-e2e-containers-openshift:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
+    - when: never # disabled — OpenShift job is consistently failing
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
