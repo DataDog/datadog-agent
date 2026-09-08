@@ -645,6 +645,18 @@ func waitForServiceStartupSignal(t *testing.T, signal <-chan struct{}, descripti
 	}
 }
 
+type resetSignalTimer struct {
+	serviceCollectionTimer
+	reset     chan struct{}
+	resetOnce sync.Once
+}
+
+func (t *resetSignalTimer) Reset(interval time.Duration) bool {
+	active := t.serviceCollectionTimer.Reset(interval)
+	t.resetOnce.Do(func() { close(t.reset) })
+	return active
+}
+
 func TestCollectServicesSchedulesRegularIntervalFromStartupCollection(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 	c.mockClock.Set(baseTime)
@@ -653,7 +665,10 @@ func TestCollectServicesSchedulesRegularIntervalFromStartupCollection(t *testing
 	processesReady := make(chan struct{})
 	calls := make(chan time.Time, 2)
 	done := make(chan struct{})
-	collectionTimer := c.mockClock.Timer(time.Minute)
+	collectionTimer := &resetSignalTimer{
+		serviceCollectionTimer: clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)},
+		reset:                  make(chan struct{}),
+	}
 	go func() {
 		defer close(done)
 		c.collector.collectServices(ctx, collectionTimer, time.Minute, processesReady, func(context.Context) error {
@@ -671,6 +686,7 @@ func TestCollectServicesSchedulesRegularIntervalFromStartupCollection(t *testing
 	}
 	close(processesReady)
 	assert.Equal(t, baseTime.Add(45*time.Second), waitForServiceCollectionCall(t, calls))
+	waitForServiceStartupSignal(t, collectionTimer.reset, "collection timer reset")
 
 	c.mockClock.Add(59 * time.Second)
 	select {
@@ -700,7 +716,7 @@ func TestCollectServicesWaitsForSystemProbeStartup(t *testing.T) {
 	systemProbeReady := make(chan struct{})
 	calls := make(chan time.Time, 1)
 	done := make(chan struct{})
-	collectionTimer := c.mockClock.Timer(time.Minute)
+	collectionTimer := clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)}
 	go func() {
 		defer close(done)
 		c.collector.collectServices(ctx, collectionTimer, time.Minute, processesReady, func(ctx context.Context) error {
@@ -740,7 +756,7 @@ func TestCollectServicesDoesNotRunAfterCancellation(t *testing.T) {
 	cancel()
 
 	called := false
-	c.collector.collectServices(ctx, c.mockClock.Timer(time.Minute), time.Minute, nil, func(ctx context.Context) error {
+	c.collector.collectServices(ctx, clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)}, time.Minute, nil, func(ctx context.Context) error {
 		return ctx.Err()
 	}, func(context.Context) {
 		called = true
@@ -768,7 +784,7 @@ func TestCollectServicesRegularIntervalCancelsStartupWait(t *testing.T) {
 	systemProbeReady := make(chan struct{})
 	calls := make(chan time.Time, 2)
 	done := make(chan struct{})
-	collectionTimer := c.mockClock.Timer(time.Minute)
+	collectionTimer := clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)}
 	go func() {
 		defer close(done)
 		c.collector.collectServices(ctx, collectionTimer, time.Minute, nil, func(ctx context.Context) error {
