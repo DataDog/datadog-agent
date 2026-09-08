@@ -120,17 +120,47 @@ func goClientState(detector *component) *clientState {
 }
 
 func TestDroppedRatioThreshold(t *testing.T) {
-	ratio, violated := droppedRatio(clientByteStats{sent: 990, dropped: 10})
+	ratio, violated := droppedRatio(clientByteStats{sent: 990, dropped: 10}, 0.01)
 	require.Equal(t, 0.01, ratio)
 	require.False(t, violated)
 
-	ratio, violated = droppedRatio(clientByteStats{sent: 980, dropped: 20})
+	ratio, violated = droppedRatio(clientByteStats{sent: 980, dropped: 20}, 0.01)
 	require.Equal(t, 0.02, ratio)
 	require.True(t, violated)
 
-	ratio, violated = droppedRatio(clientByteStats{droppedQueue: 10, droppedWriter: 10})
+	ratio, violated = droppedRatio(clientByteStats{droppedQueue: 10, droppedWriter: 10}, 0.01)
 	require.Zero(t, ratio)
 	require.False(t, violated)
+}
+
+func TestComponentUsesConfiguredDropRatioThreshold(t *testing.T) {
+	healthPlatform := healthplatformmock.New(t)
+	hostname, _ := hostnamemock.NewMock(hostnamemock.MockHostname(testHostname))
+	lifecycle := &testLifecycle{}
+	detector := NewComponent(Requires{
+		Lifecycle: lifecycle,
+		Config: config.NewMockWithOverrides(t, map[string]interface{}{
+			enabledConfig:               true,
+			droppedRatioThresholdConfig: 0.05,
+		}),
+		Log:            logmock.New(t),
+		Hostname:       hostname,
+		HealthPlatform: healthPlatform,
+	}).Comp.(*component)
+	lifecycle.start(t)
+	advance := useTestClock(detector)
+
+	completeWindow(detector, clientByteStats{sent: 95, dropped: 5})
+	advance(detector.unhealthyConfirmationDuration)
+	completeWindow(detector, clientByteStats{sent: 95, dropped: 5})
+	require.Nil(t, healthPlatform.GetIssue(goClientState(detector).issueID))
+
+	completeWindow(detector, clientByteStats{sent: 94, dropped: 6})
+	advance(detector.unhealthyConfirmationDuration)
+	completeWindow(detector, clientByteStats{sent: 94, dropped: 6})
+	issue := healthPlatform.GetIssue(goClientState(detector).issueID)
+	require.NotNil(t, issue)
+	require.Equal(t, 0.05, issue.Extra.GetFields()["threshold"].GetNumberValue())
 }
 
 func TestDropReasonBreakdown(t *testing.T) {

@@ -25,7 +25,7 @@ import (
 
 const (
 	enabledConfig                     = "dogstatsd_client_drop_detection.enabled"
-	droppedBytesIssueThreshold        = 0.01
+	droppedRatioThresholdConfig       = "dogstatsd_client_drop_detection.dropped_ratio_threshold"
 	unhealthyConfirmationWindowConfig = "dogstatsd_client_drop_detection.unhealthy_confirmation_window"
 	recoveryConfirmationWindowConfig  = "dogstatsd_client_drop_detection.recovery_confirmation_window"
 )
@@ -85,6 +85,7 @@ type component struct {
 	hostUUID       string
 	// startupReconciled is closed after persisted issue state has been reconciled.
 	startupReconciled             chan struct{}
+	droppedRatioThreshold         float64
 	unhealthyConfirmationDuration time.Duration
 	recoveryConfirmationDuration  time.Duration
 	// now is replaceable so confirmation periods can be tested without sleeping.
@@ -108,6 +109,7 @@ func NewComponent(req Requires) Provides {
 		hostname:                      req.Hostname.GetSafe(context.Background()),
 		hostUUID:                      hostuuid.GetUUID(),
 		startupReconciled:             make(chan struct{}),
+		droppedRatioThreshold:         req.Config.GetFloat64(droppedRatioThresholdConfig),
 		unhealthyConfirmationDuration: req.Config.GetDuration(unhealthyConfirmationWindowConfig),
 		recoveryConfirmationDuration:  req.Config.GetDuration(recoveryConfirmationWindowConfig),
 		now:                           time.Now,
@@ -193,7 +195,7 @@ func (d *component) completeWindow(state *clientState) {
 	if stats.sent == 0 && stats.dropped == 0 {
 		return
 	}
-	_, violated := droppedRatio(stats)
+	_, violated := droppedRatio(stats, d.droppedRatioThreshold)
 	if violated {
 		d.handleUnhealthyWindow(state, stats)
 		return
@@ -203,7 +205,7 @@ func (d *component) completeWindow(state *clientState) {
 
 func (d *component) handleUnhealthyWindow(state *clientState, stats clientByteStats) {
 	if state.issueActive {
-		ratio, _ := droppedRatio(stats)
+		ratio, _ := droppedRatio(stats, d.droppedRatioThreshold)
 		if state.issueNeedsRefresh || dogstatsdclientdrops.SeverityForDroppedRatio(ratio) != state.issueSeverity {
 			d.reportIssue(state, stats, ratio)
 		}
@@ -224,7 +226,7 @@ func (d *component) handleUnhealthyWindow(state *clientState, stats clientByteSt
 		return
 	}
 
-	ratio, _ := droppedRatio(state.pendingStats)
+	ratio, _ := droppedRatio(state.pendingStats, d.droppedRatioThreshold)
 	d.reportIssue(state, state.pendingStats, ratio)
 	if state.issueActive {
 		d.resetPendingTransition(state)
@@ -318,7 +320,7 @@ func (d *component) reportIssue(state *clientState, stats clientByteStats, ratio
 		ClientLibrary:               state.library,
 		AgentHostname:               d.hostname,
 		DroppedRatio:                ratio,
-		Threshold:                   droppedBytesIssueThreshold,
+		Threshold:                   d.droppedRatioThreshold,
 		BytesSent:                   stats.sent,
 		BytesDropped:                stats.dropped,
 		BytesDroppedQueue:           stats.droppedQueue,
@@ -358,11 +360,11 @@ func (d *component) resolveStaleIssues(state *clientState) {
 	state.staleIssueIDs = nil
 }
 
-func droppedRatio(stats clientByteStats) (float64, bool) {
+func droppedRatio(stats clientByteStats, threshold float64) (float64, bool) {
 	total := stats.dropped + stats.sent
 	if total == 0 {
 		return 0, false
 	}
 	ratio := stats.dropped / total
-	return ratio, ratio > droppedBytesIssueThreshold
+	return ratio, ratio > threshold
 }
