@@ -665,8 +665,10 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
 	}
 	go func() {
+		defer func() {
+			c.partitionEnumInFlight.Store(false)
+		}()
 		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
-		c.partitionEnumInFlight.Store(false)
 		resultCh <- partitionsResult{partitions, err}
 	}()
 	select {
@@ -691,9 +693,11 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 	timeoutCh := c.clock.After(timeout)
 	// Start the disk usage call in a separate goroutine.
 	go func() {
+		defer func() {
+			c.diskUsageInFlight.Delete(mountpoint)
+		}()
 		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
 		usage, err := c.diskUsage(mountpoint)
-		c.diskUsageInFlight.Delete(mountpoint)
 		resultCh <- usageResult{usage, err}
 	}()
 	// Use select to wait for either the disk usage result or a timeout.
