@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 
@@ -715,4 +716,28 @@ func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// The deferred goleak.VerifyNone() will detect if goroutine leaked
+}
+
+func TestMissedBytesIdentity(t *testing.T) {
+	tests := []struct {
+		name            string
+		cfg             *config.LogsConfig
+		source, service string
+	}{
+		{"nil config", nil, "unknown", "unknown"},
+		{"only the required fields are set", &config.LogsConfig{Type: config.FileType, Path: "/var/log/app.log"}, "unknown", "unknown"},
+		{"both set", &config.LogsConfig{Source: "nginx", Service: "web"}, "nginx", "web"},
+		{"service falls back to source", &config.LogsConfig{Source: "nginx"}, "nginx", "nginx"},
+		{"both fall back to the integration name", &config.LogsConfig{IntegrationName: "nginx-int"}, "nginx-int", "nginx-int"},
+		{"source falls back while service is set", &config.LogsConfig{IntegrationName: "nginx-int", Service: "web"}, "nginx-int", "web"},
+		{"source wins over the integration name", &config.LogsConfig{IntegrationName: "nginx-int", Source: "nginx"}, "nginx", "nginx"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			source, service := missedBytesIdentity(tc.cfg)
+			require.Equal(t, tc.source, source)
+			require.Equal(t, tc.service, service)
+		})
+	}
 }
