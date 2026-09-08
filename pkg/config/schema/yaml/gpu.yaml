@@ -8,7 +8,6 @@ description: |-
   Both this section and the gpu_monitoring section in system-probe.yaml must be configured.
 tags:
 - template_section:Common
-- full-agent-only:true
 properties:
   enabled:
     node_type: setting

@@ -160,3 +160,20 @@ dd_agent_go_test(
         "//conditions:default": [],
     }),
 )
+
+dd_agent_go_test(
+    name = "testutil_attacher_runner_test",
+    srcs = ["testutil_attacher_runner_test.go"],
+    embed = [":uprobes"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

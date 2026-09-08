@@ -13,7 +13,7 @@ import (
 )
 
 func RolloutFromDeployment(ctx *pulumi.Context, name string, deployment *v1.DeploymentArgs, opts ...pulumi.ResourceOption) error {
-	specOutput := deployment.Spec.ToDeploymentSpecPtrOutput()
+	specOutput := deployment.Spec.ToDeploymentSpecOutput()
 	_, err := apiextensions.NewCustomResource(ctx, name, &apiextensions.CustomResourceArgs{
 		ApiVersion: pulumi.String("argoproj.io/v1alpha1"),
 		Kind:       pulumi.String("Rollout"),

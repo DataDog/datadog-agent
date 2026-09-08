@@ -90,6 +90,11 @@ func (m *OrderedPerfMap) Resume() error {
 	return m.perfMap.Resume()
 }
 
+// SendStats is a no-op for the ordered perf map.
+func (m *OrderedPerfMap) SendStats() error {
+	return nil
+}
+
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
 func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	if len(record.RawSample) < 8 {

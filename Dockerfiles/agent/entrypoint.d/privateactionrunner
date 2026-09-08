@@ -1,6 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ -x /opt/datadog-agent/embedded/bin/privateactionrunner ]]; then
-exec /opt/datadog-agent/embedded/bin/privateactionrunner run --cfgpath=/etc/datadog-agent/datadog.yaml
+readonly install_dir="/opt/datadog-agent"
+readonly par="${install_dir}/embedded/bin/privateactionrunner"
+readonly procmgrd="${install_dir}/embedded/bin/dd-procmgrd"
+readonly processes_dir="${DD_PM_CONFIG_DIR:-${install_dir}/processes.d}"
+readonly config_file="/etc/datadog-agent/datadog.yaml"
+
+if [[ ! -x "${par}" ]]; then
+    exit 0
 fi
+
+case "${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-false}" in
+    false)
+        exec "${par}" run --cfgpath="${config_file}"
+        ;;
+    true)
+        export DD_PM_CONFIG_DIR="${processes_dir}"
+        exec "${procmgrd}"
+        ;;
+    *)
+        printf 'DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED must be true or false\n' >&2
+        exit 1
+        ;;
+esac

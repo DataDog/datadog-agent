@@ -7,6 +7,8 @@
 // the gpu core agent check
 package model
 
+import "time"
+
 // MemoryMetrics contains the memory stats for a given memory type
 type MemoryMetrics struct {
 	// CurrentBytes is the amount of memory that is allocated when the stats are generated.
@@ -68,4 +70,79 @@ type DeviceStatsTuple struct {
 type GPUStats struct {
 	ProcessMetrics []ProcessStatsTuple `json:"process_metrics"` // Per-process metrics
 	DeviceMetrics  []DeviceStatsTuple  `json:"device_metrics"`  // Device-level metrics
+}
+
+// DriverEventType identifies the type of GPU driver event.
+type DriverEventType string
+
+const (
+	// DriverEventTypeNvidiaXid identifies an NVIDIA Xid error event.
+	DriverEventTypeNvidiaXid DriverEventType = "nvidia_xid"
+)
+
+// DriverEvent is a GPU driver event observed by system-probe.
+type DriverEvent struct {
+	DeviceUUID string          `json:"device_uuid"`
+	Timestamp  time.Time       `json:"timestamp"`
+	Type       DriverEventType `json:"type"`
+	NvidiaXid  *NvidiaXid      `json:"nvidia_xid,omitempty"`
+}
+
+// NvidiaXid contains NVIDIA-specific details for an Xid driver event.
+type NvidiaXid struct {
+	XidCode uint64 `json:"xid_code,omitempty"`
+
+	// Message is the bounded raw NVIDIA driver message, retained for forward-compatible diagnosis.
+	Message string `json:"message,omitempty"`
+
+	ProcessID   *uint64 `json:"process_id,omitempty"`
+	ProcessName string  `json:"process_name,omitempty"`
+
+	MMUFault       *NvidiaXidMMUFault       `json:"mmu_fault,omitempty"`
+	NVLinkFault    *NvidiaXidNVLinkFault    `json:"nvlink_fault,omitempty"`
+	MemoryFault    *NvidiaXidMemoryFault    `json:"memory_fault,omitempty"`
+	RecoveryAction *NvidiaXidRecoveryAction `json:"recovery_action,omitempty"`
+}
+
+// NvidiaXidMMUFault contains details from an NVIDIA Xid 31 MMU fault.
+type NvidiaXidMMUFault struct {
+	Channel      string `json:"channel,omitempty"`
+	Interrupt    string `json:"interrupt,omitempty"`
+	Engine       string `json:"engine,omitempty"`
+	EngineClient string `json:"engine_client,omitempty"`
+	FaultAddress string `json:"fault_address,omitempty"`
+	FaultType    string `json:"fault_type,omitempty"`
+	AccessType   string `json:"access_type,omitempty"`
+}
+
+// NvidiaXidNVLinkFault contains details from NVIDIA Xid 144–150 NVLink5 faults.
+type NvidiaXidNVLinkFault struct {
+	Subcode          string   `json:"subcode,omitempty"`
+	Fatality         string   `json:"fatality,omitempty"`
+	CrossContainment string   `json:"cross_containment,omitempty"`
+	Instance         string   `json:"instance,omitempty"`
+	LinkID           *uint64  `json:"link_id,omitempty"`
+	StatusWords      []string `json:"status_words,omitempty"`
+}
+
+// NvidiaXidMemoryFault contains location and repair details from NVIDIA memory Xid events.
+type NvidiaXidMemoryFault struct {
+	PhysicalAddress     string  `json:"physical_address,omitempty"`
+	RowAddress          string  `json:"row_address,omitempty"`
+	RowRemapperSite     string  `json:"row_remapper_site,omitempty"`
+	Partition           *uint64 `json:"partition,omitempty"`
+	Subpartition        *uint64 `json:"subpartition,omitempty"`
+	Location            string  `json:"location,omitempty"`
+	RepairedTarget      string  `json:"repaired_target,omitempty"`
+	RepairedTargetIndex *uint64 `json:"repaired_target_index,omitempty"`
+	FBPA                *uint64 `json:"fbpa,omitempty"`
+	NodeRebootRequired  bool    `json:"node_reboot_required,omitempty"`
+}
+
+// NvidiaXidRecoveryAction contains the transition reported by NVIDIA Xid 154.
+type NvidiaXidRecoveryAction struct {
+	PreviousCode  *uint64 `json:"previous_code,omitempty"`
+	PreviousLabel string  `json:"previous_label,omitempty"`
+	CurrentCode   *uint64 `json:"current_code,omitempty"`
+	CurrentLabel  string  `json:"current_label,omitempty"`
 }
