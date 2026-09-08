@@ -14,8 +14,6 @@ consumers that ask for them via OutputGroupInfo (`--output_groups=+debug` or
 
 """
 
-load("@rules_cc//cc:defs.bzl", "cc_binary")
-load("@rules_go//go:def.bzl", "go_binary")
 load(":dd_strip_info.bzl", "DdStripInfo")
 
 _STRIPPER_TOOLCHAIN_TYPE = "//bazel/toolchains/dd_strip:dd_strip_toolchain_type"
