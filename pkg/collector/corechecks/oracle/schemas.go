@@ -30,7 +30,7 @@ const schemaOwnersQuery = `SELECT con_id, username, user_id FROM cdb_users WHERE
 
 // Oracle object IDs are unique only within a container.
 const objectIDsQuery = `SELECT con_id, owner, object_name, object_id FROM cdb_objects
-WHERE object_type = 'TABLE' AND owner IN (/*OWNERS*/)`
+WHERE object_type = 'TABLE' AND /*RELATIONS*/`
 
 // CDB_* scans must be owner-scoped; unfiltered scans can consume tens of millions of buffer gets.
 // Object tables exist only in cdb_object_tables, while their columns remain in cdb_tab_cols;
@@ -68,7 +68,7 @@ ranked_columns AS (
 	SELECT c.con_id, c.owner, c.table_name, c.column_name, c.column_id, c.internal_column_id,
 		c.virtual_column, c.hidden_column, c.data_type, c.data_type_owner, c.data_type_mod,
 		c.data_length, c.char_length, c.data_precision, c.data_scale, c.char_used, c.nullable,
-		/*DEFAULT_COL*/ AS data_default_vc,
+		CAST(NULL AS VARCHAR2(4000)) AS data_default_vc,
 		ROW_NUMBER() OVER (PARTITION BY c.con_id, c.owner, c.table_name ORDER BY c.internal_column_id) AS col_rn,
 		COUNT(*) OVER (PARTITION BY c.con_id, c.owner, c.table_name) AS total_columns
 	FROM cdb_tab_cols c
@@ -159,14 +159,14 @@ ORDER BY con_id, owner, table_name, internal_column_id`
 // These 21c+ views are optional and separately granted.
 const blockchainTablesQuery = `SELECT con_id, schema_name, table_name, row_retention, row_retention_locked,
 	table_inactivity_retention, hash_algorithm, table_version
-FROM cdb_blockchain_tables WHERE schema_name IN (/*OWNERS*/)`
+FROM cdb_blockchain_tables WHERE /*RELATIONS*/`
 
 const immutableTablesQuery = `SELECT con_id, schema_name, table_name, row_retention, row_retention_locked,
 	table_inactivity_retention
-FROM cdb_immutable_tables WHERE schema_name IN (/*OWNERS*/)`
+FROM cdb_immutable_tables WHERE /*RELATIONS*/`
 
 const tabModificationsQuery = `SELECT con_id, table_owner, table_name, inserts, updates, deletes, truncated, timestamp
-FROM cdb_tab_modifications WHERE partition_name IS NULL AND table_owner IN (/*OWNERS*/)`
+FROM cdb_tab_modifications WHERE partition_name IS NULL AND /*RELATIONS*/`
 
 const partTablesQuery = `SELECT pt.con_id, pt.owner, pt.table_name, pt.partitioning_type,
 	pt.subpartitioning_type, pt.partition_count, pkc.column_name
@@ -174,14 +174,17 @@ FROM cdb_part_tables pt
 LEFT JOIN cdb_part_key_columns pkc
 	ON pkc.con_id = pt.con_id AND pkc.owner = pt.owner AND pkc.name = pt.table_name
 	AND pkc.object_type = 'TABLE'
-WHERE pt.owner IN (/*OWNERS*/)
+WHERE /*RELATIONS*/
 ORDER BY pt.con_id, pt.owner, pt.table_name, pkc.column_position`
 
 const tableCommentsQuery = `SELECT con_id, owner, table_name, comments
-FROM cdb_tab_comments WHERE comments IS NOT NULL AND owner IN (/*OWNERS*/)`
+FROM cdb_tab_comments WHERE comments IS NOT NULL AND /*RELATIONS*/`
 
 const columnCommentsQuery = `SELECT con_id, owner, table_name, column_name, comments
-FROM cdb_col_comments WHERE comments IS NOT NULL AND owner IN (/*OWNERS*/)`
+FROM cdb_col_comments WHERE comments IS NOT NULL AND /*RELATIONS*/`
+
+const columnDefaultsQuery = `SELECT c.con_id, c.owner, c.table_name, c.column_name, /*DEFAULT_COL*/ AS data_default
+FROM cdb_tab_cols c WHERE /*RELATIONS*/`
 
 // Oracle represents function-based index expressions as hidden SYS_NC%$ virtual columns.
 // CDB_IND_COLUMNS exposes only the generated name, while CDB_TAB_COLS exposes the expression.
@@ -194,7 +197,7 @@ JOIN cdb_ind_columns ic
 LEFT JOIN cdb_tab_cols tc
 	ON tc.con_id = ic.con_id AND tc.owner = ic.table_owner AND tc.table_name = ic.table_name
 	AND tc.column_name = ic.column_name AND ic.column_name LIKE 'SYS\_NC%' ESCAPE '\'
-WHERE i.table_owner IN (/*OWNERS*/)
+WHERE /*RELATIONS*/
 ORDER BY i.con_id, i.table_owner, i.table_name, i.index_name, ic.column_position`
 
 // generated = 'USER NAME' excludes Oracle's system-generated NOT NULL checks, which would
@@ -206,7 +209,7 @@ FROM cdb_constraints c
 JOIN cdb_cons_columns cc
 	ON cc.con_id = c.con_id AND cc.owner = c.owner AND cc.constraint_name = c.constraint_name
 WHERE (c.constraint_type IN ('P', 'U', 'R') OR (c.constraint_type = 'C' AND c.generated = 'USER NAME'))
-	AND c.owner IN (/*OWNERS*/)
+	AND /*RELATIONS*/
 ORDER BY c.con_id, c.owner, c.table_name, c.constraint_name, cc.position`
 
 const externalTablesQuery = `SELECT et.con_id, et.owner, et.table_name, et.type_name,
@@ -214,13 +217,13 @@ const externalTablesQuery = `SELECT et.con_id, et.owner, et.table_name, et.type_
 FROM cdb_external_tables et
 LEFT JOIN cdb_external_locations el
 	ON el.con_id = et.con_id AND el.owner = et.owner AND el.table_name = et.table_name
-WHERE et.owner IN (/*OWNERS*/)
+WHERE /*RELATIONS*/
 ORDER BY et.con_id, et.owner, et.table_name`
 
 // Materialized views also appear in CDB_TABLES and need separate classification.
 const mviewsQuery = `SELECT con_id, owner, mview_name, NVL(refresh_mode, '-'), NVL(refresh_method, '-'),
 	NVL(staleness, '-'), last_refresh_date
-FROM cdb_mviews WHERE owner IN (/*OWNERS*/)`
+FROM cdb_mviews WHERE /*RELATIONS*/`
 
 const containerNamesQuery = `SELECT con_id, name FROM v$containers`
 
@@ -237,7 +240,7 @@ ranked_columns AS (
 	SELECT c.con_id, c.owner, c.table_name, c.column_name, c.column_id, c.internal_column_id,
 		c.virtual_column, c.hidden_column, c.data_type, c.data_type_owner, c.data_type_mod,
 		c.data_length, c.char_length, c.data_precision, c.data_scale, c.char_used, c.nullable,
-		/*DEFAULT_COL*/ AS data_default_vc,
+		CAST(NULL AS VARCHAR2(4000)) AS data_default_vc,
 		ROW_NUMBER() OVER (PARTITION BY c.con_id, c.owner, c.table_name ORDER BY c.internal_column_id) AS col_rn,
 		COUNT(*) OVER (PARTITION BY c.con_id, c.owner, c.table_name) AS total_columns
 	FROM cdb_tab_cols c
@@ -282,13 +285,16 @@ WHERE rv.rn <= /*MAX_VIEWS*/
 ORDER BY rv.con_id, rv.owner, rv.view_name, c.internal_column_id`
 
 const viewDefinitionsQuery = `SELECT con_id, owner, view_name, text_vc
-FROM cdb_views WHERE owner IN (/*OWNERS*/)`
+FROM cdb_views WHERE /*RELATIONS*/`
 
 const viewObjectsQuery = `SELECT con_id, owner, object_name, object_id, created, last_ddl_time
-FROM cdb_objects WHERE object_type = 'VIEW' AND owner IN (/*OWNERS*/)`
+FROM cdb_objects WHERE object_type = 'VIEW' AND /*RELATIONS*/`
 
 // ORA-01795 limits an IN list to 1000 expressions.
-const maxSchemaOwners = 1000
+const (
+	maxSchemaOwners            = 1000
+	maxSchemaRelationsPerQuery = 1000
+)
 
 const (
 	oracleErrorInvalidIdentifier       = "ORA-00904"
@@ -483,6 +489,7 @@ type tableDetails struct {
 	ID             string
 	Comment        string
 	ColumnComments map[string]string
+	ColumnDefaults map[string]string
 	Indexes        []*indexInfo
 	Constraints    []*constraintInfo
 	External       *externalDetail
@@ -575,14 +582,15 @@ type tableKey struct {
 }
 
 type schemaCollector struct {
-	check      *Check
-	kind       string
-	emit       payloadEmitter
-	details    map[tableKey]*tableDetails
-	views      map[tableKey]*viewDetails
-	owners     map[ownerKey]string
-	containers map[int64]string
-	started    map[int64]struct{}
+	check               *Check
+	kind                string
+	emit                payloadEmitter
+	details             map[tableKey]*tableDetails
+	views               map[tableKey]*viewDetails
+	owners              map[ownerKey]string
+	containers          map[int64]string
+	started             map[int64]struct{}
+	truncatedContainers map[int64]struct{}
 
 	conID       int64
 	conName     string
@@ -592,8 +600,7 @@ type schemaCollector struct {
 	tableCount  int
 	tablesTotal int
 
-	containerCount int
-	truncated      bool
+	truncated bool
 
 	currentSchema *schemaObject
 	currentTable  *schemaTable
@@ -621,8 +628,7 @@ func (s *schemaCollector) startContainer(conID int64) {
 	}
 	s.startedAt = s.check.nextSnapshotID()
 	s.payloads = 0
-	s.containerCount = 0
-	s.truncated = false
+	_, s.truncated = s.truncatedContainers[conID]
 	s.reset()
 }
 
@@ -731,7 +737,6 @@ func (s *schemaCollector) addView(r schemaRowDB) {
 		s.currentView = v
 		s.tableCount++
 		s.tablesTotal++
-		s.containerCount++
 
 		if r.TotalTables.Valid && r.TotalTables.Int64 > int64(s.check.config.Schemas.MaxViews) {
 			s.truncated = true
@@ -835,7 +840,6 @@ func (s *schemaCollector) add(r schemaRowDB) {
 		s.currentSchema.Tables = append(s.currentSchema.Tables, s.currentTable)
 		s.tableCount++
 		s.tablesTotal++
-		s.containerCount++
 
 		if r.TotalTables.Valid && r.TotalTables.Int64 > int64(s.check.config.Schemas.MaxTables) {
 			s.truncated = true
@@ -852,11 +856,9 @@ func (s *schemaCollector) add(r schemaRowDB) {
 		Virtual:   r.VirtualColumn == "YES",
 		Invisible: r.HiddenColumn == "YES",
 	}
-	if r.DataDefault.Valid {
-		col.Default = truncateLongValue(r.DataDefault.String)
-	}
 	if d := s.details[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}]; d != nil {
 		col.Comment = d.ColumnComments[r.ColumnName]
+		col.Default = d.ColumnDefaults[r.ColumnName]
 	}
 	s.currentTable.Columns = append(s.currentTable.Columns, col)
 }
@@ -1017,12 +1019,6 @@ type ownerKey struct {
 }
 
 func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (map[ownerKey]string, []string, error) {
-	rows, err := c.db.QueryxContext(ctx, schemaOwnersQuery)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to query schema owners: %w", err)
-	}
-	defer rows.Close()
-
 	include := compiledPatterns(c.config.Schemas.IncludeSchemas, c.logPrompt, "include_schemas")
 	exclude := compiledPatterns(c.config.Schemas.ExcludeSchemas, c.logPrompt, "exclude_schemas")
 	// A failed or stale container lookup must not drop schemas unless database filters require it.
@@ -1030,26 +1026,26 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 
 	owners := make(map[ownerKey]string)
 	names := make(map[string]struct{})
-	for rows.Next() {
+	err := c.queryMetadata(ctx, schemaOwnersQuery, func(rows *sqlx.Rows) error {
 		var (
 			conID  int64
 			name   string
 			userID sql.NullInt64
 		)
 		if err := rows.Scan(&conID, &name, &userID); err != nil {
-			return nil, nil, fmt.Errorf("failed to scan schema owner: %w", err)
+			return fmt.Errorf("failed to scan schema owner: %w", err)
 		}
 		if filterDatabases {
 			if _, ok := containers[conID]; !ok {
-				continue
+				return nil
 			}
 		}
 		if !schemaOwnerPattern.MatchString(name) {
 			log.Warnf("%s skipping schema owner with unexpected characters: %q", c.logPrompt, name)
-			continue
+			return nil
 		}
 		if !passesFilter(name, include, exclude) {
-			continue
+			return nil
 		}
 		id := ""
 		if userID.Valid {
@@ -1057,9 +1053,10 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 		}
 		owners[ownerKey{conID: conID, owner: name}] = id
 		names[name] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, nil, err
+		return nil
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to query schema owners: %w", err)
 	}
 
 	distinct := make([]string, 0, len(names))
@@ -1090,11 +1087,128 @@ func ownerListChunks(names []string) []string {
 	return chunks
 }
 
+type relationColumnNames struct {
+	conID    string
+	owner    string
+	relation string
+}
+
+type columnKey struct {
+	tableKey
+	column string
+}
+
+func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnNames) []string {
+	keys := make([]tableKey, 0, len(allowed))
+	for key := range allowed {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].conID != keys[j].conID {
+			return keys[i].conID < keys[j].conID
+		}
+		if keys[i].owner != keys[j].owner {
+			return keys[i].owner < keys[j].owner
+		}
+		return keys[i].table < keys[j].table
+	})
+
+	filters := make([]string, 0, (len(keys)+maxSchemaRelationsPerQuery-1)/maxSchemaRelationsPerQuery)
+	for start := 0; start < len(keys); start += maxSchemaRelationsPerQuery {
+		end := start + maxSchemaRelationsPerQuery
+		if end > len(keys) {
+			end = len(keys)
+		}
+		var groups []string
+		for i := start; i < end; {
+			j := i + 1
+			for j < end && keys[j].conID == keys[i].conID && keys[j].owner == keys[i].owner {
+				j++
+			}
+			names := make([]string, 0, j-i)
+			for _, key := range keys[i:j] {
+				names = append(names, "'"+escapeSQLLiteral(key.table)+"'")
+			}
+			groups = append(groups, fmt.Sprintf("(%s = %d AND %s = '%s' AND %s IN (%s))",
+				columns.conID, keys[i].conID,
+				columns.owner, escapeSQLLiteral(keys[i].owner),
+				columns.relation, strings.Join(names, ", ")))
+			i = j
+		}
+		filters = append(filters, "("+strings.Join(groups, " OR ")+")")
+	}
+	return filters
+}
+
+func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNames, columnName string) []string {
+	keys := make([]columnKey, 0, len(allowed))
+	for key := range allowed {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].conID != keys[j].conID {
+			return keys[i].conID < keys[j].conID
+		}
+		if keys[i].owner != keys[j].owner {
+			return keys[i].owner < keys[j].owner
+		}
+		if keys[i].table != keys[j].table {
+			return keys[i].table < keys[j].table
+		}
+		return keys[i].column < keys[j].column
+	})
+
+	filters := make([]string, 0, (len(keys)+maxSchemaRelationsPerQuery-1)/maxSchemaRelationsPerQuery)
+	for start := 0; start < len(keys); start += maxSchemaRelationsPerQuery {
+		end := start + maxSchemaRelationsPerQuery
+		if end > len(keys) {
+			end = len(keys)
+		}
+		var groups []string
+		for i := start; i < end; {
+			j := i + 1
+			for j < end && keys[j].tableKey == keys[i].tableKey {
+				j++
+			}
+			names := make([]string, 0, j-i)
+			for _, key := range keys[i:j] {
+				names = append(names, "'"+escapeSQLLiteral(key.column)+"'")
+			}
+			groups = append(groups, fmt.Sprintf("(%s = %d AND %s = '%s' AND %s = '%s' AND %s IN (%s))",
+				columns.conID, keys[i].conID,
+				columns.owner, escapeSQLLiteral(keys[i].owner),
+				columns.relation, escapeSQLLiteral(keys[i].table),
+				columnName, strings.Join(names, ", ")))
+			i = j
+		}
+		filters = append(filters, "("+strings.Join(groups, " OR ")+")")
+	}
+	return filters
+}
+
+func (c *Check) queryMetadata(ctx context.Context, query string, scan func(*sqlx.Rows) error) error {
+	queryCtx, cancel := context.WithTimeout(ctx, c.config.Schemas.MaxQueryDurationDuration())
+	defer cancel()
+
+	rows, err := c.db.QueryxContext(queryCtx, query)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		if err := scan(rows); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
 // Missing or version-incompatible optional detail views do not fail collection.
-func (c *Check) queryDetails(ctx context.Context, name, template string, ownerLists []string, scan func(*sqlx.Rows) error) {
-	for _, ownerList := range ownerLists {
-		rows, err := c.db.QueryxContext(ctx, strings.Replace(template, "/*OWNERS*/", ownerList, 1))
-		if err != nil {
+func (c *Check) queryDetailFilters(ctx context.Context, name, template string, filters []string, scan func(*sqlx.Rows) error) {
+	for _, filter := range filters {
+		query := strings.Replace(template, "/*RELATIONS*/", filter, 1)
+		if err := c.queryMetadata(ctx, query, scan); err != nil {
 			if strings.Contains(err.Error(), oracleErrorTableOrViewDoesNotExist) || strings.Contains(err.Error(), oracleErrorInvalidIdentifier) {
 				log.Debugf("%s table detail %q unavailable: %s", c.logPrompt, name, err)
 				return
@@ -1102,15 +1216,11 @@ func (c *Check) queryDetails(ctx context.Context, name, template string, ownerLi
 			log.Warnf("%s failed to collect table detail %q: %s", c.logPrompt, name, err)
 			return
 		}
-		for rows.Next() {
-			if err := scan(rows); err != nil {
-				log.Warnf("%s failed to scan table detail %q: %s", c.logPrompt, name, err)
-				rows.Close()
-				return
-			}
-		}
-		rows.Close()
 	}
+}
+
+func (c *Check) queryDetails(ctx context.Context, name, template string, allowed map[tableKey]struct{}, columns relationColumnNames, scan func(*sqlx.Rows) error) {
+	c.queryDetailFilters(ctx, name, template, relationFilterChunks(allowed, columns), scan)
 }
 
 func constraintType(t string) string {
@@ -1130,29 +1240,24 @@ func constraintType(t string) string {
 
 func (c *Check) containerNames(ctx context.Context) map[int64]string {
 	names := make(map[int64]string)
-	rows, err := c.db.QueryxContext(ctx, containerNamesQuery)
-	if err != nil {
-		log.Warnf("%s failed to query container names: %s", c.logPrompt, err)
-		return names
-	}
-	defer rows.Close()
-	for rows.Next() {
+	err := c.queryMetadata(ctx, containerNamesQuery, func(rows *sqlx.Rows) error {
 		var (
 			conID int64
 			name  string
 		)
 		if err := rows.Scan(&conID, &name); err != nil {
-			log.Warnf("%s failed to scan container name: %s", c.logPrompt, err)
-			return names
+			return fmt.Errorf("failed to scan container name: %w", err)
 		}
 		names[conID] = name
+		return nil
+	})
+	if err != nil {
+		log.Warnf("%s failed to query container names: %s", c.logPrompt, err)
 	}
 	return names
 }
 
-// Only allowed tables are retained, bounding memory to the capped main-query result even when
-// detail queries return more rows.
-func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed map[tableKey]struct{}) map[tableKey]*tableDetails {
+func (c *Check) tableDetails(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}) map[tableKey]*tableDetails {
 	details := make(map[tableKey]*tableDetails)
 	at := func(conID int64, owner, table string) *tableDetails {
 		k := tableKey{conID: conID, owner: owner, table: table}
@@ -1205,10 +1310,10 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 		}
 	}
 
-	c.queryDetails(ctx, "blockchain", blockchainTablesQuery, ownerList, scanRetention(true))
-	c.queryDetails(ctx, "immutable", immutableTablesQuery, ownerList, scanRetention(false))
+	c.queryDetails(ctx, "blockchain", blockchainTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(true))
+	c.queryDetails(ctx, "immutable", immutableTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(false))
 
-	c.queryDetails(ctx, "modifications", tabModificationsQuery, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "modifications", tabModificationsQuery, allowed, relationColumnNames{conID: "con_id", owner: "table_owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
 		var (
 			conID                     int64
 			owner, table              string
@@ -1232,7 +1337,7 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 		return nil
 	})
 
-	c.queryDetails(ctx, "materialized views", mviewsQuery, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "materialized views", mviewsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "mview_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name, mode, method, staleness string
 		var lastRefresh sql.NullTime
@@ -1256,7 +1361,7 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 		return nil
 	})
 
-	c.queryDetails(ctx, "table comments", tableCommentsQuery, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "table comments", tableCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, comment string
 		if err := rows.Scan(&conID, &owner, &table, &comment); err != nil {
@@ -1266,7 +1371,7 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 		return nil
 	})
 
-	c.queryDetails(ctx, "column comments", columnCommentsQuery, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "column comments", columnCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, column, comment string
 		if err := rows.Scan(&conID, &owner, &table, &column, &comment); err != nil {
@@ -1280,8 +1385,28 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 		return nil
 	})
 
+	defaultsQueryResolved := strings.Replace(columnDefaultsQuery, "/*DEFAULT_COL*/", c.defaultValueColumn(), 1)
+	defaultFilters := columnFilterChunks(allowedColumns,
+		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")
+	c.queryDetailFilters(ctx, "column defaults", defaultsQueryResolved, defaultFilters, func(rows *sqlx.Rows) error {
+		var conID int64
+		var owner, table, column string
+		var value sql.NullString
+		if err := rows.Scan(&conID, &owner, &table, &column, &value); err != nil {
+			return err
+		}
+		if value.Valid {
+			d := at(conID, owner, table)
+			if d.ColumnDefaults == nil {
+				d.ColumnDefaults = make(map[string]string)
+			}
+			d.ColumnDefaults[column] = truncateLongValue(value.String)
+		}
+		return nil
+	})
+
 	indexesQueryResolved := strings.Replace(indexesQuery, "/*EXPRESSION_COL*/", c.indexExpressionColumn(), 1)
-	c.queryDetails(ctx, "indexes", indexesQueryResolved, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "indexes", indexesQueryResolved, allowed, relationColumnNames{conID: "i.con_id", owner: "i.table_owner", relation: "i.table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, name, uniqueness, indexType, column string
 		var expression sql.NullString
@@ -1307,7 +1432,7 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 	// Foreign keys identify referenced constraints, so resolve their tables after scanning all rows.
 	primaryKeys := make(map[string]*constraintInfo)
 	constraintsQueryResolved := strings.Replace(constraintsQuery, "/*CONDITION_COL*/", c.conditionColumn(), 1)
-	c.queryDetails(ctx, "constraints", constraintsQueryResolved, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "constraints", constraintsQueryResolved, allowed, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, name, ctype, rOwner, rName, column string
 		var condition sql.NullString
@@ -1356,7 +1481,7 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 		}
 	}
 
-	c.queryDetails(ctx, "external tables", externalTablesQuery, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "external tables", externalTablesQuery, allowed, relationColumnNames{conID: "et.con_id", owner: "et.owner", relation: "et.table_name"}, func(rows *sqlx.Rows) error {
 		var (
 			conID                  int64
 			owner, table, driver   string
@@ -1384,7 +1509,7 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 		return nil
 	})
 
-	c.queryDetails(ctx, "object ids", objectIDsQuery, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "object ids", objectIDsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "object_name"}, func(rows *sqlx.Rows) error {
 		var (
 			conID        int64
 			owner, table string
@@ -1400,7 +1525,7 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 	})
 
 	keys := make(map[tableKey][]string)
-	c.queryDetails(ctx, "partitioning", partTablesQuery, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "partitioning", partTablesQuery, allowed, relationColumnNames{conID: "pt.con_id", owner: "pt.owner", relation: "pt.table_name"}, func(rows *sqlx.Rows) error {
 		var (
 			conID          int64
 			owner, table   string
@@ -1433,7 +1558,7 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 	return details
 }
 
-func (c *Check) viewDetails(ctx context.Context, ownerList []string, allowed map[tableKey]struct{}) map[tableKey]*viewDetails {
+func (c *Check) viewDetails(ctx context.Context, allowed map[tableKey]struct{}) map[tableKey]*viewDetails {
 	details := make(map[tableKey]*viewDetails)
 	at := func(conID int64, owner, name string) *viewDetails {
 		k := tableKey{conID: conID, owner: owner, table: name}
@@ -1446,7 +1571,7 @@ func (c *Check) viewDetails(ctx context.Context, ownerList []string, allowed map
 		return details[k]
 	}
 
-	c.queryDetails(ctx, "view definitions", viewDefinitionsQuery, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "view definitions", viewDefinitionsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "view_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name string
 		var text sql.NullString
@@ -1457,7 +1582,7 @@ func (c *Check) viewDetails(ctx context.Context, ownerList []string, allowed map
 		return nil
 	})
 
-	c.queryDetails(ctx, "view objects", viewObjectsQuery, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "view objects", viewObjectsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "object_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name string
 		var objectID sql.NullInt64
@@ -1478,7 +1603,7 @@ func (c *Check) viewDetails(ctx context.Context, ownerList []string, allowed map
 		return nil
 	})
 
-	c.queryDetails(ctx, "view comments", tableCommentsQuery, ownerList, func(rows *sqlx.Rows) error {
+	c.queryDetails(ctx, "view comments", tableCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name, comment string
 		if err := rows.Scan(&conID, &owner, &name, &comment); err != nil {
@@ -1493,47 +1618,80 @@ func (c *Check) viewDetails(ctx context.Context, ownerList []string, allowed map
 	return details
 }
 
-// Multiple owner batches are regrouped by container so a completed container is never revisited.
 // Buffering all rows before emission prevents query or scan errors from producing partial snapshots.
 func (c *Check) fetchMetadataRows(ctx context.Context, template string, ownerLists []string, owners map[ownerKey]string, extra map[string]string) ([]schemaRowDB, error) {
 	var all []schemaRowDB
 	for _, ownerList := range ownerLists {
 		query := strings.ReplaceAll(template, "/*OWNERS*/", ownerList)
-		query = strings.ReplaceAll(query, "/*DEFAULT_COL*/", c.defaultValueColumn())
 		for placeholder, value := range extra {
 			query = strings.ReplaceAll(query, placeholder, value)
 		}
 
-		rows, err := c.db.QueryxContext(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		for rows.Next() {
+		err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
 			var r schemaRowDB
 			if err := rows.StructScan(&r); err != nil {
-				rows.Close()
-				return nil, err
+				return err
 			}
 			if _, ok := owners[ownerKey{conID: r.ConID, owner: r.Owner}]; ok {
 				all = append(all, r)
 			}
-		}
-		err = rows.Err()
-		rows.Close()
+			return nil
+		})
 		if err != nil {
 			return nil, err
 		}
 	}
-	if len(ownerLists) > 1 {
-		sort.SliceStable(all, func(i, j int) bool { return all[i].ConID < all[j].ConID })
-	}
 	return all, nil
+}
+
+func capMetadataRows(rows []schemaRowDB, maxRelations int) ([]schemaRowDB, map[int64]struct{}) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].ConID != rows[j].ConID {
+			return rows[i].ConID < rows[j].ConID
+		}
+		if rows[i].Owner != rows[j].Owner {
+			return rows[i].Owner < rows[j].Owner
+		}
+		return rows[i].TableName < rows[j].TableName
+	})
+
+	selected := make(map[tableKey]struct{})
+	counts := make(map[int64]int)
+	truncated := make(map[int64]struct{})
+	capped := make([]schemaRowDB, 0, len(rows))
+	for _, row := range rows {
+		if row.TotalTables.Valid && row.TotalTables.Int64 > int64(maxRelations) {
+			truncated[row.ConID] = struct{}{}
+		}
+		key := tableKey{conID: row.ConID, owner: row.Owner, table: row.TableName}
+		if _, ok := selected[key]; !ok {
+			if counts[row.ConID] >= maxRelations {
+				truncated[row.ConID] = struct{}{}
+				continue
+			}
+			selected[key] = struct{}{}
+			counts[row.ConID]++
+		}
+		capped = append(capped, row)
+	}
+	return capped, truncated
 }
 
 func tableKeysFromRows(rows []schemaRowDB) map[tableKey]struct{} {
 	keys := make(map[tableKey]struct{}, len(rows))
 	for _, r := range rows {
 		keys[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}] = struct{}{}
+	}
+	return keys
+}
+
+func columnKeysFromRows(rows []schemaRowDB) map[columnKey]struct{} {
+	keys := make(map[columnKey]struct{}, len(rows))
+	for _, r := range rows {
+		keys[columnKey{
+			tableKey: tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName},
+			column:   r.ColumnName,
+		}] = struct{}{}
 	}
 	return keys
 }
@@ -1550,17 +1708,11 @@ func (c *Check) ViewCollection(ctx context.Context, emit payloadEmitter, owners 
 	if err != nil {
 		return fmt.Errorf("failed to query views: %w", err)
 	}
+	rows, cappedContainers := capMetadataRows(rows, c.config.Schemas.MaxViews)
 
-	collector := newViewCollector(c, emit, c.viewDetails(ctx, ownerLists, tableKeysFromRows(rows)), owners, containers)
-
-	cappedContainers := make(map[int64]struct{})
+	collector := newViewCollector(c, emit, c.viewDetails(ctx, tableKeysFromRows(rows)), owners, containers)
+	collector.truncatedContainers = cappedContainers
 	for _, r := range rows {
-		if r.ConID != collector.conID {
-			collector.startContainer(r.ConID)
-		}
-		if r.TotalTables.Valid && r.TotalTables.Int64 > int64(c.config.Schemas.MaxViews) {
-			cappedContainers[r.ConID] = struct{}{}
-		}
 		collector.addView(r)
 	}
 	collector.finish()
@@ -1574,14 +1726,26 @@ func (c *Check) ViewCollection(ctx context.Context, emit payloadEmitter, owners 
 	return nil
 }
 
+func schemaCollectionVersionSupported(version string) bool {
+	major, _, _ := strings.Cut(version, ".")
+	n, err := strconv.Atoi(major)
+	return err == nil && n >= 12
+}
+
 func (c *Check) SchemaCollection() error {
+	return c.schemaCollection(context.Background())
+}
+
+func (c *Check) schemaCollection(ctx context.Context) error {
+	if !schemaCollectionVersionSupported(c.dbVersion) {
+		log.Warnf("%s schema collection requires Oracle %sc or later", c.logPrompt, minMultitenantVersion)
+		return nil
+	}
+
 	sender, err := c.GetSender()
 	if err != nil {
 		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), c.config.Schemas.MaxQueryDurationDuration())
-	defer cancel()
 
 	containers := filterContainers(c.containerNames(ctx), c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases, c.logPrompt)
 
@@ -1615,9 +1779,11 @@ func (c *Check) SchemaCollection() error {
 	if err != nil {
 		return fmt.Errorf("failed to query schemas: %w", err)
 	}
-	details := c.tableDetails(ctx, ownerLists, tableKeysFromRows(rows))
+	rows, cappedContainers := capMetadataRows(rows, c.config.Schemas.MaxTables)
+	details := c.tableDetails(ctx, tableKeysFromRows(rows), columnKeysFromRows(rows))
 
 	collector := newSchemaCollector(c, emit, details, owners, containers)
+	collector.truncatedContainers = cappedContainers
 	for _, r := range rows {
 		collector.add(r)
 	}

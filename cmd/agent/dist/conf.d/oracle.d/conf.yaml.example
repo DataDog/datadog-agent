@@ -229,8 +229,8 @@ instances:
       #
       # collection_interval: 600
 
-    ## Configure collection of table and column metadata. Requires `dbm: true` or
-    ## `data_observability.enabled: true`.
+    ## Configure collection of table and column metadata for Oracle 12c or later. Requires
+    ## `dbm: true` or `data_observability.enabled: true`.
     #
     # schemas:
 
