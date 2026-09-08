@@ -118,6 +118,7 @@ func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, 
 // Note that the providedconfiguration can fallback to different default configuration if specific errors occur attempting to compute the fingerprint.
 func (f *fingerprinterImpl) ComputeFingerprintFromHandle(osFile afero.File, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	if fingerprintConfig == nil {
+		log.Debug("no fingerprint configuration provided, returning an invalid fingerprint")
 		return newInvalidFingerprint(nil), nil
 	}
 	if osFile == nil {
@@ -154,6 +155,7 @@ func (f *fingerprinterImpl) computeFingerprintFromReader(reader io.ReadSeeker, f
 // file on the status page.
 func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	if fingerprintConfig == nil {
+		log.Debugf("no fingerprint configuration resolved for %q, returning an invalid fingerprint", filePath)
 		return newInvalidFingerprint(nil), nil
 	}
 
@@ -229,6 +231,10 @@ func computeFingerPrintByBytes(fpFile io.ReadSeeker, filePath string, fingerprin
 		return newInvalidFingerprint(fingerprintConfig), err
 	}
 
+	// Check if we have enough bytes to create a meaningful fingerprint.
+	// Note that this is reported as an invalid fingerprint with a nil error: the file is not
+	// broken, it is simply too short for now. Callers that decide whether to tail a file
+	// distinguish this from a read failure by looking at whether the error is nil.
 	if bytesRead == 0 || bytesRead < maxBytes {
 		return newInvalidFingerprint(fingerprintConfig), nil
 	}
@@ -250,14 +256,12 @@ func computeFingerPrintByLines(fpFile io.ReadSeeker, filePath string, fingerprin
 
 	// Single loop that handles both skipping and reading
 	var buffer []byte
-	linesRead := 0
 
 	for i := 0; i < linesToSkip+maxLines; i++ {
 		if scanner.Scan() {
 			if i >= linesToSkip {
 				line := scanner.Bytes()
 				buffer = append(buffer, line...)
-				linesRead++
 			}
 		} else {
 			/// Check if we need to fall back due to byte limits
@@ -282,7 +286,9 @@ func computeFingerPrintByLines(fpFile io.ReadSeeker, filePath string, fingerprin
 				return newInvalidFingerprint(fingerprintConfig), err
 			}
 			// Check if we have enough data for fingerprinting
-			// We need either enough lines OR enough bytes to create a meaningful fingerprint
+			// We need either enough lines OR enough bytes to create a meaningful fingerprint.
+			// As in computeFingerPrintByBytes, this is an invalid fingerprint with a nil error:
+			// the file is simply too short for now.
 			return newInvalidFingerprint(fingerprintConfig), nil
 
 		}

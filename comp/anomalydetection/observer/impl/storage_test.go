@@ -113,6 +113,39 @@ func TestTimeSeriesStorage_AddSameBucket_Count(t *testing.T) {
 	assert.Equal(t, 3.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_LeavesUnitCountsImplicit(t *testing.T) {
+	s := newTimeSeriesStorage()
+	res := s.Add("test", "my.metric", 10, 1000, nil)
+	s.Add("test", "my.metric", 20, 1001, nil)
+
+	stats := s.resolveByID(res.Ref)
+	require.NotNil(t, stats)
+	assert.Nil(t, stats.counts)
+	assert.Equal(t, int64(2), stats.sampleCount())
+}
+
+func TestTimeSeriesStorage_ExplicitCountsStayAlignedThroughInsertAndTrim(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
+	res := s.Add("test", "my.metric", 30, 1002, nil)
+	s.Add("test", "my.metric", 10, 1000, nil)
+	s.Add("test", "my.metric", 20, 1001, nil)
+	s.Add("test", "my.metric", 40, 1002, nil)
+	s.Add("test", "my.metric", 50, 1003, nil)
+
+	stats := s.resolveByID(res.Ref)
+	require.NotNil(t, stats)
+	require.NotNil(t, stats.counts)
+	assert.Equal(t, []int64{1, 2, 1}, stats.counts.values)
+
+	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
+	require.NotNil(t, series)
+	assert.Equal(t, []observer.Point{
+		{Timestamp: 1001, Value: 20},
+		{Timestamp: 1002, Value: 35},
+		{Timestamp: 1003, Value: 50},
+	}, series.Points)
+}
+
 func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
 	s := newTimeSeriesStorage()
 
@@ -237,7 +270,8 @@ func TestTimeSeriesStorage_AllSeries(t *testing.T) {
 func TestSeriesStats_AggregateAt(t *testing.T) {
 	// Build a seriesStats with known bucket data to test aggregation.
 	ss := &seriesStats{
-		buckets: []pointBucket{{timestamp: 1000, sum: 100.0, count: 4}},
+		buckets: []pointBucket{{timestamp: 1000, sum: 100.0}},
+		counts:  &bucketCounts{values: []int64{4}},
 	}
 
 	assert.Equal(t, 25.0, ss.aggregateAt(0, AggregateAverage))
@@ -247,6 +281,7 @@ func TestSeriesStats_AggregateAt(t *testing.T) {
 	// Zero count returns 0 for average
 	ss2 := &seriesStats{
 		buckets: []pointBucket{{timestamp: 1000, sum: 10.0}},
+		counts:  &bucketCounts{values: []int64{0}},
 	}
 	assert.Equal(t, 0.0, ss2.aggregateAt(0, AggregateAverage))
 }
@@ -261,7 +296,7 @@ func TestAggSuffix(t *testing.T) {
 	assert.Equal(t, "unknown", aggSuffix(Aggregate(999)))
 }
 
-func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
+func TestTimeSeriesStorage_DropsNonFiniteValues(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	s.Add("test", "my.metric", math.Inf(1), 1000, nil)
@@ -269,14 +304,9 @@ func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
 
 	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
 	assert.Nil(t, series)
-
-	nonFinite, extreme, byMetric := s.DroppedValueStats()
-	assert.Equal(t, int64(2), nonFinite)
-	assert.Equal(t, int64(0), extreme)
-	assert.Equal(t, int64(2), byMetric["test|my.metric"])
 }
 
-func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
+func TestTimeSeriesStorage_DropsExtremeFiniteValues(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	s.Add("test", "my.metric", math.MaxFloat64, 1000, nil)
@@ -286,11 +316,6 @@ func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
 	require.NotNil(t, series)
 	require.Len(t, series.Points, 1)
 	assert.Equal(t, math.MaxFloat64/4, series.Points[0].Value)
-
-	nonFinite, extreme, byMetric := s.DroppedValueStats()
-	assert.Equal(t, int64(0), nonFinite)
-	assert.Equal(t, int64(1), extreme)
-	assert.Equal(t, int64(1), byMetric["test|my.metric"])
 }
 
 // --- Binary-search-based range query tests ---
@@ -538,30 +563,6 @@ func TestFindingH1_StorageListAllSeriesCompactRace(_ *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 500; i++ {
 			_ = s.ListAllSeriesCompact()
-		}
-	}()
-
-	wg.Wait()
-}
-
-func TestFindingH1_StorageDroppedValueStatsRace(_ *testing.T) {
-	s := newTimeSeriesStorage()
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 500; i++ {
-			// Add some NaN to trigger drop accounting writes
-			s.Add("ns", "metric", math.NaN(), int64(i), nil)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 500; i++ {
-			_, _, _ = s.DroppedValueStats()
 		}
 	}()
 

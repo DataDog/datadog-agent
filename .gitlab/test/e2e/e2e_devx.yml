@@ -13,6 +13,7 @@ go_e2e_test_binaries:
     - go_e2e_deps
   variables:
     KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_CPU_LIMIT: 4
     KUBERNETES_MEMORY_REQUEST: 72Gi
     KUBERNETES_MEMORY_LIMIT: 72Gi
   before_script:
@@ -218,6 +219,7 @@ generate-fips-e2e-pipeline:
     - job: qa_agent
       optional: true
     - qa_agent_full
+    - qa_agent_full_fips
     - job: qa_agent_fips
       optional: true
     - job: qa_agent_fips_jmx

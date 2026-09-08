@@ -34,7 +34,8 @@ type Component interface {
 // RequestParams is a struct that contains the parameters for a request
 type RequestParams struct {
 	*http.Request
-	Timeout time.Duration
+	Timeout     time.Duration
+	NoAuthToken bool
 }
 
 // RequestOption allows to specify custom behavior for requests

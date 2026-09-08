@@ -13,6 +13,7 @@ from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.schema.template import CORE_SCHEMA_FILE, generate_template
@@ -35,43 +36,53 @@ def build(
     build_include=None,
     build_exclude=None,
     go_mod="readonly",
+    enable_bazel=False,
 ):
     """
     Build Dogstatsd
     """
-    build_tags = compute_build_tags_for_flavor(
-        build="dogstatsd", flavor=AgentFlavor.dogstatsd, build_include=build_include, build_exclude=build_exclude
-    )
-    ldflags, gcflags, env = get_build_flags(ctx, static=static)
     bin_path = DOGSTATSD_BIN_PATH
 
-    # generate windows resources
-    if sys.platform == 'win32':
-        build_messagetable(ctx)
-        vars = versioninfo_vars(ctx)
-        build_rc(
-            ctx,
-            "cmd/dogstatsd/windows_resources/dogstatsd.rc",
-            vars=vars,
-            out="cmd/dogstatsd/rsrc.syso",
+    if enable_bazel:
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if static:
+            raise NotImplementedError("--enable-bazel does not support --static.")
+        if build_include is not None or build_exclude is not None:
+            raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
+        build_binary_with_bazel("//cmd/dogstatsd:dogstatsd", bin_path=os.path.join(bin_path, bin_name("dogstatsd")))
+    else:
+        if static:
+            bin_path = STATIC_BIN_PATH
+        build_tags = compute_build_tags_for_flavor(
+            build="dogstatsd", flavor=AgentFlavor.dogstatsd, build_include=build_include, build_exclude=build_exclude
         )
+        ldflags, gcflags, env = get_build_flags(ctx, static=static)
 
-    if static:
-        bin_path = STATIC_BIN_PATH
+        # generate windows resources
+        if sys.platform == 'win32':
+            build_messagetable(ctx)
+            vars = versioninfo_vars(ctx)
+            build_rc(
+                ctx,
+                "cmd/dogstatsd/windows_resources/dogstatsd.rc",
+                vars=vars,
+                out="cmd/dogstatsd/rsrc.syso",
+            )
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/dogstatsd",
-        mod=go_mod,
-        race=race,
-        rebuild=rebuild,
-        gcflags=gcflags,
-        ldflags=ldflags,
-        build_tags=build_tags,
-        bin_path=os.path.join(bin_path, bin_name("dogstatsd")),
-        env=env,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-    )
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/dogstatsd",
+            mod=go_mod,
+            race=race,
+            rebuild=rebuild,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            bin_path=os.path.join(bin_path, bin_name("dogstatsd")),
+            env=env,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+        )
 
     # Render the configuration file template. The dogstatsd binary ships
     # on linux containers, so we always target linux (matches the legacy

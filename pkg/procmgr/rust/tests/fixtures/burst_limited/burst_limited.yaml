@@ -1,0 +1,8 @@
+command: {{python}}
+args:
+  - {{script}}
+restart: always
+restart_sec: 2
+restart_max_delay_sec: 2
+start_limit_burst: 4
+start_limit_interval_sec: 60

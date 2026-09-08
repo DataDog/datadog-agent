@@ -127,9 +127,21 @@ def setup(
                 # they are intentionally left unset here.
                 "go.buildTags": local_build_tags,
                 "go.testTags": local_build_tags,
-                "go.lintTool": "golangci-lint-v2",  # not "golangci-lint" to bypass the v1/v2 detection heuristic
+                "go.lintTool": "bazelisk",
                 "go.lintOnSave": "package",
                 "go.lintFlags": [
+                    "run",
+                    "//internal/tools:golangci-lint",
+                    "--",
+                    # add vscode-go default args, see:
+                    # https://github.com/golang/vscode-go/blob/master/extension/src/diagnostics/goLint.ts#L122-L163
+                    "run",
+                    "--issues-exit-code=0",
+                    "--output.text.print-issued-lines=false",
+                    "--show-stats=false",
+                    "--output.text.path=stdout",
+                    "--path-mode=abs",
+                    # then our own
                     "--build-tags",
                     local_build_tags,
                 ],
@@ -153,8 +165,6 @@ def setup(
         " && git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename}"
         " && dda config set github.auth.token \"$GITHUB_TOKEN\""
         " && dda inv -- -e install-tools && dda inv -- -e deps"
-        ' && golangci_lint="$(go list -f {{.Target}} github.com/golangci/golangci-lint/v2/cmd/golangci-lint)"'
-        ' && bazel run //internal/tools:install_golangci-lint -- --destdir="$(dirname "$golangci_lint")"'
     )
 
     devcontainer["containerEnv"] = {

@@ -63,10 +63,20 @@ type Launcher struct {
 	tagger                  tagger.Component
 	filesChan               chan []*tailer.File
 	filesTailedBetweenScans []*tailer.File
+	// Scan keys of files that started being skipped for an unusable fingerprint while a scan was in
+	// flight. Serves the same purpose as filesTailedBetweenScans, for files that got no tailer, and
+	// is cleared on the same schedule. See resolveActiveTailers.
+	filesSkippedBetweenScans []string
 	// Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
-	oldInfoMap      map[string]*oldTailerInfo
-	fileOpener      opener.FileOpener
-	fingerprinter   tailer.Fingerprinter
+	oldInfoMap map[string]*oldTailerInfo
+	// Tracks the files we currently refuse to tail because their fingerprint is unusable, keyed by
+	// scan key. Only used to log the transitions instead of one line per scan, see recordFingerprintSkip.
+	fingerprintSkips map[string]*fingerprintSkip
+	fileOpener       opener.FileOpener
+	fingerprinter    tailer.Fingerprinter
+	// openFlagsErrors surfaces open_flags (O_DIRECT) fingerprint failures on the status
+	// page. It coexists with fingerprintSkips: the map logs skip transitions to the agent
+	// log, the reporter keeps the per-file reason visible in `agent status`.
 	openFlagsErrors *openFlagsErrorReporter
 	stopOnce        sync.Once
 }
@@ -123,6 +133,7 @@ func NewLauncher(
 		tagger:                 tagger,
 		filesChan:              make(chan []*tailer.File, 1),
 		oldInfoMap:             make(map[string]*oldTailerInfo),
+		fingerprintSkips:       make(map[string]*fingerprintSkip),
 		fileOpener:             fileOpener,
 		fingerprinter:          fingerprinter,
 		openFlagsErrors:        newOpenFlagsErrorReporter(),
@@ -171,8 +182,11 @@ func (s *Launcher) run() {
 
 			scannedSources = slices.Clone(s.activeSources)
 
-			// Clear files tailed between scans before starting new FilesToTail
+			// Clear the between-scans state before starting a new FilesToTail: the copy of
+			// activeSources it receives already covers the sources these files came from, so its
+			// result will mention them on its own.
 			s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
+			s.filesSkippedBetweenScans = s.filesSkippedBetweenScans[:0]
 
 			scanTicker.Stop()
 			go func(inputSources []*sources.LogSource) {
@@ -213,6 +227,13 @@ func (s *Launcher) cleanup() {
 
 	// Clean up old info map to prevent memory leaks
 	s.oldInfoMap = make(map[string]*oldTailerInfo)
+	if stillSkipped := len(s.fingerprintSkips); stillSkipped > 0 {
+		log.Warnf("Stopping with %d file(s) still not tailed because their fingerprint was unusable.", stillSkipped)
+		for _, skip := range s.fingerprintSkips {
+			removeFingerprintSkipMessage(skip.file)
+		}
+		s.fingerprintSkips = make(map[string]*fingerprintSkip)
+	}
 }
 
 // resolveActiveTailers checks all the files we're expected to tail, compares them to the
@@ -230,9 +251,31 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 	// added during a concurrent scan.  In order to mitigate that possibility, any
 	// tailers started while FilesToTail() is running need to be merged with the
 	// result of FilesToTail() to prevent scan() from unscheudling them.
+	// FilesToTail returns at most tailingLimit files, so a result that reached the limit may have
+	// left out files that are still matched. Read before the merge below, which can push the count
+	// past the limit on its own.
+	hitFileLimit := len(files) >= s.tailingLimit
+
 	files = append(files, s.filesTailedBetweenScans...)
 	s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
 	filesTailed := make(map[string]bool)
+
+	// Every file we are expected to tail during this scan, used to expire skip state for files that
+	// have gone away. Only worth building when there is skip state to expire, which is the
+	// exception: otherwise it costs a map insert per file on every scan and is never read. A file
+	// that starts being skipped later in this call is simply expired by the next scan instead.
+	expireSkips := len(s.fingerprintSkips) > 0
+	var filesExpected map[string]bool
+	if expireSkips {
+		filesExpected = make(map[string]bool, len(files)+len(s.filesSkippedBetweenScans))
+		// A scan already in flight cannot mention files whose source was added after it took its
+		// copy of activeSources, so they would look like they had vanished. This is the same
+		// mitigation the files slice gets above, for files that never got a tailer.
+		for _, scanKey := range s.filesSkippedBetweenScans {
+			filesExpected[scanKey] = true
+		}
+	}
+	s.filesSkippedBetweenScans = s.filesSkippedBetweenScans[:0]
 	var allFiles []string
 
 	log.Debugf("Scan - got %d files from FilesToTail and currently tailing %d files\n", len(files), s.tailers.Count())
@@ -252,9 +295,13 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 		// when a tailer for a dead container is still tailing the file, and another
 		// tailer is tailing the file for the new container).
 		scanKey := file.GetScanKey()
+		if expireSkips {
+			filesExpected[scanKey] = true
+		}
 		tailered, isTailed := s.tailers.Get(scanKey)
 		if isTailed && tailered.IsFinished() {
 			// skip this tailer as it must be stopped
+			log.Debugf("Tailer for %s has finished, it will be stopped and a new one started for this file", file.Path)
 			continue
 		}
 
@@ -273,7 +320,9 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 					if directOpenFlagsActiveForFile(s.fingerprinter, tailedFile) {
 						s.openFlagsErrors.report(tailedFile, err)
 					} else {
-						log.Debugf("failed to detect log rotation via fingerprint: %v", err)
+						// Assuming no rotation keeps the existing tailer running, which is the safe
+						// choice for a check that usually fails only while a rotation is in flight.
+						log.Debugf("Could not check %s for log rotation: %v", file.Path, err)
 					}
 					didRotate = false
 				}
@@ -346,21 +395,32 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 				// hasOldInfo is true when restarting a tailer after a file rotation, so start tailer from the beginning
 				filesTailed[scanKey] = true
 			} else {
+				// Bug fix: the tailer failed to start, so re-persist the stored info
+				// for the next scan instead of dropping it. resolveFingerprint already
+				// records/clears the fingerprint-skip note, so no resolveFingerprintSkip here.
 				s.oldInfoMap[scanKey] = oldInfo
 			}
 		} else {
 			// Normal case - no stored info
 			if s.startNewTailer(file, config.Beginning, fingerprint) {
 				filesTailed[scanKey] = true
+				s.resolveFingerprintSkip(file)
 			}
 		}
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
+	// Files that are no longer expected to be tailed can't recover, so drop their skip state.
+	if expireSkips {
+		s.forgetVanishedFiles(filesExpected, hitFileLimit)
+	}
+
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
 	fileStats, err := procfilestats.GetProcessFileStats()
 	if err == nil {
 		CheckProcessTelemetry(fileStats)
+	} else {
+		log.Debugf("Could not read the Agent process file statistics, skipping the open file limit check: %v", err)
 	}
 }
 
@@ -379,11 +439,18 @@ func (s *Launcher) resolveFingerprint(file *tailer.File) (*types.Fingerprint, bo
 
 	fingerprint, err := s.fingerprinter.ComputeFingerprint(file)
 	if err != nil || fingerprint == nil || !fingerprint.ValidFingerprint() {
+		// Agent-log skip transition (main #54680): logs once when a file starts being
+		// skipped, keyed by scan key, distinguishing "too short" from a read error.
+		s.recordFingerprintSkip(file, fingerprint, err)
+		// Status-page reason, O_DIRECT open_flags failures specifically. Both loggers run
+		// on purpose: the map talks to the agent log, the reporter to `agent status`.
 		if err != nil && directOpenFlagsActiveForFile(s.fingerprinter, file) {
 			s.openFlagsErrors.report(file, err)
 		}
 		return nil, false
 	}
+	// Fingerprint is usable again: clear any skip note opened on a previous scan.
+	s.resolveFingerprintSkip(file)
 	return fingerprint, true
 }
 
@@ -419,6 +486,8 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 func (s *Launcher) launchTailers(source *sources.LogSource) {
 	// If we're at the limit already, no need to do a 'CollectFiles', just wait for the next 'scan'
 	if s.tailers.Count() >= s.tailingLimit {
+		log.Debugf("Not launching tailers for %s: already tailing %d files, which is the limit (logs_config.open_files_limit). Files for this source are picked up by the next scan.",
+			source.Config.Path, s.tailingLimit)
 		return
 	}
 	files, err := s.fileProvider.CollectFiles(source)
@@ -433,6 +502,8 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 	symlinkResolver := fileprovider.NewContainerLogSymlinkResolver()
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
+			log.Debugf("Reached the limit of %d tailed files (logs_config.open_files_limit) while launching tailers for %s, the remaining files are picked up by the next scan.",
+				s.tailingLimit, source.Config.Path)
 			return
 		}
 
@@ -450,6 +521,13 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 
 		fingerprint, ok := s.resolveFingerprint(file)
 		if !ok {
+			// resolveFingerprint already recorded the skip (agent log) and, for O_DIRECT
+			// open_flags failures, the status-page reason. A scan running right now was
+			// handed a copy of activeSources that predates this source, so its result will
+			// not mention this file; without this, that result expires the skip we just
+			// opened and we report giving up on a file we are still retrying, then open a
+			// second skip on the next scan.
+			s.filesSkippedBetweenScans = append(s.filesSkippedBetweenScans, file.GetScanKey())
 			continue
 		}
 
@@ -461,6 +539,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 
 		newTailerStarted := s.startNewTailer(file, mode, fingerprint)
 		if newTailerStarted {
+			s.resolveFingerprintSkip(file)
 			s.filesTailedBetweenScans = append(s.filesTailedBetweenScans, file)
 		}
 	}
@@ -503,7 +582,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 
 	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
 	if err := tailer.Start(offset, whence); err != nil {
-		log.Warn(err)
+		log.Warnf("Could not start the tailer for %s, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}
 
@@ -568,7 +647,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	log.Infof("Starting new tailer with stored info (pattern: %v) for: %s (offset: %d, whence: %d)",
 		oldInfo.Pattern != nil, file.Path, offset, whence)
 	if err := tailer.Start(offset, whence); err != nil {
-		log.Warn(err)
+		log.Warnf("Could not start the tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}
 
@@ -644,7 +723,7 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	// force reading file from beginning since it has been log-rotated
 	err := newTailer.StartFromBeginning()
 	if err != nil {
-		log.Warn(err)
+		log.Warnf("Could not start the replacement tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}
 

@@ -45,10 +45,29 @@
   variables:
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
 
+# Temporarily recover a persistent runner's Bazel state from a possibly canceled previous job:
+# - kill any Bazel server still running on that slot, until https://github.com/bazelbuild/bazel/issues/30954 is fixed in
+#   our Bazel version, through e.g., https://github.com/bazelbuild/bazel/pull/30960,
+# - refetch any repository left with a missing package or target, to be reassessed once
+#   https://github.com/bazel-contrib/bazel-gazelle/issues/2206 gets addressed.
+.bazel:recover_from_canceled_job:
+  - pkill -f "output_base=$XDG_CACHE_HOME" || [ "$?" -eq 1 ]  # No processes matched
+  - >
+    (bazel cquery --keep_going --noshow_progress 'deps(//...)' 2>&1 >/dev/null || true)
+    | grep -Fv WARNING:
+    | (grep -Eo "@@[^ './:]+" || true)
+    | sort -u
+    | xargs -I{} bazel fetch --force --repo={}
+
 .bazel:defs:cache:macos:
   extends: .bazel:defs
   variables:
     XDG_CACHE_HOME: "$RUNNER_TEMP_PROJECT_DIR"
+  before_script:
+    # Drop GOPROXY entries not usable from macOS runners before bazel forwards
+    # GOPROXY into its repository rules.
+    - !reference [.sanitize_goproxy]
+    - !reference [.bazel:recover_from_canceled_job]
 
 .bazel:defs:cache:persistent:
   extends: .bazel:defs
@@ -86,16 +105,10 @@
 .bazel:runner:macos-amd64:
   extends: .bazel:defs:cache:macos
   tags: [ "macos:sonoma-amd64", "specific:true" ]
-  # Drop GOPROXY entries not usable from macOS runners before bazel forwards
-  # GOPROXY into its repository rules.
-  before_script:
-    - !reference [.sanitize_goproxy]
 
 .bazel:runner:macos-arm64:
   extends: .bazel:defs:cache:macos
   tags: [ "macos:sonoma-arm64", "specific:true" ]
-  before_script:
-    - !reference [.sanitize_goproxy]
 
 .bazel:runner:windows-amd64:
   extends: [ .bazel:defs:cache:windows, .windows_docker_default ]
