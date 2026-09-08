@@ -16,6 +16,7 @@ def harness(name, impl):
         impl = impl,
         target = name + "_subject",
     )
+
     # we do not need these for the analysis tests. They are here to make it
     # easy to build the various outputs and hand verify.
     native.filegroup(

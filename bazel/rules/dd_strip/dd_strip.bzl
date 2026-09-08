@@ -49,6 +49,7 @@ def _dd_strip_debug_impl(ctx):
         outputs = [stripped, debug],
         toolchain = _STRIPPER_TOOLCHAIN_TYPE,
     )
+
     # Transfer the executable-ness from the original file.
     default_info = ctx.attr.src[DefaultInfo]
     was_executable = bool(hasattr(default_info, "executable") and default_info.executable)
