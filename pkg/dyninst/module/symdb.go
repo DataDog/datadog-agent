@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
@@ -24,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/google/uuid"
 )
+
+// symbolUploadLatencyMetric measures the seconds between discovering a process
+// and having uploaded its symbols.
+const symbolUploadLatencyMetric = "datadog.dynamic_instrumentation.symbol_upload_latency_seconds"
 
 // symdbManager deals with uploading symbols to the SymDB backend.
 type symdbManager struct {
@@ -94,6 +100,9 @@ type uploadRequest struct {
 	procID         processKey
 	runtimeID      string
 	executablePath string
+	// discoveredAt is when the process was discovered, or the zero time if that
+	// is not known.
+	discoveredAt time.Time
 }
 
 // newSymdbManager creates a new symdbManager and starts the upload worker.
@@ -151,6 +160,7 @@ func newSymdbManager(
 
 type symdbManagerConfig struct {
 	flushThresholdBytes int
+	statsd              ddgostatsd.ClientInterface
 	testingKnobs        struct {
 		onDeferUpload                     func()
 		onUploadRejectedByPersistentCache func()
@@ -167,6 +177,12 @@ type option func(config *symdbManagerConfig)
 func withFlushThresholdBytes(flushThresholdBytes int) option {
 	return func(c *symdbManagerConfig) {
 		c.flushThresholdBytes = flushThresholdBytes
+	}
+}
+
+func withStatsd(client ddgostatsd.ClientInterface) option {
+	return func(c *symdbManagerConfig) {
+		c.statsd = client
 	}
 }
 
@@ -324,6 +340,7 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 					procID:         key,
 					runtimeID:      runtimeID.runtimeID,
 					executablePath: executablePath,
+					discoveredAt:   runtimeID.discoveredAt,
 				}, time.Now().Add(remainingWait))
 
 				return nil
@@ -338,6 +355,7 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 		procID:         key,
 		runtimeID:      runtimeID.runtimeID,
 		executablePath: executablePath,
+		discoveredAt:   runtimeID.discoveredAt,
 	}, time.Now())
 
 	return nil
@@ -549,6 +567,8 @@ func (m *symdbManager) worker(ctx context.Context) {
 						req.procID.pid, req.procID.service, req.procID.version, req.runtimeID, req.executablePath, err)
 				}
 			}
+		} else {
+			m.reportUploadLatency(req.discoveredAt)
 		}
 
 		// Re-acquire lock and clear current upload.
@@ -557,6 +577,22 @@ func (m *symdbManager) worker(ctx context.Context) {
 		m.mu.currentCancel = nil
 		close(m.mu.currentDone)
 		m.mu.currentDone = nil
+	}
+}
+
+// reportUploadLatency reports how long it took to get from discovering a
+// process to having its symbols uploaded.
+func (m *symdbManager) reportUploadLatency(discoveredAt time.Time) {
+	if m.cfg.statsd == nil || discoveredAt.IsZero() {
+		return
+	}
+	if err := m.cfg.statsd.Distribution(
+		symbolUploadLatencyMetric,
+		time.Since(discoveredAt).Seconds(),
+		[]string{"language:go"},
+		1,
+	); err != nil {
+		log.Debugf("SymDB: failed to report upload latency: %v", err)
 	}
 }
 
