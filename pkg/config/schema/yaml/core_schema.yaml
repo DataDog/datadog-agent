@@ -2495,6 +2495,15 @@ properties:
         default: false
         description: Enables Agent Health detection of DogStatsD client-reported
           payload drops.
+      dropped_ratio_threshold:
+        node_type: setting
+        type: number
+        default: 0.01
+        description: DogStatsD UDS client payload-byte drop ratio above which a
+          telemetry window is unhealthy. Values range from 0 to 1; 0.01 represents
+          1 percent.
+        tags:
+        - golang_type:float64
       unhealthy_confirmation_window:
         node_type: setting
         type: string
