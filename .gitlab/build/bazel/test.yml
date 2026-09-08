@@ -57,12 +57,6 @@
     KUBERNETES_MEMORY_REQUEST: "64Gi"
     KUBERNETES_MEMORY_LIMIT: "64Gi"
 
-bazel:coverage:linux-amd64:
-  extends: [.bazel:runner:linux-amd64, .bazel:coverage:linux]
-
-bazel:coverage:linux-arm64:
-  extends: [.bazel:runner:linux-arm64, .bazel:coverage:linux]
-
 .bazel:test:linux:
   extends: [.bazel:test:reporting, .bazel:test]
   script:
