@@ -95,12 +95,11 @@ type SchemasConfig struct {
 	ExcludeDatabases   []string `yaml:"exclude_databases"`
 }
 
-// ViewsEnabled reports whether view collection is on. It defaults to true.
+// collect_views defaults to true when omitted.
 func (c SchemasConfig) ViewsEnabled() bool {
 	return c.CollectViews == nil || *c.CollectViews
 }
 
-// MaxQueryDurationDuration returns max_query_duration as a time.Duration.
 func (c SchemasConfig) MaxQueryDurationDuration() time.Duration {
 	return time.Duration(c.MaxQueryDuration) * time.Second
 }

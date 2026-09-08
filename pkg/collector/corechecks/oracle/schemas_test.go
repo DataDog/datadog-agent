@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newSchemaCheck returns a check wired to a mock DB with schema collection enabled.
 func newSchemaCheck(t *testing.T) (Check, *sqlx.DB, sqlmock.Sqlmock, func()) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -43,7 +42,6 @@ func newSchemaCheck(t *testing.T) (Check, *sqlx.DB, sqlmock.Sqlmock, func()) {
 	return c, sqlxDB, dbMock, func() { db.Close() }
 }
 
-// columnParts builds the ordinary, all-real-columns case of an index's key for assertions.
 func columnParts(names ...string) []indexKeyPart {
 	parts := make([]indexKeyPart, len(names))
 	for i, n := range names {
@@ -186,10 +184,7 @@ func TestDataTypeRendering(t *testing.T) {
 			want: "CHAR(1 CHAR)",
 		},
 		{
-			// CHAR_USED is NVL-defaulted to '-' for columns where it does not apply (e.g.
-			// non-character types), but VARCHAR2/CHAR can themselves carry that default when
-			// the column predates length-semantics tracking; the renderer must still fall back
-			// to the DATA_LENGTH/byte branch rather than mishandling it as CHAR semantics.
+			// Legacy character columns can report CHAR_USED='-'; treat them as byte semantics.
 			name: "CHAR_USED default '-' on a character column falls back to byte semantics",
 			row: schemaRowDB{
 				DataType:   sql.NullString{String: "VARCHAR2", Valid: true},
@@ -267,8 +262,6 @@ func TestDefaultValueColumnIsVersionGated(t *testing.T) {
 	c.dbVersion = "23.26.2.0.0"
 	assert.Equal(t, "c.data_default_vc", c.defaultValueColumn())
 
-	// DATA_DEFAULT_VC does not exist before 23ai; every earlier version falls back to the LONG
-	// column, truncated in Go rather than in SQL (see truncateLongValue).
 	for _, v := range []string{"19.21.0.0.0", "21.3.0.0.0", "12.2.0.1.0"} {
 		c.dbVersion = v
 		assert.Equal(t, "c.data_default", c.defaultValueColumn(), "version %s", v)
@@ -287,7 +280,6 @@ func TestSnapshotChunking(t *testing.T) {
 		payloads = append(payloads, e)
 	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
 
-	// Five tables in one container: chunk size 2 means 2 + 2 + 1.
 	for _, name := range []string{"T1", "T2", "T3", "T4", "T5"} {
 		collector.add(schemaRowDB{
 			ConID: 3, Owner: "APP", TableName: name, Temporary: "N", External: "NO",
@@ -339,8 +331,7 @@ func TestSnapshotPerContainer(t *testing.T) {
 		assert.Equal(t, 1, p.CollectionPayloadsCount, "each container terminates its own snapshot")
 	}
 
-	// The mock clock never advances, which is what a real instance does when two small
-	// containers are collected inside the same millisecond.
+	// Both containers share a clock tick; snapshot IDs must still be unique.
 	assert.NotEqual(t, payloads[0].CollectionStartedAt, payloads[1].CollectionStartedAt,
 		"containers must not share a snapshot identifier")
 }
@@ -376,9 +367,6 @@ func TestRowCountEstimateCombinesStatsAndDeltas(t *testing.T) {
 	assert.Equal(t, int64(125), *table.RowCount, "NUM_ROWS plus inserts minus deletes")
 }
 
-// TestObjectTableDetailIsSurfaced covers a row coming from the cdb_object_tables branch of the
-// query: the object type backing the table must show up both as a property flag and as a typed
-// detail on the table.
 func TestObjectTableDetailIsSurfaced(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -409,10 +397,6 @@ func TestObjectTableDetailIsSurfaced(t *testing.T) {
 	assert.Equal(t, "ADDRESS_T", table.ObjectType.TypeName)
 }
 
-// TestSchemaCollectionEmitsOnDbmMetadata covers the wiring SchemaCollection owns: the owners
-// query, the main query, and the event actually reaching the sender on the dbm-metadata track.
-// Detail queries are left unprimed on purpose -- sqlmock rejects them, which is the same shape
-// as a missing grant, and collection must still produce a payload.
 func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -447,13 +431,13 @@ func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	)
 	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(mainRows)
 
+	// Leave detail queries unprimed to simulate missing grants.
 	require.NoError(t, c.SchemaCollection())
 
 	sender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
 	sender.AssertCalled(t, "EventPlatformEvent", mock.Anything, "dbm-metadata")
 	sender.AssertNumberOfCalls(t, "Commit", 1)
 
-	// The emitted payload must be a complete, self-describing snapshot.
 	call := sender.Calls[0]
 	for _, c := range sender.Calls {
 		if c.Method == "EventPlatformEvent" {
@@ -480,8 +464,6 @@ func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	assert.Equal(t, "NUMBER(12,0)", table.Columns[0].DataType)
 }
 
-// TestContainerNamesUsePdbName pins the container naming: v$containers supplies the PDB name,
-// and only a container missing from that map falls back to the con_id.
 func TestContainerNamesUsePdbName(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -510,8 +492,6 @@ func TestContainerNamesUsePdbName(t *testing.T) {
 	assert.Equal(t, "free.7", payloads[2].Metadata[0].Name, "unknown container falls back to con_id")
 }
 
-// TestViewCollectionEmitsSeparateKind covers the view path: views travel as their own kind so
-// the backend can treat them separately, and they must not be mixed into the tables payload.
 func TestViewCollectionEmitsSeparateKind(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -536,7 +516,7 @@ func TestViewCollectionEmitsSeparateKind(t *testing.T) {
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
 	}
-	// The views query does not have an object-table branch, so it keeps the original shape.
+	// View rows lack the object-table fields present in table rows.
 	viewRelationColumns := []string{
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
 		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
@@ -590,8 +570,6 @@ func TestViewCollectionEmitsSeparateKind(t *testing.T) {
 	assert.Equal(t, 1, views.CollectionPayloadsCount)
 }
 
-// TestViewCollectionFailureKeepsTables guards the grant that view collection needs and table
-// collection does not: losing views must not discard the tables already emitted.
 func TestViewCollectionFailureKeepsTables(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -622,7 +600,7 @@ func TestViewCollectionFailureKeepsTables(t *testing.T) {
 			3, "APP", "ORDERS", "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-",
 			"ORDER_ID", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil,
 		))
-	// The views query is left unprimed, which sqlmock rejects the same way a missing grant does.
+	// Leave the view query unprimed to simulate a missing grant.
 
 	require.NoError(t, c.SchemaCollection(), "a missing views grant must not fail collection")
 
@@ -639,10 +617,6 @@ func TestViewCollectionFailureKeepsTables(t *testing.T) {
 	sender.AssertNumberOfCalls(t, "Commit", 1)
 }
 
-// TestTableDetailsIndexesGroupByName covers the scan closure that appends columns onto the
-// last-seen index rather than creating a new indexInfo per row: cdb_ind_columns returns one row
-// per index column, ordered by position, and a composite index's columns must land on a single
-// indexInfo in that order.
 func TestTableDetailsIndexesGroupByName(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -673,11 +647,6 @@ func TestTableDetailsIndexesGroupByName(t *testing.T) {
 	assert.Equal(t, columnParts("STATUS"), single.Columns)
 }
 
-// TestTableDetailsIndexesFunctionBasedSubstitutesExpression covers the fix for the SYS_NC%
-// hidden-column bug: indexesQuery's join to cdb_tab_cols supplies the expression for a
-// function-based index's hidden key column, and that expression must be substituted for the
-// meaningless generated column name -- for a single-column FBI (which used to vanish entirely)
-// and for the function-based half of a composite index (which used to be silently dropped).
 func TestTableDetailsIndexesFunctionBasedSubstitutesExpression(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -707,9 +676,6 @@ func TestTableDetailsIndexesFunctionBasedSubstitutesExpression(t *testing.T) {
 		"the plain column and the expression column must both survive, in position order")
 }
 
-// TestTableDetailsConstraintsResolveForeignKey covers the two-pass FK resolution: a foreign key
-// names the constraint it references, not the table, and that constraint's table/columns are
-// only known once every table's constraints have been scanned.
 func TestTableDetailsConstraintsResolveForeignKey(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -744,10 +710,6 @@ func TestTableDetailsConstraintsResolveForeignKey(t *testing.T) {
 	assert.Empty(t, fk.ReferencedConstraint, "a resolved FK does not need the constraint-name fallback")
 }
 
-// TestTableDetailsUnresolvedForeignKeyFallsBackToConstraintName covers the case where the
-// referenced owner was never collected (excluded, or filtered out): the FK cannot be resolved
-// to a table/columns, so it must fall back to naming the constraint rather than reporting an
-// empty (and misleadingly "resolved") referenced table.
 func TestTableDetailsUnresolvedForeignKeyFallsBackToConstraintName(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -768,8 +730,6 @@ func TestTableDetailsUnresolvedForeignKeyFallsBackToConstraintName(t *testing.T)
 	assert.Equal(t, "ORDERS_PK", fk.ReferencedConstraint, "falls back to naming the constraint instead of looking corrupt")
 }
 
-// TestTableDetailsCheckConstraint covers the constraint_type = 'C' branch: a user-defined CHECK
-// constraint must render as "check" (not the raw Oracle code) and carry its condition text.
 func TestTableDetailsCheckConstraint(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -791,17 +751,12 @@ func TestTableDetailsCheckConstraint(t *testing.T) {
 	assert.Empty(t, con.ReferencedTable, "a check constraint has no referenced table")
 }
 
-// TestTableDetailsPartitionKeyJoin covers the second pass that stitches cdb_part_key_columns
-// (one row per key column, ordered by position) onto the partitionDetail already built from
-// cdb_part_tables.
 func TestTableDetailsPartitionKeyJoin(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
 
 	dbMock.MatchExpectationsInOrder(false)
-	// The key columns are LEFT JOINed onto the table row, so a two-key table arrives as two rows
-	// repeating the table's partitioning columns. The detail must be built once from the first
-	// row and the keys appended in column_position order.
+	// The LEFT JOIN repeats the table fields for each partition key column.
 	dbMock.ExpectQuery("cdb_part_tables").WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "PARTITIONING_TYPE", "SUBPARTITIONING_TYPE", "PARTITION_COUNT", "COLUMN_NAME"}).
 			AddRow(3, "APP", "EVENTS", "RANGE", "NONE", 4, "EVENT_DATE").
@@ -817,9 +772,6 @@ func TestTableDetailsPartitionKeyJoin(t *testing.T) {
 	assert.Equal(t, "RANGE (EVENT_DATE, REGION)", p.PartitionKey)
 }
 
-// TestTableDetailsPartitionedWithoutKeyColumns covers the LEFT JOIN's null side: a partitioned
-// table whose key columns are unavailable still gets its partitioning detail, just without a
-// rendered key.
 func TestTableDetailsPartitionedWithoutKeyColumns(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -839,16 +791,11 @@ func TestTableDetailsPartitionedWithoutKeyColumns(t *testing.T) {
 	assert.Empty(t, p.PartitionKey)
 }
 
-// TestTableDetailsExternalLocationsConcat covers the directory:location concatenation, and that
-// a NULL directory_name (falling back to the table's default_directory_name) is rendered as a
-// bare location instead of a leading colon.
 func TestTableDetailsExternalLocationsConcat(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
 
 	dbMock.MatchExpectationsInOrder(false)
-	// Locations are LEFT JOINed onto the table row, so each location arrives as its own row
-	// repeating the table's driver and default directory.
 	dbMock.ExpectQuery("cdb_external_tables").WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "TYPE_NAME", "NVL(default_directory_name, '-')", "NVL(directory_name, '-')", "LOCATION"}).
 			AddRow(3, "APP", "EXT_ORDERS", "ORACLE_LOADER", "DEFAULT_DIR", "LOAD_DIR", "orders_2024.csv").
@@ -867,9 +814,6 @@ func TestTableDetailsExternalLocationsConcat(t *testing.T) {
 		"a NULL directory_name must not be concatenated as a literal '-:' prefix")
 }
 
-// TestTableDetailsBlockchainAndImmutableRetention covers scanRetention's withHash branch (used
-// for blockchain tables, which additionally carry a hash algorithm and version) versus the
-// plain branch (immutable tables, which do not).
 func TestTableDetailsBlockchainAndImmutableRetention(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -907,10 +851,7 @@ func TestTableDetailsBlockchainAndImmutableRetention(t *testing.T) {
 	assert.Empty(t, audit.HashAlgorithm, "immutable tables carry no hash algorithm")
 }
 
-// TestSnapshotChunkingAtRealisticTableBoundary is the multi-column companion to
-// TestSnapshotChunking: with one-column tables, a naive "flush every N rows" chunker happens to
-// also flush at table boundaries, hiding a bug where a table's columns get split across two
-// payloads. Three-column tables at chunk size 2 exercise that boundary for real.
+// Multiple columns per table ensure chunking happens at table boundaries, not row boundaries.
 func TestSnapshotChunkingAtRealisticTableBoundary(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -948,10 +889,7 @@ func TestSnapshotChunkingAtRealisticTableBoundary(t *testing.T) {
 	assert.Equal(t, 2, payloads[1].CollectionPayloadsCount)
 }
 
-// TestSchemaCollectionScanErrorEmitsNoPayload guards the failure path: fetchMetadataRows
-// buffers every row before any collector is created, so a scan error must return an error from
-// SchemaCollection before anything is emitted -- no partial, uncounted payload for a snapshot
-// the backend would otherwise never know is incomplete.
+// A partial snapshot has no completion marker, so scan errors must emit no payload.
 func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -962,8 +900,7 @@ func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 
-	// A row with a NULL where the scan target is non-nullable (TABLE_NAME) forces
-	// StructScan to fail partway through the result set.
+	// A NULL TABLE_NAME forces StructScan to fail.
 	mainRows := sqlmock.NewRows([]string{
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
 		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
@@ -987,9 +924,6 @@ func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 	sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
 }
 
-// TestMaxTablesTruncationFlag pins the truncated flag to TOTAL_TABLES vs max_tables: it must be
-// set from the very first row of a capped container (the window total rides on every row), and
-// must stay false when a container legitimately has fewer tables than the cap.
 func TestMaxTablesTruncationFlag(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1003,8 +937,7 @@ func TestMaxTablesTruncationFlag(t *testing.T) {
 		payloads = append(payloads, e)
 	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
 
-	// TOTAL_TABLES=2 with max_tables=1: only the single ranked_tables row made it through the
-	// SQL cap, but the total tells the collector two tables exist for this container.
+	// One returned row with TOTAL_TABLES=2 represents a max_tables=1 result.
 	collector.add(schemaRowDB{
 		ConID: 3, Owner: "APP", TableName: "T1", Temporary: "N", External: "NO",
 		IotType: "-", ClusterName: "-", Partitioned: "NO",
@@ -1042,10 +975,6 @@ func TestMaxTablesNotTruncatedWhenUnderCap(t *testing.T) {
 	assert.False(t, payloads[0].Truncated, "a container with fewer tables than max_tables must not be marked truncated")
 }
 
-// TestMaxColumnsCapsColumnsAndFlagsTruncation covers the per-table column cap: max_columns is
-// now enforced server-side (ranked_columns caps rows to col_rn <= max_columns), so the collector
-// only ever sees the already-capped rows. It must still surface the drop via truncated, using
-// TOTAL_COLUMNS -- the ranked_columns window total computed before the cap was applied.
 func TestMaxColumnsCapsColumnsAndFlagsTruncation(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1059,8 +988,7 @@ func TestMaxColumnsCapsColumnsAndFlagsTruncation(t *testing.T) {
 		payloads = append(payloads, e)
 	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
 
-	// TOTAL_COLUMNS=4 with max_columns=2: only the first two ranked_columns rows made it through
-	// the SQL cap, but the total tells the collector four columns exist on this table.
+	// Two returned rows with TOTAL_COLUMNS=4 represent a max_columns=2 result.
 	for _, col := range []string{"C1", "C2"} {
 		collector.add(schemaRowDB{
 			ConID: 3, Owner: "APP", TableName: "WIDE", Temporary: "N", External: "NO",
@@ -1102,8 +1030,6 @@ func TestMaxColumnsNotTruncatedWhenUnderCap(t *testing.T) {
 	assert.False(t, payloads[0].Truncated, "a table with fewer columns than max_columns must not be marked truncated")
 }
 
-// TestMaxColumnsNotTruncatedWhenExactlyAtCap guards the boundary: a table with exactly
-// max_columns columns must not be reported as truncated, since none were actually dropped.
 func TestMaxColumnsNotTruncatedWhenExactlyAtCap(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1133,9 +1059,7 @@ func TestMaxColumnsNotTruncatedWhenExactlyAtCap(t *testing.T) {
 	assert.False(t, payloads[0].Truncated, "TOTAL_COLUMNS equal to max_columns must not mark the payload truncated")
 }
 
-// TestSchemaOwnersRejectsUnexpectedCharacters guards schemaOwnerPattern: a schema name outside
-// [A-Z0-9_$#] (defensive against something exotic making it into cdb_users) must be dropped
-// rather than quoted verbatim into a later IN-list.
+// Owner names are interpolated into IN lists, so only unquoted Oracle identifiers are accepted.
 func TestSchemaOwnersRejectsUnexpectedCharacters(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1152,9 +1076,6 @@ func TestSchemaOwnersRejectsUnexpectedCharacters(t *testing.T) {
 	assert.NotContains(t, owners, ownerKey{conID: 3, owner: "BOGUS'; DROP"})
 }
 
-// TestSchemaOwnersBatchesBeyondMaxSchemaOwners guards ORA-01795: an owner list beyond 1000
-// entries must still all be collected, split into IN-list batches, not truncated to the first
-// 1000 alphabetically.
 func TestSchemaOwnersBatchesBeyondMaxSchemaOwners(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1176,9 +1097,6 @@ func TestSchemaOwnersBatchesBeyondMaxSchemaOwners(t *testing.T) {
 	assert.Equal(t, "APP0999", strings.Trim(strings.Split(chunks[0], ", ")[len(strings.Split(chunks[0], ", "))-1], "'"))
 }
 
-// TestFetchMetadataRowsDropsRowsNotInOwners guards the owner-membership filter: a metadata row
-// for a con_id/owner pair absent from the owners map (e.g. a schema excluded, or one only
-// visible in a container that was itself filtered out) must be dropped rather than surfaced.
 func TestFetchMetadataRowsDropsRowsNotInOwners(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1205,9 +1123,6 @@ func TestFetchMetadataRowsDropsRowsNotInOwners(t *testing.T) {
 	assert.Equal(t, "ORDERS", rows[0].TableName)
 }
 
-// TestEmptyContainerStillEmitsTerminatingPayload guards emitEmptyContainers: a container that
-// has owners but produced no table rows (every table dropped, or none ever existed) must still
-// get a terminating, empty-metadata payload, or the backend keeps serving its last snapshot.
 func TestEmptyContainerStillEmitsTerminatingPayload(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1228,8 +1143,6 @@ func TestEmptyContainerStillEmitsTerminatingPayload(t *testing.T) {
 	assert.Equal(t, 1, payloads[0].CollectionPayloadsCount, "an empty container's payload must still be marked complete")
 }
 
-// TestEmptyContainerSkippedIfAlreadyStarted guards the other half of emitEmptyContainers: a
-// container that did produce rows must not additionally get a second, empty payload.
 func TestEmptyContainerSkippedIfAlreadyStarted(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1253,9 +1166,6 @@ func TestEmptyContainerSkippedIfAlreadyStarted(t *testing.T) {
 	require.Len(t, payloads, 1, "a container that already produced a payload must not get a second, empty one")
 }
 
-// TestColumnDefaultTruncatedAtVarchar4000Cap guards truncateLongValue's use on DATA_DEFAULT: a
-// default value read from the LONG column (pre-23ai) or its _VC replacement must be capped at
-// VARCHAR2(4000) runes, matching what Oracle itself would report through a VARCHAR2 column.
 func TestColumnDefaultTruncatedAtVarchar4000Cap(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1284,10 +1194,6 @@ func TestColumnDefaultTruncatedAtVarchar4000Cap(t *testing.T) {
 	assert.Len(t, col.Default, 4000, "a default value beyond VARCHAR2(4000) must be truncated to exactly that cap")
 }
 
-// TestSchemaCollectionGatedByDbmOrDataObservability covers the four combinations of
-// schemas.enabled, dbm_enabled and data_observability.enabled that decide whether Run() ever
-// calls SchemaCollection. checkIntervalExpired uses the wall clock (not the mock clock), so the
-// unrelated collection intervals are pre-marked as just-run to isolate the schemas gate.
 func TestSchemaCollectionGatedByDbmOrDataObservability(t *testing.T) {
 	cases := []struct {
 		name           string
@@ -1312,8 +1218,9 @@ func TestSchemaCollectionGatedByDbmOrDataObservability(t *testing.T) {
 			c.dbmEnabled = tc.dbmEnabled
 			c.config.DataObservability.Enabled = tc.doEnabled
 			c.config.Schemas.Enabled = tc.schemasEnabled
-			c.config.QuerySamples.Enabled = false // avoid an unrelated SampleSession call when dbmEnabled is true
+			c.config.QuerySamples.Enabled = false // Prevent unrelated session sampling when DBM is enabled.
 
+			// Mark unrelated collectors as recently run to isolate schema collection.
 			now := time.Now()
 			c.metricLastRun = now
 			c.dbInstanceLastRun = now
@@ -1331,17 +1238,12 @@ func TestSchemaCollectionGatedByDbmOrDataObservability(t *testing.T) {
 				require.NoError(t, err)
 				assert.NoError(t, dbMock.ExpectationsWereMet(), "the gate must have opened and queried cdb_users")
 			} else {
-				// No expectations were primed: if the gate opened anyway, the resulting
-				// unexpected-query error would surface here.
 				require.NoError(t, err, "the gate must stay closed and touch the database not at all")
 			}
 		})
 	}
 }
 
-// TestPassesFilterExcludeWinsOverInclude pins the precedence contract regexSQLClauses and
-// schemaOwners/filterContainers all rely on: exclude wins outright, and when include is
-// non-empty at least one include pattern must also match.
 func TestPassesFilterExcludeWinsOverInclude(t *testing.T) {
 	include := compiledPatterns([]string{"^APP.*"}, "", "include")
 	exclude := compiledPatterns([]string{"^APP_TMP$"}, "", "exclude")
@@ -1352,9 +1254,6 @@ func TestPassesFilterExcludeWinsOverInclude(t *testing.T) {
 	assert.True(t, passesFilter("OTHER", nil, exclude), "an empty include list requires no match")
 }
 
-// TestFilterContainersAppliesIncludeExcludeDatabases guards the database-level (container)
-// filter used ahead of schemaOwners and the main query: an unfiltered config must be a no-op,
-// and exclude must win over a broader include, mirroring passesFilter.
 func TestFilterContainersAppliesIncludeExcludeDatabases(t *testing.T) {
 	containers := map[int64]string{1: "CDB$ROOT", 3: "APP_PDB", 7: "REPORTING_PDB"}
 
@@ -1368,9 +1267,6 @@ func TestFilterContainersAppliesIncludeExcludeDatabases(t *testing.T) {
 	assert.Equal(t, map[int64]string{7: "REPORTING_PDB"}, filtered, "exclude must win over a broader include")
 }
 
-// TestSchemaCollectionAppliesTableIncludeExcludeFilters guards regexSQLClauses actually reaching
-// the query sent to Oracle: include_tables/exclude_tables are rendered as REGEXP_LIKE predicates
-// substituted into /*TABLE_FILTERS*/, not applied after the fact in Go.
 func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1399,10 +1295,6 @@ func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 	assert.NoError(t, dbMock.ExpectationsWereMet(), "the query actually sent to Oracle must carry the substituted REGEXP_LIKE filter")
 }
 
-// TestViewCollectionAppliesTableIncludeExcludeFilters guards the fix that extended
-// include_tables/exclude_tables to views: viewsQueryTemplate now carries the same
-// /*TABLE_FILTERS*/ placeholder as schemasQueryTemplate, substituted against v.view_name (the
-// column the views query actually names its rows with, not t.table_name).
 func TestViewCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1439,12 +1331,6 @@ func TestViewCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 	assert.NoError(t, dbMock.ExpectationsWereMet(), "the views query actually sent to Oracle must carry the substituted REGEXP_LIKE filter")
 }
 
-// TestViewCollectionFilteredViewNotCountedAsTruncated guards the distinction the fix must
-// preserve: exclude_tables narrows ranked_views before it ranks, so an excluded view is never
-// counted towards max_views and must not be mistaken for one the cap dropped. Here max_views is
-// set to exactly the number of rows the (already filtered) query returns, so if the exclusion
-// were applied after the ranking, or double-counted somehow, this container would come back
-// marked truncated.
 func TestViewCollectionFilteredViewNotCountedAsTruncated(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -1481,8 +1367,6 @@ func TestViewCollectionFilteredViewNotCountedAsTruncated(t *testing.T) {
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
 	}))
-	// Simulates what Oracle's REGEXP_LIKE(v.view_name, '^TMP_') filter does server-side: the
-	// excluded view (TMP_ORDERS_V) never appears in the result set at all, only the surviving one.
 	dbMock.ExpectQuery("cdb_views").WillReturnRows(
 		sqlmock.NewRows(viewRelationColumns).AddRow(
 			3, "APP", "V_ORDERS", "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil,
@@ -1513,9 +1397,6 @@ func TestViewCollectionFilteredViewNotCountedAsTruncated(t *testing.T) {
 		"a container fully accounted for by exclude_tables plus the surviving view must not be flagged as truncated by max_views")
 }
 
-// viewRelationColumns is the column shape cdb_views rows come back with (see
-// TestViewCollectionEmitsSeparateKind); it is shared by the max_views tests below since each
-// needs to fabricate several view rows.
 var viewRelationColumns = []string{
 	"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
 	"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
@@ -1524,13 +1405,7 @@ var viewRelationColumns = []string{
 	"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC", "TOTAL_TABLES",
 }
 
-// addViewRow appends one cdb_views row for the given container/owner/view to rows, mirroring
-// the AddRow calls in TestViewCollectionEmitsSeparateKind.
-//
-// totalViews is the ranked_views window total the real query reports per container -- the count
-// before max_views truncates it. Because max_views is enforced in SQL, a mock must supply only
-// the rows that survived the cap and set totalViews to the pre-cap count, which is what the
-// collector reads to decide whether the container was truncated.
+// totalViews is the pre-limit window count used to detect truncation.
 func addViewRow(rows *sqlmock.Rows, conID int64, owner, viewName string, totalViews int) *sqlmock.Rows {
 	return rows.AddRow(
 		conID, owner, viewName, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil,
@@ -1538,8 +1413,6 @@ func addViewRow(rows *sqlmock.Rows, conID int64, owner, viewName string, totalVi
 	)
 }
 
-// emptyTablesRows returns an empty cdb_tables/cdb_object_tables result set, used by the
-// max_views tests below to keep table collection out of the way of the view assertions.
 func emptyTablesRows() *sqlmock.Rows {
 	return sqlmock.NewRows([]string{
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
@@ -1551,8 +1424,6 @@ func emptyTablesRows() *sqlmock.Rows {
 	})
 }
 
-// viewPayloadsByContainer runs the check and returns every emitted oracle_views payload keyed
-// by container ID, for tests that need to inspect more than one container's snapshot.
 func viewPayloadsByContainer(t *testing.T, sender *mock.Mock) map[string]schemaEvent {
 	t.Helper()
 	byContainer := make(map[string]schemaEvent)
@@ -1571,9 +1442,6 @@ func viewPayloadsByContainer(t *testing.T, sender *mock.Mock) map[string]schemaE
 	return byContainer
 }
 
-// TestMaxViewsCapsViewsAndFlagsTruncation covers the max_views cap: the SQL returns only the
-// first max_views views of the container, and the ranked_views window total tells the collector
-// the container held more, so its oracle_views payload must be marked truncated.
 func TestMaxViewsCapsViewsAndFlagsTruncation(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -1595,8 +1463,6 @@ func TestMaxViewsCapsViewsAndFlagsTruncation(t *testing.T) {
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 	dbMock.ExpectQuery("cdb_tables").WillReturnRows(emptyTablesRows())
 
-	// max_views=2 against a container holding 3 views: the SQL keeps the first two and reports
-	// total_views=3 on every row.
 	rows := sqlmock.NewRows(viewRelationColumns)
 	addViewRow(rows, 3, "APP", "V1", 3)
 	addViewRow(rows, 3, "APP", "V2", 3)
@@ -1612,7 +1478,6 @@ func TestMaxViewsCapsViewsAndFlagsTruncation(t *testing.T) {
 	assert.True(t, views.Truncated, "a container with more views than max_views must be marked truncated")
 }
 
-// TestMaxViewsNotTruncatedWhenUnderCap mirrors TestMaxTablesNotTruncatedWhenUnderCap for views.
 func TestMaxViewsNotTruncatedWhenUnderCap(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -1648,9 +1513,6 @@ func TestMaxViewsNotTruncatedWhenUnderCap(t *testing.T) {
 	assert.False(t, views.Truncated, "a container with fewer views than max_views must not be marked truncated")
 }
 
-// TestMaxViewsNotTruncatedWhenExactlyAtCap guards the boundary, mirroring
-// TestMaxColumnsNotTruncatedWhenExactlyAtCap: a container with exactly max_views views must not
-// be reported as truncated, since none were actually dropped.
 func TestMaxViewsNotTruncatedWhenExactlyAtCap(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -1687,13 +1549,6 @@ func TestMaxViewsNotTruncatedWhenExactlyAtCap(t *testing.T) {
 	assert.False(t, views.Truncated, "a container with exactly max_views views must not be marked truncated")
 }
 
-// TestMaxViewsCapEnforcedPerContainerIndependently is the regression test for the real bug:
-// max_views was once enforced against a running total that was never reset per container, so a
-// first container that used up the whole budget left later containers with zero views. Container
-// 3 alone exceeds max_views and must be capped and truncated; container 4 stays under max_views
-// on its own and must get every one of its views, none of them starved by container 3's usage.
-// Under the old global counter, container 4 would see the counter already at max_views from
-// container 3 and would come back with zero views and (wrongly) truncated=true.
 func TestMaxViewsCapEnforcedPerContainerIndependently(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -1716,8 +1571,6 @@ func TestMaxViewsCapEnforcedPerContainerIndependently(t *testing.T) {
 			AddRow(3, "APP", 104).AddRow(4, "APP", 105))
 	dbMock.ExpectQuery("cdb_tables").WillReturnRows(emptyTablesRows())
 
-	// Container 3 holds 3 views and is capped to 2; container 4 holds exactly 2 and is not.
-	// The window total is per container, which is what keeps the two independent.
 	rows := sqlmock.NewRows(viewRelationColumns)
 	addViewRow(rows, 3, "APP", "V1", 3)
 	addViewRow(rows, 3, "APP", "V2", 3)

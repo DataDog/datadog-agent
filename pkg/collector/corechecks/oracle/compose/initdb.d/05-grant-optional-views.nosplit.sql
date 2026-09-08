@@ -1,8 +1,5 @@
--- Description: grant privileges on dictionary views that only exist on newer databases
---
--- Blockchain and immutable tables are 21c+; these views are absent on older databases.
--- This must stay in a .nosplit.sql file: TestMain executes every other initdb.d file
--- line-by-line, which would shred a PL/SQL block into invalid fragments.
+-- These views are 21c+ and absent on older versions. The .nosplit.sql suffix keeps
+-- TestMain from executing this PL/SQL block line-by-line.
 declare
   table_or_view_does_not_exist exception;
   pragma exception_init(table_or_view_does_not_exist, -942);

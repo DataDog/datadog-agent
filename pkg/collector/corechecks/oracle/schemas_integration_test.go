@@ -20,11 +20,6 @@ import (
 
 const schemaTestUser = "c##dd_schema_test"
 
-// setupSchemaFixtures creates a schema the collector will actually pick up. The fixtures in
-// compose/initdb.d belong to SYS, which is oracle_maintained and therefore filtered out.
-//
-// It returns the name of the PDB the multitenancy fixture was created in, or "" if this
-// instance has no writable PDB to create it in (e.g. a plain non-CDB database).
 func setupSchemaFixtures(t *testing.T) string {
 	sysCheck, _ := newSysCheck(t, "", "")
 	require.NoError(t, sysCheck.Run())
@@ -37,8 +32,7 @@ func setupSchemaFixtures(t *testing.T) string {
 	for _, stmt := range []string{
 		fmt.Sprintf("create user %s identified by dd_schema_test container=all", schemaTestUser),
 		fmt.Sprintf("grant unlimited tablespace to %s", schemaTestUser),
-		// A materialized view's backing table is created in the MV owner's own schema, so
-		// creating one requires the same privileges as any other table plus query rewrite.
+		// Materialized views need CREATE TABLE for their backing tables.
 		fmt.Sprintf("grant create table, create materialized view, query rewrite to %s", schemaTestUser),
 		fmt.Sprintf("grant read, write on directory data_pump_dir to %s", schemaTestUser),
 		fmt.Sprintf(`create table %s.dd_orders (
@@ -52,16 +46,11 @@ func setupSchemaFixtures(t *testing.T) string {
 		fmt.Sprintf("comment on table %s.dd_orders is 'Schema collection fixture'", schemaTestUser),
 		fmt.Sprintf("comment on column %s.dd_orders.amount is 'Order total'", schemaTestUser),
 		fmt.Sprintf("create global temporary table %s.dd_staging (batch_id number) on commit preserve rows", schemaTestUser),
-		// Object tables (CREATE TABLE t OF type_t) only appear in cdb_object_tables, not
-		// cdb_tables, so this fixture exercises that second branch of the schema query.
+		// Object tables appear only in CDB_OBJECT_TABLES.
 		fmt.Sprintf("create or replace type %s.dd_address_t as object (street varchar2(100), city varchar2(100))", schemaTestUser),
 		fmt.Sprintf("create table %s.dd_addresses of %s.dd_address_t", schemaTestUser, schemaTestUser),
-		// A plain column of a user-defined object type: distinct from the object-table case
-		// above, and it exercises the DATA_TYPE_OWNER qualification path in dataType().
 		fmt.Sprintf("create table %s.dd_object_col (id number, addr %s.dd_address_t)", schemaTestUser, schemaTestUser),
 
-		// One wide table exercising every remaining scalar data type and column attribute
-		// (LONG/LONG RAW excluded: Oracle allows at most one LONG-family column per table).
 		fmt.Sprintf(`create table %s.dd_types (
 			num_plain number,
 			num_prec number(10),
@@ -99,9 +88,6 @@ func setupSchemaFixtures(t *testing.T) string {
 		fmt.Sprintf("create table %s.dd_long (id number, long_col long)", schemaTestUser),
 		fmt.Sprintf("create table %s.dd_longraw (id number, longraw_col long raw)", schemaTestUser),
 
-		// Index and constraint families: composite/unique/function-based indexes (single and
-		// composite -- see TestSchemaCollectionFunctionBasedIndexColumnsReportExpression),
-		// a unique constraint, a user-defined CHECK constraint, and a two-column foreign key.
 		fmt.Sprintf("create table %s.dd_index_test (a number, b varchar2(20), c varchar2(20))", schemaTestUser),
 		fmt.Sprintf("create unique index %s.dd_idx_unique on %s.dd_index_test (c)", schemaTestUser, schemaTestUser),
 		fmt.Sprintf("create index %s.dd_idx_composite on %s.dd_index_test (a, b)", schemaTestUser, schemaTestUser),
@@ -122,14 +108,9 @@ func setupSchemaFixtures(t *testing.T) string {
 			constraint dd_fk_source_fk foreign key (ref_k1, ref_k2) references %s.dd_fk_target (k1, k2)
 		)`, schemaTestUser, schemaTestUser),
 
-		// Relation kinds beyond the plain heap and object tables above: a view, a
-		// materialized view, an external table, an index-organized table, and a
-		// range-partitioned table.
 		fmt.Sprintf("create view %s.dd_orders_view as select order_id, status from %s.dd_orders", schemaTestUser, schemaTestUser),
 		fmt.Sprintf("comment on table %s.dd_orders_view is 'Schema collection view fixture'", schemaTestUser),
-		// A second view, unrelated to the exclude_tables pattern used against dd_orders_view,
-		// so the include/exclude-filters-apply-to-views test can prove one view is dropped
-		// while a non-matching one survives.
+		// A nonmatching view verifies that exclude_tables removes only matching views.
 		fmt.Sprintf("create view %s.dd_reports_view as select order_id from %s.dd_orders", schemaTestUser, schemaTestUser),
 		fmt.Sprintf(`create materialized view %s.dd_orders_mv
 			build immediate refresh complete on demand
@@ -165,14 +146,7 @@ func setupSchemaFixtures(t *testing.T) string {
 	return setupPDBFixture(t, sysCheck)
 }
 
-// setupPDBFixture creates a table for schemaTestUser inside a writable, non-seed PDB, so the
-// multitenancy test can assert that CDB_* collection actually spans containers rather than just
-// the root. It returns the PDB name, or "" if the instance has none (e.g. a non-CDB database).
-//
-// A pooled *sql.DB checks out a different physical connection on every query, so ALTER SESSION
-// SET CONTAINER on one borrowed connection would not reliably affect the next; a single reserved
-// *sql.Conn is required to make the container switch and the DDL that follows it land in the
-// same session.
+// ALTER SESSION and subsequent DDL must use the same physical connection.
 func setupPDBFixture(t *testing.T, sysCheck Check) string {
 	ctx := context.Background()
 
@@ -191,8 +165,7 @@ func setupPDBFixture(t *testing.T, sysCheck Check) string {
 
 	for _, stmt := range []string{
 		fmt.Sprintf("alter session set container = %s", pdb),
-		// The common user's unlimited-tablespace grant does not carry into a PDB's local
-		// tablespaces on its own, so it needs to be re-granted inside the PDB's own session.
+		// Common-user tablespace grants must be repeated in each PDB.
 		fmt.Sprintf("grant unlimited tablespace to %s", schemaTestUser),
 		fmt.Sprintf(`create table %s.dd_pdb_orders (
 			order_id number,
@@ -208,19 +181,10 @@ func setupPDBFixture(t *testing.T, sysCheck Check) string {
 	return pdb
 }
 
-// collectSchemaEvents runs one schema collection and returns every dbm-metadata payload
-// (both oracle_databases and oracle_views).
-//
-// It initializes the check directly rather than through Run(), which would otherwise also
-// gate its own SchemaCollection call on dbm_enabled/data_observability.enabled and produce a
-// second, overlapping snapshot alongside this explicit call.
 func collectSchemaEvents(t *testing.T) []schemaEvent {
 	return collectSchemaEventsWithConfig(t, "schemas:\n  enabled: true\n  collection_interval: 1")
 }
 
-// collectSchemaEventsWithConfig is collectSchemaEvents with a caller-supplied schemas config
-// block, so tests can exercise options like include_tables/exclude_tables without a second
-// helper duplicating the collection and payload-decoding logic.
 func collectSchemaEventsWithConfig(t *testing.T, schemasConfig string) []schemaEvent {
 	c, sender := newDefaultCheck(t, schemasConfig, "")
 	defer c.Teardown()
@@ -282,8 +246,6 @@ func findTable(events []schemaEvent, owner, name string) *schemaTable {
 	return nil
 }
 
-// findTableInContainer is like findTable but only considers containers whose name contains
-// nameSubstr, so the multitenancy test can look specifically inside the fixture PDB.
 func findTableInContainer(events []schemaEvent, nameSubstr, owner, name string) *schemaTable {
 	for _, e := range events {
 		for _, container := range e.Metadata {
@@ -349,9 +311,6 @@ func findConstraint(constraints []*constraintInfo, name string) *constraintInfo 
 	return nil
 }
 
-// TestSchemaCollectionAgainstDatabase exercises the parts a mock cannot: that every query is
-// valid SQL on this Oracle version, that the grants are sufficient, and that the dictionary
-// returns what the renderer assumes.
 func TestSchemaCollectionAgainstDatabase(t *testing.T) {
 	setupSchemaFixtures(t)
 
@@ -377,7 +336,7 @@ func TestSchemaCollectionAgainstDatabase(t *testing.T) {
 	assert.Equal(t, "NUMBER(12,0)", columns["ORDER_ID"].DataType)
 	assert.False(t, columns["ORDER_ID"].Nullable)
 
-	// DATA_LENGTH would report 80 on AL32UTF8; the declared length is 20 characters.
+	// Character semantics use CHAR_LENGTH, not byte-oriented DATA_LENGTH.
 	require.Contains(t, columns, "STATUS")
 	assert.Equal(t, "VARCHAR2(20 CHAR)", columns["STATUS"].DataType)
 
@@ -422,8 +381,6 @@ func TestSchemaCollectionAgainstDatabase(t *testing.T) {
 	assert.NotContains(t, addressColumns, "SYS_NC_ROWINFO$")
 }
 
-// TestSchemaCollectionColumnDataTypesAndAttributes covers every scalar data type and column
-// attribute the renderer claims to handle, beyond the handful already exercised by dd_orders.
 func TestSchemaCollectionColumnDataTypesAndAttributes(t *testing.T) {
 	setupSchemaFixtures(t)
 	events := tableEvents(collectSchemaEvents(t))
@@ -436,15 +393,12 @@ func TestSchemaCollectionColumnDataTypesAndAttributes(t *testing.T) {
 		"NUM_PLAIN":      "NUMBER",
 		"NUM_PREC":       "NUMBER(10,0)",
 		"NUM_PREC_SCALE": "NUMBER(10,2)",
-		// A negative scale (round to the nearest hundred) is a legal, if unusual, declaration.
-		"NUM_NEG_SCALE": "NUMBER(10,-2)",
-		// Oracle's dictionary always fills in DATA_PRECISION=126 for a bare FLOAT column --
-		// there is no representable "unconstrained FLOAT" in a real CDB_TAB_COLS row.
-		"FLOAT_PLAIN":  "FLOAT(126)",
-		"FLOAT_PREC":   "FLOAT(24)",
-		"VARCHAR_BYTE": "VARCHAR2(50 BYTE)",
-		"VARCHAR_CHAR": "VARCHAR2(20 CHAR)",
-		// National character types have no BYTE/CHAR qualifier in the grammar at all.
+		"NUM_NEG_SCALE":  "NUMBER(10,-2)",
+		// Oracle reports bare FLOAT as DATA_PRECISION=126.
+		"FLOAT_PLAIN":   "FLOAT(126)",
+		"FLOAT_PREC":    "FLOAT(24)",
+		"VARCHAR_BYTE":  "VARCHAR2(50 BYTE)",
+		"VARCHAR_CHAR":  "VARCHAR2(20 CHAR)",
 		"NVARCHAR2_COL": "NVARCHAR2(20)",
 		"CHAR_COL":      "CHAR(5 BYTE)",
 		"NCHAR_COL":     "NCHAR(5)",
@@ -463,7 +417,6 @@ func TestSchemaCollectionColumnDataTypesAndAttributes(t *testing.T) {
 		"BDOUBLE_COL":   "BINARY_DOUBLE",
 		"ROWID_COL":     "ROWID",
 		"UROWID_COL":    "UROWID",
-		// XMLTYPE's DATA_TYPE_OWNER is SYS, which must not be prefixed onto the rendering.
 		"XML_COL":       "XMLTYPE",
 		"VIRT_COL":      "NUMBER",
 		"INVISIBLE_COL": "NUMBER",
@@ -504,9 +457,6 @@ func TestSchemaCollectionColumnDataTypesAndAttributes(t *testing.T) {
 	assert.Equal(t, "LONG RAW", longRawColumns["LONGRAW_COL"].DataType)
 }
 
-// TestSchemaCollectionIndexesAndConstraints covers the table-detail families beyond the single
-// index and primary key already exercised by dd_orders: composite and unique indexes, a unique
-// constraint, a user-defined CHECK constraint, and a two-column foreign key.
 func TestSchemaCollectionIndexesAndConstraints(t *testing.T) {
 	setupSchemaFixtures(t)
 	events := tableEvents(collectSchemaEvents(t))
@@ -547,18 +497,6 @@ func TestSchemaCollectionIndexesAndConstraints(t *testing.T) {
 	assert.Equal(t, strings.ToUpper(schemaTestUser), strings.ToUpper(fk.ReferencedOwner))
 }
 
-// TestSchemaCollectionFunctionBasedIndexColumnsReportExpression covers the fix for
-// indexesQuery/schemas.go: CDB_IND_COLUMNS names a function-based index's key column with a
-// hidden, system-generated SYS_NC%$ column rather than the indexed expression, so that name
-// must be substituted with the expression Oracle stores for it.
-//
-//   - a single-column function-based index must still appear, with its one entry being the
-//     expression rather than being dropped entirely (indexesQuery used to filter the SYS_NC%
-//     column out, leaving zero columns, and add() only keeps an index when len(idx.Columns) > 0).
-//   - a composite function-based index must report both its plain column and its expression
-//     column, in position order, rather than silently losing the expression one.
-//   - each entry must be unambiguous about whether it is a column or an expression: an
-//     indexKeyPart carries exactly one of Column/Expression populated.
 func TestSchemaCollectionFunctionBasedIndexColumnsReportExpression(t *testing.T) {
 	setupSchemaFixtures(t)
 	events := tableEvents(collectSchemaEvents(t))
@@ -581,9 +519,6 @@ func TestSchemaCollectionFunctionBasedIndexColumnsReportExpression(t *testing.T)
 	assert.Equal(t, `UPPER("C")`, strings.ToUpper(compositeFBI.Columns[1].Expression))
 }
 
-// TestSchemaCollectionRelationKinds covers the relation kinds beyond the plain heap and object
-// tables already exercised by dd_orders/dd_addresses: a materialized view, an external table,
-// an index-organized table, and a range-partitioned table.
 func TestSchemaCollectionRelationKinds(t *testing.T) {
 	setupSchemaFixtures(t)
 	events := tableEvents(collectSchemaEvents(t))
@@ -614,8 +549,6 @@ func TestSchemaCollectionRelationKinds(t *testing.T) {
 	assert.Equal(t, "RANGE (CREATED_AT)", strings.ToUpper(part.Partitioned.PartitionKey))
 }
 
-// TestSchemaCollectionViews exercises the oracle_views payload kind: view definitions, their
-// columns, and comments.
 func TestSchemaCollectionViews(t *testing.T) {
 	setupSchemaFixtures(t)
 	all := collectSchemaEvents(t)
@@ -634,9 +567,6 @@ func TestSchemaCollectionViews(t *testing.T) {
 	require.Contains(t, columns, "STATUS")
 }
 
-// TestSchemaCollectionViewsRespectTableFilters guards the fix that extended
-// include_tables/exclude_tables to also filter views: previously /*TABLE_FILTERS*/ only
-// existed in the table query, so a view matching exclude_tables still shipped in oracle_views.
 func TestSchemaCollectionViewsRespectTableFilters(t *testing.T) {
 	setupSchemaFixtures(t)
 
@@ -657,9 +587,6 @@ func TestSchemaCollectionViewsRespectTableFilters(t *testing.T) {
 	}
 }
 
-// TestSchemaCollectionMultitenancy asserts that collection actually spans containers -- the
-// fixture table is created inside a PDB (never the root), via a single reserved session that
-// switches container with ALTER SESSION SET CONTAINER.
 func TestSchemaCollectionMultitenancy(t *testing.T) {
 	pdb := setupSchemaFixtures(t)
 	if pdb == "" {
@@ -675,8 +602,6 @@ func TestSchemaCollectionMultitenancy(t *testing.T) {
 	require.NotNil(t, root, "the root-container fixture table must still be collected alongside the PDB one")
 }
 
-// TestSchemaCollectionExcludesOracleMaintained guards the filter that keeps the catalog free of
-// Oracle's own dozens of built-in schemas.
 func TestSchemaCollectionExcludesOracleMaintained(t *testing.T) {
 	setupSchemaFixtures(t)
 

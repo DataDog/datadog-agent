@@ -321,8 +321,7 @@ instances:
       # exclude_databases:
       #   - <DATABASE_REGEX>
 
-    ## Configure Data Observability. Schema collection is enabled when either `dbm: true` or
-    ## `data_observability.enabled: true` is set.
+    ## Configure Data Observability.
     #
     # data_observability:
 

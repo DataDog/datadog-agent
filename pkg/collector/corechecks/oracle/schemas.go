@@ -23,37 +23,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Every payload of a snapshot carries the same collection_started_at, and the final one
-// carries collection_payloads_count, so the backend knows when a snapshot is complete. The
-// snapshot unit is one container. Same contract as the Python SchemaCollector.
+// A snapshot is scoped to one container. Its payloads share collection_started_at, and only
+// the final payload carries collection_payloads_count.
 
 const schemaOwnersQuery = `SELECT con_id, username, user_id FROM cdb_users WHERE oracle_maintained = 'N'`
 
-// object_id is only unique within a container, so it is always paired with con_id.
+// Oracle object IDs are unique only within a container.
 const objectIDsQuery = `SELECT con_id, owner, object_name, object_id FROM cdb_objects
 WHERE object_type = 'TABLE' AND owner IN (/*OWNERS*/)`
 
-// CDB_* views are CONTAINERS()-based, so they must never be scanned wholesale: without the
-// owner predicate below this statement ran 336s for 42M buffer gets on a 4-PDB instance
-// (0 rows returned), and joining cdb_users in as a third CDB view was no better. Constrained
-// to the owners from schemaOwnersQuery it returns in well under a second.
+// CDB_* scans must be owner-scoped; unfiltered scans can consume tens of millions of buffer gets.
+// Object tables exist only in cdb_object_tables, while their columns remain in cdb_tab_cols;
+// cdb_object_tables also lacks CLUSTERING and READ_ONLY.
 //
-// Object tables (CREATE TABLE t OF some_type) never appear in cdb_tables -- only in
-// cdb_object_tables -- so they need a second branch. Their columns are still exposed through
-// cdb_tab_cols like any other table, so only the table-shape half of the query changes.
-// cdb_object_tables has no CLUSTERING or READ_ONLY column (an object table can be neither),
-// so those two are hardcoded 'NO' on that branch instead of selected as ORA-00904.
-//
-// max_tables has to be enforced on ranked_tables, a table-level subquery, and not on the joined
-// rows below it: Oracle has no LIMIT, and ROW_NUMBER()/FETCH FIRST applied after the column join
-// would cut a table off partway through its columns instead of dropping whole tables. The window
-// total (rt.total_tables) rides along on every row so the collector can tell a capped container
-// from one that legitimately has fewer tables than max_tables, without a second round trip.
-//
-// max_columns is enforced the same way, one level down: ranked_columns ranks cdb_tab_cols by
-// internal_column_id within each table so the retained columns are the first N in column order,
-// and total_columns rides along per row so the collector can tell a capped table from one that
-// legitimately has fewer columns than max_columns.
+// Limits are applied before joining columns so a table is never split. Window totals are selected
+// before the limits so payloads can report truncation without another query.
 const schemasQueryTemplate = `WITH ranked_tables AS (
 	SELECT con_id, owner, table_name, is_object,
 		ROW_NUMBER() OVER (PARTITION BY con_id ORDER BY owner, table_name) AS rn,
@@ -172,7 +156,7 @@ JOIN ranked_columns c
 WHERE rt.rn <= /*MAX_TABLES*/ AND c.col_rn <= /*MAX_COLUMNS*/
 ORDER BY con_id, owner, table_name, internal_column_id`
 
-// 21c+ and separately granted, so a missing view or column is expected rather than fatal.
+// These 21c+ views are optional and separately granted.
 const blockchainTablesQuery = `SELECT con_id, schema_name, table_name, row_retention, row_retention_locked,
 	table_inactivity_retention, hash_algorithm, table_version
 FROM cdb_blockchain_tables WHERE schema_name IN (/*OWNERS*/)`
@@ -184,9 +168,6 @@ FROM cdb_immutable_tables WHERE schema_name IN (/*OWNERS*/)`
 const tabModificationsQuery = `SELECT con_id, table_owner, table_name, inserts, updates, deletes, truncated, timestamp
 FROM cdb_tab_modifications WHERE partition_name IS NULL AND table_owner IN (/*OWNERS*/)`
 
-// The partitioning key columns are joined to their table rather than fetched separately: one
-// round trip per owner batch covers both, and a key column can no longer arrive without the
-// table row that gives it a partitioning type to hang off.
 const partTablesQuery = `SELECT pt.con_id, pt.owner, pt.table_name, pt.partitioning_type,
 	pt.subpartitioning_type, pt.partition_count, pkc.column_name
 FROM cdb_part_tables pt
@@ -202,13 +183,9 @@ FROM cdb_tab_comments WHERE comments IS NOT NULL AND owner IN (/*OWNERS*/)`
 const columnCommentsQuery = `SELECT con_id, owner, table_name, column_name, comments
 FROM cdb_col_comments WHERE comments IS NOT NULL AND owner IN (/*OWNERS*/)`
 
-// A function-based index has no real column to key on: Oracle backs it with a hidden,
-// system-generated SYS_NC%$ virtual column on the base table, and CDB_IND_COLUMNS carries only
-// that generated name, not the expression. The expression itself lives where any virtual
-// column's definition lives -- CDB_TAB_COLS' default-value column -- so the hidden column is
-// joined back to its own table row to recover it. CDB_IND_EXPRESSIONS looks like the obvious
-// source, but its CDB_ variant drops COLUMN_EXPRESSION entirely (unlike CDB_TAB_COLS, it was
-// never given a LONG-safe replacement), so it cannot be used here.
+// Oracle represents function-based index expressions as hidden SYS_NC%$ virtual columns.
+// CDB_IND_COLUMNS exposes only the generated name, while CDB_TAB_COLS exposes the expression.
+// CDB_IND_EXPRESSIONS cannot be used because its CDB_ variant omits COLUMN_EXPRESSION.
 const indexesQuery = `SELECT i.con_id, i.table_owner, i.table_name, i.index_name, i.uniqueness, i.index_type,
 	ic.column_name, /*EXPRESSION_COL*/ AS column_expression
 FROM cdb_indexes i
@@ -220,9 +197,8 @@ LEFT JOIN cdb_tab_cols tc
 WHERE i.table_owner IN (/*OWNERS*/)
 ORDER BY i.con_id, i.table_owner, i.table_name, i.index_name, ic.column_position`
 
-// User-defined CHECK constraints (constraint_type = 'C') are collected alongside P/U/R;
-// generated = 'USER NAME' excludes Oracle's own NOT NULL checks, which it implements as
-// system-generated CHECK constraints and which would otherwise duplicate the column's nullable flag.
+// generated = 'USER NAME' excludes Oracle's system-generated NOT NULL checks, which would
+// duplicate column nullability metadata.
 const constraintsQuery = `SELECT c.con_id, c.owner, c.table_name, c.constraint_name, c.constraint_type,
 	NVL(c.r_owner, '-') AS r_owner, NVL(c.r_constraint_name, '-') AS r_constraint_name, cc.column_name,
 	/*CONDITION_COL*/ AS search_condition
@@ -233,8 +209,6 @@ WHERE (c.constraint_type IN ('P', 'U', 'R') OR (c.constraint_type = 'C' AND c.ge
 	AND c.owner IN (/*OWNERS*/)
 ORDER BY c.con_id, c.owner, c.table_name, c.constraint_name, cc.position`
 
-// An external table's locations live in a child view, joined here rather than fetched
-// separately so one round trip per owner batch covers both.
 const externalTablesQuery = `SELECT et.con_id, et.owner, et.table_name, et.type_name,
 	NVL(et.default_directory_name, '-'), NVL(el.directory_name, '-'), el.location
 FROM cdb_external_tables et
@@ -243,22 +217,14 @@ LEFT JOIN cdb_external_locations el
 WHERE et.owner IN (/*OWNERS*/)
 ORDER BY et.con_id, et.owner, et.table_name`
 
-// A materialized view's container table appears in CDB_TABLES under the mview name, so
-// without this it is catalogued as an ordinary table.
+// Materialized views also appear in CDB_TABLES and need separate classification.
 const mviewsQuery = `SELECT con_id, owner, mview_name, NVL(refresh_mode, '-'), NVL(refresh_method, '-'),
 	NVL(staleness, '-'), last_refresh_date
 FROM cdb_mviews WHERE owner IN (/*OWNERS*/)`
 
 const containerNamesQuery = `SELECT con_id, name FROM v$containers`
 
-// Views reuse the table row shape so the same scanning and type rendering apply; the
-// table-only columns are filled with the values an ordinary heap table would report.
-//
-// max_views and max_columns are enforced exactly as max_tables and max_columns are in
-// schemasQueryTemplate: ranked_views ranks whole views per container before the column join, so
-// the cap drops whole views rather than cutting one off partway through its columns, and its
-// window total rides along as total_tables (the row shape views share with tables) so the
-// collector can tell a capped container from one that simply has fewer views than max_views.
+// total_views is aliased to total_tables for the shared row scanner.
 const viewsQueryTemplate = `WITH ranked_views AS (
 	SELECT v.con_id, v.owner, v.view_name,
 		ROW_NUMBER() OVER (PARTITION BY v.con_id ORDER BY v.owner, v.view_name) AS rn,
@@ -321,15 +287,11 @@ FROM cdb_views WHERE owner IN (/*OWNERS*/)`
 const viewObjectsQuery = `SELECT con_id, owner, object_name, object_id, created, last_ddl_time
 FROM cdb_objects WHERE object_type = 'VIEW' AND owner IN (/*OWNERS*/)`
 
-// ORA-01795 caps a single IN-list expression at 1000 items, so owner names beyond that must be
-// queried in separate batches and the results unioned.
+// ORA-01795 limits an IN list to 1000 expressions.
 const maxSchemaOwners = 1000
 
 var schemaOwnerPattern = regexp.MustCompile(`^[A-Z0-9_$#]+$`)
 
-// compiledPatterns compiles each of patterns as a regexp, matching the POSIX-ERE semantics of
-// Postgres's include/exclude filters (see filters.py). An invalid pattern is dropped rather than
-// failing the whole collection.
 func compiledPatterns(patterns []string, logPrompt, kind string) []*regexp.Regexp {
 	if len(patterns) == 0 {
 		return nil
@@ -355,8 +317,6 @@ func matchesAny(name string, patterns []*regexp.Regexp) bool {
 	return false
 }
 
-// passesFilter mirrors Postgres's precedence: exclude wins outright, and when include is
-// non-empty at least one include pattern must match.
 func passesFilter(name string, include, exclude []*regexp.Regexp) bool {
 	if matchesAny(name, exclude) {
 		return false
@@ -364,16 +324,10 @@ func passesFilter(name string, include, exclude []*regexp.Regexp) bool {
 	return len(include) == 0 || matchesAny(name, include)
 }
 
-// escapeSQLLiteral doubles single quotes so a config-supplied regex pattern can be embedded as a
-// SQL string literal. Patterns are check config, not user input reachable at runtime, but this
-// keeps a stray quote in a pattern from producing a broken statement instead of a broken filter.
 func escapeSQLLiteral(s string) string {
 	return strings.ReplaceAll(s, "'", "''")
 }
 
-// regexSQLClauses renders include/exclude filters as REGEXP_LIKE predicates against column,
-// applied with the same precedence as passesFilter: exclude clauses are AND NOT'd in first, then
-// an OR'd include clause is required to also match.
 func regexSQLClauses(column string, include, exclude []string) string {
 	var b strings.Builder
 	for _, p := range exclude {
@@ -389,8 +343,7 @@ func regexSQLClauses(column string, include, exclude []string) string {
 	return b.String()
 }
 
-// filterContainers drops containers whose name fails the database include/exclude filters. An
-// Oracle "database" for this purpose is a container (CDB root or PDB).
+// Oracle database filters match CDB root and PDB names.
 func filterContainers(containers map[int64]string, include, exclude []string, logPrompt string) map[int64]string {
 	if len(include) == 0 && len(exclude) == 0 {
 		return containers
@@ -634,9 +587,6 @@ type schemaCollector struct {
 	tableCount  int
 	tablesTotal int
 
-	// containerCount and truncated reset per container (in startContainer), unlike tablesTotal
-	// which accumulates for the whole run; max_views is a per-container cap, so the count it is
-	// compared against must be too.
 	containerCount int
 	truncated      bool
 
@@ -671,9 +621,7 @@ func (s *schemaCollector) startContainer(conID int64) {
 	s.reset()
 }
 
-// nextSnapshotID returns a millisecond timestamp that never repeats for this check.
-// collection_started_at is the only thing distinguishing one snapshot from another, and
-// containers and kinds are collected fast enough to share a millisecond otherwise.
+// collection_started_at must stay unique when collections share a clock millisecond.
 func (c *Check) nextSnapshotID() int64 {
 	now := c.clock.Now().UnixMilli()
 	if now <= c.lastSnapshotID {
@@ -752,15 +700,12 @@ func (s *schemaCollector) useSchema(conID int64, owner string) {
 	s.currentView = nil
 }
 
-// addView mirrors add, but the row describes a view: same envelope, same chunking, and the
-// payload hangs off the schema's views list instead of its tables list.
 func (s *schemaCollector) addView(r schemaRowDB) {
 	if r.ConID != s.conID {
 		s.startContainer(r.ConID)
 	}
 
-	// The flush check must happen at the view boundary, before the new view is appended --
-	// flushing after a column append can split a view's columns across two payloads.
+	// Flush only at view boundaries to keep all columns in one payload.
 	newView := s.currentSchema == nil || s.currentSchema.Name != r.Owner || s.currentView == nil || s.currentView.Name != r.TableName
 	if newView {
 		s.maybeFlush(false)
@@ -783,13 +728,9 @@ func (s *schemaCollector) addView(r schemaRowDB) {
 		s.tablesTotal++
 		s.containerCount++
 
-		// TOTAL_TABLES carries the ranked_views window total for this container (views share the
-		// table row shape), computed before max_views truncates it; same reasoning as in add().
 		if r.TotalTables.Valid && r.TotalTables.Int64 > int64(s.check.config.Schemas.MaxViews) {
 			s.truncated = true
 		}
-		// TOTAL_COLUMNS is the ranked_columns window total for this view, computed before
-		// max_columns truncates it; same reasoning as TOTAL_TABLES in add(), one level down.
 		if r.TotalColumns.Valid && r.TotalColumns.Int64 > int64(s.check.config.Schemas.MaxColumns) {
 			s.truncated = true
 		}
@@ -810,9 +751,7 @@ func (s *schemaCollector) add(r schemaRowDB) {
 		s.startContainer(r.ConID)
 	}
 
-	// The flush check must happen at the table boundary, before the new table is appended --
-	// flushing after a column append can split a table's columns across two payloads, and the
-	// backend has no merge semantics for a table that reappears with the same id.
+	// Flush only at table boundaries; the backend cannot merge a table split across payloads.
 	newTable := s.currentSchema == nil || s.currentSchema.Name != r.Owner || s.currentTable == nil || s.currentTable.Name != r.TableName
 	if newTable {
 		s.maybeFlush(false)
@@ -844,8 +783,7 @@ func (s *schemaCollector) add(r schemaRowDB) {
 			}
 		}
 		if d := s.details[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}]; d != nil || r.NumRows.Valid {
-			// NUM_ROWS is the estimate as of LAST_ANALYZED; the modification counters are the
-			// deltas accumulated since, and Oracle drops them at the next gather.
+			// Modification counters are deltas since the NUM_ROWS estimate was gathered.
 			var estimate int64
 			known := false
 			if r.NumRows.Valid {
@@ -894,14 +832,9 @@ func (s *schemaCollector) add(r schemaRowDB) {
 		s.tablesTotal++
 		s.containerCount++
 
-		// TOTAL_TABLES is the ranked_tables window total for this container, computed before
-		// max_tables truncates it; a table already present is by definition within the cap, so
-		// this only ever flips true, and it does so from the very first row of the container.
 		if r.TotalTables.Valid && r.TotalTables.Int64 > int64(s.check.config.Schemas.MaxTables) {
 			s.truncated = true
 		}
-		// TOTAL_COLUMNS is the ranked_columns window total for this table, computed before
-		// max_columns truncates it; same reasoning as TOTAL_TABLES above, one level down.
 		if r.TotalColumns.Valid && r.TotalColumns.Int64 > int64(s.check.config.Schemas.MaxColumns) {
 			s.truncated = true
 		}
@@ -923,9 +856,7 @@ func (s *schemaCollector) add(r schemaRowDB) {
 	s.currentTable.Columns = append(s.currentTable.Columns, col)
 }
 
-// finish flushes the final, terminating payload for the active container. It must only be
-// called on the success path: it is what tells the backend a snapshot is complete, so calling
-// it after a mid-collection error would mark a truncated snapshot as whole.
+// Call only after successful collection; the final payload marks the snapshot complete.
 func (s *schemaCollector) finish() {
 	if s.conID == -1 {
 		return
@@ -934,9 +865,7 @@ func (s *schemaCollector) finish() {
 	s.conID = -1
 }
 
-// emitEmptyContainers sends a terminating, empty-metadata payload for every container that
-// never produced a row (e.g. a PDB whose user tables were all dropped), so the backend learns
-// it is empty instead of keeping its last snapshot forever.
+// Empty snapshots clear stale backend metadata when a container produces no rows.
 func (s *schemaCollector) emitEmptyContainers(containers map[int64]string) {
 	for conID := range containers {
 		if _, ok := s.started[conID]; ok {
@@ -947,9 +876,8 @@ func (s *schemaCollector) emitEmptyContainers(containers map[int64]string) {
 	}
 }
 
-// Oracle has no format_type(): length, precision and scale arrive as separate columns.
-// DATA_LENGTH is always bytes, so character semantics must use CHAR_LENGTH -- a
-// VARCHAR2(20 CHAR) column reports DATA_LENGTH 80 on AL32UTF8.
+// Oracle reports type attributes separately. DATA_LENGTH is always bytes, so character
+// semantics must use CHAR_LENGTH.
 func dataType(r schemaRowDB) string {
 	if !r.DataType.Valid {
 		return ""
@@ -995,8 +923,7 @@ func dataType(r schemaRowDB) string {
 			rendered = t
 		}
 	default:
-		// Temporal types already carry their precision inside DATA_TYPE, and DATA_LENGTH is
-		// an internal locator size for LOB, object, XML and JSON columns.
+		// Temporal precision is already in DATA_TYPE; other lengths may be internal locator sizes.
 		rendered = t
 	}
 
@@ -1016,8 +943,6 @@ func tableType(r schemaRowDB) string {
 	return "table"
 }
 
-// Oracle's table attributes compound -- a table can be temporary and partitioned and
-// clustered at once -- so they travel as a set rather than collapsing into table_type.
 func tableProperties(r schemaRowDB) []string {
 	var props []string
 	if r.Temporary == "Y" {
@@ -1044,12 +969,8 @@ func tableProperties(r schemaRowDB) []string {
 	return props
 }
 
-// DATA_DEFAULT_VC only exists from 23ai; DATA_DEFAULT (a LONG) covers every earlier version.
-// Oracle's LONG restrictions forbid a LONG in WHERE, GROUP BY, DISTINCT, ORDER BY, a function
-// call, or a UNION -- none of which apply to a plain select-list column in this joined,
-// UNION ALL query, so selecting it directly is safe. The VARCHAR2(4000) truncation is applied
-// in Go (see truncateLongValue) since running a function on the LONG column itself would fall
-// under the "function" restriction above.
+// DATA_DEFAULT_VC exists from 23ai. Earlier versions require the LONG DATA_DEFAULT column,
+// which cannot be passed to a SQL function and is therefore truncated in Go.
 func (c *Check) defaultValueColumn() string {
 	major, _, _ := strings.Cut(c.dbVersion, ".")
 	if n, err := strconv.Atoi(major); err == nil && n >= 23 {
@@ -1058,8 +979,7 @@ func (c *Check) defaultValueColumn() string {
 	return "c.data_default"
 }
 
-// SEARCH_CONDITION_VC only exists from 12c; before that only the LONG SEARCH_CONDITION is
-// available, and it is safe to select directly for the same reason as DATA_DEFAULT above.
+// SEARCH_CONDITION_VC exists from 12c; earlier versions require LONG SEARCH_CONDITION.
 func (c *Check) conditionColumn() string {
 	major, _, _ := strings.Cut(c.dbVersion, ".")
 	if n, err := strconv.Atoi(major); err == nil && n >= 12 {
@@ -1068,9 +988,7 @@ func (c *Check) conditionColumn() string {
 	return "c.search_condition"
 }
 
-// indexExpressionColumn mirrors defaultValueColumn: same _VC cutover, same LONG-selection
-// reasoning, but keyed off the tc alias (cdb_tab_cols joined back from cdb_ind_columns in
-// indexesQuery) rather than ranked_columns' c.
+// Function-based index expressions use the same 23ai _VC cutover under the tc alias.
 func (c *Check) indexExpressionColumn() string {
 	major, _, _ := strings.Cut(c.dbVersion, ".")
 	if n, err := strconv.Atoi(major); err == nil && n >= 23 {
@@ -1079,10 +997,7 @@ func (c *Check) indexExpressionColumn() string {
 	return "tc.data_default"
 }
 
-// truncateLongValue bounds a value read from a LONG column (DATA_DEFAULT, SEARCH_CONDITION) to
-// VARCHAR2(4000)'s cap, so pre-23ai/pre-12c (LONG) and their _VC replacements report a
-// consistently sized value. Truncating by rune rather than byte avoids splitting a multi-byte
-// character in half.
+// Cap fallback LONG values at 4000 characters without splitting multi-byte characters.
 func truncateLongValue(s string) string {
 	r := []rune(s)
 	if len(r) <= 4000 {
@@ -1096,8 +1011,6 @@ type ownerKey struct {
 	owner string
 }
 
-// schemaOwners returns the schemas (Oracle "owners") to collect, restricted to containers and
-// filtered by include_schemas/exclude_schemas before the names are ever quoted into a query.
 func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (map[ownerKey]string, []string, error) {
 	rows, err := c.db.QueryxContext(ctx, schemaOwnersQuery)
 	if err != nil {
@@ -1107,9 +1020,7 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 
 	include := compiledPatterns(c.config.Schemas.IncludeSchemas, c.logPrompt, "include_schemas")
 	exclude := compiledPatterns(c.config.Schemas.ExcludeSchemas, c.logPrompt, "exclude_schemas")
-	// Only gate on container membership when the user actually configured a database filter;
-	// otherwise a container lookup that fails (or simply lags behind cdb_users) must not silently
-	// drop every schema.
+	// A failed or stale container lookup must not drop schemas unless database filters require it.
 	filterDatabases := len(c.config.Schemas.IncludeDatabases) > 0 || len(c.config.Schemas.ExcludeDatabases) > 0
 
 	owners := make(map[ownerKey]string)
@@ -1154,8 +1065,6 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 	return owners, distinct, nil
 }
 
-// ownerListChunks renders names as one or more quoted, comma-joined IN-list bodies, split into
-// batches of maxSchemaOwners (see its comment for why).
 func ownerListChunks(names []string) []string {
 	if len(names) == 0 {
 		return nil
@@ -1176,11 +1085,7 @@ func ownerListChunks(names []string) []string {
 	return chunks
 }
 
-// A view that is absent (ORA-00942) or shaped differently (ORA-00904) means the property is
-// unavailable on this version or not granted; the rest of the collection still stands.
-//
-// ownerLists holds one or more IN-list batches (see maxSchemaOwners); the query runs once per
-// batch and every batch feeds the same scan callback, so the results end up unioned.
+// Missing or version-incompatible optional detail views do not fail collection.
 func (c *Check) queryDetails(ctx context.Context, name, template string, ownerLists []string, scan func(*sqlx.Rows) error) {
 	for _, ownerList := range ownerLists {
 		rows, err := c.db.QueryxContext(ctx, strings.Replace(template, "/*OWNERS*/", ownerList, 1))
@@ -1240,11 +1145,8 @@ func (c *Check) containerNames(ctx context.Context) map[int64]string {
 	return names
 }
 
-// tableDetails runs the detail queries scoped to ownerList (the owner batches, same as the main
-// query), but only ever materializes an entry for a table in allowed -- the capped, filtered set
-// that the main query actually returned. A row for a table outside that set lands in a throwaway
-// value instead, so the resident map stays bounded by max_tables rather than by the size of the
-// full owner-scoped catalog these detail queries still read from the server.
+// Only allowed tables are retained, bounding memory to the capped main-query result even when
+// detail queries return more rows.
 func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed map[tableKey]struct{}) map[tableKey]*tableDetails {
 	details := make(map[tableKey]*tableDetails)
 	at := func(conID int64, owner, table string) *tableDetails {
@@ -1389,8 +1291,6 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 			idx = &indexInfo{Name: name, Unique: uniqueness == "UNIQUE", Type: indexType}
 			d.Indexes = append(d.Indexes, idx)
 		}
-		// A function-based index's key column is the hidden SYS_NC%$ virtual column joined in
-		// by indexesQuery; report its expression instead of that meaningless generated name.
 		if expression.Valid {
 			idx.Columns = append(idx.Columns, indexKeyPart{Expression: truncateLongValue(expression.String)})
 		} else {
@@ -1399,8 +1299,7 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 		return nil
 	})
 
-	// Referenced tables are resolved after the scan: a foreign key names the constraint it
-	// points at, not the table, and that constraint is usually on another table in this set.
+	// Foreign keys identify referenced constraints, so resolve their tables after scanning all rows.
 	primaryKeys := make(map[string]*constraintInfo)
 	constraintsQueryResolved := strings.Replace(constraintsQuery, "/*CONDITION_COL*/", c.conditionColumn(), 1)
 	c.queryDetails(ctx, "constraints", constraintsQueryResolved, ownerList, func(rows *sqlx.Rows) error {
@@ -1446,9 +1345,7 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 				con.ReferencedTable = target.ReferencedTable
 				con.ReferencedColumns = target.ReferencedColumns
 			} else {
-				// The referenced owner isn't among the collected schemas, so the target table
-				// can't be resolved; fall back to naming the constraint rather than leaving
-				// ReferencedTable/ReferencedColumns empty, which would read as corrupt data.
+				// Preserve the constraint name when its owner was not collected.
 				con.ReferencedConstraint = con.referencedName
 			}
 		}
@@ -1472,7 +1369,6 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 		if directory != "-" {
 			d.External.Directory = directory
 		}
-		// The LEFT JOIN yields one row with a NULL location for an external table that has none.
 		if location.Valid {
 			loc := location.String
 			if locationDir != "-" {
@@ -1532,8 +1428,6 @@ func (c *Check) tableDetails(ctx context.Context, ownerList []string, allowed ma
 	return details
 }
 
-// viewDetails mirrors tableDetails: only a view in allowed (the post-max_views set) gets an
-// entry in the resident map.
 func (c *Check) viewDetails(ctx context.Context, ownerList []string, allowed map[tableKey]struct{}) map[tableKey]*viewDetails {
 	details := make(map[tableKey]*viewDetails)
 	at := func(conID int64, owner, name string) *viewDetails {
@@ -1594,22 +1488,11 @@ func (c *Check) viewDetails(ctx context.Context, ownerList []string, allowed map
 	return details
 }
 
-// fetchMetadataRows runs a table/view query once per owner batch (see maxSchemaOwners) and
-// returns the rows belonging to a collected owner. A single batch already comes back from
-// Oracle sorted by con_id; with more than one batch that ordering only holds within each batch,
-// so the combined rows are regrouped by con_id to keep every container's rows contiguous --
-// required so the collector never revisits a container it has already flushed as complete.
-//
-// This buffering is also what guarantees a snapshot is never emitted incomplete: every row is
-// read into memory here before a schemaCollector exists, so a query or scan error returns to the
-// caller before any payload has been built, let alone sent. That is why the error paths below
-// have no explicit cleanup -- there is nothing yet to clean up.
+// Multiple owner batches are regrouped by container so a completed container is never revisited.
+// Buffering all rows before emission prevents query or scan errors from producing partial snapshots.
 func (c *Check) fetchMetadataRows(ctx context.Context, template string, ownerLists []string, owners map[ownerKey]string, extra map[string]string) ([]schemaRowDB, error) {
 	var all []schemaRowDB
 	for _, ownerList := range ownerLists {
-		// The cdb_tables and cdb_object_tables branches of the schema query each carry their
-		// own copy of every placeholder, so every occurrence must be substituted, not just the
-		// first.
 		query := strings.ReplaceAll(template, "/*OWNERS*/", ownerList)
 		query = strings.ReplaceAll(query, "/*DEFAULT_COL*/", c.defaultValueColumn())
 		for placeholder, value := range extra {
@@ -1642,8 +1525,6 @@ func (c *Check) fetchMetadataRows(ctx context.Context, template string, ownerLis
 	return all, nil
 }
 
-// tableKeysFromRows collects the distinct tables a metadata query actually returned, used to
-// bound a details map to the same capped, filtered set.
 func tableKeysFromRows(rows []schemaRowDB) map[tableKey]struct{} {
 	keys := make(map[tableKey]struct{}, len(rows))
 	for _, r := range rows {
@@ -1652,8 +1533,6 @@ func tableKeysFromRows(rows []schemaRowDB) map[tableKey]struct{} {
 	return keys
 }
 
-// ViewCollection emits view metadata as its own kind, mirroring how sqlserver_views is kept
-// separate from sqlserver_databases.
 func (c *Check) ViewCollection(ctx context.Context, emit payloadEmitter, owners map[ownerKey]string, names []string, containers map[int64]string) error {
 	ownerLists := ownerListChunks(names)
 
@@ -1690,8 +1569,6 @@ func (c *Check) ViewCollection(ctx context.Context, emit payloadEmitter, owners 
 	return nil
 }
 
-// SchemaCollection streams table and column metadata and emits it as dbm-metadata payloads,
-// one snapshot per container.
 func (c *Check) SchemaCollection() error {
 	sender, err := c.GetSender()
 	if err != nil {
@@ -1713,9 +1590,6 @@ func (c *Check) SchemaCollection() error {
 	}
 
 	if len(names) == 0 {
-		// No user schemas anywhere on the instance: every known container that previously held
-		// a snapshot must still hear that it is now empty, or the backend keeps serving its
-		// last snapshot forever.
 		log.Debugf("%s no user schemas to collect, sending empty snapshot", c.logPrompt)
 		newSchemaCollector(c, emit, nil, owners, containers).emitEmptyContainers(containers)
 		if c.config.Schemas.ViewsEnabled() {
@@ -1748,8 +1622,7 @@ func (c *Check) SchemaCollection() error {
 	log.Debugf("%s schema collection sent %d tables", c.logPrompt, collector.tablesTotal)
 
 	if c.config.Schemas.ViewsEnabled() {
-		// Views need a grant that table collection does not, so treat them as enrichment:
-		// losing them must not discard the tables already emitted above.
+		// View metadata is optional enrichment and must not discard table snapshots.
 		if err := c.ViewCollection(ctx, emit, owners, names, containers); err != nil {
 			log.Warnf("%s view collection failed, continuing without views: %s", c.logPrompt, err)
 		}

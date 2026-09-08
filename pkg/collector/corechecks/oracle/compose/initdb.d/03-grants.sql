@@ -1,10 +1,7 @@
 -- Description: grant privileges to the Datadog user
 --
--- container=all is required below: CDB_* views are CONTAINERS()-based and return rows
--- only for containers where the querying user holds the privilege, so a root-only grant
--- yields CDB$ROOT and no PDBs, with no error. The exception is dd_session, a local view
--- in CDB$ROOT (01-create-function.nosplit.sql) -- a common grant on a local object
--- raises ORA-65030.
+-- CDB_* access requires container=all; otherwise queries silently return only CDB$ROOT rows.
+-- dd_session is local to CDB$ROOT, so granting it with container=all raises ORA-65030.
 grant create session to c##datadog container=all;
 grant select on v_$session to c##datadog container=all;
 grant select on v_$database to c##datadog container=all;
@@ -45,8 +42,7 @@ grant select on dba_data_files to c##datadog container=all;
 
 GRANT SELECT ON dd_session TO c##datadog;
 
--- DBA_* views only ever show the container the session is connected to, so schema
--- collection needs the CDB_ variants even on a single-PDB test database.
+-- Schema collection uses CDB_* views because DBA_* views expose only the current container.
 grant select on cdb_users to c##datadog container=all;
 grant select on cdb_objects to c##datadog container=all;
 grant select on cdb_tables to c##datadog container=all;

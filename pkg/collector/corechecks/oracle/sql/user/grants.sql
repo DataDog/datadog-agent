@@ -68,10 +68,8 @@ declare
   );
   command varchar2(4000);
   object_name varchar2(30);
-  -- CDB_* views are CONTAINERS()-based: a grant without container=all only applies in
-  -- CDB$ROOT, so the query silently sees root's rows only in every PDB, with no error.
-  -- RDS's grant_sys_object has no container=all equivalent, but that is moot there --
-  -- RDS master users are always local, so connection_type is never CDB on RDS.
+  -- CDB connections require container=all; otherwise CDB_* queries return only CDB$ROOT rows.
+  -- RDS has no equivalent, but its users are local and never use CDB connections.
   container_clause varchar2(20) := '';
 begin
    if :connection_type = :connection_type_cdb then
