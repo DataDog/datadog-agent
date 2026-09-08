@@ -18,8 +18,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	confighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -33,7 +35,7 @@ const (
 	jsonAPIContentType         = "application/vnd.api+json"
 )
 
-type remotePersistence struct {
+type remoteIssueLoader struct {
 	config     config.Component
 	hostname   hostnameinterface.Component
 	baseURL    string
@@ -55,12 +57,12 @@ type remoteIssueAttributes struct {
 	DetectedAt string `json:"detected_at"`
 }
 
-func newRemotePersistence(cfg config.Component, hostname hostnameinterface.Component) *remotePersistence {
+func newRemoteIssueLoader(cfg config.Component, hostname hostnameinterface.Component) *remoteIssueLoader {
 	site := strings.TrimSpace(cfg.GetString("site"))
 	if site == "" {
 		site = constants.DefaultSite
 	}
-	return &remotePersistence{
+	return &remoteIssueLoader{
 		config:   cfg,
 		hostname: hostname,
 		baseURL:  configutils.BuildURLWithPrefix(remoteIssuesEndpointPrefix, site),
@@ -72,25 +74,48 @@ func newRemotePersistence(cfg config.Component, hostname hostnameinterface.Compo
 	}
 }
 
-func hasRemotePersistenceCredentials(cfg config.Component) bool {
+func hasRemoteRestorationCredentials(cfg config.Component) bool {
 	return configutils.SanitizeAPIKey(cfg.GetString("api_key")) != "" &&
 		configutils.SanitizeAPIKey(cfg.GetString("app_key")) != ""
 }
 
-func (r *remotePersistence) load(ctx context.Context) (*PersistedState, error) {
+func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string) *remoteIssueLoader {
+	remoteEnabled := reqs.RemoteRestoration != nil && reqs.RemoteRestoration.Enabled
+	if !remoteEnabled || agentFlavor != flavor.DefaultAgent || confighelper.IsCLCRunner(reqs.Config) {
+		reqs.Log.Info("Running on Kubernetes: remote health platform restoration disabled for this process")
+		return nil
+	}
+	if reqs.Config.GetBool("fips.enabled") {
+		reqs.Log.Info("Running on Kubernetes: remote health platform restoration is unsupported with the FIPS proxy")
+		return nil
+	}
+	if reqs.Config.GetBool("skip_ssl_validation") {
+		reqs.Log.Info("Running on Kubernetes: remote health platform restoration requires TLS certificate verification")
+		return nil
+	}
+	if !hasRemoteRestorationCredentials(reqs.Config) {
+		reqs.Log.Info("Running on Kubernetes: remote health platform restoration requires both api_key and app_key")
+		return nil
+	}
+
+	reqs.Log.Info("Running on Kubernetes: restoring health platform issue state from the Datadog API")
+	return newRemoteIssueLoader(reqs.Config, reqs.Hostname)
+}
+
+func (r *remoteIssueLoader) load(ctx context.Context) (*PersistedState, error) {
 	apiKey := configutils.SanitizeAPIKey(r.config.GetString("api_key"))
 	appKey := configutils.SanitizeAPIKey(r.config.GetString("app_key"))
 	if apiKey == "" || appKey == "" {
-		return nil, errors.New("API key and application key are required for remote issue persistence")
+		return nil, errors.New("API key and application key are required for remote issue restoration")
 	}
 
 	hostname, err := r.hostname.Get(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("resolve hostname for remote issue persistence: %w", err)
+		return nil, fmt.Errorf("resolve hostname for remote issue restoration: %w", err)
 	}
 	hostname = strings.TrimSpace(hostname)
 	if hostname == "" {
-		return nil, errors.New("hostname is required for remote issue persistence")
+		return nil, errors.New("hostname is required for remote issue restoration")
 	}
 
 	endpoint := strings.TrimRight(r.baseURL, "/") + fmt.Sprintf(remoteIssuesEndpointPath, url.PathEscape(hostname))
@@ -175,5 +200,3 @@ func (r *remotePersistence) load(ctx context.Context) (*PersistedState, error) {
 
 	return state, nil
 }
-
-func (r *remotePersistence) save(_ *PersistedState) error { return nil }
