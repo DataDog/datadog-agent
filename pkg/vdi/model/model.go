@@ -29,16 +29,6 @@ type SourceStatus struct {
 	Error  string `json:"error,omitempty"`
 }
 
-// WindowsSession describes a Windows desktop session discovered through WTS.
-type WindowsSession struct {
-	WindowsSessionID uint32     `json:"windows_session_id"`
-	User             string     `json:"user,omitempty"`
-	Domain           string     `json:"domain,omitempty"`
-	State            string     `json:"state"`
-	LogonAt          *time.Time `json:"logon_at,omitempty"`
-	LastInputAt      *time.Time `json:"last_input_at,omitempty"`
-}
-
 // Connection describes an optional authenticated connection to a VDI session.
 type Connection struct {
 	ID                string     `json:"id"`
@@ -54,15 +44,14 @@ type Connection struct {
 // Session describes a provider-scoped VDI session. Connections are optional
 // because some providers expose sessions without distinct connection objects.
 type Session struct {
-	ID               string       `json:"id"`
-	Protocol         string       `json:"protocol,omitempty"`
-	WindowsSessionID *uint32      `json:"windows_session_id,omitempty"`
-	User             string       `json:"user,omitempty"`
-	Owner            string       `json:"owner,omitempty"`
-	State            string       `json:"state,omitempty"`
-	LogonAt          *time.Time   `json:"logon_at,omitempty"`
-	LastInputAt      *time.Time   `json:"last_input_at,omitempty"`
-	Connections      []Connection `json:"connections,omitempty"`
+	ID          string       `json:"id"`
+	Protocol    string       `json:"protocol,omitempty"`
+	User        string       `json:"user,omitempty"`
+	Owner       string       `json:"owner,omitempty"`
+	State       string       `json:"state,omitempty"`
+	LogonAt     *time.Time   `json:"logon_at,omitempty"`
+	LastInputAt *time.Time   `json:"last_input_at,omitempty"`
+	Connections []Connection `json:"connections,omitempty"`
 }
 
 // ProviderInventory contains the sessions returned by one VDI provider.
