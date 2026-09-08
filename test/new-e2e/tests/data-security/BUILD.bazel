@@ -1,8 +1,19 @@
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:exclude parse.go
+# gazelle:exclude postgres_provisioner.go
+
+# NOTE: parse.go and postgres_provisioner.go are non-test helpers kept in the
+# go_test target below rather than a separate go_library, so the whole package
+# builds as one test binary (postgres_provisioner.go also references
+# postgresScanEnv, defined only in postgres_scan_test.go).
 dd_agent_go_test(
     name = "data-security_test",
-    srcs = ["postgres_scan_test.go"],
+    srcs = [
+        "parse.go",  # keep
+        "postgres_provisioner.go",  # keep
+        "postgres_scan_test.go",
+    ],
     data = [
         "fixtures/datadog-agent.yaml",
         "fixtures/datasecurity.yaml",
@@ -22,6 +33,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/testcommon/check",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
