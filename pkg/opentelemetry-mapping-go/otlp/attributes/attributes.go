@@ -354,6 +354,7 @@ func ConsumeContainerTagsFromResource(res pcommon.Resource) (map[string]string, 
 	filteredRes.Attributes().RemoveIf(func(key string, value pcommon.Value) bool {
 		valueStr := value.Str()
 		// Special case for container.image.tags: extract first image tag from slice
+		// TODO: Consider emitting an image_tag tag for each element in the slice
 		if slice := value.Slice(); key == string(semconv1_27.ContainerImageTagsKey) && value.Type() == pcommon.ValueTypeSlice && slice.Len() > 0 {
 			valueStr = slice.At(0).Str()
 		}
