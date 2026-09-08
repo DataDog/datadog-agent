@@ -15,10 +15,10 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// RemotePersistenceParams enables backend-backed issue restoration for the
+// RemoteRestorationParams enables backend-backed issue restoration for the
 // long-running Agent process. Other processes that wire the Health Platform
 // bundle, such as one-shot CLI commands, intentionally leave this unsupplied.
-type RemotePersistenceParams struct {
+type RemoteRestorationParams struct {
 	Enabled bool
 }
 

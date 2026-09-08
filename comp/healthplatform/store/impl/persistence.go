@@ -6,7 +6,6 @@
 package storeimpl
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,12 +15,12 @@ import (
 )
 
 // issuesPersistence abstracts loading and saving persisted issue state.
-// Implementations load from disk, load from the Agent Health API, or disable
-// persistence when neither source is appropriate.
+// Two implementations exist: diskPersistence for bare-metal/VM environments, and
+// noopPersistence for environments with ephemeral storage (e.g. Kubernetes with emptyDir).
 type issuesPersistence interface {
 	// load reads persisted state from storage.
 	// Returns (nil, nil) when no prior state exists.
-	load(context.Context) (*PersistedState, error)
+	load() (*PersistedState, error)
 	// save writes the given state to storage.
 	save(state *PersistedState) error
 }
@@ -37,7 +36,7 @@ func newDiskPersistence(path string, logger log.Component) *diskPersistence {
 	return &diskPersistence{path: path, logger: logger}
 }
 
-func (d *diskPersistence) load(_ context.Context) (*PersistedState, error) {
+func (d *diskPersistence) load() (*PersistedState, error) {
 	data, err := os.ReadFile(d.path)
 	if err != nil {
 		if os.IsNotExist(err) {

@@ -33,7 +33,6 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
-	confighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -45,10 +44,10 @@ type Requires struct {
 	Log       log.Component
 	Telemetry telemetry.Component
 	Hostname  hostnameinterface.Component
-	// RemotePersistence is supplied only by the long-running node Agent. The
+	// RemoteRestoration is supplied only by the long-running node Agent. The
 	// Health Platform bundle is also used by one-shot CLI commands, which must
 	// not perform backend restoration during their startup.
-	RemotePersistence *healthplatformdef.RemotePersistenceParams `optional:"true"`
+	RemoteRestoration *healthplatformdef.RemoteRestorationParams `optional:"true"`
 	// Workloadmeta resolves this agent's own DaemonSet/cluster identity (see
 	// selfident). Optional because only selfident's kubeapiserver build reads
 	// it: on flavors without that tag (iot, heroku, the cloudfoundry cluster
@@ -96,6 +95,7 @@ type healthPlatformImpl struct {
 	// Persistence: lifecycle state only — proto payload is not stored here.
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
 	persistence     issuesPersistence
+	remoteLoader    *remoteIssueLoader
 
 	// Issue observers: receive issue events outside issuesMux.
 	observersMu sync.RWMutex
@@ -120,7 +120,7 @@ const (
 	resolvedIssueTTL = 24 * time.Hour
 
 	// persistedStateVersion is the persistence schema version used by this binary.
-	// loadPersistedState refuses to load state with a different version.
+	// restorePersistedState refuses to load state with a different version.
 	persistedStateVersion = 2
 )
 
@@ -145,7 +145,7 @@ func issueStateFromString(s string) IssueState {
 // IssueType (this struct) is a legacy name for the issue's IssueName, kept as-is
 // for on-disk compatibility — it is not the proto Issue.IssueType field. ProtoIssueType
 // carries that proto field so resolved tombstones (ResolveIssue, ResolveAllIssues,
-// loadPersistedState) can forward it same as they already do for IssueName.
+// restorePersistedState) can forward it same as they already do for IssueName.
 type PersistedIssue struct {
 	IssueID        string     `json:"issue_id"`
 	IssueType      string     `json:"issue_type"`
@@ -268,7 +268,19 @@ func NewComponent(reqs Requires) (Provides, error) {
 	reqs.Log.Info("Creating health platform component")
 
 	agentFlavor := flavor.GetFlavor()
-	persistence := newIssuesPersistence(reqs, agentFlavor, configenv.IsKubernetes())
+	isKubernetes := configenv.IsKubernetes()
+	persistOnKubernetes := reqs.Config.GetBool("health_platform.persist_on_kubernetes")
+	var persistence issuesPersistence
+	var remoteLoader *remoteIssueLoader
+	if isKubernetes && !persistOnKubernetes {
+		reqs.Log.Info("Running on Kubernetes: local health platform persistence disabled (set health_platform.persist_on_kubernetes: true to enable)")
+		persistence = &noopPersistence{}
+		remoteLoader = newRemoteIssueLoaderIfEnabled(reqs, agentFlavor)
+	} else {
+		runPath := reqs.Config.GetString("run_path")
+		persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
+		persistence = newDiskPersistence(persistencePath, reqs.Log)
+	}
 
 	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
@@ -285,6 +297,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 		persistedIssues: make(map[string]*PersistedIssue),
 		persistence:     persistence,
+		remoteLoader:    remoteLoader,
 	}
 
 	// Register lifecycle hooks for component start/stop
@@ -322,8 +335,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 // start starts the health platform component
 func (h *healthPlatformImpl) start(ctx context.Context) error {
 	h.log.Info("Starting health platform component")
-	if err := h.loadPersistedState(ctx); err != nil {
-		h.log.Warn("Failed to load persisted issues: " + err.Error())
+	var err error
+	if h.remoteLoader != nil {
+		err = h.loadFromRemote(ctx)
+	} else {
+		err = h.loadFromDisk()
+	}
+	if err != nil {
+		h.log.Warn("Failed to restore persisted issues: " + err.Error())
 	}
 	return nil
 }
@@ -487,8 +506,8 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	}
 
 	if stateChanged {
-		if err := h.savePersistedState(); err != nil {
-			h.log.Warn("Failed to persist issues: " + err.Error())
+		if err := h.saveToDisk(); err != nil {
+			h.log.Warn("Failed to persist issues to disk: " + err.Error())
 		}
 	}
 }
@@ -523,8 +542,8 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 		h.notifyResolved(t)
 	}
 
-	if err := h.savePersistedState(); err != nil {
-		h.log.Warn("Failed to persist issues: " + err.Error())
+	if err := h.saveToDisk(); err != nil {
+		h.log.Warn("Failed to persist issues to disk: " + err.Error())
 	}
 }
 
@@ -631,7 +650,7 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		existing.LastSeen = now
 		existing.ResolvedAt = ""
 	} else if existing.IssueType != issueType {
-		h.log.Warnf("health platform: issue %q changed type from %q to %q; resetting", issueID, existing.IssueType, issueType)
+		h.log.Warnf("health platform: issue %s changed type from %s to %s; resetting", issueID, existing.IssueType, issueType)
 		existing.IssueID = issueID
 		existing.IssueType = issueType
 		existing.State = IssueStateActive
@@ -670,8 +689,8 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 
 	h.issuesMux.Unlock()
 
-	if err := h.savePersistedState(); err != nil {
-		h.log.Warn("Failed to persist issues: " + err.Error())
+	if err := h.saveToDisk(); err != nil {
+		h.log.Warn("Failed to persist issues to disk: " + err.Error())
 	}
 }
 
@@ -679,16 +698,30 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 // Persistence Methods
 // ============================================================================
 
-// loadPersistedState restores lifecycle state from the persistence layer.
+// loadFromDisk restores lifecycle state from the persistence layer.
+func (h *healthPlatformImpl) loadFromDisk() error {
+	state, err := h.persistence.load()
+	if err != nil {
+		return err
+	}
+	return h.restorePersistedState(state)
+}
+
+// loadFromRemote restores lifecycle state reported by the backend.
+func (h *healthPlatformImpl) loadFromRemote(ctx context.Context) error {
+	state, err := h.remoteLoader.load(ctx)
+	if err != nil {
+		return err
+	}
+	return h.restorePersistedState(state)
+}
+
+// restorePersistedState restores lifecycle state into the in-memory store.
 // Proto payload (issue title, description, etc.) is not stored in lifecycle state —
 // IssueIDs are deterministic, so health checks re-running after restart will call
 // ReportIssue with the same ID and storeIssue will pick up firstSeen/state from the
 // restored PersistedIssue.
-func (h *healthPlatformImpl) loadPersistedState(ctx context.Context) error {
-	state, err := h.persistence.load(ctx)
-	if err != nil {
-		return err
-	}
+func (h *healthPlatformImpl) restorePersistedState(state *PersistedState) error {
 	if state == nil {
 		return nil
 	}
@@ -743,10 +776,10 @@ func (h *healthPlatformImpl) loadPersistedState(ctx context.Context) error {
 	return nil
 }
 
-// savePersistedState persists the current lifecycle state via the persistence layer.
+// saveToDisk persists the current lifecycle state via the persistence layer.
 // Only state metadata is written; proto payload fields are omitted because they are
 // repopulated by health checks on the next agent start.
-func (h *healthPlatformImpl) savePersistedState() error {
+func (h *healthPlatformImpl) saveToDisk() error {
 	h.issuesMux.RLock()
 	// Make a deep copy to avoid race conditions during marshaling
 	issuesCopy := make(map[string]*PersistedIssue, len(h.persistedIssues))
@@ -766,36 +799,6 @@ func (h *healthPlatformImpl) savePersistedState() error {
 		Issues:    issuesCopy,
 	}
 	return h.persistence.save(&state)
-}
-
-func newIssuesPersistence(reqs Requires, agentFlavor string, isKubernetes bool) issuesPersistence {
-	persistOnKubernetes := reqs.Config.GetBool("health_platform.persist_on_kubernetes")
-	if !isKubernetes || persistOnKubernetes {
-		runPath := reqs.Config.GetString("run_path")
-		persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
-		return newDiskPersistence(persistencePath, reqs.Log)
-	}
-
-	remoteEnabled := reqs.RemotePersistence != nil && reqs.RemotePersistence.Enabled
-	if !remoteEnabled || agentFlavor != flavor.DefaultAgent || confighelper.IsCLCRunner(reqs.Config) {
-		reqs.Log.Info("Running on Kubernetes: health platform persistence disabled for this process")
-		return &noopPersistence{}
-	}
-	if reqs.Config.GetBool("fips.enabled") {
-		reqs.Log.Info("Running on Kubernetes: remote health platform persistence is unsupported with the FIPS proxy")
-		return &noopPersistence{}
-	}
-	if reqs.Config.GetBool("skip_ssl_validation") {
-		reqs.Log.Info("Running on Kubernetes: remote health platform persistence requires TLS certificate verification")
-		return &noopPersistence{}
-	}
-	if !hasRemotePersistenceCredentials(reqs.Config) {
-		reqs.Log.Info("Running on Kubernetes: remote health platform persistence requires both api_key and app_key")
-		return &noopPersistence{}
-	}
-
-	reqs.Log.Info("Running on Kubernetes: loading health platform issue state from the Datadog API")
-	return newRemotePersistence(reqs.Config, reqs.Hostname)
 }
 
 // ============================================================================
