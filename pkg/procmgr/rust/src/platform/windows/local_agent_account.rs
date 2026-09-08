@@ -232,8 +232,19 @@ fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Resu
         bail!("domain agent account {display} is not supported");
     }
 
-    let scm_service_matches_agent =
-        service_runs_as_agent_user(DATADOG_AGENT_SERVICE, &domain, &user)?;
+    let scm_service_matches_agent = match service_runs_as_agent_user(
+        DATADOG_AGENT_SERVICE,
+        &domain,
+        &user,
+    ) {
+        Ok(matches) => matches,
+        Err(error) => {
+            info!(
+                "could not compare datadogagent service account to installed agent user {display}: {error:#}"
+            );
+            false
+        }
+    };
     let installer_password =
         read_installer_agent_password().context("read installer agent password from LSA")?;
     info!(
