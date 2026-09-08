@@ -97,6 +97,27 @@ instances:
     #   - <TENANT_NAME_1>
     #   - <TENANT_NAME_2>
 
+    ## @param included_devices - list of strings - optional
+    ## List of appliance names to include. If specified, only these appliances are
+    ## monitored and every other appliance is skipped. Names are matched
+    ## case-insensitively against the appliance name reported by the Director.
+    ##
+    ## This does not apply to the Versa Director itself, which is always collected.
+    ## Use collect_hardware_metrics and collect_director_interface_metrics to control
+    ## what is reported for the Director.
+    #
+    # included_devices:
+    #   - <DEVICE_NAME_1>
+    #   - <DEVICE_NAME_2>
+
+    ## @param excluded_devices - list of strings - optional
+    ## List of appliance names to exclude from monitoring. Applied after
+    ## included_devices, so an appliance named in both lists is excluded.
+    #
+    # excluded_devices:
+    #   - <DEVICE_NAME_1>
+    #   - <DEVICE_NAME_2>
+
     ## @param collect_hardware_metrics - boolean - optional - default: true
     ## Enable collection of hardware metrics (CPU, memory, disk, uptime).
     #
