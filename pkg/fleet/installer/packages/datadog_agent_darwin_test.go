@@ -285,6 +285,76 @@ func TestInstallStableJobsLoadsTheStableSetIncludingTheInstaller(t *testing.T) {
 	}
 }
 
+// stubInstallerBinary points PATH at a fake installer(8) that records its invocation instead of
+// actually running Apple's installer. Returns the path calls are recorded to.
+func stubInstallerBinary(t *testing.T) string {
+	t.Helper()
+
+	bin := t.TempDir()
+	callsFile := filepath.Join(t.TempDir(), "calls")
+	script := "#!/bin/sh\necho \"$@\" >> " + callsFile + "\n"
+	require.NoError(t, os.WriteFile(filepath.Join(bin, "installer"), []byte(script), 0755))
+
+	originalPath := os.Getenv("PATH")
+	require.NoError(t, os.Setenv("PATH", bin+":"+originalPath))
+	t.Cleanup(func() { os.Setenv("PATH", originalPath) })
+
+	return callsFile
+}
+
+// TestInstallWrappedPackageRunsTheSinglePkgPayload is the macOS analogue of
+// msi.WithMsiFromPackagePath: an OCI-delivered package wraps a .pkg rather than raw binaries, and
+// running it is the whole job of the OCI branch -- registerPackageRepository has nothing to do
+// since Create() already registered the version before this hook ran.
+func TestInstallWrappedPackageRunsTheSinglePkgPayload(t *testing.T) {
+	calls := stubInstallerBinary(t)
+	packagePath := t.TempDir()
+	pkgPath := filepath.Join(packagePath, "datadog-agent-7.99.0.pkg")
+	require.NoError(t, os.WriteFile(pkgPath, []byte("fake pkg"), 0644))
+
+	ctx := testHookContext(t)
+	ctx.PackagePath = packagePath
+
+	require.NoError(t, installWrappedPackage(ctx))
+
+	content, err := os.ReadFile(calls)
+	require.NoError(t, err)
+	assert.Equal(t, "-pkg "+pkgPath+" -target /\n", string(content))
+}
+
+func TestInstallWrappedPackageFailsWithoutAPkg(t *testing.T) {
+	ctx := testHookContext(t)
+	ctx.PackagePath = t.TempDir()
+
+	assert.Error(t, installWrappedPackage(ctx))
+}
+
+func TestInstallWrappedPackageFailsWithMultiplePkgs(t *testing.T) {
+	packagePath := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(packagePath, "a.pkg"), []byte("a"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(packagePath, "b.pkg"), []byte("b"), 0644))
+
+	ctx := testHookContext(t)
+	ctx.PackagePath = packagePath
+
+	assert.Error(t, installWrappedPackage(ctx))
+}
+
+// TestPostInstallDatadogAgentSkipsRegistrationForAnOCIPackage covers the branch itself: Create()
+// has already registered the version by the time an OCI hook runs, so postInstall must not run the
+// filesystem/registration/launchd steps a real .dmg's postinst performs on its own -- it only runs
+// the wrapped .pkg.
+func TestPostInstallDatadogAgentSkipsRegistrationForAnOCIPackage(t *testing.T) {
+	stubInstallerBinary(t)
+	packagePath := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(packagePath, "datadog-agent.pkg"), []byte("fake pkg"), 0644))
+
+	ctx := testHookContext(t)
+	ctx.PackagePath = packagePath
+
+	require.NoError(t, postInstallDatadogAgent(ctx))
+}
+
 func TestPreRemoveStopsBothJobSets(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := t.TempDir()
