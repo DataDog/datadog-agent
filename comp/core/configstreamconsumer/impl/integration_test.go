@@ -631,3 +631,161 @@ remote_agent:
 		t.Fatal("OneShot did not complete")
 	}
 }
+
+// Cleanup matters here: the keys the remap touches live on the process-global config object.
+func overrideTestConfig(t *testing.T, dir, addr string) string {
+	t.Helper()
+	host, port, err := net.SplitHostPort(addr)
+	require.NoError(t, err)
+
+	datadogYaml := fmt.Sprintf(`
+cmd_host: %s
+cmd_port: %s
+auth_token_file_path: %s
+ipc_cert_file_path: %s
+remote_agent:
+  registry:
+    enabled: true
+  configstream:
+    consumer:
+      enabled: true
+`, host, port,
+		filepath.Join(dir, "auth_token"),
+		filepath.Join(dir, "ipc_cert.pem"),
+	)
+	datadogPath := filepath.Join(dir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
+
+	t.Cleanup(func() {
+		cfg := configstreambootstrap.Config()
+		cfg.UnsetForSource("log_level", model.SourceAgentRuntime)
+		cfg.UnsetForSource("log_level", model.SourceFile)
+		cfg.UnsetForSource("security_agent.log_level", model.SourceFile)
+		cfg.UnsetForSource("apm_config.log_level", model.SourceFile)
+	})
+	return datadogPath
+}
+
+func TestSecurityAgentLogLevelOverridesBaseKey(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	datadogPath := overrideTestConfig(t, dir, addr)
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("security-agent", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+		configstreamconsumerfx.Module(),
+	)
+
+	testRun := func(_ configstreamconsumer.Component) error {
+		cfg := configstreambootstrap.Config()
+		// Synchronous by contract: readiness is signalled only after the remap has run.
+		require.Equal(t, "debug", cfg.Get("log_level"))
+		require.Equal(t, model.SourceAgentRuntime, cfg.GetSource("log_level"))
+
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 2,
+					Settings: []*pb.ConfigSetting{
+						{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return cfg.Get("log_level") == "info"
+		}, 10*time.Second, 20*time.Millisecond, "the override outlived the namespaced key that produced it")
+		require.Equal(t, model.SourceFile, cfg.GetSource("log_level"))
+
+		mock.events <- &pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					SequenceId: 3,
+					Settings: []*pb.ConfigSetting{
+						{Key: "log_level", Value: mustNewValue(t, "warn"), Source: string(model.SourceFile)},
+						{Key: "security_agent.log_level", Value: mustNewValue(t, ""), Source: string(model.SourceFile)},
+					},
+				},
+			},
+		}
+		require.Eventually(t, func() bool {
+			return cfg.Get("log_level") == "warn"
+		}, 10*time.Second, 20*time.Millisecond, "the base value never took effect")
+		require.Equal(t, model.SourceFile, cfg.GetSource("log_level"), "an empty namespaced value must not override")
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+					{Key: "security_agent.log_level", Value: mustNewValue(t, "debug"), Source: string(model.SourceFile)},
+				},
+			},
+		},
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("OneShot did not complete")
+	}
+}
+
+func TestLogLevelOverrideIsPerClient(t *testing.T) {
+	configstreambootstrap.UseDynamicSchema(t)
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	datadogPath := overrideTestConfig(t, dir, addr)
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("trace-agent", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+		configstreamconsumerfx.Module(),
+	)
+
+	testRun := func(_ configstreamconsumer.Component) error {
+		cfg := configstreambootstrap.Config()
+		require.Equal(t, "trace", cfg.Get("log_level"))
+		require.Equal(t, model.SourceAgentRuntime, cfg.GetSource("log_level"))
+		require.Equal(t, "error", cfg.Get("security_agent.log_level"), "another agent's key must be left untouched")
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+					{Key: "apm_config.log_level", Value: mustNewValue(t, "trace"), Source: string(model.SourceFile)},
+					{Key: "security_agent.log_level", Value: mustNewValue(t, "error"), Source: string(model.SourceFile)},
+				},
+			},
+		},
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("OneShot did not complete")
+	}
+}

@@ -109,6 +109,8 @@ type consumer struct {
 
 	// Layers this stream has written, keyed by setting. Touched only from the stream goroutine.
 	streamedLayers map[string]map[pkgconfigmodel.Source]struct{}
+	// Base keys applyOverrides has written, so the override can be retracted. Same goroutine.
+	appliedOverrides map[string]struct{}
 
 	ready     atomic.Bool
 	readyCh   chan struct{}
@@ -569,21 +571,36 @@ func (c *consumer) connectAndStream() error {
 }
 
 func (c *consumer) handleConfigEvent(event *pb.ConfigEvent) error {
+	snapshotApplied := false
 	switch e := event.Event.(type) {
 	case *pb.ConfigEvent_Snapshot:
-		return c.applySnapshot(e.Snapshot)
+		applied, err := c.applySnapshot(e.Snapshot)
+		if err != nil {
+			return err
+		}
+		snapshotApplied = applied
 	case *pb.ConfigEvent_Update:
-		return c.applyUpdate(e.Update)
+		if err := c.applyUpdate(e.Update); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown event type: %T", event.Event)
 	}
+	// After applySnapshot's retraction loop, so a remapped value is not retracted out from under itself.
+	c.applyOverrides()
+	if snapshotApplied {
+		// Signalled last: waitForReady must not release before the remap has folded in the override.
+		c.markReady()
+	}
+	return nil
 }
 
-func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
+// applySnapshot reports whether the snapshot was applied; a stale one is dropped and reports false.
+func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) (bool, error) {
 	if snapshot.SequenceId <= c.lastSeqID.Load() {
 		c.log.Warnf("Ignoring stale snapshot (seq_id: %d <= %d)", snapshot.SequenceId, c.lastSeqID.Load())
 		c.droppedStaleUpdates.Inc()
-		return nil
+		return false, nil
 	}
 
 	c.log.Infof("Applying config snapshot (seq_id: %d, settings: %d)", snapshot.SequenceId, len(snapshot.Settings))
@@ -622,6 +639,11 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 	c.lastSeqID.Store(snapshot.SequenceId)
 	c.lastSeqIDMetric.Set(float64(snapshot.SequenceId))
 
+	return true, nil
+}
+
+// markReady releases waitForReady. Only an applied snapshot signals it; updates never do.
+func (c *consumer) markReady() {
 	c.readyOnce.Do(func() {
 		close(c.readyCh)
 		c.ready.Store(true)
@@ -629,8 +651,6 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) error {
 		c.timeToFirstSnapshot.Set(duration.Seconds())
 		c.log.Infof("configstreamconsumer[%s]: first snapshot applied after %v", c.params.ClientName, duration)
 	})
-
-	return nil
 }
 
 // recordLayer notes that the stream put key into source, so a later snapshot can retract the
