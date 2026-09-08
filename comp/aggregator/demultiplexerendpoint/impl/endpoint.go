@@ -26,10 +26,13 @@ import (
 )
 
 const (
-	defaultNumMetrics = 10
-	defaultNumTags    = 5
-	maxNumMetrics     = 50
-	maxNumTags        = 20
+	defaultNumMetrics             = 10
+	defaultNumTags                = 5
+	maxNumMetrics                 = 50
+	maxNumTags                    = 20
+	topSourceLive                 = "live"
+	topSourceDump                 = "dump"
+	dogstatsdContextsDumpFilename = "dogstatsd_contexts.json.zstd"
 )
 
 type contextDumper interface {
@@ -70,12 +73,18 @@ func NewComponent(reqs Requires) Provides {
 }
 
 type topRequest struct {
-	NumMetrics int `json:"num_metrics"`
-	NumTags    int `json:"num_tags"`
+	NumMetrics int    `json:"num_metrics"`
+	NumTags    int    `json:"num_tags"`
+	Source     string `json:"source"`
+}
+
+type topResponse struct {
+	contexttop.Result
+	Source string `json:"source"`
 }
 
 func (demuxendpoint demultiplexerEndpoint) topDogstatsdContexts(w http.ResponseWriter, r *http.Request) {
-	request := topRequest{NumMetrics: defaultNumMetrics, NumTags: defaultNumTags}
+	request := topRequest{NumMetrics: defaultNumMetrics, NumTags: defaultNumTags, Source: topSourceLive}
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&request); err != nil {
@@ -88,19 +97,33 @@ func (demuxendpoint demultiplexerEndpoint) topDogstatsdContexts(w http.ResponseW
 		return
 	}
 
-	result, err := demuxendpoint.getDogstatsdTop(request.NumMetrics, request.NumTags)
+	var result contexttop.Result
+	var err error
+	switch request.Source {
+	case topSourceLive:
+		result, err = demuxendpoint.getDogstatsdTop(request.NumMetrics, request.NumTags)
+	case topSourceDump:
+		result, err = contexttop.FromFile(
+			path.Join(demuxendpoint.runPath, dogstatsdContextsDumpFilename),
+			request.NumMetrics,
+			request.NumTags,
+		)
+	}
 	if err != nil {
 		httputils.SetJSONError(w, demuxendpoint.log.Errorf("Failed to get dogstatsd contexts top: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(result); err != nil {
+	if err := json.NewEncoder(w).Encode(topResponse{Result: result, Source: request.Source}); err != nil {
 		demuxendpoint.log.Errorf("Failed to serialize dogstatsd contexts top response: %v", err)
 	}
 }
 
 func validateTopRequest(request topRequest) error {
+	if request.Source != topSourceLive && request.Source != topSourceDump {
+		return fmt.Errorf("source must be %q or %q", topSourceLive, topSourceDump)
+	}
 	if request.NumMetrics < 1 || request.NumMetrics > maxNumMetrics {
 		return fmt.Errorf("num_metrics must be between 1 and %d", maxNumMetrics)
 	}
@@ -142,7 +165,7 @@ func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.Response
 }
 
 func (demuxendpoint demultiplexerEndpoint) writeDogstatsdContexts() (string, error) {
-	path := path.Join(demuxendpoint.runPath, "dogstatsd_contexts.json.zstd")
+	path := path.Join(demuxendpoint.runPath, dogstatsdContextsDumpFilename)
 
 	f, err := os.Create(path)
 	if err != nil {

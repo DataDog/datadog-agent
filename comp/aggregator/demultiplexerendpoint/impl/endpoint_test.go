@@ -6,8 +6,11 @@
 package demultiplexerendpointimpl
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -55,13 +58,63 @@ func TestGetDogstatsdTop(t *testing.T) {
 
 func TestValidateTopRequest(t *testing.T) {
 	for _, request := range []topRequest{
-		{NumMetrics: 0, NumTags: 5},
-		{NumMetrics: maxNumMetrics + 1, NumTags: 5},
-		{NumMetrics: 10, NumTags: 0},
-		{NumMetrics: 10, NumTags: maxNumTags + 1},
+		{Source: topSourceLive, NumMetrics: 0, NumTags: 5},
+		{Source: topSourceLive, NumMetrics: maxNumMetrics + 1, NumTags: 5},
+		{Source: topSourceLive, NumMetrics: 10, NumTags: 0},
+		{Source: topSourceLive, NumMetrics: 10, NumTags: maxNumTags + 1},
+		{Source: "saved", NumMetrics: 10, NumTags: 5},
 	} {
 		require.Error(t, validateTopRequest(request))
 	}
 
-	require.NoError(t, validateTopRequest(topRequest{NumMetrics: 10, NumTags: 5}))
+	require.NoError(t, validateTopRequest(topRequest{Source: topSourceLive, NumMetrics: 10, NumTags: 5}))
+	require.NoError(t, validateTopRequest(topRequest{Source: topSourceDump, NumMetrics: 10, NumTags: 5}))
+}
+
+func TestTopDogstatsdContextsFromDump(t *testing.T) {
+	endpoint := demultiplexerEndpoint{
+		demux: fakeContextDumper{
+			{Name: "requests", MetricTags: []string{"env:prod"}},
+		},
+		runPath: t.TempDir(),
+	}
+	_, err := endpoint.writeDogstatsdContexts()
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/dogstatsd-contexts-top", bytes.NewBufferString(`{"source":"dump"}`))
+	endpoint.topDogstatsdContexts(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{
+		"source": "dump",
+		"metrics": [{
+			"name": "requests",
+			"contexts": 1,
+			"tags": [{"key": "env", "unique_values": 1}]
+		}]
+	}`, recorder.Body.String())
+}
+
+func TestTopDogstatsdContextsDefaultsToLive(t *testing.T) {
+	endpoint := demultiplexerEndpoint{
+		demux: fakeContextDumper{
+			{Name: "requests", MetricTags: []string{"env:prod"}},
+		},
+		runPath: t.TempDir(),
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/dogstatsd-contexts-top", bytes.NewBufferString(`{}`))
+	endpoint.topDogstatsdContexts(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{
+		"source": "live",
+		"metrics": [{
+			"name": "requests",
+			"contexts": 1,
+			"tags": [{"key": "env", "unique_values": 1}]
+		}]
+	}`, recorder.Body.String())
 }
