@@ -7,6 +7,6 @@ features:
     (``DD_PROCESS_CONFIG_LOG_LEVEL``, ``DD_PROCESS_AGENT_LOG_LEVEL``) and
     ``apm_config.log_level`` (``DD_APM_LOG_LEVEL``). They complement the existing
     ``system_probe_config.log_level`` and default to an empty string, meaning no
-    override. These per-Agent keys allow a distinct log level to be kept for each
-    Agent process when configuration streaming makes the core Agent the source of
-    truth for configuration.
+    override. They keep a distinct log level per Agent process now that
+    configuration streaming makes the core Agent the source of truth: set them on
+    the core Agent, not on the Agent process they apply to.
