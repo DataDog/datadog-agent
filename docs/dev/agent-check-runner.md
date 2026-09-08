@@ -1,20 +1,20 @@
 # Agent Check Runner
 
-Agent Check Runner (ACR) is an optional out-of-process Python check executor. It runs the
-Python integration checks the Core Agent runs today, but in a separate process so the Core
-Agent's own scheduling, aggregation and forwarding loops are isolated from check work.
+Agent Check Runner (ACR) is an optional out-of-process check executor.
+Data plane, sibbling project ADP. Aim agent becomes only the control plane.
+Isolate check run to its own process.
+As of tday, it runs the Python integration checks the Core Agent runs today,
 
 This document covers the **Agent-side integration surface** in this repository: configuration,
 supervision, ports and remote-agent registration. It is the companion to
 [`agent-data-plane.md`](agent-data-plane.md), which covers ADP. ACR follows the same pattern
 with two structural differences:
 
-- ADP ships a single static binary; ACR ships a **directory** (`embedded/bin/agent-check-runner/`)
+- ACR ships a **directory** (`embedded/bin/agent-check-runner/`)
   that must move as a unit because it resolves its Rust stdlib through an `$ORIGIN` rpath and its
   adapter plugins relative to `current_exe()`. The packaging details live in the ACR
   repository's packaging design doc.
-- ACR has no preflight mode. There is no `comp/checkrunner/preflightmode` equivalent of
-  `comp/dataplane/preflightmode`; ACR is either bundled and enabled, absent, or disabled.
+- (future) Shadow mode. ACR is either bundled and enabled, absent, or disabled.
 
 ## Configuration
 
@@ -25,7 +25,7 @@ setting:
 | Setting | Type | Default | Notes |
 |---|---|---|---|
 | `check_runner.enabled` | boolean | `false` | When `false` and ACR is not in standalone mode, ACR registers, receives its initial configuration, then exits cleanly. The s6 service stays up but the process is gone. |
-| `check_runner.standalone_mode` | boolean | `false` | When `true`, ACR does not register with the Core Agent and reads the config file directly, skipping the config stream. Used by ACR's own test harness and standalone deployments, not the container image. |
+| `check_runner.standalone_mode` | boolean | `false` | When `true`, ACR does not register with the Core Agent and reads the config file directly, skipping the config stream. Not used by the container image. |
 | `check_runner.api_listen_address` | string | `tcp://0.0.0.0:5200` | Unprivileged API. Must include a URL scheme. |
 | `check_runner.secure_api_listen_address` | string | `tcp://0.0.0.0:5201` | Privileged API, served with the Core Agent IPC TLS config. Must include a URL scheme. |
 
@@ -43,11 +43,9 @@ mechanism ADP uses.
 Two existing top-level settings flow to ACR over the stream without any new declaration:
 
 - `confd_path` (default `${conf_path}/conf.d`) — the autodiscovery `conf.d` directories ACR
-  loads check configurations from. ACR reads this as its `checks_config_dir`.
+  loads check configurations from.
 - The Core Agent's IPC auth settings (`ipc_*`) — ACR uses these to authenticate the secure API
   and to connect back to the Core Agent.
-
-No new `checks_config_dir` setting is needed; ACR reads `confd_path`.
 
 ## Supervision
 
@@ -69,6 +67,7 @@ In the container image, ACR is an s6 service, not a process the Core Agent launc
 the s6 service directory when the binary is not bundled, before the world-writable chmod sweep.
 See [`SUPERVISION.md`](../../Dockerfiles/agent/SUPERVISION.md) for the service catalogue.
 
+# FIXME we are in the agent status; but we should impl that 
 `/probe.sh` runs `agent health`, which only sees in-process registrants of `pkg/status/health`.
 A crash-looping ACR does **not** make the container unhealthy — do not treat a green pod as
 evidence that ACR is running.
@@ -102,9 +101,7 @@ without any Agent-side allowlist:
 - `datadog.remoteagent.telemetry.v1.TelemetryProvider` — fans ACR's internal telemetry into the
   Agent's telemetry pipeline.
 
-ACR does **not** advertise a `FlareProvider` service; the RAR treats flare as optional. The RAR
-is generic: any remote agent that registers with the recognized service names is accepted, so no
-Agent-side code change is required for ACR's registration. This is the same precedent ADP set.
+ACR does **not** yet advertise a `FlareProvider` service; the RAR treats flare as optional.
 
 The registration is maintained for the process lifetime by a background worker
 (`acr-remote-agent-registration`), which refreshes on a 30s interval (5s on failure).
@@ -112,16 +109,9 @@ The registration is maintained for the process lifetime by a background worker
 ## Binary path
 
 There is no Go constant for ACR's binary path today. ACR is s6-supervised in the container and
-the service scripts reference the path directly. ADP has `defaultpaths.GetDefaultDataPlaneBin`
-because the Core Agent launches ADP itself for preflight mode (`comp/dataplane/preflightmode`);
-ACR has no equivalent Go launcher yet. Add a `GetDefaultCheckRunnerBin` accessor to
-`pkg/util/defaultpaths` when a Go caller appears (for example, a procmgr migration entry in
-`pkg/procmgr/coat/services.go`).
+the service scripts reference the path directly.
 
 ## Open items
 
-- **Duplicate execution** (running the same checks in both the Core Agent and ACR) is a GA
-  concern, not a first-deploy concern. The nearest lever is `integration.excluded` →
-  `IsCheckAllowed` in `pkg/collector/infra_mode.go`.
 - **Enablement** lives outside this repository: the Helm chart and datadog-operator must set the
   container spec and env, as they do for `DD_DATA_PLANE_ENABLED`.

@@ -569,3 +569,120 @@ func TestSchedule_AllChecksAllowed(t *testing.T) {
 		assert.Equal(t, c.Name, mockCollector.RunCheckCalls[i].(*MockCheck).Name)
 	}
 }
+
+func TestGetChecksFromConfigsRunIn(t *testing.T) {
+	tests := []struct {
+		name       string
+		initConfig string
+		instances  []string
+		wantLoaded int
+	}{
+		{
+			name:       "no run_in loads every instance",
+			initConfig: "{}",
+			instances:  []string{"{}", "{}"},
+			wantLoaded: 2,
+		},
+		{
+			name:       "init_config delegates the whole check",
+			initConfig: `{"run_in": "check_runner"}`,
+			instances:  []string{"{}", "{}"},
+			wantLoaded: 0,
+		},
+		{
+			name:       "an instance opts back in",
+			initConfig: `{"run_in": "check_runner"}`,
+			instances:  []string{"{}", `{"run_in": "core_agent"}`},
+			wantLoaded: 1,
+		},
+		{
+			name:       "an instance opts out",
+			initConfig: "{}",
+			instances:  []string{"{}", `{"run_in": "check_runner"}`},
+			wantLoaded: 1,
+		},
+		{
+			name:       "several runners including core_agent still load here",
+			initConfig: "{}",
+			instances:  []string{`{"run_in": ["core_agent", "check_runner"]}`},
+			wantLoaded: 1,
+		},
+		{
+			name:       "an unknown runner is not ours",
+			initConfig: "{}",
+			instances:  []string{`{"run_in": "unknown_runner"}`},
+			wantLoaded: 0,
+		},
+		// FIXME: not sure we want that.
+		{
+			name:       "an unusable run_in still loads here",
+			initConfig: "{}",
+			instances:  []string{`{"run_in": []}`},
+			wantLoaded: 1,
+		},
+		{
+			name:       "an unusable instance cancels an init_config runner",
+			initConfig: `{"run_in": "check_runner"}`,
+			instances:  []string{`{"run_in": []}`},
+			wantLoaded: 0,
+		},
+		// run_in must not disturb the option it sits next to.
+		{
+			name:       "loader selection still applies to a kept instance",
+			initConfig: `{"run_in": "core_agent"}`,
+			instances:  []string{`{"loader": "python"}`},
+			wantLoaded: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := CheckScheduler{}
+			s.addLoader(&MockCoreLoader{})
+			s.addLoader(&MockPythonLoader{})
+
+			instances := make([]integration.Data, 0, len(tt.instances))
+			for _, instance := range tt.instances {
+				instances = append(instances, integration.Data(instance))
+			}
+
+			checks := s.GetChecksFromConfigs([]integration.Config{{
+				Name:       "check_a",
+				Instances:  instances,
+				InitConfig: integration.Data(tt.initConfig),
+			}}, false)
+
+			assert.Len(t, checks, tt.wantLoaded)
+		})
+	}
+}
+
+// A delegated instance must be skipped before any loader runs, so that the
+// Core Agent never pays the cost of loading a check another runner executes.
+func TestGetChecksFromConfigsSkipsDelegatedInstanceBeforeLoading(t *testing.T) {
+	loader := &countingLoader{}
+	s := CheckScheduler{}
+	s.addLoader(loader)
+
+	checks := s.GetChecksFromConfigs([]integration.Config{{
+		Name:       "check_a",
+		Instances:  []integration.Data{integration.Data(`{"run_in": "check_runner"}`), integration.Data("{}")},
+		InitConfig: integration.Data("{}"),
+	}}, false)
+
+	assert.Len(t, checks, 1)
+	assert.Equal(t, 1, loader.loads, "the delegated instance must never reach the loader")
+}
+
+type countingLoader struct {
+	loads int
+}
+
+func (l *countingLoader) Name() string {
+	return "core"
+}
+
+func (l *countingLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data, _ int) (check.Check, error) {
+	l.loads++
+	return &MockCheck{Name: config.Name, LoaderName: l.Name()}, nil
+}
