@@ -51,6 +51,8 @@ type checkCfg struct {
 	Namespace                             string   `yaml:"namespace"`
 	IncludedTenants                       []string `yaml:"included_tenants"`
 	ExcludedTenants                       []string `yaml:"excluded_tenants"`
+	IncludedDevices                       []string `yaml:"included_devices"`
+	ExcludedDevices                       []string `yaml:"excluded_devices"`
 	SendDeviceMetadata                    *bool    `yaml:"send_device_metadata"`
 	SendInterfaceMetadata                 *bool    `yaml:"send_interface_metadata"`
 	MinCollectionInterval                 int      `yaml:"min_collection_interval"`
@@ -129,15 +131,19 @@ func (v *VersaCheck) Run() error {
 		*v.config.CollectTunnelMetrics || *v.config.CollectQoSMetrics || *v.config.CollectDIAMetrics ||
 		*v.config.CollectInterfaceMetrics
 
+	// Gather appliances if we need device metadata, hardware metrics, or device mapping
+	collectAppliances := *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics || needsDeviceMapping
+
 	for _, org := range organizations {
 		log.Tracef("Processing organization: %s", org.Name)
 
-		// Gather appliances if we need device metadata, hardware metrics, or device mapping
-		if *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics || needsDeviceMapping {
+		if collectAppliances {
 			orgAppliances, err := c.GetChildAppliancesDetail(org.Name)
 			if err != nil {
 				log.Errorf("error getting appliances from organization %s: %v", org.Name, err)
 			} else {
+				log.Tracef("Unfiltered appliances for organization %s: %d", org.Name, len(orgAppliances))
+				orgAppliances = filterAppliances(orgAppliances, v.config.IncludedDevices, v.config.ExcludedDevices)
 				for _, appliance := range orgAppliances {
 					log.Tracef("Processing appliance: %+v", appliance)
 				}
@@ -158,10 +164,18 @@ func (v *VersaCheck) Run() error {
 		}
 	}
 
+	// Drop interfaces belonging to appliances that device filtering excluded, so that
+	// interface metadata and metrics stay consistent with the monitored device list.
+	if len(v.config.IncludedDevices) > 0 || len(v.config.ExcludedDevices) > 0 {
+		interfaces = filterInterfacesByDevice(interfaces, appliances, directorStatus.HAConfig.ClusterID)
+	}
+
 	// Convert Versa objects to device metadata
-	// If we collected appliances for any reason, always send device metadata since we already have it
+	// If we collected appliances for any reason, always send device metadata since we already have it.
+	// This is keyed off whether appliance collection ran rather than how many appliances came back, so
+	// that the Director is still reported when device filtering leaves no appliances behind.
 	var deviceMetadata []devicemetadata.DeviceMetadata
-	if len(appliances) > 0 {
+	if collectAppliances {
 		deviceMetadata = make([]devicemetadata.DeviceMetadata, 0, len(appliances)+1)
 		deviceMetadata = append(deviceMetadata, payload.GetDeviceMetadataFromAppliances(v.config.Namespace, appliances)...)
 
@@ -524,6 +538,69 @@ func filterOrganizations(orgs []client.Organization, includedOrgs []string, excl
 	}
 
 	return filteredOrgs
+}
+
+// filterAppliances filters appliances against the included and excluded device lists,
+// matching case-insensitively on the appliance name. When includedDevices is non-empty
+// it acts as an opt-in list: only the appliances it names are monitored. excludedDevices
+// is applied afterwards, so an appliance named in both is excluded.
+//
+// Device filtering applies to appliances only. The Director is always collected, since it
+// is the endpoint the check authenticates against; use collect_hardware_metrics and
+// collect_director_interface_metrics to control what is reported for it.
+func filterAppliances(appliances []client.Appliance, includedDevices []string, excludedDevices []string) []client.Appliance {
+	if len(includedDevices) == 0 && len(excludedDevices) == 0 {
+		return appliances
+	}
+
+	includedDevicesSet := make(map[string]struct{}, len(includedDevices))
+	for _, device := range includedDevices {
+		includedDevicesSet[strings.ToLower(device)] = struct{}{}
+	}
+	excludedDevicesSet := make(map[string]struct{}, len(excludedDevices))
+	for _, device := range excludedDevices {
+		excludedDevicesSet[strings.ToLower(device)] = struct{}{}
+	}
+
+	filteredAppliances := make([]client.Appliance, 0, len(appliances))
+	for _, appliance := range appliances {
+		applianceName := strings.ToLower(appliance.Name) // Normalize the appliance name to lowercase
+		// If includedDevices is not empty, only include appliances in the list
+		if _, ok := includedDevicesSet[applianceName]; len(includedDevices) > 0 && !ok {
+			log.Debugf("Skipping appliance %q, not in included_devices", appliance.Name)
+			continue
+		}
+		// If excludedDevices is not empty, exclude appliances in the list
+		if _, ok := excludedDevicesSet[applianceName]; ok {
+			log.Debugf("Skipping appliance %q, listed in excluded_devices", appliance.Name)
+			continue
+		}
+		filteredAppliances = append(filteredAppliances, appliance)
+	}
+
+	return filteredAppliances
+}
+
+// filterInterfacesByDevice keeps only the interfaces that belong to an appliance that
+// survived device filtering, or to the Director, which device filtering does not apply to.
+func filterInterfacesByDevice(interfaces []client.Interface, appliances []client.Appliance, directorName string) []client.Interface {
+	monitoredDevices := make(map[string]struct{}, len(appliances)+1)
+	for _, appliance := range appliances {
+		monitoredDevices[strings.ToLower(appliance.Name)] = struct{}{}
+	}
+	if directorName != "" {
+		monitoredDevices[strings.ToLower(directorName)] = struct{}{}
+	}
+
+	filteredInterfaces := make([]client.Interface, 0, len(interfaces))
+	for _, iface := range interfaces {
+		if _, ok := monitoredDevices[strings.ToLower(iface.DeviceName)]; !ok {
+			continue
+		}
+		filteredInterfaces = append(filteredInterfaces, iface)
+	}
+
+	return filteredInterfaces
 }
 
 // TODO: should we convert the tags map to use ID instead of IP?
