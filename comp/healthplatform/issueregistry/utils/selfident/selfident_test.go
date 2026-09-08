@@ -226,6 +226,39 @@ func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 	assert.Less(t, elapsed, time.Second, "ClusterID must not block indefinitely")
 }
 
+// ClusterID must not block a caller for the duration of a hung lookup: the
+// node-agent HTTP client can take ~10s and the Cluster Agent's Kubernetes
+// calls take no caller deadline, so the caller wait is bounded by
+// clusterResolveTimeout regardless of how long lookup() blocks.
+func TestClusterID_BlockedLookupDoesNotBlockCallerBeyondTimeout(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+
+	release := make(chan struct{})
+	stubClusterIDFuncs(t,
+		func() (string, error) {
+			<-release // block as a hung Cluster Agent/API server call would
+			return "node-agent-id", nil
+		},
+		func() (string, error) { return "", errors.New("unused") },
+	)
+
+	s := New(nil)
+	s.clusterResolveTimeout = 20 * time.Millisecond
+
+	start := time.Now()
+	id := s.ClusterID()
+	elapsed := time.Since(start)
+	assert.Empty(t, id, "a blocked lookup must not surface an id")
+	assert.Less(t, elapsed, time.Second, "caller must return once the bounded wait elapses, not wait for the blocked lookup")
+
+	// Unblock the lookup and wait for the resolver to settle: this both proves
+	// a later call picks up the id the timed-out one missed, and lets the
+	// resolver goroutine finish before t.Cleanup restores the stub globals it
+	// reads (which would otherwise race the still-running resolver).
+	close(release)
+	assert.Eventually(t, func() bool { return s.ClusterID() == "node-agent-id" }, time.Second, time.Millisecond)
+}
+
 // TestClusterID_CachesSuccessfulResolution verifies that once resolution
 // succeeds, later calls return the cached id without re-running the lookup.
 func TestClusterID_CachesSuccessfulResolution(t *testing.T) {

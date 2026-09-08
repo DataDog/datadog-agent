@@ -29,10 +29,18 @@ const (
 
 	// defaultResolveRetries/defaultResolveRetryDelay bound how long DeploymentID
 	// waits for workloadmeta to observe the agent's own pod before giving up,
-	// and how long ClusterID retries the Cluster Agent/API server. Kept short
-	// (~1s) since both are called from the synchronous ReportIssue path.
+	// and how long the ClusterID resolver retries the Cluster Agent/API server.
+	// Kept short (~1s) since both feed the synchronous ReportIssue path.
 	defaultResolveRetries    = 5
 	defaultResolveRetryDelay = 200 * time.Millisecond
+
+	// defaultClusterResolveTimeout bounds how long a ClusterID caller blocks
+	// waiting for the resolver, independent of how long an individual lookup
+	// blocks (the node-agent HTTP client can take up to ~10s, and the Cluster
+	// Agent's Kubernetes calls take no caller deadline). Without this, a
+	// Cluster Agent/API server outage could stall ReportIssue — and, through
+	// it, agent shutdown, which waits on the reporting path — for many seconds.
+	defaultClusterResolveTimeout = defaultResolveRetries * defaultResolveRetryDelay
 )
 
 // SelfIdent resolves and caches the agent's own DaemonSet UID (deployment_id)
@@ -46,8 +54,14 @@ type SelfIdent struct {
 	resolveRetries    int
 	resolveRetryDelay time.Duration
 
-	clusterResolveMu sync.Mutex
-	clusterID        atomic.Pointer[string]
+	// clusterResolveTimeout bounds how long a ClusterID caller blocks waiting
+	// for the shared resolver; clusterResolveMu guards clusterResolving, the
+	// channel closed when the single in-flight resolution finishes (nil when
+	// none is running).
+	clusterResolveTimeout time.Duration
+	clusterResolveMu      sync.Mutex
+	clusterResolving      chan struct{}
+	clusterID             atomic.Pointer[string]
 }
 
 // New creates a SelfIdent. Outside Kubernetes it returns a no-op instance that
@@ -56,9 +70,10 @@ type SelfIdent struct {
 // deployment_id resolution, in which case DeploymentID resolves to empty.
 func New(wmeta workloadmeta.Component) *SelfIdent {
 	s := &SelfIdent{
-		wmeta:             wmeta,
-		resolveRetries:    defaultResolveRetries,
-		resolveRetryDelay: defaultResolveRetryDelay,
+		wmeta:                 wmeta,
+		resolveRetries:        defaultResolveRetries,
+		resolveRetryDelay:     defaultResolveRetryDelay,
+		clusterResolveTimeout: defaultClusterResolveTimeout,
 	}
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		empty := ""
@@ -112,34 +127,72 @@ func (s *SelfIdent) IssueDiscriminator() string {
 
 // ClusterID returns the best-effort Kubernetes cluster id for payload
 // enrichment only — never part of the issue id. A caller blocks up to
-// resolveRetries*resolveRetryDelay while resolution is in flight — long
-// enough to give a one-shot startup check (e.g. invalidconfig, which calls
-// this exactly once and never re-reports) a real chance at getting the id,
-// but bounded so it can't block forever. A successful result is cached for
-// the process lifetime; a failed resolution is deliberately NOT cached, so
-// a later call (e.g. the next periodic report) gets a fresh attempt instead
-// of being stuck with an empty id forever just because the Cluster
-// Agent/API server was still starting up the first time this was called —
-// the same guarantee DeploymentID already gives a transient workloadmeta miss.
+// clusterResolveTimeout while resolution is in flight — long enough to give a
+// one-shot startup check (e.g. invalidconfig, which calls this exactly once
+// and never re-reports) a real chance at getting the id, but bounded so it
+// can't block forever even when an individual lookup hangs (the node-agent
+// HTTP client can take ~10s, and the Cluster Agent's Kubernetes calls take no
+// caller deadline — so bounding only the retry sleeps would not bound the
+// caller). A successful result is cached for the process lifetime; a failed
+// resolution is deliberately NOT cached, so a later call (e.g. the next
+// periodic report) gets a fresh attempt instead of being stuck with an empty
+// id forever just because the Cluster Agent/API server was still starting up
+// the first time this was called — the same guarantee DeploymentID already
+// gives a transient workloadmeta miss.
 //
-// Concurrent callers serialize on clusterResolveMu rather than resolving in
-// parallel: this only matters while the Cluster Agent/API server is down,
-// in which case every caller is going to wait out the same bounded retry
-// budget anyway, and serializing keeps the resolution logic a single,
-// easy-to-reason-about synchronous path (mirroring DeploymentID) instead of
-// a background goroutine, which — as a prior version of this method did —
-// can outlive the call that spawned it and is easy to get wrong.
+// Because lookup() cannot be cancelled (it takes no context), the retry loop
+// runs in a single shared resolver goroutine and callers wait on it with a
+// deadline: a caller that hits the deadline returns "" without waiting for a
+// slow lookup to finish, and concurrent callers share that one resolver's
+// retry budget instead of each repeating it. At most one resolver runs at a
+// time and it self-terminates after exhausting the retry budget, so a lookup
+// that outlives the caller is bounded rather than an unbounded leak.
 func (s *SelfIdent) ClusterID() string {
 	if cached := s.clusterID.Load(); cached != nil {
 		return *cached
 	}
 
-	s.clusterResolveMu.Lock()
-	defer s.clusterResolveMu.Unlock()
+	resolved := s.startClusterResolve()
+	select {
+	case <-resolved:
+	case <-time.After(s.clusterResolveTimeout):
+	}
 	if cached := s.clusterID.Load(); cached != nil {
 		return *cached
 	}
+	return ""
+}
 
+// startClusterResolve returns a channel closed when the current cluster id
+// resolution finishes, starting a single shared resolver goroutine if none is
+// already in flight so concurrent callers share one retry budget.
+func (s *SelfIdent) startClusterResolve() <-chan struct{} {
+	s.clusterResolveMu.Lock()
+	defer s.clusterResolveMu.Unlock()
+	if s.clusterResolving != nil {
+		return s.clusterResolving
+	}
+	done := make(chan struct{})
+	s.clusterResolving = done
+	go func() {
+		// Clear clusterResolving before closing done so that a caller woken by
+		// the close (and any call it makes next) observes no in-flight
+		// resolver and can start a fresh attempt after a failure.
+		defer close(done)
+		defer func() {
+			s.clusterResolveMu.Lock()
+			s.clusterResolving = nil
+			s.clusterResolveMu.Unlock()
+		}()
+		s.resolveClusterID()
+	}()
+	return done
+}
+
+// resolveClusterID retries the flavor-appropriate cluster id lookup a bounded
+// number of times, caching a successful result for the process lifetime and
+// leaving the cache untouched on failure so a later caller retries.
+func (s *SelfIdent) resolveClusterID() {
 	// clustername.GetClusterID() is meant for the node agent to call — on
 	// the Cluster Agent itself it targets an HTTP endpoint designed for the
 	// node agent to reach the Cluster Agent, which is broken when the
@@ -150,21 +203,18 @@ func (s *SelfIdent) ClusterID() string {
 		lookup = clusterAgentClusterIDFunc
 	}
 
-	var id string
-	var err error
 	for attempt := 0; ; attempt++ {
-		id, err = lookup()
+		id, err := lookup()
 		if err == nil {
-			break
+			s.clusterID.Store(&id)
+			return
 		}
 		if attempt >= s.resolveRetries {
 			log.Debugf("selfident: cluster id unavailable after %d attempts: %v", attempt+1, err)
-			return ""
+			return
 		}
 		time.Sleep(s.resolveRetryDelay)
 	}
-	s.clusterID.Store(&id)
-	return id
 }
 
 // nodeAgentClusterIDFunc/clusterAgentClusterIDFunc are the per-flavor cluster
