@@ -29,5 +29,5 @@ properties:
   profiler_options:
     $ref: profiler_options
   unix_socket:
-    description: 'UnixSocket sends profiles straight to a trace agent listening on this unix socket, bypassing the local forwarding server. Ignored on Windows, where the trace agent exposes no profiling socket. Default: DD_OTELCOLLECTOR_INTERNAL_PROFILING_UNIX_SOCKET, then unset.'
+    description: 'UnixSocket sends profiles straight to a trace agent listening on this unix socket, bypassing the local forwarding server. Ignored on Windows, where the Agent serves no APM unix socket. Default: DD_OTELCOLLECTOR_INTERNAL_PROFILING_UNIX_SOCKET, then unset.'
     type: string

@@ -33,7 +33,7 @@ import (
 // is a complete proof that agent mode still builds its local forwarding server
 // and standalone mode still honours agent_addr.
 func TestUnixSocketUnsupported(t *testing.T) {
-	require.False(t, hasUnixSocketSupport(), "the trace agent exposes no profiling socket on Windows")
+	require.False(t, hasUnixSocketSupport(), "no Windows Agent serves an APM unix socket")
 
 	t.Run("config key is ignored", func(t *testing.T) {
 		e := &ddExtension{cfg: &Config{UnixSocket: `C:\ProgramData\Datadog\apm.socket`}, log: log.NewTemporaryLoggerWithoutInit()}
