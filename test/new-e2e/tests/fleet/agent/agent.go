@@ -138,6 +138,10 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	switch a.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
 		baseCommand = "sudo -u dd-agent datadog-agent"
+	case e2eos.MacOSFamily:
+		// Run as root rather than impersonating _dd-agent (as the Linux case does): config and
+		// log files are owned by _dd-agent:daemon, and root can read them regardless.
+		baseCommand = "sudo /usr/local/bin/datadog-agent"
 	case e2eos.WindowsFamily:
 		baseCommand = `& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe"`
 	default:
