@@ -176,6 +176,11 @@ instances:
       ## @param active_session_history - boolean - optional - default: false
       ## Collect activity samples from `v$active_session_history` instead of the Agent performing sampling.
       ## WARNING: Querying `v$active_session_history` requires optional Oracle licences and may result in additional costs if enabled.
+      ##
+      ## Note: Enabling this requires select access on v$active_session_history
+      ##   Self-hosted:  grant select on v_$active_session_history to datadog ;
+      ##   Amazon RDS:   exec rdsadmin.rdsadmin_util.grant_sys_object('V_$ACTIVE_SESSION_HISTORY','DATADOG','SELECT',p_grant_option => false);
+      ##   Autonomous:   grant select on v$active_session_history to datadog with grant option ;
       #
       # active_session_history: false
 
