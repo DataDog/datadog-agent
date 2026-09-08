@@ -799,9 +799,16 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 		return totalEvicted, removedBytes
 	}
 
-	// Syscall and capability nodes are deliberately not evicted: the kernel stops refreshing their
-	// "last seen" once a process discovers nothing new, so evicting them would make the next re-learn
-	// look like drift. Their count is bounded, and EvictImageTag still removes them.
+	// Evict unused syscall nodes
+	for i := len(pn.Syscalls) - 1; i >= 0; i-- {
+		syscallNode := pn.Syscalls[i]
+		if syscallNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if syscallNode.SeenIsEmpty() {
+				removedBytes += syscallNode.size()
+				pn.Syscalls = append(pn.Syscalls[:i], pn.Syscalls[i+1:]...)
+			}
+		}
+	}
 
 	// Evict unused file nodes
 	for path, fileNode := range pn.Files {
@@ -842,6 +849,17 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 			if socketNode.SeenIsEmpty() {
 				removedBytes += socketNode.size()
 				pn.Sockets = append(pn.Sockets[:i], pn.Sockets[i+1:]...)
+			}
+		}
+	}
+
+	// Evict unused capability nodes
+	for i := len(pn.Capabilities) - 1; i >= 0; i-- {
+		capabilityNode := pn.Capabilities[i]
+		if capabilityNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
+			if capabilityNode.SeenIsEmpty() {
+				removedBytes += capabilityNode.size()
+				pn.Capabilities = append(pn.Capabilities[:i], pn.Capabilities[i+1:]...)
 			}
 		}
 	}

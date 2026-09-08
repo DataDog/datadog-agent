@@ -581,60 +581,6 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 	})
 }
 
-// Syscall and capability nodes must survive a time based eviction pass that does prune a sibling.
-func TestEvictUnusedNodes_SyscallAndCapabilityExemption(t *testing.T) {
-	tree := &ActivityTree{
-		validator:    activityTreeInsertTestValidator{},
-		Stats:        NewActivityTreeNodeStats(),
-		SyscallsMask: make(map[int]int),
-	}
-
-	testTagID := tree.GetOrInsertImageTag("test-tag")
-	oldTime := time.Now().Add(-2 * time.Hour)
-
-	processNode := &ProcessNode{
-		NodeBase: NewNodeBase(),
-		Process: ProcessInfo{
-			FileEvent: model.FileEvent{
-				PathnameStr: "/usr/bin/exempt",
-			},
-		},
-		DNSNames: make(map[string]*DNSNode),
-	}
-	processNode.AppendImageTagID(testTagID, oldTime)
-
-	// all three children are equally stale
-	processNode.Syscalls = []*SyscallNode{
-		NewSyscallNode(42, oldTime, testTagID, Runtime),
-	}
-	processNode.Capabilities = []*CapabilityNode{
-		NewCapabilityNode(7, true, oldTime, testTagID, Runtime),
-	}
-	dnsNode := &DNSNode{
-		NodeBase:       NewNodeBase(),
-		GenerationType: Runtime,
-		Requests:       []model.DNSQuestion{{Name: "example.com"}},
-	}
-	dnsNode.AppendImageTagID(testTagID, oldTime)
-	processNode.DNSNames["example.com"] = dnsNode
-
-	tree.ProcessNodes = []*ProcessNode{processNode}
-
-	// keep the parent process node alive so we only observe child eviction
-	filepathsInProcessCache := map[ImageProcessKey]bool{
-		{ImageName: "test-image", ImageTag: "test-tag", Filepath: "/usr/bin/exempt"}: true,
-	}
-
-	tree.EvictUnusedNodes(time.Now().Add(-1*time.Hour), filepathsInProcessCache, "test-image", "test-tag")
-
-	require.Len(t, tree.ProcessNodes, 1, "the parent process node should be protected by the process cache")
-	node := tree.ProcessNodes[0]
-
-	assert.Len(t, node.Syscalls, 1, "stale syscall nodes must not be evicted")
-	assert.Len(t, node.Capabilities, 1, "stale capability nodes must not be evicted")
-	assert.Empty(t, node.DNSNames, "a stale DNS node should still be evicted, proving the pass ran")
-}
-
 // The kernel delivers a syscall mask that only grows and is never reset between sends, so re-delivering
 // an unchanged mask must report no new syscalls.
 func TestInsertSyscalls_AccumulatingMask(t *testing.T) {
