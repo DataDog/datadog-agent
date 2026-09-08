@@ -26,7 +26,7 @@ comp/anomalydetection/
       patterns/          ← log tokenizer/clusterer subpackage
     scenarios/           ← replay scenario directories (testbench)
   logssource/
-    def/ fx/ impl/       ← container + kubelet journald log ingestion
+    def/ fx/ impl/       ← Logs Agent stream reuse + standalone collection fallback
     fx/fx_noop.go        ← IoT / !python stub
   reporter/
     def/
@@ -51,7 +51,7 @@ Wired in `cmd/agent/subcommands/run/command.go`:
 | Module | Package | Role |
 |--------|---------|------|
 | Observer | `observer/fx` | Analysis pipeline (`python` build tag) |
-| Log source | `logssource/fx` | Container + kubelet logs (`python` tag) |
+| Log source | `logssource/fx` | Logs Agent stream reuse or standalone container + kubelet logs (`python` tag) |
 | Reporter | `reporter/fx` | Stdout reporter + optional event reporter |
 | Recorder | `recorder/fx-noop` | No-op (parquet middleware not shipped yet) |
 
@@ -111,11 +111,12 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 |--------|------------|
 | `dogstatsd` | `pkg/aggregator/demultiplexer_agent.go` (DogStatsD workers) |
 | `check` | `pkg/aggregator/demultiplexer_agent.go` (core check aggregator) |
-| `logs` | `logssource/impl/logssource.go` |
+| `logs` | `logssource/impl/logssource.go` (Logs Agent processor tap, or standalone fallback) |
 | `agent_logs` | `observer/impl/observer.go` (pkg/util/log tap) |
 
 **Log ingestion split:**
-- **Container + kubelet logs** → `logssource` component
+- **Logs Agent enabled** → `logssource` taps messages after processing and before encoding; decoder-side adaptive sampling has already run
+- **Logs Agent disabled** → `logssource` starts its standalone container + kubelet collection pipeline
 - **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
 Both paths share filtering primitives from `internal/logsfilter/`.

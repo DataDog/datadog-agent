@@ -7,6 +7,7 @@ go_library(
         "encoder.go",
         "json.go",
         "json_serverless_init.go",
+        "message_tap.go",
         "passthrough.go",
         "processor.go",
         "proto.go",
@@ -35,6 +36,8 @@ dd_agent_go_test(
     embed = [":processor"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/logs-library/diagnostic",
+        "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",
