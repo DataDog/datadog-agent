@@ -14,58 +14,62 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
-// ============================================================================
-// Environment definition
-// ============================================================================
+// sdsResultEndpoint is the intake route the sds-result event platform track posts to.
+const sdsResultEndpoint = "/api/v2/sdsresult"
 
 // postgresScanEnv is a host Agent plus a Dockerized PostgreSQL workload on the same VM.
 type postgresScanEnv struct {
 	RemoteHost *components.RemoteHost
 	Agent      *components.RemoteHostAgent
+	FakeIntake *components.FakeIntake
 	Docker     *components.RemoteHostDocker
 }
-
-// ============================================================================
-// Test suite definition
-// ============================================================================
 
 type postgresScanSuite struct {
 	e2e.BaseSuite[postgresScanEnv]
 }
 
-// TestDataSecurityPostgresScan runs the postgres scan test.
 func TestDataSecurityPostgresScan(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &postgresScanSuite{}, e2e.WithPulumiProvisioner(postgresScanProvisioner(), nil))
 }
 
-// TestPackagedCheckLoadsAndEmitsSDSResult verifies that the packaged datasecurity check loads and emits an SDS result event.
 func (s *postgresScanSuite) TestPackagedCheckLoadsAndEmitsSDSResult() {
+	// The packaged check loads and runs without error. Parse the check output
+	// with the shared testcommon helper — no manual struct parsing.
+	out, err := s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"datasecurity", "--json", "--delay", "1000"}))
+	require.NoError(s.T(), err, "datasecurity check failed: %s", out)
+	assert.NotContains(s.T(), out, "'group' or 'others' have rights on it")
+	assert.NotContains(s.T(), out, "no valid check found")
+
+	data := check.ParseJSONOutput(s.T(), []byte(out))
+	require.NotEmpty(s.T(), data, "empty check JSON: %s", out)
+	assert.Equal(s.T(), 0, data[0].Runner.TotalErrors, "datasecurity check reported errors")
+
+	// The scheduled check forwards an sds-result payload to the intake. Assert on
+	// the fakeintake payload rather than the check output.
+	fakeintake := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		out, err := s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"datasecurity", "--json", "--delay", "1000"}))
-		require.NoError(c, err, "datasecurity check failed: %s", out)
-		assert.NotContains(c, out, "'group' or 'others' have rights on it")
-		assert.NotContains(c, out, "no valid check found")
+		payloads, err := fakeintake.GetRawPayloads(sdsResultEndpoint)
+		require.NoError(c, err)
+		// The check has a single sub task, so it emits exactly one sds-result.
+		require.Len(c, payloads, 1, "expected exactly one sds-result payload at %s", sdsResultEndpoint)
 
-		root, extra := parseCheckOutput(c, []byte(out))
-		assert.Equal(c, 0, root.Runner.TotalErrors, "datasecurity check reported errors")
-
-		sdsCount := extra.Runner.EventPlatformEvents["sds-result"]
-		assert.GreaterOrEqual(c, sdsCount, 1, "expected at least one sds-result event platform event")
-
-		events := extra.Aggregator.SDSResults
-		if !assert.NotEmpty(c, events, "aggregator contained no sds-result events") {
-			return
-		}
-		raw := events[0].RawEvent
-		assert.Equal(c, "sds-result", events[0].EventType)
-		assert.Contains(c, raw, "e2e-datasec-postgres", "sds-result payload missing task_id")
-		assert.Contains(c, raw, "e2e-owner-pattern", "sds-result payload missing rule_id")
-		assert.Contains(c, raw, "accounts", "sds-result payload missing scanned table")
-		assert.NotContains(c, raw, "connecting to postgres", "scan failed to connect to postgres")
-		// TODO(DATASEC): assert SDS protobuf from fakeintake Client.GetRawPayloads("/api/v2/sdsresult")
+		raw, err := aggregator.Inflate(payloads[0].Data, payloads[0].Encoding)
+		require.NoError(c, err)
+		// TODO(DATASEC-316): decode the sds-result protobuf and compare the full
+		// payload
+		result := string(raw)
+		// The payload is an SdsResultPayload protobuf; its string fields are UTF-8,
+		// so match them directly on the wire bytes.
+		assert.Contains(c, result, "e2e-datasec-postgres", "sds-result payload missing task_id")
+		assert.Contains(c, result, "e2e-owner-pattern", "sds-result payload missing rule_id")
+		assert.Contains(c, result, "accounts", "sds-result payload missing scanned table")
+		assert.NotContains(c, result, "connecting to postgres", "scan failed to connect to postgres")
 	}, 2*time.Minute, 10*time.Second)
 }

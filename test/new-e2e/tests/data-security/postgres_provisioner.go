@@ -18,6 +18,7 @@ import (
 	pgcomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/integration/postgres"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 )
 
@@ -39,6 +40,14 @@ func postgresScanProvisioner() provisioners.PulumiEnvRunFunc[postgresScanEnv] {
 			return err
 		}
 		if err := host.Export(ctx, &env.RemoteHost.HostOutput); err != nil {
+			return err
+		}
+
+		fi, err := fakeintake.NewECSFargateInstance(awsEnv, "", fakeintake.WithoutDDDevForwarding())
+		if err != nil {
+			return err
+		}
+		if err := fi.Export(ctx, &env.FakeIntake.FakeintakeOutput); err != nil {
 			return err
 		}
 
@@ -65,6 +74,7 @@ func postgresScanProvisioner() provisioners.PulumiEnvRunFunc[postgresScanEnv] {
 		}
 
 		agentComp, err := agent.NewHostAgent(&awsEnv, host,
+			agentparams.WithFakeintake(fi),
 			agentparams.WithAgentConfig(agentConfig),
 			agentparams.WithIntegration("datasecurity.d", datasecurityConfig),
 			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(pgStack)),
