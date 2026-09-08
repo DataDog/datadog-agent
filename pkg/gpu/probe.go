@@ -108,6 +108,9 @@ type ProbeDependencies struct {
 	// WorkloadMeta used to retrieve data about workloads (containers, processes) running
 	// on the host
 	WorkloadMeta workloadmeta.Component
+
+	// DeviceCache is the device cache used by the GPU probe
+	DeviceCache safenvml.DeviceCache
 }
 
 // Probe represents the GPU monitoring probe
@@ -159,6 +162,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		withTelemetry(deps.Telemetry),
 		withFatbinParsingEnabled(cfg.EnableFatbinParsing),
 		withConfig(cfg),
+		withDeviceCache(deps.DeviceCache),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
@@ -539,9 +543,4 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 		"consumer_healthy": slices.Contains(healthStatus.Healthy, consts.GpuConsumerHealthName),
 		"last_check":       p.lastCheck.Load(),
 	}
-}
-
-// GetDeviceCache returns the device cache used by the GPU probe.
-func (p *Probe) GetDeviceCache() safenvml.DeviceCache {
-	return p.sysCtx.deviceCache
 }
