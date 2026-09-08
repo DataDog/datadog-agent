@@ -28,6 +28,7 @@ def build(
 ):
     """Build the privateactionrunner binary."""
     if enable_bazel:
+        # flavor is explicitly not supported. The product builds only builds in base flavor.
         if sys.platform == 'win32':
             raise NotImplementedError("--enable-bazel does not support Windows.")
         build_binary_with_bazel("//cmd/privateactionrunner:privateactionrunner", bin_path=BIN_PATH)
