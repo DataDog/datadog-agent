@@ -277,9 +277,9 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 		if v, ok := r.addrToContainerID[containerAddr{addr: raddr, proto: conn.Type}]; ok {
 			conn.ContainerID.Dest = v.id
 		} else {
-			if log.ShouldLog(log.TraceLvl) {
-				log.Tracef("could not resolve raddr %v", raddr)
-			}
+			//if log.ShouldLog(log.TraceLvl) {
+			//	log.Tracef("could not resolve raddr %v", raddr)
+			//}
 		}
 	}
 }

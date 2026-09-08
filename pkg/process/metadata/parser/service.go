@@ -169,16 +169,16 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	defer d.mtx.RUnlock()
 
 	if runtime.GOOS == "windows" && d.useWindowsServiceName {
-		tags, err := d.getWindowsServiceTags(pid)
-		if err != nil {
-			log.Warnf("Failed to get service data from SCM for pid %v:%v", pid, err.Error())
-		}
+		tags, _ := d.getWindowsServiceTags(pid)
+		//if err != nil {
+		//	log.Warnf("Failed to get service data from SCM for pid %v:%v", pid, err.Error())
+		//}
 
 		// Service tag was found from the SCM, return it.
 		if len(tags) > 0 {
-			if log.ShouldLog(log.TraceLvl) {
-				log.Tracef("Found process_context from SCM for pid:%v service tags:%v", pid, tags)
-			}
+			//if log.ShouldLog(log.TraceLvl) {
+			//	log.Tracef("Found process_context from SCM for pid:%v service tags:%v", pid, tags)
+			//}
 			return tags
 		}
 	}

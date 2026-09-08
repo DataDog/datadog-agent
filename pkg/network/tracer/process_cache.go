@@ -200,17 +200,17 @@ func (pc *processCache) Get(pid uint32, ts int64) (*events.Process, bool) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
-	log.TraceFunc(func() string { return fmt.Sprintf("looking up pid %d %v", pid, ts) })
+	//log.TraceFunc(func() string { return fmt.Sprintf("looking up pid %d %v", pid, ts) })
 
 	pl := pc.cacheByPid[pid]
 	if closest := pl.closest(ts); closest != nil {
 		closest.Expiry = time.Now().Add(defaultExpiry).Unix()
 		pc.cache.Get(processCacheKey{pid: closest.Pid, startTime: closest.StartTime})
-		log.TraceFunc(func() string { return fmt.Sprintf("found entry for pid %d: %+v", pid, closest) })
+		//log.TraceFunc(func() string { return fmt.Sprintf("found entry for pid %d: %+v", pid, closest) })
 		return closest, true
 	}
 
-	log.TraceFunc(func() string { return fmt.Sprintf("entry not found for process %d", pid) })
+	//log.TraceFunc(func() string { return fmt.Sprintf("entry not found for process %d", pid) })
 	return nil, false
 }
 
