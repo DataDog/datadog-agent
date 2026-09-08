@@ -567,7 +567,10 @@ func getManifestType(kind string) int {
 	if _, ok := k8sTypeMap[kind]; ok {
 		return k8sTypeMap[kind]
 	}
-
+	// Anything not in the built-in K8s type map is a CRD-defined kind; route it as K8sCR
+	if kind != "" {
+		return int(orchestratormodel.K8sCR)
+	}
 	return int(orchestratormodel.K8sUnsetType)
 }
 

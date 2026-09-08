@@ -8,11 +8,11 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def v0.64.0
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.79.0-devel.0.20260402163801-bfa4eff6c991
-	github.com/DataDog/datadog-agent/pkg/proto v0.77.0
-	github.com/DataDog/datadog-agent/pkg/trace v0.77.0
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.82.0
+	github.com/DataDog/datadog-agent/pkg/proto v0.82.0
+	github.com/DataDog/datadog-agent/pkg/trace v0.82.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
-	github.com/DataDog/dd-trace-go/v2 v2.9.2
+	github.com/DataDog/dd-trace-go/v2 v2.10.1
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.65.0
 	go.opentelemetry.io/collector/component/componentstatus v0.159.0
@@ -29,7 +29,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.77.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
@@ -45,12 +45,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.83.0-devel.0.20260729075015-99ed037f1c29 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.77.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.77.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.77.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
@@ -65,7 +65,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.77.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/DataDog/go-libddwaf/v4 v4.10.0 // indirect
 	github.com/DataDog/go-sqllexer v0.2.4 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
@@ -80,7 +79,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
-	github.com/google/pprof v0.0.0-20260824235931-c0b50f2f6510 // indirect
+	github.com/google/pprof v0.0.0-20260830191439-4932ad3515ea // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -102,8 +101,8 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/client_golang v1.24.1 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.70.1 // indirect
+	github.com/prometheus/client_model v0.6.3 // indirect
+	github.com/prometheus/common v0.71.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
@@ -142,7 +141,7 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260810153831-ec0a7760b754 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )

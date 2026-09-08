@@ -13,7 +13,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.11.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260810153831-ec0a7760b754
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688
 	google.golang.org/protobuf v1.36.12
 )
 

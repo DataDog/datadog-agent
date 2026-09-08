@@ -323,11 +323,11 @@
     id: 'C06UEUW9A75'
 '@datadog/kubernetes-experiences':
   notification:
-    name: '#kubernetes-experiences'
-    id: 'CSY06FKSP'
+    name: '#kxp-ops'
+    id: 'C0135179MGA'
   review:
-    name: '#kubernetes-experiences'
-    id: 'CSY06FKSP'
+    name: '#kxp-prs'
+    id: 'C03LTNY5Q5N'
 '@datadog/metrics-aggregation':
   notification:
     name: '#metrics-aggregation'

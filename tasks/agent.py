@@ -560,8 +560,18 @@ def hacky_dev_image_build(
         from tasks.privateactionrunner import build as privateactionrunner_build
 
         privateactionrunner_build(ctx)
+        bazel(
+            "run",
+            "//pkg/privateactionrunner/par-control:install",
+            "--",
+            "--destdir=bin/privateactionrunner",
+        )
+        bazel("run", "//pkg/procmgr/rust:install", "--", "--destdir=bin/privateactionrunner")
         copy_extra_agents += (
             "COPY bin/privateactionrunner/privateactionrunner /opt/datadog-agent/embedded/bin/privateactionrunner\n"
+            "COPY bin/privateactionrunner/embedded/bin/par-control /opt/datadog-agent/embedded/bin/par-control\n"
+            "COPY bin/privateactionrunner/embedded/bin/dd-procmgrd /opt/datadog-agent/embedded/bin/dd-procmgrd\n"
+            "COPY bin/privateactionrunner/embedded/bin/dd-procmgr /opt/datadog-agent/embedded/bin/dd-procmgr\n"
         )
 
     copy_ebpf_assets = ""

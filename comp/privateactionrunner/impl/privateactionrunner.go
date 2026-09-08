@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -64,8 +65,15 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
-func splitDeploymentSupported(goos string, containerized, fipsEnabled bool) bool {
-	return goos == "linux" && !containerized && !fipsEnabled
+func splitDeploymentEnabled(configEnabled, containerized bool, envValue string) bool {
+	if containerized {
+		return envValue == "true"
+	}
+	return configEnabled
+}
+
+func splitDeploymentSupported(goos string, fipsEnabled bool) bool {
+	return goos == "linux" && !fipsEnabled
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -133,12 +141,16 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
-	if reqs.Config.GetBool(privateactionrunner.PARSplitEnabled) {
+	if splitDeploymentEnabled(
+		reqs.Config.GetBool(privateactionrunner.PARSplitEnabled),
+		configenv.IsContainerized(),
+		os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
+	) {
 		fipsEnabled := reqs.Config.GetBool("fips.enabled")
 		if buildFIPSEnabled, err := fips.Enabled(); err == nil {
 			fipsEnabled = fipsEnabled || buildFIPSEnabled
 		}
-		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized(), fipsEnabled) {
+		if splitDeploymentSupported(runtime.GOOS, fipsEnabled) {
 			reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
 			reqs.Log.Flush()
 			return Provides{}, privateactionrunner.ErrSplitDeployment
