@@ -33,7 +33,7 @@ func openTestFile(t *testing.T, path string) *os.File {
 	return file
 }
 
-func TestReadDirectFingerprintRangeReturnsLogicalRange(t *testing.T) {
+func TestReadDirectRangeReturnsLogicalRange(t *testing.T) {
 	const window = directIOAlignment * 4
 	path, content := writeTestFile(t, "ranges.log", window*2+137)
 
@@ -51,27 +51,27 @@ func TestReadDirectFingerprintRangeReturnsLogicalRange(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			file := openTestFile(t, path)
-			got, err := readDirectFingerprintRangeFromFile(file, tt.count, directIOAlignment, directIOAlignment)
+			got, err := readDirectRangeFromFile(file, tt.count, directIOAlignment, directIOAlignment)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestReadDirectFingerprintRangeStopsAtEOF(t *testing.T) {
+func TestReadDirectRangeStopsAtEOF(t *testing.T) {
 	for _, size := range []int{0, 1, 511, 512, 777, 2047, 4096, 4097, 8193} {
 		t.Run(fmt.Sprintf("size_%d", size), func(t *testing.T) {
 			path, content := writeTestFile(t, "short.log", size)
 			file := openTestFile(t, path)
-			got, err := readDirectFingerprintRangeFromFile(file, size+16, directIOAlignment, directIOAlignment)
+			got, err := readDirectRangeFromFile(file, size+16, directIOAlignment, directIOAlignment)
 			require.NoError(t, err)
 			require.Equal(t, content, got)
 		})
 	}
 }
 
-func TestReadDirectFingerprintRangeRejectsInvalidArgs(t *testing.T) {
+func TestReadDirectRangeRejectsInvalidArgs(t *testing.T) {
 	path, _ := writeTestFile(t, "args.log", 16)
-	_, err := readDirectFingerprintRangeFromFile(openTestFile(t, path), -1, directIOAlignment, directIOAlignment)
+	_, err := readDirectRangeFromFile(openTestFile(t, path), -1, directIOAlignment, directIOAlignment)
 	require.ErrorIs(t, err, os.ErrInvalid)
 }

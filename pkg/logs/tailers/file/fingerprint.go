@@ -174,7 +174,7 @@ func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfi
 // computeFingerprintDirect reads the head of the file once with open_flags, then
 // runs the shared fingerprint flow over those bytes so direct and buffered agree.
 func (f *fingerprinterImpl) computeFingerprintDirect(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
-	data, err := f.fileOpener.ReadDirectFingerprintRange(filePath, directReadBudget(fingerprintConfig), fingerprintConfig.OpenFlags)
+	data, err := f.fileOpener.ReadDirectRange(filePath, directReadBudget(fingerprintConfig), fingerprintConfig.OpenFlags)
 	if err != nil {
 		return newInvalidFingerprint(fingerprintConfig), err
 	}

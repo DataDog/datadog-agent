@@ -15,11 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
-func TestDirectFingerprintReadRequiresLinux(t *testing.T) {
+func TestReadDirectRangeRequiresLinux(t *testing.T) {
 	opener := NewFileOpener()
 	flags := []types.FileOpenFlag{types.FileOpenFlagDirect}
 
-	_, err := opener.ReadDirectFingerprintRange("/tmp/app.log", 16, flags)
+	_, err := opener.ReadDirectRange("/tmp/app.log", 16, flags)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Linux")
 }

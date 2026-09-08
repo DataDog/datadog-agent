@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 // Block-alignment rules for Linux O_DIRECT reads. Unexported helpers back the
-// bounded fingerprint entry points in open.go.
+// bounded direct-read entry points in open.go.
 
 package opener
 
@@ -17,9 +17,9 @@ import (
 
 const directIOAlignment = 4096
 
-// readDirectFingerprintRange opens path with O_DIRECT and returns up to the
+// readDirectRange opens path with O_DIRECT and returns up to the
 // first count bytes.
-func readDirectFingerprintRange(path string, count int) ([]byte, error) {
+func readDirectRange(path string, count int) ([]byte, error) {
 	if count < 0 {
 		return nil, os.ErrInvalid
 	}
@@ -37,10 +37,10 @@ func readDirectFingerprintRange(path string, count int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return readDirectFingerprintRangeFromFile(file, count, memoryAlignment, offsetAlignment)
+	return readDirectRangeFromFile(file, count, memoryAlignment, offsetAlignment)
 }
 
-func readDirectFingerprintRangeFromFile(file *os.File, count, memoryAlignment, offsetAlignment int) ([]byte, error) {
+func readDirectRangeFromFile(file *os.File, count, memoryAlignment, offsetAlignment int) ([]byte, error) {
 	if count < 0 {
 		return nil, os.ErrInvalid
 	}

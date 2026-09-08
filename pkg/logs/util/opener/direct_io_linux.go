@@ -35,8 +35,8 @@ func freeDirectIOBuffer(buffer []byte) {
 	_ = unix.Munmap(buffer)
 }
 
-// openDirect opens path read-only with O_DIRECT for the short-lived descriptor
-// used to compute a fingerprint. Normal log tailing keeps its existing open mode.
+// openDirect opens path read-only with O_DIRECT for a short-lived descriptor.
+// Normal log tailing keeps its existing open mode.
 func openDirect(path string) (*os.File, error) {
 	return os.OpenFile(path, os.O_RDONLY|unix.O_DIRECT, 0)
 }

@@ -57,7 +57,7 @@ func directIOCandidateDirs(t *testing.T) []string {
 	return dirs
 }
 
-func TestReadDirectFingerprintRangeWithDirect(t *testing.T) {
+func TestReadDirectRangeWithDirect(t *testing.T) {
 	content := make([]byte, directIOAlignment*2+211)
 	for i := range content {
 		content[i] = byte(i%251 + 1)
@@ -78,28 +78,28 @@ func TestReadDirectFingerprintRangeWithDirect(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := opener.ReadDirectFingerprintRange(path, tt.count, flags)
+			got, err := opener.ReadDirectRange(path, tt.count, flags)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestReadDirectFingerprintRangeReportsPermissionError(t *testing.T) {
+func TestReadDirectRangeReportsPermissionError(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root bypasses DAC permission checks, so O_DIRECT open would not hit EACCES")
 	}
 	path := filepath.Join(t.TempDir(), "noperm.log")
 	require.NoError(t, os.WriteFile(path, []byte("data"), 0o000))
 
-	_, err := NewFileOpener().ReadDirectFingerprintRange(path, 4, []types.FileOpenFlag{types.FileOpenFlagDirect})
+	_, err := NewFileOpener().ReadDirectRange(path, 4, []types.FileOpenFlag{types.FileOpenFlagDirect})
 	require.ErrorIs(t, err, os.ErrPermission)
 }
 
-func TestDirectFingerprintReadRequiresSupportedFlags(t *testing.T) {
+func TestReadDirectRangeRequiresSupportedFlags(t *testing.T) {
 	path := requireDirectIOTestFile(t, "flags.log", []byte("data"))
 	opener := NewFileOpener()
 
-	_, err := opener.ReadDirectFingerprintRange(path, 4, nil)
+	_, err := opener.ReadDirectRange(path, 4, nil)
 	require.ErrorContains(t, err, "no supported open flags")
 }

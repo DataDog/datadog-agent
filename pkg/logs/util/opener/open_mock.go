@@ -49,8 +49,8 @@ func (m *MockFileOpener) OpenLogFile(path string) (afero.File, error) {
 	return m.openLogFile(path, nil)
 }
 
-// ReadDirectFingerprintRange returns up to the first count bytes of the mock file.
-func (m *MockFileOpener) ReadDirectFingerprintRange(path string, count int, openFlags []types.FileOpenFlag) ([]byte, error) {
+// ReadDirectRange returns up to the first count bytes of the mock file.
+func (m *MockFileOpener) ReadDirectRange(path string, count int, openFlags []types.FileOpenFlag) ([]byte, error) {
 	file, err := m.openLogFile(path, openFlags)
 	if err != nil {
 		return nil, err

@@ -21,9 +21,9 @@ import (
 // FileOpener is an interface that defines the method to open a log file.
 type FileOpener interface {
 	OpenLogFile(path string) (afero.File, error)
-	// ReadDirectFingerprintRange opens path with the requested read-only flags
+	// ReadDirectRange opens path with the requested read-only flags
 	// (e.g. O_DIRECT) and returns up to the first count bytes.
-	ReadDirectFingerprintRange(path string, count int, openFlags []types.FileOpenFlag) ([]byte, error)
+	ReadDirectRange(path string, count int, openFlags []types.FileOpenFlag) ([]byte, error)
 	OpenShared(path string) (afero.File, error)
 	Abs(path string) (string, error)
 }
@@ -45,16 +45,16 @@ func (f *fileOpenerImpl) OpenLogFile(path string) (afero.File, error) {
 	return internalOpener.OpenLogFile(path)
 }
 
-func (f *fileOpenerImpl) ReadDirectFingerprintRange(path string, count int, openFlags []types.FileOpenFlag) ([]byte, error) {
+func (f *fileOpenerImpl) ReadDirectRange(path string, count int, openFlags []types.FileOpenFlag) ([]byte, error) {
 	if err := requireDirectOpenFlags(openFlags); err != nil {
 		return nil, err
 	}
-	return readDirectFingerprintRange(path, count)
+	return readDirectRange(path, count)
 }
 
 func requireDirectOpenFlags(openFlags []types.FileOpenFlag) error {
 	if !slices.Contains(openFlags, types.FileOpenFlagDirect) {
-		return fmt.Errorf("direct fingerprint read: no supported open flags in %v", openFlags)
+		return fmt.Errorf("direct read: no supported open flags in %v", openFlags)
 	}
 	return nil
 }
