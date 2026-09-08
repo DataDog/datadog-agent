@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/golabelsctx"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/otelattrs"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -64,6 +66,9 @@ const (
 	// spanCtxNoProcessEntry: the kernel says it published, we have no cache entry
 	// for it.
 	spanCtxNoProcessEntry
+	// spanCtxStaleID: the ring slot's id no longer matches the id the event
+	// carried -- the slot was reused before this event was resolved.
+	spanCtxStaleID
 	spanCtxUnknown
 	// spanCtxLast must stay last
 	spanCtxLast
@@ -93,6 +98,8 @@ func (s spanCtxStatus) String() string {
 		return "map_error"
 	case spanCtxNoProcessEntry:
 		return "no_process_entry"
+	case spanCtxStaleID:
+		return "stale_id"
 	default:
 		return "unknown"
 	}
@@ -107,7 +114,7 @@ func (s spanCtxStatus) Tag() string {
 // level in reportSpanCtxError.
 func (s spanCtxStatus) expected() bool {
 	switch s {
-	case spanCtxOK, spanCtxNotApplicable, spanCtxUnpublished, spanCtxGone, spanCtxNoProcessEntry:
+	case spanCtxOK, spanCtxNotApplicable, spanCtxUnpublished, spanCtxGone, spanCtxNoProcessEntry, spanCtxStaleID:
 		return true
 	default:
 		return false
@@ -137,6 +144,12 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxUnsupported
 	case errors.Is(err, otelprocessctx.ErrMalformed):
 		return spanCtxMalformed
+	case errors.Is(err, golabelsctx.ErrMapLookup), errors.Is(err, otelattrs.ErrMapLookup):
+		return spanCtxMapError
+	case errors.Is(err, golabelsctx.ErrStaleID), errors.Is(err, otelattrs.ErrStaleID):
+		return spanCtxStaleID
+	case errors.Is(err, otelattrs.ErrMalformed):
+		return spanCtxMalformed
 	case errors.Is(err, syscall.ESRCH), errors.Is(err, syscall.ENOENT), errors.Is(err, syscall.EIO):
 		return spanCtxGone
 	case errors.Is(err, syscall.EACCES), errors.Is(err, syscall.EPERM):
@@ -158,6 +171,10 @@ const (
 	spanCtxStepOTelTLS
 	// spanCtxStepGoLabels is installing the Go pprof-labels reader.
 	spanCtxStepGoLabels
+	// spanCtxStepGoLabelsLookup is a per-event golabelsctx.Resolver.Resolve call.
+	spanCtxStepGoLabelsLookup
+	// spanCtxStepOTelAttrsLookup is a per-event otelattrs.Resolver.Resolve call.
+	spanCtxStepOTelAttrsLookup
 	// spanCtxStepLast must stay last
 	spanCtxStepLast
 )
@@ -170,17 +187,21 @@ func (s spanCtxStep) String() string {
 		return "OTel TLS resolution"
 	case spanCtxStepGoLabels:
 		return "Go labels resolution"
+	case spanCtxStepGoLabelsLookup:
+		return "Go labels lookup"
+	case spanCtxStepOTelAttrsLookup:
+		return "OTel attrs lookup"
 	default:
 		return "span context resolution"
 	}
 }
 
-// reader is the MetricSpanContextResolution "reader:" tag value for s if applicable.
+// reader is the "reader:" tag value for s if applicable.
 func (s spanCtxStep) reader() string {
 	switch s {
-	case spanCtxStepOTelTLS:
+	case spanCtxStepOTelTLS, spanCtxStepOTelAttrsLookup:
 		return "otel_tls"
-	case spanCtxStepGoLabels:
+	case spanCtxStepGoLabels, spanCtxStepGoLabelsLookup:
 		return "go_labels"
 	default:
 		return ""
@@ -191,6 +212,8 @@ func (s spanCtxStep) metricPair() (success, failed string) {
 	switch s {
 	case spanCtxStepOTelTLS, spanCtxStepGoLabels:
 		return metrics.MetricSpanContextResolutionSuccess, metrics.MetricSpanContextResolutionFailed
+	case spanCtxStepGoLabelsLookup, spanCtxStepOTelAttrsLookup:
+		return metrics.MetricSpanContextEventSuccess, metrics.MetricSpanContextEventFailed
 	default:
 		return metrics.MetricSpanContextProcessCtxSuccess, metrics.MetricSpanContextProcessCtxFailed
 	}
@@ -273,4 +296,31 @@ func (p *EBPFResolver) reportSpanCtxError(step spanCtxStep, pid uint32, err erro
 	} else {
 		seclog.Warnf("%s for pid %d: %s [%s]", step, pid, err, status)
 	}
+}
+
+// countLookup classifies and counts the outcome of a per-event lookup step.
+func (p *EBPFResolver) countLookup(step spanCtxStep, err error) {
+	status := classifySpanCtxError(err)
+	p.countSpanCtx(step, status)
+
+	if err == nil {
+		return
+	}
+	if status.expected() {
+		seclog.Debugf("%s: %s [%s]", step, err, status)
+	} else {
+		seclog.Warnf("%s: %s [%s]", step, err, status)
+	}
+}
+
+// CountGoLabelsLookup counts the outcome of a per-event Go pprof-labels
+// lookup (golabelsctx.Resolver.Resolve).
+func (p *EBPFResolver) CountGoLabelsLookup(err error) {
+	p.countLookup(spanCtxStepGoLabelsLookup, err)
+}
+
+// CountOTelAttrsLookup counts the outcome of a per-event OTel attributes
+// lookup (otelattrs.Resolver.Resolve).
+func (p *EBPFResolver) CountOTelAttrsLookup(err error) {
+	p.countLookup(spanCtxStepOTelAttrsLookup, err)
 }

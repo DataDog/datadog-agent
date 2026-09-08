@@ -254,6 +254,12 @@ var (
 	// MetricSpanContextResolution is the counter of per-process span context reader install successes
 	// Tags: reader
 	MetricSpanContextResolutionSuccess = newRuntimeMetric(".span_context.resolution.success")
+	// MetricSpanContextEvent is the counter of per-event span context fill failures
+	// Tags: reader, status
+	MetricSpanContextEventFailed = newRuntimeMetric(".span_context.event.failed")
+	// MetricSpanContextEvent is the counter of per-event span context fill successes
+	// Tags: reader, status
+	MetricSpanContextEventSuccess = newRuntimeMetric(".span_context.event.success")
 
 	// Mount resolver metrics
 
