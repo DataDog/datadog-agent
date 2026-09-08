@@ -613,7 +613,7 @@ func TestEvictUnusedNodes_SyscallAndCapabilityExemption(t *testing.T) {
 	dnsNode := &DNSNode{
 		NodeBase:       NewNodeBase(),
 		GenerationType: Runtime,
-		Requests:       []model.DNSEvent{{Question: model.DNSQuestion{Name: "example.com"}}},
+		Requests:       []model.DNSQuestion{{Name: "example.com"}},
 	}
 	dnsNode.AppendImageTagID(testTagID, oldTime)
 	processNode.DNSNames["example.com"] = dnsNode
@@ -697,61 +697,6 @@ func TestSyscallsByImageTagID(t *testing.T) {
 
 	assert.Equal(t, []uint32{1, 2, 257}, rollup[v1], "v1 unions both processes and dedups syscall 1")
 	assert.Equal(t, []uint32{60, 257}, rollup[v2], "v2 only sees its own syscalls plus the shared node")
-}
-
-func TestCapabilitiesByImageTagID(t *testing.T) {
-	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
-
-	v1 := tree.GetOrInsertImageTag("v1")
-	v2 := tree.GetOrInsertImageTag("v2")
-	now := time.Now()
-
-	// Capability 7 was checked for and held, 12 was checked for but not held, so it is attempted
-	// only. Capability 21 lands on both tags.
-	parent := &ProcessNode{NodeBase: NewNodeBase()}
-	parent.Capabilities = []*CapabilityNode{
-		NewCapabilityNode(7, true, now, v1, Runtime),
-		NewCapabilityNode(12, false, now, v1, Runtime),
-	}
-	child := &ProcessNode{NodeBase: NewNodeBase()}
-	child.Capabilities = []*CapabilityNode{
-		NewCapabilityNode(7, true, now, v1, Runtime),
-		NewCapabilityNode(30, true, now, v2, Runtime),
-	}
-	shared := NewCapabilityNode(21, true, now, v1, Runtime)
-	shared.AppendImageTagID(v2, now)
-	child.Capabilities = append(child.Capabilities, shared)
-
-	parent.Children = []*ProcessNode{child}
-	tree.ProcessNodes = []*ProcessNode{parent}
-
-	rollup := tree.CapabilitiesByImageTagID()
-
-	assert.Equal(t, []uint64{7, 12, 21}, rollup[v1].Attempted, "v1 unions both processes and dedups capability 7")
-	assert.Equal(t, []uint64{7, 21}, rollup[v1].Used, "capability 12 was attempted but never held")
-	assert.Equal(t, []uint64{21, 30}, rollup[v2].Attempted)
-	assert.Equal(t, []uint64{21, 30}, rollup[v2].Used)
-}
-
-// The same capability yields two nodes when a process is checked for it both with and without
-// holding it, and the rollup has to report it as attempted and used exactly once.
-func TestCapabilitiesByImageTagID_AttemptedAndUsedSameCapability(t *testing.T) {
-	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
-
-	v1 := tree.GetOrInsertImageTag("v1")
-	now := time.Now()
-
-	pn := &ProcessNode{NodeBase: NewNodeBase()}
-	pn.Capabilities = []*CapabilityNode{
-		NewCapabilityNode(7, false, now, v1, Runtime),
-		NewCapabilityNode(7, true, now, v1, Runtime),
-	}
-	tree.ProcessNodes = []*ProcessNode{pn}
-
-	rollup := tree.CapabilitiesByImageTagID()
-
-	assert.Equal(t, []uint64{7}, rollup[v1].Attempted)
-	assert.Equal(t, []uint64{7}, rollup[v1].Used)
 }
 
 // A node that only belongs to an evicted image tag must drop out of that tag's rollup.

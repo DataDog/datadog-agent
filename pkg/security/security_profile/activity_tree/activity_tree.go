@@ -1220,62 +1220,6 @@ func (at *ActivityTree) SyscallsByImageTagID() map[uint64][]uint32 {
 	return out
 }
 
-// CapabilityRollup holds the capabilities observed under a single image tag. Used is a subset of
-// Attempted: a capability the workload was checked for but did not hold appears only in Attempted.
-type CapabilityRollup struct {
-	Attempted []uint64
-	Used      []uint64
-}
-
-// CapabilitiesByImageTagID walks the tree once and returns, for every image tag ID it observes, the
-// sorted sets of attempted and used capabilities. The same capability can be recorded by several
-// nodes, since a node is keyed on the capability and whether the process held it.
-func (at *ActivityTree) CapabilitiesByImageTagID() map[uint64]*CapabilityRollup {
-	attempted := make(map[uint64]map[uint64]struct{})
-	used := make(map[uint64]map[uint64]struct{})
-
-	insert := func(sets map[uint64]map[uint64]struct{}, imageTagID, capability uint64) {
-		set, ok := sets[imageTagID]
-		if !ok {
-			set = make(map[uint64]struct{})
-			sets[imageTagID] = set
-		}
-		set[capability] = struct{}{}
-	}
-
-	at.visit(func(processNode *ProcessNode) {
-		for _, capabilityNode := range processNode.Capabilities {
-			capabilityNode.EachSeen(func(imageTagID uint64, _ ImageTagTimes) {
-				insert(attempted, imageTagID, capabilityNode.Capability)
-				if capabilityNode.Capable {
-					insert(used, imageTagID, capabilityNode.Capability)
-				}
-			})
-		}
-	})
-
-	out := make(map[uint64]*CapabilityRollup, len(attempted))
-	for imageTagID, set := range attempted {
-		out[imageTagID] = &CapabilityRollup{
-			Attempted: sortedCapabilities(set),
-			Used:      sortedCapabilities(used[imageTagID]),
-		}
-	}
-	return out
-}
-
-func sortedCapabilities(set map[uint64]struct{}) []uint64 {
-	if len(set) == 0 {
-		return nil
-	}
-	out := make([]uint64, 0, len(set))
-	for capability := range set {
-		out = append(out, capability)
-	}
-	slices.Sort(out)
-	return out
-}
-
 // ImageProcessKey represents a unique key for process cache entries by image name, tag, and filepath
 type ImageProcessKey struct {
 	ImageName string
