@@ -59,7 +59,6 @@ pub(crate) enum AgentAccount {
         logon_domain: String,
         user: String,
     },
-    #[allow(dead_code)]
     PasswordLogon {
         registry_domain: String,
         logon_domain: String,
