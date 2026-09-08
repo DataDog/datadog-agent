@@ -77,12 +77,58 @@ func TestSparkCollectorCollectsDriverEnvVars(t *testing.T) {
 	assert.Equal(t, 0, reader.processCommandlineCalls)
 }
 
+func TestSparkCollectorCollectsSparkSubmitDriverEnvVars(t *testing.T) {
+	reader := &sparkCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{
+				"java",
+				"-Ddd.tags=env:staging,spark_process_role:driver,service:spark-job",
+				sparkSubmitClass,
+			},
+		},
+		env: map[string]string{
+			"SPARK_DRIVER_MEMORY":             "2g",
+			"SPARK_RPC_AUTHENTICATION_SECRET": "must-not-be-forwarded",
+		},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	requireSparkEnvVarPredicate(t, reader)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "SPARK_DRIVER_MEMORY", Value: "2g"},
+	}, collected.EnvVars)
+}
+
 func TestSparkCollectorFindsLiveDriverAfterRuntimeInspectionError(t *testing.T) {
 	runtimeErr := errors.New("inspect unavailable")
 	reader := &sparkCollectorTestReader{
 		runtimeCommandlineErr: runtimeErr,
 		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
 			{Args: []string{"/opt/spark/bin/spark-class", sparkStandaloneDriverClass, "worker-url", "user-jar", "application-class"}},
+		},
+		env: map[string]string{"SPARK_LOCAL_DIRS": "/tmp/spark"},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	requireSparkEnvVarPredicate(t, reader)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "SPARK_LOCAL_DIRS", Value: "/tmp/spark"}}, collected.EnvVars)
+	assert.Equal(t, 1, reader.processCommandlineCalls)
+}
+
+func TestSparkCollectorFindsLiveSparkSubmitDriverAfterRuntimeInspectionError(t *testing.T) {
+	runtimeErr := errors.New("inspect unavailable")
+	reader := &sparkCollectorTestReader{
+		runtimeCommandlineErr: runtimeErr,
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
+			{Args: []string{
+				"java",
+				"-Ddd.tags=env:staging," + sparkDriverRoleTag,
+				sparkSubmitClass,
+			}},
 		},
 		env: map[string]string{"SPARK_LOCAL_DIRS": "/tmp/spark"},
 	}
@@ -156,8 +202,29 @@ func TestSparkCollectorCanCollectFromProcess(t *testing.T) {
 	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
 		Args: []string{"/bin/sh", "-c", "/opt/spark/bin/spark-class " + sparkStandaloneDriverClass + " worker-url user-jar application-class"},
 	}))
+	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"java", "-Ddd.tags=env:staging," + sparkDriverRoleTag + ",service:spark-job", sparkSubmitClass},
+	}))
+	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"/bin/sh", "-c", "java -Ddd.tags=env:staging," + sparkDriverRoleTag + " " + sparkSubmitClass},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"java", "-Ddd.tags=env:staging", sparkSubmitClass},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"java", "-Ddd.tags=role:driver_helper", sparkSubmitClass},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"java", "-Ddd.tags=spark_process_role:driver-helper", sparkSubmitClass},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"java", "-Ddd.tags=" + sparkDriverRoleTag, "org.apache.spark.deploy.worker.Worker"},
+	}))
 	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
 		Args: []string{"java", "org.apache.spark.deploy.worker.Worker"},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"java", "-Ddd.tags=" + sparkDriverRoleTag, "org.apache.spark.deploy.master.Master"},
 	}))
 	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
 		Args: []string{"java", "com.example.DriverWrapper"},
