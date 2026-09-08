@@ -992,6 +992,7 @@ workflow:
     when: on_success
   - changes:
       paths:
+        - pkg/config/schema/**/* # incident-60254
         - .gitlab/test/e2e/*.yml
         - bazel/rules/go_shim/**/* # Runs bazelified Go tools
         - internal/tools/**/* # Go tools: gotestsum, etc. (incident-59251/59255/59256/59257/59258)

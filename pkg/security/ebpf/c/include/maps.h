@@ -107,7 +107,7 @@ BPF_LRU_MAP(memfd_tracking, struct memfd_key_t, u32, 1024)
 BPF_LRU_MAP(otel_process_ctx_naming, u64, u8, 512) // in-flight prctl(PR_SET_VMA_ANON_NAME) calls naming a mapping OTEL_CTX, keyed by pid_tgid
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
-BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime. Will be changed to BPF_TASK_STORAGE_MAP if USE_SYSCALL_TASK_STORAGE is set to 1 at runtime
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(open_samples, struct process_path_key_t, struct sample_entry_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
@@ -132,8 +132,8 @@ BPF_PERCPU_ARRAY_MAP(fb_dns_stats, struct dns_receiver_stats_t, 1)
 BPF_PERCPU_ARRAY_MAP(bb_dns_stats, struct dns_receiver_stats_t, 1)
 BPF_PERCPU_ARRAY_MAP(str_array_buffers, struct str_array_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(process_event_gen, struct process_event_t, EVENT_GEN_SIZE)
-BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_fb, struct dr_erpc_stats_t, 6)
-BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_bb, struct dr_erpc_stats_t, 6)
+BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_fb, struct dr_erpc_stats_t, DR_ERPC_LAST)
+BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_bb, struct dr_erpc_stats_t, DR_ERPC_LAST)
 BPF_PERCPU_ARRAY_MAP(is_discarded_by_inode_gen, struct is_discarded_by_inode_t, 1)
 BPF_PERCPU_ARRAY_MAP(dns_event, struct dns_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(dns_response_event, union dns_responses_t, 1)

@@ -106,10 +106,8 @@ dd_agent_go_test(
         "//cmd/system-probe/command",
         "//comp/core",
         "//comp/core/config",
-        "//comp/core/configstreamconsumer/testutil",
         "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
-        "//pkg/configstreambootstrap",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
     ] + select({
