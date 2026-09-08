@@ -276,10 +276,10 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 		if useCachedServiceCollection {
 			log.Debug("Starting cached service collection (process data collection enabled)")
-			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval), processesReady)
+			go c.collectServicesCached(ctx, c.clock.Timer(serviceCollectionInterval), serviceCollectionInterval, processesReady)
 		} else {
 			log.Debug("Starting non-cached service collection (process data collection disabled)")
-			go c.collectServicesNoCache(ctx, c.clock.Ticker(serviceCollectionInterval))
+			go c.collectServicesNoCache(ctx, c.clock.Timer(serviceCollectionInterval), serviceCollectionInterval)
 		}
 	}
 
@@ -922,10 +922,11 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 }
 
 // collectServices runs one collection as soon as its startup prerequisites are
-// ready, then collects at the configured interval. If the first regular tick
-// arrives before startup readiness, periodic collection takes over.
-func (c *collector) collectServices(ctx context.Context, collectionTicker *clock.Ticker, processesReady <-chan struct{}, collectOnce func(context.Context)) {
-	defer collectionTicker.Stop()
+// ready, then waits the configured interval after each collection before
+// collecting again. If the initial timer expires before startup readiness,
+// periodic collection takes over.
+func (c *collector) collectServices(ctx context.Context, collectionTimer *clock.Timer, collectionInterval time.Duration, processesReady <-chan struct{}, collectOnce func(context.Context)) {
+	defer collectionTimer.Stop()
 
 	startupCtx, cancelStartup := context.WithCancel(ctx)
 	defer cancelStartup()
@@ -938,18 +939,30 @@ func (c *collector) collectServices(ctx context.Context, collectionTicker *clock
 			cancelStartup()
 			if err == nil {
 				collectOnce(ctx)
+				resetTimer(collectionTimer, collectionInterval)
 			} else if !errors.Is(err, context.Canceled) {
 				log.Debugf("startup service collection readiness check stopped: %v", err)
 			}
-		case <-collectionTicker.C:
+		case <-collectionTimer.C:
 			cancelStartup()
 			startupReady = nil
 			collectOnce(ctx)
+			resetTimer(collectionTimer, collectionInterval)
 		case <-ctx.Done():
 			log.Infof("The %s service collector has stopped", collectorID)
 			return
 		}
 	}
+}
+
+func resetTimer(timer *clock.Timer, interval time.Duration) {
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+	timer.Reset(interval)
 }
 
 func (c *collector) waitForServiceStartup(ctx context.Context, processesReady <-chan struct{}) <-chan error {
@@ -968,8 +981,8 @@ func (c *collector) waitForServiceStartup(ctx context.Context, processesReady <-
 	return ready
 }
 
-func (c *collector) collectServicesNoCache(ctx context.Context, collectionTicker *clock.Ticker) {
-	c.collectServices(ctx, collectionTicker, nil, c.collectServicesNoCacheOnce)
+func (c *collector) collectServicesNoCache(ctx context.Context, collectionTimer *clock.Timer, collectionInterval time.Duration) {
+	c.collectServices(ctx, collectionTimer, collectionInterval, nil, c.collectServicesNoCacheOnce)
 }
 
 // collectServicesNoCacheOnce performs one non-cached service collection.
@@ -1005,8 +1018,8 @@ func (c *collector) collectServicesNoCacheOnce(ctx context.Context) {
 }
 
 // collectServices captures service discovery data for alive processes
-func (c *collector) collectServicesCached(ctx context.Context, collectionTicker *clock.Ticker, processesReady <-chan struct{}) {
-	c.collectServices(ctx, collectionTicker, processesReady, c.collectServicesCachedOnce)
+func (c *collector) collectServicesCached(ctx context.Context, collectionTimer *clock.Timer, collectionInterval time.Duration, processesReady <-chan struct{}) {
+	c.collectServices(ctx, collectionTimer, collectionInterval, processesReady, c.collectServicesCachedOnce)
 }
 
 // collectServicesCachedOnce performs one cached service collection.

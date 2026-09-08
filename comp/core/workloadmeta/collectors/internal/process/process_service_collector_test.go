@@ -21,6 +21,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -636,7 +637,28 @@ func waitForServiceCollectionCall(t *testing.T, calls <-chan time.Time) time.Tim
 	}
 }
 
-func TestCollectServicesRunsWhenReadyAndAtRegularInterval(t *testing.T) {
+func TestResetTimerDiscardsExpiredValue(t *testing.T) {
+	mockClock := clock.NewMock()
+	timer := mockClock.Timer(time.Minute)
+	mockClock.Add(time.Minute)
+
+	resetTimer(timer, time.Minute)
+	select {
+	case tick := <-timer.C:
+		t.Fatalf("timer retained stale expiry at %s", tick)
+	default:
+	}
+
+	mockClock.Add(time.Minute)
+	select {
+	case tick := <-timer.C:
+		assert.Equal(t, mockClock.Now(), tick)
+	default:
+		t.Fatal("reset timer did not expire after a full interval")
+	}
+}
+
+func TestCollectServicesSchedulesRegularIntervalFromStartupCollection(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 	c.mockClock.Set(baseTime)
 	socketPath, _ := startScriptedServiceDiscoveryServer(t, func(_ int, _ core.Params) serviceDiscoveryTestResponse {
@@ -648,23 +670,31 @@ func TestCollectServicesRunsWhenReadyAndAtRegularInterval(t *testing.T) {
 	processesReady := make(chan struct{})
 	calls := make(chan time.Time, 2)
 	done := make(chan struct{})
-	collectionTicker := c.mockClock.Ticker(time.Minute)
+	collectionTimer := c.mockClock.Timer(time.Minute)
 	go func() {
 		defer close(done)
-		c.collector.collectServices(ctx, collectionTicker, processesReady, func(context.Context) {
+		c.collector.collectServices(ctx, collectionTimer, time.Minute, processesReady, func(context.Context) {
 			calls <- c.mockClock.Now()
 		})
 	}()
 
+	c.mockClock.Add(45 * time.Second)
 	select {
 	case callTime := <-calls:
 		t.Fatalf("service collection ran before process readiness at %s", callTime)
 	default:
 	}
 	close(processesReady)
-	assert.Equal(t, baseTime, waitForServiceCollectionCall(t, calls))
-	c.mockClock.Add(time.Minute)
-	assert.Equal(t, baseTime.Add(time.Minute), waitForServiceCollectionCall(t, calls))
+	assert.Equal(t, baseTime.Add(45*time.Second), waitForServiceCollectionCall(t, calls))
+
+	c.mockClock.Add(59 * time.Second)
+	select {
+	case callTime := <-calls:
+		t.Fatalf("service collection ran before a full interval elapsed at %s", callTime)
+	default:
+	}
+	c.mockClock.Add(time.Second)
+	assert.Equal(t, baseTime.Add(105*time.Second), waitForServiceCollectionCall(t, calls))
 
 	cancel()
 	select {
@@ -680,7 +710,7 @@ func TestCollectServicesDoesNotRunAfterCancellation(t *testing.T) {
 	cancel()
 
 	called := false
-	c.collector.collectServices(ctx, c.mockClock.Ticker(time.Minute), nil, func(context.Context) {
+	c.collector.collectServices(ctx, c.mockClock.Timer(time.Minute), time.Minute, nil, func(context.Context) {
 		called = true
 	})
 
@@ -704,10 +734,10 @@ func TestCollectServicesRegularIntervalCancelsStartupWait(t *testing.T) {
 	processesReady := make(chan struct{})
 	calls := make(chan time.Time, 2)
 	done := make(chan struct{})
-	collectionTicker := c.mockClock.Ticker(time.Minute)
+	collectionTimer := c.mockClock.Timer(time.Minute)
 	go func() {
 		defer close(done)
-		c.collector.collectServices(ctx, collectionTicker, processesReady, func(context.Context) {
+		c.collector.collectServices(ctx, collectionTimer, time.Minute, processesReady, func(context.Context) {
 			calls <- c.mockClock.Now()
 		})
 	}()
@@ -745,8 +775,8 @@ func TestCollectServicesCachedWaitsForProcessCache(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	processesReady := make(chan struct{})
-	collectionTicker := c.mockClock.Ticker(time.Minute)
-	go c.collector.collectServicesCached(ctx, collectionTicker, processesReady)
+	collectionTimer := c.mockClock.Timer(time.Minute)
+	go c.collector.collectServicesCached(ctx, collectionTimer, time.Minute, processesReady)
 
 	assert.Equal(t, 0, requests())
 
@@ -800,7 +830,7 @@ func TestCollectServicesCachedReleasesProcessCacheLockBeforeServiceRequests(t *t
 	close(processesReady)
 	go func() {
 		defer close(done)
-		c.collector.collectServicesCached(ctx, c.mockClock.Ticker(time.Minute), processesReady)
+		c.collector.collectServicesCached(ctx, c.mockClock.Timer(time.Minute), time.Minute, processesReady)
 	}()
 
 	select {
