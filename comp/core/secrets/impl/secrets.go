@@ -11,7 +11,6 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	stdmaps "maps"
@@ -624,7 +623,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 		}
 		if fetchErr != nil {
 			r.registerError(origin, fetchErr)
-			resolveErr = errors.New("could not resolve secret handle(s), see 'agent secret' for details")
+			resolveErr = secrets.ErrUnresolvedHandles
 		}
 
 		w.Resolver = func(path []string, value string) (string, error) {
