@@ -34,6 +34,15 @@
 # 16/1.5/1.5/1 MiB/s (20 MiB/s total) split this file's own comments already
 # called out as the safer, memory-focused alternative.
 #
+# The case's own datadog-agent/datadog.yaml no longer holds an even 50/50
+# split either: its prefix rule count was quartered by hand (5,000 -> 1,250,
+# exact entries untouched at 5,000) as a further diagnostic step, since the
+# case has never run in the real SMP infrastructure and crashed with zero
+# target log output even after the traffic cut above. This file's generator
+# patterns are unaffected -- they exercise the shared bench.prefix/.exact/
+# .nomatch namespaces generically, not the exact 5,000-entry lists -- so
+# nothing here needed to change to match.
+#
 # Measured cost of the older 3-generator mix was ~10.5 CPU millicores per
 # MiB/s, so 20 MiB/s is ~210 mc, well under the 6-CPU allotment.
 #

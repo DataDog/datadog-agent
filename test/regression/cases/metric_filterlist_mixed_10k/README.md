@@ -1,24 +1,33 @@
 # `metric_filterlist_mixed_10k`
 
-Measures what a **`metric_filterlist` that is half prefix rules, each one
+Measures what a **`metric_filterlist` that is mostly prefix rules, each one
 carrying exceptions** costs the Agent:
 
 | case | entries | exceptions |
 |---|---|---|
-| `metric_filterlist_mixed_10k` | 5,000 prefix + 5,000 exact | 40,000 |
+| `metric_filterlist_mixed_10k` | 1,250 prefix + 5,000 exact | 10,000 |
 
-**Every prefix entry carries 8 exceptions**, so the prefix half is entirely made
+**Every prefix entry carries 8 exceptions**, so the prefix rules are entirely made
 of *guarded* rules: `Matcher` searches them in a separate arm from the
 unconditional prefixes, and a hit there has to consult that entry's own
 exception matcher before the metric can be dropped.
 
-This case holds **5,000 prefix entries** (`<name>*`), each carrying 8
-exceptions (40,000 in total), and **5,000 exact entries**.
+This case holds **1,250 prefix entries** (`<name>*`), each carrying 8
+exceptions (10,000 in total), and **5,000 exact entries**.
 
 This was originally one tier of a three-tier sweep (10k/50k/100k, sharing a
-byte-identical `lading/lading.yaml`). The 50k and 100k tiers were dropped, and
-the traffic below was reduced from 60 MiB/s to 20 MiB/s: every tier crashed at
-the original rate.
+byte-identical `lading/lading.yaml`), with 10,000 total entries split evenly
+between prefix and exact. The 50k and 100k tiers were dropped, and the traffic
+was reduced from 60 MiB/s to 20 MiB/s: every tier crashed at the original rate.
+
+That traffic cut alone did not fix it: this case has never actually run
+through the real datadog-agent CI/SMP infrastructure (it does not exist on
+`main`), and every replicate crashed with **zero target log output** —
+before or during startup, not under sustained load. As a further diagnostic,
+the prefix rule count was quartered by hand (5,000 → 1,250; exact entries
+left at 5,000) and `memory_allotment` dropped from 8192 MiB to 4096 MiB (see
+`experiment.yaml`), to check whether config size/rule count or the oversized
+memory request — not traffic — is what's actually crashing it.
 
 ## Why
 
@@ -34,6 +43,13 @@ Because every prefix entry here has exceptions, `prefixes` is empty and the
 whole prefix half lives in `guarded`. That is the worst layout for the feature:
 no prefix can be dropped as unconditional, and every prefix hit pays for an
 exception lookup.
+
+## Memory (4096 MiB, cpu_allotment 6)
+
+Dropped from the inherited 8192 MiB, which was tuned in a separate
+`smp-playground` harness and never validated against this repo's actual SMP
+runner hosts. 4096 MiB is still generous next to every other case in this
+directory (the largest of which uses 2 GiB).
 
 ## Traffic (20 MiB/s total)
 
@@ -53,10 +69,10 @@ hit-vs-miss differences cannot come from name length. Prefix *entries* are 84
 characters: `prefix_hit` appends `.hit`, so a prefix-hit name equals no entry
 and its drop can only have come from the guarded-prefix arm.
 
-The two halves live in **disjoint namespaces** (`…bench.prefix` /
+The two groups live in **disjoint namespaces** (`…bench.prefix` /
 `…bench.exact`) because `NewMatcher` silently drops prefixes covered by shorter
 prefixes and exact entries covered by a prefix — otherwise this case would
-compile to fewer than 10k live rules while still claiming 10k.
+compile to fewer live rules than it claims.
 
 Exceptions live in a third disjoint namespace, `…bench.except`, for two reasons.
 Nothing lading sends is ever excepted, so every generator's drop/forward
@@ -102,8 +118,9 @@ Then re-apply the exceptions, which the harness does not know about yet:
 python3 test/regression/scripts/add_filterlist_exceptions.py
 ```
 
-Re-apply the traffic reduction documented above (`lading/lading.yaml`) after
-regenerating, since the harness template still renders the original rates.
+Re-apply the traffic reduction, the prefix-count quartering, and the
+`memory_allotment` drop documented above after regenerating, since the harness
+still renders the original 60 MiB/s, 5,000 prefix entries, and 8192 MiB.
 
 ## Local run
 

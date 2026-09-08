@@ -1,6 +1,17 @@
-# Mixed metric_filterlist scaling experiment -- 10k entries
-# (5,000 prefix `<name>*` entries, each with 8 exceptions, + 5,000
+# Mixed metric_filterlist scaling experiment -- 6,250 entries
+# (1,250 prefix `<name>*` entries, each with 8 exceptions, + 5,000
 # exact entries).
+#
+# The prefix count was quartered by hand (5,000 -> 1,250; see
+# datadog-agent/datadog.yaml and README.md) as a diagnostic: this case has
+# never actually run through the real datadog-agent CI/SMP infrastructure --
+# it does not exist on main -- and every replicate crashed with zero target
+# log output, before or during startup, unaffected by the earlier traffic cut
+# (60 -> 20 MiB/s). memory_allotment was also dropped from 8192 MiB to 4 GiB,
+# which is still generous next to every other case in this directory (the
+# largest of which uses 2 GiB) and closer to what the actual SMP runner hosts
+# have available. If this still crashes with zero output, the cause is not
+# config size or memory pressure either.
 #
 # GENERATED, then copied. Source of truth is the smp-playground harness at
 # experiments/regression/agent/metric_filterlist_scaling, via
@@ -55,19 +66,22 @@ erratic: false
 
 target:
   name: datadog-agent
-  # NOTE: exceptions add ~2 MiB of config file that the Agent parses at
-  # startup and holds in the config layer, on top of the per-entry exception
-  # matchers. With optimization_goal: memory that lands in the signal, so the
-  # memory delta is matcher cost AND config cost, not matcher cost alone.
+  # NOTE: exceptions add config file that the Agent parses at startup and
+  # holds in the config layer, on top of the per-entry exception matchers.
+  # With optimization_goal: memory that lands in the signal, so the memory
+  # delta is matcher cost AND config cost, not matcher cost alone.
   #
-  # Inherited from the smp-playground sweep, where 8192 MiB was reached by
-  # three successive increases after replicates crashed at 200 MiB/s of
-  # DogStatsD traffic; this case's own 60 MiB/s offering also crashed, which is
-  # why lading/lading.yaml now offers 20 MiB/s instead. Trim this allotment
-  # (and cpu_allotment) once a run at the reduced rate reports actual
+  # 8192 MiB was inherited from the smp-playground sweep (reached by three
+  # successive increases after replicates crashed there at 200 MiB/s of
+  # DogStatsD traffic), but this case has never run in the real SMP
+  # infrastructure and every replicate has crashed with zero target log
+  # output, unaffected by cutting traffic to 20 MiB/s. 4 GiB is a diagnostic
+  # step down -- still generous next to every other case here (the largest of
+  # which uses 2 GiB) and closer to what the actual runner hosts report having
+  # available. Trim further (and cpu_allotment) once a run reports actual
   # `total_pss_bytes`.
   cpu_allotment: 6
-  memory_allotment: 8192 MiB
+  memory_allotment: 4096 MiB
 
   environment:
     DD_API_KEY: a0000001
