@@ -323,6 +323,11 @@
 /examples/ # do not notify anyone
 
 /Dockerfiles/                            @DataDog/agent-build
+/Dockerfiles/agent/entrypoint.d/privateactionrunner                         @DataDog/action-platform
+/Dockerfiles/agent/par-probe.sh                                            @DataDog/action-platform
+/Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml          @DataDog/action-platform
+/Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml              @DataDog/action-platform
+/Dockerfiles/agent/s6-services/privateactionrunner/                        @DataDog/action-platform
 /Dockerfiles/agent/entrypoint.d.windows/ @DataDog/agent-build @DataDog/windows-products
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/agent-build @DataDog/windows-products
 /Dockerfiles/agent/windows/              @DataDog/agent-build @DataDog/windows-products
