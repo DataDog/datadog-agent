@@ -177,7 +177,37 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.Fingerpri
 		return nil, err
 	}
 
-	// Rectify the count value to the appropriate default value if not set.
+	// unreliable_mount is an umbrella for the CIFS/SMB (Azure Files) hardening
+	// bundle: a direct (O_DIRECT) fingerprint read plus a longer rotation drain,
+	// two halves of the same mitigation that one switch turns on (the drain half
+	// is read in NewTailer).
+	//
+	// O_DIRECT is a property of the fingerprint read, so the bundle does nothing
+	// while fingerprinting is disabled. Enabling the bundle therefore also enables
+	// fingerprinting, defaulting to line_checksum, which detects rotation reliably
+	// on CIFS/SMB across the file sizes byte_checksum misses. Only the unset
+	// default is overridden; an operator who explicitly set a strategy (including
+	// disabled) keeps it.
+	if UnreliableMountEnabled(coreConfig) {
+		if !coreConfig.IsConfigured("logs_config.fingerprint_config.fingerprint_strategy") {
+			config.FingerprintStrategy = types.FingerprintStrategyLineChecksum
+		}
+		if config.FingerprintStrategy != types.FingerprintStrategyDisabled && len(config.OpenFlags) == 0 {
+			config.OpenFlags = []types.FileOpenFlag{types.FileOpenFlagDirect}
+		}
+		// A direct (O_DIRECT) line read pulls the whole max_bytes window uncached on
+		// every scan, unlike the buffered path which stops at the first newline. The
+		// global 100000 default is a harmless ceiling there but ~100 KB of CIFS I/O
+		// per file per scan here, so default it to one aligned page unless the
+		// operator chose a value. Only line mode reads max_bytes.
+		if config.FingerprintStrategy == types.FingerprintStrategyLineChecksum &&
+			!coreConfig.IsConfigured("logs_config.fingerprint_config.max_bytes") {
+			config.MaxBytes = DefaultUnreliableMountFingerprintMaxBytes
+		}
+	}
+
+	// Rectify the count value to the appropriate default value if not set. Runs
+	// after the unreliable_mount block so it sees the strategy that block may set.
 	if !coreConfig.IsConfigured("logs_config.fingerprint_config.count") {
 		switch config.FingerprintStrategy {
 		case types.FingerprintStrategyLineChecksum:
@@ -187,6 +217,7 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.Fingerpri
 		default:
 		}
 	}
+
 	log.Debugf("GlobalFingerprintConfig: after unmarshaling - FingerprintStrategy: %s, Count: %d, CountToSkip: %d, MaxBytes: %d",
 		config.FingerprintStrategy, config.Count, config.CountToSkip, config.MaxBytes)
 
@@ -257,6 +288,50 @@ func validateFingerprintOpenFlags(openFlags []types.FileOpenFlag, strategy types
 	}
 
 	return nil
+}
+
+// DefaultUnreliableMountDrainTimeout is the fallback drain window used when
+// unreliable_mount is enabled but rotation_drain_timeout is not set. It matches
+// the documented close_timeout default so the two knobs behave the same out of
+// the box.
+const DefaultUnreliableMountDrainTimeout = 60 * time.Second
+
+// DefaultUnreliableMountFingerprintMaxBytes is the line-mode max_bytes applied
+// when unreliable_mount enables fingerprinting and the operator did not set one.
+// The direct (O_DIRECT) read pulls this whole window uncached on every scan, so
+// it is kept far below the global 100000 default: one 4 KiB page (O_DIRECT is
+// page-aligned), ample to fingerprint a first line.
+const DefaultUnreliableMountFingerprintMaxBytes = 4096
+
+// UnreliableMountEnabled reports whether the CIFS/SMB hardening bundle is on.
+// It groups mitigations that only make sense together on a mount that cannot
+// keep its page cache coherent or reuse handles safely: fingerprint-based
+// rotation detection with direct (O_DIRECT) reads, and a longer rotation drain
+// (see UnreliableMountDrainTimeout). GlobalFingerprintConfig defaults the
+// strategy to line_checksum when it is unset, since O_DIRECT does nothing while
+// fingerprinting is disabled. Tune it alongside a higher
+// logs_config.file_scan_period and a lower logs_config.fingerprint_config.max_bytes:
+// direct reads are whole-window and uncached, so a large window scanned often is
+// the expensive case.
+func UnreliableMountEnabled(coreConfig pkgconfigmodel.Reader) bool {
+	return coreConfig.GetBool("logs_config.unreliable_mount.enabled")
+}
+
+// UnreliableMountDrainTimeout is how long a tailer keeps reading a rotated file
+// before closing it when unreliable_mount is enabled. On these mounts a fresh
+// open of the path can fail (stale file handle) while the already-open
+// descriptor still drains, so this window is kept separate from close_timeout
+// and defaults higher-friendly via DefaultUnreliableMountDrainTimeout. Returns 0
+// when unreliable_mount is disabled so callers fall back to close_timeout.
+func UnreliableMountDrainTimeout(coreConfig pkgconfigmodel.Reader) time.Duration {
+	if !UnreliableMountEnabled(coreConfig) {
+		return 0
+	}
+	timeout := coreConfig.GetDuration("logs_config.unreliable_mount.rotation_drain_timeout") * time.Second
+	if timeout <= 0 {
+		return DefaultUnreliableMountDrainTimeout
+	}
+	return timeout
 }
 
 func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, registerCallback bool) (*Endpoints, error) {

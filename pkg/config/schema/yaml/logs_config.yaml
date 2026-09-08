@@ -827,6 +827,43 @@ properties:
       additional config to ensure initial logs are tagged with kubelet tags
       wait (seconds) for tagger before start fetching tags of new AD services
       Disabled by default (0 seconds)
+  unreliable_mount:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Hardening bundle for log files on mounts that cannot keep their page cache
+      coherent or reuse file handles safely across a rotation, such as CIFS/SMB
+      (for example Azure Files) on some Linux kernels. Enabling it turns on
+      fingerprint-based rotation detection with a direct (O_DIRECT) fingerprint
+      read, plus a longer rotation drain; the mitigations are halves of the same
+      fix. If no fingerprint_config.fingerprint_strategy is set, it defaults to
+      line_checksum, which detects rotation reliably on these mounts.
+      Because the direct read is whole-window and uncached, max_bytes defaults to
+      4096 (one page) here rather than the global 100000; a large window scanned
+      every second is the expensive case. Also consider raising
+      logs_config.file_scan_period so the read happens less often.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          When true: enable fingerprinting (defaulting fingerprint_strategy to
+          line_checksum if it is unset) with a direct (O_DIRECT) read when no
+          explicit fingerprint_config.open_flags is set, and use
+          rotation_drain_timeout as the rotation drain window in place of
+          close_timeout.
+      rotation_drain_timeout:
+        node_type: setting
+        type: integer
+        default: 60
+        comment: |-
+          Seconds a tailer keeps reading a rotated file through its already-open
+          descriptor before closing it, used in place of close_timeout when
+          unreliable_mount.enabled is true. On these mounts a fresh open of the
+          path can fail (stale file handle) while the open descriptor still
+          drains, so this window is kept separate and typically set higher.
   use_http:
     node_type: setting
     type: boolean
