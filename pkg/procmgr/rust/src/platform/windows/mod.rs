@@ -6,7 +6,6 @@
 mod agent_service_sid;
 mod child_env;
 mod console;
-#[cfg(not(test))]
 mod installer_lsa_password;
 mod job_object;
 mod local_account;
