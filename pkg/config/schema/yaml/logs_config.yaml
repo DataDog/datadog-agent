@@ -692,6 +692,10 @@ properties:
           but rotation detection is unavailable until fingerprinting recovers. Affected files
           are reported per source under "Fingerprint Open Flags Errors" in the agent status.
           The flag only takes effect on Linux; on other platforms it is accepted and ignored.
+          Cost: a direct read pulls the whole fingerprint window (max_bytes for line mode)
+          uncached from the mount on every scan, so when setting this by hand lower
+          logs_config.fingerprint_config.max_bytes and raise logs_config.file_scan_period.
+          Prefer logs_config.unreliable_mount, which applies these defaults for you.
   force_auto_multi_line_detection_v1:
     node_type: setting
     type: boolean
