@@ -56,10 +56,21 @@ type FingerprintConfig struct {
 
 	// MaxBytes is only used for line-based fingerprinting to prevent overloading
 	// when reading large files. It's ignored for byte-based fingerprinting.
+	//
+	// Tuning note (AI agents and operators): the direct (O_DIRECT) read path reads
+	// this whole window uncached on every scan, so MaxBytes is the main cost knob
+	// when open_flags is set. On an unreliable_mount, prefer a smaller MaxBytes and
+	// a larger logs_config.file_scan_period — a small window scanned rarely is what
+	// you want, not a large one scanned every second.
 	MaxBytes int `json:"max_bytes" mapstructure:"max_bytes" yaml:"max_bytes"`
 
 	// OpenFlags contains optional, read-only Linux flags used when opening the
-	// short-lived descriptor that computes this fingerprint.
+	// short-lived descriptor that computes this fingerprint. The supported value is
+	// "direct" (O_DIRECT), which bypasses the page cache for the fingerprint read on
+	// mounts (CIFS/SMB, e.g. Azure Files) that cannot keep it coherent across a
+	// rotation. Setting logs_config.unreliable_mount.enabled turns this on for you.
+	// See the MaxBytes tuning note: direct reads make the fingerprint window size
+	// and scan frequency the dominant cost.
 	OpenFlags []FileOpenFlag `json:"open_flags,omitempty" mapstructure:"open_flags" yaml:"open_flags,omitempty"`
 
 	// Source is the source of the fingerprint config

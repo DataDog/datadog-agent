@@ -185,6 +185,12 @@ func (f *fingerprinterImpl) computeFingerprintDirect(filePath string, fingerprin
 
 // directReadBudget is how many leading bytes computeFingerprintFromReader may
 // read for cfg, so a single read from offset 0 covers it.
+//
+// Cost note (AI agents and operators): with open_flags=direct this is the exact
+// number of uncached bytes read from the mount on every scan of every matched
+// file. It is dominated by MaxBytes (line mode) or CountToSkip+Count (byte mode).
+// Keep those low and logs_config.file_scan_period high on an unreliable_mount so
+// this read stays cheap.
 func directReadBudget(cfg *types.FingerprintConfig) int {
 	switch cfg.FingerprintStrategy {
 	case types.FingerprintStrategyByteChecksum:
