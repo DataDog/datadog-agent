@@ -524,8 +524,16 @@ func (d *AgentDemultiplexer) Stop() {
 
 // acquireLockOrTimeout takes d.m's write lock, giving up once ctx expires.
 // On timeout, the locking goroutine is left running rather than killed: it's harmless
-// since only Stop() calls this, and Stop()'s contract already forbids using d afterward.
+// since only Stop() calls this, and Stop()'s contract already forbids using d afterward -
+// but the lock it eventually acquires is released so it isn't held forever.
 func (d *AgentDemultiplexer) acquireLockOrTimeout(ctx context.Context) bool {
+	// Try the uncontended case synchronously first: with a zero (or already expired)
+	// deadline, racing a fresh goroutine against ctx.Done() in the select below could
+	// pick the already-ready Done() case even though the lock was actually free.
+	if d.m.TryLock() {
+		return true
+	}
+
 	acquired := make(chan struct{})
 	go func() {
 		d.m.Lock()
@@ -536,6 +544,10 @@ func (d *AgentDemultiplexer) acquireLockOrTimeout(ctx context.Context) bool {
 	case <-acquired:
 		return true
 	case <-ctx.Done():
+		go func() {
+			<-acquired
+			d.m.Unlock()
+		}()
 		return false
 	}
 }

@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -323,6 +324,34 @@ func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
 	require.Equal(t, "Agent Shutdown", shutdownEvent.EventType)
 
 	s.AssertExpectations(t)
+}
+
+func TestAcquireLockOrTimeout(t *testing.T) {
+	t.Run("uncontended lock with an already-expired deadline", func(t *testing.T) {
+		d := &AgentDemultiplexer{}
+		ctx, cancel := context.WithTimeout(context.Background(), 0)
+		defer cancel()
+
+		require.True(t, d.acquireLockOrTimeout(ctx), "an uncontended lock must be acquired even past the deadline (aggregator_stop_timeout: 0)")
+		d.m.Unlock()
+	})
+
+	t.Run("contended lock released after the deadline expires", func(t *testing.T) {
+		d := &AgentDemultiplexer{}
+		d.m.Lock()
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+		defer cancel()
+
+		require.False(t, d.acquireLockOrTimeout(ctx), "should give up once the deadline expires")
+
+		d.m.Unlock()
+
+		require.Eventually(t, func() bool {
+			return d.m.TryLock()
+		}, time.Second, time.Millisecond, "the lock acquired after giving up must still be released, not held forever")
+		d.m.Unlock()
+	})
 }
 
 func newShutdownTelemetryTestDemux(t *testing.T, hostname string) (*AgentDemultiplexer, *MockSerializerIterableSerie) {
