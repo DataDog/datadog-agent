@@ -122,10 +122,13 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 	}
 
 	// obfuscation_version is bumped to 2 to disable client-side stats obfuscation only when the
-	// effective SQL config (the only thing obfuscateStatsGroup actually reads) diverges from
-	// default.
+	// effective SQL config changes the obfuscated query produced by obfuscateStatsGroup.
+	// TableNames only collects metadata which obfuscateStatsGroup discards, so it does not cause
+	// a divergence between client-side and agent-side stats obfuscation.
 	obfuscationVersion := obfuscate.Version
-	if r.conf.EffectiveSQLConfig() != (obfuscate.SQLConfig{}) {
+	effectiveSQLConfig := r.conf.EffectiveSQLConfig()
+	effectiveSQLConfig.TableNames = false
+	if effectiveSQLConfig != (obfuscate.SQLConfig{}) {
 		obfuscationVersion = 2
 	}
 

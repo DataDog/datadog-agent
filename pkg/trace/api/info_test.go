@@ -604,6 +604,7 @@ func TestInfoHandler_CustomObfuscationConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name                   string
 		obfuscationConfig      *config.ObfuscationConfig
+		features               map[string]struct{}
 		sqlObfuscationMode     string
 		wantObfuscationVersion int
 	}{
@@ -613,7 +614,7 @@ func TestInfoHandler_CustomObfuscationConfig(t *testing.T) {
 			wantObfuscationVersion: obfuscate.Version,
 		},
 		{
-			name: "Custom obfuscation config that changes the effective SQL obfuscation mode has obfuscation_version = 2",
+			name:                   "Custom obfuscation config that changes the effective SQL obfuscation mode has obfuscation_version = 2",
 			sqlObfuscationMode:     string(obfuscate.ObfuscateOnly),
 			wantObfuscationVersion: 2,
 		},
@@ -629,10 +630,18 @@ func TestInfoHandler_CustomObfuscationConfig(t *testing.T) {
 			},
 			wantObfuscationVersion: obfuscate.Version,
 		},
+		{
+			name:                   "Table name collection has obfuscation_version = 1 (current obfuscate.Version)",
+			features:               map[string]struct{}{"table_names": {}},
+			wantObfuscationVersion: obfuscate.Version,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := config.New()
 			conf.Obfuscation = tt.obfuscationConfig
+			if tt.features != nil {
+				conf.Features = tt.features
+			}
 			conf.SQLObfuscationMode = tt.sqlObfuscationMode
 			rcv := newTestReceiverFromConfig(conf)
 			_, h := rcv.makeInfoHandler()
