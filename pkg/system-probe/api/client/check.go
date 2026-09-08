@@ -61,10 +61,9 @@ type startChecker struct {
 
 // getStartChecker is a memoized function that returns the singleton startChecker.
 var getStartChecker = funcs.MemoizeNoError[*startChecker](func() *startChecker {
-	startupTimeout := pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time")
 	return &startChecker{
 		startTime:      time.Now(),
-		startupTimeout: startupTimeout,
+		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
 		startedCh:      make(chan struct{}),
 	}
 })
