@@ -17,11 +17,53 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
-const enabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
+const (
+	enabledEnvVar      = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
+	coreAgentIPCEnvVar = "DD_REMOTE_AGENT_CORE_AGENT_IPC_ENABLED"
+)
+
+// Mirror the remote_agent.configstream.consumer.enabled and
+// remote_agent.core_agent_ipc.enabled schema defaults; bootstrap runs before
+// schema-backed defaults are loaded, so these have to be kept in sync by hand.
+const (
+	defaultEnabled             = true
+	defaultCoreAgentIPCEnabled = true
+)
+
+// bootstrapToggles holds the remote_agent booleans isEnabled needs before the config
+// component (and therefore the schema-backed defaults) exists.
+type bootstrapToggles struct {
+	RemoteAgent struct {
+		ConfigStream struct {
+			Consumer struct {
+				Enabled *bool `yaml:"enabled"`
+			} `yaml:"consumer"`
+		} `yaml:"configstream"`
+		CoreAgentIPC struct {
+			Enabled *bool `yaml:"enabled"`
+		} `yaml:"core_agent_ipc"`
+	} `yaml:"remote_agent"`
+}
 
 // isEnabled reports whether the consumer should run, from env or datadog.yaml.
 func isEnabled(cliConfigPath string) bool {
-	if v, ok := os.LookupEnv(enabledEnvVar); ok {
+	// The consumer exists to stream config from the core agent, so it cannot run at all
+	// when this agent is isolated from it by design (e.g. system-probe inside a microVM).
+	// Checked first because the consumer requires the RAR, which is off in that case.
+	coreAgentIPC := boolSetting(cliConfigPath, coreAgentIPCEnvVar, defaultCoreAgentIPCEnabled,
+		func(t bootstrapToggles) *bool { return t.RemoteAgent.CoreAgentIPC.Enabled })
+	if !coreAgentIPC {
+		return false
+	}
+
+	return boolSetting(cliConfigPath, enabledEnvVar, defaultEnabled,
+		func(t bootstrapToggles) *bool { return t.RemoteAgent.ConfigStream.Consumer.Enabled })
+}
+
+// boolSetting resolves one bootstrap boolean: env var first, then the first readable
+// datadog.yaml candidate, then the schema default.
+func boolSetting(cliConfigPath, envVar string, defaultValue bool, pick func(bootstrapToggles) *bool) bool {
+	if v, ok := os.LookupEnv(envVar); ok {
 		if enabled, err := strconv.ParseBool(v); err == nil {
 			return enabled
 		}
@@ -31,19 +73,14 @@ func isEnabled(cliConfigPath string) bool {
 		if err != nil {
 			continue
 		}
-		var cfg struct {
-			RemoteAgent struct {
-				ConfigStream struct {
-					Consumer struct {
-						Enabled bool `yaml:"enabled"`
-					} `yaml:"consumer"`
-				} `yaml:"configstream"`
-			} `yaml:"remote_agent"`
+		var toggles bootstrapToggles
+		_ = yaml.Unmarshal(data, &toggles)
+		if enabled := pick(toggles); enabled != nil {
+			return *enabled
 		}
-		_ = yaml.Unmarshal(data, &cfg)
-		return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
+		return defaultValue
 	}
-	return false
+	return defaultValue
 }
 
 // readSettings overlays values from datadog.yaml onto a subset of the global config (defaults+env).

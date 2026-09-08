@@ -49,3 +49,48 @@ remote_agent:
 		require.False(t, isEnabled("/does/not/exist/datadog.yaml"))
 	})
 }
+
+func TestIsEnabledCoreAgentIPCDisabled(t *testing.T) {
+	t.Run("yaml disabling core agent IPC disables the consumer", func(t *testing.T) {
+		os.Unsetenv(enabledEnvVar)
+		os.Unsetenv(coreAgentIPCEnvVar)
+		path := writeYAML(t, `
+remote_agent:
+  core_agent_ipc:
+    enabled: false
+`)
+		require.False(t, isEnabled(path))
+	})
+
+	t.Run("core agent IPC wins over an explicitly enabled consumer", func(t *testing.T) {
+		os.Unsetenv(enabledEnvVar)
+		os.Unsetenv(coreAgentIPCEnvVar)
+		path := writeYAML(t, `
+remote_agent:
+  core_agent_ipc:
+    enabled: false
+  configstream:
+    consumer:
+      enabled: true
+`)
+		require.False(t, isEnabled(path))
+	})
+
+	t.Run("env var disabling core agent IPC disables the consumer", func(t *testing.T) {
+		t.Setenv(enabledEnvVar, "true")
+		t.Setenv(coreAgentIPCEnvVar, "false")
+		path := writeYAML(t, "")
+		require.False(t, isEnabled(path))
+	})
+
+	t.Run("core agent IPC enabled leaves the consumer default untouched", func(t *testing.T) {
+		os.Unsetenv(enabledEnvVar)
+		os.Unsetenv(coreAgentIPCEnvVar)
+		path := writeYAML(t, `
+remote_agent:
+  core_agent_ipc:
+    enabled: true
+`)
+		require.True(t, isEnabled(path))
+	})
+}
