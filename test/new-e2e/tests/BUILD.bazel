@@ -1,0 +1,27 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load(":binary_mapping.bzl", "TEST_BINARIES")
+
+# `bazel run --@rules_go//go/toolchain:sdk_name=go_civisibility_sdk //test/new-e2e/tests:install_test_binaries --
+# --destdir=<dir>` builds and installs every e2e test binary, CI Visibility-instrumented via
+# //bazel/rules/go_civisibility's patched toolchain, replacing tasks/new_e2e_tests.py's build_binaries loop.
+#
+# binary_mapping.bzl's TEST_BINARIES lists every go_test transitively reaching test/e2e-framework/testing/e2e (an
+# e2e.Run() suite), with destination names following build_binaries's own convention (pkg.replace("/", "-") +
+# ".test", relative to test/new-e2e). `dda inv tidy` regenerates it (tasks/new_e2e_tests.py's
+# write_binary_mapping), since the underlying `bazel query 'kind(go_test, rdeps(//test/new-e2e/tests/...,
+# //test/e2e-framework/testing/e2e))'` can't be expressed as a Bazel target: both BUILD files and genquery forbid
+# the wildcard it needs.
+
+pkg_files(
+    name = "test_binaries",
+    testonly = True,
+    srcs = TEST_BINARIES.keys(),
+    renames = TEST_BINARIES,
+)
+
+pkg_install(
+    name = "install_test_binaries",
+    testonly = True,
+    srcs = [":test_binaries"],
+)
