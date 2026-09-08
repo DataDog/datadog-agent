@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -817,6 +818,69 @@ func TestRemoteQueryExecuteServiceDispatchesPagedJSONRequest(t *testing.T) {
 	assert.NotContains(t, runner.streamSeen, "secret-value")
 }
 
+// Concurrent queries on different integrations must not allocate two page buffers,
+// and every runner exit must release admission for a subsequent execution.
+func TestRemoteQueryExecutionAdmission(t *testing.T) {
+	for _, exit := range []string{"success", "runner failure", "emitter failure"} {
+		t.Run(exit, func(t *testing.T) {
+			entered, release := make(chan struct{}), make(chan struct{})
+			var releaseOnce sync.Once
+			unblock := func() { releaseOnce.Do(func() { close(release) }) }
+			t.Cleanup(unblock)
+			postgres := &fakeStreamRunnerCheck{
+				fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\n"}},
+				run: func(emit func(check.RemoteQueryStreamEvent) error) error {
+					close(entered)
+					<-release
+					if exit == "runner failure" {
+						return assert.AnError
+					}
+					return emit(check.RemoteQueryStreamEvent{Type: "final", MetadataJSON: `{}`})
+				},
+			}
+			clickhouse := &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck{name: "clickhouse", loader: "python", provider: "file", instance: "server: localhost\nport: 8123\ndb: default\n"}}}
+			// Separate service instances also share the process-wide admission boundary.
+			pgService := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{postgres}}, true, true, nil)
+			chService := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{clickhouse}}, true, true, nil)
+			pgReq, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 1 AS value", false, pagedTestDelivery())
+			require.NoError(t, err)
+			chReq, err := NewRemoteQueryExecuteRequest("clickhouse", RemoteQueryExecuteTarget{Host: "localhost", Port: 8123, DBName: "default"}, "SELECT 1 AS value", false, pagedTestDelivery())
+			require.NoError(t, err)
+			done := make(chan RemoteQueryExecuteResult, 1)
+			go func() {
+				done <- pgService.ExecuteStream(context.Background(), pgReq, func(check.RemoteQueryStreamEvent) error {
+					if exit == "emitter failure" {
+						return assert.AnError
+					}
+					return nil
+				})
+			}()
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("first execution did not start")
+			}
+			emit := func(check.RemoteQueryStreamEvent) error { return nil }
+			busy := chService.ExecuteStream(context.Background(), chReq, emit)
+			assert.Equal(t, http.StatusServiceUnavailable, busy.HTTPStatus)
+			assert.Zero(t, clickhouse.streamCalls)
+			unblock()
+			select {
+			case result := <-done:
+				assert.Equal(t, exit != "success", result.Error != nil)
+			case <-time.After(5 * time.Second):
+				t.Fatal("first execution did not return")
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			assert.NotNil(t, chService.ExecuteStream(ctx, chReq, emit).Error)
+			assert.Zero(t, clickhouse.streamCalls)
+			assert.Nil(t, chService.ExecuteStream(context.Background(), chReq, emit).Error)
+			assert.Equal(t, 1, clickhouse.streamCalls)
+		})
+	}
+}
+
 func TestRemoteQueryExecuteServiceDispatchesDatabaseInstanceTarget(t *testing.T) {
 	runner := &fakeStreamRunnerCheck{
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-value\n"}},
@@ -978,6 +1042,7 @@ type fakeStreamRunnerCheck struct {
 	streamSeen  string
 	streamCalls int
 	err         error
+	run         func(func(check.RemoteQueryStreamEvent) error) error
 }
 
 func (f *fakeStreamRunnerCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error {
@@ -992,6 +1057,9 @@ func (f *fakeStreamRunnerCheck) RunRemoteQueryStream(integration string, request
 	}
 	f.streamCalls++
 	f.streamSeen = requestJSON
+	if f.run != nil {
+		return f.run(emit)
+	}
 	for _, event := range f.events {
 		if err := emit(event); err != nil {
 			return err

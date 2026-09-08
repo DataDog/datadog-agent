@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -689,12 +690,16 @@ func (s *RemoteQueryExecuteService) Execute(_ RemoteQueryExecuteRequest) RemoteQ
 	return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "remote queries execute only over the AgentSecure streaming RPC")
 }
 
+// Shared across service instances/listeners and integration types: each execution owns
+// a page-sized Python buffer. Admission is fail-fast, with no waiting request queue.
+var remoteQueryExecution sync.Mutex
+
 // ExecuteStream executes a paged-JSON request and emits metadata-only stream events. The
 // Agent is a control-plane forwarder: it carries the backend-injected upload instructions
 // through to the integration request JSON and passes the emit callback straight through.
 // The integration uploads bounded JSON page files itself; only progress metadata, the
 // final compact run receipt, and errors come back through the stream.
-func (s *RemoteQueryExecuteService) ExecuteStream(_ctx context.Context, req RemoteQueryExecuteRequest, emit func(check.RemoteQueryStreamEvent) error) RemoteQueryExecuteResult {
+func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req RemoteQueryExecuteRequest, emit func(check.RemoteQueryStreamEvent) error) RemoteQueryExecuteResult {
 	if emit == nil {
 		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "remote query stream emitter is unavailable")
 	}
@@ -727,6 +732,15 @@ func (s *RemoteQueryExecuteService) ExecuteStream(_ctx context.Context, req Remo
 	if err != nil {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, err.Error())
 	}
+
+	if ctx.Err() != nil {
+		return remoteQueryExecuteErrorResult(http.StatusRequestTimeout, statusExecutorUnavailable, "remote query request was cancelled")
+	}
+	if !remoteQueryExecution.TryLock() {
+		return remoteQueryExecuteErrorResult(http.StatusServiceUnavailable, statusExecutorUnavailable, "another remote query is running on this Agent")
+	}
+	// Retain admission until Python actually returns, even if the RPC is cancelled.
+	defer remoteQueryExecution.Unlock()
 
 	runErr := runner.RunRemoteQueryStream(internal.Integration, requestJSON, emit)
 	if runErr != nil {
