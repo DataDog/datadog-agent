@@ -179,7 +179,7 @@ func readSparkConfigFile(
 	fallbackConfigArg := sparkFallbackConfigArg(envVars)
 	runtimeCommandline, runtimeErr := reader.ReadRuntimeCommandline(ctx)
 	if fallbackConfigArg == "" {
-		file, ok, err := readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkMatchesSubmitCommandline, "", sparkDefaultConfigPathGroups...)
+		file, ok, err := readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkCommandlineDoesNotBlockDefaultPaths, "", sparkDefaultConfigPathGroups...)
 		if err != nil && runtimeErr != nil && errors.Is(err, runtimeErr) {
 			return configfilesdiscoveryimpl.ConfigFile{}, false, nil
 		}
@@ -273,6 +273,14 @@ func sparkMatchesSubmitCommandline(args []string) bool {
 			return true
 		}
 	}
+	return false
+}
+
+// sparkCommandlineDoesNotBlockDefaultPaths lets SparkSubmit drivers without an
+// explicit --properties-file continue to the standard spark-defaults.conf
+// locations. Explicit properties-file arguments are still discovered by
+// sparkGetPropertiesFileFromCommandline and remain authoritative.
+func sparkCommandlineDoesNotBlockDefaultPaths([]string) bool {
 	return false
 }
 

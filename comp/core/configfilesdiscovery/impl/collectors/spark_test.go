@@ -191,6 +191,28 @@ func TestSparkCollectorReadsDefaultConfigWhenNoSubmitCommandlineExists(t *testin
 	assert.Equal(t, configPath, collected.ConfigFiles[0].Path)
 }
 
+func TestSparkCollectorReadsDefaultConfigForTaggedSparkSubmitWithoutConfigHints(t *testing.T) {
+	const configPath = "/opt/spark/conf/spark-defaults.conf"
+	reader := &sparkCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{
+			"java",
+			"-Ddd.tags=env:test," + sparkDriverRoleTag,
+			sparkSubmitClass,
+			"--master",
+			"spark://master:7077",
+			"app.jar",
+		}},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{configPath: {Path: configPath}},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{configPath}, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, configPath, collected.ConfigFiles[0].Path)
+}
+
 func TestSparkCollectorReadsBitnamiDefaultConfigWhenApachePathIsMissing(t *testing.T) {
 	const configPath = "/opt/bitnami/spark/conf/spark-defaults.conf"
 	reader := &sparkCollectorTestReader{
