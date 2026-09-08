@@ -85,7 +85,20 @@ type sanitizedMatch struct {
 	Integration    string `json:"integration"`
 	Loader         string `json:"loader"`
 	ConfigProvider string `json:"config_provider"`
+	MatchKind      string `json:"match_kind"`
 }
+
+const (
+	// matchKindExact marks a match whose selection criterion is fully resolved at
+	// match time: the Postgres tier-1 exact configured tuple, any ClickHouse tuple
+	// match, or a database_instance identifier match.
+	matchKindExact = "exact"
+	// matchKindEndpointCandidate marks a Postgres tier-2 endpoint candidate: the
+	// configured host+port match but the configured dbname differs from or is absent
+	// for the request, so the requested logical execution database is resolved
+	// dynamically on the integration at execute time.
+	matchKindEndpointCandidate = "endpoint-candidate"
+)
 
 type responseError struct {
 	Code    string `json:"code"`
@@ -135,7 +148,12 @@ func invalidRequestError(message string) error {
 
 var integrationNamePattern = regexp.MustCompile(`^[a-z0-9_]+$`)
 
+// integrationInstanceTarget is the effective target of one loaded check instance.
+// integration records which config shape parsed it, because tuple matching is
+// integration-specific: Postgres selects endpoint candidates on host+port while
+// ClickHouse compares the effective database exactly.
 type integrationInstanceTarget struct {
+	integration      string
 	host             string
 	port             int
 	dbname           string
@@ -246,7 +264,6 @@ func parseTarget(target *remoteQueryTargetRequestJSON) (remoteQueryTarget, error
 	}
 
 	host := normalizeHost(target.Host)
-	hasTupleSelectorField := target.hostSet || target.portSet || target.dbnameSet
 
 	if target.databaseInstanceSet {
 		if target.DatabaseInstance == nil {
@@ -259,10 +276,16 @@ func parseTarget(target *remoteQueryTargetRequestJSON) (remoteQueryTarget, error
 		if strings.TrimSpace(databaseInstance) != databaseInstance {
 			return remoteQueryTarget{}, errors.New("target.database_instance must not contain surrounding whitespace")
 		}
-		if hasTupleSelectorField {
+		// database_instance selects the check; host/port are still a different
+		// selector mode. dbname is allowed alongside: it is the requested logical
+		// execution database, resolved dynamically on the matched integration.
+		if target.hostSet || target.portSet {
 			return remoteQueryTarget{}, errors.New("target must specify exactly one selector mode")
 		}
-		return remoteQueryTarget{DatabaseInstance: databaseInstance}, nil
+		if target.dbnameSet && target.DBName == "" {
+			return remoteQueryTarget{}, errors.New("target.dbname is required")
+		}
+		return remoteQueryTarget{DatabaseInstance: databaseInstance, DBName: target.DBName}, nil
 	}
 
 	if host == "" {
@@ -369,9 +392,20 @@ func (h *remoteQueryMatchHandler) findMatches(integration string, target remoteQ
 	return findIntegrationMatches(h.collector, integration, target)
 }
 
+// findIntegrationMatches is the single selection shared by the match-check endpoint
+// and execute's matchExecutor. Postgres tuple targets select in two tiers: tier 1 is
+// the checks whose configured host+port+dbname all equal the request (the exact
+// configured tuple), and when tier 1 is non-empty it is the match set; only when tier
+// 1 is empty does tier 2 apply, the endpoint candidates whose configured host+port
+// equal the request (dbname differs or is absent from config, e.g. autodiscovery
+// global-view configs). Every other selector is single-tier exact: ClickHouse tuple
+// matching compares the effective database exactly and database_instance matching
+// is exact rendered identifier equality. The 0/1/many outcomes are computed on the
+// selected tier by the callers; cross-check ambiguity can only be decided here
+// because the rtloader bridge forwards exactly one check to Python.
 func findIntegrationMatches(collector RemoteQueryCollector, integration string, target remoteQueryTarget) []integrationCheckMatch {
 	checks := collector.GetChecks()
-	matches := make([]integrationCheckMatch, 0, 1)
+	var exact, endpointCandidates []integrationCheckMatch
 	for _, chk := range checks {
 		if normalizeIntegrationName(chk.String()) != integration {
 			continue
@@ -386,38 +420,83 @@ func findIntegrationMatches(collector RemoteQueryCollector, integration string, 
 			continue
 		}
 
-		matches = append(matches, integrationCheckMatch{
-			check: chk,
-			sanitized: sanitizedMatch{
-				Integration:    integration,
-				Loader:         chk.Loader(),
-				ConfigProvider: chk.ConfigProvider(),
-			},
-		})
+		if instanceTarget.isExactTupleMatch(target) {
+			exact = append(exact, newIntegrationCheckMatch(chk, integration, matchKindExact))
+		} else {
+			endpointCandidates = append(endpointCandidates, newIntegrationCheckMatch(chk, integration, matchKindEndpointCandidate))
+		}
 	}
-	return matches
+	if len(exact) > 0 {
+		return exact
+	}
+	return endpointCandidates
+}
+
+func newIntegrationCheckMatch(chk check.Check, integration string, matchKind string) integrationCheckMatch {
+	return integrationCheckMatch{
+		check: chk,
+		sanitized: sanitizedMatch{
+			Integration:    integration,
+			Loader:         chk.Loader(),
+			ConfigProvider: chk.ConfigProvider(),
+			MatchKind:      matchKind,
+		},
+	}
 }
 
 func normalizeIntegrationName(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
 }
 
+// matches is the candidate predicate for the request. database_instance targets
+// match on exact rendered identifier equality. Tuple matching is per integration:
+// a Postgres tuple target selects endpoint candidates on host+port — the requested
+// dbname is the logical execution database, not an identity requirement on the
+// check's configured dbname, and tier-1 exactness is layered on top by selection —
+// while a ClickHouse tuple target must name the database the instance actually
+// monitors, so the effective database is compared exactly.
 func (t integrationInstanceTarget) matches(target remoteQueryTarget) bool {
 	if target.DatabaseInstance != "" {
 		return t.databaseInstance != "" && t.databaseInstance == target.DatabaseInstance
 	}
-	return t.host == target.Host && t.port == target.Port && t.dbname == target.DBName
+	switch t.integration {
+	case postgresIntegration:
+		return t.host == target.Host && t.port == target.Port
+	case clickhouseIntegration:
+		return t.host == target.Host && t.port == target.Port && t.dbname == target.DBName
+	default:
+		return false
+	}
+}
+
+// isExactTupleMatch reports whether a candidate that already satisfied matches is a
+// tier-1 exact configured tuple: the configured dbname is present and equals the
+// requested dbname. Non-Postgres candidates and database_instance matches are exact
+// by construction (their matches predicate already compares every identity field),
+// so they always report true and never fall to an endpoint-candidate tier.
+func (t integrationInstanceTarget) isExactTupleMatch(target remoteQueryTarget) bool {
+	if target.DatabaseInstance != "" || t.integration != postgresIntegration {
+		return true
+	}
+	return t.dbname != "" && t.dbname == target.DBName
 }
 
 func parseIntegrationInstanceTarget(integration string, instanceConfig string) (integrationInstanceTarget, bool) {
+	var instanceTarget integrationInstanceTarget
+	var ok bool
 	switch integration {
 	case postgresIntegration:
-		return parsePostgresInstanceTarget(instanceConfig)
+		instanceTarget, ok = parsePostgresInstanceTarget(instanceConfig)
 	case clickhouseIntegration:
-		return parseClickHouseInstanceTarget(instanceConfig)
+		instanceTarget, ok = parseClickHouseInstanceTarget(instanceConfig)
 	default:
 		return integrationInstanceTarget{}, false
 	}
+	if !ok {
+		return integrationInstanceTarget{}, false
+	}
+	instanceTarget.integration = integration
+	return instanceTarget, true
 }
 
 func parsePostgresInstanceTarget(instanceConfig string) (integrationInstanceTarget, bool) {
@@ -440,9 +519,17 @@ func parsePostgresInstanceTarget(instanceConfig string) (integrationInstanceTarg
 		return integrationInstanceTarget{}, false
 	}
 
-	dbname, ok := fields["dbname"].(string)
-	if !ok || dbname == "" {
-		return integrationInstanceTarget{}, false
+	// The configured dbname is optional: an endpoint candidate may have no
+	// configured dbname (autodiscovery global-view configs), in which case the
+	// requested dbname is the only execution database. A present-but-invalid dbname
+	// still fails closed like every other present-but-invalid key.
+	dbname := ""
+	if rawDB, present := fields["dbname"]; present {
+		parsed, ok := rawDB.(string)
+		if !ok || parsed == "" {
+			return integrationInstanceTarget{}, false
+		}
+		dbname = parsed
 	}
 
 	databaseInstance, _ := renderPostgresDatabaseIdentifier(fields, host, port)

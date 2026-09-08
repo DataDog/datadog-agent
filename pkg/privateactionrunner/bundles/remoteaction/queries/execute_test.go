@@ -185,6 +185,33 @@ func TestExecuteActionAcceptsDatabaseInstanceTarget(t *testing.T) {
 	assert.Equal(t, "SUCCEEDED", output.(map[string]interface{})["status"])
 }
 
+// TestExecuteActionAcceptsDatabaseInstanceWithDbnameTarget proves the managed
+// instance + requested execution database mode: the AgentSecure request carries
+// both the database_instance selector and the requested dbname, and the check is
+// still selected by the identifier alone.
+func TestExecuteActionAcceptsDatabaseInstanceWithDbnameTarget(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEvent(0, validReceipt(), nil),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"database_instance": "Rq-Proof-A1-DB1", "dbname": "rq_requested_db"},
+		"query":          "SELECT city, country FROM cities ORDER BY city",
+		"resultDelivery": resultDeliveryInputs(),
+	}), nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, client.request)
+	assert.Equal(t, "Rq-Proof-A1-DB1", client.request.GetTarget().GetDatabaseInstance())
+	assert.Equal(t, "rq_requested_db", client.request.GetTarget().GetDbname())
+	assert.Empty(t, client.request.GetTarget().GetHost())
+	assert.Zero(t, client.request.GetTarget().GetPort())
+	assert.Equal(t, "SUCCEEDED", output.(map[string]interface{})["status"])
+}
+
 func TestExecuteActionRejectsMixedAndPartialTargetSelectorsBeforeRPC(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -192,7 +219,9 @@ func TestExecuteActionRejectsMixedAndPartialTargetSelectorsBeforeRPC(t *testing.
 	}{
 		{name: "mixed", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "host": "localhost", "port": 5432, "dbname": "postgres"}},
 		{name: "mixed empty host", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "host": ""}},
-		{name: "mixed empty dbname", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "dbname": ""}},
+		{name: "mixed dbname with empty host", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "dbname": "rq_requested_db", "host": ""}},
+		{name: "mixed dbname with port", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "dbname": "rq_requested_db", "port": 5432}},
+		{name: "database instance with empty dbname", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "dbname": ""}},
 		{name: "mixed null host", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "host": nil}},
 		{name: "mixed port", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "port": 5432}},
 		{name: "database instance surrounding whitespace", target: map[string]interface{}{"database_instance": " rq-proof-a1-db1 "}},

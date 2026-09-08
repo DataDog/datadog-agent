@@ -113,6 +113,21 @@ func TestParseMatchRequestAllowsDatabaseInstanceTarget(t *testing.T) {
 	assert.Equal(t, remoteQueryTarget{DatabaseInstance: "Rq-Proof-A1-DB1"}, parsed.Target)
 }
 
+// TestParseMatchRequestAllowsDatabaseInstanceWithDbnameTarget proves the managed
+// instance + database selector mode: database_instance selects the check and dbname
+// is the requested logical execution database carried alongside, never an endpoint
+// selector.
+func TestParseMatchRequestAllowsDatabaseInstanceWithDbnameTarget(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, RemoteQueryMatchEndpointPath, strings.NewReader(
+		`{"integration":"postgres","target":{"database_instance":"Rq-Proof-A1-DB1","dbname":"rq_requested_db"}}`,
+	))
+	req.Header.Set("Content-Type", "application/json")
+
+	parsed, err := parseMatchRequest(req)
+	require.NoError(t, err)
+	assert.Equal(t, remoteQueryTarget{DatabaseInstance: "Rq-Proof-A1-DB1", DBName: "rq_requested_db"}, parsed.Target)
+}
+
 func TestParseMatchRequestRejectsMixedAndPartialTargetSelectors(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -130,8 +145,18 @@ func TestParseMatchRequestRejectsMixedAndPartialTargetSelectors(t *testing.T) {
 			wantError: "target must specify exactly one selector mode",
 		},
 		{
-			name:      "mixed database instance and empty dbname field",
+			name:      "database instance with empty dbname field",
 			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":""}}`,
+			wantError: "target.dbname is required",
+		},
+		{
+			name:      "database instance with dbname and host is still mixed",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":"rq_requested_db","host":"localhost"}}`,
+			wantError: "target must specify exactly one selector mode",
+		},
+		{
+			name:      "database instance with dbname and port is still mixed",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":"rq_requested_db","port":5432}}`,
 			wantError: "target must specify exactly one selector mode",
 		},
 		{
@@ -260,12 +285,16 @@ func TestRemoteQueryMatchHandlerDatabaseInstanceFailClosed(t *testing.T) {
 	})
 }
 
+// TestRemoteQueryMatchHandlerNoMatch proves the not-found outcome on the selected
+// tier: a request naming no loaded endpoint is target_not_found. A request whose
+// host+port match but whose dbname differs is an endpoint candidate, not a miss —
+// the tiered-selection tests below cover that path.
 func TestRemoteQueryMatchHandlerNoMatch(t *testing.T) {
 	handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
 		fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"},
 	}}}
 
-	recorder := callMatchHandler(handler, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"other"}}`)
+	recorder := callMatchHandler(handler, `{"integration":"postgres","target":{"host":"localhost","port":5433,"dbname":"other"}}`)
 
 	assert.Equal(t, http.StatusNotFound, recorder.Code)
 	body := recorder.Body.String()
@@ -273,6 +302,88 @@ func TestRemoteQueryMatchHandlerNoMatch(t *testing.T) {
 	assert.Contains(t, body, `"matched_count":0`)
 	assert.NotContains(t, body, "secret-value")
 	assert.NotContains(t, body, "other")
+}
+
+// TestRemoteQueryMatchHandlerPostgresTieredTupleSelection proves the two-tier
+// Postgres tuple selection and its match_kind marker: the exact configured tuple is
+// the match set when present (tier 1), and only when tier 1 is empty do the host+port
+// endpoint candidates apply (tier 2), where the requested dbname is resolved
+// dynamically on the integration at execute time.
+func TestRemoteQueryMatchHandlerPostgresTieredTupleSelection(t *testing.T) {
+	// Three checks on one endpoint: the exact configured tuple, a check whose
+	// configured dbname differs, and an autodiscovery-style check with no
+	// configured dbname. Distinct config providers identify which check matched.
+	exact := fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: db.example.com\nport: 5432\ndbname: requested_db\npassword: secret-exact\n"}
+	differentDB := fakeCheck{name: "postgres", loader: "python", provider: "kube", instance: "host: db.example.com\nport: 5432\ndbname: other_db\npassword: secret-different\n"}
+	noConfiguredDB := fakeCheck{name: "postgres", loader: "python", provider: "ad", instance: "host: db.example.com\nport: 5432\npassword: secret-ad\n"}
+	requestedTarget := `{"integration":"postgres","target":{"host":"db.example.com","port":5432,"dbname":"requested_db"}}`
+
+	t.Run("exact configured tuple wins over endpoint candidates", func(t *testing.T) {
+		handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{differentDB, noConfiguredDB, exact}}}
+
+		recorder := callMatchHandler(handler, requestedTarget)
+
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		body := recorder.Body.String()
+		assert.Contains(t, body, `"status":"ok"`)
+		assert.Contains(t, body, `"matched_count":1`)
+		assert.Contains(t, body, `"config_provider":"file"`)
+		assert.Contains(t, body, `"match_kind":"exact"`)
+		assert.NotContains(t, body, `"match_kind":"endpoint-candidate"`)
+		assert.NotContains(t, body, "kube")
+		assert.NotContains(t, body, "secret-exact")
+		assert.NotContains(t, body, "secret-different")
+		assert.NotContains(t, body, "secret-ad")
+	})
+
+	t.Run("endpoint candidate without configured dbname matches when no exact tuple exists", func(t *testing.T) {
+		handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{noConfiguredDB}}}
+
+		recorder := callMatchHandler(handler, requestedTarget)
+
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		body := recorder.Body.String()
+		assert.Contains(t, body, `"status":"ok"`)
+		assert.Contains(t, body, `"matched_count":1`)
+		assert.Contains(t, body, `"config_provider":"ad"`)
+		assert.Contains(t, body, `"match_kind":"endpoint-candidate"`)
+		assert.NotContains(t, body, "secret-ad")
+	})
+
+	t.Run("endpoint candidate with different configured dbname matches when no exact tuple exists", func(t *testing.T) {
+		handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{differentDB}}}
+
+		recorder := callMatchHandler(handler, requestedTarget)
+
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		body := recorder.Body.String()
+		assert.Contains(t, body, `"status":"ok"`)
+		assert.Contains(t, body, `"matched_count":1`)
+		assert.Contains(t, body, `"match_kind":"endpoint-candidate"`)
+		assert.NotContains(t, body, "secret-different")
+	})
+
+	t.Run("multiple endpoint candidates are ambiguous only when no exact tuple exists", func(t *testing.T) {
+		handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{differentDB, noConfiguredDB}}}
+
+		recorder := callMatchHandler(handler, requestedTarget)
+
+		assert.Equal(t, http.StatusConflict, recorder.Code)
+		body := recorder.Body.String()
+		assert.Contains(t, body, `"status":"ambiguous_target"`)
+		assert.Contains(t, body, `"matched_count":2`)
+		assert.NotContains(t, body, "secret-different")
+		assert.NotContains(t, body, "secret-ad")
+	})
+
+	t.Run("no endpoint match is target not found", func(t *testing.T) {
+		handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{differentDB, noConfiguredDB}}}
+
+		recorder := callMatchHandler(handler, `{"integration":"postgres","target":{"host":"other.example.com","port":5432,"dbname":"requested_db"}}`)
+
+		assert.Equal(t, http.StatusNotFound, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"target_not_found"`)
+	})
 }
 
 func TestRemoteQueryMatchHandlerAmbiguousMatch(t *testing.T) {
@@ -552,30 +663,56 @@ func TestParseExecuteRequestAllowsDatabaseInstanceTarget(t *testing.T) {
 	assert.Equal(t, RemoteQueryExecuteTarget{DatabaseInstance: "Rq-Proof-A1-DB1"}, parsed.Target)
 }
 
+// TestParseExecuteRequestAllowsDatabaseInstanceWithDbnameTarget proves the managed
+// instance + requested execution database mode parses on the execute wire and
+// survives the typed request boundary with both fields intact.
+func TestParseExecuteRequestAllowsDatabaseInstanceWithDbnameTarget(t *testing.T) {
+	body := strings.Replace(executeRequestBody(validDeliveryJSON),
+		`"target":{"host":"localhost","port":5432,"dbname":"postgres"}`,
+		`"target":{"database_instance":"Rq-Proof-A1-DB1","dbname":"rq_requested_db"}`, 1)
+	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	parsed, err := parseExecuteRequest(req)
+	require.NoError(t, err)
+	assert.Equal(t, RemoteQueryExecuteTarget{DatabaseInstance: "Rq-Proof-A1-DB1", DBName: "rq_requested_db"}, parsed.Target)
+}
+
 func TestParseExecuteRequestRejectsMixedDatabaseInstanceTargetSelectors(t *testing.T) {
 	tests := []struct {
-		name string
-		body string
+		name      string
+		body      string
+		wantError string
 	}{
 		{
-			name: "non-empty tuple fields",
-			body: `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			name:      "non-empty tuple fields",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":"localhost","port":5432,"dbname":"postgres"},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			wantError: "target must specify exactly one selector mode",
 		},
 		{
-			name: "empty host field",
-			body: `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":""},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			name:      "empty host field",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":""},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			wantError: "target must specify exactly one selector mode",
 		},
 		{
-			name: "empty dbname field",
-			body: `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":""},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			name:      "empty dbname field",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":""},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			wantError: "target.dbname is required",
 		},
 		{
-			name: "null host field",
-			body: `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":null},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			name:      "dbname with null host field",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":"rq_requested_db","host":null},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			wantError: "target must specify exactly one selector mode",
 		},
 		{
-			name: "port field",
-			body: `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","port":5432},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			name:      "null host field",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","host":null},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			wantError: "target must specify exactly one selector mode",
+		},
+		{
+			name:      "port field",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","port":5432},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			wantError: "target must specify exactly one selector mode",
 		},
 	}
 
@@ -586,7 +723,7 @@ func TestParseExecuteRequestRejectsMixedDatabaseInstanceTargetSelectors(t *testi
 
 			_, err := parseExecuteRequest(req)
 			require.Error(t, err)
-			assert.Equal(t, "target must specify exactly one selector mode", err.Error())
+			assert.Equal(t, tt.wantError, err.Error())
 		})
 	}
 }
@@ -932,12 +1069,121 @@ func TestRemoteQueryExecuteServiceAllowsNonAllowlistedQueryWhenAllowlistDisabled
 	assert.Contains(t, runner.streamSeen, "SELECT * FROM arbitrary_table")
 }
 
+// TestRemoteQueryExecuteServicePostgresTieredTupleSelection proves execute's
+// matchExecutor computes its 0/1/many outcomes on the selected tier of the shared
+// selection: the exact configured tuple wins over endpoint candidates, a lone
+// endpoint candidate executes and forwards the requested dbname to the
+// integration, and multiple endpoint candidates with no exact tuple stay
+// ambiguous. Cross-check ambiguity is decided entirely in Go because the
+// rtloader bridge forwards exactly one check to Python.
+func TestRemoteQueryExecuteServicePostgresTieredTupleSelection(t *testing.T) {
+	// tieredSelectionRunners builds fresh runners for each subtest: the exact
+	// configured tuple, a check whose configured dbname differs, and an
+	// autodiscovery-style check with no configured dbname, all on one endpoint.
+	tieredSelectionRunners := func() (exact, differentDB, noConfiguredDB *fakeStreamRunnerCheck) {
+		exact = &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: db.example.com\nport: 5432\ndbname: requested_db\npassword: secret-exact\n"}}}
+		differentDB = &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "kube", instance: "host: db.example.com\nport: 5432\ndbname: other_db\npassword: secret-different\n"}}}
+		noConfiguredDB = &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "ad", instance: "host: db.example.com\nport: 5432\npassword: secret-ad\n"}}}
+		return exact, differentDB, noConfiguredDB
+	}
+	requestedTarget := RemoteQueryExecuteTarget{Host: "db.example.com", Port: 5432, DBName: "requested_db"}
+
+	t.Run("exact configured tuple wins over endpoint candidates", func(t *testing.T) {
+		exactRunner, differentDBRunner, noConfiguredDBRunner := tieredSelectionRunners()
+		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
+			fakeWrappedCheck{Check: differentDBRunner}, fakeWrappedCheck{Check: noConfiguredDBRunner}, fakeWrappedCheck{Check: exactRunner},
+		}}, true, false, nil)
+		req, err := NewRemoteQueryExecuteRequest("postgres", requestedTarget, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
+		require.NoError(t, err)
+
+		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+
+		require.Nil(t, result.Error)
+		assert.Equal(t, 1, exactRunner.streamCalls)
+		assert.Zero(t, differentDBRunner.streamCalls)
+		assert.Zero(t, noConfiguredDBRunner.streamCalls)
+		assert.Contains(t, exactRunner.streamSeen, `"dbname":"requested_db"`)
+		assert.NotContains(t, exactRunner.streamSeen, "secret-exact")
+	})
+
+	t.Run("lone endpoint candidate executes with the requested dbname", func(t *testing.T) {
+		_, _, noConfiguredDBRunner := tieredSelectionRunners()
+		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
+			fakeWrappedCheck{Check: noConfiguredDBRunner},
+		}}, true, false, nil)
+		req, err := NewRemoteQueryExecuteRequest("postgres", requestedTarget, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
+		require.NoError(t, err)
+
+		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+
+		require.Nil(t, result.Error)
+		assert.Equal(t, 1, noConfiguredDBRunner.streamCalls)
+		assert.Contains(t, noConfiguredDBRunner.streamSeen, `"target":{"host":"db.example.com","port":5432,"dbname":"requested_db"}`)
+		assert.NotContains(t, noConfiguredDBRunner.streamSeen, "secret-ad")
+	})
+
+	t.Run("multiple endpoint candidates with no exact tuple stay ambiguous", func(t *testing.T) {
+		_, differentDBRunner, noConfiguredDBRunner := tieredSelectionRunners()
+		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
+			fakeWrappedCheck{Check: differentDBRunner}, fakeWrappedCheck{Check: noConfiguredDBRunner},
+		}}, true, false, nil)
+		req, err := NewRemoteQueryExecuteRequest("postgres", requestedTarget, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
+		require.NoError(t, err)
+
+		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+
+		require.NotNil(t, result.Error)
+		assert.Equal(t, statusAmbiguous, result.Error.Code)
+		assert.Equal(t, "multiple matching integration checks found", result.Error.Message)
+		assert.Zero(t, differentDBRunner.streamCalls)
+		assert.Zero(t, noConfiguredDBRunner.streamCalls)
+		assert.NotContains(t, result.Error.Message, "secret-different")
+		assert.NotContains(t, result.Error.Message, "secret-ad")
+	})
+
+	t.Run("no endpoint match is target not found", func(t *testing.T) {
+		_, differentDBRunner, _ := tieredSelectionRunners()
+		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
+			fakeWrappedCheck{Check: differentDBRunner},
+		}}, true, false, nil)
+		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "other.example.com", Port: 5432, DBName: "requested_db"}, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
+		require.NoError(t, err)
+
+		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+
+		require.NotNil(t, result.Error)
+		assert.Equal(t, statusTargetNotFound, result.Error.Code)
+		assert.Zero(t, differentDBRunner.streamCalls)
+	})
+}
+
+// TestRemoteQueryExecuteServiceDatabaseInstanceWithDbnameForwardsBoth proves the
+// managed instance + requested execution database mode survives the full
+// Agent -> integration request JSON boundary with both selector fields intact.
+func TestRemoteQueryExecuteServiceDatabaseInstanceWithDbnameForwardsBoth(t *testing.T) {
+	runner := &fakeStreamRunnerCheck{
+		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-value\n"}},
+		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`}},
+	}
+	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false, nil)
+	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: "rq-proof-a1-db1", DBName: "rq_requested_db"}, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
+	require.NoError(t, err)
+
+	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
+
+	require.Nil(t, result.Error)
+	assert.Equal(t, 1, runner.streamCalls)
+	assert.Contains(t, runner.streamSeen, `"database_instance":"rq-proof-a1-db1"`)
+	assert.Contains(t, runner.streamSeen, `"dbname":"rq_requested_db"`)
+	assert.NotContains(t, runner.streamSeen, "secret-value")
+}
+
 func TestRemoteQueryExecuteServiceNoMatchAndAmbiguousAreSanitized(t *testing.T) {
 	t.Run("no match", func(t *testing.T) {
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}},
 		}}, true, true, nil)
-		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "other"}, "SELECT 1 AS value", false, pagedTestDelivery())
+		req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "otherhost", Port: 5432, DBName: "other"}, "SELECT 1 AS value", false, pagedTestDelivery())
 		require.NoError(t, err)
 
 		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })

@@ -124,11 +124,16 @@ func (t *TargetInputs) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// validateTargetInputs enforces the target selector modes: the tuple
+// {host, port, dbname}, the managed instance {database_instance}, or the managed
+// instance with requested execution database {database_instance, dbname}. The
+// database_instance and host/port endpoint selectors stay mutually exclusive;
+// dbname alongside database_instance is the requested logical execution database,
+// resolved dynamically on the matched integration, and must be non-empty when set.
 func validateTargetInputs(target TargetInputs) error {
 	databaseInstance := target.DatabaseInstance
 	hasHost := strings.TrimSpace(target.Host) != ""
 	hasDBName := target.DBName != ""
-	hasTupleSelectorField := target.hostSet || target.portSet || target.dbnameSet
 	if target.databaseInstanceSet {
 		if databaseInstance == "" {
 			return errors.New("target.database_instance is required")
@@ -136,8 +141,11 @@ func validateTargetInputs(target TargetInputs) error {
 		if strings.TrimSpace(databaseInstance) != databaseInstance {
 			return errors.New("target.database_instance must not contain surrounding whitespace")
 		}
-		if hasTupleSelectorField {
+		if target.hostSet || target.portSet {
 			return errors.New("target must specify exactly one selector mode")
+		}
+		if target.dbnameSet && !hasDBName {
+			return errors.New("target.dbname is required")
 		}
 		return nil
 	}

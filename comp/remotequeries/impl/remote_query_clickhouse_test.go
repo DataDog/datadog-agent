@@ -334,12 +334,34 @@ func TestRemoteQueryMatchHandlerFailsClosedForUnknownIntegration(t *testing.T) {
 }
 
 // TestPostgresInstanceTargetParsingIsPreserved proves the Postgres parsing and
-// identifier rendering are unchanged by the integration-aware registry.
+// identifier rendering are unchanged by the integration-aware registry, including
+// the tiered-selection era: the configured dbname stays parsed when present, and
+// an absent configured dbname (an endpoint candidate) now parses instead of
+// failing closed.
 func TestPostgresInstanceTargetParsingIsPreserved(t *testing.T) {
 	t.Run("canonical fields with reported hostname", func(t *testing.T) {
 		instanceTarget, ok := parseIntegrationInstanceTarget("postgres", "host: LocalHost.\nport: 5432\ndbname: postgres\nreported_hostname: rq-proof-a1-db1\n")
 		require.True(t, ok)
-		assert.Equal(t, integrationInstanceTarget{host: "localhost", port: 5432, dbname: "postgres", databaseInstance: "rq-proof-a1-db1"}, instanceTarget)
+		assert.Equal(t, integrationInstanceTarget{integration: "postgres", host: "localhost", port: 5432, dbname: "postgres", databaseInstance: "rq-proof-a1-db1"}, instanceTarget)
+	})
+
+	t.Run("absent configured dbname parses as an endpoint candidate", func(t *testing.T) {
+		instanceTarget, ok := parseIntegrationInstanceTarget("postgres", "host: localhost\nport: 5432\n")
+		require.True(t, ok)
+		assert.Equal(t, integrationInstanceTarget{integration: "postgres", host: "localhost", port: 5432}, instanceTarget)
+		assert.True(t, instanceTarget.matches(remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "any_requested_db"}))
+		assert.False(t, instanceTarget.isExactTupleMatch(remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "any_requested_db"}))
+	})
+
+	t.Run("present but invalid configured dbname fails closed", func(t *testing.T) {
+		for _, instance := range []string{
+			"host: localhost\nport: 5432\ndbname:\n",
+			"host: localhost\nport: 5432\ndbname: \"\"\n",
+			"host: localhost\nport: 5432\ndbname: 12\n",
+		} {
+			_, ok := parseIntegrationInstanceTarget("postgres", instance)
+			assert.False(t, ok, instance)
+		}
 	})
 
 	t.Run("custom template from tags", func(t *testing.T) {
