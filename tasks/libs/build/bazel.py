@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import codecs
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -285,6 +286,22 @@ def build_binary_with_bazel(
             bazel("run", "//bazel/rules:replace_prefix", "--", "--prefix", embedded_path, os.path.abspath(bin_path))
 
 
+def fips_platform_flag() -> str:
+    """Bazel --platforms flag selecting the fips platform for the current host.
+
+    fips is orthogonal to --//packages/agent:flavor (see //bazel/platforms:crypto),
+    selected this way instead.
+    """
+    goarch = {"x86_64": "x86_64", "amd64": "x86_64", "arm64": "arm64", "aarch64": "arm64"}.get(
+        platform.machine().lower()
+    )
+    if sys.platform.startswith("linux") and goarch in ("x86_64", "arm64"):
+        return f"--platforms=//bazel/platforms:linux_{goarch}_fips"
+    if sys.platform == "win32" and goarch == "x86_64":
+        return "--platforms=//bazel/platforms:windows_x86_64_fips"
+    raise SystemExit(f"No fips platform for {sys.platform}/{platform.machine()}")
+
+
 def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     """Insert --//packages/agent:flavor, --//:install_dir and --//:output_config_dir, pinned from the corresponding
     omnibus build environment variables.
@@ -292,7 +309,7 @@ def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     """
     flags = []
     if agent_flavor := os.environ.get("AGENT_FLAVOR"):
-        flags.append(f"--//packages/agent:flavor={agent_flavor}")
+        flags.append(fips_platform_flag() if agent_flavor == "fips" else f"--//packages/agent:flavor={agent_flavor}")
     if install_dir := os.environ.get("INSTALL_DIR"):
         # In macos, omnibus install_dir is the build location, which is different from the expected install location
         if sys.platform == "darwin":

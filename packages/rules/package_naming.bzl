@@ -101,14 +101,21 @@ def _extract_arch(ctx, cpu, style):
     # of target CPU is often better.
     return _arch_names[style].get(target_cpu) or target_cpu
 
-def _inject_flavor(name, flavor):
-    """Forms a canonical name from the base product name and the flavor"""
-    if not flavor or flavor == "base":
+def _inject_flavor(name, flavor, is_fips):
+    """Forms a canonical name from the base product name, the flavor and whether fips is selected.
+
+    fips is orthogonal to flavor (see //bazel/platforms:crypto), so it is injected independently.
+    """
+    words_to_insert = ["fips"] if is_fips else []
+    if flavor and flavor != "base":
+        words_to_insert.append(flavor)
+    if not words_to_insert:
         return name
+    modifier = "-".join(words_to_insert)
     if not "-" in name:
-        return "%s-%s" % (name, flavor)
+        return "%s-%s" % (name, modifier)
     words = name.split("-")
-    return "%s-%s-%s" % (words[0], flavor, "-".join(words[1:]))
+    return "%s-%s-%s" % (words[0], modifier, "-".join(words[1:]))
 
 def _package_name_variables_impl(ctx):
     common = ctx.attr._variables[DdBuildTimeInfo].values
@@ -116,7 +123,8 @@ def _package_name_variables_impl(ctx):
     values = {}
 
     flavor = ctx.attr._flavor[BuildSettingInfo].value
-    values["product_name"] = _inject_flavor(ctx.attr.product_name, flavor)
+    is_fips = ctx.target_platform_has_constraint(ctx.attr._fips[platform_common.ConstraintValueInfo])
+    values["product_name"] = _inject_flavor(ctx.attr.product_name, flavor, is_fips)
     values["version"] = make_version()
     values["base_branch"] = common["base_branch"]
     values["milestone"] = common["milestone"]
@@ -144,7 +152,31 @@ package_name_variables = rule(
             default = "datadog-agent",
         ),
         "_flavor": attr.label(default = "//packages/agent:flavor"),
+        "_fips": attr.label(default = "//bazel/platforms:fips"),
         "_variables": attr.label(default = "//bazel/rules/variables"),
     },
     toolchains = use_cc_toolchain(),
+)
+
+def _flavor_naming_subject_impl(ctx):
+    flavor = ctx.attr._flavor[BuildSettingInfo].value
+    is_fips = ctx.target_platform_has_constraint(ctx.attr._fips[platform_common.ConstraintValueInfo])
+    return [PackageVariablesInfo(values = {
+        "product_name": _inject_flavor(ctx.attr.product_name, flavor, is_fips),
+    })]
+
+flavor_naming_subject = rule(
+    implementation = _flavor_naming_subject_impl,
+    doc = """Exposes _inject_flavor()'s product_name for testing.
+
+    Unlike package_name_variables, this does not use_cc_toolchain(): tests
+    that transition --platforms to exercise a fips product_name would
+    otherwise need a cc_toolchain cross-registered for that platform from
+    whatever host runs the test, which is not guaranteed (see ABLD-525).
+    """,
+    attrs = {
+        "product_name": attr.string(default = "datadog-agent"),
+        "_flavor": attr.label(default = "//packages/agent:flavor"),
+        "_fips": attr.label(default = "//bazel/platforms:fips"),
+    },
 )

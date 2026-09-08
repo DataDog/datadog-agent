@@ -1,0 +1,28 @@
+diff --git a/go/private/rules/binary.bzl b/go/private/rules/binary.bzl
+index 22a808a6..a1d05271 100644
+--- a/go/private/rules/binary.bzl
++++ b/go/private/rules/binary.bzl
+@@ -556,6 +556,7 @@ set GOTOOLCHAIN=local
+ set GO111MODULE=off
+ set GOTELEMETRY=off
+ set GOENV=off
++set GOEXPERIMENT={goexperiment}
+ {go} build -trimpath -ldflags \"-buildid='' {ldflags}\" -o {out_pack} cmd/pack
+ if %ERRORLEVEL% EQU 0 (
+   {go} build -trimpath -ldflags \"-buildid='' {ldflags}\" -o {out_covdata} cmd/covdata
+@@ -575,6 +576,7 @@ exit /b %GO_EXIT_CODE%
+             out_covdata = ctx.outputs.out_covdata.path,
+             srcs = " ".join([f.path for f in ctx.files.srcs]),
+             ldflags = ctx.attr.ldflags,
++            goexperiment = sdk.experiments,
+         )
+         bat = ctx.actions.declare_file(name + ".bat")
+         ctx.actions.write(
+@@ -623,6 +625,7 @@ exit /b %GO_EXIT_CODE%
+                 "GO111MODULE": "off",
+                 "GOTELEMETRY": "off",
+                 "GOENV": "off",
++                "GOEXPERIMENT": sdk.experiments,
+                 "GO_BINARY": sdk.go.path,
+                 "LD_FLAGS": ctx.attr.ldflags,
+             },

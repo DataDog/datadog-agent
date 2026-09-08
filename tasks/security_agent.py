@@ -14,7 +14,7 @@ from invoke.tasks import task
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import bazel, build_binary_with_bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel, fips_platform_flag
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
@@ -76,7 +76,7 @@ def build(
         if static:
             raise NotImplementedError("--enable-bazel does not support --static.")
 
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        bazel_args = [fips_platform_flag()] if fips_mode else []
         build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
         return
 
