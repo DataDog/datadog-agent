@@ -159,7 +159,7 @@ func TestRunTracerouteFailedDoesNotTakeAllowance(t *testing.T) {
 
 	runAllowancePath(collector, payload.DynamicTestProfileStandard)
 	assert.Empty(t, *emitted)
-	assert.True(t, collector.allowance.take(MockTimeNow()))
+	assertFullStandardAllowanceRemains(t, collector.allowance, MockTimeNow())
 }
 
 func TestRunTracerouteInvalidPathDoesNotTakeAllowance(t *testing.T) {
@@ -176,7 +176,15 @@ func TestRunTracerouteInvalidPathDoesNotTakeAllowance(t *testing.T) {
 
 	runAllowancePath(collector, payload.DynamicTestProfileStandard)
 	assert.Empty(t, *emitted)
-	assert.True(t, collector.allowance.take(MockTimeNow()))
+	assertFullStandardAllowanceRemains(t, collector.allowance, MockTimeNow())
+}
+
+func assertFullStandardAllowanceRemains(t *testing.T, a *allowance, now time.Time) {
+	t.Helper()
+	for i := 0; i < standardAllowancePerHour; i++ {
+		assert.True(t, a.take(now), "remaining slot %d", i)
+	}
+	assert.False(t, a.take(now), "allowance should be exhausted after %d takes", standardAllowancePerHour)
 }
 
 func newAllowanceCollector(t *testing.T, traceroute *tracerouteRunner) (*npCollectorImpl, *[]payload.NetworkPath) {
