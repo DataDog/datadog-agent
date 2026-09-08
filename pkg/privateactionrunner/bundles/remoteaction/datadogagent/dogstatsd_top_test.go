@@ -24,16 +24,16 @@ func TestGetDogstatsdTopHandler(t *testing.T) {
 			require.Equal(t, "application/json", contentType)
 			payload, err := io.ReadAll(body)
 			require.NoError(t, err)
-			require.JSONEq(t, `{"num_metrics":20,"num_tags":10}`, string(payload))
-			return []byte(`{"metrics":[]}`), nil
+			require.JSONEq(t, `{"num_metrics":20,"num_tags":10,"source":"dump"}`, string(payload))
+			return []byte(`{"source":"dump","metrics":[]}`), nil
 		},
 	}
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
-		Inputs: map[string]interface{}{"num_metrics": 20, "num_tags": 10},
+		Inputs: map[string]interface{}{"num_metrics": 20, "num_tags": 10, "source": "dump"},
 	}
 
 	result, err := NewGetDogstatsdTopHandler(client).Run(context.Background(), task, nil)
 	require.NoError(t, err)
-	require.Equal(t, map[string]interface{}{"metrics": []interface{}{}}, result)
+	require.Equal(t, map[string]interface{}{"source": "dump", "metrics": []interface{}{}}, result)
 }
