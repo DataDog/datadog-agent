@@ -8659,6 +8659,24 @@ properties:
             format: duration
             tags:
             - golang_type:duration
+      core_agent_ipc:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: |-
+              Whether this agent is allowed to talk to the core agent over IPC.
+              Set to false for agents that run isolated from the core agent and cannot reach
+              it by design (for example system-probe inside a microVM, forwarding its events
+              to a system-probe on the host instead of to the local core agent). When false,
+              the components that would otherwise stream from the core agent fall back to a
+              local or no-op implementation instead of retrying a connection that can never
+              succeed: remote workloadmeta, remote tagger, remote workloadfilter and remote
+              hostname, plus configsync, the remote agent registry and the config stream
+              consumer, which all stay off.
       registry:
         node_type: section
         type: object

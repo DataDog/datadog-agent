@@ -26,6 +26,7 @@ import (
 	baseimpl "github.com/DataDog/datadog-agent/comp/core/workloadfilter/baseimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterimpl "github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -90,6 +91,25 @@ type Provides struct {
 
 // NewComponent returns a new remote filter client
 func NewComponent(req Requires) (Provides, error) {
+	// Agents that cannot reach the core agent by design (e.g. system-probe inside a
+	// microVM) get the local store instead: it evaluates the same CEL programs from
+	// their own config rather than querying a core agent that is not there.
+	if !req.Config.GetBool("remote_agent.core_agent_ipc.enabled") {
+		req.Log.Info("core agent IPC is disabled, using the local workloadfilter")
+		local, err := workloadfilterimpl.NewComponent(workloadfilterimpl.Requires{
+			Config:    req.Config,
+			Log:       req.Log,
+			Telemetry: req.Telemetry,
+		})
+		if err != nil {
+			return Provides{}, err
+		}
+		return Provides{
+			Comp:          local.Comp,
+			FlareProvider: local.FlareProvider,
+		}, nil
+	}
+
 	remoteFilter := newFilter(req.Config, req.Log, req.Telemetry, req.IPC)
 
 	req.Lc.Append(compdef.Hook{

@@ -54,7 +54,7 @@ import (
 	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	optionalRemoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
 	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
@@ -171,7 +171,16 @@ func getSharedFxOption() fx.Option {
 		}),
 		remoteWorkloadfilterfx.Module(),
 		ipcfx.ModuleReadWrite(),
-		remoteTaggerFx.Module(tagger.NewRemoteParams()),
+		// The remote tagger talks to the core agent; fall back to the noop tagger when this
+		// system-probe runs isolated from it (e.g. inside a microVM).
+		optionalRemoteTaggerFx.Module(
+			tagger.OptionalRemoteParams{
+				Disable: func(c config.Component) bool {
+					return !c.GetBool("remote_agent.core_agent_ipc.enabled")
+				},
+			},
+			tagger.NewRemoteParams(),
+		),
 		autoexitfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
