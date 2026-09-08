@@ -124,25 +124,21 @@ func TestNewDeviceUUIDFailure(t *testing.T) {
 	require.Equal(t, nvml.ERROR_INVALID_ARGUMENT, nvmlErr.NvmlErrorCode)
 }
 
-func TestNewDeviceMemoryInfoFailureUsesNonZeroFallback(t *testing.T) {
-	mockNvml := testutil.GetBasicNvmlMockWithOptions(
+func TestNewDeviceMemoryInfoFailureLeavesMemoryUnset(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
+				return nvml.Memory{}, nvml.ERROR_UNKNOWN
+			}
+		})),
 	)
 	WithMockNVML(t, mockNvml)
 
-	mockDevice := testutil.GetDeviceMock(0, func(device *nvmlmock.Device) {
-		device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
-			return nvml.Memory{}, nvml.ERROR_UNKNOWN
-		}
-		device.GetMigModeFunc = func() (int, int, nvml.Return) {
-			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
-		}
-	})
-
-	device, err := NewPhysicalDevice(mockDevice)
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
 
 	require.NoError(t, err)
-	require.Equal(t, uint64(1), device.Memory)
+	require.Zero(t, device.Memory)
 }
 
 func TestDeviceWithMissingSymbol(t *testing.T) {
