@@ -14,3 +14,5 @@ enhancements:
     This matches ``internal_profiling.unix_socket``, already supported by the
     other Agent processes, and makes the OTel Agent profileable in environments
     that expose a socket rather than HTTP egress to the profiling intake.
+    The setting is ignored on Windows, where the trace agent exposes no
+    profiling socket; profiles are sent over HTTP there instead.

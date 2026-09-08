@@ -19,6 +19,8 @@ type Config struct {
 	// it the otel-agent is the only one that cannot be profiled in environments
 	// that expose a socket rather than HTTP egress (the SMP regression sandbox,
 	// for one).
+	// Ignored on Windows, where the trace agent exposes no profiling socket:
+	// profiles are sent over HTTP there as if this were unset.
 	// Default: DD_OTELCOLLECTOR_INTERNAL_PROFILING_UNIX_SOCKET, then unset.
 	UnixSocket string `mapstructure:"unix_socket"`
 }

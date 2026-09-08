@@ -10,6 +10,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -48,8 +49,10 @@ type ddExtension struct {
 	info       component.BuildInfo
 	traceAgent traceagent.Component
 	server     *http.Server
-	log        corelog.Component
-	agentMode  bool
+	// log is nil when the extension is built by NewFactory (standalone mode),
+	// which is given no agent components. Every use must be nil-checked.
+	log       corelog.Component
+	agentMode bool
 }
 
 // NewComponent creates a new instance of the extension.
@@ -78,7 +81,9 @@ func (e *ddExtension) startForAgent(host component.Host) error {
 	// is nothing left for the server to forward. Skip starting it rather than
 	// leaving an idle listener on port 7501.
 	if socket := e.unixSocket(); socket != "" {
-		e.log.Info("DD Profiling Extension sending profiles over unix socket: " + socket)
+		if e.log != nil {
+			e.log.Info("DD Profiling Extension sending profiles over unix socket: " + socket)
+		}
 		return profiler.Start(append(profilerOptions, profiler.WithUDS(socket))...)
 	}
 
@@ -161,11 +166,29 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 
 // unixSocket returns the unix socket profiles should be sent to, preferring the
 // config key over the environment.
+//
+// It also returns "" when a socket is configured on a platform that has no use
+// for one. Callers then take the address-based path they would have taken had
+// the setting been absent, so a socket carried in a config or an environment
+// shared across a mixed fleet degrades to HTTP on Windows rather than pointing
+// the profiler at a path nothing serves.
 func (e *ddExtension) unixSocket() string {
-	if e.cfg.UnixSocket != "" {
-		return e.cfg.UnixSocket
+	socket, source := e.cfg.UnixSocket, "the unix_socket setting"
+	if socket == "" {
+		if fromEnv, ok := nonBlankEnv(ddUnixSocketEnvVar); ok {
+			socket, source = fromEnv, ddUnixSocketEnvVar
+		}
 	}
-	socket, _ := nonBlankEnv(ddUnixSocketEnvVar)
+	if socket == "" {
+		return ""
+	}
+	if !hasUnixSocketSupport() {
+		if e.log != nil {
+			e.log.Warn("DD Profiling Extension ignoring " + source + ": no trace agent profiling socket is " +
+				"available on " + runtime.GOOS + ", falling back to sending profiles over HTTP")
+		}
+		return ""
+	}
 	return socket
 }
 
