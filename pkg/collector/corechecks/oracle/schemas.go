@@ -290,6 +290,11 @@ FROM cdb_objects WHERE object_type = 'VIEW' AND owner IN (/*OWNERS*/)`
 // ORA-01795 limits an IN list to 1000 expressions.
 const maxSchemaOwners = 1000
 
+const (
+	oracleErrorInvalidIdentifier       = "ORA-00904"
+	oracleErrorTableOrViewDoesNotExist = "ORA-00942"
+)
+
 var schemaOwnerPattern = regexp.MustCompile(`^[A-Z0-9_$#]+$`)
 
 func compiledPatterns(patterns []string, logPrompt, kind string) []*regexp.Regexp {
@@ -1090,7 +1095,7 @@ func (c *Check) queryDetails(ctx context.Context, name, template string, ownerLi
 	for _, ownerList := range ownerLists {
 		rows, err := c.db.QueryxContext(ctx, strings.Replace(template, "/*OWNERS*/", ownerList, 1))
 		if err != nil {
-			if strings.Contains(err.Error(), "ORA-00942") || strings.Contains(err.Error(), "ORA-00904") {
+			if strings.Contains(err.Error(), oracleErrorTableOrViewDoesNotExist) || strings.Contains(err.Error(), oracleErrorInvalidIdentifier) {
 				log.Debugf("%s table detail %q unavailable: %s", c.logPrompt, name, err)
 				return
 			}
