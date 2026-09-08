@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/spf13/afero"
 
@@ -125,16 +126,21 @@ func waitForAlive(t *testing.T, alive <-chan struct{}, result <-chan error) {
 	case <-alive:
 	case err := <-result:
 		t.Fatalf("command returned before OnAlive: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for OnAlive")
 	}
 }
 
-// On a successful run, execute must call OnAlive after cmd.Start and OnDead
-// via defer after cmd.Wait. The OnAlive hook holds execution until the test
-// observes the state, avoiding a scheduler-dependent mid-run probe.
-func TestExecute_SuccessfulRun_InvokesHooksInOrder(t *testing.T) {
-	child := lifecycle.NewChild()
+func blockingLivenessHooks(child *lifecycle.Child) (*ProcessHooks, <-chan struct{}, func()) {
 	alive := make(chan struct{})
 	release := make(chan struct{})
+	releaseChild := func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}
 	hooks := &ProcessHooks{
 		OnAlive: func() {
 			child.MarkAlive()
@@ -143,13 +149,23 @@ func TestExecute_SuccessfulRun_InvokesHooksInOrder(t *testing.T) {
 		},
 		OnDead: child.MarkDead,
 	}
+	return hooks, alive, releaseChild
+}
+
+// On a successful run, execute must call OnAlive after cmd.Start and OnDead
+// via defer after cmd.Wait. The OnAlive hook holds execution until the test
+// observes the state, avoiding a scheduler-dependent mid-run probe.
+func TestExecute_SuccessfulRun_InvokesHooksInOrder(t *testing.T) {
+	child := lifecycle.NewChild()
+	hooks, alive, releaseChild := blockingLivenessHooks(child)
+	defer releaseChild()
 	result := make(chan error, 1)
 	go func() {
 		result <- execute(&serverlessLog.Config{}, []string{"sh", "-c", "sleep 0.5"}, hooks)
 	}()
 	waitForAlive(t, alive, result)
 	assert.True(t, child.IsAlive(), "OnAlive must fire before cmd.Wait returns")
-	close(release)
+	releaseChild()
 	err := <-result
 	assert.NoError(t, err)
 	assert.False(t, child.IsAlive(), "OnDead must fire after cmd.Wait returns")
@@ -164,23 +180,15 @@ func TestRunInit_MicroVM_ChildSupplied_TracksLiveness(t *testing.T) {
 	os.Args = []string{"datadog-init", "sh", "-c", "sleep 0.5"}
 
 	child := lifecycle.NewChild()
-	alive := make(chan struct{})
-	release := make(chan struct{})
-	hooks := &ProcessHooks{
-		OnAlive: func() {
-			child.MarkAlive()
-			close(alive)
-			<-release
-		},
-		OnDead: child.MarkDead,
-	}
+	hooks, alive, releaseChild := blockingLivenessHooks(child)
+	defer releaseChild()
 	result := make(chan error, 1)
 	go func() {
 		result <- RunInit(&serverlessLog.Config{}, hooks)
 	}()
 	waitForAlive(t, alive, result)
 	assert.True(t, child.IsAlive(), "child must be marked alive while RunInit is blocked")
-	close(release)
+	releaseChild()
 	err := <-result
 	assert.NoError(t, err)
 	assert.False(t, child.IsAlive(), "child must be marked dead after RunInit returns")
