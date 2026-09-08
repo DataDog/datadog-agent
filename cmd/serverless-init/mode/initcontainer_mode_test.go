@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"runtime"
 	"strconv"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -120,47 +119,78 @@ func TestExecute_StartFailure_NeverCallsOnAlive(t *testing.T) {
 	assert.False(t, onAliveCalled, "OnAlive must not be called when cmd.Start fails")
 }
 
+func waitForAlive(t *testing.T, alive <-chan struct{}, result <-chan error) {
+	t.Helper()
+
+	select {
+	case <-alive:
+	case err := <-result:
+		t.Fatalf("command returned before OnAlive: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for OnAlive")
+	}
+}
+
+func blockingLivenessHooks(child *lifecycle.Child) (*ProcessHooks, <-chan struct{}, func()) {
+	alive := make(chan struct{})
+	release := make(chan struct{})
+	releaseChild := func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}
+	hooks := &ProcessHooks{
+		OnAlive: func() {
+			child.MarkAlive()
+			close(alive)
+			<-release
+		},
+		OnDead: child.MarkDead,
+	}
+	return hooks, alive, releaseChild
+}
+
 // On a successful run, execute must call OnAlive after cmd.Start and OnDead
-// via defer after cmd.Wait. The mid-run probe pins the ordering.
+// via defer after cmd.Wait. The OnAlive hook holds execution until the test
+// observes the state, avoiding a scheduler-dependent mid-run probe.
 func TestExecute_SuccessfulRun_InvokesHooksInOrder(t *testing.T) {
 	child := lifecycle.NewChild()
-	hooks := &ProcessHooks{
-		OnAlive: child.MarkAlive,
-		OnDead:  child.MarkDead,
-	}
-	var midRunAlive atomic.Bool
-	probeDone := make(chan struct{})
+	hooks, alive, releaseChild := blockingLivenessHooks(child)
+	defer releaseChild()
+	result := make(chan error, 1)
 	go func() {
-		defer close(probeDone)
-		time.Sleep(100 * time.Millisecond)
-		midRunAlive.Store(child.IsAlive())
+		result <- execute(&serverlessLog.Config{}, []string{"sh", "-c", "sleep 0.5"}, hooks)
 	}()
-	err := execute(&serverlessLog.Config{}, []string{"sh", "-c", "sleep 0.5"}, hooks)
-	<-probeDone
+	waitForAlive(t, alive, result)
+	assert.True(t, child.IsAlive(), "OnAlive must fire before cmd.Wait returns")
+	releaseChild()
+	err := <-result
 	assert.NoError(t, err)
-	assert.True(t, midRunAlive.Load(), "OnAlive must fire before cmd.Wait returns")
 	assert.False(t, child.IsAlive(), "OnDead must fire after cmd.Wait returns")
 }
 
 // MicroVM init-container mode: ProcessHooks drive liveness tracking through
-// the public RunInit entry point. Pins the alive→dead transition.
+// the public RunInit entry point. OnAlive holds execution until the test has
+// observed liveness, so the assertion does not depend on startup timing.
 func TestRunInit_MicroVM_ChildSupplied_TracksLiveness(t *testing.T) {
 	saved := os.Args
 	defer func() { os.Args = saved }()
 	os.Args = []string{"datadog-init", "sh", "-c", "sleep 0.5"}
 
 	child := lifecycle.NewChild()
-	var midRunAlive atomic.Bool
-	probeDone := make(chan struct{})
+	hooks, alive, releaseChild := blockingLivenessHooks(child)
+	defer releaseChild()
+	result := make(chan error, 1)
 	go func() {
-		defer close(probeDone)
-		time.Sleep(100 * time.Millisecond)
-		midRunAlive.Store(child.IsAlive())
+		result <- RunInit(&serverlessLog.Config{}, hooks)
 	}()
-	err := RunInit(&serverlessLog.Config{}, &ProcessHooks{OnAlive: child.MarkAlive, OnDead: child.MarkDead})
-	<-probeDone
+	waitForAlive(t, alive, result)
+	assert.True(t, child.IsAlive(), "child must be marked alive while RunInit is blocked")
+	releaseChild()
+	err := <-result
 	assert.NoError(t, err)
-	assert.True(t, midRunAlive.Load(), "child must be marked alive while RunInit is blocked")
 	assert.False(t, child.IsAlive(), "child must be marked dead after RunInit returns")
 }
 
