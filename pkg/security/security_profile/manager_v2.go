@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1147,6 +1148,12 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 	secprof.Metadata.ContainerID = event.ProcessContext.Process.ContainerContext.ContainerID
 	secprof.Metadata.CGroupContext = event.ProcessContext.Process.CGroup
 
+	// Backfill only — never overwrite so a later rollout with a different
+	// SecurityContext can't silently rewrite historical data.
+	if secprof.Declared == nil {
+		secprof.Declared = m.resolveDeclared(event.ProcessContext.Process.ContainerContext.ContainerID)
+	}
+
 	// Apply eviction right away if configured
 	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
 		workloadID := getWorkloadIDFromEvent(event)
@@ -1197,6 +1204,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		Start:             eventTime,
 		End:               eventTime,
 	}
+	secprof.Declared = m.resolveDeclared(event.ProcessContext.Process.ContainerContext.ContainerID)
 	secprof.Header.Host = m.hostname
 	secprof.Header.Source = ActivityDumpSource
 
@@ -1206,6 +1214,13 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	}
 
 	return secprof, nil
+}
+
+func (m *ManagerV2) resolveDeclared(id containerutils.ContainerID) *securitycontext.Declared {
+	if m.resolvers == nil || m.resolvers.SecurityContextResolver == nil || len(id) == 0 {
+		return nil
+	}
+	return m.resolvers.SecurityContextResolver.Resolve(id)
 }
 
 // resolveAndAddProfileTags resolves tags for the profile's workload and adds them to the profile

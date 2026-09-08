@@ -19,10 +19,92 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
+
+func declaredToProto(d *securitycontext.Declared) *adprotov1.HardeningDeclared {
+	if d == nil {
+		return nil
+	}
+	return &adprotov1.HardeningDeclared{
+		Privileged:       d.Privileged,
+		Seccomp:          seccompToProto(d.Seccomp),
+		CapabilitiesAdd:  d.CapabilitiesAdd,
+		CapabilitiesDrop: d.CapabilitiesDrop,
+	}
+}
+
+func protoToDeclared(d *adprotov1.HardeningDeclared) *securitycontext.Declared {
+	if d == nil {
+		return nil
+	}
+	return &securitycontext.Declared{
+		Privileged:       d.GetPrivileged(),
+		Seccomp:          seccompFromProto(d.GetSeccomp()),
+		CapabilitiesAdd:  d.GetCapabilitiesAdd(),
+		CapabilitiesDrop: d.GetCapabilitiesDrop(),
+	}
+}
+
+// seccompToProto drops LocalhostProfile for any type != Localhost to keep the
+// wire invariant tight even when the caller hand-builds a bogus struct.
+func seccompToProto(s *securitycontext.SeccompProfile) *adprotov1.SeccompProfile {
+	if s == nil {
+		return nil
+	}
+	out := &adprotov1.SeccompProfile{Type: seccompTypeToProto(s.Type)}
+	if s.Type == securitycontext.SeccompLocalhost && s.LocalhostProfile != "" {
+		lp := s.LocalhostProfile
+		out.LocalhostProfile = &lp
+	}
+	return out
+}
+
+// seccompFromProto returns nil for the UNKNOWN type so absence and "no data"
+// look the same to consumers.
+func seccompFromProto(s *adprotov1.SeccompProfile) *securitycontext.SeccompProfile {
+	if s == nil {
+		return nil
+	}
+	t := seccompTypeFromProto(s.GetType())
+	if t == securitycontext.SeccompUnknown {
+		return nil
+	}
+	out := &securitycontext.SeccompProfile{Type: t}
+	if t == securitycontext.SeccompLocalhost {
+		out.LocalhostProfile = s.GetLocalhostProfile()
+	}
+	return out
+}
+
+func seccompTypeToProto(t securitycontext.SeccompProfileType) adprotov1.SeccompProfile_Type {
+	switch t {
+	case securitycontext.SeccompUnconfined:
+		return adprotov1.SeccompProfile_TYPE_UNCONFINED
+	case securitycontext.SeccompRuntimeDefault:
+		return adprotov1.SeccompProfile_TYPE_RUNTIME_DEFAULT
+	case securitycontext.SeccompLocalhost:
+		return adprotov1.SeccompProfile_TYPE_LOCALHOST
+	default:
+		return adprotov1.SeccompProfile_TYPE_UNKNOWN
+	}
+}
+
+func seccompTypeFromProto(t adprotov1.SeccompProfile_Type) securitycontext.SeccompProfileType {
+	switch t {
+	case adprotov1.SeccompProfile_TYPE_UNCONFINED:
+		return securitycontext.SeccompUnconfined
+	case adprotov1.SeccompProfile_TYPE_RUNTIME_DEFAULT:
+		return securitycontext.SeccompRuntimeDefault
+	case adprotov1.SeccompProfile_TYPE_LOCALHOST:
+		return securitycontext.SeccompLocalhost
+	default:
+		return securitycontext.SeccompUnknown
+	}
+}
 
 // profileToSecDumpProto creates a protobuf SecDump object from the given Profile
 func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
@@ -38,6 +120,7 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 		Metadata: mtdt.ToProto(&p.Metadata),
 		Tags:     make([]string, len(p.tags)),
 		Tree:     activity_tree.ToProto(p.ActivityTree),
+		Declared: declaredToProto(p.Declared),
 	}
 	copy(pad.Tags, p.tags)
 
@@ -54,6 +137,7 @@ func secDumpProtoToProfile(p *Profile, ad *adprotov1.SecDump) {
 	p.Header.Service = ad.Service
 	p.Header.Source = ad.Source
 	p.Metadata = mtdt.ProtoMetadataToMetadata(ad.Metadata)
+	p.Declared = protoToDeclared(ad.Declared)
 
 	p.tags = make([]string, len(ad.Tags))
 	copy(p.tags, ad.Tags)
@@ -152,6 +236,7 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 		Tree:            activity_tree.ToProto(p.ActivityTree),
 		Selector:        cgroupModel.WorkloadSelectorToProto(&p.selector),
 		Disabled:        !p.isEnabled,
+		Declared:        declaredToProto(p.Declared),
 	}
 
 	for key, ctx := range p.versionContexts {
@@ -201,6 +286,7 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 	output.Metadata = mtdt.ProtoMetadataToMetadata(input.Metadata)
 	output.selector = cgroupModel.ProtoToWorkloadSelector(input.Selector)
 	output.isEnabled = !input.Disabled
+	output.Declared = protoToDeclared(input.Declared)
 
 	for key, ctx := range input.ProfileContexts {
 		outCtx := &VersionContext{

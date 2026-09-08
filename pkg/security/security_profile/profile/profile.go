@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -70,6 +71,8 @@ type Profile struct {
 
 	Header   ActivityDumpHeader
 	Metadata mtdt.Metadata
+	// Declared is the declared hardening posture; nil when unknown.
+	Declared *securitycontext.Declared
 	selector cgroupModel.WorkloadSelector
 	tags     []string
 
