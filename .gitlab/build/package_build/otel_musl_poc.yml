@@ -9,7 +9,7 @@ otel-agent-musl-poc:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
   script:
-    - apk add --no-cache python3 py3-pip go musl-dev gcc git bash curl aws-cli
+    - apk add --no-cache python3 py3-pip go musl-dev gcc git bash curl aws-cli file
     - pip install --break-system-packages dda
     - export GOTOOLCHAIN=auto
     - dda inv -- -e otel-agent.build
