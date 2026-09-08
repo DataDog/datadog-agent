@@ -1786,6 +1786,7 @@ properties:
             node_type: setting
             type: array
             default: []
+            env_parser: json
             items:
               additionalProperties:
                 type: string

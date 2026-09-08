@@ -55,12 +55,15 @@ func TestKmsgReaderFiltersRecordsAndCountsMalformedRecords(t *testing.T) {
 		return record.Message == "keep"
 	})
 
+	beforeRead := time.Now()
 	source.enqueue(recordResult("malformed"))
 	source.enqueue(recordResult("6,1,100,-;keep\n"))
 	source.enqueue(recordResult("6,2,101,-;drop\n"))
 	source.enqueue(recordResult("6,4,102,-;keep\n"))
 
-	require.Equal(t, uint64(1), receiveRecord(t, records).Sequence)
+	firstRecord := receiveRecord(t, records)
+	require.Equal(t, uint64(1), firstRecord.Sequence)
+	require.False(t, firstRecord.ObservedAt.Before(beforeRead))
 	require.Equal(t, uint64(4), receiveRecord(t, records).Sequence)
 	require.Eventually(t, func() bool {
 		return counterValue(t, tel, "records_read") == 4 &&
