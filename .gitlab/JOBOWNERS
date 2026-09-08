@@ -24,7 +24,7 @@ fetch_openjdk                        @DataDog/agent-metric-pipelines
 # tests_* defaults to agent-devx, with overrides below
 tests_*                                 @DataDog/agent-devx
 tests_ebpf*                             @DataDog/ebpf-platform
-tests_gpu                               @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
+tests_gpu                               @DataDog/gpu-monitoring-agent
 tests_windows-x64                       @DataDog/windows-products
 tests_windows_sysprobe*                 @DataDog/windows-products
 tests_windows_secagent*                 @DataDog/windows-products @DataDog/agent-security
@@ -251,7 +251,7 @@ new-e2e-agent-platform-*                @DataDog/fleet
 new-e2e-platform-integrations-*         @DataDog/agent-integrations
 new-e2e-package-signing-*               @DataDog/agent-delivery
 # --- GPU ---
-new-e2e-gpu*                            @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
+new-e2e-gpu*                            @DataDog/gpu-monitoring-agent
 # --- Action platform / discovery ---
 new-e2e-privateactionrunner             @DataDog/action-platform
 new-e2e-discovery                       @DataDog/agent-discovery
