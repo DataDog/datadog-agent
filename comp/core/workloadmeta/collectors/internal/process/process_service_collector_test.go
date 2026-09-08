@@ -21,7 +21,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -385,7 +384,7 @@ func TestServiceDiscoveryPartialBatchFailurePreservesRetries(t *testing.T) {
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101, 102, 103, 104, 105})
-	entities, _, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
 
 	assert.Equal(t, 2, requests())
 	requestMux.Lock()
@@ -449,7 +448,7 @@ func testServiceDiscoveryConsecutiveTimeoutsDisableRequests(t *testing.T, c coll
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101})
 	for i := 0; i < maxConsecutiveTimeouts; i++ {
-		entities, injectedPids, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+		entities, injectedPids := c.collector.updateServices(context.Background(), alivePids, procs)
 		require.Empty(t, entities)
 		require.Empty(t, injectedPids)
 	}
@@ -458,7 +457,7 @@ func testServiceDiscoveryConsecutiveTimeoutsDisableRequests(t *testing.T, c coll
 	assert.Equal(t, maxConsecutiveTimeouts, c.collector.consecutiveServiceDiscoveryTimeouts)
 	assert.Equal(t, maxConsecutiveTimeouts, requests())
 
-	entities, injectedPids, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+	entities, injectedPids := c.collector.updateServices(context.Background(), alivePids, procs)
 	require.Empty(t, entities)
 	require.Empty(t, injectedPids)
 	assert.Equal(t, maxConsecutiveTimeouts, requests(), "disabled service discovery should not send more requests")
@@ -481,7 +480,7 @@ func TestServiceDiscoverySuccessfulRequestResetsConsecutiveTimeouts(t *testing.T
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101})
-	entities, _, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
 
 	require.Len(t, entities, 1)
 	assert.Equal(t, int32(101), entities[0].Pid)
@@ -590,7 +589,7 @@ func testServiceDiscoveryPartialBatchTimeoutPreservesSuccessfulPIDsAndResetsPrev
 	)
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101, 102, 103, 104, 105})
-	entities, _, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
 
 	assert.Equal(t, 2, requests())
 	requestMux.Lock()
@@ -619,7 +618,7 @@ func TestServiceDiscoverySuccessfulNoServiceIncrementsRetries(t *testing.T) {
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101})
-	entities, _, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
 
 	require.Len(t, entities, 1)
 	assert.Equal(t, int32(101), entities[0].Pid)
@@ -637,52 +636,32 @@ func waitForServiceCollectionCall(t *testing.T, calls <-chan time.Time) time.Tim
 	}
 }
 
-type tickerRegistrationClock struct {
-	clock.Clock
-	tickerRegistered chan<- time.Duration
-}
-
-func (c *tickerRegistrationClock) Ticker(d time.Duration) *clock.Ticker {
-	ticker := c.Clock.Ticker(d)
-	c.tickerRegistered <- d
-	return ticker
-}
-
-func watchServiceCollectionTickerRegistration(c collectorTest) <-chan time.Duration {
-	tickerRegistered := make(chan time.Duration, 1)
-	c.collector.clock = &tickerRegistrationClock{
-		Clock:            c.mockClock,
-		tickerRegistered: tickerRegistered,
-	}
-	return tickerRegistered
-}
-
-func waitForServiceCollectionTicker(t *testing.T, tickerRegistered <-chan time.Duration) {
-	t.Helper()
-	select {
-	case interval := <-tickerRegistered:
-		require.Equal(t, serviceCollectionStartupRetryInterval, interval)
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for startup retry ticker registration")
-	}
-}
-
-func TestCollectServicesRunsImmediatelyAndAtRegularInterval(t *testing.T) {
+func TestCollectServicesRunsWhenReadyAndAtRegularInterval(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 	c.mockClock.Set(baseTime)
+	socketPath, _ := startScriptedServiceDiscoveryServer(t, func(_ int, _ core.Params) serviceDiscoveryTestResponse {
+		return serviceDiscoveryTestResponse{response: &model.ServicesResponse{}}
+	})
+	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 	ctx, cancel := context.WithCancel(context.Background())
+	processesReady := make(chan struct{})
 	calls := make(chan time.Time, 2)
 	done := make(chan struct{})
 	collectionTicker := c.mockClock.Ticker(time.Minute)
 	go func() {
 		defer close(done)
-		c.collector.collectServices(ctx, collectionTicker, time.Minute, func(context.Context, bool) bool {
+		c.collector.collectServices(ctx, collectionTicker, processesReady, func(context.Context) {
 			calls <- c.mockClock.Now()
-			return false
 		})
 	}()
 
+	select {
+	case callTime := <-calls:
+		t.Fatalf("service collection ran before process readiness at %s", callTime)
+	default:
+	}
+	close(processesReady)
 	assert.Equal(t, baseTime, waitForServiceCollectionCall(t, calls))
 	c.mockClock.Add(time.Minute)
 	assert.Equal(t, baseTime.Add(time.Minute), waitForServiceCollectionCall(t, calls))
@@ -701,9 +680,8 @@ func TestCollectServicesDoesNotRunAfterCancellation(t *testing.T) {
 	cancel()
 
 	called := false
-	c.collector.collectServices(ctx, c.mockClock.Ticker(time.Minute), time.Minute, func(context.Context, bool) bool {
+	c.collector.collectServices(ctx, c.mockClock.Ticker(time.Minute), nil, func(context.Context) {
 		called = true
-		return false
 	})
 
 	assert.False(t, called)
@@ -718,42 +696,30 @@ func TestSendProcessEventStopsWhenCanceled(t *testing.T) {
 	assert.False(t, c.collector.sendProcessEvent(ctx, &Event{Type: EventTypeServiceDiscovery}))
 }
 
-func TestCollectServicesRetriesOnlyUntilFirstRegularInterval(t *testing.T) {
-	const collectionInterval = 10 * time.Second
+func TestCollectServicesRegularIntervalCancelsStartupWait(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 	c.mockClock.Set(baseTime)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	calls := make(chan time.Time, 8)
+	processesReady := make(chan struct{})
+	calls := make(chan time.Time, 2)
 	done := make(chan struct{})
-	retryTickerRegistered := watchServiceCollectionTickerRegistration(c)
-	collectionTicker := c.mockClock.Ticker(collectionInterval)
+	collectionTicker := c.mockClock.Ticker(time.Minute)
 	go func() {
 		defer close(done)
-		c.collector.collectServices(ctx, collectionTicker, collectionInterval, func(context.Context, bool) bool {
+		c.collector.collectServices(ctx, collectionTicker, processesReady, func(context.Context) {
 			calls <- c.mockClock.Now()
-			return true
 		})
 	}()
 
-	assert.Equal(t, baseTime, waitForServiceCollectionCall(t, calls))
-	waitForServiceCollectionTicker(t, retryTickerRegistered)
-	for elapsed := serviceCollectionStartupRetryInterval; elapsed < collectionInterval; elapsed += serviceCollectionStartupRetryInterval {
-		c.mockClock.Add(serviceCollectionStartupRetryInterval)
-		assert.Equal(t, baseTime.Add(elapsed), waitForServiceCollectionCall(t, calls))
-	}
-
-	c.mockClock.Add(serviceCollectionStartupRetryInterval)
-	assert.Equal(t, baseTime.Add(collectionInterval), waitForServiceCollectionCall(t, calls))
-	c.mockClock.Add(serviceCollectionStartupRetryInterval)
+	c.mockClock.Add(time.Minute)
+	assert.Equal(t, baseTime.Add(time.Minute), waitForServiceCollectionCall(t, calls))
+	close(processesReady)
 	select {
 	case callTime := <-calls:
-		t.Fatalf("unexpected startup retry after the first regular collection at %s", callTime)
+		t.Fatalf("unexpected startup collection after periodic collection took over at %s", callTime)
 	default:
 	}
-
-	c.mockClock.Add(collectionInterval - serviceCollectionStartupRetryInterval)
-	assert.Equal(t, baseTime.Add(2*collectionInterval), waitForServiceCollectionCall(t, calls))
 
 	cancel()
 	select {
@@ -763,35 +729,7 @@ func TestCollectServicesRetriesOnlyUntilFirstRegularInterval(t *testing.T) {
 	}
 }
 
-func TestCollectServicesStopsStartupRetriesAfterNonRetryableResult(t *testing.T) {
-	c := setUpCollectorTest(t, nil, nil, nil)
-	c.mockClock.Set(baseTime)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	calls := make(chan time.Time, 3)
-	callCount := 0
-	retryTickerRegistered := watchServiceCollectionTickerRegistration(c)
-	collectionTicker := c.mockClock.Ticker(time.Minute)
-	go c.collector.collectServices(ctx, collectionTicker, time.Minute, func(context.Context, bool) bool {
-		callCount++
-		calls <- c.mockClock.Now()
-		return callCount < 2
-	})
-
-	assert.Equal(t, baseTime, waitForServiceCollectionCall(t, calls))
-	waitForServiceCollectionTicker(t, retryTickerRegistered)
-	c.mockClock.Add(serviceCollectionStartupRetryInterval)
-	assert.Equal(t, baseTime.Add(serviceCollectionStartupRetryInterval), waitForServiceCollectionCall(t, calls))
-	c.mockClock.Add(serviceCollectionStartupRetryInterval)
-	select {
-	case callTime := <-calls:
-		t.Fatalf("unexpected startup retry after a non-retryable result at %s", callTime)
-	default:
-	}
-}
-
-func TestCollectServicesCachedRetriesInitiallyEmptyProcessCache(t *testing.T) {
+func TestCollectServicesCachedWaitsForProcessCache(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 	c.mockClock.Set(baseTime)
 	c.collector.store = c.mockStore
@@ -806,21 +744,10 @@ func TestCollectServicesCachedRetriesInitiallyEmptyProcessCache(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	attempts := make(chan struct{}, 2)
-	retryTickerRegistered := watchServiceCollectionTickerRegistration(c)
+	processesReady := make(chan struct{})
 	collectionTicker := c.mockClock.Ticker(time.Minute)
-	go c.collector.collectServices(ctx, collectionTicker, time.Minute, func(ctx context.Context, startup bool) bool {
-		retry := c.collector.collectServicesCachedOnce(ctx, startup)
-		attempts <- struct{}{}
-		return retry
-	})
+	go c.collector.collectServicesCached(ctx, collectionTicker, processesReady)
 
-	select {
-	case <-attempts:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for initial cached service collection")
-	}
-	waitForServiceCollectionTicker(t, retryTickerRegistered)
 	assert.Equal(t, 0, requests())
 
 	c.collector.mux.Lock()
@@ -828,7 +755,7 @@ func TestCollectServicesCachedRetriesInitiallyEmptyProcessCache(t *testing.T) {
 		101: makeProcess(101, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
 	}
 	c.collector.mux.Unlock()
-	c.mockClock.Add(serviceCollectionStartupRetryInterval)
+	close(processesReady)
 
 	select {
 	case event := <-c.collector.processEventsCh:
@@ -869,9 +796,11 @@ func TestCollectServicesCachedReleasesProcessCacheLockBeforeServiceRequests(t *t
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan struct{})
+	processesReady := make(chan struct{})
+	close(processesReady)
 	go func() {
 		defer close(done)
-		c.collector.collectServicesCached(ctx, c.mockClock.Ticker(time.Minute), time.Minute)
+		c.collector.collectServicesCached(ctx, c.mockClock.Ticker(time.Minute), processesReady)
 	}()
 
 	select {
