@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 )
 
 // fakeComponent records Set calls and Submit invocations so tests can assert on
@@ -35,12 +36,14 @@ func (f *fakeComponent) Get() map[string]interface{}        { return f.fields }
 func (f *fakeComponent) Submit()                            { f.submits++ }
 
 func TestInjectSetsFieldsWithoutSubmitting(t *testing.T) {
+	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, "arn:aws:lambda:eu-west-1:123456789012:microvm-image:my-image:v1")
 	conf := configmock.New(t)
 	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
 	ia := newFakeComponent()
 
-	Inject(ia, &cloudservice.MicroVM{}, mode.Conf{}, conf, map[string]string{})
+	ok := Inject(ia, &cloudservice.MicroVM{}, mode.Conf{}, conf, map[string]string{})
 
+	assert.True(t, ok, "Inject must return true when identity is complete")
 	assert.Equal(t, serverlessInitFlavor, ia.fields["flavor"])
 	assert.Zero(t, ia.submits, "Inject must not enqueue a payload")
 }
@@ -50,9 +53,22 @@ func TestInjectGatedOff(t *testing.T) {
 	conf.Set("serverless.inventory_enabled", false, model.SourceAgentRuntime)
 	ia := newFakeComponent()
 
-	Inject(ia, &cloudservice.MicroVM{}, mode.Conf{}, conf, map[string]string{})
+	ok := Inject(ia, &cloudservice.MicroVM{}, mode.Conf{}, conf, map[string]string{})
 
+	assert.False(t, ok, "Inject must return false when the ramp gate is off")
 	assert.Empty(t, ia.fields, "no fields must be set when the ramp gate is off")
+}
+
+func TestInjectIncompleteIdentity(t *testing.T) {
+	conf := configmock.New(t)
+	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
+	ia := newFakeComponent()
+
+	// MicroVM with no ARN env var → ResourceID and ResourceName are empty
+	ok := Inject(ia, &cloudservice.MicroVM{}, mode.Conf{}, conf, map[string]string{})
+
+	assert.False(t, ok, "Inject must return false when required identity fields are missing")
+	assert.Empty(t, ia.fields, "no fields must be set when identity is incomplete")
 }
 
 func TestSubmitEnqueuesWhenEnabled(t *testing.T) {
