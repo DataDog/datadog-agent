@@ -32,6 +32,12 @@ const (
 	ddServiceEnvVar = "DD_SERVICE"
 	ddEnvEnvVar     = "DD_ENV"
 	ddVersionEnvVar = "DD_VERSION"
+	// ddUnixSocketEnvVar mirrors the <component>.internal_profiling.unix_socket
+	// setting every other agent process exposes. It is read as an env var, not
+	// only as a config key, so that a collector config carrying it still parses
+	// on agent builds that predate unix_socket -- the collector rejects unknown
+	// config keys outright, which would otherwise make this un-A/B-able.
+	ddUnixSocketEnvVar = "DD_OTELCOLLECTOR_INTERNAL_PROFILING_UNIX_SOCKET"
 )
 
 // ddExtension is a basic OpenTelemetry Collector extension.
@@ -65,14 +71,23 @@ func (e *ddExtension) Start(_ context.Context, host component.Host) error {
 }
 
 func (e *ddExtension) startForAgent(host component.Host) error {
+	profilerOptions := e.buildProfilerOptions()
+
+	// A unix socket is a complete substitute for the local forwarding server:
+	// profiles go straight to the trace agent listening on the socket, so there
+	// is nothing left for the server to forward. Skip starting it rather than
+	// leaving an idle listener on port 7501.
+	if socket := e.unixSocket(); socket != "" {
+		e.log.Info("DD Profiling Extension sending profiles over unix socket: " + socket)
+		return profiler.Start(append(profilerOptions, profiler.WithUDS(socket))...)
+	}
+
 	// start server that handles profiles
 	err := e.newServer()
 	if err != nil {
 		return err
 	}
 	go e.startServer(host)
-
-	profilerOptions := e.buildProfilerOptions()
 
 	// agent
 	profilerOptions = append(profilerOptions, profiler.WithAgentAddr("localhost:"+e.endpoint()))
@@ -84,7 +99,11 @@ func (e *ddExtension) startForAgent(host component.Host) error {
 
 func (e *ddExtension) startForStandalone() error {
 	profilerOptions := e.buildProfilerOptions()
-	if e.cfg.AgentAddr != "" {
+	// A socket and a TCP address are two ways of naming the same trace agent, so
+	// only one can apply. The socket wins: it is the more specific of the two.
+	if socket := e.unixSocket(); socket != "" {
+		profilerOptions = append(profilerOptions, profiler.WithUDS(socket))
+	} else if e.cfg.AgentAddr != "" {
 		profilerOptions = append(profilerOptions, profiler.WithAgentAddr(e.cfg.AgentAddr))
 	}
 	return profiler.Start(profilerOptions...)
@@ -138,6 +157,16 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 	}
 
 	return profilerOptions
+}
+
+// unixSocket returns the unix socket profiles should be sent to, preferring the
+// config key over the environment.
+func (e *ddExtension) unixSocket() string {
+	if e.cfg.UnixSocket != "" {
+		return e.cfg.UnixSocket
+	}
+	socket, _ := nonBlankEnv(ddUnixSocketEnvVar)
+	return socket
 }
 
 func nonBlankEnv(key string) (string, bool) {
