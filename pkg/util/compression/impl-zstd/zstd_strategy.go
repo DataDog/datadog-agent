@@ -52,19 +52,6 @@ func (s *ZstdStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	w, err := zstd.NewWriterLevel(output, s.level)
-	if err != nil {
-		// zstd.NewWriterLevel only returns an error for invalid options, which
-		// we do not pass. A non-nil error here is unexpected; return a writer
-		// that fails on first use so the caller surfaces it.
-		return &errStreamCompressor{err: err}
-	}
+	w, _ := zstd.NewWriterLevel(output, s.level)
 	return w
 }
-
-// errStreamCompressor is a StreamCompressor that fails every operation with err.
-type errStreamCompressor struct{ err error }
-
-func (e *errStreamCompressor) Write(_ []byte) (int, error) { return 0, e.err }
-func (e *errStreamCompressor) Close() error                { return e.err }
-func (e *errStreamCompressor) Flush() error                { return e.err }
