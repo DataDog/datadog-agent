@@ -169,6 +169,7 @@ func NewDeviceEventsGatherer(source DriverEventsSource) *DeviceEventsGatherer {
 		devices:            map[string]*deviceEventsEventsCache{},
 		driverEventsSource: source,
 		xidMergers:         map[string]*xidEventMerger{},
+		seenDevices:        map[string]bool{},
 	}
 }
 
@@ -180,6 +181,14 @@ type observedDeviceEvent struct {
 type deviceEventsEventsCache struct {
 	latestEvents  []observedDeviceEvent
 	pendingEvents chan observedDeviceEvent
+}
+
+func (c *deviceEventsEventsCache) refresh() {
+	c.latestEvents = nil
+	nPending := len(c.pendingEvents)
+	for range nPending {
+		c.latestEvents = append(c.latestEvents, <-c.pendingEvents)
+	}
 }
 
 // DeviceEventsGatherer asynchronously collects nvidia device events through the nvmlEventSetWait api
@@ -194,6 +203,7 @@ type DeviceEventsGatherer struct {
 	// driverEventsSource is nil when the system-probe driver-event source is disabled.
 	driverEventsSource DriverEventsSource
 	xidMergers         map[string]*xidEventMerger
+	seenDevices        map[string]bool
 }
 
 // Started returns true if event collection has been started
@@ -276,44 +286,36 @@ func (c *DeviceEventsGatherer) GetRegisteredDeviceUUIDs() []string {
 
 // Refresh independently refreshes the NVML and system-probe event sources, then merges their XIDs.
 func (c *DeviceEventsGatherer) Refresh(queryTime time.Time) error {
-	driverEventsByDevice := make(map[string][]model.DriverEvent)
 	var driverEventsErr error
+	driverEventsByDevice := make(map[string][]model.DriverEvent)
 	if c.driverEventsSource != nil {
 		if err := c.driverEventsSource.Refresh(); err != nil {
 			driverEventsErr = fmt.Errorf("failed to refresh system-probe driver events: %w", err)
 		}
+
 		for _, event := range c.driverEventsSource.Get() {
 			driverEventsByDevice[event.DeviceUUID] = append(driverEventsByDevice[event.DeviceUUID], event)
+			c.seenDevices[event.DeviceUUID] = true
 		}
 	}
 
-	refreshedDevices := make(map[string]struct{})
+	nvmlEventsByDevice := make(map[string][]observedDeviceEvent)
 	for _, uuid := range c.GetRegisteredDeviceUUIDs() {
 		cache := c.getDeviceCache(uuid)
 		if cache == nil {
 			log.Debugf("event set gatherer: could not find cache for %s while refreshing", uuid)
 			continue
 		}
-		cache.latestEvents = nil
-		nPending := len(cache.pendingEvents)
-		for range nPending {
-			cache.latestEvents = append(cache.latestEvents, <-cache.pendingEvents)
-		}
-		c.getOrCreateXIDMerger(uuid).Refresh(queryTime, cache.latestEvents, driverEventsByDevice[uuid], c.driverEventsSource != nil)
-		delete(driverEventsByDevice, uuid)
-		refreshedDevices[uuid] = struct{}{}
+		cache.refresh()
+		nvmlEventsByDevice[uuid] = cache.latestEvents
+		c.seenDevices[uuid] = true
 	}
 
-	for uuid, driverEvents := range driverEventsByDevice {
-		c.getOrCreateXIDMerger(uuid).Refresh(queryTime, nil, driverEvents, true)
-		refreshedDevices[uuid] = struct{}{}
+	// refresh all devices that have been seen in this or previous refresh
+	for uuid := range c.seenDevices {
+		c.getOrCreateXIDMerger(uuid).Refresh(queryTime, nvmlEventsByDevice[uuid], driverEventsByDevice[uuid], c.driverEventsSource != nil)
 	}
 
-	for uuid, merger := range c.xidMergers {
-		if _, refreshed := refreshedDevices[uuid]; !refreshed {
-			merger.Refresh(queryTime, nil, nil, c.driverEventsSource != nil)
-		}
-	}
 	return driverEventsErr
 }
 
