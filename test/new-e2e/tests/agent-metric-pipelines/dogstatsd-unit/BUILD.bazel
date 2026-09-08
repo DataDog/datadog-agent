@@ -12,6 +12,10 @@ dd_agent_go_test(
     name = "dogstatsd-unit_test",
     srcs = ["dogstatsd_unit_nix_test.go"],
     embed = [":dogstatsd-unit"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2",

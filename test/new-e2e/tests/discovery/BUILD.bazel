@@ -70,6 +70,10 @@ dd_agent_go_test(
         ],
         "//conditions:default": [],
     }),
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/common/utils",

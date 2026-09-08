@@ -30,6 +30,10 @@ dd_agent_go_test(
         "testdata/golden/cis-ubuntu2404.txt",
         "values.yaml",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/dockeragentparams",

@@ -55,6 +55,10 @@ dd_agent_go_test(
     data = ["config/helm-template.tmpl"],
     embed = [":process"],
     embedsrcs = ["config/helm-template.tmpl"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/common/config",

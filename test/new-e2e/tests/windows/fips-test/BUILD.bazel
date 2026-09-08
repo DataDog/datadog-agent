@@ -6,6 +6,10 @@ dd_agent_go_test(
         "fips_test.go",
         "mutually_exclusive_product_test.go",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",

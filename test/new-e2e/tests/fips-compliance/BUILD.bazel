@@ -44,6 +44,10 @@ dd_agent_go_test(
         "fixtures/security-agent.yaml",
         "fixtures/system-probe.yaml",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/apps",

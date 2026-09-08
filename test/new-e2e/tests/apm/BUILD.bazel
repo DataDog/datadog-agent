@@ -31,6 +31,10 @@ dd_agent_go_test(
         "vm_test.go",
     ],
     embed = [":apm"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/apps",

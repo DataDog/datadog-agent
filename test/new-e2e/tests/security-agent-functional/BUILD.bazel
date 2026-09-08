@@ -3,6 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 dd_agent_go_test(
     name = "security-agent-functional_test",
     srcs = ["security_agent_test.go"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/os",

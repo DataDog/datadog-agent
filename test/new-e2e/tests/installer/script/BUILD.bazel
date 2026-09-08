@@ -8,7 +8,10 @@ dd_agent_go_test(
         "default_script_test.go",
         "ssi_script_test.go",
     ],
-    tags = ["manual"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/scenarios/aws/ec2",

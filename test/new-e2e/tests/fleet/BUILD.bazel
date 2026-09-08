@@ -8,6 +8,10 @@ dd_agent_go_test(
         "preservation_test.go",
         "upgrade_test.go",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//pkg/fleet/installer/fixtures",
         "//pkg/fleet/installer/paths",

@@ -28,6 +28,10 @@ dd_agent_go_test(
         "windows_remote_service_tags_test.go",
     ],
     embed = [":usm"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/resources/aws",

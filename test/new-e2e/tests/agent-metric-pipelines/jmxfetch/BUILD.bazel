@@ -14,6 +14,10 @@ dd_agent_go_test(
     data = ["testdata/docker-labels.yaml"],
     embed = [":jmxfetch"],
     embedsrcs = ["testdata/docker-labels.yaml"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/common/utils",

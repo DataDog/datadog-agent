@@ -1,0 +1,103 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+# `bazel run --@rules_go//go/toolchain:sdk_name=go_civisibility_sdk \
+#     //test/new-e2e/tests:install_test_binaries -- --destdir=<dir>`
+# builds and installs every e2e test binary, CI Visibility-instrumented via
+# //bazel/rules/go_civisibility's patched toolchain, replacing the
+# ThreadPoolExecutor-driven loop in tasks/new_e2e_tests.py's build_binaries
+# with Bazel's own scheduling, caching, and atomic build-then-install.
+#
+# Every native `go_test` target explicitly tagged "civisibility" is listed
+# below, since pkg_files cannot glob across packages. The tag is applied by
+# hand to each genuine e2e suite (via buildozer, not computed by a macro or
+# Gazelle from its deps: Bazel's own guidance discourages deriving labels or
+# tags from other attributes, since it makes the BUILD graph's behavior
+# unpredictable from reading the file alone). test/new-e2e/tests also holds
+# plain unit tests for shared helper packages (e.g. agent-platform/common's
+# bound-port) that never import test/e2e-framework/testing/e2e, so they
+# don't get the tag and fail to link if built against the patched stdlib:
+# its `//go:linkname` calls into dd-trace-go's civisibility internals only
+# resolve if the binary also imports that package somewhere. Untag a target
+# if it stops needing this, tag a new one when it starts. Regenerate the
+# list below (not the tagging itself) with:
+#
+#     bazel query 'kind(go_test, attr(tags, "\bcivisibility\b", //test/new-e2e/tests/...))' --output=label
+#
+# Destination names follow the same convention tasks/new_e2e_tests.py's
+# build_binaries already uses (pkg.replace("/", "-") + ".test"), so two
+# different-package binaries with the same base target name (e.g. two
+# "file-tailing" packages) do not collide.
+_TEST_BINARIES = {
+    "//test/new-e2e/tests/agent-configuration:agent-configuration_test": "tests-agent-configuration.test",
+    "//test/new-e2e/tests/agent-configuration/sgc-embedded:sgc-embedded_test": "tests-agent-configuration-sgc-embedded.test",
+    "//test/new-e2e/tests/agent-data-plane/preflight-mode:preflight-mode_test": "tests-agent-data-plane-preflight-mode.test",
+    "//test/new-e2e/tests/agent-devx:agent-devx_test": "tests-agent-devx.test",
+    "//test/new-e2e/tests/agent-devx/pre-test:pre-test_test": "tests-agent-devx-pre-test.test",
+    "//test/new-e2e/tests/agent-health:agent-health_test": "tests-agent-health.test",
+    "//test/new-e2e/tests/agent-log-pipelines/k8s-logs:k8s-logs_test": "tests-agent-log-pipelines-k8s-logs.test",
+    "//test/new-e2e/tests/agent-log-pipelines/linux-log/file-tailing:file-tailing_test": "tests-agent-log-pipelines-linux-log-file-tailing.test",
+    "//test/new-e2e/tests/agent-log-pipelines/linux-log/integrations:integrations_test": "tests-agent-log-pipelines-linux-log-integrations.test",
+    "//test/new-e2e/tests/agent-log-pipelines/linux-log/journald:journald_test": "tests-agent-log-pipelines-linux-log-journald.test",
+    "//test/new-e2e/tests/agent-log-pipelines/listener:listener_test": "tests-agent-log-pipelines-listener.test",
+    "//test/new-e2e/tests/agent-log-pipelines/windows-log/file-tailing:file-tailing_test": "tests-agent-log-pipelines-windows-log-file-tailing.test",
+    "//test/new-e2e/tests/agent-metric-pipelines/ccm-mode:ccm-mode_test": "tests-agent-metric-pipelines-ccm-mode.test",
+    "//test/new-e2e/tests/agent-metric-pipelines/dogstatsd-unit:dogstatsd-unit_test": "tests-agent-metric-pipelines-dogstatsd-unit.test",
+    "//test/new-e2e/tests/agent-metric-pipelines/jmxfetch:jmxfetch_test": "tests-agent-metric-pipelines-jmxfetch.test",
+    "//test/new-e2e/tests/agent-metric-pipelines/metric-filterlist:metric-filterlist_test": "tests-agent-metric-pipelines-metric-filterlist.test",
+    "//test/new-e2e/tests/agent-platform/tests:tests_test": "tests-agent-platform-tests.test",
+    "//test/new-e2e/tests/agent-runtimes:agent-runtimes_test": "tests-agent-runtimes.test",
+    "//test/new-e2e/tests/agent-runtimes/procmgr:procmgr_test": "tests-agent-runtimes-procmgr.test",
+    "//test/new-e2e/tests/agent-subcommands:agent-subcommands_test": "tests-agent-subcommands.test",
+    "//test/new-e2e/tests/agent-telemetry:agent-telemetry_test": "tests-agent-telemetry.test",
+    "//test/new-e2e/tests/anomalydetection:anomalydetection_test": "tests-anomalydetection.test",
+    "//test/new-e2e/tests/apm:apm_test": "tests-apm.test",
+    "//test/new-e2e/tests/autoscaling/spot:spot_test": "tests-autoscaling-spot.test",
+    "//test/new-e2e/tests/containers:containers_test": "tests-containers.test",
+    "//test/new-e2e/tests/cspm:cspm_test": "tests-cspm.test",
+    "//test/new-e2e/tests/cws:cws_test": "tests-cws.test",
+    "//test/new-e2e/tests/discovery:discovery_test": "tests-discovery.test",
+    "//test/new-e2e/tests/fips-compliance:fips-compliance_test": "tests-fips-compliance.test",
+    "//test/new-e2e/tests/fleet:fleet_test": "tests-fleet.test",
+    "//test/new-e2e/tests/gpu:gpu_test": "tests-gpu.test",
+    "//test/new-e2e/tests/ha-agent:ha-agent_test": "tests-ha-agent.test",
+    "//test/new-e2e/tests/installer/script:script_test": "tests-installer-script.test",
+    "//test/new-e2e/tests/installer/unix:unix_test": "tests-installer-unix.test",
+    "//test/new-e2e/tests/installer/windows:windows_test": "tests-installer-windows.test",
+    "//test/new-e2e/tests/language-detection:language-detection_test": "tests-language-detection.test",
+    "//test/new-e2e/tests/ndm/netflow:netflow_test": "tests-ndm-netflow.test",
+    "//test/new-e2e/tests/ndm/snmp:snmp_test": "tests-ndm-snmp.test",
+    "//test/new-e2e/tests/netpath/dynamic-tests:dynamic-tests_test": "tests-netpath-dynamic-tests.test",
+    "//test/new-e2e/tests/netpath/network-path-integration:network-path-integration_test": "tests-netpath-network-path-integration.test",
+    "//test/new-e2e/tests/npm:npm_test": "tests-npm.test",
+    "//test/new-e2e/tests/orchestrator:orchestrator_test": "tests-orchestrator.test",
+    "//test/new-e2e/tests/otel/otel-agent:otel-agent_test": "tests-otel-otel-agent.test",
+    "//test/new-e2e/tests/otel/otlp-ingest:otlp-ingest_test": "tests-otel-otlp-ingest.test",
+    "//test/new-e2e/tests/privateactionrunner:privateactionrunner_test": "tests-privateactionrunner.test",
+    "//test/new-e2e/tests/process:process_test": "tests-process.test",
+    "//test/new-e2e/tests/remote-config:remote-config_test": "tests-remote-config.test",
+    "//test/new-e2e/tests/sbom:sbom_test": "tests-sbom.test",
+    "//test/new-e2e/tests/security-agent-functional:security-agent-functional_test": "tests-security-agent-functional.test",
+    "//test/new-e2e/tests/ssi-gradual-rollout:ssi-gradual-rollout_test": "tests-ssi-gradual-rollout.test",
+    "//test/new-e2e/tests/ssi:ssi_test": "tests-ssi.test",
+    "//test/new-e2e/tests/sysprobe-functional:sysprobe-functional_test": "tests-sysprobe-functional.test",
+    "//test/new-e2e/tests/usm:usm_test": "tests-usm.test",
+    "//test/new-e2e/tests/windows/domain-test:domain-test_test": "tests-windows-domain-test.test",
+    "//test/new-e2e/tests/windows/fips-test:fips-test_test": "tests-windows-fips-test.test",
+    "//test/new-e2e/tests/windows/install-test:install-test_test": "tests-windows-install-test.test",
+    "//test/new-e2e/tests/windows/service-test:service-test_test": "tests-windows-service-test.test",
+    "//test/new-e2e/tests/windows/windows-certificate:windows-certificate_test": "tests-windows-windows-certificate.test",
+}
+
+pkg_files(
+    name = "test_binaries",
+    testonly = True,
+    srcs = _TEST_BINARIES.keys(),
+    renames = _TEST_BINARIES,
+)
+
+pkg_install(
+    name = "install_test_binaries",
+    testonly = True,
+    srcs = [":test_binaries"],
+)

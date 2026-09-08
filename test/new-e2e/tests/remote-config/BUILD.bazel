@@ -26,6 +26,10 @@ dd_agent_go_test(
         "fixtures/ssl_mismatch.yaml",
         "fixtures/tracer-payload.json",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2",

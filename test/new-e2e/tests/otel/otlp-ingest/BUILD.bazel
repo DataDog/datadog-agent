@@ -13,6 +13,10 @@ dd_agent_go_test(
     ],
     data = ["compose/otlp_ingest_compose.yaml"],
     embedsrcs = ["compose/otlp_ingest_compose.yaml"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/apps",
         "//test/e2e-framework/components/datadog/dockeragentparams",

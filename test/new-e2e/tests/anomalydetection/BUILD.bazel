@@ -10,6 +10,10 @@ dd_agent_go_test(
         "scorer_helper_nix_test.go",
         "smart_adaptive_log_sampling_nix_test.go",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2",

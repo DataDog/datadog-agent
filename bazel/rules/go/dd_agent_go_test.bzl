@@ -117,6 +117,13 @@ def dd_agent_go_test(
     user_tags = tags or []
     user_tcw = [] if target_compatible_with == None else target_compatible_with
 
+    # test/new-e2e/tests's own go_test targets otherwise default to private,
+    # but //test/new-e2e/tests:test_binaries (a pkg_files aggregate consumed
+    # by tasks/new_e2e_tests.py's build_binaries) needs to reference them
+    # from a sibling package.
+    if "visibility" not in kwargs and native.package_name().startswith("test/new-e2e/tests/"):
+        kwargs["visibility"] = ["//test/new-e2e/tests:__subpackages__"]
+
     if include_default:
         _test_tag_set_check_name(name)
         go_test(

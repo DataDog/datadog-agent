@@ -31,6 +31,10 @@ dd_agent_go_test(
         "fixtures/network_path_windows.yaml",
         "fixtures/system-probe.yaml",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//pkg/networkpath/payload",
         "//test/e2e-framework/components/datadog/agentparams",

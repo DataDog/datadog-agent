@@ -37,6 +37,10 @@ dd_agent_go_test(
         "fixtures/datadog-agent-legacy-exclude.yml",
         "values.yaml",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//pkg/metrics/event",
         "//pkg/util/pointer",

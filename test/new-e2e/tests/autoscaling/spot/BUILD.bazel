@@ -7,6 +7,10 @@ dd_agent_go_test(
         "statefulset_test.go",
         "suite_test.go",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/datadog/kubernetesagentparams",

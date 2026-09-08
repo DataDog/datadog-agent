@@ -218,6 +218,12 @@ register_toolchains(
     "//bazel/toolchains/rpath_rewriter:patchelf_toolchain",
 )
 
+# Only selected by --@rules_go//go/toolchain:sdk_name=go_civisibility_sdk; see
+# //bazel/rules/go_civisibility:BUILD.bazel.
+register_toolchains(
+    "//bazel/rules/go_civisibility:go_civisibility_toolchain",
+)
+
 find_rpmbuild = use_extension("@rules_pkg//toolchains/rpm:rpmbuild_configure.bzl", "find_system_rpmbuild_bzlmod", dev_dependency = True)
 use_repo(find_rpmbuild, "rules_pkg_rpmbuild")
 

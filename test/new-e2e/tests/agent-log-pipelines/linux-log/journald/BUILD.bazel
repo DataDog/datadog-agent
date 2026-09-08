@@ -13,6 +13,10 @@ dd_agent_go_test(
         "log-config/logger-service.sh",
         "log-config/python-script.sh",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2",

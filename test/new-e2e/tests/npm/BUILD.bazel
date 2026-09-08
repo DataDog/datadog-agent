@@ -57,6 +57,10 @@ dd_agent_go_test(
         "eks_1host_test.go",
     ],
     embed = [":npm"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/common/config",

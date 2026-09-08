@@ -11,14 +11,11 @@ import os
 import os.path
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
-import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from contextlib import contextmanager
 from pathlib import Path
 
 import yaml
@@ -30,6 +27,7 @@ from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import get_pipeline_commit_sha
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
+from tasks.libs.build.bazel import bazel
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
@@ -138,60 +136,17 @@ class TestState:
         return f'{"Failing" if failing else "Successful"} / {"Flaky" if flaky else "Non-flaky"}'
 
 
-@contextmanager
-def _shared_orchestrion_jobserver():
+def _civisibility_go_test_overlay(destdir):
     """
-    Start a single `orchestrion server` and point `ORCHESTRION_JOBSERVER_URL` at it, so every `orchestrion go test -c`
-    invocation started underneath this context shares its package-resolution cache instead of each starting its own:
-    orchestrion only auto-shares a job server across invocations that reuse the same `go build` $WORK directory, which
-    independent top-level `orchestrion go test -c` processes never do.
+    Install the hermetic `go` binary and the CI Visibility stdlib overlay
+    (bazel/rules/go_civisibility), which together replace orchestrion for
+    instrumenting e2e test binaries: see that package's docstring for why.
     """
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        log_file = os.path.join(tmp_dir, "server.log")
-        url_file = os.path.join(tmp_dir, "server.url")
-        with open(log_file, "wb") as log:
-            server = subprocess.Popen(
-                ["orchestrion", "server", f"-url-file={url_file}", "-inactivity-timeout=15m"],
-                stdout=log,
-                stderr=subprocess.STDOUT,
-            )
-        try:
-            timeout = datetime.timedelta(seconds=10)
-            deadline = time.monotonic() + timeout.total_seconds()
-            url = ""
-            while time.monotonic() < deadline:
-                if os.path.exists(url_file):
-                    url = Path(url_file).read_text().strip()
-                    if url:
-                        break
-                try:
-                    server.wait(timeout=0.1)
-                except subprocess.TimeoutExpired:
-                    continue
-                raise Exit(
-                    f"orchestrion server exited early with code {server.returncode}:\n{Path(log_file).read_text()}"
-                )
-            if not url:
-                raise Exit(
-                    f"orchestrion server did not report readiness within {timeout}:\n{Path(log_file).read_text()}"
-                )
-
-            with environ({"ORCHESTRION_JOBSERVER_URL": url}):
-                yield
-        finally:
-            # Orchestrion watches the url file and shuts itself down once it disappears.
-            if os.path.exists(url_file):
-                os.remove(url_file)
-            for escalate in lambda: None, server.terminate, server.kill:
-                escalate()
-                try:
-                    server.communicate(timeout=timeout.total_seconds())
-                    break
-                except subprocess.TimeoutExpired:
-                    pass
+    bazel("run", "//bazel/rules/go_civisibility:install", "--", f"--destdir={destdir}")
+    return os.path.join(destdir, "go"), os.path.join(destdir, "overlay.json")
 
 
-def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
+def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock, go_bin, overlay):
     """
     Build a single test binary for the given package.
     Returns (pkg, success, message) tuple.
@@ -201,8 +156,9 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
         binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
         binary_path = output_path / binary_name
 
-        # Build test binary
-        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+        # Build test binary, instrumented for CI Visibility via the go_civisibility
+        # stdlib overlay instead of orchestrion (see that package's docstring).
+        cmd = f"{go_bin} test -c -overlay={overlay} -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
 
         result = ctx.run(cmd, hide=True)
         if result.ok:
@@ -274,16 +230,20 @@ def build_binaries(
     # Build tags
     build_tags = ",".join(tags) if tags else "test"
 
+    go_bin, overlay = _civisibility_go_test_overlay(output_path / "go_civisibility")
+
     # Build test binaries in parallel
     print_lock = threading.Lock()
     success_count = 0
     failure_count = 0
     built_packages = []  # Track successfully built packages with their info
-    with ctx.cd("test/new-e2e"), _shared_orchestrion_jobserver():
+    with ctx.cd("test/new-e2e"):
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             # Submit all build jobs
             futures = {
-                executor.submit(_build_single_binary, ctx, pkg, build_tags, output_path, print_lock): pkg
+                executor.submit(
+                    _build_single_binary, ctx, pkg, build_tags, output_path, print_lock, go_bin, overlay
+                ): pkg
                 for pkg in test_packages
             }
 

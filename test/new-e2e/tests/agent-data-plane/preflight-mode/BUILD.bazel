@@ -6,6 +6,10 @@ dd_agent_go_test(
         "preflightmode_common_test.go",
         "preflightmode_nix_test.go",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/os",

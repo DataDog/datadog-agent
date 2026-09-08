@@ -68,6 +68,10 @@ dd_agent_go_test(
         "testdata/registry_allow_list.yaml",
         "testdata/workload_selection.yaml",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//pkg/ssi/testutils",
         "//pkg/util/testutil/flake",

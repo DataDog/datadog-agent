@@ -57,6 +57,10 @@ dd_agent_go_test(
         "//test/new-e2e/tests/agent-subcommands/flare:fixtures/security-agent.yaml",  # keep
         "//test/new-e2e/tests/agent-subcommands/flare:fixtures/system-probe.yaml",  # keep
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/os",

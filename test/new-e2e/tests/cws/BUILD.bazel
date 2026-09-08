@@ -34,6 +34,10 @@ dd_agent_go_test(
         "windows_test.go",
     ],
     embed = [":cws"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/components/datadog/agentparams",

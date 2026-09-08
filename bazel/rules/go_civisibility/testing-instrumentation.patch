@@ -1,0 +1,163 @@
+diff --git a/src/testing/testing.go b/src/testing/testing.go
+--- src/testing/testing.go
++++ src/testing/testing.go
+@@ -959,6 +959,7 @@
+ 
+ // Fail marks the function as having failed but continues execution.
+ func (c *common) Fail() {
++	__dd_civisibility_instrumentSetErrorInfo(c, "Fail", "failed test", 0)
+ 	if c.parent != nil {
+ 		c.parent.Fail()
+ 	}
+@@ -994,6 +995,7 @@
+ // created during the test. Calling FailNow does not stop
+ // those other goroutines.
+ func (c *common) FailNow() {
++	__dd_civisibility_instrumentSetErrorInfo(c, "FailNow", "failed test", 0)
+ 	c.checkFuzzFn("FailNow")
+ 	c.Fail()
+ 
+@@ -1202,6 +1204,7 @@
+ 
+ // Error is equivalent to Log followed by Fail.
+ func (c *common) Error(args ...any) {
++	__dd_civisibility_instrumentSetErrorInfo(c, "Error", fmt.Sprint(args...), 0)
+ 	c.checkFuzzFn("Error")
+ 	c.log(fmt.Sprintln(args...))
+ 	c.Fail()
+@@ -1209,6 +1212,7 @@
+ 
+ // Errorf is equivalent to Logf followed by Fail.
+ func (c *common) Errorf(format string, args ...any) {
++	__dd_civisibility_instrumentSetErrorInfo(c, "Errorf", fmt.Sprintf(format, args...), 0)
+ 	c.checkFuzzFn("Errorf")
+ 	c.log(fmt.Sprintf(format, args...))
+ 	c.Fail()
+@@ -1216,6 +1220,7 @@
+ 
+ // Fatal is equivalent to Log followed by FailNow.
+ func (c *common) Fatal(args ...any) {
++	__dd_civisibility_instrumentSetErrorInfo(c, "Fatal", fmt.Sprint(args...), 0)
+ 	c.checkFuzzFn("Fatal")
+ 	c.log(fmt.Sprintln(args...))
+ 	c.FailNow()
+@@ -1223,6 +1228,7 @@
+ 
+ // Fatalf is equivalent to Logf followed by FailNow.
+ func (c *common) Fatalf(format string, args ...any) {
++	__dd_civisibility_instrumentSetErrorInfo(c, "Fatalf", fmt.Sprintf(format, args...), 0)
+ 	c.checkFuzzFn("Fatalf")
+ 	c.log(fmt.Sprintf(format, args...))
+ 	c.FailNow()
+@@ -1230,6 +1236,7 @@
+ 
+ // Skip is equivalent to Log followed by SkipNow.
+ func (c *common) Skip(args ...any) {
++	__dd_civisibility_instrumentCloseAndSkip(c, fmt.Sprint(args...))
+ 	c.checkFuzzFn("Skip")
+ 	c.log(fmt.Sprintln(args...))
+ 	c.SkipNow()
+@@ -1237,6 +1244,7 @@
+ 
+ // Skipf is equivalent to Logf followed by SkipNow.
+ func (c *common) Skipf(format string, args ...any) {
++	__dd_civisibility_instrumentCloseAndSkip(c, fmt.Sprintf(format, args...))
+ 	c.checkFuzzFn("Skipf")
+ 	c.log(fmt.Sprintf(format, args...))
+ 	c.SkipNow()
+@@ -1251,6 +1259,7 @@
+ // other goroutines created during the test. Calling SkipNow does not stop
+ // those other goroutines.
+ func (c *common) SkipNow() {
++	__dd_civisibility_instrumentSkipNow(c)
+ 	c.checkFuzzFn("SkipNow")
+ 	c.mu.Lock()
+ 	c.skipped = true
+@@ -1756,6 +1765,9 @@
+ // -test.count or -test.cpu, multiple instances of a single test never run in
+ // parallel with each other.
+ func (t *T) Parallel() {
++	if __dd_civisibility_instrumentTestingParallel(t) {
++		return
++	}
+ 	if t.isParallel {
+ 		panic("testing: t.Parallel called multiple times")
+ 	}
+@@ -2048,6 +2060,7 @@
+ // Run may be called simultaneously from multiple goroutines, but all such calls
+ // must return before the outer test function for t returns.
+ func (t *T) Run(name string, f func(t *T)) bool {
++	f = __dd_civisibility_instrumentTestingTFunc(f)
+ 	if t.isSynctest {
+ 		panic("testing: t.Run called inside synctest bubble")
+ 	}
+@@ -2338,6 +2351,8 @@
+ // of failure. For machine readable test results, parse the output of
+ // 'go test -json'.
+ func (m *M) Run() (code int) {
++	exitFunc := __dd_civisibility_instrumentTestingM(m)
++	defer func() { exitFunc(m.exitCode) }()
+ 	defer func() {
+ 		code = m.exitCode
+ 	}()
+@@ -2843,3 +2858,29 @@
+ func shouldFailFast() bool {
+ 	return *failFast && numFailed.Load() > 0
+ }
++
++// The following functions are provided by
++// github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting
++// for CI Visibility instrumentation, replacing what Orchestrion would
++// otherwise weave into this file via its `M.Run`, `T.Run`, `common.Fail`,
++// `common.FailNow`, `common.Error`, `common.Errorf`, `common.Fatal`,
++// `common.Fatalf`, `common.Skip`, `common.Skipf`, `common.SkipNow`, and
++// `common.Parallel` aspects.
++
++//go:linkname __dd_civisibility_instrumentTestingM github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting.instrumentTestingM
++func __dd_civisibility_instrumentTestingM(*M) func(int)
++
++//go:linkname __dd_civisibility_instrumentTestingTFunc github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting.instrumentTestingTFunc
++func __dd_civisibility_instrumentTestingTFunc(func(*T)) func(*T)
++
++//go:linkname __dd_civisibility_instrumentSetErrorInfo github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting.instrumentSetErrorInfo
++func __dd_civisibility_instrumentSetErrorInfo(tb TB, errType string, errMessage string, skip int)
++
++//go:linkname __dd_civisibility_instrumentCloseAndSkip github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting.instrumentCloseAndSkip
++func __dd_civisibility_instrumentCloseAndSkip(tb TB, skipReason string)
++
++//go:linkname __dd_civisibility_instrumentSkipNow github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting.instrumentSkipNow
++func __dd_civisibility_instrumentSkipNow(tb TB)
++
++//go:linkname __dd_civisibility_instrumentTestingParallel github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting.instrumentTestingParallel
++func __dd_civisibility_instrumentTestingParallel(t *T) bool
+diff --git a/src/testing/benchmark.go b/src/testing/benchmark.go
+--- src/testing/benchmark.go
++++ src/testing/benchmark.go
+@@ -20,6 +20,7 @@
+ 	"sync/atomic"
+ 	"time"
+ 	"unicode"
++	_ "unsafe" // for linkname
+ )
+ 
+ func initBenchmarkFlags() {
+@@ -806,6 +807,7 @@
+ // A subbenchmark is like any other benchmark. A benchmark that calls Run at
+ // least once will not be measured itself and will be called once with N=1.
+ func (b *B) Run(name string, f func(b *B)) bool {
++	name, f = __dd_civisibility_instrumentTestingBFunc(b, name, f)
+ 	// Since b has subbenchmarks, we will no longer run it as a benchmark itself.
+ 	// Release the lock and acquire it on exit to ensure locks stay paired.
+ 	b.hasSub.Store(true)
+@@ -1024,3 +1026,11 @@
+ type discard struct{}
+ 
+ func (discard) Write(b []byte) (n int, err error) { return len(b), nil }
++
++// Provided by
++// github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting
++// for CI Visibility instrumentation, replacing what Orchestrion would
++// otherwise weave into this file via its `B.Run` aspect.
++
++//go:linkname __dd_civisibility_instrumentTestingBFunc github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting.instrumentTestingBFunc
++func __dd_civisibility_instrumentTestingBFunc(*B, string, func(*B)) (string, func(*B))

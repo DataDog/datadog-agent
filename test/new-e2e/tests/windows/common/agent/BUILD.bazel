@@ -31,6 +31,7 @@ go_test(
     embed = [":agent"],
     gotags = ["test"],
     tags = ["manual"],
+    visibility = ["//test/new-e2e/tests:__subpackages__"],  # keep
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",

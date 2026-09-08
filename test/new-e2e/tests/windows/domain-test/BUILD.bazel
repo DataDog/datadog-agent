@@ -3,6 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 dd_agent_go_test(
     name = "domain-test_test",
     srcs = ["domain_test.go"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/components/activedirectory",
         "//test/e2e-framework/scenarios/aws/ec2/windows",

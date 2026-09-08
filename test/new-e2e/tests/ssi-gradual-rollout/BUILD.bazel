@@ -37,6 +37,10 @@ dd_agent_go_test(
         "testdata/base.yaml",
         "testdata/default_opt_in.yaml",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/components/datadog/kubernetesagentparams",

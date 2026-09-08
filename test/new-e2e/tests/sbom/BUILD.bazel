@@ -11,6 +11,10 @@ dd_agent_go_test(
         "kubeadm_test.go",
         "packageinuse_test.go",
     ],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//pkg/util/pointer",
         "//test/e2e-framework/components/datadog/apps",

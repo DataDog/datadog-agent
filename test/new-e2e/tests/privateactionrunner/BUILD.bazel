@@ -43,6 +43,10 @@ dd_agent_go_test(
         "split_nix_test.go",
     ],
     embed = [":privateactionrunner"],
+    tags = [
+        "civisibility",
+        "manual",
+    ],
     deps = [
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//test/e2e-framework/components/datadog/agentparams",
