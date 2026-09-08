@@ -16,7 +16,6 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/enablement"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -183,7 +182,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(pngNS("enabled")) {
 		c.EnabledModules[PingModule] = struct{}{}
 	}
-	if tracerouteEnabled(cfg, coreCfg) {
+	if tracerouteEnabled(cfg, coreCfg, npmEnabled) {
 		if !cfg.IsConfigured(tracerouteNS("enabled")) {
 			// Expose the effective value through the runtime config so inventory and
 			// diagnostics report the module that is actually running.
@@ -256,14 +255,15 @@ func load() (*types.Config, error) {
 // An explicit traceroute.enabled value always takes precedence. When the setting
 // is unset, CNM Dynamic Tests enable traceroute only when CNM is also enabled.
 // It logs a warning when Dynamic Tests require traceroute but it was explicitly disabled.
-func tracerouteEnabled(cfg, coreCfg pkgconfigmodel.Reader) bool {
-	dynamicTestsEnabled := enablement.ConnectionDynamicTestsEnabled(coreCfg, cfg)
+func tracerouteEnabled(cfg, coreCfg pkgconfigmodel.Reader, npmEnabled bool) bool {
+	dynamicTestsEnabled := coreCfg.GetBool("network_path.connections_monitoring.enabled") ||
+		coreCfg.GetBool("network_path.connections_monitoring.basic_tests_enabled")
 	enabled := cfg.GetBool(tracerouteNS("enabled"))
 
 	if !enabled && !cfg.IsConfigured(tracerouteNS("enabled")) {
-		return dynamicTestsEnabled
+		return npmEnabled && dynamicTestsEnabled
 	}
-	if !enabled && cfg.IsConfigured(tracerouteNS("enabled")) && dynamicTestsEnabled {
+	if !enabled && cfg.IsConfigured(tracerouteNS("enabled")) && npmEnabled && dynamicTestsEnabled {
 		log.Warn("Network Path Dynamic Tests are enabled, but system-probe traceroute was explicitly disabled")
 	}
 	return enabled

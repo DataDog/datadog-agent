@@ -36,7 +36,6 @@ go_library(
         "//pkg/config/structure",
         "//pkg/logs/message",
         "//pkg/network/tracer/networkfilter",
-        "//pkg/networkpath/enablement",
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",
         "//pkg/remoteconfig/state",

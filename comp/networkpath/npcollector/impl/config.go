@@ -14,14 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/enablement"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 type collectorConfigs struct {
 	connectionsMonitoringEnabled    bool
 	basicTestsEnabled               bool
-	connectionDynamicTestsEnabled   bool
 	netflowMonitoringEnabled        bool
 	workers                         int
 	timeout                         time.Duration
@@ -56,16 +54,16 @@ func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Compo
 		logger.Errorf("Error unmarshalling network_path.collector.filters: %v", err)
 		filterConfigs = nil
 	}
+	cnm := sysprobeConfig.GetBool("network_config.enabled")
 	return &collectorConfigs{
-		connectionsMonitoringEnabled:  agentConfig.GetBool("network_path.connections_monitoring.enabled"),
-		basicTestsEnabled:             agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && sysprobeConfig.GetBool("network_config.enabled"),
-		connectionDynamicTestsEnabled: enablement.ConnectionDynamicTestsEnabled(agentConfig, sysprobeConfig),
-		netflowMonitoringEnabled:      agentConfig.GetBool("network_path.netflow_monitoring.enabled"),
-		workers:                       agentConfig.GetInt("network_path.collector.workers"),
-		timeout:                       agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
-		maxTTL:                        agentConfig.GetInt("network_path.collector.max_ttl"),
-		pathtestInputChanSize:         agentConfig.GetInt("network_path.collector.input_chan_size"),
-		pathtestProcessingChanSize:    agentConfig.GetInt("network_path.collector.processing_chan_size"),
+		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled") && cnm,
+		basicTestsEnabled:            agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && cnm,
+		netflowMonitoringEnabled:     agentConfig.GetBool("network_path.netflow_monitoring.enabled"),
+		workers:                      agentConfig.GetInt("network_path.collector.workers"),
+		timeout:                      agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
+		maxTTL:                       agentConfig.GetInt("network_path.collector.max_ttl"),
+		pathtestInputChanSize:        agentConfig.GetInt("network_path.collector.input_chan_size"),
+		pathtestProcessingChanSize:   agentConfig.GetInt("network_path.collector.processing_chan_size"),
 		storeConfig: pathteststore.Config{
 			ContextsLimit:    agentConfig.GetInt("network_path.collector.pathtest_contexts_limit"),
 			TTL:              agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
@@ -94,8 +92,8 @@ func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Compo
 	}
 }
 
-// networkPathCollectorEnabled checks if Network Path Collector should be enabled.
-// Connection-based Dynamic Tests require CNM; netflow monitoring does not.
+// networkPathCollectorEnabled checks if Network Path Collector should be enabled
+// Network Path Collector is expected to be enabled if a feature depend on it.
 func (c *collectorConfigs) networkPathCollectorEnabled() bool {
-	return c.connectionDynamicTestsEnabled || c.netflowMonitoringEnabled
+	return c.connectionsMonitoringEnabled || c.basicTestsEnabled || c.netflowMonitoringEnabled
 }
