@@ -4,14 +4,17 @@
 #
 # The prefix count was quartered by hand (5,000 -> 1,250; see
 # datadog-agent/datadog.yaml and README.md) as a diagnostic: this case has
-# never actually run through the real datadog-agent CI/SMP infrastructure --
-# it does not exist on main -- and every replicate crashed with zero target
-# log output, before or during startup, unaffected by the earlier traffic cut
-# (60 -> 20 MiB/s). memory_allotment was also dropped from 8192 MiB to 4 GiB,
-# which is still generous next to every other case in this directory (the
-# largest of which uses 2 GiB) and closer to what the actual SMP runner hosts
-# have available. If this still crashes with zero output, the cause is not
-# config size or memory pressure either.
+# never actually run through the real datadog-agent CI/SMP infrastructure with
+# exceptions -- it does not exist on main -- and every replicate crashed with
+# zero target log output AND zero captured telemetry (no total_pss_bytes at
+# all), before or during startup, unaffected by the traffic cut (60 -> 20
+# MiB/s), a first memory cut (8192 -> 4096 MiB), and the prefix-count
+# quartering. None of that moved the needle.
+#
+# This exact case (pre-exceptions, same 20 MiB/s traffic) already crashed and
+# was already fixed once before, in this branch's own history: see the
+# `target:` comment below. cpu_allotment: 6 was the other half of the
+# problem, not just memory_allotment.
 #
 # GENERATED, then copied. Source of truth is the smp-playground harness at
 # experiments/regression/agent/metric_filterlist_scaling, via
@@ -71,17 +74,25 @@ target:
   # With optimization_goal: memory that lands in the signal, so the memory
   # delta is matcher cost AND config cost, not matcher cost alone.
   #
-  # 8192 MiB was inherited from the smp-playground sweep (reached by three
-  # successive increases after replicates crashed there at 200 MiB/s of
-  # DogStatsD traffic), but this case has never run in the real SMP
-  # infrastructure and every replicate has crashed with zero target log
-  # output, unaffected by cutting traffic to 20 MiB/s. 4 GiB is a diagnostic
-  # step down -- still generous next to every other case here (the largest of
-  # which uses 2 GiB) and closer to what the actual runner hosts report having
-  # available. Trim further (and cpu_allotment) once a run reports actual
-  # `total_pss_bytes`.
-  cpu_allotment: 6
-  memory_allotment: 4096 MiB
+  # cpu_allotment: 6 / memory_allotment: 8192 MiB were inherited unchanged
+  # from the smp-playground sweep (memory reached by three successive
+  # increases after replicates crashed there at 200 MiB/s of DogStatsD
+  # traffic). That request is a large outlier vs every other case in this
+  # directory (all sit at cpu_allotment: 4, memory_allotment <= 2 GiB) and
+  # every replicate of this exact case failed with ZERO captured telemetry
+  # (no total_pss_bytes, no logs, nothing) even after traffic was lowered to
+  # 20 MiB/s -- consistent with a scheduling/capacity failure on the SMP
+  # fleet (nodes are 8-vCPU c6i.2xlarge; a 6-vCPU ask leaves little room to
+  # bin-pack alongside other experiments' replicates competing for the same
+  # node pool), not an application crash.
+  #
+  # This branch already hit and fixed exactly this, on the pre-exceptions
+  # version of this same case, before removing it as a completed measurement
+  # (see `git show b1437902bf8fb3041f467da34a3c075666be8a72^:test/regression/cases/metric_filterlist_mixed_10k/experiment.yaml`).
+  # Right-sized here to match that proven-safe footprint, which is also the
+  # footprint of dsd_uds_10mb_3k_timestamped_contexts_* in this same suite.
+  cpu_allotment: 4
+  memory_allotment: 2048 MiB
 
   environment:
     DD_API_KEY: a0000001

@@ -44,12 +44,24 @@ whole prefix half lives in `guarded`. That is the worst layout for the feature:
 no prefix can be dropped as unconditional, and every prefix hit pays for an
 exception lookup.
 
-## Memory (4096 MiB, cpu_allotment 6)
+## Resources (cpu_allotment: 4, memory_allotment: 2048 MiB)
 
-Dropped from the inherited 8192 MiB, which was tuned in a separate
-`smp-playground` harness and never validated against this repo's actual SMP
-runner hosts. 4096 MiB is still generous next to every other case in this
-directory (the largest of which uses 2 GiB).
+Dropped from the inherited `cpu_allotment: 6` / `memory_allotment: 8192 MiB`,
+which were tuned in a separate `smp-playground` harness and never validated
+against this repo's actual SMP runner hosts (8-vCPU `c6i.2xlarge`).
+
+This isn't a guess: this branch already hit and fixed exactly this crash once
+before, on the pre-exceptions version of this same case, at the same 20 MiB/s
+traffic -- every replicate failed with **zero captured telemetry** (no
+`total_pss_bytes`, no logs, nothing), consistent with a scheduling/capacity
+failure (a 6-vCPU ask leaves little room to bin-pack alongside other
+experiments' replicates on the same node pool), not an application crash. The
+fix was `cpu_allotment: 4` / `memory_allotment: 2048 MiB` -- matching
+`dsd_uds_10mb_3k_timestamped_contexts_*` in this same suite -- after which the
+case ran to completion and was removed as done
+(`git show b1437902bf8fb3041f467da34a3c075666be8a72^:test/regression/cases/metric_filterlist_mixed_10k/experiment.yaml`).
+That case was re-added with exceptions but the resource allotment regressed
+back to the original, pre-fix values; this restores the proven-safe ones.
 
 ## Traffic (20 MiB/s total)
 
