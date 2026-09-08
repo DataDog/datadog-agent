@@ -8,10 +8,10 @@
 package uprobes
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,6 +25,6 @@ func TestFmapperRunnerStopReapsProcess(t *testing.T) {
 	pid := runner.GetTargetPid(t)
 	runner.Stop(t)
 
-	_, err := os.Stat(filepath.Join("/proc", fmt.Sprint(pid)))
+	_, err := os.Stat(filepath.Join("/proc", strconv.Itoa(pid)))
 	require.ErrorIs(t, err, os.ErrNotExist, "fmapper process should be reaped")
 }
