@@ -6,8 +6,6 @@ cc_binary, cc_shared_library, or rust_binary) to provide 3 potential outputs.
 - a stripped version of the taget
 - the debug symbols only version of the target.
 
-The wrapped rule's DefaultInfo is untouched and stays unstripped, so the wrapped
-target may be used in place of the orignal as a dependency.
 The split outputs are only materialized for
 consumers that ask for them via OutputGroupInfo (`--output_groups=+debug` or
 `+stripped`) or by reading DdStripInfo directly
@@ -27,7 +25,7 @@ def _dd_strip_debug_impl(ctx):
         # rather than failing the build.    Consumers looking for DdStripInfo
         # will silently see the original target.
         return [
-            DefaultInfo(files = depset(original)),
+            DefaultInfo(files = depset([original])),
         ]
 
     stripped = ctx.actions.declare_file(ctx.label.name + ".stripped")
@@ -50,9 +48,9 @@ def _dd_strip_debug_impl(ctx):
         toolchain = _STRIPPER_TOOLCHAIN_TYPE,
     )
 
-    # Transfer the executable-ness from the original file.
+    # Preserve the executable-ness from the original object.
     default_info = ctx.attr.src[DefaultInfo]
-    was_executable = bool(hasattr(default_info, "executable") and default_info.executable)
+    was_executable = bool(hasattr(default_info, "files_to_run") and getattr(default_info.files_to_run, "executable", False))
     executable = stripped if was_executable else None
 
     return [
