@@ -62,7 +62,7 @@ def get_gitlab_oauth_token(ctx) -> str:
     return token
 
 
-def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
+def get_gitlab_token(ctx, repo='DataDog/datadog-agent', verbose=False) -> str:
     if not is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
         if running_in_ci():
             # Get the token from fetch_secrets
@@ -78,8 +78,12 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
         elif 'GITLAB_TOKEN' in os.environ:
             return os.environ['GITLAB_TOKEN']
 
+    owner, _, name = repo.rpartition('/')
+    if not owner:
+        raise Exit(f"Expected a full GitLab project path like 'DataDog/datadog-agent', got '{repo}'", code=1)
+
     infra_token = datadog_infra_token(ctx, audience="sdm")
-    url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
+    url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner={owner}&repository={name}"
 
     session = requests.Session()
     session.mount('https://', HTTPAdapter(max_retries=2))
@@ -98,7 +102,7 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     return token
 
 
-def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
+def get_gitlab_api(token=None, repo='DataDog/datadog-agent') -> gitlab.Gitlab:
     """Returns the gitlab api object with the api token.
 
     Args:
@@ -115,7 +119,7 @@ def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
 
 
 def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
-    api = get_gitlab_api(token, repo.split('/')[1])
+    api = get_gitlab_api(token, repo)
     repo = api.projects.get(repo)
 
     return repo
