@@ -324,15 +324,6 @@ var sparkSubmitOptionsWithValue = map[string]bool{
 	"--total-executor-cores":      true,
 }
 
-func sparkMatchesSubmitCommandline(args []string) bool {
-	for _, arg := range unwrapShellCommandline(args) {
-		if arg == sparkSubmitClass || path.Base(arg) == "spark-submit" {
-			return true
-		}
-	}
-	return false
-}
-
 // sparkCommandlineDoesNotBlockDefaultPaths lets SparkSubmit drivers without an
 // explicit --properties-file continue to the standard spark-defaults.conf
 // locations. Explicit properties-file arguments are still discovered by
