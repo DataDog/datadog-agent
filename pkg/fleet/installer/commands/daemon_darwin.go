@@ -21,6 +21,7 @@ import (
 func platformCommands() []*cobra.Command {
 	return []*cobra.Command{
 		installStableJobsCommand(),
+		registerPackageCommand(),
 		uninstallDaemonCommand(),
 	}
 }
@@ -35,6 +36,20 @@ func installStableJobsCommand() *cobra.Command {
 			i := newCmd("install_stable_jobs")
 			defer func() { i.stop(err) }()
 			return packages.InstallStableJobs(i.ctx)
+		},
+	}
+}
+
+func registerPackageCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:     "register-package",
+		Short:   "Registers the Agent in the OCI package repository Fleet configuration experiments need",
+		GroupID: "installer",
+		Args:    cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			i := newCmd("register_package")
+			defer func() { i.stop(err) }()
+			return packages.RegisterPackageRepository(i.ctx)
 		},
 	}
 }

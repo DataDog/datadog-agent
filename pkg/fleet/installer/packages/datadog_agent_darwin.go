@@ -220,10 +220,24 @@ func registerPackageRepository(ctx HookContext, layout agentLayout) (err error) 
 	if err = os.MkdirAll(layout.packagesRoot, 0755); err != nil {
 		return fmt.Errorf("failed to create %s: %w", layout.packagesRoot, err)
 	}
+	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
+
+	// A package already registered is left alone. Repository.Create removes whatever it finds
+	// before writing, so re-registering would discard a real package: once the Agent can be
+	// installed from an OCI package, doInstall has registered that package and pointed stable at
+	// it before the wrapped .pkg runs -- and the .pkg's postinstall script is the same one a .dmg
+	// install runs, so it reaches this code with the real package already in place. The version
+	// the links resolve to is a placeholder either way, so there is nothing here worth refreshing.
+	state, err := repositories.GetState(ctx.Package)
+	if err != nil {
+		return fmt.Errorf("failed to read the %s package state: %w", ctx.Package, err)
+	}
+	if state.HasStable() {
+		return nil
+	}
 
 	// Create wants a source directory to move in as the version, and takes ownership of it. An
 	// empty one stands in for the package pool this platform does not have.
-	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
 	placeholder, err := repositories.MkdirTemp()
 	if err != nil {
 		return fmt.Errorf("failed to create the placeholder package directory: %w", err)
@@ -293,6 +307,18 @@ func loadStableJob(ctx context.Context, client *launchd.Client, label string) er
 // is safe.
 func InstallStableJobs(ctx context.Context) error {
 	return installStableJobs(HookContext{Context: ctx, Package: agentPackage})
+}
+
+// RegisterPackageRepository is postinst's entry point for registering the Agent in the OCI package
+// repository the shared installer code keeps per package. Without it no Fleet configuration
+// experiment can start on a .dmg-installed host -- see registerPackageRepository for why.
+//
+// postinst calls this rather than the whole postInstall hook because it already does its own
+// equivalent of installFilesystem and installinfo.WriteInstallInfo inline, with .dmg-specific
+// ownership and install-method logic. Running the full hook would have the two fight over the same
+// files for no gain.
+func RegisterPackageRepository(ctx context.Context) error {
+	return registerPackageRepository(HookContext{Context: ctx, Package: agentPackage}, defaultAgentLayout)
 }
 
 // RemoveDaemonJob unloads the installer daemon and removes its definition. Every step is allowed

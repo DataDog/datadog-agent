@@ -6,14 +6,18 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
@@ -30,11 +34,30 @@ const (
 	macOSTestingBucket = "https://dd-agent-macostesting.s3.amazonaws.com"
 )
 
+// MacOSLocalDMGEnvVar names a .dmg on the machine running the test. When it is set, the macOS
+// install path uploads that file and installs from it instead of downloading a pipeline build, and
+// it uses this repository's copy of the install script rather than the published one.
+//
+// This is what makes the macOS install path testable against uncommitted work. Everything the
+// install actually exercises on this platform -- the postinstall script, the installer binary it
+// invokes, the launchd definitions -- lives inside the .dmg, so a run against a pipeline build
+// tests the commit CI built, never the working tree. Build one locally with
+// `.gitlab/build/package_build/build_agent_dmg.sh`'s unsigned path (see the comment on
+// installMacOSLocalDMG for why unsigned is fine) and point this at omnibus/pkg/*.dmg.
+//
+// The .dmg must be for the host's architecture, and the host's architecture is not a free choice:
+// macOS hosts come from the shared pool (test/e2e-framework/resources/aws/ec2/pool), which hands
+// back whichever instance is registered and idle rather than provisioning one to order. Today that
+// is mac1.metal, so the .dmg has to be x86_64 -- a build from an Apple Silicon laptop will not run
+// on it, and there is no macOS cross-build (tasks/omnibus.py's --arch is Linux-only).
+const MacOSLocalDMGEnvVar = "E2E_MACOS_LOCAL_DMG"
+
 // InstallOption is an optional function parameter type for InstallParams options
 type InstallOption func(*installParams)
 
 type installParams struct {
 	remoteUpdates        bool
+	remoteConfig         bool
 	stablePackages       bool
 	stagingPackages      string
 	pipelineID           string
@@ -51,6 +74,20 @@ var defaultInstallParams = &installParams{
 func WithRemoteUpdates() InstallOption {
 	return func(p *installParams) {
 		p.remoteUpdates = true
+	}
+}
+
+// WithRemoteConfig points the Agent and the installer daemon at the environment's fakeintake for
+// Remote Config, so a suite can drive Fleet requests by pushing configurations to it.
+//
+// The provisioner normally does this through agentparams.WithFakeintake
+// (test/e2e-framework/components/datadog/agentparams/params.go). A suite that provisions a bare
+// host with ec2.WithoutAgent() and installs the Agent here never reaches that option, and would
+// otherwise end up with a daemon polling the real Datadog backend, blind to everything the suite
+// pushes. macOS only for now -- it is the only platform installed from this package.
+func WithRemoteConfig() InstallOption {
+	return func(p *installParams) {
+		p.remoteConfig = true
 	}
 }
 
@@ -218,23 +255,37 @@ func macOSPipelineArch(arch e2eos.Architecture) string {
 	return string(arch)
 }
 
-// installMacOSPipeline installs the pipeline build the same way host_macos.go's Pulumi-level
-// install does -- the official install script with DD_REPO_URL pointing at the pipeline's
-// prefix in the macOS testing bucket -- and then exercises postInstallDatadogAgent's
-// PackageType == PackageTypeOCI branch (installWrappedPackage,
-// pkg/fleet/installer/packages/datadog_agent_darwin.go), which nothing else does today: macOS
-// still ships as a .dmg, and no CI job publishes a real macOS OCI artifact.
+// macOS paths and identifiers the install path below touches. The Agent, the installer binary and
+// the installer daemon all live under the single install root on this platform
+// (pkg/fleet/installer/paths/installer_paths_darwin.go), and both the Agent and the daemon read
+// their configuration from the same datadog.yaml -- the daemon's launchd definition passes
+// `-c /opt/datadog-agent/etc` (embedded/tmpl/com.datadoghq.installer.plist.tmpl).
+const (
+	macOSAgentConfigFile   = "/opt/datadog-agent/etc/datadog.yaml"
+	macOSInstallerRCDB     = "/opt/datadog-agent/run/remote-config-installer.db"
+	macOSInstallerJobLabel = "system/com.datadoghq.installer"
+)
+
+// installMacOSPipeline installs the pipeline build exactly the way a customer does -- the official
+// install script with DD_REPO_URL pointing at the pipeline's prefix in the macOS testing bucket,
+// the same thing host_macos.go's Pulumi-level install runs -- and then applies whatever
+// configuration the options asked for.
 //
-// It does so by synthesizing, locally on the host, the on-disk shape doInstall's Create() call
-// would leave behind for a genuine OCI artifact -- a version directory in the package repository
-// holding the .pkg payload, with stable/experiment symlinks pointing at it -- extracted from the
-// same pipeline .dmg, then driving the installer's generic `hooks` CLI command
-// (pkg/fleet/installer/commands/hooks.go) against it directly. As a side effect this also
-// registers the OCI package repository (/opt/datadog-packages/datadog-agent/{stable,experiment}),
-// which the real .dmg's postinst does not do yet (see
-// priv_notes/fix-macos-dmg-register-package-repository.md) and which configMacOSSuite's
-// SetupSuite requires.
+// Deliberately nothing more. macOS ships as a .dmg and the product being delivered manages
+// configuration only, not Agent versions, so there is no OCI artifact to install from and no
+// upgrade path to exercise. Everything a Fleet configuration experiment needs on disk -- the
+// install root, the managed configuration directory, the launchd jobs, and the placeholder OCI
+// package repository that the shared configuration code reads unconditionally -- is created by the
+// .dmg's own postinstall script (omnibus/package-scripts/agent-dmg/postinst). A test that built
+// that state itself would be testing its own scaffolding.
 func (a *Agent) installMacOSPipeline(params *installParams) error {
+	if localDMG := os.Getenv(MacOSLocalDMGEnvVar); localDMG != "" {
+		if err := a.installMacOSLocalDMG(localDMG); err != nil {
+			return err
+		}
+		return a.configureMacOS(params)
+	}
+
 	arch := macOSPipelineArch(a.host.RemoteHost.Architecture)
 	repoURL := fmt.Sprintf("%s/ci/datadog-agent/pipeline-%s-%s", macOSTestingBucket, params.pipelineID, arch)
 
@@ -250,33 +301,127 @@ func (a *Agent) installMacOSPipeline(params *installParams) error {
 		return fmt.Errorf("failed to run the pipeline install script: %w", err)
 	}
 
-	const (
-		dmgPath    = "/tmp/e2e-oci-payload.dmg"
-		mountPoint = "/tmp/e2e-oci-payload-mount"
-		packageDir = "/opt/datadog-packages/datadog-agent"
-		versionDir = packageDir + "/e2e-oci-test"
-		installer  = "/opt/datadog-agent/embedded/bin/installer"
-	)
-	defer a.host.RemoteHost.Execute(fmt.Sprintf(`sudo hdiutil detach %s || true`, mountPoint))
+	return a.configureMacOS(params)
+}
 
-	synthesizeOCIShape := fmt.Sprintf(
-		`sudo rm -f %s && sudo curl -fsSL --retry 3 -o %s %s/datadog-agent-7-latest.dmg && `+
-			`sudo hdiutil attach %s -mountpoint %s -nobrowse && `+
-			`sudo mkdir -p %s && sudo cp "$(find %s -name '*.pkg' | head -n1)" %s/ && `+
-			`sudo hdiutil detach %s && `+
-			`sudo ln -sfn %s %s/stable && sudo ln -sfn %s %s/experiment`,
-		dmgPath, dmgPath, repoURL,
-		dmgPath, mountPoint,
-		versionDir, mountPoint, versionDir,
-		mountPoint,
-		versionDir, packageDir, versionDir, packageDir)
-	if _, err := a.host.RemoteHost.Execute(synthesizeOCIShape); err != nil {
-		return fmt.Errorf("failed to synthesize the on-disk OCI package shape: %w", err)
+// installMacOSLocalDMG installs a .dmg built on the machine running the test, using this
+// repository's install script rather than the published one.
+//
+// Same shape as the pipeline install -- the customer's script, driven by environment variables --
+// with the two remote inputs swapped for local ones: DD_DMG_PATH instead of DD_REPO_URL, and the
+// working tree's cmd/agent/macos/install_mac_os.sh instead of a curl from install.datadoghq.com.
+// That makes the whole install chain branch code: the script, the .dmg, its postinstall script, and
+// the installer binary the postinstall script invokes.
+//
+// The .dmg is unsigned, which is not a compromise: agent_dmg-*-a7 signs only on main, release
+// branches and tags (.gitlab/build/package_build/dmg.yml), so every pipeline build this suite has
+// ever installed was unsigned too.
+func (a *Agent) installMacOSLocalDMG(localDMG string) error {
+	if _, err := os.Stat(localDMG); err != nil {
+		return fmt.Errorf("%s does not name a readable .dmg: %w", MacOSLocalDMGEnvVar, err)
+	}
+	installScript, err := repoFile("cmd", "agent", "macos", "install_mac_os.sh")
+	if err != nil {
+		return err
 	}
 
-	hookContext := fmt.Sprintf(`{"hook":"postInstall","package":"datadog-agent","package_type":"oci","package_path":%q}`, versionDir)
-	if _, err := a.host.RemoteHost.Execute(fmt.Sprintf(`sudo %s hooks '%s'`, installer, hookContext)); err != nil {
-		return fmt.Errorf("failed to run postInstall through the OCI package_type branch: %w", err)
+	const (
+		remoteDMG    = "/tmp/e2e-local-agent.dmg"
+		remoteScript = "/tmp/e2e-install-mac-os.sh"
+	)
+	a.host.RemoteHost.CopyFile(localDMG, remoteDMG)
+	a.host.RemoteHost.CopyFile(installScript, remoteScript)
+
+	// Same shape as the pipeline invocation below: the variables prefix the `bash` command rather
+	// than the whole compound statement, which a shell prefix cannot apply to.
+	if _, err := a.host.RemoteHost.Execute(fmt.Sprintf(
+		`DD_API_KEY=%s DD_SITE=datadoghq.com DD_DMG_PATH=%s DD_INSTALL_ONLY=true bash %s`,
+		apiKey(), remoteDMG, remoteScript,
+	)); err != nil {
+		return fmt.Errorf("failed to install the local .dmg %s: %w", localDMG, err)
+	}
+	return nil
+}
+
+// repoFile resolves a path relative to the repository root, which the test binary's working
+// directory (test/new-e2e) is not.
+func repoFile(elem ...string) (string, error) {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", errors.New("cannot locate the repository root: runtime.Caller failed")
+	}
+	// <root>/test/new-e2e/tests/fleet/agent/install.go
+	root := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..", "..")
+	path := filepath.Join(append([]string{root}, elem...)...)
+	if _, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("cannot read %s from the repository: %w", filepath.Join(elem...), err)
+	}
+	return path, nil
+}
+
+// configureMacOS applies the option-driven parts of the macOS install by appending to the Agent
+// configuration the install script just wrote, then restarting the installer daemon so it picks
+// them up.
+//
+// These are written here rather than passed to the install script as DD_REMOTE_UPDATES and
+// friends because the macOS script has no such option: cmd/agent/macos/install_mac_os.sh reads
+// DD_API_KEY, DD_SITE, DD_REPO_URL, DD_DMG_PATH and a handful of Agent settings, and nothing about
+// remote updates or Remote Config. Passing one would be silently dropped and surface much later as
+// an unexplained timeout waiting on a daemon that had already exited.
+func (a *Agent) configureMacOS(params *installParams) error {
+	var extraConfig strings.Builder
+
+	if params.remoteUpdates {
+		// Without this the installer daemon exits as soon as launchd starts it (startDaemon,
+		// cmd/installer/subcommands/daemon/run_nix.go), so its local API socket never appears and
+		// every installer command against it fails.
+		extraConfig.WriteString("remote_updates: true\n")
+	}
+
+	if params.remoteConfig {
+		if a.host.FakeIntake == nil {
+			return errors.New("agent.WithRemoteConfig needs a fakeintake in the environment")
+		}
+		// The TUF root is derived from fakeintake's fixed signing seed, so it is the same value
+		// agentparams.WithFakeintake writes for a provisioner-installed Agent.
+		rootJSON, err := fakeintake.RCRootJSON()
+		if err != nil {
+			return fmt.Errorf("failed to build the fakeintake Remote Config root JSON: %w", err)
+		}
+		fmt.Fprintf(&extraConfig, `remote_configuration.enabled: true
+remote_configuration.rc_dd_url: %s
+remote_configuration.no_tls: true
+remote_configuration.refresh_interval: 5s
+remote_configuration.config_root: '%s'
+remote_configuration.director_root: '%s'
+`, a.host.FakeIntake.URL, rootJSON, rootJSON)
+	}
+
+	if extraConfig.Len() == 0 {
+		return nil
+	}
+
+	// Staged through a file the unprivileged SSH user can write, then concatenated onto the target
+	// under sudo. Appending in place keeps datadog.yaml's _dd-agent ownership and mode -- a
+	// redirect run as root would reset both -- and routing the content through a file rather than
+	// the command line keeps the single-quoted TUF root JSON out of the shell entirely.
+	const stagedConfig = "/tmp/e2e-extra-agent-config.yaml"
+	if _, err := a.host.RemoteHost.WriteFile(stagedConfig, []byte(extraConfig.String())); err != nil {
+		return fmt.Errorf("failed to stage the extra Agent configuration: %w", err)
+	}
+	if _, err := a.host.RemoteHost.Execute(
+		fmt.Sprintf(`sudo sh -c 'cat %s >> %s'`, stagedConfig, macOSAgentConfigFile),
+	); err != nil {
+		return fmt.Errorf("failed to append the extra Agent configuration to %s: %w", macOSAgentConfigFile, err)
+	}
+
+	// The daemon caches Remote Config state in a database keyed by the backend it was talking to,
+	// so a restart alone would have it resume against the previous endpoint. Dropping the database
+	// first makes the restart start from an empty client against the endpoint just configured.
+	if _, err := a.host.RemoteHost.Execute(fmt.Sprintf(
+		`sudo rm -f %s && sudo launchctl kickstart -k %s`, macOSInstallerRCDB, macOSInstallerJobLabel,
+	)); err != nil {
+		return fmt.Errorf("failed to restart the installer daemon: %w", err)
 	}
 
 	return nil
