@@ -33,7 +33,7 @@ replace (
 require (
 	code.cloudfoundry.org/bbs v1.3.0
 	code.cloudfoundry.org/bbs/models v0.0.0-20260618205254-dc4b9f8d5bc9
-	code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5
+	code.cloudfoundry.org/garden v0.2.0
 	code.cloudfoundry.org/lager/v3 v3.85.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
