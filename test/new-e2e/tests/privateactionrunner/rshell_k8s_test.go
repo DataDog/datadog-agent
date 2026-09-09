@@ -386,6 +386,7 @@ func (s *parK8sSuite) waitForPARReady() {
 	s.T().Logf("PAR container became Ready after %s", time.Since(started))
 
 	if s.splitEnabled {
+		s.verifySplitPodSpec()
 		_, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
 			agentNamespace, s.parPodName, parContainerName, []string{"/par-probe.sh"},
 		)
@@ -409,6 +410,56 @@ func (s *parK8sSuite) waitForPARReady() {
 	}, 5*time.Minute, 3*time.Second, "PAR should start polling fakeintake")
 	pollingObserved = true
 	s.T().Logf("PAR started polling fakeintake %s after its container became Ready", time.Since(dequeueStarted))
+}
+
+func (s *parK8sSuite) verifySplitPodSpec() {
+	pod, err := s.Env().KubernetesCluster.Client().CoreV1().
+		Pods(agentNamespace).Get(context.Background(), s.parPodName, metav1.GetOptions{})
+	s.Require().NoError(err)
+	s.Require().NotNil(pod.Spec.TerminationGracePeriodSeconds)
+	s.Require().GreaterOrEqual(*pod.Spec.TerminationGracePeriodSeconds, int64(190))
+
+	var parContainer *corev1.Container
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == parContainerName {
+			parContainer = &pod.Spec.Containers[i]
+			break
+		}
+	}
+	s.Require().NotNil(parContainer)
+
+	env := make(map[string]string, len(parContainer.Env))
+	for _, variable := range parContainer.Env {
+		env[variable.Name] = variable.Value
+	}
+	s.Require().Equal("true", env["DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"])
+	s.Require().Equal("/etc/privateactionrunner/privateactionrunner.yaml", env["DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH"])
+	s.Require().Equal("/opt/datadog-agent/run/dd-procmgrd.sock", env["DD_PM_SOCKET_PATH"])
+
+	var runVolumeName string
+	for _, mount := range parContainer.VolumeMounts {
+		if mount.MountPath == "/opt/datadog-agent/run" {
+			runVolumeName = mount.Name
+			s.Require().False(mount.ReadOnly)
+			break
+		}
+	}
+	s.Require().NotEmpty(runVolumeName)
+	for _, container := range pod.Spec.Containers {
+		if container.Name == parContainerName {
+			continue
+		}
+		for _, mount := range container.VolumeMounts {
+			s.Require().NotEqual(runVolumeName, mount.Name, "PAR run volume must not be shared with container %s", container.Name)
+		}
+	}
+	for _, volume := range pod.Spec.Volumes {
+		if volume.Name == runVolumeName {
+			s.Require().NotNil(volume.EmptyDir)
+			return
+		}
+	}
+	s.Require().Fail("PAR run volume is not defined", "volume %q", runVolumeName)
 }
 
 func (s *parK8sSuite) verifySplitExecutorStartup() {
