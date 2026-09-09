@@ -244,3 +244,47 @@ func TestPartialRestart(t *testing.T) {
 		t.Fatal("AddSource blocked on dead subscription")
 	}
 }
+
+type dropAllFilter struct{}
+
+func (dropAllFilter) Apply([]string) []string { return nil }
+
+func TestAddSourceAttachesTagFilterOncePerSource(t *testing.T) {
+	logSources := NewLogSources()
+
+	calls := 0
+	logSources.SetTagFilterBuilder(func(source *LogSource) TagFilter {
+		calls++
+		if source.Name == "filtered" {
+			return dropAllFilter{}
+		}
+		return nil
+	})
+
+	filtered := NewLogSource("filtered", &config.LogsConfig{Type: "boo"})
+	plain := NewLogSource("plain", &config.LogsConfig{Type: "boo"})
+	logSources.AddSource(filtered)
+	logSources.AddSource(plain)
+
+	assert.Equal(t, 2, calls)
+	assert.Equal(t, dropAllFilter{}, filtered.TagFilters())
+	assert.Nil(t, plain.TagFilters())
+}
+
+func TestAddSourceAttachesTagFilterBeforeValidation(t *testing.T) {
+	logSources := NewLogSources()
+	logSources.SetTagFilterBuilder(func(*LogSource) TagFilter { return dropAllFilter{} })
+
+	invalid := NewLogSource("invalid", &config.LogsConfig{})
+	logSources.AddSource(invalid)
+
+	assert.Equal(t, dropAllFilter{}, invalid.TagFilters())
+}
+
+func TestAddSourceWithoutTagFilterBuilder(t *testing.T) {
+	logSources := NewLogSources()
+	source := NewLogSource("foo", &config.LogsConfig{Type: "boo"})
+	logSources.AddSource(source)
+
+	assert.Nil(t, source.TagFilters())
+}

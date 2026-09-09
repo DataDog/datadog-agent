@@ -30,12 +30,23 @@ type subscription struct {
 //
 // This type is threadsafe, and all of its methods can be called concurrently.
 type LogSources struct {
-	mu            sync.Mutex
-	sources       []*LogSource
-	added         []*subscription
-	addedByType   map[string][]*subscription
-	removed       []*subscription
-	removedByType map[string][]*subscription
+	mu               sync.Mutex
+	sources          []*LogSource
+	added            []*subscription
+	addedByType      map[string][]*subscription
+	removed          []*subscription
+	removedByType    map[string][]*subscription
+	tagFilterBuilder TagFilterBuilder
+}
+
+// TagFilterBuilder attaches a compiled tag filter to a source. nil means no filtering.
+type TagFilterBuilder func(*LogSource) TagFilter
+
+// SetTagFilterBuilder installs the builder used when a source is added.
+func (s *LogSources) SetTagFilterBuilder(b TagFilterBuilder) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tagFilterBuilder = b
 }
 
 // NewLogSources creates a new log sources.
@@ -53,6 +64,9 @@ func NewLogSources() *LogSources {
 func (s *LogSources) AddSource(source *LogSource) {
 	log.Tracef("Adding %s", source.Dump(false))
 	s.mu.Lock()
+	if s.tagFilterBuilder != nil {
+		source.SetTagFilters(s.tagFilterBuilder(source))
+	}
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
 		s.mu.Unlock()

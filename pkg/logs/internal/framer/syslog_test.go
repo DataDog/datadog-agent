@@ -237,7 +237,7 @@ func TestSyslogOversizedMalformedSplit(t *testing.T) {
 	// First chunk should be flagged as truncated.
 	assert.True(t, truncated[0], "first chunk of oversized malformed frame should be truncated")
 
-	rendered := tailerInfo.Rendered()
+	rendered := tailerInfo.Rendered(true)
 	oversized := rendered["Syslog Oversized Frames"]
 	require.NotEmpty(t, oversized)
 }
@@ -516,7 +516,7 @@ func TestSyslogMalformedFrameEmission(t *testing.T) {
 
 		require.Equal(t, []string{"hello world"}, contents)
 
-		rendered := tailerInfo.Rendered()
+		rendered := tailerInfo.Rendered(true)
 		malformed := rendered["Syslog Malformed Bytes"]
 		require.NotEmpty(t, malformed)
 		assert.Equal(t, "11", malformed[0])
@@ -538,7 +538,7 @@ func TestSyslogMalformedFrameEmission(t *testing.T) {
 
 		require.Equal(t, []string{"JUNK", validMsg}, contents)
 
-		rendered := tailerInfo.Rendered()
+		rendered := tailerInfo.Rendered(true)
 		malformed := rendered["Syslog Malformed Bytes"]
 		require.NotEmpty(t, malformed)
 		assert.Equal(t, "4", malformed[0])
@@ -560,7 +560,7 @@ func TestSyslogMalformedFrameEmission(t *testing.T) {
 
 		require.Equal(t, []string{msg}, contents)
 
-		rendered := tailerInfo.Rendered()
+		rendered := tailerInfo.Rendered(true)
 		malformed := rendered["Syslog Malformed Bytes"]
 		require.NotEmpty(t, malformed)
 		assert.Equal(t, "0", malformed[0])
@@ -583,7 +583,7 @@ func TestSyslogMalformedFrameEmission(t *testing.T) {
 
 		require.Equal(t, []string{"XX", syslogMsg}, contents)
 
-		rendered := tailerInfo.Rendered()
+		rendered := tailerInfo.Rendered(true)
 		malformed := rendered["Syslog Malformed Bytes"]
 		require.NotEmpty(t, malformed)
 		assert.Equal(t, "2", malformed[0])
@@ -918,7 +918,7 @@ func TestSyslogMalformedOctetCount(t *testing.T) {
 		require.Equal(t, []string{"3X ", msg}, contents,
 			"the digit-prefixed garbage must be emitted as a single malformed frame, not have its prefix dropped")
 
-		rendered := tailerInfo.Rendered()
+		rendered := tailerInfo.Rendered(true)
 		malformed := rendered["Syslog Malformed Bytes"]
 		require.NotEmpty(t, malformed)
 		assert.Equal(t, "3", malformed[0], "all 3 garbage bytes counted once")
@@ -1041,7 +1041,7 @@ func TestSyslogOversizedSelfBounding(t *testing.T) {
 		got, _, _, info := collectSyslog(t, limit, [][]byte{input})
 		require.Greater(t, len(got), 1, "frame should have been split")
 
-		rendered := info.Rendered()
+		rendered := info.Rendered(true)
 		oversized := rendered["Syslog Oversized Frames"]
 		require.NotEmpty(t, oversized)
 		assert.Equal(t, "1", oversized[0], "an oversized frame must be counted once, not once per chunk")
@@ -1059,7 +1059,7 @@ func TestSyslogOversizedSelfBounding(t *testing.T) {
 		got, _, _, info := collectSyslog(t, limit, [][]byte{input})
 		assert.Equal(t, validMsg, got[len(got)-1], "valid frame recovered after the malformed run")
 
-		rendered := info.Rendered()
+		rendered := info.Rendered(true)
 		malformed := rendered["Syslog Malformed Bytes"]
 		require.NotEmpty(t, malformed)
 		assert.Equal(t, "25", malformed[0], "malformed bytes must equal the malformed run length exactly")

@@ -26,23 +26,72 @@ type Origin struct {
 	source       string
 	mappedSource string
 	tags         []string
+	// tagFilters is applied on the intake path only; nil means no filtering.
+	tagFilters TagFilter
 }
 
-// NewOrigin returns a new Origin
+// NewOrigin returns a new Origin.
 func NewOrigin(source *sources.LogSource) *Origin {
 	return &Origin{
-		LogSource: source,
+		LogSource:  source,
+		tagFilters: source.TagFilters(),
 	}
 }
 
-// Tags returns the tags of the origin.
+// TagFilter drops tags that must not leave the Agent. nil means no filtering.
+type TagFilter interface {
+	// Apply returns the surviving tags without mutating or aliasing tags.
+	Apply(tags []string) []string
+}
+
+// Tags returns the origin's tags, unfiltered. Agent-local consumers (e.g.
+// anomaly detection) need every tag; encoders must use TransportTags.
 //
 // The returned slice must not be modified by the caller.
 func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
 }
 
-// TagsPayload returns the raw tag payload of the origin.
+// TransportTags returns the origin's tags after the source's tag filter.
+//
+// The returned slice must not be modified by the caller.
+func (o *Origin) TransportTags() []string {
+	return o.applyTagFilters(o.tagsToStringArray())
+}
+
+// TransportTagsToString encodes TransportTags as a comma-separated string.
+func (o *Origin) TransportTagsToString() string {
+	tags := o.TransportTags()
+
+	if len(tags) == 0 {
+		return ""
+	}
+
+	return strings.Join(tags, ",")
+}
+
+// SetTagFilters overrides the filter NewOrigin copied from the LogSource.
+func (o *Origin) SetTagFilters(f TagFilter) {
+	o.tagFilters = f
+}
+
+// TagFilters returns the origin's tag filter, if any.
+func (o *Origin) TagFilters() TagFilter {
+	if o == nil {
+		return nil
+	}
+	return o.tagFilters
+}
+
+func (o *Origin) applyTagFilters(tags []string) []string {
+	if o == nil || o.tagFilters == nil {
+		return tags
+	}
+	return o.tagFilters.Apply(tags)
+}
+
+// TagsPayload returns the RFC5424 structured-data tag payload, with tag
+// filtering applied. ddsource and ddsourcecategory are not tags and are not filtered.
 func (o *Origin) TagsPayload(processingTags []string) []byte {
 	if o == nil || o.LogSource == nil {
 		return []byte{}
@@ -63,6 +112,7 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 	tags = append(tags, o.LogSource.Config.Tags...)
 	tags = append(tags, o.tags...)
 	tags = append(tags, processingTags...)
+	tags = o.applyTagFilters(tags)
 
 	if len(tags) > 0 {
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)
@@ -103,7 +153,7 @@ func AppendTagMetadataBytes(baseBytes int, tags []string) int {
 	return totalBytes
 }
 
-// TagsToString encodes tags to a single string, in a comma separated format
+// TagsToString encodes Tags as a comma-separated string. Unfiltered; see Tags.
 func (o *Origin) TagsToString() string {
 	tags := o.tagsToStringArray()
 

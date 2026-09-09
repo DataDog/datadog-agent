@@ -51,6 +51,14 @@ type LogSource struct {
 	BytesRead        *status.CountInfo
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
+	// tagFilters is written once in AddSource before the source is published; nil means no filtering.
+	tagFilters TagFilter
+}
+
+// TagFilter drops tags that must not leave the Agent. nil means no filtering.
+type TagFilter interface {
+	// Apply returns the surviving tags without mutating or aliasing tags.
+	Apply(tags []string) []string
 }
 
 // NewLogSource creates a new log source.
@@ -72,6 +80,19 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 	source.RegisterInfo(source.ProcessingInfo)
 	source.RegisterInfo(source.LatencyStats)
 	return source
+}
+
+// SetTagFilters attaches the compiled tag filter. Call once, before the source is published.
+func (s *LogSource) SetTagFilters(f TagFilter) {
+	s.tagFilters = f
+}
+
+// TagFilters returns this source's compiled tag filter, or nil.
+func (s *LogSource) TagFilters() TagFilter {
+	if s == nil {
+		return nil
+	}
+	return s.tagFilters
 }
 
 // AddInput registers an input as being handled by this source.
@@ -166,11 +187,12 @@ func (s *LogSource) GetInfo(key string) status.InfoProvider {
 	return s.info.Get(key)
 }
 
-// GetInfoStatus returns a primitive representation of the info for the status page
-func (s *LogSource) GetInfoStatus() map[string][]string {
+// GetInfoStatus returns a primitive representation of the info for the status page. Pass
+// verbose to include providers that opted out of the default view.
+func (s *LogSource) GetInfoStatus(verbose bool) map[string][]string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return s.info.Rendered()
+	return s.info.Rendered(verbose)
 }
 
 // HideFromStatus hides the source from the status output
