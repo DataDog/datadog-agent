@@ -45,10 +45,6 @@ impl SpawnCredential {
         self.account.display_name()
     }
 
-    pub(crate) fn account(&self) -> &AgentAccount {
-        &self.account
-    }
-
     pub(crate) fn reuses_supervisor_token(&self) -> bool {
         self.reuses_supervisor_token
     }
@@ -73,6 +69,10 @@ impl SpawnCredential {
 impl SpawnCredential {
     pub(super) fn from_account(account: AgentAccount) -> Result<Self> {
         Self::new(account)
+    }
+
+    pub(crate) fn account(&self) -> &AgentAccount {
+        &self.account
     }
 }
 

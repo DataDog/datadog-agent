@@ -104,6 +104,8 @@ fn new_siex(
 impl Drop for StartupInfoEx {
     fn drop(&mut self) {
         if !self.siex.lpAttributeList.is_null() {
+            // attribute_list_storage owns the buffer lpAttributeList points at
+            let _ = &self.attribute_list_storage;
             unsafe {
                 DeleteProcThreadAttributeList(self.siex.lpAttributeList);
             }
