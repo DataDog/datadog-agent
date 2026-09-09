@@ -6,30 +6,23 @@
 package gcp
 
 import (
-	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
 )
 
-func TestZoneForStack(t *testing.T) {
-	const region = "us-central1"
-	seen := make(map[string]bool, gcpZoneCount)
-
-	for i := 0; i < 100; i++ {
-		stack := fmt.Sprintf("stack-%d", i)
-		zone := zoneForStack(region, stack)
-		if zone != region+"-a" && zone != region+"-b" && zone != region+"-c" {
-			t.Fatalf("zoneForStack(%q, %q) = %q, want a zone in %s-{a,b,c}", region, stack, zone, region)
-		}
-		if got := zoneForStack(region, stack); got != zone {
-			t.Fatalf("zoneForStack(%q, %q) returned %q then %q", region, stack, zone, got)
-		}
-		seen[zone] = true
+func TestRandomZone(t *testing.T) {
+	wantZones := []string{"us-central1-a", "us-central1-b", "us-central1-c"}
+	if !slices.Equal(availableZones, wantZones) {
+		t.Fatalf("availableZones = %v, want %v", availableZones, wantZones)
 	}
 
-	if len(seen) != gcpZoneCount {
-		t.Fatalf("zoneForStack used %d zones, want %d", len(seen), gcpZoneCount)
+	for range 100 {
+		zone := randomZone()
+		if !slices.Contains(availableZones, zone) {
+			t.Fatalf("randomZone() = %q, want one of %v", zone, availableZones)
+		}
 	}
 }
 
