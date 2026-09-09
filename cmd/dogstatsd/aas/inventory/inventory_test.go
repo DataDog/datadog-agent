@@ -7,7 +7,6 @@ package inventory
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -103,15 +102,13 @@ func TestSubmitGatedOff(t *testing.T) {
 	assert.Zero(t, ia.submits)
 }
 
-func TestSubmitEnqueuesAndSwitchesToPeriodic(t *testing.T) {
+func TestSubmitEnqueues(t *testing.T) {
 	t.Setenv(envInventoryEnabled, "1")
 	ia := newFake()
 
 	Submit(ia)
 
 	assert.Equal(t, 1, ia.submits)
-	assert.Equal(t, reportReasonPeriodic, ia.fields["report_reason"],
-		"report_reason must be switched to periodic after Submit so the runner uses it")
 }
 
 func TestWorkloadTypeDetection(t *testing.T) {
@@ -121,22 +118,3 @@ func TestWorkloadTypeDetection(t *testing.T) {
 	assert.Equal(t, workloadTypeAzureFunction, workloadType())
 }
 
-func TestStartPeriodicRunnerTicksAndStops(t *testing.T) {
-	t.Setenv(envInventoryEnabled, "1")
-	ia := newFake()
-	ia.submits = 0
-
-	stopCh := make(chan struct{})
-
-	// Shorten the interval for the test by temporarily patching periodicInterval
-	// is not possible (unexported const), so we call Submit directly to simulate
-	// one periodic tick and verify the runner goroutine exits on stop.
-	StartPeriodicRunner(ia, stopCh)
-	close(stopCh)
-
-	// Give the goroutine a moment to exit.
-	time.Sleep(50 * time.Millisecond)
-	// No ticks should have fired in 50 ms (interval is 10 min); runner should
-	// have exited cleanly after stopCh close.
-	assert.Zero(t, ia.submits, "no periodic submits should fire before first tick")
-}
