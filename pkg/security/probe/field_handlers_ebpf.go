@@ -795,6 +795,9 @@ func (fh *EBPFFieldHandlers) resolveOTelSpanAttrs(ev *model.Event) {
 		return
 	}
 	ev.SpanContext.HasExtraAttrs = false
+	if fh.resolvers.OTelAttrsResolver == nil {
+		return
+	}
 
 	rawAttrs, err := fh.resolvers.OTelAttrsResolver.Resolve(ev.SpanContext.ExtraAttrsID)
 	if err != nil {
