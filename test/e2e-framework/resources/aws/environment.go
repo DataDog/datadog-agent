@@ -73,6 +73,7 @@ const (
 	DDInfraEksWindowsNodeGroup                     = "aws/eks/windowsNodeGroup"
 	DDInfraEksGPUNodeGroup                         = "aws/eks/gpuNodeGroup"
 	DDInfraEksGPUInstanceType                      = "aws/eks/gpuInstanceType"
+	DDInfraEksAutoMode                             = "aws/eks/autoMode"
 	DDInfraEksAccountAdminSSORole                  = "aws/eks/accountAdminSSORole"
 	DDInfraEksReadOnlySSORole                      = "aws/eks/readOnlySSORole"
 )
@@ -431,6 +432,32 @@ func (e *Environment) EKSGPUNodeGroup() bool {
 
 func (e *Environment) EKSGPUInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraEksGPUInstanceType, e.envDefault.ddInfra.eks.gpuInstanceType)
+}
+
+func (e *Environment) EKSAutoMode() bool {
+	return e.GetBoolWithDefault(e.InfraConfig, DDInfraEksAutoMode, e.envDefault.ddInfra.eks.autoMode)
+}
+
+// EKSExplicitlyEnabledNodeGroups returns the configuration keys of the managed node
+// groups that are explicitly enabled in the Pulumi config, ignoring the ones that are
+// merely defaulted on. It lets callers reject a configuration that asks for both Auto
+// Mode and managed node groups, instead of silently dropping one of the two.
+func (e *Environment) EKSExplicitlyEnabledNodeGroups() []string {
+	var enabled []string
+	for _, key := range []string{
+		DDInfraEksLinuxNodeGroup,
+		DDInfraEksLinuxARMNodeGroup,
+		DDInfraEksLinuxBottlerocketNodeGroup,
+		DDInfraEksWindowsNodeGroup,
+		DDInfraEksGPUNodeGroup,
+	} {
+		// A missing key returns ErrMissingVar, which is how a default is told apart
+		// from a value someone actually set.
+		if val, err := e.InfraConfig.TryBool(key); err == nil && val {
+			enabled = append(enabled, key)
+		}
+	}
+	return enabled
 }
 
 func (e *Environment) EKSAccountAdminSSORole() string {

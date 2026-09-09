@@ -85,6 +85,7 @@ type ddInfraEKS struct {
 	windowsLTSCNodeGroup                 bool
 	gpuNodeGroup                         bool
 	gpuInstanceType                      string
+	autoMode                             bool
 }
 
 type DDInfraEKSPodSubnets struct {
