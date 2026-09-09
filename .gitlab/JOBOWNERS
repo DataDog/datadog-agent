@@ -228,6 +228,7 @@ new-e2e-ssi*                            @DataDog/injection-platform
 new-e2e-npm*                            @DataDog/cloud-network-monitoring
 new-e2e-netpath*                        @DataDog/network-path
 new-e2e-ndm-netflow*                    @DataDog/ndm-integrations
+new-e2e-ndm-gnmi*                       @DataDog/network-device-monitoring-core
 new-e2e-ndm-snmp*                       @DataDog/network-device-monitoring-core
 new-e2e-ha-agent*                       @DataDog/network-device-monitoring-core
 # --- Pipelines (metrics / logs / traces) ---
