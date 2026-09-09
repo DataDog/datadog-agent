@@ -112,6 +112,10 @@ func TestSubscribeSyncUpdateAndCacheRead(t *testing.T) {
 	require.NoError(t, server.SendUpdate(event.StreamID, update))
 
 	require.Eventually(t, func() bool {
+		return c.Synchronized()
+	}, 2*time.Second, 10*time.Millisecond)
+
+	require.Eventually(t, func() bool {
 		entry, ok := c.Get("/interfaces/interface/state/counters/in-octets", map[string]string{"name": "eth0"})
 		if !ok {
 			return false

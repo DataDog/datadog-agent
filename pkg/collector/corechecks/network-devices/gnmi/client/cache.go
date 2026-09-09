@@ -29,6 +29,12 @@ func newCache() *cache {
 	}
 }
 
+func (c *cache) clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries = make(map[string]CacheEntry)
+}
+
 func (c *cache) set(key CacheKey, entry CacheEntry) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
