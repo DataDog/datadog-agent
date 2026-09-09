@@ -66,6 +66,7 @@ DEPS_STARTING_WITH_DATADOG = [
     "datadog-serverless-utils",
     "datadog-sma",
     "datadog-threadstats",
+    "datadog-uwsgi-stats",
 ]
 
 def run_command(args):
