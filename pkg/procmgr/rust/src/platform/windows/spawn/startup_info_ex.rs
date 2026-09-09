@@ -17,6 +17,7 @@ use windows_sys::Win32::System::Threading::{
 pub(crate) struct StartupInfoEx {
     siex: STARTUPINFOEXW,
     attribute_list_storage: Vec<u8>,
+    stdio_handles: [HANDLE; 3],
 }
 
 impl StartupInfoEx {
@@ -88,6 +89,7 @@ impl StartupInfoEx {
         Ok(Self {
             siex,
             attribute_list_storage,
+            stdio_handles,
         })
     }
 
