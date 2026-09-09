@@ -49,7 +49,7 @@ func TestGetBatteryInfoMultipleBatteries(t *testing.T) {
 		},
 	}
 
-	restoreWindowsBatteryMocks(t, descriptors, func(descriptor batteryDeviceDescriptor) (*windowsBattery, error) {
+	restoreWindowsBatteryMocks(t, batteryDeviceEnumeration{physical: descriptors, complete: true}, func(descriptor batteryDeviceDescriptor) (*windowsBattery, error) {
 		return batteries[descriptor.devicePath], nil
 	})
 
@@ -86,7 +86,7 @@ func TestGetBatteryInfoEmitsTotalForOneBattery(t *testing.T) {
 		},
 		status: BATTERY_STATUS{Capacity: 4050, Voltage: 12000, Rate: -900},
 	}
-	restoreWindowsBatteryMocks(t, []batteryDeviceDescriptor{descriptor}, func(batteryDeviceDescriptor) (*windowsBattery, error) {
+	restoreWindowsBatteryMocks(t, batteryDeviceEnumeration{physical: []batteryDeviceDescriptor{descriptor}, complete: true}, func(batteryDeviceDescriptor) (*windowsBattery, error) {
 		return battery, nil
 	})
 
@@ -110,7 +110,7 @@ func TestGetBatteryInfoSuppressesPartialTotal(t *testing.T) {
 		},
 		status: BATTERY_STATUS{Capacity: 4050, Voltage: 12000, Rate: -900},
 	}
-	restoreWindowsBatteryMocks(t, descriptors, func(descriptor batteryDeviceDescriptor) (*windowsBattery, error) {
+	restoreWindowsBatteryMocks(t, batteryDeviceEnumeration{physical: descriptors, complete: true}, func(descriptor batteryDeviceDescriptor) (*windowsBattery, error) {
 		if descriptor.devicePath == "battery-0" {
 			return nil, errors.New("query failed")
 		}
@@ -121,6 +121,115 @@ func TestGetBatteryInfoSuppressesPartialTotal(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, infos, 1)
 	assert.Equal(t, "battery_slot:root_battery_0001", infos[0].tags[0])
+}
+
+func TestGetBatteryInfoSuppressesTotalAfterIncompleteEnumeration(t *testing.T) {
+	descriptor := batteryDeviceDescriptor{devicePath: "battery-0", instanceID: `ROOT\BATTERY\0000`}
+	battery := newTestWindowsBattery(descriptor, 6000, 5400, 4050)
+	restoreWindowsBatteryMocks(t, batteryDeviceEnumeration{
+		physical: []batteryDeviceDescriptor{descriptor},
+		complete: false,
+	}, func(batteryDeviceDescriptor) (*windowsBattery, error) {
+		return battery, nil
+	})
+
+	infos, err := getBatteryInfo()
+	require.NoError(t, err)
+	require.Len(t, infos, 1)
+	assert.Equal(t, "battery_slot:root_battery_0000", infos[0].tags[0])
+}
+
+func TestGetBatteryInfoUsesSingleCompositeAsTotalFallback(t *testing.T) {
+	compositeDescriptor := batteryDeviceDescriptor{
+		devicePath: `\\?\ROOT#COMPOSITEBATTERY#0000`,
+		instanceID: `ROOT\COMPOSITEBATTERY\0000`,
+	}
+	composite := newTestWindowsBattery(compositeDescriptor, 10000, 9000, 5850)
+	restoreWindowsBatteryMocks(t, batteryDeviceEnumeration{
+		composites: []batteryDeviceDescriptor{compositeDescriptor},
+		complete:   true,
+	}, func(batteryDeviceDescriptor) (*windowsBattery, error) {
+		return composite, nil
+	})
+
+	infos, err := getBatteryInfo()
+	require.NoError(t, err)
+	require.Len(t, infos, 1)
+	assert.Equal(t, []string{"battery_slot:total"}, infos[0].tags)
+	assertOptionValue(t, infos[0].designedCapacity, 10000)
+	assertOptionValue(t, infos[0].maximumCapacity, 9000)
+	assertOptionValue(t, infos[0].currentChargePct, 65)
+}
+
+func TestGetBatteryInfoIgnoresCompositeWhenPhysicalTotalIsComplete(t *testing.T) {
+	physicalDescriptor := batteryDeviceDescriptor{devicePath: "battery-0", instanceID: `ROOT\BATTERY\0000`}
+	compositeDescriptor := batteryDeviceDescriptor{devicePath: "composite-0", instanceID: `ROOT\COMPOSITEBATTERY\0000`}
+	physical := newTestWindowsBattery(physicalDescriptor, 6000, 5400, 4050)
+	compositeQueried := false
+	restoreWindowsBatteryMocks(t, batteryDeviceEnumeration{
+		physical:   []batteryDeviceDescriptor{physicalDescriptor},
+		composites: []batteryDeviceDescriptor{compositeDescriptor},
+		complete:   true,
+	}, func(descriptor batteryDeviceDescriptor) (*windowsBattery, error) {
+		if descriptor.devicePath == compositeDescriptor.devicePath {
+			compositeQueried = true
+		}
+		return physical, nil
+	})
+
+	infos, err := getBatteryInfo()
+	require.NoError(t, err)
+	require.Len(t, infos, 2)
+	assert.False(t, compositeQueried)
+	assert.Equal(t, []string{"battery_slot:total"}, infos[1].tags)
+}
+
+func TestGetBatteryInfoUsesCompositeAfterPhysicalQueryFailure(t *testing.T) {
+	physicalDescriptors := []batteryDeviceDescriptor{
+		{devicePath: "battery-0", instanceID: `ROOT\BATTERY\0000`},
+		{devicePath: "battery-1", instanceID: `ROOT\BATTERY\0001`},
+	}
+	compositeDescriptor := batteryDeviceDescriptor{devicePath: "composite-0", instanceID: `ROOT\COMPOSITEBATTERY\0000`}
+	physical := newTestWindowsBattery(physicalDescriptors[1], 6000, 5400, 4050)
+	composite := newTestWindowsBattery(compositeDescriptor, 10000, 9000, 5850)
+	restoreWindowsBatteryMocks(t, batteryDeviceEnumeration{
+		physical:   physicalDescriptors,
+		composites: []batteryDeviceDescriptor{compositeDescriptor},
+		complete:   true,
+	}, func(descriptor batteryDeviceDescriptor) (*windowsBattery, error) {
+		switch descriptor.devicePath {
+		case physicalDescriptors[0].devicePath:
+			return nil, errors.New("query failed")
+		case compositeDescriptor.devicePath:
+			return composite, nil
+		default:
+			return physical, nil
+		}
+	})
+
+	infos, err := getBatteryInfo()
+	require.NoError(t, err)
+	require.Len(t, infos, 2)
+	assert.Equal(t, "battery_slot:root_battery_0001", infos[0].tags[0])
+	assert.Equal(t, []string{"battery_slot:total"}, infos[1].tags)
+	assertOptionValue(t, infos[1].designedCapacity, 10000)
+}
+
+func TestGetBatteryInfoDoesNotUseAmbiguousCompositeFallback(t *testing.T) {
+	composites := []batteryDeviceDescriptor{
+		{devicePath: "composite-0", instanceID: `ROOT\COMPOSITEBATTERY\0000`},
+		{devicePath: "composite-1", instanceID: `ROOT\COMPOSITEBATTERY\0001`},
+	}
+	queryCount := 0
+	restoreWindowsBatteryMocks(t, batteryDeviceEnumeration{composites: composites, complete: true}, func(batteryDeviceDescriptor) (*windowsBattery, error) {
+		queryCount++
+		return nil, nil
+	})
+
+	infos, err := getBatteryInfo()
+	require.NoError(t, err)
+	assert.Empty(t, infos)
+	assert.Zero(t, queryCount)
 }
 
 func TestBatterySlotValueUsesUINumber(t *testing.T) {
@@ -149,17 +258,35 @@ func TestBatterySlotValueFallsBackToDevicePath(t *testing.T) {
 	assert.Equal(t, `\\?\battery#device`, batterySlotValue(descriptor))
 }
 
-func restoreWindowsBatteryMocks(t *testing.T, descriptors []batteryDeviceDescriptor, query func(batteryDeviceDescriptor) (*windowsBattery, error)) {
+func TestIsCompositeBatteryDescriptor(t *testing.T) {
+	assert.True(t, isCompositeBatteryDescriptor(batteryDeviceDescriptor{instanceID: `ROOT\CompositeBattery\0000`}))
+	assert.True(t, isCompositeBatteryDescriptor(batteryDeviceDescriptor{devicePath: `\\?\ROOT#COMPOSITEBATTERY#0000`}))
+	assert.False(t, isCompositeBatteryDescriptor(batteryDeviceDescriptor{instanceID: `ROOT\BATTERY\0000`}))
+}
+
+func restoreWindowsBatteryMocks(t *testing.T, enumeration batteryDeviceEnumeration, query func(batteryDeviceDescriptor) (*windowsBattery, error)) {
 	originalEnumerate := enumerateBatteryDeviceDescriptorsFunc
 	originalQuery := queryBatteryDeviceFunc
-	enumerateBatteryDeviceDescriptorsFunc = func() ([]batteryDeviceDescriptor, error) {
-		return descriptors, nil
+	enumerateBatteryDeviceDescriptorsFunc = func() (batteryDeviceEnumeration, error) {
+		return enumeration, nil
 	}
 	queryBatteryDeviceFunc = query
 	t.Cleanup(func() {
 		enumerateBatteryDeviceDescriptorsFunc = originalEnumerate
 		queryBatteryDeviceFunc = originalQuery
 	})
+}
+
+func newTestWindowsBattery(descriptor batteryDeviceDescriptor, designed, full, remaining uint32) *windowsBattery {
+	return &windowsBattery{
+		descriptor: descriptor,
+		info: BATTERY_INFORMATION{
+			Capabilities:        BATTERY_SYSTEM_BATTERY,
+			DesignedCapacity:    designed,
+			FullChargedCapacity: full,
+		},
+		status: BATTERY_STATUS{Capacity: remaining},
+	}
 }
 
 func assertOptionValue(t *testing.T, value option.Option[float64], expected float64) {

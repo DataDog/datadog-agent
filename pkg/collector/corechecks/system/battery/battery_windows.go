@@ -134,6 +134,12 @@ type batteryDeviceDescriptor struct {
 	hasUINumber bool
 }
 
+type batteryDeviceEnumeration struct {
+	physical   []batteryDeviceDescriptor
+	composites []batteryDeviceDescriptor
+	complete   bool
+}
+
 type windowsBattery struct {
 	descriptor batteryDeviceDescriptor
 	info       BATTERY_INFORMATION
@@ -177,38 +183,41 @@ func isSystemBatteryError(err error) bool {
 
 // hasBatteryAvailable checks if at least one battery device is present
 func hasBatteryAvailable() (bool, error) {
-	descriptors, err := enumerateBatteryDeviceDescriptorsFunc()
+	enumeration, err := enumerateBatteryDeviceDescriptorsFunc()
 	if err != nil {
 		return false, err
 	}
-	for _, descriptor := range descriptors {
-		_, err = queryBatteryDeviceFunc(descriptor)
-		if err != nil {
-			if isSystemBatteryError(err) {
+	for _, descriptors := range [][]batteryDeviceDescriptor{enumeration.physical, enumeration.composites} {
+		for _, descriptor := range descriptors {
+			_, err = queryBatteryDeviceFunc(descriptor)
+			if err != nil {
+				if isSystemBatteryError(err) {
+					continue
+				}
+				log.Errorf("error querying battery device: %v", err)
 				continue
 			}
-			log.Errorf("error querying battery device: %v", err)
-			continue
-		}
 
-		log.Debugf("At least one system battery device exists")
-		return true, nil
+			log.Debugf("At least one system battery device exists")
+			return true, nil
+		}
 	}
 
 	log.Debugf("No system battery device found")
 	return false, nil
 }
 
-// enumerateBatteryDeviceDescriptors returns all present battery interfaces and
-// the metadata Windows uses to order them in its battery UI.
-func enumerateBatteryDeviceDescriptors() ([]batteryDeviceDescriptor, error) {
+// enumerateBatteryDeviceDescriptors returns all present physical and composite
+// battery interfaces. complete is false if an interface could not be described,
+// so callers do not mistake the successfully enumerated subset for the whole host.
+func enumerateBatteryDeviceDescriptors() (batteryDeviceEnumeration, error) {
 	hdev, ifData, cleanup, err := setupBatteryDeviceEnumeration()
 	if err != nil {
-		return nil, err
+		return batteryDeviceEnumeration{}, err
 	}
 	defer cleanup()
 
-	var descriptors []batteryDeviceDescriptor
+	enumeration := batteryDeviceEnumeration{complete: true}
 	for i := uint32(0); ; i++ {
 		err = winutil.SetupDiEnumDeviceInterfaces(hdev, &GUID_DEVCLASS_BATTERY, i, ifData)
 		if err != nil {
@@ -216,46 +225,47 @@ func enumerateBatteryDeviceDescriptors() ([]batteryDeviceDescriptor, error) {
 				log.Debugf("No more interfaces found")
 				break
 			}
-			return nil, fmt.Errorf("error enumerating device interfaces: %w", err)
+			return batteryDeviceEnumeration{}, fmt.Errorf("error enumerating device interfaces: %w", err)
 		}
 
 		interfaceDetailData, deviceInfoData, err := getDeviceInterfaceDetailData(hdev, ifData)
 		if err != nil {
+			enumeration.complete = false
 			log.Errorf("error getting device interface detail data: %v", err)
 			continue
 		}
 
 		devicePath := windows.UTF16PtrToString(&interfaceDetailData.DevicePath[0])
-		if strings.Contains(strings.ToUpper(devicePath), "ROOT#COMPOSITEBATTERY#") {
-			log.Debugf("Skipping composite battery interface %s", devicePath)
-			continue
-		}
-
 		instanceID, _ := getDevicePropertyString(hdev, deviceInfoData, &devpkeyDeviceInstanceID)
 		uiNumber, hasUINumber := getDevicePropertyUint32(hdev, deviceInfoData, &devpkeyDeviceUINumber)
-		descriptors = append(descriptors, batteryDeviceDescriptor{
+		descriptor := batteryDeviceDescriptor{
 			devicePath:  devicePath,
 			instanceID:  instanceID,
 			uiNumber:    uiNumber,
 			hasUINumber: hasUINumber,
-		})
+		}
+		if isCompositeBatteryDescriptor(descriptor) {
+			enumeration.composites = append(enumeration.composites, descriptor)
+		} else {
+			enumeration.physical = append(enumeration.physical, descriptor)
+		}
 	}
 
-	return descriptors, nil
+	return enumeration, nil
 }
 
 // getBatteryInfo queries every system battery and emits both per-battery and
-// host-total records. A total is omitted for a collection where any otherwise
-// eligible interface failed, rather than silently reporting a partial total.
+// host-total records. The total comes from a complete physical collection, or
+// from one composite battery as a fallback; a partial physical total is never emitted.
 func getBatteryInfo() ([]batteryInfo, error) {
-	descriptors, err := enumerateBatteryDeviceDescriptorsFunc()
+	enumeration, err := enumerateBatteryDeviceDescriptorsFunc()
 	if err != nil {
 		return nil, err
 	}
 
-	complete := true
+	complete := enumeration.complete
 	var batteries []windowsBattery
-	for _, descriptor := range descriptors {
+	for _, descriptor := range enumeration.physical {
 		battery, err := queryBatteryDeviceFunc(descriptor)
 		if err != nil {
 			if isSystemBatteryError(err) {
@@ -265,8 +275,7 @@ func getBatteryInfo() ([]batteryInfo, error) {
 			log.Errorf("error querying battery device %s: %v", descriptor.devicePath, err)
 			continue
 		}
-		if battery.info.DesignedCapacity == 0 || battery.info.DesignedCapacity == BATTERY_UNKNOWN_CAPACITY ||
-			battery.info.FullChargedCapacity == 0 || battery.info.FullChargedCapacity == BATTERY_UNKNOWN_CAPACITY {
+		if !hasValidBatteryCapacities(battery) {
 			complete = false
 			log.Errorf("invalid capacity for battery device %s (designed=%d, full=%d)",
 				descriptor.devicePath, battery.info.DesignedCapacity, battery.info.FullChargedCapacity)
@@ -280,10 +289,42 @@ func getBatteryInfo() ([]batteryInfo, error) {
 	for i := range batteries {
 		infos = append(infos, buildPerBatteryInfo(&batteries[i]))
 	}
+	if len(enumeration.composites) > 1 {
+		log.Warnf("found %d composite battery interfaces; composite fallback is ambiguous and will be skipped", len(enumeration.composites))
+	}
 	if complete && len(batteries) > 0 {
 		infos = append(infos, buildTotalBatteryInfo(batteries))
+		return infos, nil
+	}
+
+	if len(enumeration.composites) > 1 {
+		return infos, nil
+	}
+	if len(enumeration.composites) == 1 {
+		composite, err := queryBatteryDeviceFunc(enumeration.composites[0])
+		if err != nil {
+			log.Errorf("error querying composite battery device %s: %v", enumeration.composites[0].devicePath, err)
+			return infos, nil
+		}
+		if !hasValidBatteryCapacities(composite) {
+			log.Errorf("invalid capacity for composite battery device %s (designed=%d, full=%d)",
+				enumeration.composites[0].devicePath, composite.info.DesignedCapacity, composite.info.FullChargedCapacity)
+			return infos, nil
+		}
+		infos = append(infos, buildTotalBatteryInfo([]windowsBattery{*composite}))
 	}
 	return infos, nil
+}
+
+func hasValidBatteryCapacities(battery *windowsBattery) bool {
+	return battery.info.DesignedCapacity != 0 && battery.info.DesignedCapacity != BATTERY_UNKNOWN_CAPACITY &&
+		battery.info.FullChargedCapacity != 0 && battery.info.FullChargedCapacity != BATTERY_UNKNOWN_CAPACITY
+}
+
+func isCompositeBatteryDescriptor(descriptor batteryDeviceDescriptor) bool {
+	instanceID := strings.ToUpper(descriptor.instanceID)
+	devicePath := strings.ToUpper(descriptor.devicePath)
+	return strings.HasPrefix(instanceID, `ROOT\COMPOSITEBATTERY\`) || strings.Contains(devicePath, "ROOT#COMPOSITEBATTERY#")
 }
 
 // queryBatteryDevice queries one battery while keeping its handle and transient
