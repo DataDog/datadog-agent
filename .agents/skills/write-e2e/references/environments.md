@@ -110,7 +110,7 @@ Container equivalents: `components/datadog/dockeragentparams` and `components/da
 
 Import `e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"`; the lists live in `linux_descriptors.go` and `windows_descriptors.go`.
 
-Prefer `Ubuntu2204E2E` (also `UbuntuDefault`) — a prebaked image with the test tooling already installed, which avoids installing packages on the VM. Also available: `Ubuntu2404`, `Ubuntu2204`, `Debian12`, `AmazonLinux2023`, `AmazonLinux2`, `RedHat9`, `Suse15`, `Fedora40`, `CentOS7`, `AlmaLinux9`, `WindowsServer2025` (`WindowsServerDefault`), `WindowsServer2022/2019/2016`, and `WindowsClient*`.
+Prefer `Ubuntu2204E2E` (also `UbuntuDefault`) — a prebaked image with the test tooling already installed, which avoids installing packages on the VM. Also available: `Ubuntu2404`, `Ubuntu2204`, `Debian11E2E`, `Debian12`, `AmazonLinux2023`, `AmazonLinux2`, `RedHat9`, `Suse15`, `Fedora40`, `CentOS7`, `AlmaLinux9`, `WindowsServer2025` (`WindowsServerDefault`), `WindowsServer2022/2019/2016`, and `WindowsClient*`.
 
 ```go
 ec2.WithOS(e2eos.Ubuntu2204)

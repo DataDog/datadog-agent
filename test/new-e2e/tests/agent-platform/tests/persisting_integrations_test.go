@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
@@ -36,6 +37,15 @@ type persistingIntegrationsSuite struct {
 	srcVersion     string
 	osDesc         e2eos.Descriptor
 	testingKeysURL string
+}
+
+func (is *persistingIntegrationsSuite) SetupSuite() {
+	is.BaseSuite.SetupSuite()
+	defer is.CleanupOnSetupFailure()
+
+	h := host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
+	h.ConfigureYumMirrors()
+	h.ConfigureAptMirrors()
 }
 
 func (is *persistingIntegrationsSuite) AfterTest(suiteName, testName string) {

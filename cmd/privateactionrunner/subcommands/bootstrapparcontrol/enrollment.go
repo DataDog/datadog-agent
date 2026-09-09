@@ -32,7 +32,7 @@ func ensureEnrollment(ctx context.Context, cfg config.Component, hostnameComp ho
 	if err != nil {
 		return err
 	}
-	if identity != nil && !enrollment.ShouldReenroll(agentID, identity) {
+	if identity != nil && !enrollment.ShouldReenroll(agentID, identity, cfg.GetString("api_key")) {
 		applyIdentity(cfg, identity)
 		return nil
 	}
