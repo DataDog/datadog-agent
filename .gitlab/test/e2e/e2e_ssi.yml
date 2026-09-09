@@ -135,8 +135,6 @@ new-e2e-ssi-gke-autopilot:
 new-e2e-ssi-openshift-init:
   extends: .new-e2e_ssi_extra_distribution_init
   timeout: 1h 05m
-  rules:
-    - when: never # disabled — OpenShift job is consistently failing
   before_script:
     # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
     - !reference [.new_e2e_template, before_script]
@@ -148,8 +146,6 @@ new-e2e-ssi-openshift-init:
 
 new-e2e-ssi-openshift:
   extends: .new-e2e_ssi_extra_distribution
-  rules:
-    - when: never # disabled — OpenShift job is consistently failing
   needs:
     - !reference [.new-e2e_ssi_extra_distribution, needs]
     - new-e2e-ssi-openshift-init

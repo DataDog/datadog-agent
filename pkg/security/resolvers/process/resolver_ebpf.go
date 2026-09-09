@@ -63,7 +63,7 @@ const (
 
 	// otelProcCtxQueueSize bounds the pids waiting for OTel process context
 	// resolution.
-	otelProcCtxQueueSize     = 100
+	otelProcCtxQueueSize     = 10000
 	tryReparentMaxForkDepth  = 3  // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
 	tryReparentMaxIterations = 64 // hard cap on total loop iterations in tryReparentFromProcfs to prevent hangs on ancestor cycles or long exec chains
 )
