@@ -16,6 +16,18 @@
 # `target:` comment below. cpu_allotment: 6 was the other half of the
 # problem, not just memory_allotment.
 #
+# The actual explanation for the zero-telemetry crash turned out to be a
+# third thing, found once cpu_allotment/memory_allotment stopped being
+# suspects: Agent Data Plane's own config parser only understands a flat
+# list of metric name strings under metric_filterlist, and crash-loops
+# ("invalid type: map, expected a string", forever, not just during the
+# bounded preflight check) on the object-form prefix+exceptions entries this
+# branch added there. metric_name/except entries have since moved to a
+# separate metric_filterlist_prefix key that ADP does not read, so this
+# case's datadog-agent/datadog.yaml now puts its 5,000 exact entries under
+# metric_filterlist and its 1,250 prefix+exceptions entries under
+# metric_filterlist_prefix.
+#
 # GENERATED, then copied. Source of truth is the smp-playground harness at
 # experiments/regression/agent/metric_filterlist_scaling, via
 # `python3 scripts/generate_filterlist_cases.py --mixed`; the case was copied
@@ -33,8 +45,8 @@
 # load -- leaving only this 10k case, with the traffic in lading/lading.yaml
 # reduced to 20 MiB/s (see that file for the breakdown and rationale).
 #
-# WHAT IT MEASURES: the cost of a metric_filterlist that is HALF PREFIX RULES,
-# every one of them carrying EXCEPTIONS. This branch gave
+# WHAT IT MEASURES: the cost of a metric_filterlist_prefix that is entirely
+# PREFIX RULES, every one of them carrying EXCEPTIONS. This branch gave
 # `pkg/util/metricname.Matcher` two arms beyond the sorted `exact` one:
 # `prefixes` (unconditional, testPrefixes + strings.HasPrefix) and `guarded`
 # (prefixes with exceptions, searched the same way then checked against that
@@ -43,10 +55,11 @@
 # layout for the feature.
 #
 # NOTE ON THE BASELINE SIDE: the Regression Detector compares this commit's
-# image against the merge base of the base branch, which has neither prefix nor
-# exception support and cannot even parse the object form of an entry. The
-# baseline therefore filters only the exact half and does strictly less work,
-# so a comparison-vs-baseline delta on this case is "feature off vs on"
+# image against the merge base of the base branch, which has neither prefix
+# nor exception support, and does not have metric_filterlist_prefix at all --
+# metric_filterlist_prefix is silently ignored (an unknown key) rather than
+# parsed, so the baseline filters only the exact half and does strictly less
+# work. A comparison-vs-baseline delta on this case is "feature off vs on"
 # rather than a like-for-like regression.
 #
 # lading drives the two arms separately, 20 MiB/s total (see

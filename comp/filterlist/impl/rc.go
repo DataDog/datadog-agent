@@ -57,6 +57,7 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	// configuration for this agent, let's restore the local config and return
 	if len(updates) == 0 {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
+		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
 		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
 		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
@@ -104,12 +105,27 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	metricRules := fl.buildMetricFilterListConfig(metricFilterListUpdates)
 	// RC lists mark their prefixes per entry with `*`, and are applied with the
 	// global prefix mode off (see SetMetricFilterRules below).
-	metricRules = normalizeMetricRules(metricRules, false, fl.log)
+	metricRules = normalizeMetricRules("metric_filterlist", metricRules, false, fl.log)
 
 	if len(metricRules) > 0 {
-		// update the runtime config to be consistent
-		// in `agent config` calls.
-		fl.config.Set("metric_filterlist", metricFilterListEntries(metricRules), model.SourceRC)
+		// update the runtime config to be consistent in `agent config` calls,
+		// mirroring the split between metric_filterlist and
+		// metric_filterlist_prefix that the configuration file uses: an entry
+		// with no exception is a plain metric name, so it goes to
+		// metric_filterlist same as before this split, and only an entry
+		// carrying exceptions needs metric_filterlist_prefix's object form.
+		plainNames, prefixRules := partitionMetricFilterRules(metricRules)
+
+		if len(plainNames) > 0 {
+			fl.config.Set("metric_filterlist", plainNames, model.SourceRC)
+		} else {
+			fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
+		}
+		if len(prefixRules) > 0 {
+			fl.config.Set("metric_filterlist_prefix", metricFilterListEntries(prefixRules), model.SourceRC)
+		} else {
+			fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
+		}
 		fl.config.Set("metric_filterlist_match_prefix", false, model.SourceRC)
 		if len(fl.localFilterListConfig.metricRules) > 0 {
 			fl.config.Set("statsd_metric_blocklist", []string{}, model.SourceRC)
@@ -120,6 +136,7 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		fl.SetMetricFilterRules(metricRules, false)
 	} else {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
+		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
 		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
 		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
@@ -174,6 +191,20 @@ func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filtere
 	}
 
 	return rules
+}
+
+// partitionMetricFilterRules splits rules into those with no exceptions,
+// which are representable as plain metric_filterlist entries, and those with
+// exceptions, which need metric_filterlist_prefix's object form.
+func partitionMetricFilterRules(rules []metricname.Rule) (plain []string, prefixed []metricname.Rule) {
+	for _, rule := range rules {
+		if len(rule.Except) == 0 {
+			plain = append(plain, rule.Pattern)
+			continue
+		}
+		prefixed = append(prefixed, rule)
+	}
+	return plain, prefixed
 }
 
 // buildConfig builds the configuration to use.

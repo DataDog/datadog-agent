@@ -256,16 +256,60 @@ func TestFilterListUpdateWithExceptions(t *testing.T) {
 	require.False(matcher.Test("redis.keys.count"))
 	require.True(matcher.Test("test.exact"))
 
-	// `agent config` reports the list in the shape the configuration file uses,
-	// so that what RC sent is readable and can be parsed back.
-	entries := configComponent.Get("metric_filterlist")
+	// `agent config` reports the split the configuration file uses: an entry
+	// with no exception is a plain metric_filterlist name, exactly like
+	// before exceptions existed, and only the entry carrying exceptions needs
+	// metric_filterlist_prefix's object form.
+	metricNames := configComponent.GetStringSlice("metric_filterlist")
+	require.ElementsMatch([]string{"test.exact"}, metricNames)
+
+	prefixEntries := configComponent.Get("metric_filterlist_prefix")
 	require.ElementsMatch([]interface{}{
 		map[string]interface{}{
 			"metric_name": "redis.*",
 			"except":      []string{"redis.net.commands", "redis.keys.*"},
 		},
-		"test.exact",
-	}, entries)
+	}, prefixEntries)
+}
+
+// TestFilterListUpdateWithExceptionsThenEmptyRestoresLocal pins that
+// metric_filterlist_prefix, like metric_filterlist, is unset for the RC
+// source (falling back to local config) once RC stops sending exceptions.
+func TestFilterListUpdateWithExceptionsThenEmptyRestoresLocal(t *testing.T) {
+	require := require.New(t)
+
+	filterList, configComponent := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [
+						{"metric_name": "redis.*", "except": ["redis.net.commands"]}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.NotEmpty(configComponent.Get("metric_filterlist_prefix"))
+
+	// Now send an empty update: metric_filterlist_prefix must be unset for
+	// the RC source, same as metric_filterlist already was.
+	results = updateRes{}
+	emptyUpdates := map[string]state.RawConfig{}
+	filterList.onFilterListUpdateCallback(emptyUpdates, callback)
+
+	require.Empty(configComponent.Get("metric_filterlist_prefix"))
+	matcher := filterList.GetMetricFilterList()
+	require.False(matcher.Test("redis.mem.used"), "the RC prefix rule must no longer apply")
 }
 
 // TestFilterListUpdateWithValidTags tests the callback with valid tag filter list updates

@@ -7,6 +7,7 @@ package filterlistimpl
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cast"
 
@@ -21,13 +22,16 @@ const (
 	exceptField     = "except"
 )
 
-// MetricFilterListEntry is the object form of a metric filterlist entry: a
-// metric name, which is a prefix when it ends with `*`, and the exceptions
-// that are kept even though the name matches.
+// MetricFilterListEntry is the object form of a metric_filterlist_prefix
+// entry: a metric name prefix, and the exceptions that are kept even though
+// the name matches.
 //
 // An entry that has no exception is written as a plain string instead, which is
 // how the majority of a filterlist looks; both forms can be mixed in the same
-// list.
+// list. metric_filterlist itself only ever holds plain strings -- this object
+// form is specific to metric_filterlist_prefix, so that a component which
+// only understands a flat list of metric names (for instance Agent Data
+// Plane) can keep reading metric_filterlist unchanged.
 type MetricFilterListEntry struct {
 	MetricName string   `mapstructure:"metric_name" yaml:"metric_name" json:"metric_name"`
 	Except     []string `mapstructure:"except" yaml:"except" json:"except,omitempty"`
@@ -37,6 +41,10 @@ type MetricFilterListEntry struct {
 // it into matcher rules. A malformed entry is reported and skipped rather than
 // failing the whole list, so that one bad line does not silently disable the
 // filtering of everything else.
+//
+// Used for metric_filterlist_prefix, whose schema allows the object form
+// parsed here. metric_filterlist itself is loaded separately, and more
+// simply, by NewFilterList: see loadMetricFilterPrefixRules.
 func loadMetricFilterList(cfg config.Component, logger log.Component, key string) []metricname.Rule {
 	raw := cfg.Get(key)
 	if raw == nil {
@@ -128,4 +136,22 @@ func metricFilterListEntries(rules []metricname.Rule) []interface{} {
 		})
 	}
 	return entries
+}
+
+// loadMetricFilterPrefixRules loads and normalizes metric_filterlist_prefix.
+// Every entry is a prefix, whether or not it is written with a trailing `*`,
+// and may carry the exceptions that only this key's schema supports (see
+// core_schema.yaml): metric_filterlist itself stays a plain list of names so
+// that a component which only understands that shape is unaffected by this
+// key's object form.
+func loadMetricFilterPrefixRules(cfg config.Component, logger log.Component) []metricname.Rule {
+	rules := loadMetricFilterList(cfg, logger, "metric_filterlist_prefix")
+	for i := range rules {
+		if !strings.HasSuffix(rules[i].Pattern, metricname.PrefixSuffix) {
+			rules[i].Pattern += metricname.PrefixSuffix
+		}
+	}
+	// Every pattern above now carries `*`, so `hasStar` inside NormalizeEntries
+	// is what makes the entry a prefix; matchPrefix would be redundant.
+	return normalizeMetricRules("metric_filterlist_prefix", rules, false, logger)
 }

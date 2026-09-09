@@ -70,14 +70,32 @@ type FilterList struct {
 // (OnUpdateMetricFilterList, OnUpdateTagFilterList) called from
 // the packages that use FilterList.
 func NewFilterList(log log.Component, config config.Component, telemetryComp telemetry.Component) *FilterList {
-	// init the metric names filterlist
-	filterlist := loadMetricFilterList(config, log, "metric_filterlist")
+	// init the metric names filterlist. metric_filterlist is a plain list of
+	// metric names, loaded the same way it always has been (a name ending with
+	// `*`, or every name when metric_filterlist_match_prefix is set, is a
+	// prefix): components that only understand that shape, such as Agent Data
+	// Plane, are unaffected by the object-form prefix+exceptions entries,
+	// which live in the separate metric_filterlist_prefix key instead.
+	filterlistKey := "metric_filterlist"
+	filterlistNames := config.GetStringSlice(filterlistKey)
 	filterlistPrefix := config.GetBool("metric_filterlist_match_prefix")
-	if len(filterlist) == 0 {
-		filterlist = loadMetricFilterList(config, log, "statsd_metric_blocklist")
+	if len(filterlistNames) == 0 {
+		filterlistKey = "statsd_metric_blocklist"
+		filterlistNames = config.GetStringSlice(filterlistKey)
 		filterlistPrefix = config.GetBool("statsd_metric_blocklist_match_prefix")
 	}
-	filterlist = normalizeMetricRules(filterlist, filterlistPrefix, log)
+	filterlistNames = normalizeMetricNames(filterlistKey, filterlistNames, filterlistPrefix, log)
+
+	filterlist := make([]metricname.Rule, 0, len(filterlistNames))
+	for _, name := range filterlistNames {
+		filterlist = append(filterlist, metricname.Rule{Pattern: name})
+	}
+
+	// metric_filterlist_prefix carries the object-form entries this branch
+	// adds: every entry is a prefix, and can carry exceptions. Combined into
+	// the same rule set as metric_filterlist above, so both keys compile into
+	// a single matcher.
+	filterlist = append(filterlist, loadMetricFilterPrefixRules(config, log)...)
 
 	// Load tag filter list from config
 	var tagFilterListEntries []MetricTagListEntry
@@ -246,14 +264,15 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 // normalizeMetricNames normalizes each entry so it matches the name space the
 // matcher compares in, and reports the ones dropped for not being able to match
 // any metric name the intake stores. `matchPrefix` makes every entry a prefix,
-// whether or not it is written with a trailing `*`.
+// whether or not it is written with a trailing `*`. `key` names the setting
+// entries came from, for the warning logged about a dropped one.
 //
 // The entry format and the normalizing itself belong to metricname, which owns
 // both the `*` convention and the name space entries are compared in.
-func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) []string {
+func normalizeMetricNames(key string, names []string, matchPrefix bool, log log.Component) []string {
 	normalized, dropped := metricname.NormalizeEntries(names, matchPrefix)
 	for _, entry := range dropped {
-		log.Warnf("metric_filterlist: dropping entry %q that cannot match any metric name stored by Datadog", entry)
+		log.Warnf("%s: dropping entry %q that cannot match any metric name stored by Datadog", key, entry)
 	}
 	return normalized
 }
@@ -263,16 +282,18 @@ func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) [
 // dropped for not being able to match any metric name the intake stores.
 // `matchPrefix` makes every pattern a prefix, whether or not it is written
 // with a trailing `*`; it never applies to a rule's exceptions, which follow
-// their own `*` marker exactly like `metricname.NewRuleMatcher` expects.
-func normalizeMetricRules(rules []metricname.Rule, matchPrefix bool, log log.Component) []metricname.Rule {
+// their own `*` marker exactly like `metricname.NewRuleMatcher` expects. `key`
+// names the setting rules came from, for the warning logged about a dropped
+// entry.
+func normalizeMetricRules(key string, rules []metricname.Rule, matchPrefix bool, log log.Component) []metricname.Rule {
 	normalized := make([]metricname.Rule, 0, len(rules))
 	for _, rule := range rules {
-		patterns := normalizeMetricNames([]string{rule.Pattern}, matchPrefix, log)
+		patterns := normalizeMetricNames(key, []string{rule.Pattern}, matchPrefix, log)
 		if len(patterns) == 0 {
 			continue
 		}
 
-		except := normalizeMetricNames(rule.Except, false, log)
+		except := normalizeMetricNames(key, rule.Except, false, log)
 		normalized = append(normalized, metricname.Rule{Pattern: patterns[0], Except: except})
 	}
 	return normalized

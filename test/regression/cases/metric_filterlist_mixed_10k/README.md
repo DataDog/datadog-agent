@@ -27,7 +27,22 @@ before or during startup, not under sustained load. As a further diagnostic,
 the prefix rule count was quartered by hand (5,000 → 1,250; exact entries
 left at 5,000) and `memory_allotment` dropped from 8192 MiB to 4096 MiB (see
 `experiment.yaml`), to check whether config size/rule count or the oversized
-memory request — not traffic — is what's actually crashing it.
+memory request — not traffic — was what crashed it. Neither was.
+
+The actual explanation: **Agent Data Plane's own config parser only
+understands a flat list of metric name strings under `metric_filterlist`**,
+and crash-loops (`invalid type: map, expected a string`, forever, not just
+during the bounded preflight check) on the object-form prefix+exceptions
+entries this branch originally put there. The fix -- see `metric_filterlist_prefix`
+below -- is what this case's `datadog-agent/datadog.yaml` now uses.
+
+## metric_filterlist vs metric_filterlist_prefix
+
+This case's `datadog-agent/datadog.yaml` puts its **5,000 exact entries under
+`metric_filterlist`** (a plain list of strings, exactly as ADP expects) and
+its **1,250 prefix+exceptions entries under `metric_filterlist_prefix`** (the
+object form, which only the Go Agent reads). ADP never sees an entry shaped
+in a way it doesn't understand, so it no longer crash-loops.
 
 ## Why
 
@@ -103,11 +118,11 @@ exception. That is what caps the list at 8 — see
 ## Reading the results
 
 Compare this case's comparison run against its own baseline. The Regression
-Detector's baseline is the merge base of the base branch, which has neither
-prefix nor exception support and cannot even parse the object form an entry
-with exceptions is written in: it filters only the exact half and does
-strictly less work, so baseline-vs-comparison is "feature off vs on", not a
-like-for-like regression.
+Detector's baseline is the merge base of the base branch, which does not have
+`metric_filterlist_prefix` at all: it's an unknown key to that Agent version,
+so it filters only the exact half and does strictly less work, and
+baseline-vs-comparison is "feature off vs on", not a like-for-like
+regression.
 
 ## Regenerating
 
@@ -130,9 +145,11 @@ Then re-apply the exceptions, which the harness does not know about yet:
 python3 test/regression/scripts/add_filterlist_exceptions.py
 ```
 
-Re-apply the traffic reduction, the prefix-count quartering, and the
-`memory_allotment` drop documented above after regenerating, since the harness
-still renders the original 60 MiB/s, 5,000 prefix entries, and 8192 MiB.
+Re-apply the traffic reduction, the prefix-count quartering, the
+`memory_allotment` drop, and the `metric_filterlist`/`metric_filterlist_prefix`
+split documented above after regenerating, since the harness still renders
+the original 60 MiB/s, 5,000 prefix entries, 8192 MiB, and a single combined
+`metric_filterlist` key.
 
 ## Local run
 
