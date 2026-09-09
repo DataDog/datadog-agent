@@ -19,6 +19,7 @@ import (
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 )
@@ -122,4 +123,91 @@ func TestPivotRoot(t *testing.T) {
 		assert.GreaterOrEqual(t, eventCount.Load(), int32(2),
 			"pivot_root should produce at least 2 pivot_root events")
 	})
+}
+
+func TestPivotRootRootfsWriteRule(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("pivot_root test cannot run in Docker environment")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "capture_rootfs_mount_id",
+			Expression: `mount.origin == MOUNT_ORIGIN_PIVOT_ROOT`,
+			Silent:     true,
+			Actions: []*rules.ActionDefinition{{
+				Set: &rules.SetDefinition{
+					Name:  "rootfs_mount_id",
+					Field: "mount.mount_id",
+					Scope: "process",
+				},
+			}},
+		},
+		{
+			ID:         "write_to_rootfs",
+			Expression: `open.file.name == "rootfs-write-test" && open.file.mount_id == ${process.rootfs_mount_id} && ${process.rootfs_mount_id} != 0`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	tmpDir := t.TempDir()
+	newRoot := filepath.Join(tmpDir, "newroot")
+	putOld := filepath.Join(newRoot, "old")
+
+	if err := os.MkdirAll(newRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := unix.Mount("tmpfs", newRoot, "tmpfs", 0, "size=1M"); err != nil {
+		t.Fatalf("failed to mount tmpfs at new root: %v", err)
+	}
+	defer unix.Unmount(newRoot, unix.MNT_DETACH)
+
+	if err := os.MkdirAll(putOld, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		done := make(chan error, 1)
+		go func() {
+			runtime.LockOSThread()
+
+			if err := unix.Unshare(unix.CLONE_NEWNS); err != nil {
+				done <- fmt.Errorf("unshare: %w", err)
+				runtime.UnlockOSThread()
+				return
+			}
+
+			if err := unix.Mount("", "/", "", unix.MS_REC|unix.MS_PRIVATE, ""); err != nil {
+				done <- fmt.Errorf("make mounts private: %w", err)
+				runtime.UnlockOSThread()
+				return
+			}
+
+			if err := unix.PivotRoot(newRoot, putOld); err != nil {
+				done <- fmt.Errorf("pivot_root: %w", err)
+				runtime.UnlockOSThread()
+				return
+			}
+
+			f, err := os.Create("/rootfs-write-test")
+			if err != nil {
+				done <- fmt.Errorf("create: %w", err)
+				return
+			}
+			done <- f.Close()
+		}()
+		return <-done
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "write_to_rootfs")
+		assert.Equal(t, "open", event.GetType())
+		assert.NotEqual(t, uint32(0), event.Open.File.PathKey.MountID)
+	}, "write_to_rootfs")
 }

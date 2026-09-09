@@ -32,6 +32,12 @@ import (
 
 var (
 	arrayIndexRE = regexp.MustCompile(`^(.+)\[(\d+)\]$`)
+
+	// seclEventTypeAliases maps kernel event types that share a SECL payload
+	// onto the event type rules are compiled against.
+	seclEventTypeAliases = map[eval.EventType]eval.EventType{
+		model.PivotRootEventType.String(): model.FileMountEventType.String(),
+	}
 )
 
 // parseArrayFieldAccess parses a field like "open.file.hashes[0]" and returns the base field and index
@@ -962,7 +968,7 @@ func (rs *RuleSet) AddListener(listener RuleSetListener) {
 
 // HasRulesForEventType returns if there is at least one rule for the given event type
 func (rs *RuleSet) HasRulesForEventType(eventType eval.EventType) bool {
-	bucket, found := rs.eventRuleBuckets[eventType]
+	bucket, found := rs.bucketForEventType(eventType)
 	if !found {
 		return false
 	}
@@ -971,10 +977,22 @@ func (rs *RuleSet) HasRulesForEventType(eventType eval.EventType) bool {
 
 // GetBucket returns rule bucket for the given event type
 func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
-	if bucket, exists := rs.eventRuleBuckets[eventType]; exists {
-		return bucket
+	bucket, exists := rs.bucketForEventType(eventType)
+	if !exists {
+		return nil
 	}
-	return nil
+	return bucket
+}
+
+func (rs *RuleSet) bucketForEventType(eventType eval.EventType) (*RuleBucket, bool) {
+	if bucket, exists := rs.eventRuleBuckets[eventType]; exists {
+		return bucket, true
+	}
+	if alias, ok := seclEventTypeAliases[eventType]; ok {
+		bucket, exists := rs.eventRuleBuckets[alias]
+		return bucket, exists
+	}
+	return nil, false
 }
 
 // GetApprovers returns all approvers
@@ -1170,7 +1188,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 	eventType := event.GetType()
 
-	bucket, exists := rs.eventRuleBuckets[eventType]
+	bucket, exists := rs.bucketForEventType(eventType)
 	if !exists {
 		return false
 	}
@@ -1226,7 +1244,7 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 	defer rs.pool.Put(ctx)
 
 	eventType := event.GetType()
-	bucket, exists := rs.eventRuleBuckets[eventType]
+	bucket, exists := rs.bucketForEventType(eventType)
 	if !exists {
 		return
 	}
