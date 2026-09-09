@@ -253,6 +253,8 @@
 /cmd/agent/subcommands/streamep                     @DataDog/container-integrations
 /cmd/agent/subcommands/taggerlist                   @DataDog/container-platform
 /cmd/agent/subcommands/workloadlist                 @DataDog/container-platform
+/cmd/agent/subcommands/workloadfilterlist           @DataDog/container-platform
+/cmd/agent/subcommands/validatepodannotation        @DataDog/container-platform
 /cmd/agent/subcommands/run/                         @DataDog/agent-runtimes
 /cmd/agent/subcommands/run/internal/clcrunnerapi/   @DataDog/container-platform
 /cmd/agent/windows                                  @DataDog/windows-products
