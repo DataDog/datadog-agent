@@ -527,6 +527,14 @@ go_deps.gazelle_override(
     path = "github.com/DataDog/zstd",
 )
 
+# go-nvml exposes generated cgo bindings for the full NVML API surface, including
+# functions that NVIDIA marks deprecated in nvml.h. Compiling those bindings emits
+# -Wdeprecated-declarations warnings.
+go_deps.gazelle_override(
+    directives = ["gazelle:go_copts -Wno-deprecated-declarations"],
+    path = "github.com/NVIDIA/go-nvml",
+)
+
 # sdjournal wraps journald's C API and `#include <systemd/sd-journal.h>` at compile
 # time, but the hermetic toolchain sysroot ships no libsystemd headers. Patch the
 # Gazelle-generated BUILD to pull them from the vendored @systemd archive via cdeps.

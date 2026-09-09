@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
 	"google.golang.org/grpc"
 
@@ -58,6 +59,14 @@ const (
 	// engages only once a scan is slow enough that resting the interval would
 	// cost more than the budget.
 	minScanRestMultiple = 20
+
+	// discoveryLatencyMetric measures the seconds between a process starting
+	// and the agent asking Remote Config for its configuration.
+	discoveryLatencyMetric = "datadog.dynamic_instrumentation.process_discovery_latency_seconds"
+
+	// discoveryAttemptsMetric measures how many scans looked at a process
+	// before discovering it.
+	discoveryAttemptsMetric = "datadog.dynamic_instrumentation.process_discovery_scan_attempts"
 )
 
 type config struct {
@@ -65,6 +74,7 @@ type config struct {
 	processScanner processScanner
 	clk            clock.Clock
 	wait           func(ctx context.Context, duration time.Duration) error
+	statsd         ddgostatsd.ClientInterface
 }
 
 var defaultConfig = config{
@@ -94,6 +104,7 @@ type Subscriber struct {
 	client         RemoteConfigSubscriber
 	scanner        processScanner
 	clk            clock.Clock
+	statsd         ddgostatsd.ClientInterface
 	notifyRequests chan struct{}
 
 	mu struct {
@@ -144,6 +155,12 @@ type optionFunc func(*config)
 
 func (f optionFunc) apply(c *config) { f(c) }
 
+// WithStatsd sets the statsd client that process discovery metrics are
+// reported to. Without one, no metrics are reported.
+func WithStatsd(client ddgostatsd.ClientInterface) Option {
+	return optionFunc(func(c *config) { c.statsd = client })
+}
+
 // NewSubscriber creates a Subscriber that sources updates directly from Remote
 // Config.
 func NewSubscriber(
@@ -167,6 +184,7 @@ func NewSubscriber(
 		notifyRequests: make(chan struct{}, 1),
 		scanner:        scanner,
 		clk:            cfg.clk,
+		statsd:         cfg.statsd,
 		scanInterval:   cfg.scanInterval,
 		wait:           cfg.wait,
 	}
@@ -241,7 +259,7 @@ func (s *Subscriber) runScanner(ctx context.Context) {
 				log.Tracef("process subscriber: onScanUpdate: added=%v, removed=%v", added, removed)
 			}
 			s.withlocked(func(l *lockedSubscriber) {
-				l.mu.state.onScanUpdate(added, removed, l)
+				l.mu.state.onScanUpdate(added, removed, start, l)
 			})
 		} else if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("process subscriber: onScanUpdate: no changes")
@@ -281,11 +299,43 @@ func (l *lockedSubscriber) emitUpdate(update process.ProcessesUpdate) {
 
 // track implements effects.
 func (l *lockedSubscriber) track(runtimeID string) {
+	l.reportDiscovery(runtimeID)
 	l.queueRequest(&pbgo.ConfigSubscriptionRequest{
 		RuntimeId: runtimeID,
 		Action:    pbgo.ConfigSubscriptionRequest_TRACK,
 		Products:  pbgo.ConfigSubscriptionProducts_LIVE_DEBUGGING,
 	})
+}
+
+// reportDiscovery reports how long it took to get from the start of a process
+// to asking Remote Config about it, and how many scans that took. Reconnecting
+// the stream re-tracks every process, so only the first request for a process
+// is reported. The attempt count does not depend on the process start time, so
+// it is still reported on hosts where the boot time could not be read.
+func (l *lockedSubscriber) reportDiscovery(runtimeID string) {
+	entry, ok := l.mu.state.tracked[runtimeID]
+	if !ok || entry.trackRequested {
+		return
+	}
+	entry.trackRequested = true
+	if l.statsd == nil {
+		return
+	}
+	tags := []string{"language:" + entry.language}
+	if err := l.statsd.Distribution(
+		discoveryAttemptsMetric, float64(entry.discoveryAttempts), tags, 1,
+	); err != nil {
+		log.Debugf("process subscriber: failed to report discovery attempts: %v", err)
+	}
+	if entry.startTime.IsZero() {
+		return
+	}
+	latency := l.clk.Since(entry.startTime)
+	if err := l.statsd.Distribution(
+		discoveryLatencyMetric, latency.Seconds(), tags, 1,
+	); err != nil {
+		log.Debugf("process subscriber: failed to report discovery latency: %v", err)
+	}
 }
 
 // untrack implements effects.

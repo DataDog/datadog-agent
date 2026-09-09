@@ -53,6 +53,7 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		{key: "system_probe_config.closed_channel_size", defaultValue: 0},
 		{key: "network_config.closed_channel_size", defaultValue: 500},
 		{key: "gpu_monitoring.nvml_lib_path", defaultValue: ""},
+		{key: "gpu_monitoring.driver_events_enabled", defaultValue: false},
 		{key: "discovery.service_collection_batch_size", defaultValue: 500},
 		{key: "discovery.service_collection_max_consecutive_timeouts", defaultValue: 5},
 		{key: "discovery.service_collection_min_process_age", defaultValue: time.Minute},

@@ -29,6 +29,13 @@ const (
 	injectTmpfsLauncher = "/run/datadog-apm-inject/launcher.preload.so"
 )
 
+func injectTmpfsLauncherFor(arch e2eos.Architecture) string {
+	if arch == e2eos.AMD64Arch {
+		return strings.Replace(injectTmpfsLauncher, "/launcher.preload.so", "/$LIB/launcher.preload.so", 1)
+	}
+	return injectTmpfsLauncher
+}
+
 type packageApmInjectSuite struct {
 	packageBaseSuite
 }
@@ -531,7 +538,7 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(injectorRoot string)
 
 	if injectorRoot == injectOCIPath && s.isSystemdPID1() {
 		ociPersistentLauncher := filepath.Join(injectorRoot, "stable", "inject", "launcher.preload.so")
-		assert.Contains(s.T(), string(content), injectTmpfsLauncher)
+		assert.Contains(s.T(), string(content), injectTmpfsLauncherFor(s.arch))
 		assert.NotContains(s.T(), string(content), ociPersistentLauncher,
 			"systemd-managed OCI host must not keep the persistent launcher path in ld.so.preload")
 		return
@@ -574,7 +581,7 @@ func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
 		// failed instrument-start after a reboot wiped /run) does not contain
 		// injectOCIPath, so without this check it would slip through — yet ld.so
 		// prints a "cannot be preloaded ... ignored" warning for it on every exec.
-		assert.NotContains(s.T(), string(content), injectTmpfsLauncher)
+		assert.NotContains(s.T(), string(content), injectTmpfsLauncherFor(s.arch))
 	}
 	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
 	assert.NotContains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'")
