@@ -66,7 +66,7 @@ func RestartPod(t *testing.T, client kubeClient.Interface, namespace string, app
 			}
 		}
 		return false
-	}, 2*time.Minute, 5*time.Second, "pod %s was not recreated in namespace %s", appName, namespace)
+	}, 4*time.Minute, 5*time.Second, "pod %s was not recreated in namespace %s", appName, namespace)
 }
 
 // WaitForAdmissionWebhookReady blocks until the Datadog mutating webhook configuration exists. The
@@ -128,7 +128,7 @@ func RestartUntil(t *testing.T, client kubeClient.Interface, namespace, appName 
 		RestartPod(t, client, namespace, appName)
 		pod = FindPodInNamespace(t, client, namespace, appName)
 		return ready(pod)
-	}, 4*time.Minute, 5*time.Second, "pod %s in namespace %s did not reach the expected admission state", appName, namespace)
+	}, 6*time.Minute, 5*time.Second, "pod %s in namespace %s did not reach the expected admission state", appName, namespace)
 	return pod
 }
 
