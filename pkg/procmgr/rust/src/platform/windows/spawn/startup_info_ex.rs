@@ -56,21 +56,26 @@ impl StartupInfoEx {
             );
         }
 
-        let stdio_handles = [stdin, stdout, stderr];
+        let startup = Self {
+            siex: new_siex(stdin, stdout, stderr, attribute_list),
+            attribute_list_storage,
+            stdio_handles: [stdin, stdout, stderr],
+        };
+
         let ok = unsafe {
             UpdateProcThreadAttribute(
-                attribute_list,
+                startup.siex.lpAttributeList,
                 0,
                 PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
-                stdio_handles.as_ptr().cast(),
-                stdio_handles.len() * mem::size_of::<HANDLE>(),
+                startup.stdio_handles.as_ptr().cast(),
+                startup.stdio_handles.len() * mem::size_of::<HANDLE>(),
                 ptr::null_mut(),
                 ptr::null_mut(),
             )
         };
         if ok == 0 {
             unsafe {
-                DeleteProcThreadAttributeList(attribute_list);
+                DeleteProcThreadAttributeList(startup.siex.lpAttributeList);
             }
             bail!(
                 "UpdateProcThreadAttribute(HANDLE_LIST) failed: {}",
@@ -78,24 +83,28 @@ impl StartupInfoEx {
             );
         }
 
-        let mut siex: STARTUPINFOEXW = unsafe { mem::zeroed() };
-        siex.StartupInfo.cb = mem::size_of::<STARTUPINFOEXW>() as u32;
-        siex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-        siex.StartupInfo.hStdInput = stdin;
-        siex.StartupInfo.hStdOutput = stdout;
-        siex.StartupInfo.hStdError = stderr;
-        siex.lpAttributeList = attribute_list;
-
-        Ok(Self {
-            siex,
-            attribute_list_storage,
-            stdio_handles,
-        })
+        Ok(startup)
     }
 
     pub(crate) fn startup_info(&mut self) -> &mut STARTUPINFOW {
         &mut self.siex.StartupInfo
     }
+}
+
+fn new_siex(
+    stdin: HANDLE,
+    stdout: HANDLE,
+    stderr: HANDLE,
+    attribute_list: *mut std::ffi::c_void,
+) -> STARTUPINFOEXW {
+    let mut siex: STARTUPINFOEXW = unsafe { mem::zeroed() };
+    siex.StartupInfo.cb = mem::size_of::<STARTUPINFOEXW>() as u32;
+    siex.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    siex.StartupInfo.hStdInput = stdin;
+    siex.StartupInfo.hStdOutput = stdout;
+    siex.StartupInfo.hStdError = stderr;
+    siex.lpAttributeList = attribute_list;
+    siex
 }
 
 impl Drop for StartupInfoEx {
