@@ -21,6 +21,7 @@ import (
 const hostPasswdRefreshInterval = time.Second
 
 // hostPasswdCache caches the host user database independently of NSS lookups.
+// The passwd path is captured on the first lookup, after configuration loading.
 type hostPasswdCache struct {
 	mu         sync.Mutex
 	now        func() time.Time
@@ -35,13 +36,8 @@ func newHostPasswdCache() *hostPasswdCache {
 }
 
 func (c *hostPasswdCache) lookup(uid string) (*user.User, bool) {
-	passwdPath := ""
-	if hostEtc := os.Getenv("HOST_ETC"); hostEtc != "" {
-		passwdPath = filepath.Join(hostEtc, "passwd")
-	}
-
 	c.mu.Lock()
-	c.refresh(passwdPath)
+	c.refresh()
 	u, found := c.users[uid]
 	c.mu.Unlock()
 
@@ -51,24 +47,22 @@ func (c *hostPasswdCache) lookup(uid string) (*user.User, bool) {
 	return &u, true
 }
 
-func (c *hostPasswdCache) refresh(passwdPath string) {
+func (c *hostPasswdCache) refresh() {
 	now := c.now()
-	pathChanged := passwdPath != c.passwdPath
-	if !pathChanged && !c.lastCheck.IsZero() && now.Sub(c.lastCheck) < hostPasswdRefreshInterval {
+	if c.lastCheck.IsZero() {
+		if hostEtc := os.Getenv("HOST_ETC"); hostEtc != "" {
+			c.passwdPath = filepath.Join(hostEtc, "passwd")
+		}
+	} else if now.Sub(c.lastCheck) < hostPasswdRefreshInterval {
 		return
 	}
 
 	c.lastCheck = now
-	if pathChanged {
-		c.passwdPath = passwdPath
-		c.passwdInfo = nil
-		c.users = nil
-	}
-	if passwdPath == "" {
+	if c.passwdPath == "" {
 		return
 	}
 
-	info, err := os.Stat(passwdPath)
+	info, err := os.Stat(c.passwdPath)
 	if err != nil {
 		c.passwdInfo = nil
 		c.users = nil
@@ -78,7 +72,7 @@ func (c *hostPasswdCache) refresh(passwdPath string) {
 		return
 	}
 
-	users, err := parsePasswd(passwdPath)
+	users, err := parsePasswd(c.passwdPath)
 	if err != nil {
 		// Keep the last complete snapshot on a transient read failure, but force
 		// another parse attempt at the next refresh interval.

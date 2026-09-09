@@ -54,6 +54,11 @@ func TestFormatUserUsesHostPasswdAndPreservesUnresolvedName(t *testing.T) {
 }
 
 func TestFormatUserNilProbeIsHostAware(t *testing.T) {
+	// Isolate the package-level cache, which captures HOST_ETC on first use.
+	previousCache := defaultHostPasswdCache
+	defaultHostPasswdCache = newHostPasswdCache()
+	t.Cleanup(func() { defaultHostPasswdCache = previousCache })
+
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "passwd"), []byte("nil-probe-user:x:434:434::/:/bin/sh\n"), 0o600))
 	t.Setenv("HOST_ETC", dir)
