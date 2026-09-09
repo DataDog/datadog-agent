@@ -2421,8 +2421,6 @@ code.cloudfoundry.org/clock v1.75.0 h1:3j+bs2xW5d/MRbzICzzaXYnlWTSczbFXmczPYRrXr
 code.cloudfoundry.org/clock v1.75.0/go.mod h1:pM1eBumw5K6fXZCY2QhZz7B6qrPz33qus1OM4cd98X8=
 code.cloudfoundry.org/diego-db-helpers v0.3.0 h1:LPVZ47sOr4e3MLbTUbBX7pTDWhP2XWIvT7EUlYW729A=
 code.cloudfoundry.org/diego-db-helpers v0.3.0/go.mod h1:eFhaHV7SOqZWV+lV9ZSjPTXfq3AO3e55lsAnfKvUozg=
-code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5 h1:qzFDi35GOoKwh4wx4W0SnpexLOeZtnBYP1/Ia5Xjo1M=
-code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5/go.mod h1:ap2gRuUzfTHIqW0xmGZjjUoljsyEiTEAnk/1s3ftm/w=
 code.cloudfoundry.org/garden v0.2.0 h1:wgvHo1zmMywzGMUJhQuS1zvZw/hgGLqCwSqxiEWLzCs=
 code.cloudfoundry.org/garden v0.2.0/go.mod h1:C48Lw/gXbiyRugETUKDSRE1vz7HEJUtBNyDt1RCJ8Xw=
 code.cloudfoundry.org/lager/v3 v3.85.0 h1:4AebS51o+48Pxaba53K7ehogN8XJoKuW9ZEtq6Kjm4Y=
