@@ -29,6 +29,7 @@ require (
 )
 
 require (
+	github.com/go-quicktest/qt v1.102.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

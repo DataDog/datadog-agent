@@ -271,6 +271,7 @@ case-sensitive filesystem — Docker Desktop can expose the two as the same inod
 - Standalone comments (not attached to a specific rule) require an empty line after them; attached comments do not.
 - Single blank line between top-level definitions.
 - No strict line length limit — labels can be long and tools generate BUILD files.
+- Use of `buildifier`, `gazelle` are enforced with unit tests, and the task is mechanical, so it is not noteworthy.  Don't note it in a PR's "how you validated your changes" section.
 
 ### Syntax restrictions
 
