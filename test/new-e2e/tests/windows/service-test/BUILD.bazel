@@ -5,7 +5,6 @@ go_library(
     name = "service-test",
     srcs = ["diagnostics.go"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/service-test",
-    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = ["//test/e2e-framework/testing/components"],
 )
@@ -38,7 +37,6 @@ dd_agent_go_test(
         "fixtures/system-probe-nofim.yaml",
         "fixtures/system-probe.yaml",
     ],
-    target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/datadog/agentparams",
