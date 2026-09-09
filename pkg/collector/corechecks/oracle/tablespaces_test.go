@@ -15,7 +15,7 @@ import (
 
 	//"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 
-	go_ora "github.com/sijms/go-ora/v2"
+	go_ora "github.com/sijms/go-ora/v3"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )

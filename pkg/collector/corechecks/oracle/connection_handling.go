@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
-	go_ora "github.com/sijms/go-ora/v2"
+	go_ora "github.com/sijms/go-ora/v3"
 )
 
 func buildGoOraURL(c *Check) string {

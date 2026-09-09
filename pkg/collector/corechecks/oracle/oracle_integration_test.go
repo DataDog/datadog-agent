@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
-	go_ora "github.com/sijms/go-ora/v2"
+	go_ora "github.com/sijms/go-ora/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

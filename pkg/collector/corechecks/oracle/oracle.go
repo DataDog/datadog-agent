@@ -34,7 +34,7 @@ import (
 	go_version "github.com/hashicorp/go-version"
 	"github.com/jmoiron/sqlx"
 	cache "github.com/patrickmn/go-cache"
-	go_ora "github.com/sijms/go-ora/v2"
+	go_ora "github.com/sijms/go-ora/v3"
 )
 
 //nolint:revive // TODO(DBM) Fix revive linter
