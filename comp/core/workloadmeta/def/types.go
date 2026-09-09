@@ -648,8 +648,8 @@ type Container struct {
 	// and that it would be impossible to compute later on
 	CollectorTags   []string
 	Owner           *EntityID
-	SecurityContext *ContainerSecurityContext `proto:"ignore"`
-	ReadinessProbe  *ContainerProbe           `proto:"ignore"`
+	SecurityContext *ContainerSecurityContext
+	ReadinessProbe  *ContainerProbe `proto:"ignore"`
 	Resources       ContainerResources
 	ResizePolicy    ContainerResizePolicy `proto:"ignore"`
 

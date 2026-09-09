@@ -143,6 +143,22 @@ message ContainerResources {
   optional uint64 memoryLimit = 4;
 }
 
+message Capabilities {
+  repeated string add = 1;
+  repeated string drop = 2;
+}
+
+message SeccompProfile {
+  string type = 1;
+  string localhostProfile = 2;
+}
+
+message ContainerSecurityContext {
+  Capabilities capabilities = 1;
+  bool privileged = 2;
+  SeccompProfile seccompProfile = 3;
+}
+
 message Container {
   WorkloadmetaEntityId entityId = 1;
   EntityMeta entityMeta = 2;
@@ -159,6 +175,7 @@ message Container {
   repeated ContainerAllocatedResource resolvedAllocatedResources = 13;
   ContainerResources resources = 14;
   WorkloadmetaEntityId owner = 15;
+  ContainerSecurityContext securityContext = 16;
 }
 
 message KubernetesPodOwner {
