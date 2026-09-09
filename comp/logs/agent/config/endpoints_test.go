@@ -688,6 +688,19 @@ func (suite *EndpointsTestSuite) TestHTTPAdditionalEndpointWaitsForDelegatedAuth
 	suite.True(endpoints[0].IsReliable())
 }
 
+func (suite *EndpointsTestSuite) TestInvalidAdditionalEndpointCredentialCannotBeRevived() {
+	endpoint := Endpoint{credential: newEndpointCredential("old-key", false)}
+	endpoint.credential.Store(&endpointCredential{pending: true, invalid: true})
+
+	stored := endpoint.storeCredentialUnlessInvalid(&endpointCredential{apiKey: "stale-key"})
+
+	suite.False(stored)
+	credential := endpoint.credential.Load()
+	suite.True(credential.invalid)
+	suite.True(credential.pending)
+	suite.Empty(credential.apiKey)
+}
+
 func (suite *EndpointsTestSuite) TestTCPAdditionalEndpointRejectsDelegatedAuth() {
 	logsConfig := defaultLogsConfigKeys(suite.config)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[{
@@ -784,7 +797,7 @@ func (suite *EndpointsTestSuite) TestDelegatedAuthReorderFailsClosedForSharedHos
 	}
 }
 
-func (suite *EndpointsTestSuite) TestResolvedDelegatedAuthReorderFailsClosedForSharedHost() {
+func (suite *EndpointsTestSuite) TestResolvedDelegatedAuthReorderFailsClosedForSharedRoute() {
 	logsConfig := defaultLogsConfigKeys(suite.config)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[
 		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":443},
@@ -810,7 +823,7 @@ func (suite *EndpointsTestSuite) TestResolvedDelegatedAuthReorderFailsClosedForS
 	}
 }
 
-func (suite *EndpointsTestSuite) TestPreResolvedEndpointReorderFailsClosedForSharedHost() {
+func (suite *EndpointsTestSuite) TestPreResolvedEndpointReorderFailsClosedForSharedRoute() {
 	logsConfig := defaultLogsConfigKeys(suite.config)
 	suite.config.SetInTest("logs_config.additional_endpoints", `[
 		{"api_key":"resolved-a","host":"shared.datadoghq.com","port":443},
@@ -829,6 +842,26 @@ func (suite *EndpointsTestSuite) TestPreResolvedEndpointReorderFailsClosedForSha
 		suite.Empty(endpoint.GetAPIKey())
 		suite.True(endpoint.IsWaitingForDelegatedAuth())
 	}
+}
+
+func (suite *EndpointsTestSuite) TestDuplicateHostAndDirectiveWithDifferentRoutesRemainIndependent() {
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":443},
+		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":8443}
+	]`)
+	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", true)
+	suite.Require().Len(endpoints, 2)
+
+	suite.config.SetInTest("logs_config.additional_endpoints", `[
+		{"api_key":"resolved-a","host":"shared.datadoghq.com","port":443},
+		{"api_key":"DELA(org-a, aws)","host":"shared.datadoghq.com","port":8443}
+	]`)
+
+	key, ready := endpoints[0].GetAPIKeyIfReady()
+	suite.Equal("resolved-a", key)
+	suite.True(ready)
+	suite.True(endpoints[1].IsWaitingForDelegatedAuth())
 }
 
 func (suite *EndpointsTestSuite) TestRemovedDelegatedAuthEndpointFailsClosed() {
