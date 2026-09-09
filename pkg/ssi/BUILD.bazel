@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ssi",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ssi",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
