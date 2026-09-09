@@ -45,9 +45,9 @@ provides a `BUILD.bazel` with a `rust_shared_library` (the cdylib) and a
 
 To ship a check with the Agent, add its `checks_d_files` target to
 `ENABLED_CHECKS` in this folder's `BUILD.bazel`. The `:enabled_checks` target
-aggregates all enabled checks and is a component of
+aggregates all enabled checks and is consumed by
 `//packages/agent/product:conf_dir_files`, staged into `conf_dir` by omnibus
-via `bazel run //packages/agent/product:install_conf_dir_files -- --destdir=<conf_dir>`.
+via `bazel run //packages/agent/product:install_conf_dir_files
 `:enabled_checks` can also be staged standalone:
 
 ```

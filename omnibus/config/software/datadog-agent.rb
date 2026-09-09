@@ -114,7 +114,8 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
 
-  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env
+  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env,
+    :live_stream => Omnibus.logger.live_stream(:info)
 
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
   # dda inv agent.build  leaves many files in bin/agen/dist/conf.d
@@ -221,6 +222,12 @@ build do
       copy 'bin/system-probe/system-probe.exe.pdb', "#{install_dir}/bin/agent"
     else
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
+    end
+
+    # Add SELinux policy for system-probe
+    if debian_target? || redhat_target?
+      mkdir "#{conf_dir}/selinux"
+      command "dda inv -- -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
     end
 
     move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"

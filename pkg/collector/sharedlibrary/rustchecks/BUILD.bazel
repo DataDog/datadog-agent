@@ -11,10 +11,10 @@ ENABLED_CHECKS = {
 # group-readable so init containers can copy them on OpenShift, where
 # containers run with a random UID in the root group.
 #
-# Rust shared-library checks are Linux-only; srcs resolves to [] elsewhere so
-# this composes as a no-op component of //packages/agent/product:conf_dir_files.
 pkg_files(
     name = "enabled_checks",
+    # Rust shared-library checks are Linux-only; srcs resolves to [] elsewhere so
+    # this composes as a no-op component of //packages/agent/product:conf_dir_files.
     srcs = select({
         "@platforms//os:linux": ENABLED_CHECKS.values(),
         "//conditions:default": [],
