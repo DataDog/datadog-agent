@@ -91,13 +91,34 @@ func TestReportMetrics(t *testing.T) {
 						Timestamp: time.Unix(1, 0),
 					},
 				},
+				{
+					Key: client.CacheKey{
+						Path: "/interfaces/interface/state/ifindex",
+						Keys: map[string]string{"name": "eth0"},
+					},
+					Entry: client.CacheEntry{Value: int32(42)},
+				},
+				{
+					Key: client.CacheKey{
+						Path: "/interfaces/interface/state/description",
+						Keys: map[string]string{"name": "eth0"},
+					},
+					Entry: client.CacheEntry{Value: "uplink"},
+				},
 			},
 			wantMetrics: []expectedMetric{
 				{
 					method: "MonotonicCount",
 					name:   "snmp.ifHCInOctets",
 					value:  2_000_000,
-					tags:   append(baseTags, "interface:eth0"),
+					tags: []string{
+						"device_ip:" + deviceAddress,
+						"device_id:default:" + deviceAddress,
+						"interface:eth0",
+						"interface_index:42",
+						"interface_alias:uplink",
+						"dd.internal.resource:ndm_interface:default:" + deviceAddress + ":42",
+					},
 				},
 			},
 		},
@@ -325,7 +346,7 @@ func TestReportMetrics(t *testing.T) {
 			mockSender := mocksender.NewMockSender(t, checkid.ID("gnmi"))
 			mockSender.SetupAcceptAll()
 
-			err := ReportMetrics(mockSender, tt.cfg, tt.snapshot)
+			err := ReportMetrics(mockSender, tt.cfg, tt.snapshot, tt.snapshot)
 			if tt.errContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
@@ -361,14 +382,14 @@ func TestReportMetricsValidation(t *testing.T) {
 	}
 
 	t.Run("nil sender", func(t *testing.T) {
-		err := ReportMetrics(nil, cfg, nil)
+		err := ReportMetrics(nil, cfg, nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "sender is nil")
 	})
 
 	t.Run("nil config", func(t *testing.T) {
 		mockSender := mocksender.NewMockSender(t, checkid.ID("gnmi"))
-		err := ReportMetrics(mockSender, nil, nil)
+		err := ReportMetrics(mockSender, nil, nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "check config is nil")
 	})
