@@ -163,3 +163,28 @@ func TestConfigFileSearchRoot(t *testing.T) {
 		})
 	}
 }
+
+func TestEscapeFindPathPattern(t *testing.T) {
+	tests := []struct {
+		name     string
+		filePath string
+		want     string
+	}{
+		{
+			name:     "plain path",
+			filePath: "/etc/redis/redis.conf",
+			want:     "/etc/redis/redis.conf",
+		},
+		{
+			name:     "pattern metacharacters",
+			filePath: `/etc/redis/literal[*?\].conf`,
+			want:     `/etc/redis/literal\[\*\?\\].conf`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, escapeFindPathPattern(verifyTestConfigFilePath(t, tt.filePath)))
+		})
+	}
+}

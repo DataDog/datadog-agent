@@ -60,6 +60,22 @@ func hasFilePatternMeta(pattern string) bool {
 	return strings.ContainsAny(pattern, "*?[")
 }
 
+// escapeFindPathPattern returns filePath escaped so find -path treats it as a
+// literal path rather than a shell pattern.
+func escapeFindPathPattern(filePath VerifiedConfigFilePath) string {
+	value := filePath.String()
+	var escaped strings.Builder
+	escaped.Grow(len(value))
+	for i := 0; i < len(value); i++ {
+		character := value[i]
+		if character == '\\' || character == '*' || character == '?' || character == '[' {
+			escaped.WriteByte('\\')
+		}
+		escaped.WriteByte(character)
+	}
+	return escaped.String()
+}
+
 // sortAndLimitFilePaths sorts and deduplicates paths in place, then returns at
 // most maxMatches paths and whether additional paths were omitted.
 func sortAndLimitFilePaths(paths []VerifiedConfigFilePath, maxMatches int) ([]VerifiedConfigFilePath, bool, error) {

@@ -168,7 +168,7 @@ func (r *kubernetesConfigReader) ReadMatchingFiles(ctx context.Context, search C
 // readFileWithinSearch revalidates and reads filePath without following a
 // symlink observed below searchRoot.
 func (r *kubernetesConfigReader) readFileWithinSearch(ctx context.Context, searchRoot VerifiedConfigFilePath, filePath VerifiedConfigFilePath) (ConfigFile, error) {
-	command := kubernetesReadFileWithinSearchCommand(searchRoot.String(), filePath.String())
+	command := kubernetesReadFileWithinSearchCommand(searchRoot, filePath)
 	stdout, stderr, exitCode, err := r.client.execSync(ctx, r.containerID, command, kubernetesReadFileTimeout)
 	if err != nil {
 		return ConfigFile{}, fmt.Errorf("exec read scoped config file in kubernetes container: %w", err)
@@ -197,11 +197,11 @@ func kubernetesReadFileCommand(cleanPath string) []string {
 
 // kubernetesReadFileWithinSearchCommand returns a command that emits the path
 // followed by its bounded contents only when find observes a regular file.
-func kubernetesReadFileWithinSearchCommand(searchRoot string, filePath string) []string {
+func kubernetesReadFileWithinSearchCommand(searchRoot VerifiedConfigFilePath, filePath VerifiedConfigFilePath) []string {
 	return []string{
-		"find", "-P", searchRoot,
+		"find", "-P", searchRoot.String(),
 		"-type", "f",
-		"-path", filePath,
+		"-path", escapeFindPathPattern(filePath),
 		"-print0",
 		"-exec", "head", "-c", strconv.Itoa(kubernetesReadFileOutputLimit), "{}", ";",
 	}

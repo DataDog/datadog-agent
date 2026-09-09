@@ -9,25 +9,46 @@ package configfilesdiscoveryimpl
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"path"
-	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	dockerclient "github.com/moby/moby/client"
 )
 
-// dockerConfigClient is a narrow Docker interface; reader tests mock it so tar
-// decoding, env filtering, and command-line extraction are tested without a
-// Docker daemon.
+const (
+	dockerExecTimeout     = 5 * time.Second
+	dockerFindOutputLimit = 256 * 1024
+	dockerExecStderrLimit = 8 * 1024
+)
+
+var errDockerExecOutputLimit = errors.New("docker exec output limit reached")
+
+// dockerConfigClient is a narrow Docker interface; reader tests mock it so
+// bounded exec, tar decoding, env filtering, and command-line extraction are
+// tested without a Docker daemon.
 type dockerConfigClient interface {
 	getFile(context.Context, string, string) (io.ReadCloser, error)
+	execSync(context.Context, string, []string, int) (dockerExecOutput, error)
 	getEnv(context.Context, string) ([]string, error)
 	getCommandline(context.Context, string) (TargetCommandline, error)
+}
+
+// dockerExecOutput contains the bounded output and status of a Docker exec.
+type dockerExecOutput struct {
+	stdout        []byte
+	stderr        []byte
+	exitCode      int
+	stdoutLimited bool
 }
 
 func newDockerConfigClient() (dockerConfigClient, error) {
@@ -80,25 +101,119 @@ func (r *dockerConfigReader) ReadFile(ctx context.Context, filePath VerifiedConf
 	return readConfigFileFromDockerArchive(body, filePath.String())
 }
 
-// ReadMatchingFiles reads matching regular files from an archive rooted where
-// Docker can observe, rather than traverse, symlinks below the trusted root.
+// ReadMatchingFiles discovers names without copying unrelated file contents,
+// then reads matching regular files within the trusted root.
 func (r *dockerConfigReader) ReadMatchingFiles(ctx context.Context, search ConfigFileSearch, maxMatches int, matches ConfigFilePathMatcher) ([]ConfigFileReadResult, bool, error) {
 	if maxMatches <= 0 {
 		return nil, false, errors.New("maximum file matches must be positive")
 	}
 
 	searchRoot := configFileSearchRoot(search)
-	body, err := r.client.getFile(ctx, r.containerID, searchRoot.String())
+	command := []string{"find", "-P", searchRoot.String(), "-type", "f", "-path", search.Pattern().String(), "-print0"}
+	output, err := r.client.execSync(ctx, r.containerID, command, dockerFindOutputLimit)
 	if err != nil {
-		return nil, false, fmt.Errorf("copy config file pattern root from docker container: %w", err)
+		return nil, false, fmt.Errorf("exec find config files in docker container: %w", err)
 	}
-	defer body.Close()
+	if !output.stdoutLimited && output.exitCode != 0 {
+		return nil, false, dockerExecExitError(output.exitCode, output.stderr)
+	}
 
-	results, limited, err := readMatchingRegularFilesFromDockerArchive(body, searchRoot, search, maxMatches, matches)
+	discoveryLimited := output.stdoutLimited
+	stdout := output.stdout
+	if len(stdout) != 0 && stdout[len(stdout)-1] != 0 {
+		discoveryLimited = true
+		lastSeparator := bytes.LastIndexByte(stdout, 0)
+		if lastSeparator < 0 {
+			stdout = nil
+		} else {
+			stdout = stdout[:lastSeparator+1]
+		}
+	}
+
+	var paths []VerifiedConfigFilePath
+	for _, outputPath := range bytes.Split(stdout, []byte{0}) {
+		if len(outputPath) == 0 {
+			continue
+		}
+		filePath, err := VerifyConfigFilePath(UnverifiedConfigFilePath(outputPath))
+		if err != nil || !search.Contains(filePath) {
+			continue
+		}
+		matched, err := matches(filePath)
+		if err != nil {
+			return nil, false, fmt.Errorf("match docker config file %q: %w", filePath.String(), err)
+		}
+		if matched {
+			paths = append(paths, filePath)
+		}
+	}
+	paths, pathsLimited, err := sortAndLimitFilePaths(paths, maxMatches)
 	if err != nil {
 		return nil, false, err
 	}
-	return results, limited, nil
+
+	var results []ConfigFileReadResult
+	for _, filePath := range paths {
+		file, err := r.readFileWithinSearch(ctx, searchRoot, filePath)
+		if err != nil {
+			results = append(results, NewConfigFileReadError(filePath, err))
+			continue
+		}
+		results = append(results, NewConfigFileReadResult(filePath, file))
+	}
+	return results, discoveryLimited || pathsLimited, nil
+}
+
+// readFileWithinSearch revalidates and reads filePath without following a
+// symlink observed below searchRoot.
+func (r *dockerConfigReader) readFileWithinSearch(ctx context.Context, searchRoot VerifiedConfigFilePath, filePath VerifiedConfigFilePath) (ConfigFile, error) {
+	command := dockerReadFileWithinSearchCommand(searchRoot, filePath)
+	stdoutLimit := len(filePath.String()) + 1 + maxConfigFileSize + 1
+	output, err := r.client.execSync(ctx, r.containerID, command, stdoutLimit)
+	if err != nil {
+		return ConfigFile{}, fmt.Errorf("exec read scoped config file in docker container: %w", err)
+	}
+	if output.stdoutLimited {
+		return ConfigFile{}, fmt.Errorf("read scoped docker config file %q exceeded its output limit", filePath.String())
+	}
+	if output.exitCode != 0 {
+		return ConfigFile{}, dockerExecExitError(output.exitCode, output.stderr)
+	}
+	if len(output.stderr) != 0 {
+		return ConfigFile{}, fmt.Errorf("read scoped config file in docker container: %s", strings.TrimSpace(string(output.stderr)))
+	}
+
+	pathPrefix := append([]byte(filePath.String()), 0)
+	if !bytes.HasPrefix(output.stdout, pathPrefix) {
+		return ConfigFile{}, fmt.Errorf("config file %q is not a regular file within search root %q", filePath.String(), searchRoot.String())
+	}
+	content, truncated, err := readLimitedFileContent(bytes.NewReader(output.stdout[len(pathPrefix):]), maxConfigFileSize)
+	if err != nil {
+		return ConfigFile{}, fmt.Errorf("read docker config file output: %w", err)
+	}
+	return ConfigFile{Path: filePath.String(), Content: content, Truncated: truncated}, nil
+}
+
+// dockerReadFileWithinSearchCommand returns a command that emits the path
+// followed by bounded contents only when find observes a regular file.
+func dockerReadFileWithinSearchCommand(searchRoot VerifiedConfigFilePath, filePath VerifiedConfigFilePath) []string {
+	return []string{
+		"find", "-P", searchRoot.String(),
+		"-type", "f",
+		"-path", escapeFindPathPattern(filePath),
+		"-print0",
+		"-exec", "head", "-c", strconv.Itoa(maxConfigFileSize + 1), "{}", ";",
+	}
+}
+
+// dockerExecExitError returns an error containing the exit code and bounded
+// stderr from a Docker exec.
+func dockerExecExitError(exitCode int, stderr []byte) error {
+	stderrText := strings.TrimSpace(string(stderr))
+	if stderrText == "" {
+		return fmt.Errorf("exec in docker container exited with code %d", exitCode)
+	}
+	return fmt.Errorf("exec in docker container exited with code %d: %s", exitCode, stderrText)
 }
 
 func (r *dockerConfigReader) ReadEnvVars(ctx context.Context, predicate ConfigEnvVarPredicate) (map[string]string, error) {
@@ -191,104 +306,100 @@ func cleanTarPath(filePath string) string {
 	return strings.TrimPrefix(path.Clean(filePath), "/")
 }
 
-// readMatchingRegularFilesFromDockerArchive returns bounded matching regular
-// files in lexical order without following symlink archive entries.
-func readMatchingRegularFilesFromDockerArchive(r io.Reader, searchRoot VerifiedConfigFilePath, search ConfigFileSearch, maxMatches int, matches ConfigFilePathMatcher) ([]ConfigFileReadResult, bool, error) {
-	tr := tar.NewReader(r)
-	var results []ConfigFileReadResult
-	seen := make(map[VerifiedConfigFilePath]struct{})
-	limited := false
-	for {
-		header, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, false, fmt.Errorf("read docker archive: %w", err)
-		}
-		if !isRegularTarEntry(header) {
-			continue
-		}
-
-		entryPath, err := verifyDockerArchiveEntryPath(searchRoot, header.Name)
-		if err != nil {
-			continue
-		}
-		if !search.Contains(entryPath) {
-			continue
-		}
-		matched, err := matches(entryPath)
-		if err != nil {
-			return nil, false, fmt.Errorf("match docker archive entry %q: %w", header.Name, err)
-		}
-		if !matched {
-			continue
-		}
-		if _, found := seen[entryPath]; found {
-			continue
-		}
-		seen[entryPath] = struct{}{}
-
-		if len(results) == maxMatches {
-			limited = true
-			if entryPath.String() > results[len(results)-1].Path().String() {
-				continue
-			}
-		}
-
-		content, truncated, err := readLimitedFileContent(tr, maxConfigFileSize)
-		if err != nil {
-			return nil, false, fmt.Errorf("read docker archive entry %q: %w", header.Name, err)
-		}
-		file := ConfigFile{
-			Path:      entryPath.String(),
-			Content:   content,
-			Truncated: truncated,
-		}
-		results = append(results, NewConfigFileReadResult(entryPath, file))
-		slices.SortFunc(results, func(left, right ConfigFileReadResult) int {
-			return strings.Compare(left.Path().String(), right.Path().String())
-		})
-		if len(results) > maxMatches {
-			results = results[:maxMatches]
-			limited = true
-		}
-	}
-	return results, limited, nil
-}
-
-// verifyDockerArchiveEntryPath verifies and returns the absolute container path
-// for an archive entry copied from searchRoot.
-func verifyDockerArchiveEntryPath(searchRoot VerifiedConfigFilePath, entryName string) (VerifiedConfigFilePath, error) {
-	if path.IsAbs(entryName) {
-		return VerifyConfigFilePath(UnverifiedConfigFilePath(entryName))
-	}
-	entryPath, err := VerifyConfigFilePath(UnverifiedConfigFilePath("/" + entryName))
-	if err != nil {
-		return VerifiedConfigFilePath{}, err
-	}
-	cleanEntry := strings.TrimPrefix(entryPath.String(), "/")
-	cleanRoot := strings.TrimPrefix(searchRoot.String(), "/")
-	if cleanEntry == cleanRoot || strings.HasPrefix(cleanEntry, cleanRoot+"/") {
-		return VerifiedConfigFilePath{value: "/" + cleanEntry}, nil
-	}
-	rootBase := path.Base(searchRoot.String())
-	if cleanEntry == rootBase || strings.HasPrefix(cleanEntry, rootBase+"/") {
-		return VerifiedConfigFilePath{
-			value: path.Clean(path.Join(path.Dir(searchRoot.String()), cleanEntry)),
-		}, nil
-	}
-	return VerifiedConfigFilePath{
-		value: path.Clean(path.Join(searchRoot.String(), cleanEntry)),
-	}, nil
-}
-
 type dockerUtilConfigClient struct {
 	util *dockerutil.DockerUtil
 }
 
 func (c dockerUtilConfigClient) getFile(ctx context.Context, containerID string, path string) (io.ReadCloser, error) {
 	return c.util.CopyFromContainer(ctx, containerID, path)
+}
+
+// execSync executes command without a shell and captures bounded stdout and
+// stderr from the Docker multiplexed stream.
+func (c dockerUtilConfigClient) execSync(ctx context.Context, containerID string, command []string, stdoutLimit int) (dockerExecOutput, error) {
+	if stdoutLimit <= 0 {
+		return dockerExecOutput{}, errors.New("docker exec stdout limit must be positive")
+	}
+
+	execCtx, cancel := context.WithTimeout(ctx, dockerExecTimeout)
+	defer cancel()
+	client := c.util.RawClient()
+	created, err := client.ExecCreate(execCtx, containerID, dockerclient.ExecCreateOptions{
+		Cmd:          command,
+		AttachStdout: true,
+		AttachStderr: true,
+	})
+	if err != nil {
+		return dockerExecOutput{}, fmt.Errorf("create docker exec: %w", err)
+	}
+	attached, err := client.ExecAttach(execCtx, created.ID, dockerclient.ExecAttachOptions{})
+	if err != nil {
+		return dockerExecOutput{}, fmt.Errorf("attach docker exec: %w", err)
+	}
+	defer attached.Close()
+	// A hijacked connection outlives its HTTP request, so cancellation must
+	// explicitly close the connection to unblock StdCopy.
+	stopCloseOnCancellation := context.AfterFunc(execCtx, attached.Close)
+	defer stopCloseOnCancellation()
+
+	stdout := &dockerExecOutputBuffer{limit: stdoutLimit}
+	stderr := &dockerExecOutputBuffer{limit: dockerExecStderrLimit}
+	_, copyErr := stdcopy.StdCopy(stdout, stderr, attached.Reader)
+	output := dockerExecOutput{
+		stdout:        bytes.Clone(stdout.Bytes()),
+		stderr:        bytes.Clone(stderr.Bytes()),
+		stdoutLimited: stdout.limited,
+	}
+	if stderr.limited {
+		return dockerExecOutput{}, fmt.Errorf("docker exec stderr exceeded %d bytes", dockerExecStderrLimit)
+	}
+	if copyErr != nil && !errors.Is(copyErr, errDockerExecOutputLimit) {
+		if execCtx.Err() != nil {
+			return dockerExecOutput{}, execCtx.Err()
+		}
+		return dockerExecOutput{}, fmt.Errorf("read docker exec output: %w", copyErr)
+	}
+	if output.stdoutLimited {
+		return output, nil
+	}
+
+	inspected, err := client.ExecInspect(execCtx, created.ID, dockerclient.ExecInspectOptions{})
+	if err != nil {
+		return dockerExecOutput{}, fmt.Errorf("inspect docker exec: %w", err)
+	}
+	output.exitCode = inspected.ExitCode
+	return output, nil
+}
+
+// dockerExecOutputBuffer stores at most limit bytes and interrupts stdcopy
+// when the Docker exec produces more output.
+type dockerExecOutputBuffer struct {
+	bytes.Buffer
+	limit   int
+	limited bool
+}
+
+// Write appends output up to the configured limit and reports the limit error
+// as soon as additional bytes are observed.
+func (b *dockerExecOutputBuffer) Write(data []byte) (int, error) {
+	if len(data) == 0 {
+		return 0, nil
+	}
+	remaining := b.limit - b.Len()
+	if remaining <= 0 {
+		b.limited = true
+		return 0, errDockerExecOutputLimit
+	}
+	if len(data) <= remaining {
+		return b.Buffer.Write(data)
+	}
+
+	written, err := b.Buffer.Write(data[:remaining])
+	if err != nil {
+		return written, err
+	}
+	b.limited = true
+	return written, errDockerExecOutputLimit
 }
 
 func (c dockerUtilConfigClient) getEnv(ctx context.Context, containerID string) ([]string, error) {

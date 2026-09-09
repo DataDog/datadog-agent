@@ -236,77 +236,80 @@ func TestDockerReaderReadFileErrors(t *testing.T) {
 
 func TestDockerReaderReadMatchingFiles(t *testing.T) {
 	tests := []struct {
-		name        string
-		root        string
-		pattern     string
-		maxMatches  int
-		archive     []byte
-		wantFiles   []ConfigFile
-		wantLimited bool
-		wantCopy    string
+		name            string
+		root            string
+		pattern         string
+		maxMatches      int
+		discoveryOutput dockerExecOutput
+		files           map[string][]byte
+		wantFiles       []ConfigFile
+		wantLimited     bool
+		wantSearchRoot  string
 	}{
 		{
-			name:       "literal file",
-			root:       "/etc/redis",
-			pattern:    "/etc/redis/redis.conf",
-			maxMatches: 2,
-			archive: tarArchive(t, tarEntry{
-				name:    "redis.conf",
-				content: []byte("port 6379\n"),
-			}),
-			wantFiles: []ConfigFile{{Path: "/etc/redis/redis.conf", Content: []byte("port 6379\n")}},
-			wantCopy:  "/etc/redis/redis.conf",
+			name:            "literal file",
+			root:            "/etc/redis",
+			pattern:         "/etc/redis/redis.conf",
+			maxMatches:      2,
+			discoveryOutput: dockerExecOutput{stdout: []byte("/etc/redis/redis.conf\x00")},
+			files:           map[string][]byte{"/etc/redis/redis.conf": []byte("port 6379\n")},
+			wantFiles:       []ConfigFile{{Path: "/etc/redis/redis.conf", Content: []byte("port 6379\n")}},
+			wantSearchRoot:  "/etc/redis/redis.conf",
 		},
 		{
-			name:       "wildcard sorts limits and rejects non regular files",
-			root:       "/etc/redis",
-			pattern:    "/etc/redis/conf.d/*.conf",
-			maxMatches: 2,
-			archive: tarArchive(t,
-				tarEntry{name: "conf.d", typeflag: tar.TypeDir},
-				tarEntry{name: "etc/redis/conf.d/c.conf", content: []byte("c")},
-				tarEntry{name: "conf.d/link.conf", typeflag: tar.TypeSymlink, linkname: "a.conf"},
-				tarEntry{name: "conf.d/a.conf", content: []byte("a")},
-				tarEntry{name: "conf.d/b.conf", content: []byte("b")},
-				tarEntry{name: "conf.d/readme.txt", content: []byte("ignored")},
-			),
-			wantFiles: []ConfigFile{
-				{Path: "/etc/redis/conf.d/a.conf", Content: []byte("a")},
-				{Path: "/etc/redis/conf.d/b.conf", Content: []byte("b")},
+			name:            "wildcard lists names without reading unrelated contents",
+			root:            "/data",
+			pattern:         "/data/*.conf",
+			maxMatches:      2,
+			discoveryOutput: dockerExecOutput{stdout: []byte("/data/c.conf\x00/data/dump.rdb\x00/data/a.conf\x00/data/b.conf\x00/data/appendonly.aof\x00/outside.conf\x00")},
+			files: map[string][]byte{
+				"/data/a.conf": []byte("a"),
+				"/data/b.conf": []byte("b"),
 			},
-			wantLimited: true,
-			wantCopy:    "/etc/redis/conf.d",
+			wantFiles: []ConfigFile{
+				{Path: "/data/a.conf", Content: []byte("a")},
+				{Path: "/data/b.conf", Content: []byte("b")},
+			},
+			wantLimited:    true,
+			wantSearchRoot: "/data",
 		},
 		{
-			name:       "literal symlink is rejected",
-			root:       "/etc/redis",
-			pattern:    "/etc/redis/link.conf",
-			maxMatches: 1,
-			archive: tarArchive(t, tarEntry{
-				name:     "link.conf",
-				typeflag: tar.TypeSymlink,
-				linkname: "redis.conf",
-			}),
-			wantCopy: "/etc/redis/link.conf",
+			name:            "intermediate symlink is not traversed",
+			root:            "/etc/redis",
+			pattern:         "/etc/redis/link/token",
+			maxMatches:      1,
+			discoveryOutput: dockerExecOutput{},
+			wantSearchRoot:  "/etc/redis/link",
 		},
 		{
-			name:       "intermediate symlink is rejected",
-			root:       "/etc/redis",
-			pattern:    "/etc/redis/link/token",
-			maxMatches: 1,
-			archive: tarArchive(t, tarEntry{
-				name:     "link",
-				typeflag: tar.TypeSymlink,
-				linkname: "/run/secrets",
-			}),
-			wantCopy: "/etc/redis/link",
+			name:            "bounded discovery keeps only terminated paths",
+			root:            "/etc/redis",
+			pattern:         "/etc/redis/*.conf",
+			maxMatches:      2,
+			discoveryOutput: dockerExecOutput{stdout: []byte("/etc/redis/a.conf\x00/etc/redis/incomplete"), stdoutLimited: true},
+			files:           map[string][]byte{"/etc/redis/a.conf": []byte("a")},
+			wantFiles:       []ConfigFile{{Path: "/etc/redis/a.conf", Content: []byte("a")}},
+			wantLimited:     true,
+			wantSearchRoot:  "/etc/redis",
+		},
+		{
+			name:            "large matching file is truncated by the container command",
+			root:            "/etc/redis",
+			pattern:         "/etc/redis/large.conf",
+			maxMatches:      1,
+			discoveryOutput: dockerExecOutput{stdout: []byte("/etc/redis/large.conf\x00")},
+			files:           map[string][]byte{"/etc/redis/large.conf": bytes.Repeat([]byte("a"), maxConfigFileSize+1)},
+			wantFiles:       []ConfigFile{{Path: "/etc/redis/large.conf", Content: bytes.Repeat([]byte("a"), maxConfigFileSize), Truncated: true}},
+			wantSearchRoot:  "/etc/redis/large.conf",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			body := closeTracker(tt.archive)
-			client := &fakeDockerClient{copyBody: body}
+			client := &fakeDockerClient{
+				execOutputs: []dockerExecOutput{tt.discoveryOutput},
+				files:       tt.files,
+			}
 			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
 			search := verifyTestConfigFileSearch(t, tt.root, tt.pattern)
@@ -316,47 +319,79 @@ func TestDockerReaderReadMatchingFiles(t *testing.T) {
 			files := readConfigFileResults(t, results)
 			assert.Equal(t, tt.wantFiles, files)
 			assert.Equal(t, tt.wantLimited, limited)
-			assert.Equal(t, []dockerCopyCall{{containerID: "container-id", path: tt.wantCopy}}, client.copyCalls)
-			assert.True(t, body.closed)
+			assert.Empty(t, client.copyCalls)
+			require.Len(t, client.execCalls, 1+len(tt.wantFiles))
+			assert.Equal(t, dockerExecCall{
+				containerID: "container-id",
+				command:     []string{"find", "-P", tt.wantSearchRoot, "-type", "f", "-path", tt.pattern, "-print0"},
+				stdoutLimit: dockerFindOutputLimit,
+			}, client.execCalls[0])
+			for i, wantFile := range tt.wantFiles {
+				assert.Equal(t, dockerExecCall{
+					containerID: "container-id",
+					command: dockerReadFileWithinSearchCommand(
+						verifyTestConfigFilePath(t, tt.wantSearchRoot),
+						verifyTestConfigFilePath(t, wantFile.Path),
+					),
+					stdoutLimit: len(wantFile.Path) + 1 + maxConfigFileSize + 1,
+				}, client.execCalls[i+1])
+			}
 		})
 	}
 }
 
 func TestDockerReaderReadMatchingFilesErrors(t *testing.T) {
-	expectedErr := errors.New("copy failed")
+	expectedErr := errors.New("exec failed")
 	tests := []struct {
 		name          string
-		root          string
-		pattern       string
 		maxMatches    int
-		copyBody      io.ReadCloser
-		copyErr       error
-		wantCopyCalls int
+		execOutputs   []dockerExecOutput
+		execErr       error
+		wantExecCalls int
 		wantErrorIs   error
 	}{
-		{name: "non positive limit", root: "/etc/redis", pattern: "/etc/redis/*.conf", maxMatches: 0},
-		{name: "copy error", root: "/etc/redis", pattern: "/etc/redis/*.conf", maxMatches: 1, copyErr: expectedErr, wantCopyCalls: 1, wantErrorIs: expectedErr},
-		{name: "cancellation", root: "/etc/redis", pattern: "/etc/redis/*.conf", maxMatches: 1, copyErr: context.Canceled, wantCopyCalls: 1, wantErrorIs: context.Canceled},
-		{name: "archive error", root: "/etc/redis", pattern: "/etc/redis/*.conf", maxMatches: 1, copyBody: closeTracker([]byte("not a tar archive")), wantCopyCalls: 1},
+		{name: "non positive limit", maxMatches: 0},
+		{name: "exec error", maxMatches: 1, execErr: expectedErr, wantExecCalls: 1, wantErrorIs: expectedErr},
+		{name: "cancellation", maxMatches: 1, execErr: context.Canceled, wantExecCalls: 1, wantErrorIs: context.Canceled},
+		{name: "find unavailable", maxMatches: 1, execOutputs: []dockerExecOutput{{stderr: []byte("find: not found"), exitCode: 127}}, wantExecCalls: 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := &fakeDockerClient{copyBody: tt.copyBody, copyErr: tt.copyErr}
+			client := &fakeDockerClient{execOutputs: tt.execOutputs, execErr: tt.execErr}
 			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-			search := verifyTestConfigFileSearch(t, tt.root, tt.pattern)
-			results, limited, err := reader.ReadMatchingFiles(context.Background(), search, tt.maxMatches, matchTestFilePattern(tt.pattern))
+			search := verifyTestConfigFileSearch(t, "/etc/redis", "/etc/redis/*.conf")
+			results, limited, err := reader.ReadMatchingFiles(context.Background(), search, tt.maxMatches, matchTestFilePattern("/etc/redis/*.conf"))
 
 			require.Error(t, err)
 			assert.Nil(t, results)
 			assert.False(t, limited)
-			assert.Len(t, client.copyCalls, tt.wantCopyCalls)
+			assert.Empty(t, client.copyCalls)
+			assert.Len(t, client.execCalls, tt.wantExecCalls)
 			if tt.wantErrorIs != nil {
 				assert.ErrorIs(t, err, tt.wantErrorIs)
 			}
 		})
 	}
+}
+
+func TestDockerReaderReadMatchingFilesRetainsReadErrors(t *testing.T) {
+	client := &fakeDockerClient{
+		execOutputs: []dockerExecOutput{{stdout: []byte("/etc/redis/unreadable.conf\x00")}},
+	}
+	reader := &dockerConfigReader{containerID: "container-id", client: client}
+	search := verifyTestConfigFileSearch(t, "/etc/redis", "/etc/redis/*.conf")
+
+	results, limited, err := reader.ReadMatchingFiles(context.Background(), search, 1, matchTestFilePattern("/etc/redis/*.conf"))
+
+	require.NoError(t, err)
+	assert.False(t, limited)
+	require.Len(t, results, 1)
+	assert.Equal(t, "/etc/redis/unreadable.conf", results[0].Path().String())
+	_, err = results[0].Read()
+	require.Error(t, err)
+	assert.Empty(t, client.copyCalls)
 }
 
 func TestDockerReaderReadEnvVarsSkipsInspectForNilPredicate(t *testing.T) {
@@ -474,10 +509,43 @@ func TestDockerReaderReadRuntimeCommandlineSurfacesGetCommandlineErrors(t *testi
 	assert.Equal(t, []string{"container-id"}, client.getCommandlineCalls)
 }
 
+func TestDockerExecOutputBufferBoundsOutput(t *testing.T) {
+	buffer := &dockerExecOutputBuffer{limit: 4}
+
+	written, err := buffer.Write([]byte("abcd"))
+
+	require.NoError(t, err)
+	assert.Equal(t, 4, written)
+	assert.Equal(t, []byte("abcd"), buffer.Bytes())
+	assert.False(t, buffer.limited)
+
+	written, err = buffer.Write([]byte("ef"))
+
+	require.ErrorIs(t, err, errDockerExecOutputLimit)
+	assert.Zero(t, written)
+	assert.Equal(t, []byte("abcd"), buffer.Bytes())
+	assert.True(t, buffer.limited)
+}
+
+func TestDockerExecOutputBufferRetainsPrefixOnOverflow(t *testing.T) {
+	buffer := &dockerExecOutputBuffer{limit: 4}
+
+	written, err := buffer.Write([]byte("abcdef"))
+
+	require.ErrorIs(t, err, errDockerExecOutputLimit)
+	assert.Equal(t, 4, written)
+	assert.Equal(t, []byte("abcd"), buffer.Bytes())
+	assert.True(t, buffer.limited)
+}
+
 type fakeDockerClient struct {
 	copyCalls           []dockerCopyCall
 	copyBody            io.ReadCloser
 	copyErr             error
+	execCalls           []dockerExecCall
+	execOutputs         []dockerExecOutput
+	execErr             error
+	files               map[string][]byte
 	getEnvCalls         []string
 	env                 []string
 	getEnvErr           error
@@ -493,12 +561,55 @@ type dockerCopyCall struct {
 	path        string
 }
 
+type dockerExecCall struct {
+	containerID string
+	command     []string
+	stdoutLimit int
+}
+
 func (c *fakeDockerClient) getFile(_ context.Context, containerID string, path string) (io.ReadCloser, error) {
 	c.copyCalls = append(c.copyCalls, dockerCopyCall{containerID: containerID, path: path})
 	if c.copyErr != nil {
 		return nil, c.copyErr
 	}
 	return c.copyBody, nil
+}
+
+func (c *fakeDockerClient) execSync(_ context.Context, containerID string, command []string, stdoutLimit int) (dockerExecOutput, error) {
+	c.execCalls = append(c.execCalls, dockerExecCall{
+		containerID: containerID,
+		command:     append([]string(nil), command...),
+		stdoutLimit: stdoutLimit,
+	})
+	if c.execErr != nil {
+		return dockerExecOutput{}, c.execErr
+	}
+	if len(c.execOutputs) != 0 {
+		output := c.execOutputs[0]
+		c.execOutputs = c.execOutputs[1:]
+		return limitFakeDockerExecOutput(output, stdoutLimit), nil
+	}
+	if len(command) > 8 && command[8] == "-exec" {
+		filePath := command[6]
+		content, found := c.files[filePath]
+		if !found {
+			return dockerExecOutput{}, nil
+		}
+		stdout := append([]byte(filePath), 0)
+		stdout = append(stdout, content...)
+		return limitFakeDockerExecOutput(dockerExecOutput{stdout: stdout}, stdoutLimit), nil
+	}
+	return dockerExecOutput{}, nil
+}
+
+// limitFakeDockerExecOutput applies the production stdout bound to fake exec
+// output while preserving an explicitly configured limited result.
+func limitFakeDockerExecOutput(output dockerExecOutput, stdoutLimit int) dockerExecOutput {
+	if len(output.stdout) > stdoutLimit {
+		output.stdout = output.stdout[:stdoutLimit]
+		output.stdoutLimited = true
+	}
+	return output
 }
 
 func (c *fakeDockerClient) getEnv(_ context.Context, containerID string) ([]string, error) {
