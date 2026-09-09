@@ -1,4 +1,5 @@
 from invoke.context import Context
+from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.e2e_framework import doc, tool
@@ -66,21 +67,36 @@ def create_eks(
     Create a new EKS environment. It lasts around 20 minutes.
     """
 
+    # EKS Auto Mode provisions nodes itself, so managed node groups cannot coexist with
+    # it. Reject the opt-in node groups rather than silently dropping them, which would
+    # otherwise yield contradictory infrastructure (for example a Windows Agent with no
+    # Windows nodes to run on). --linux-node-group and --bottlerocket-node-group default
+    # to True, so an explicit request cannot be told apart from the default and they are
+    # turned off rather than reported.
+    if auto_mode:
+        requested = [
+            flag
+            for flag, enabled in (
+                ("--linux-arm-node-group", linux_arm_node_group),
+                ("--windows-node-group", windows_node_group),
+                ("--gpu-node-group", gpu_node_group),
+            )
+            if enabled
+        ]
+        if requested:
+            raise Exit(
+                f"--auto-mode is incompatible with managed node groups, remove {', '.join(requested)}: "
+                "EKS Auto Mode provisions nodes itself."
+            )
+        linux_node_group = False
+        bottlerocket_node_group = False
+
     # When GPU node group is enabled, disable other node groups for a GPU-only cluster
     # GPU instances are x86_64 only, so ARM is incompatible
     if gpu_node_group:
         linux_node_group = False
         linux_arm_node_group = False
         bottlerocket_node_group = False
-
-    # EKS Auto Mode manages its own nodes via Karpenter, so managed node groups
-    # and Fargate are mutually exclusive with it.
-    if auto_mode:
-        linux_node_group = False
-        linux_arm_node_group = False
-        bottlerocket_node_group = False
-        windows_node_group = False
-        gpu_node_group = False
 
     extra_flags = {
         "ddinfra:aws/eks/linuxARMNodeGroup": linux_arm_node_group,

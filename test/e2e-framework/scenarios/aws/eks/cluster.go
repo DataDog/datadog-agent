@@ -292,28 +292,28 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 		}
 
 		// Create managed node groups (mutually exclusive with Auto Mode, which manages its own nodes)
-		if params.LinuxNodeGroup && !params.AutoMode {
+		if params.LinuxNodeGroup {
 			_, err = localEks.NewAL2023LinuxNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}
 		}
 
-		if params.LinuxARMNodeGroup && !params.AutoMode {
+		if params.LinuxARMNodeGroup {
 			_, err := localEks.NewAL2023LinuxARMNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}
 		}
 
-		if params.BottleRocketNodeGroup && !params.AutoMode {
+		if params.BottleRocketNodeGroup {
 			_, err := localEks.NewBottlerocketNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}
 		}
 
-		if params.WindowsNodeGroup && !params.AutoMode {
+		if params.WindowsNodeGroup {
 			// Applying necessary Windows configuration if Windows nodes
 			// Custom networking is not available for Windows nodes, using normal subnets IPs
 			winCNIPatch, err := corev1.NewConfigMapPatch(e.Ctx(), e.Namer.ResourceName("eks-cni-cm"), &corev1.ConfigMapPatchArgs{
@@ -339,7 +339,7 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			}
 		}
 
-		if params.GPUNodeGroup && !params.AutoMode {
+		if params.GPUNodeGroup {
 			// Create GPU node group first so the node exists for the device plugin to schedule on
 			gpuNodeGroup, err := localEks.NewGPULinuxNodeGroup(e, cluster, linuxNodeRole, params.GPUInstanceType, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
