@@ -3483,6 +3483,8 @@ core,gopkg.in/yaml.v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright 201
 core,gopkg.in/zorkian/go-datadog-api.v2,BSD-3-Clause,Copyright (c) 2013 by authors and contributors | Copyright 2013-2019 by authors and contributors
 core,honnef.co/go/tools/analysis/callcheck,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/analysis/code,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/dfa,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/analysis/dfa/dense,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/analysis/edit,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/analysis/facts/deprecated,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/analysis/facts/directives,MIT,Copyright (c) 2016 Dominik Honnef
@@ -3490,7 +3492,6 @@ core,honnef.co/go/tools/analysis/facts/generated,MIT,Copyright (c) 2016 Dominik 
 core,honnef.co/go/tools/analysis/facts/nilness,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/analysis/facts/purity,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/analysis/facts/tokenfile,MIT,Copyright (c) 2016 Dominik Honnef
-core,honnef.co/go/tools/analysis/facts/typedness,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/analysis/lint,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/analysis/report,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/cmd/staticcheck,MIT,Copyright (c) 2016 Dominik Honnef
@@ -3501,16 +3502,25 @@ core,honnef.co/go/tools/go/ir,BSD-3-Clause,Copyright (c) 2009 The Go Authors. Al
 core,honnef.co/go/tools/go/ir/irutil,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2016 Dominik Honnef | Copyright (c) 2016 Dominik Honnef. All rights reserved
 core,honnef.co/go/tools/go/loader,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/go/types/typeutil,MIT,Copyright (c) 2016 Dominik Honnef
-core,honnef.co/go/tools/internal/analysisinternal/typeindex,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/iterutil,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/passes/buildir,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/renameio,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/robustio,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/sharedcheck,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/internal/sync,MIT,Copyright (c) 2016 Dominik Honnef
-core,honnef.co/go/tools/internal/typesinternal/typeindex,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/xtools-internal/aliases,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/xtools-internal/analysis/typeindex,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/xtools-internal/astutil,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/xtools-internal/graph,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/xtools-internal/moreiters,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/xtools-internal/typeparams,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/xtools-internal/typesinternal,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/xtools-internal/typesinternal/typeindex,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/internal/xtools-internal/versions,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/knowledge,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/lintcmd,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/lintcmd/cache,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/lintcmd/cache/cacheprog,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/lintcmd/runner,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/lintcmd/version,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/pattern,MIT,Copyright (c) 2016 Dominik Honnef
@@ -3647,7 +3657,6 @@ core,honnef.co/go/tools/staticcheck/sa5007,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/sa5008,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/sa5009,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/sa5010,MIT,Copyright (c) 2016 Dominik Honnef
-core,honnef.co/go/tools/staticcheck/sa5011,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/sa5012,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/sa6000,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/sa6001,MIT,Copyright (c) 2016 Dominik Honnef
@@ -3664,6 +3673,7 @@ core,honnef.co/go/tools/staticcheck/sa9006,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/sa9007,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/sa9008,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/staticcheck/sa9009,MIT,Copyright (c) 2016 Dominik Honnef
+core,honnef.co/go/tools/staticcheck/sa9010,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/stylecheck,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/stylecheck/st1000,MIT,Copyright (c) 2016 Dominik Honnef
 core,honnef.co/go/tools/stylecheck/st1001,MIT,Copyright (c) 2016 Dominik Honnef
@@ -4501,7 +4511,6 @@ core,k8s.io/utils/lru,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/net,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/path,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/ptr,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/utils/strings/slices,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/trace,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,kernel.org/pub/linux/libs/security/libcap/psx,BSD-3-Clause,"Copyright (c) 2019,20,24 Andrew G. Morgan <morgan@kernel.org>"
 core,mellium.im/sasl,BSD-2-Clause,Copyright © 2014 The Mellium Contributors
