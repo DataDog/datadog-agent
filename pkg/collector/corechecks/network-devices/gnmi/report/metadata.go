@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,8 @@ import (
 const (
 	// DefaultMetadataCollectionInterval is the default cadence for metadata resubmission.
 	DefaultMetadataCollectionInterval = 10 * time.Minute
+
+	interfaceStatusMetric = "snmp.interface.status"
 
 	pathHostname        = "/system/state/hostname"
 	pathVendorName      = "/system/state/vendor-name"
@@ -54,13 +57,32 @@ func MetadataCollectionInterval(cfg *config.CheckConfig) time.Duration {
 	return time.Duration(cfg.Instance.MetadataCollectionInterval) * time.Second
 }
 
+// InterfaceSnapshotComplete reports whether every discovered interface has a stable ifindex.
+func InterfaceSnapshotComplete(snapshot []client.CachedValue) bool {
+	index := indexSnapshot(snapshot)
+	names := interfaceNames(index)
+	if len(names) == 0 {
+		return true
+	}
+
+	for _, name := range names {
+		keys := map[string]string{"name": name}
+		ifIndex, ok := firstInt32Value(index, "/interfaces/interface/state/ifindex", keys)
+		if !ok || ifIndex <= 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // ReportMetadata builds and submits device and interface metadata payloads.
-func ReportMetadata(s sender.Sender, cfg *config.CheckConfig, snapshot []client.CachedValue, collectTime time.Time) error {
+// The returned bool is true when at least one metadata payload was sent.
+func ReportMetadata(s sender.Sender, cfg *config.CheckConfig, snapshot []client.CachedValue, collectTime time.Time) (bool, error) {
 	if s == nil {
-		return errors.New("sender is nil")
+		return false, errors.New("sender is nil")
 	}
 	if cfg == nil {
-		return errors.New("check config is nil")
+		return false, errors.New("check config is nil")
 	}
 
 	deviceID := buildDeviceID(cfg.Instance.Address)
@@ -76,7 +98,7 @@ func ReportMetadata(s sender.Sender, cfg *config.CheckConfig, snapshot []client.
 
 	if isEmptyMetadata(device, interfaces, topologyLinks) {
 		log.Debugf("skipping gNMI metadata submission for %s: no metadata available", cfg.Instance.Address)
-		return nil
+		return false, nil
 	}
 
 	payloads := devicemetadata.BatchPayloads(
@@ -97,12 +119,79 @@ func ReportMetadata(s sender.Sender, cfg *config.CheckConfig, snapshot []client.
 	for _, payload := range payloads {
 		payloadBytes, err := json.Marshal(payload)
 		if err != nil {
-			return err
+			return false, err
 		}
 		s.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
 	}
 
+	return true, nil
+}
+
+// ReportInterfaceStatus emits snmp.interface.status for each interface in the snapshot.
+func ReportInterfaceStatus(s sender.Sender, cfg *config.CheckConfig, snapshot []client.CachedValue) error {
+	if s == nil {
+		return errors.New("sender is nil")
+	}
+	if cfg == nil {
+		return errors.New("check config is nil")
+	}
+
+	deviceID := buildDeviceID(cfg.Instance.Address)
+	interfaces := buildInterfaceMetadata(deviceID, snapshot)
+	if len(interfaces) == 0 {
+		return nil
+	}
+
+	baseTags := buildBaseTags(cfg)
+	for _, iface := range interfaces {
+		status := string(computeInterfaceStatus(iface.AdminStatus, iface.OperStatus))
+		tags := []string{
+			"status:" + status,
+			"admin_status:" + iface.AdminStatus.AsString(),
+			"oper_status:" + iface.OperStatus.AsString(),
+			"interface_index:" + strconv.Itoa(int(iface.Index)),
+		}
+		if iface.Name != "" {
+			tags = append(tags, "interface:"+iface.Name)
+		}
+		if iface.Description != "" {
+			tags = append(tags, "interface_alias:"+iface.Description)
+		}
+		tags = append(tags, baseTags...)
+		tags = append(tags, internalInterfaceResourceTag(deviceID, iface.Index))
+
+		s.Gauge(interfaceStatusMetric, 1, "", tags)
+	}
+
 	return nil
+}
+
+func computeInterfaceStatus(adminStatus devicemetadata.IfAdminStatus, operStatus devicemetadata.IfOperStatus) devicemetadata.InterfaceStatus {
+	if adminStatus == devicemetadata.AdminStatusUp {
+		switch {
+		case operStatus == devicemetadata.OperStatusUp:
+			return devicemetadata.InterfaceStatusUp
+		case operStatus == devicemetadata.OperStatusDown:
+			return devicemetadata.InterfaceStatusDown
+		}
+		return devicemetadata.InterfaceStatusWarning
+	}
+	if adminStatus == devicemetadata.AdminStatusDown {
+		switch {
+		case operStatus == devicemetadata.OperStatusUp:
+			return devicemetadata.InterfaceStatusDown
+		case operStatus == devicemetadata.OperStatusDown:
+			return devicemetadata.InterfaceStatusOff
+		}
+		return devicemetadata.InterfaceStatusWarning
+	}
+	if adminStatus == devicemetadata.AdminStatusTesting {
+		switch {
+		case operStatus != devicemetadata.OperStatusDown:
+			return devicemetadata.InterfaceStatusWarning
+		}
+	}
+	return devicemetadata.InterfaceStatusDown
 }
 
 func isEmptyMetadata(device devicemetadata.DeviceMetadata, interfaces []devicemetadata.InterfaceMetadata, links []devicemetadata.TopologyLinkMetadata) bool {
@@ -158,12 +247,13 @@ func buildInterfaceMetadata(deviceID string, snapshot []client.CachedValue) []de
 	sort.Strings(names)
 
 	interfaces := make([]devicemetadata.InterfaceMetadata, 0, len(names))
-	for i, name := range names {
+	for _, name := range names {
 		keys := map[string]string{"name": name}
 
 		ifIndex, ok := firstInt32Value(index, "/interfaces/interface/state/ifindex", keys)
-		if !ok || ifIndex == 0 {
-			ifIndex = int32(i + 1)
+		if !ok || ifIndex <= 0 {
+			log.Debugf("skipping interface %q metadata for %s: missing OpenConfig ifindex", name, deviceID)
+			continue
 		}
 
 		ifType, _ := firstInt32Value(index, "/interfaces/interface/state/type", keys)
@@ -182,9 +272,10 @@ func buildInterfaceMetadata(deviceID string, snapshot []client.CachedValue) []de
 		}
 
 		interfaces = append(interfaces, devicemetadata.InterfaceMetadata{
-			DeviceID:    deviceID,
-			Index:       ifIndex,
-			Name:        interfaceName,
+			DeviceID: deviceID,
+			IDTags:   []string{"interface:" + interfaceName},
+			Index:    ifIndex,
+			Name:     interfaceName,
 			Description: firstStringValue(index, "/interfaces/interface/state/description", keys),
 			MacAddress:  firstStringValue(index, "/interfaces/interface/state/mac-address", keys),
 			AdminStatus: adminStatus,
