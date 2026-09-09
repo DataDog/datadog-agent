@@ -42,9 +42,11 @@ type InterfaceMetadataConfig struct {
 
 // IPAddressMetadataConfig maps logical interface IP metadata fields to gNMI paths.
 type IPAddressMetadataConfig struct {
-	Keys         map[string]string `yaml:"keys"`
-	IP           string            `yaml:"ip"`
-	PrefixLength string            `yaml:"prefix_length"`
+	Keys             map[string]string `yaml:"keys"`
+	IP               string            `yaml:"ip"`
+	PrefixLength     string            `yaml:"prefix_length"`
+	IPv6             string            `yaml:"ipv6"`
+	IPv6PrefixLength string            `yaml:"ipv6_prefix_length"`
 }
 
 // MetadataConfig defines gNMI paths used for NDM device and interface metadata.
@@ -86,8 +88,10 @@ func DefaultOpenConfigMetadata() MetadataConfig {
 				"subinterface": "index",
 				"address":      "ip",
 			},
-			IP:           "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/ip",
-			PrefixLength: "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/prefix-length",
+			IP:               "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/ip",
+			PrefixLength:     "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/prefix-length",
+			IPv6:             "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv6/addresses/address/state/ip",
+			IPv6PrefixLength: "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv6/addresses/address/state/prefix-length",
 		},
 	}
 }
@@ -113,6 +117,8 @@ func (m MetadataConfig) IsZero() bool {
 		len(m.Interface.Keys) == 0 &&
 		m.IPAddress.IP == "" &&
 		m.IPAddress.PrefixLength == "" &&
+		m.IPAddress.IPv6 == "" &&
+		m.IPAddress.IPv6PrefixLength == "" &&
 		len(m.IPAddress.Keys) == 0
 }
 
@@ -168,6 +174,8 @@ func (m MetadataConfig) SubscriptionPaths() []PathSubscriptionConfig {
 
 	add(resolved.IPAddress.IP)
 	add(resolved.IPAddress.PrefixLength)
+	add(resolved.IPAddress.IPv6)
+	add(resolved.IPAddress.IPv6PrefixLength)
 
 	return out
 }
@@ -244,7 +252,9 @@ func metadataSubscriptionKeys(resolved MetadataConfig, path string) map[string]s
 	normalized := normalizeMetadataPath(path)
 	switch {
 	case normalized == normalizeMetadataPath(resolved.IPAddress.IP),
-		normalized == normalizeMetadataPath(resolved.IPAddress.PrefixLength):
+		normalized == normalizeMetadataPath(resolved.IPAddress.PrefixLength),
+		normalized == normalizeMetadataPath(resolved.IPAddress.IPv6),
+		normalized == normalizeMetadataPath(resolved.IPAddress.IPv6PrefixLength):
 		return copyStringMap(resolved.IPAddress.Keys)
 	case strings.Contains(path, "/interfaces/interface/"):
 		return copyStringMap(resolved.Interface.Keys)
@@ -270,21 +280,23 @@ func formatMetadataSubscriptionKey(tags map[string]string) string {
 func validateMetadataConfig(metadata MetadataConfig) error {
 	resolved := metadata.Resolved()
 	for field, path := range map[string]string{
-		"device.hostname":         resolved.Device.Hostname,
-		"device.vendor_name":      resolved.Device.VendorName,
-		"device.serial_number":    resolved.Device.SerialNumber,
-		"device.platform":         resolved.Device.Platform,
-		"device.software_version": resolved.Device.SoftwareVersion,
-		"device.hardware_version": resolved.Device.HardwareVersion,
-		"interface.name":          resolved.Interface.Name,
-		"interface.description":   resolved.Interface.Description,
-		"interface.admin_status":  resolved.Interface.AdminStatus,
-		"interface.oper_status":   resolved.Interface.OperStatus,
-		"interface.mac_address": resolved.Interface.MACAddress,
-		"interface.ifindex":       resolved.Interface.IfIndex,
-		"interface.type":          resolved.Interface.Type,
-		"ip_address.ip":           resolved.IPAddress.IP,
-		"ip_address.prefix_length": resolved.IPAddress.PrefixLength,
+		"device.hostname":               resolved.Device.Hostname,
+		"device.vendor_name":            resolved.Device.VendorName,
+		"device.serial_number":          resolved.Device.SerialNumber,
+		"device.platform":               resolved.Device.Platform,
+		"device.software_version":       resolved.Device.SoftwareVersion,
+		"device.hardware_version":       resolved.Device.HardwareVersion,
+		"interface.name":                resolved.Interface.Name,
+		"interface.description":         resolved.Interface.Description,
+		"interface.admin_status":        resolved.Interface.AdminStatus,
+		"interface.oper_status":         resolved.Interface.OperStatus,
+		"interface.mac_address":         resolved.Interface.MACAddress,
+		"interface.ifindex":             resolved.Interface.IfIndex,
+		"interface.type":                resolved.Interface.Type,
+		"ip_address.ip":                 resolved.IPAddress.IP,
+		"ip_address.prefix_length":      resolved.IPAddress.PrefixLength,
+		"ip_address.ipv6":               resolved.IPAddress.IPv6,
+		"ip_address.ipv6_prefix_length": resolved.IPAddress.IPv6PrefixLength,
 	} {
 		if strings.TrimSpace(path) == "" {
 			continue

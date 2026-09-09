@@ -250,6 +250,12 @@ func mergeIPAddressMetadataConfig(base, override IPAddressMetadataConfig) IPAddr
 	if override.PrefixLength != "" {
 		base.PrefixLength = override.PrefixLength
 	}
+	if override.IPv6 != "" {
+		base.IPv6 = override.IPv6
+	}
+	if override.IPv6PrefixLength != "" {
+		base.IPv6PrefixLength = override.IPv6PrefixLength
+	}
 	return base
 }
 

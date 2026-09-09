@@ -31,3 +31,5 @@ metadata:
       address: ip
     ip: /openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/ip
     prefix_length: /openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/prefix-length
+    ipv6: /openconfig/interfaces/interface/subinterfaces/subinterface/ipv6/addresses/address/state/ip
+    ipv6_prefix_length: /openconfig/interfaces/interface/subinterfaces/subinterface/ipv6/addresses/address/state/prefix-length
