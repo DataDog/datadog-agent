@@ -65,9 +65,15 @@ func TestHasAllowedTracerConfigPrefix(t *testing.T) {
 
 func TestBuildInternalTargetsTracerConfigPrefix(t *testing.T) {
 	config := &Config{staticConfig: staticConfig{containerRegistry: "registry"}}
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Supply(coreconfig.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
 
 	t.Run("DD_ and OTEL_ prefixed tracer configs are accepted", func(t *testing.T) {
-		targets, err := buildInternalTargets(config, []Target{
+		targets, err := buildInternalTargets(config, wmeta, []Target{
 			{
 				Name: "otel-mode",
 				TracerConfigs: []TracerConfig{
@@ -85,7 +91,7 @@ func TestBuildInternalTargetsTracerConfigPrefix(t *testing.T) {
 	})
 
 	t.Run("tracer config without an allowed prefix is rejected", func(t *testing.T) {
-		_, err := buildInternalTargets(config, []Target{
+		_, err := buildInternalTargets(config, wmeta, []Target{
 			{
 				Name:          "bad-target",
 				TracerConfigs: []TracerConfig{{Name: "GENERIC_VAR", Value: "true"}},
