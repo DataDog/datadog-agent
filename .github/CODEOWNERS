@@ -255,6 +255,17 @@
 /cmd/agent/subcommands/workloadlist                 @DataDog/container-platform
 /cmd/agent/subcommands/run/                         @DataDog/agent-runtimes
 /cmd/agent/subcommands/run/internal/clcrunnerapi/   @DataDog/container-platform
+/cmd/agent/subcommands/configcheck                  @DataDog/fleet-automation
+/cmd/agent/subcommands/diagnose                     @DataDog/fleet-automation
+/cmd/agent/subcommands/experimental                 @DataDog/fleet-automation
+/cmd/agent/subcommands/flare                        @DataDog/fleet-automation
+/cmd/agent/subcommands/health                       @DataDog/fleet-automation
+/cmd/agent/subcommands/import                       @DataDog/fleet-automation
+/cmd/agent/subcommands/launchgui                    @DataDog/fleet-automation
+/cmd/agent/subcommands/secret                       @DataDog/fleet-automation
+/cmd/agent/subcommands/secrethelper                 @DataDog/fleet-automation
+/cmd/agent/subcommands/status                       @DataDog/fleet-automation
+/cmd/agent/subcommands/stop                         @DataDog/fleet-automation
 /cmd/agent/windows                                  @DataDog/windows-products
 /cmd/agent/windows_resources                        @DataDog/windows-products
 /cmd/agent/dist/conf.d/                             @DataDog/agent-integrations
