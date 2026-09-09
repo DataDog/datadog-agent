@@ -14,6 +14,7 @@ package inventory
 
 import (
 	"os"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -43,34 +44,21 @@ func NewCapabilities() *inventoryagent.Capabilities {
 	return inventoryagent.NewServerlessCapabilities(uuid.New().String())
 }
 
-// knownDDWrappers is the set of Datadog-owned wrapper binaries that may appear
-// as os.Args[1] in init mode. Only these values are recorded in wrapped_command;
-// anything else is omitted to avoid leaking customer secrets from CLI flags.
-var knownDDWrappers = map[string]bool{
-	"ddtrace-run": true,
-}
-
 // Inject layers the serverless-specific fields and the serverless-init flavor
 // onto the shared inventoryagent component via its public Set API. The
 // component's initData() has already populated the core fields at construction.
 //
-// Inject returns false without modifying the component when the gate is off or
-// when any required identity field (resource_id, resource_name, workload_type)
-// is empty — the caller must gate Submit on the return value.
-func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) bool {
+// Inject, Submit, and SetDeploymentID are all no-ops while the
+// serverless.inventory_enabled ramp gate is off, so a gated-off run emits no
+// serverless payload at all rather than one carrying only core fields.
+func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
 	if !conf.GetBool("serverless.inventory_enabled") {
-		return false
+		return
 	}
-	fields := buildFields(cs, modeConf, conf, tags)
-	inv := cs.GetInventoryData()
-	if inv.WorkloadType == "" || inv.ResourceID == "" || inv.ResourceName == "" {
-		return false
-	}
-	for key, value := range fields {
+	for key, value := range buildFields(cs, modeConf, conf, tags) {
 		ia.Set(key, value)
 	}
 	ia.Set("flavor", serverlessInitFlavor)
-	return true
 }
 
 // Submit enqueues an inventory payload now, synchronously, so a short-lived
@@ -130,13 +118,11 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 		"dd_service": tags["service"],
 	}
 
-	// wrapped_command records the Datadog wrapper binary (e.g. ddtrace-run) when
-	// serverless-init is used in init mode. Only known Datadog wrapper names are
-	// recorded; arbitrary customer args are omitted to avoid leaking secrets.
+	// wrapped_command is the customer workload command wrapped by serverless-init
+	// in init mode (os.Args[1:]); it is absent in sidecar mode, where
+	// serverless-init wraps nothing.
 	if !modeConf.SidecarMode && len(os.Args) > 1 {
-		if cmd := os.Args[1]; knownDDWrappers[cmd] {
-			fields["wrapped_command"] = cmd
-		}
+		fields["wrapped_command"] = strings.Join(os.Args[1:], " ")
 	}
 
 	return fields

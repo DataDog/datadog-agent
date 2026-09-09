@@ -222,6 +222,15 @@ func preloadEarly() {
 	// Agent Data Plane (ADP) is a separate process serverless-init does not support.
 	setOverride("data_plane.enabled", false)
 	setOverride("data_plane.dogstatsd.enabled", false)
+
+	// Submit the inventory metadata payload immediately at startup instead of
+	// after the default first-run delay. That delay orders inventory after host
+	// metadata to avoid a backend host-creation race; serverless-init pulls in no
+	// host-metadata pipeline, so there is no race to order around, and a
+	// short-lived container may exit before a delayed submission fires. Forced
+	// via SourceAgentRuntime so it is not customer-overridable — correct
+	// short-lived-environment operation depends on it.
+	setOverride("inventories_first_run_delay", 0)
 }
 
 // setOverride sets key to val with SourceAgentRuntime priority, logging a
@@ -511,9 +520,8 @@ func setup(
 	// its per-instance id is only known at /run, so it submits from the lifecycle
 	// server (LifecycleContext.InventorySubmitter) rather than here.
 	if origin != cloudservice.MicroVMOrigin {
-		if serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags) {
-			serverlessInitInventory.Submit(inventoryAgent, pkgconfigsetup.Datadog())
-		}
+		serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+		serverlessInitInventory.Submit(inventoryAgent, pkgconfigsetup.Datadog())
 	}
 
 	// MicroVM submits from the lifecycle server instead of at setup: the
@@ -522,10 +530,9 @@ func setup(
 	// payload is injected and submitted. Wired into LifecycleContext below; only
 	// invoked for MicroVM.
 	inventorySubmitter := lifecycle.InventorySubmitterFunc(func(microVMID string) {
-		if serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags) {
-			serverlessInitInventory.SetDeploymentID(inventoryAgent, pkgconfigsetup.Datadog(), microVMID)
-			serverlessInitInventory.Submit(inventoryAgent, pkgconfigsetup.Datadog())
-		}
+		serverlessInitInventory.Inject(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+		serverlessInitInventory.SetDeploymentID(inventoryAgent, pkgconfigsetup.Datadog(), microVMID)
+		serverlessInitInventory.Submit(inventoryAgent, pkgconfigsetup.Datadog())
 	})
 
 	// Note: we do not modify tags for the LogsAgent.
