@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "integrationtests",
+    srcs = ["doc.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/integrationtests",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "integrationtests_test",
+    srcs = ["agent_test.go"],
+    embed = [":integrationtests"],
+    deps = [
+        "//comp/core/autodiscovery/providers",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/network-devices/gnmi",
+        "//pkg/collector/corechecks/network-devices/gnmi/admission",
+        "//pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver",
+        "//pkg/config/mock",
+        "//pkg/networkdevice/metadata",
+        "@com_github_openconfig_gnmi//proto/gnmi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)
