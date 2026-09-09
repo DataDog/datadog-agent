@@ -954,15 +954,19 @@ type Status struct {
 		} `json:"proxy-info"`
 		Python      string `json:"python"`
 		SystemStats struct {
-			CPUCores  int      `json:"cpuCores"`
-			FbsdV     []string `json:"fbsdV"`
-			MacV      []string `json:"macV"`
-			Machine   string   `json:"machine"`
-			NixV      []string `json:"nixV"`
-			Platform  string   `json:"platform"`
-			Processor string   `json:"processor"`
-			PythonV   string   `json:"pythonV"`
-			WinV      []string `json:"winV"`
+			CPUCores int `json:"cpuCores"`
+			// The four os-version fields are heterogeneous, not string lists: the Agent fills them from
+			// osVersion, a [3]interface{} kept for compatibility with Agent V5 (comp/metadata/host/impl/utils),
+			// and on macOS the middle element is itself an array -- macV reads ["15.x", ["", "", ""], "arm64"].
+			// Typing them []string makes every status read on macOS fail to decode.
+			FbsdV     []any  `json:"fbsdV"`
+			MacV      []any  `json:"macV"`
+			Machine   string `json:"machine"`
+			NixV      []any  `json:"nixV"`
+			Platform  string `json:"platform"`
+			Processor string `json:"processor"`
+			PythonV   string `json:"pythonV"`
+			WinV      []any  `json:"winV"`
 		} `json:"systemStats"`
 	} `json:"metadata"`
 	NtpOffset float64 `json:"ntpOffset"`
@@ -1028,15 +1032,16 @@ type Status struct {
 				} `json:"proxy-info"`
 				Python      string `json:"python"`
 				SystemStats struct {
-					CPUCores  int      `json:"cpuCores"`
-					FbsdV     []string `json:"fbsdV"`
-					MacV      []string `json:"macV"`
-					Machine   string   `json:"machine"`
-					NixV      []string `json:"nixV"`
-					Platform  string   `json:"platform"`
-					Processor string   `json:"processor"`
-					PythonV   string   `json:"pythonV"`
-					WinV      []string `json:"winV"`
+					CPUCores int `json:"cpuCores"`
+					// Heterogeneous, as in the core status struct above.
+					FbsdV     []any  `json:"fbsdV"`
+					MacV      []any  `json:"macV"`
+					Machine   string `json:"machine"`
+					NixV      []any  `json:"nixV"`
+					Platform  string `json:"platform"`
+					Processor string `json:"processor"`
+					PythonV   string `json:"pythonV"`
+					WinV      []any  `json:"winV"`
 				} `json:"systemStats"`
 			} `json:"metadata"`
 			Version string `json:"version"`

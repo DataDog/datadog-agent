@@ -249,6 +249,66 @@ func TestRegisterPackageRepositoryIsIdempotent(t *testing.T) {
 	assert.Equal(t, []string{agentPackage}, names)
 }
 
+// TestRegisterPackageRepositoryLeavesAnAlreadyRegisteredPackageAlone pins the guard that keeps this
+// safe to call from postinst unconditionally. Repository.Create removes whatever it finds before
+// writing, so without the guard a .pkg wrapped in an OCI package -- whose postinstall script is the
+// same one the .dmg runs -- would discard the package doInstall had just registered.
+func TestRegisterPackageRepositoryLeavesAnAlreadyRegisteredPackageAlone(t *testing.T) {
+	layout := testLayout(t)
+	ctx := testHookContext(t)
+
+	// Stand in for the package a real OCI install would have registered before this runs.
+	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
+	require.NoError(t, os.MkdirAll(layout.packagesRoot, 0755))
+	source, err := repositories.MkdirTemp()
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(source, "payload"), []byte("real package"), 0644))
+	require.NoError(t, repositories.Create(ctx, agentPackage, "1.2.3-real", source))
+
+	require.NoError(t, registerPackageRepository(ctx, layout))
+
+	state, err := repositories.GetState(agentPackage)
+	require.NoError(t, err)
+	assert.Equal(t, "1.2.3-real", state.Stable, "an already registered package must not be replaced by the placeholder")
+	payload, err := os.ReadFile(filepath.Join(layout.packagesRoot, agentPackage, "stable", "payload"))
+	require.NoError(t, err, "the registered package's content must survive")
+	assert.Equal(t, "real package", string(payload))
+}
+
+// TestInstallWrappedPackageRejectsAnUnusablePayload covers the payload selection installWrappedPackage
+// does before shelling out to installer(8).
+//
+// It is the only automated coverage this function has: macOS is delivered as a .dmg and the product
+// manages configuration rather than Agent versions, so no CI job publishes a macOS OCI artifact and
+// no e2e test installs one. The function is staged for the Fleet-upgrade work, which is when the
+// success path -- running installer(8) against the .pkg, which cannot be faked here -- becomes
+// reachable. Until then the branches worth pinning are the two that must fail loudly rather than
+// silently do nothing, since a no-op would look like a successful install of nothing at all.
+func TestInstallWrappedPackageRejectsAnUnusablePayload(t *testing.T) {
+	t.Run("no .pkg in the package directory", func(t *testing.T) {
+		ctx := testHookContext(t)
+		ctx.PackagePath = t.TempDir()
+
+		err := installWrappedPackage(ctx)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no .pkg found in")
+	})
+
+	t.Run("more than one .pkg in the package directory", func(t *testing.T) {
+		ctx := testHookContext(t)
+		ctx.PackagePath = t.TempDir()
+		for _, name := range []string{"datadog-agent.pkg", "leftover.pkg"} {
+			require.NoError(t, os.WriteFile(filepath.Join(ctx.PackagePath, name), nil, 0644))
+		}
+
+		err := installWrappedPackage(ctx)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "multiple .pkg found in")
+	})
+}
+
 func TestInstallStableJobsLoadsTheStableSetIncludingTheInstaller(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := t.TempDir()

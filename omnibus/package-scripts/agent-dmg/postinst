@@ -275,6 +275,14 @@ if [ -x "$INSTALLER_BIN" ]; then
     if ! "$INSTALLER_BIN" install-stable-jobs 2>&1; then
         echo "WARNING: Failed to install the stable launchd jobs; the Agent and remote configuration management will be unavailable."
     fi
+    # Register the Agent in the OCI package repository the shared installer code keeps per package.
+    # Nothing else on macOS creates it -- the Agent is installed from this .dmg, not from an OCI
+    # package -- but the configuration-experiment code reads it unconditionally, so without this no
+    # Fleet configuration experiment can start. Idempotent, and a no-op when a package is already
+    # registered.
+    if ! "$INSTALLER_BIN" register-package 2>&1; then
+        echo "WARNING: Failed to register the Agent as a package; Fleet configuration experiments will be unavailable."
+    fi
     ln -vsf "$INSTALLER_BIN" /usr/local/bin/datadog-installer
 else
     echo "WARNING: $INSTALLER_BIN missing; skipping LaunchDaemon setup"
