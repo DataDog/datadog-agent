@@ -187,6 +187,7 @@ pkg_filegroup(
     name = "conf_dir_files",
     srcs = [
         ":system_probe_selinux_policy_files",
+        "//pkg/collector/sharedlibrary/rustchecks:enabled_checks",
     ],
 )
 

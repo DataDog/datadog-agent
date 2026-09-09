@@ -44,11 +44,14 @@ provides a `BUILD.bazel` with a `rust_shared_library` (the cdylib) and a
 `libdatadog-agent-<check>.so` and sets root/root-group-only `0550` perms).
 
 To ship a check with the Agent, add its `checks_d_files` target to
-`ENABLED_CHECKS` in this folder's `BUILD.bazel`. The `:install` target
-aggregates all enabled checks and is invoked by omnibus and `dda inv agent.build`:
+`ENABLED_CHECKS` in this folder's `BUILD.bazel`. The `:enabled_checks` target
+aggregates all enabled checks and is a component of
+`//packages/agent/product:conf_dir_files`, staged into `conf_dir` by omnibus
+via `bazel run //packages/agent/product:install_conf_dir_files -- --destdir=<conf_dir>`.
+`:enabled_checks` can also be staged standalone:
 
 ```
-bazel run //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=<dir>
+bazel build //pkg/collector/sharedlibrary/rustchecks:enabled_checks
 ```
 
 ## Testing Rust-based shared library checks
