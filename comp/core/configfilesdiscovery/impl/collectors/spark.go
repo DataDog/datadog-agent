@@ -123,38 +123,39 @@ func (sparkConfigCollector) Collect(ctx context.Context, reader configfilesdisco
 		return configfilesdiscoveryimpl.CollectedConfig{}, nil
 	}
 
+	// Initialize result early and populate fields as we collect them
+	result := configfilesdiscoveryimpl.CollectedConfig{}
+
+	// Collect env vars (best-effort)
 	envVars, envErr := readEnvVars(ctx, reader, includeSparkEnvVar)
 	if envErr != nil {
 		log.Debugf("config files discovery skipped spark driver env var collection: %v", envErr)
-		envVars = nil
+	} else {
+		result.EnvVars = envVars
 	}
 
-	file, ok, err := readSparkConfigFile(
-		ctx,
-		reader,
-		envVars,
-	)
-	if err != nil {
-		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect spark driver config file: %w", err)
+	// Collect config file (best-effort)
+	file, ok, fileErr := readSparkConfigFile(ctx, reader, envVars)
+	if fileErr != nil {
+		log.Debugf("config files discovery could not read spark driver config file: %v", fileErr)
+	} else if ok {
+		file.PayloadFormat = sparkConfigPayloadFormat
+		result.ConfigFiles = []configfilesdiscoveryimpl.ConfigFile{file}
 	}
-	if !ok {
+
+	// Return what we collected
+	if len(result.EnvVars) == 0 && len(result.ConfigFiles) == 0 {
 		if envErr != nil {
-			return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read spark driver env vars: %w", envErr)
+			return result, fmt.Errorf("read spark driver env vars: %w", envErr)
 		}
-		if len(envVars) == 0 {
-			log.Debugf("config files discovery skipped spark driver config collection: no config file or selected env vars detected")
-			return configfilesdiscoveryimpl.CollectedConfig{}, nil
+		if fileErr != nil {
+			return result, fmt.Errorf("collect spark driver config file: %w", fileErr)
 		}
-
-		log.Debugf("config files discovery collected spark driver env vars without a config file")
-		return configfilesdiscoveryimpl.CollectedConfig{EnvVars: envVars}, nil
+		log.Debugf("config files discovery skipped spark driver config collection: no config file or selected env vars detected")
+		return result, nil
 	}
 
-	file.PayloadFormat = sparkConfigPayloadFormat
-	return configfilesdiscoveryimpl.CollectedConfig{
-		ConfigFiles: []configfilesdiscoveryimpl.ConfigFile{file},
-		EnvVars:     envVars,
-	}, nil
+	return result, nil
 }
 
 // sparkFallbackConfigArg uses Spark's documented configuration-directory
