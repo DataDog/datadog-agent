@@ -166,8 +166,13 @@ func (s *powershellCheckWindowsSuite) TestBindsParameterInjectionAsData() {
 func (s *powershellCheckWindowsSuite) TestBindsWhereInjectionAsData() {
 	s.UpdateEnv(powerShellProvisioner(whereInjectionConfig))
 
-	_, err := s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"powershell", "--json"}))
+	output, err := s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"powershell", "--json"}))
 	require.NoError(s.T(), err, "the hostile where value should be compared as data and match no rows")
+	results := checktest.ParseJSONOutput(s.T(), []byte(output))
+	require.Len(s.T(), results, 1)
+	require.Equal(s.T(), 1, results[0].Runner.TotalRuns)
+	require.Zero(s.T(), results[0].Runner.TotalErrors)
+	assert.Empty(s.T(), results[0].Aggregator.Metrics, "the hostile where value should match no rows")
 	s.assertMarkerDoesNotExist(whereInjectionMarker)
 }
 
