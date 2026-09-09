@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -155,7 +156,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, err
 	}
 	if deps.EBPFConfig == nil {
-		return nil, fmt.Errorf("eBPF config cannot be nil")
+		return nil, errors.New("eBPF config cannot be nil")
 	}
 	ebpfCfg := deps.EBPFConfig
 
