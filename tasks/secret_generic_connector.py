@@ -38,8 +38,14 @@ def build(
     Build the secret-generic-connector binary.
     """
     if enable_bazel:
-        if output_bin is not None or arch_suffix is not False:
-            raise NotImplementedError("--enable-bazel does not support --output-bin/--arch-suffix.")
+        if output_bin:
+            raise NotImplementedError("--enable-bazel does not support --output-bin")
+        if arch_suffix:
+            raise NotImplementedError(
+                "--enable-bazel does not support --arch-suffix yet. Ask agent-build about this need"
+            )
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race. Use bazel build directly.")
         bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
         build_binary_with_bazel(
             "//cmd/secret-generic-connector:secret-generic-connector", args=bazel_args, bin_path=BIN_PATH
