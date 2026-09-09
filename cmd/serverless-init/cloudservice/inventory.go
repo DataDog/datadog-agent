@@ -20,7 +20,7 @@ const (
 	workloadTypeAzureContainerApp = "azure_container_app"
 	workloadTypeAzureAppService   = "azure_app_service"
 	workloadTypeAzureFunction     = "azure_function"
-	workloadTypeAWSMicroVM        = "aws_lambda_microvm"
+	workloadTypeAWSMicroVM        = "aws_microvm"
 )
 
 // InventoryData holds the per-platform serverless fields that feed the
