@@ -62,8 +62,6 @@ type cudaEventConsumerDependencies struct {
 	sysCtx *systemContext
 	// cfg is the configuration
 	cfg *config.Config
-	// ebpfConfig contains the shared system-probe eBPF settings.
-	ebpfConfig *ddebpf.Config
 	// telemetry is the telemetry component
 	telemetry telemetry.Component
 	// processMonitor allows subscribing to process start and exit events
@@ -374,7 +372,7 @@ func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 
 func (c *cudaEventConsumer) checkClosedProcesses() {
 	seenPIDs := make(map[uint32]struct{})
-	_ = kernel.WithAllProcs(c.deps.ebpfConfig.ProcRoot, func(pid int) error {
+	_ = kernel.WithAllProcs(c.deps.sysCtx.procRoot, func(pid int) error {
 		seenPIDs[uint32(pid)] = struct{}{}
 		return nil
 	})
