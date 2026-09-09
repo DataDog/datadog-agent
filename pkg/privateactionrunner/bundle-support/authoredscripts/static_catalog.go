@@ -22,8 +22,8 @@ var staticCatalogEntries = map[string]Descriptor{
 	"com.datadoghq.authoredscripts.helm.addRepo": {
 		Package: "com.datadoghq.authoredscripts.helm.addRepo",
 		Version: "0.0.1",
-		URL:     "oci://registry.ddbuild.io/dd-authored-scripts/dd-par-scripts-helm-add-repo@sha256:ea7829a6ebdaa464eb4fbfff4c72e6e63176df58a430a4b0b8dfb66f0e57149c",
-		SHA256:  "ea7829a6ebdaa464eb4fbfff4c72e6e63176df58a430a4b0b8dfb66f0e57149c",
+		URL:     "oci://install.datad0g.com/com.datadoghq.authoredscripts.helm.addrepo-package:0.0.1-1",
+		SHA256:  "cd4ef4c7ef5d394a407d05a1d60f6efac64aa3d507124f55f4385e1b5c6e5bfe",
 	},
 }
 

@@ -55,15 +55,11 @@ func (s *LocalStore) Open(descriptor Descriptor) (LocalArtifact, error) {
 	if s == nil || s.rootDirectory == "" {
 		return LocalArtifact{}, errors.New("local artifact store is not configured")
 	}
-	if err := validateDescriptor(descriptor); err != nil {
+	if err := descriptor.Validate(); err != nil {
 		return LocalArtifact{}, err
 	}
 
 	artifactDigest := digest.NewDigestFromEncoded(digest.SHA256, descriptor.SHA256)
-	if err := artifactDigest.Validate(); err != nil {
-		return LocalArtifact{}, fmt.Errorf("invalid authored-script SHA-256 digest %q: %w", descriptor.SHA256, err)
-	}
-
 	artifactDirectory, err := securejoin.SecureJoin(s.rootDirectory, artifactDigest.Encoded())
 	if err != nil {
 		return LocalArtifact{}, fmt.Errorf("could not resolve local authored-script artifact directory: %w", err)
@@ -84,20 +80,4 @@ func (s *LocalStore) Open(descriptor Descriptor) (LocalArtifact, error) {
 	}
 
 	return LocalArtifact{Directory: artifactDirectory}, nil
-}
-
-func validateDescriptor(descriptor Descriptor) error {
-	if descriptor.Package == "" {
-		return errors.New("authored-script package is required")
-	}
-	if descriptor.Version == "" {
-		return errors.New("authored-script version is required")
-	}
-	if descriptor.URL == "" {
-		return errors.New("authored-script URL is required")
-	}
-	if descriptor.SHA256 == "" {
-		return errors.New("authored-script SHA-256 digest is required")
-	}
-	return nil
 }

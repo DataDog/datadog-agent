@@ -129,6 +129,7 @@ go_library(
 dd_agent_go_test(
     name = "authoredscripts_test",
     srcs = [
+        "catalog_test.go",
         "command_test.go",
         "environment_test.go",
         "execution_test.go",
