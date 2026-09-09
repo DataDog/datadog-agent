@@ -29,6 +29,37 @@ type rawRCKey struct {
 	Key     []byte `json:"key"`
 }
 
+type testSigningKey struct {
+	id         string
+	privateKey ed25519.PrivateKey
+	config     []byte
+}
+
+func generateTestSigningKey(t *testing.T, id string) testSigningKey {
+	t.Helper()
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err, "failed to generate runner signing key")
+
+	publicDER, err := x509.MarshalPKIXPublicKey(publicKey)
+	require.NoError(t, err, "failed to marshal runner public key")
+	publicPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: publicDER})
+
+	config, err := json.Marshal(rawRCKey{KeyType: "ED25519", Key: publicPEM})
+	require.NoError(t, err, "failed to marshal runner key config")
+	return testSigningKey{id: id, privateKey: privateKey, config: config}
+}
+
+func setPARTaskSigningKey(t *testing.T, client *fakeintakeclient.Client, key testSigningKey) {
+	t.Helper()
+	require.NoError(t, client.SetPARSigningKey(
+		key.id,
+		key.privateKey,
+		123456,
+		"test-runner-e2e",
+		"connection:execgroup_ddagent:par-rshell-e2e",
+	))
+}
+
 // pushRunnerPublicKey pushes a fresh ED25519 public key to fakeintake as an
 // AP_RUNNER_KEYS remote-config update, returning the private half.
 func pushRunnerPublicKey(t *testing.T, client *fakeintakeclient.Client, keyID string) ed25519.PrivateKey {

@@ -324,4 +324,5 @@ func init() {
 	KFilterGetters["prctl"] = prctlKFiltersGetter
 	KFilterGetters["setsockopt"] = setsockoptKFiltersGetter
 	KFilterGetters["socket"] = socketKFiltersGetter
+	KFilterGetters["unshare"] = unshareKFiltersGetter
 }

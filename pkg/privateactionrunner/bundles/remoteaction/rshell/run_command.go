@@ -10,6 +10,7 @@ package com_datadoghq_remoteaction_rshell
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ import (
 	"mvdan.cc/sh/v3/syntax"
 
 	"github.com/DataDog/rshell/interp"
+	"github.com/DataDog/rshell/privilegedhelper"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -43,6 +45,7 @@ const (
 	journalControlSocketPath     = "systemd/journal/io.systemd.journal"
 	systemdManagerBusSocketPath  = "dbus/system_bus_socket"
 	containerizedPathPrefix      = "/host"
+	directorProofKeyType         = privilegedhelper.KeyType("TUF_DIRECTOR")
 )
 
 // statFn is the function used to check path existence. It defaults to os.Stat
@@ -55,6 +58,8 @@ type RunCommandHandlerConfig struct {
 	OperatorAllowedCommands       []string
 	OperatorAllowedSystemServices map[string][]string
 	DisableDetailedTelemetry      bool
+	PrivilegedEnabled             bool
+	PrivilegedSocket              string
 }
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
@@ -62,7 +67,10 @@ type RunCommandHandlerConfig struct {
 // The two actions share all sandboxing logic and differ only in mode:
 // - runCommand runs rshell in read-only mode (interp.ModeReadOnly) ;
 // - runRemediationCommand runs it in remediation mode (interp.ModeRemediation)
-// both still confined to the effective AllowedPaths sandbox.
+// both still confined to the effective AllowedPaths sandbox. Either action can
+// delegate selectively elevated execution to the privileged helper; the helper
+// independently authenticates the signed action and enforces its corresponding
+// execution mode.
 //
 // The operator allowlists narrow the per-task backend lists before being passed
 // to rshell. They use different equivalence notions:
@@ -85,6 +93,8 @@ type RunCommandHandler struct {
 	operatorAllowedSystemServices map[string][]string
 	disableCommandTelemetry       bool
 	mode                          interp.Mode
+	privilegedEnabled             bool
+	privilegedSocket              string
 }
 
 // newRunCommandHandler builds a run-command handler and precomputes the
@@ -108,6 +118,8 @@ func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCom
 		operatorAllowedSystemServices: services,
 		disableCommandTelemetry:       cfg.DisableDetailedTelemetry,
 		mode:                          mode,
+		privilegedEnabled:             cfg.PrivilegedEnabled,
+		privilegedSocket:              cfg.PrivilegedSocket,
 	}
 }
 
@@ -250,9 +262,11 @@ func cloneSystemServiceAllowlist(services map[string][]string) map[string][]stri
 // legacy allowedCommands/allowedPaths input fields are still accepted as a
 // compatibility fallback for tasks signed by older servers.
 type RunCommandInputs struct {
-	Command         string              `json:"command"`
-	AllowedCommands []string            `json:"allowedCommands"`
-	AllowedPaths    map[string][]string `json:"allowedPaths"`
+	Command              string              `json:"command"`
+	AllowedCommands      []string            `json:"allowedCommands"`
+	AllowedPaths         map[string][]string `json:"allowedPaths"`
+	EffectivePermissions string              `json:"effectivePermissions"`
+	ElevatableCommands   []string            `json:"elevatableCommands"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -282,6 +296,16 @@ func (h *RunCommandHandler) Run(
 	}
 	if inputs.Command == "" {
 		return nil, errors.New("command is required")
+	}
+	if inputs.EffectivePermissions != "" {
+		switch inputs.EffectivePermissions {
+		case privilegedhelper.EscalationAllowed:
+			return h.runPrivileged(ctx, task)
+		case "Root":
+			return nil, errors.New("whole-script root execution is not supported")
+		default:
+			return nil, fmt.Errorf("unsupported effective permissions %q", inputs.EffectivePermissions)
+		}
 	}
 
 	backendCommands, backendPaths, backendSystemServices := backendAllowlistsFromTask(task, inputs)
@@ -347,6 +371,59 @@ func (h *RunCommandHandler) Run(
 		Stderr:          stderr.String(),
 		SandboxWarnings: runner.Warnings(),
 	}, nil
+}
+
+func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task) (interface{}, error) {
+	if !h.privilegedEnabled {
+		return nil, errors.New("privileged rshell execution is disabled by local configuration")
+	}
+	if h.privilegedSocket == "" {
+		return nil, errors.New("privileged rshell socket is not configured")
+	}
+	envelope := task.Data.Attributes.SignedEnvelope
+	if envelope == nil {
+		return nil, errors.New("verified signed envelope is required for privileged execution")
+	}
+	verificationKey := task.Data.Attributes.VerificationKey
+	if verificationKey == nil {
+		return nil, errors.New("verified public key is required for privileged execution")
+	}
+	if verificationKey.DirectorProof == nil {
+		return nil, errors.New("verified Director proof is required for privileged execution")
+	}
+	proofJSON, err := json.Marshal(verificationKey.DirectorProof)
+	if err != nil {
+		return nil, fmt.Errorf("encode Director proof: %w", err)
+	}
+	signatures := make([]privilegedhelper.Signature, 0, len(envelope.Signatures))
+	for _, signature := range envelope.Signatures {
+		var keyType privilegedhelper.KeyType
+		switch signature.KeyType.String() {
+		case "X509_RSA":
+			keyType = privilegedhelper.KeyTypeX509RSA
+		case "ED25519":
+			keyType = privilegedhelper.KeyTypeED25519
+		default:
+			return nil, fmt.Errorf("unsupported signature key type %s", signature.KeyType)
+		}
+		signatures = append(signatures, privilegedhelper.Signature{KeyType: keyType, KeyID: signature.KeyId, Signature: signature.Signature})
+	}
+	request := privilegedhelper.ExecuteRequest{
+		Version: privilegedhelper.ProtocolVersion,
+		Envelope: privilegedhelper.SignedEnvelope{
+			Data: envelope.Data, HashType: envelope.HashType.String(), Signatures: signatures,
+		},
+		VerificationKeys: []privilegedhelper.CredentialKey{{
+			ID: verificationKey.DirectorProof.TargetPath, Type: directorProofKeyType, PEM: string(proofJSON),
+		}, {
+			ID: verificationKey.ID, Type: privilegedhelper.KeyType(verificationKey.KeyType), PEM: verificationKey.PEM,
+		}},
+	}
+	response, err := (privilegedhelper.Client{SocketPath: h.privilegedSocket}).Execute(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("privileged rshell helper: %w", err)
+	}
+	return &RunCommandOutputs{ExitCode: response.ExitCode, Stdout: response.Stdout, Stderr: response.Stderr, SandboxWarnings: response.SandboxWarnings}, nil
 }
 
 func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (commands []string, paths []string, systemServices map[string]*structpb.ListValue) {
