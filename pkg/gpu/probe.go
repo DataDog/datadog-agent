@@ -223,7 +223,6 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	p.consumer = newCudaEventConsumer(cudaEventConsumerDependencies{
 		sysCtx:         sysCtx,
 		cfg:            cfg,
-		ebpfConfig:     ebpfCfg,
 		telemetry:      deps.Telemetry,
 		processMonitor: deps.ProcessMonitor,
 		streamHandlers: p.streamHandlers,
