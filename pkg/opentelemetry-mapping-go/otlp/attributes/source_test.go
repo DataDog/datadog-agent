@@ -228,12 +228,12 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "Azure Container Apps (falls back to service.instance.id when azure.container_app.instance.id is absent)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):          conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):          semconv1_43.CloudPlatformAzureContainerApps.Value.AsString(),
-				string(semconv1_27.ServiceInstanceIDKey):      "replica-1",
-				string(conventions.ServiceNameKey):            "my-app",
-				string(semconv1_27.CloudAccountIDKey):         "sub-123",
-				string(semconv1_43.AzureResourceGroupNameKey): "my-rg",
+				string(conventions.CloudProviderKey):         conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):         semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
+				string(semconv1_27.ServiceInstanceIDKey):     "replica-1",
+				string(conventions.ServiceNameKey):           "my-app",
+				string(semconv1_27.CloudAccountIDKey):        "sub-123",
+				string(semconv143.AzureResourceGroupNameKey): "my-rg",
 			}),
 			ok: true,
 			src: source.Source{
@@ -253,13 +253,13 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "Azure Container Apps (azure.container_app.instance.id takes precedence over service.instance.id)",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):          conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):          semconv1_43.CloudPlatformAzureContainerApps.Value.AsString(),
-				AttributeAzureContainerAppInstanceID:          "replica-1",
-				string(semconv1_27.ServiceInstanceIDKey):      "some-other-instance-id",
-				string(conventions.ServiceNameKey):            "my-app",
-				string(semconv1_27.CloudAccountIDKey):         "sub-123",
-				string(semconv1_43.AzureResourceGroupNameKey): "my-rg",
+				string(conventions.CloudProviderKey):         conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.CloudPlatformKey):         semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
+				AttributeAzureContainerAppInstanceID:         "replica-1",
+				string(semconv1_27.ServiceInstanceIDKey):     "some-other-instance-id",
+				string(conventions.ServiceNameKey):           "my-app",
+				string(semconv1_27.CloudAccountIDKey):        "sub-123",
+				string(semconv143.AzureResourceGroupNameKey): "my-rg",
 			}),
 			ok: true,
 			src: source.Source{
