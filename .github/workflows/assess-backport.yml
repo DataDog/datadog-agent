@@ -29,7 +29,7 @@ permissions: {}
 jobs:
   list-active-branches:
     name: List active release branches
-    if: github.event.pull_request.merged
+    if: github.event.pull_request.merged && github.event.pull_request.head.repo.full_name == github.repository && !contains(github.event.pull_request.user.login, '[bot]') && !contains(join(github.event.pull_request.labels.*.name, ','), 'backport/')
     runs-on: ubuntu-latest
     permissions:
       contents: read
