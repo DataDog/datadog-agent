@@ -6,7 +6,6 @@ dd_agent_go_test(
         "fips_test.go",
         "mutually_exclusive_product_test.go",
     ],
-    target_compatible_with = ["@platforms//os:windows"],
     deps = [
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",
