@@ -158,7 +158,6 @@ type Client struct {
 	hostAggregator                 aggregator.HostTagsAggregator
 	agentHealthAggregator          aggregator.AgentHealthAggregator
 	agentTelemetryLogAggregator    aggregator.AgentTelemetryLogAggregator
-	ddInjectorCrashAggregator      aggregator.DDInjectorCrashAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -196,7 +195,6 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		hostAggregator:                 aggregator.NewHostTagsAggregator(),
 		agentHealthAggregator:          aggregator.NewAgentHealthAggregator(),
 		agentTelemetryLogAggregator:    aggregator.NewAgentTelemetryLogAggregator(),
-		ddInjectorCrashAggregator:      aggregator.NewDDInjectorCrashAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -402,14 +400,6 @@ func (c *Client) getAgentTelemetryLogs() error {
 		return err
 	}
 	return c.agentTelemetryLogAggregator.UnmarshallPayloads(payloads)
-}
-
-func (c *Client) getDDInjectorCrashes() error {
-	payloads, err := c.getFakePayloads(apmTelemetryEndpoint)
-	if err != nil {
-		return err
-	}
-	return c.ddInjectorCrashAggregator.UnmarshallPayloads(payloads)
 }
 
 // FilterMetrics fetches fakeintake on both `/api/v2/series` and `/api/intake/metrics/v3/series`
@@ -832,7 +822,6 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.traceAggregator.Reset()
 	c.agentDiscoveryAggregator.Reset()
 	c.agentTelemetryLogAggregator.Reset()
-	c.ddInjectorCrashAggregator.Reset()
 	return nil
 }
 
@@ -1306,19 +1295,6 @@ func (c *Client) GetAgentTelemetryLogs() ([]*aggregator.AgentTelemetryLog, error
 		logs = append(logs, c.agentTelemetryLogAggregator.GetPayloadsByName(name)...)
 	}
 	return logs, nil
-}
-
-// GetDDInjectorCrashes fetches fakeintake on `/api/v2/apmtelemetry` and returns
-// all DDInjector crash-attribution events received since the last flush.
-func (c *Client) GetDDInjectorCrashes() ([]*aggregator.DDInjectorCrash, error) {
-	if err := c.getDDInjectorCrashes(); err != nil {
-		return nil, err
-	}
-	var crashes []*aggregator.DDInjectorCrash
-	for _, name := range c.ddInjectorCrashAggregator.GetNames() {
-		crashes = append(crashes, c.ddInjectorCrashAggregator.GetPayloadsByName(name)...)
-	}
-	return crashes, nil
 }
 
 // GetAgentHealth fetches fakeintake on `/api/v2/agenthealth` endpoint and returns all received agent health payloads

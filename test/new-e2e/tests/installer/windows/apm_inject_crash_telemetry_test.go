@@ -35,8 +35,12 @@ const (
 )
 
 type crashProcessResult struct {
-	ProcessID  uint32 `json:"process_id"`
-	ExitStatus string `json:"exit_status"`
+	ProcessName      string `json:"process_name"`
+	ProcessID        uint32 `json:"process_id"`
+	ExitStatus       string `json:"exit_status"`
+	ElapsedMs        int64  `json:"elapsed_ms"`
+	Phase            string `json:"phase"`
+	EventsSuppressed uint64 `json:"events_suppressed"`
 }
 
 type testInjectorCrashTelemetry struct {
@@ -60,7 +64,7 @@ Remove-Item -Path "C:\ddinjector-e2e" -Recurse -Force -ErrorAction SilentlyConti
 	s.Installer().Purge()
 }
 
-func (s *testInjectorCrashTelemetry) TestCrashEventReachesAgentTelemetry() {
+func (s *testInjectorCrashTelemetry) TestCrashLogReachesAgentTelemetry() {
 	s.installCurrentAgentVersionWithAPMInject(
 		WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED":                      "host",
@@ -84,12 +88,21 @@ func (s *testInjectorCrashTelemetry) TestCrashEventReachesAgentTelemetry() {
 	require.Equal(s.T(), uint64(0xc0000000), exitStatus&0xc0000000, "the fixture process should terminate with an NT error")
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		crashes, err := s.Env().FakeIntake.Client().GetDDInjectorCrashes()
+		logs, err := s.Env().FakeIntake.Client().GetAgentTelemetryLogs()
 		require.NoError(c, err)
-		for _, crash := range crashes {
+		for _, log := range logs {
+			if log.ErrorKind != "ddinjector_crash" {
+				continue
+			}
+			var crash crashProcessResult
+			if err := json.Unmarshal([]byte(log.Message), &crash); err != nil {
+				continue
+			}
 			if crash.ProcessID != process.ProcessID {
 				continue
 			}
+			assert.Equal(c, "ERROR", log.Level)
+			assert.Equal(c, 1, log.Count)
 			assert.Equal(c, "ddinjector-e2e-crash.exe", crash.ProcessName)
 			assert.Equal(c, process.ExitStatus, crash.ExitStatus)
 			assert.GreaterOrEqual(c, crash.ElapsedMs, int64(0))
@@ -97,7 +110,7 @@ func (s *testInjectorCrashTelemetry) TestCrashEventReachesAgentTelemetry() {
 			assert.Contains(c, []string{"during_injection", "post_injection"}, crash.Phase)
 			return
 		}
-		assert.Fail(c, "DDInjector crash telemetry not found", "no event for PID %d among %d crash events", process.ProcessID, len(crashes))
+		assert.Fail(c, "DDInjector crash telemetry not found", "no log for PID %d among %d Agent telemetry logs", process.ProcessID, len(logs))
 	}, 2*time.Minute, 10*time.Second)
 
 	stats := s.queryInjectorStats(true)

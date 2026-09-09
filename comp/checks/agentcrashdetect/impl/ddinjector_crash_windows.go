@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	ddInjectorCrashEventType    = "ddinjector-crash"
+	ddInjectorCrashErrorKind    = "ddinjector_crash"
 	ddInjectorProviderGUID      = "{9933a039-281b-4342-a4e0-7109c8d3f22c}"
 	ddInjectorETWSessionName    = "Datadog DDInjector crash telemetry"
 	ddInjectorETWCrashKeyword   = uint64(0x40)
@@ -145,12 +145,19 @@ func (l *ddInjectorCrashListener) logDecodeError(part string, err error) {
 func (l *ddInjectorCrashListener) runWorker() {
 	defer close(l.workerDone)
 	for event := range l.events {
-		payload, err := json.Marshal(event)
+		message, err := json.Marshal(event)
 		if err != nil {
 			l.log.Debugf("Could not marshal DDInjector crash telemetry: %v", err)
 			continue
 		}
-		if err = l.atel.SendEvent(ddInjectorCrashEventType, payload); err != nil {
+		payload := agenttelemetry.LogsPayload{Logs: []agenttelemetry.Log{{
+			Message:    string(message),
+			Level:      agenttelemetry.LogLevelError,
+			TracerTime: time.Now().Unix(),
+			Count:      1,
+			ErrorKind:  ddInjectorCrashErrorKind,
+		}}}
+		if err = l.atel.SendLogs(payload); err != nil {
 			l.log.Debugf("Could not send DDInjector crash telemetry: %v", err)
 		}
 	}
