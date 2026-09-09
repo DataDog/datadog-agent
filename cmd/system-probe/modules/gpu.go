@@ -81,6 +81,7 @@ var GPUMonitoring = &module.Factory{
 		}
 
 		var p *gpu.Probe
+		var driverEventSubscriber driverEventSubscriber
 		var err error
 		if c.EnableEBPFProbes {
 			probeDeps := gpu.ProbeDependencies{
