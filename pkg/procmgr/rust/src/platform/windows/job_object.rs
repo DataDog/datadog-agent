@@ -31,19 +31,9 @@ impl JobObject {
                 );
             }
 
-            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
-            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-
-            let ok = SetInformationJobObject(
-                handle,
-                JobObjectExtendedLimitInformation,
-                &info as *const _ as *const _,
-                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            );
-            if ok == 0 {
-                let err = std::io::Error::last_os_error();
+            if let Err(err) = configure_kill_on_close(handle) {
                 CloseHandle(handle);
-                anyhow::bail!("SetInformationJobObject failed: {err}");
+                return Err(err);
             }
 
             Ok(Self { handle })
@@ -83,6 +73,26 @@ impl JobObject {
         }
         Ok(())
     }
+}
+
+unsafe fn configure_kill_on_close(handle: HANDLE) -> Result<()> {
+    let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+    let info_ptr = &info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION;
+    let ok = SetInformationJobObject(
+        handle,
+        JobObjectExtendedLimitInformation,
+        info_ptr as *const std::ffi::c_void,
+        std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+    );
+    if ok == 0 {
+        anyhow::bail!(
+            "SetInformationJobObject failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(())
 }
 
 impl Drop for JobObject {
