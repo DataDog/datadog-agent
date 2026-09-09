@@ -228,16 +228,14 @@ func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 }
 
 // ClusterID must not block a caller for the duration of a hung lookup: the
-// node-agent HTTP client can take ~10s and the Cluster Agent's Kubernetes
-// calls take no caller deadline, so the caller wait is bounded by
-// clusterResolveTimeout regardless of how long lookup() blocks.
+// caller wait is bounded by clusterResolveTimeout regardless of how long
+// lookup() blocks.
 //
 // Runs inside a synctest bubble so the timeout is virtual: fake time advances
-// deterministically once every goroutine is durably blocked, replacing the
-// real sleeps, wall-clock margins, and polling that a loaded CI worker could
-// bust even when the resolver behaves correctly. release, the resolver's
-// blocking channel, is created inside the bubble so blocking on it counts as
-// durably blocked and lets the clusterResolveTimeout timer fire.
+// deterministically once every goroutine is durably blocked, avoiding the real
+// sleeps and wall-clock margins a loaded CI worker could bust. release is
+// created inside the bubble so blocking on it counts as durably blocked and
+// lets the clusterResolveTimeout timer fire.
 func TestClusterID_BlockedLookupDoesNotBlockCallerBeyondTimeout(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
@@ -259,14 +257,12 @@ func TestClusterID_BlockedLookupDoesNotBlockCallerBeyondTimeout(t *testing.T) {
 		elapsed := time.Since(start)
 		assert.Empty(t, id, "a blocked lookup must not surface an id")
 		// Virtual time advances exactly to the bounded wait: the caller returns
-		// the moment clusterResolveTimeout elapses, never waiting for the still-
-		// blocked lookup.
+		// the moment clusterResolveTimeout elapses, not when the lookup does.
 		assert.Equal(t, s.clusterResolveTimeout, elapsed, "caller must return once the bounded wait elapses, not wait for the blocked lookup")
 
-		// Unblock the lookup and let the shared resolver goroutine settle. This
-		// both proves a later call picks up the id the timed-out one missed, and
-		// lets the resolver finish (via synctest.Wait) before t.Cleanup restores
-		// the stub globals it reads, which would otherwise race it.
+		// Unblock the lookup and let the resolver settle: proves a later call
+		// picks up the id the timed-out one missed, and lets the resolver finish
+		// (synctest.Wait) before t.Cleanup restores the stub globals it reads.
 		close(release)
 		synctest.Wait()
 		assert.Equal(t, "node-agent-id", s.ClusterID(), "a later call must pick up the id the timed-out caller missed")
@@ -291,12 +287,10 @@ func TestClusterID_CachesSuccessfulResolution(t *testing.T) {
 	assert.Equal(t, 1, calls, "second call must return from cache, not re-run the lookup")
 }
 
-// TestClusterID_FailedResolutionIsNotCachedPermanently verifies that a
-// Cluster Agent/API server outage at startup does not permanently blank out
-// cluster_id for the process lifetime — a later call (e.g. the next periodic
-// report) must retry rather than replay a stale empty result, the same
-// guarantee DeploymentID already provides for a transient workloadmeta miss
-// (see TestDeploymentID_TransientMissIsNotCachedPermanently).
+// TestClusterID_FailedResolutionIsNotCachedPermanently verifies that a startup
+// Cluster Agent/API server outage doesn't permanently blank out cluster_id: a
+// later call must retry rather than replay the stale empty result (cf.
+// TestDeploymentID_TransientMissIsNotCachedPermanently).
 func TestClusterID_FailedResolutionIsNotCachedPermanently(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
@@ -334,10 +328,8 @@ func stubClusterIDFuncs(t *testing.T, nodeAgent, clusterAgent func() (string, er
 
 // TestClusterID_ClusterAgentFlavorUsesClusterAgentLookup verifies that on the
 // Cluster Agent flavor, ClusterID dispatches to the Cluster-Agent-specific
-// lookup (apiserver.GetAPIClient + GetOrCreateClusterID) rather than
-// clustername.GetClusterID, which is documented as node-agent-only and is
-// broken when the Cluster Agent calls it on itself. Without this dispatch,
-// this test would instead observe the node-agent stub's value.
+// lookup rather than the node-agent-only clustername.GetClusterID (broken when
+// the DCA calls it on itself).
 func TestClusterID_ClusterAgentFlavorUsesClusterAgentLookup(t *testing.T) {
 	origFlavor := flavor.GetFlavor()
 	flavor.SetFlavor(flavor.ClusterAgent)
