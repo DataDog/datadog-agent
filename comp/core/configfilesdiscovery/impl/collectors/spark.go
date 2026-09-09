@@ -7,7 +7,6 @@ package collectors
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path"
 	"strings"
@@ -143,6 +142,10 @@ func (sparkConfigCollector) Collect(ctx context.Context, reader configfilesdisco
 		result.ConfigFiles = []configfilesdiscoveryimpl.ConfigFile{file}
 	}
 
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return result, ctxErr
+	}
+
 	// Return what we collected
 	if len(result.EnvVars) == 0 && len(result.ConfigFiles) == 0 {
 		if envErr != nil {
@@ -177,36 +180,78 @@ func readSparkConfigFile(
 	reader configfilesdiscoveryimpl.ConfigReader,
 	envVars []configfilesdiscoveryimpl.ConfigEnvVar,
 ) (configfilesdiscoveryimpl.ConfigFile, bool, error) {
-	fallbackConfigArg := sparkFallbackConfigArg(envVars)
-	runtimeCommandline, runtimeErr := reader.ReadRuntimeCommandline(ctx)
-	if fallbackConfigArg == "" {
-		file, ok, err := readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkCommandlineDoesNotBlockDefaultPaths, "", sparkDefaultConfigPathGroups...)
-		if err != nil && runtimeErr != nil && errors.Is(err, runtimeErr) {
+	file, ok, explicitFound, runtimeWorkingDir, err := readSparkExplicitPropertiesFile(ctx, reader)
+	if err != nil || ok || explicitFound {
+		return file, ok, err
+	}
+
+	if fallbackConfigArg := sparkFallbackConfigArg(envVars); fallbackConfigArg != "" {
+		configPath, resolved := resolveConfigPath(fallbackConfigArg, runtimeWorkingDir)
+		if !resolved {
 			return configfilesdiscoveryimpl.ConfigFile{}, false, nil
 		}
-		return file, ok, err
-	}
-
-	file, ok, err := readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkMatchesSubmitCommandline, "")
-	if err != nil && (runtimeErr == nil || !errors.Is(err, runtimeErr)) {
-		return file, ok, err
-	}
-	if ok {
-		return file, ok, nil
-	}
-
-	configPath, resolved := resolveConfigPath(fallbackConfigArg, runtimeCommandline.WorkingDir)
-	if !resolved {
-		return configfilesdiscoveryimpl.ConfigFile{}, false, nil
-	}
-	file, err = reader.ReadFile(ctx, configPath)
-	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return configfilesdiscoveryimpl.ConfigFile{}, false, ctxErr
+		file, err = reader.ReadFile(ctx, configPath)
+		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return configfilesdiscoveryimpl.ConfigFile{}, false, ctxErr
+			}
+			return configfilesdiscoveryimpl.ConfigFile{}, false, nil
 		}
+		return file, true, nil
+	}
+
+	if !sparkHasTaggedSubmitDriver(ctx, reader) {
 		return configfilesdiscoveryimpl.ConfigFile{}, false, nil
 	}
-	return file, true, nil
+
+	return readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkCommandlineDoesNotBlockDefaultPaths, "", sparkDefaultConfigPathGroups...)
+}
+
+func readSparkExplicitPropertiesFile(
+	ctx context.Context,
+	reader configfilesdiscoveryimpl.ConfigReader,
+) (configfilesdiscoveryimpl.ConfigFile, bool, bool, string, error) {
+	runtimeWorkingDir := ""
+	configPath := ""
+	explicitFound := false
+
+	if commandline, err := reader.ReadRuntimeCommandline(ctx); err == nil {
+		runtimeWorkingDir = commandline.WorkingDir
+		if configArg, found := sparkGetPropertiesFileFromCommandline(commandline.Args); found {
+			explicitFound = true
+			if resolvedPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir); resolved {
+				configPath = resolvedPath
+			}
+		}
+	}
+
+	if configPath == "" {
+		for _, commandline := range reader.ReadLiveProcessCommandlines(ctx) {
+			configArg, found := sparkGetPropertiesFileFromCommandline(commandline.Args)
+			if !found {
+				continue
+			}
+			explicitFound = true
+			resolvedPath, resolved := resolveConfigPath(configArg, commandline.WorkingDir)
+			if !resolved {
+				return configfilesdiscoveryimpl.ConfigFile{}, false, true, runtimeWorkingDir, nil
+			}
+			if configPath != "" && configPath != resolvedPath {
+				return configfilesdiscoveryimpl.ConfigFile{}, false, true, runtimeWorkingDir, nil
+			}
+			configPath = resolvedPath
+		}
+	}
+
+	if configPath == "" {
+		return configfilesdiscoveryimpl.ConfigFile{}, false, explicitFound, runtimeWorkingDir, nil
+	}
+
+	file, err := reader.ReadFile(ctx, configPath)
+	if err != nil {
+		return configfilesdiscoveryimpl.ConfigFile{}, false, true, runtimeWorkingDir, err
+	}
+	return file, true, true, runtimeWorkingDir, nil
 }
 
 // sparkGetPropertiesFileFromCommandline returns the explicit properties file
@@ -247,9 +292,11 @@ var sparkSubmitOptionsWithValue = map[string]bool{
 	"--driver-java-options":  true,
 	"--driver-library-path":  true,
 	"--driver-memory":        true,
+	"--driver-resource":      true,
 	"--exclude-packages":     true,
 	"--executor-cores":       true,
 	"--executor-memory":      true,
+	"--executor-resource":    true,
 	"--files":                true,
 	"--jars":                 true,
 	"--keytab":               true,
@@ -262,6 +309,7 @@ var sparkSubmitOptionsWithValue = map[string]bool{
 	"--proxy-user":           true,
 	"--py-files":             true,
 	"--queue":                true,
+	"--remote":               true,
 	"--repositories":         true,
 	"--resource":             true,
 	"--status":               true,
@@ -282,6 +330,18 @@ func sparkMatchesSubmitCommandline(args []string) bool {
 // locations. Explicit properties-file arguments are still discovered by
 // sparkGetPropertiesFileFromCommandline and remain authoritative.
 func sparkCommandlineDoesNotBlockDefaultPaths([]string) bool {
+	return false
+}
+
+func sparkHasTaggedSubmitDriver(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) bool {
+	if commandline, err := reader.ReadRuntimeCommandline(ctx); err == nil && sparkSubmitHasDriverRoleTag(unwrapShellCommandline(commandline.Args)) {
+		return true
+	}
+	for _, commandline := range reader.ReadLiveProcessCommandlines(ctx) {
+		if sparkSubmitHasDriverRoleTag(unwrapShellCommandline(commandline.Args)) {
+			return true
+		}
+	}
 	return false
 }
 

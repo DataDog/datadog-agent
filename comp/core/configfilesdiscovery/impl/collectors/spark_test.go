@@ -88,7 +88,9 @@ func TestSparkGetPropertiesFileFromCommandline(t *testing.T) {
 		{name: "spark-submit script", args: []string{"/opt/spark/bin/spark-submit", "--properties-file=/etc/spark/driver.conf"}, want: "/etc/spark/driver.conf", ok: true},
 		{name: "shell form", args: []string{"/bin/sh", "-c", "spark-submit --properties-file /etc/spark/driver.conf app.jar"}, want: "/etc/spark/driver.conf", ok: true},
 		{name: "Spark option values before properties file", args: []string{"spark-submit", "--master", "spark://master:7077", "--class", "example.App", "--properties-file", "/etc/spark/driver.conf", "app.jar"}, want: "/etc/spark/driver.conf", ok: true},
+		{name: "Spark resource option before properties file", args: []string{"spark-submit", "--driver-resource", "gpu.amount=1", "--properties-file", "/etc/spark/driver.conf", "app.jar"}, want: "/etc/spark/driver.conf", ok: true},
 		{name: "application argument is ignored", args: []string{"spark-submit", "app.jar", "--properties-file", "/tmp/application.conf"}},
+		{name: "application argument after value-taking option is ignored", args: []string{"spark-submit", "--master", "spark://master:7077", "app.jar", "--properties-file", "/tmp/application.conf"}},
 		{name: "no properties file", args: []string{"spark-submit", "app.jar"}},
 		{name: "non Spark command", args: []string{"java", "com.example.App", sparkPropertiesFileOption, "/etc/app.conf"}},
 	}
@@ -143,6 +145,70 @@ func TestSparkCollectorCollectsSparkSubmitDriverConfigAndEnvVars(t *testing.T) {
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigFile{{Path: "/etc/spark/driver.conf", Content: []byte("spark.app.name=submit-driver\n"), PayloadFormat: sparkConfigPayloadFormat}}, collected.ConfigFiles)
 }
 
+func TestSparkCollectorCollectsEnvWhenExplicitPropertiesFileIsMissing(t *testing.T) {
+	reader := &sparkCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{
+			"java",
+			"-Ddd.tags=env:test," + sparkDriverRoleTag,
+			sparkSubmitClass,
+			sparkPropertiesFileOption,
+			"/etc/spark/missing.conf",
+		}},
+		env: map[string]string{"SPARK_DRIVER_MEMORY": "2g"},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/etc/spark/missing.conf"}, reader.readFileCalls)
+	assert.Empty(t, collected.ConfigFiles)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "SPARK_DRIVER_MEMORY", Value: "2g"}}, collected.EnvVars)
+}
+
+func TestSparkCollectorPropagatesCancellationWhenExplicitPropertiesFileReadIsCanceled(t *testing.T) {
+	reader := &sparkCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{
+			"java",
+			"-Ddd.tags=env:test," + sparkDriverRoleTag,
+			sparkSubmitClass,
+			sparkPropertiesFileOption,
+			"/etc/spark/driver.conf",
+		}},
+		env: map[string]string{"SPARK_DRIVER_MEMORY": "2g"},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	collected, err := NewSpark().Collect(ctx, reader)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "SPARK_DRIVER_MEMORY", Value: "2g"}}, collected.EnvVars)
+	assert.Empty(t, collected.ConfigFiles)
+}
+
+func TestSparkCollectorDoesNotFallbackWhenExplicitPropertiesFileCannotResolve(t *testing.T) {
+	reader := &sparkCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{"java", sparkStandaloneDriverClass}},
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{{
+			Args: []string{"/opt/spark/bin/spark-submit", sparkPropertiesFileOption, "relative.conf"},
+		}},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			"/opt/custom/spark-conf/spark-defaults.conf": {Path: "/opt/custom/spark-conf/spark-defaults.conf"},
+		},
+		env: map[string]string{"SPARK_CONF_DIR": "/opt/custom/spark-conf", "SPARK_DRIVER_MEMORY": "2g"},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, reader.readFileCalls)
+	assert.Empty(t, collected.ConfigFiles)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "SPARK_CONF_DIR", Value: "/opt/custom/spark-conf"},
+		{Name: "SPARK_DRIVER_MEMORY", Value: "2g"},
+	}, collected.EnvVars)
+}
+
 func TestSparkCollectorReadsSparkConfDir(t *testing.T) {
 	const configPath = "/opt/custom/spark-conf/spark-defaults.conf"
 	reader := &sparkCollectorTestReader{
@@ -176,7 +242,7 @@ func TestSparkCollectorCollectsEnvWhenSparkConfDirFileIsMissing(t *testing.T) {
 	}, collected.EnvVars)
 }
 
-func TestSparkCollectorReadsDefaultConfigWhenNoSubmitCommandlineExists(t *testing.T) {
+func TestSparkCollectorDoesNotReadWorkerDefaultConfigForStandaloneDriver(t *testing.T) {
 	const configPath = "/opt/spark/conf/spark-defaults.conf"
 	reader := &sparkCollectorTestReader{
 		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{"java", sparkStandaloneDriverClass}},
@@ -186,9 +252,8 @@ func TestSparkCollectorReadsDefaultConfigWhenNoSubmitCommandlineExists(t *testin
 	collected, err := NewSpark().Collect(context.Background(), reader)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{configPath}, reader.readFileCalls)
-	require.Len(t, collected.ConfigFiles, 1)
-	assert.Equal(t, configPath, collected.ConfigFiles[0].Path)
+	assert.Empty(t, reader.readFileCalls)
+	assert.Empty(t, collected.ConfigFiles)
 }
 
 func TestSparkCollectorReadsDefaultConfigForTaggedSparkSubmitWithoutConfigHints(t *testing.T) {
@@ -213,10 +278,10 @@ func TestSparkCollectorReadsDefaultConfigForTaggedSparkSubmitWithoutConfigHints(
 	assert.Equal(t, configPath, collected.ConfigFiles[0].Path)
 }
 
-func TestSparkCollectorReadsBitnamiDefaultConfigWhenApachePathIsMissing(t *testing.T) {
+func TestSparkCollectorReadsBitnamiDefaultConfigForTaggedSparkSubmitWhenApachePathIsMissing(t *testing.T) {
 	const configPath = "/opt/bitnami/spark/conf/spark-defaults.conf"
 	reader := &sparkCollectorTestReader{
-		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{"java", sparkStandaloneDriverClass}},
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{"java", "-Ddd.tags=" + sparkDriverRoleTag, sparkSubmitClass, "app.jar"}},
 		files:              map[string]configfilesdiscoveryimpl.ConfigFile{configPath: {Path: configPath}},
 	}
 
@@ -231,7 +296,7 @@ func TestSparkCollectorReadsBitnamiDefaultConfigWhenApachePathIsMissing(t *testi
 func TestSparkCollectorCollectsConfigWhenEnvReadFails(t *testing.T) {
 	const configPath = "/opt/spark/conf/spark-defaults.conf"
 	reader := &sparkCollectorTestReader{
-		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{"java", sparkStandaloneDriverClass}},
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{"java", "-Ddd.tags=" + sparkDriverRoleTag, sparkSubmitClass, "app.jar"}},
 		files:              map[string]configfilesdiscoveryimpl.ConfigFile{configPath: {Path: configPath}},
 		readEnvVarsErr:     errors.New("environment unavailable"),
 	}
@@ -278,8 +343,8 @@ func TestSparkCollectorFindsLiveDriverAfterRuntimeInspectionError(t *testing.T) 
 	require.NoError(t, err)
 	requireSparkEnvVarPredicate(t, reader)
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "SPARK_LOCAL_DIRS", Value: "/tmp/spark"}}, collected.EnvVars)
-	require.Len(t, collected.ConfigFiles, 1)
-	assert.Equal(t, 2, reader.processCommandlineCalls)
+	assert.Empty(t, collected.ConfigFiles)
+	assert.Empty(t, reader.readFileCalls)
 }
 
 func TestSparkCollectorSkipsNonDriverWithoutReadingEnvVars(t *testing.T) {
@@ -396,8 +461,11 @@ func (r *sparkCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeTyp
 
 func (r *sparkCollectorTestReader) Close() {}
 
-func (r *sparkCollectorTestReader) ReadFile(_ context.Context, configPath string) (configfilesdiscoveryimpl.ConfigFile, error) {
+func (r *sparkCollectorTestReader) ReadFile(ctx context.Context, configPath string) (configfilesdiscoveryimpl.ConfigFile, error) {
 	r.readFileCalls = append(r.readFileCalls, configPath)
+	if err := ctx.Err(); err != nil {
+		return configfilesdiscoveryimpl.ConfigFile{}, err
+	}
 	file, ok := r.files[configPath]
 	if !ok {
 		return configfilesdiscoveryimpl.ConfigFile{}, errors.New("not found")
