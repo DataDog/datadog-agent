@@ -8,6 +8,7 @@ dd_agent_go_test(
         "procmgr_nix_test.go",
         "procmgr_win_test.go",
     ],
+    tags = ["manual"],
     deps = [
         "//pkg/fleet/installer/packages/embedded",
         "//test/e2e-framework/components/datadog/agentparams",
