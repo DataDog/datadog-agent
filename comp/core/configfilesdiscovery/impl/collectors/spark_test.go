@@ -74,7 +74,7 @@ func TestSparkCollectorCollectsDriverEnvVars(t *testing.T) {
 		{Name: "SPARK_LOCAL_IP", Value: "192.0.2.4"},
 	}, collected.EnvVars)
 	assert.Empty(t, collected.ConfigFiles)
-	assert.Equal(t, 1, reader.processCommandlineCalls)
+	assert.Equal(t, 2, reader.processCommandlineCalls)
 }
 
 func TestSparkGetPropertiesFileFromCommandline(t *testing.T) {
@@ -346,6 +346,30 @@ func TestSparkCollectorCollectsEnvAfterRuntimeInspectionErrorWithoutConfigFile(t
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "SPARK_LOCAL_DIRS", Value: "/tmp/spark"}}, collected.EnvVars)
 }
 
+func TestSparkCollectorCollectsSparkSubmitDriverEnvVars(t *testing.T) {
+	reader := &sparkCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{
+				"java",
+				"-Ddd.tags=env:staging,spark_process_role:driver,service:spark-job",
+				sparkSubmitClass,
+			},
+		},
+		env: map[string]string{
+			"SPARK_DRIVER_MEMORY":             "2g",
+			"SPARK_RPC_AUTHENTICATION_SECRET": "must-not-be-forwarded",
+		},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	requireSparkEnvVarPredicate(t, reader)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "SPARK_DRIVER_MEMORY", Value: "2g"},
+	}, collected.EnvVars)
+}
+
 func TestSparkCollectorFindsLiveDriverAfterRuntimeInspectionError(t *testing.T) {
 	runtimeErr := errors.New("inspect unavailable")
 	reader := &sparkCollectorTestReader{
@@ -366,6 +390,28 @@ func TestSparkCollectorFindsLiveDriverAfterRuntimeInspectionError(t *testing.T) 
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "SPARK_LOCAL_DIRS", Value: "/tmp/spark"}}, collected.EnvVars)
 	assert.Empty(t, collected.ConfigFiles)
 	assert.Empty(t, reader.readFileCalls)
+}
+
+func TestSparkCollectorFindsLiveSparkSubmitDriverAfterRuntimeInspectionError(t *testing.T) {
+	runtimeErr := errors.New("inspect unavailable")
+	reader := &sparkCollectorTestReader{
+		runtimeCommandlineErr: runtimeErr,
+		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
+			{Args: []string{
+				"java",
+				"-Ddd.tags=env:staging," + sparkDriverRoleTag,
+				sparkSubmitClass,
+			}},
+		},
+		env: map[string]string{"SPARK_LOCAL_DIRS": "/tmp/spark"},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	requireSparkEnvVarPredicate(t, reader)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "SPARK_LOCAL_DIRS", Value: "/tmp/spark"}}, collected.EnvVars)
+	assert.Equal(t, 4, reader.processCommandlineCalls)
 }
 
 func TestSparkCollectorSkipsNonDriverWithoutReadingEnvVars(t *testing.T) {
@@ -430,10 +476,32 @@ func TestSparkCollectorCanCollectFromProcess(t *testing.T) {
 		Args: []string{"/bin/sh", "-c", "/opt/spark/bin/spark-class " + sparkStandaloneDriverClass + " worker-url user-jar application-class"},
 	}))
 	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
-		Args: []string{"java", "-Ddd.tags=env:test,spark_process_role:driver,service:spark", sparkSubmitClass},
+		Args: []string{"java", "-Ddd.tags=env:staging," + sparkDriverRoleTag + ",service:spark-job", sparkSubmitClass},
 	}))
 	assert.True(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
-		Args: []string{"/bin/sh", "-c", "java -Ddd.tags=spark_process_role:driver " + sparkSubmitClass},
+		Args: []string{"/bin/sh", "-c", "java -Ddd.tags=env:staging," + sparkDriverRoleTag + " " + sparkSubmitClass},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"java", "-Ddd.tags=env:staging", sparkSubmitClass},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"java", "-Ddd.tags=role:driver_helper", sparkSubmitClass},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"java", "-Ddd.tags=spark_process_role:driver-helper", sparkSubmitClass},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{
+			"java",
+			sparkSubmitClass,
+			"--deploy-mode",
+			"cluster",
+			"--driver-java-options",
+			"-Ddd.tags=" + sparkDriverRoleTag,
+		},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"java", "-Ddd.tags=" + sparkDriverRoleTag, "org.apache.spark.deploy.worker.Worker"},
 	}))
 	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
 		Args: []string{"java", "org.apache.spark.deploy.worker.Worker"},
@@ -443,6 +511,9 @@ func TestSparkCollectorCanCollectFromProcess(t *testing.T) {
 	}))
 	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
 		Args: []string{"java", "-Ddd.tags=spark_process_role:driver-worker", sparkSubmitClass},
+	}))
+	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
+		Args: []string{"java", "-Ddd.tags=" + sparkDriverRoleTag, "org.apache.spark.deploy.master.Master"},
 	}))
 	assert.False(t, collector.CanCollectFromProcess(configfilesdiscoveryimpl.TargetCommandline{
 		Args: []string{"java", "com.example.DriverWrapper"},

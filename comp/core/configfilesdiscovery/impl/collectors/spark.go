@@ -21,16 +21,20 @@ const (
 	SparkIntegrationName        = "spark"
 	sparkConfigPayloadFormat    = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_PROPERTIES
 	sparkDefaultsConfigFileName = "spark-defaults.conf"
-	sparkSubmitClass            = "org.apache.spark.deploy.SparkSubmit"
 	sparkPropertiesFileOption   = "--properties-file"
-	sparkDriverRoleTag          = "spark_process_role:driver"
-	sparkDDTagsPrefix           = "-Ddd.tags="
 
 	// sparkStandaloneDriverClass is launched by a Spark Standalone Worker for
 	// applications submitted in cluster deploy mode. It is the stable process
 	// identity that distinguishes a Driver from the submitting client and the
 	// Worker itself.
 	sparkStandaloneDriverClass = "org.apache.spark.deploy.worker.DriverWrapper"
+
+	// sparkSubmitClass starts Spark applications in client deploy mode. It is
+	// only a driver when the process includes the explicit driver role tag.
+	sparkSubmitClass = "org.apache.spark.deploy.SparkSubmit"
+
+	sparkDriverRoleTag   = "spark_process_role:driver"
+	sparkDDTagsArgPrefix = "-Ddd.tags="
 )
 
 type sparkConfigCollector struct{}
@@ -106,9 +110,9 @@ func NewSpark() configfilesdiscoveryimpl.ConfigCollector {
 }
 
 // CanCollectFromProcess returns whether a process event identifies a Spark
-// Standalone Driver and can trigger the one-shot recollection fallback. A
-// SparkSubmit process needs the exact driver role tag to avoid collecting from
-// submitting clients and other Spark roles.
+// driver and can trigger the one-shot recollection fallback. A SparkSubmit
+// process needs the exact driver role tag before the SparkSubmit class to avoid
+// collecting from submitting clients and other Spark roles.
 func (sparkConfigCollector) CanCollectFromProcess(commandline configfilesdiscoveryimpl.TargetCommandline) bool {
 	return isSparkDriverCommand(commandline.Args)
 }
@@ -338,11 +342,11 @@ func sparkCommandlineDoesNotBlockDefaultPaths([]string) bool {
 }
 
 func sparkHasTaggedSubmitDriver(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) bool {
-	if commandline, err := reader.ReadRuntimeCommandline(ctx); err == nil && sparkSubmitHasDriverRoleTag(unwrapShellCommandline(commandline.Args)) {
+	if commandline, err := reader.ReadRuntimeCommandline(ctx); err == nil && sparkHasTaggedSubmitDriverCommand(commandline.Args) {
 		return true
 	}
 	for _, commandline := range reader.ReadLiveProcessCommandlines(ctx) {
-		if sparkSubmitHasDriverRoleTag(unwrapShellCommandline(commandline.Args)) {
+		if sparkHasTaggedSubmitDriverCommand(commandline.Args) {
 			return true
 		}
 	}
@@ -371,22 +375,29 @@ func isSparkDriver(ctx context.Context, reader configfilesdiscoveryimpl.ConfigRe
 
 func isSparkDriverCommand(args []string) bool {
 	args = unwrapShellCommandline(args)
-	for _, arg := range args {
+	for i, arg := range args {
 		if arg == sparkStandaloneDriverClass {
 			return true
 		}
+		if arg == sparkSubmitClass {
+			// JVM system properties precede the main class. SparkSubmit options
+			// after it can configure a remote driver and do not identify this
+			// process as a driver.
+			return hasSparkDriverRoleTag(args[:i])
+		}
 	}
 
-	return sparkSubmitHasDriverRoleTag(args)
+	return false
 }
 
-func sparkSubmitHasDriverRoleTag(args []string) bool {
-	for i, arg := range args {
-		if arg != sparkSubmitClass {
+func hasSparkDriverRoleTag(args []string) bool {
+	for _, arg := range args {
+		tags, found := strings.CutPrefix(arg, sparkDDTagsArgPrefix)
+		if !found {
 			continue
 		}
-		for _, tagArg := range args[:i] {
-			if strings.HasPrefix(tagArg, sparkDDTagsPrefix) && sparkTagsContainDriverRole(strings.TrimPrefix(tagArg, sparkDDTagsPrefix)) {
+		for _, tag := range strings.Split(tags, ",") {
+			if strings.TrimSpace(tag) == sparkDriverRoleTag {
 				return true
 			}
 		}
@@ -394,10 +405,11 @@ func sparkSubmitHasDriverRoleTag(args []string) bool {
 	return false
 }
 
-func sparkTagsContainDriverRole(tags string) bool {
-	for _, tag := range strings.Split(tags, ",") {
-		if strings.TrimSpace(tag) == sparkDriverRoleTag {
-			return true
+func sparkHasTaggedSubmitDriverCommand(args []string) bool {
+	args = unwrapShellCommandline(args)
+	for i, arg := range args {
+		if arg == sparkSubmitClass {
+			return hasSparkDriverRoleTag(args[:i])
 		}
 	}
 	return false
