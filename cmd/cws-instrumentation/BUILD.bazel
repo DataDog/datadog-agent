@@ -1,4 +1,6 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+load("//tasks:build_tags.bzl", "CWS_INSTRUMENTATION_TAGS")
 
 go_library(
     name = "cws-instrumentation_lib",
@@ -21,9 +23,21 @@ go_library(
     }),
 )
 
-go_binary(
+dd_agent_go_binary(
     name = "cws-instrumentation",
     embed = [":cws-instrumentation_lib"],
+    gotags = CWS_INSTRUMENTATION_TAGS,
+    # keep - This has a main_windows, but is really not implemented.
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+# The cws_instrumentation_injector_only gotag strips everything but the injector subcommand.
+# This is a legacy from the invoke task. It does not appear to be used in the build.
+dd_agent_go_binary(
+    name = "cws-instrumentation-injector_only",
+    embed = [":cws-instrumentation_lib"],
+    gotags = CWS_INSTRUMENTATION_TAGS | set(["cws_instrumentation_injector_only"]),
     # keep - This has a main_windows, but is really not implemented.
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
