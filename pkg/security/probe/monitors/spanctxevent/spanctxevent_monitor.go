@@ -58,7 +58,6 @@ const (
 	statusTorn
 	statusGNotFound
 	statusAttrsReadFault
-	statusPartial
 	statusMapError
 	statusMalformed
 	statusLast
@@ -80,8 +79,6 @@ func (s status) String() string {
 		return "g_not_found"
 	case statusAttrsReadFault:
 		return "attrs_read_fault"
-	case statusPartial:
-		return "partial"
 	case statusMapError:
 		return "map_error"
 	case statusMalformed:
@@ -114,6 +111,11 @@ func NewMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (
 	statsMap, err := managerhelper.Map(manager, "span_ctx_stats")
 	if err != nil {
 		return nil, err
+	}
+
+	if expected := uint32(readerLast) * uint32(statusLast); statsMap.MaxEntries() != expected {
+		// Would fail if the custom.h:span_ctx_event_status copy of the status type is out of sync
+		return nil, fmt.Errorf("span_ctx_stats holds %d entries, expected %d: the reader/status mirrors are out of sync with custom.h", statsMap.MaxEntries(), expected)
 	}
 
 	numCPUs, err := utils.NumCPU()
