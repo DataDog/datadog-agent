@@ -11,6 +11,46 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestProcessGetStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		process  *Process
+		expected string
+	}{
+		{
+			name:     "nil process",
+			process:  nil,
+			expected: "",
+		},
+		{
+			name:     "nil stats",
+			process:  &Process{},
+			expected: "",
+		},
+		{
+			name:     "empty status",
+			process:  &Process{Stats: &Stats{}},
+			expected: "",
+		},
+		{
+			name:     "zombie status",
+			process:  &Process{Stats: &Stats{Status: "Z"}},
+			expected: "Z",
+		},
+		{
+			name:     "running status",
+			process:  &Process{Stats: &Stats{Status: "R"}},
+			expected: "R",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.process.GetStatus())
+		})
+	}
+}
+
 func TestProcessIdentity(t *testing.T) {
 	// Basic identity generation
 	identity := ProcessIdentity(1234, 1000000, []string{"bash", "-c", "echo hello"})

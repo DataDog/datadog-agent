@@ -1077,7 +1077,7 @@ func TestProcessCheckRunZombieAggregation(t *testing.T) {
 		cp, ok := msg.(*model.CollectorProc)
 		require.True(t, ok, "expected *model.CollectorProc payload, got %T", msg)
 		for _, p := range cp.Processes {
-			assert.NotEqualf(t, model.ProcessState(model.ProcessState_value["Z"]), p.State,
+			assert.NotEqualf(t, model.ProcessState_Z, p.State,
 				"zombie pid=%d must not appear as a standalone record", p.Pid)
 			_, dup := emittedByPid[p.Pid]
 			require.Falsef(t, dup, "pid=%d emitted twice", p.Pid)
