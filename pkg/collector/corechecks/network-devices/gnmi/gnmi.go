@@ -153,7 +153,7 @@ func (c *Check) Run() error {
 		ReceivedSamples:  gnmiClient.ReceivedSamples(),
 		SampleAgeSeconds: report.OldestSampleAgeSeconds(snapshot, now),
 	}
-	if err := report.ReportHealth(s, checkConfig, healthStats); err != nil {
+	if err := report.ReportHealth(s, checkConfig, snapshot, healthStats); err != nil {
 		return err
 	}
 
@@ -240,15 +240,9 @@ func (c *Check) IsHASupported() bool {
 	return true
 }
 
-// String returns a redacted representation safe for logs.
+// String returns the check name, matching other core checks.
 func (c *Check) String() string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.config == nil {
-		return CheckName
-	}
-	return c.config.String()
+	return CheckName
 }
 
 func (c *Check) ensureClientStarted() error {
@@ -332,16 +326,7 @@ func formatSubscriptionPaths(specs []client.SubscriptionSpec) []string {
 }
 
 func deviceHostname(snapshot []client.CachedValue, metadata config.MetadataConfig) string {
-	hostnamePath := metadata.Resolved().Device.Hostname
-	for _, item := range snapshot {
-		if item.Key.Path != hostnamePath {
-			continue
-		}
-		if value, ok := item.Entry.Value.(string); ok && value != "" {
-			return value
-		}
-	}
-	return ""
+	return report.ResolveDeviceHostname(snapshot, metadata)
 }
 
 func countProfileMetricValues(profile config.ProfileDefinition, snapshot []client.CachedValue) int {

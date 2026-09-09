@@ -24,3 +24,10 @@ metadata:
     mac_address: /openconfig/interfaces/interface/ethernet/state/hw-mac-address
     ifindex: /openconfig/interfaces/interface/state/ifindex
     type: /openconfig/interfaces/interface/state/type
+  ip_address:
+    keys:
+      interface: name
+      subinterface: index
+      address: ip
+    ip: /openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/ip
+    prefix_length: /openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/prefix-length

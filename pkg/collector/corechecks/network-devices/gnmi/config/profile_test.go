@@ -209,6 +209,10 @@ metadata:
     keys:
       interface: name
     ifindex: /openconfig/interfaces/interface/state/ifindex
+  ip_address:
+    keys:
+      interface: name
+    ip: /openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/ip
 `))
 	require.NoError(t, writeTestProfile(profileDir, "with-metadata.yaml", `
 extends:
@@ -223,6 +227,7 @@ metrics:
 	require.NoError(t, err)
 	assert.Equal(t, "/openconfig/system/state/hostname", profile.Metadata.Device.Hostname)
 	assert.Equal(t, "/openconfig/interfaces/interface/state/ifindex", profile.Metadata.Interface.IfIndex)
+	assert.Equal(t, "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/ip", profile.Metadata.IPAddress.IP)
 }
 
 func TestLoadProfileWithTopologyExtend(t *testing.T) {
