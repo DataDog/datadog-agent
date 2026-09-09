@@ -63,7 +63,7 @@ common --verbose_failures
 common:lint --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect --output_groups=+clippy_checks
 common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=+rustfmt_checks
 
-# Linux config ---------------------------------------------------------------------------------------------------------
+# Linux config --------------------------------------------------------------------------------------------------------- test eric
 common:linux --credential_helper=buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog=%workspace%/bazel/tools/credential-helper
 common:linux --credential_helper=buildbarn-frontend-datadog-agent.us1.ddbuild.io=%workspace%/bazel/tools/credential-helper
 common:linux --strategy=sandboxed
