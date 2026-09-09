@@ -4,14 +4,10 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
-use windows_sys::Win32::Foundation::HANDLE;
-use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 
 use super::super::local_agent_account::AgentAccount;
 #[cfg(not(test))]
 use super::super::local_agent_account::resolve_agent_account;
-use super::super::token_identity::open_current_process_token;
-use super::win32::duplicate_primary_token;
 
 #[derive(Clone, Debug)]
 pub(crate) struct SpawnCredential {
@@ -47,21 +43,6 @@ impl SpawnCredential {
 
     pub(crate) fn reuses_supervisor_token(&self) -> bool {
         self.reuses_supervisor_token
-    }
-
-    pub(crate) fn duplicate_primary_token(&self, process_name: &str) -> Result<HANDLE> {
-        if !self.reuses_supervisor_token() {
-            anyhow::bail!(
-                "[{process_name}] duplicate_primary_token requires supervisor-token reuse"
-            );
-        }
-        let supervisor_token =
-            open_current_process_token(TOKEN_QUERY | TOKEN_DUPLICATE).map_err(|e| {
-                anyhow::anyhow!(
-                    "[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {e}"
-                )
-            })?;
-        duplicate_primary_token(process_name, supervisor_token.as_handle())
     }
 }
 

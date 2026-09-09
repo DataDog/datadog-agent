@@ -15,7 +15,7 @@ use super::super::{
     JobObject, send_force_kill, setup_process_group, stderr_inheritable, stdout_inheritable,
 };
 use super::credential::SpawnCredential;
-use super::primary_token::spawn_as_primary_token;
+use super::inherit_supervisor::spawn_inherit_supervisor;
 
 const PRIVILEGED_INTENDED_USER: &str = r"NT AUTHORITY\SYSTEM";
 
@@ -80,8 +80,8 @@ fn spawn_agent_inherit(
     let job = JobObject::new()
         .with_context(|| format!("[{process_name}] create job object for child supervision"))?;
 
-    let suspended = spawn_as_primary_token(process_name, &request, credential)
-        .with_context(|| format!("[{process_name}] CreateProcessAsUserW spawn failed"))?;
+    let suspended = spawn_inherit_supervisor(process_name, &request, credential)
+        .with_context(|| format!("[{process_name}] supervisor-token inherit spawn failed"))?;
 
     suspended
         .supervise(process, job)

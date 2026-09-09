@@ -5,12 +5,9 @@
 
 use std::collections::HashMap;
 use std::os::windows::ffi::OsStrExt;
-use std::ptr;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use windows_sys::Win32::Foundation::HANDLE;
-use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPrimary};
-use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
 
 use super::super::merge_env_overrides;
 
@@ -137,27 +134,6 @@ pub(crate) fn env_block_from_baseline_plus_overrides(
     let baseline = super::super::baseline_env_vars_for_spawn(process_name, token);
     let vars = build_child_env_vars(process_name, baseline, overrides);
     Ok(env_vars_to_wide_block(&vars))
-}
-
-pub(crate) fn duplicate_primary_token(context: &str, token: HANDLE) -> Result<HANDLE> {
-    let mut primary_token: HANDLE = ptr::null_mut();
-    let ok = unsafe {
-        DuplicateTokenEx(
-            token,
-            MAXIMUM_ALLOWED,
-            ptr::null(),
-            SecurityDelegation,
-            TokenPrimary,
-            &mut primary_token,
-        )
-    };
-    if ok == 0 {
-        bail!(
-            "[{context}] DuplicateTokenEx failed: {}",
-            std::io::Error::last_os_error()
-        );
-    }
-    Ok(primary_token)
 }
 
 pub(crate) fn env_vars_to_wide_block(vars: &HashMap<String, String>) -> Vec<u16> {

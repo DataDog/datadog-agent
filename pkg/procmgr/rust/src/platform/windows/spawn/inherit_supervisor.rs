@@ -3,27 +3,32 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Result, bail};
 use std::mem;
 use std::os::windows::ffi::OsStrExt;
+
+use anyhow::{Result, bail};
+use windows_sys::Win32::Security::TOKEN_QUERY;
 use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_SUSPENDED,
-    CREATE_UNICODE_ENVIRONMENT, CreateProcessAsUserW, EXTENDED_STARTUPINFO_PRESENT,
-    PROCESS_INFORMATION,
+    CREATE_UNICODE_ENVIRONMENT, CreateProcessW, EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION,
 };
 
 use crate::spawn::SpawnRequest;
 
+use super::super::token_identity::open_current_process_token;
 use super::super::wide;
 use super::credential::SpawnCredential;
 use super::startup_info_ex::StartupInfoEx;
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 use super::suspended::SuspendedChild;
-use super::token_handle::TokenHandle;
 use super::win32::{build_windows_command_line, env_block_from_baseline_plus_overrides};
 
-pub(super) fn spawn_as_primary_token(
+/// Spawns a suspended child in the supervisor's security context (CreateProcessW).
+///
+/// CreateProcessAsUserW is not used here: the child matches dd-procmgrd's identity, and that
+/// API requires SeIncreaseQuotaPrivilege that the installed agent account does not hold.
+pub(super) fn spawn_inherit_supervisor(
     process_name: &str,
     request: &SpawnRequest,
     credential: &SpawnCredential,
@@ -43,7 +48,6 @@ pub(super) fn spawn_as_primary_token(
     let stdin_handle = map_stdio_handle_nul()?;
 
     let command_line = build_windows_command_line(request.command(), request.args());
-
     let mut command_line_w: Vec<u16> = std::ffi::OsStr::new(&command_line)
         .encode_wide()
         .chain([0])
@@ -53,11 +57,12 @@ pub(super) fn spawn_as_primary_token(
         .working_dir()
         .map(|d| wide::null_terminated(d.to_string_lossy().as_ref()));
 
-    let primary_token_guard = TokenHandle::new(credential.duplicate_primary_token(process_name)?);
-
+    let supervisor_token = open_current_process_token(TOKEN_QUERY).map_err(|e| {
+        anyhow::anyhow!("[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {e}")
+    })?;
     let env_block = env_block_from_baseline_plus_overrides(
         process_name,
-        primary_token_guard.raw(),
+        supervisor_token.as_handle(),
         request.env(),
     )?;
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
@@ -68,52 +73,41 @@ pub(super) fn spawn_as_primary_token(
         stderr_handle.raw(),
     )?;
 
-    let dw_creation_flags = CREATE_SUSPENDED
+    let creation_flags = CREATE_SUSPENDED
         | CREATE_NEW_PROCESS_GROUP
         | CREATE_NEW_CONSOLE
         | CREATE_NO_WINDOW
         | CREATE_UNICODE_ENVIRONMENT
         | EXTENDED_STARTUPINFO_PRESENT;
 
-    let mut pi: PROCESS_INFORMATION = unsafe { mem::zeroed() };
+    let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     let ok = unsafe {
-        CreateProcessAsUserW(
-            primary_token_guard.raw(),
+        CreateProcessW(
             std::ptr::null(),
             command_line_w.as_mut_ptr(),
             std::ptr::null(),
             std::ptr::null(),
             1,
-            dw_creation_flags,
+            creation_flags,
             env_block_ptr,
             current_dir_w
                 .as_ref()
                 .map(|w| w.as_ptr())
                 .unwrap_or(std::ptr::null()),
             startup_info.startup_info(),
-            &mut pi,
+            &mut process_info,
         )
     };
     if ok == 0 {
         bail!(
-            "[{process_name}] CreateProcessAsUserW failed: {}",
+            "[{process_name}] CreateProcessW failed: {}",
             std::io::Error::last_os_error()
         );
     }
 
-    Ok(SuspendedChild::new(pi.dwProcessId, pi.hProcess, pi.hThread))
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::platform::windows::spawn::win32::build_windows_command_line;
-
-    #[test]
-    fn command_line_preserves_args_without_spaces() {
-        let line = build_windows_command_line(
-            "ping.exe",
-            &["-n".to_string(), "61".to_string(), "127.0.0.1".to_string()],
-        );
-        assert_eq!(line, "ping.exe -n 61 127.0.0.1");
-    }
+    Ok(SuspendedChild::new(
+        process_info.dwProcessId,
+        process_info.hProcess,
+        process_info.hThread,
+    ))
 }

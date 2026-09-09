@@ -4,14 +4,13 @@
 // Copyright 2026-present Datadog, Inc.
 
 mod credential;
+mod inherit_supervisor;
 mod managed;
-mod primary_token;
 mod startup_info_ex;
 mod stdio;
 mod suspended;
 #[cfg(test)]
 mod test_harness;
-mod token_handle;
 pub(crate) mod win32;
 
 pub(crate) use credential::SpawnCredential;
