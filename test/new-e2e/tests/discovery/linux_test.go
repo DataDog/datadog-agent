@@ -77,12 +77,7 @@ func TestLinuxTestSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(
 			scenec2.WithAgentOptions(agentParams...),
-			// The host needs internet access to provision the test services:
-			// testdata/provision/provision.sh installs packages from apt, pip,
-			// npm and gem. Every provisioner call in the suite must opt in,
-			// including UpdateEnv, since the awshost provisioner defaults to
-			// blocking internet access and a call that omits it would put the
-			// host back behind the no-internet security groups.
+			// provision.sh installs packages from apt, pip, npm and gem.
 			scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 		))),
 	}
