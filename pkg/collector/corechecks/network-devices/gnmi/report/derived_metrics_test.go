@@ -20,28 +20,47 @@ import (
 
 func TestReportDerivedMetricsMemoryUsage(t *testing.T) {
 	deviceAddress := "10.0.0.5"
+	deviceID := buildDeviceIDFromConfigAddress(deviceAddress)
 	baseTags := []string{
+		deviceNamespaceTag,
 		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		integrationSourceGNMITag,
+		internalDeviceResourceTag(deviceID),
 	}
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: deviceAddress},
-		Profile: config.ProfileDefinition{Metrics: []config.MetricConfig{
-			{Path: pathMemoryUsed, Metric: "snmp.memory.used", Keys: map[string]string{"component": "name"}},
-			{Path: pathMemoryAvail, Metric: "snmp.memory.free", Keys: map[string]string{"component": "name"}},
-		}},
+		Profile: config.ProfileDefinition{
+			Metrics: []config.MetricConfig{
+				{
+					Path:   pathMemoryUsed,
+					Metric: "snmp.memory.used",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
+				{
+					Path:   pathMemoryAvail,
+					Metric: "snmp.memory.free",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
+			},
+		},
 	}
 	snapshot := []client.CachedValue{
 		{
 			Key: client.CacheKey{
-				Path: "/components/component/state/memory/utilized",
+				Path: pathMemoryUsed,
 				Keys: map[string]string{"name": "Chassis"},
 			},
 			Entry: client.CacheEntry{Value: int64(25)},
 		},
 		{
 			Key: client.CacheKey{
-				Path: "/components/component/state/memory/available",
+				Path: pathMemoryAvail,
 				Keys: map[string]string{"name": "Chassis"},
 			},
 			Entry: client.CacheEntry{Value: int64(75)},
@@ -57,37 +76,43 @@ func TestReportDerivedMetricsMemoryUsage(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", metricMemoryUsage, 25.0, "", append(baseTags, "memory:Chassis"))
 }
 
-func TestReportDerivedMetricsUsesConfiguredMemoryPathsAndKeys(t *testing.T) {
+func TestReportDerivedMetricsMemoryUsageRequiresBothPaths(t *testing.T) {
 	deviceAddress := "10.0.0.5"
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: deviceAddress},
-		Profile: config.ProfileDefinition{Metrics: []config.MetricConfig{
-			{
-				Path:   "/vendor/components/component/state/memory-in-use",
-				Metric: "snmp.memory.used",
-				Keys:   map[string]string{"component": "id"},
+		Profile: config.ProfileDefinition{
+			Metrics: []config.MetricConfig{
+				{
+					Path:   pathMemoryUsed,
+					Metric: "snmp.memory.used",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
+				{
+					Path:   pathMemoryAvail,
+					Metric: "snmp.memory.free",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
 			},
-			{
-				Path:   "/vendor/components/component/state/memory-free",
-				Metric: "snmp.memory.free",
-				Keys:   map[string]string{"component": "id"},
-			},
-		}},
+		},
 	}
 	snapshot := []client.CachedValue{
 		{
 			Key: client.CacheKey{
-				Path: "/vendor/components/component/state/memory-in-use",
-				Keys: map[string]string{"id": "Chassis"},
+				Path: pathMemoryUsed,
+				Keys: map[string]string{"name": "FanTray3"},
 			},
-			Entry: client.CacheEntry{Value: int64(40)},
+			Entry: client.CacheEntry{Value: int64(10)},
 		},
 		{
 			Key: client.CacheKey{
-				Path: "/vendor/components/component/state/memory-free",
-				Keys: map[string]string{"id": "Chassis"},
+				Path: pathMemoryAvail,
+				Keys: map[string]string{"name": "ControlA"},
 			},
-			Entry: client.CacheEntry{Value: int64(60)},
+			Entry: client.CacheEntry{Value: int64(90)},
 		},
 	}
 
@@ -96,42 +121,103 @@ func TestReportDerivedMetricsUsesConfiguredMemoryPathsAndKeys(t *testing.T) {
 
 	err := ReportDerivedMetrics(mockSender, cfg, snapshot, NewBandwidthState())
 	require.NoError(t, err)
-	mockSender.AssertMetric(t, "Gauge", metricMemoryUsage, 40.0, "", []string{
-		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
-		"memory:Chassis",
-	})
+
+	mockSender.AssertNotCalled(t, "Gauge", metricMemoryUsage)
 }
 
-func TestReportDerivedMetricsRequiresUsedAndFreeMemory(t *testing.T) {
-	cfg := &config.CheckConfig{
-		Instance: config.InstanceConfig{Address: "10.0.0.5"},
-		Profile: config.ProfileDefinition{Metrics: []config.MetricConfig{
-			{Path: pathMemoryUsed, Metric: "snmp.memory.used", Keys: map[string]string{"component": "name"}},
-			{Path: pathMemoryAvail, Metric: "snmp.memory.free", Keys: map[string]string{"component": "name"}},
-		}},
+func TestReportDerivedMetricsMemoryUsageMatchesProfileComponentTags(t *testing.T) {
+	deviceAddress := "10.0.0.5"
+	deviceID := buildDeviceIDFromConfigAddress(deviceAddress)
+	controlTags := []string{
+		deviceNamespaceTag,
+		"device_ip:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		"integration_source:gnmi",
+		"memory:ControlA",
 	}
-	snapshot := []client.CachedValue{{
-		Key:   client.CacheKey{Path: pathMemoryUsed, Keys: map[string]string{"name": "Chassis"}},
-		Entry: client.CacheEntry{Value: int64(25)},
-	}}
+	cfg := &config.CheckConfig{
+		Instance: config.InstanceConfig{Address: deviceAddress},
+		Profile: config.ProfileDefinition{
+			Metrics: []config.MetricConfig{
+				{
+					Path:   pathMemoryUsed,
+					Metric: "snmp.memory.used",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
+				{
+					Path:   pathMemoryAvail,
+					Metric: "snmp.memory.free",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
+			},
+		},
+	}
+	snapshot := []client.CachedValue{
+		{
+			Key: client.CacheKey{
+				Path: pathMemoryUsed,
+				Keys: map[string]string{"name": "ControlA"},
+			},
+			Entry: client.CacheEntry{Value: int64(25)},
+		},
+		{
+			Key: client.CacheKey{
+				Path: pathMemoryAvail,
+				Keys: map[string]string{"name": "ControlA"},
+			},
+			Entry: client.CacheEntry{Value: int64(75)},
+		},
+	}
+
 	mockSender := mocksender.NewMockSender(t, checkid.ID("gnmi"))
 	mockSender.SetupAcceptAll()
 
 	err := ReportDerivedMetrics(mockSender, cfg, snapshot, NewBandwidthState())
 	require.NoError(t, err)
-	mockSender.AssertNotCalled(t, "Gauge", metricMemoryUsage)
+
+	mockSender.AssertMetric(t, "Gauge", metricMemoryUsage, 25.0, "", controlTags)
+}
+
+func TestCollectInterfaceBandwidthDataUsesProfilePathsAndKeys(t *testing.T) {
+	profile := config.ProfileDefinition{Metrics: []config.MetricConfig{
+		{Path: "/vendor/ports/port/state/in-bytes", Metric: "snmp.ifHCInOctets", Tags: map[string]string{"interface": "port_id"}},
+		{Path: "/vendor/ports/port/state/out-bytes", Metric: "snmp.ifHCOutOctets", Tags: map[string]string{"interface": "port_id"}},
+		{Path: "/vendor/ports/port/state/speed", Metric: "snmp.ifInSpeed", Tags: map[string]string{"interface": "port_id"}},
+	}}
+	keys := map[string]string{"port_id": "ethernet-1/9"}
+	snapshot := []client.CachedValue{
+		{Key: client.CacheKey{Path: "/vendor/ports/port/state/in-bytes", Keys: keys}, Entry: client.CacheEntry{Value: uint64(100)}},
+		{Key: client.CacheKey{Path: "/vendor/ports/port/state/out-bytes", Keys: keys}, Entry: client.CacheEntry{Value: uint64(200)}},
+		{Key: client.CacheKey{Path: "/vendor/ports/port/state/speed", Keys: keys}, Entry: client.CacheEntry{Value: uint64(1_000)}},
+	}
+
+	interfaces := collectInterfaceBandwidthData(nil, "default:router", profile, snapshot, nil)
+	require.Len(t, interfaces, 1)
+	entry := interfaces[cacheKeysID(keys)]
+	require.NotNil(t, entry)
+	assert.Equal(t, "ethernet-1/9", entry.name)
+	assert.Equal(t, float64(100), entry.inOctets)
+	assert.Equal(t, float64(200), entry.outOctets)
+	assert.Equal(t, uint64(1_000), entry.speed)
 }
 
 func TestReportDerivedMetricsInterfaceBandwidthUsage(t *testing.T) {
 	deviceAddress := "10.0.0.5"
+	deviceID := buildDeviceIDFromConfigAddress(deviceAddress)
 	ifSpeed := uint64(1_000_000_000)
 	interfaceTags := []string{
+		deviceNamespaceTag,
 		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		"integration_source:gnmi",
 		"interface:eth0",
-		"interface_index:42",
-		"dd.internal.resource:ndm_interface:default:" + deviceAddress + ":42",
+		"dd.internal.resource:ndm_interface:" + deviceID + ":eth0",
 	}
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: deviceAddress},
@@ -238,6 +324,7 @@ func TestReportDerivedMetricsInterfaceBandwidthUsage(t *testing.T) {
 
 func TestReportMetricsEmitsThroughputRates(t *testing.T) {
 	deviceAddress := "10.0.0.1"
+	deviceID := buildDeviceIDFromConfigAddress(deviceAddress)
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: deviceAddress},
 		Profile: config.ProfileDefinition{
@@ -270,13 +357,19 @@ func TestReportMetricsEmitsThroughputRates(t *testing.T) {
 	require.NoError(t, err)
 
 	mockSender.AssertMetric(t, "MonotonicCount", "snmp.ifHCInOctets", 2_000_000, "", []string{
+		deviceNamespaceTag,
 		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		"integration_source:gnmi",
 		"interface:eth0",
 	})
 	mockSender.AssertMetric(t, "Rate", "snmp.ifHCInOctets.rate", 2_000_000, "", []string{
+		deviceNamespaceTag,
 		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		"integration_source:gnmi",
 		"interface:eth0",
 	})
 }

@@ -128,7 +128,7 @@ func TestGNMICheckLoadsFromConfDAndReportsThroughSender(t *testing.T) {
 	mockSender.AssertCalled(t, "EventPlatformEvent", mock.Anything, "network-devices-metadata")
 
 	metadataEvent := extractMetadataEvent(t, mockSender)
-	require.Equal(t, "gnmi", string(metadataEvent.Integration))
+	require.Equal(t, "snmp", string(metadataEvent.Integration))
 	require.Len(t, metadataEvent.Devices, 1)
 	assert.Equal(t, "gnmi-router-1", metadataEvent.Devices[0].Name)
 	require.Len(t, metadataEvent.Interfaces, 1)
