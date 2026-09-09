@@ -7,7 +7,9 @@ go_library(
         "config.go",
         "enabled.go",
         "encoding.go",
+        "metadata.go",
         "profile.go",
+        "topology.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config",
     visibility = ["//visibility:public"],
@@ -25,7 +27,9 @@ dd_agent_go_test(
     srcs = [
         "config_test.go",
         "encoding_test.go",
+        "metadata_test.go",
         "profile_test.go",
+        "topology_test.go",
     ],
     embed = [":config"],
     deps = [

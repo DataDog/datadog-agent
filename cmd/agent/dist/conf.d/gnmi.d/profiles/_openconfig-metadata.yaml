@@ -1,0 +1,26 @@
+# OpenConfig gNMI paths used for NDM device and interface metadata.
+#
+# Include this profile from metric profiles with:
+#   extends:
+#     - _openconfig-metadata
+
+metadata:
+  device:
+    keys:
+      component: name
+    hostname: /openconfig/system/state/hostname
+    vendor_name: /openconfig/components/component/state/mfg-name
+    serial_number: /openconfig/components/component/state/serial-no
+    platform: /openconfig/components/component/state/model-name
+    software_version: /openconfig/system/state/software-version
+    hardware_version: /openconfig/components/component/state/part-no
+  interface:
+    keys:
+      interface: name
+    name: /openconfig/interfaces/interface/state/name
+    description: /openconfig/interfaces/interface/state/description
+    admin_status: /openconfig/interfaces/interface/state/admin-status
+    oper_status: /openconfig/interfaces/interface/state/oper-status
+    mac_address: /openconfig/interfaces/interface/ethernet/state/hw-mac-address
+    ifindex: /openconfig/interfaces/interface/state/ifindex
+    type: /openconfig/interfaces/interface/state/type
