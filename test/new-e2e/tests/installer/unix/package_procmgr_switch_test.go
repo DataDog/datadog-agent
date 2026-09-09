@@ -7,6 +7,7 @@ package installer
 
 import (
 	"os"
+	"strconv"
 
 	"github.com/stretchr/testify/require"
 
@@ -23,39 +24,38 @@ func testProcmgrSwitch(os e2eos.Descriptor, arch e2eos.Architecture, method Inst
 	}
 }
 
-// TestProcmgrSwitch installs the agent, reaches the service manager state selected by
-// DD_PROCESS_MANAGER_ENABLED (matrix-driven, defaults to true to match the installer's own
-// default) via `datadog-installer process-manager enable|disable`, verifies the expected manager
-// is active, flips it, verifies the flip, then flips back and verifies the original state is
-// restored.
+// TestProcmgrSwitch installs the agent directly under the manager selected by the matrix-driven
+// DD_PROCESS_MANAGER_ENABLED, with the DDOT extension enabled, then exercises the opposite
+// transition first and switches back, checking at each step that both the agent's own units/
+// processes and the DDOT extension are managed correctly by whichever manager is active:
+//   - started under procmgr (true): disable (systemd takes over), then re-enable (procmgr is back).
+//   - started under systemd (false): enable (procmgr takes over), then disable (systemd is back).
 func (s *packageProcmgrSwitchSuite) TestProcmgrSwitch() {
 	initialEnabled := os.Getenv("DD_PROCESS_MANAGER_ENABLED") != "false"
 
-	// The install script does not forward DD_PROCESS_MANAGER_ENABLED to the package manager
-	// invocation, so it can't be used to select the initial state here. Install with the (procmgr)
-	// default and use the CLI to reach the desired initial state instead.
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_OTELCOLLECTOR_ENABLED=true")
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_PROCESS_MANAGER_ENABLED="+strconv.FormatBool(initialEnabled))
 	defer s.Purge()
 
-	if !initialEnabled {
+	// Install the ddot extension (not the standalone datadog-agent-ddot package) so its lifecycle,
+	// which is managed by the agent's own service definition, can be checked under both managers.
+	agentPackageURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
+	s.host.Run("sudo datadog-agent otel install --url " + agentPackageURL)
+
+	s.assertManagerState(initialEnabled)
+
+	if initialEnabled {
 		s.runProcessManagerCommand("disable")
+		s.assertManagerState(false)
+
+		s.runProcessManagerCommand("enable")
+		s.assertManagerState(true)
+	} else {
+		s.runProcessManagerCommand("enable")
+		s.assertManagerState(true)
+
+		s.runProcessManagerCommand("disable")
+		s.assertManagerState(false)
 	}
-	s.assertManagerState(initialEnabled)
-
-	s.runProcessManagerCommand(flipCommand(initialEnabled))
-	s.assertManagerState(!initialEnabled)
-
-	s.runProcessManagerCommand(flipCommand(!initialEnabled))
-	s.assertManagerState(initialEnabled)
-}
-
-// flipCommand returns the process-manager subcommand that flips away from the
-// given state.
-func flipCommand(currentlyEnabled bool) string {
-	if currentlyEnabled {
-		return "disable"
-	}
-	return "enable"
 }
 
 func (s *packageProcmgrSwitchSuite) runProcessManagerCommand(subcommand string) {
@@ -66,11 +66,8 @@ func (s *packageProcmgrSwitchSuite) runProcessManagerCommand(subcommand string) 
 	)
 }
 
-// assertManagerState asserts the units matching procmgrEnabled are active. procmgrEnabled comes
-// from DD_PROCESS_MANAGER_ENABLED (read once at test start, or flipped by the CLI call this
-// tracks) rather than from any host-side probe: with WriteProcesses a no-op outside of ProcmgrType
-// (see agentService.WriteProcesses), a stale processes.d/datadog-agent-ddot.yaml can survive a
-// switch to systemd, so its presence can't be used to detect the current state.
+// assertManagerState asserts that the agent units and the DDOT extension are active under
+// whichever manager procmgrEnabled selects.
 func (s *packageProcmgrSwitchSuite) assertManagerState(procmgrEnabled bool) {
 	if procmgrEnabled {
 		s.host.WaitForUnitActive(s.T(), agentUnit, procmgrUnit)

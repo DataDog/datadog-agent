@@ -20,17 +20,47 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// currentProcmgrEnabled reports whether the host is actually running under procmgr right now, by
+// checking for datadog-agent-procmgr.service in the unit directory. It cannot be derived from
+// DD_PROCESS_MANAGER_ENABLED / service.GetServiceManagerType: a plain
+// `sudo datadog-installer process-manager ...` invocation inherits no unit environment (only the
+// generated unit files bake DD_PROCESS_MANAGER_ENABLED in), so env.FromEnv() always resolves to
+// the compiled default instead of the host's real state.
+func currentProcmgrEnabled() (bool, error) {
+	_, err := os.Stat(filepath.Join(ociUnitsPath, "datadog-agent-procmgr.service"))
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
 // SetProcessManagerEnabled flips the effective process manager for the agent's supervised
 // components between dd-procmgrd and native systemd, and reconciles the running services so the
 // change takes effect immediately. It is a no-op if the desired state already matches the current
 // one.
 func SetProcessManagerEnabled(ctx context.Context, enabled bool) error {
 	installRoot := filepath.Join(paths.PackagesPath, agentPackage, "stable")
-	currentType := service.GetServiceManagerType(installRoot)
-	if (currentType == service.ProcmgrType) == enabled {
+
+	currentlyEnabled, err := currentProcmgrEnabled()
+	if err != nil {
+		return fmt.Errorf("failed to determine current process manager state: %w", err)
+	}
+	if currentlyEnabled == enabled {
 		return nil
 	}
-	switch currentType {
+
+	// Every call below resolves the manager type through service.GetServiceManagerType, which
+	// reads DD_PROCESS_MANAGER_ENABLED from the environment. Seed it from the host state detected
+	// above so the Stop/Disable/RemoveStable calls that tear down the OLD units (further down)
+	// agree with reality, before it gets flipped to the target state for what follows.
+	if err := os.Setenv(env.EnvProcessManagerEnabled, strconv.FormatBool(currentlyEnabled)); err != nil {
+		return fmt.Errorf("failed to set process manager state: %w", err)
+	}
+
+	switch currentType := service.GetServiceManagerType(installRoot); currentType {
 	case service.SystemdType, service.ProcmgrType:
 	default:
 		return errors.New("switching the process manager is only supported under systemd")
