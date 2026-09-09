@@ -33,9 +33,9 @@ func TestGetProvider(t *testing.T) {
 func TestStatusWithDevices(t *testing.T) {
 	t.Cleanup(resetRegistryForTesting)
 
-	RegisterDevice("10.0.0.1", 57400, "basic-interfaces", true, []string{
-		"/system/state/hostname",
-		"/interfaces/interface/state/admin-status{interface=name}",
+	RegisterDevice("10.0.0.1", 57400, "interface-stats", true, []string{
+		"/openconfig/system/state/hostname",
+		"/openconfig/interfaces/interface/state/admin-status{interface=name}",
 	})
 	UpdateDevice("10.0.0.1", 57400, func(device *DeviceState) {
 		device.Started = true
@@ -70,10 +70,10 @@ func TestStatusWithDevices(t *testing.T) {
 			require.NoError(t, err)
 
 			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
-			assert.Contains(t, output, "10.0.0.1:57400 (profile: basic-interfaces)")
+			assert.Contains(t, output, "10.0.0.1:57400 (profile: interface-stats)")
 			assert.Contains(t, output, "Stream state: connected")
 			assert.Contains(t, output, "Received samples: 42")
-			assert.Contains(t, output, "/system/state/hostname")
+			assert.Contains(t, output, "/openconfig/system/state/hostname")
 		}},
 		{"HTML", func(t *testing.T) {
 			b := new(bytes.Buffer)
@@ -115,7 +115,7 @@ func TestStatusWithReconnectingDevice(t *testing.T) {
 	t.Cleanup(resetRegistryForTesting)
 
 	now := time.Now().UnixNano()
-	RegisterDevice("10.0.0.3", 9339, "basic-interfaces", false, nil)
+	RegisterDevice("10.0.0.3", 9339, "interface-stats", false, nil)
 	UpdateDevice("10.0.0.3", 9339, func(device *DeviceState) {
 		device.Started = true
 		device.StreamState = "reconnecting"
@@ -142,7 +142,7 @@ func TestStatusWithReconnectingDevice(t *testing.T) {
 func TestUnregisterDevice(t *testing.T) {
 	t.Cleanup(resetRegistryForTesting)
 
-	RegisterDevice("10.0.0.2", 57400, "basic-interfaces", false, nil)
+	RegisterDevice("10.0.0.2", 57400, "interface-stats", false, nil)
 	UnregisterDevice("10.0.0.2", 57400)
 
 	assert.Empty(t, listDevices())

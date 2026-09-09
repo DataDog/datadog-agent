@@ -39,19 +39,48 @@ type MetricConfig struct {
 	Path     string            `yaml:"path"`
 	Metric   string            `yaml:"metric"`
 	Type     MetricType        `yaml:"type"`
+	Keys     map[string]string `yaml:"keys"`
 	Tags     map[string]string `yaml:"tags"`
 	ValueMap map[string]int    `yaml:"value_map"`
 }
 
+// SubscriptionKeys returns keyed path segments to subscribe with wildcards.
+// When keys is omitted, tags are used (interface metrics where the tag segment matches the list node).
+func (m MetricConfig) SubscriptionKeys() map[string]string {
+	source := m.Keys
+	if len(source) == 0 {
+		source = m.Tags
+	}
+	if len(source) == 0 {
+		return nil
+	}
+	keys := make(map[string]string, len(source))
+	for segment, keyName := range source {
+		if keyName == "" {
+			continue
+		}
+		keys[segment] = keyName
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	return keys
+}
+
 // ProfileDefinition holds the metric mappings loaded from a profile YAML file.
 type ProfileDefinition struct {
-	Name    string
-	Path    string
-	Metrics []MetricConfig `yaml:"metrics"`
+	Name     string
+	Path     string
+	Metrics  []MetricConfig `yaml:"metrics"`
+	Metadata MetadataConfig `yaml:"metadata"`
+	Topology TopologyConfig `yaml:"topology"`
 }
 
 type rawProfileDefinition struct {
-	Metrics []MetricConfig `yaml:"metrics"`
+	Extends  []string       `yaml:"extends"`
+	Metrics  []MetricConfig `yaml:"metrics"`
+	Metadata MetadataConfig `yaml:"metadata"`
+	Topology TopologyConfig `yaml:"topology"`
 }
 
 // LoadProfile loads a profile by name or path from the gNMI profiles directory.
@@ -71,10 +100,17 @@ func LoadProfile(profileRef string) (*ProfileDefinition, error) {
 		return nil, fmt.Errorf("parse profile %q: %w", profileRef, err)
 	}
 
+	extensions, err := resolveProfileExtensions(profileRef, raw, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	profile := &ProfileDefinition{
-		Name:    profileNameFromPath(profileRef, profilePath),
-		Path:    profilePath,
-		Metrics: raw.Metrics,
+		Name:     profileNameFromPath(profileRef, profilePath),
+		Path:     profilePath,
+		Metrics:  raw.Metrics,
+		Metadata: extensions.Metadata.Resolved(),
+		Topology: extensions.Topology,
 	}
 	if err := validateProfileDefinition(profile); err != nil {
 		return nil, fmt.Errorf("validate profile %q: %w", profileRef, err)
@@ -93,7 +129,114 @@ func validateProfileDefinition(profile *ProfileDefinition) error {
 			return err
 		}
 	}
-	return nil
+	if err := validateMetadataConfig(profile.Metadata); err != nil {
+		return err
+	}
+	return validateTopologyConfig(profile.Topology)
+}
+
+type profileExtensionConfig struct {
+	Metadata MetadataConfig
+	Topology TopologyConfig
+}
+
+func resolveProfileExtensions(profileRef string, raw rawProfileDefinition, visited map[string]bool) (profileExtensionConfig, error) {
+	if visited == nil {
+		visited = make(map[string]bool)
+	}
+	if visited[profileRef] {
+		return profileExtensionConfig{}, fmt.Errorf("cyclic profile extend detected for %q", profileRef)
+	}
+	visited[profileRef] = true
+
+	extensions := profileExtensionConfig{}
+	for _, extendRef := range raw.Extends {
+		extendPath, err := resolveProfilePath(extendRef)
+		if err != nil {
+			return profileExtensionConfig{}, fmt.Errorf("resolve extended profile %q for %q: %w", extendRef, profileRef, err)
+		}
+
+		extendBuf, err := os.ReadFile(extendPath)
+		if err != nil {
+			return profileExtensionConfig{}, fmt.Errorf("read extended profile %q for %q: %w", extendRef, profileRef, err)
+		}
+
+		extendRaw := rawProfileDefinition{}
+		if err := yaml.Unmarshal(extendBuf, &extendRaw); err != nil {
+			return profileExtensionConfig{}, fmt.Errorf("parse extended profile %q for %q: %w", extendRef, profileRef, err)
+		}
+
+		extendConfig, err := resolveProfileExtensions(extendRef, extendRaw, visited)
+		if err != nil {
+			return profileExtensionConfig{}, err
+		}
+		extensions.Metadata = mergeMetadataConfig(extensions.Metadata, extendConfig.Metadata)
+		extensions.Topology = mergeTopologyConfig(extensions.Topology, extendConfig.Topology)
+	}
+
+	extensions.Metadata = mergeMetadataConfig(extensions.Metadata, raw.Metadata)
+	extensions.Topology = mergeTopologyConfig(extensions.Topology, raw.Topology)
+	return extensions, nil
+}
+
+func mergeMetadataConfig(base, override MetadataConfig) MetadataConfig {
+	merged := base
+	merged.Device = mergeDeviceMetadataConfig(base.Device, override.Device)
+	merged.Interface = mergeInterfaceMetadataConfig(base.Interface, override.Interface)
+	return merged
+}
+
+func mergeDeviceMetadataConfig(base, override DeviceMetadataConfig) DeviceMetadataConfig {
+	if len(override.Keys) > 0 {
+		base.Keys = copyStringMap(override.Keys)
+	}
+	if override.Hostname != "" {
+		base.Hostname = override.Hostname
+	}
+	if override.VendorName != "" {
+		base.VendorName = override.VendorName
+	}
+	if override.SerialNumber != "" {
+		base.SerialNumber = override.SerialNumber
+	}
+	if override.Platform != "" {
+		base.Platform = override.Platform
+	}
+	if override.SoftwareVersion != "" {
+		base.SoftwareVersion = override.SoftwareVersion
+	}
+	if override.HardwareVersion != "" {
+		base.HardwareVersion = override.HardwareVersion
+	}
+	return base
+}
+
+func mergeInterfaceMetadataConfig(base, override InterfaceMetadataConfig) InterfaceMetadataConfig {
+	if len(override.Keys) > 0 {
+		base.Keys = copyStringMap(override.Keys)
+	}
+	if override.Name != "" {
+		base.Name = override.Name
+	}
+	if override.Description != "" {
+		base.Description = override.Description
+	}
+	if override.AdminStatus != "" {
+		base.AdminStatus = override.AdminStatus
+	}
+	if override.OperStatus != "" {
+		base.OperStatus = override.OperStatus
+	}
+	if override.MACAddress != "" {
+		base.MACAddress = override.MACAddress
+	}
+	if override.IfIndex != "" {
+		base.IfIndex = override.IfIndex
+	}
+	if override.Type != "" {
+		base.Type = override.Type
+	}
+	return base
 }
 
 func validateMetricConfig(metric MetricConfig, index int) error {
