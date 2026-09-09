@@ -8,9 +8,7 @@ use std::ffi::c_void;
 use anyhow::Result;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
-use windows_sys::Win32::System::Environment::{
-    CreateEnvironmentBlock, DestroyEnvironmentBlock,
-};
+use windows_sys::Win32::System::Environment::{CreateEnvironmentBlock, DestroyEnvironmentBlock};
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 use super::wide;

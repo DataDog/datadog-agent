@@ -10,9 +10,7 @@ use windows_sys::Win32::System::JobObjects::{
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
     SetInformationJobObject, TerminateJobObject,
 };
-use windows_sys::Win32::System::Threading::{
-    OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
-};
+use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE};
 
 pub struct JobObject {
     handle: HANDLE,

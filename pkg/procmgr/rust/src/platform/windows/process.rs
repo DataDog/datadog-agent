@@ -5,9 +5,7 @@
 
 use anyhow::Result;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-use windows_sys::Win32::System::Threading::{
-    OpenProcess, PROCESS_TERMINATE, TerminateProcess,
-};
+use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
 
 pub(crate) fn terminate_process(handle: HANDLE) -> Result<()> {
     let ok = unsafe { TerminateProcess(handle, 1) };

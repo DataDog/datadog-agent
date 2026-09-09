@@ -5,7 +5,9 @@
 
 use std::os::windows::ffi::OsStringExt;
 
-pub(crate) fn split_env_entry_wide(wide: &[u16]) -> Option<(std::ffi::OsString, std::ffi::OsString)> {
+pub(crate) fn split_env_entry_wide(
+    wide: &[u16],
+) -> Option<(std::ffi::OsString, std::ffi::OsString)> {
     let eq = wide.iter().position(|&c| c == u16::from(b'='))?;
     let (k, v) = wide.split_at(eq);
     let v = &v[1..];
