@@ -12,16 +12,6 @@ import (
 	"unicode/utf8"
 )
 
-func TestRandomZone(t *testing.T) {
-	availableZones := []string{"zone-a", "zone-b", "zone-c"}
-	for range 100 {
-		zone := randomZone(availableZones)
-		if !slices.Contains(availableZones, zone) {
-			t.Fatalf("randomZone() = %q, want one of %v", zone, availableZones)
-		}
-	}
-}
-
 func TestEnvironmentDefaultZones(t *testing.T) {
 	wantZones := []string{"us-central1-a", "us-central1-b", "us-central1-c"}
 	for _, envName := range []string{agentSandboxEnv, agentQaEnv} {

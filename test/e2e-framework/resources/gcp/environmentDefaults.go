@@ -18,7 +18,6 @@ type environmentDefault struct {
 type gcpProvider struct {
 	project string
 	region  string
-	zone    string
 }
 
 type ddInfra struct {
@@ -56,7 +55,6 @@ func agentSandboxDefault() environmentDefault {
 		gcp: gcpProvider{
 			project: "datadog-agent-sandbox",
 			region:  "us-central1",
-			zone:    "us-central1-a",
 		},
 		ddInfra: ddInfra{
 			defaultInstanceType:     "e2-standard-2",
@@ -76,7 +74,6 @@ func agentQaDefault() environmentDefault {
 		gcp: gcpProvider{
 			project: "datadog-agent-qa",
 			region:  "us-central1",
-			zone:    "us-central1-a",
 		},
 		ddInfra: ddInfra{
 			defaultInstanceType:     "e2-standard-2",

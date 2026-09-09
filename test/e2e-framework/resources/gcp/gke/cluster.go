@@ -70,7 +70,7 @@ func NewCluster(e gcp.Environment, name string, autopilot bool, opts ...pulumi.R
 	if !autopilot {
 		clusterArgs.InitialNodeCount = pulumi.Int(e.DefaultGKENodeCount())
 		clusterArgs.NodeVersion = pulumi.String(e.KubernetesVersion())
-		clusterArgs.NodeLocations = pulumi.StringArray{pulumi.String(e.Zone())}
+		clusterArgs.NodeLocations = pulumi.StringArray{e.RandomZone()}
 		clusterArgs.NodeConfig = &container.ClusterNodeConfigArgs{
 			MachineType: pulumi.String(e.DefaultInstanceType()),
 			OauthScopes: pulumi.StringArray{

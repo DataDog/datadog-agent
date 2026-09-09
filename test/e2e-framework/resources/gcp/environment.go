@@ -7,7 +7,6 @@ package gcp
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/pulumi/pulumi-gcp/sdk/v9/go/gcp"
+	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pulumiConfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 )
@@ -30,10 +30,6 @@ const (
 	// See https://cloud.google.com/resource-manager/docs/labels-overview.
 	MaxResourceLabelValueLen = 63
 )
-
-func randomZone(availableZones []string) string {
-	return availableZones[rand.Intn(len(availableZones))]
-}
 
 // TruncateLabelValue truncates v to at most MaxResourceLabelValueLen bytes
 // without splitting a multi-byte UTF-8 rune. GCP rejects label values longer
@@ -77,6 +73,7 @@ type Environment struct {
 	Namer namer.Namer
 
 	envDefault environmentDefault
+	randomZone pulumi.StringOutput
 }
 
 var _ config.Env = (*Environment)(nil)
@@ -92,11 +89,19 @@ func NewEnvironment(ctx *pulumi.Context) (Environment, error) {
 	}
 	env.CommonEnvironment = &commonEnv
 	env.envDefault = getEnvironmentDefault(config.FindEnvironmentName(commonEnv.InfraEnvironmentNames(), gcpNamerNamespace))
-	env.envDefault.gcp.zone = randomZone(env.envDefault.ddInfra.defaultZones)
 
 	if scenario := pulumiConfig.Get(ctx, "scenario"); strings.Contains(scenario, "openshift") {
 		env.envDefault.ddInfra.openshift.nestedVirtualization = true
 	}
+
+	shuffle, err := random.NewRandomShuffle(env.Ctx(), env.Namer.ResourceName("rnd-zone"), &random.RandomShuffleArgs{
+		Inputs:      pulumi.ToStringArray(env.DefaultZones()),
+		ResultCount: pulumi.IntPtr(1),
+	}, env.WithProviders(config.ProviderRandom))
+	if err != nil {
+		return Environment{}, err
+	}
+	env.randomZone = shuffle.Results.Index(pulumi.Int(0))
 
 	// TODO: Remove this when we find a better way to automatically log in
 	logIn(ctx)
@@ -110,9 +115,11 @@ func NewEnvironment(ctx *pulumi.Context) (Environment, error) {
 	}).(pulumi.StringMapOutput)
 
 	gcpProvider, err := gcp.NewProvider(ctx, string(config.ProviderGCP), &gcp.ProviderArgs{
-		Project:       pulumi.StringPtr(env.envDefault.gcp.project),
-		Region:        pulumi.StringPtr(env.envDefault.gcp.region),
-		Zone:          pulumi.StringPtr(env.Zone()),
+		Project: pulumi.StringPtr(env.envDefault.gcp.project),
+		Region:  pulumi.StringPtr(env.envDefault.gcp.region),
+		Zone: env.RandomZone().ApplyT(func(zone string) *string {
+			return &zone
+		}).(pulumi.StringPtrOutput),
 		DefaultLabels: defaultLabels,
 	})
 	if err != nil {
@@ -228,9 +235,18 @@ func (e *Environment) Region() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultRegionNameParamName, e.envDefault.gcp.region)
 }
 
-// Zone returns the default zone for the GCP environment
-func (e *Environment) Zone() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultZoneNameParamName, e.envDefault.gcp.zone)
+// DefaultZones returns the zones available to the GCP environment. An explicit
+// defaultZone configuration restricts selection to that zone.
+func (e *Environment) DefaultZones() []string {
+	if zone := e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultZoneNameParamName, ""); zone != "" {
+		return []string{zone}
+	}
+	return e.envDefault.ddInfra.defaultZones
+}
+
+// RandomZone returns the zone selected for the GCP environment.
+func (e *Environment) RandomZone() pulumi.StringOutput {
+	return e.randomZone
 }
 
 // OpenShiftPullSecretPath returns the path to the OpenShift pull secret file
