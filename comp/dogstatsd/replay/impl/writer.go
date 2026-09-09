@@ -165,11 +165,9 @@ func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, 
 		tc.zWriter, err = zstd.NewWriter(target)
 		if err != nil {
 			log.Errorf("Unable to create zstd writer: %s", err)
-			tc.zWriter = nil
-			tc.writer = bufio.NewWriter(target)
-		} else {
-			tc.writer = bufio.NewWriter(tc.zWriter)
+			return
 		}
+		tc.writer = bufio.NewWriter(tc.zWriter)
 	} else {
 		tc.zWriter = nil
 		tc.writer = bufio.NewWriter(target)
