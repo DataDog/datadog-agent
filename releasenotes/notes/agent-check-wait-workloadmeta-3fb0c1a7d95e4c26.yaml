@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    ``agent check`` now waits for the workloadmeta store to report itself as initialized
+    before running the check. Checks reading from that store, such as the ``container``
+    check, could previously report no metric at all when the command was run before
+    workloadmeta collectors had started. How long the command waits before running the
+    check anyway is controlled by the new ``--workloadmeta-timeout`` flag, which defaults
+    to 40 seconds and can be set to 0 to not wait at all. The same applies to
+    ``cluster-agent check``.

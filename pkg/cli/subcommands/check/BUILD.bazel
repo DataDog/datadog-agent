@@ -77,6 +77,7 @@ go_library(
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "//pkg/util/scrubber",
+        "//pkg/util/workloadmeta",
         "@com_github_fatih_color//:color",
         "@com_github_spf13_cobra//:cobra",
         "@in_yaml_go_yaml_v2//:yaml",
