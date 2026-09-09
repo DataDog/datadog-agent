@@ -950,7 +950,7 @@ func TestSubscribeSeverityEventsCreatesIndependentDispatchers(t *testing.T) {
 // newScorerWithTelemetry is a test helper that creates a scorer with no-op
 // telemetry gauges so that the internal watcher is active.
 func newScorerWithTelemetry(cfg AnomalyScorerConfig) *anomalyScorer {
-	tel := noopsimpl.GetCompatComponent()
+	tel := noopsimpl.NewComponent()
 	severityGauge := tel.NewGauge("test", "scorer_severity", nil, "")
 	ewmaGauge := tel.NewGauge("test", "scorer_ewma", nil, "")
 	return newAnomalyScorerWithTelemetry(cfg, severityGauge, ewmaGauge)
@@ -1186,9 +1186,7 @@ func TestMaxEpisodeAnomalies(t *testing.T) {
 // wires the internal watcher self-subscription, updates the current severity
 // gauge, and does not panic on transitions.
 func TestScorerWithTelemetry_GaugesAndLogs(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 	tel := newObserverTelemetry(telComp)
 
 	cfg := episodeTestCfg()

@@ -171,6 +171,21 @@ var (
 	// Tags: map, cause
 	MetricPerfBufferInvalidEventsBytes = newRuntimeMetric(".perf_buffer.invalid_events.bytes")
 
+	// Ring buffer user space dispatcher queue metrics
+
+	// MetricEventStreamDispatcherQueueUsage is the number of events currently held in the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueUsage = newRuntimeMetric(".event_stream.dispatcher_queue.usage")
+	// MetricEventStreamDispatcherQueueCapacity is the dispatcher queue capacity in bytes
+	// Tags: -
+	MetricEventStreamDispatcherQueueCapacity = newRuntimeMetric(".event_stream.dispatcher_queue.capacity")
+	// MetricEventStreamDispatcherQueueBytes is the number of bytes currently held in the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueBytes = newRuntimeMetric(".event_stream.dispatcher_queue.bytes")
+	// MetricEventStreamDispatcherQueueEnqueued is the number of events pushed onto the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueEnqueued = newRuntimeMetric(".event_stream.dispatcher_queue.enqueued")
+
 	// Process Resolver metrics
 
 	// MetricProcessResolverCacheSize is the name of the metric used to report the size of the user space
@@ -210,6 +225,21 @@ var (
 	// MetricProcessInodeError is the name of the metric used to report a broken lineage with a inode mismatch
 	// Tags: -
 	MetricProcessInodeError = newRuntimeMetric(".process_resolver.inode_error")
+	// MetricProcessResolverReparentSuccess counts successful process reparenting
+	// Tags: callpath:set_process_context, callpath:do_exit
+	MetricProcessResolverReparentSuccess = newRuntimeMetric(".process_resolver.reparent.success")
+	// MetricProcessResolverReparentFailed counts failed reparenting attempts (e.g. procfs not updated yet)
+	// Tags: callpath:set_process_context, callpath:do_exit
+	MetricProcessResolverReparentFailed = newRuntimeMetric(".process_resolver.reparent.failed")
+	// MetricProcessResolverReparentProcfsSuccess counts successful procfs resolutions of a new parent during reparenting
+	// Tags: -
+	MetricProcessResolverReparentProcfsSuccess = newRuntimeMetric(".process_resolver.reparent.procfs_resolution.success")
+	// MetricProcessResolverReparentProcfsFailed counts failed procfs resolutions of a new parent during reparenting
+	// Tags: -
+	MetricProcessResolverReparentProcfsFailed = newRuntimeMetric(".process_resolver.reparent.procfs_resolution.failed")
+	// MetricProcessResolverProcFallbackLimiterDrop counts procfs fallback resolutions dropped by the rate limiter
+	// Tags: -
+	MetricProcessResolverProcFallbackLimiterDrop = newRuntimeMetric(".process_resolver.proc_fallback_limiter.drop")
 
 	// Mount resolver metrics
 
@@ -404,8 +434,8 @@ var (
 	MetricNamespaceResolverLonelyNetworkNamespace = newRuntimeMetric(".namespace_resolver.lonely_netns")
 	// MetricNamespaceResolverError is the name of the metric used to report the count of errors hit by the
 	// NamespaceResolver, mostly while attaching TC classifiers to network devices.
-	// Tags: error_type ('link_not_found', 'no_such_device', 'classifier_exists', 'queue_full', 'netlink_socket',
-	// 'link_list', 'unknown')
+	// Tags: error_type ('link_not_found', 'no_such_device', 'filter_not_found', 'classifier_exists',
+	// 'queue_full', 'netlink_socket', 'link_list', 'unknown')
 	MetricNamespaceResolverError = newRuntimeMetric(".namespace_resolver.error")
 
 	// Policies
@@ -640,6 +670,19 @@ var (
 	ProcessSourceKernelMapsTags = []string{KernelMapsTag}
 	// ProcessSourceProcTags is assigned to metrics for process cache entries populated from /proc data
 	ProcessSourceProcTags = []string{ProcFSTag}
+
+	// ReparentCallpathSetProcessContext tags a reparent from the setProcessContext path
+	ReparentCallpathSetProcessContext = "callpath:set_process_context"
+	// ReparentCallpathDoExit tags a reparent from the ApplyExitEntry path (do_exit)
+	ReparentCallpathDoExit = "callpath:do_exit"
+	// ReparentCallpathKernelPPid tags a reparent triggered by a kernel ppid mismatch
+	ReparentCallpathKernelPPid = "callpath:kernel_ppid"
+	// ReparentCallpathRelatedEvent tags a reparent from the related event dispatch path
+	ReparentCallpathRelatedEvent = "callpath:related_event"
+	// ReparentCallpathTargetProcess tags a reparent from target process resolution paths (ptrace tracee, signal/setrlimit target, scoped PID lookup)
+	ReparentCallpathTargetProcess = "callpath:target_process"
+	// AllReparentCallpathTags is the list of all reparent callpath tags
+	AllReparentCallpathTags = []string{ReparentCallpathSetProcessContext, ReparentCallpathDoExit, ReparentCallpathKernelPPid, ReparentCallpathRelatedEvent, ReparentCallpathTargetProcess}
 )
 
 func newRuntimeMetric(name string) string {

@@ -13,7 +13,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.11.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260810153831-ec0a7760b754
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -39,7 +39,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.11.1 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.7 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.8 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect

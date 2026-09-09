@@ -52,6 +52,7 @@ go_library(
             "//pkg/fleet/installer/packages/service/sysvinit",
             "//pkg/fleet/installer/packages/service/upstart",
             "//pkg/fleet/installer/packages/user",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/installinfo",
@@ -81,6 +82,7 @@ go_library(
             "//pkg/fleet/installer/packages/service/sysvinit",
             "//pkg/fleet/installer/packages/service/upstart",
             "//pkg/fleet/installer/packages/user",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/msi",
@@ -110,6 +112,7 @@ dd_agent_go_test(
         "datadog_agent_darwin_test.go",
         "datadog_agent_eudm_windows_test.go",
         "datadog_agent_extensions_test.go",
+        "datadog_agent_linux_test.go",
         "datadog_agent_windows_test.go",
         "otel_config_common_test.go",
     ],
@@ -120,6 +123,9 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/packages/file",
+        ],
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/repository",
@@ -129,6 +135,9 @@ dd_agent_go_test(
             "//pkg/fleet/installer/packages/launchd",
             "//pkg/fleet/installer/repository",
             "//pkg/version",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/packages/file",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
