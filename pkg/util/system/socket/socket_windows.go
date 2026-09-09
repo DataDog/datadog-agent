@@ -13,23 +13,21 @@ import (
 	"github.com/Microsoft/go-winio"
 )
 
-// IsAvailable returns named pipe availability
-// as on Windows, sockets do not exist
-func IsAvailable(path string, timeout time.Duration) (bool, bool) {
+// IsAvailable returns named pipe availability, as on Windows sockets do not exist.
+// The second return value is the dial error, if any.
+func IsAvailable(path string, timeout time.Duration) (bool, error) {
 	if !checkExists(path) {
-		return false, false
+		return false, nil
 	}
 
 	conn, err := winio.DialPipe(path, &timeout)
 	if err != nil {
-		return true, false
+		return true, err
 	}
 
-	if conn != nil {
-		conn.Close()
-	}
+	conn.Close()
 
-	return true, true
+	return true, nil
 }
 
 func checkExists(path string) bool {
