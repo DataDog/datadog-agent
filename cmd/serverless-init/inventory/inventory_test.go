@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 )
 
 // fakeComponent records Set calls and Submit invocations so tests can assert on
@@ -36,7 +35,7 @@ func (f *fakeComponent) Get() map[string]interface{}        { return f.fields }
 func (f *fakeComponent) Submit()                            { f.submits++ }
 
 func TestInjectSetsFieldsWithoutSubmitting(t *testing.T) {
-	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, "arn:aws:lambda:eu-west-1:123456789012:microvm-image:my-image:v1")
+	t.Setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:eu-west-1:123456789012:microvm-image:my-image:v1")
 	conf := configmock.New(t)
 	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
 	ia := newFakeComponent()
