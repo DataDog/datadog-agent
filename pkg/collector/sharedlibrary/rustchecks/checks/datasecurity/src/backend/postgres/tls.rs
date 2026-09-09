@@ -10,24 +10,18 @@ use postgres_openssl::MakeTlsConnector;
 
 use crate::config::{Connection, SslMode};
 
-/// Builds the connector for the connection's `ssl`, or `None` when the mode
-/// is `disable` and the caller should connect with `NoTls`.
+/// OpenSSL connector, or `None` for `disable` (`NoTls`).
 pub fn connector(conn: &Connection) -> Result<Option<MakeTlsConnector>> {
     match conn.ssl {
         SslMode::Disable => return Ok(None),
-        SslMode::Allow | SslMode::Prefer | SslMode::Require => {}
-        // TODO(DATASEC-156): support verify-ca / verify-full, and require's
-        // upgrade to verify-ca when a CA file is configured.
+        // TODO(DATASEC-156): verify-ca / verify-full (SslVerifyMode::PEER + CA).
         SslMode::VerifyCa => bail!("ssl mode `verify-ca` is unsupported"),
         SslMode::VerifyFull => bail!("ssl mode `verify-full` is unsupported"),
+        _ => {}
     }
 
     let mut builder =
         SslConnector::builder(SslMethod::tls()).context("creating the OpenSSL connector")?;
-    // Encrypt without authenticating the server. libpq does the same for
-    // `allow` / `prefer` / `require` when no CA file is set.
-    // TODO(DATASEC-156): set SslVerifyMode::PEER for verify-ca / verify-full
-    // (and for require once a CA file is configured).
     builder.set_verify(SslVerifyMode::NONE);
     Ok(Some(MakeTlsConnector::new(builder.build())))
 }

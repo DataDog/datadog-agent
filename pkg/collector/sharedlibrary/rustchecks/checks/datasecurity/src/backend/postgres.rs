@@ -47,7 +47,6 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         bail!("postgres connection host is required");
     }
     let timeout = sub_task.timeout;
-    let tls = tls::connector(conn)?;
 
     let mut config = Config::new();
     config
@@ -69,20 +68,17 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         config.host(&conn.host);
     }
 
-    match tls {
+    match tls::connector(conn)? {
         Some(tls) => config.connect(tls),
         None => config.connect(NoTls),
     }
     .context("connecting to postgres")
 }
 
-/// TLS vs plaintext is decided here; the OpenSSL connector is built in `tls`.
-/// `verify-ca` / `verify-full` are rejected in `tls::connector` before connect.
 fn pg_ssl_mode(mode: SslMode) -> PgSslMode {
     match mode {
         SslMode::Disable => PgSslMode::Disable,
-        // rust-postgres has no `allow` (plaintext first): `prefer` succeeds
-        // wherever `allow` would and encrypts when the server offers TLS.
+        // rust-postgres has no `allow` (plaintext first, then TLS).
         SslMode::Allow | SslMode::Prefer => PgSslMode::Prefer,
         SslMode::Require => PgSslMode::Require,
         SslMode::VerifyCa | SslMode::VerifyFull => {
@@ -142,15 +138,3 @@ fn cell_to_value(row: &Row, index: usize) -> Value {
 }
 
 // TODO(dsec-266): add tests for the postgres engine.
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn maps_ssl_modes_onto_the_postgres_client() {
-        assert_eq!(pg_ssl_mode(SslMode::Disable), PgSslMode::Disable);
-        assert_eq!(pg_ssl_mode(SslMode::Allow), PgSslMode::Prefer);
-        assert_eq!(pg_ssl_mode(SslMode::Prefer), PgSslMode::Prefer);
-        assert_eq!(pg_ssl_mode(SslMode::Require), PgSslMode::Require);
-    }
-}

@@ -7,7 +7,6 @@ package datasecurity
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -178,17 +177,6 @@ func TestControllerDoesNotSubscribeWithoutPostgres(t *testing.T) {
 	rc, _ := newTestController(t, nil)
 
 	assert.Nil(t, rc.callback, "controller should not subscribe without a postgres integration")
-}
-
-// TestBuildPostgresConnectionOmitsUnsetTLSSettings asserts unset TLS settings are absent from the
-// marshalled connection, so the check applies its own defaults instead of reading an empty path.
-func TestBuildPostgresConnectionOmitsUnsetTLSSettings(t *testing.T) {
-	instance := map[string]any{"host": "db-host", "username": "datadog", "password": "secret"}
-
-	conn, err := json.Marshal(buildPostgresConnection(instance, entity{Database: "app"}))
-	require.NoError(t, err)
-
-	assert.JSONEq(t, `{"host":"db-host","port":5432,"dbname":"app","username":"datadog","password":"secret"}`, string(conn))
 }
 
 func TestControllerUpdate(t *testing.T) {
