@@ -120,14 +120,6 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map) (string, bool) {
 		return "", false
 	}
 
-	// If on Azure Container Apps, we don't have a hostname
-	if cloudPlatform, ok := attrs.Get(string(conventions.CloudPlatformKey)); ok {
-		p := cloudPlatform.Str()
-		if p == semconv1_43.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
-			return "", false
-		}
-	}
-
 	cloudProvider, ok := attrs.Get(string(conventions.CloudProviderKey))
 	switch {
 	case ok && cloudProvider.Str() == conventions.CloudProviderAWS.Value.AsString():
