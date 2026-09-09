@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Adds ability to patch daemonsets and statefulsets through the kuberntes-actions pipeline.
+    Adds ability to patch daemonsets and statefulsets through the kubernetes-actions pipeline.

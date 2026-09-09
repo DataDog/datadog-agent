@@ -17,7 +17,7 @@ import (
 )
 
 func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
-	tel := newObserverTelemetry(noopsimpl.GetCompatComponent())
+	tel := newObserverTelemetry(noopsimpl.NewComponent())
 	tel.recordObservationAccepted("logs", "containers")
 	tel.recordObservationDropped("logs", "containers")
 	tel.recordRRCFScore("rrcf", 0.7)
@@ -41,9 +41,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 }
 
 func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	tel := newObserverTelemetry(telComp)
 	tel.recordLogAccepted("kubelet", 128)

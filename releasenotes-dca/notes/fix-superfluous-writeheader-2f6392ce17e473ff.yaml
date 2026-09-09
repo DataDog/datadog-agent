@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix a Cluster Agent API bug that could log spurious
+    ``superfluous response.WriteHeader call`` warnings. The internal telemetry
+    wrapper now correctly tracks the response status when a handler writes the
+    response body before explicitly setting the status code.

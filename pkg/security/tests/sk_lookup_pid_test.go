@@ -30,7 +30,7 @@ func getSkStoragePidMap(t *testing.T, testModule *testModule) *ebpf.Map {
 		return nil
 	}
 
-	m, _, err := p.Manager.GetMap("sk_storage_pid")
+	m, _, err := p.Manager.Get().GetMap("sk_storage_pid")
 	if err != nil {
 		t.Errorf("failed to get map sk_storage_pid: %v", err)
 		return nil

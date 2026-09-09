@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fleet Installer: Fix an issue where the installer's telemetry client repeatedly
+    logged ``failed to send telemetry payload`` warnings with ``404 Not Found`` errors
+    on GovCloud sites (``ddog-gov.com``), since no instrumentation telemetry intake
+    exists there. Telemetry is now disabled outright for GovCloud sites, matching the
+    existing behavior of the Agent's own resident telemetry.

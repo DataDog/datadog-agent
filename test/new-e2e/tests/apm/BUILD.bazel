@@ -12,6 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
         "//test/e2e-framework/components/datadog/apps",
         "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",

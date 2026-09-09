@@ -91,7 +91,7 @@
     - !reference [.aws_retry_config]
     # Drop GOPROXY entries not usable from macOS runners, before any go command.
     - !reference [.sanitize_goproxy]
-    - !reference [.kill_bazel_server]
+    - !reference [.bazel:recover_from_canceled_job]
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))

@@ -737,6 +737,56 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 		},
 		{
+			name: "AKS-specific label selector applied to webhooks with no namespace selector of their own",
+			setupConfig: func(mockConfig model.Config) {
+				mockConfig.SetInTest("admission_controller.add_aks_selectors", true)
+				mockConfig.SetInTest("admission_controller.mutate_unlabelled", false)
+				mockConfig.SetInTest("admission_controller.namespace_selector_fallback", false)
+				mockConfig.SetInTest("admission_controller.inject_config.enabled", false)
+				mockConfig.SetInTest("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetInTest("admission_controller.auto_instrumentation.enabled", false)
+				mockConfig.SetInTest("admission_controller.cws_instrumentation.enabled", true)
+				mockConfig.SetInTest("admission_controller.cws_instrumentation.mutate_unlabelled", true)
+				mockConfig.SetInTest("cluster_agent.service_account_name", "datadog-cluster-agent")
+				mockConfig.SetInTest("admission_controller.cws_instrumentation.timeout", 2)
+			},
+			configFunc: func(mockConfig model.Config) Config { return NewConfig(true, false, false, mockConfig) },
+			want: func() []admiv1.MutatingWebhook {
+				aksOnlySelector := &metav1.LabelSelector{
+					MatchExpressions: common.AzureAKSLabelSelectorRequirement(),
+				}
+				podWebhook := webhook(
+					"datadog.webhook.cws.pod.instrumentation",
+					"/inject-pod-cws",
+					&metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      cwsinstrumentation.PodLabelEnabled,
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"false"},
+							},
+						},
+					},
+					aksOnlySelector,
+					[]admiv1.MatchCondition{},
+					[]admiv1.OperationType{admiv1.Create},
+					[]string{"pods"},
+					mockConfig.GetInt32("admission_controller.cws_instrumentation.timeout"),
+				)
+				execWebhook := webhook(
+					"datadog.webhook.cws.exec.instrumentation",
+					"/inject-command-cws",
+					nil,
+					aksOnlySelector,
+					[]admiv1.MatchCondition{},
+					[]admiv1.OperationType{admiv1.Connect},
+					[]string{"pods/exec"},
+					mockConfig.GetInt32("admission_controller.cws_instrumentation.timeout"),
+				)
+				return []admiv1.MutatingWebhook{podWebhook, execWebhook}
+			},
+		},
+		{
 			name: "cws instrumentation, mutate unlabelled",
 			setupConfig: func(mockConfig model.Config) {
 				mockConfig.SetInTest("admission_controller.mutate_unlabelled", false)

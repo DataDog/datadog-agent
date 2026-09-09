@@ -268,9 +268,9 @@ type LogAction struct {
 // NetworkFilterAction is used to report the 'network_filter' action
 // easyjson:json
 type NetworkFilterAction struct {
-	Filter string `json:"filter,omitempty"`
-	Policy string `json:"policy,omitempty"`
-	Scope  string `json:"scope,omitempty"`
+	Filter string                    `json:"filter,omitempty"`
+	Policy rules.NetworkFilterPolicy `json:"policy,omitempty"`
+	Scope  string                    `json:"scope,omitempty"`
 }
 
 // RulesetLoadedEvent is used to report that a new ruleset was loaded

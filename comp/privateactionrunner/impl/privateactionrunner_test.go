@@ -32,6 +32,46 @@ func TestExecutorIdleTimeout(t *testing.T) {
 	}
 }
 
+func TestSplitDeploymentEnabled(t *testing.T) {
+	tests := []struct {
+		name          string
+		configEnabled bool
+		containerized bool
+		envValue      string
+		want          bool
+	}{
+		{name: "host config", configEnabled: true, want: true},
+		{name: "container env", containerized: true, envValue: "true", want: true},
+		{name: "container config only", configEnabled: true, containerized: true},
+		{name: "disabled"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, splitDeploymentEnabled(tt.configEnabled, tt.containerized, tt.envValue))
+		})
+	}
+}
+
+func TestSplitDeploymentSupported(t *testing.T) {
+	tests := []struct {
+		name        string
+		goos        string
+		fipsEnabled bool
+		want        bool
+	}{
+		{name: "linux", goos: "linux", want: true},
+		{name: "linux FIPS", goos: "linux", fipsEnabled: true},
+		{name: "unsupported platform", goos: "windows"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, splitDeploymentSupported(tt.goos, tt.fipsEnabled))
+		})
+	}
+}
+
 func TestStopCleansUpMetricsClient(t *testing.T) {
 	tests := []struct {
 		name           string

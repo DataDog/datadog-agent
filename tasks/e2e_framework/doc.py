@@ -10,7 +10,6 @@ install_workload: str = f"Install test workload (default {tool.get_default_workl
 pipeline_id: str = (
     "The pipeline id of the custom Agent build for example '16497585' (may be taken form the gitlab url)'"
 )
-job_name: str = "Name of the job within the agent pipeline for example 'deploy_deb_testing-a7_x64'"
 agent_version: str = "The version of the Agent for example '7.42.0~rc.1-1' or '6.39.0 (default `latest`)'"
 container_agent_version: str = "The container version of the Agent for example '7.45.0-rc.3' (default `latest`)'"
 stack_name: str = "An optional name for the stack. This parameter is useful when you need to create several environments. Note: 'invoke destroy' may not work properly"

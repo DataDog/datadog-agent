@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add helm rollback action
+    Add Helm rollback action

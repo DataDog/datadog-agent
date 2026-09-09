@@ -262,7 +262,7 @@ func TestRawPacketRouterSelFlipOnRulesetReload(t *testing.T) {
 		t.Fatal("expected *probe.EBPFProbe")
 	}
 
-	selBefore, err := ebpfprobes.GetActiveRawPacketMapNumber(p.Manager)
+	selBefore, err := ebpfprobes.GetActiveRawPacketMapNumber(p.Manager.Get())
 	if err != nil {
 		t.Fatalf("raw_packet_router_sel (before reload): %v", err)
 	}
@@ -274,7 +274,7 @@ func TestRawPacketRouterSelFlipOnRulesetReload(t *testing.T) {
 		t.Fatalf("reload policies: %v", err)
 	}
 
-	selAfter, err := ebpfprobes.GetActiveRawPacketMapNumber(p.Manager)
+	selAfter, err := ebpfprobes.GetActiveRawPacketMapNumber(p.Manager.Get())
 	if err != nil {
 		t.Fatalf("raw_packet_router_sel (after reload): %v", err)
 	}
@@ -302,7 +302,7 @@ func TestRawPacketAction(t *testing.T) {
 				NetworkFilter: &rules.NetworkFilterDefinition{
 					BPFFilter: "port 53",
 					Scope:     "cgroup",
-					Policy:    "drop",
+					Policy:    rules.NetworkFilterPolicyDrop,
 				},
 			},
 		},
@@ -493,7 +493,7 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 				NetworkFilter: &rules.NetworkFilterDefinition{
 					BPFFilter: "host 1.1.1.1",
 					Scope:     "cgroup",
-					Policy:    "drop",
+					Policy:    rules.NetworkFilterPolicyDrop,
 				},
 			},
 		},
@@ -508,7 +508,7 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 				NetworkFilter: &rules.NetworkFilterDefinition{
 					BPFFilter: "host " + pingHost,
 					Scope:     "cgroup",
-					Policy:    "drop",
+					Policy:    rules.NetworkFilterPolicyDrop,
 				},
 			},
 		},
@@ -611,7 +611,7 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 					NetworkFilter: &rules.NetworkFilterDefinition{
 						BPFFilter: "port 53",
 						Scope:     "cgroup",
-						Policy:    "drop",
+						Policy:    rules.NetworkFilterPolicyDrop,
 					},
 				},
 			},
@@ -838,7 +838,7 @@ func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
 					NetworkFilter: &rules.NetworkFilterDefinition{
 						BPFFilter: "port " + udpTestPort,
 						Scope:     "process",
-						Policy:    "drop",
+						Policy:    rules.NetworkFilterPolicyDrop,
 					},
 				},
 			},

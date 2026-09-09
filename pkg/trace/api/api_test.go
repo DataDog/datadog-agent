@@ -101,11 +101,6 @@ func newTestReceiverConfigNoPort() *config.AgentConfig {
 	// default (60s). Without this, tests that call io.ReadAll(resp.Body) on a real server
 	// block for 60 seconds waiting for the connection to close.
 	conf.ReceiverIdleTimeout = 0
-	// Enable convert-traces by default for tests since most tests expect V1 behavior
-	if conf.Features == nil {
-		conf.Features = make(map[string]struct{})
-	}
-	conf.Features["convert-traces"] = struct{}{}
 
 	return conf
 }
@@ -448,8 +443,8 @@ func TestLegacyReceiver(t *testing.T) {
 // the legacy (pb) and converted (idx) handler paths.
 func TestHandleTracesNilSpanDoesNotPanic(t *testing.T) {
 	t.Run("legacy", func(t *testing.T) {
-		conf := newTestReceiverConfig()
-		delete(conf.Features, "convert-traces") // exercise the legacy pb path
+		// Conversion is on by default; opt out to exercise the legacy pb path.
+		conf := newTestReceiverConfigWithFeatures("disable-convert-traces")
 		r := newTestReceiverFromConfig(conf)
 		server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
 		defer server.Close()
@@ -472,7 +467,7 @@ func TestHandleTracesNilSpanDoesNotPanic(t *testing.T) {
 	})
 
 	t.Run("converted", func(t *testing.T) {
-		conf := newTestReceiverConfig() // convert-traces enabled by default
+		conf := newTestReceiverConfig() // conversion enabled by default
 		r := newTestReceiverFromConfig(conf)
 		server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
 		defer server.Close()
@@ -491,8 +486,8 @@ func TestHandleTracesNilSpanDoesNotPanic(t *testing.T) {
 }
 
 func TestHandleTracesAttributesServiceAfterNilSpan(t *testing.T) {
-	conf := newTestReceiverConfig()
-	delete(conf.Features, "convert-traces") // exercise the legacy pb path
+	// Conversion is on by default; opt out to exercise the legacy pb path.
+	conf := newTestReceiverConfigWithFeatures("disable-convert-traces")
 	r := newTestReceiverFromConfig(conf)
 	server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
 	defer server.Close()
@@ -521,8 +516,7 @@ func TestHandleTracesAttributesServiceAfterNilSpan(t *testing.T) {
 }
 
 func TestLegacyDecoderSanitizesV07Payload(t *testing.T) {
-	conf := newTestReceiverConfig()
-	delete(conf.Features, "convert-traces")
+	conf := newTestReceiverConfigWithFeatures("disable-convert-traces")
 	r := newTestReceiverFromConfig(conf)
 	server := httptest.NewServer(r.handleWithVersion(V07, r.handleTraces))
 	defer server.Close()
@@ -1657,15 +1651,14 @@ func TestHandleTraces(t *testing.T) {
 }
 
 func TestHandleTracesWithoutConvertFeature(t *testing.T) {
-	// Test that the old code path (without convert-traces feature) still works
+	// Test that the old code path (with disable-convert-traces feature) still works
 	// prepare the msgpack payload
 	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
 	assert.Nil(t, err)
 
-	// prepare the receiver WITHOUT the convert-traces feature
-	conf := newTestReceiverConfigWithFeatures() // no features
+	// prepare the receiver WITH the disable-convert-traces feature
+	conf := newTestReceiverConfigWithFeatures("disable-convert-traces")
 	receiver := newTestReceiverFromConfig(conf)
-	receiver.conf.Features = make(map[string]struct{}) // explicitly disable convert-traces
 
 	// response recorder
 	handler := receiver.handleWithVersion(v04, receiver.handleTraces)

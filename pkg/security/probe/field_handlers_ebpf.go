@@ -75,7 +75,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryC
 	}
 
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
-		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, true, newEntryCb)
+		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.PPid, ev.PIDContext.ExecInode, true, newEntryCb)
 	}
 
 	if ev.ProcessCacheEntry == nil {
@@ -88,7 +88,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryC
 
 // ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
 func (fh *EBPFFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.ProcessCacheEntry {
-	return fh.resolvers.ProcessResolver.Resolve(pid, pid, 0, true, nil)
+	return fh.resolvers.ProcessResolver.Resolve(pid, pid, 0, 0, true, nil)
 }
 
 // ResolveFilePath resolves the inode to a full path
@@ -805,7 +805,7 @@ func (fh *EBPFFieldHandlers) resolveOTelSpanAttrs(ev *model.Event) {
 		return
 	}
 
-	keyNames := otelAttributeKeyNames(ev)
+	keyNames := fh.otelAttributeKeyNames(ev)
 
 	attrs := make(map[string]string, len(rawAttrs))
 	for _, attr := range rawAttrs {
@@ -815,20 +815,23 @@ func (fh *EBPFFieldHandlers) resolveOTelSpanAttrs(ev *model.Event) {
 }
 
 // otelAttributeKeyNames returns the ordered key names the process published, which
-// the key indices of a record index into. An exec event's own entry carries no
-// tracer metadata (the exec'd image never sealed a tracer-info memfd), so the key
-// list has to be looked up on an ancestor.
-func otelAttributeKeyNames(ev *model.Event) []string {
+// the key indices of a record index into. The list lands on the cache entry that
+// was current when the process published its context, so an entry created by a
+// later exec carries none and the lookup has to walk up to an ancestor.
+func (fh *EBPFFieldHandlers) otelAttributeKeyNames(ev *model.Event) []string {
 	if ev.ProcessContext == nil {
 		return nil
 	}
 
-	if keyNames := ev.ProcessContext.Process.Tracer.Metadata.ThreadlocalAttributeKeys; len(keyNames) > 0 {
+	fh.resolvers.ProcessResolver.RLock()
+	defer fh.resolvers.ProcessResolver.RUnlock()
+
+	if keyNames := ev.ProcessContext.Process.Tracer.ThreadlocalAttributeKeys; len(keyNames) > 0 {
 		return keyNames
 	}
 
 	for pce := ev.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
-		if keyNames := pce.Process.Tracer.Metadata.ThreadlocalAttributeKeys; len(keyNames) > 0 {
+		if keyNames := pce.Process.Tracer.ThreadlocalAttributeKeys; len(keyNames) > 0 {
 			return keyNames
 		}
 	}
