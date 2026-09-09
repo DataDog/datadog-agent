@@ -13,7 +13,7 @@ use super::sid::lookup_account_sid;
 use super::wide;
 
 const ERROR_NON_ACCOUNT_SID: WIN32_ERROR = 1257;
-const ERROR_NON_DOMAIN_SID: WIN32_ERROR = 1260;
+const ERROR_NON_DOMAIN_SID: WIN32_ERROR = 1258;
 
 pub(crate) fn is_local_account(sid: &[u8]) -> Result<bool> {
     let account_domain_sid = match account_domain_sid(sid) {
@@ -92,6 +92,14 @@ mod tests {
     #[test]
     fn non_account_sid_errors_are_recognized() {
         let err = std::io::Error::from_raw_os_error(ERROR_NON_ACCOUNT_SID as i32);
+        assert!(is_non_account_or_domain_sid(
+            &anyhow::Error::new(err).context("GetWindowsAccountDomainSid")
+        ));
+    }
+
+    #[test]
+    fn non_domain_sid_errors_are_recognized() {
+        let err = std::io::Error::from_raw_os_error(ERROR_NON_DOMAIN_SID as i32);
         assert!(is_non_account_or_domain_sid(
             &anyhow::Error::new(err).context("GetWindowsAccountDomainSid")
         ));
