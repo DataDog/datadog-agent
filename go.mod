@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.26.0
+go 1.26.3
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -218,8 +218,8 @@ require (
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
-	github.com/Microsoft/go-winio v0.6.2
-	github.com/Microsoft/hcsshim v0.14.1
+	github.com/Microsoft/go-winio v0.6.3-0.20251027160822-ad3df93bed29
+	github.com/Microsoft/hcsshim v0.15.0-rc.1
 	github.com/NVIDIA/go-nvml v0.13.1-0
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/acobaugh/osrelease v0.1.0
@@ -251,7 +251,7 @@ require (
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/containerd/containerd/api v1.11.1
-	github.com/containerd/containerd/v2 v2.2.5
+	github.com/containerd/containerd/v2 v2.3.4
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.3.0
 	github.com/containernetworking/cni v1.3.0
@@ -493,15 +493,15 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.31.0
 	istio.io/client-go v1.31.0
-	k8s.io/api v0.35.5
+	k8s.io/api v0.36.3
 	k8s.io/apiextensions-apiserver v0.35.5
-	k8s.io/apimachinery v0.35.6
+	k8s.io/apimachinery v0.36.3
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.6.0
 	k8s.io/cli-runtime v0.35.5
-	k8s.io/client-go v0.35.5
-	k8s.io/component-base v0.35.5
-	k8s.io/cri-api v0.35.5
-	k8s.io/cri-client v0.35.5
+	k8s.io/client-go v0.36.3
+	k8s.io/component-base v0.36.3
+	k8s.io/cri-api v0.36.3
+	k8s.io/cri-client v0.36.3
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-aggregator v0.35.5
 	k8s.io/kube-state-metrics/v2 v2.18.0
@@ -644,13 +644,13 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
-	github.com/containerd/continuity v0.4.5 // indirect
+	github.com/containerd/continuity v0.5.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
-	github.com/containerd/platforms v1.0.0-rc.2 // indirect
-	github.com/containerd/plugin v1.0.0 // indirect
-	github.com/containerd/ttrpc v1.2.7 // indirect
+	github.com/containerd/platforms v1.0.0-rc.4 // indirect
+	github.com/containerd/plugin v1.1.0 // indirect
+	github.com/containerd/ttrpc v1.2.8 // indirect
 	github.com/containernetworking/plugins v1.9.1 // indirect
 	github.com/coreos/etcd v3.3.27+incompatible // indirect
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
@@ -1166,6 +1166,7 @@ require (
 	k8s.io/kms v0.35.5 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
 	k8s.io/sample-controller v0.35.3 // indirect
+	k8s.io/streaming v0.36.3 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.53.0 // indirect
