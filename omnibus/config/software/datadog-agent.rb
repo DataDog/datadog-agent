@@ -114,6 +114,8 @@ build do
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
 
+  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env
+
   # Stage Rust shared-library checks into checks.d (Linux only). Enabled checks
   # are listed in ENABLED_CHECKS in the rustchecks BUILD.bazel.
   if linux_target?
@@ -226,12 +228,6 @@ build do
       copy 'bin/system-probe/system-probe.exe.pdb', "#{install_dir}/bin/agent"
     else
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
-    end
-
-    # Add SELinux policy for system-probe
-    if debian_target? || redhat_target?
-      mkdir "#{conf_dir}/selinux"
-      command "dda inv -- -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
     end
 
     move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
