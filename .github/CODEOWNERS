@@ -302,7 +302,7 @@
 /cmd/agent/dist/conf.d/sbom.d/                         @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/                         @DataDog/network-device-monitoring-core
 /cmd/agent/dist/conf.d/tcp_queue_length.d/             @DataDog/container-integrations
-/cmd/agent/dist/conf.d/telemetry.d/                    @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/telemetry.d/                    @DataDog/fleet-remediation
 /cmd/agent/dist/conf.d/thermal.d/                      @DataDog/windows-products
 /cmd/agent/dist/conf.d/uptime.d/                       @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/versa.d/                        @DataDog/ndm-integrations
