@@ -274,8 +274,9 @@ func loadInstanceFromConfig(config config.Component, index int) (*gnmicfg.Instan
 
 func printSnapshot(gnmiClient *client.Client) {
 	connStatus := gnmiClient.ConnectionStatus()
-	fmt.Printf("--- stream=%s reconnect=%d samples=%d",
+	fmt.Printf("--- stream=%s synchronized=%t reconnect=%d samples=%d",
 		gnmiClient.StreamState(),
+		gnmiClient.Synchronized(),
 		gnmiClient.ReconnectAttempts(),
 		gnmiClient.ReceivedSamples(),
 	)
