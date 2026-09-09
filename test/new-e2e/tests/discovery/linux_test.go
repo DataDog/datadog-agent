@@ -60,6 +60,14 @@ type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
+// withInternetAccess opts the host into internet access, which the suite needs to
+// provision its test services: testdata/provision/provision.sh installs packages
+// from apt, pip, npm and gem. It must be passed to every provisioner call in the
+// suite, including UpdateEnv, since the awshost provisioner defaults to blocking
+// internet access and a call that omits it would put the host back behind the
+// no-internet security groups.
+var withInternetAccess = scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())
+
 var services = []string{
 	"python-svc",
 	"python-instrumented",
@@ -75,7 +83,10 @@ func TestLinuxTestSuite(t *testing.T) {
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
 	}
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentParams...)))),
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(
+			scenec2.WithAgentOptions(agentParams...),
+			withInternetAccess,
+		))),
 	}
 	e2e.Run(t, &linuxTestSuite{}, options...)
 }
@@ -268,6 +279,7 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 		scenec2.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfigStr),
 			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+		withInternetAccess,
 	)),
 	)
 	s.validateDiscoveryMode(mode)
@@ -417,6 +429,7 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscoveryPrivilegedLogs(agen
 		scenec2.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfigStr),
 			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
+		withInternetAccess,
 	)),
 	)
 	client := s.Env().FakeIntake.Client()
