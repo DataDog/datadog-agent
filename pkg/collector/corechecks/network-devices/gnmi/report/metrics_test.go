@@ -20,9 +20,14 @@ import (
 
 func TestReportMetrics(t *testing.T) {
 	deviceAddress := "10.0.0.1"
+	deviceID := buildDeviceIDFromConfigAddress(deviceAddress)
 	baseTags := []string{
+		deviceNamespaceTag,
 		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		integrationSourceGNMITag,
+		internalDeviceResourceTag(deviceID),
 	}
 
 	tests := []struct {
@@ -112,12 +117,15 @@ func TestReportMetrics(t *testing.T) {
 					name:   "snmp.ifHCInOctets",
 					value:  2_000_000,
 					tags: []string{
+						deviceNamespaceTag,
 						"device_ip:" + deviceAddress,
-						"device_id:default:" + deviceAddress,
+						"device_id:" + deviceID,
+						"snmp_device:" + deviceAddress,
+						integrationSourceGNMITag,
+						internalDeviceResourceTag(deviceID),
 						"interface:eth0",
-						"interface_index:42",
 						"interface_alias:uplink",
-						"dd.internal.resource:ndm_interface:default:" + deviceAddress + ":42",
+						"dd.internal.resource:ndm_interface:" + deviceID + ":eth0",
 					},
 				},
 				{
@@ -125,12 +133,15 @@ func TestReportMetrics(t *testing.T) {
 					name:   "snmp.ifHCInOctets.rate",
 					value:  2_000_000,
 					tags: []string{
+						deviceNamespaceTag,
 						"device_ip:" + deviceAddress,
-						"device_id:default:" + deviceAddress,
+						"device_id:" + deviceID,
+						"snmp_device:" + deviceAddress,
+						integrationSourceGNMITag,
+						internalDeviceResourceTag(deviceID),
 						"interface:eth0",
-						"interface_index:42",
 						"interface_alias:uplink",
-						"dd.internal.resource:ndm_interface:default:" + deviceAddress + ":42",
+						"dd.internal.resource:ndm_interface:" + deviceID + ":eth0",
 					},
 				},
 			},
@@ -327,6 +338,68 @@ func TestReportMetrics(t *testing.T) {
 			mockSender.AssertNumberOfCalls(t, "Rate", rateCalls)
 		})
 	}
+}
+
+func TestBuildDeviceID(t *testing.T) {
+	cfg := &config.CheckConfig{
+		Instance: config.InstanceConfig{Address: "127.0.0.1", Port: 57401},
+		Profile:  config.ProfileDefinition{},
+	}
+
+	assert.Equal(t, "default:127.0.0.1", buildDeviceID(cfg))
+
+	cfg.Instance.Address = "srl1"
+	assert.Equal(t, "default:srl1", buildDeviceID(cfg))
+}
+
+func TestBuildDeviceIDIgnoresTelemetryHostname(t *testing.T) {
+	cfg := &config.CheckConfig{
+		Instance: config.InstanceConfig{Address: "127.0.0.1"},
+		Profile:  config.ProfileDefinition{},
+	}
+	snapshot := []client.CachedValue{
+		{
+			Key:   client.CacheKey{Path: "/openconfig/system/state/hostname"},
+			Entry: client.CacheEntry{Value: "srl2"},
+		},
+	}
+
+	assert.Equal(t, "default:127.0.0.1", buildDeviceID(cfg))
+
+	tags := buildBaseTags(cfg, snapshot)
+	assert.Contains(t, tags, "device_id:default:127.0.0.1")
+	assert.Contains(t, tags, internalDeviceResourceTag("default:127.0.0.1"))
+	assert.Contains(t, tags, "snmp_device:127.0.0.1")
+	assert.Contains(t, tags, "device_ip:127.0.0.1")
+	assert.Contains(t, tags, "snmp_host:srl2")
+}
+
+func TestBuildBaseTagsIncludesDeviceResourceTag(t *testing.T) {
+	cfg := &config.CheckConfig{
+		Instance: config.InstanceConfig{Address: "10.0.0.1"},
+	}
+
+	tags := buildBaseTags(cfg, nil)
+	assert.Contains(t, tags, "device_id:default:10.0.0.1")
+	assert.Contains(t, tags, internalDeviceResourceTag("default:10.0.0.1"))
+	assert.NotContains(t, tags, "dd.internal.resource:ndm_interface:")
+}
+
+func TestBuildInterfaceMetadataIncludesMetricPaths(t *testing.T) {
+	snapshot := []client.CachedValue{
+		{
+			Key: client.CacheKey{
+				Path: "/openconfig/interfaces/interface/ethernet/state/port-speed",
+				Keys: map[string]string{"name": "ethernet-1/9"},
+			},
+			Entry: client.CacheEntry{Value: "SPEED_1GB"},
+		},
+	}
+	metricPaths := []string{"/openconfig/interfaces/interface/ethernet/state/port-speed"}
+
+	interfaces := buildInterfaceMetadata("default:srl2", config.DefaultOpenConfigMetadata(), snapshot, metricPaths)
+	require.Len(t, interfaces, 1)
+	assert.Equal(t, "ethernet-1/9", interfaces[0].Name)
 }
 
 func TestReportMetricsValidation(t *testing.T) {
