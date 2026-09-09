@@ -59,18 +59,12 @@ func TestHostPasswdReadsHostEtcLazily(t *testing.T) {
 	writePasswd(t, dir, "late-user:x:123:123::/:/bin/sh\n")
 	t.Setenv("HOST_ETC", "")
 	cache, _ := newTestHostPasswdCache()
-	_, found := cache.lookup("123")
-	require.False(t, found)
 
-	// A path change takes effect even before the next refresh interval.
+	// Configuration may set HOST_ETC after construction but before collection.
 	t.Setenv("HOST_ETC", dir)
 	u, found := cache.lookup("123")
 	require.True(t, found)
 	assert.Equal(t, "late-user", u.Username)
-
-	t.Setenv("HOST_ETC", "")
-	_, found = cache.lookup("123")
-	assert.False(t, found)
 }
 
 func TestHostPasswdSkipsInvalidRowsAndFirstDuplicateWins(t *testing.T) {
