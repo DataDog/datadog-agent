@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/otelinstrumentation"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -65,12 +66,19 @@ type TargetMutator struct {
 	injectAll *targetInternal
 	// remotePolicies is the current RC policy set. Nil when none are installed.
 	remotePolicies atomic.Pointer[policySet]
+
+	// otelResolver answers what a pod's community OpenTelemetry Operator
+	// annotations ask for. Nil when
+	// apm_config.instrumentation.otel_instrumentation_crd_mode is disabled, which
+	// must leave the mutator behaving exactly as if the feature did not exist.
+	otelResolver *otelinstrumentation.Resolver
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups. When on-demand instrumentation is enabled and rcClient is non-nil, the
-// mutator also subscribes to remote-config SSI policies, which are evaluated after static targets.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client) (*TargetMutator, error) {
+// mutator also subscribes to remote-config SSI policies, which are evaluated after static targets. A nil otelResolver
+// means the community OpenTelemetry Operator Instrumentation CRD support is disabled.
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, otelResolver *otelinstrumentation.Resolver, rcClient *rcclient.Client) (*TargetMutator, error) {
 	// Create a map of user-configured disabled namespaces for quick lookups.
 	// Default namespaces (kube-system, datadog agent namespace) are excluded at
 	// the webhook layer via namespace selectors and not duplicated here.
@@ -105,6 +113,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		defaultLibVersions:            defaultLibVersions,
 		ssiEnabled:                    ssiEnabled,
 		staticPolicies:                staticPolicies,
+		otelResolver:                  otelResolver,
 	}
 	// SSI on and no static targeting: prepare inject-all. Applied only when RC is also absent.
 	if ssiEnabled && len(targets) == 0 {
@@ -306,14 +315,33 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		log.Debugf("Init container %q already exists in pod %q", libraryinjection.InjectLDPreloadInitContainerName, mutatecommon.PodString(pod))
 		return false, nil
 	}
+	// Check for a community OpenTelemetry SDK injection. The volume above is Datadog's
+	// and passthrough mode never adds it, so this is the only guard that catches it —
+	// and it is needed, because appending the SDK to JAVA_TOOL_OPTIONS a second time
+	// would load two agents.
+	if otelinstrumentation.HasPassthroughInjection(pod) {
+		log.Debugf("Pod %q already carries a community OpenTelemetry SDK injection", mutatecommon.PodString(pod))
+		return false, nil
+	}
 
 	// Library selection still short-circuits on annotations (unchanged GA
 	// precedence). SSI mode is decided separately from whether a target/policy
 	// matched the pod — not from a namespace-level eligibility approximation.
-	target, ssi := m.resolveTargetAndSSI(pod)
-	if target == nil {
+	target, otelInjections, ssi := m.resolveTargetAndSSI(pod)
+	if target == nil && len(otelInjections) == 0 {
 		return false, nil
 	}
+
+	// Passthrough injections are upstream's mutation, complete on their own: the init
+	// container, the volume and the environment all come from the community contract,
+	// and nothing in the Datadog pipeline below applies to them.
+	for _, injection := range otelInjections {
+		injection.Apply(pod)
+	}
+	if target == nil {
+		return true, nil
+	}
+
 	extracted := m.core.initExtractedLibInfo(pod, ssi).withLibs(target.libVersions)
 
 	// Language detection is an SSI-only fallback when the selected target did
@@ -340,6 +368,12 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	// in the target.
 	for _, envVar := range target.envVars {
 		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
+	}
+
+	// Variables that only apply to the containers the target selected. Each one
+	// filters on container name itself, so the pod-wide walk is still correct.
+	for _, scoped := range target.containerScopedEnvVars {
+		_ = m.core.mutatePodContainers(pod, scoped, true)
 	}
 
 	// Inject the libraries.
@@ -399,11 +433,16 @@ func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
 // fed by policiesFromTargets for configuration targets and by remote config for
 // policies.
 type targetInternal struct {
-	name            string
-	libVersions     []libInfo
-	envVars         []corev1.EnvVar
-	json            string
-	usesDefaultLibs bool
+	name        string
+	libVersions []libInfo
+	envVars     []corev1.EnvVar
+	// containerScopedEnvVars are env vars that carry their own container filter,
+	// instead of being applied to every container like envVars. Configuration
+	// targets and policies never need this — they configure a whole pod — but the
+	// OpenTelemetry annotation contract selects containers, and only those.
+	containerScopedEnvVars []envVar
+	json                   string
+	usesDefaultLibs        bool
 	// fromPolicy is true when this internal target was derived from a policy
 	// (remote config) rather than a configuration target. It selects which
 	// annotation/env var carries the applied information.
@@ -413,45 +452,82 @@ type targetInternal struct {
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
 // Library annotations still short-circuit matching (GA precedence unchanged in this change).
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
-	target, _ := m.resolveTargetAndSSI(pod)
+	target, _, _ := m.resolveTargetAndSSI(pod)
 	return target
 }
 
 // resolveTargetAndSSI selects what to inject and whether the pod is in SSI mode.
-func (m *TargetMutator) resolveTargetAndSSI(pod *corev1.Pod) (*targetInternal, bool) {
+//
+// SSI mode stays tied to a target or policy matching the pod, which means an injection
+// driven purely by annotations — Datadog's or OpenTelemetry's — is reported as library
+// injection. That is deliberate for the OpenTelemetry path too: the languages come from
+// the pod's annotations, so the language detection that SSI mode enables has nothing to
+// add and could only contradict them.
+func (m *TargetMutator) resolveTargetAndSSI(pod *corev1.Pod) (*targetInternal, []otelinstrumentation.Injection, bool) {
 	matched := m.getMatchingTarget(pod)
 	result := m.getTargetFromAnnotation(pod)
 	if !result.shouldContinue {
-		return result.target, matched != nil
+		return result.target, result.otelInjections, matched != nil
 	}
-	return matched, matched != nil
+	// Passthrough injections only ever come from the pod's own annotations, so a target
+	// or a policy match carries none.
+	return matched, nil, matched != nil
 }
 
 type annotationResult struct {
 	shouldContinue bool
 	target         *targetInternal
+	// otelInjections are the community OpenTelemetry SDK injections the pod asked for
+	// in passthrough mode. They are not a target: they carry their own init containers,
+	// volumes and environment, and none of the Datadog pipeline applies to them.
+	otelInjections []otelinstrumentation.Injection
 }
 
-// getTargetFromAnnotation determines which tracing libraries to use given
+// getTargetFromAnnotation determines which tracing libraries to use from the pod's own
+// labels and annotations, in this order of precedence: the explicit opt-out label, the
+// Datadog library annotations, then the community OpenTelemetry Operator's
+// inject-<lang> annotations.
+//
+// shouldContinue reports whether the pod-level answer was inconclusive, in which case
+// the caller falls back to targets and Remote Config. A decided answer with no target
+// means "instrument nothing", which is not the same thing and must not fall back.
 func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResult {
 	// The enabled label existing takes precedence...
 	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
 	if enabledLabelExists && !enabledLabelVal {
+		// An explicit opt-out beats every annotation, the OpenTelemetry ones included.
 		return &annotationResult{
 			shouldContinue: false,
 			target:         nil,
 		}
 	}
 
+	// If local lib is enabled, then we should prefer the user defined libs.
+	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
+	injectAllAnnotation := strings.ToLower(annotation.LibraryVersion.Format("all"))
+	_, injectAllFound := pod.Annotations[injectAllAnnotation]
+
+	// Datadog library annotations win over the OpenTelemetry ones. What suppresses the
+	// OpenTelemetry path is their presence, not whether they end up honoured: an
+	// unlabelled pod below never gets its Datadog annotations applied, and letting
+	// OpenTelemetry take over there would let a Datadog annotation change the outcome
+	// in the one direction nobody would predict.
+	asksForDatadogLibrary := len(extractedLibraries) > 0 || injectAllFound
+
 	if !enabledLabelExists && !m.mutateUnlabelled {
+		// An OpenTelemetry annotation is an opt-in in its own right, so it is honoured
+		// even though this pod carries no Datadog label.
+		if !asksForDatadogLibrary {
+			if result := m.otelAnnotationResult(pod); result != nil {
+				return result
+			}
+		}
 		return &annotationResult{
 			shouldContinue: true,
 			target:         nil,
 		}
 	}
 
-	// If local lib is enabled, then we should prefer the user defined libs.
-	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
 	if len(extractedLibraries) > 0 {
 		return &annotationResult{
 			shouldContinue: false,
@@ -462,8 +538,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 		}
 	}
 
-	injectAllAnnotation := strings.ToLower(annotation.LibraryVersion.Format("all"))
-	if _, found := pod.Annotations[injectAllAnnotation]; found {
+	if injectAllFound {
 		return &annotationResult{
 			shouldContinue: false,
 			target: &targetInternal{
@@ -471,6 +546,10 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 				envVars:     extractTracerConfigsFromAnnotations(pod),
 			},
 		}
+	}
+
+	if result := m.otelAnnotationResult(pod); result != nil {
+		return result
 	}
 
 	return &annotationResult{

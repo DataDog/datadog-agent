@@ -88,7 +88,7 @@ func TestNewTargetMutator(t *testing.T) {
 			))
 
 			// Create the mutator.
-			_, err = NewTargetMutator(config, wmeta, imageResolver, nil, nil)
+			_, err = NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 
 			// Validate the output.
 			if test.shouldErr {
@@ -259,7 +259,7 @@ func TestMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, nil)
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -364,7 +364,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, nil)
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -531,7 +531,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, nil)
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -808,7 +808,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
+			f, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Filter the pod.
@@ -976,7 +976,7 @@ admission_controller:
 			wmeta := mutatecommon.FakeStoreWithDeployment(t, test.deployments)
 
 			// Create the mutator.
-			m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil)
+			m, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate the pod.
