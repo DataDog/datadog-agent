@@ -8,6 +8,7 @@ package report
 import (
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -26,10 +27,19 @@ func indexSnapshot(snapshot []client.CachedValue) snapshotIndex {
 }
 
 func firstStringValue(index snapshotIndex, path string, keys map[string]string) string {
-	for _, cached := range index[path] {
-		if !keysMatch(cached.Key.Keys, keys) {
-			continue
+	if len(keys) > 0 {
+		cached, ok := lookupCachedValue(index, path, keys)
+		if !ok {
+			return ""
 		}
+		value, ok := stringValue(cached.Entry.Value)
+		if !ok {
+			return ""
+		}
+		return value
+	}
+
+	for _, cached := range sortCachedValues(index[path]) {
 		if value, ok := stringValue(cached.Entry.Value); ok {
 			return value
 		}
@@ -37,16 +47,181 @@ func firstStringValue(index snapshotIndex, path string, keys map[string]string) 
 	return ""
 }
 
-func firstInt32Value(index snapshotIndex, path string, keys map[string]string) (int32, bool) {
-	for _, cached := range index[path] {
-		if !keysMatch(cached.Key.Keys, keys) {
+// ResolveDeviceHostname returns the device hostname from the gNMI snapshot.
+func ResolveDeviceHostname(snapshot []client.CachedValue, metadata config.MetadataConfig) string {
+	return resolveDeviceHostname(indexSnapshot(snapshot), metadata)
+}
+
+func resolveDeviceHostname(index snapshotIndex, metadata config.MetadataConfig) string {
+	resolved := metadata.Resolved()
+	if hostname := firstStringValue(index, resolved.Device.Hostname, nil); hostname != "" {
+		return hostname
+	}
+
+	for path, values := range index {
+		if !strings.HasSuffix(path, "/hostname") {
 			continue
 		}
+		for _, cached := range values {
+			if value, ok := stringValue(cached.Entry.Value); ok {
+				return value
+			}
+		}
+	}
+	return ""
+}
+
+func firstInt32Value(index snapshotIndex, path string, keys map[string]string) (int32, bool) {
+	if len(keys) > 0 {
+		cached, ok := lookupCachedValue(index, path, keys)
+		if !ok {
+			return 0, false
+		}
+		value, ok := int64Value(cached.Entry.Value)
+		if !ok {
+			return 0, false
+		}
+		return int32(value), true
+	}
+
+	for _, cached := range sortCachedValues(index[path]) {
 		if value, ok := int64Value(cached.Entry.Value); ok {
 			return int32(value), true
 		}
 	}
 	return 0, false
+}
+
+func lookupCachedValue(index snapshotIndex, path string, keys map[string]string) (client.CachedValue, bool) {
+	for _, cached := range index[path] {
+		if keysEqual(cached.Key.Keys, keys) {
+			return cached, true
+		}
+	}
+	return client.CachedValue{}, false
+}
+
+func lookupNumericValue(index snapshotIndex, path string, keys map[string]string) (float64, bool) {
+	cached, ok := lookupCachedValue(index, path, keys)
+	if !ok {
+		return 0, false
+	}
+	return decodeNumericValue(cached.Entry.Value)
+}
+
+func indexCachedValuesByKeys(entries []client.CachedValue) map[string]client.CachedValue {
+	indexed := make(map[string]client.CachedValue, len(entries))
+	for _, cached := range entries {
+		indexed[cacheKeysID(cached.Key.Keys)] = cached
+	}
+	return indexed
+}
+
+func cacheKeysID(keys map[string]string) string {
+	if len(keys) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(keys))
+	for name := range keys {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		parts = append(parts, name+"="+keys[name])
+	}
+	return strings.Join(parts, ",")
+}
+
+func pathsShareParent(pathA, pathB string) (string, bool) {
+	parentA, okA := pathParent(pathA)
+	parentB, okB := pathParent(pathB)
+	if !okA || !okB {
+		return "", false
+	}
+	if parentA != parentB {
+		return "", false
+	}
+	return parentA, true
+}
+
+func pathParent(path string) (string, bool) {
+	trimmed := strings.TrimSuffix(path, "/")
+	idx := strings.LastIndex(trimmed, "/")
+	if idx <= 0 {
+		return "", false
+	}
+	return trimmed[:idx], true
+}
+
+func keysEqual(actual, expected map[string]string) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	for key, value := range expected {
+		if actual[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
+func sortCachedValues(entries []client.CachedValue) []client.CachedValue {
+	if len(entries) <= 1 {
+		return entries
+	}
+	sorted := append([]client.CachedValue(nil), entries...)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Key.String() < sorted[j].Key.String()
+	})
+	return sorted
+}
+
+const componentPathSegment = "/components/component/"
+
+func componentNameKey(metadata config.MetadataConfig) string {
+	for _, keyName := range metadata.Resolved().Device.Keys {
+		if keyName != "" {
+			return keyName
+		}
+	}
+	return "name"
+}
+
+func componentNames(index snapshotIndex, metadata config.MetadataConfig) []string {
+	nameKey := componentNameKey(metadata)
+	names := make(map[string]struct{})
+	for path, values := range index {
+		if !strings.Contains(path, componentPathSegment) {
+			continue
+		}
+		for _, cached := range values {
+			if name := cached.Key.Keys[nameKey]; name != "" {
+				names[name] = struct{}{}
+			}
+		}
+	}
+
+	out := make([]string, 0, len(names))
+	for name := range names {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func resolveDeviceComponentName(index snapshotIndex, metadata config.MetadataConfig) string {
+	names := componentNames(index, metadata)
+	if len(names) == 0 {
+		return ""
+	}
+	for _, name := range names {
+		if strings.EqualFold(name, "Chassis") {
+			return name
+		}
+	}
+	return names[0]
 }
 
 func keysMatch(actual, expected map[string]string) bool {
