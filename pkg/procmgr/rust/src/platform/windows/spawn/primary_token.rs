@@ -30,19 +30,19 @@ pub(super) fn spawn_as_primary_token(
 ) -> Result<SuspendedChild> {
     let stdout_handle = map_stdio_setting(
         process_name,
-        &request.stdout_setting,
+        request.stdout_setting(),
         windows_sys::Win32::System::Console::STD_OUTPUT_HANDLE,
         credential,
     )?;
     let stderr_handle = map_stdio_setting(
         process_name,
-        &request.stderr_setting,
+        request.stderr_setting(),
         STD_ERROR_HANDLE,
         credential,
     )?;
     let stdin_handle = map_stdio_handle_nul()?;
 
-    let command_line = build_windows_command_line(&request.command, &request.args);
+    let command_line = build_windows_command_line(request.command(), request.args());
 
     let mut command_line_w: Vec<u16> = std::ffi::OsStr::new(&command_line)
         .encode_wide()
@@ -50,8 +50,7 @@ pub(super) fn spawn_as_primary_token(
         .collect();
 
     let current_dir_w = request
-        .working_dir
-        .as_ref()
+        .working_dir()
         .map(|d| wide::null_terminated(d.to_string_lossy().as_ref()));
 
     let primary_token_guard = TokenHandle::new(credential.duplicate_primary_token(process_name)?);
@@ -59,7 +58,7 @@ pub(super) fn spawn_as_primary_token(
     let env_block = env_block_from_baseline_plus_overrides(
         process_name,
         primary_token_guard.raw(),
-        &request.env,
+        request.env(),
     )?;
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 

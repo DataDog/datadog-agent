@@ -9,3 +9,4 @@ mod stdio;
 
 pub(crate) use profile::SpawnProfile;
 pub(crate) use request::SpawnRequest;
+pub(crate) use stdio::StdioSetting;

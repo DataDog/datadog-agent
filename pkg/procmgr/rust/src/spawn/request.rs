@@ -23,6 +23,30 @@ pub(crate) struct SpawnRequest {
 }
 
 impl SpawnRequest {
+    pub(crate) fn command(&self) -> &str {
+        &self.command
+    }
+
+    pub(crate) fn args(&self) -> &[String] {
+        &self.args
+    }
+
+    pub(crate) fn env(&self) -> &[(String, String)] {
+        &self.env
+    }
+
+    pub(crate) fn working_dir(&self) -> Option<&PathBuf> {
+        self.working_dir.as_ref()
+    }
+
+    pub(crate) fn stdout_setting(&self) -> &StdioSetting {
+        &self.stdout_setting
+    }
+
+    pub(crate) fn stderr_setting(&self) -> &StdioSetting {
+        &self.stderr_setting
+    }
+
     pub(crate) fn from_config(process_name: &str, config: &ProcessConfig) -> Result<Self> {
         Ok(Self {
             command: expand_env_vars(&config.command),
