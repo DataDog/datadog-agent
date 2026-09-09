@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -126,6 +127,8 @@ type Client struct {
 	closeErr error
 
 	cache *cache
+
+	synchronized atomic.Bool
 
 	reconnectAttempts int
 	streamState       StreamState
@@ -270,6 +273,11 @@ func (c *Client) StreamState() StreamState {
 	return c.streamState
 }
 
+// Synchronized reports whether the active subscribe stream has received sync_response.
+func (c *Client) Synchronized() bool {
+	return c.synchronized.Load()
+}
+
 // ReceivedSamples returns the number of cached samples.
 func (c *Client) ReceivedSamples() int {
 	return c.cache.count()
@@ -371,6 +379,8 @@ func (c *Client) run(ctx context.Context) {
 }
 
 func (c *Client) connectAndReceive(ctx context.Context) (bool, error) {
+	c.synchronized.Store(false)
+
 	conn, err := c.dial(ctx)
 	if err != nil {
 		return false, err
@@ -493,6 +503,7 @@ func (c *Client) handleSubscribeResponse(targetCache *cache, resp *gnmipb.Subscr
 		if !payload.SyncResponse {
 			return false, errors.New("received false sync response")
 		}
+		c.synchronized.Store(true)
 		return true, nil
 	case *gnmipb.SubscribeResponse_Update:
 		c.applyNotification(targetCache, payload.Update)
