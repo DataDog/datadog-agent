@@ -23,26 +23,32 @@ pub(crate) struct SpawnRequest {
 }
 
 impl SpawnRequest {
+    #[cfg(windows)]
     pub(crate) fn command(&self) -> &str {
         &self.command
     }
 
+    #[cfg(windows)]
     pub(crate) fn args(&self) -> &[String] {
         &self.args
     }
 
+    #[cfg(windows)]
     pub(crate) fn env(&self) -> &[(String, String)] {
         &self.env
     }
 
+    #[cfg(windows)]
     pub(crate) fn working_dir(&self) -> Option<&PathBuf> {
         self.working_dir.as_ref()
     }
 
+    #[cfg(windows)]
     pub(crate) fn stdout_setting(&self) -> &StdioSetting {
         &self.stdout_setting
     }
 
+    #[cfg(windows)]
     pub(crate) fn stderr_setting(&self) -> &StdioSetting {
         &self.stderr_setting
     }

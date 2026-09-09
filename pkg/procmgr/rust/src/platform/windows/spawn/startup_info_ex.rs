@@ -28,15 +28,9 @@ impl StartupInfoEx {
     ) -> Result<Self> {
         let mut attribute_list_size = 0usize;
         unsafe {
-            InitializeProcThreadAttributeList(
-                ptr::null_mut(),
-                1,
-                0,
-                &mut attribute_list_size,
-            );
+            InitializeProcThreadAttributeList(ptr::null_mut(), 1, 0, &mut attribute_list_size);
         }
-        if std::io::Error::last_os_error().raw_os_error()
-            != Some(ERROR_INSUFFICIENT_BUFFER as i32)
+        if std::io::Error::last_os_error().raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32)
         {
             bail!(
                 "InitializeProcThreadAttributeList sizing failed: {}",

@@ -59,8 +59,8 @@ impl SpawnCredential {
                 "[{process_name}] duplicate_primary_token requires supervisor-token reuse"
             );
         }
-        let supervisor_token = open_current_process_token(TOKEN_QUERY | TOKEN_DUPLICATE)
-            .map_err(|e| {
+        let supervisor_token =
+            open_current_process_token(TOKEN_QUERY | TOKEN_DUPLICATE).map_err(|e| {
                 anyhow::anyhow!(
                     "[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {e}"
                 )
