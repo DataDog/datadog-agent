@@ -1,9 +1,3 @@
-//! Maps libpq `sslmode` onto an OpenSSL connector for the postgres engine.
-//!
-//! The `postgres` crate takes the TLS stack as an argument. We dynamically
-//! link the Agent's already-shipped OpenSSL (`libssl`/`libcrypto`) instead of
-//! compiling a second crypto library (aws-lc) into the check cdylib.
-
 use anyhow::{Context, Result, bail};
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres_openssl::MakeTlsConnector;
