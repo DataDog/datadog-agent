@@ -174,7 +174,9 @@ func sparkFallbackConfigArg(envVars []configfilesdiscoveryimpl.ConfigEnvVar) str
 
 // readSparkConfigFile preserves Spark's configuration precedence while keeping
 // SPARK_CONF_DIR local to this collector. A properties file explicitly named
-// by SparkSubmit is authoritative; SPARK_CONF_DIR is only an optional hint.
+// by SparkSubmit is authoritative; SPARK_CONF_DIR and image defaults are only
+// considered for tagged SparkSubmit drivers because standalone DriverWrapper
+// processes inherit worker environment that the driver may not have loaded.
 func readSparkConfigFile(
 	ctx context.Context,
 	reader configfilesdiscoveryimpl.ConfigReader,
@@ -183,6 +185,10 @@ func readSparkConfigFile(
 	file, ok, explicitFound, runtimeWorkingDir, err := readSparkExplicitPropertiesFile(ctx, reader)
 	if err != nil || ok || explicitFound {
 		return file, ok, err
+	}
+
+	if !sparkHasTaggedSubmitDriver(ctx, reader) {
+		return configfilesdiscoveryimpl.ConfigFile{}, false, nil
 	}
 
 	if fallbackConfigArg := sparkFallbackConfigArg(envVars); fallbackConfigArg != "" {
@@ -198,10 +204,6 @@ func readSparkConfigFile(
 			return configfilesdiscoveryimpl.ConfigFile{}, false, nil
 		}
 		return file, true, nil
-	}
-
-	if !sparkHasTaggedSubmitDriver(ctx, reader) {
-		return configfilesdiscoveryimpl.ConfigFile{}, false, nil
 	}
 
 	return readConfigFile(ctx, reader, sparkGetPropertiesFileFromCommandline, sparkCommandlineDoesNotBlockDefaultPaths, "", sparkDefaultConfigPathGroups...)

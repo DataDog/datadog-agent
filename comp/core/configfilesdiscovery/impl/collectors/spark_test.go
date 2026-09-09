@@ -211,10 +211,29 @@ func TestSparkCollectorDoesNotFallbackWhenExplicitPropertiesFileCannotResolve(t 
 	}, collected.EnvVars)
 }
 
-func TestSparkCollectorReadsSparkConfDir(t *testing.T) {
+func TestSparkCollectorDoesNotReadSparkConfDirForStandaloneDriver(t *testing.T) {
 	const configPath = "/opt/custom/spark-conf/spark-defaults.conf"
 	reader := &sparkCollectorTestReader{
 		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{"java", sparkStandaloneDriverClass}},
+		files:              map[string]configfilesdiscoveryimpl.ConfigFile{configPath: {Path: configPath}},
+		env:                map[string]string{"SPARK_CONF_DIR": "/opt/custom/spark-conf", "SPARK_DRIVER_MEMORY": "2g"},
+	}
+
+	collected, err := NewSpark().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, reader.readFileCalls)
+	assert.Empty(t, collected.ConfigFiles)
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "SPARK_CONF_DIR", Value: "/opt/custom/spark-conf"},
+		{Name: "SPARK_DRIVER_MEMORY", Value: "2g"},
+	}, collected.EnvVars)
+}
+
+func TestSparkCollectorReadsSparkConfDirForTaggedSparkSubmitDriver(t *testing.T) {
+	const configPath = "/opt/custom/spark-conf/spark-defaults.conf"
+	reader := &sparkCollectorTestReader{
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{"java", "-Ddd.tags=" + sparkDriverRoleTag, sparkSubmitClass, "app.jar"}},
 		files:              map[string]configfilesdiscoveryimpl.ConfigFile{configPath: {Path: configPath}},
 		env:                map[string]string{"SPARK_CONF_DIR": "/opt/custom/spark-conf"},
 	}
@@ -227,9 +246,9 @@ func TestSparkCollectorReadsSparkConfDir(t *testing.T) {
 	assert.Equal(t, sparkConfigPayloadFormat, collected.ConfigFiles[0].PayloadFormat)
 }
 
-func TestSparkCollectorCollectsEnvWhenSparkConfDirFileIsMissing(t *testing.T) {
+func TestSparkCollectorCollectsEnvWhenSparkConfDirFileIsMissingForTaggedSparkSubmitDriver(t *testing.T) {
 	reader := &sparkCollectorTestReader{
-		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{"java", sparkStandaloneDriverClass}},
+		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{"java", "-Ddd.tags=" + sparkDriverRoleTag, sparkSubmitClass, "app.jar"}},
 		env:                map[string]string{"SPARK_CONF_DIR": "/opt/custom/spark-conf", "SPARK_DRIVER_MEMORY": "2g"},
 	}
 
