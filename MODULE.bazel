@@ -482,6 +482,10 @@ include("//deps:crates.MODULE.bazel")
 # buildifier: leave-alone
 include("//deps:repos.MODULE.bazel")
 
+# openssl-sys must see @openssl, which is declared in repos.MODULE.bazel.
+# buildifier: leave-alone
+include("//deps:openssl_sys.MODULE.bazel")
+
 # buildifier: leave-alone
 include("//deps/acl:acl.MODULE.bazel")
 

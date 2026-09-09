@@ -12,6 +12,8 @@ default = ["engine-postgres"]
 # engines is explicit. Add new engines as `engine-<name>` here.
 engine-postgres = [
     "dep:postgres",
+    "dep:openssl",
+    "dep:postgres-openssl",
 ]
 
 [dependencies]
@@ -24,8 +26,11 @@ serde_json.workspace = true
 prost.workspace = true
 prost-types.workspace = true
 
-# postgres engine (gated behind the `engine-postgres` feature)
+# postgres engine (gated behind the `engine-postgres` feature). The `postgres`
+# crate takes its TLS stack as an argument; we use the Agent's OpenSSL.
 postgres = { version = "0.19", optional = true }
+openssl = { workspace = true, optional = true }
+postgres-openssl = { workspace = true, optional = true }
 
 [build-dependencies]
 prost-build.workspace = true

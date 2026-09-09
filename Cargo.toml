@@ -53,6 +53,8 @@ rustls = { version = "0.23", default-features = false, features = ["logging", "s
 rustls-native-certs = { version = "0.8", default-features = false }
 rustls-pki-types = { version = "1", default-features = false, features = ["std"] }
 saluki-tls = { git = "https://github.com/DataDog/saluki", rev = "a6c1769ab1629b0040126f306726da6170fbbd77" }
+openssl = { version = "0.10", default-features = false }
+postgres-openssl = { version = "0.5", default-features = false, features = ["runtime"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["tls12"] }
 xml-rs = "1.0"
 rmp-serde = "1.3"

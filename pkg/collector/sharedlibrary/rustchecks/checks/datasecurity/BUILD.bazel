@@ -25,7 +25,10 @@ rust_shared_library(
     crate_features = _FEATURES,
     crate_name = "datasecurity",
     edition = "2024",
-    link_deps = [":cpp_stdlib"],
+    link_deps = [
+        ":cpp_stdlib",
+        "@openssl//:openssl_shared",
+    ],
     # Use the Bazel proto crate instead of the cargo build-script path (src/proto.rs).
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX,
@@ -37,7 +40,9 @@ rust_shared_library(
         "@crates//:anyhow",
         "@crates//:dd-sensitive-data-scanner",
         "@crates//:libc",
+        "@crates//:openssl",
         "@crates//:postgres",
+        "@crates//:postgres-openssl",
         "@crates//:prost",
         "@crates//:serde",
         "@crates//:serde_json",

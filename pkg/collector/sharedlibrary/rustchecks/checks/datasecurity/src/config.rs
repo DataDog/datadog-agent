@@ -72,7 +72,6 @@ where
 }
 
 /// Database connection parameters for a sub task.
-// TODO(dsec-156): add SSL/TLS support; only unencrypted connections for now.
 #[derive(Debug, Default, Deserialize)]
 pub struct Connection {
     /// Hostname, or a directory path for a Unix socket (e.g. `/var/run/postgresql`).
@@ -86,6 +85,35 @@ pub struct Connection {
     pub password: String,
     #[serde(default = "default_application_name")]
     pub application_name: String,
+    #[serde(default)]
+    pub ssl: SslMode,
+    /// libpq `sslcert`: path to the PEM client certificate chain.
+    #[serde(default)]
+    pub ssl_cert: Option<String>,
+    /// libpq `sslkey`: path to the PEM client private key.
+    #[serde(default)]
+    pub ssl_key: Option<String>,
+    /// libpq `sslpassword`: passphrase for an encrypted `ssl_key`.
+    #[serde(default)]
+    pub ssl_password: Option<String>,
+    /// libpq `sslrootcert`: path to the PEM CA bundle. Defaults to the system trust store.
+    #[serde(default)]
+    pub ssl_root_cert: Option<String>,
+}
+
+/// libpq `sslmode`, from weakest to strongest. Defaults to `allow` like the
+/// postgres integration. Unlike the integration an unknown value is an error
+/// rather than a silent fallback, so a typo cannot weaken the connection.
+#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SslMode {
+    Disable,
+    #[default]
+    Allow,
+    Prefer,
+    Require,
+    VerifyCa,
+    VerifyFull,
 }
 
 fn default_port() -> u16 {
@@ -97,3 +125,57 @@ fn default_application_name() -> String {
 }
 
 // TODO(dsec-163): add tests for the config deserialization.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The connection the autodiscovery provider emits when the postgres instance
+    /// configures no TLS: the omitted settings must land on the integration's defaults.
+    #[test]
+    fn connection_without_tls_settings_defaults_to_allow() {
+        let conn: Connection = serde_json::from_str(
+            r#"{"host":"db-host","port":5678,"dbname":"app","username":"datadog","password":"secret"}"#,
+        )
+        .unwrap();
+
+        assert_eq!(conn.ssl, SslMode::Allow);
+        assert_eq!(conn.ssl_cert, None);
+        assert_eq!(conn.ssl_key, None);
+        assert_eq!(conn.ssl_password, None);
+        assert_eq!(conn.ssl_root_cert, None);
+    }
+
+    #[test]
+    fn connection_reads_the_forwarded_tls_settings() {
+        let conn: Connection = serde_json::from_str(
+            r#"{"host":"db-host","port":5678,"dbname":"app","username":"datadog","password":"secret",
+                "ssl":"verify-full","ssl_cert":"/client.crt","ssl_key":"/client.key",
+                "ssl_password":"passphrase","ssl_root_cert":"/root.crt"}"#,
+        )
+        .unwrap();
+
+        assert_eq!(conn.ssl, SslMode::VerifyFull);
+        assert_eq!(conn.ssl_cert.as_deref(), Some("/client.crt"));
+        assert_eq!(conn.ssl_key.as_deref(), Some("/client.key"));
+        assert_eq!(conn.ssl_password.as_deref(), Some("passphrase"));
+        assert_eq!(conn.ssl_root_cert.as_deref(), Some("/root.crt"));
+    }
+
+    /// Values match the postgres integration's `ssl` option (libpq `sslmode`).
+    #[test]
+    fn ssl_accepts_every_libpq_spelling() {
+        let modes = [
+            ("disable", SslMode::Disable),
+            ("allow", SslMode::Allow),
+            ("prefer", SslMode::Prefer),
+            ("require", SslMode::Require),
+            ("verify-ca", SslMode::VerifyCa),
+            ("verify-full", SslMode::VerifyFull),
+        ];
+        for (spelling, want) in modes {
+            let got: SslMode = serde_json::from_str(&format!("\"{spelling}\"")).unwrap();
+            assert_eq!(got, want, "{spelling}");
+        }
+        assert!(serde_json::from_str::<SslMode>("\"verify_full\"").is_err());
+    }
+}
