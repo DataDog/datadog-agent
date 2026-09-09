@@ -6,10 +6,32 @@
 package gcp
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"unicode/utf8"
 )
+
+func TestZoneForStack(t *testing.T) {
+	const region = "us-central1"
+	seen := make(map[string]bool, gcpZoneCount)
+
+	for i := 0; i < 100; i++ {
+		stack := fmt.Sprintf("stack-%d", i)
+		zone := zoneForStack(region, stack)
+		if zone != region+"-a" && zone != region+"-b" && zone != region+"-c" {
+			t.Fatalf("zoneForStack(%q, %q) = %q, want a zone in %s-{a,b,c}", region, stack, zone, region)
+		}
+		if got := zoneForStack(region, stack); got != zone {
+			t.Fatalf("zoneForStack(%q, %q) returned %q then %q", region, stack, zone, got)
+		}
+		seen[zone] = true
+	}
+
+	if len(seen) != gcpZoneCount {
+		t.Fatalf("zoneForStack used %d zones, want %d", len(seen), gcpZoneCount)
+	}
+}
 
 func TestTruncateLabelValue(t *testing.T) {
 	tests := []struct {

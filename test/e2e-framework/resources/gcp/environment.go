@@ -7,6 +7,7 @@ package gcp
 
 import (
 	"fmt"
+	"hash/fnv"
 	"os"
 	"os/exec"
 	"strings"
@@ -22,6 +23,7 @@ import (
 const (
 	gcpConfigNamespace = "gcp"
 	gcpNamerNamespace  = "gcp"
+	gcpZoneCount       = 3
 
 	// MaxResourceLabelValueLen is the maximum length allowed by GCP for a
 	// resource label value (in bytes). Values longer than this are rejected
@@ -29,6 +31,15 @@ const (
 	// See https://cloud.google.com/resource-manager/docs/labels-overview.
 	MaxResourceLabelValueLen = 63
 )
+
+// zoneForStack distributes stacks across zones a, b, and c while keeping the
+// selected zone stable when Pulumi evaluates the same stack more than once.
+func zoneForStack(region, stack string) string {
+	hasher := fnv.New64a()
+	_, _ = hasher.Write([]byte(stack))
+	zoneSuffix := byte('a' + hasher.Sum64()%gcpZoneCount)
+	return fmt.Sprintf("%s-%c", region, zoneSuffix)
+}
 
 // TruncateLabelValue truncates v to at most MaxResourceLabelValueLen bytes
 // without splitting a multi-byte UTF-8 rune. GCP rejects label values longer
@@ -87,6 +98,7 @@ func NewEnvironment(ctx *pulumi.Context) (Environment, error) {
 	}
 	env.CommonEnvironment = &commonEnv
 	env.envDefault = getEnvironmentDefault(config.FindEnvironmentName(commonEnv.InfraEnvironmentNames(), gcpNamerNamespace))
+	env.envDefault.gcp.zone = zoneForStack(env.envDefault.gcp.region, ctx.Stack())
 
 	if scenario := pulumiConfig.Get(ctx, "scenario"); strings.Contains(scenario, "openshift") {
 		env.envDefault.ddInfra.openshift.nestedVirtualization = true
@@ -106,7 +118,7 @@ func NewEnvironment(ctx *pulumi.Context) (Environment, error) {
 	gcpProvider, err := gcp.NewProvider(ctx, string(config.ProviderGCP), &gcp.ProviderArgs{
 		Project:       pulumi.StringPtr(env.envDefault.gcp.project),
 		Region:        pulumi.StringPtr(env.envDefault.gcp.region),
-		Zone:          pulumi.StringPtr(env.envDefault.gcp.zone),
+		Zone:          pulumi.StringPtr(env.Zone()),
 		DefaultLabels: defaultLabels,
 	})
 	if err != nil {
