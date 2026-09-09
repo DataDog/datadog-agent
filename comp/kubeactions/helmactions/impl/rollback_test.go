@@ -57,12 +57,13 @@ func TestRollbackOptionsValidate(t *testing.T) {
 }
 
 func TestBuildRollbackJob_Defaults(t *testing.T) {
-	job := buildRollbackJob(validOptions())
+	job := buildRollbackJob(validOptions(), "action-1")
 
 	assert.Equal(t, "ops", job.Namespace)
 	assert.Equal(t, rollbackJobNamePrefix, job.GenerateName)
 	assert.Equal(t, "myrel", job.Labels[labelRelease])
 	assert.Equal(t, "prod", job.Labels[labelNamespace])
+	assert.Equal(t, "action-1", job.Annotations[helmactions.AnnotationActionID])
 
 	require.NotNil(t, job.Spec.BackoffLimit)
 	assert.Equal(t, int32(0), *job.Spec.BackoffLimit)
@@ -83,20 +84,20 @@ func TestBuildRollbackJob_Defaults(t *testing.T) {
 func TestBuildRollbackJob_ExplicitRevision(t *testing.T) {
 	opts := validOptions()
 	opts.Revision = 5
-	job := buildRollbackJob(opts)
+	job := buildRollbackJob(opts, "action-1")
 	assert.Equal(t, []string{"rollback", "myrel", "5", "--namespace", "prod"}, job.Spec.Template.Spec.Containers[0].Args)
 }
 
 func TestBuildRollbackJob_Driver(t *testing.T) {
 	t.Run("unset omits HELM_DRIVER", func(t *testing.T) {
-		job := buildRollbackJob(validOptions())
+		job := buildRollbackJob(validOptions(), "action-1")
 		assert.Empty(t, job.Spec.Template.Spec.Containers[0].Env)
 	})
 
 	t.Run("set propagates as env var", func(t *testing.T) {
 		opts := validOptions()
 		opts.Driver = "configmap"
-		job := buildRollbackJob(opts)
+		job := buildRollbackJob(opts, "action-1")
 		env := job.Spec.Template.Spec.Containers[0].Env
 		require.Len(t, env, 1)
 		assert.Equal(t, "HELM_DRIVER", env[0].Name)
@@ -113,7 +114,7 @@ func TestBuildRollbackJob_Overrides(t *testing.T) {
 	opts.TTLSecondsAfterFinished = &ttl
 	opts.ExtraLabels = map[string]string{"team": "platform", labelComponent: "ignored-because-identity-labels-are-hard-set"}
 
-	job := buildRollbackJob(opts)
+	job := buildRollbackJob(opts, "action-1")
 
 	assert.Equal(t, "myrepo/helm:3.14", job.Spec.Template.Spec.Containers[0].Image)
 	require.NotNil(t, job.Spec.BackoffLimit)
@@ -136,7 +137,7 @@ func TestRollbackExecutor_Run_CreatesJob(t *testing.T) {
 
 	opts := validOptions()
 	opts.Revision = 3
-	created, err := executor.Run(context.Background(), opts)
+	created, err := executor.Run(context.Background(), opts, helmactions.TaskMeta{ActionID: "action-1", OrgID: 42})
 	require.NoError(t, err)
 	require.NotNil(t, created)
 	assert.Equal(t, "ops", created.Namespace)
@@ -152,7 +153,7 @@ func TestRollbackExecutor_Run_ValidationError(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
 	executor := NewRollbackExecutor(clientset)
 
-	_, err := executor.Run(context.Background(), helmactions.RollbackInputs{})
+	_, err := executor.Run(context.Background(), helmactions.RollbackInputs{}, helmactions.TaskMeta{})
 	assert.Error(t, err)
 
 	jobs, listErr := clientset.BatchV1().Jobs("").List(context.Background(), metav1.ListOptions{})
