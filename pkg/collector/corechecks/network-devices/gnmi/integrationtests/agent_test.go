@@ -210,6 +210,8 @@ func hasMonotonicCount(mockSender *mocksender.MockSender, metric string) bool {
 func extractMetadataEvent(t *testing.T, mockSender *mocksender.MockSender) devicemetadata.NetworkDevicesMetadata {
 	t.Helper()
 
+	var metadata devicemetadata.NetworkDevicesMetadata
+	found := false
 	for _, call := range mockSender.Calls {
 		if call.Method != "EventPlatformEvent" {
 			continue
@@ -221,13 +223,14 @@ func extractMetadataEvent(t *testing.T, mockSender *mocksender.MockSender) devic
 		rawEvent, ok := call.Arguments[0].([]byte)
 		require.True(t, ok)
 
-		var metadata devicemetadata.NetworkDevicesMetadata
 		require.NoError(t, json.Unmarshal(rawEvent, &metadata))
-		return metadata
+		found = true
 	}
 
-	t.Fatal("expected network-devices-metadata event")
-	return devicemetadata.NetworkDevicesMetadata{}
+	if !found {
+		t.Fatal("expected network-devices-metadata event")
+	}
+	return metadata
 }
 
 func hostnameUpdate(hostname string) *gnmipb.Update {

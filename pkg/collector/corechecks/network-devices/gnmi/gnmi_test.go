@@ -80,13 +80,14 @@ min_collection_interval: 15
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	err = checkInstance.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstance, []byte(""), "test", "test")
 	require.NoError(t, err)
 	mocksender.SetSender(mockSender, checkInstance.ID())
 
-	assert.NotContains(t, checkInstance.String(), "test-password")
+	assert.Equal(t, gnmi.CheckName, checkInstance.String())
 
 	err = checkInstance.Run()
 	require.NoError(t, err)
