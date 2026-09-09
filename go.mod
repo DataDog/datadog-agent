@@ -33,7 +33,7 @@ replace (
 require (
 	code.cloudfoundry.org/bbs v1.3.0
 	code.cloudfoundry.org/bbs/models v0.0.0-20260618205254-dc4b9f8d5bc9
-	code.cloudfoundry.org/garden v0.0.0-20260617020226-a9e754564bb5
+	code.cloudfoundry.org/garden v0.2.0
 	code.cloudfoundry.org/lager/v3 v3.85.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
@@ -230,7 +230,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.45.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.2
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.2
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.326.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.327.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.127.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.47.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.76.0
@@ -509,7 +509,7 @@ require (
 	k8s.io/kubelet v0.35.5
 	k8s.io/metrics v0.35.5
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
-	mvdan.cc/sh/v3 v3.13.1
+	mvdan.cc/sh/v3 v3.14.0
 	pgregory.net/rapid v1.3.0
 	sigs.k8s.io/custom-metrics-apiserver v1.35.0
 	sigs.k8s.io/gateway-api v1.5.1
