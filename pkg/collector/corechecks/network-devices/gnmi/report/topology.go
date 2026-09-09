@@ -6,8 +6,8 @@
 package report
 
 import (
+	"net"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
@@ -19,7 +19,7 @@ import (
 
 const topologyLinkSourceTypeLLDP = "lldp"
 
-func buildTopologyLinks(deviceID string, topology config.TopologyConfig, snapshot []client.CachedValue, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
+func buildTopologyLinks(deviceID string, topology config.TopologyConfig, snapshot []client.CachedValue, _ []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
 	if topology.IsZero() {
 		return nil
 	}
@@ -38,12 +38,11 @@ func buildTopologyLinks(deviceID string, topology config.TopologyConfig, snapsho
 		return left < right
 	})
 
-	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
 	links := make([]devicemetadata.TopologyLinkMetadata, 0, len(neighborKeys))
 
 	for _, keys := range neighborKeys {
 		interfaceName := keys[topology.NeighborInterfaceKey()]
-		neighborID := keys[topology.NeighborIDKey()]
+		neighborKey := keys[topology.NeighborIDKey()]
 
 		remoteChassisIDType := normalizeLLDPChassisIDType(firstStringValue(index, topology.LLDP.ChassisIDType, keys))
 		remoteChassisID := formatLLDPID(remoteChassisIDType, firstStringValue(index, topology.LLDP.ChassisID, keys))
@@ -51,21 +50,27 @@ func buildTopologyLinks(deviceID string, topology config.TopologyConfig, snapsho
 		remotePortIDType := normalizeLLDPPortIDType(firstStringValue(index, topology.LLDP.PortIDType, keys))
 		remotePortID := formatLLDPID(remotePortIDType, firstStringValue(index, topology.LLDP.PortID, keys))
 
-		localInterfaceID := resolveLocalInterface(deviceID, interfaceIndexByIDType, devicemetadata.IDTypeInterfaceName, interfaceName)
+		remoteName := firstStringValue(index, topology.LLDP.SystemName, keys)
+		remoteMgmtAddress := firstStringValue(index, topology.LLDP.ManagementAddress, keys)
+		remoteMgmtIP := canonicalManagementIPAddress(remoteMgmtAddress)
+		remoteDevice := &devicemetadata.TopologyLinkDevice{
+			Name:        remoteName,
+			Description: firstStringValue(index, topology.LLDP.SystemDescription, keys),
+			ID:          remoteChassisID,
+			IDType:      remoteChassisIDType,
+			IPAddress:   remoteTopologyIPAddress(remoteMgmtIP, remoteMgmtAddress),
+		}
+		if remoteMgmtIP != "" {
+			remoteDevice.DDID = buildDeviceIDFromConfigAddress(remoteMgmtIP)
+		}
 
-		linkID := deviceID + ":" + interfaceName + "." + neighborID
+		linkID := buildTopologyLinkID(deviceID, interfaceName, remoteChassisIDType, remoteChassisID, neighborKey)
 		links = append(links, devicemetadata.TopologyLinkMetadata{
 			ID:          linkID,
 			SourceType:  topologyLinkSourceTypeLLDP,
-			Integration: string(integrations.Gnmi),
+			Integration: string(integrations.SNMP),
 			Remote: &devicemetadata.TopologyLinkSide{
-				Device: &devicemetadata.TopologyLinkDevice{
-					Name:        firstStringValue(index, topology.LLDP.SystemName, keys),
-					Description: firstStringValue(index, topology.LLDP.SystemDescription, keys),
-					ID:          remoteChassisID,
-					IDType:      remoteChassisIDType,
-					IPAddress:   firstStringValue(index, topology.LLDP.ManagementAddress, keys),
-				},
+				Device: remoteDevice,
 				Interface: &devicemetadata.TopologyLinkInterface{
 					ID:          remotePortID,
 					IDType:      remotePortIDType,
@@ -74,7 +79,7 @@ func buildTopologyLinks(deviceID string, topology config.TopologyConfig, snapsho
 			},
 			Local: &devicemetadata.TopologyLinkSide{
 				Interface: &devicemetadata.TopologyLinkInterface{
-					DDID:   localInterfaceID,
+					DDID:   buildInterfaceID(deviceID, interfaceName),
 					ID:     interfaceName,
 					IDType: devicemetadata.IDTypeInterfaceName,
 				},
@@ -86,6 +91,43 @@ func buildTopologyLinks(deviceID string, topology config.TopologyConfig, snapsho
 	}
 
 	return links
+}
+
+// buildTopologyLinkID builds a stable link identifier from the local interface and
+// normalized remote chassis ID. The neighbor list key is only used as a fallback
+// when chassis-id telemetry is missing, and is normalized with the same rules.
+func buildTopologyLinkID(deviceID, interfaceName, remoteChassisIDType, remoteChassisID, neighborKey string) string {
+	neighborToken := remoteChassisID
+	if neighborToken == "" {
+		neighborToken = formatLLDPID(remoteChassisIDType, neighborKey)
+	}
+	return deviceID + ":" + interfaceName + "." + neighborToken
+}
+
+// canonicalManagementIPAddress returns a normalized IP address when the LLDP management
+// address is a parseable IP. Hostnames and other non-IP values return empty string.
+// This matches the SNMP check, which only extracts IPv4 management addresses from the
+// LLDP MIB and never sets remote dd_id from hostnames.
+func canonicalManagementIPAddress(address string) string {
+	trimmed := strings.TrimSpace(address)
+	if trimmed == "" {
+		return ""
+	}
+	ip := net.ParseIP(trimmed)
+	if ip == nil {
+		return ""
+	}
+	if v4 := ip.To4(); v4 != nil {
+		return v4.String()
+	}
+	return ""
+}
+
+func remoteTopologyIPAddress(canonicalIP, rawAddress string) string {
+	if canonicalIP != "" {
+		return canonicalIP
+	}
+	return strings.TrimSpace(rawAddress)
 }
 
 func normalizeLLDPChassisIDType(value string) string {
@@ -118,125 +160,4 @@ func formatLLDPID(idType, idValue string) string {
 		return strings.ToLower(idValue)
 	}
 	return idValue
-}
-
-type interfaceCandidate struct {
-	ifIndex    int32
-	rawID      string
-	isPhysical bool
-	macAddress string
-}
-
-func (c interfaceCandidate) identity() string {
-	if c.ifIndex > 0 {
-		return "index:" + formatInt32(c.ifIndex)
-	}
-	return "raw:" + c.rawID
-}
-
-func (c interfaceCandidate) ddid(deviceID string) string {
-	if c.ifIndex > 0 {
-		return deviceID + ":" + formatInt32(c.ifIndex)
-	}
-	if c.rawID != "" {
-		return deviceID + ":" + c.rawID
-	}
-	return ""
-}
-
-func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]interfaceCandidate, localInterfaceIDType string, localInterfaceID string) string {
-	if localInterfaceID == "" {
-		return ""
-	}
-
-	typesToTry := []string{localInterfaceIDType}
-	if localInterfaceIDType == "" {
-		typesToTry = []string{"mac_address", "interface_name", "interface_alias", "interface_index"}
-	}
-
-	matchedCandidates := make(map[string]interfaceCandidate)
-	for _, idType := range typesToTry {
-		interfaceIndexByIDValue, ok := interfaceIndexByIDType[idType]
-		if !ok {
-			continue
-		}
-		for _, candidate := range interfaceIndexByIDValue[localInterfaceID] {
-			matchedCandidates[candidate.identity()] = candidate
-		}
-	}
-
-	if len(matchedCandidates) == 1 {
-		for _, candidate := range matchedCandidates {
-			return candidate.ddid(deviceID)
-		}
-	}
-
-	if len(matchedCandidates) > 1 {
-		if physical, ok := singlePhysicalCandidateSharingMAC(matchedCandidates); ok {
-			return deviceID + ":" + formatInt32(physical.ifIndex)
-		}
-	}
-
-	return ""
-}
-
-func singlePhysicalCandidateSharingMAC(candidates map[string]interfaceCandidate) (interfaceCandidate, bool) {
-	var found interfaceCandidate
-	var physicalCount int
-	var sharedMAC string
-	for _, candidate := range candidates {
-		if candidate.macAddress == "" {
-			return interfaceCandidate{}, false
-		}
-		if sharedMAC == "" {
-			sharedMAC = candidate.macAddress
-		} else if candidate.macAddress != sharedMAC {
-			return interfaceCandidate{}, false
-		}
-		if candidate.isPhysical {
-			found = candidate
-			physicalCount++
-			if physicalCount > 1 {
-				return interfaceCandidate{}, false
-			}
-		}
-	}
-	return found, physicalCount == 1
-}
-
-func buildInterfaceIndexByIDType(interfaces []devicemetadata.InterfaceMetadata) map[string]map[string][]interfaceCandidate {
-	interfaceIndexByIDType := make(map[string]map[string][]interfaceCandidate)
-	for _, idType := range []string{"mac_address", "interface_name", "interface_alias", "interface_index"} {
-		interfaceIndexByIDType[idType] = make(map[string][]interfaceCandidate)
-	}
-
-	for _, devInterface := range interfaces {
-		isPhysical := devInterface.IsPhysical != nil && *devInterface.IsPhysical
-		candidate := interfaceCandidate{
-			ifIndex:    devInterface.Index,
-			rawID:      devInterface.RawID,
-			isPhysical: isPhysical,
-			macAddress: devInterface.MacAddress,
-		}
-
-		if devInterface.MacAddress != "" {
-			interfaceIndexByIDType["mac_address"][devInterface.MacAddress] = append(interfaceIndexByIDType["mac_address"][devInterface.MacAddress], candidate)
-		}
-		if devInterface.Name != "" {
-			interfaceIndexByIDType["interface_name"][devInterface.Name] = append(interfaceIndexByIDType["interface_name"][devInterface.Name], candidate)
-		}
-		if devInterface.Alias != "" {
-			interfaceIndexByIDType["interface_alias"][devInterface.Alias] = append(interfaceIndexByIDType["interface_alias"][devInterface.Alias], candidate)
-		}
-		if devInterface.Index > 0 {
-			index := formatInt32(devInterface.Index)
-			interfaceIndexByIDType["interface_index"][index] = append(interfaceIndexByIDType["interface_index"][index], candidate)
-		}
-	}
-
-	return interfaceIndexByIDType
-}
-
-func formatInt32(value int32) string {
-	return strconv.FormatInt(int64(value), 10)
 }
