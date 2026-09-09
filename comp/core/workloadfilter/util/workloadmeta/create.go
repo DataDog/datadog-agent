@@ -63,31 +63,8 @@ func resolveRootOwner(owners []workloadmeta.KubernetesPodOwner, podLabels map[st
 		}
 	}
 
-	switch owner.Kind {
-	case kubernetes.ReplicaSetKind:
-		// Argo Rollouts manage ReplicaSets named like Deployment ones (`<owner>-<hash>`),
-		// so the rollout pod label is the only way to tell the two apart here. A real
-		// Rollout always sets a non-empty hash, so an empty value is not one.
-		if podLabels[kubernetes.ArgoRolloutLabelKey] != "" {
-			if rollout := kubernetes.ParseDeploymentForReplicaSet(owner.Name); rollout != "" {
-				return &core.FilterRootOwner{Kind: kubernetes.RolloutKind, Name: rollout}
-			}
-			return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
-		}
-		if deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name); deployment != "" {
-			return &core.FilterRootOwner{Kind: kubernetes.DeploymentKind, Name: deployment}
-		}
-		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
-	case kubernetes.JobKind:
-		if cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name); cronjob != "" {
-			return &core.FilterRootOwner{Kind: kubernetes.CronJobKind, Name: cronjob}
-		}
-		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
-	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.StrimziPodSetKind:
-		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
-	default:
-		return &core.FilterRootOwner{Kind: owner.Kind, Name: owner.Name}
-	}
+	rootKind, rootName := kubernetes.ResolvePodRootOwner(owner.Kind, owner.Name, podLabels)
+	return &core.FilterRootOwner{Kind: rootKind, Name: rootName}
 }
 
 // CreateProcess creates a Filterable Process object from a workloadmeta.Process.
