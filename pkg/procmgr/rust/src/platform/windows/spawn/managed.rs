@@ -102,7 +102,13 @@ fn spawn_privileged_inherit(
         .with_context(|| format!("[{process_name}] failed to spawn: {}", request.command))?;
 
     let pid = child.id().unwrap_or(0);
-    let handle = ProcessHandle::from_tokio_child(child)?;
+    let handle = match ProcessHandle::from_tokio_child(child) {
+        Ok(handle) => handle,
+        Err(e) => {
+            terminate_unsupervised_child(process_name, pid);
+            return Err(e);
+        }
+    };
 
     let job = JobObject::new()
         .inspect_err(|_| {
