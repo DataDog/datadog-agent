@@ -40,10 +40,18 @@ type InterfaceMetadataConfig struct {
 	Type        string            `yaml:"type"`
 }
 
+// IPAddressMetadataConfig maps logical interface IP metadata fields to gNMI paths.
+type IPAddressMetadataConfig struct {
+	Keys         map[string]string `yaml:"keys"`
+	IP           string            `yaml:"ip"`
+	PrefixLength string            `yaml:"prefix_length"`
+}
+
 // MetadataConfig defines gNMI paths used for NDM device and interface metadata.
 type MetadataConfig struct {
 	Device    DeviceMetadataConfig    `yaml:"device"`
 	Interface InterfaceMetadataConfig `yaml:"interface"`
+	IPAddress IPAddressMetadataConfig `yaml:"ip_address"`
 }
 
 // DefaultOpenConfigMetadata returns the standard OpenConfig metadata path mappings.
@@ -72,6 +80,15 @@ func DefaultOpenConfigMetadata() MetadataConfig {
 			IfIndex:     "/openconfig/interfaces/interface/state/ifindex",
 			Type:        "/openconfig/interfaces/interface/state/type",
 		},
+		IPAddress: IPAddressMetadataConfig{
+			Keys: map[string]string{
+				"interface":    "name",
+				"subinterface": "index",
+				"address":      "ip",
+			},
+			IP:           "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/ip",
+			PrefixLength: "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/prefix-length",
+		},
 	}
 }
 
@@ -93,7 +110,10 @@ func (m MetadataConfig) IsZero() bool {
 		m.Interface.MACAddress == "" &&
 		m.Interface.IfIndex == "" &&
 		m.Interface.Type == "" &&
-		len(m.Interface.Keys) == 0
+		len(m.Interface.Keys) == 0 &&
+		m.IPAddress.IP == "" &&
+		m.IPAddress.PrefixLength == "" &&
+		len(m.IPAddress.Keys) == 0
 }
 
 func deviceMetadataConfigIsZero(device DeviceMetadataConfig) bool {
@@ -146,6 +166,9 @@ func (m MetadataConfig) SubscriptionPaths() []PathSubscriptionConfig {
 	add(resolved.Interface.IfIndex)
 	add(resolved.Interface.Type)
 
+	add(resolved.IPAddress.IP)
+	add(resolved.IPAddress.PrefixLength)
+
 	return out
 }
 
@@ -197,8 +220,32 @@ func (m MetadataConfig) InterfaceKeyValues(interfaceName string) map[string]stri
 	return keys
 }
 
+// DeviceKeyValues builds cache lookup keys for a named device component.
+func (m MetadataConfig) DeviceKeyValues(componentName string) map[string]string {
+	resolved := m.Resolved()
+	if componentName == "" || len(resolved.Device.Keys) == 0 {
+		return nil
+	}
+
+	keys := make(map[string]string, len(resolved.Device.Keys))
+	for _, keyName := range resolved.Device.Keys {
+		if keyName == "" {
+			continue
+		}
+		keys[keyName] = componentName
+	}
+	if len(keys) == 0 {
+		return map[string]string{"name": componentName}
+	}
+	return keys
+}
+
 func metadataSubscriptionKeys(resolved MetadataConfig, path string) map[string]string {
+	normalized := normalizeMetadataPath(path)
 	switch {
+	case normalized == normalizeMetadataPath(resolved.IPAddress.IP),
+		normalized == normalizeMetadataPath(resolved.IPAddress.PrefixLength):
+		return copyStringMap(resolved.IPAddress.Keys)
 	case strings.Contains(path, "/interfaces/interface/"):
 		return copyStringMap(resolved.Interface.Keys)
 	case strings.Contains(path, "/components/component/"):
@@ -236,6 +283,8 @@ func validateMetadataConfig(metadata MetadataConfig) error {
 		"interface.mac_address": resolved.Interface.MACAddress,
 		"interface.ifindex":       resolved.Interface.IfIndex,
 		"interface.type":          resolved.Interface.Type,
+		"ip_address.ip":           resolved.IPAddress.IP,
+		"ip_address.prefix_length": resolved.IPAddress.PrefixLength,
 	} {
 		if strings.TrimSpace(path) == "" {
 			continue
@@ -257,6 +306,14 @@ func validateMetadataConfig(metadata MetadataConfig) error {
 		}
 		if strings.TrimSpace(keyName) == "" {
 			return fmt.Errorf("metadata.interface.keys[%q] must not be empty", segment)
+		}
+	}
+	for segment, keyName := range resolved.IPAddress.Keys {
+		if strings.TrimSpace(segment) == "" {
+			return fmt.Errorf("metadata.ip_address.keys contains an empty segment name")
+		}
+		if strings.TrimSpace(keyName) == "" {
+			return fmt.Errorf("metadata.ip_address.keys[%q] must not be empty", segment)
 		}
 	}
 	return nil
