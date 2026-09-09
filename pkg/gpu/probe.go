@@ -99,6 +99,9 @@ const ringbufferWakeupSizeConstantName = "ringbuffer_wakeup_size"
 
 // ProbeDependencies holds the dependencies for the probe
 type ProbeDependencies struct {
+	// EBPFConfig contains the shared system-probe eBPF settings.
+	EBPFConfig *ddebpf.Config
+
 	// Telemetry is the telemetry component
 	Telemetry telemetry.Component
 
@@ -151,13 +154,17 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	if err := config.CheckGPUSupported(); err != nil {
 		return nil, err
 	}
+	if deps.EBPFConfig == nil {
+		return nil, fmt.Errorf("eBPF config cannot be nil")
+	}
+	ebpfCfg := deps.EBPFConfig
 
-	if !cfg.EnableRuntimeCompiler && !cfg.EnableCORE {
+	if !ebpfCfg.EnableRuntimeCompiler && !ebpfCfg.EnableCORE {
 		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfig.GPUMonitoringModule)
 	}
 
 	sysCtx, err := getSystemContext(
-		withProcRoot(cfg.ProcRoot),
+		withProcRoot(ebpfCfg.ProcRoot),
 		withWorkloadMeta(deps.WorkloadMeta),
 		withTelemetry(deps.Telemetry),
 		withFatbinParsingEnabled(cfg.EnableFatbinParsing),
@@ -176,10 +183,10 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		nvmlStateTelemetry: safenvml.NewNvmlStateTelemetry(deps.Telemetry),
 	}
 
-	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
+	allowRC := ebpfCfg.EnableRuntimeCompiler && ebpfCfg.AllowRuntimeCompiledFallback
 	//try CO-RE first
-	if cfg.EnableCORE {
-		err = p.initCOREGPU(cfg)
+	if ebpfCfg.EnableCORE {
+		err = p.initCOREGPU(ebpfCfg)
 		if err != nil {
 			if allowRC {
 				log.Warnf("error loading CO-RE %s, falling back to runtime compiled: %v", sysconfig.GPUMonitoringModule, err)
@@ -189,18 +196,18 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		}
 	} else {
 		//if CO-RE is disabled we don't need to check the AllowRuntimeCompiledFallback config flag
-		allowRC = cfg.EnableRuntimeCompiler
+		allowRC = ebpfCfg.EnableRuntimeCompiler
 	}
 
 	//if manager is not initialized yet and RC is enabled, try runtime compilation
 	if p.m == nil && allowRC {
-		err = p.initRCGPU(cfg)
+		err = p.initRCGPU(ebpfCfg)
 		if err != nil {
 			return nil, fmt.Errorf("unable to compile %s probe: %w", sysconfig.GPUMonitoringModule, err)
 		}
 	}
 
-	attachCfg := getAttacherConfig(cfg)
+	attachCfg := getAttacherConfig(cfg, ebpfCfg)
 	p.attacher, err = uprobes.NewUprobeAttacher(consts.GpuModuleName, consts.GpuAttacherName, attachCfg, p.m, nil, uprobes.AttacherDependencies{
 		Inspector:      &uprobes.NativeBinaryInspector{},
 		ProcessMonitor: deps.ProcessMonitor,
@@ -215,6 +222,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	p.consumer = newCudaEventConsumer(cudaEventConsumerDependencies{
 		sysCtx:         sysCtx,
 		cfg:            cfg,
+		ebpfConfig:     ebpfCfg,
 		telemetry:      deps.Telemetry,
 		processMonitor: deps.ProcessMonitor,
 		streamHandlers: p.streamHandlers,
@@ -286,8 +294,8 @@ func (p *Probe) cleanupFinished(nowKtime int64) {
 	p.streamHandlers.clean(nowKtime)
 }
 
-func (p *Probe) initRCGPU(cfg *config.Config) error {
-	buf, err := getRuntimeCompiledGPUMonitoring(cfg)
+func (p *Probe) initRCGPU(ebpfCfg *ddebpf.Config) error {
+	buf, err := getRuntimeCompiledGPUMonitoring(ebpfCfg)
 	if err != nil {
 		return err
 	}
@@ -296,8 +304,8 @@ func (p *Probe) initRCGPU(cfg *config.Config) error {
 	return p.setupManager(buf, manager.Options{})
 }
 
-func (p *Probe) initCOREGPU(cfg *config.Config) error {
-	asset := getAssetName("gpu", cfg.BPFDebug)
+func (p *Probe) initCOREGPU(ebpfCfg *ddebpf.Config) error {
+	asset := getAssetName("gpu", ebpfCfg.BPFDebug)
 	err := ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
 		return p.setupManager(ar, o)
 	})
@@ -463,14 +471,14 @@ func getCuLibraryAttacherRule() *uprobes.AttachRule {
 		},
 	}
 }
-func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
+func getAttacherConfig(cfg *config.Config, ebpfCfg *ddebpf.Config) uprobes.AttacherConfig {
 	return uprobes.AttacherConfig{
 		Rules: []*uprobes.AttachRule{
 			getCudaLibraryAttacherRule(),
 			getCuLibraryAttacherRule(),
 			getLibcAttacherRule(),
 		},
-		EbpfConfig:                     &cfg.Config,
+		EbpfConfig:                     ebpfCfg,
 		PerformInitialScan:             cfg.InitialProcessSync,
 		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetGPU, sharedlibraries.LibsetLibc},
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,

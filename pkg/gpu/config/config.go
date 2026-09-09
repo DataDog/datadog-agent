@@ -11,7 +11,6 @@ import (
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
@@ -21,7 +20,6 @@ var ErrNotSupported = errors.New("GPU Monitoring is not supported")
 
 // Config holds the configuration for the GPU monitoring probe.
 type Config struct {
-	ebpf.Config
 	// DisabledCollectors lists Agent GPU collectors that should not be created.
 	DisabledCollectors []string
 	// NVLinkFECLightErrorThreshold is the maximum corrected-error count classified as light.
@@ -87,7 +85,6 @@ func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
 	agentCfg := pkgconfigsetup.Datadog()
 	return &Config{
-		Config:                       *ebpf.NewConfig(),
 		DisabledCollectors:           agentCfg.GetStringSlice("gpu.disabled_collectors"),
 		NVLinkFECLightErrorThreshold: agentCfg.GetInt("gpu.nvlink.fec_light_error_threshold"),
 		LegacySMActive:               agentCfg.GetBool("gpu.legacy_sm_active"),

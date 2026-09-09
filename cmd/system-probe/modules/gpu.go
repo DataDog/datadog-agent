@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
@@ -84,7 +85,9 @@ var GPUMonitoring = &module.Factory{
 		var driverEventSubscriber driverEventSubscriber
 		var err error
 		if c.EnableEBPFProbes {
+			ebpfConfig := ebpf.NewConfig()
 			probeDeps := gpu.ProbeDependencies{
+				EBPFConfig:     ebpfConfig,
 				Telemetry:      deps.Telemetry,
 				ProcessMonitor: processEventConsumer,
 				WorkloadMeta:   deps.WMeta,
