@@ -21,6 +21,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -35,7 +36,7 @@ import (
 
 func TestFormatUserUsesHostPasswdAndPreservesUnresolvedName(t *testing.T) {
 	dir := t.TempDir()
-	assert.NoError(t, os.WriteFile(filepath.Join(dir, "passwd"), []byte("host-user:x:432:543::/:/bin/sh\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "passwd"), []byte("host-user:x:432:543::/:/bin/sh\n"), 0o600))
 	t.Setenv("HOST_ETC", dir)
 
 	cfg := configmock.New(t)
@@ -54,7 +55,7 @@ func TestFormatUserUsesHostPasswdAndPreservesUnresolvedName(t *testing.T) {
 
 func TestFormatUserNilProbeIsHostAware(t *testing.T) {
 	dir := t.TempDir()
-	assert.NoError(t, os.WriteFile(filepath.Join(dir, "passwd"), []byte("nil-probe-user:x:434:434::/:/bin/sh\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "passwd"), []byte("nil-probe-user:x:434:434::/:/bin/sh\n"), 0o600))
 	t.Setenv("HOST_ETC", dir)
 
 	resolved := formatUser(&procutil.Process{Uids: []int32{434}}, nil)

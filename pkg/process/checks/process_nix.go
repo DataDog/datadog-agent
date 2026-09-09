@@ -16,7 +16,6 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/process/userresolver"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -24,7 +23,7 @@ var (
 	// overridden in tests
 	hostCPUCount = system.HostCPUCount
 
-	defaultLookupIDResolver = userresolver.New(user.LookupId)
+	defaultHostPasswdCache = newHostPasswdCache()
 )
 
 func formatUser(fp *procutil.Process, uidProbe *LookupIDProbe) *model.ProcessUser {
@@ -35,10 +34,15 @@ func formatUser(fp *procutil.Process, uidProbe *LookupIDProbe) *model.ProcessUse
 			u   *user.User
 			err error
 		)
+		uidString := strconv.Itoa(int(fp.Uids[0]))
 		if uidProbe == nil {
-			u, err = defaultLookupIDResolver.LookupID(strconv.Itoa(int(fp.Uids[0])))
+			var found bool
+			u, found = defaultHostPasswdCache.lookup(uidString)
+			if !found {
+				u, err = user.LookupId(uidString)
+			}
 		} else {
-			u, err = uidProbe.LookupID(strconv.Itoa(int(fp.Uids[0])))
+			u, err = uidProbe.LookupID(uidString)
 		}
 		if err == nil {
 			username = u.Username
