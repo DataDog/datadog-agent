@@ -27,14 +27,11 @@ type checkSubTask struct {
 // connection holds the database connection parameters resolved locally from the
 // matching integration. Mirrors the check's `Connection` struct.
 type connection struct {
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	DBName      string `json:"dbname"`
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	SSLMode     string `json:"ssl,omitempty"`
-	SSLCert     string `json:"ssl_cert,omitempty"`
-	SSLKey      string `json:"ssl_key,omitempty"`
-	SSLPassword string `json:"ssl_password,omitempty"`
-	SSLRootCert string `json:"ssl_root_cert,omitempty"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	DBName   string `json:"dbname"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	SSLMode  string `json:"ssl,omitempty"`
+	// TODO(DATASEC-156): add ssl cert fields (ssl_root_cert, ssl_cert, ssl_key, ssl_password).
 }

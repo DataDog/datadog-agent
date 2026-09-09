@@ -250,7 +250,7 @@ func matchesHost(instance map[string]any, targetHost string) bool {
 	return false
 }
 
-// buildPostgresConnection copies credentials and TLS settings from the matched instance and
+// buildPostgresConnection copies credentials and ssl mode from the matched instance and
 // targets the entity's database.
 func buildPostgresConnection(instance map[string]any, e entity) connection {
 	port, ok := instancePort(instance)
@@ -258,16 +258,12 @@ func buildPostgresConnection(instance map[string]any, e entity) connection {
 		port = defaultPostgresPort
 	}
 	return connection{
-		Host:        instanceString(instance, "host"),
-		Port:        port,
-		DBName:      e.Database,
-		Username:    instanceString(instance, "username"),
-		Password:    instanceString(instance, "password"),
-		SSLMode:     instanceString(instance, "ssl"),
-		SSLCert:     instanceString(instance, "ssl_cert"),
-		SSLKey:      instanceString(instance, "ssl_key"),
-		SSLPassword: instanceString(instance, "ssl_password"),
-		SSLRootCert: instanceString(instance, "ssl_root_cert"),
+		Host:     instanceString(instance, "host"),
+		Port:     port,
+		DBName:   e.Database,
+		Username: instanceString(instance, "username"),
+		Password: instanceString(instance, "password"),
+		SSLMode:  instanceString(instance, "ssl"),
 	}
 }
 
