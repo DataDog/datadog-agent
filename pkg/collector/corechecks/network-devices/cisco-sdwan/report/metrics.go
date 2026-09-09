@@ -293,11 +293,8 @@ func (ms *SDWanSender) SendCloudApplicationMetrics(cloudApplications []client.Cl
 // SendBGPNeighborMetrics sends hardware metrics
 func (ms *SDWanSender) SendBGPNeighborMetrics(bgpNeighbors []client.BGPNeighbor) {
 	for _, entry := range bgpNeighbors {
-		as := strconv.Itoa(int(entry.AS))
-		vpnID := strconv.Itoa(int(entry.VpnID))
-
 		tags := ms.getDeviceTags(entry.VmanageSystemIP)
-		tags = append(tags, "peer_state:"+entry.State, "remote_as:"+as, "neighbor:"+entry.PeerAddr, "vpn_id:"+vpnID, "afi:"+entry.Afi)
+		tags = append(tags, "peer_state:"+entry.State, "remote_as:"+entry.AS, "neighbor:"+entry.PeerAddr, "vpn_id:"+entry.VpnID, "afi:"+entry.Afi)
 
 		ms.sender.Gauge(ciscoSDWANMetricPrefix+"bgp.neighbor", float64(1), "", tags)
 	}

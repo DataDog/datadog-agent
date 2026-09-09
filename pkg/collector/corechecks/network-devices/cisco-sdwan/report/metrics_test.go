@@ -1301,16 +1301,18 @@ func TestSendBGPNeighborMetrics(t *testing.T) {
 			bgpNeighbor: []client.BGPNeighbor{
 				{
 					VmanageSystemIP: "10.0.0.1",
-					AS:              1,
-					VpnID:           1,
+					AS:              "1",
+					VpnID:           "1",
 					State:           "established",
 					PeerAddr:        "10.60.1.11",
 					Afi:             "ipv4-unicast",
 				},
 				{
+					// vpn-id is a VRF name on the real-time endpoint and may be
+					// non-numeric (e.g. "default"); it must survive as a string.
 					VmanageSystemIP: "10.0.0.2",
-					AS:              2,
-					VpnID:           1,
+					AS:              "2",
+					VpnID:           "default",
 					State:           "established",
 					PeerAddr:        "10.60.2.11",
 					Afi:             "ipv4-unicast",
@@ -1367,7 +1369,7 @@ func TestSendBGPNeighborMetrics(t *testing.T) {
 						"peer_state:established",
 						"remote_as:2",
 						"neighbor:10.60.2.11",
-						"vpn_id:1",
+						"vpn_id:default",
 						"afi:ipv4-unicast",
 					},
 				},
