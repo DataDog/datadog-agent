@@ -119,13 +119,16 @@ func newNVLinkFieldsCollectorWithMetrics(device ddnvml.Device, metrics map[uint3
 	c.metrics = maps.Clone(metrics)
 
 	_, err := getSupportedNvlinkPorts(device, c.discoverPortMetrics)
+	if err != nil {
+		// errors from getSupportedNvlinkPorts need to be propagated. It's
+		// either "no supported collection" or a critical runtime error.
+		return nil, fmt.Errorf("get supported NVLink ports: %w", err)
+	}
+
+	// Defensive: if no field metrics were enrolled, the device is unsupported.
+	// getSupportedNvlinkPorts should already return errUnsupportedDevice in that case.
 	if len(c.requests) == 0 {
-		if err != nil {
-			return nil, fmt.Errorf("get supported NVLink ports: %w", err)
-		}
 		return nil, fmt.Errorf("%w: no supported NVLink field metrics found", errUnsupportedDevice)
-	} else if err != nil {
-		log.Warnf("nvlink: errors while discovering port support, still continuing with %d metrics: %v", len(c.requests), err)
 	}
 
 	return c, nil
@@ -234,11 +237,12 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) 
 		return nil, err
 	}
 
+	var errs []error
 	var addedRequests int
 	for _, val := range fields {
 		fieldValueMetric, ok := c.metrics[val.FieldId]
 		if !ok {
-			log.Warnf("nvlink: fields collector skipping unexpected field value ID %d for port %d", val.FieldId, port)
+			errs = append(errs, fmt.Errorf("unexpected field value ID %d for port %d", val.FieldId, port))
 			continue
 		}
 
@@ -256,11 +260,12 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) 
 		addedRequests++
 	}
 
+	// No fields were supported on this port, so we return an error to indicate that the port is unsupported.
 	if addedRequests == 0 {
 		return nil, fmt.Errorf("%w: no metrics to collect", errUnsupportedDevice)
 	}
 
-	return nil, nil
+	return nil, errors.Join(errs...)
 }
 
 // addRequest adds a request for a metric to the collector. If the request already exists, it adds the port to the existing request.
