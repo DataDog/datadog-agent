@@ -4,9 +4,9 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::process::ManagedProcess;
+#[cfg(test)]
+use crate::process::test_exit_channel;
 
-/// Shut down processes in the given index order (typically reverse startup order).
-/// Sends SIGTERM to all first, then waits for each in order.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
         processes[idx].request_stop();
@@ -16,7 +16,6 @@ pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize])
     }
 }
 
-/// Convenience wrapper: shut down all processes in forward index order.
 #[cfg(test)]
 pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
     let order: Vec<usize> = (0..processes.len()).collect();
@@ -41,8 +40,8 @@ mod tests {
 
         let mut p1 = ManagedProcess::new_config("p1".into(), test_helpers::test_uuid(), cfg1);
         let mut p2 = ManagedProcess::new_config("p2".into(), test_helpers::test_uuid(), cfg2);
-        p1.spawn().unwrap();
-        p2.spawn().unwrap();
+        p1.spawn(test_exit_channel().0).unwrap();
+        p2.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![p1, p2];
         shutdown_all(&mut procs).await;
@@ -66,7 +65,7 @@ mod tests {
         cfg.stop_timeout = Some(1);
         let mut proc =
             ManagedProcess::new_config("stubborn".into(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
+        proc.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![proc];
         shutdown_all(&mut procs).await;
@@ -75,19 +74,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_shutdown_all_after_take_child() {
+    async fn test_shutdown_all_after_spawn_watcher_owns_handle() {
         let mut proc =
             ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), sleep_config());
-        proc.spawn().unwrap();
-        let _child = proc.take_child();
-
+        proc.spawn(test_exit_channel().0).unwrap();
         assert!(proc.is_running(), "state should still be Running");
         let mut procs = vec![proc];
         shutdown_all(&mut procs).await;
         assert_eq!(
             procs[0].state(),
             ProcessState::Stopped,
-            "shutdown should transition to Stopped even without child handle"
+            "shutdown should transition to Stopped via exit watcher"
         );
     }
 
@@ -99,12 +96,11 @@ mod tests {
             ManagedProcess::new_config("p2".into(), test_helpers::test_uuid(), sleep_config());
         let mut p3 =
             ManagedProcess::new_config("p3".into(), test_helpers::test_uuid(), sleep_config());
-        p1.spawn().unwrap();
-        p2.spawn().unwrap();
-        p3.spawn().unwrap();
+        p1.spawn(test_exit_channel().0).unwrap();
+        p2.spawn(test_exit_channel().0).unwrap();
+        p3.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![p1, p2, p3];
-        // Reverse order: p3, p2, p1
         shutdown_ordered(&mut procs, &[2, 1, 0]).await;
 
         assert_eq!(procs[0].state(), ProcessState::Stopped);
