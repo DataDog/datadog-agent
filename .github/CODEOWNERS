@@ -257,7 +257,7 @@
 /cmd/agent/subcommands/run/internal/clcrunnerapi/   @DataDog/container-platform
 /cmd/agent/windows                                  @DataDog/windows-products
 /cmd/agent/windows_resources                        @DataDog/windows-products
-/cmd/agent/dist/conf.d/                                  @DataDog/agent-integrations
+/cmd/agent/dist/conf.d/                             @DataDog/agent-integrations
 /cmd/agent/dist/conf.d/agentcrashdetect.d/             @DataDog/windows-products
 /cmd/agent/dist/conf.d/agentprofiling.d/               @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/battery.d/                      @DataDog/windows-products
