@@ -171,6 +171,21 @@ var (
 	// Tags: map, cause
 	MetricPerfBufferInvalidEventsBytes = newRuntimeMetric(".perf_buffer.invalid_events.bytes")
 
+	// Ring buffer user space dispatcher queue metrics
+
+	// MetricEventStreamDispatcherQueueUsage is the number of events currently held in the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueUsage = newRuntimeMetric(".event_stream.dispatcher_queue.usage")
+	// MetricEventStreamDispatcherQueueCapacity is the dispatcher queue capacity in bytes
+	// Tags: -
+	MetricEventStreamDispatcherQueueCapacity = newRuntimeMetric(".event_stream.dispatcher_queue.capacity")
+	// MetricEventStreamDispatcherQueueBytes is the number of bytes currently held in the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueBytes = newRuntimeMetric(".event_stream.dispatcher_queue.bytes")
+	// MetricEventStreamDispatcherQueueEnqueued is the number of events pushed onto the user space dispatcher queue
+	// Tags: -
+	MetricEventStreamDispatcherQueueEnqueued = newRuntimeMetric(".event_stream.dispatcher_queue.enqueued")
+
 	// Process Resolver metrics
 
 	// MetricProcessResolverCacheSize is the name of the metric used to report the size of the user space

@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod spawn;
+
+pub(crate) use spawn::spawn_child_handle;
+
 use crate::spawn::SpawnProfile;
 use anyhow::{Context, Result};
 use std::ffi::c_void;
