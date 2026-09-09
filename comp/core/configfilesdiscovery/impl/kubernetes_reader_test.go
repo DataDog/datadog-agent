@@ -21,6 +21,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// configFilePaths returns the paths of files in their existing order.
+func configFilePaths(files []ConfigFile) []string {
+	if files == nil {
+		return nil
+	}
+	paths := make([]string, 0, len(files))
+	for _, file := range files {
+		paths = append(paths, file.Path)
+	}
+	return paths
+}
+
 func TestKubernetesReaderReportsRuntime(t *testing.T) {
 	reader := &kubernetesConfigReader{containerID: "container-id", client: &fakeKubernetesClient{}}
 

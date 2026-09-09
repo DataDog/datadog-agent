@@ -79,18 +79,6 @@ func verifyTestConfigFileSearch(t testing.TB, root string, pattern string) Confi
 	return search
 }
 
-// configFilePaths returns the paths of files in their existing order.
-func configFilePaths(files []ConfigFile) []string {
-	if files == nil {
-		return nil
-	}
-	paths := make([]string, 0, len(files))
-	for _, file := range files {
-		paths = append(paths, file.Path)
-	}
-	return paths
-}
-
 // readConfigFileResults returns the successfully read files or fails the
 // current test when a result contains a read error.
 func readConfigFileResults(t testing.TB, results []ConfigFileReadResult) []ConfigFile {
