@@ -164,8 +164,7 @@ func (e *LogPatternExtractor) Name() string {
 }
 
 // Reset clears clustering state so reanalysis starts from the currently
-// observed logs. The registry is kept so that previously registered hashes
-// remain resolvable.
+// observed logs.
 func (e *LogPatternExtractor) Reset() {
 	e.taggedClusterer.Reset()
 	e.NextGarbageCollectionTime = 0
