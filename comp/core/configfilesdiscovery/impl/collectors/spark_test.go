@@ -88,6 +88,8 @@ func TestSparkGetPropertiesFileFromCommandline(t *testing.T) {
 		{name: "spark-submit script", args: []string{"/opt/spark/bin/spark-submit", "--properties-file=/etc/spark/driver.conf"}, want: "/etc/spark/driver.conf", ok: true},
 		{name: "shell form", args: []string{"/bin/sh", "-c", "spark-submit --properties-file /etc/spark/driver.conf app.jar"}, want: "/etc/spark/driver.conf", ok: true},
 		{name: "Spark option values before properties file", args: []string{"spark-submit", "--master", "spark://master:7077", "--class", "example.App", "--properties-file", "/etc/spark/driver.conf", "app.jar"}, want: "/etc/spark/driver.conf", ok: true},
+		{name: "Spark -c alias before properties file", args: []string{"spark-submit", "-c", "spark.executor.memory=4g", "--properties-file", "/etc/spark/driver.conf", "app.jar"}, want: "/etc/spark/driver.conf", ok: true},
+		{name: "Spark driver default class path before properties file", args: []string{"spark-submit", "--driver-default-class-path", "/opt/spark/conf", "--properties-file", "/etc/spark/driver.conf", "app.jar"}, want: "/etc/spark/driver.conf", ok: true},
 		{name: "Spark resource option before properties file", args: []string{"spark-submit", "--driver-resource", "gpu.amount=1", "--properties-file", "/etc/spark/driver.conf", "app.jar"}, want: "/etc/spark/driver.conf", ok: true},
 		{name: "application argument is ignored", args: []string{"spark-submit", "app.jar", "--properties-file", "/tmp/application.conf"}},
 		{name: "application argument after value-taking option is ignored", args: []string{"spark-submit", "--master", "spark://master:7077", "app.jar", "--properties-file", "/tmp/application.conf"}},
