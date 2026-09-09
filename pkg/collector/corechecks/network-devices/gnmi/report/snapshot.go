@@ -129,22 +129,32 @@ func formatColonSepBytes(val []byte) string {
 
 func interfaceNames(index snapshotIndex) []string {
 	names := make(map[string]struct{})
+	collectName := func(name string) {
+		if name != "" {
+			names[name] = struct{}{}
+		}
+	}
+
 	for _, cached := range index["/interfaces/interface/state/name"] {
 		if name, ok := stringValue(cached.Entry.Value); ok {
-			names[name] = struct{}{}
+			collectName(name)
 		}
-		if name := cached.Key.Keys["name"]; name != "" {
-			names[name] = struct{}{}
-		}
+		collectName(cached.Key.Keys["name"])
 	}
-	for _, cached := range index["/interfaces/interface/state/admin-status"] {
-		if name := cached.Key.Keys["name"]; name != "" {
-			names[name] = struct{}{}
-		}
+
+	interfacePaths := []string{
+		"/interfaces/interface/state/admin-status",
+		"/interfaces/interface/state/oper-status",
+		"/interfaces/interface/state/ifindex",
+		"/interfaces/interface/state/description",
+		"/interfaces/interface/state/mac-address",
+		"/interfaces/interface/state/type",
+		"/interfaces/interface/state/counters/in-octets",
+		"/interfaces/interface/state/counters/out-octets",
 	}
-	for _, cached := range index["/interfaces/interface/state/oper-status"] {
-		if name := cached.Key.Keys["name"]; name != "" {
-			names[name] = struct{}{}
+	for _, path := range interfacePaths {
+		for _, cached := range index[path] {
+			collectName(cached.Key.Keys["name"])
 		}
 	}
 

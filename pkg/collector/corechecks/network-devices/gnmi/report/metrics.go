@@ -13,27 +13,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
+	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	ndmutils "github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 )
 
 const defaultDeviceNamespace = "default"
 
 // ReportMetrics submits snmp.* metrics from a client snapshot using profile mappings.
-func ReportMetrics(s sender.Sender, cfg *config.CheckConfig, snapshot []client.CachedValue) error {
+// metricSnapshot contains the values to emit; inventorySnapshot supplies interface metadata
+// used for resource tagging and may be a superset of metricSnapshot.
+func ReportMetrics(s sender.Sender, cfg *config.CheckConfig, metricSnapshot []client.CachedValue, inventorySnapshot []client.CachedValue) error {
 	if s == nil {
 		return errors.New("sender is nil")
 	}
 	if cfg == nil {
 		return errors.New("check config is nil")
 	}
+	if inventorySnapshot == nil {
+		inventorySnapshot = metricSnapshot
+	}
 
 	baseTags := buildBaseTags(cfg)
-	byPath := indexSnapshotByPath(snapshot)
+	deviceID := buildDeviceID(cfg.Instance.Address)
+	interfaceInventory := interfaceInventoryByName(deviceID, inventorySnapshot)
+	byPath := indexSnapshotByPath(metricSnapshot)
 
 	for _, metric := range cfg.Profile.Metrics {
 		values := byPath[normalizeProfilePath(metric.Path)]
 		for _, cached := range values {
 			tags := buildMetricTags(baseTags, metric, cached.Key.Keys)
+			tags = enrichInterfaceMetricTags(tags, deviceID, metric, cached.Key.Keys, interfaceInventory)
 			value, ok := decodeMetricValue(cached.Entry.Value, metric.ValueMap)
 			if !ok {
 				continue
@@ -91,6 +100,54 @@ func buildMetricTags(baseTags []string, metric config.MetricConfig, keys map[str
 		tags = append(tags, segment+":"+value)
 	}
 	return tags
+}
+
+func interfaceInventoryByName(deviceID string, snapshot []client.CachedValue) map[string]devicemetadata.InterfaceMetadata {
+	interfaces := buildInterfaceMetadata(deviceID, snapshot)
+	inventory := make(map[string]devicemetadata.InterfaceMetadata, len(interfaces))
+	for _, iface := range interfaces {
+		if iface.Name == "" {
+			continue
+		}
+		inventory[iface.Name] = iface
+	}
+	return inventory
+}
+
+func enrichInterfaceMetricTags(
+	tags []string,
+	deviceID string,
+	metric config.MetricConfig,
+	keys map[string]string,
+	inventory map[string]devicemetadata.InterfaceMetadata,
+) []string {
+	interfaceName := interfaceNameFromMetricTags(metric, keys)
+	if interfaceName == "" {
+		return tags
+	}
+
+	iface, ok := inventory[interfaceName]
+	if !ok || iface.Index <= 0 {
+		return tags
+	}
+
+	tags = append(tags, "interface_index:"+strconv.Itoa(int(iface.Index)))
+	if iface.Description != "" {
+		tags = append(tags, "interface_alias:"+iface.Description)
+	}
+	return append(tags, internalInterfaceResourceTag(deviceID, iface.Index))
+}
+
+func interfaceNameFromMetricTags(metric config.MetricConfig, keys map[string]string) string {
+	keyName, ok := metric.Tags["interface"]
+	if !ok || keyName == "" {
+		return ""
+	}
+	return keys[keyName]
+}
+
+func internalInterfaceResourceTag(deviceID string, ifIndex int32) string {
+	return "dd.internal.resource:ndm_interface:" + deviceID + ":" + strconv.FormatInt(int64(ifIndex), 10)
 }
 
 func decodeMetricValue(value any, valueMap map[string]int) (float64, bool) {

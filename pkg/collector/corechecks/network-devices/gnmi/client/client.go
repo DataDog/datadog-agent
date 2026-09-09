@@ -14,6 +14,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
@@ -108,6 +109,8 @@ type Client struct {
 	closeErr error
 
 	cache *cache
+
+	synchronized atomic.Bool
 
 	reconnectAttempts int
 	streamState       StreamState
@@ -243,6 +246,11 @@ func (c *Client) StreamState() StreamState {
 	return c.streamState
 }
 
+// Synchronized reports whether the active subscribe stream has received sync_response.
+func (c *Client) Synchronized() bool {
+	return c.synchronized.Load()
+}
+
 // ReceivedSamples returns the number of cached samples.
 func (c *Client) ReceivedSamples() int {
 	return c.cache.count()
@@ -339,6 +347,9 @@ func (c *Client) run(ctx context.Context) {
 }
 
 func (c *Client) connectAndReceive(ctx context.Context) error {
+	c.cache.clear()
+	c.synchronized.Store(false)
+
 	conn, err := c.dial(ctx)
 	if err != nil {
 		return err
@@ -446,6 +457,7 @@ func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
 func (c *Client) handleSubscribeResponse(resp *gnmipb.SubscribeResponse) error {
 	switch payload := resp.GetResponse().(type) {
 	case *gnmipb.SubscribeResponse_SyncResponse:
+		c.synchronized.Store(true)
 		return nil
 	case *gnmipb.SubscribeResponse_Update:
 		c.applyNotification(payload.Update)
