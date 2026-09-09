@@ -31,13 +31,7 @@ const (
 	MaxResourceLabelValueLen = 63
 )
 
-var availableZones = []string{
-	"us-central1-a",
-	"us-central1-b",
-	"us-central1-c",
-}
-
-func randomZone() string {
+func randomZone(availableZones []string) string {
 	return availableZones[rand.Intn(len(availableZones))]
 }
 
@@ -98,7 +92,7 @@ func NewEnvironment(ctx *pulumi.Context) (Environment, error) {
 	}
 	env.CommonEnvironment = &commonEnv
 	env.envDefault = getEnvironmentDefault(config.FindEnvironmentName(commonEnv.InfraEnvironmentNames(), gcpNamerNamespace))
-	env.envDefault.gcp.zone = randomZone()
+	env.envDefault.gcp.zone = randomZone(env.envDefault.ddInfra.defaultZones)
 
 	if scenario := pulumiConfig.Get(ctx, "scenario"); strings.Contains(scenario, "openshift") {
 		env.envDefault.ddInfra.openshift.nestedVirtualization = true

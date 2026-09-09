@@ -13,15 +13,20 @@ import (
 )
 
 func TestRandomZone(t *testing.T) {
-	wantZones := []string{"us-central1-a", "us-central1-b", "us-central1-c"}
-	if !slices.Equal(availableZones, wantZones) {
-		t.Fatalf("availableZones = %v, want %v", availableZones, wantZones)
-	}
-
+	availableZones := []string{"zone-a", "zone-b", "zone-c"}
 	for range 100 {
-		zone := randomZone()
+		zone := randomZone(availableZones)
 		if !slices.Contains(availableZones, zone) {
 			t.Fatalf("randomZone() = %q, want one of %v", zone, availableZones)
+		}
+	}
+}
+
+func TestEnvironmentDefaultZones(t *testing.T) {
+	wantZones := []string{"us-central1-a", "us-central1-b", "us-central1-c"}
+	for _, envName := range []string{agentSandboxEnv, agentQaEnv} {
+		if got := getEnvironmentDefault(envName).ddInfra.defaultZones; !slices.Equal(got, wantZones) {
+			t.Errorf("getEnvironmentDefault(%q).ddInfra.defaultZones = %v, want %v", envName, got, wantZones)
 		}
 	}
 }
