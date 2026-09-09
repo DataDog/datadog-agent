@@ -62,6 +62,12 @@ var processesAddOverrideOnce sync.Once
 
 // loadProcessTransforms loads transforms associated with process config settings.
 func loadProcessTransforms(config pkgconfigmodel.Config) {
+	if config.IsConfigured("process_config.ignore_zombie_processes") {
+		log.Warn("process_config.ignore_zombie_processes is deprecated and will be removed in a future release. " +
+			"It no longer has any effect because zombie processes are always aggregated by parent and are not emitted " +
+			"as standalone process records. Remove it from your configuration.")
+	}
+
 	if config.IsConfigured("process_config.enabled") {
 		log.Warn("process_config.enabled is deprecated, use process_config.container_collection.enabled " +
 			"and process_config.process_collection.enabled instead, " +

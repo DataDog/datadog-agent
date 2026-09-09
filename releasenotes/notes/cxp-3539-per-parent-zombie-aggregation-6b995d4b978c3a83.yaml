@@ -9,11 +9,13 @@
 deprecations:
   - |
     The ``process_config.ignore_zombie_processes`` configuration option (and
-    its ``DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES`` environment variable)
-    has been removed. Zombie processes are now always aggregated per parent
-    and never emitted as standalone process records, so the toggle no longer
-    has any meaning. Setting it has no effect; remove it from
-    ``datadog.yaml`` and any deployment manifests.
+    its ``DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES`` and
+    ``DD_PROCESS_AGENT_IGNORE_ZOMBIE_PROCESSES`` environment variables) is
+    deprecated and will be removed in a future release. It is temporarily
+    retained as a no-op for backward compatibility and emits a warning when
+    configured. Zombie processes are now always aggregated per parent and
+    never emitted as standalone process records, so the toggle no longer has
+    any effect. Remove it from ``datadog.yaml`` and deployment manifests.
 enhancements:
   - |
     The Process Agent now reports per-parent zombie aggregation on each
