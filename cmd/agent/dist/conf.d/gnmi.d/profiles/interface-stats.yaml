@@ -1,0 +1,96 @@
+extends:
+  - _openconfig-metadata
+  - _openconfig-lldp
+
+metrics:
+  - path: /openconfig/interfaces/interface/state/counters/in-octets
+    metric: snmp.ifHCInOctets
+    type: monotonic_count
+    tags:
+      interface: name
+  - path: /openconfig/interfaces/interface/state/counters/out-octets
+    metric: snmp.ifHCOutOctets
+    type: monotonic_count
+    tags:
+      interface: name
+  - path: /openconfig/interfaces/interface/state/counters/in-errors
+    metric: snmp.ifInErrors
+    type: monotonic_count
+    tags:
+      interface: name
+  - path: /openconfig/interfaces/interface/state/counters/out-errors
+    metric: snmp.ifOutErrors
+    type: monotonic_count
+    tags:
+      interface: name
+  - path: /openconfig/interfaces/interface/state/counters/in-discards
+    metric: snmp.ifInDiscards
+    type: monotonic_count
+    tags:
+      interface: name
+  - path: /openconfig/interfaces/interface/state/counters/out-discards
+    metric: snmp.ifOutDiscards
+    type: monotonic_count
+    tags:
+      interface: name
+  - path: /openconfig/interfaces/interface/ethernet/state/port-speed
+    metric: snmp.ifInSpeed
+    type: gauge
+    tags:
+      interface: name
+    value_map: &ethernet_speed_to_bps
+      SPEED_10MB: 10000000
+      SPEED_100MB: 100000000
+      SPEED_1GB: 1000000000
+      SPEED_2500MB: 2500000000
+      SPEED_5GB: 5000000000
+      SPEED_10GB: 10000000000
+      SPEED_25GB: 25000000000
+      SPEED_40GB: 40000000000
+      SPEED_50GB: 50000000000
+      SPEED_100GB: 100000000000
+      SPEED_200GB: 200000000000
+      SPEED_400GB: 400000000000
+      SPEED_600GB: 600000000000
+      SPEED_800GB: 800000000000
+      "openconfig-if-ethernet:SPEED_10MB": 10000000
+      "openconfig-if-ethernet:SPEED_100MB": 100000000
+      "openconfig-if-ethernet:SPEED_1GB": 1000000000
+      "openconfig-if-ethernet:SPEED_2500MB": 2500000000
+      "openconfig-if-ethernet:SPEED_5GB": 5000000000
+      "openconfig-if-ethernet:SPEED_10GB": 10000000000
+      "openconfig-if-ethernet:SPEED_25GB": 25000000000
+      "openconfig-if-ethernet:SPEED_40GB": 40000000000
+      "openconfig-if-ethernet:SPEED_50GB": 50000000000
+      "openconfig-if-ethernet:SPEED_100GB": 100000000000
+      "openconfig-if-ethernet:SPEED_200GB": 200000000000
+      "openconfig-if-ethernet:SPEED_400GB": 400000000000
+      "openconfig-if-ethernet:SPEED_600GB": 600000000000
+      "openconfig-if-ethernet:SPEED_800GB": 800000000000
+  - path: /openconfig/interfaces/interface/ethernet/state/port-speed
+    metric: snmp.ifOutSpeed
+    type: gauge
+    tags:
+      interface: name
+    value_map: *ethernet_speed_to_bps
+  - path: /openconfig/components/component/cpu/utilization/state/instant
+    metric: snmp.cpu.usage
+    type: gauge
+    keys:
+      component: name
+    tags:
+      cpu: name
+  - path: /openconfig/components/component/state/memory/utilized
+    metric: snmp.memory.used
+    type: gauge
+    keys:
+      component: name
+    tags:
+      memory: name
+  - path: /openconfig/components/component/state/memory/available
+    metric: snmp.memory.free
+    type: gauge
+    keys:
+      component: name
+    tags:
+      memory: name

@@ -32,41 +32,34 @@ func SubscriptionPaths(cfg Config) []SubscriptionSpec {
 	return buildSubscriptionSpecs(cfg)
 }
 
-// MetadataSubscriptionPaths returns OpenConfig paths subscribed for device and interface metadata.
-func MetadataSubscriptionPaths() []SubscriptionSpec {
-	return []SubscriptionSpec{
-		{Path: "/system/state/hostname"},
-		{Path: "/system/state/vendor-name"},
-		{Path: "/system/state/serial-number"},
-		{Path: "/system/state/platform"},
-		{Path: "/system/state/software-version"},
-		{Path: "/system/state/hardware-version"},
-		{Path: "/interfaces/interface/state/name", Keys: map[string]string{"interface": "name"}},
-		{Path: "/interfaces/interface/state/description", Keys: map[string]string{"interface": "name"}},
-		{Path: "/interfaces/interface/state/admin-status", Keys: map[string]string{"interface": "name"}},
-		{Path: "/interfaces/interface/state/oper-status", Keys: map[string]string{"interface": "name"}},
-		{Path: "/interfaces/interface/state/mac-address", Keys: map[string]string{"interface": "name"}},
-		{Path: "/interfaces/interface/state/ifindex", Keys: map[string]string{"interface": "name"}},
-		{Path: "/interfaces/interface/state/type", Keys: map[string]string{"interface": "name"}},
+// MetadataSubscriptionPaths returns metadata paths subscribed for device and interface metadata.
+func MetadataSubscriptionPaths(metadata config.MetadataConfig) []SubscriptionSpec {
+	specs := make([]SubscriptionSpec, 0, 16)
+	for _, path := range metadata.Resolved().SubscriptionPaths() {
+		specs = append(specs, SubscriptionSpec{
+			Path: path.Path,
+			Keys: path.Tags,
+		})
 	}
+	return specs
 }
 
-// TopologySubscriptionPaths returns OpenConfig LLDP paths subscribed when topology collection is enabled.
-func TopologySubscriptionPaths() []SubscriptionSpec {
-	return []SubscriptionSpec{
-		{Path: "/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id", Keys: map[string]string{"interface": "name", "neighbor": "id"}},
-		{Path: "/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id-type", Keys: map[string]string{"interface": "name", "neighbor": "id"}},
-		{Path: "/lldp/interfaces/interface/neighbors/neighbor/state/port-id", Keys: map[string]string{"interface": "name", "neighbor": "id"}},
-		{Path: "/lldp/interfaces/interface/neighbors/neighbor/state/port-id-type", Keys: map[string]string{"interface": "name", "neighbor": "id"}},
-		{Path: "/lldp/interfaces/interface/neighbors/neighbor/state/system-name", Keys: map[string]string{"interface": "name", "neighbor": "id"}},
-		{Path: "/lldp/interfaces/interface/neighbors/neighbor/state/system-description", Keys: map[string]string{"interface": "name", "neighbor": "id"}},
-		{Path: "/lldp/interfaces/interface/neighbors/neighbor/state/port-description", Keys: map[string]string{"interface": "name", "neighbor": "id"}},
-		{Path: "/lldp/interfaces/interface/neighbors/neighbor/state/management-address", Keys: map[string]string{"interface": "name", "neighbor": "id"}},
+// TopologySubscriptionPaths returns topology paths subscribed when topology collection is enabled.
+func TopologySubscriptionPaths(topology config.TopologyConfig) []SubscriptionSpec {
+	specs := make([]SubscriptionSpec, 0, 8)
+	for _, path := range topology.SubscriptionPaths() {
+		specs = append(specs, SubscriptionSpec{
+			Path: path.Path,
+			Keys: path.Tags,
+		})
 	}
+	return specs
 }
 
 func buildSubscriptionSpecs(cfg Config) []SubscriptionSpec {
-	specs := make([]SubscriptionSpec, 0, len(cfg.Profile.Metrics)+len(MetadataSubscriptionPaths()))
+	metadataPaths := cfg.Profile.Metadata.Resolved().SubscriptionPaths()
+	topologyPaths := cfg.Profile.Topology.SubscriptionPaths()
+	specs := make([]SubscriptionSpec, 0, len(cfg.Profile.Metrics)+len(metadataPaths)+len(topologyPaths))
 	seen := make(map[string]struct{})
 
 	addSpec := func(spec SubscriptionSpec) {
@@ -81,38 +74,27 @@ func buildSubscriptionSpecs(cfg Config) []SubscriptionSpec {
 	for _, metric := range cfg.Profile.Metrics {
 		addSpec(SubscriptionSpec{
 			Path: normalizeSubscriptionPath(metric.Path),
-			Keys: metricKeyWildcards(metric),
+			Keys: metric.SubscriptionKeys(),
 		})
 	}
 
-	for _, spec := range MetadataSubscriptionPaths() {
-		addSpec(spec)
+	for _, path := range metadataPaths {
+		addSpec(SubscriptionSpec{
+			Path: path.Path,
+			Keys: path.Tags,
+		})
 	}
 
 	if cfg.CollectTopology {
-		for _, spec := range TopologySubscriptionPaths() {
-			addSpec(spec)
+		for _, path := range topologyPaths {
+			addSpec(SubscriptionSpec{
+				Path: path.Path,
+				Keys: path.Tags,
+			})
 		}
 	}
 
 	return specs
-}
-
-func metricKeyWildcards(metric config.MetricConfig) map[string]string {
-	if len(metric.Tags) == 0 {
-		return nil
-	}
-	keys := make(map[string]string, len(metric.Tags))
-	for segment, keyName := range metric.Tags {
-		if keyName == "" {
-			continue
-		}
-		keys[segment] = keyName
-	}
-	if len(keys) == 0 {
-		return nil
-	}
-	return keys
 }
 
 func normalizeSubscriptionPath(path string) string {
