@@ -105,6 +105,18 @@ type endpointCredential struct {
 	invalid bool
 }
 
+func (e *Endpoint) storeCredentialUnlessInvalid(credential *endpointCredential) bool {
+	for {
+		current := e.credential.Load()
+		if current != nil && current.invalid {
+			return false
+		}
+		if e.credential.CompareAndSwap(current, credential) {
+			return true
+		}
+	}
+}
+
 func newEndpointCredential(apiKey string, pending bool) *atomic.Pointer[endpointCredential] {
 	credential := &atomic.Pointer[endpointCredential]{}
 	credential.Store(&endpointCredential{apiKey: apiKey, pending: pending})
@@ -468,7 +480,11 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 			return
 		}
 		for index, candidate := range newAdditionalEndpoints {
-			if index == e.additionalEndpointsIdx || !strings.EqualFold(candidate.Host, e.Host) {
+			if index == e.additionalEndpointsIdx {
+				continue
+			}
+			candidateIdentity, valid := endpointRoutingIdentity(candidate)
+			if !valid || candidateIdentity != e.additionalEndpointIdentity {
 				continue
 			}
 			candidateKey := strings.TrimSpace(candidate.APIKey)
@@ -495,20 +511,23 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 				return
 			}
 			if e.delegatedAuthDirective != "" {
-				e.credential.Store(&endpointCredential{pending: true})
+				e.storeCredentialUnlessInvalid(&endpointCredential{pending: true})
 				return
 			}
 			e.credential.Store(&endpointCredential{pending: true, invalid: true})
 			log.Warnf("delegated auth was enabled at runtime for endpoint '%s' number %d; sending is disabled until the Agent restarts", e.configSettingPath, e.additionalEndpointsIdx)
 			return
 		}
+		oldAPIKey := e.GetAPIKey()
+		if !e.storeCredentialUnlessInvalid(&endpointCredential{apiKey: newAPIKey}) {
+			return
+		}
 		log.Infof("rotating API key for '%s' endpoints number %d: %s -> %s",
 			e.configSettingPath,
 			e.additionalEndpointsIdx,
-			scrubber.HideKeyExceptLastChars(e.GetAPIKey()),
+			scrubber.HideKeyExceptLastChars(oldAPIKey),
 			scrubber.HideKeyExceptLastChars(newAPIKey),
 		)
-		e.credential.Store(&endpointCredential{apiKey: newAPIKey})
 	})
 }
 

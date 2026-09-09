@@ -143,7 +143,7 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 			// the site the auth proof is exchanged against. Without it the exchange would silently
 			// fall back to the agent's primary site and fail for a different org.
 			host, hasHost := common.CaseInsensitiveStringField(entry, "host")
-			if !hasHost {
+			if !hasHost || strings.TrimSpace(host) == "" {
 				log.Warnf("Additional endpoint entry %d at %q has a delegated auth directive but no host; it cannot be matched to a credential and will not send", index, configKey)
 				continue
 			}
@@ -174,6 +174,10 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 func configureAdditionalEndpointsDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, defaultProviderConfig common.ProviderConfig) {
 	for _, configKey := range mapShapeDelegatedAuthEndpointKeys {
 		for domain, keys := range config.GetStringMapStringSlice(configKey) {
+			if strings.TrimSpace(domain) == "" {
+				log.Warnf("Additional endpoint at %q has no domain; delegated auth is disabled for it", configKey)
+				continue
+			}
 			for index, key := range keys {
 				// Uses the shared prefix constant from pkg/config/model to stay in sync with
 				// pkg/config/utils.IsDelaDirective without creating a setup <-> utils import cycle.

@@ -1129,6 +1129,15 @@ type casRacingConfig struct {
 	inject   func()
 }
 
+type failingProvider struct {
+	calls int
+}
+
+func (p *failingProvider) GenerateAuthProof(context.Context, pkgconfigmodel.Reader, *common.AuthConfig) (string, error) {
+	p.calls++
+	return "", errors.New("proof failed")
+}
+
 func (r *casRacingConfig) SetIfSequenceID(key string, value any, source pkgconfigmodel.Source, expected uint64) bool {
 	if key == r.watchKey {
 		r.inject()
@@ -1158,12 +1167,131 @@ func TestMergeIntoAdditionalEndpointsGivesUpOnSustainedPreWriteRace(t *testing.T
 		lastWrittenValue:             "DELA(our-org-uuid, aws)",
 		originalDirective:            "DELA(our-org-uuid, aws)",
 	}
-	(&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpoints(instance, "resolved-key", false)
+	err := (&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpoints(instance, "resolved-key", false)
+	require.ErrorIs(t, err, errWritebackConflict)
 
 	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
 	assert.Equal(t, []string{"DELA(our-org-uuid, aws)"}, got["https://our-org.datadoghq.com"])
 	assert.Equal(t, []string{"sibling-v3"}, got["https://sibling-org.datadoghq.com"])
 	assert.Equal(t, "DELA(our-org-uuid, aws)", instance.lastWrittenValue)
+}
+
+func TestWritebackConflictStaysPendingAndRetriesCachedKey(t *testing.T) {
+	mockConfig := mock.New(t)
+	const domain = "https://our-org.datadoghq.com"
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		domain:                              {"DELA(our-org-uuid, aws)"},
+		"https://sibling-org.datadoghq.com": {"sibling-v0"},
+	})
+
+	rotation := 0
+	racy := &casRacingConfig{ReaderWriter: mockConfig, watchKey: "additional_endpoints"}
+	racy.inject = func() {
+		rotation++
+		updated := mockConfig.GetStringMapStringSlice("additional_endpoints")
+		updated["https://sibling-org.datadoghq.com"] = []string{fmt.Sprintf("sibling-v%d", rotation)}
+		mockConfig.Set("additional_endpoints", updated, pkgconfigmodel.SourceSecret)
+	}
+
+	key := "resolved-key"
+	instance := &authInstance{
+		apiKey:                       &key,
+		lastRefresh:                  time.Now(),
+		refreshInterval:              time.Hour,
+		additionalEndpointDomain:     domain,
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(our-org-uuid, aws)",
+		originalDirective:            "DELA(our-org-uuid, aws)",
+		backoff:                      newBackoff(time.Hour),
+		writebackBackoff:             newWritebackBackoff(),
+	}
+	comp := &delegatedAuthComponent{
+		config:    racy,
+		instances: map[string]*authInstance{"additional": instance},
+	}
+
+	require.ErrorIs(t, comp.applyAPIKey(instance, key), errWritebackConflict)
+	assert.True(t, instance.writebackPending)
+	assert.True(t, instance.writebackRetryable)
+	assert.Less(t, instance.writebackBackoff.NextBackOff(), 2*time.Second)
+	stats := map[string]any{}
+	comp.populateStatusInfo(stats)
+	assert.Equal(t, "Pending", stats["instances"].(map[string]map[string]any)["additional"]["Status"])
+
+	racy.inject = func() {}
+	writeAttempted, err := comp.refreshOrRetryWriteback(context.Background(), instance)
+	require.NoError(t, err)
+	assert.True(t, writeAttempted)
+	assert.Equal(t, 3, rotation, "retry must reuse the cached key instead of authenticating again")
+	assert.Equal(t, []string{key}, mockConfig.GetStringMapStringSlice("additional_endpoints")[domain])
+	assert.False(t, instance.writebackPending)
+	stats = map[string]any{}
+	comp.populateStatusInfo(stats)
+	assert.Equal(t, "Active", stats["instances"].(map[string]map[string]any)["additional"]["Status"])
+}
+
+func TestWritebackBlockedByHigherPrioritySourceDoesNotFastRetry(t *testing.T) {
+	mockConfig := mock.New(t)
+	const domain = "https://our-org.datadoghq.com"
+	value := map[string][]string{domain: {"DELA(our-org-uuid, aws)"}}
+	mockConfig.SetInTest("additional_endpoints", value)
+	mockConfig.Set("additional_endpoints", value, pkgconfigmodel.SourceAgentRuntime)
+
+	key := "resolved-key"
+	instance := &authInstance{
+		apiKey:                       &key,
+		additionalEndpointDomain:     domain,
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(our-org-uuid, aws)",
+		originalDirective:            "DELA(our-org-uuid, aws)",
+		backoff:                      newBackoff(time.Hour),
+		writebackBackoff:             newWritebackBackoff(),
+	}
+	comp := &delegatedAuthComponent{config: mockConfig}
+
+	require.ErrorIs(t, comp.applyAPIKey(instance, key), errWritebackBlocked)
+	assert.True(t, instance.writebackPending)
+	assert.False(t, instance.writebackRetryable)
+	assert.Equal(t, []string{"DELA(our-org-uuid, aws)"}, mockConfig.GetStringMapStringSlice("additional_endpoints")[domain])
+}
+
+func TestExpiredCachedKeyIsRefreshedBeforeWritebackRetry(t *testing.T) {
+	mockConfig := mock.New(t)
+	const domain = "https://our-org.datadoghq.com"
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{
+		domain: {"DELA(our-org-uuid, aws)"},
+	})
+
+	provider := &failingProvider{}
+	key := "expired-key"
+	instance := &authInstance{
+		apiKey:                       &key,
+		provider:                     provider,
+		authConfig:                   &common.AuthConfig{OrgUUID: "our-org-uuid"},
+		lastRefresh:                  time.Now().Add(-2 * time.Hour),
+		refreshInterval:              time.Hour,
+		additionalEndpointDomain:     domain,
+		additionalEndpointsConfigKey: "additional_endpoints",
+		lastWrittenValue:             "DELA(our-org-uuid, aws)",
+		originalDirective:            "DELA(our-org-uuid, aws)",
+		writebackPending:             true,
+		writebackRetryable:           true,
+	}
+	comp := &delegatedAuthComponent{config: mockConfig}
+
+	writeAttempted, err := comp.refreshOrRetryWriteback(context.Background(), instance)
+	require.ErrorContains(t, err, "proof failed")
+	assert.False(t, writeAttempted)
+	assert.Equal(t, 1, provider.calls)
+	assert.Equal(t, []string{"DELA(our-org-uuid, aws)"}, mockConfig.GetStringMapStringSlice("additional_endpoints")[domain])
+}
+
+func TestRefreshDelayRemainsAnchoredToKeyFetch(t *testing.T) {
+	now := time.Date(2026, time.September, 9, 12, 0, 0, 0, time.UTC)
+	lastRefresh := now.Add(-59 * time.Minute)
+
+	assert.Equal(t, time.Minute, delayFromLastRefresh(lastRefresh, time.Hour, now))
+	assert.Equal(t, writebackRetryInitialInterval, delayFromLastRefresh(lastRefresh, 30*time.Minute, now))
 }
 
 func TestMergeIntoAdditionalEndpointsListGivesUpOnSustainedPreWriteRace(t *testing.T) {
@@ -1191,7 +1319,8 @@ func TestMergeIntoAdditionalEndpointsListGivesUpOnSustainedPreWriteRace(t *testi
 		lastWrittenValue:                 "DELA(logs-org-uuid, aws)",
 		originalDirective:                "DELA(logs-org-uuid, aws)",
 	}
-	(&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
+	err := (&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
+	require.ErrorIs(t, err, errWritebackConflict)
 
 	got, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
 	require.True(t, ok)

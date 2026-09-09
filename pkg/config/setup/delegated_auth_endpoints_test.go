@@ -66,6 +66,17 @@ func TestMapDirectiveUsesIdentityCheckedWriteback(t *testing.T) {
 	assert.Equal(t, domain, rec.recorded[0].TargetSite)
 }
 
+func TestMapShapeEntryWithoutADomainRegistersNothing(t *testing.T) {
+	for _, domain := range []string{"", "   "} {
+		t.Run(fmt.Sprintf("domain_%q", domain), func(t *testing.T) {
+			rec := discoverEndpoints(t, map[string][]string{
+				domain: {"DELA(org-uuid-1, aws)"},
+			})
+			assert.Empty(t, rec.recorded)
+		})
+	}
+}
+
 func TestDirectiveKeepsOriginalValueForWritebackTracking(t *testing.T) {
 	rec := discoverEndpoints(t, map[string][]string{
 		"https://app.datadoghq.com": {"DELA(org-uuid-1, aws)"},
@@ -299,6 +310,17 @@ func TestListShapeEntryWithoutAHostRegistersNothing(t *testing.T) {
 		{"api_key": "DELA(org-uuid-2, aws)"},
 	})
 	assert.Empty(t, rec.recorded)
+}
+
+func TestListShapeEntryWithBlankHostRegistersNothing(t *testing.T) {
+	for _, host := range []string{"", "   "} {
+		t.Run(fmt.Sprintf("host_%q", host), func(t *testing.T) {
+			rec := discoverListShape(t, []map[string]any{
+				{"host": host, "api_key": "DELA(org-uuid-2, aws)"},
+			})
+			assert.Empty(t, rec.recorded)
+		})
+	}
 }
 
 // Two orgs shipping logs to the same host still need distinct instances and write-back paths.
