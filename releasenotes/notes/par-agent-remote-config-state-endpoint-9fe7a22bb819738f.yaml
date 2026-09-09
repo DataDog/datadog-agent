@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    The Agent now exposes its remote configuration state over the local
+    authenticated IPC HTTP API (``GET /agent/remote-config/state``), allowing
+    co-located tooling such as the Private Action Runner to read the
+    remote-config repositories state without a gRPC client. (Preview)
