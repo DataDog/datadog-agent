@@ -58,6 +58,81 @@ func TestObfuscateStatsGroup(t *testing.T) {
 	}
 }
 
+func TestObfuscateStatsGroupSkipsResourceObfuscation(t *testing.T) {
+	for _, typ := range []string{"sql", "cassandra", "redis", "valkey"} {
+		t.Run(typ, func(t *testing.T) {
+			cfg := config.New()
+			o := cfg.Obfuscation.Export(cfg)
+			agnt := &Agent{conf: cfg, obfuscatorConf: &o}
+			group := &pb.ClientGroupedStats{Type: typ, Resource: "unobfuscated resource"}
+
+			agnt.obfuscateStatsGroup(group, false)
+
+			assert.Equal(t, "unobfuscated resource", group.Resource)
+			assert.Nil(t, agnt.obfuscator)
+		})
+	}
+}
+
+type resourceTrackingSpan struct {
+	obfuscateSpan
+	reads  int
+	writes int
+}
+
+func (s *resourceTrackingSpan) Resource() string {
+	s.reads++
+	return s.obfuscateSpan.Resource()
+}
+
+func (s *resourceTrackingSpan) SetResource(resource string) {
+	s.writes++
+	s.obfuscateSpan.SetResource(resource)
+}
+
+func TestObfuscateSpanInternalSkipsResourceProcessing(t *testing.T) {
+	for _, tt := range []struct {
+		typ    string
+		tagKey string
+	}{
+		{typ: "sql"},
+		{typ: "cassandra"},
+		{typ: "redis", tagKey: tagRedisRawCommand},
+		{typ: "valkey", tagKey: tagValkeyRawCommand},
+	} {
+		t.Run(tt.typ, func(t *testing.T) {
+			cfg := config.New()
+			switch tt.typ {
+			case "redis":
+				cfg.Obfuscation.Redis.Enabled = true
+			case "valkey":
+				cfg.Obfuscation.Valkey.Enabled = true
+			}
+			o := cfg.Obfuscation.Export(cfg)
+			agnt := &Agent{conf: cfg, obfuscatorConf: &o}
+
+			tag := "custom:value"
+			if tt.tagKey != "" {
+				tag = tt.tagKey + ":SET key value"
+			}
+			group := &pb.ClientGroupedStats{
+				Type:                 tt.typ,
+				Resource:             "SET key value",
+				AdditionalMetricTags: []string{tag},
+			}
+			span := &resourceTrackingSpan{obfuscateSpan: &obfuscateSpanStatsGroup{group: group, resource: group.Resource}}
+
+			agnt.obfuscateSpanInternal(span, false)
+
+			assert.Zero(t, span.reads)
+			assert.Zero(t, span.writes)
+			if tt.tagKey != "" {
+				assert.Equal(t, []string{tt.tagKey + ":SET key ?"}, group.AdditionalMetricTags)
+			}
+		})
+	}
+}
+
 func TestObfuscateStatsGroupTags(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
@@ -65,7 +140,6 @@ func TestObfuscateStatsGroupTags(t *testing.T) {
 		key      string
 		value    string
 		resource string
-		dbType   string
 		config   *config.ObfuscationConfig
 	}{
 		{
@@ -74,15 +148,6 @@ func TestObfuscateStatsGroupTags(t *testing.T) {
 			key:    "customer.card",
 			value:  "4111111111111111",
 			config: &config.ObfuscationConfig{CreditCards: obfuscate.CreditCardsConfig{Enabled: true}},
-		},
-		{
-			name:     "sql",
-			typ:      "sql",
-			key:      "sql.query",
-			value:    "SELECT 1 FROM users",
-			resource: "SELECT 1 FROM users",
-			dbType:   "postgresql",
-			config:   &config.ObfuscationConfig{},
 		},
 		{
 			name:     "redis",
@@ -142,15 +207,11 @@ func TestObfuscateStatsGroupTags(t *testing.T) {
 			o := cfg.Obfuscation.Export(cfg)
 			agnt := &Agent{conf: cfg, obfuscatorConf: &o}
 			meta := map[string]string{tt.key: tt.value}
-			if tt.dbType != "" {
-				meta[tagDBMS] = tt.dbType
-			}
 			span := &pb.Span{Type: tt.typ, Service: "service", Resource: tt.resource, Meta: meta}
 			group := &pb.ClientGroupedStats{
 				Service:                "service",
 				Type:                   tt.typ,
 				Resource:               tt.resource,
-				DBType:                 tt.dbType,
 				SpanDerivedPrimaryTags: []string{tt.key + ":" + tt.value},
 				AdditionalMetricTags:   []string{tt.key + ":" + tt.value},
 			}

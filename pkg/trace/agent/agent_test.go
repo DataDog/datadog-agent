@@ -3671,19 +3671,20 @@ func TestConvertStats(t *testing.T) {
 }
 
 func TestProcessStatsObfuscatesTagsRegardlessOfTracerObfuscationVersion(t *testing.T) {
-	const query = "SELECT 1 FROM users"
+	const command = "SET key value"
 
 	for _, tt := range []struct {
 		name               string
 		obfuscationVersion string
 		expectedResource   string
 	}{
-		{name: "missing-obfuscation-version", expectedResource: "SELECT ? FROM users"},
-		{name: "current-obfuscation-version", obfuscationVersion: strconv.Itoa(obfuscate.Version), expectedResource: query},
+		{name: "missing-obfuscation-version", expectedResource: "SET"},
+		{name: "current-obfuscation-version", obfuscationVersion: strconv.Itoa(obfuscate.Version), expectedResource: command},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.New()
 			cfg.MaxResourceLen = 5000
+			cfg.Obfuscation.Redis.Enabled = true
 			o := cfg.Obfuscation.Export(cfg)
 			agnt := &Agent{
 				Blacklister:    filters.NewBlacklister(nil),
@@ -3696,10 +3697,10 @@ func TestProcessStatsObfuscatesTagsRegardlessOfTracerObfuscationVersion(t *testi
 					Stats: []*pb.ClientGroupedStats{{
 						Service:                "service",
 						Name:                   "operation",
-						Type:                   "sql",
-						Resource:               query,
-						SpanDerivedPrimaryTags: []string{"sql.query:" + query},
-						AdditionalMetricTags:   []string{"sql.query:" + query},
+						Type:                   "redis",
+						Resource:               command,
+						SpanDerivedPrimaryTags: []string{"redis.raw_command:" + command},
+						AdditionalMetricTags:   []string{"redis.raw_command:" + command},
 					}},
 				}},
 			}
@@ -3709,8 +3710,8 @@ func TestProcessStatsObfuscatesTagsRegardlessOfTracerObfuscationVersion(t *testi
 			require.Len(t, out.Stats, 1)
 			require.Len(t, out.Stats[0].Stats, 1)
 			assert.Equal(t, tt.expectedResource, out.Stats[0].Stats[0].Resource)
-			assert.Equal(t, []string{"sql.query:SELECT ? FROM users"}, out.Stats[0].Stats[0].SpanDerivedPrimaryTags)
-			assert.Equal(t, []string{"sql.query:SELECT ? FROM users"}, out.Stats[0].Stats[0].AdditionalMetricTags)
+			assert.Equal(t, []string{"redis.raw_command:SET key ?"}, out.Stats[0].Stats[0].SpanDerivedPrimaryTags)
+			assert.Equal(t, []string{"redis.raw_command:SET key ?"}, out.Stats[0].Stats[0].AdditionalMetricTags)
 		})
 	}
 }

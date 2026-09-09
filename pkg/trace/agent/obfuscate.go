@@ -205,7 +205,7 @@ func obfuscateValkeySpan(o *obfuscate.Obfuscator, span obfuscateSpan, removeAllA
 	span.SetStringAttribute(tagValkeyRawCommand, o.ObfuscateRedisString(v))
 }
 
-func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
+func (a *Agent) obfuscateSpanInternal(span obfuscateSpan, obfuscateResource bool) {
 	o := a.lazyInitObfuscator()
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
 		span.MapFilteredAttributes(o.ShouldObfuscateCCKey, func(k, v string) string {
@@ -220,7 +220,7 @@ func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 
 	switch span.Type() {
 	case "sql", "cassandra":
-		if span.Resource() == "" {
+		if !obfuscateResource || span.Resource() == "" {
 			return
 		}
 		oq, err := obfuscateSQLSpan(o, span)
@@ -234,9 +234,11 @@ func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 			return
 		}
 	case "redis", "valkey":
-		// if a span is redis/valkey type, it should be quantized regardless of obfuscation setting.
-		// valkey is a folk of redis, so we can use the same logic for both.
-		span.SetResource(o.QuantizeRedisString(span.Resource()))
+		// Redis/Valkey resources are quantized independently of their tag obfuscation settings.
+		// Valkey is a fork of Redis, so we can use the same logic for both.
+		if obfuscateResource {
+			span.SetResource(o.QuantizeRedisString(span.Resource()))
+		}
 		if span.Type() == "redis" && a.conf.Obfuscation.Redis.Enabled {
 			obfuscateRedisSpan(o, span, a.conf.Obfuscation.Redis.RemoveAllArgs)
 		}
@@ -289,7 +291,7 @@ func (a *Agent) ObfuscateSpan(span *pb.Span) {
 	for _, spanEvent := range span.SpanEvents {
 		a.obfuscateSpanEvent(spanEvent)
 	}
-	a.obfuscateSpanInternal(&obfuscateSpanV0{span: span})
+	a.obfuscateSpanInternal(&obfuscateSpanV0{span: span}, true)
 }
 
 // obfuscateSpanEvent uses the pre-configured agent obfuscator to do limited obfuscation of span events
@@ -350,8 +352,11 @@ func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue) {
 }
 
 func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats, obfuscateResource bool) {
+	if !obfuscateResource && len(b.SpanDerivedPrimaryTags) == 0 && len(b.AdditionalMetricTags) == 0 {
+		return
+	}
 	span := &obfuscateSpanStatsGroup{group: b, resource: b.Resource}
-	a.obfuscateSpanInternal(span)
+	a.obfuscateSpanInternal(span, obfuscateResource)
 	if obfuscateResource {
 		b.Resource = span.resource
 	}
