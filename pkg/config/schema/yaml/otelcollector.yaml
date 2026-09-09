@@ -64,5 +64,3 @@ properties:
     type: boolean
     default: false
     comment: dev flag - to be removed
-tags:
-- full-agent-only:true

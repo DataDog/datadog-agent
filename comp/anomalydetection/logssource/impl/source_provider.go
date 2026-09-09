@@ -10,12 +10,12 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterutil "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // wmetaStore is the subset of workloadmeta.Component used by sourceProvider.
@@ -143,7 +143,7 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 		return
 	}
 
-	log.Infof("[observer/logssource] added container source: %s (runtime=%s)", c.Image.ShortName, c.Runtime)
+	logging.Infof("logssource added container source: %s (runtime=%s)", c.Image.ShortName, c.Runtime)
 }
 
 func (sp *sourceProvider) handleUnset(c *workloadmeta.Container) {
@@ -209,7 +209,7 @@ func (sp *sourceProvider) suppressIdentifier(containerID string) {
 
 	if exists {
 		sp.logSources.RemoveSource(evicted)
-		log.Debugf("[observer/logssource] removed generic container source %s: AD source takes priority", containerID)
+		logging.Debugf("logssource removed generic container source %s: AD source takes priority", containerID)
 	}
 }
 

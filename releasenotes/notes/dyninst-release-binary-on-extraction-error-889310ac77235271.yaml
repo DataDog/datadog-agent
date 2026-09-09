@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Release the executable that Dynamic Instrumentation opens to extract its
+    symbols as soon as the extraction fails, rather than when the garbage
+    collector reclaims it. An open descriptor keeps the file's blocks
+    allocated, so a container image deleted in the meantime held disk space
+    in system-probe.

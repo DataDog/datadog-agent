@@ -22,7 +22,10 @@ go_library(
 
 dd_agent_go_test(
     name = "common_test",
-    srcs = ["lib_config_test.go"],
+    srcs = [
+        "label_selectors_test.go",
+        "lib_config_test.go",
+    ],
     embed = [":common"],
     gotags_sets = [[
         "cel",
@@ -33,8 +36,11 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//pkg/config/mock",
         "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],
 )

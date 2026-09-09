@@ -54,3 +54,11 @@ test/new-e2e/tests/agent-subcommands:
 comp/core/flare/helpers:
   - test: TestSave
   - test: TestNewFlareBuilder
+
+# TODO: https://app.datadoghq.com/incidents/59580
+# Windows EC2 VM hostname changes mid-run (rename + reboot), splitting NPM
+# CollectorConnections payloads across two hostnames. test1HostFakeIntakeNPM
+# locks onto the first-seen hostname and never reaches the required payload
+# count, failing with "not enough payloads".
+test/new-e2e/tests/npm:
+  - test: TestEC2VMWKitDirectSuite/Test00FakeIntakeNPM_HostRequests

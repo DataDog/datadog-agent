@@ -54,6 +54,8 @@ pkg_filegroup(
     ] + select({
         "//packages/agent:linux_default": [
             "//pkg/discovery/module/rust:all_files",
+            "//pkg/privateactionrunner/par-control:all_files_linux",
+            "//pkg/privateactionrunner/rshell:all_files_linux",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [

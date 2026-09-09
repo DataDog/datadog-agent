@@ -1,0 +1,17 @@
+issuer: https://gitlab.ddbuild.io
+
+subject_pattern: "project_path:DataDog/datadog-agent:.*"
+
+claim_pattern:
+  project_path: "DataDog/datadog-agent"
+  project_id: "4670"
+  ref: ".+"
+
+# Used by the static_quality_gates job to comment on PRs and to check whether
+# an approving reviewer is a member of one of the teams in EXCEPTION_APPROVERS
+# (tasks/static_quality_gates/decisions.py), which grants an exception to the
+# per-PR size threshold.
+permissions:
+  contents: read
+  pull_requests: write
+  members: read

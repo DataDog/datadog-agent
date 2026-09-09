@@ -84,6 +84,7 @@ func startDatadogInstrumentationController(ctx *ControllerContext, _ chan error)
 			ctx.DynamicInformerFactory,
 			ctx.InstrumentationHandlers,
 			ctx.IsLeaderFunc,
+			ctx.Telemetry,
 		)
 		if err != nil {
 			log.Errorf("Failed to create DatadogInstrumentation controller: %v", err)

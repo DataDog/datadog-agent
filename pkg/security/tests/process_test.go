@@ -494,8 +494,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, args[i], argv[i], "expected arg not found")
 				}
 			} else {
-				assert.Equal(t, 439, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != 439; i++ {
+				assert.Equal(t, 420, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 420; i++ {
 					assert.Equal(t, args[i], argv[i], "expected arg not found")
 				}
 			}
@@ -545,8 +545,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, expected, argv[i], "expected arg not found")
 				}
 			} else {
-				assert.Equal(t, 457, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != 457; i++ {
+				assert.Equal(t, 440, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 440; i++ {
 					expected := args[i]
 					if len(expected) > sharedconsts.MaxArgEnvSize {
 						expected = args[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -649,8 +649,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			} else {
-				assert.Equal(t, 704, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != 704; i++ {
+				assert.Equal(t, 672, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 672; i++ {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			}
@@ -712,8 +712,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, expected, envp[i], "expected env not found")
 				}
 			} else {
-				assert.Equal(t, 863, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != 863; i++ {
+				assert.Equal(t, 831, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 831; i++ {
 					expected := envs[i]
 					if len(expected) > sharedconsts.MaxArgEnvSize {
 						expected = envs[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -1078,6 +1078,8 @@ func TestProcessContext(t *testing.T) {
 	testProcessContextRule(t, "test_rule_ctx_4", "test-process-ctx-4")
 }
 
+var _ = declare(TestProcessEnvsWithValue, testOpts{envsWithValue: []string{"LD_PRELOAD"}})
+
 func TestProcessEnvsWithValue(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1089,11 +1091,7 @@ func TestProcessEnvsWithValue(t *testing.T) {
 		},
 	}
 
-	opts := testOpts{
-		envsWithValue: []string{"LD_PRELOAD"},
-	}
-
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2361,9 +2359,10 @@ func TestProcessResolution(t *testing.T) {
 		cacheEntry := resolver.ResolveFromCache(pid, pid, inode)
 		if cacheEntry == nil {
 			t.Errorf("not able to resolve the entry")
+			return
 		}
 
-		mapsEntry := resolver.ResolveFromKernelMaps(pid, pid, inode, nil)
+		mapsEntry := resolver.ResolveFromKernelMaps(pid, pid, cacheEntry.PPid, inode, nil)
 		if mapsEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}
@@ -2529,6 +2528,69 @@ func TestSymLinkResolution(t *testing.T) {
 		}, "symlink_true_exec")
 		assert.NoError(t, err)
 	})
+}
+
+func TestProcessSubreaperReparenting(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("subreaper reparenting test not supported in ebpfless mode")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_subreaper_open",
+			Expression: `open.file.path == "{{.Root}}/test-subreaper" && process.parent.file.name == "syscall_tester"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testFile, _, err := test.Path("test-subreaper")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer os.Remove(testFile)
+
+	// The subreaper command:
+	// 1. Calls prctl(PR_SET_CHILD_SUBREAPER, 1)
+	// 2. Forks a child that forks a grandchild and exits immediately
+	// 3. The grandchild is reparented to the subreaper (syscall_tester)
+	// 4. The grandchild opens testFile
+	//
+	// Expected lineage after reparenting:
+	//   syscall_tester (subreaper) -> grandchild (opens file)
+	//
+	// We verify that the parent PID matches the subreaper's PID (not the
+	// intermediate child's PID) to ensure the process cache was properly
+	// updated after reparenting.
+	var subreaperPid int
+	test.WaitSignalFromRule(t, func() error {
+		cmd := exec.CommandContext(context.Background(), syscallTester, "subreaper", testFile)
+		if err := cmd.Start(); err != nil {
+			return err
+		}
+		subreaperPid = cmd.Process.Pid
+		return cmd.Wait()
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_subreaper_open")
+		assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester", "after subreaper reparenting, parent should be syscall_tester")
+		if testEnvironment != DockerEnvironment {
+			// In Docker mode, cmd.Process.Pid is the container-namespace PID
+			// while process.parent.pid is the host PID from eBPF.
+			assertFieldEqual(t, event, "process.parent.pid", subreaperPid, "after subreaper reparenting, parent PID should be the subreaper's PID, not the intermediate child's")
+		}
+	}, "test_subreaper_open")
 }
 
 func TestProcessSID(t *testing.T) {

@@ -24,17 +24,31 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/collector/corechecks/ebpf/probe/oomkill/model",
-        "//pkg/ebpf",
-        "//pkg/ebpf/bytecode",
-        "//pkg/ebpf/bytecode/runtime",
-        "//pkg/ebpf/maps",
-        "//pkg/util/kernel",
-        "//pkg/util/log",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-        "@org_golang_x_sys//unix",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/collector/corechecks/ebpf/probe/oomkill/model",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/bytecode/runtime",
+            "//pkg/ebpf/maps",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/collector/corechecks/ebpf/probe/oomkill/model",
+            "//pkg/ebpf",
+            "//pkg/ebpf/bytecode",
+            "//pkg/ebpf/bytecode/runtime",
+            "//pkg/ebpf/maps",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 # c_types_linux_test.go and oom_kill_test.go must be in separate rules because
@@ -65,7 +79,7 @@ dd_agent_go_test(
     # keep: split from oomkill_types_test; see comment above.
     srcs = ["oom_kill_test.go"],
     embed = [":oomkill"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     tags = ["requires_ebpf"],
     # keep: needs TestBuildMode/CORE from the main ebpftest library (not cgo_align).
     deps = [

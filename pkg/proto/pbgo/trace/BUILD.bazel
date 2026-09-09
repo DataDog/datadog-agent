@@ -118,6 +118,7 @@ dd_agent_go_test(
         "limit_test.go",
         "span_gen_modifs_test.go",
         "span_gen_test.go",
+        "span_utils_test.go",
         "stats_gen_test.go",
         "trace_gen_safe_test.go",
         "trace_gen_test.go",

@@ -92,7 +92,7 @@ def update_go(
     _update_references(warn, version)
     _bump_fakeintake_version()
     _update_go_mods(warn, version, include_otel_modules)
-    bazel(ctx, "run", "//pkg/template:generate")
+    bazel("run", "//pkg/template:generate")
     tidy(ctx)
 
     if release_note:

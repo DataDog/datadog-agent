@@ -16,5 +16,11 @@ var secretEnvVarNameRegexp = regexp.MustCompile(
 
 // IsSecretEnvVarName applies the common secret-name policy used by environment readers.
 func IsSecretEnvVarName(name string) bool {
+	// This PostgreSQL setting selects an encryption algorithm; it does not carry
+	// a password. Keep the exception exact so other password-shaped names retain
+	// the common secret filtering policy.
+	if name == "POSTGRESQL_PASSWORD_ENCRYPTION" {
+		return false
+	}
 	return secretEnvVarNameRegexp.MatchString(name)
 }

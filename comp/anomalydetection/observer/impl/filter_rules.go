@@ -170,6 +170,38 @@ func compileRuleTags(tags []string) ([]string, error) {
 	return compiled, nil
 }
 
+type metricFilterPrecheck struct {
+	reject         bool
+	needsTags      bool
+	firstCandidate int
+}
+
+// precheck evaluates the portions of the ordered rule list that do not depend
+// on tags.
+//
+// This lets the high-volume rejected path avoid copying and sorting tags. It
+// deliberately never admits a metric early: admitted metrics still need their
+// tags for the mute check and storage. If the first name/source candidate has
+// tag conditions, firstCandidate lets the tag-aware pass resume there without
+// rescanning rules that cannot match.
+func (f *metricsFilterRules) precheck(name, source string) metricFilterPrecheck {
+	if f == nil || source == LogMetricsExtractorName {
+		return metricFilterPrecheck{}
+	}
+
+	for i, rule := range f.rules {
+		if !rule.matchesNameAndSource(name, source) {
+			continue
+		}
+		if len(rule.tags) > 0 {
+			return metricFilterPrecheck{needsTags: true, firstCandidate: i}
+		}
+		return metricFilterPrecheck{reject: rule.exclude}
+	}
+
+	return metricFilterPrecheck{}
+}
+
 // isAllowed returns true if the metric should be ingested.
 // tags must be sorted so the mute hash matches seriesKeyHash in storage.
 func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool {
@@ -181,13 +213,28 @@ func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool 
 		return true
 	}
 
-	if m := f.muted.Load(); m != nil {
-		if _, ok := (*m)[seriesKeyHash(source, name, tags)]; ok {
-			return false
-		}
+	if f.isMuted(name, source, tags) {
+		return false
 	}
 
-	for _, rule := range f.rules {
+	return f.isAllowedByRulesFrom(name, source, tags, 0)
+}
+
+func (f *metricsFilterRules) isMuted(name, source string, tags []string) bool {
+	if f == nil || source == LogMetricsExtractorName {
+		return false
+	}
+
+	if m := f.muted.Load(); m != nil {
+		if _, ok := (*m)[seriesKeyHash(source, name, tags)]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *metricsFilterRules) isAllowedByRulesFrom(name, source string, tags []string, start int) bool {
+	for _, rule := range f.rules[start:] {
 		if rule.matches(name, source, tags) {
 			return !rule.exclude
 		}
@@ -206,6 +253,10 @@ func (f *metricsFilterRules) publishMutedSnapshot(m map[uint64]struct{}) {
 // matches reports whether the rule applies to the given metric.
 // tags must be sorted in ascending order (guaranteed by canonicalizeTags in prepareMetricIngest).
 func (r metricsCompiledRule) matches(name, source string, tags []string) bool {
+	return r.matchesNameAndSource(name, source) && containsAllTagsSorted(tags, r.tags)
+}
+
+func (r metricsCompiledRule) matchesNameAndSource(name, source string) bool {
 	if r.source != "" && source != r.source {
 		return false
 	}
@@ -214,7 +265,7 @@ func (r metricsCompiledRule) matches(name, source string, tags []string) bool {
 		return false
 	}
 
-	return containsAllTagsSorted(tags, r.tags)
+	return true
 }
 
 // containsAllTagsSorted reports whether all ruleTags appear in sampleTags.

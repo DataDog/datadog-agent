@@ -137,9 +137,7 @@ func TestLogPatternExtractor_ResetClearsClusterState(t *testing.T) {
 }
 
 func TestLogPatternExtractorTelemetryTracksActivePatterns(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.SetObserverTelemetry(newObserverTelemetry(telComp))
@@ -205,9 +203,7 @@ func TestLogPatternExtractor_ZeroConfigAppliesGCDefaults(t *testing.T) {
 }
 
 func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.SetObserverTelemetry(newObserverTelemetry(telComp))
@@ -353,9 +349,7 @@ func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 }
 
 func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	// Configure tight cap with MinClusterSizeBeforeEmit=1 so each new shape
 	// emits a metric (and therefore a context entry) on its first appearance.
@@ -443,7 +437,7 @@ func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
 // TestEngine_LogPatternLRUEvictionFreesStorage is the end-to-end proof that
 // the structural leak is fixed: when the extractor's LRU evicts a cluster,
 // the engine no longer just drops its contextRefs entry — it also calls
-// storage.RemoveSeriesByKeys so the per-series tags slice + columnar arrays
+// storage.RemoveSeriesByKeys so the per-series tags slice + bucket data
 // + sample buffer are actually freed. Before this fix, timeSeriesStorage.series
 // grew monotonically for the lifetime of the agent, regardless of LRU caps.
 func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
@@ -505,9 +499,16 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	cfg.MaxTagGroups = -1
 	extractor := NewLogPatternExtractor(cfg)
 
-	bocpd := NewBOCPDDetector(BOCPDConfig{})
+	bocpdConfig := DefaultBOCPDConfig()
+	bocpdConfig.WarmupPoints = 2
+	bocpdConfig.MaxRunLength = 2
+	bocpd := NewBOCPDDetector(bocpdConfig)
 	scanmw := NewScanMWDetector()
 	scanwelch := NewScanWelchDetector()
+	scanmw.MinPoints = 2
+	scanwelch.MinPoints = 2
+	scanmw.MinSegment = 1
+	scanwelch.MinSegment = 1
 
 	// Stateless detector that does NOT implement SeriesRemover. Registering it
 	// alongside the stateful ones exercises the fanOutSeriesRemoval type-assertion
@@ -541,12 +542,15 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 			timestampMs: int64(1_000_000 + i*1_000),
 		})
 	}
+	for _, meta := range storage.ListSeries(observerdef.WorkloadSeriesFilter()) {
+		storage.Add(meta.Namespace, meta.Name, 1, 1_002, meta.Tags)
+	}
 
 	// Drive Detect() so the detectors observe the series and populate their
 	// per-series state maps. dataTime needs to be ahead of the last point.
-	bocpd.Detect(storage, 1_001_000)
-	scanmw.Detect(storage, 1_001_000)
-	scanwelch.Detect(storage, 1_001_000)
+	bocpd.Detect(storage, 1_002)
+	scanmw.Detect(storage, 1_002)
+	scanwelch.Detect(storage, 1_002)
 
 	bocpdBefore := len(bocpd.series)
 	scanmwBefore := len(scanmw.series)

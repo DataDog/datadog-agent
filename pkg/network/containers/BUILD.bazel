@@ -54,7 +54,7 @@ dd_agent_go_test(
         "container_store_linux_test.go",
     ],
     embed = [":containers"],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
     deps = select({

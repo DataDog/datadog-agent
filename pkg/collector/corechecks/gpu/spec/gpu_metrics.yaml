@@ -348,6 +348,7 @@ metrics:
   device.total:
     metadata:
       metric_type: gauge
+      unit: device
       description: Number of GPU devices found in the host
       used_in_dd_ui: true
       aggregation: absolute_usage
@@ -598,6 +599,7 @@ metrics:
   errors.xid.total:
     metadata:
       metric_type: gauge
+      unit: error
       used_in_dd_ui: true
       description: >-
         XID errors are NVIDIA driver error codes that indicate GPU hardware or
@@ -915,7 +917,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       capabilities_required:
         nvlink: 1
   nvlink.count.inactive:
@@ -930,7 +932,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       capabilities_required:
         nvlink: 1
   nvlink.count.total:
@@ -945,7 +947,7 @@ metrics:
       device_modes:
         mig: false
         physical: true
-        vgpu: true
+        vgpu: false
       capabilities_required:
         nvlink: 1
   nvlink.ber.effective:
@@ -963,7 +965,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.ber.symbol:
     metadata:
       metric_type: gauge
@@ -978,7 +980,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.crc.data:
     metadata:
       metric_type: gauge
@@ -1038,7 +1040,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.ecc:
     metadata:
       metric_type: gauge
@@ -1078,7 +1080,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.local.link.integrity:
     metadata:
       metric_type: gauge
@@ -1095,7 +1097,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.malformed.packet:
     metadata:
       metric_type: gauge
@@ -1112,7 +1114,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.recovery:
     metadata:
       metric_type: gauge
@@ -1172,7 +1174,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.rx.general:
     metadata:
       metric_type: gauge
@@ -1189,7 +1191,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.rx.remote:
     metadata:
       metric_type: gauge
@@ -1206,7 +1208,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.symbol:
     metadata:
       metric_type: gauge
@@ -1223,7 +1225,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.nvswitch_connected:
     metadata:
       metric_type: gauge
@@ -1242,7 +1244,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 3
+        nvlink: 4
   nvlink.plr.codes_loss:
     metadata:
       metric_type: gauge
@@ -1258,7 +1260,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.rx.code_err:
     metadata:
       metric_type: gauge
@@ -1273,7 +1275,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.rx.codes:
     metadata:
       metric_type: gauge
@@ -1288,7 +1290,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.rx.uncorrectable_code:
     metadata:
       metric_type: gauge
@@ -1303,7 +1305,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.sync_events:
     metadata:
       metric_type: gauge
@@ -1318,7 +1320,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.codes:
     metadata:
       metric_type: gauge
@@ -1333,7 +1335,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.retry_codes:
     metadata:
       metric_type: gauge
@@ -1348,7 +1350,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.retry_events:
     metadata:
       metric_type: gauge
@@ -1363,7 +1365,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.plr.tx.retry_events_within_t_sec_max:
     metadata:
       metric_type: gauge
@@ -1379,7 +1381,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec:
     metadata:
       metric_type: histogram
@@ -1397,7 +1399,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec.heavy:
     metadata:
       metric_type: gauge
@@ -1415,7 +1417,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec.light:
     metadata:
       metric_type: gauge
@@ -1433,7 +1435,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.errors.fec.none:
     metadata:
       metric_type: gauge
@@ -1448,7 +1450,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.speed:
     metadata:
       metric_type: gauge
@@ -1487,7 +1489,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.recovery.events.successful:
     metadata:
       metric_type: gauge
@@ -1505,7 +1507,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.rx.packets:
     metadata:
       metric_type: gauge
@@ -1520,7 +1522,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.throughput.data.rx:
     metadata:
       metric_type: gauge
@@ -1704,7 +1706,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   nvlink.tx.packets:
     metadata:
       metric_type: gauge
@@ -1719,7 +1721,7 @@ metrics:
         physical: true
         vgpu: false
       capabilities_required:
-        nvlink: 5
+        nvlink: 7
   c2c.errors.interrupt:
     metadata:
       metric_type: gauge

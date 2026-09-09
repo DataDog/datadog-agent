@@ -70,6 +70,22 @@ func TestClassifyTCClassifierError(t *testing.T) {
 			expected: errorClassNoSuchDevice,
 		},
 		{
+			name: "missing device on filter add",
+			err: multierror.Append(nil, cloneErr(
+				fmt.Errorf("failed to attach new probe %v: %w", pip,
+					fmt.Errorf("couldn't start probe %v: %w", pip,
+						fmt.Errorf("couldn't add a %v filter to interface %s[%d]: %w", "ingress", "tmpc255a", 145, unix.ENODEV))))).ErrorOrNil(),
+			expected: errorClassNoSuchDevice,
+		},
+		{
+			name: "filter not found",
+			err: multierror.Append(nil, cloneErr(
+				fmt.Errorf("failed to attach new probe %v: %w", pip,
+					fmt.Errorf("couldn't start probe %v: %w", pip,
+						fmt.Errorf("couldn't create TC filter for %v: filter not found", pip))))).ErrorOrNil(),
+			expected: errorClassFilterNotFound,
+		},
+		{
 			name:     "unknown",
 			err:      multierror.Append(nil, cloneErr(errors.New("something else"))).ErrorOrNil(),
 			expected: errorClassUnknown,

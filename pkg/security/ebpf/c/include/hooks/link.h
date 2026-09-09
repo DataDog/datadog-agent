@@ -5,6 +5,7 @@
 #include "helpers/approvers.h"
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_link(void *ctx, u8 async, const char *oldpath, const char *newpath) {
@@ -230,7 +231,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_link_exit, struct tracepoint_raw_syscalls_sy
     return sys_link_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
+int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
@@ -242,31 +243,30 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
         return 0;
     }
 
-    struct link_event_t event = {
-        .event.type = EVENT_LINK,
-        .event.timestamp = bpf_ktime_get_ns(),
-        .syscall.retval = retval,
-        .syscall_ctx.id = syscall->ctx_id,
-        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
-        .source = syscall->link.src_file,
-        .target = syscall->link.target_file,
-    };
+    struct link_event_t *event = SPAN_FILL_EVENT(struct link_event_t, EVENT_LINK);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->syscall_ctx.id = syscall->ctx_id;
+    event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
+    event->source = syscall->link.src_file;
+    event->target = syscall->link.target_file;
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_LINK, event);
+    span_fill_tail_call(ctx, prog_type);
 
     return 0;
 }
 
 TAIL_CALL_FNC(dr_link_dst_callback, ctx_t *ctx) {
-    return dr_link_dst_callback(ctx);
+    return dr_link_dst_callback(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
 TAIL_CALL_TRACEPOINT_FNC(dr_link_dst_callback, struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_link_dst_callback(args);
+    return dr_link_dst_callback(args, TRACEPOINT_TYPE);
 }
 
 #endif

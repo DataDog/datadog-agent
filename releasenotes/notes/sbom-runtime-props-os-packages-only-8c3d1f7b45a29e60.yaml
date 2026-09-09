@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    The runtime usage properties merged onto container image SBOMs
+    (``LastSeenRunning``, ``HasSetSuidBit`` and ``RunningAsRoot``) are now set on
+    OS packages alone. The runtime scanner reads the dpkg, rpm and apk databases,
+    so language packages (npm, pypi, golang and others), the image's
+    operating-system component and the per-lockfile application components stay
+    out of its scope. The absence of a property marks a component out of scope,
+    where a ``LastSeenRunning`` of ``0`` states that the package was watched and
+    found idle.

@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//comp/core/tagger/tags",
         "//pkg/config/env",
+        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/gohai/cpu",
@@ -38,6 +39,7 @@ dd_agent_go_test(
     srcs = ["tags_test.go"],
     embed = [":hosttags"],
     deps = [
+        "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/config/model",
         "@com_github_stretchr_testify//assert",

@@ -207,3 +207,32 @@ func TestSetDefinitionCapture(t *testing.T) {
 		assert.EqualError(t, setDef.PreCheck(PolicyLoaderOpts{}), "either 'value', 'field' or 'expression' must be specified")
 	})
 }
+
+func TestNetworkFilterDefinitionEmptyScopeDefault(t *testing.T) {
+	n := &NetworkFilterDefinition{
+		BPFFilter: "tcp port 80",
+		Policy:    NetworkFilterPolicyDrop,
+	}
+	opts := PolicyLoaderOpts{
+		ValidateBPFFilter: func(_ string) error { return nil },
+	}
+	err := n.PreCheck(opts)
+	assert.NoError(t, err)
+	assert.Equal(t, "process", n.Scope)
+}
+
+func TestNetworkFilterDefinitionEmptyScopeDefaultOnRuleLoad(t *testing.T) {
+	actionDef := &ActionDefinition{
+		NetworkFilter: &NetworkFilterDefinition{
+			BPFFilter: "tcp port 80",
+			Policy:    NetworkFilterPolicyDrop,
+		},
+	}
+
+	opts := PolicyLoaderOpts{
+		ValidateBPFFilter: func(_ string) error { return nil },
+	}
+	err := actionDef.PreCheck(opts)
+	assert.NoError(t, err)
+	assert.Equal(t, "process", actionDef.NetworkFilter.Scope)
+}

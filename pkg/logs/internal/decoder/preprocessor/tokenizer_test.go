@@ -87,6 +87,15 @@ func TestTokenizer(t *testing.T) {
 		// In-context: critical keywords separated by non-alpha chars
 		{input: "[ERROR] something", expectedToken: "[ERROR] CCCCCCCCC"},
 		{input: "FATAL: disk full", expectedToken: "FATAL: CCCC CCCC"},
+
+		// IPv4 dotted quads collapse to a single hybrid token.
+		{input: "10.1.48.10", expectedToken: "IPv4"},
+		{input: "192.168.1.1", expectedToken: "IPv4"},
+		{input: "1.2.3.4", expectedToken: "IPv4"},
+		{input: "10.1.48.10 GET", expectedToken: "IPv4 CCC"},
+		{input: "1.2.3", expectedToken: "D.D.D"},
+		{input: "1234.1.1.1", expectedToken: "DDDD.D.D.D"},
+		{input: "1...2.3.4", expectedToken: "D.D.D.D"},
 	}
 
 	tokenizer := NewTokenizer(0)
@@ -184,6 +193,50 @@ func TestTokenizerOwnedResultsSurviveReuse(t *testing.T) {
 
 	assert.Equal(t, expectedTokens, tokens)
 	assert.Equal(t, expectedIndices, indices)
+}
+
+func TestTokenizerIPv4(t *testing.T) {
+	tokenizer := NewTokenizer(0)
+	tests := []struct {
+		input    string
+		expected string
+		indices  []int
+	}{
+		{input: "10.1.48.10", expected: "IPv4", indices: []int{0}},
+		{input: "192.168.1.1", expected: "IPv4", indices: []int{0}},
+		{input: "0.0.0.0", expected: "IPv4", indices: []int{0}},
+		{input: "255.255.255.255", expected: "IPv4", indices: []int{0}},
+		{input: "999.999.999.999", expected: "IPv4", indices: []int{0}},
+		{input: "1.2.3", expected: "D.D.D", indices: []int{0, 1, 2, 3, 4}},
+		{input: "1.2.3.4.5", expected: "IPv4.D", indices: []int{0, 7, 8}},
+		{input: "1234.1.1.1", expected: "DDDD.D.D.D", indices: []int{0, 4, 5, 6, 7, 8, 9}},
+		{input: "1...2.3.4", expected: "D.D.D.D", indices: []int{0, 1, 4, 5, 6, 7, 8}},
+		{input: "1..2.3.4", expected: "D.D.D.D", indices: []int{0, 1, 3, 4, 5, 6, 7}},
+		{input: "10.1.48.10 GET", expected: "IPv4 CCC", indices: []int{0, 10, 11}},
+		{input: "GET 10.1.48.10", expected: "CCC IPv4", indices: []int{0, 3, 4}},
+		{input: "10.1.48.10 192.168.0.1", expected: "IPv4 IPv4", indices: []int{0, 10, 11}},
+		{input: "10.1.48.10:8080", expected: "IPv4:DDDD", indices: []int{0, 10, 11}},
+		{input: "2026-08-11 10:34:49 W3SVC1 10.1.48.10 GET", expected: "DDDD-DD-DD DD:DD:DD CDCCCD IPv4 CCC"},
+	}
+	for _, tc := range tests {
+		tokens, indices := tokenizer.Tokenize([]byte(tc.input))
+		assert.Equal(t, tc.expected, TokensToString(tokens), "input %q", tc.input)
+		if tc.indices != nil {
+			assert.Equal(t, tc.indices, indices, "indices for %q", tc.input)
+		}
+	}
+
+	// Octet width must not affect the token sequence: that is the sampler
+	// benefit of collapsing a dotted quad to one token.
+	wide, _ := tokenizer.Tokenize([]byte("from 192.168.0.1"))
+	narrow, _ := tokenizer.Tokenize([]byte("from 10.1.48.10"))
+	assert.Equal(t, TokensToString(wide), TokensToString(narrow))
+	assert.Equal(t, "CCCC IPv4", TokensToString(wide))
+
+	connectedA, _ := tokenizer.Tokenize([]byte("connected from 10.1.48.10"))
+	connectedB, _ := tokenizer.Tokenize([]byte("connected from 192.168.0.1"))
+	assert.Equal(t, "CCCCCCCCC CCCC IPv4", TokensToString(connectedA))
+	assert.Equal(t, TokensToString(connectedA), TokensToString(connectedB))
 }
 
 // --- Fuzz tests ---
@@ -374,6 +427,7 @@ func referenceTokenize(input []byte) []Token {
 		return nil
 	}
 	var tokens []Token
+	var starts []int
 	i := 0
 	for i < len(input) {
 		base := refClassify(input[i])
@@ -381,6 +435,7 @@ func referenceTokenize(input []byte) []Token {
 		for i+runLen < len(input) && refClassify(input[i+runLen]) == base {
 			runLen++
 		}
+		starts = append(starts, i)
 		if base == C1 || base == D1 {
 			if base == C1 && runLen >= 1 && runLen <= 9 {
 				upper := make([]byte, runLen)
@@ -404,7 +459,36 @@ func referenceTokenize(input []byte) []Token {
 		}
 		i += runLen
 	}
-	return tokens
+	return referenceCollapseIPv4(tokens, starts)
+}
+
+// referenceCollapseIPv4 is an independent copy of the dotted-quad rule:
+// four 1-3 digit runs separated by single-byte '.' tokens become one IPv4
+// token. It must not call ipv4At / collapseHybridTokens; the fuzz oracle
+// would otherwise compare the production tokenizer against itself.
+func referenceCollapseIPv4(tokens []Token, starts []int) []Token {
+	if len(tokens) < 7 {
+		return tokens
+	}
+	isOctet := func(tok Token) bool { return tok >= D1 && tok <= D3 }
+	out := make([]Token, 0, len(tokens))
+	for i := 0; i < len(tokens); {
+		if i+6 < len(tokens) &&
+			isOctet(tokens[i]) && tokens[i+1] == Period &&
+			isOctet(tokens[i+2]) && tokens[i+3] == Period &&
+			isOctet(tokens[i+4]) && tokens[i+5] == Period &&
+			isOctet(tokens[i+6]) &&
+			starts[i+2] == starts[i+1]+1 &&
+			starts[i+4] == starts[i+3]+1 &&
+			starts[i+6] == starts[i+5]+1 {
+			out = append(out, IPv4)
+			i += 7
+			continue
+		}
+		out = append(out, tokens[i])
+		i++
+	}
+	return out
 }
 
 // FuzzTokenizerCorrectness verifies the production tokenizer matches
@@ -422,6 +506,10 @@ func FuzzTokenizerCorrectness(f *testing.F) {
 	f.Add([]byte("abc!📀🐶📊123"))
 	f.Add([]byte("Sun Mar 2PM EST JAN FEB MAR"))
 	f.Add([]byte("12-12-12T12:12:12.12T12:12Z123"))
+	f.Add([]byte("10.1.48.10 GET /ZenIT/Service/v13"))
+	f.Add([]byte("192.168.1.1 10.0.0.1 1.2.3.4.5"))
+	f.Add([]byte("1...2.3.4 1234.1.1.1"))
+	f.Add([]byte("2026-08-11 10:34:49 W3SVC1 10.1.48.10 GET"))
 	f.Add([]byte("JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC MON TUE WED THU FRI SAT SUN " +
 		"AM PM UTC GMT EST EDT CST CDT MST MDT PST PDT JST KST IST MSK CET BST HST HDT NST NDT " +
 		"CEST NZST NZDT ACST ACDT AEST AEDT AWST AWDT AKST AKDT CHST CHDT WARN CRIT FATAL ERROR " +
@@ -501,6 +589,7 @@ func FuzzTokenizerInputTruncation(f *testing.F) {
 func FuzzTokenizerDigitCollapsing(f *testing.F) {
 	f.Add([]byte("2024-01-15 10:30:45 INFO request"))
 	f.Add([]byte("error code 404 at 192.168.1.1"))
+	f.Add([]byte("10.1.48.10 255.255.255.255"))
 	f.Add([]byte("0"))
 	f.Fuzz(func(t *testing.T, input []byte) {
 		twin := make([]byte, len(input))

@@ -9,6 +9,7 @@ package modules
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -26,6 +27,7 @@ import (
 type fakeNotableEventsCollector struct {
 	events       []notableevents.Event
 	acked        []string
+	stats        notableevents.CollectorStats
 	startErr     error
 	closeErr     error
 	ackErr       error
@@ -56,6 +58,11 @@ func (f *fakeNotableEventsCollector) Pending() []notableevents.Event {
 func (f *fakeNotableEventsCollector) Ack(ids []string) error {
 	f.acked = append([]string(nil), ids...)
 	return f.ackErr
+}
+
+// Stats returns the configured health snapshot.
+func (f *fakeNotableEventsCollector) Stats() notableevents.CollectorStats {
+	return f.stats
 }
 
 // notableEventsTestHandler constructs the module routes around a supplied fake collector.
@@ -200,6 +207,60 @@ func TestNotableEventsAckFailure(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 	assert.JSONEq(t, `{"error":"failed to acknowledge notable events"}`, recorder.Body.String())
+}
+
+// TestNotableEventsGetStatsExposesCollectorHealth verifies every collector
+// health field reaches the stats endpoint under a stable key, and that the
+// payload stays flat and JSON-serializable for `agent status` and flares.
+func TestNotableEventsGetStatsExposesCollectorHealth(t *testing.T) {
+	collector := &fakeNotableEventsCollector{stats: notableevents.CollectorStats{
+		PendingEvents:                     3,
+		PendingEventsMax:                  128,
+		TrackedFiles:                      7,
+		TrackedFilesMax:                   2048,
+		TrackedDirectories:                2,
+		TrackedDirectoriesMax:             256,
+		SaturatedDirectories:              1,
+		RetryDirectories:                  4,
+		AcknowledgedIdentities:            9,
+		AcknowledgedIdentitiesMax:         4096,
+		BookmarkUnsaved:                   true,
+		BookmarkStagePending:              true,
+		WatcherActive:                     true,
+		PersistenceErrors:                 5,
+		CapacityDeferrals:                 6,
+		BaselineSuppressedFirstRun:        11,
+		BaselineSuppressedAfterSaturation: 12,
+		FSEventsDrops:                     13,
+		WatcherErrors:                     14,
+		WatcherRestarts:                   15,
+	}}
+
+	encoded, err := json.Marshal((&notableEventsModule{collector: collector}).GetStats())
+
+	require.NoError(t, err)
+	assert.JSONEq(t, `{
+		"pending_events":3,
+		"pending_events_max":128,
+		"tracked_files":7,
+		"tracked_files_max":2048,
+		"tracked_directories":2,
+		"tracked_directories_max":256,
+		"saturated_directories":1,
+		"retry_directories":4,
+		"acknowledged_identities":9,
+		"acknowledged_identities_max":4096,
+		"bookmark_unsaved":true,
+		"bookmark_stage_pending":true,
+		"watcher_active":true,
+		"persistence_errors":5,
+		"capacity_deferrals":6,
+		"baseline_suppressed_first_run":11,
+		"baseline_suppressed_after_saturation":12,
+		"fsevents_drops":13,
+		"watcher_errors":14,
+		"watcher_restarts":15
+	}`, string(encoded))
 }
 
 // TestNotableEventsRoutesAreMethodSpecific verifies endpoints reject unsupported HTTP methods.

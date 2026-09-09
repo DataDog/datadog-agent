@@ -47,19 +47,19 @@ const (
 	// scorerHelperEscalationMarker is emitted by anomalyScorer.OnSeverityTransition
 	// when output.logs=true and the EWMA rises above low_threshold (an escalation event).
 	// Logged at info level, captured by journald, and serves as the assertion target.
-	// Full example: "[observer] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
-	scorerHelperEscalationMarker = "[observer] anomaly scorer anomaly_scorer severity escalation"
+	// Full example: "[anomalydetection] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
+	scorerHelperEscalationMarker = "[anomalydetection] anomaly scorer anomaly_scorer severity escalation"
 
 	// scorerEpisodeStartedMarker is emitted by the stdout reporter when the
 	// scorer opens an episode after reaching High severity. The reporter appends
 	// either the scorer metadata or a multiline contributor summary, so retain
 	// only the prefix common to both renderings.
-	scorerEpisodeStartedMarker = "[observer] scorer episode started:"
+	scorerEpisodeStartedMarker = "[anomalydetection] reporter scorer episode started:"
 
 	// scorerHelperRegisteredMarker is logged once at agent startup when the
 	// anomaly scorer is successfully wired with telemetry. Waiting for it
 	// before sending metrics ensures the scorer is active.
-	scorerHelperRegisteredMarker = "[observer] anomaly_scorer registered"
+	scorerHelperRegisteredMarker = "[anomalydetection] anomaly scorer registered"
 )
 
 // observerTestSuite is a minimal interface satisfied by all suite types in this

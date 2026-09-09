@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -32,27 +33,30 @@ var defaultProfilesMu = &sync.Mutex{}
 // in globalProfileConfigMap. The subsequent call to it will return profiles stored in
 // globalProfileConfigMap. The mutex will help loading once when `loadYamlProfiles`
 // is called by multiple check instances.
-func loadYamlProfiles() (ProfileConfigMap, bool, error) {
+// It also returns the names of the user profiles using the legacy Python syntax.
+func loadYamlProfiles() (ProfileConfigMap, []string, error) {
 	defaultProfilesMu.Lock()
 	defer defaultProfilesMu.Unlock()
 
 	profileConfigMap := GetGlobalProfileConfigMap()
 	if profileConfigMap != nil {
 		log.Debugf("load yaml profiles from cache")
-		return profileConfigMap, false, nil
+		return profileConfigMap, getGlobalLegacyProfiles(), nil
 	}
 	log.Debugf("build yaml profiles")
 
-	userProfiles, haveLegacyUserProfile := getYamlUserProfiles()
+	userProfiles, legacyUserProfiles := getYamlUserProfiles()
 	defaultProfiles := getYamlDefaultProfiles()
 	profiles := resolveProfiles(userProfiles, defaultProfiles)
 
-	SetGlobalProfileConfigMap(profiles)
+	setGlobalProfiles(profiles, legacyUserProfiles)
 
-	return profiles, haveLegacyUserProfile, nil
+	return profiles, legacyUserProfiles, nil
 }
 
-func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileConfigMap, bool, error) {
+// getProfileDefinitions returns the profiles found in profilesFolder, along with the
+// sorted names of those using the legacy Python syntax.
+func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileConfigMap, []string, error) {
 	profilesRoot := getProfileConfdRoot(profilesFolder)
 	if isUserProfile {
 		log.Debugf("Reading user profiles from %s", profilesRoot)
@@ -61,11 +65,11 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 	}
 	files, err := os.ReadDir(profilesRoot)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to read profile dir %q: %w", profilesRoot, err)
+		return nil, nil, fmt.Errorf("failed to read profile dir %q: %w", profilesRoot, err)
 	}
 
 	profiles := make(ProfileConfigMap)
-	var haveLegacyProfile bool
+	var legacyProfiles []string
 	for _, f := range files {
 
 		fName := f.Name()
@@ -77,7 +81,9 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 
 		absPath := filepath.Join(profilesRoot, fName)
 		definition, isLegacyProfile, err := readProfileDefinition(absPath)
-		haveLegacyProfile = haveLegacyProfile || isLegacyProfile
+		if isLegacyProfile {
+			legacyProfiles = append(legacyProfiles, profileName)
+		}
 		if err != nil {
 			log.Warnf("cannot load profile %q: %v", profileName, err)
 			errMsg := err.Error()
@@ -94,7 +100,8 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 			IsUserProfile: isUserProfile,
 		}
 	}
-	return profiles, haveLegacyProfile, nil
+	slices.Sort(legacyProfiles)
+	return profiles, legacyProfiles, nil
 }
 
 func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDefinition, bool, error) {
@@ -137,13 +144,13 @@ func getProfileConfdRoot(profileFolderName string) string {
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 
-func getYamlUserProfiles() (ProfileConfigMap, bool) {
-	userProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
+func getYamlUserProfiles() (ProfileConfigMap, []string) {
+	userProfiles, legacyProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	if err != nil {
 		log.Warnf("failed to load user profile definitions: %s", err)
-		return ProfileConfigMap{}, haveLegacyProfile
+		return ProfileConfigMap{}, legacyProfiles
 	}
-	return userProfiles, haveLegacyProfile
+	return userProfiles, legacyProfiles
 }
 
 func getYamlDefaultProfiles() ProfileConfigMap {

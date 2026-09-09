@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,12 +54,18 @@ func installAgentLogTap(handle observerdef.Handle, minSeverity string, maxRateHi
 	}
 
 	pkglog.SetLogObserver(func(level pkglog.LogLevel, message string) {
-		// 1. Severity gate: cheap, no side effects.
+		// 1. Self-exclusion: anomaly-detection logs must never re-enter the observer.
+		// This runs before every other filter so discarded logs do not consume work or
+		// rate-limit capacity.
+		if strings.HasPrefix(message, logging.Prefix) {
+			return
+		}
+		// 2. Severity gate: cheap, no side effects.
 		bucket := logsfilter.BucketForStatus(strings.ToLower(level.String()))
 		if bucket < minBucket {
 			return
 		}
-		// 2. Build tags and apply processing rules before consuming rate budget.
+		// 3. Build tags and apply processing rules before consuming rate budget.
 		tags := make([]string, 0, 3)
 		tags = append(tags, baseTags...)
 		if name := pkglog.GetLoggerName(); name != "" {
@@ -71,7 +78,7 @@ func installAgentLogTap(handle observerdef.Handle, minSeverity string, maxRateHi
 		if !rules.IsAllowed(agentLogSource, tags) {
 			return
 		}
-		// 3. Rate limiting: only charge budget for messages that pass the rule filter.
+		// 4. Rate limiting: only charge budget for messages that pass the rule filter.
 		if forward, droppedPriority := chargeRate(level); !forward {
 			if droppedPriority != "" && onDropped != nil {
 				onDropped(droppedPriority)

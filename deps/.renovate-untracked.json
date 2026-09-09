@@ -4,6 +4,7 @@
     "xz": "Pending tracking in Phase 2a (github-releases batch).",
     "zlib": "Pending tracking in Phase 2a (github-releases batch).",
     "openssl": "Pending tracking in Phase 2a (github-releases batch). Blocked by openssl drift cleanup (AIX 3.5.5, MSI 3.5).",
+    "jemalloc": "Pending tracking in Phase 2a (github-releases batch).",
     "libffi": "Pending tracking in Phase 2a (github-releases batch).",
     "pcre2": "Pending tracking in Phase 2a (github-releases batch).",
     "util-linux": "Pending tracking in Phase 2a (github-releases batch).",

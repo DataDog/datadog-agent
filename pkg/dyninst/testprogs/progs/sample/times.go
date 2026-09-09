@@ -5,7 +5,12 @@
 
 package main
 
-import "time"
+import (
+	"context"
+	"time"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+)
 
 // testTimeUTC and testTimeFixedZone use literal Unix timestamps so the
 // captured instant is deterministic across runs; their snapshot values
@@ -36,7 +41,10 @@ func testTimeMonotonic(c timeCapture) {}
 
 //nolint:all
 //go:noinline
-func executeTimeFuncs() {
+func executeTimeFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.times")
+	defer span.Finish()
+
 	// 2023-11-14T22:13:20Z (Unix 1_700_000_000) — past, no monotonic.
 	t := time.Unix(1_700_000_000, 123_456_789).UTC()
 	testTimeUTC(t)

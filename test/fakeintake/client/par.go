@@ -7,6 +7,7 @@ package client
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -55,6 +56,30 @@ func (c *Client) GetPARTaskResult(taskID string, timeout time.Duration) (*api.PA
 	return nil, fmt.Errorf("timed out waiting for result of task %s", taskID)
 }
 
+// SetPARSigningKey registers a signing identity with fakeintake.
+func (c *Client) SetPARSigningKey(keyID string, privateKey ed25519.PrivateKey, orgID int64, runnerID, connectionID string) error {
+	body, err := json.Marshal(map[string]interface{}{
+		"key_id":        keyID,
+		"private_key":   []byte(privateKey),
+		"org_id":        orgID,
+		"runner_id":     runnerID,
+		"connection_id": connectionID,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal signing key request: %w", err)
+	}
+	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/par/signing-key", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("set PAR signing key: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("set PAR signing key: status %d: %s", resp.StatusCode, b)
+	}
+	return nil
+}
+
 // FlushPAR clears all queued PAR tasks and captured results from fakeintake.
 func (c *Client) FlushPAR() error {
 	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/par/flush", "", nil)
@@ -71,21 +96,51 @@ func (c *Client) FlushPAR() error {
 // GetPARDequeueCount returns how many times PAR has called the dequeue endpoint.
 // A non-zero value confirms PAR is actively polling fakeintake.
 func (c *Client) GetPARDequeueCount() (int, error) {
+	stats, err := c.getPARStats()
+	if err != nil {
+		return 0, err
+	}
+	return stats.DequeueCalls, nil
+}
+
+// GetPARHealthCheckCount returns how many times PAR has reported runner liveness.
+func (c *Client) GetPARHealthCheckCount() (int, error) {
+	stats, err := c.getPARStats()
+	if err != nil {
+		return 0, err
+	}
+	return stats.HealthCheckCalls, nil
+}
+
+// GetPAREnrollmentCount returns how many runners fakeintake has enrolled.
+func (c *Client) GetPAREnrollmentCount() (int, error) {
+	stats, err := c.getPARStats()
+	if err != nil {
+		return 0, err
+	}
+	return stats.EnrollmentCalls, nil
+}
+
+type parStats struct {
+	DequeueCalls     int `json:"dequeue_calls"`
+	HealthCheckCalls int `json:"health_check_calls"`
+	EnrollmentCalls  int `json:"enrollment_calls"`
+}
+
+func (c *Client) getPARStats() (parStats, error) {
+	var stats parStats
 	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/par/stats")
 	if err != nil {
-		return 0, fmt.Errorf("get PAR stats: %w", err)
+		return stats, fmt.Errorf("get PAR stats: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("get PAR stats: status %d", resp.StatusCode)
-	}
-	var stats struct {
-		DequeueCalls int `json:"dequeue_calls"`
+		return stats, fmt.Errorf("get PAR stats: status %d", resp.StatusCode)
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&stats); err != nil {
-		return 0, fmt.Errorf("decode PAR stats: %w", err)
+		return stats, fmt.Errorf("decode PAR stats: %w", err)
 	}
-	return stats.DequeueCalls, nil
+	return stats, nil
 }
 
 func (c *Client) getPARResult(taskID string) (*api.PARTaskResult, error) {

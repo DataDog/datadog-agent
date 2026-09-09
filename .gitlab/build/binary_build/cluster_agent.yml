@@ -1,5 +1,6 @@
 ---
 .cluster_agent-build_common:
+  extends: .bazel:defs:cache:progressive
   stage: binary_build
   timeout: 30m
   rules:

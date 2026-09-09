@@ -149,6 +149,18 @@ func validateDarwinBookmarkState(state *darwinBookmarkState) error {
 		return corruptDarwinBookmark("too many acknowledged events")
 	}
 
+	if cause := state.ShutdownCause; cause != nil {
+		if cause.BootUUID == "" || len(cause.BootUUID) > maxDarwinShutdownBootUUIDBytes || !utf8.ValidString(cause.BootUUID) {
+			return corruptDarwinBookmark("invalid shutdown cause boot uuid")
+		}
+		if cause.Checked <= 0 {
+			return corruptDarwinBookmark("invalid shutdown cause timestamp")
+		}
+		if cause.EventID != "" && !isDarwinEventID(cause.EventID) {
+			return corruptDarwinBookmark("invalid shutdown cause event id")
+		}
+	}
+
 	totalFiles := 0
 	for directoryKey, directory := range state.Directories {
 		if !isLowerHexString(directoryKey, sha256HexLength) {

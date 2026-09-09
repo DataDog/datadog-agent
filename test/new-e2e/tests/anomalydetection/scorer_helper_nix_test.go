@@ -175,7 +175,7 @@ func (s *scorerHelperSuite) TestScorerHelperEmitsSeverityTransitionOnMultiSeries
 	}()
 
 	// Poll the journal for the scorer watcher's severity-escalation log line.
-	// The watcher emits: "[observer] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
+	// The watcher emits: "[anomalydetection] anomaly scorer anomaly_scorer severity escalation to Medium (was Low, t=...)"
 	s.T().Log("polling journal for scorer severity escalation marker...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")

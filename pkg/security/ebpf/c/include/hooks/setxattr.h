@@ -4,6 +4,7 @@
 #include "constants/syscall_macro.h"
 #include "helpers/events_predicates.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_setxattr(void *ctx, const char *xattr_name, u8 async, u64 pid_tgid) {
@@ -143,7 +144,7 @@ int __attribute__((always_inline)) trace_io_fsetxattr(ctx_t *ctx) {
     return trace__sys_setxattr(ctx, NULL, 1, pid_tgid);
 }
 
-int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 event_type) {
+int __attribute__((always_inline)) sys_xattr_ret_impl(void *ctx, int retval, u64 event_type, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(event_type);
     if (!syscall) {
         return 0;
@@ -153,29 +154,35 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
         return 0;
     }
 
-    struct setxattr_event_t event = {
-        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
-        .syscall.retval = retval,
-        .file = syscall->xattr.file,
-    };
+    struct setxattr_event_t *event = SPAN_FILL_EVENT(struct setxattr_event_t, event_type);
+    if (!event) {
+        return 0;
+    }
+
+    event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
+    event->syscall.retval = retval;
+    event->file = syscall->xattr.file;
 
     // copy xattr name
-    bpf_probe_read_str(&event.name, MAX_XATTR_NAME_LEN, (void *)syscall->xattr.name);
+    bpf_probe_read_str(&event->name, MAX_XATTR_NAME_LEN, (void *)syscall->xattr.name);
 
     struct proc_cache_t *entry;
     if (syscall->xattr.pid_tgid != 0) {
-        entry = fill_process_context_with_pid_tgid(&event.process, syscall->xattr.pid_tgid);
+        entry = fill_process_context_with_pid_tgid(&event->process, syscall->xattr.pid_tgid);
     } else {
-        entry = fill_process_context(&event.process);
+        entry = fill_process_context(&event->process);
     }
 
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_file(syscall->xattr.dentry, &event.file);
-    fill_span_context(&event.span);
+    fill_cgroup_context(entry, &event->cgroup);
+    fill_file(syscall->xattr.dentry, &event->file);
 
-    send_event(ctx, event_type, event);
+    span_fill_tail_call(ctx, prog_type);
 
     return 0;
+}
+
+int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 event_type) {
+    return sys_xattr_ret_impl(ctx, retval, event_type, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(setxattr) {
@@ -194,7 +201,7 @@ HOOK_SYSCALL_EXIT(lsetxattr) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_setxattr_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
+    return sys_xattr_ret_impl(args, args->ret, EVENT_SETXATTR, TRACEPOINT_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(removexattr) {
@@ -213,7 +220,7 @@ HOOK_SYSCALL_EXIT(fremovexattr) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_removexattr_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
+    return sys_xattr_ret_impl(args, args->ret, EVENT_REMOVEXATTR, TRACEPOINT_TYPE);
 }
 
 HOOK_ENTRY("io_fsetxattr")

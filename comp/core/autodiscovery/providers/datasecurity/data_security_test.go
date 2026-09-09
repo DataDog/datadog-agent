@@ -48,6 +48,10 @@ func (m *mockedAutodiscovery) GetUnresolvedConfigs() []integration.Config {
 	return m.configs
 }
 
+func (m *mockedAutodiscovery) GetAllConfigs() []integration.Config {
+	return m.configs
+}
+
 func getMockedAutodiscovery(t *testing.T, configs []integration.Config) autodiscovery.Component {
 	return &mockedAutodiscovery{
 		Component: fxutil.Test[autodiscovery.Component](t, noopautoconfig.Module()),

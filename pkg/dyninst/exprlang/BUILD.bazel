@@ -7,7 +7,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/exprlang",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = ["@com_github_go_json_experiment_json//jsontext"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_go_json_experiment_json//jsontext",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_go_json_experiment_json//jsontext",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
@@ -113,12 +121,20 @@ dd_agent_go_test(
         "testdata/valid_ref_expression.json",
         "testdata/valid_ref_with_complex_variable_name.json",
     ],
-    gotags_sets = [["linux_bpf"]],
+    gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
-    deps = [
-        "@com_github_go_json_experiment_json//:json",
-        "@com_github_go_json_experiment_json//jsontext",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_go_json_experiment_json//:json",
+            "@com_github_go_json_experiment_json//jsontext",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_go_json_experiment_json//:json",
+            "@com_github_go_json_experiment_json//jsontext",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

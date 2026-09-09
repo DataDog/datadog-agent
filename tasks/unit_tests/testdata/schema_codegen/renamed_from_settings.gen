@@ -1,0 +1,22 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// NOTE! This is a generated file, do not modify it. Created by `dda inv schema.codegen`
+
+package setup
+
+import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
+func initCoreAgentFull(config pkgconfigmodel.Setup) {
+	config.BindEnvAndSetDefaultWithDeprecation("full_agent_renamed_setting", false, []string{"old_full_agent_setting"})
+}
+
+func initCommonBase(config pkgconfigmodel.Setup) {
+	config.BindEnvAndSetDefault("plain_setting", "abc")
+	config.BindEnvAndSetDefaultWithDeprecation("renamed_setting", "abc", []string{"old_setting"}, "DD_RENAMED_SETTING")
+	config.BindEnvAndSetDefaultWithDeprecation("my_section.renamed_twice", 10.0, []string{"oldest_section.oldest_name", "my_section.old_name"})
+}

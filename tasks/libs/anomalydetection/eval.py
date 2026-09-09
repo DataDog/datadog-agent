@@ -54,7 +54,7 @@ TESTBENCH_WARMUP_PARAMS = {
     "tukey_biweight": {"window_size": 40, "min_points": 40},
 }
 ABLATION_CORRELATORS = ["anomaly_scorer"]
-SUPPORTED_CORRELATORS = ["anomaly_scorer", "cross_signal", "time_cluster"]
+SUPPORTED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
 
 # Correlators always represented in generated configs. time_cluster defaults on
 # in the testbench, so scorer-only trials must explicitly disable it.

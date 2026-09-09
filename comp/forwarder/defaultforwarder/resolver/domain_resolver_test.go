@@ -40,6 +40,60 @@ func TestSingleDomainResolverDedupedKey(t *testing.T) {
 		[]string{"key1", "key2"})
 }
 
+// TestIsUsableKeepsPendingDelegatedAuthDomain is a regression test: a domain whose only entry is
+// a pending DELA(...) directive has zero real API keys, but must still be usable. Otherwise
+// default_forwarder.go drops it from the forwarder entirely at startup (see IsUsable's callers),
+// and once delegatedauth resolves the directive and writes the real key back into config, there is
+// no registered resolver left to receive that update - the key is silently lost until restart.
+func TestIsUsableKeepsPendingDelegatedAuthDomain(t *testing.T) {
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL: "https://pending-org.datadoghq.com",
+		APIKeySet: []utils.APIKeys{
+			{ConfigSettingPath: "additional_endpoints", Keys: []string{}, HasPendingDelegatedAuth: true},
+		},
+	})
+	require.NoError(t, err)
+
+	assert.True(t, resolver.IsUsable())
+}
+
+// TestIsUsableDropsDomainWithNoKeysAndNoPendingDirective is a regression guard for the above fix:
+// a domain with genuinely zero API keys and no pending delegated-auth directive must still be
+// considered unusable, unchanged from prior behavior.
+func TestIsUsableDropsDomainWithNoKeysAndNoPendingDirective(t *testing.T) {
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL: "https://empty-org.datadoghq.com",
+		APIKeySet: []utils.APIKeys{
+			{ConfigSettingPath: "additional_endpoints", Keys: []string{}},
+		},
+	})
+	require.NoError(t, err)
+
+	assert.False(t, resolver.IsUsable())
+}
+
+// TestUpdateAPIKeysRefreshesPendingDelegatedAuthFlag is a regression test: once delegatedauth
+// resolves a directive and writes the real key back into config, UpdateAPIKeys (invoked via the
+// config OnUpdate callback) must clear hasPendingDelegatedAuth - otherwise the resolver would look
+// permanently pending even after it has a real usable key.
+func TestUpdateAPIKeysRefreshesPendingDelegatedAuthFlag(t *testing.T) {
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL: "https://resolving-org.datadoghq.com",
+		APIKeySet: []utils.APIKeys{
+			{ConfigSettingPath: "additional_endpoints", Keys: []string{}, HasPendingDelegatedAuth: true},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, resolver.hasPendingDelegatedAuth)
+
+	resolver.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{
+		{ConfigSettingPath: "additional_endpoints", Keys: []string{"resolved-key"}},
+	})
+
+	assert.False(t, resolver.hasPendingDelegatedAuth)
+	assert.True(t, resolver.IsUsable())
+}
+
 func TestSingleDomainUpdateAPIKeys(t *testing.T) {
 	apiKeys := []utils.APIKeys{
 		utils.NewAPIKeys("api_key", "key1"),

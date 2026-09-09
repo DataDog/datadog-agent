@@ -16,9 +16,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	pkgstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
@@ -78,7 +78,6 @@ var splitTagKeyOrder = []string{"source", "service", "env", "host"}
 // on the heavyweight datadog-api-client-go module.
 type eventSender struct {
 	forwarder eventplatform.Forwarder
-	logger    log.Component
 	storage   observerdef.StorageReader
 	hostname  hostname.Component
 }
@@ -86,13 +85,12 @@ type eventSender struct {
 // newEventSender creates an eventSender backed by the given forwarder.
 // storage is used to compute windowed log rates for display in event messages;
 // it may be nil and will be set later via EventReporter.SetStorage.
-func newEventSender(forwarder eventplatform.Forwarder, logger log.Component, storage observerdef.StorageReader, hn hostname.Component) (*eventSender, error) {
+func newEventSender(forwarder eventplatform.Forwarder, storage observerdef.StorageReader, hn hostname.Component) (*eventSender, error) {
 	if forwarder == nil {
 		return nil, errors.New("event-platform forwarder is not available")
 	}
 	return &eventSender{
 		forwarder: forwarder,
-		logger:    logger,
 		storage:   storage,
 		hostname:  hn,
 	}, nil
@@ -271,7 +269,7 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 		host = s.hostname.GetSafe(context.TODO())
 	}
 
-	s.logger.Infof("[observer] sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
+	logging.Infof("reporter sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
 
 	payload := buildChangeEventPayload(c, msg, ts, aggKey, host)
 	body, err := json.Marshal(payload)
@@ -310,7 +308,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 		host = s.hostname.GetSafe(context.TODO())
 	}
 
-	s.logger.Infof("[observer] sending scorer episode event: pattern=%s direction=%s aggKey=%s timestamp=%s",
+	logging.Infof("reporter sending scorer episode event: pattern=%s direction=%s aggKey=%s timestamp=%s",
 		evt.Correlation.Pattern, direction, aggKey, ts)
 
 	tags := []string{

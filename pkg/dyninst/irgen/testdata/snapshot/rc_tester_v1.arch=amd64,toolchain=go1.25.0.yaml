@@ -9842,10 +9842,10 @@ Types:
       GoKind: 5
 MaxTypeID: 1023
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x18329e0", TypesOffset: 296}
+GoModuledataInfo: {FirstModuledataAddr: "0x18329c0", TypesOffset: 296}
 GoMapHashInfo:
-    UseAeshashAddr: "0x1922e75"
-    AeskeyschedAddr: "0x1923f00"
+    UseAeshashAddr: "0x1922e55"
+    AeskeyschedAddr: "0x1923ee0"
 CommonTypes:
     G: 24 StructureType runtime.g
     M: 31 StructureType runtime.m

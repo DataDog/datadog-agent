@@ -79,8 +79,8 @@ type LogObserver interface {
 }
 
 // MetricOutput is a timeseries value derived from log analysis.
-// The storage keeps full summaries (min/max/sum/count) so aggregation
-// is specified at read time, not write time.
+// The storage keeps sum/count summaries so aggregation is specified at read
+// time, not write time.
 type MetricOutput struct {
 	Name    string
 	Value   float64
@@ -436,7 +436,8 @@ type ActiveCorrelation struct {
 // RawAnomalyState provides read access to raw anomalies before correlation processing.
 // Used by test bench reporters to display individual detector outputs.
 type RawAnomalyState interface {
-	// RawAnomalies returns all anomalies detected by detector implementations.
+	// RawAnomalies returns retained detector output when replay/debug history is enabled.
+	// Live production observers deliberately retain no full anomaly history.
 	RawAnomalies() []Anomaly
 }
 
@@ -482,8 +483,6 @@ const (
 	AggregateAverage
 	AggregateSum
 	AggregateCount
-	AggregateMin
-	AggregateMax
 )
 
 // AggregateString returns a short string label for the aggregation type.
@@ -497,10 +496,6 @@ func AggregateString(agg Aggregate) string {
 		return "sum"
 	case AggregateCount:
 		return "count"
-	case AggregateMin:
-		return "min"
-	case AggregateMax:
-		return "max"
 	default:
 		return "unknown"
 	}
@@ -603,6 +598,23 @@ type Detector interface {
 	// The detector queries storage for whatever data it needs.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
 	Detect(storage StorageReader, dataTime int64) DetectionResult
+}
+
+// DetectorPointWindow bounds a detector's raw-observation history.
+type DetectorPointWindow struct {
+	// MinPoints is the visible-history threshold for a cold series. On first
+	// activation, the detector replays retained points, including earlier ones.
+	// Active state continues even if visible history later drops below it.
+	MinPoints int
+	// MaxPoints limits raw history, not detector-state lifetime. It must be at
+	// least MinPoints; storage keeps an additional scheduler pending bucket.
+	MaxPoints int
+}
+
+// DetectorPointWindowRequirement is an optional Detector capability. The
+// observer derives retention from the maximum MaxPoints of enabled detectors.
+type DetectorPointWindowRequirement interface {
+	DetectorPointWindow() DetectorPointWindow
 }
 
 // SeriesRemover is an optional interface that Detector implementations can

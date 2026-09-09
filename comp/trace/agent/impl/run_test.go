@@ -20,7 +20,7 @@ func TestProfilingConfig(t *testing.T) {
 	tconfig := tracecfg.New()
 	cconfig := configmock.New(t)
 	cconfig.SetInTest("apm_config.internal_profiling.enabled", true)
-	cconfig.SetInTest("internal_profiling.extra_tags", "k1:v1 k2:v2")
+	cconfig.SetInTest("internal_profiling.extra_tags", []string{"k1:v1", "k2:v2"})
 	cconfig.SetInTest("internal_profiling.period", 30*time.Second)
 	cconfig.SetInTest("internal_profiling.cpu_duration", 15*time.Second)
 	cconfig.SetInTest("internal_profiling.mutex_profile_fraction", 7)
