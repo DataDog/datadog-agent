@@ -16,6 +16,7 @@ package attributes
 
 import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	semconv143 "go.opentelemetry.io/otel/semconv/v1.43.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/azure"
@@ -33,11 +34,14 @@ const (
 	// We check for this to avoid double tagging.
 	AttributeHost = "host"
 
-	attributeAzureResourceGroupName    = "azure.resource_group.name"
+	attributeAzureResourceGroupName    = string(semconv143.AzureResourceGroupNameKey)
 	attributeAzureAppServiceInstanceID = "azure.app_service.instance.id"
-	attributeServiceInstanceID         = "service.instance.id"
-	cloudPlatformAzureAppService       = "azure.app_service"
-	cloudPlatformAzureAppServiceLegacy = "azure_app_service"
+	attributeServiceInstanceID         = string(conventions.ServiceInstanceIDKey)
+)
+
+var (
+	cloudPlatformAzureAppService       = semconv143.CloudPlatformAzureAppService.Value.AsString()
+	cloudPlatformAzureAppServiceLegacy = conventions.CloudPlatformAzureAppService.Value.AsString()
 )
 
 type azureAppServiceResource struct {
