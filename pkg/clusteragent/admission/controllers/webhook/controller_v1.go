@@ -271,7 +271,7 @@ func (c *ControllerV1) createValidatingWebhook(secret *corev1.Secret) error {
 		return nil
 	}
 
-	return err
+	return common.WrapIfForbidden(err, "create", "validatingwebhookconfigurations", "", webhook.GetName())
 }
 
 // updateValidatingWebhook stores a new configuration in the ValidatingWebhookConfiguration object.
@@ -279,7 +279,7 @@ func (c *ControllerV1) updateValidatingWebhook(secret *corev1.Secret, webhook *a
 	webhook = webhook.DeepCopy()
 	webhook.Webhooks = c.newValidatingWebhooks(secret)
 	_, err := c.clientSet.AdmissionregistrationV1().ValidatingWebhookConfigurations().Update(context.TODO(), webhook, metav1.UpdateOptions{})
-	return err
+	return common.WrapIfForbidden(err, "update", "validatingwebhookconfigurations", "", webhook.GetName())
 }
 
 // newValidatingWebhooks generates Webhook objects from config templates with updated CABundle from Secret.
@@ -314,7 +314,7 @@ func (c *ControllerV1) createMutatingWebhook(secret *corev1.Secret) error {
 		return nil
 	}
 
-	return err
+	return common.WrapIfForbidden(err, "create", "mutatingwebhookconfigurations", "", webhook.GetName())
 }
 
 // updateMutatingWebhook stores a new configuration in the MutatingWebhookConfiguration object.
@@ -322,7 +322,7 @@ func (c *ControllerV1) updateMutatingWebhook(secret *corev1.Secret, webhook *adm
 	webhook = webhook.DeepCopy()
 	webhook.Webhooks = c.newMutatingWebhooks(secret)
 	_, err := c.clientSet.AdmissionregistrationV1().MutatingWebhookConfigurations().Update(context.TODO(), webhook, metav1.UpdateOptions{})
-	return err
+	return common.WrapIfForbidden(err, "update", "mutatingwebhookconfigurations", "", webhook.GetName())
 }
 
 // newMutatingWebhooks generates Webhook objects from config templates with updated CABundle from Secret.

@@ -145,7 +145,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
 
 	if datadogConfig.GetBool("admission_controller.probe.enabled") {
-		admissionProbe := admprobe.New(ctx.Client, isLeaderFunc, namespace.GetResourcesNamespace(), datadogConfig, healthPlatform)
+		admissionProbe := admprobe.New(ctx.Client, isLeaderFunc, namespace.GetResourcesNamespace(), datadogConfig, healthPlatform, secretController, webhookController)
 		setProbe(admissionProbe)
 		probeCtx, probeCancel := context.WithCancel(context.Background())
 		go func() {
