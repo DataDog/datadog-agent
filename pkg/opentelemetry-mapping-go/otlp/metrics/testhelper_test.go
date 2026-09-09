@@ -56,6 +56,7 @@ type TestDimensions struct {
 	Tags                []string
 	Host                string
 	OriginID            string
+	Unit                string
 	OriginProduct       OriginProduct
 	OriginSubProduct    OriginSubProduct
 	OriginProductDetail OriginProductDetail
@@ -166,6 +167,7 @@ func (t *testConsumer) ConsumeTimeSeries(
 				Tags:                dimensions.Tags(),
 				Host:                dimensions.Host(),
 				OriginID:            dimensions.OriginID(),
+				Unit:                dimensions.Unit(),
 				OriginProduct:       dimensions.OriginProduct(),
 				OriginSubProduct:    dimensions.OriginSubProduct(),
 				OriginProductDetail: dimensions.OriginProductDetail(),
@@ -192,6 +194,7 @@ func (t *testConsumer) ConsumeSketch(
 				Tags:                dimensions.Tags(),
 				Host:                dimensions.Host(),
 				OriginID:            dimensions.OriginID(),
+				Unit:                dimensions.Unit(),
 				OriginProduct:       dimensions.OriginProduct(),
 				OriginSubProduct:    dimensions.OriginSubProduct(),
 				OriginProductDetail: dimensions.OriginProductDetail(),

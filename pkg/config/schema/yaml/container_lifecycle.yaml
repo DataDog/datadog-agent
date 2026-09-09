@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/container_lifecycle.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/container_lifecycle.yaml
 node_type: section
 type: object
 properties:
@@ -25,8 +25,6 @@ properties:
     node_type: setting
     type: number
     default: 5
-    tags:
-    - golang_type:float64
   compression_kind:
     node_type: setting
     type: string
@@ -53,7 +51,10 @@ properties:
     node_type: setting
     type: boolean
     default: true
-    comment: Container lifecycle configuration
+  extended_set:
+    node_type: setting
+    type: boolean
+    default: false
   input_chan_size:
     node_type: setting
     type: integer
@@ -70,20 +71,14 @@ properties:
     node_type: setting
     type: number
     default: 1
-    tags:
-    - golang_type:float64
   sender_backoff_factor:
     node_type: setting
     type: number
     default: 2
-    tags:
-    - golang_type:float64
   sender_backoff_max:
     node_type: setting
     type: number
     default: 120
-    tags:
-    - golang_type:float64
   sender_recovery_interval:
     node_type: setting
     type: integer

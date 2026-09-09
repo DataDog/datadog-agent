@@ -20,7 +20,9 @@ import (
 // sumRangeStorage is a minimal StorageReader that answers SumRange calls via a
 // user-supplied function and panics on all other methods (they are unused here).
 type sumRangeStorage struct {
-	fn func(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64
+	fn       func(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64
+	metas    map[observerdef.SeriesRef]observerdef.SeriesMeta
+	contexts map[observerdef.SeriesRef]*observerdef.MetricContext
 }
 
 func (s *sumRangeStorage) SumRange(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64 {
@@ -28,6 +30,92 @@ func (s *sumRangeStorage) SumRange(handle observerdef.SeriesRef, start, end int6
 }
 func (s *sumRangeStorage) ListSeries(_ observerdef.SeriesFilter) []observerdef.SeriesMeta {
 	panic("not implemented")
+}
+func (s *sumRangeStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observerdef.SeriesMeta {
+	meta, ok := s.metas[ref]
+	if !ok {
+		return nil
+	}
+	return &meta
+}
+func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) *observerdef.MetricContext {
+	return s.contexts[ref]
+}
+
+func TestFormatScorerContributorMessage(t *testing.T) {
+	storage := &sumRangeStorage{metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
+		42: {Ref: 42, Namespace: "dogstatsd", Name: "system.cpu.user", Tags: []string{"host:web-1", "env:prod"}},
+		7:  {Ref: 7, Namespace: "dogstatsd", Name: "nginx.requests", Tags: []string{"service:api"}},
+	}}
+
+	message := formatScorerContributorMessage([]observerdef.ScorerContributor{
+		{Handle: observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateAverage}, Weight: 4.2, Share: 0.42},
+		{Handle: observerdef.QueryHandle{Ref: 99, Aggregate: observerdef.AggregateSum}, Weight: 3.3, Share: 0.33}, // evicted
+		{Handle: observerdef.QueryHandle{Ref: 7, Aggregate: observerdef.AggregateCount}, Weight: 2.5, Share: 0.25},
+	}, storage)
+
+	assert.Equal(t, "Top contributions:\n1. 42% — system.cpu.user:avg{host:web-1,env:prod}\n2. 25% — nginx.requests:count{service:api}", message)
+	assert.NotContains(t, message, "4.2")
+	assert.NotContains(t, message, "weight")
+}
+
+func TestFormatScorerContributorMessageUsesLogDerivedDisplay(t *testing.T) {
+	storage := &sumRangeStorage{
+		metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
+			42: {Ref: 42, Namespace: logMetricsExtractorNamespace, Name: "log.pattern.abc.count", Tags: []string{"service:api"}},
+			43: {Ref: 43, Namespace: logPatternExtractorNamespace, Name: "log.pattern.def.rate", Tags: []string{"env:prod"}},
+		},
+		contexts: map[observerdef.SeriesRef]*observerdef.MetricContext{
+			42: {Pattern: "C3:C8_C1", Example: "ERROR: connection refused to db.prod:5432"},
+			43: {Pattern: "GET /checkout <*> returned 500"},
+		},
+	}
+
+	message := formatScorerContributorMessage([]observerdef.ScorerContributor{
+		{Handle: observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateCount}, Share: 0.75},
+		{Handle: observerdef.QueryHandle{Ref: 43, Aggregate: observerdef.AggregateSum}, Share: 0.25},
+	}, storage)
+
+	assert.Contains(t, message, "1. 75% — log: ERROR: connection refused to db.prod:5432 — {service:api}")
+	assert.Contains(t, message, "2. 25% — log: GET /checkout <*> returned 500 — {env:prod}")
+	assert.NotContains(t, message, "log.pattern.abc.count")
+	assert.NotContains(t, message, "log.pattern.def.rate")
+}
+
+func TestFormatScorerEpisodeMessageFallsBackWithoutContributors(t *testing.T) {
+	event := observerdef.CorrelatorEvent{
+		CorrelatorName: "anomaly_scorer",
+		Timestamp:      1234,
+		Correlation:    observerdef.ActiveCorrelation{Pattern: "anomaly_scorer_high:1234"},
+	}
+
+	message := formatScorerEpisodeMessage(event, nil, "ended")
+
+	assert.Equal(t, "Anomaly scorer \"anomaly_scorer\" episode ended at t=1234\nPattern: anomaly_scorer_high:1234", message)
+}
+
+func TestFormatScorerContributorMessageTruncatesAndCountsOmittedItems(t *testing.T) {
+	metas := make(map[observerdef.SeriesRef]observerdef.SeriesMeta, 200)
+	contributors := make([]observerdef.ScorerContributor, 200)
+	for i := range contributors {
+		ref := observerdef.SeriesRef(i + 1)
+		metas[ref] = observerdef.SeriesMeta{
+			Ref:  ref,
+			Name: fmt.Sprintf("metric.%d", i),
+			Tags: []string{strings.Repeat("tag:value,", 100)},
+		}
+		contributors[i] = observerdef.ScorerContributor{
+			Handle: observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.AggregateAverage},
+			Share:  1.0 / float64(len(contributors)),
+		}
+	}
+
+	message := formatScorerContributorMessage(contributors, &sumRangeStorage{metas: metas})
+	assert.LessOrEqual(t, len(message), changeEventMessageMaxLen)
+	assert.True(t, utf8.ValidString(message))
+	assert.Contains(t, message, metas[1].Tags[0])
+	assert.Contains(t, message, "metric.3:avg{...}")
+	assert.Contains(t, message, "other anomalies")
 }
 func (s *sumRangeStorage) GetSeriesRange(_ observerdef.SeriesRef, _, _ int64, _ observerdef.Aggregate) *observerdef.Series {
 	panic("not implemented")
@@ -343,6 +431,30 @@ func makeLogPatternAnomaly(ts int64) observerdef.Anomaly {
 			Example: "ERROR: connection refused to db:5432",
 		},
 	}
+}
+
+func TestLogPatternRatesSumRepresentedLogCounts(t *testing.T) {
+	const ts = int64(10_000)
+	var aggregates []observerdef.Aggregate
+	storage := &sumRangeStorage{
+		fn: func(_ observerdef.SeriesRef, _ int64, _ int64, agg observerdef.Aggregate) float64 {
+			aggregates = append(aggregates, agg)
+			return 300
+		},
+	}
+	a := makeLogPatternAnomaly(ts)
+
+	curr, currOK := logPatternRate(a, storage)
+	prev, prevOK := logPatternPrevRate(a, storage)
+
+	assert.True(t, currOK)
+	assert.True(t, prevOK)
+	assert.Equal(t, 5.0, curr)
+	assert.Equal(t, 1.0, prev)
+	assert.Equal(t, []observerdef.Aggregate{
+		observerdef.AggregateSum,
+		observerdef.AggregateSum,
+	}, aggregates)
 }
 
 func TestBuildChangeMessage_RateChangedDisplay(t *testing.T) {

@@ -47,6 +47,7 @@ func makeTestProviderWithEntries(t *testing.T, specs []entrySpec) *PrometheusHTT
 			client:        http.DefaultClient,
 			checkTemplate: tmpl,
 			filterProgram: filterProg,
+			renameLabels:  extractRenameLabels(tmpl),
 		}
 	}
 
@@ -180,7 +181,7 @@ func TestLabelsToTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags := labelsToTags(tt.labels)
+			tags := labelsToTags(tt.labels, nil)
 			assert.Equal(t, tt.expected, tags)
 		})
 	}
@@ -195,7 +196,7 @@ func TestLabelsToTagsStableOrder(t *testing.T) {
 
 	// Run multiple times to verify deterministic ordering
 	for i := 0; i < 10; i++ {
-		tags := labelsToTags(labels)
+		tags := labelsToTags(labels, nil)
 		assert.Equal(t, []string{"a_label:first", "m_label:middle", "z_label:last"}, tags)
 	}
 }
@@ -791,4 +792,130 @@ func TestNewPrometheusHTTPSDConfigProviderFromConfig(t *testing.T) {
 	var instance map[string]interface{}
 	require.NoError(t, yaml.Unmarshal(configs[0].Instances[0], &instance))
 	assert.Equal(t, "http://host2:9100/metrics", instance["openmetrics_endpoint"])
+}
+
+func TestLabelsToTagsRename(t *testing.T) {
+	tests := []struct {
+		name         string
+		labels       map[string]string
+		renameLabels map[string]string
+		expected     []string
+	}{
+		{
+			name:         "plain label is renamed",
+			labels:       map[string]string{"experiment": "test123", "service": "node"},
+			renameLabels: map[string]string{"experiment": "appXYZ.experiment"},
+			expected:     []string{"appXYZ.experiment:test123", "service:node"},
+		},
+		{
+			name:         "rename applies to __meta_ label after prefix is stripped",
+			labels:       map[string]string{"__meta_service_type": "worker"},
+			renameLabels: map[string]string{"service_type": "appXYZ.service_type"},
+			expected:     []string{"appXYZ.service_type:worker"},
+		},
+		{
+			name:         "label not in rename map is untouched",
+			labels:       map[string]string{"user": "alice"},
+			renameLabels: map[string]string{"experiment": "appXYZ.experiment"},
+			expected:     []string{"user:alice"},
+		},
+		{
+			name:         "nil rename map is a no-op",
+			labels:       map[string]string{"experiment": "test123"},
+			renameLabels: nil,
+			expected:     []string{"experiment:test123"},
+		},
+		{
+			name:         "__ internal labels stay skipped even if named in the map",
+			labels:       map[string]string{"__address__": "10.0.0.1:9090", "experiment": "test123"},
+			renameLabels: map[string]string{"experiment": "appXYZ.experiment"},
+			expected:     []string{"appXYZ.experiment:test123"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tags := labelsToTags(tt.labels, tt.renameLabels)
+			assert.Equal(t, tt.expected, tags)
+		})
+	}
+}
+
+func TestExtractRenameLabels(t *testing.T) {
+	tests := []struct {
+		name     string
+		template string
+		expected map[string]string
+	}{
+		{
+			name:     "rename_labels present",
+			template: `{"name":"openmetrics","instances":[{"rename_labels":{"experiment":"appXYZ.experiment","pool":"appXYZ.pool"}}]}`,
+			expected: map[string]string{"experiment": "appXYZ.experiment", "pool": "appXYZ.pool"},
+		},
+		{
+			name:     "no rename_labels field",
+			template: `{"name":"openmetrics","instances":[{"openmetrics_endpoint":"http://x/metrics"}]}`,
+			expected: nil,
+		},
+		{
+			name:     "empty rename_labels map",
+			template: `{"name":"openmetrics","instances":[{"rename_labels":{}}]}`,
+			expected: nil,
+		},
+		{
+			name:     "non-string values are skipped",
+			template: `{"name":"openmetrics","instances":[{"rename_labels":{"experiment":"appXYZ.experiment","bad":123}}]}`,
+			expected: map[string]string{"experiment": "appXYZ.experiment"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var tmpl httpSDCheckTemplate
+			require.NoError(t, json.Unmarshal([]byte(tt.template), &tmpl))
+			assert.Equal(t, tt.expected, extractRenameLabels(tmpl))
+		})
+	}
+}
+
+// TestRenameLabelsAppliedToSDTags is the end-to-end case behind CONTP-1801:
+// the check template's rename_labels must also rename the tags derived from the
+// SD target labels, not just scraped metrics. Here the SD response labels the
+// target with `experiment`, which the OpenMetrics check alone could never rename
+// (it's an injected instance tag, not a scraped label).
+func TestRenameLabelsAppliedToSDTags(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]httpSDTargetGroup{
+			{
+				Targets: []string{"10.0.0.7:8000"},
+				Labels:  map[string]string{"experiment": "test123", "service": "node"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	provider := makeTestProviderWithEntries(t, []entrySpec{{
+		url:      server.URL,
+		template: `{"name":"openmetrics","init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics","rename_labels":{"experiment":"appXYZ.experiment"}}]}`,
+	}})
+
+	configs, err := provider.Collect(context.Background())
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	var instance map[string]interface{}
+	require.NoError(t, yaml.Unmarshal(configs[0].Instances[0], &instance))
+
+	tags := make([]string, 0)
+	for _, tag := range instance["tags"].([]interface{}) {
+		tags = append(tags, tag.(string))
+	}
+	assert.Contains(t, tags, "appXYZ.experiment:test123", "SD `experiment` label should be renamed via rename_labels")
+	assert.NotContains(t, tags, "experiment:test123", "raw `experiment` tag should not remain after rename")
+	assert.Contains(t, tags, "service:node", "unmapped SD labels should be untouched")
+
+	// rename_labels stays in the instance so the OpenMetrics check still renames
+	// scraped labels of the same name. (YAML v2 decodes nested maps with
+	// interface{} keys.)
+	assert.Equal(t, map[interface{}]interface{}{"experiment": "appXYZ.experiment"}, instance["rename_labels"])
 }

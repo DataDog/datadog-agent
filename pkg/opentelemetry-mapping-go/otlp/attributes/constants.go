@@ -17,6 +17,7 @@ package attributes
 
 import (
 	semconv1_17 "go.opentelemetry.io/otel/semconv/v1.17.0"
+	semconv1_30 "go.opentelemetry.io/otel/semconv/v1.30.0"
 	semconv1_6_1 "go.opentelemetry.io/otel/semconv/v1.6.1"
 )
 
@@ -38,44 +39,60 @@ const (
 	SpanTypeDB            = "db"
 )
 
-// DBTypes are semconv1_6_1 types that should map to span.Type values given in the mapping
+// DBTypes are semconv1_6_1 types that should map to span.Type values given in the mapping.
+// semconv1_30 (db.system.name) entries are only listed where the enum value string differs
+// from its semconv1_6_1 (db.system) counterpart; identical values are covered by the
+// semconv1_6_1 entry alone.
 var DBTypes = map[string]string{
 	// SQL db types
-	semconv1_6_1.DBSystemOtherSQL.Value.AsString():    SpanTypeSQL,
-	semconv1_6_1.DBSystemMSSQL.Value.AsString():       SpanTypeSQL,
-	semconv1_6_1.DBSystemMySQL.Value.AsString():       SpanTypeSQL,
-	semconv1_6_1.DBSystemOracle.Value.AsString():      SpanTypeSQL,
-	semconv1_6_1.DBSystemDB2.Value.AsString():         SpanTypeSQL,
-	semconv1_6_1.DBSystemPostgreSQL.Value.AsString():  SpanTypeSQL,
-	semconv1_6_1.DBSystemRedshift.Value.AsString():    SpanTypeSQL,
-	semconv1_6_1.DBSystemCloudscape.Value.AsString():  SpanTypeSQL,
-	semconv1_6_1.DBSystemHSQLDB.Value.AsString():      SpanTypeSQL,
-	semconv1_6_1.DBSystemMaxDB.Value.AsString():       SpanTypeSQL,
-	semconv1_6_1.DBSystemIngres.Value.AsString():      SpanTypeSQL,
-	semconv1_6_1.DBSystemFirstSQL.Value.AsString():    SpanTypeSQL,
-	semconv1_6_1.DBSystemEDB.Value.AsString():         SpanTypeSQL,
-	semconv1_6_1.DBSystemCache.Value.AsString():       SpanTypeSQL,
-	semconv1_6_1.DBSystemFirebird.Value.AsString():    SpanTypeSQL,
-	semconv1_6_1.DBSystemDerby.Value.AsString():       SpanTypeSQL,
-	semconv1_6_1.DBSystemInformix.Value.AsString():    SpanTypeSQL,
-	semconv1_6_1.DBSystemMariaDB.Value.AsString():     SpanTypeSQL,
-	semconv1_6_1.DBSystemSqlite.Value.AsString():      SpanTypeSQL,
-	semconv1_6_1.DBSystemSybase.Value.AsString():      SpanTypeSQL,
-	semconv1_6_1.DBSystemTeradata.Value.AsString():    SpanTypeSQL,
-	semconv1_6_1.DBSystemVertica.Value.AsString():     SpanTypeSQL,
-	semconv1_6_1.DBSystemH2.Value.AsString():          SpanTypeSQL,
-	semconv1_6_1.DBSystemColdfusion.Value.AsString():  SpanTypeSQL,
-	semconv1_6_1.DBSystemCockroachdb.Value.AsString(): SpanTypeSQL,
-	semconv1_6_1.DBSystemProgress.Value.AsString():    SpanTypeSQL,
-	semconv1_6_1.DBSystemHanaDB.Value.AsString():      SpanTypeSQL,
-	semconv1_6_1.DBSystemAdabas.Value.AsString():      SpanTypeSQL,
-	semconv1_6_1.DBSystemFilemaker.Value.AsString():   SpanTypeSQL,
-	semconv1_6_1.DBSystemInstantDB.Value.AsString():   SpanTypeSQL,
-	semconv1_6_1.DBSystemInterbase.Value.AsString():   SpanTypeSQL,
-	semconv1_6_1.DBSystemNetezza.Value.AsString():     SpanTypeSQL,
-	semconv1_6_1.DBSystemPervasive.Value.AsString():   SpanTypeSQL,
-	semconv1_6_1.DBSystemPointbase.Value.AsString():   SpanTypeSQL,
-	semconv1_17.DBSystemClickhouse.Value.AsString():   SpanTypeSQL, // not in semconv1_6_1 1.6.1
+	semconv1_6_1.DBSystemOtherSQL.Value.AsString():              SpanTypeSQL,
+	semconv1_6_1.DBSystemMSSQL.Value.AsString():                 SpanTypeSQL,
+	semconv1_30.DBSystemNameMicrosoftSQLServer.Value.AsString(): SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemMySQL.Value.AsString():                 SpanTypeSQL,
+	semconv1_6_1.DBSystemOracle.Value.AsString():                SpanTypeSQL,
+	semconv1_30.DBSystemNameOracleDB.Value.AsString():           SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemDB2.Value.AsString():                   SpanTypeSQL,
+	semconv1_30.DBSystemNameIbmDb2.Value.AsString():             SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemPostgreSQL.Value.AsString():            SpanTypeSQL,
+	semconv1_6_1.DBSystemRedshift.Value.AsString():              SpanTypeSQL,
+	semconv1_30.DBSystemNameAWSRedshift.Value.AsString():        SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemCloudscape.Value.AsString():            SpanTypeSQL,
+	semconv1_6_1.DBSystemHSQLDB.Value.AsString():                SpanTypeSQL,
+	semconv1_6_1.DBSystemMaxDB.Value.AsString():                 SpanTypeSQL,
+	semconv1_30.DBSystemNameSapMaxDB.Value.AsString():           SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemIngres.Value.AsString():                SpanTypeSQL,
+	semconv1_30.DBSystemNameActianIngres.Value.AsString():       SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemFirstSQL.Value.AsString():              SpanTypeSQL,
+	semconv1_6_1.DBSystemEDB.Value.AsString():                   SpanTypeSQL,
+	semconv1_6_1.DBSystemCache.Value.AsString():                 SpanTypeSQL,
+	semconv1_30.DBSystemNameIntersystemsCache.Value.AsString():  SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemFirebird.Value.AsString():              SpanTypeSQL,
+	semconv1_30.DBSystemNameFirebirdsql.Value.AsString():        SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemDerby.Value.AsString():                 SpanTypeSQL,
+	semconv1_6_1.DBSystemInformix.Value.AsString():              SpanTypeSQL,
+	semconv1_30.DBSystemNameIbmInformix.Value.AsString():        SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemMariaDB.Value.AsString():               SpanTypeSQL,
+	semconv1_6_1.DBSystemSqlite.Value.AsString():                SpanTypeSQL,
+	semconv1_6_1.DBSystemSybase.Value.AsString():                SpanTypeSQL,
+	semconv1_6_1.DBSystemTeradata.Value.AsString():              SpanTypeSQL,
+	semconv1_6_1.DBSystemVertica.Value.AsString():               SpanTypeSQL,
+	semconv1_6_1.DBSystemH2.Value.AsString():                    SpanTypeSQL,
+	semconv1_30.DBSystemNameH2database.Value.AsString():         SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemColdfusion.Value.AsString():            SpanTypeSQL,
+	semconv1_6_1.DBSystemCockroachdb.Value.AsString():           SpanTypeSQL,
+	semconv1_6_1.DBSystemProgress.Value.AsString():              SpanTypeSQL,
+	semconv1_6_1.DBSystemHanaDB.Value.AsString():                SpanTypeSQL,
+	semconv1_30.DBSystemNameSapHana.Value.AsString():            SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemAdabas.Value.AsString():                SpanTypeSQL,
+	semconv1_30.DBSystemNameSoftwareagAdabas.Value.AsString():   SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemFilemaker.Value.AsString():             SpanTypeSQL,
+	semconv1_6_1.DBSystemInstantDB.Value.AsString():             SpanTypeSQL,
+	semconv1_6_1.DBSystemInterbase.Value.AsString():             SpanTypeSQL,
+	semconv1_6_1.DBSystemNetezza.Value.AsString():               SpanTypeSQL,
+	semconv1_30.DBSystemNameIbmNetezza.Value.AsString():         SpanTypeSQL, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemPervasive.Value.AsString():             SpanTypeSQL,
+	semconv1_6_1.DBSystemPointbase.Value.AsString():             SpanTypeSQL,
+	semconv1_17.DBSystemClickhouse.Value.AsString():             SpanTypeSQL, // not in semconv1_6_1 1.6.1
 
 	// Cassandra db types
 	semconv1_6_1.DBSystemCassandra.Value.AsString(): SpanTypeCassandra,
@@ -96,12 +113,14 @@ var DBTypes = map[string]string{
 	semconv1_17.DBSystemOpensearch.Value.AsString(): SpanTypeOpenSearch,
 
 	// Generic db types
-	semconv1_6_1.DBSystemHive.Value.AsString():      SpanTypeDB,
-	semconv1_6_1.DBSystemHBase.Value.AsString():     SpanTypeDB,
-	semconv1_6_1.DBSystemNeo4j.Value.AsString():     SpanTypeDB,
-	semconv1_6_1.DBSystemCouchbase.Value.AsString(): SpanTypeDB,
-	semconv1_6_1.DBSystemCouchDB.Value.AsString():   SpanTypeDB,
-	semconv1_6_1.DBSystemCosmosDB.Value.AsString():  SpanTypeDB,
-	semconv1_6_1.DBSystemDynamoDB.Value.AsString():  SpanTypeDB,
-	semconv1_6_1.DBSystemGeode.Value.AsString():     SpanTypeDB,
+	semconv1_6_1.DBSystemHive.Value.AsString():             SpanTypeDB,
+	semconv1_6_1.DBSystemHBase.Value.AsString():            SpanTypeDB,
+	semconv1_6_1.DBSystemNeo4j.Value.AsString():            SpanTypeDB,
+	semconv1_6_1.DBSystemCouchbase.Value.AsString():        SpanTypeDB,
+	semconv1_6_1.DBSystemCouchDB.Value.AsString():          SpanTypeDB,
+	semconv1_6_1.DBSystemCosmosDB.Value.AsString():         SpanTypeDB,
+	semconv1_30.DBSystemNameAzureCosmosDB.Value.AsString(): SpanTypeDB, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemDynamoDB.Value.AsString():         SpanTypeDB,
+	semconv1_30.DBSystemNameAWSDynamoDB.Value.AsString():   SpanTypeDB, // changed in semconv1_30_0
+	semconv1_6_1.DBSystemGeode.Value.AsString():            SpanTypeDB,
 }

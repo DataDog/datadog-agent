@@ -42,5 +42,5 @@ FIPS cipher and compliance tests for Windows live in a separate package:
 
 Jobs are in `.gitlab/windows/test/e2e_install_packages/windows.yml` under
 `new-e2e-windows-agent-a7-x86_64-fips`. The compliance tests are in
-`.gitlab/windows/test/e2e/windows.yml` under
+`.gitlab/windows/test/e2e/windows_products.yml` under
 `new-e2e-windows-fips-compliance-test`.

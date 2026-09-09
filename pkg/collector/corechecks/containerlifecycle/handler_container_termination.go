@@ -30,9 +30,10 @@ func (h *ContainerTerminationHandler) String() string {
 }
 
 // CanHandle reports whether this handler processes the given event.
-func (h *ContainerTerminationHandler) CanHandle(ev workloadmeta.Event) bool {
+func (h *ContainerTerminationHandler) CanHandle(ev workloadmeta.Event, source workloadmeta.Source) bool {
 	return ev.Type == workloadmeta.EventTypeUnset &&
-		ev.Entity.GetID().Kind == workloadmeta.KindContainer
+		ev.Entity.GetID().Kind == workloadmeta.KindContainer &&
+		source == workloadmeta.SourceRuntime
 }
 
 // Handle builds a LifecycleEvent for a container termination.

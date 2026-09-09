@@ -10,6 +10,7 @@ from tasks.libs.owners.linter import (
     ai_artefacts_have_owner,
     codeowner_has_orphans,
     directory_has_packages_without_owner,
+    skills_use_agents_directory,
 )
 
 
@@ -32,19 +33,42 @@ class TestCodeownerLinter(unittest.TestCase):
         os.chdir(self.backup_cwd)
 
     def test_all_pkg_have_codeowner(self):
-        codeowner = CodeOwners("\n".join("/pkg/" + pkg for pkg in self.fake_pkgs))
+        codeowner = CodeOwners("\n".join("/pkg/" + pkg + " @owner" for pkg in self.fake_pkgs))
         self.assertFalse(directory_has_packages_without_owner(codeowner))
         self.assertFalse(codeowner_has_orphans(codeowner))
 
     def test_pkg_is_missing_codeowner(self):
-        codeowner = CodeOwners("\n".join(os.path.join("/pkg/", pkg) for pkg in self.fake_pkgs[:-1]))
+        codeowner = CodeOwners("\n".join(os.path.join("/pkg/", pkg) + " @owner" for pkg in self.fake_pkgs[:-1]))
         self.assertTrue(directory_has_packages_without_owner(codeowner))
         self.assertFalse(codeowner_has_orphans(codeowner))
 
     def test_codeowner_rule_is_outdated(self):
-        codeowner = CodeOwners("\n".join(os.path.join("/pkg/", pkg) for pkg in [*self.fake_pkgs, "old_deleted_pkg"]))
+        codeowner = CodeOwners(
+            "\n".join(os.path.join("/pkg/", pkg) + " @owner" for pkg in [*self.fake_pkgs, "old_deleted_pkg"])
+        )
         self.assertFalse(directory_has_packages_without_owner(codeowner))
         self.assertTrue(codeowner_has_orphans(codeowner))
+
+    def test_pkg_not_owned_by_blanket_folder_rule(self):
+        # A generic /pkg/ rule covers every path under pkg recursively, but it must not be
+        # treated as evidence that a specific package has its own dedicated owner.
+        codeowner = CodeOwners(
+            "\n".join(["/pkg/ @DataDog/agent-runtimes", *("/pkg/" + pkg + " @owner" for pkg in self.fake_pkgs[:-1])])
+        )
+        self.assertTrue(directory_has_packages_without_owner(codeowner))
+
+    def test_pkg_not_owned_by_noowner_glob_rule(self):
+        # A glob rule with no owners (e.g. a "do not notify anyone" suppression) still matches
+        # a package's path structurally, but must not count as ownership.
+        codeowner = CodeOwners("\n".join(["/**/fake_a", *("/pkg/" + pkg + " @owner" for pkg in self.fake_pkgs[1:])]))
+        self.assertTrue(directory_has_packages_without_owner(codeowner))
+
+    def test_root_file_is_ignored(self):
+        # A single file directly under `pkg` (e.g. BUILD.bazel) isn't a package, so it doesn't
+        # need a dedicated CODEOWNERS entry even when otherwise unowned.
+        open(os.path.join(self.pkg_dir, "BUILD.bazel"), "w").close()
+        codeowner = CodeOwners("\n".join("/pkg/" + pkg + " @owner" for pkg in self.fake_pkgs))
+        self.assertFalse(directory_has_packages_without_owner(codeowner))
 
 
 class TestAIArtefactsHaveOwner(unittest.TestCase):
@@ -72,7 +96,7 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
         return ctx
 
     def test_no_ai_artefacts(self):
-        # No AGENTS.md or .claude/ — nothing to check
+        # No AGENTS.md, .claude/ or .agents/ — nothing to check
         codeowner = CodeOwners("")
         self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
 
@@ -87,13 +111,13 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
         codeowner = CodeOwners("/pkg/bar/ @DataDog/team-a\n")
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
-    def test_claude_file_has_owner(self):
-        self._create(".claude/skills/my-skill.md")
-        codeowner = CodeOwners("/.claude/ @DataDog/devx\n")
+    def test_agents_file_has_owner(self):
+        self._create(".agents/skills/my-skill.md")
+        codeowner = CodeOwners("/.agents/ @DataDog/devx\n")
         self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
 
-    def test_claude_file_missing_owner(self):
-        self._create(".claude/skills/my-skill.md")
+    def test_agents_file_missing_owner(self):
+        self._create(".agents/skills/my-skill.md")
         codeowner = CodeOwners("/pkg/foo/ @DataDog/team-a\n")
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
@@ -109,8 +133,8 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
     def test_catch_all_dot_files_is_not_explicit(self):
-        # /.*  matches .claude/ files but is not considered explicit ownership
-        self._create(".claude/skills/my-skill.md")
+        # /.*  matches .agents/ files but is not considered explicit ownership
+        self._create(".agents/skills/my-skill.md")
         codeowner = CodeOwners("/.*  @DataDog/agent-devx\n")
         self.assertTrue(ai_artefacts_have_owner(self._ctx(), codeowner))
 
@@ -125,3 +149,29 @@ class TestAIArtefactsHaveOwner(unittest.TestCase):
         self._create("AGENTS.md")
         codeowner = CodeOwners("/*.md @DataDog/agent-devx\n/AGENTS.md @DataDog/agent-devx\n")
         self.assertFalse(ai_artefacts_have_owner(self._ctx(), codeowner))
+
+
+class TestSkillsUseAgentsDirectory(unittest.TestCase):
+    @staticmethod
+    def _ctx(tracked):
+        ctx = MagicMock()
+        ctx.run.return_value.stdout = "\n".join(tracked)
+        return ctx
+
+    def test_symlink_only_is_ok(self):
+        # The bare `.claude/skills` symlink with no children is allowed.
+        ctx = self._ctx(['.claude/skills', '.agents/skills/foo/SKILL.md'])
+        self.assertFalse(skills_use_agents_directory(ctx))
+
+    def test_real_skill_under_claude_is_flagged(self):
+        ctx = self._ctx(['.claude/skills/foo/SKILL.md'])
+        self.assertTrue(skills_use_agents_directory(ctx))
+
+    def test_skill_under_agents_is_ok(self):
+        ctx = self._ctx(['.agents/skills/foo/SKILL.md', '.agents/skills/foo/references/x.md'])
+        self.assertFalse(skills_use_agents_directory(ctx))
+
+    def test_nested_claude_skills_is_out_of_scope(self):
+        # A nested `.claude/skills` under another directory falls outside the root-scoped check.
+        ctx = self._ctx(['test/new-e2e/x/.claude/skills/y/SKILL.md'])
+        self.assertFalse(skills_use_agents_directory(ctx))

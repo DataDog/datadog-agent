@@ -99,7 +99,7 @@ func (s *K8sSuite) TestProcessCheck() {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		status := k8sAgentStatus(c, s.Env().KubernetesCluster)
 		// On Linux, process checks run in the core agent's process component
-		assert.ElementsMatch(c, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
+		assert.ElementsMatch(c, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 	}, 5*time.Minute, 10*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -110,10 +110,10 @@ func (s *K8sSuite) TestProcessCheck() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 5*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	assertContainersCollected(t, payloads, []string{"stress-ng"})
+		assertProcessCollected(c, payloads, false, "stress-ng-cpu [run]")
+		assertContainersCollected(c, payloads, []string{"stress-ng"})
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func (s *K8sSuite) TestManualProcessCheck() {
@@ -200,7 +200,7 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 	}()
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		status = k8sAgentStatus(c, s.Env().KubernetesCluster)
-		assert.ElementsMatch(c, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
+		assert.ElementsMatch(c, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 		assert.ElementsMatch(c, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 	}, 5*time.Minute, 10*time.Second)
 
@@ -215,11 +215,11 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 5*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	assertProcessCollected(t, payloads, false, "process-agent")
-	assertContainersCollected(t, payloads, []string{"stress-ng", "process-agent"})
+		assertProcessCollected(c, payloads, false, "stress-ng-cpu [run]")
+		assertProcessCollected(c, payloads, false, "process-agent")
+		assertContainersCollected(c, payloads, []string{"stress-ng", "process-agent"})
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, check string) string {

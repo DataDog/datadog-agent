@@ -21,9 +21,9 @@ import (
 )
 
 const (
-	databricksInjectorVersion   = "0.67.2-1"
-	databricksJavaTracerVersion = "1.63.0-1"
-	databricksAgentVersion      = "7.79.2-1"
+	databricksInjectorVersion   = "0.68.0-1"
+	databricksJavaTracerVersion = "1.65.0-1"
+	databricksAgentVersion      = "7.81.3-1"
 	gpuIntegrationRestartDelay  = 60 * time.Second
 	restartLogFile              = "/var/log/datadog-gpu-restart"
 )
@@ -338,7 +338,7 @@ func setClearHostTag(s *common.Setup, tagKey, value string) {
 
 // setupGPUIntegration configures GPU monitoring integration
 func setupGPUIntegration(s *common.Setup) {
-	s.Out.WriteString("Setting up GPU monitoring based on env variable GPU_MONITORING_ENABLED=true\n")
+	s.Out.WriteString("Setting up GPU monitoring based on env variable DD_GPU_ENABLED=true\n")
 	s.Span.SetTag("host_tag_set.gpu_monitoring_enabled", "true")
 
 	s.Config.DatadogYAML.GPUCheck.Enabled = config.BoolToPtr(true)

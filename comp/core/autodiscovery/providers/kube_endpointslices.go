@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -62,7 +63,7 @@ type configInfoSlices struct {
 // NewKubeEndpointSlicesConfigProvider returns a new ConfigProvider connected to apiserver using EndpointSlices.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 // Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
-func NewKubeEndpointSlicesConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeEndpointSlicesConfigProvider(_ *constants.ConfigurationProviders, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
@@ -150,6 +151,8 @@ func (k *kubeEndpointSlicesConfigProvider) Collect(context.Context) ([]integrati
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
 func (k *kubeEndpointSlicesConfigProvider) IsUpToDate(context.Context) (bool, error) {
+	k.RLock()
+	defer k.RUnlock()
 	return k.upToDate, nil
 }
 
@@ -300,7 +303,8 @@ func (k *kubeEndpointSlicesConfigProvider) parseServiceAnnotationsForEndpointSli
 		serviceKey := fmt.Sprintf("%s/%s", svc.Namespace, svc.Name)
 		setServiceKeys[serviceKey] = struct{}{}
 
-		endptConf, errors := utils.ExtractTemplatesFromAnnotations(serviceKey, svc.GetAnnotations(), kubeEndpointID)
+		hybridIgnoreADTags := pkgconfigsetup.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags")
+		endptConf, errors := utils.ExtractTemplatesFromAnnotations(serviceKey, svc.GetAnnotations(), kubeEndpointID, hybridIgnoreADTags)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s: %s", serviceKey, err)
 		}
@@ -378,6 +382,10 @@ func generateConfigFromSlice(tpl integration.Config, resolveMode endpointResolve
 	resolveFunc := getEndpointResolveFuncForSlice(resolveMode, namespace, serviceName)
 
 	for _, endpoint := range slice.Endpoints {
+		if !apiserver.IsEndpointServing(&endpoint) {
+			continue
+		}
+
 		for _, ip := range endpoint.Addresses {
 			// Set a new entity containing the endpoint's IP
 			entity := apiserver.EntityForEndpoints(namespace, serviceName, ip)

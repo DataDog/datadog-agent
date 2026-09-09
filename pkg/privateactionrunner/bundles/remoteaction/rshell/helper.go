@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	pathAccessReadOnly  = ":ro"
-	pathAccessReadWrite = ":rw"
+	pathAccessReadOnly            = ":ro"
+	pathAccessReadWrite           = ":rw"
+	rShellCommandNamespacePrefix  = "rshell:"
+	rShellCommandAllowAllWildcard = rShellCommandNamespacePrefix + "*"
 )
 
 // onlyRshellPrefixedCommands returns the commands that are prefixed with the rshell namespace.
@@ -29,9 +31,9 @@ const (
 func onlyRshellPrefixedCommands(commands []string) []string {
 	prefixedCommands := make([]string, 0, len(commands))
 	for _, c := range commands {
-		if strings.HasPrefix(c, setup.RShellCommandNamespacePrefix) &&
-			c != setup.RShellCommandAllowAllWildcard && // this is the wildcard token itself, it should never be admitted
-			c != setup.RShellCommandNamespacePrefix { // this is the empty name after the prefix, it should never be admitted
+		if strings.HasPrefix(c, rShellCommandNamespacePrefix) &&
+			c != rShellCommandAllowAllWildcard && // this is the wildcard token itself, it should never be admitted
+			c != rShellCommandNamespacePrefix { // this is the empty name after the prefix, it should never be admitted
 			prefixedCommands = append(prefixedCommands, c)
 		}
 	}
@@ -51,9 +53,9 @@ func intersectAllowedCommands(backendAllowed []string, operatorAllowed []string)
 	operatorAllowedSet := make(map[string]struct{}, len(operatorAllowed))
 	for _, c := range operatorAllowed {
 		switch {
-		case c == setup.RShellCommandAllowAllWildcard:
+		case c == rShellCommandAllowAllWildcard:
 			return slices.Clone(backendAllowed)
-		case strings.HasPrefix(c, setup.RShellCommandNamespacePrefix):
+		case strings.HasPrefix(c, rShellCommandNamespacePrefix):
 			operatorAllowedSet[c] = struct{}{}
 		}
 	}

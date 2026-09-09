@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	agentversion "github.com/DataDog/datadog-agent/pkg/version"
@@ -89,7 +90,8 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, logs []Log) error {
 //   - PCs    -> multi-frame stack_trace ("file:line\tfunc" per line)
 //   - Count  -> 1 today; the Bouncer populates the suppressed-duplicate
 //     count here.
-//   - Tags   -> git.repository_url + git.commit.sha for Source Code Integration
+//   - Tags   -> git.repository_url + git.commit.sha + agent.flavor for
+//     Source Code Integration and cross-binary origin identification
 //   - Message, TraceID, SpanID -> "" (not populated)
 //   - IsCrash -> false (this path does not emit crash logs)
 func enrichErrorLog(e errortracking.ErrorLog) Log {
@@ -106,7 +108,7 @@ func enrichErrorLog(e errortracking.ErrorLog) Log {
 		Count:      count,
 		IsCrash:    false,
 		ErrorKind:  e.ErrorKind,
-		Tags:       "git.repository_url:https://github.com/DataDog/datadog-agent,git.commit.sha:" + commitSHAPlaceholder,
+		Tags:       "git.repository_url:https://github.com/DataDog/datadog-agent,git.commit.sha:" + commitSHAPlaceholder + ",agent.flavor:" + flavor.GetFlavor(),
 	}
 	out.StackTrace = symbolizeStackFrames(e)
 	return out

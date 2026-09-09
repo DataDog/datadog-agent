@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed DDOT being unable to reach the core Agent in containerized deployments that do not pass ``--core-config`` (Docker, ECS, and ECS Fargate). Without a core config path the connection failed with ``x509: certificate signed by unknown authority``.
+    The OTel Agent now falls back to the default ``datadog.yaml`` location when it exists and the collector is not running in standalone mode.

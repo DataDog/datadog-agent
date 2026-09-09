@@ -1,0 +1,87 @@
+# A process is identified by its pid and its start time, so a reused pid does not
+# inherit anything from the process that died.
+#
+# 1001 is instrumented and 1002 is a candidate when both exit and both pids are
+# reused before the next scan. The scan must report the old 1001 as gone and the
+# new one as discovered, and must give the new 1002 a fresh retry schedule rather
+# than the one the dead process had built up.
+- !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+- !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata: {language: "go", service: "first"}
+- !create-process
+  pid: 1002
+  start_time: 50
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "silent"}
+- !scan {}
+- !remove-process {pid: 1001}
+- !remove-process {pid: 1002}
+- !advance-time {to: 105}
+- !create-process
+  pid: 1001
+  start_time: 105
+  tracer_metadata: {language: "go", service: "second"}
+- !create-process
+  pid: 1002
+  start_time: 105
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "silent-again"}
+- !advance-time {to: 120}
+- !scan {}
+---
+command: !initialize
+  current_time: 100
+  backoff_base: 10
+  backoff_cap: 100
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata: {language: "go", service: "first"}
+---
+command: !create-process
+  pid: 1002
+  start_time: 50
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "silent"}
+---
+command: !scan {}
+new: [{pid: 1001, start_time: 50}]
+state:
+  current_time: 100
+  live: [{pid: 1001, start_time: 50}]
+  candidates: [{pid: 1002, start_time: 50, attempts: 1, next_attempt: 110}]
+  processes_in_procfs: [1001, 1002]
+---
+command: !remove-process {pid: 1001}
+---
+command: !remove-process {pid: 1002}
+---
+command: !advance-time {to: 105}
+---
+command: !create-process
+  pid: 1001
+  start_time: 105
+  tracer_metadata: {language: "go", service: "second"}
+---
+command: !create-process
+  pid: 1002
+  start_time: 105
+  metadata_available_at: 1000000
+  tracer_metadata: {language: "go", service: "silent-again"}
+---
+command: !advance-time {to: 120}
+---
+command: !scan {}
+new: [{pid: 1001, start_time: 105}]
+removed: [1001]
+state:
+  current_time: 120
+  live: [{pid: 1001, start_time: 105}]
+  candidates: [{pid: 1002, start_time: 105, attempts: 1, next_attempt: 130}]
+  processes_in_procfs: [1001, 1002]

@@ -155,7 +155,7 @@ func FuzzSyscallsEvent_UnmarshalBinary(f *testing.F) {
 }
 
 func FuzzSpanContext_UnmarshalBinary(f *testing.F) {
-	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &SpanContext{} }, 24)
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &SpanContext{} }, 32)
 }
 
 func FuzzExitEvent_UnmarshalBinary(f *testing.F) {

@@ -11,6 +11,7 @@ receivers:
             - targets: ['0.0.0.0:8888']
 
 processors:
+  cumulativetodelta/dd-autoconfigured:
   infraattributes/user-defined:
 
 exporters:
@@ -36,7 +37,7 @@ service:
       exporters: [datadog]
     metrics:
       receivers: [prometheus/user-defined]
-      processors: [infraattributes/user-defined]
+      processors: [infraattributes/user-defined, cumulativetodelta/dd-autoconfigured]
       exporters: [datadog]
     logs:
       receivers: [otlp]

@@ -104,6 +104,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_LOG_LEVEL")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Custom WindowsBuild property since MSI caps theirs at 9600
                 new Property("DDAGENT_WINDOWSBUILD")
                 {
@@ -199,22 +203,6 @@ namespace WixSetup.Datadog_Agent
                     // which can cause the directory to be added to the CreateFolder table.
                     new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true, AttributesDefinition = "KeyPath=yes" },
                     new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
-                )
-                {
-                    Win64 = true
-                },
-                new RegKey(
-                    _agentFeatures.MainApplication,
-                    RegistryHive.LocalMachine, @"Software\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_usage_agent.native_host",
-                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_usage_agent.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
-                )
-                {
-                    Win64 = true
-                },
-                new RegKey(
-                    _agentFeatures.MainApplication,
-                    RegistryHive.LocalMachine, @"Software\WOW6432Node\Google\Chrome\NativeMessagingHosts\com.datadoghq.ai_usage_agent.native_host",
-                    new RegValue("", @"[AGENT]dist\com.datadoghq.ai_usage_agent.native_host.json") { Win64 = true, AttributesDefinition = "KeyPath=yes" }
                 )
                 {
                     Win64 = true
@@ -718,10 +706,6 @@ namespace WixSetup.Datadog_Agent
 
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));
 
-            // AI usage Chrome native messaging host (Rust). Plain non-service file in bin\agent.
-            // Explicit Id only on the .exe so future custom actions can reference it via [#ai_usage_agent_native_host].
-            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AiUsageAgentNativeHostId, _agentBinaries.AiUsageAgentNativeHost));
-
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
                 // Temporary binary for extracting the embedded Python - will be deleted
@@ -777,7 +761,8 @@ namespace WixSetup.Datadog_Agent
             var appData = new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
                 new DirFiles($@"{EtcSource}\*.yaml.example"),
                 new Dir("checks.d"),
-                new Dir("protected"),
+                new Dir("protected",
+                    new DirFiles($@"{EtcSource}\protected\*")),
                 new Dir("run"),
                 new Dir("logs"),
                 new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",

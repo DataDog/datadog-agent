@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
 
 # Source-level export so the //pkg/security/secl/model:event_deep_copy_*
@@ -26,14 +27,13 @@ go_library(
     deps = ["@com_github_tinylib_msgp//msgp"],
 )
 
-go_test(
+dd_agent_go_test(
     name = "model_test",
     srcs = [
         "tracer_metadata_gen_test.go",
         "tracer_metadata_test.go",
     ],
     embed = [":model"],
-    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_tinylib_msgp//msgp",

@@ -1,0 +1,26 @@
+receivers:
+    otlp:
+
+exporters:
+    nop:
+
+extensions:
+    pprof/custom:
+        endpoint: localhost:6060
+    zpages/custom:
+        endpoint: localhost:55681
+    health_check/custom:
+        endpoint: localhost:13134
+    ddflare/custom:
+
+service:
+    pipelines:
+        traces:
+            receivers: [otlp]
+            exporters: [nop]
+        metrics:
+            receivers: [otlp]
+            exporters: [nop]
+        logs:
+            receivers: [otlp]
+            exporters: [nop]

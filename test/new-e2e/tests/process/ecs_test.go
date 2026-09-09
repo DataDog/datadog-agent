@@ -87,7 +87,7 @@ func (s *ECSEC2Suite) TestProcessCheck() {
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
-		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
+		assertProcessCollected(c, payloads, false, "stress-ng-cpu [run]")
+		assertContainersCollected(c, payloads, []string{"stress-ng"})
 	}, 5*time.Minute, 10*time.Second)
 }

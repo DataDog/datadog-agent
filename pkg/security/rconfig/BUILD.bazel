@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",
+        "//pkg/config/helper",
         "//pkg/config/remote/client",
         "//pkg/config/setup",
         "//pkg/remoteconfig/state",

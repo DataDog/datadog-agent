@@ -45,6 +45,8 @@ const (
 	KarpenterAWSAPIGroup    = "karpenter.k8s.aws"
 	KarpenterAzureAPIGroup  = "karpenter.azure.com"
 	EKSAPIGroup             = "eks.amazonaws.com"
+	DynamoAPIGroup          = "nvidia.com"
+	KubeRayAPIGroup         = "ray.io"
 
 	// Gateway API
 	GatewayAPIGroup = "gateway.networking.k8s.io"
@@ -117,6 +119,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		ClusterID:             runCfg.ClusterID,
 		Config:                runCfg.Config,
 		MsgGroupRef:           runCfg.MsgGroupRef,
+		AgentVersion:          runCfg.AgentVersion,
 		TerminatedResources:   true,
 	}
 
@@ -438,7 +441,7 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 }
 
 func (cb *CollectorBundle) skipResources(groupVersion, resource string) bool {
-	if groupVersion == "v1" && (resource == "secrets" || resource == "configmaps") {
+	if groupVersion == "v1" && resource == "secrets" {
 		cb.check.Warnf("Skipping collector: %s/%s, we don't support collecting it for now as it can contain sensitive data", groupVersion, resource)
 		return true
 	}
@@ -529,6 +532,7 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalers", isOOTBCRDEnabled, "v1alpha2"),
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogpodautoscalerclusterprofiles", isOOTBCRDEnabled, "v1alpha2"),
 		newBuiltinCRDConfig(datadogAPIGroup, "datadogagents", isOOTBCRDEnabled, "v2alpha1"),
+		newBuiltinCRDConfig(datadogAPIGroup, "datadoginstrumentations", isOOTBCRDEnabled, "v1alpha1"),
 
 		// Argo resources
 		newBuiltinCRDConfig(ArgoAPIGroup, "rollouts", isOOTBCRDEnabled, "v1alpha1"),
@@ -552,6 +556,21 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 
 		// EKS Auto Mode resources (for now only nodeclasses, but we can easily add more in the future if needed)
 		newBuiltinCRDConfig(EKSAPIGroup, "nodeclasses", isOOTBCRDEnabled, "v1", "v1beta1"),
+
+		// Dynamo resources
+		newBuiltinCRDConfig(DynamoAPIGroup, "dynamocheckpoints", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(DynamoAPIGroup, "dynamocomponentdeployments", isOOTBCRDEnabled, "v1beta1", "v1alpha1"),
+		newBuiltinCRDConfig(DynamoAPIGroup, "dynamographdeploymentrequests", isOOTBCRDEnabled, "v1beta1", "v1alpha1"),
+		newBuiltinCRDConfig(DynamoAPIGroup, "dynamographdeployments", isOOTBCRDEnabled, "v1beta1", "v1alpha1"),
+		newBuiltinCRDConfig(DynamoAPIGroup, "dynamographdeploymentscalingadapters", isOOTBCRDEnabled, "v1beta1", "v1alpha1"),
+		newBuiltinCRDConfig(DynamoAPIGroup, "dynamomodels", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(DynamoAPIGroup, "dynamoworkermetadatas", isOOTBCRDEnabled, "v1alpha1"),
+
+		// KubeRay resources
+		newBuiltinCRDConfig(KubeRayAPIGroup, "rayclusters", isOOTBCRDEnabled, "v1", "v1alpha1"),
+		newBuiltinCRDConfig(KubeRayAPIGroup, "raycronjobs", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(KubeRayAPIGroup, "rayjobs", isOOTBCRDEnabled, "v1", "v1alpha1"),
+		newBuiltinCRDConfig(KubeRayAPIGroup, "rayservices", isOOTBCRDEnabled, "v1", "v1alpha1"),
 
 		// Gateway API resources
 		newBuiltinCRDConfig(GatewayAPIGroup, "gateways", isGatewayAPIEnabled, "v1", "v1beta1"),

@@ -23,3 +23,7 @@ func requestedAgentVersion(_ *env.Env) (string, error) { return "", nil }
 func runAgentInstaller(_ context.Context, _ *env.Env, _, _ string) error {
 	return nil
 }
+
+// applyAgentDistOptions is a no-op on non-Windows; distribution channel and
+// pipeline options are handled upstream by the Linux/macOS install scripts.
+func applyAgentDistOptions(_ *env.Env) error { return nil }

@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 func TestBuildStoreKey(t *testing.T) {
@@ -28,13 +28,13 @@ func TestBuildStoreKey(t *testing.T) {
 }
 
 func TestGetPollInterval(t *testing.T) {
-	cp := pkgconfigsetup.ConfigurationProviders{}
+	cp := constants.ConfigurationProviders{}
 	assert.Equal(t, GetPollInterval(cp), 10*time.Second)
-	cp = pkgconfigsetup.ConfigurationProviders{
+	cp = constants.ConfigurationProviders{
 		PollInterval: "foo",
 	}
 	assert.Equal(t, GetPollInterval(cp), 10*time.Second)
-	cp = pkgconfigsetup.ConfigurationProviders{
+	cp = constants.ConfigurationProviders{
 		PollInterval: "1s",
 	}
 	assert.Equal(t, GetPollInterval(cp), 1*time.Second)

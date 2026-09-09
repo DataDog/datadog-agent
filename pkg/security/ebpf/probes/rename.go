@@ -30,6 +30,18 @@ func getRenameProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "rethook_do_renameat2",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_filename_renameat2",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_filename_renameat2",
+			},
+		},
 	}
 
 	renameProbes = append(renameProbes, ExpandSyscallProbes(&manager.Probe{

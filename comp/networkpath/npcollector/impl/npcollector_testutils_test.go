@@ -36,7 +36,6 @@ import (
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsqueriermock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -58,7 +57,6 @@ var testOptions = fx.Options(
 	eventplatformmock.MockModule(),
 	eventplatformreceiverimpl.Module(),
 	rdnsqueriermock.MockModule(),
-	logscompression.MockModule(),
 	mocktelemetry.Module(),
 	hostnameimpl.MockModule(),
 	fx.Provide(delegatedauthmock.New),

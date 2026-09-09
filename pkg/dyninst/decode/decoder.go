@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package decode
 
@@ -31,6 +31,13 @@ import (
 // We don't want to be too noisy about symbolication errors, but we do want to learn
 // about them and we don't want to bail out completely.
 var symbolicateErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
+
+// Nothing the decoder writes is required to be valid UTF-8: Go strings hold
+// arbitrary bytes, and so do the names read out of the target's DWARF, symbol
+// table and runtime type metadata. Rejecting a bad byte would drop the whole
+// event, so the encoder replaces it. [jsontext.Encoder.Reset] swaps the option
+// set rather than extending it, so pass this everywhere an encoder is set up.
+var allowInvalidUTF8 = jsontext.AllowInvalidUTF8(true)
 
 type probeEvent struct {
 	event    *ir.Event
@@ -211,7 +218,7 @@ func (d *Decoder) Decode(
 		return buf, nil, err
 	}
 	b := bytes.NewBuffer(buf)
-	enc := jsontext.NewEncoder(b)
+	enc := jsontext.NewEncoder(b, allowInvalidUTF8)
 	var numExpressions int
 	if captures := d.message.Debugger.Snapshot.Captures; captures != nil {
 		if captures.Entry != nil {
@@ -229,7 +236,7 @@ func (d *Decoder) Decode(
 		err = json.MarshalEncode(enc, &d.message)
 		if errors.Is(err, errEvaluation) {
 			b = bytes.NewBuffer(buf)
-			enc.Reset(b)
+			enc.Reset(b, allowInvalidUTF8)
 			continue
 		} else if err != nil {
 			return buf, probe, fmt.Errorf("error marshaling snapshot message: %w", err)

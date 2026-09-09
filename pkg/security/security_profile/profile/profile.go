@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -90,20 +89,23 @@ type Profile struct {
 	// V2
 	// First has been sent
 	hasAlreadyBeenSent *atomic.Bool
-	isEnabled          *atomic.Bool
+	isEnabled          bool
 }
 
 // IsEnabled returns true if the profile is enabled
 func (p *Profile) IsEnabled() bool {
-	return p.isEnabled.Load()
+	p.Lock()
+	defer p.Unlock()
+
+	return p.isEnabled
 }
 
 // Disable disables the profile and drops its activity tree to free the memory it held.
 func (p *Profile) Disable() {
-	p.isEnabled.Store(false)
-
 	p.Lock()
 	defer p.Unlock()
+
+	p.isEnabled = false
 	p.resetActivityTreeLocked()
 }
 
@@ -114,11 +116,6 @@ func (p *Profile) resetActivityTreeLocked() {
 	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
 	}
-}
-
-// Enable enables the profile
-func (p *Profile) Enable() {
-	p.isEnabled.Store(true)
 }
 
 // HasAlreadyBeenSent returns true if the profile has already been sent
@@ -180,7 +177,7 @@ func New(opts ...Opts) *Profile {
 		hasAlreadyBeenSent: atomic.NewBool(false),
 		versionContexts:    make(map[string]*VersionContext),
 		profileCookie:      utils.RandNonZeroUint64(),
-		isEnabled:          atomic.NewBool(true),
+		isEnabled:          true,
 	}
 
 	for _, opt := range opts {
@@ -378,20 +375,12 @@ func (p *Profile) GetTags() []string {
 	return tags
 }
 
-// ScrubProcessArgsEnvs scrubs the process arguments and environment variables
-func (p *Profile) ScrubProcessArgsEnvs(resolver *process.EBPFResolver) {
-	p.Lock()
-	defer p.Unlock()
-
-	p.ActivityTree.ScrubProcessArgsEnvs(resolver)
-}
-
 // Snapshot collects procfs data for all the processes in the activity tree
 func (p *Profile) Snapshot(newEvent func() *model.Event) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.ActivityTree.Snapshot(newEvent)
+	p.ActivityTree.Snapshot(newEvent, p.Metadata.ContainerID)
 }
 
 // GetWorkloadSelector returns the workload selector

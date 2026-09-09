@@ -19,6 +19,16 @@ load("//compliance/rules:ship_source_offer.bzl", "SHIP_SOURCE_ATTR_KIND")
 
 DEBUG_LEVEL = 0
 
+# Carries the JSON manifest of {name, origin, license, copyright} entries gathered by
+# license_csv, so downstream rules (e.g. version_manifest) can consume the structured
+# data without re-running the (expensive) license-gathering aspect themselves.
+PackageLicenseManifestInfo = provider(
+    doc = "Points at the JSON license manifest produced by a license_csv target.",
+    fields = {
+        "manifest_file": "File containing a JSON list of {name, origin, license, copyright} entries.",
+    },
+)
+
 def update_attribute_to_consumers(attribute_to_consumers, file, target):
     """Maintains map of metadata attribute files to the targets using them.
 
@@ -150,8 +160,8 @@ def _handle_transitive_collector(t_m_i, args, inputs, report, attribute_to_consu
                 attribute_to_consumers = attribute_to_consumers,
                 attribute_kinds = attribute_kinds,
             )
-        if hasattr(t_m_i, "trans"):
-            fail("TransititiveMetadataInfo contains both metadata and trans." + str(t_m_i))
+        if hasattr(t_m_i, "transitive"):
+            fail("TransititiveMetadataInfo contains both metadata and transitive." + str(t_m_i))
 
 def _license_csv_impl(ctx):
     # Gather all metadata and make a report from that
@@ -182,6 +192,10 @@ def _license_csv_impl(ctx):
         args.add("--csv_out", ctx.outputs.csv_out.path)
         outputs.append(ctx.outputs.csv_out)
         output_groups["csv"] = [ctx.outputs.csv_out]
+    if ctx.outputs.manifest_out:
+        args.add("--manifest_out", ctx.outputs.manifest_out.path)
+        outputs.append(ctx.outputs.manifest_out)
+        output_groups["manifest"] = [ctx.outputs.manifest_out]
     if ctx.attr.licenses_dir:
         copy_dir = ctx.actions.declare_directory(ctx.attr.licenses_dir)
         args.add("--licenses_dir", copy_dir.path)
@@ -218,9 +232,9 @@ def _license_csv_impl(ctx):
                 attribute_kinds = attribute_kinds,
             )
 
-    if hasattr(t_m_i, "trans"):
-        for trans in t_m_i.trans.to_list():
-            _handle_transitive_collector(trans, args, inputs, report, attribute_to_consumers, attribute_kinds)
+    if hasattr(t_m_i, "transitive"):
+        for twmi in t_m_i.transitive.to_list():
+            _handle_transitive_collector(twmi, args, inputs, report, attribute_to_consumers, attribute_kinds)
 
     # For the next few months of co-development with supply-chain, print a
     # report of what we have. It's not the final output. It just helps see what
@@ -277,6 +291,8 @@ def _license_csv_impl(ctx):
         DefaultInfo(files = depset(outputs)),
         OutputGroupInfo(**output_groups),
     ]
+    if ctx.outputs.manifest_out:
+        ret.append(PackageLicenseManifestInfo(manifest_file = ctx.outputs.manifest_out))
     return ret
 
 license_csv = rule(
@@ -290,6 +306,9 @@ license_csv = rule(
         "csv_out": attr.output(
             doc = """LICENSES.csv style output file.""",
             mandatory = True,
+        ),
+        "manifest_out": attr.output(
+            doc = """JSON manifest of {name, origin, license, copyright} entries.""",
         ),
         "offers_dir": attr.string(
             doc = """Name of folder to write ship source offers to.""",

@@ -22,7 +22,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -97,7 +97,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	defer os.Remove(testFile2)
 
 	// stats
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		test.eventMonitor.SendStats()
 		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
@@ -109,7 +109,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 		}
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
 	assert.NoError(t, err)
 
 	if err := waitForOpenProbeEvent(test, func() error {
@@ -175,7 +175,7 @@ func TestFilterOpenBasenamePrefixApprover(t *testing.T) {
 	defer os.Remove(testFile2)
 
 	// stats
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		test.eventMonitor.SendStats()
 		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
@@ -187,7 +187,7 @@ func TestFilterOpenBasenamePrefixApprover(t *testing.T) {
 		}
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
 	assert.NoError(t, err)
 
 	if err := waitForOpenProbeEvent(test, func() error {
@@ -261,7 +261,7 @@ func TestFilterOpenParentBasenameApprover(t *testing.T) {
 	defer os.Remove(testFile2)
 
 	// stats
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		test.eventMonitor.SendStats()
 		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
@@ -273,7 +273,7 @@ func TestFilterOpenParentBasenameApprover(t *testing.T) {
 		}
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
 	assert.NoError(t, err)
 
 	if err := waitForOpenProbeEvent(test, func() error {
@@ -349,6 +349,8 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 
 // This test is basically the same as TestFilterOpenLeafDiscarder but activity dumps are enabled.
 // This means that the event is actually forwarded to user space, but the rule should not be evaluated
+var _ = declareInlineConfig(TestFilterOpenLeafDiscarderActivityDump)
+
 func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -541,7 +543,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventTy
 	}
 
 	// stats
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		test.eventMonitor.SendStats()
 		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:auid"); count == 0 {
@@ -553,7 +555,7 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester string, eventTy
 		}
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
 	assert.NoError(t, err)
 
 	if err := waitForProbeEvent(test, func() error {
@@ -1058,7 +1060,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	}
 
 	// stats
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		test.eventMonitor.SendStats()
 		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
@@ -1070,7 +1072,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 		}
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
 	assert.NoError(t, err)
 
 	if err := waitForOpenProbeEvent(test, func() error {
@@ -1083,7 +1085,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = retry.Do(func() error {
+	err = retry(t, func() error {
 		test.eventMonitor.SendStats()
 		defer test.statsdClient.Flush()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
@@ -1095,7 +1097,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 		}
 
 		return nil
-	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
 	assert.NoError(t, err)
 
 	if err := waitForOpenProbeEvent(test, func() error {
@@ -1398,6 +1400,8 @@ func TestFilterBpfCmd(t *testing.T) {
 	}
 }
 
+var _ = declare(TestFilterRuntimeDiscarded, testOpts{discardRuntime: true})
+
 func TestFilterRuntimeDiscarded(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1412,7 +1416,7 @@ func TestFilterRuntimeDiscarded(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{discardRuntime: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

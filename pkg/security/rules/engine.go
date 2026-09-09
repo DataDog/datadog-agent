@@ -678,7 +678,12 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 
 			if eventTypes, exists := categories[category]; exists {
 				for _, eventType := range eventTypes {
-					enabled[eventType] = true
+					switch eventType {
+					case model.CapabilitiesEventType.String():
+						enabled[eventType] = e.probe.IsCapabilitiesMonitoringEnabled()
+					default:
+						enabled[eventType] = true
+					}
 				}
 			}
 		}
@@ -739,12 +744,12 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 	for _, err := range m.Errors {
 		// Handle policy load errors
 		if policyErr, ok := err.(*rules.ErrPolicyLoad); ok {
-			// Empty policies are expected in some cases
+			// Empty policies are expected in some cases and are already reported
+			// in the ruleset_loaded event, so we don't log them here.
 			if errors.Is(policyErr.Err, rules.ErrPolicyIsEmpty) {
-				seclog.Warnf(msg, policyErr.Error())
-			} else {
-				seclog.Errorf(msg, policyErr.Error())
+				continue
 			}
+			seclog.Errorf(msg, policyErr.Error())
 			continue
 		}
 

@@ -10,11 +10,14 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -43,8 +46,8 @@ type remoteAgentClient struct {
 	remoteagentregistry.RegisteredAgent
 
 	// health tracking
-	unhealthy       bool  // marks agent for removal during next cleanup cycle
-	unhealthyReason error // stores the reason the agent was marked unhealthy (for logging)
+	unhealthyReason error      // non-nil marks agent for removal during next cleanup cycle
+	unhealthyMu     sync.Mutex // guards unhealthyReason
 
 	// gRPC relative
 	pb.FlareProviderClient
@@ -55,17 +58,23 @@ type remoteAgentClient struct {
 }
 
 func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentregistry.RegistrationData) (*remoteAgentClient, error) {
-	target, transportCreds, err := resolveDialTarget(registration.APIEndpointURI, ra.ipc.GetTLSClientConfig())
+	if strings.TrimSpace(registration.AgentDisplayName) == "" {
+		return nil, errors.New("remote agent display name must not be empty or whitespace-only")
+	}
+	sanitizedDisplayName := sanitizeString(registration.AgentDisplayName)
+
+	target, dialOpts, err := resolveDialTarget(registration.APIEndpointURI, ra.ipc.GetTLSClientConfig())
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := grpc.NewClient(target,
-		grpc.WithTransportCredentials(transportCreds),
+	dialOpts = append(dialOpts,
 		grpc.WithPerRPCCredentials(ddgrpc.NewBearerTokenAuth(ra.ipc.GetAuthToken())),
 		// Set on the higher side to account for the fact that flare file data could be larger than the default 4MB limit.
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(64*1024*1024)),
 	)
+
+	conn, err := grpc.NewClient(target, dialOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +83,7 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 		RegisteredAgent: remoteagentregistry.RegisteredAgent{
 			Flavor:               registration.AgentFlavor,
 			DisplayName:          registration.AgentDisplayName,
-			SanitizedDisplayName: sanitizeString(registration.AgentDisplayName),
+			SanitizedDisplayName: sanitizedDisplayName,
 			PID:                  registration.AgentPID,
 			LastSeen:             time.Now(),
 			SessionID:            uuid.New().String(),
@@ -92,29 +101,68 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 }
 
 // resolveDialTarget translates a remote agent's advertised api_endpoint_uri into
-// a gRPC dial target plus the transport credentials to use for the connection.
+// a gRPC dial target plus the dial options to use for the connection.
 //
 // Supported schemes (defined in datadog/remoteagent/remoteagent.proto):
-//   - "unix:///path"    — UDS, TLS preserved (filesystem perms gate access, TLS protects on-wire bytes).
+//   - "unix:///path"      — UDS, TLS preserved (filesystem perms gate access, TLS protects on-wire bytes).
 //   - "https://host:port" — TCP with TLS.
-func resolveDialTarget(endpointURI string, tlsConfig *tls.Config) (string, credentials.TransportCredentials, error) {
+//   - "vsock://cid:port"  — AF_VSOCK, TLS preserved (used on kata/microVM clusters where the remote
+//     agent runs in a separate guest VM from the core agent).
+func resolveDialTarget(endpointURI string, tlsConfig *tls.Config) (string, []grpc.DialOption, error) {
 	tlsCreds := credentials.NewTLS(tlsConfig)
 
 	scheme, rest, hasScheme := strings.Cut(endpointURI, "://")
 	if !hasScheme {
 		// No scheme: backwards-compat path, treat as host:port over TLS.
-		return endpointURI, tlsCreds, nil
+		return endpointURI, []grpc.DialOption{grpc.WithTransportCredentials(tlsCreds)}, nil
 	}
 
 	switch strings.ToLower(scheme) {
 	case "unix":
 		// gRPC's built-in unix resolver expects the original "unix://" target string.
-		return endpointURI, tlsCreds, nil
+		return endpointURI, []grpc.DialOption{grpc.WithTransportCredentials(tlsCreds)}, nil
 	case "https":
-		return rest, tlsCreds, nil
+		return rest, []grpc.DialOption{grpc.WithTransportCredentials(tlsCreds)}, nil
+	case "vsock":
+		cid, port, err := parseVSockEndpoint(rest)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid vsock api_endpoint_uri %q: %w", endpointURI, err)
+		}
+		dialer := func(_ context.Context, _ string) (net.Conn, error) {
+			return vsock.Dial(cid, port, &vsock.Config{})
+		}
+		// The target's host is otherwise unused for dialing (fully delegated to the context
+		// dialer above), but it still drives the gRPC :authority and thus the TLS ServerName;
+		// keep it "localhost" to match the SANs on the Agent IPC cert (mirrors the existing
+		// vsock dial in pkg/util/grpc/agent_client.go).
+		return net.JoinHostPort("localhost", strconv.Itoa(int(port))), []grpc.DialOption{
+			grpc.WithTransportCredentials(tlsCreds),
+			grpc.WithContextDialer(dialer),
+		}, nil
 	default:
-		return "", nil, fmt.Errorf("unsupported api_endpoint_uri scheme %q (expected one of: unix, https)", scheme)
+		return "", nil, fmt.Errorf("unsupported api_endpoint_uri scheme %q (expected one of: unix, https, vsock)", scheme)
 	}
+}
+
+// parseVSockEndpoint parses a "cid:port" vsock host part (as found after the "vsock://" scheme)
+// into its numeric context ID and port.
+func parseVSockEndpoint(hostPort string) (cid uint32, port uint32, err error) {
+	cidStr, portStr, err := net.SplitHostPort(hostPort)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	cid64, err := strconv.ParseUint(cidStr, 10, 32)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid context ID %q: %w", cidStr, err)
+	}
+
+	port64, err := strconv.ParseUint(portStr, 10, 32)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid port %q: %w", portStr, err)
+	}
+
+	return uint32(cid64), uint32(port64), nil
 }
 
 // close closes the remote agent client and its connection
@@ -195,13 +243,17 @@ func callAgentsForService[PbType any, StructuredType any](
 
 	wg.Add(agentsLen)
 	for _, remoteAgent := range filteredAgents {
+		// Snapshot the RegisteredAgent value under the lock so the goroutines
+		// don't race with RefreshRemoteAgent writing LastSeen. The gRPC
+		// client methods on remoteAgent use the conn, not RegisteredAgent.
+		registeredAgent := remoteAgent.RegisteredAgent
 		go func() {
 			start := time.Now()
 			defer func() {
 				wg.Done()
 				registry.telemetryStore.remoteAgentActionDuration.Observe(
 					time.Since(start).Seconds(),
-					remoteAgent.RegisteredAgent.SanitizedDisplayName,
+					registeredAgent.SanitizedDisplayName,
 					service,
 				)
 			}()
@@ -211,23 +263,24 @@ func callAgentsForService[PbType any, StructuredType any](
 			resp, err := grpcCall(ctx, remoteAgent, grpc.WaitForReady(true), grpc.Header(&responseHeader))
 
 			if err != nil {
-				registry.telemetryStore.remoteAgentActionError.Inc(remoteAgent.RegisteredAgent.SanitizedDisplayName, service, grpcErrorMessage(err))
+				registry.telemetryStore.remoteAgentActionError.Inc(registeredAgent.SanitizedDisplayName, service, grpcErrorMessage(err))
 			} else {
 				// Validate session ID if no error occurred
 				if validationErr := remoteAgent.validateSessionID(responseHeader); validationErr != nil {
 					// wrap error in gRPC status
 					err = validationErr
-					registry.telemetryStore.remoteAgentActionError.Inc(remoteAgent.RegisteredAgent.SanitizedDisplayName, service, sessionIDMismatch)
+					registry.telemetryStore.remoteAgentActionError.Inc(registeredAgent.SanitizedDisplayName, service, sessionIDMismatch)
 
 					// Mark agent as unhealthy for removal during next cleanup cycle
-					remoteAgent.unhealthy = true
+					remoteAgent.unhealthyMu.Lock()
 					remoteAgent.unhealthyReason = validationErr
+					remoteAgent.unhealthyMu.Unlock()
 				}
 			}
 
 			// Append the result to the result slice
 			resultLock.Lock()
-			resultSlice = append(resultSlice, resultProcessor(remoteAgent.RegisteredAgent, resp, err))
+			resultSlice = append(resultSlice, resultProcessor(registeredAgent, resp, err))
 			resultLock.Unlock()
 		}()
 	}

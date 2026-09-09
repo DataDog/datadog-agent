@@ -67,10 +67,10 @@ go_library(
         "//comp/otelcol/otlp/components/metricsclient",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/def",
-        "//comp/serializer/metricscompression/fx-otel",
+        "//comp/serializer/metricscompression/fx",
         "//comp/trace/agent/fx",
         "//comp/trace/agent/impl",
-        "//comp/trace/compression/fx-gzip",
+        "//comp/trace/compression/fx-zstd",
         "//comp/trace/config/def",
         "//comp/trace/config/impl",
         "//comp/trace/payload-modifier/fx",
@@ -133,6 +133,7 @@ go_library(
             "@com_github_spf13_cobra//:cobra",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
             "//pkg/util/winutil",
             "//pkg/util/winutil/servicemain",
             "@com_github_spf13_cobra//:cobra",
@@ -143,21 +144,29 @@ go_library(
 
 dd_agent_go_test(
     name = "run_test",
-    srcs = ["command_test.go"],
+    srcs = [
+        "command_nix_test.go",
+        "command_test.go",
+        "fleet_policies_dir_nix_test.go",
+        "fleet_policies_dir_test.go",
+        "fleet_policies_dir_windows_test.go",
+    ],
     data = [
         "test_config.yaml",
         "test_config_no_dd.yaml",
         "test_config_no_dd_standalone.yaml",
     ],
     embed = [":run"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    gotags_sets = [["otlp"]],
+    include_default = False,
     deps = [
         "//cmd/otel-agent/subcommands",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
 )

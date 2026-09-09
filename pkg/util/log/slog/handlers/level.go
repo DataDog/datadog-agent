@@ -30,10 +30,6 @@ func (h *level) Enabled(_ context.Context, level slog.Level) bool {
 
 // Handle writes a record to the innerHandler.
 func (h *level) Handle(ctx context.Context, r slog.Record) error {
-	if !h.Enabled(ctx, r.Level) {
-		return nil
-	}
-
 	return h.innerHandler.Handle(ctx, r)
 }
 

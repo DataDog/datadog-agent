@@ -14,6 +14,6 @@ import (
 // Module defines the fx options for the runner component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(runnerimpl.New),
+		fxutil.ProvideComponentConstructor(runnerimpl.NewComponent),
 	)
 }

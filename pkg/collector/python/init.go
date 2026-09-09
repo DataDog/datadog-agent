@@ -415,20 +415,23 @@ func Initialize(paths ...string) error {
 	}
 
 	// Should we track python memory?
+	var pymemTelemetryInterval time.Duration
 	if pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
-		var interval time.Duration
 		if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") {
 			// detailed telemetry is enabled
-			interval = 1 * time.Second
+			pymemTelemetryInterval = 1 * time.Second
 		} else if configutils.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
 			// default telemetry is enabled (emitted every 15 minute)
-			interval = 15 * time.Minute
+			pymemTelemetryInterval = 15 * time.Minute
 		}
+	}
 
-		// interval is 0 if telemetry is disabled
-		if interval > 0 {
-			initPymemTelemetry(interval)
-		}
+	// pymemTelemetryInterval is 0 if telemetry is disabled
+	pymemTelemetryEnabled := pymemTelemetryInterval > 0
+	if pymemTelemetryEnabled {
+		// This must happen before C.init(rtloader) below: it installs the
+		// allocator hooks the interpreter needs to be using from the start.
+		C.init_pymem_stats(rtloader)
 	}
 
 	// Set the PYTHONPATH if needed.
@@ -451,7 +454,14 @@ func Initialize(paths ...string) error {
 	// Init RtLoader machinery
 	if C.init(rtloader) == 0 {
 		err := "could not initialize rtloader: " + C.GoString(C.get_error(rtloader))
+		// rtloader failed to initialize, clear the global to avoid trying to use it later
+		rtloader = nil
 		return addExpvarPythonInitErrors(err)
+	}
+
+	// Only start the pymem telemetry worker once we know rtloader initialized successfully
+	if pymemTelemetryEnabled {
+		startPymemTelemetryWorker(pymemTelemetryInterval)
 	}
 
 	// Lock the GIL
@@ -486,9 +496,7 @@ func GetRtLoader() *C.rtloader_t {
 	return rtloader
 }
 
-func initPymemTelemetry(d time.Duration) {
-	C.init_pymem_stats(rtloader)
-
+func startPymemTelemetryWorker(d time.Duration) {
 	// "alloc" for consistency with go memstats and mallochook metrics.
 	alloc := telemetryimpl.GetCompatComponent().NewSimpleCounter("pymem", "alloc", "Total number of bytes allocated by the python interpreter since the start of the agent.")
 	inuse := telemetryimpl.GetCompatComponent().NewSimpleGauge("pymem", "inuse", "Number of bytes currently allocated by the python interpreter.")

@@ -16,6 +16,7 @@ go_library(
         "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//comp/remote-config/rcservice/def",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/proto/pbgo/core",

@@ -6,7 +6,7 @@ globs: test/new-e2e/**/*
 
 # E2E Test Development Guidelines
 
-This rule provides troubleshooting tips and code patterns not covered in the main documentation. For prerequisites, setup, and basic usage, see `docs/public/how-to/test/e2e.md`.
+This rule provides troubleshooting tips and code patterns not covered in the main documentation. For prerequisites, setup, and basic usage, see `docs/public/how-to/test/e2e/`.
 
 ## AWS Account Configuration
 
@@ -26,7 +26,7 @@ configParams:
 ```
 
 **Common Error**: `User: arn:aws:sts::... is not authorized to perform: ecr:BatchGetImage`
-**Solution**: Verify AWS account configuration. Ensure you're authenticated with `aws-vault login sso-agent-sandbox-account-admin`.
+**Solution**: Verify AWS account configuration. Ensure you're authenticated with `aws-vault login sso-agent-sandbox-account-admin-8h`.
 
 ### Kubernetes Tests with ECR Authentication
 
@@ -49,10 +49,10 @@ Provisioners are in `test/e2e-framework/testing/provisioners/`:
 
 | Provider | Paths |
 |----------|-------|
-| AWS | `aws/host`, `aws/docker`, `aws/ecs`, `aws/kubernetes/eks`, `aws/kubernetes/kindvm` |
-| Azure | `azure/host/linux`, `azure/host/windows`, `azure/kubernetes/aks` |
-| GCP | `gcp/host/linux`, `gcp/kubernetes/gke` |
-| Local | `local/host/podman`, `local/kubernetes/kind` |
+| AWS | `aws/host`, `aws/host/windows`, `aws/docker`, `aws/ecs`, `aws/kubernetes/{kindvm,eks,kubeadm}` |
+| Azure | `azure/host/linux`, `azure/host/windows`, `azure/kubernetes` |
+| GCP | `gcp/host/linux`, `gcp/kubernetes`, `gcp/kubernetes/openshiftvm` |
+| Local | `local/host`, `local/kubernetes` |
 
 **Key concepts:**
 - **Typed Provisioners**: Use `component.Export()` to match Environment fields with Pulumi resources.

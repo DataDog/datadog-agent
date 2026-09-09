@@ -44,10 +44,14 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":istio"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core/log/def",
         "//comp/core/log/mock",

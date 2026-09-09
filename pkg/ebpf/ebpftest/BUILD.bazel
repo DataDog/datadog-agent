@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "ebpftest",
@@ -11,13 +12,14 @@ go_library(
         "dumpmaps_helper.go",
         "fail_log.go",
         "log.go",
+        "rcu_linux.go",
         "trace_pipe.go",
         "trace_pipe_linux.go",
         "version_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest",
     # Sources depend on symbols gated behind //go:build test (log.Default, etc.)
-    # and linux_bpf. go_library has no gotags attribute, so this target cannot
+    # and bpf. go_library has no gotags attribute, so this target cannot
     # be compiled correctly outside of an embedding go_test. Manual keeps it out
     # of //... expansion; tests supply the right gotags themselves.
     tags = ["manual"],
@@ -67,7 +69,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "ebpftest_test",
     srcs = [
         "buildmode_test.go",
@@ -75,9 +77,62 @@ go_test(
         "trace_pipe_linux_test.go",
     ],
     embed = [":ebpftest"],
-    gotags = ["test"],
+    gotags_sets = [["bpf"]],
+    tags = ["requires_ebpf"],
     deps = [
         "//pkg/ebpf",
         "@com_github_stretchr_testify//assert",
     ],
+)
+
+dd_agent_go_test(
+    name = "buildmode_test",
+    srcs = ["buildmode_test.go"],
+    embed = [":ebpftest"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "jobenv_test",
+    srcs = ["jobenv_test.go"],
+    embed = [":ebpftest"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "trace_pipe_linux_test",
+    srcs = ["trace_pipe_linux_test.go"],
+    embed = [":ebpftest"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
 )

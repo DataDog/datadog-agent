@@ -49,6 +49,7 @@ type Params struct {
 type configGetter interface {
 	GetString(key string) string
 	GetBool(key string) bool
+	IsConfigured(key string) bool
 }
 
 // ForOneShot sets up logging parameters for a one-shot app.
@@ -101,9 +102,9 @@ func ForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 		if g.GetBool("disable_file_logging") {
 			return ""
 		}
-		logFile := g.GetString(logFileConfig)
-		if logFile == "" {
-			logFile = defaultLogFile
+		logFile := defaultLogFile
+		if g.IsConfigured(logFileConfig) {
+			logFile = g.GetString(logFileConfig)
 		}
 		return logFile
 	}

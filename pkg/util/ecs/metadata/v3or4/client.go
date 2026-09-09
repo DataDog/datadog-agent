@@ -19,7 +19,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry"

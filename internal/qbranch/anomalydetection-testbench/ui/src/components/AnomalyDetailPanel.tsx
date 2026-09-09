@@ -31,8 +31,6 @@ export function AnomalyDetailPanel({ anomalies }: AnomalyDetailPanelProps) {
         {anomalies.map((anomaly, idx) => {
           const isExpanded = expandedIndex === idx;
           const debug = anomaly.debugInfo;
-          const isCUSUM = anomaly.detectorName === 'cusum_detector';
-
           return (
             <div
               key={`${anomaly.source}-${anomaly.detectorName}-${anomaly.timestamp}`}
@@ -46,9 +44,7 @@ export function AnomalyDetailPanel({ anomalies }: AnomalyDetailPanelProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span
-                      className={`text-xs px-1.5 py-0.5 rounded ${
-                        isCUSUM ? 'bg-red-900/50 text-red-400' : 'bg-blue-900/50 text-blue-400'
-                      }`}
+                      className="text-xs px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-400"
                     >
                       {anomaly.detectorName}
                     </span>
@@ -74,14 +70,15 @@ export function AnomalyDetailPanel({ anomalies }: AnomalyDetailPanelProps) {
                       {formatTimestamp(debug.baselineStart)} - {formatTimestamp(debug.baselineEnd)}
                     </div>
 
-                    {isCUSUM ? (
+                    {debug.baselineMean !== undefined && (
                       <>
                         <div className="text-slate-500">Mean:</div>
                         <div className="text-slate-300">{formatValue(debug.baselineMean)}</div>
                         <div className="text-slate-500">Std Dev:</div>
                         <div className="text-slate-300">{formatValue(debug.baselineStddev)}</div>
                       </>
-                    ) : (
+                    )}
+                    {debug.baselineMedian !== undefined && (
                       <>
                         <div className="text-slate-500">Median:</div>
                         <div className="text-slate-300">{formatValue(debug.baselineMedian)}</div>
@@ -96,30 +93,12 @@ export function AnomalyDetailPanel({ anomalies }: AnomalyDetailPanelProps) {
                     </div>
                     <div className="text-slate-500">Threshold:</div>
                     <div className="text-slate-300">{formatValue(debug.threshold)}</div>
-                    {isCUSUM && debug.slackParam !== undefined && (
-                      <>
-                        <div className="text-slate-500">Slack (k):</div>
-                        <div className="text-slate-300">{formatValue(debug.slackParam)}</div>
-                      </>
-                    )}
                     <div className="text-slate-500">Triggered at:</div>
                     <div className="text-slate-300">{formatValue(debug.currentValue)}</div>
                     <div className="text-slate-500">Deviation:</div>
                     <div className={`font-medium ${debug.deviationSigma > 0 ? 'text-red-400' : 'text-blue-400'}`}>
                       {debug.deviationSigma > 0 ? '+' : ''}{formatValue(debug.deviationSigma)}σ
                     </div>
-
-                    {/* CUSUM values mini-chart */}
-                    {isCUSUM && debug.cusumValues && debug.cusumValues.length > 0 && (
-                      <>
-                        <div className="col-span-2 text-slate-400 font-medium mt-2 mb-1">
-                          CUSUM Accumulator
-                        </div>
-                        <div className="col-span-2">
-                          <CUSUMSparkline values={debug.cusumValues} threshold={debug.threshold} />
-                        </div>
-                      </>
-                    )}
                   </div>
                 </div>
               )}
@@ -128,59 +107,5 @@ export function AnomalyDetailPanel({ anomalies }: AnomalyDetailPanelProps) {
         })}
       </div>
     </div>
-  );
-}
-
-// Simple sparkline visualization for CUSUM values
-function CUSUMSparkline({ values, threshold }: { values: number[]; threshold: number }) {
-  const height = 40;
-  const width = 200;
-  const padding = 2;
-
-  const maxVal = Math.max(threshold * 1.2, ...values.map(Math.abs));
-  const minVal = -maxVal;
-
-  const scaleY = (v: number) => {
-    return height - padding - ((v - minVal) / (maxVal - minVal)) * (height - 2 * padding);
-  };
-
-  const points = values
-    .map((v, i) => {
-      const x = padding + (i / (values.length - 1)) * (width - 2 * padding);
-      const y = scaleY(v);
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  const zeroY = scaleY(0);
-  const thresholdY = scaleY(threshold);
-  const negThresholdY = scaleY(-threshold);
-
-  return (
-    <svg width={width} height={height} className="bg-slate-800 rounded">
-      {/* Zero line */}
-      <line x1={padding} y1={zeroY} x2={width - padding} y2={zeroY} stroke="#475569" strokeWidth="1" />
-      {/* Threshold lines */}
-      <line
-        x1={padding}
-        y1={thresholdY}
-        x2={width - padding}
-        y2={thresholdY}
-        stroke="#ef4444"
-        strokeWidth="1"
-        strokeDasharray="2,2"
-      />
-      <line
-        x1={padding}
-        y1={negThresholdY}
-        x2={width - padding}
-        y2={negThresholdY}
-        stroke="#ef4444"
-        strokeWidth="1"
-        strokeDasharray="2,2"
-      />
-      {/* CUSUM line */}
-      <polyline points={points} fill="none" stroke="#8b5cf6" strokeWidth="1.5" />
-    </svg>
   );
 }

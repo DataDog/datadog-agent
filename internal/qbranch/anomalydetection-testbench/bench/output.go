@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 )
 
@@ -60,10 +61,19 @@ type ObserverAnomaly struct {
 func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	tb.mu.RLock()
 	sv := tb.debug.StateView()
-	correlations := sv.CorrelationHistory()
+	correlations := tb.correlationsLocked(sv)
 
 	scenario := tb.loadedScenario
 	timelineStart, timelineEnd, hasBounds := sv.ScenarioBounds()
+	if tb.hasStreamScenarioBounds {
+		if !hasBounds || tb.streamScenarioStartSec < timelineStart {
+			timelineStart = tb.streamScenarioStartSec
+		}
+		if !hasBounds || tb.streamScenarioEndSec > timelineEnd {
+			timelineEnd = tb.streamScenarioEndSec
+		}
+		hasBounds = true
+	}
 
 	// Collect enabled detector / correlator names from StateView.
 	var detectorNames []string
@@ -78,9 +88,12 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 			correlatorNames = append(correlatorNames, c.Name)
 		}
 	}
+	if tb.isComponentEnabled(observerimpl.TestbenchPassthroughComponentName) {
+		correlatorNames = append(correlatorNames, observerimpl.TestbenchPassthroughComponentName)
+	}
 
 	// Build component configs from catalog + settings.
-	entries := tb.debug.CatalogEntries()
+	entries := tb.catalogEntries()
 	componentConfigs := make(map[string]map[string]any, len(entries))
 	for _, e := range entries {
 		enabled := e.DefaultEnabled

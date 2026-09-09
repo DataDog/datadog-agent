@@ -7,6 +7,7 @@
 package sbom
 
 import (
+	"errors"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
@@ -21,6 +22,13 @@ const (
 	ScanDaemonType     = "daemon"      // ScanDaemonType defines the type for daemon scan
 	ScanMethodTagName  = "scan_method" // ScanMethodTagName defines the tag name for scan method
 )
+
+// ErrScanNotSupported reports that a scan can never succeed for the given image
+// and must not be retried. Exporting an image on a remote snapshotter such as
+// nydus to a tarball is such a case. Its layers live in the snapshotter rather
+// than the content store, so the export cannot read them however often the scan
+// is retried.
+var ErrScanNotSupported = errors.New("sbom scan not supported for this image")
 
 // Report defines the report interface
 type Report interface {

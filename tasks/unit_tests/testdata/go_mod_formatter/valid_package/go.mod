@@ -22,7 +22,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.33.0
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.11.0
 )
 
@@ -73,5 +73,5 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	go.yaml.in/yaml/v2 v2.4.4
-	go.yaml.in/yaml/v3 v3.0.4
+	go.yaml.in/yaml/v3 v3.0.5
 )

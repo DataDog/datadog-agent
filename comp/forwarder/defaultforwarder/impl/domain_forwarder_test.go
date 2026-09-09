@@ -127,8 +127,8 @@ func TestDomainForwarderHAPreFailover(t *testing.T) {
 
 func syncTestDomainForwarderHAPreFailover(t *testing.T) {
 	mockConfig := mock.New(t)
-	mockConfig.SetInTest("multi_region_failover.enabled", "true")
-	mockConfig.SetInTest("multi_region_failover.failover_metrics", "false")
+	mockConfig.SetInTest("multi_region_failover.enabled", true)
+	mockConfig.SetInTest("multi_region_failover.failover_metrics", false)
 	mockConfig.SetInTest("multi_region_failover.apikey", "foo")
 	mockConfig.SetInTest("multi_region_failover.site", "bar.ddhq.com")
 
@@ -172,8 +172,8 @@ func syncTestDomainForwarderHAPreFailover(t *testing.T) {
 
 func TestDomainForwarderHAFailover(t *testing.T) {
 	mockConfig := mock.New(t)
-	mockConfig.SetInTest("multi_region_failover.enabled", "true")
-	mockConfig.SetInTest("multi_region_failover.failover_metrics", "true")
+	mockConfig.SetInTest("multi_region_failover.enabled", true)
+	mockConfig.SetInTest("multi_region_failover.failover_metrics", true)
 	mockConfig.SetInTest("multi_region_failover.apikey", "foo")
 	mockConfig.SetInTest("multi_region_failover.site", "bar.ddhq.com")
 

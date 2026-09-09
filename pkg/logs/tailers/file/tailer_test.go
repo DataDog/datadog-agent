@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/goleak"
 
@@ -23,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -180,6 +181,33 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
+}
+
+func (suite *TailerTestSuite) TestInterleavedPartialStreamsAdvanceOnlySafeCheckpoint() {
+	lines := []string{
+		"2024-01-01T00:00:00.000000000Z stderr P stderr part 1\n",
+		"2024-01-01T00:00:00.000000001Z stdout F stdout full\n",
+		"2024-01-01T00:00:00.000000002Z stderr F stderr part 2\n",
+	}
+
+	suite.source.UnderlyingSource().SetSourceType(sources.KubernetesSourceType)
+	suite.tailer = NewTailer(suite.createTailerOptions(nil))
+
+	_, err := suite.testFile.WriteString(strings.Join(lines, ""))
+	suite.Require().NoError(err)
+	suite.Require().NoError(suite.tailer.StartFromBeginning())
+
+	stdout := <-suite.outputChan
+	suite.Equal("stdout full", string(stdout.GetContent()))
+	// stderr began first and is still buffered. Persisting an offset inside its
+	// source range could skip it after a crash, so retain the previous checkpoint.
+	suite.Equal(0, toInt(stdout.Origin.Offset))
+
+	stderr := <-suite.outputChan
+	suite.Equal("stderr part 1stderr part 2", string(stderr.GetContent()))
+	totalLen := len(lines[0]) + len(lines[1]) + len(lines[2])
+	suite.Equal(totalLen, toInt(stderr.Origin.Offset))
+	suite.Equal(totalLen, int(suite.tailer.decodedOffset.Load()))
 }
 
 func (suite *TailerTestSuite) TestTailFromEnd() {
@@ -372,7 +400,7 @@ func (suite *TailerTestSuite) TestTruncatedTagAutoMultilineHandler() {
 	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false) // Disable detection-only
 	// Instead, enable full auto multiline on the source itself
 
-	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", constants.DefaultMaxMessageSizeBytes)
 	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
 	defer mockConfig.SetInTest("logs_config.tag_multi_line_logs", false)
 
@@ -425,7 +453,7 @@ func (suite *TailerTestSuite) TestTruncatedTagSingleLineHandler() {
 	mockConfig.SetInTest("logs_config.max_message_size_bytes", 3)
 	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)
 	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false)
-	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetInTest("logs_config.max_message_size_bytes", constants.DefaultMaxMessageSizeBytes)
 	defer mockConfig.SetInTest("logs_config.tag_truncated_logs", false)
 	defer mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", true)
 
@@ -688,4 +716,28 @@ func TestNoGoLeakWithNonBlockingStop(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// The deferred goleak.VerifyNone() will detect if goroutine leaked
+}
+
+func TestMissedBytesIdentity(t *testing.T) {
+	tests := []struct {
+		name            string
+		cfg             *config.LogsConfig
+		source, service string
+	}{
+		{"nil config", nil, "unknown", "unknown"},
+		{"only the required fields are set", &config.LogsConfig{Type: config.FileType, Path: "/var/log/app.log"}, "unknown", "unknown"},
+		{"both set", &config.LogsConfig{Source: "nginx", Service: "web"}, "nginx", "web"},
+		{"service falls back to source", &config.LogsConfig{Source: "nginx"}, "nginx", "nginx"},
+		{"both fall back to the integration name", &config.LogsConfig{IntegrationName: "nginx-int"}, "nginx-int", "nginx-int"},
+		{"source falls back while service is set", &config.LogsConfig{IntegrationName: "nginx-int", Service: "web"}, "nginx-int", "web"},
+		{"source wins over the integration name", &config.LogsConfig{IntegrationName: "nginx-int", Source: "nginx"}, "nginx", "nginx"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			source, service := missedBytesIdentity(tc.cfg)
+			require.Equal(t, tc.source, source)
+			require.Equal(t, tc.service, service)
+		})
+	}
 }

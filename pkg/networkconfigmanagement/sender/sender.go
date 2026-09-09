@@ -26,8 +26,10 @@ import (
 const (
 	ncmCheckDurationMetric             = "datadog.ncm.check_duration"
 	ncmCheckIntervalMetric             = "datadog.ncm.check_interval"
+	ncmCheckFailureMetric              = "datadog.ncm.check_failure"
 	ncmCheckInventoryEntriesSentMetric = "datadog.ncm.inventory.entries_sent"
 	ncmConfigSizeMetric                = "ncm.config_size"
+	ncmStoreConfigsEvictedMetric       = "datadog.ncm.store.configs_evicted"
 
 	ncmRunningConfigTypeTag = "config_type:running"
 	ncmStartupConfigTypeTag = "config_type:startup"
@@ -61,6 +63,19 @@ func (s *NCMSender) getDeviceTags() []string {
 	return utils.CopyStrings(s.deviceTags)
 }
 
+// SendStoreEvictionMetrics sends metrics about a local config store eviction run.
+// Eviction is a store-wide event, not scoped to a single device, so device tags are
+// omitted; only common agent tags plus a status tag are attached.
+func (s *NCMSender) SendStoreEvictionMetrics(evictedCount int, err error) {
+	tags := utils.GetCommonAgentTags()
+	if err != nil {
+		tags = append(tags, "status:error")
+	} else {
+		tags = append(tags, "status:ok")
+	}
+	s.Sender.Count(ncmStoreConfigsEvictedMetric, float64(evictedCount), s.agentHostname, tags)
+}
+
 // SendNCMCheckMetrics sends metrics about the check itself to Datadog
 func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.Time, success bool) {
 	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
@@ -76,6 +91,21 @@ func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.
 		interval := startTime.Sub(lastCheckTime).Seconds()
 		s.Sender.Gauge(ncmCheckIntervalMetric, interval, s.agentHostname, tags)
 	}
+}
+
+// SendNCMCheckFailure sends a single count metric indicating that the NCM
+// check failed, tagged with each of the distinct failure reasons.
+func (s *NCMSender) SendNCMCheckFailure(errTypes ...types.ErrorType) {
+	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
+	seen := make(map[types.ErrorType]struct{}, len(errTypes))
+	for _, errType := range errTypes {
+		if _, ok := seen[errType]; ok {
+			continue
+		}
+		seen[errType] = struct{}{}
+		tags = append(tags, "error:"+string(errType))
+	}
+	s.Sender.Count(ncmCheckFailureMetric, 1, s.agentHostname, tags)
 }
 
 func (s *NCMSender) sendNCMPayloadMetrics(payload ncmreport.NCMPayload) {

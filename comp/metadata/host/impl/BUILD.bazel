@@ -34,7 +34,7 @@ go_library(
         "//pkg/util/hostinfo",
         "//pkg/util/http",
         "//pkg/util/scrubber",
-        "@com_github_cenkalti_backoff_v6//:backoff",
+        "@com_github_cenkalti_backoff_v7//:backoff",
     ] + select({
         "@rules_go//go/platform:dragonfly": [
             "//pkg/serializer/marshaler",

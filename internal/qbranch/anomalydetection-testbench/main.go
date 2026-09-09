@@ -48,6 +48,7 @@ type CLIParams struct {
 	Output     string // path for observer JSON output
 	Verbose    bool   // include full detail in JSON output (headless mode only)
 	MemProfile string // path to write heap profile after headless run (empty = disabled)
+	CPUProfile string // path to write CPU profile during headless run (empty = disabled)
 
 	// SendAnomalyEvent mode: run scenario and send one Datadog event per correlation
 	SendAnomalyEvent string // scenario name to run (empty = disabled)
@@ -59,6 +60,9 @@ type CLIParams struct {
 
 	// ParquetFormat selects the parquet file layout. Empty string = auto-detect.
 	ParquetFormat bench.ParquetFormat
+
+	// RetainParquet retains and sorts raw metric and log rows in headless mode.
+	RetainParquet bool
 }
 
 func main() {
@@ -72,11 +76,13 @@ func main() {
 	output := flag.String("output", "", "Path for eval JSON output (headless mode only)")
 	verbose := flag.Bool("verbose", false, "Include full detail in JSON output (headless mode only)")
 	memProfile := flag.String("memprofile", "", "Write heap profile to this file after headless run (headless mode only)")
+	cpuProfile := flag.String("cpuprofile", "", "Write CPU profile during headless run (headless mode only)")
 	sendAnomalyEvent := flag.String("send-anomaly-event", "", "Run scenario and send one Datadog event per correlation, then exit")
 	skipDropped := flag.Bool("skip-dropped", true, "Skip metrics marked as dropped by the live observer's channel during parquet load")
 	logsOnly := flag.Bool("logs-only", false, "Load only log rows from scenarios; skip parquet metrics and trace stats (interactive and headless)")
 	parquetFormat := flag.String("parquet-format", "", "Parquet layout: v1 (observer-metrics-*/observer-logs-*), v2 (contexts.parquet + metrics-*/logs-*), or empty to auto-detect")
-	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 10m window.")
+	retainParquet := flag.Bool("retain-parquet", false, "Retain and sort all parquet rows instead of streaming them (headless mode only)")
+	baselineDuration := flag.String("baseline-duration", "", "Baseline analysis window duration (e.g. \"7m\", \"0\" to disable). Default: enabled with 2m window.")
 	muteNoisyMetrics := flag.Bool("mute-noisy-metrics", true, "Mute metrics that fire anomalies during the baseline window")
 	flag.Parse()
 
@@ -142,10 +148,11 @@ func main() {
 	} else {
 		componentSettings.Baseline = observerimpl.BaselineConfig{
 			Enabled:          true,
-			DurationSec:      300,
+			DurationSec:      120,
 			MuteNoisyMetrics: *muteNoisyMetrics,
 		}
 	}
+	componentSettings = observerimpl.ApplyTestbenchDefaults(componentSettings)
 
 	if *headless == "" {
 		fmt.Printf("Observer Test Bench\n")
@@ -200,10 +207,12 @@ func main() {
 			Output:             *output,
 			Verbose:            *verbose,
 			MemProfile:         *memProfile,
+			CPUProfile:         *cpuProfile,
 			SendAnomalyEvent:   *sendAnomalyEvent,
 			SkipDroppedMetrics: *skipDropped,
 			LogsOnly:           *logsOnly,
 			ParquetFormat:      bench.ParquetFormat(*parquetFormat),
+			RetainParquet:      *retainParquet,
 		}),
 	)
 	if err != nil {
@@ -219,6 +228,10 @@ func run(
 	logger log.Component,
 	params CLIParams,
 ) error {
+	if err := validateCLIParams(params); err != nil {
+		return err
+	}
+
 	debug, ok := obs.(observerimpl.DebugView)
 	if !ok {
 		return fmt.Errorf("observer does not implement DebugView")
@@ -233,6 +246,7 @@ func run(
 		SkipDroppedMetrics: params.SkipDroppedMetrics,
 		LogsOnly:           params.LogsOnly,
 		ParquetFormat:      params.ParquetFormat,
+		StreamParquet:      params.Headless != "" && !params.RetainParquet,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)
@@ -246,8 +260,33 @@ func run(
 
 	// Headless mode: run scenario, write output, exit (no HTTP server)
 	if params.Headless != "" {
+		var stopCPUProfile func()
+		if params.CPUProfile != "" {
+			f, err := os.Create(params.CPUProfile)
+			if err != nil {
+				return fmt.Errorf("could not create CPU profile: %w", err)
+			}
+			if err := pprof.StartCPUProfile(f); err != nil {
+				_ = f.Close()
+				return fmt.Errorf("could not start CPU profile: %w", err)
+			}
+			stopCPUProfile = func() {
+				pprof.StopCPUProfile()
+				_ = f.Close()
+				fmt.Printf("CPU profile written to %s\n", params.CPUProfile)
+			}
+			defer func() {
+				if stopCPUProfile != nil {
+					stopCPUProfile()
+				}
+			}()
+		}
 		if err := tb.RunHeadless(params.Headless, params.Output, params.Verbose); err != nil {
 			return err
+		}
+		if stopCPUProfile != nil {
+			stopCPUProfile()
+			stopCPUProfile = nil
 		}
 		if params.MemProfile != "" {
 			f, err := os.Create(params.MemProfile)
@@ -334,5 +373,12 @@ func run(
 		fmt.Fprintf(os.Stderr, "Error during shutdown: %v\n", err)
 	}
 
+	return nil
+}
+
+func validateCLIParams(params CLIParams) error {
+	if params.RetainParquet && params.Headless == "" {
+		return fmt.Errorf("--retain-parquet requires --headless")
+	}
 	return nil
 }

@@ -568,3 +568,71 @@ func TestWebhookAggregation_EGCELInSingleAppsecWebhook(t *testing.T) {
 	assert.Equal(t, "appsec_proxies", conditions[0].Name)
 	assert.Contains(t, conditions[0].Expression, egOwningGatewayNameCEL)
 }
+
+// countingLogger records which log.Component level method the injector dispatched to.
+// It counts method dispatch rather than message text, so it stays green across any
+// rewording of the log lines.
+type countingLogger struct {
+	infofCalls  int
+	errorfCalls int
+}
+
+var _ log.Component = (*countingLogger)(nil)
+
+func (c *countingLogger) Infof(string, ...interface{}) { c.infofCalls++ }
+func (c *countingLogger) Errorf(string, ...interface{}) error {
+	c.errorfCalls++
+	return nil
+}
+
+func (*countingLogger) Trace(...interface{})                   {}
+func (*countingLogger) Tracef(string, ...interface{})          {}
+func (*countingLogger) Debug(...interface{})                   {}
+func (*countingLogger) Debugf(string, ...interface{})          {}
+func (*countingLogger) Info(...interface{})                    {}
+func (*countingLogger) Warn(...interface{}) error              { return nil }
+func (*countingLogger) Warnf(string, ...interface{}) error     { return nil }
+func (*countingLogger) Error(...interface{}) error             { return nil }
+func (*countingLogger) Critical(...interface{}) error          { return nil }
+func (*countingLogger) Criticalf(string, ...interface{}) error { return nil }
+func (*countingLogger) Flush()                                 {}
+
+func TestRun_logsNotApplicableSkipAtInfo(t *testing.T) {
+	// Given a pattern reporting that injection does not apply to this configuration
+	logger := &countingLogger{}
+	injector := newMockSecurityInjector(context.Background(),
+		dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
+		logger,
+		appsecconfig.Config{},
+	)
+	pattern := &mockInjectionPattern{
+		injectionPossibleErr: fmt.Errorf("gke-gateway supports external mode only: %w", appsecconfig.ErrInjectionNotApplicable),
+	}
+
+	// When
+	injector.run(context.Background(), appsecconfig.ProxyTypeGKEGateway, pattern)
+
+	// Then the skip is reported at info level, never as a failure
+	require.Zero(t, logger.errorfCalls)
+	require.Equal(t, 1, logger.infofCalls)
+}
+
+func TestRun_logsGenuineFailureAtError(t *testing.T) {
+	// Given a pattern reporting a real misconfiguration
+	logger := &countingLogger{}
+	injector := newMockSecurityInjector(context.Background(),
+		dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
+		logger,
+		appsecconfig.Config{},
+	)
+	pattern := &mockInjectionPattern{
+		injectionPossibleErr: errors.New("processor service name is required"),
+	}
+
+	// When
+	injector.run(context.Background(), appsecconfig.ProxyTypeGKEGateway, pattern)
+
+	// Then it stays an error, so genuine misconfiguration is still surfaced
+	require.Equal(t, 1, logger.errorfCalls)
+	require.Zero(t, logger.infofCalls)
+}

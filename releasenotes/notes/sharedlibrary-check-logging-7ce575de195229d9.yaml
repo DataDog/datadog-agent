@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Logs emitted by shared library checks are now routed through the Datadog
+    Agent logger, so their output is formatted and level-filtered consistently
+    with other checks instead of being written directly to standard output.

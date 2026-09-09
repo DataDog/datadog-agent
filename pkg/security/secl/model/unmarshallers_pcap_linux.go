@@ -15,8 +15,9 @@ import (
 	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"slices"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -42,7 +43,7 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 			e.Destination.IPNet = *eval.IPNetFromIP(rl.DstIP)
 		}
 	} else if layer := packet.Layer(layers.LayerTypeIPv6); layer != nil {
-		if rl, ok := layer.(*layers.IPv4); ok {
+		if rl, ok := layer.(*layers.IPv6); ok {
 			e.L3Protocol = unix.ETH_P_IPV6
 			e.Source.IPNet = *eval.IPNetFromIP(rl.SrcIP)
 			e.Destination.IPNet = *eval.IPNetFromIP(rl.DstIP)

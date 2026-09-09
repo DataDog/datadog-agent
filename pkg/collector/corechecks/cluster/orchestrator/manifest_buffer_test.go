@@ -123,11 +123,8 @@ func TestNewManifestBuffer(t *testing.T) {
 	assert.Equal(t, 0, len(mb.bufferedManifests))
 	assert.Equal(t, cap(mb.bufferedManifests), mb.Cfg.MaxBufferedManifests)
 
-	// Verify configuration was copied correctly
-	assert.Equal(t, orchCheck.clusterID, mb.Cfg.ClusterID)
-	assert.Equal(t, orchCheck.orchestratorConfig.KubeClusterName, mb.Cfg.KubeClusterName)
-	assert.Equal(t, orchCheck.orchestratorConfig.MaxPerMessage, mb.Cfg.MaxPerMessage)
-	assert.Equal(t, orchCheck.orchestratorConfig.MaxWeightPerMessageBytes, mb.Cfg.MaxWeightPerMessageBytes)
+	assert.Equal(t, orchCheck.orchestratorConfig.MaxPerMessage, mb.Cfg.MaxBufferedManifests)
+	assert.Same(t, orchCheck, mb.chk)
 }
 
 func TestFlushManifest(t *testing.T) {
@@ -171,10 +168,12 @@ func TestFlushManifest(t *testing.T) {
 
 	// Verify the manifest contains expected data
 	assert.Equal(t, "buffer-cluster", sentManifest.ClusterName)
-	assert.Equal(t, mb.Cfg.ClusterID, sentManifest.ClusterId)
+	assert.Equal(t, mb.chk.clusterID, sentManifest.ClusterId)
 	assert.Equal(t, []string{"tag:low"}, sentManifest.Tags) // From ExtraTags in test setup
 	assert.Equal(t, int32(1), sentManifest.GroupId)         // MsgGroupRef.Inc() should return 1 for first call
 	assert.Equal(t, int32(1), sentManifest.GroupSize)       // Only one chunk
+	require.NotNil(t, sentManifest.AgentVersion)
+	assert.Equal(t, mb.chk.agentVersion, sentManifest.AgentVersion)
 
 	// Verify manifests are correctly included
 	assert.Len(t, sentManifest.Manifests, 2)

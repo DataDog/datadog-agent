@@ -1,0 +1,15 @@
+"""Macos packaging rules."""
+
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load(":pkg_mac_pkg_test.bzl", "pkg_mac_pkg_test_suite")
+
+package(default_visibility = ["//visibility:private"])
+
+pkg_mac_pkg_test_suite(name = "pkg_mac_pkg_tests")
+
+py_binary(
+    name = "build_mac_pkg",
+    srcs = ["build_mac_pkg.py"],
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)

@@ -80,6 +80,37 @@ func TestStoreConfig(t *testing.T) {
 		assert.Equal(t, uuid1, uuid2)
 		assert.Equal(t, hash1, hash2)
 	})
+
+	t.Run("duplicate write refreshes LastAccessedAt of the existing entry", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		uuid1, _, _, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
+		require.NoError(t, err)
+
+		// Seed a stale LastAccessedAt directly in the bucket to simulate a config that hasn't been touched in a while.
+		err = cs.db.Update(func(tx *bbolt.Tx) error {
+			bucket := tx.Bucket([]byte(metadataBucket))
+			var meta types.ConfigMetadata
+			if err := json.Unmarshal(bucket.Get([]byte(uuid1)), &meta); err != nil {
+				return err
+			}
+			meta.LastAccessedAt = 100
+			val, err := json.Marshal(meta)
+			if err != nil {
+				return err
+			}
+			return bucket.Put([]byte(uuid1), val)
+		})
+		require.NoError(t, err)
+
+		uuid2, _, stored, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
+		require.NoError(t, err)
+		assert.False(t, stored)
+		assert.Equal(t, uuid1, uuid2)
+
+		_, metadata, err := cs.GetConfig(uuid1)
+		require.NoError(t, err)
+		assert.Greater(t, metadata.LastAccessedAt, int64(100))
+	})
 }
 
 func TestGetConfig(t *testing.T) {
@@ -97,9 +128,35 @@ func TestGetConfig(t *testing.T) {
 		assert.Equal(t, "device:10.0.0.1", metadata.DeviceID)
 		assert.Equal(t, types.RUNNING, metadata.ConfigType)
 		assert.NotZero(t, metadata.CapturedAt)
-		assert.Equal(t, metadata.CapturedAt, metadata.LastAccessedAt)
+		assert.GreaterOrEqual(t, metadata.LastAccessedAt, metadata.CapturedAt)
 		assert.Equal(t, HashConfig(testRawConfig), metadata.RawHash)
 		assert.NotEmpty(t, metadata.AgentVersion)
+	})
+
+	t.Run("refreshes LastAccessedAt on read", func(t *testing.T) {
+		cs := newTestConfigStore(t)
+		configUUID, _, _, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
+		require.NoError(t, err)
+
+		// Seed a stale LastAccessedAt directly in the bucket to simulate a config that hasn't been read in a while.
+		err = cs.db.Update(func(tx *bbolt.Tx) error {
+			bucket := tx.Bucket([]byte(metadataBucket))
+			var meta types.ConfigMetadata
+			if err := json.Unmarshal(bucket.Get([]byte(configUUID)), &meta); err != nil {
+				return err
+			}
+			meta.LastAccessedAt = 100
+			val, err := json.Marshal(meta)
+			if err != nil {
+				return err
+			}
+			return bucket.Put([]byte(configUUID), val)
+		})
+		require.NoError(t, err)
+
+		_, metadata, err := cs.GetConfig(configUUID)
+		require.NoError(t, err)
+		assert.Greater(t, metadata.LastAccessedAt, int64(100))
 	})
 
 	t.Run("returns error for nonexistent UUID", func(t *testing.T) {

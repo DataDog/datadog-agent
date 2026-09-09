@@ -145,7 +145,7 @@ func (s *linuxTestSuite) TestProcessCheck() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, false)
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess", "service_discovery"}, false)
 	}, 2*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -156,9 +156,9 @@ func (s *linuxTestSuite) TestProcessCheck() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "stress")
+		assertProcessCollected(c, payloads, false, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
@@ -188,7 +188,7 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, true)
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess", "service_discovery"}, true)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -199,9 +199,9 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, true, "stress")
+		assertProcessCollected(c, payloads, true, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestProcessChecksWithNPM() {
@@ -209,7 +209,7 @@ func (s *linuxTestSuite) TestProcessChecksWithNPM() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr)))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess", "connections"}, false)
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess", "service_discovery", "connections"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
@@ -223,9 +223,9 @@ func (s *linuxTestSuite) TestProcessChecksWithNPM() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "stress")
+		assertProcessCollected(c, payloads, false, "stress")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestManualProcessCheck() {

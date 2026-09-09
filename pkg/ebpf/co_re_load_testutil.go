@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf && test
+//go:build linux && bpf && test
 
 package ebpf
 
@@ -12,7 +12,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
@@ -21,7 +21,7 @@ import (
 // be correctly recorded.
 // This test version will not use remote config and has a no-op telemetry component.
 func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
-	loader, err := coreLoader(NewConfig(), nil, telemetryimpl.GetCompatComponent())
+	loader, err := coreLoader(NewConfig(), nil, noopsimpl.NewComponent())
 	if err != nil {
 		return err
 	}
@@ -30,7 +30,7 @@ func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.O
 
 // GetBTFLoaderInfo Returns where the ebpf BTF files were sourced from
 func GetBTFLoaderInfo() (string, error) {
-	loader, err := coreLoader(NewConfig(), nil, telemetryimpl.GetCompatComponent())
+	loader, err := coreLoader(NewConfig(), nil, noopsimpl.NewComponent())
 	if err != nil {
 		return "", err
 	}

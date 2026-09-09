@@ -9,6 +9,8 @@
 package ecs
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -87,6 +89,88 @@ func TestInitClusterID(t *testing.T) {
 	id4, err := initClusterID("123456789013", "us-east-1", "ecs-cluster-1")
 	require.NoError(t, err)
 	require.Equal(t, "61623431-6137-6231-3136-366464643761", id4)
+}
+
+// TestNewECSMetaTaskMetadataFallback covers the fallback from the v1 introspection endpoint
+// to the agent's own task metadata. The v1 endpoint is not reachable on ECS Managed
+// Instances, but the v4 task payload carries the same cluster identity.
+func TestNewECSMetaTaskMetadataFallback(t *testing.T) {
+	instanceErr := errors.New("temporary failure in ecsutil-meta-v1")
+	taskErr := errors.New("v4 metadata endpoint not available")
+
+	instanceMeta := func(context.Context) (string, string, string, string, error) {
+		return "123456789012", "us-east-1", "ecs-cluster-1", "Amazon ECS Agent - v1.54.0", nil
+	}
+	taskMeta := func(context.Context) (string, string, string, string, error) {
+		return "123456789012", "us-east-1", "ecs-cluster-1", "3", nil
+	}
+	failing := func(err error) func(context.Context) (string, string, string, string, error) {
+		return func(context.Context) (string, string, string, string, error) {
+			return "", "", "", "", err
+		}
+	}
+
+	tests := []struct {
+		name         string
+		instanceFunc func(context.Context) (string, string, string, string, error)
+		taskFunc     func(context.Context) (string, string, string, string, error)
+		expectErr    error
+		expectMeta   *MetaECS
+	}{
+		{
+			name:         "instance metadata available is used directly",
+			instanceFunc: instanceMeta,
+			taskFunc:     failing(taskErr),
+			expectMeta: &MetaECS{
+				AWSAccountID:    "123456789012",
+				Region:          "us-east-1",
+				ECSCluster:      "ecs-cluster-1",
+				ECSClusterID:    "34616234-6562-3536-3733-656534636532",
+				ECSAgentVersion: "Amazon ECS Agent - v1.54.0",
+			},
+		},
+		{
+			name:         "instance metadata failure falls back to task metadata",
+			instanceFunc: failing(instanceErr),
+			taskFunc:     taskMeta,
+			expectMeta: &MetaECS{
+				AWSAccountID: "123456789012",
+				Region:       "us-east-1",
+				ECSCluster:   "ecs-cluster-1",
+				// Identical to the instance-metadata cluster ID: initClusterID is derived
+				// purely from account, region and cluster name.
+				ECSClusterID:    "34616234-6562-3536-3733-656534636532",
+				ECSAgentVersion: "3",
+			},
+		},
+		{
+			name:         "both unavailable surfaces the original instance metadata error",
+			instanceFunc: failing(instanceErr),
+			taskFunc:     failing(taskErr),
+			expectErr:    instanceErr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			origInstance, origTask := fetchECSInstanceMetadata, fetchECSTaskMetadata
+			t.Cleanup(func() {
+				fetchECSInstanceMetadata, fetchECSTaskMetadata = origInstance, origTask
+			})
+			fetchECSInstanceMetadata, fetchECSTaskMetadata = tt.instanceFunc, tt.taskFunc
+
+			meta, err := newECSMeta(context.Background())
+
+			if tt.expectErr != nil {
+				require.ErrorIs(t, err, tt.expectErr)
+				require.Nil(t, meta)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expectMeta, meta)
+		})
+	}
 }
 
 func TestMetaECS_toCacheValue(t *testing.T) {

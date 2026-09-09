@@ -111,7 +111,7 @@ func detectDocker(features FeatureMap) {
 		for _, defaultDockerSocketPath := range getDefaultDockerPaths() {
 			exists, reachable := socket.IsAvailable(defaultDockerSocketPath, socketTimeout)
 			if exists && !reachable {
-				log.Infof("Agent found Docker socket at: %s but socket not reachable (permissions?)", defaultDockerSocketPath)
+				log.Warnf("Agent found Docker socket at: %s but socket not reachable (permissions?)", defaultDockerSocketPath)
 				continue
 			}
 
@@ -173,7 +173,7 @@ func checkCriSocket(socketPath string) string {
 		log.Infof("Agent found cri socket at: %s", socketPath)
 		return socketPath
 	} else if exists && !reachable {
-		log.Infof("Agent found cri socket at: %s but socket not reachable (permissions?)", socketPath)
+		log.Warnf("Agent found cri socket at: %s but socket not reachable (permissions?)", socketPath)
 	}
 	return ""
 }
@@ -288,7 +288,7 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 		log.Infof("Agent found PodResources socket at %s", socketPath)
 		features[PodResources] = struct{}{}
 	} else if exists && !reachable {
-		log.Infof("Agent found PodResources socket at %s but socket not reachable (permissions?)", socketPath)
+		log.Warnf("Agent found PodResources socket at %s but socket not reachable (permissions?)", socketPath)
 	} else {
 		log.Infof("Agent did not find PodResources socket at %s", socketPath)
 	}
@@ -407,8 +407,10 @@ func getDefaultNvmlPaths() []string {
 	}
 
 	systemPaths := []string{
-		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                   // default system install
-		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                    // default system install
+		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",  // nvidia-gpu-operator install
+		"/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",                   // default system install on ARM64
+		"/run/nvidia/driver/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install on ARM64
 	}
 
 	hostRoot := os.Getenv("HOST_ROOT")

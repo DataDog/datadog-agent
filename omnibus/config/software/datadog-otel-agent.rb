@@ -15,6 +15,7 @@ source path: '..',
          exclude: [
            "**/.cache/**/*",
            "**/testdata/**/*",
+           "**/.git/fsmonitor--daemon.ipc",
          ],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'

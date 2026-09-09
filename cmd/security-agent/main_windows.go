@@ -25,6 +25,7 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
@@ -55,6 +56,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
@@ -154,6 +156,7 @@ func (s *service) Run(svcctx context.Context) error {
 		remoteagentfx.Module(),
 		fx.Supply(configstreamconsumer.NewParams("security-agent", defaultSecurityAgentConfigFilePaths[0])),
 		configstreamconsumerfx.Module(),
+		agenttelemetryfx.Module(),
 	}
 
 	err := fxutil.OneShot(
@@ -184,6 +187,9 @@ func (s *service) Run(svcctx context.Context) error {
 }
 
 func main() {
+	// set the Agent flavor
+	flavor.SetFlavor(flavor.SecurityAgent)
+
 	// if command line arguments are supplied, even in a non-interactive session,
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.

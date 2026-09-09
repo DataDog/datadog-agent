@@ -14,16 +14,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 )
 
-// openPathWithoutSymlinksAndCheckFDs wraps openPathWithoutSymlinks and verifies
-// that no file descriptors are leaked. For success cases, it checks that exactly
-// one FD is opened. For error cases, it checks that no FDs are leaked.
+// openPathWithoutSymlinksAndCheckFDs wraps common.OpenPathWithoutSymlinks and
+// verifies that no file descriptors are leaked. For success cases, it checks
+// that exactly one FD is opened. For error cases, it checks that no FDs are
+// leaked.
 func openPathWithoutSymlinksAndCheckFDs(t *testing.T, path string) (*os.File, error) {
 	t.Helper()
 	fdsBefore := countOpenFDs(t)
 
-	file, err := openPathWithoutSymlinks(path)
+	file, err := common.OpenPathWithoutSymlinks(path)
 
 	if err != nil {
 		fdsAfter := countOpenFDs(t)
@@ -95,6 +98,32 @@ func TestOpenPathWithoutSymlinks(t *testing.T) {
 		fi, err := file.Stat()
 		require.NoError(t, err)
 		assert.True(t, fi.IsDir())
+	})
+
+	t.Run("success - directory component not readable but searchable", func(t *testing.T) {
+		// Root bypasses the directory read-permission check below via
+		// CAP_DAC_OVERRIDE, so this test would pass vacuously without
+		// actually exercising the permission check.
+		if os.Geteuid() == 0 {
+			t.Skip("test requires a non-root effective UID")
+		}
+
+		execOnlyDir := filepath.Join(testDir, "execonly")
+		require.NoError(t, os.Mkdir(execOnlyDir, 0755))
+
+		logFile := filepath.Join(execOnlyDir, "execonly.log")
+		require.NoError(t, os.WriteFile(logFile, []byte("test content"), 0644))
+
+		// Search (execute) permission only: no read bit for owner, group, or
+		// other. A plain os.Open(logFile) succeeds against this mode, since
+		// it only needs to traverse (not list) execOnlyDir.
+		require.NoError(t, os.Chmod(execOnlyDir, 0111))
+		defer os.Chmod(execOnlyDir, 0755) //nolint:errcheck // best-effort cleanup so t.TempDir() can remove it
+
+		file, err := openPathWithoutSymlinksAndCheckFDs(t, logFile)
+		require.NoError(t, err)
+		require.NotNil(t, file)
+		defer file.Close()
 	})
 
 	t.Run("error - relative path", func(t *testing.T) {

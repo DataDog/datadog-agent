@@ -46,6 +46,10 @@ const (
 	ProductAgentFlags = "AGENT_REMOTE_FLAGS"
 	// ProductDOQueryActions is to execute database queries remotely for Data Observability
 	ProductDOQueryActions Product = "DO_QUERY_ACTIONS"
+	// ProductNetworkPath is to configure Network Path scheduled tests
+	ProductNetworkPath Product = "NETWORK_PATH"
+	// ProductDataSecurityDBScanTasks is used to remotely trigger Data Security DB scan tasks
+	ProductDataSecurityDBScanTasks Product = "DATA_SECURITY_DB_SCAN_TASKS"
 )
 
 // ProductListToString converts a product list to string list

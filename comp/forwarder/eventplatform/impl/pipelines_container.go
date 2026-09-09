@@ -9,6 +9,7 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,9 +23,9 @@ func getContainerPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "contlcycle-intake.",
 			intakeTrackType:               "contlcycle",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    constants.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           constants.DefaultBatchMaxSize,
+			defaultInputChanSize:          constants.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeContainerImages,
@@ -34,9 +35,9 @@ func getContainerPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "contimage-intake.",
 			intakeTrackType:               "contimage",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    constants.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           constants.DefaultBatchMaxSize,
+			defaultInputChanSize:          constants.DefaultInputChanSize,
 		},
 	}
 
@@ -49,9 +50,9 @@ func getContainerPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "kubeops-intake.",
 			intakeTrackType:               "kubeactions",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    constants.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           constants.DefaultBatchMaxSize,
+			defaultInputChanSize:          constants.DefaultInputChanSize,
 		}
 		descs = append(descs, kubeactionsPipeline)
 		// TODO(kubeactions): Remove this log once EVP intake is stable

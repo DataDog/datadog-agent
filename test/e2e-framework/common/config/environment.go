@@ -237,7 +237,7 @@ func (e *CommonEnvironment) KubernetesVersion() string {
 }
 
 func (e *CommonEnvironment) KindVersion() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraKindVersion, "v0.31.0")
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKindVersion, "v0.32.0")
 }
 
 func (e *CommonEnvironment) KubeNodeURL() string {
@@ -246,6 +246,12 @@ func (e *CommonEnvironment) KubeNodeURL() string {
 
 func (e *CommonEnvironment) DefaultResourceTags() map[string]string {
 	return map[string]string{"managed-by": "pulumi", "username": e.username, "stack": e.Ctx().Stack()}
+}
+
+// Username returns the local OS user the stack is running as. Prefer this over
+// indexing DefaultResourceTags(), which silently yields "" if the key ever changes.
+func (e *CommonEnvironment) Username() string {
+	return e.username
 }
 
 func (e *CommonEnvironment) InitOnly() bool {

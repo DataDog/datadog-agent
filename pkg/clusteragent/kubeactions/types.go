@@ -21,6 +21,8 @@ const (
 	ActionTypePatchDeployment    = "patch_deployment"
 	ActionTypeRollbackDeployment = "rollback_deployment"
 	ActionTypeGetResource        = "get_resource"
+	ActionTypePatchDaemonSet     = "patch_daemonset"
+	ActionTypePatchStatefulSet   = "patch_statefulset"
 )
 
 // Execution status constants
@@ -63,6 +65,10 @@ func GetActionType(action *kubeactions.KubeAction) string {
 		return ActionTypeRollbackDeployment
 	case *kubeactions.KubeAction_GetResource_:
 		return ActionTypeGetResource
+	case *kubeactions.KubeAction_PatchDaemonset:
+		return ActionTypePatchDaemonSet
+	case *kubeactions.KubeAction_PatchStatefulset:
+		return ActionTypePatchStatefulSet
 	default:
 		return ActionTypeUnknown
 	}

@@ -60,18 +60,6 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult ConfigureAiUsageMonitorDesktopMonitor(Session session)
-        {
-            return Datadog.CustomActions.AiUsageDesktopMonitorCustomAction.Configure(session);
-        }
-
-        [CustomAction]
-        public static ActionResult RemoveAiUsageMonitorDesktopMonitor(Session session)
-        {
-            return Datadog.CustomActions.AiUsageDesktopMonitorCustomAction.Remove(session);
-        }
-
-        [CustomAction]
         public static ActionResult ReportFailure(Session session)
         {
             return Datadog.CustomActions.Telemetry.ReportFailure(session);
@@ -219,6 +207,18 @@ namespace Datadog.AgentCustomActions
         public static ActionResult DDCreateFolders(Session session)
         {
             return Datadog.CustomActions.ConfigCustomActions.DDCreateFolders(session);
+        }
+
+        [CustomAction]
+        public static ActionResult EnsureSecureConfigRoot(Session session)
+        {
+            return Datadog.CustomActions.PrerequisitesCustomActions.EnsureSecureConfigRoot(session);
+        }
+
+        [CustomAction]
+        public static ActionResult EnsureSecureConfigRootUI(Session session)
+        {
+            return Datadog.CustomActions.PrerequisitesCustomActions.EnsureSecureConfigRootUI(session);
         }
 
         [CustomAction]

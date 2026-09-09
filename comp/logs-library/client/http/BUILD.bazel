@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "http",
@@ -29,14 +30,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "http_test",
     srcs = [
         "destination_test.go",
         "worker_pool_test.go",
     ],
     embed = [":http"],
-    gotags = ["test"],
     deps = [
         "//comp/core/secrets/noop-impl",
         "//comp/core/secrets/noop-impl/types",

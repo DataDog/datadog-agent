@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "listeners",
     srcs = [
@@ -73,6 +71,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
         "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@in_yaml_go_yaml_v2//:yaml",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_api//discovery/v1:discovery",
         "@io_k8s_apimachinery//pkg/api/equality",
@@ -92,6 +91,7 @@ dd_agent_go_test(
     name = "listeners_test",
     srcs = [
         "cloudfoundry_test.go",
+        "common_filter_test.go",
         "common_test.go",
         "container_test.go",
         "dbm_aurora_test.go",
@@ -109,6 +109,25 @@ dd_agent_go_test(
         "workloadmeta_test.go",
     ],
     embed = [":listeners"],
+    gotags_sets = [
+        [
+            "cel",
+            "clusterchecks",
+            "containerd",
+            "docker",
+            "kubeapiserver",
+            "kubelet",
+            "orchestrator",
+        ],
+        [
+            "cel",
+            "clusterchecks",
+            "kubeapiserver",
+            "kubelet",
+            "orchestrator",
+        ],
+        ["ec2"],
+    ],
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",

@@ -61,10 +61,6 @@ pub(crate) fn log_startup_warning(message: impl AsRef<str>) {
 /// Run the desktop monitor polling loop and submit detected AI usage events.
 pub fn run(dd_client: &DatadogClient, mut config: DesktopMonitoringConfig) -> Result<()> {
     let mut logger = DesktopLogger::new(config.debug);
-    if !config.enabled {
-        logger.info("desktop monitoring disabled by config");
-        return Ok(());
-    }
 
     #[cfg(any(windows, target_os = "macos"))]
     {
@@ -185,7 +181,6 @@ fn poll_once(
         return;
     }
 
-    let user_id = resolve_user_id();
     let hostname = resolve_hostname();
     for detection in detections {
         logger.info(format!(
@@ -202,7 +197,6 @@ fn poll_once(
             "observed",
             "desktop_app",
             detection.tool,
-            user_id.clone(),
             hostname.clone(),
             detection.approved,
         );
@@ -329,15 +323,6 @@ fn read_write_activity_observed(delta: &ProcessActivityDelta) -> bool {
     .into_iter()
     .flatten()
     .any(|delta| delta > 0)
-}
-
-/// Resolve the user identifier attached to observed desktop usage events.
-fn resolve_user_id() -> String {
-    std::env::var("USERNAME")
-        .or_else(|_| std::env::var("USER"))
-        .ok()
-        .filter(|user| !user.is_empty())
-        .unwrap_or_else(|| "unknown".to_string())
 }
 
 /// Emit debug details about hosted AI candidates and their foreground process ancestry.
@@ -583,6 +568,7 @@ fn descendant_pids_of(
 mod tests {
     use super::*;
     use crate::datadog::DesktopMonitoringConfig;
+    use crate::desktop::matcher::ProcessEdge;
 
     fn config() -> DesktopMonitoringConfig {
         DesktopMonitoringConfig {

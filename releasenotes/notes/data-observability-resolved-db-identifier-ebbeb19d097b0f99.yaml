@@ -1,0 +1,5 @@
+fixes:
+  - |
+    Data Observability query actions now match PostgreSQL checks by their
+    resolved database identifier. Queries now run when the identifier uses an
+    agent hostname override or a ``database_identifier`` template.

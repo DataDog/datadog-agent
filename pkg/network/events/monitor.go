@@ -156,7 +156,7 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 		}
 	}
 
-	if tmeta := ev.GetProcessTracerMetadata(); (tmeta != tracermetadata.TracerMetadata{}) {
+	if tmeta := ev.GetProcessTracerMetadata(); !tmeta.IsZero() {
 		for key, value := range tmeta.Tags() {
 			if tracermetadata.ShouldSkipServiceTagKV(key, value,
 				tagsFound["DD_SERVICE"],

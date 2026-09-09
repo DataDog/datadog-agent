@@ -14,8 +14,10 @@ from tasks.e2e_framework.tool import (
     error,
     get_aws_cmd,
     get_pulumi_run_folder,
+    get_resource_owner_id,
     info,
     is_windows,
+    run_pulumi,
     warn,
 )
 
@@ -35,8 +37,6 @@ def _force_cleanup(
     Uses computed default paths — not the existing config — so it targets exactly
     what the next setup run would create.
     """
-    import getpass
-
     from tasks.e2e_framework.config import get_full_profile_path
     from tasks.e2e_framework.setup.aws import DEFAULT_AWS_ACCOUNT, _default_keypair_name
     from tasks.e2e_framework.setup.ssh_keys import default_key_paths, ssh_agent_supported
@@ -56,7 +56,7 @@ def _force_cleanup(
                 p.unlink()
                 info(f"✓ Deleted {p}")
 
-    user = getpass.getuser()
+    user = get_resource_owner_id()
     effective_account = account or DEFAULT_AWS_ACCOUNT
 
     # AWS: remove from agent, delete local files, then delete EC2 keypair
@@ -150,9 +150,8 @@ def setup(
     else:
         install_pulumi(ctx)
 
-    with ctx.cd(get_pulumi_run_folder()):
-        ctx.run("pulumi --non-interactive plugin install", hide=True)
-        ctx.run("pulumi login --local", hide=True)
+    run_pulumi(ctx, "--non-interactive plugin install", project_dir=get_pulumi_run_folder(), hide=True)
+    run_pulumi(ctx, "login --local", project_dir=False, hide=True)
     info("✓ Pulumi plugins installed; local backend configured")
 
     try:
@@ -187,7 +186,7 @@ def setup(
         debug_env(ctx, config_path=config_path)
 
     if interactive:
-        info("\n✓ Setup complete. Try: dda inv new-e2e-tests.run --targets=./test/new-e2e/examples\n")
+        info("\n✓ Setup complete. Try: dda inv new-e2e-tests.run --targets=./examples\n")
 
 
 @task
@@ -453,9 +452,11 @@ def debug_env(ctx, config_path: str | None = None):
     """
     Debug E2E and test-infra-definitions required tools and configuration
     """
+    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION
+
     # check pulumi found
     try:
-        out = ctx.run("pulumi version", hide=True)
+        out = run_pulumi(ctx, "version", project_dir=False, skip_update_check=False, hide=True)
     except UnexpectedExit as e:
         error(f"{e}")
         error("Pulumi CLI not found, please install it: https://www.pulumi.com/docs/get-started/install/")
@@ -464,7 +465,7 @@ def debug_env(ctx, config_path: str | None = None):
 
     # Check pulumi credentials
     try:
-        out = ctx.run("pulumi whoami", hide=True)
+        out = run_pulumi(ctx, "whoami", project_dir=False, hide=True)
     except UnexpectedExit as e:
         error("No pulumi credentials found")
         info("Please login, e.g. pulumi login --local")
@@ -493,7 +494,7 @@ def debug_env(ctx, config_path: str | None = None):
 
     # check .aws/config exists and contains expected profile
     # some invoke taskes hard code this value.
-    expected_profile = 'sso-agent-sandbox-account-admin'
+    expected_profile = 'sso-agent-sandbox-account-admin-8h'
     aws_conf_path = Path.home().joinpath(".aws", "config")
     if not os.path.isfile(aws_conf_path):
         error(f"Missing aws config file: {aws_conf_path}")
@@ -508,18 +509,24 @@ def debug_env(ctx, config_path: str | None = None):
 
     # Show AWS account info
     info("Logged-in aws account info:")
+    # AWS_REGION being unset is not fatal: every resource the E2E framework uses lives in
+    # us-east-1, which is also what the SSO profile sets. Some setups (aws-vault on a
+    # Datadog workspace, for one) simply don't export it.
+    region = os.environ.get("AWS_REGION")
     if os.environ.get("AWS_PROFILE"):
         info(f"\tAWS_PROFILE={os.environ.get('AWS_PROFILE')}")
-        region = os.environ.get("AWS_REGION")
-        if not region:
-            raise Exit("Missing env var AWS_REGION, please set var", 1)
-        info(f"\tAWS_REGION={region}")
     else:
-        for env in ["AWS_VAULT", "AWS_REGION"]:
-            val = os.environ.get(env, None)
-            if val is None:
-                raise Exit(f"Missing env var {env}, please login with awscli/aws-vault or set AWS_PROFILE", 1)
-            info(f"\t{env}={val}")
+        aws_vault = os.environ.get("AWS_VAULT")
+        if aws_vault is None:
+            raise Exit("Missing env var AWS_VAULT, please login with awscli/aws-vault or set AWS_PROFILE", 1)
+        info(f"\tAWS_VAULT={aws_vault}")
+
+    if region:
+        info(f"\tAWS_REGION={region}")
+        if region != DEFAULT_AWS_REGION:
+            warn(f"\tAWS_REGION is {region}, but the E2E resources only exist in {DEFAULT_AWS_REGION}")
+    else:
+        info(f"\tAWS_REGION is unset, {DEFAULT_AWS_REGION} will be used")
 
     # Check if aws creds are valid
     try:
@@ -532,7 +539,7 @@ def debug_env(ctx, config_path: str | None = None):
     print()
 
     # Check aws-vault profile name, some invoke taskes hard code this value.
-    expected_profile = 'sso-agent-sandbox-account-admin'
+    expected_profile = 'sso-agent-sandbox-account-admin-8h'
     out = ctx.run("aws-vault list", hide=True)
     if expected_profile not in out.stdout:
         warn(f"WARNING: expected profile {expected_profile} missing from aws-vault. Some invoke tasks may fail.")

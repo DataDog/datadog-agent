@@ -9,6 +9,7 @@ package goroutinesdump
 import (
 	"context"
 	"fmt"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"io"
 	"net"
 	"net/http"
@@ -19,7 +20,7 @@ import (
 
 // Get returns the stack trace of every Go routine of a running Agent.
 func Get() (string, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}

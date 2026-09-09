@@ -107,6 +107,8 @@ func (c *tracerMemfdConsumer) Copy(ev *model.Event) any {
 	return event
 }
 
+var _ = declareInlineConfig(TestTracerMemfd)
+
 func TestTracerMemfd(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -188,9 +190,12 @@ func TestTracerMemfd(t *testing.T) {
 		tracerData, ok := processData["tracer"].(map[string]interface{})
 		require.True(t, ok, "tracer field should be present in serialized process, got: %v", processData)
 
-		assert.Equal(t, "test-service", tracerData["service_name"], "service_name mismatch")
-		assert.Equal(t, "test-env", tracerData["service_env"], "service_env mismatch")
-		assert.Equal(t, "1.0.0", tracerData["service_version"], "service_version mismatch")
-		assert.Contains(t, tracerData["process_tags"], "custom.tag:value", "process_tags should contain custom.tag:value")
+		metadataData, ok := tracerData["metadata"].(map[string]interface{})
+		require.True(t, ok, "metadata field should be present in serialized tracer, got: %v", tracerData)
+
+		assert.Equal(t, "test-service", metadataData["service_name"], "service_name mismatch")
+		assert.Equal(t, "test-env", metadataData["service_env"], "service_env mismatch")
+		assert.Equal(t, "1.0.0", metadataData["service_version"], "service_version mismatch")
+		assert.Contains(t, metadataData["process_tags"], "custom.tag:value", "process_tags should contain custom.tag:value")
 	})
 }

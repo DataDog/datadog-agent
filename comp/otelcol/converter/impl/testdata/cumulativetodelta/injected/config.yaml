@@ -1,0 +1,7 @@
+processors:
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [datadog]

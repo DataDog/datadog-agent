@@ -271,7 +271,7 @@ Notes:
 
 ### 2. Register in build system
 
-Add your check name to `tasks/agent.py` in the `AGENT_CORECHECKS` list:
+Add your check name to `tasks/core_checks.py` in the `AGENT_CORECHECKS` list:
 
 ```python
 AGENT_CORECHECKS = [
@@ -284,6 +284,18 @@ AGENT_CORECHECKS = [
 ```
 
 This ensures the configuration files are copied to `cmd/agent/dist/conf.d/` during the build process. Without this step, your configuration template won't be included in the agent package.
+
+`AGENT_CORECHECKS` is for checks that ship on every platform. If your check only
+works on some platforms, use the matching list instead — `MACOS_CORECHECKS`,
+`WINDOWS_CORECHECKS`, `AIX_CORECHECKS` — and add it to each list it applies to
+(a check that works on both macOS and Windows belongs in both). `IOT_AGENT_CORECHECKS`
+covers the IoT flavor. Shipping a config on a platform where the check cannot
+collect only schedules a check that always fails.
+
+`tasks/core_checks.py` and `cmd/agent/dist/core_checks.bzl` must be **byte-identical**
+— the Python copy drives `dda inv agent.build`, the Starlark copy drives Bazel
+packaging. The `//cmd/agent/dist:core_checks_list_sync_test` diff test enforces this,
+so edit both.
 
 ---
 
@@ -302,7 +314,9 @@ Provide a `stub.go` with a `Factory()` returning `option.None[...]()` and a warn
 ## Ensuring the Check Runs
 
 1. Add the config template in `cmd/agent/dist/conf.d/<checkname>.d/conf.yaml.example` (or `.default` for Autodiscovery).
-2. Add check name to `AGENT_CORECHECKS` list in `tasks/agent.py`.
+2. Add check name to `AGENT_CORECHECKS` list in `tasks/core_checks.py` (and mirror the
+   edit into `cmd/agent/dist/core_checks.bzl`). For a platform-specific check use
+   `MACOS_CORECHECKS` / `WINDOWS_CORECHECKS` / `AIX_CORECHECKS` instead.
 3. Confirm registration is in a file that compiles in your agent flavor/build tags.
 4. Build the Agent:
 
@@ -680,7 +694,9 @@ import (
 
 - [ ] `pkg/collector/corechecks/<checkname>/<checkname>.go` with `Check`, `Factory`, `Configure`, `Run`
 - [ ] Registration via `corecheckLoader.RegisterCheck(...)` in `pkg/commonchecks/corechecks.go`
-- [ ] Add check name to `AGENT_CORECHECKS` list in `tasks/agent.py`
+- [ ] Add check name to the right list in `tasks/core_checks.py` (`AGENT_CORECHECKS` for
+      all-platform checks, else `MACOS_CORECHECKS` / `WINDOWS_CORECHECKS` / `AIX_CORECHECKS`)
+      and mirror the identical edit into `cmd/agent/dist/core_checks.bzl`
 - [ ] `cmd/agent/dist/conf.d/<checkname>.d/conf.yaml.example` (or `.default` for Autodiscovery)
 - [ ] Optional: platform build tags and stubs
 - [ ] Unit tests for `Run()` and `Configure`

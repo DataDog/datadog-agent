@@ -49,7 +49,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.setup import check_requirements, get_requirements
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_get_stack_or_exit, ec2_instance_ids
-from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
+from tasks.kernel_matrix_testing.tool import Exit, ask, error, info, warn
 from tasks.kernel_matrix_testing.types import PlatformInfo, component_from_str
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.bazel import bazel
@@ -62,12 +62,13 @@ from tasks.libs.ciproviders.gitlab_api import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_current_branch
-from tasks.libs.common.utils import get_build_flags, get_gobin
+from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
 from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.libs.types.types import JobDependency
+from tasks.schema.generate import schema_codegen
 from tasks.security_agent import build_functional_tests
 from tasks.system_probe import (
     BPF_TAG,
@@ -94,7 +95,6 @@ if TYPE_CHECKING:
         Component,  # noqa: F401
         DependenciesLayout,
         KMTArchNameOrLocal,
-        PathOrStr,
         SSHKey,
     )
 
@@ -649,35 +649,6 @@ def get_archs_in_domains(domains: Iterable[LibvirtDomain]) -> set[Arch]:
     return archs
 
 
-TOOLS_PATH = f"{CONTAINER_AGENT_PATH}/internal/tools"
-GOTESTSUM = "gotest.tools/gotestsum"
-
-
-def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
-    if os.path.isfile(fgotestsum):
-        file_arch = get_binary_target_arch(ctx, fgotestsum)
-        if file_arch == arch:
-            return
-
-    paths = KMTPaths(None, arch)
-    paths.tools.mkdir(parents=True, exist_ok=True)
-
-    cc = get_compiler(ctx)
-    target_path = CONTAINER_AGENT_PATH / paths.tools.relative_to(paths.repo_root) / "gotestsum"
-    env = {
-        "GOARCH": arch.go_arch,
-        "CC": "\\$DD_CC_CROSS" if arch.is_cross_compiling() else "\\$DD_CC",
-        "CXX": "\\$DD_CXX_CROSS" if arch.is_cross_compiling() else "\\$DD_CXX",
-    }
-
-    env_str = " ".join(f"{key}={value}" for key, value in env.items())
-    cc.exec(
-        f"cd {TOOLS_PATH} && {env_str} go build -o {target_path} {GOTESTSUM}",
-    )
-
-    ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
-
-
 def is_root():
     return os.getuid() == 0
 
@@ -863,6 +834,9 @@ def kmt_secagent_prepare(
             filter_fn=lambda x: os.path.basename(x).startswith("runtime-security"),
         )
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
@@ -954,12 +928,10 @@ def _prepare(
         # In CI, these binaries are always present
         llc_path = LLC_PATH_CI
         clang_path = CLANG_PATH_CI
-        gotestsum_path = Path(get_gobin(ctx)) / "gotestsum"
 
         # Copy the binaries to the target directory, CI will take them from those
         # paths as artifacts
         copy_static_files = {
-            gotestsum_path: paths.dependencies / "go/bin/gotestsum",
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
             llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
             "flakes.yaml": paths.dependencies / "flakes.yaml",
@@ -969,8 +941,12 @@ def _prepare(
         for src, dst in copy_static_files.items():
             ctx.run(f"install -D {src} {dst}")
     else:
-        gotestsum_path = paths.dependencies / "go/bin/gotestsum"
-        download_gotestsum(ctx, arch_obj, gotestsum_path)
+        bazel(
+            "run",
+            f"//internal/tools:install_gotestsum_linux_{arch_obj.kmt_arch}",
+            "--",
+            f"--destdir={paths.dependencies / "go/bin"}",
+        )
 
         # We cannot use the pre-built local clang and llc-bpf binaries, as they
         # might not be built for the target architecture.
@@ -1054,7 +1030,7 @@ def build_object_files(ctx, arch: Arch):
     build_dir = get_ebpf_build_dir(arch)
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
-    bazel(ctx, "test", *ebpf_bazel_flags(arch), "//pkg/ebpf:verify_generated_files")
+    bazel("test", *ebpf_bazel_flags(arch), "//pkg/ebpf:verify_generated_files")
 
 
 def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:
@@ -1063,7 +1039,9 @@ def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: 
 
     packages_list = " ".join(packages)
     list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
-    res = ctx.run(f"go list -buildvcs=false -test -f '{list_format}' -tags \"{build_tags}\" {packages_list}", hide=True)
+    res = ctx.run(
+        f"go list -buildvcs=false -test -f '{list_format}' -tags \"{','.join(build_tags)}\" {packages_list}", hide=True
+    )
     if res is None or not res.ok:
         raise Exit("Failed to get dependencies for system-probe")
 
@@ -1167,7 +1145,7 @@ def kmt_sysprobe_prepare(
             variables = {
                 "env": env_str,
                 "go": go_path,
-                "build_tags": build_tags,
+                "build_tags": ",".join(build_tags),
             }
             timeout = get_test_timeout(os.path.relpath(pkg, os.getcwd()))
             if timeout:
@@ -1224,7 +1202,7 @@ def kmt_sysprobe_prepare(
                         variables={
                             "go": go_path,
                             "chdir": "true",
-                            "tags": "-tags=\"test,linux_bpf\"",
+                            "tags": "-tags=\"test,bpf\"",
                             "ldflags": "-ldflags=\"-extldflags '-static'\"",
                             "env": env_str,
                         },
@@ -1250,6 +1228,10 @@ def kmt_sysprobe_prepare(
                     )
 
     info("[+] Compiling tests...")
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 

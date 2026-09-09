@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	linuxInstallScriptURL   = "https://install.datadoghq.com/scripts/install_script_agent7.sh"
-	windowsInstallScriptURL = "https://install.datadoghq.com/Install-Datadog.ps1"
+	linuxInstallScriptURL     = "https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh"
+	windowsInstallerLatestURL = "https://s3.amazonaws.com/dd-agent/datadog-installer-x86_64.exe"
 )
 
 // InstallOption is an optional function parameter type for InstallParams options
@@ -89,7 +89,7 @@ func (a *Agent) Install(options ...InstallOption) error {
 	case e2eos.LinuxFamily:
 		return a.installLinuxInstallScript(params)
 	case e2eos.WindowsFamily:
-		return a.installWindowsInstallScript(params)
+		return a.installWindowsInstallExe(params)
 	default:
 		return fmt.Errorf("unsupported OS family: %v", a.host.RemoteHost.OSFamily)
 	}
@@ -154,7 +154,7 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 	return err
 }
 
-func (a *Agent) installWindowsInstallScript(params *installParams) error {
+func (a *Agent) installWindowsInstallExe(params *installParams) error {
 	env := map[string]string{
 		"DD_API_KEY": apiKey(),
 		"DD_SITE":    "datadoghq.com",
@@ -165,7 +165,7 @@ func (a *Agent) installWindowsInstallScript(params *installParams) error {
 	if params.otelCollectorEnabled {
 		env["DD_OTELCOLLECTOR_ENABLED"] = "true"
 	}
-	scriptURL := windowsInstallScriptURL
+	installerURL := windowsInstallerLatestURL
 	if !params.stablePackages && params.stagingPackages == "" {
 		artifactURL, err := pipeline.GetPipelineArtifact(params.pipelineID, pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
 			return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".exe")
@@ -173,21 +173,31 @@ func (a *Agent) installWindowsInstallScript(params *installParams) error {
 		if err != nil {
 			return err
 		}
+		installerURL = artifactURL
 		env["DD_SITE"] = "datad0g.com"
-		env["DD_INSTALLER_URL"] = artifactURL
 		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = "pipeline-" + params.pipelineID
 		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "installtesting.datad0g.com.internal.dda-testing.com"
-		scriptURL = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", os.Getenv("E2E_PIPELINE_ID"))
 	} else if params.stagingPackages != "" {
 		env["DD_SITE"] = "datad0g.com"
-		env["DD_INSTALLER_URL"] = fmt.Sprintf("https://install.datad0g.com/builds/beta/datadog-installer-%s-1-x86_64.exe", strings.ReplaceAll(params.stagingPackages, "~", "-"))
+		installerURL = fmt.Sprintf("https://install.datad0g.com/builds/beta/datadog-installer-%s-1-x86_64.exe", strings.ReplaceAll(params.stagingPackages, "~", "-"))
 		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = strings.ReplaceAll(params.stagingPackages, "~", "-") + "-1"
 		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "install.datad0g.com.internal.dda-testing.com"
-		scriptURL = fmt.Sprintf("https://install.datad0g.com/builds/beta/Install-Datadog-%s-1.ps1", strings.ReplaceAll(params.stagingPackages, "~", "-"))
 	}
-	_, err := a.host.RemoteHost.Execute(fmt.Sprintf(`Set-ExecutionPolicy Bypass -Scope Process -Force;
-	[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
-	iex ((New-Object System.Net.WebClient).DownloadString('%s'))`, scriptURL), client.WithEnvVariables(env))
+	// Download the installer exe and run it directly, retrying the download since e2e VMs
+	// occasionally hit transient network errors right after boot.
+	_, err := a.host.RemoteHost.Execute(fmt.Sprintf(`[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
+	$tempFile = [System.IO.Path]::GetTempFileName() + ".exe";
+	$wc = New-Object System.Net.WebClient;
+	for ($i=0; $i -lt 3; $i++) {
+		try {
+			$wc.DownloadFile("%s", $tempFile);
+			break
+		} catch {
+			if ($i -eq 2) { throw }
+			Start-Sleep -Seconds 5
+		}
+	};
+	& $tempFile`, installerURL), client.WithEnvVariables(env))
 	return err
 }
 

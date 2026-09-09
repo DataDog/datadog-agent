@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf && nvml && test
+//go:build linux && bpf && nvml && test
 
 // this file contains utilities only used for testing within the gpu package. Utilities meant to
 // be used by other packages should be placed in the pkg/gpu/testutil package.

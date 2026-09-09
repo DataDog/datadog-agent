@@ -8,7 +8,7 @@ CI enforces static analysis checks for code, configuration, documentation, and m
 
 Go code can be analyzed with the `dda inv linter.go` command. This uses [golangci-lint](https://github.com/golangci/golangci-lint) which is an aggregator for several linters.
 
-The configuration is defined in the [.golangci.yml](https://github.com/DataDog/datadog-agent/blob/main/.golangci.yml) file. The `linters` key defines the list of linters we enable.
+The configuration is defined in the <<<repo(".golangci.yml")>>> file. The `linters` key defines the list of linters we enable.
 
 /// tip
 You can ignore linter issues on specific lines of code with the [nolint directive](https://golangci-lint.run/docs/linters/false-positives/#nolint-directive).

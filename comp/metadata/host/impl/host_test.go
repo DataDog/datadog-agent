@@ -184,6 +184,8 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 }
 
 func TestFlareProvider(t *testing.T) {
+	// Disable cloud provider metadata to avoid real HTTP calls
+	config.NewMock(t).SetInTest("cloud_provider_metadata", []string{})
 	ret := NewComponent(
 		makeRequires(fxutil.Test[testDeps](
 			t,

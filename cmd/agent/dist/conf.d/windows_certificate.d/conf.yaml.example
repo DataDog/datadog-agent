@@ -180,6 +180,59 @@ instances:
     #
     # signature_algorithm_tag: false
 
+    ## @param filters - mapping - optional
+    ## Each rule maps a tag key to a Go regexp pattern matched against the
+    ## tag's value.
+    ##
+    ## `include`: a certificate must satisfy ALL include rules to be reported.
+    ##   A certificate that has no tag for a given include key fails that rule.
+    ## `exclude`: a certificate is dropped if ANY exclude rule matches one of
+    ##   its tag values.
+    ## When both are specified, include is evaluated first, then exclude.
+    ##
+    ## Supported filter keys:
+    ##   certificate_thumbprint     SHA-1 hex thumbprint
+    ##   certificate_serial_number  serial number in hex
+    ##   subject_CN                 Common Name
+    ##   subject_O                  Organization
+    ##   subject_alt_name_dns       DNS SAN entry               (requires subject_alternative_names_tag)
+    ##   subject_alt_name_ip        IP SAN entry                (requires subject_alternative_names_tag)
+    ##   subject_alt_name_email     email SAN entry             (requires subject_alternative_names_tag)
+    ##   friendly_name              Windows friendly name       (requires friendly_name_tag)
+    ##   enhanced_key_usage         EKU short name or OID       (requires enhanced_key_usage_tag)
+    ##   certificate_template_name  template display name       (requires certificate_template_tag)
+    ##   certificate_template_oid   template OID (V2 certs)     (requires certificate_template_tag)
+    ##   issuer_CN                  issuer Common Name          (requires issuer_tag)
+    ##   signature_algorithm        e.g. "SHA256-RSA"           (requires signature_algorithm_tag)
+    ##
+    ## `certificate_store` and `server` are not supported as filter keys; use
+    ## `certificate_store` / `certificate_store_regex` and `server` instead.
+    ##
+    ## Examples:
+    ##
+    ##   # Report only certificates with a specific thumbprint:
+    ##   filters:
+    ##     include:
+    ##       certificate_thumbprint: "^3a7b9c"
+    ##
+    ##   # Exclude internal-only certificates by CN:
+    ##   filters:
+    ##     exclude:
+    ##       subject_CN: "internal\\.example\\.com$"
+    ##
+    ##   # Scope to IIS certificates and exclude staging:
+    ##   filters:
+    ##     include:
+    ##       certificate_template_name: "WebServer"
+    ##     exclude:
+    ##       subject_CN: "staging"
+    #
+    # filters:
+    #   include:
+    #     <cert_tag_key>: <regex_pattern>
+    #   exclude:
+    #     <cert_tag_key>: <regex_pattern>
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##

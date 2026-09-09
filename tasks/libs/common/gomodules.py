@@ -14,7 +14,7 @@ from invoke.context import Context
 
 import tasks
 from tasks.libs.build.bazel import bazel
-from tasks.libs.common.utils import agent_working_directory
+from tasks.libs.common.utils import _resolve_target_platform, agent_working_directory
 
 
 class ConfigDumper(yaml.SafeDumper):
@@ -129,6 +129,7 @@ class GoModule:
         'always': lambda platform=None: True,
         'never': lambda platform=None: False,
         'is_linux': lambda platform=None: (platform or sys.platform) == "linux",
+        'not_aix': lambda platform=None: (platform or sys.platform) != "aix",
     }
 
     # Posix path of the module's directory
@@ -222,8 +223,9 @@ class GoModule:
         """
 
         function = GoModule.SHOULD_TEST_CONDITIONS[self.should_test_condition]
+        target_platform = _resolve_target_platform(platform)
 
-        return function(platform=platform)
+        return function(platform=target_platform)
 
     def __version(self, agent_version):
         """Return the module version for a given Agent version.
@@ -241,7 +243,6 @@ class GoModule:
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
         output = bazel(
-            ctx,
             "run",
             "//internal/tools/modparser",
             "--",

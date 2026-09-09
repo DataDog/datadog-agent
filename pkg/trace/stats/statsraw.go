@@ -140,7 +140,7 @@ type RawBucket struct {
 
 	// per-field cardinality limits and trackers (nil map = limit disabled)
 	additionalTagsCardinalityLimit int
-	additionalTagsEntries          int
+	distinctAdditionalTagHashes    map[uint64]struct{}
 	resourceCardinalityLimit       int
 	distinctResources              map[string]struct{}
 	httpEndpointCardinalityLimit   int
@@ -189,6 +189,9 @@ func NewRawBucket(ts, d uint64, limits BucketCardinalityLimits) *RawBucket {
 	}
 	if limits.Origin > 0 {
 		rb.distinctOrigins = make(map[string]struct{})
+	}
+	if limits.AdditionalTags > 0 {
+		rb.distinctAdditionalTagHashes = make(map[uint64]struct{})
 	}
 	if limits.WholeKey > 0 {
 		rb.distinctWholeKeys = make(map[BucketsAggregationKey]struct{})
@@ -289,12 +292,17 @@ func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggK
 		aggr.BucketsAggregationKey.Synthetics = false
 	}
 
-	// --- additional_metric_tags per-bucket cardinality cap (pre-existing logic) ---
+	// --- additional_metric_tags per-bucket cardinality cap ---
+	// The limit caps distinct additional_metric_tags *value combinations*, so
+	// distinctness is keyed on the hash of the tag values alone (like peer_tags),
+	// independent of resource/name/etc. Keying on the full aggregation would let
+	// high resource cardinality inflate this counter and collapse tags that are
+	// not themselves high-cardinality.
 	additionalMetricTags := s.matchingAdditionalMetricTags
 	if len(additionalMetricTags) > 0 && sb.additionalTagsCardinalityLimit > 0 {
-		// Only new tag-bearing aggregations are counted, before they are added below.
-		if _, exists := sb.data[aggr]; !exists {
-			if sb.additionalTagsEntries >= sb.additionalTagsCardinalityLimit {
+		h := tagsFnvHash(additionalMetricTags)
+		if _, exists := sb.distinctAdditionalTagHashes[h]; !exists {
+			if len(sb.distinctAdditionalTagHashes) >= sb.additionalTagsCardinalityLimit {
 				if !sb.warnedThisBucket {
 					log.Debugf("stats cardinality additional_metric_tags limit (%d) reached for this bucket; masking %d tag value(s)", sb.additionalTagsCardinalityLimit, len(additionalMetricTags))
 					sb.warnedThisBucket = true
@@ -307,7 +315,7 @@ func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggK
 				aggr.BucketsAggregationKey.AdditionalMetricTagsHash = tagsFnvHash(additionalMetricTags)
 				result.AdditionalTagsCapBlock = true
 			} else {
-				sb.additionalTagsEntries++
+				sb.distinctAdditionalTagHashes[h] = struct{}{}
 			}
 		}
 	}

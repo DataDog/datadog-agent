@@ -12,7 +12,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -340,7 +340,7 @@ func (e *Endpoint) onConfigUpdate(l *LogsConfigKeys) {
 // onConfigUpdateFromReaderMainEndpoint handles configuration change notification to update the internal API key of the
 // endpoint if it is the main endpoint
 func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
-	config.OnUpdate(func(key string, _ model.Source, oldVal interface{}, newVal interface{}, _ uint64) {
+	config.OnUpdate(func(key string, _ model.Source, oldVal interface{}, newVal interface{}, _ uint64, _ model.Source) {
 		if key != e.configSettingPath {
 			return
 		}
@@ -366,7 +366,7 @@ func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
 // onConfigUpdateAdditionalEndpoints handles configuration change notification to update the internal API key of the
 // endpoint, when the endpoint is an additional endpoint
 func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
-	l.getConfig().OnUpdate(func(key string, _ model.Source, _ interface{}, _ interface{}, _ uint64) {
+	l.getConfig().OnUpdate(func(key string, _ model.Source, _ interface{}, _ interface{}, _ uint64, _ model.Source) {
 		if key != e.configSettingPath {
 			return
 		}
@@ -426,11 +426,11 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 		additionalEndpoints,
 		useProto,
 		useHTTP,
-		pkgconfigsetup.DefaultBatchWait,
-		pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-		pkgconfigsetup.DefaultBatchMaxSize,
-		pkgconfigsetup.DefaultBatchMaxContentSize,
-		pkgconfigsetup.DefaultInputChanSize,
+		time.Duration(constants.DefaultBatchWait),
+		constants.DefaultBatchMaxConcurrentSend,
+		constants.DefaultBatchMaxSize,
+		constants.DefaultBatchMaxContentSize,
+		constants.DefaultInputChanSize,
 	)
 }
 

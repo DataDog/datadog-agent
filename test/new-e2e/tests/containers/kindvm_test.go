@@ -25,6 +25,9 @@ func TestKindSuite(t *testing.T) {
 	helmValues := `
 datadog:
     logLevel: DEBUG
+    envDict:
+        # These tests require image-derived tags on the first check configuration.
+        DD_AD_TAG_COMPLETENESS_MAX_WAIT: "60"
 clusterAgent:
     envDict:
         DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_BASE_BACKOFF: "10s"

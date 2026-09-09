@@ -10,8 +10,12 @@
 # AGENT_SRC is resolved automatically from $0 — callers do not need to pre-set
 # any variable before sourcing this file.
 
+# AIX's default locale crashes invoke's stdout handler on gotestsum's unicode.
+export PYTHONIOENCODING=utf-8
+export LC_ALL=en_US.UTF-8
+
 # ── Python version ────────────────────────────────────────────────────────────
-PYTHON_VERSION="3.13.12"
+PYTHON_VERSION="3.13.15"
 PYTHON_MAJ_MIN="${PYTHON_VERSION%.*}"   # e.g. 3.13
 export PYTHON_VERSION PYTHON_MAJ_MIN
 
@@ -56,13 +60,20 @@ EMBEDDED=/opt/datadog-agent/embedded
 EMBEDDED_DESTDIR=$STAGING/opt/datadog-agent/embedded
 
 INTEGRATIONS_CORE=$BUILD_DIR/integrations-core
+SALUKI_SRC=$BUILD_DIR/saluki
 WHEEL_CACHE=$BUILD_DIR/wheel-cache
 LIB_CACHE=$BUILD_DIR/lib-cache
 
 # Number of available CPUs — nproc does not exist on AIX; lsdev is in /usr/sbin
 NPROC=$(/usr/sbin/lsdev -Cc processor | wc -l | tr -d ' ')
 
-export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE WHEEL_CACHE LIB_CACHE NPROC
+export BUILD_DIR STAGING EMBEDDED EMBEDDED_DESTDIR INTEGRATIONS_CORE SALUKI_SRC WHEEL_CACHE LIB_CACHE NPROC
+
+# ── PATH ─────────────────────────────────────────────────────────────────────
+# Set PATH early (before the AGENT_VERSION detection below runs python3.12),
+# so sourcing env.sh doesn't depend on the caller's PATH having /opt/freeware/bin.
+PATH=$BUILD_DIR/bin:/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
+export PATH
 
 # ── Agent version variables ───────────────────────────────────────────────────
 # AGENT_VERSION: auto-detected from the source tree if not already set.
@@ -87,30 +98,14 @@ export AGENT_VERSION AGENT_BUILD AGENT_VRMF
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 
-# GCC 8 is required for AIX 7.2 TL2 compatibility.
-# GCC 8's libstdc++ does not reference strftime_l (added to AIX libc only at
-# TL3+); GCC 10/13 do.  Code compiled by GCC 8 also calls ostringstream
-# constructors that GCC 8's libstdc++ actually exports, so the resulting
-# binaries run on AIX 7.2 without any compatibility stubs.
-# Install on the build host with: yum install -y gcc8 gcc8-c++
-if [ ! -x /opt/freeware/bin/gcc-8 ]; then
-    printf 'ERROR: gcc-8 not found. Install it with: yum install -y gcc8 gcc8-c++\n' >&2
-    exit 1
-fi
-
-# Create private gcc/g++ symlinks pointing to gcc-8 in $BUILD_DIR/bin and
-# prepend that directory to PATH. This lets us set CC=gcc (the generic name)
-# so Python records 'gcc' in _sysconfigdata_, not '/opt/freeware/bin/gcc-8'.
-# Customers can then build C extensions (e.g. ibm_db) with any gcc version in
-# their PATH, not just gcc-8 specifically.
-# /opt/freeware/bin/gcc already exists on the build host but points to gcc-13;
-# using a private directory avoids clobbering that symlink.
+# Private gcc/g++ -> gcc-8 symlinks in $BUILD_DIR/bin (first on PATH). This
+# lets us set CC=gcc (the generic name) so Python records 'gcc' in
+# _sysconfigdata_, and customers can build C extensions with any gcc version
+# in their PATH. /opt/freeware/bin/gcc points to gcc-13 by default; using a
+# private directory avoids clobbering that symlink.
 mkdir -p "$BUILD_DIR/bin"
 ln -sf /opt/freeware/bin/gcc-8 "$BUILD_DIR/bin/gcc"
 ln -sf /opt/freeware/bin/g++-8 "$BUILD_DIR/bin/g++"
-# $BUILD_DIR/bin is prepended to PATH in the Go toolchain section below,
-# after that section establishes /opt/go/bin and /opt/freeware/bin, so our
-# directory wins the gcc/g++ name lookup.
 
 CC=gcc
 CXX=g++
@@ -138,8 +133,7 @@ export CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
 
 # ── PATH and Go toolchain ─────────────────────────────────────────────────────
 
-PATH=$BUILD_DIR/bin:/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
-GOPATH=/home/gopath
+GOPATH="$BUILD_DIR/gopath"
 GOROOT=/opt/go
 CGO_ENABLED=1
 CGO_CFLAGS="-I/opt/freeware/include"

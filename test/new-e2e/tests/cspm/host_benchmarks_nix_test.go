@@ -72,9 +72,9 @@ type distro struct {
 
 // Bands bracket the observed host and container distributions with a ~7 point margin
 // (10 for AlmaLinux, whose latest AMI drifts), tight enough to catch a real distribution
-// regression while tolerating the small host/container delta. Actuals are logged, and the
-// gating golden (host_benchmarks_diag_nix_test.go) catches the per-rule regressions the
-// bands are too coarse to see.
+// regression while tolerating the small host/container delta and a benchmark content
+// update. Actuals are logged. They are the distribution gate; per-rule coverage comes
+// from TestCrossCheck and the probes, since the golden snapshot only reports.
 var rhel10Bands = map[string]band{
 	"passed":  {0.44, 0.60},
 	"failed":  {0.30, 0.45},
@@ -365,6 +365,7 @@ func testHostBenchmarks(t *testing.T, d distro) {
 	if d.latestAMI {
 		instanceOpts = append(instanceOpts, ec2.WithLatestAMI())
 	}
+	instanceOpts = append(instanceOpts, ec2.WithInternetAccess())
 	e2e.Run(t, &hostBenchmarksSuite{distro: d},
 		e2e.WithStackName("cspm-host-"+d.name),
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(

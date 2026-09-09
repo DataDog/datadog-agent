@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux && linux_bpf && nvml
+//go:build linux && bpf && nvml
 
 package modules
 
@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -49,6 +50,7 @@ const processConsumerChanSize = 100
 
 const defaultCollectedDebugEvents = 100
 const maxCollectedDebugEvents = 1000000
+const driverEventQueueSize = 100
 
 var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
 
@@ -69,13 +71,15 @@ var GPUMonitoring = &module.Factory{
 
 		deviceCache := ddnvml.NewDeviceCache()
 		var p *gpu.Probe
+		var driverEventSubscriber driverEventSubscriber
+		startDriverEvents := c.DriverEventsEnabled
+		var err error
 		if c.EnableEBPFProbes {
 			probeDeps := gpu.ProbeDependencies{
 				Telemetry:      deps.Telemetry,
 				ProcessMonitor: processEventConsumer,
 				WorkloadMeta:   deps.WMeta,
 			}
-			var err error
 			p, err = gpu.NewProbe(c, probeDeps)
 			if err != nil {
 				cancel()
@@ -83,9 +87,28 @@ var GPUMonitoring = &module.Factory{
 			}
 			deviceCache = p.GetDeviceCache()
 		}
+		if c.EnableEBPFProbes || c.DriverEventsEnabled {
+			if err := deviceCache.Refresh(); err != nil {
+				log.Errorf("unable to refresh GPU device cache: %v", err)
+				startDriverEvents = false
+			} else {
+				go refreshDeviceCache(ctx, deviceCache, c.DeviceCacheRefreshInterval)
+			}
+		}
+		if startDriverEvents {
+			subscriber, err := gpu.NewDriverEventSubscriber(deps.Telemetry, deviceCache, gpu.DriverEventSubscriberConfig{
+				QueueSize: driverEventQueueSize,
+			})
+			if err != nil {
+				log.Errorf("unable to start GPU driver event subscriber: %v", err)
+			} else {
+				driverEventSubscriber = subscriber
+			}
+		}
 
 		return &GPUMonitoringModule{
-			Probe: p,
+			Probe:                 p,
+			driverEventSubscriber: driverEventSubscriber,
 			prmHandler: prm.NewHandler(func(uuid string) (prm.Device, error) {
 				return deviceCache.GetByUUID(uuid)
 			}),
@@ -102,10 +125,16 @@ var GPUMonitoring = &module.Factory{
 // GPUMonitoringModule is a module for GPU monitoring
 type GPUMonitoringModule struct {
 	*gpu.Probe
-	prmHandler    *prm.Handler
-	cfg           *gpuconfig.Config
-	context       context.Context    // Context associated with the module
-	contextCancel context.CancelFunc // Cancel function associated with the context
+	driverEventSubscriber driverEventSubscriber
+	prmHandler            *prm.Handler
+	cfg                   *gpuconfig.Config
+	context               context.Context    // Context associated with the module
+	contextCancel         context.CancelFunc // Cancel function associated with the context
+}
+
+type driverEventSubscriber interface {
+	GetAndFlush() ([]model.DriverEvent, error)
+	Stop()
 }
 
 // Register registers the GPU monitoring module
@@ -125,6 +154,20 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 		}
 
 		utils.WriteAsJSON(req, w, stats, utils.CompactOutput)
+	}))
+
+	httpMux.HandleFunc("/driver-events", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+		if t.driverEventSubscriber == nil {
+			http.Error(w, "GPU driver events are disabled", http.StatusServiceUnavailable)
+			return
+		}
+		events, err := t.driverEventSubscriber.GetAndFlush()
+		if err != nil {
+			log.Errorf("Error getting GPU driver events: %v", err)
+			http.Error(w, "GPU driver event subscriber stopped", http.StatusServiceUnavailable)
+			return
+		}
+		utils.WriteAsJSON(req, w, events, utils.CompactOutput)
 	}))
 
 	if t.cfg != nil && t.cfg.PRMEndpointEnabled && t.prmHandler != nil {
@@ -198,8 +241,30 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 // Close closes the GPU monitoring module
 func (t *GPUMonitoringModule) Close() {
 	t.contextCancel()
+	if t.driverEventSubscriber != nil {
+		t.driverEventSubscriber.Stop()
+	}
 	if t.Probe != nil {
 		t.Probe.Close()
+	}
+}
+
+func refreshDeviceCache(ctx context.Context, deviceCache ddnvml.DeviceCache, interval time.Duration) {
+	if interval <= 0 {
+		return
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := deviceCache.Refresh(); err != nil {
+				log.Warnf("failed to refresh GPU device cache: %v", err)
+			}
+		}
 	}
 }
 
@@ -229,12 +294,17 @@ func hostRoot() string {
 
 var agentProcessRegexp = regexp.MustCompile("datadog-agent/.*/agent")
 
-func getAgentPID(procRoot string) (uint32, error) {
+// getAgentPIDs returns all matching Agent processes. In some configurations,
+// such as when the OTel host profiler is running, multiple datadog-agent
+// binaries can be present. Patch all of them until we have a reliable way to
+// identify the process that needs GPU device permissions.
+func getAgentPIDs(procRoot string) ([]uint32, error) {
 	pids, err := kernel.AllPidsProcs(procRoot)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get all pids: %w", err)
+		return nil, fmt.Errorf("failed to get all pids: %w", err)
 	}
 
+	var agentPIDs []uint32
 	for _, pid := range pids {
 		proc := uprobes.NewProcInfo(procRoot, uint32(pid))
 		exe, err := proc.Exe()
@@ -244,11 +314,15 @@ func getAgentPID(procRoot string) (uint32, error) {
 		}
 
 		if agentProcessRegexp.MatchString(exe) {
-			return uint32(pid), nil
+			agentPIDs = append(agentPIDs, uint32(pid))
 		}
 	}
 
-	return 0, errors.New("agent process not found")
+	if len(agentPIDs) == 0 {
+		return nil, errors.New("agent process not found")
+	}
+
+	return agentPIDs, nil
 }
 
 // configureCgroupPermissions configures the cgroup permissions to access NVIDIA
@@ -308,14 +382,16 @@ func doConfigureCgroupPermissions(root string) {
 	}
 
 	procRoot := filepath.Join(root, "proc")
-	agentPID, err := getAgentPID(procRoot)
+	agentPIDs, err := getAgentPIDs(procRoot)
 	if err != nil {
-		log.Warnf("Failed to get agent PID: %v. Cannot patch cgroup permissions, gpu-monitoring module might not work properly", err)
+		log.Warnf("Failed to get agent PIDs: %v. Cannot patch cgroup permissions, gpu-monitoring module might not work properly", err)
 		return
 	}
 
-	log.Debugf("Configuring cgroup permissions for agent process with PID %d", agentPID)
-	if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
-		log.Warnf("Failed to configure cgroup permissions for agent process: %v. gpu-monitoring module might not work properly", err)
+	for _, agentPID := range agentPIDs {
+		log.Debugf("Configuring cgroup permissions for agent process with PID %d", agentPID)
+		if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
+			log.Warnf("Failed to configure cgroup permissions for agent process with PID %d: %v. gpu-monitoring module might not work properly", agentPID, err)
+		}
 	}
 }

@@ -16,11 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/ddot"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
@@ -71,7 +70,7 @@ func (s *testDDOTExtensionSubcommand) TestInstallDDOTSubcommand() {
 	// Extension DDOT runs under dd-procmgr-service (OCI processes.d); legacy SCM datadog-otel-agent must stay stopped.
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	ddot.AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
 
 	// Remove the ddot extension and verify the service stops and files are cleaned up.
 	cmd = fmt.Sprintf(`& "%s" otel remove`, agentExe)
@@ -129,8 +128,8 @@ func (s *testDDOTExtensionProcmgrDisabledEnv) TestInstallSkipsFleetProcmgrConfig
 		"otel-agent.exe should be present in the ddot extension",
 	)
 
-	ddot.AssertNoFleetDDOTProcmgrConfigFileWindows(s.T(), s.Env().RemoteHost)
-	ddot.AssertWindowsDDOTRunningLegacySCM(s.T(), s.Env().RemoteHost)
+	AssertNoFleetDDOTProcmgrConfigFileWindows(s.T(), s.Env().RemoteHost)
+	AssertWindowsDDOTRunningLegacySCM(s.T(), s.Env().RemoteHost)
 
 	cmd = fmt.Sprintf(`powershell -NoProfile -Command "& '%s' otel remove"`, strings.ReplaceAll(agentExe, `'`, `''`))
 	output, err = s.Env().RemoteHost.Execute(cmd)
@@ -183,7 +182,7 @@ func (s *testDDOTExtensionInstallScript) TestInstallAndPurgeDDOTExtension() {
 	// Extension DDOT runs under dd-procmgr-service (OCI processes.d); legacy SCM datadog-otel-agent must stay stopped.
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	ddot.AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
 
 	// Act: purge all packages
 	_, err = s.Installer().Purge()

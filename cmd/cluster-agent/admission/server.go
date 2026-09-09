@@ -44,6 +44,11 @@ import (
 
 const jsonContentType = "application/json"
 
+// maxRequestBodyBytes returns admission_controller.max_request_bytes.
+func maxRequestBodyBytes() int64 {
+	return pkgconfigsetup.Datadog().GetInt64("admission_controller.max_request_bytes")
+}
+
 // Request contains the information of an admission request
 type Request struct {
 	// UID is the unique identifier of the AdmissionRequest
@@ -200,17 +205,29 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		log.Warnf("Could not read request body: %v", err)
-		return
-	}
-	defer r.Body.Close()
-
 	if contentType := r.Header.Get("Content-Type"); contentType != jsonContentType {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Warnf("Unsupported content type %s, only %s is supported", contentType, jsonContentType)
+		return
+	}
+
+	// ContentLength is -1 when unknown; skip observing in that case.
+	if r.ContentLength >= 0 {
+		metrics.WebhooksRequestSize.Observe(float64(r.ContentLength), webhookName, webhookType.String())
+	}
+
+	maxBytes := maxRequestBodyBytes()
+	defer r.Body.Close()
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBytes))
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			log.Warnf("Request body exceeds %d bytes", maxBytes)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		log.Warnf("Could not read request body: %v", err)
 		return
 	}
 

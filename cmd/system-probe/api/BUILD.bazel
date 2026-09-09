@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "api",
@@ -6,7 +7,6 @@ go_library(
         "agentrestart_darwin.go",
         "agentrestart_others.go",
         "config.go",
-        "restart.go",
         "server.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/api",
@@ -20,21 +20,19 @@ go_library(
         "//pkg/ebpf",
         "//pkg/system-probe/api/module",
         "//pkg/system-probe/api/server",
-        "//pkg/system-probe/config",
         "//pkg/system-probe/config/types",
         "//pkg/system-probe/utils",
         "//pkg/util/log",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "api_test",
     srcs = [
         "agentrestart_darwin_test.go",
         "agentrestart_others_test.go",
     ],
     embed = [":api"],
-    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "@com_github_stretchr_testify//assert",

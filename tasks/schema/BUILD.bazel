@@ -26,6 +26,26 @@ py_binary(
     deps = ["@py_dev_requirements//pyyaml"],
 )
 
+# Used by //pkg/config/setup:codegen_settings and
+# //pkg/config/setup/constants:codegen_constants to generate *_settings.go /
+# constants source files from the merged schema.  Mirrors what
+# `dda inv schema.codegen` does but writes to a caller-supplied output
+# directory instead of the source tree, so it can run as a Bazel action.
+py_binary(
+    name = "codegen_settings_main",
+    srcs = [
+        "codegen_init_settings.py",
+        "codegen_settings_main.py",
+        "merge_schema.py",
+    ],
+    main = "codegen_settings_main.py",
+    visibility = ["//pkg/config/setup:__subpackages__"],
+    deps = [
+        "//tasks/libs/types:version",
+        "@py_dev_requirements//pyyaml",
+    ],
+)
+
 # Used by //pkg/config/schema:template.bzl (schema_template_config) to
 # render a config example yaml from an enriched schema. Wraps the
 # `generate_template` function from template.py so Bazel actions can

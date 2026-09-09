@@ -32,11 +32,15 @@ dd_agent_go_test(
         "pod_test.go",
     ],
     embed = [":common"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core",
         "//comp/core/tagger/types",

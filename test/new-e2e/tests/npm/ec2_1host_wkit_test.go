@@ -8,11 +8,13 @@ package npm
 import (
 	"testing"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 
 	ec2windows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
@@ -37,19 +39,19 @@ func TestEC2VMWKitSuite(t *testing.T) {
 
 	s := &ec2VMWKitSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisionerWindows(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisionerWindows(systemProbeConfigNPM), nil))}
 
 	e2e.Run(t, s, e2eParams...)
 }
 
-func hostDockerHttpbinEnvProvisionerWindows(opt ...ec2windows.RunOption) provisioners.PulumiEnvRunFunc[hostHttpbinEnvWindows] {
+func hostDockerHttpbinEnvProvisionerWindows(config string, opt ...ec2windows.RunOption) provisioners.PulumiEnvRunFunc[hostHttpbinEnvWindows] {
 	return func(ctx *pulumi.Context, env *hostHttpbinEnvWindows) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
 		opts := []ec2windows.RunOption{
-			ec2windows.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
+			ec2windows.WithAgentOptions(agentparams.WithSystemProbeConfig(config)),
 		}
 		if len(opt) > 0 {
 			opts = append(opts, opt...)
@@ -91,7 +93,7 @@ func (v *ec2VMWKitSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer v.CleanupOnSetupFailure()
 
-	v.Env().RemoteHost.MustExecute("Invoke-WebRequest -UseBasicParsing http://s3.amazonaws.com/dd-agent-mstesting/windows/pvt/nplanel/httpd-2.4.59-240404-win64-VS17.zip -OutFile httpd.zip")
+	v.Require().NoError(windowscommon.PutOrDownloadFileWithRetry(v.Env().RemoteHost, "https://s3.amazonaws.com/dd-agent-mstesting/windows/pvt/nplanel/httpd-2.4.59-240404-win64-VS17.zip", "httpd.zip"))
 	v.Env().RemoteHost.MustExecute("Expand-Archive httpd.zip")
 }
 
@@ -119,7 +121,7 @@ func (v *ec2VMWKitSuite) AfterTest(suiteName, testName string) {
 //
 // The test start by 00 to validate the agent/system-probe is up and running
 func (v *ec2VMWKitSuite) Test00FakeIntakeNPM_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	v.Env().RemoteHost.MustExecute("$result = Invoke-WebRequest -UseBasicParsing -Uri " + testURL)
 
@@ -131,7 +133,7 @@ func (v *ec2VMWKitSuite) Test00FakeIntakeNPM_HostRequests() {
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 200ms
 func (v *ec2VMWKitSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("C:\\Users\\Administrator\\httpd\\Apache24\\bin\\ab.exe -n 1500 -c 600 " + testURL)
@@ -142,7 +144,7 @@ func (v *ec2VMWKitSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMWKitSuite) TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests() {
-	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
 	v.Env().RemoteHost.MustExecute("$result = Invoke-WebRequest -UseBasicParsing -Uri " + testURL)

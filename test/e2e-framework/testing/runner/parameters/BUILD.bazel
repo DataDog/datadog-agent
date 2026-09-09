@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "parameters",
@@ -26,13 +27,12 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "parameters_test",
     srcs = ["store_config_file_test.go"],
     data = glob(["testdata/**"]),
     embed = [":parameters"],
     embedsrcs = ["testdata/test_config_with_stackparams.yaml"],
-    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

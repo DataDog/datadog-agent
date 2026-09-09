@@ -18,6 +18,9 @@ import (
 func TestGetClusterName(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := configmock.New(t)
+	// Disable cloud provider metadata detection to avoid real HTTP calls to
+	// EC2/GCE/Azure metadata endpoints.
+	mockConfig.SetInTest("cloud_provider_metadata", []string{})
 	env.SetFeatures(t, env.Kubernetes)
 	data := newClusterNameData()
 
@@ -80,6 +83,23 @@ func TestGetClusterName(t *testing.T) {
 	dummyFunc := func(context.Context) (string, error) { return discoveredClustername, nil }
 	setProviderCatalog(map[string]Provider{"dummyProvider": dummyFunc})
 	assert.Equal(t, wantedClustername, getClusterName(ctx, newClusterNameData(), "hostname"))
+}
+
+// TestGetClusterNameCLCRunner ensures that a Cluster Checks Runner (which
+// never has a locally-reachable kubelet) still honors a cluster name provided
+// via config, without needing the node-label based auto discovery.
+func TestGetClusterNameCLCRunner(t *testing.T) {
+	ctx := context.Background()
+	mockConfig := configmock.New(t)
+	env.SetFeatures(t, env.Kubernetes)
+
+	mockConfig.SetInTest("clc_runner_enabled", true)
+	mockConfig.SetInTest("config_providers", []map[string]interface{}{{"name": "clusterchecks"}})
+
+	testClusterName := "laika"
+	mockConfig.SetInTest("cluster_name", testClusterName)
+
+	assert.Equal(t, testClusterName, getClusterName(ctx, newClusterNameData(), "hostname"))
 }
 
 func TestGetClusterID(t *testing.T) {

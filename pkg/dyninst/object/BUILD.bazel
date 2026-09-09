@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "object",
@@ -17,23 +18,40 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/object",
     tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/dyninst/dwarf/dwarfutil",
-        "//pkg/dyninst/dwarf/loclist",
-        "//pkg/dyninst/gosym",
-        "//pkg/dyninst/htlhash",
-        "//pkg/network/go/bininspect",
-        "//pkg/util/filesystem",
-        "//pkg/util/log",
-        "//pkg/util/safeelf",
-        "@com_github_dustin_go_humanize//:go-humanize",
-        "@com_github_go_delve_delve//pkg/dwarf",
-        "@com_github_klauspost_compress//zlib",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/dwarf/dwarfutil",
+            "//pkg/dyninst/dwarf/loclist",
+            "//pkg/dyninst/gosym",
+            "//pkg/dyninst/htlhash",
+            "//pkg/network/go/bininspect",
+            "//pkg/util/filesystem",
+            "//pkg/util/log",
+            "//pkg/util/safeelf",
+            "@com_github_dustin_go_humanize//:go-humanize",
+            "@com_github_go_delve_delve//pkg/dwarf",
+            "@com_github_klauspost_compress//zlib",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/dwarf/dwarfutil",
+            "//pkg/dyninst/dwarf/loclist",
+            "//pkg/dyninst/gosym",
+            "//pkg/dyninst/htlhash",
+            "//pkg/network/go/bininspect",
+            "//pkg/util/filesystem",
+            "//pkg/util/log",
+            "//pkg/util/safeelf",
+            "@com_github_dustin_go_humanize//:go-humanize",
+            "@com_github_go_delve_delve//pkg/dwarf",
+            "@com_github_klauspost_compress//zlib",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "object_test",
     srcs = [
         "disk_cache_helpers_test.go",
@@ -42,17 +60,24 @@ go_test(
         "fuzz_test.go",
     ],
     embed = [":object"],
-    gotags = [
-        "test",
-        "linux_bpf",
-    ],
-    tags = ["manual"],  # keep
-    target_compatible_with = ["@platforms//os:linux"],
-    deps = [
-        "//pkg/dyninst/testprogs",
-        "//pkg/util/filesystem",
-        "@com_github_prometheus_procfs//:procfs",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/dyninst/testprogs",
+            "//pkg/util/filesystem",
+            "@com_github_prometheus_procfs//:procfs",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/dyninst/testprogs",
+            "//pkg/util/filesystem",
+            "@com_github_prometheus_procfs//:procfs",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

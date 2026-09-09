@@ -12,8 +12,8 @@ See also: `.cursor/rules/system_probe_modules.mdc` for system-probe module conte
    - `<check>.go` - Tracer with eBPF map management, NewTracer(), GetAndFlush(), Close()
    - `<check>_kern_types.go` - CGO bridge for C structs (build tag: `//go:build ignore`)
    - `model/*.go` - API data models (exported types for stats)
-   - `<check>_stub.go` - Stub implementation for non-linux_bpf platforms
-   - Build tags: `//go:build linux_bpf` for main implementation
+   - `<check>_stub.go` - Stub implementation for platforms without the `bpf` tag
+   - Build tags: `//go:build linux && bpf` for main implementation
 
 2. **Check** (`<check>/`) - Agent side metric collection
    - `<check>.go` - Check implementation with system-probe client
@@ -25,7 +25,7 @@ See also: `.cursor/rules/system_probe_modules.mdc` for system-probe module conte
 3. **System-Probe Module** (`cmd/system-probe/modules/<check>.go`)
    - Module registration and HTTP endpoint
    - Wraps the probe tracer
-   - Build tags: `//go:build linux && linux_bpf`
+   - Build tags: `//go:build linux && bpf`
 
 ## eBPF C Code
 
@@ -69,11 +69,8 @@ type Stats map[StatsKey]StatsValue
 corecheckLoader.RegisterCheck(<check>.CheckName, <check>.Factory(tagger))
 ```
 
-### 7. Add Configuration (`pkg/config/setup/system_probe.go`)
-```go
-const <check>NS = "<check_name>"
-cfg.BindEnvAndSetDefault(join(<check>NS, "enabled"), false)
-```
+### 7. Add Configuration in the schema
+Use the `dda invschema.add-setting` command.
 
 ### 8. Add Static Config Listener (`comp/core/autodiscovery/listeners/staticconfig.go`)
 ```go
@@ -135,11 +132,11 @@ Then add the `_test` and `_test_file_test` targets to the
 
 - Runtime compilation: Requires kernel headers
 - CO-RE: Pre-compiled with BTF, fallback to runtime compilation
-- Build: `dda inv system-probe.build --build-include linux_bpf`
+- Build: `dda inv system-probe.build --build-include bpf`
 
 ## Testing
 
-- Test file: `probe/<check>/<check>_test.go` with build tag `//go:build linux_bpf`
+- Test file: `probe/<check>/<check>_test.go` with build tag `//go:build linux && bpf`
 - Use `ebpftest.TestBuildModes` to test both CO-RE and runtime-compiled modes
 - Create sample C program in `testdata/` to trigger the monitored events
 - Tests should verify:

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "kubernetes",
@@ -22,14 +23,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "kubernetes_test",
     srcs = [
         "kubernetes_fuzz_test.go",
         "kubernetes_test.go",
     ],
     embed = [":kubernetes"],
-    gotags = ["test"],
     deps = [
         "//pkg/logs/message",
         "@com_github_stretchr_testify//assert",

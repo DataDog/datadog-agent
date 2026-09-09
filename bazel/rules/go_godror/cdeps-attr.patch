@@ -1,0 +1,10 @@
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -69,6 +69,7 @@
+         "vector.go",
+         "version.go",
+     ],
++    cdeps = ["//odpi"],
+     cgo = True,
+     clinkopts = select({
+         "@io_bazel_rules_go//go/platform:android": [

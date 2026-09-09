@@ -98,10 +98,13 @@ func (f *ControllerFixture) newController(leader bool) (*Controller, dynamicinfo
 // RunControllerSync runs the controller sync loop and checks the expected actions.
 func (f *ControllerFixture) RunControllerSync(leader bool, objectID string) {
 	f.t.Helper()
-	controller, informer := f.newController(leader)
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-	informer.Start(stopCh)
+	// Do NOT start the informer. Starting it spawns goroutines that fire AddFunc
+	// for every pre-seeded indexer object, enqueueing them concurrently with the
+	// explicit Add below and causing process() to dequeue the wrong item.
+	// The indexer is already seeded via GetIndexer().Add() in newController so
+	// the lister works without the informer running, and alwaysReady bypasses
+	// the cache-sync gate.
+	controller, _ := f.newController(leader)
 
 	controller.Workqueue.Add(objectID)
 	assert.True(f.t, controller.process())

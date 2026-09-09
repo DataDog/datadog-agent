@@ -41,6 +41,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
+// intentTokenTTL bounds how long a single-use intent token stays valid. Intent
+// tokens are handed to the OS URL-opener as part of a query string and can end
+// up exposed in a child process's argv (e.g. /proc/<pid>/cmdline); a short TTL
+// limits how long that exposure is exploitable.
+const intentTokenTTL = 30 * time.Second
+
 type gui struct {
 	logger log.Component
 
@@ -49,7 +55,7 @@ type gui struct {
 	router   *http.ServeMux
 
 	auth         authenticator
-	intentTokens map[string]bool
+	intentTokens map[string]time.Time // token -> expiration time
 	intentMu     sync.Mutex
 
 	sysprobeConfig sysprobeconfig.Component
@@ -112,7 +118,7 @@ func NewComponent(deps Requires) Provides {
 	g := gui{
 		address:        net.JoinHostPort(guiHost, guiPort),
 		logger:         deps.Log,
-		intentTokens:   make(map[string]bool),
+		intentTokens:   make(map[string]time.Time),
 		sysprobeConfig: deps.SysprobeConfig,
 	}
 
@@ -195,8 +201,19 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 	token := base64.RawURLEncoding.EncodeToString(key)
 	g.intentMu.Lock()
 	defer g.intentMu.Unlock()
-	g.intentTokens[token] = true
+	g.purgeExpiredIntentTokensLocked()
+	g.intentTokens[token] = time.Now().Add(intentTokenTTL)
 	w.Write([]byte(token))
+}
+
+// purgeExpiredIntentTokensLocked removes expired intent tokens. Callers must hold intentMu.
+func (g *gui) purgeExpiredIntentTokensLocked() {
+	now := time.Now()
+	for token, expiresAt := range g.intentTokens {
+		if now.After(expiresAt) {
+			delete(g.intentTokens, token)
+		}
+	}
 }
 
 func (g *gui) renderIndexPage(w http.ResponseWriter, _ *http.Request) {
@@ -270,15 +287,14 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g.intentMu.Lock()
-	_, ok := g.intentTokens[intentToken]
-	if !ok {
-		g.intentMu.Unlock()
+	expiresAt, ok := g.intentTokens[intentToken]
+	// Remove single use token from map (atomic with validation), whether or not it's expired
+	delete(g.intentTokens, intentToken)
+	g.intentMu.Unlock()
+	if !ok || time.Now().After(expiresAt) {
 		http.Error(w, "invalid intentToken", http.StatusUnauthorized)
 		return
 	}
-	// Remove single use token from map (atomic with validation)
-	delete(g.intentTokens, intentToken)
-	g.intentMu.Unlock()
 
 	// generate accessToken
 	accessToken := g.auth.GenerateAccessToken()

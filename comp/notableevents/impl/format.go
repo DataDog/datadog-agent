@@ -212,3 +212,47 @@ func formatUnexpectedRebootPayload(payload *eventPayload, eventData map[string]i
 	}
 	// If BugcheckCode=0, keep the default "Unexpected reboot" values
 }
+
+// formatCriticalThermalShutdownPayload formats the message for a critical thermal shutdown
+// (Microsoft-Windows-Kernel-Power / Event ID 86), matching the provider's own message template.
+func formatCriticalThermalShutdownPayload(payload *eventPayload, eventData map[string]interface{}) {
+	shutdownTime, zone, crt := getThermalTripPointFields(eventData, "ShutdownTime", "_CRT")
+	if shutdownTime == "" && zone == "" && crt == "" {
+		return
+	}
+	payload.Message = fmt.Sprintf("%s\nShutdown Time = %s\nACPI Thermal Zone = %s\n_CRT = %s", payload.Message, shutdownTime, zone, formatKelvinAsCelsius(crt))
+}
+
+// formatCriticalThermalHibernatePayload formats the message for a critical thermal hibernation
+// (Microsoft-Windows-Kernel-Power / Event ID 88), matching the provider's own message template.
+func formatCriticalThermalHibernatePayload(payload *eventPayload, eventData map[string]interface{}) {
+	hibernateTime, zone, hot := getThermalTripPointFields(eventData, "HibernateTime", "_HOT")
+	if hibernateTime == "" && zone == "" && hot == "" {
+		return
+	}
+	payload.Message = fmt.Sprintf("%s\nHibernate Time = %s\nACPI Thermal Zone = %s\n_HOT = %s", payload.Message, hibernateTime, zone, formatKelvinAsCelsius(hot))
+}
+
+// formatKelvinAsCelsius converts an ACPI temperature threshold from Kelvin to Celsius,
+// falling back to the raw value if it isn't numeric.
+func formatKelvinAsCelsius(kelvinStr string) string {
+	kelvin, err := strconv.ParseFloat(kelvinStr, 64)
+	if err != nil {
+		return kelvinStr + "K"
+	}
+	return fmt.Sprintf("%.1f°C", kelvin-273.15)
+}
+
+// getThermalTripPointFields extracts the zone/time/threshold EventData fields shared by the
+// Kernel-Power critical trip point events (86/88). Like Event ID 41 on this same provider,
+// these always render as named fields, so no positional-list fallback is needed.
+func getThermalTripPointFields(eventData map[string]interface{}, timeField, thresholdField string) (string, string, string) {
+	data := getEventDataMap(eventData)
+	if data == nil {
+		return "", "", ""
+	}
+	timeVal, _ := data[timeField].(string)
+	zoneVal, _ := data["ThermalZoneDeviceInstance"].(string)
+	thresholdVal, _ := data[thresholdField].(string)
+	return timeVal, zoneVal, thresholdVal
+}

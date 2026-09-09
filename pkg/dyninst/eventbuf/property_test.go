@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Property tests for eventbuf.Buffer. Each test generates a randomized
 // sequence of operations over a small key space and checks that the

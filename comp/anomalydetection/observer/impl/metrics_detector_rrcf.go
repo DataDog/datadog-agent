@@ -74,6 +74,10 @@ type RRCFConfig struct {
 	Metrics []RRCFMetricDef `json:"-"`
 }
 
+// rrcfMinScoresForThreshold is the minimum score history required before
+// dynamicThreshold can evaluate a new score.
+const rrcfMinScoresForThreshold = 10
+
 // DefaultRRCFConfig returns sensible defaults for RRCF.
 func DefaultRRCFConfig() RRCFConfig {
 	return RRCFConfig{
@@ -136,6 +140,7 @@ type RRCFDetector struct {
 	// alignedCount and shingleCount track pipeline throughput for diagnostics.
 	alignedCount int
 	shingleCount int
+	ready        bool
 }
 
 // NewRRCFDetector creates an RRCF detector with the given config.
@@ -167,6 +172,9 @@ func NewRRCFDetector(config RRCFConfig) *RRCFDetector {
 func (r *RRCFDetector) Name() string {
 	return "rrcf"
 }
+
+// Ready reports when an aligned model can evaluate a dynamic threshold.
+func (r *RRCFDetector) Ready() bool { return r.ready }
 
 // SetObserverTelemetry wires direct observer telemetry emission.
 func (r *RRCFDetector) SetObserverTelemetry(t *observerTelemetry) {
@@ -451,6 +459,9 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 		// Compute dynamic threshold from recent scores
 		threshold := r.dynamicThreshold()
+		if threshold > 0 {
+			r.ready = true
+		}
 		if threshold > 0 && r.telemetry != nil {
 			r.telemetry.recordRRCFThreshold(r.Name(), threshold)
 		}
@@ -486,7 +497,7 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 
 // dynamicThreshold returns mean + ThresholdSigma*stddev of the recent score window.
 func (r *RRCFDetector) dynamicThreshold() float64 {
-	if len(r.recentScores) < 10 {
+	if len(r.recentScores) < rrcfMinScoresForThreshold {
 		return 0 // not enough data yet
 	}
 	return r.rollingMean() + r.config.ThresholdSigma*r.rollingStddev()
@@ -534,6 +545,7 @@ func (r *RRCFDetector) Reset() {
 	r.totalScored = 0
 	r.alignedCount = 0
 	r.shingleCount = 0
+	r.ready = false
 	r.forest.reset()
 }
 

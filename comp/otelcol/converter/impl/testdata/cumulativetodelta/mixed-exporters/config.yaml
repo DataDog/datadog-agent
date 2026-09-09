@@ -1,0 +1,11 @@
+# The metrics pipeline fans out to a non-Datadog exporter (otlphttp). cumulativetodelta
+# is still injected (the datadog path needs it for V3), but because processors are
+# pipeline-scoped it also converts the metrics sent to otlphttp — so the converter emits
+# a warning. The user owns the topology and can split the pipeline if that is unwanted.
+processors:
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [datadog, otlphttp]

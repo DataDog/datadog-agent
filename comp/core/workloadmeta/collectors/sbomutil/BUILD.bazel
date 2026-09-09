@@ -8,11 +8,13 @@ go_library(
         "doc.go",
         "image_util.go",
         "image_util_stub.go",
+        "runtime_properties.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/workloadmeta/def",
+        "//pkg/util/log",
         "@com_github_aquasecurity_trivy//pkg/sbom/core",
         "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
@@ -26,8 +28,10 @@ dd_agent_go_test(
     srcs = [
         "compress_test.go",
         "image_util_test.go",
+        "runtime_properties_test.go",
     ],
     embed = [":sbomutil"],
+    gotags_sets = [["trivy"]],
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/util/pointer",
@@ -35,5 +39,6 @@ dd_agent_go_test(
         "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

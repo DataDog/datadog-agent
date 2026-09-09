@@ -29,6 +29,7 @@ go_library(
         "//pkg/util/ecs/metadata/v3or4",
         "//pkg/util/fargate",
         "//pkg/util/log",
+        "//pkg/util/retry",
         "@com_github_patrickmn_go_cache//:go-cache",
         "@io_k8s_client_go//util/workqueue",
         "@org_golang_x_time//rate",
@@ -49,11 +50,12 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":ecs"],
-    flavors = [
-        "base",
-        "dogstatsd",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "docker",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/core/config",
         "//comp/core/workloadmeta/def",
@@ -62,6 +64,7 @@ dd_agent_go_test(
         "//pkg/util/ecs/metadata/v1:metadata",
         "//pkg/util/ecs/metadata/v2:metadata",
         "//pkg/util/ecs/metadata/v3or4",
+        "//pkg/util/retry",
         "@com_github_patrickmn_go_cache//:go-cache",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

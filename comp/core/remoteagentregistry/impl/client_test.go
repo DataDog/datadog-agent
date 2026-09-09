@@ -247,32 +247,43 @@ func TestResolveDialTarget(t *testing.T) {
 		name            string
 		endpointURI     string
 		wantTarget      string
-		wantSecProtocol string
+		wantNumOpts     int
 		wantErrContains string
 	}{
 		{
-			name:            "bare host:port (backwards compat) uses TLS",
-			endpointURI:     "127.0.0.1:50051",
-			wantTarget:      "127.0.0.1:50051",
-			wantSecProtocol: "tls",
+			name:        "bare host:port (backwards compat) uses TLS",
+			endpointURI: "127.0.0.1:50051",
+			wantTarget:  "127.0.0.1:50051",
+			wantNumOpts: 1,
 		},
 		{
-			name:            "https:// strips scheme and uses TLS",
-			endpointURI:     "https://127.0.0.1:50051",
-			wantTarget:      "127.0.0.1:50051",
-			wantSecProtocol: "tls",
+			name:        "https:// strips scheme and uses TLS",
+			endpointURI: "https://127.0.0.1:50051",
+			wantTarget:  "127.0.0.1:50051",
+			wantNumOpts: 1,
 		},
 		{
-			name:            "unix:// passes target through unchanged and uses TLS",
-			endpointURI:     "unix:///var/run/datadog/remote-agent.sock",
-			wantTarget:      "unix:///var/run/datadog/remote-agent.sock",
-			wantSecProtocol: "tls",
+			name:        "unix:// passes target through unchanged and uses TLS",
+			endpointURI: "unix:///var/run/datadog/remote-agent.sock",
+			wantTarget:  "unix:///var/run/datadog/remote-agent.sock",
+			wantNumOpts: 1,
 		},
 		{
-			name:            "uppercase scheme is normalized",
-			endpointURI:     "HTTPS://127.0.0.1:50051",
-			wantTarget:      "127.0.0.1:50051",
-			wantSecProtocol: "tls",
+			name:        "uppercase scheme is normalized",
+			endpointURI: "HTTPS://127.0.0.1:50051",
+			wantTarget:  "127.0.0.1:50051",
+			wantNumOpts: 1,
+		},
+		{
+			name:        "vsock:// uses a context dialer but keeps a localhost TLS authority",
+			endpointURI: "vsock://3:50051",
+			wantTarget:  "localhost:50051",
+			wantNumOpts: 2,
+		},
+		{
+			name:            "vsock:// with malformed cid:port is rejected",
+			endpointURI:     "vsock://not-a-cid",
+			wantErrContains: "invalid vsock api_endpoint_uri",
 		},
 		{
 			name:            "unsupported scheme is rejected (insecure)",
@@ -280,15 +291,15 @@ func TestResolveDialTarget(t *testing.T) {
 			wantErrContains: "unsupported api_endpoint_uri scheme",
 		},
 		{
-			name:            "unsupported scheme is rejected (specialized)",
-			endpointURI:     "vsock://2:50051",
+			name:            "unsupported scheme is rejected (unknown)",
+			endpointURI:     "ftp://127.0.0.1:50051",
 			wantErrContains: "unsupported api_endpoint_uri scheme",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			target, creds, err := resolveDialTarget(tc.endpointURI, tlsConfig)
+			target, dialOpts, err := resolveDialTarget(tc.endpointURI, tlsConfig)
 			if tc.wantErrContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.wantErrContains)
@@ -296,7 +307,7 @@ func TestResolveDialTarget(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantTarget, target)
-			assert.Equal(t, tc.wantSecProtocol, creds.Info().SecurityProtocol)
+			assert.Len(t, dialOpts, tc.wantNumOpts)
 		})
 	}
 }

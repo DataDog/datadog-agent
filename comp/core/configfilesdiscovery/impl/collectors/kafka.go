@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"regexp"
 
 	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
@@ -20,48 +21,128 @@ const (
 	kafkaConfigPayloadFormat = agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_PROPERTIES
 )
 
+// kafkaDefaultConfigPathGroups contains final config paths passed to Kafka by
+// known distribution image startup scripts, ordered by priority. Strimzi's
+// generated config takes precedence over the packaged Apache config that its
+// image also contains. Apache and Confluent images ship other example configs,
+// but their startup scripts do not pass those files to Kafka.
+var kafkaDefaultConfigPathGroups = [][]string{
+	{"/tmp/strimzi.properties"},
+	{
+		"/opt/kafka/config/server.properties",
+		"/etc/kafka/kafka.properties",
+		"/opt/bitnami/kafka/config/server.properties",
+	},
+}
+
 type kafkaConfigCollector struct{}
+
+var kafkaEnvAllow = []*regexp.Regexp{
+	regexp.MustCompile(`^KAFKA_[A-Z0-9_]+$`),
+	regexp.MustCompile(`^CONFLUENT_[A-Z0-9_]+$`),
+}
+
+var kafkaEnvDeny = []*regexp.Regexp{
+	// Option and command bags can contain arbitrary JVM/broker args, shell code,
+	// and inline credentials.
+	// Leave collection of safe sub-parts to a future, explicit design.
+	regexp.MustCompile(`^(KAFKA|CONFLUENT)(_[A-Z0-9]+)*_(OPTS|COMMAND|EXTRA_(ARGS|FLAGS))$`),
+	// Confluent basic.auth.user.info values are username:password pairs.
+	regexp.MustCompile(`^(KAFKA|CONFLUENT)(_[A-Z0-9]+)*_BASIC_AUTH_USER_INFO$`),
+	regexp.MustCompile(`^(KAFKA|KAFKA_CFG)_SUPER_USERS$`),
+}
 
 func NewKafka() configfilesdiscoveryimpl.ConfigCollector {
 	return kafkaConfigCollector{}
 }
 
-func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) ([]configfilesdiscoveryimpl.ConfigFile, error) {
-	commandline, err := reader.ReadCommandline(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("read kafka command line: %w", err)
-	}
-
-	configPath, ok := kafkaGetConfigPath(commandline)
+// CanCollectFromProcess returns whether the command line contains an explicit,
+// resolvable Kafka broker properties path.
+func (kafkaConfigCollector) CanCollectFromProcess(commandline configfilesdiscoveryimpl.TargetCommandline) bool {
+	configArg, ok := kafkaGetConfigArgFromCommandline(commandline.Args)
 	if !ok {
-		log.Debugf("config files discovery skipped kafka config collection: no explicit broker properties file path detected")
-		return nil, nil
+		return false
 	}
-
-	file, err := reader.ReadFile(ctx, configPath)
-	if err != nil {
-		return nil, fmt.Errorf("read kafka config file %q: %w", configPath, err)
-	}
-	file.PayloadFormat = kafkaConfigPayloadFormat
-
-	return []configfilesdiscoveryimpl.ConfigFile{file}, nil
+	_, resolved := resolveConfigPath(configArg, commandline.WorkingDir)
+	return resolved
 }
 
-// kafkaGetConfigPath returns the broker properties file passed to the Kafka
-// server launcher. It intentionally ignores command-line --override values:
-// those mutate runtime config but do not identify an additional file to read.
-func kafkaGetConfigPath(commandline configfilesdiscoveryimpl.TargetCommandline) (string, bool) {
-	args := commandlineArgs(commandline)
+func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
+	file, ok, err := readConfigFile(ctx, reader, kafkaGetConfigArgFromCommandline, kafkaMatchesCommandline, "", kafkaDefaultConfigPathGroups...)
+	if err != nil {
+		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect kafka config file: %w", err)
+	}
+
+	envVars, err := readEnvVars(ctx, reader, includeKafkaEnvVar)
+	if err != nil {
+		log.Debugf("config files discovery skipped kafka env var collection: %v", err)
+		envVars = nil
+	}
+	if !ok {
+		// Without a broker properties file, env vars are the only
+		// Kafka config source. Return the error so the scheduler retries.
+		if err != nil {
+			return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("read kafka env vars: %w", err)
+		}
+		if len(envVars) == 0 {
+			log.Debugf("config files discovery skipped kafka config collection: no broker properties file or selected env vars detected")
+			return configfilesdiscoveryimpl.CollectedConfig{}, nil
+		}
+
+		log.Debugf("config files discovery collected kafka env vars without an explicit broker properties file path")
+		return configfilesdiscoveryimpl.CollectedConfig{
+			EnvVars: envVars,
+		}, nil
+	}
+
+	file.PayloadFormat = kafkaConfigPayloadFormat
+
+	return configfilesdiscoveryimpl.CollectedConfig{
+		ConfigFiles: []configfilesdiscoveryimpl.ConfigFile{file},
+		EnvVars:     envVars,
+	}, nil
+}
+
+func includeKafkaEnvVar(name string) bool {
+	if denyKafkaEnvVar(name) {
+		return false
+	}
+	if name == "CLUSTER_ID" {
+		return true
+	}
+	for _, re := range kafkaEnvAllow {
+		if re.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func denyKafkaEnvVar(name string) bool {
+	for _, re := range kafkaEnvDeny {
+		if re.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// kafkaGetConfigArgFromCommandline returns the broker properties argument
+// passed to the Kafka server launcher. It intentionally ignores command-line
+// --override values: those mutate runtime config but do not identify an
+// additional file to read.
+func kafkaGetConfigArgFromCommandline(args []string) (string, bool) {
+	args = unwrapShellCommandline(args)
 	kafkaArgs, ok := kafkaGetArgs(args)
 	if !ok {
 		return "", false
 	}
+	return kafkaGetConfigArg(kafkaArgs)
+}
 
-	configPath, ok := kafkaGetConfigArg(kafkaArgs)
-	if !ok {
-		return "", false
-	}
-	return resolveConfigPath(configPath, commandline.WorkingDir)
+func kafkaMatchesCommandline(args []string) bool {
+	_, ok := kafkaGetArgs(unwrapShellCommandline(args))
+	return ok
 }
 
 func kafkaGetArgs(args []string) ([]string, bool) {

@@ -102,6 +102,17 @@ func SetSpanError(w http.ResponseWriter, err error) {
 	}
 }
 
+// Write implements http.ResponseWriter.Write. It routes through WriteHeader so that
+// the implicit http.StatusOK header write performed by the standard library (when a
+// handler calls Write before WriteHeader) is tracked by wroteHeader, preventing a
+// subsequent explicit WriteHeader call from writing the header twice.
+func (w *telemetryWriterWrapper) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(b)
+}
+
 func (w *telemetryWriterWrapper) WriteHeader(statusCode int) {
 	if w.wroteHeader {
 		return

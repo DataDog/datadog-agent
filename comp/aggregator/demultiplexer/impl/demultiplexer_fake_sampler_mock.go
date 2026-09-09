@@ -16,7 +16,6 @@ import (
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -37,7 +36,6 @@ type fakeSamplerMockDependencies struct {
 	Lc                 fx.Lifecycle
 	Log                log.Component
 	Hostname           hostname.Component
-	LogsCompression    logscompression.Component
 	MetricsCompression metricscompression.Component
 }
 
@@ -58,7 +56,7 @@ func (f *fakeSamplerMock) Stop() {
 }
 
 func newFakeSamplerMock(deps fakeSamplerMockDependencies) demultiplexerComp.FakeSamplerMock {
-	mock := NewFakeSamplerMock(deps.Log, deps.Hostname, deps.LogsCompression, deps.MetricsCompression)
+	mock := NewFakeSamplerMock(deps.Log, deps.Hostname, deps.MetricsCompression)
 	deps.Lc.Append(fx.Hook{
 		OnStop: func(_ context.Context) error {
 			mock.Stop()
@@ -69,8 +67,8 @@ func newFakeSamplerMock(deps fakeSamplerMockDependencies) demultiplexerComp.Fake
 
 // NewFakeSamplerMock creates a FakeSamplerMock directly without fx, suitable for use in tests
 // that need to avoid uberfx dependencies.
-func NewFakeSamplerMock(logComp log.Component, hostnameComp hostname.Component, logsCompressor logscompression.Component, metricsCompressor metricscompression.Component) demultiplexerComp.FakeSamplerMock {
-	demux := initTestAgentDemultiplexerWithFlushInterval(logComp, hostnameComp, logsCompressor, metricsCompressor, time.Hour)
+func NewFakeSamplerMock(logComp log.Component, hostnameComp hostname.Component, metricsCompressor metricscompression.Component) demultiplexerComp.FakeSamplerMock {
+	demux := initTestAgentDemultiplexerWithFlushInterval(logComp, hostnameComp, metricsCompressor, time.Hour)
 	return &fakeSamplerMock{
 		TestAgentDemultiplexer: demux,
 	}

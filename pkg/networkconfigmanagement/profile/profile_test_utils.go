@@ -24,13 +24,13 @@ type Fixture struct {
 	Expected []byte
 }
 
-func loadFixture(profileName string, command string) Fixture {
-	initialPath := path.Join("fixtures", profileName, command, "initial.txt")
+func loadFixture(profileName ProfileName, command string) Fixture {
+	initialPath := path.Join("fixtures", string(profileName), command, "initial.txt")
 	initial, err := fixturesFS.ReadFile(initialPath)
 	if err != nil {
 		panic(fmt.Sprintf("could not load initial data fixture for profile: %s, command: %s, error: %s", profileName, command, err))
 	}
-	expectedPath := path.Join("fixtures", profileName, command, "expected.txt")
+	expectedPath := path.Join("fixtures", string(profileName), command, "expected.txt")
 	expected, err := fixturesFS.ReadFile(expectedPath)
 	if err != nil {
 		panic(fmt.Sprintf("could not load expected data fixture for profile: %s, command:%s, error: %s", profileName, command, err))
@@ -137,7 +137,7 @@ func newTestProfile() *NCMProfile {
 }
 
 // DefaultProfile extracts the official default profile by name
-func DefaultProfile(t testing.TB, profileName string) *NCMProfile {
+func DefaultProfile(t testing.TB, profileName ProfileName) *NCMProfile {
 	p, ok := DefaultProfiles[profileName]
 	if !ok {
 		t.Fatalf("Attempted to load nonexistent profile %q", profileName)

@@ -28,6 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -52,6 +53,16 @@ const (
 	collectorID       = "process-collector"
 	componentName     = "workloadmeta-process"
 	cacheValidityNoRT = 2 * time.Second
+
+	// discoveredServicesSubsystem is the telemetry subsystem (metric prefix) for the
+	// discovered_services gauge. It is intentionally "service_discovery" rather than the
+	// collectorID ("process-collector"): through Agent 7.70 this gauge was emitted by the
+	// service_discovery corecheck under that subsystem, so the emitted metric was
+	// "service_discovery.discovered_services", which the cross-org agent telemetry (COAT)
+	// allowlist in comp/core/agenttelemetry/impl/defaultProfiles.yaml matches. Reusing the
+	// same subsystem keeps that metric name stable across agent versions instead of minting
+	// a new "process_collector.discovered_services", so historical COAT data stays continuous.
+	discoveredServicesSubsystem = "service_discovery"
 
 	// Service discovery constants
 	maxPortCheckTries                                = 10
@@ -107,7 +118,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 	var discoveredServicesGauge telemetry.Gauge
 	if serviceDiscoveryEnabled(systemProbeConfig) {
 		discoveredServicesGauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
-			collectorID,
+			discoveredServicesSubsystem,
 			"discovered_services",
 			[]string{},
 			"Number of discovered alive services.",
@@ -185,6 +196,14 @@ func (c *collector) isProcessCollectionEnabled() bool {
 
 // isServiceDiscoveryEnabled returns a boolean indicating if service discovery is enabled
 func (c *collector) isServiceDiscoveryEnabled() bool {
+	// Cluster Checks Runners are Deployment replicas, not DaemonSets, so they
+	// are never colocated with a system-probe on the same node and have no
+	// hostPath mount for its socket. Service discovery can never succeed
+	// there, so skip it entirely to avoid endlessly retrying system-probe
+	// requests and spamming "no such file or directory" error logs.
+	if helper.IsCLCRunner(c.config) {
+		return false
+	}
 	return serviceDiscoveryEnabled(c.systemProbeConfig)
 }
 

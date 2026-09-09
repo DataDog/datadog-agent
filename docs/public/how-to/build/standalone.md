@@ -14,7 +14,7 @@ Running this command will:
 
 - Discard any changes done in `bin/agent/dist`.
 - Build the Agent and write the binary to `bin/agent/agent`, with a `.exe` extension on Windows.
-- Copy files from [`dev/dist`](https://github.com/DataDog/datadog-agent/blob/main/dev/dist/README.md) to `bin/agent/dist`.
+- Copy files from <<<repo("dev/dist/README.md", "`dev/dist`")>>> to `bin/agent/dist`.
 
 /// note | Caveat
 If you built an older version of the Agent and are encountering the error `make: *** No targets specified and no makefile found`, remove the `rtloader/CMakeCache.txt` file.
@@ -48,7 +48,7 @@ If you want to replicate the same configuration of the Agent as the one distribu
     open: False
     type: tip
 
-The default set of features is determined by the [`get_default_build_tags` method](https://github.com/DataDog/datadog-agent/blob/main/tasks/build_tags.py#L394).
+The default set of features is determined by <<<repo("tasks/build_tags.py", "the `get_default_build_tags` method", match="^def get_default_build_tags")>>>.
 
 There is a command you can use to print out the default build tags for your build context:
 ```bash

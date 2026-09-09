@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/procfs"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
+	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,8 +52,8 @@ type processor struct {
 	workloadmetaStore     workloadmeta.Component
 	containerFilter       workloadfilter.FilterBundle
 	tagger                tagger.Component
-	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
-	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
+	imageRepoDigests      map[string]string   // Map where keys are image repo digest and values are image ID
+	imagesInUse           map[string]struct{} // Set of image IDs the back end was last told are in use
 	sbomScanner           *sbomscanner.Scanner
 	contImageSBOM         bool
 	hostSBOM              bool
@@ -101,7 +102,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 		containerFilter:       filterStore.GetContainerSBOMFilters(),
 		tagger:                tagger,
 		imageRepoDigests:      make(map[string]string),
-		imageUsers:            make(map[string]map[string]struct{}),
+		imagesInUse:           make(map[string]struct{}),
 		sbomScanner:           sbomScanner,
 		contImageSBOM:         contImageSBOM,
 		hostSBOM:              hostSBOM,
@@ -117,17 +118,24 @@ func isProcfsSBOMEnabled(cfg config.Component) bool {
 }
 
 func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBundle) {
+	// The store already reflects the events in this bundle, so ask it which
+	// images are in use rather than tracking container events ourselves. Ask
+	// before acknowledging: the store hands the next bundle to the next
+	// subscriber as soon as this one acknowledges, and would then answer for a
+	// later moment than the bundle being processed describes.
+	running := runningImages(p.workloadmetaStore)
+
 	evBundle.Acknowledge()
 
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
-	// Separate events by kind and type so we can process them in an order that
-	// keeps imageUsers accurate when SBOMs are computed.
+	// Separate events by kind and type. Image events are handled first so that
+	// imageRepoDigests is up to date when the identifiers the containers use
+	// are resolved below.
 	var (
-		imageSetEvents       []workloadmeta.Event
-		imageUnsetEvents     []workloadmeta.Event
-		containerSetEvents   []workloadmeta.Event
-		containerUnsetEvents []workloadmeta.Event
+		imageSetEvents     []workloadmeta.Event
+		imageUnsetEvents   []workloadmeta.Event
+		containerSetEvents []workloadmeta.Event
 	)
 
 	for _, event := range evBundle.Events {
@@ -141,42 +149,49 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 		case workloadmeta.KindContainer:
 			if event.Type == workloadmeta.EventTypeSet {
 				containerSetEvents = append(containerSetEvents, event)
-			} else {
-				containerUnsetEvents = append(containerUnsetEvents, event)
 			}
 		}
 	}
 
-	// 1. Unregister removed containers first so imageUsers is up to date before
-	//    we compute inUse below. Processing image Set events before these removals
-	//    would cause false-positive inUse=true on the emitted SBOM.
-	for _, event := range containerUnsetEvents {
-		p.unregisterContainer(event.Entity.(*workloadmeta.Container))
-	}
+	// Images reported in this bundle, so that an image and the container that
+	// just started it don't each produce an SBOM.
+	reported := make(map[string]struct{}, len(imageSetEvents))
 
-	// 2. Unregister removed images.
 	for _, event := range imageUnsetEvents {
 		p.unregisterImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
 		// Let the SBOM expire on back-end side
 	}
 
-	// 3. Register updated images and emit SBOMs; inUse now reflects the
-	//    current set of running containers.
 	for _, event := range imageSetEvents {
-		filterableContainerImage := workloadfilter.CreateContainerImage(event.Entity.(*workloadmeta.ContainerImageMetadata).Name)
+		img := event.Entity.(*workloadmeta.ContainerImageMetadata)
+
+		filterableContainerImage := workloadfilter.CreateContainerImage(img.Name)
 		if p.containerFilter.IsExcluded(filterableContainerImage) {
 			continue
 		}
 
-		p.registerImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
-		p.processImageSBOM(event.Entity.(*workloadmeta.ContainerImageMetadata))
+		p.registerImage(img)
+		p.processImageSBOM(img, running)
+		reported[img.ID] = struct{}{}
 	}
 
-	// 4. Register new/updated containers. registerContainer may emit a second
-	//    SBOM for an image that just gained its first running container.
+	// Report images that gained their first running container, so that the
+	// back end learns about them without waiting for the periodic refresh.
+	// Containers name the same image in more than one way, so compare resolved
+	// image IDs rather than the identifiers they use.
+	imagesInUse := make(map[string]struct{}, len(running))
+	for id := range running {
+		imgID := p.resolveImageID(id)
+		imagesInUse[imgID] = struct{}{}
+
+		if _, found := p.imagesInUse[imgID]; !found {
+			p.reportImage(imgID, running, reported)
+		}
+	}
+	p.imagesInUse = imagesInUse
+
 	for _, event := range containerSetEvents {
 		container := event.Entity.(*workloadmeta.Container)
-		p.registerContainer(container)
 
 		filterableContainer := workloadmetafilter.CreateContainer(container, nil)
 		if p.containerFilter.IsExcluded(filterableContainer) {
@@ -199,52 +214,71 @@ func (p *processor) registerImage(img *workloadmeta.ContainerImageMetadata) {
 
 func (p *processor) unregisterImage(img *workloadmeta.ContainerImageMetadata) {
 	for _, repoDigest := range img.RepoDigests {
-		delete(p.imageUsers, repoDigest)
 		if p.imageRepoDigests[repoDigest] == img.ID {
 			delete(p.imageRepoDigests, repoDigest)
 		}
 	}
 }
 
-func (p *processor) registerContainer(ctr *workloadmeta.Container) {
-	imgID := ctr.Image.ID
-	ctrID := ctr.ID
+// runningImages returns the identifiers of the images that have at least one
+// running container. Depending on the runtime and on which workloadmeta
+// sources describe it, a container names its image either by image ID or by
+// repo digest, so the identifiers are returned as the containers spell them.
+func runningImages(store workloadmeta.Component) map[string]struct{} {
+	containers := store.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 
-	if !ctr.State.Running {
-		// Container is no longer running. Remove it from imageUsers so that a
-		// subsequent SBOM computation does not incorrectly set inUse=true for
-		// an image that has no running containers.
-		p.unregisterContainer(ctr)
+	images := make(map[string]struct{}, len(containers))
+	for _, ctr := range containers {
+		if ctr.Image.ID != "" {
+			images[ctr.Image.ID] = struct{}{}
+		}
+	}
+
+	return images
+}
+
+// imageInUse reports whether one of the running images is img, named either by
+// its ID or by one of its repo digests.
+func imageInUse(img *workloadmeta.ContainerImageMetadata, running map[string]struct{}) bool {
+	if _, found := running[img.ID]; found {
+		return true
+	}
+
+	for _, repoDigest := range img.RepoDigests {
+		if _, found := running[repoDigest]; found {
+			return true
+		}
+	}
+
+	return false
+}
+
+// resolveImageID maps the identifier a container uses to name its image to the
+// ID of the corresponding image entity. Identifiers that are already image IDs
+// are returned unchanged.
+func (p *processor) resolveImageID(id string) string {
+	if imgID, found := p.imageRepoDigests[id]; found {
+		return imgID
+	}
+
+	return id
+}
+
+// reportImage emits the SBOM of the image named by imgID, unless it has already
+// been reported for the event bundle being processed.
+func (p *processor) reportImage(imgID string, running, reported map[string]struct{}) {
+	if _, found := reported[imgID]; found {
 		return
 	}
 
-	if _, found := p.imageUsers[imgID]; found {
-		p.imageUsers[imgID][ctrID] = struct{}{}
-	} else {
-		p.imageUsers[imgID] = map[string]struct{}{
-			ctrID: {},
-		}
-
-		if realImgID, found := p.imageRepoDigests[imgID]; found {
-			imgID = realImgID
-		}
-
-		if img, err := p.workloadmetaStore.GetImage(imgID); err != nil {
-			log.Infof("Couldn’t find image %s in workloadmeta whereas it’s used by container %s: %v", imgID, ctrID, err)
-		} else {
-			p.processImageSBOM(img)
-		}
+	img, err := p.workloadmetaStore.GetImage(imgID)
+	if err != nil {
+		log.Infof("Couldn't find image %s in workloadmeta although a container runs it: %v", imgID, err)
+		return
 	}
-}
 
-func (p *processor) unregisterContainer(ctr *workloadmeta.Container) {
-	imgID := ctr.Image.ID
-	ctrID := ctr.ID
-
-	delete(p.imageUsers[imgID], ctrID)
-	if len(p.imageUsers[imgID]) == 0 {
-		delete(p.imageUsers, imgID)
-	}
+	p.processImageSBOM(img, running)
+	reported[imgID] = struct{}{}
 }
 
 func (p *processor) processHostScanResult(result sbom.ScanResult) {
@@ -361,7 +395,7 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 	p.queue <- sbom
 }
 
-func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
+func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata, running map[string]struct{}) {
 	if !p.contImageSBOM {
 		return
 	}
@@ -391,25 +425,26 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		repos[strings.SplitN(repoDigest, "@sha256:", 2)[0]] = struct{}{}
 	}
 	for _, repoTag := range img.RepoTags {
-		repos[strings.SplitN(repoTag, ":", 2)[0]] = struct{}{}
+		// Split on the last colon (after the last slash) so registries that
+		// include a port are parsed correctly.
+		repoName, _ := pkgimage.SplitRepoTag(repoTag)
+		repos[repoName] = struct{}{}
 	}
 
-	inUse := false
-	for _, repoDigest := range img.RepoDigests {
-		if _, found := p.imageUsers[repoDigest]; found {
-			inUse = true
-			break
-		}
-	}
-	// Fallback for runtimes (e.g. containerd) where ctr.Image.ID is the image
-	// config digest rather than a repo digest, so imageUsers is keyed by img.ID.
+	inUse := imageInUse(img, running)
 	if !inUse {
-		_, inUse = p.imageUsers[img.ID]
+		// A periodic refresh reaches this with no event bundle behind it, so
+		// forget the image here rather than only when a bundle rebuilds the
+		// set. Otherwise the back end is told the image is not in use while
+		// the set still says it is, and a container starting it again is
+		// taken for one that changes nothing and goes unreported.
+		delete(p.imagesInUse, img.ID)
 	}
 
 	cyclosbom, err := sbomutil.UncompressSBOM(img.SBOM)
 	if err != nil {
 		log.Errorf("Failed to uncompress SBOM for image %s: %v", img.ID, err)
+		return
 	}
 
 	for repo := range repos {
@@ -420,8 +455,9 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 
 		repoTags := make([]string, 0, len(img.RepoTags))
 		for _, repoTag := range img.RepoTags {
-			if strings.HasPrefix(repoTag, repo+":") {
-				repoTags = append(repoTags, strings.SplitN(repoTag, ":", 2)[1])
+			repoName, tag := pkgimage.SplitRepoTag(repoTag)
+			if repoName == repo && tag != "" {
+				repoTags = append(repoTags, tag)
 			}
 		}
 

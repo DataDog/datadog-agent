@@ -42,6 +42,19 @@ var migratableServices = []MigratableService{
 		},
 		LegacyWindowsService: "datadog-otel-agent",
 	},
+	{
+		ID:                 "agent-data-plane",
+		ProcmgrProcessName: "datadog-agent-data-plane",
+		ProcmgrConfigFile:  "datadog-agent-data-plane.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/agent-data-plane",
+			"bin/agent/agent-data-plane",
+		},
+		LegacySystemdUnits: []string{
+			"datadog-agent-data-plane.service",
+			"datadog-agent-data-plane-exp.service",
+		},
+	},
 }
 
 func serviceByID(id string) (MigratableService, bool) {

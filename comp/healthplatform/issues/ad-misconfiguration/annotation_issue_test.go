@@ -28,7 +28,7 @@ func TestBuildAnnotationIssue(t *testing.T) {
 				"errorMessage": "annotation ad.datadoghq.com/nonmatching.check_names is invalid: nonmatching doesn't match a container identifier",
 				"errorSource":  "pod_annotation",
 			},
-			expectedTitle:     "Autodiscovery Pod Annotation Misconfiguration on 'default/my-pod (abc123)'",
+			expectedTitle:     `Autodiscovery Pod Annotation Misconfiguration on "default/my-pod (abc123)"`,
 			expectedDescSub:   "pod annotation error",
 			expectedStepCount: 4,
 		},
@@ -39,21 +39,21 @@ func TestBuildAnnotationIssue(t *testing.T) {
 				"errorMessage": "could not extract checks config: in checks: failed to unmarshal JSON",
 				"errorSource":  "container_label",
 			},
-			expectedTitle:     "Autodiscovery Container Label Misconfiguration on 'docker://abc123'",
+			expectedTitle:     `Autodiscovery Container Label Misconfiguration on "docker://abc123"`,
 			expectedDescSub:   "container label error",
 			expectedStepCount: 3,
 		},
 		{
 			name:              "empty context defaults to pod annotation remediation",
 			context:           map[string]string{},
-			expectedTitle:     "Autodiscovery Pod Annotation Misconfiguration on 'unknown'",
+			expectedTitle:     `Autodiscovery Pod Annotation Misconfiguration on "unknown"`,
 			expectedDescSub:   failedMsg,
 			expectedStepCount: 4,
 		},
 		{
 			name:              "nil context defaults to pod annotation remediation",
 			context:           nil,
-			expectedTitle:     "Autodiscovery Pod Annotation Misconfiguration on 'unknown'",
+			expectedTitle:     `Autodiscovery Pod Annotation Misconfiguration on "unknown"`,
 			expectedDescSub:   failedMsg,
 			expectedStepCount: 4,
 		},
@@ -64,7 +64,7 @@ func TestBuildAnnotationIssue(t *testing.T) {
 				"errorMessage": "could not extract checks config: in checks: failed to unmarshal JSON",
 				"errorSource":  "pod_annotation",
 			},
-			expectedTitle:     "Autodiscovery Pod Annotation Misconfiguration on 'kube-system/nginx-pod (def456)'",
+			expectedTitle:     `Autodiscovery Pod Annotation Misconfiguration on "kube-system/nginx-pod (def456)"`,
 			expectedDescSub:   "failed to unmarshal JSON",
 			expectedStepCount: 4,
 		},
@@ -85,6 +85,7 @@ func TestBuildAnnotationIssue(t *testing.T) {
 
 			assert.Empty(t, issue.Id, "Id is set by the caller (ReportIssue), not by the template")
 			assert.Equal(t, annotationIssueName, issue.IssueName)
+			assert.Equal(t, annotationIssueType, issue.IssueType)
 			assert.Equal(t, tt.expectedTitle, issue.Title)
 			assert.Contains(t, issue.Description, tt.expectedDescSub)
 			assert.Equal(t, category, issue.Category)

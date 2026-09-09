@@ -18,6 +18,8 @@ type ResourceGPU string
 const (
 	// GpuNvidiaGeneric is the resource name for a generic NVIDIA GPU
 	GpuNvidiaGeneric ResourceGPU = "nvidia.com/gpu"
+	// GpuNvidiaDRA is the driver name for NVIDIA GPUs allocated through Kubernetes Dynamic Resource Allocation
+	GpuNvidiaDRA ResourceGPU = "gpu.nvidia.com"
 	// GpuAMD is the resource name for an AMD GPU
 	GpuAMD ResourceGPU = "amd.com/gpu"
 	// GpuIntelXe is the resource name for an Intel Xe GPU
@@ -31,6 +33,7 @@ const (
 // longToShortGPUName maps a GPU resource to a simplified name
 var longToShortGPUName = map[ResourceGPU]string{
 	GpuNvidiaGeneric: "nvidia",
+	GpuNvidiaDRA:     "nvidia",
 	GpuAMD:           "amd",
 	GpuIntelXe:       "intel",
 	GpuInteli915:     "intel",
@@ -66,7 +69,8 @@ func ExtractSimpleGPUName(gpuName ResourceGPU) (string, bool) {
 // for an NVIDIA GPU, either a generic GPU or a MIG GPU.
 func IsNvidiaKubernetesResource(resourceName string) bool {
 	return strings.HasPrefix(resourceName, string(GpuNvidiaMigPrefix)) ||
-		resourceName == string(GpuNvidiaGeneric)
+		resourceName == string(GpuNvidiaGeneric) ||
+		resourceName == string(GpuNvidiaDRA)
 }
 
 // ExtractGPUType returns the normalized GPU model type from a device name.

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "filters",
@@ -16,14 +17,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "filters_test",
     srcs = [
         "blacklister_test.go",
         "replacer_test.go",
     ],
     embed = [":filters"],
-    gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",

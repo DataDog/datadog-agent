@@ -42,3 +42,23 @@ test/new-e2e/tests/installer/unix:
 
 on-log:
   - "panic: Expected to find a single pod" # K8s Agent Executor can be flaky with the current implementation
+
+# TODO: https://datadoghq.atlassian.net/browse/FLREM-153
+# TODO: https://datadoghq.atlassian.net/browse/FLREM-154
+test/new-e2e/tests/agent-subcommands:
+  - test: TestLinuxFlareSuite/TestFlareDefaultFiles
+  - test: TestWindowsDiagnoseSuite/TestDiagnoseOtherCmdPort
+
+# TODO: https://datadoghq.atlassian.net/browse/FLREM-148
+# TODO: https://datadoghq.atlassian.net/browse/FLREM-155
+comp/core/flare/helpers:
+  - test: TestSave
+  - test: TestNewFlareBuilder
+
+# TODO: https://app.datadoghq.com/incidents/59580
+# Windows EC2 VM hostname changes mid-run (rename + reboot), splitting NPM
+# CollectorConnections payloads across two hostnames. test1HostFakeIntakeNPM
+# locks onto the first-seen hostname and never reaches the required payload
+# count, failing with "not enough payloads".
+test/new-e2e/tests/npm:
+  - test: TestEC2VMWKitDirectSuite/Test00FakeIntakeNPM_HostRequests

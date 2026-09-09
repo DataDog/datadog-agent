@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
@@ -265,7 +266,7 @@ func TestRequestScan(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		syncTestRequestScan := func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
 			mockConfig.SetInTest("run_path", testDir)
@@ -302,15 +303,18 @@ func TestRequestScan(t *testing.T) {
 				provides.Comp.RequestScan(req, false)
 			}
 
-			assert.EventuallyWithT(t, func(t *assert.CollectT) {
-				assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
-			}, 2*time.Second, 100*time.Millisecond)
+			synctest.Wait()
+			assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
 
 			err = mockLifecycle.Stop(context.Background())
 			assert.NoError(t, err)
 
 			mockScanner.AssertExpectations(t)
 			mockConfigProvider.AssertExpectations(t)
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, syncTestRequestScan)
 		})
 	}
 }
@@ -803,36 +807,30 @@ func TestWriteCache(t *testing.T) {
 }
 
 func TestQueueDueScans(t *testing.T) {
-	now := time.Now()
-
 	tests := []struct {
 		name                    string
-		scanTasks               []scanTask
+		buildScanTasks          func(now time.Time) []scanTask
 		buildMockConfigProvider func() *snmpConfigProviderMock
 		buildMockScanner        func() *snmpscanmock.SnmpScanMock
 		expectedDeviceScans     deviceScansByIP
 	}{
 		{
 			name: "due scans are queued",
-			scanTasks: []scanTask{
-				{
-					req: snmpscanmanager.ScanRequest{
-						DeviceIP: "10.0.0.1",
+			buildScanTasks: func(now time.Time) []scanTask {
+				return []scanTask{
+					{
+						req:        snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.1"},
+						nextScanTs: now.Add(999 * time.Hour), // Not a due scan
 					},
-					nextScanTs: now.Add(999 * time.Hour), // Not a due scan
-				},
-				{
-					req: snmpscanmanager.ScanRequest{
-						DeviceIP: "127.0.0.1",
+					{
+						req:        snmpscanmanager.ScanRequest{DeviceIP: "127.0.0.1"},
+						nextScanTs: now.Add(-1 * time.Minute), // Due scan
 					},
-					nextScanTs: now.Add(-1 * time.Minute), // Due scan
-				},
-				{
-					req: snmpscanmanager.ScanRequest{
-						DeviceIP: "127.0.0.2",
+					{
+						req:        snmpscanmanager.ScanRequest{DeviceIP: "127.0.0.2"},
+						nextScanTs: now.Add(-2 * time.Minute), // Due scan
 					},
-					nextScanTs: now.Add(-2 * time.Minute), // Due scan
-				},
+				}
 			},
 			buildMockConfigProvider: func() *snmpConfigProviderMock {
 				mockConfigProvider := newSnmpConfigProviderMock()
@@ -888,7 +886,7 @@ func TestQueueDueScans(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		syncTestQueueDueScans := func(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
 			mockConfig.SetInTest("run_path", testDir)
@@ -916,7 +914,7 @@ func TestQueueDueScans(t *testing.T) {
 			mockConfigProvider := tt.buildMockConfigProvider()
 			scanManager.snmpConfigProvider = mockConfigProvider
 
-			for _, st := range tt.scanTasks {
+			for _, st := range tt.buildScanTasks(time.Now()) {
 				scanManager.scanScheduler.QueueScanTask(st)
 			}
 
@@ -925,15 +923,18 @@ func TestQueueDueScans(t *testing.T) {
 			err = mockLifecycle.Start(context.Background())
 			assert.NoError(t, err)
 
-			assert.EventuallyWithT(t, func(t *assert.CollectT) {
-				assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
-			}, 2*time.Second, 100*time.Millisecond)
+			synctest.Wait()
+			assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
 
 			err = mockLifecycle.Stop(context.Background())
 			assert.NoError(t, err)
 
 			mockScanner.AssertExpectations(t)
 			mockConfigProvider.AssertExpectations(t)
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, syncTestQueueDueScans)
 		})
 	}
 }

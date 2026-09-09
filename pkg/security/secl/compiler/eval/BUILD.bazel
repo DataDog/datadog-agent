@@ -1,5 +1,6 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/cws_codegen:defs.bzl", "operators")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # Source-level export so the //pkg/security/secl/model:event_deep_copy_*
 # Bazel codegens can resolve eval.MatchingValue, eval.MatchingSubExpr, the
@@ -65,7 +66,12 @@ go_library(
     }),
 )
 
-go_test(
+operators(
+    name = "eval_operators",
+    output = "eval_operators.go",
+)
+
+dd_agent_go_test(
     name = "eval_test",
     srcs = [
         "eval_test.go",
@@ -78,7 +84,6 @@ go_test(
         "strings_test.go",
     ],
     embed = [":eval"],
-    gotags = ["test"],
     deps = [
         "//pkg/security/secl/compiler/ast",
         "@com_github_stretchr_testify//assert",
@@ -93,9 +98,4 @@ go_test(
         ],
         "//conditions:default": [],
     }),
-)
-
-operators(
-    name = "eval_operators",
-    output = "eval_operators.go",
 )

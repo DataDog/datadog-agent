@@ -348,6 +348,13 @@ func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, collector collec
 	}
 	if scanResult.Error != nil {
 		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(collector.Options()), errorType)
+		if errors.Is(scanResult.Error, sbom.ErrScanNotSupported) {
+			// This request can never succeed, so retrying it would keep the scan
+			// worker busy forever. Drop it.
+			log.Infof("dropping unsupported SBOM scan for '%s': %v", request.ID(), scanResult.Error)
+			s.scanQueue.Forget(request)
+			return
+		}
 		s.scanQueue.AddRateLimited(request)
 		return
 	}

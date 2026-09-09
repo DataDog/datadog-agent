@@ -12,7 +12,7 @@ import "github.com/NVIDIA/go-nvml/pkg/nvml"
 // safeDeviceImpl implements the SafeDevice interface
 type safeDeviceImpl struct {
 	nvmlDevice nvml.Device
-	lib        symbolLookup
+	lib        nvmlSafety
 }
 
 func (d *safeDeviceImpl) GetArchitecture() (nvml.DeviceArchitecture, error) {
@@ -109,6 +109,10 @@ func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
 	if err := d.lib.lookup(toNativeName("GetFieldValues")); err != nil {
 		return err
 	}
+
+	d.lib.fieldValuesLock()
+	defer d.lib.fieldValuesUnlock()
+
 	ret := d.nvmlDevice.GetFieldValues(values)
 	return NewNvmlAPIErrorOrNil("GetFieldValues", ret)
 }
@@ -137,6 +141,17 @@ func (d *safeDeviceImpl) GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanc
 	}
 	info, ret := d.nvmlDevice.GetGpuInstanceProfileInfo(profile)
 	return info, NewNvmlAPIErrorOrNil("GetGpuInstanceProfileInfo", ret)
+}
+
+func (d *safeDeviceImpl) GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error) {
+	if err := d.lib.lookup(toNativeName("GetGpuFabricInfoV")); err != nil {
+		return nvml.GpuFabricInfo_v2{}, err
+	}
+	info, ret := d.nvmlDevice.GetGpuFabricInfoV().V2()
+	if err := NewNvmlAPIErrorOrNil("GetGpuFabricInfoV", ret); err != nil {
+		return nvml.GpuFabricInfo_v2{}, err
+	}
+	return info, nil
 }
 
 func (d *safeDeviceImpl) GetIndex() (int, error) {
@@ -242,6 +257,22 @@ func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
 	}
 	state, ret := d.nvmlDevice.GetNvLinkState(link)
 	return state, NewNvmlAPIErrorOrNil("GetNvLinkState", ret)
+}
+
+func (d *safeDeviceImpl) GetNvLinkVersion(link int) (int, error) {
+	if err := d.lib.lookup(toNativeName("GetNvLinkVersion")); err != nil {
+		return 0, err
+	}
+	version, ret := d.nvmlDevice.GetNvLinkVersion(link)
+	return int(version), NewNvmlAPIErrorOrNil("GetNvLinkVersion", ret)
+}
+
+func (d *safeDeviceImpl) GetPciInfo() (nvml.PciInfo, error) {
+	if err := d.lib.lookup(toNativeName("GetPciInfo")); err != nil {
+		return nvml.PciInfo{}, err
+	}
+	pciInfo, ret := d.nvmlDevice.GetPciInfo()
+	return pciInfo, NewNvmlAPIErrorOrNil("GetPciInfo", ret)
 }
 
 func (d *safeDeviceImpl) GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error) {
@@ -385,6 +416,8 @@ func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
 	if err := d.lib.lookup("nvmlGpmSampleGet"); err != nil {
 		return err
 	}
+	d.lib.gpmLock()
+	defer d.lib.gpmUnlock()
 	ret := d.nvmlDevice.GpmSampleGet(sample)
 	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
 }
@@ -393,6 +426,8 @@ func (d *safeDeviceImpl) GpmMigSampleGet(migInstanceID int, sample nvml.GpmSampl
 	if err := d.lib.lookup("nvmlGpmMigSampleGet"); err != nil {
 		return err
 	}
+	d.lib.gpmLock()
+	defer d.lib.gpmUnlock()
 	ret := d.nvmlDevice.GpmMigSampleGet(migInstanceID, sample)
 	return NewNvmlAPIErrorOrNil("GpmMigSampleGet", ret)
 }

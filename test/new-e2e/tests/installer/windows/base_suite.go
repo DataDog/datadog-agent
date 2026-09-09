@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -268,7 +268,7 @@ func (s *BaseSuite) BeforeTest(suiteName, testName string) {
 	s.Require().NoError(os.MkdirAll(outputDir, 0755))
 
 	s.installer = NewDatadogInstaller(s.Env(), s.CurrentAgentVersion().MSIPackage().URL, outputDir)
-	s.installScriptImpl = NewDatadogInstallScript(s.Env().RemoteHost)
+	s.installScriptImpl = NewDatadogInstallExe(s.Env().RemoteHost)
 
 	// clear the event logs before each test
 	for _, logName := range []string{"System", "Application"} {

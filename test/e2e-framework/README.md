@@ -8,7 +8,7 @@ To run scripts and code in this repository, you will need:
 
 - [Go](https://golang.org/doc/install) 1.22 or later. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
 - Python 3.9+ along with development libraries for tooling.
-- `account-admin` role on the AWS `agent-sandbox` account.
+- `account-admin-8h` role on the AWS `agent-sandbox` account.
 - [dda](https://datadoghq.dev/datadog-agent/setup/#tooling), [Pulumi](https://www.pulumi.com/docs/iac/download-install/) and [aws-vault](https://github.com/99designs/aws-vault) installed on your laptop.
 
 This guide is tested on **MacOS**.
@@ -33,10 +33,10 @@ cd ~/dd && git clone git@github.com:DataDog/datadog-agent.git
 cd ~/dd/datadog-agent/test/e2e-framework && dda -v self dep sync -f legacy-e2e -f legacy-github
 ```
 
-3. Make sure you have the `sso-agent-sandbox-account-admin` profile in `~/.aws/config` and an active aws-vault session. AWS authentication is set up outside of `e2e.setup`.
+3. Make sure you have the `sso-agent-sandbox-account-admin-8h` profile in `~/.aws/config` and an active aws-vault session. AWS authentication is set up outside of `e2e.setup`.
 
 ```bash
-aws-vault login sso-agent-sandbox-account-admin
+aws-vault login sso-agent-sandbox-account-admin-8h
 ```
 
 4. Run the one-time setup task. AWS-only on the default path; pass `--with-azure`/`--with-gcp` if you also need those providers.
@@ -70,8 +70,8 @@ The `aws.create-vm` task should allow you to spin up a MacOS instance using `-o 
 The `e2e.setup.debug` invoke task will check for common mistakes such as key unavailable in configured AWS region, ssh-agent not running, invalid key format, and more.
 
 ```
-aws-vault exec sso-agent-sandbox-account-admin -- dda inv e2e.setup.debug
-aws-vault exec sso-agent-sandbox-account-admin -- dda inv e2e.setup --debug --no-interactive
+aws-vault exec sso-agent-sandbox-account-admin-8h -- dda inv e2e.setup.debug
+aws-vault exec sso-agent-sandbox-account-admin-8h -- dda inv e2e.setup --debug --no-interactive
 ```
 
 

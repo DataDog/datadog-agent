@@ -126,6 +126,7 @@ type ConfigManagerSuite struct {
 
 type retrySecretResolver struct {
 	failuresRemaining int
+	successData       []byte
 }
 
 var _ secrets.Component = (*retrySecretResolver)(nil)
@@ -139,6 +140,9 @@ func (r *retrySecretResolver) Resolve(data []byte, _ string, _ string, _ string,
 	if r.failuresRemaining > 0 {
 		r.failuresRemaining--
 		return data, errors.New("temporary secret backend error")
+	}
+	if r.successData != nil {
+		return r.successData, nil
 	}
 	return []byte("foo: barDecoded"), nil
 }
@@ -226,6 +230,33 @@ func (suite *ConfigManagerSuite) TestFailedNonTemplateSecretResolutionRetried() 
 	require.True(suite.T(), strings.Contains(string(changes.Schedule[0].Instances[0]), "barDecoded"))
 	assert.NotContains(suite.T(), cm.failedSecretConfigs, inputNewConfig.Digest())
 	assertLoadedConfigsMatch(suite.T(), cm, matchName(nonTemplateConfigWithSecrets.Name))
+}
+
+func TestFailedGenericIntegrationSecretResolutionRetryUpdatesStaticConfigIndex(t *testing.T) {
+	config := integration.Config{
+		Name:      "openmetrics",
+		Instances: []integration.Data{integration.Data("namespace: ENC[bar]")},
+	}
+	resolver := &retrySecretResolver{
+		failuresRemaining: 1,
+		successData:       []byte("namespace: redis.metrics"),
+	}
+	idx := listeners.NewStaticConfigIndex()
+	cm := newReconcilingConfigManager(resolver, nil, idx, nil, nil).(*reconcilingConfigManager)
+
+	changes, _ := cm.processNewConfig(config)
+	assertConfigsMatch(t, changes.Schedule)
+	assert.False(t, idx.Has("openmetrics"))
+	assert.False(t, idx.Has("redis"))
+
+	changes, _ = cm.retryFailedSecretConfigs()
+	assertConfigsMatch(t, changes.Schedule, matchName("openmetrics"))
+	assert.True(t, idx.Has("openmetrics"))
+	assert.True(t, idx.Has("redis"))
+
+	cm.processDelConfigs([]integration.Config{config})
+	assert.False(t, idx.Has("openmetrics"))
+	assert.False(t, idx.Has("redis"))
 }
 
 func (suite *ConfigManagerSuite) TestNewClusterCheckWithSecretsScheduled() {

@@ -17,29 +17,29 @@ import (
 )
 
 // No issue modules are imported here, so GetAllModules returns an empty slice.
-// These tests verify that New() wires the inner registry correctly and that all
+// These tests verify that NewComponent() wires the inner registry correctly and that all
 // Component methods delegate to it without panicking on an empty registry.
 
 func TestNewReturnsValidComponent(t *testing.T) {
-	comp := New(Requires{Config: config.NewMock(t)})
+	comp := NewComponent(Requires{Config: config.NewMock(t)})
 	assert.NotNil(t, comp)
 }
 
 func TestGetTemplateReturnsFalseForUnknown(t *testing.T) {
-	comp := New(Requires{Config: config.NewMock(t)})
+	comp := NewComponent(Requires{Config: config.NewMock(t)})
 	_, ok := comp.GetTemplate("unknown-type")
 	assert.False(t, ok)
 }
 
 func TestGetBuiltInPeriodicHealthChecksEmptyRegistry(t *testing.T) {
-	comp := New(Requires{Config: config.NewMock(t)})
+	comp := NewComponent(Requires{Config: config.NewMock(t)})
 	checks := comp.GetBuiltInPeriodicHealthChecks()
 	require.NotNil(t, checks)
 	assert.Empty(t, checks)
 }
 
 func TestGetBuiltInStartupHealthChecksEmptyRegistry(t *testing.T) {
-	comp := New(Requires{Config: config.NewMock(t)})
+	comp := NewComponent(Requires{Config: config.NewMock(t)})
 	checks := comp.GetBuiltInStartupHealthChecks()
 	require.NotNil(t, checks)
 	assert.Empty(t, checks)

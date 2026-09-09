@@ -6,7 +6,7 @@
 // Package serializers defines functions aiming to serialize events
 package serializers
 
-// nolint: deadcode, unused
+//nolint:unused
 func createNumPointer[I uint32 | uint64](i I) *I {
 	if i == 0 {
 		return nil

@@ -8,6 +8,8 @@
 package libraryinjection
 
 import (
+	"slices"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -17,7 +19,7 @@ import (
 // It picks the best concrete provider for a pod based on the runtime
 // environment, currently:
 //   - CSIProvider when the Datadog CSI driver is registered in the cluster
-//     with APM SSI advertised (state cached by CSIDriverWatcher);
+//     with APM SSI advertised and all images use supported registries;
 //   - InitContainerProvider otherwise.
 type AutoProvider struct {
 	realProvider LibraryInjectionProvider
@@ -44,15 +46,28 @@ func NewAutoProvider(cfg LibraryInjectionConfig) *AutoProvider {
 // the provider behaves exactly as before this feature existed and always
 // returns the init-container provider.
 func pickAutoProvider(cfg LibraryInjectionConfig) LibraryInjectionProvider {
-	if cfg.CSIDriverWatcher == nil {
+	if cfg.CSIDriverWatcher == nil || !cfg.CSIDriverWatcher.IsAPMEnabled() {
+		log.Debugf("library injection auto provider: Datadog CSI driver %q is unavailable for APM injection, using InitContainerProvider", csiDriverName)
 		return NewInitContainerProvider(cfg)
 	}
-	if cfg.CSIDriverWatcher.IsAPMEnabled() {
-		log.Debugf("library injection auto provider: Datadog CSI driver %q is registered with APM enabled, using CSIProvider", csiDriverName)
-		return NewCSIProvider(cfg)
+	if registry, found := firstUnsupportedCSIRegistry(cfg); found {
+		log.Debugf("library injection auto provider: registry %q requires workload image pull credentials, using InitContainerProvider", registry)
+		return NewInitContainerProvider(cfg)
 	}
-	log.Debugf("library injection auto provider: Datadog CSI driver %q is not registered (or APM not advertised), using InitContainerProvider", csiDriverName)
-	return NewInitContainerProvider(cfg)
+	log.Debugf("library injection auto provider: Datadog CSI driver %q is registered with APM enabled, using CSIProvider", csiDriverName)
+	return NewCSIProvider(cfg)
+}
+
+func firstUnsupportedCSIRegistry(cfg LibraryInjectionConfig) (string, bool) {
+	if !slices.Contains(cfg.CSIAutoRegistries, cfg.Injector.Package.Registry) {
+		return cfg.Injector.Package.Registry, true
+	}
+	for _, library := range cfg.Libraries {
+		if !slices.Contains(cfg.CSIAutoRegistries, library.Package.Registry) {
+			return library.Package.Registry, true
+		}
+	}
+	return "", false
 }
 
 // GetName returns the effective injection mode of the resolved concrete provider,

@@ -41,6 +41,7 @@ go_library(
         "//pkg/util/tags",
         "//pkg/version",
         "@com_github_go_viper_mapstructure_v2//:mapstructure",
+        "@com_github_spf13_cast//:cast",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_config_configtelemetry//:configtelemetry",
         "@io_opentelemetry_go_collector_confmap//:confmap",
@@ -70,11 +71,8 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":otlp"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    gotags_sets = [["otlp"]],
+    include_default = False,
     deps = [
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/tagger/fx-mock",

@@ -10,6 +10,7 @@
     - dda inv -- -e host-profiler.build
   needs: ["go_deps"]
   variables:
+    GIT_DEPTH: 0  # git describe --tags needs reachable tags
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
   artifacts:

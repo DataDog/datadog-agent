@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "jmxfetch",
@@ -24,6 +25,7 @@ go_library(
         "//comp/dogstatsd/config",
         "//comp/dogstatsd/server/def",
         "//pkg/collector/check",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/status/health",
@@ -36,7 +38,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "jmxfetch_test",
     srcs = [
         "jmxfetch_nix_test.go",
@@ -45,8 +47,9 @@ go_test(
         "runner_test.go",
         "utils_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":jmxfetch"],
-    gotags = ["test"],
+    gotags_sets = [["jmx"]],
     deps = [
         "//comp/core/autodiscovery/integration",
         "//pkg/config/mock",

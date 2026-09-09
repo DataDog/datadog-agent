@@ -8,6 +8,11 @@ go_library(
     deps = [
         "//comp/core/agenttelemetry/def",
         "//comp/core/agenttelemetry/impl",
+        "//comp/core/config",
+        "//pkg/config/utils",
         "//pkg/util/fxutil",
+        "//pkg/util/log/errortracking",
+        "//pkg/util/log/setup",
+        "@org_uber_go_fx//:fx",
     ],
 )

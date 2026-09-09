@@ -92,14 +92,14 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 // Start starts tailing the journal from a given offset.
 func (t *Tailer) Start(cursor string) error {
 	if err := t.setup(); err != nil {
-		t.source.Status.Error(err)
+		t.source.Status().Error(err)
 		return err
 	}
 	if err := t.seek(cursor); err != nil {
-		t.source.Status.Error(err)
+		t.source.Status().Error(err)
 		return err
 	}
-	t.source.Status.Success()
+	t.source.Status().Success()
 	t.source.AddInput(t.Identifier())
 	t.registry.SetTailed(t.Identifier(), true)
 	log.Info("Start tailing journal ", t.journalPath(), " with id: ", t.Identifier())
@@ -291,7 +291,7 @@ func (t *Tailer) tail() {
 				n, err := t.journal.Next()
 				if err != nil && err != io.EOF {
 					err := fmt.Errorf("cant't tail journal %s: %s", t.journalPath(), err)
-					t.source.Status.Error(err)
+					t.source.Status().Error(err)
 					log.Error(err)
 					return
 				}

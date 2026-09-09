@@ -161,16 +161,21 @@ func (c *AgentConfig) EffectiveSQLObfuscationMode() obfuscate.ObfuscationMode {
 	return obfuscationMode(c, c.HasFeature("sqllexer"))
 }
 
+// EffectiveSQLConfig returns the obfuscate.SQLConfig actually used by the agent's obfuscator.
+func (c *AgentConfig) EffectiveSQLConfig() obfuscate.SQLConfig {
+	return obfuscate.SQLConfig{
+		TableNames:       c.HasFeature("table_names"),
+		ReplaceDigits:    c.HasFeature("quantize_sql_tables") || c.HasFeature("replace_sql_digits"),
+		KeepSQLAlias:     c.HasFeature("keep_sql_alias"),
+		DollarQuotedFunc: c.HasFeature("dollar_quoted_func"),
+		ObfuscationMode:  c.EffectiveSQLObfuscationMode(),
+	}
+}
+
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
-		SQL: obfuscate.SQLConfig{
-			TableNames:       conf.HasFeature("table_names"),
-			ReplaceDigits:    conf.HasFeature("quantize_sql_tables") || conf.HasFeature("replace_sql_digits"),
-			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
-			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
-			ObfuscationMode:  conf.EffectiveSQLObfuscationMode(),
-		},
+		SQL:                  conf.EffectiveSQLConfig(),
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,
 		Mongo:                o.Mongo,
@@ -632,6 +637,10 @@ type AgentConfig struct {
 	// API key refresh from the secrets backend. It blocks until the refresh
 	// completes and returns a message and any error encountered.
 	SecretsRefreshFn func() (string, error) `json:"-"`
+
+	// APIKeyIsFromSecretFn reports whether an API key value was resolved from a
+	// secret handle (and can therefore be changed by a refresh).
+	APIKeyIsFromSecretFn func(apiKey string) bool `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -691,11 +700,12 @@ func New() *AgentConfig {
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
 
-		StatsWriter:                   new(WriterConfig),
-		TraceWriter:                   new(WriterConfig),
-		ConnectionResetInterval:       0, // disabled
-		MaxSenderRetries:              4,
-		APIKeyRefreshThrottleInterval: 2 * time.Minute,
+		StatsWriter:             new(WriterConfig),
+		TraceWriter:             new(WriterConfig),
+		ConnectionResetInterval: 0, // disabled
+		MaxSenderRetries:        4,
+		// opt in via secret_refresh_on_api_key_failure_interval (0 = disabled)
+		APIKeyRefreshThrottleInterval: 0,
 		ClientStatsFlushInterval:      2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
