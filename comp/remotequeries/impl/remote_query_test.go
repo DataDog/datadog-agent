@@ -571,8 +571,8 @@ func TestParseExecuteRequestValidatesStrictShape(t *testing.T) {
 }
 
 // validDeliveryJSON is a compact, fully valid backend-injected result delivery. The
-// values mirror the POC defaults: 32 MiB pages, 10 GiB total cap, 1024 columns, 1 MiB
-// schema, 128 pages, 30s timeout.
+// values mirror the POC defaults: 32 MiB pages, 10 GiB total cap (below the 100 GiB
+// hard ceiling), 1024 columns, 1 MiB schema, 128 pages, 30s timeout.
 const validDeliveryJSON = `{"runId":"run-proof","taskId":"task-proof","artifactVersion":1,"uploadId":"upload-proof","baseUrl":"https://dd.datad0g.com/api/unstable/its-agent-intake","token":"scoped-upload-token","limits":{"maxFileBytes":33554432,"maxResultBytes":10737418240,"maxRowBytes":33554432,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":128,"timeoutMs":30000}}`
 
 // deliveryJSONObject returns the valid delivery JSON with one field overridden. Nested
@@ -867,7 +867,7 @@ func TestNewRemoteQueryExecuteRequestValidation(t *testing.T) {
 		{name: "zero maxFileBytes", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxFileBytes = 0 }, wantErr: "result_delivery.limits.maxFileBytes must be at least 1"},
 		{name: "maxFileBytes above 128 MiB ceiling", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxFileBytes = (128 << 20) + 1 }, wantErr: fmt.Sprintf("result_delivery.limits.maxFileBytes must not exceed %d", remoteQueryUploadMaxFileBytes)},
 		{name: "zero maxResultBytes", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxResultBytes = 0 }, wantErr: "result_delivery.limits.maxResultBytes must be at least 1"},
-		{name: "maxResultBytes above 10 GiB cap", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxResultBytes = (10 << 30) + 1 }, wantErr: fmt.Sprintf("result_delivery.limits.maxResultBytes must not exceed %d", remoteQueryUploadMaxResultBytes)},
+		{name: "maxResultBytes above 100 GiB cap", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxResultBytes = (100 << 30) + 1 }, wantErr: fmt.Sprintf("result_delivery.limits.maxResultBytes must not exceed %d", remoteQueryUploadMaxResultBytes)},
 		{name: "zero maxRowBytes", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxRowBytes = 0 }, wantErr: "result_delivery.limits.maxRowBytes must be at least 1"},
 		{name: "maxRowBytes above page cap", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxRowBytes = (32 << 20) + 1 }, wantErr: "result_delivery.limits.maxRowBytes must not exceed maxFileBytes"},
 		{name: "zero maxColumns", mutate: func(d *RemoteQueryResultDelivery) { d.Limits.MaxColumns = 0 }, wantErr: "result_delivery.limits.maxColumns must be at least 1"},
@@ -1315,12 +1315,14 @@ func (f *fakeStreamRunnerCheck) RunRemoteQueryStream(integration string, request
 }
 
 const (
-	remoteQueryPagedFileCeiling = 128 << 20 // 128 MiB hard page cap ceiling
-	remoteQueryPagedTotalCap    = 10 << 30  // 10 GiB hard total cap
+	// Typed int64 to mirror the production caps: the 100 GiB total cap overflows
+	// 32-bit int (armhf) wherever an untyped use would default to int.
+	remoteQueryPagedFileCeiling int64 = 128 << 20 // 128 MiB hard page cap ceiling
+	remoteQueryPagedTotalCap    int64 = 100 << 30 // 100 GiB hard total cap
 )
 
 // TestRemoteQueryResultDeliveryPagedCaps proves the forwarding caps fail closed at the
-// exact platform ceilings: 128 MiB pages, 10 GiB total result bytes.
+// exact platform ceilings: 128 MiB pages, 100 GiB total result bytes.
 func TestRemoteQueryResultDeliveryPagedCaps(t *testing.T) {
 	target := RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}
 
@@ -1340,14 +1342,14 @@ func TestRemoteQueryResultDeliveryPagedCaps(t *testing.T) {
 		assert.EqualError(t, err, fmt.Sprintf("result_delivery.limits.maxFileBytes must not exceed %d", remoteQueryPagedFileCeiling))
 	})
 
-	t.Run("10 GiB total accepted", func(t *testing.T) {
+	t.Run("100 GiB total accepted", func(t *testing.T) {
 		delivery := pagedTestDelivery()
 		delivery.Limits.MaxResultBytes = remoteQueryPagedTotalCap
 		_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, false, delivery)
 		require.NoError(t, err)
 	})
 
-	t.Run("10 GiB plus one total rejected", func(t *testing.T) {
+	t.Run("100 GiB plus one total rejected", func(t *testing.T) {
 		delivery := pagedTestDelivery()
 		delivery.Limits.MaxResultBytes = remoteQueryPagedTotalCap + 1
 		_, err := NewRemoteQueryExecuteRequest("postgres", target, remoteQueryFixtureTableProofQuery, false, delivery)
@@ -1356,15 +1358,15 @@ func TestRemoteQueryResultDeliveryPagedCaps(t *testing.T) {
 	})
 }
 
-// TestRemoteQueryResultDelivery10GiBJSONFidelity proves the 10 GiB result cap survives
-// the Agent -> integration request JSON boundary as an exact JSON number. The Go int
-// fields marshal 10 GiB without truncation, so the integration receives the
-// backend-owned cap verbatim.
-func TestRemoteQueryResultDelivery10GiBJSONFidelity(t *testing.T) {
+// TestRemoteQueryResultDelivery100GiBJSONFidelity proves the 100 GiB result cap survives
+// the Agent -> integration request JSON boundary as an exact JSON number. The int64
+// limit fields marshal 100 GiB (107,374,182,400) without truncation, so the integration
+// receives the backend-owned cap verbatim.
+func TestRemoteQueryResultDelivery100GiBJSONFidelity(t *testing.T) {
 	delivery := pagedTestDelivery()
 	delivery.Limits.MaxFileBytes = 128 << 20
 	delivery.Limits.MaxRowBytes = 128 << 20
-	delivery.Limits.MaxResultBytes = 10 << 30
+	delivery.Limits.MaxResultBytes = 100 << 30
 	req, err := NewRemoteQueryExecuteRequest("postgres",
 		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
 		remoteQueryFixtureTableProofQuery, false, delivery)
@@ -1372,7 +1374,7 @@ func TestRemoteQueryResultDelivery10GiBJSONFidelity(t *testing.T) {
 
 	requestJSON, err := marshalExecuteRequest(req.internal())
 	require.NoError(t, err)
-	assert.Contains(t, requestJSON, `"maxResultBytes":10737418240`)
+	assert.Contains(t, requestJSON, `"maxResultBytes":107374182400`)
 	assert.Contains(t, requestJSON, `"timeoutMs":30000`)
 	assert.NotContains(t, requestJSON, "api_key")
 	assert.NotContains(t, requestJSON, "application_key")

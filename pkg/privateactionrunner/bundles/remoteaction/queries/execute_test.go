@@ -38,7 +38,7 @@ func resultDeliveryInputs() map[string]interface{} {
 		"token":           testToken,
 		"limits": map[string]interface{}{
 			"maxFileBytes":   33554432,
-			"maxResultBytes": 10737418240,
+			"maxResultBytes": 107374182400, // 100 GiB, the backend-owned result cap.
 			"maxRowBytes":    33554432,
 			"maxColumns":     1024,
 			"maxSchemaBytes": 1048576,
@@ -123,7 +123,7 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	assert.Equal(t, testToken, delivery.GetToken())
 	require.NotNil(t, delivery.GetLimits())
 	assert.Equal(t, int64(33554432), delivery.GetLimits().GetMaxFileBytes())
-	assert.Equal(t, int64(10737418240), delivery.GetLimits().GetMaxResultBytes())
+	assert.Equal(t, int64(107374182400), delivery.GetLimits().GetMaxResultBytes())
 	assert.Equal(t, int64(33554432), delivery.GetLimits().GetMaxRowBytes())
 	assert.Equal(t, int64(1024), delivery.GetLimits().GetMaxColumns())
 	assert.Equal(t, int64(1048576), delivery.GetLimits().GetMaxSchemaBytes())

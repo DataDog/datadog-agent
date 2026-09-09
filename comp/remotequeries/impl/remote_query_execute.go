@@ -162,13 +162,13 @@ func clickHouseProofQueries() map[string]struct{} {
 // Hard forwarding caps for the backend-injected upload instructions. The backend owns the
 // effective values; the Agent enforces these ceilings fail-closed so an oversized or
 // malformed handle never reaches the integration. The page cap ceiling matches the
-// its-agent-intake platform ceiling; the total cap matches the backend-owned 10 GiB result
+// its-agent-intake platform ceiling; the total cap matches the backend-owned 100 GiB result
 // ceiling.
 const (
-	// Typed int64: the 10 GiB total cap overflows 32-bit int (armhf) wherever an
+	// Typed int64: the 100 GiB total cap overflows 32-bit int (armhf) wherever an
 	// untyped use would default to int (comparisons, fmt.Errorf arguments).
 	remoteQueryUploadMaxFileBytes   int64 = 128 << 20 // 128 MiB hard page cap ceiling
-	remoteQueryUploadMaxResultBytes int64 = 10 << 30  // 10 GiB hard total cap
+	remoteQueryUploadMaxResultBytes int64 = 100 << 30 // 100 GiB hard total cap
 )
 
 var (

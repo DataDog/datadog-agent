@@ -63,7 +63,7 @@ func validRemoteQueryResultDeliveryProto() *pb.RemoteQueryResultDelivery {
 		Token:           "scoped-upload-token",
 		Limits: &pb.RemoteQueryUploadLimits{
 			MaxFileBytes:   128 << 20,
-			MaxResultBytes: 10 << 30,
+			MaxResultBytes: 100 << 30,
 			MaxRowBytes:    16 << 20,
 			MaxColumns:     1024,
 			MaxSchemaBytes: 1 << 20,
@@ -97,7 +97,7 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesPagedJSONContract(t *testing
 	require.NotNil(t, req.ResultDelivery.Limits)
 	assert.Equal(t, &remotequeriesimpl.RemoteQueryUploadLimits{
 		MaxFileBytes:   128 << 20,
-		MaxResultBytes: 10 << 30,
+		MaxResultBytes: 100 << 30,
 		MaxRowBytes:    16 << 20,
 		MaxColumns:     1024,
 		MaxSchemaBytes: 1 << 20,
@@ -140,13 +140,13 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesResultDeliverySecrets(t *tes
 	assert.Equal(t, "upload-proof", req.ResultDelivery.UploadID)
 }
 
-// TestRemoteQueryExecuteRequestFromProtoPreserves10GiBInt64Fidelity proves the 10 GiB
+// TestRemoteQueryExecuteRequestFromProtoPreserves100GiBInt64Fidelity proves the 100 GiB
 // result cap survives the AgentSecure proto boundary and the typed request without loss.
-// The limit fields are int64 so the backend-owned 10 GiB cap is representable without
+// The limit fields are int64 so the backend-owned 100 GiB cap is representable without
 // overflow, and a value one byte above the cap fails closed rather than truncating.
-func TestRemoteQueryExecuteRequestFromProtoPreserves10GiBInt64Fidelity(t *testing.T) {
-	const tenGiB = int64(10) << 30
-	const tenGiBPlusOne = tenGiB + 1
+func TestRemoteQueryExecuteRequestFromProtoPreserves100GiBInt64Fidelity(t *testing.T) {
+	const hundredGiB = int64(100) << 30
+	const hundredGiBPlusOne = hundredGiB + 1
 
 	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
 		Integration:    "postgres",
@@ -156,10 +156,10 @@ func TestRemoteQueryExecuteRequestFromProtoPreserves10GiBInt64Fidelity(t *testin
 	})
 	require.NoError(t, err)
 	require.NotNil(t, req.ResultDelivery.Limits)
-	assert.Equal(t, tenGiB, req.ResultDelivery.Limits.MaxResultBytes)
+	assert.Equal(t, hundredGiB, req.ResultDelivery.Limits.MaxResultBytes)
 
 	overflowProto := validRemoteQueryResultDeliveryProto()
-	overflowProto.Limits.MaxResultBytes = tenGiBPlusOne
+	overflowProto.Limits.MaxResultBytes = hundredGiBPlusOne
 	_, err = remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
 		Integration:    "postgres",
 		Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
@@ -167,7 +167,7 @@ func TestRemoteQueryExecuteRequestFromProtoPreserves10GiBInt64Fidelity(t *testin
 		ResultDelivery: overflowProto,
 	})
 	require.Error(t, err)
-	assert.EqualError(t, err, "result_delivery.limits.maxResultBytes must not exceed 10737418240")
+	assert.EqualError(t, err, "result_delivery.limits.maxResultBytes must not exceed 107374182400")
 }
 
 func TestRemoteQueryStreamEventFromCheckEventMapsMetadata(t *testing.T) {
