@@ -238,7 +238,7 @@ func agentQADefault() environmentDefault {
 		ddInfra: ddInfra{
 			defaultVPCID: "vpc-0097b9307ec2c8139",
 			defaultSubnets: []SubnetConfig{
-				{ID: "subnet-04bf3124d5c31c2e0", MacOSCompatible: true},  // us-east-1a
+				{ID: "subnet-0d57b6136e75a7558", MacOSCompatible: true},  // us-east-1a
 				{ID: "subnet-06eecbdafc2dac21e", MacOSCompatible: false}, // us-east-1d
 				{ID: "subnet-0dabe4bab92b2b9a7", MacOSCompatible: true},  // us-east-1b
 			},
