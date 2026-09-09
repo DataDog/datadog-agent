@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/e2e-framework
 go 1.26.6
 
 require (
-	al.essio.dev/pkg/shellescape v1.6.0
+	al.essio.dev/pkg/shellescape v1.6.1
 	cloud.google.com/go/compute v1.67.0
 	dario.cat/mergo v1.0.2
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
@@ -14,7 +14,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.45.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.2
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.326.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.327.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.63.0
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.94.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.96.0

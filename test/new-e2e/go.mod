@@ -62,7 +62,7 @@ require (
 )
 
 require (
-	al.essio.dev/pkg/shellescape v1.6.0 // indirect
+	al.essio.dev/pkg/shellescape v1.6.1 // indirect
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.67.0 // indirect
@@ -127,7 +127,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.326.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.327.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.63.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.96.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
