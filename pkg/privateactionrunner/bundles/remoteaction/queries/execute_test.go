@@ -453,6 +453,29 @@ func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
 	}, output)
 }
 
+// TestExecuteActionForwardsMatchFingerprint proves the optional resolve-time
+// fingerprint crosses the AgentSecure request boundary when the AP execute input
+// carries one.
+func TestExecuteActionForwardsMatchFingerprint(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEvent(0, validReceipt(), nil),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration":      "postgres",
+		"target":           map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":            "SELECT city, country FROM cities ORDER BY city",
+		"resultDelivery":   resultDeliveryInputs(),
+		"matchFingerprint": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+	}), nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, client.request)
+	assert.Equal(t, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", client.request.GetMatchFingerprint())
+}
+
 func TestExecuteActionSanitizesInputExtractionErrors(t *testing.T) {
 	action := NewExecuteAction(func() (BridgeClient, error) {
 		require.Fail(t, "bridge client should not be created for invalid inputs")
@@ -529,9 +552,11 @@ func taskWithInputs(inputs map[string]interface{}) *types.Task {
 }
 
 type captureBridgeClient struct {
-	request *pb.RemoteQueryExecuteRequest
-	chunks  []*pb.RemoteQueryExecuteChunk
-	err     error
+	request        *pb.RemoteQueryExecuteRequest
+	chunks         []*pb.RemoteQueryExecuteChunk
+	resolveRequest *pb.RemoteQueryResolveRequest
+	resolveResp    *pb.RemoteQueryResolveResponse
+	err            error
 }
 
 func (c *captureBridgeClient) RemoteQueryExecuteStream(_ context.Context, req *pb.RemoteQueryExecuteRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], error) {
@@ -540,6 +565,14 @@ func (c *captureBridgeClient) RemoteQueryExecuteStream(_ context.Context, req *p
 		return nil, c.err
 	}
 	return &captureRemoteQueryExecuteStream{chunks: c.chunks}, nil
+}
+
+func (c *captureBridgeClient) RemoteQueryResolve(_ context.Context, req *pb.RemoteQueryResolveRequest, _ ...grpc.CallOption) (*pb.RemoteQueryResolveResponse, error) {
+	c.resolveRequest = req
+	if c.err != nil {
+		return nil, c.err
+	}
+	return c.resolveResp, nil
 }
 
 type captureRemoteQueryExecuteStream struct {

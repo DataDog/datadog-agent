@@ -38,11 +38,21 @@ const (
 	// RemoteQueriesMatchEnabledConfig is disabled by default when the key is absent.
 	RemoteQueriesMatchEnabledConfig = "remote_queries.match_check.enabled"
 
-	statusOK             = "ok"
-	statusTargetNotFound = "target_not_found"
-	statusAmbiguous      = "ambiguous_target"
-	statusInvalidRequest = "invalid_request"
-	statusBridgeDisabled = "bridge_disabled"
+	statusOK      = "ok"
+	statusMatched = "matched"
+	// statusTargetNotFound, statusAmbiguous, and statusResolutionError are the
+	// resolve-operation statuses of the match-before-execute contract; the
+	// match-check diagnostic keeps its own statusOK vocabulary. statusResolutionError
+	// reports that matching itself could not complete (internal or contract
+	// error) — never a target miss. statusTargetResolutionStale is the execute-time
+	// revalidation failure: the selected target no longer matches the
+	// resolve-time fingerprint.
+	statusTargetNotFound        = "target_not_found"
+	statusAmbiguous             = "ambiguous_target"
+	statusResolutionError       = "resolution_error"
+	statusTargetResolutionStale = "target_resolution_stale"
+	statusInvalidRequest        = "invalid_request"
+	statusBridgeDisabled        = "bridge_disabled"
 )
 
 // Requires defines dependencies for the Remote Queries POC endpoint provider.
@@ -386,6 +396,11 @@ func normalizeHost(host string) string {
 type integrationCheckMatch struct {
 	check     check.Check
 	sanitized sanitizedMatch
+	// instanceTarget is the sanitized target identity parsed from the matched
+	// check's instance config (host/port/dbname plus the rendered database
+	// identifier). It carries no credentials and no raw config: it feeds the
+	// match fingerprint and nothing else.
+	instanceTarget integrationInstanceTarget
 }
 
 func (h *remoteQueryMatchHandler) findMatches(integration string, target remoteQueryTarget) []integrationCheckMatch {
@@ -421,9 +436,9 @@ func findIntegrationMatches(collector RemoteQueryCollector, integration string, 
 		}
 
 		if instanceTarget.isExactTupleMatch(target) {
-			exact = append(exact, newIntegrationCheckMatch(chk, integration, matchKindExact))
+			exact = append(exact, newIntegrationCheckMatch(chk, integration, matchKindExact, instanceTarget))
 		} else {
-			endpointCandidates = append(endpointCandidates, newIntegrationCheckMatch(chk, integration, matchKindEndpointCandidate))
+			endpointCandidates = append(endpointCandidates, newIntegrationCheckMatch(chk, integration, matchKindEndpointCandidate, instanceTarget))
 		}
 	}
 	if len(exact) > 0 {
@@ -432,7 +447,10 @@ func findIntegrationMatches(collector RemoteQueryCollector, integration string, 
 	return endpointCandidates
 }
 
-func newIntegrationCheckMatch(chk check.Check, integration string, matchKind string) integrationCheckMatch {
+// newIntegrationCheckMatch builds one sanitized match entry. The parsed
+// instanceTarget carries no credentials or raw config: it feeds the match
+// fingerprint and nothing else.
+func newIntegrationCheckMatch(chk check.Check, integration string, matchKind string, instanceTarget integrationInstanceTarget) integrationCheckMatch {
 	return integrationCheckMatch{
 		check: chk,
 		sanitized: sanitizedMatch{
@@ -441,7 +459,7 @@ func newIntegrationCheckMatch(chk check.Check, integration string, matchKind str
 			ConfigProvider: chk.ConfigProvider(),
 			MatchKind:      matchKind,
 		},
-	}
+		instanceTarget: instanceTarget}
 }
 
 func normalizeIntegrationName(name string) string {

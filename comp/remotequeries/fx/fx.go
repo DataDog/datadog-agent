@@ -17,5 +17,6 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(remotequeriesimpl.NewRemoteQueryMatchEndpointProvider),
 		fx.Provide(remotequeriesimpl.NewRemoteQueryExecuteEndpointProvider),
+		fx.Provide(remotequeriesimpl.NewRemoteQueryResolveEndpointProvider),
 	)
 }

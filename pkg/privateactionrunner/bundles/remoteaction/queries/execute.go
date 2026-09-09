@@ -27,11 +27,12 @@ import (
 // emits it.
 const remoteQueryOperationProduceJSONPages = "produce_json_pages"
 
-// BridgeClient is the narrow AgentSecure gRPC client surface required by this action.
-// Only the streaming RPC exists: bulk result bytes never traverse AgentSecure, so there
-// is no unary inline-result call.
+// BridgeClient is the narrow AgentSecure gRPC client surface required by this bundle:
+// the streaming execute RPC and the unary side-effect-free resolve RPC. Bulk result
+// bytes never traverse AgentSecure, so there is no unary inline-result call.
 type BridgeClient interface {
 	RemoteQueryExecuteStream(ctx context.Context, in *pb.RemoteQueryExecuteRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], error)
+	RemoteQueryResolve(ctx context.Context, in *pb.RemoteQueryResolveRequest, opts ...grpc.CallOption) (*pb.RemoteQueryResolveResponse, error)
 }
 
 // BridgeClientFactory returns an authenticated AgentSecure client over the local Agent IPC channel.
@@ -46,17 +47,20 @@ func NewExecuteAction(newBridgeClient BridgeClientFactory) *ExecuteAction {
 }
 
 // ExecuteInputs is the AP action input injected by the backend: the integration,
-// target, query, the explicit includeSchema flag, and the backend-owned
-// resultDelivery (authoritative run/task identity, artifact version, scoped upload
-// instructions, and effective limits). The input carries no credentials: the org
-// API/application keys are read by the integration from Agent config, and the session
-// is identified solely by its upload id — there is no per-session upload token.
+// target, query, the explicit includeSchema flag, the backend-owned resultDelivery
+// (authoritative run/task identity, artifact version, scoped upload instructions,
+// and effective limits), and the optional resolve-time matchFingerprint the Agent
+// revalidates before any SQL execution. The input carries no credentials: the org
+// API/application keys are read by the integration from Agent config, and the
+// session is identified solely by its upload id — there is no per-session upload
+// token.
 type ExecuteInputs struct {
-	Integration    string                `json:"integration"`
-	Target         TargetInputs          `json:"target"`
-	Query          string                `json:"query"`
-	IncludeSchema  bool                  `json:"includeSchema"`
-	ResultDelivery *ResultDeliveryInputs `json:"resultDelivery"`
+	Integration      string                `json:"integration"`
+	Target           TargetInputs          `json:"target"`
+	Query            string                `json:"query"`
+	IncludeSchema    bool                  `json:"includeSchema"`
+	ResultDelivery   *ResultDeliveryInputs `json:"resultDelivery"`
+	MatchFingerprint string                `json:"matchFingerprint"`
 }
 
 type ResultDeliveryInputs struct {
@@ -231,8 +235,9 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 			Dbname:           inputs.Target.DBName,
 			DatabaseInstance: inputs.Target.DatabaseInstance,
 		},
-		Query:         inputs.Query,
-		IncludeSchema: inputs.IncludeSchema,
+		Query:            inputs.Query,
+		IncludeSchema:    inputs.IncludeSchema,
+		MatchFingerprint: inputs.MatchFingerprint,
 	}
 	if delivery := inputs.ResultDelivery; delivery != nil {
 		protoDelivery := &pb.RemoteQueryResultDelivery{

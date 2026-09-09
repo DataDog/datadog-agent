@@ -290,15 +290,21 @@ func (x *RemoteQueryResultDelivery) GetLimits() *RemoteQueryUploadLimits {
 // and uploads them directly to its-agent-intake. There is no inline result-byte
 // path, no caller-provided format, and no COPY mode. include_schema controls
 // the optional per-page schema emission; result_delivery is required.
+// match_fingerprint is the opaque fingerprint returned by RemoteQueryResolve
+// for the selected match: when non-empty, the Agent revalidates the target
+// resolution before any SQL execution and fails closed with
+// target_resolution_stale when the selected match no longer holds. Empty means
+// no revalidation (local and direct paths keep working unchanged).
 type RemoteQueryExecuteRequest struct {
-	state          protoimpl.MessageState     `protogen:"open.v1"`
-	Integration    string                     `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
-	Target         *RemoteQueryTarget         `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
-	Query          string                     `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
-	IncludeSchema  bool                       `protobuf:"varint,4,opt,name=include_schema,json=includeSchema,proto3" json:"include_schema,omitempty"`
-	ResultDelivery *RemoteQueryResultDelivery `protobuf:"bytes,5,opt,name=result_delivery,json=resultDelivery,proto3" json:"result_delivery,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state            protoimpl.MessageState     `protogen:"open.v1"`
+	Integration      string                     `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
+	Target           *RemoteQueryTarget         `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
+	Query            string                     `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	IncludeSchema    bool                       `protobuf:"varint,4,opt,name=include_schema,json=includeSchema,proto3" json:"include_schema,omitempty"`
+	ResultDelivery   *RemoteQueryResultDelivery `protobuf:"bytes,5,opt,name=result_delivery,json=resultDelivery,proto3" json:"result_delivery,omitempty"`
+	MatchFingerprint string                     `protobuf:"bytes,6,opt,name=match_fingerprint,json=matchFingerprint,proto3" json:"match_fingerprint,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RemoteQueryExecuteRequest) Reset() {
@@ -364,6 +370,13 @@ func (x *RemoteQueryExecuteRequest) GetResultDelivery() *RemoteQueryResultDelive
 		return x.ResultDelivery
 	}
 	return nil
+}
+
+func (x *RemoteQueryExecuteRequest) GetMatchFingerprint() string {
+	if x != nil {
+		return x.MatchFingerprint
+	}
+	return ""
 }
 
 type RemoteQueryStreamMetadata struct {
@@ -795,6 +808,136 @@ func (x *RemoteQueryExecuteChunk) GetEvent() *RemoteQueryExecuteStreamEvent {
 	return nil
 }
 
+// RemoteQueryResolveRequest is the side-effect-free target resolution request:
+// it carries only the integration and target. No query, no result delivery, and
+// no credentials can cross this boundary; the resolver re-runs the same
+// integration matcher execute uses and answers with the structured zero/one/many
+// outcome plus an opaque match fingerprint for the unique case.
+type RemoteQueryResolveRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Integration   string                 `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
+	Target        *RemoteQueryTarget     `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoteQueryResolveRequest) Reset() {
+	*x = RemoteQueryResolveRequest{}
+	mi := &file_datadog_api_v1_api_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoteQueryResolveRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoteQueryResolveRequest) ProtoMessage() {}
+
+func (x *RemoteQueryResolveRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_api_v1_api_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoteQueryResolveRequest.ProtoReflect.Descriptor instead.
+func (*RemoteQueryResolveRequest) Descriptor() ([]byte, []int) {
+	return file_datadog_api_v1_api_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *RemoteQueryResolveRequest) GetIntegration() string {
+	if x != nil {
+		return x.Integration
+	}
+	return ""
+}
+
+func (x *RemoteQueryResolveRequest) GetTarget() *RemoteQueryTarget {
+	if x != nil {
+		return x.Target
+	}
+	return nil
+}
+
+// RemoteQueryResolveResponse is the structured resolution outcome. status is one
+// of matched, target_not_found, ambiguous_target, or resolution_error; when
+// status is matched, match_fingerprint carries the opaque versioned fingerprint
+// the caller revalidates on execute. The error fields mirror the status when set
+// and never carry credentials or raw integration configuration.
+type RemoteQueryResolveResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Status           string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	MatchFingerprint string                 `protobuf:"bytes,2,opt,name=match_fingerprint,json=matchFingerprint,proto3" json:"match_fingerprint,omitempty"`
+	ErrorCode        string                 `protobuf:"bytes,3,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	ErrorMessage     string                 `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *RemoteQueryResolveResponse) Reset() {
+	*x = RemoteQueryResolveResponse{}
+	mi := &file_datadog_api_v1_api_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoteQueryResolveResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoteQueryResolveResponse) ProtoMessage() {}
+
+func (x *RemoteQueryResolveResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_api_v1_api_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoteQueryResolveResponse.ProtoReflect.Descriptor instead.
+func (*RemoteQueryResolveResponse) Descriptor() ([]byte, []int) {
+	return file_datadog_api_v1_api_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *RemoteQueryResolveResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *RemoteQueryResolveResponse) GetMatchFingerprint() string {
+	if x != nil {
+		return x.MatchFingerprint
+	}
+	return ""
+}
+
+func (x *RemoteQueryResolveResponse) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
+func (x *RemoteQueryResolveResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
 // ReportHealthIssueRequest carries a health issue from a sub-agent or registered
 // remote agent to the core agent's health platform store.
 type ReportHealthIssueRequest struct {
@@ -812,7 +955,7 @@ type ReportHealthIssueRequest struct {
 
 func (x *ReportHealthIssueRequest) Reset() {
 	*x = ReportHealthIssueRequest{}
-	mi := &file_datadog_api_v1_api_proto_msgTypes[10]
+	mi := &file_datadog_api_v1_api_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -824,7 +967,7 @@ func (x *ReportHealthIssueRequest) String() string {
 func (*ReportHealthIssueRequest) ProtoMessage() {}
 
 func (x *ReportHealthIssueRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_api_v1_api_proto_msgTypes[10]
+	mi := &file_datadog_api_v1_api_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -837,7 +980,7 @@ func (x *ReportHealthIssueRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportHealthIssueRequest.ProtoReflect.Descriptor instead.
 func (*ReportHealthIssueRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_api_v1_api_proto_rawDescGZIP(), []int{10}
+	return file_datadog_api_v1_api_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ReportHealthIssueRequest) GetRemoteAgentSessionId() string {
@@ -868,7 +1011,7 @@ type ResolveHealthIssueRequest struct {
 
 func (x *ResolveHealthIssueRequest) Reset() {
 	*x = ResolveHealthIssueRequest{}
-	mi := &file_datadog_api_v1_api_proto_msgTypes[11]
+	mi := &file_datadog_api_v1_api_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -880,7 +1023,7 @@ func (x *ResolveHealthIssueRequest) String() string {
 func (*ResolveHealthIssueRequest) ProtoMessage() {}
 
 func (x *ResolveHealthIssueRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_api_v1_api_proto_msgTypes[11]
+	mi := &file_datadog_api_v1_api_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -893,7 +1036,7 @@ func (x *ResolveHealthIssueRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveHealthIssueRequest.ProtoReflect.Descriptor instead.
 func (*ResolveHealthIssueRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_api_v1_api_proto_rawDescGZIP(), []int{11}
+	return file_datadog_api_v1_api_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ResolveHealthIssueRequest) GetRemoteAgentSessionId() string {
@@ -937,13 +1080,14 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\tupload_id\x18\x04 \x01(\tR\buploadId\x12\x19\n" +
 	"\bbase_url\x18\x05 \x01(\tR\abaseUrl\x12\x14\n" +
 	"\x05token\x18\x06 \x01(\tR\x05token\x12?\n" +
-	"\x06limits\x18\b \x01(\v2'.datadog.api.v1.RemoteQueryUploadLimitsR\x06limitsJ\x04\b\a\x10\b\"\x89\x02\n" +
+	"\x06limits\x18\b \x01(\v2'.datadog.api.v1.RemoteQueryUploadLimitsR\x06limitsJ\x04\b\a\x10\b\"\xb6\x02\n" +
 	"\x19RemoteQueryExecuteRequest\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x129\n" +
 	"\x06target\x18\x02 \x01(\v2!.datadog.api.v1.RemoteQueryTargetR\x06target\x12\x14\n" +
 	"\x05query\x18\x03 \x01(\tR\x05query\x12%\n" +
 	"\x0einclude_schema\x18\x04 \x01(\bR\rincludeSchema\x12R\n" +
-	"\x0fresult_delivery\x18\x05 \x01(\v2).datadog.api.v1.RemoteQueryResultDeliveryR\x0eresultDelivery\"\xf5\x01\n" +
+	"\x0fresult_delivery\x18\x05 \x01(\v2).datadog.api.v1.RemoteQueryResultDeliveryR\x0eresultDelivery\x12+\n" +
+	"\x11match_fingerprint\x18\x06 \x01(\tR\x10matchFingerprint\"\xf5\x01\n" +
 	"\x19RemoteQueryStreamMetadata\x12\x1c\n" +
 	"\toperation\x18\x01 \x01(\tR\toperation\x12 \n" +
 	"\vintegration\x18\x02 \x01(\tR\vintegration\x12Y\n" +
@@ -990,7 +1134,16 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\vchunk_index\x18\x02 \x01(\x05R\n" +
 	"chunkIndex\x12\x14\n" +
 	"\x05final\x18\x03 \x01(\bR\x05final\x12C\n" +
-	"\x05event\x18\x04 \x01(\v2-.datadog.api.v1.RemoteQueryExecuteStreamEventR\x05eventJ\x04\b\x01\x10\x02\"\x86\x01\n" +
+	"\x05event\x18\x04 \x01(\v2-.datadog.api.v1.RemoteQueryExecuteStreamEventR\x05eventJ\x04\b\x01\x10\x02\"x\n" +
+	"\x19RemoteQueryResolveRequest\x12 \n" +
+	"\vintegration\x18\x01 \x01(\tR\vintegration\x129\n" +
+	"\x06target\x18\x02 \x01(\v2!.datadog.api.v1.RemoteQueryTargetR\x06target\"\xa5\x01\n" +
+	"\x1aRemoteQueryResolveResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12+\n" +
+	"\x11match_fingerprint\x18\x02 \x01(\tR\x10matchFingerprint\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\x03 \x01(\tR\terrorCode\x12#\n" +
+	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\"\x86\x01\n" +
 	"\x18ReportHealthIssueRequest\x125\n" +
 	"\x17remote_agent_session_id\x18\x01 \x01(\tR\x14remoteAgentSessionId\x123\n" +
 	"\x05issue\x18\x02 \x01(\v2\x1d.datadog.healthplatform.IssueR\x05issue\"m\n" +
@@ -998,7 +1151,7 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x17remote_agent_session_id\x18\x01 \x01(\tR\x14remoteAgentSessionId\x12\x19\n" +
 	"\bissue_id\x18\x02 \x01(\tR\aissueId2Z\n" +
 	"\x05Agent\x12Q\n" +
-	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\xcd\x12\n" +
+	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\xba\x13\n" +
 	"\vAgentSecure\x12c\n" +
 	"\x14TaggerStreamEntities\x12#.datadog.model.v1.StreamTagsRequest\x1a$.datadog.model.v1.StreamTagsResponse0\x01\x12\xa2\x01\n" +
 	"'TaggerGenerateContainerIDFromOriginInfo\x12:.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest\x1a;.datadog.model.v1.GenerateContainerIDFromOriginInfoResponse\x12`\n" +
@@ -1018,7 +1171,8 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply\x12\\\n" +
 	"\x12StreamConfigEvents\x12%.datadog.model.v1.ConfigStreamRequest\x1a\x1d.datadog.model.v1.ConfigEvent0\x01\x12\x87\x01\n" +
 	"\x16WorkloadFilterEvaluate\x125.datadog.workloadfilter.WorkloadFilterEvaluateRequest\x1a6.datadog.workloadfilter.WorkloadFilterEvaluateResponse\x12p\n" +
-	"\x18RemoteQueryExecuteStream\x12).datadog.api.v1.RemoteQueryExecuteRequest\x1a'.datadog.api.v1.RemoteQueryExecuteChunk0\x01\x12y\n" +
+	"\x18RemoteQueryExecuteStream\x12).datadog.api.v1.RemoteQueryExecuteRequest\x1a'.datadog.api.v1.RemoteQueryExecuteChunk0\x01\x12k\n" +
+	"\x12RemoteQueryResolve\x12).datadog.api.v1.RemoteQueryResolveRequest\x1a*.datadog.api.v1.RemoteQueryResolveResponse\x12y\n" +
 	"\x12StreamKubeMetadata\x12/.datadog.kubemetadata.KubeMetadataStreamRequest\x1a0.datadog.kubemetadata.KubeMetadataStreamResponse0\x01\x12U\n" +
 	"\x11ReportHealthIssue\x12(.datadog.api.v1.ReportHealthIssueRequest\x1a\x16.google.protobuf.Empty\x12W\n" +
 	"\x12ResolveHealthIssue\x12).datadog.api.v1.ResolveHealthIssueRequest\x1a\x16.google.protobuf.EmptyB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
@@ -1035,7 +1189,7 @@ func file_datadog_api_v1_api_proto_rawDescGZIP() []byte {
 	return file_datadog_api_v1_api_proto_rawDescData
 }
 
-var file_datadog_api_v1_api_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_datadog_api_v1_api_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*RemoteQueryTarget)(nil),                         // 0: datadog.api.v1.RemoteQueryTarget
 	(*RemoteQueryUploadLimits)(nil),                   // 1: datadog.api.v1.RemoteQueryUploadLimits
@@ -1047,111 +1201,116 @@ var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*RemoteQueryStreamError)(nil),                    // 7: datadog.api.v1.RemoteQueryStreamError
 	(*RemoteQueryExecuteStreamEvent)(nil),             // 8: datadog.api.v1.RemoteQueryExecuteStreamEvent
 	(*RemoteQueryExecuteChunk)(nil),                   // 9: datadog.api.v1.RemoteQueryExecuteChunk
-	(*ReportHealthIssueRequest)(nil),                  // 10: datadog.api.v1.ReportHealthIssueRequest
-	(*ResolveHealthIssueRequest)(nil),                 // 11: datadog.api.v1.ResolveHealthIssueRequest
-	nil,                                               // 12: datadog.api.v1.RemoteQueryStreamMetadata.AttributesEntry
-	nil,                                               // 13: datadog.api.v1.RemoteQueryStreamFinal.AttributesEntry
-	nil,                                               // 14: datadog.api.v1.RemoteQueryStreamError.AttributesEntry
-	(*healthplatform.Issue)(nil),                      // 15: datadog.healthplatform.Issue
-	(*HostnameRequest)(nil),                           // 16: datadog.model.v1.HostnameRequest
-	(*StreamTagsRequest)(nil),                         // 17: datadog.model.v1.StreamTagsRequest
-	(*GenerateContainerIDFromOriginInfoRequest)(nil),  // 18: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest
-	(*FetchEntityRequest)(nil),                        // 19: datadog.model.v1.FetchEntityRequest
-	(*CaptureTriggerRequest)(nil),                     // 20: datadog.model.v1.CaptureTriggerRequest
-	(*TaggerState)(nil),                               // 21: datadog.model.v1.TaggerState
-	(*ClientGetConfigsRequest)(nil),                   // 22: datadog.config.ClientGetConfigsRequest
-	(*emptypb.Empty)(nil),                             // 23: google.protobuf.Empty
-	(*ConfigSubscriptionRequest)(nil),                 // 24: datadog.config.ConfigSubscriptionRequest
-	(*WorkloadmetaStreamRequest)(nil),                 // 25: datadog.workloadmeta.WorkloadmetaStreamRequest
-	(*RegisterRemoteAgentRequest)(nil),                // 26: datadog.remoteagent.v1.RegisterRemoteAgentRequest
-	(*RefreshRemoteAgentRequest)(nil),                 // 27: datadog.remoteagent.v1.RefreshRemoteAgentRequest
-	(*HostTagRequest)(nil),                            // 28: datadog.model.v1.HostTagRequest
-	(*ConfigStreamRequest)(nil),                       // 29: datadog.model.v1.ConfigStreamRequest
-	(*WorkloadFilterEvaluateRequest)(nil),             // 30: datadog.workloadfilter.WorkloadFilterEvaluateRequest
-	(*KubeMetadataStreamRequest)(nil),                 // 31: datadog.kubemetadata.KubeMetadataStreamRequest
-	(*HostnameReply)(nil),                             // 32: datadog.model.v1.HostnameReply
-	(*StreamTagsResponse)(nil),                        // 33: datadog.model.v1.StreamTagsResponse
-	(*GenerateContainerIDFromOriginInfoResponse)(nil), // 34: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
-	(*FetchEntityResponse)(nil),                       // 35: datadog.model.v1.FetchEntityResponse
-	(*CaptureTriggerResponse)(nil),                    // 36: datadog.model.v1.CaptureTriggerResponse
-	(*TaggerStateResponse)(nil),                       // 37: datadog.model.v1.TaggerStateResponse
-	(*ClientGetConfigsResponse)(nil),                  // 38: datadog.config.ClientGetConfigsResponse
-	(*GetStateConfigResponse)(nil),                    // 39: datadog.config.GetStateConfigResponse
-	(*ConfigSubscriptionResponse)(nil),                // 40: datadog.config.ConfigSubscriptionResponse
-	(*ResetStateConfigResponse)(nil),                  // 41: datadog.config.ResetStateConfigResponse
-	(*WorkloadmetaStreamResponse)(nil),                // 42: datadog.workloadmeta.WorkloadmetaStreamResponse
-	(*RegisterRemoteAgentResponse)(nil),               // 43: datadog.remoteagent.v1.RegisterRemoteAgentResponse
-	(*RefreshRemoteAgentResponse)(nil),                // 44: datadog.remoteagent.v1.RefreshRemoteAgentResponse
-	(*AutodiscoveryStreamResponse)(nil),               // 45: datadog.autodiscovery.AutodiscoveryStreamResponse
-	(*HostTagReply)(nil),                              // 46: datadog.model.v1.HostTagReply
-	(*ConfigEvent)(nil),                               // 47: datadog.model.v1.ConfigEvent
-	(*WorkloadFilterEvaluateResponse)(nil),            // 48: datadog.workloadfilter.WorkloadFilterEvaluateResponse
-	(*KubeMetadataStreamResponse)(nil),                // 49: datadog.kubemetadata.KubeMetadataStreamResponse
+	(*RemoteQueryResolveRequest)(nil),                 // 10: datadog.api.v1.RemoteQueryResolveRequest
+	(*RemoteQueryResolveResponse)(nil),                // 11: datadog.api.v1.RemoteQueryResolveResponse
+	(*ReportHealthIssueRequest)(nil),                  // 12: datadog.api.v1.ReportHealthIssueRequest
+	(*ResolveHealthIssueRequest)(nil),                 // 13: datadog.api.v1.ResolveHealthIssueRequest
+	nil,                                               // 14: datadog.api.v1.RemoteQueryStreamMetadata.AttributesEntry
+	nil,                                               // 15: datadog.api.v1.RemoteQueryStreamFinal.AttributesEntry
+	nil,                                               // 16: datadog.api.v1.RemoteQueryStreamError.AttributesEntry
+	(*healthplatform.Issue)(nil),                      // 17: datadog.healthplatform.Issue
+	(*HostnameRequest)(nil),                           // 18: datadog.model.v1.HostnameRequest
+	(*StreamTagsRequest)(nil),                         // 19: datadog.model.v1.StreamTagsRequest
+	(*GenerateContainerIDFromOriginInfoRequest)(nil),  // 20: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest
+	(*FetchEntityRequest)(nil),                        // 21: datadog.model.v1.FetchEntityRequest
+	(*CaptureTriggerRequest)(nil),                     // 22: datadog.model.v1.CaptureTriggerRequest
+	(*TaggerState)(nil),                               // 23: datadog.model.v1.TaggerState
+	(*ClientGetConfigsRequest)(nil),                   // 24: datadog.config.ClientGetConfigsRequest
+	(*emptypb.Empty)(nil),                             // 25: google.protobuf.Empty
+	(*ConfigSubscriptionRequest)(nil),                 // 26: datadog.config.ConfigSubscriptionRequest
+	(*WorkloadmetaStreamRequest)(nil),                 // 27: datadog.workloadmeta.WorkloadmetaStreamRequest
+	(*RegisterRemoteAgentRequest)(nil),                // 28: datadog.remoteagent.v1.RegisterRemoteAgentRequest
+	(*RefreshRemoteAgentRequest)(nil),                 // 29: datadog.remoteagent.v1.RefreshRemoteAgentRequest
+	(*HostTagRequest)(nil),                            // 30: datadog.model.v1.HostTagRequest
+	(*ConfigStreamRequest)(nil),                       // 31: datadog.model.v1.ConfigStreamRequest
+	(*WorkloadFilterEvaluateRequest)(nil),             // 32: datadog.workloadfilter.WorkloadFilterEvaluateRequest
+	(*KubeMetadataStreamRequest)(nil),                 // 33: datadog.kubemetadata.KubeMetadataStreamRequest
+	(*HostnameReply)(nil),                             // 34: datadog.model.v1.HostnameReply
+	(*StreamTagsResponse)(nil),                        // 35: datadog.model.v1.StreamTagsResponse
+	(*GenerateContainerIDFromOriginInfoResponse)(nil), // 36: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
+	(*FetchEntityResponse)(nil),                       // 37: datadog.model.v1.FetchEntityResponse
+	(*CaptureTriggerResponse)(nil),                    // 38: datadog.model.v1.CaptureTriggerResponse
+	(*TaggerStateResponse)(nil),                       // 39: datadog.model.v1.TaggerStateResponse
+	(*ClientGetConfigsResponse)(nil),                  // 40: datadog.config.ClientGetConfigsResponse
+	(*GetStateConfigResponse)(nil),                    // 41: datadog.config.GetStateConfigResponse
+	(*ConfigSubscriptionResponse)(nil),                // 42: datadog.config.ConfigSubscriptionResponse
+	(*ResetStateConfigResponse)(nil),                  // 43: datadog.config.ResetStateConfigResponse
+	(*WorkloadmetaStreamResponse)(nil),                // 44: datadog.workloadmeta.WorkloadmetaStreamResponse
+	(*RegisterRemoteAgentResponse)(nil),               // 45: datadog.remoteagent.v1.RegisterRemoteAgentResponse
+	(*RefreshRemoteAgentResponse)(nil),                // 46: datadog.remoteagent.v1.RefreshRemoteAgentResponse
+	(*AutodiscoveryStreamResponse)(nil),               // 47: datadog.autodiscovery.AutodiscoveryStreamResponse
+	(*HostTagReply)(nil),                              // 48: datadog.model.v1.HostTagReply
+	(*ConfigEvent)(nil),                               // 49: datadog.model.v1.ConfigEvent
+	(*WorkloadFilterEvaluateResponse)(nil),            // 50: datadog.workloadfilter.WorkloadFilterEvaluateResponse
+	(*KubeMetadataStreamResponse)(nil),                // 51: datadog.kubemetadata.KubeMetadataStreamResponse
 }
 var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	1,  // 0: datadog.api.v1.RemoteQueryResultDelivery.limits:type_name -> datadog.api.v1.RemoteQueryUploadLimits
 	0,  // 1: datadog.api.v1.RemoteQueryExecuteRequest.target:type_name -> datadog.api.v1.RemoteQueryTarget
 	2,  // 2: datadog.api.v1.RemoteQueryExecuteRequest.result_delivery:type_name -> datadog.api.v1.RemoteQueryResultDelivery
-	12, // 3: datadog.api.v1.RemoteQueryStreamMetadata.attributes:type_name -> datadog.api.v1.RemoteQueryStreamMetadata.AttributesEntry
+	14, // 3: datadog.api.v1.RemoteQueryStreamMetadata.attributes:type_name -> datadog.api.v1.RemoteQueryStreamMetadata.AttributesEntry
 	6,  // 4: datadog.api.v1.RemoteQueryStreamFinal.upload_receipt:type_name -> datadog.api.v1.RemoteQueryUploadReceipt
-	13, // 5: datadog.api.v1.RemoteQueryStreamFinal.attributes:type_name -> datadog.api.v1.RemoteQueryStreamFinal.AttributesEntry
-	14, // 6: datadog.api.v1.RemoteQueryStreamError.attributes:type_name -> datadog.api.v1.RemoteQueryStreamError.AttributesEntry
+	15, // 5: datadog.api.v1.RemoteQueryStreamFinal.attributes:type_name -> datadog.api.v1.RemoteQueryStreamFinal.AttributesEntry
+	16, // 6: datadog.api.v1.RemoteQueryStreamError.attributes:type_name -> datadog.api.v1.RemoteQueryStreamError.AttributesEntry
 	4,  // 7: datadog.api.v1.RemoteQueryExecuteStreamEvent.metadata:type_name -> datadog.api.v1.RemoteQueryStreamMetadata
 	5,  // 8: datadog.api.v1.RemoteQueryExecuteStreamEvent.final:type_name -> datadog.api.v1.RemoteQueryStreamFinal
 	7,  // 9: datadog.api.v1.RemoteQueryExecuteStreamEvent.error:type_name -> datadog.api.v1.RemoteQueryStreamError
 	8,  // 10: datadog.api.v1.RemoteQueryExecuteChunk.event:type_name -> datadog.api.v1.RemoteQueryExecuteStreamEvent
-	15, // 11: datadog.api.v1.ReportHealthIssueRequest.issue:type_name -> datadog.healthplatform.Issue
-	16, // 12: datadog.api.v1.Agent.GetHostname:input_type -> datadog.model.v1.HostnameRequest
-	17, // 13: datadog.api.v1.AgentSecure.TaggerStreamEntities:input_type -> datadog.model.v1.StreamTagsRequest
-	18, // 14: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:input_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoRequest
-	19, // 15: datadog.api.v1.AgentSecure.TaggerFetchEntity:input_type -> datadog.model.v1.FetchEntityRequest
-	20, // 16: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:input_type -> datadog.model.v1.CaptureTriggerRequest
-	21, // 17: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:input_type -> datadog.model.v1.TaggerState
-	22, // 18: datadog.api.v1.AgentSecure.ClientGetConfigs:input_type -> datadog.config.ClientGetConfigsRequest
-	23, // 19: datadog.api.v1.AgentSecure.GetConfigState:input_type -> google.protobuf.Empty
-	22, // 20: datadog.api.v1.AgentSecure.ClientGetConfigsHA:input_type -> datadog.config.ClientGetConfigsRequest
-	23, // 21: datadog.api.v1.AgentSecure.GetConfigStateHA:input_type -> google.protobuf.Empty
-	24, // 22: datadog.api.v1.AgentSecure.CreateConfigSubscription:input_type -> datadog.config.ConfigSubscriptionRequest
-	23, // 23: datadog.api.v1.AgentSecure.ResetConfigState:input_type -> google.protobuf.Empty
-	25, // 24: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:input_type -> datadog.workloadmeta.WorkloadmetaStreamRequest
-	26, // 25: datadog.api.v1.AgentSecure.RegisterRemoteAgent:input_type -> datadog.remoteagent.v1.RegisterRemoteAgentRequest
-	27, // 26: datadog.api.v1.AgentSecure.RefreshRemoteAgent:input_type -> datadog.remoteagent.v1.RefreshRemoteAgentRequest
-	23, // 27: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:input_type -> google.protobuf.Empty
-	28, // 28: datadog.api.v1.AgentSecure.GetHostTags:input_type -> datadog.model.v1.HostTagRequest
-	29, // 29: datadog.api.v1.AgentSecure.StreamConfigEvents:input_type -> datadog.model.v1.ConfigStreamRequest
-	30, // 30: datadog.api.v1.AgentSecure.WorkloadFilterEvaluate:input_type -> datadog.workloadfilter.WorkloadFilterEvaluateRequest
-	3,  // 31: datadog.api.v1.AgentSecure.RemoteQueryExecuteStream:input_type -> datadog.api.v1.RemoteQueryExecuteRequest
-	31, // 32: datadog.api.v1.AgentSecure.StreamKubeMetadata:input_type -> datadog.kubemetadata.KubeMetadataStreamRequest
-	10, // 33: datadog.api.v1.AgentSecure.ReportHealthIssue:input_type -> datadog.api.v1.ReportHealthIssueRequest
-	11, // 34: datadog.api.v1.AgentSecure.ResolveHealthIssue:input_type -> datadog.api.v1.ResolveHealthIssueRequest
-	32, // 35: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
-	33, // 36: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
-	34, // 37: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
-	35, // 38: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
-	36, // 39: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
-	37, // 40: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
-	38, // 41: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
-	39, // 42: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
-	38, // 43: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
-	39, // 44: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
-	40, // 45: datadog.api.v1.AgentSecure.CreateConfigSubscription:output_type -> datadog.config.ConfigSubscriptionResponse
-	41, // 46: datadog.api.v1.AgentSecure.ResetConfigState:output_type -> datadog.config.ResetStateConfigResponse
-	42, // 47: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
-	43, // 48: datadog.api.v1.AgentSecure.RegisterRemoteAgent:output_type -> datadog.remoteagent.v1.RegisterRemoteAgentResponse
-	44, // 49: datadog.api.v1.AgentSecure.RefreshRemoteAgent:output_type -> datadog.remoteagent.v1.RefreshRemoteAgentResponse
-	45, // 50: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
-	46, // 51: datadog.api.v1.AgentSecure.GetHostTags:output_type -> datadog.model.v1.HostTagReply
-	47, // 52: datadog.api.v1.AgentSecure.StreamConfigEvents:output_type -> datadog.model.v1.ConfigEvent
-	48, // 53: datadog.api.v1.AgentSecure.WorkloadFilterEvaluate:output_type -> datadog.workloadfilter.WorkloadFilterEvaluateResponse
-	9,  // 54: datadog.api.v1.AgentSecure.RemoteQueryExecuteStream:output_type -> datadog.api.v1.RemoteQueryExecuteChunk
-	49, // 55: datadog.api.v1.AgentSecure.StreamKubeMetadata:output_type -> datadog.kubemetadata.KubeMetadataStreamResponse
-	23, // 56: datadog.api.v1.AgentSecure.ReportHealthIssue:output_type -> google.protobuf.Empty
-	23, // 57: datadog.api.v1.AgentSecure.ResolveHealthIssue:output_type -> google.protobuf.Empty
-	35, // [35:58] is the sub-list for method output_type
-	12, // [12:35] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	0,  // 11: datadog.api.v1.RemoteQueryResolveRequest.target:type_name -> datadog.api.v1.RemoteQueryTarget
+	17, // 12: datadog.api.v1.ReportHealthIssueRequest.issue:type_name -> datadog.healthplatform.Issue
+	18, // 13: datadog.api.v1.Agent.GetHostname:input_type -> datadog.model.v1.HostnameRequest
+	19, // 14: datadog.api.v1.AgentSecure.TaggerStreamEntities:input_type -> datadog.model.v1.StreamTagsRequest
+	20, // 15: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:input_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoRequest
+	21, // 16: datadog.api.v1.AgentSecure.TaggerFetchEntity:input_type -> datadog.model.v1.FetchEntityRequest
+	22, // 17: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:input_type -> datadog.model.v1.CaptureTriggerRequest
+	23, // 18: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:input_type -> datadog.model.v1.TaggerState
+	24, // 19: datadog.api.v1.AgentSecure.ClientGetConfigs:input_type -> datadog.config.ClientGetConfigsRequest
+	25, // 20: datadog.api.v1.AgentSecure.GetConfigState:input_type -> google.protobuf.Empty
+	24, // 21: datadog.api.v1.AgentSecure.ClientGetConfigsHA:input_type -> datadog.config.ClientGetConfigsRequest
+	25, // 22: datadog.api.v1.AgentSecure.GetConfigStateHA:input_type -> google.protobuf.Empty
+	26, // 23: datadog.api.v1.AgentSecure.CreateConfigSubscription:input_type -> datadog.config.ConfigSubscriptionRequest
+	25, // 24: datadog.api.v1.AgentSecure.ResetConfigState:input_type -> google.protobuf.Empty
+	27, // 25: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:input_type -> datadog.workloadmeta.WorkloadmetaStreamRequest
+	28, // 26: datadog.api.v1.AgentSecure.RegisterRemoteAgent:input_type -> datadog.remoteagent.v1.RegisterRemoteAgentRequest
+	29, // 27: datadog.api.v1.AgentSecure.RefreshRemoteAgent:input_type -> datadog.remoteagent.v1.RefreshRemoteAgentRequest
+	25, // 28: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:input_type -> google.protobuf.Empty
+	30, // 29: datadog.api.v1.AgentSecure.GetHostTags:input_type -> datadog.model.v1.HostTagRequest
+	31, // 30: datadog.api.v1.AgentSecure.StreamConfigEvents:input_type -> datadog.model.v1.ConfigStreamRequest
+	32, // 31: datadog.api.v1.AgentSecure.WorkloadFilterEvaluate:input_type -> datadog.workloadfilter.WorkloadFilterEvaluateRequest
+	3,  // 32: datadog.api.v1.AgentSecure.RemoteQueryExecuteStream:input_type -> datadog.api.v1.RemoteQueryExecuteRequest
+	10, // 33: datadog.api.v1.AgentSecure.RemoteQueryResolve:input_type -> datadog.api.v1.RemoteQueryResolveRequest
+	33, // 34: datadog.api.v1.AgentSecure.StreamKubeMetadata:input_type -> datadog.kubemetadata.KubeMetadataStreamRequest
+	12, // 35: datadog.api.v1.AgentSecure.ReportHealthIssue:input_type -> datadog.api.v1.ReportHealthIssueRequest
+	13, // 36: datadog.api.v1.AgentSecure.ResolveHealthIssue:input_type -> datadog.api.v1.ResolveHealthIssueRequest
+	34, // 37: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
+	35, // 38: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
+	36, // 39: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
+	37, // 40: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
+	38, // 41: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
+	39, // 42: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
+	40, // 43: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
+	41, // 44: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
+	40, // 45: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
+	41, // 46: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
+	42, // 47: datadog.api.v1.AgentSecure.CreateConfigSubscription:output_type -> datadog.config.ConfigSubscriptionResponse
+	43, // 48: datadog.api.v1.AgentSecure.ResetConfigState:output_type -> datadog.config.ResetStateConfigResponse
+	44, // 49: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
+	45, // 50: datadog.api.v1.AgentSecure.RegisterRemoteAgent:output_type -> datadog.remoteagent.v1.RegisterRemoteAgentResponse
+	46, // 51: datadog.api.v1.AgentSecure.RefreshRemoteAgent:output_type -> datadog.remoteagent.v1.RefreshRemoteAgentResponse
+	47, // 52: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
+	48, // 53: datadog.api.v1.AgentSecure.GetHostTags:output_type -> datadog.model.v1.HostTagReply
+	49, // 54: datadog.api.v1.AgentSecure.StreamConfigEvents:output_type -> datadog.model.v1.ConfigEvent
+	50, // 55: datadog.api.v1.AgentSecure.WorkloadFilterEvaluate:output_type -> datadog.workloadfilter.WorkloadFilterEvaluateResponse
+	9,  // 56: datadog.api.v1.AgentSecure.RemoteQueryExecuteStream:output_type -> datadog.api.v1.RemoteQueryExecuteChunk
+	11, // 57: datadog.api.v1.AgentSecure.RemoteQueryResolve:output_type -> datadog.api.v1.RemoteQueryResolveResponse
+	51, // 58: datadog.api.v1.AgentSecure.StreamKubeMetadata:output_type -> datadog.kubemetadata.KubeMetadataStreamResponse
+	25, // 59: datadog.api.v1.AgentSecure.ReportHealthIssue:output_type -> google.protobuf.Empty
+	25, // 60: datadog.api.v1.AgentSecure.ResolveHealthIssue:output_type -> google.protobuf.Empty
+	37, // [37:61] is the sub-list for method output_type
+	13, // [13:37] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_datadog_api_v1_api_proto_init() }
@@ -1177,7 +1336,7 @@ func file_datadog_api_v1_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_api_v1_api_proto_rawDesc), len(file_datadog_api_v1_api_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

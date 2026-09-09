@@ -13,6 +13,9 @@ const (
 
 	// ExecuteActionName is the action part of com.datadoghq.remoteaction.queries.execute.
 	ExecuteActionName = "execute"
+
+	// ResolveActionName is the action part of com.datadoghq.remoteaction.queries.resolve.
+	ResolveActionName = "resolve"
 )
 
 type RemoteQueriesBundle struct {
@@ -25,6 +28,7 @@ func NewRemoteQueriesBundle() *RemoteQueriesBundle {
 	return &RemoteQueriesBundle{
 		actions: map[string]types.Action{
 			ExecuteActionName: NewExecuteAction(defaultBridgeClientFactory),
+			ResolveActionName: NewResolveAction(defaultBridgeClientFactory),
 		},
 	}
 }

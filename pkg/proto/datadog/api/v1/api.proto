@@ -66,12 +66,18 @@ message RemoteQueryResultDelivery {
 // and uploads them directly to its-agent-intake. There is no inline result-byte
 // path, no caller-provided format, and no COPY mode. include_schema controls
 // the optional per-page schema emission; result_delivery is required.
+// match_fingerprint is the opaque fingerprint returned by RemoteQueryResolve
+// for the selected match: when non-empty, the Agent revalidates the target
+// resolution before any SQL execution and fails closed with
+// target_resolution_stale when the selected match no longer holds. Empty means
+// no revalidation (local and direct paths keep working unchanged).
 message RemoteQueryExecuteRequest {
     string integration = 1;
     RemoteQueryTarget target = 2;
     string query = 3;
     bool include_schema = 4;
     RemoteQueryResultDelivery result_delivery = 5;
+    string match_fingerprint = 6;
 }
 
 message RemoteQueryStreamMetadata {
@@ -123,6 +129,28 @@ message RemoteQueryExecuteChunk {
     int32 chunk_index = 2;
     bool final = 3;
     RemoteQueryExecuteStreamEvent event = 4;
+}
+
+// RemoteQueryResolveRequest is the side-effect-free target resolution request:
+// it carries only the integration and target. No query, no result delivery, and
+// no credentials can cross this boundary; the resolver re-runs the same
+// integration matcher execute uses and answers with the structured zero/one/many
+// outcome plus an opaque match fingerprint for the unique case.
+message RemoteQueryResolveRequest {
+    string integration = 1;
+    RemoteQueryTarget target = 2;
+}
+
+// RemoteQueryResolveResponse is the structured resolution outcome. status is one
+// of matched, target_not_found, ambiguous_target, or resolution_error; when
+// status is matched, match_fingerprint carries the opaque versioned fingerprint
+// the caller revalidates on execute. The error fields mirror the status when set
+// and never carry credentials or raw integration configuration.
+message RemoteQueryResolveResponse {
+    string status = 1;
+    string match_fingerprint = 2;
+    string error_code = 3;
+    string error_message = 4;
 }
 
 service AgentSecure {
@@ -181,6 +209,14 @@ service AgentSecure {
     // integration to its-agent-intake. The stream carries only progress metadata, the
     // compact run receipt, and errors; bulk result bytes never traverse AgentSecure.
     rpc RemoteQueryExecuteStream(RemoteQueryExecuteRequest) returns (stream RemoteQueryExecuteChunk);
+
+    // Resolves an Agent-local Remote Queries target through the shared integration
+    // matcher without executing SQL: exactly one loaded match returns matched with an
+    // opaque match fingerprint, zero and multiple matches return target_not_found and
+    // ambiguous_target, and failures to complete matching return resolution_error. The
+    // operation is side-effect-free by construction: no query, no result delivery, and
+    // no credentials traverse the boundary.
+    rpc RemoteQueryResolve(RemoteQueryResolveRequest) returns (RemoteQueryResolveResponse);
 
     // Streams pod-to-service metadata for a specific node.
     rpc StreamKubeMetadata(datadog.kubemetadata.KubeMetadataStreamRequest) returns (stream datadog.kubemetadata.KubeMetadataStreamResponse);

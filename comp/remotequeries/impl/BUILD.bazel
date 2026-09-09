@@ -5,7 +5,9 @@ go_library(
     name = "impl",
     srcs = [
         "remote_query_execute.go",
+        "remote_query_fingerprint.go",
         "remote_query_match.go",
+        "remote_query_resolve.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/remotequeries/impl",
     visibility = ["//visibility:public"],
@@ -22,7 +24,10 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "remote_query_clickhouse_test.go",
+        "remote_query_execute_test.go",
+        "remote_query_fingerprint_test.go",
         "remote_query_forwarding_synthetic_test.go",
+        "remote_query_resolve_test.go",
         "remote_query_test.go",
     ],
     embed = [":impl"],

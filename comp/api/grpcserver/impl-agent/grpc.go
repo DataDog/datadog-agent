@@ -68,24 +68,25 @@ type Requires struct {
 }
 
 type server struct {
-	IPC                 ipc.Component
-	tagger              tagger.Component
-	tagProcessor        option.Option[tagger.Processor]
-	workloadMeta        workloadmeta.Component
-	workloadfilter      workloadfilter.Component
-	configService       option.Option[rcservice.Component]
-	configServiceMRF    option.Option[rcservicemrf.Component]
-	dogstatsdServer     dogstatsdServer.Component
-	capture             replay.Component
-	pidMap              pidmap.Component
-	remoteAgentRegistry remoteagentregistry.Component
-	autodiscovery       autodiscovery.Component
-	configComp          config.Component
-	telemetry           telemetry.Component
-	hostname            hostnameinterface.Component
-	configStream        configstream.Component
-	remoteQueries       *remotequeriesimpl.RemoteQueryExecuteService
-	healthPlatformStore healthplatformstore.Component
+	IPC                  ipc.Component
+	tagger               tagger.Component
+	tagProcessor         option.Option[tagger.Processor]
+	workloadMeta         workloadmeta.Component
+	workloadfilter       workloadfilter.Component
+	configService        option.Option[rcservice.Component]
+	configServiceMRF     option.Option[rcservicemrf.Component]
+	dogstatsdServer      dogstatsdServer.Component
+	capture              replay.Component
+	pidMap               pidmap.Component
+	remoteAgentRegistry  remoteagentregistry.Component
+	autodiscovery        autodiscovery.Component
+	configComp           config.Component
+	telemetry            telemetry.Component
+	hostname             hostnameinterface.Component
+	configStream         configstream.Component
+	remoteQueries        *remotequeriesimpl.RemoteQueryExecuteService
+	remoteQueriesResolve *remotequeriesimpl.RemoteQueryResolveService
+	healthPlatformStore  healthplatformstore.Component
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -143,6 +144,7 @@ func (s *server) BuildServer() http.Handler {
 		configComp:           s.configComp,
 		configStreamServer:   configstreamServer.NewServer(s.configComp, s.configStream, s.remoteAgentRegistry),
 		remoteQueries:        s.remoteQueries,
+		remoteQueriesResolve: s.remoteQueriesResolve,
 		healthPlatformStore:  s.healthPlatformStore,
 	})
 	pb.RegisterRemoteAgentServer(grpcServer, &remoteAgentServer{
@@ -162,24 +164,25 @@ func NewComponent(reqs Requires) (Provides, error) {
 	collector, _ := reqs.Collector.Get()
 	provides := Provides{
 		Comp: &server{
-			IPC:                 reqs.IPC,
-			configService:       reqs.RcService,
-			configServiceMRF:    reqs.RcServiceMRF,
-			tagger:              reqs.Tagger,
-			tagProcessor:        reqs.TagProcessor,
-			workloadMeta:        reqs.WorkloadMeta,
-			workloadfilter:      reqs.Workloadfilter,
-			dogstatsdServer:     reqs.DogstatsdServer,
-			capture:             reqs.Capture,
-			pidMap:              reqs.PidMap,
-			remoteAgentRegistry: reqs.RemoteAgentRegistry,
-			autodiscovery:       reqs.AutoConfig,
-			configComp:          reqs.Cfg,
-			telemetry:           reqs.Telemetry,
-			hostname:            reqs.Hostname,
-			configStream:        reqs.ConfigStream,
-			remoteQueries:       remotequeriesimpl.NewRemoteQueryExecuteService(collector, reqs.Cfg.GetBool(remotequeriesimpl.RemoteQueriesExecuteEnabledConfig), remotequeriesimpl.RemoteQueriesQueryAllowlistEnabled(reqs.Cfg), reqs.Cfg),
-			healthPlatformStore: reqs.HealthPlatformStore,
+			IPC:                  reqs.IPC,
+			configService:        reqs.RcService,
+			configServiceMRF:     reqs.RcServiceMRF,
+			tagger:               reqs.Tagger,
+			tagProcessor:         reqs.TagProcessor,
+			workloadMeta:         reqs.WorkloadMeta,
+			workloadfilter:       reqs.Workloadfilter,
+			dogstatsdServer:      reqs.DogstatsdServer,
+			capture:              reqs.Capture,
+			pidMap:               reqs.PidMap,
+			remoteAgentRegistry:  reqs.RemoteAgentRegistry,
+			autodiscovery:        reqs.AutoConfig,
+			configComp:           reqs.Cfg,
+			telemetry:            reqs.Telemetry,
+			hostname:             reqs.Hostname,
+			configStream:         reqs.ConfigStream,
+			remoteQueries:        remotequeriesimpl.NewRemoteQueryExecuteService(collector, reqs.Cfg.GetBool(remotequeriesimpl.RemoteQueriesExecuteEnabledConfig), remotequeriesimpl.RemoteQueriesQueryAllowlistEnabled(reqs.Cfg), reqs.Cfg),
+			remoteQueriesResolve: remotequeriesimpl.NewRemoteQueryResolveService(collector, reqs.Cfg.GetBool(remotequeriesimpl.RemoteQueriesResolveEnabledConfig)),
+			healthPlatformStore:  reqs.HealthPlatformStore,
 		},
 	}
 	return provides, nil

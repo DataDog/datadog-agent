@@ -67,6 +67,7 @@ type serverSecure struct {
 	configComp           config.Component
 	configStreamServer   *configstreamServer.Server
 	remoteQueries        *remotequeriesimpl.RemoteQueryExecuteService
+	remoteQueriesResolve *remotequeriesimpl.RemoteQueryResolveService
 	healthPlatformStore  healthplatformstore.Component
 }
 
@@ -411,6 +412,60 @@ func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteReques
 	return stream.Send(&pb.RemoteQueryExecuteChunk{ChunkIndex: forwarder.NextChunkIndex(), Final: true})
 }
 
+// RemoteQueryResolve resolves an Agent-local Remote Queries target through the
+// shared integration matcher without executing SQL: exactly one loaded check match
+// answers matched with the opaque versioned fingerprint the caller revalidates on
+// execute, zero and multiple matches answer target_not_found and ambiguous_target,
+// and failures to complete matching answer resolution_error. The operation is
+// side-effect-free by construction: no query, no result delivery, and no
+// credentials ever cross the AgentSecure boundary.
+func (s *serverSecure) RemoteQueryResolve(_ context.Context, req *pb.RemoteQueryResolveRequest) (*pb.RemoteQueryResolveResponse, error) {
+	if s.remoteQueriesResolve == nil {
+		return remoteQueryResolveErrorResponse(remotequeriesimpl.RemoteQueryStatusResolutionError, "remote query resolver is unavailable"), nil
+	}
+	result := s.remoteQueriesResolve.Resolve(remoteQueryResolveRequestFromProto(req))
+	return remoteQueryResolveResponseFromResult(result), nil
+}
+
+// remoteQueryResolveRequestFromProto maps the credential-free AgentSecure resolve
+// request to the typed resolver input. The mapping is a pure field copy: validation
+// and normalization happen inside the resolver, which answers malformed input with
+// a typed resolution_error instead of a transport error.
+func remoteQueryResolveRequestFromProto(req *pb.RemoteQueryResolveRequest) remotequeriesimpl.RemoteQueryResolveRequest {
+	return remotequeriesimpl.RemoteQueryResolveRequest{
+		Integration: req.GetIntegration(),
+		Target: remotequeriesimpl.RemoteQueryExecuteTarget{
+			Host:             req.GetTarget().GetHost(),
+			Port:             int(req.GetTarget().GetPort()),
+			DBName:           req.GetTarget().GetDbname(),
+			DatabaseInstance: req.GetTarget().GetDatabaseInstance(),
+		},
+	}
+}
+
+// remoteQueryResolveResponseFromResult maps the sanitized resolver result to the
+// typed AgentSecure response. The error mirrors the status and never carries
+// credentials or raw integration configuration.
+func remoteQueryResolveResponseFromResult(result remotequeriesimpl.RemoteQueryResolveResult) *pb.RemoteQueryResolveResponse {
+	resp := &pb.RemoteQueryResolveResponse{
+		Status:           result.Status,
+		MatchFingerprint: result.MatchFingerprint,
+	}
+	if result.Error != nil {
+		resp.ErrorCode = result.Error.Code
+		resp.ErrorMessage = result.Error.Message
+	}
+	return resp
+}
+
+func remoteQueryResolveErrorResponse(status string, message string) *pb.RemoteQueryResolveResponse {
+	return &pb.RemoteQueryResolveResponse{
+		Status:       status,
+		ErrorCode:    status,
+		ErrorMessage: message,
+	}
+}
+
 // remoteQueryIPCStreamForwarder streams metadata-only events over the secure IPC
 // boundary. It owns chunk indexing and appends agent-side timing attributes to the
 // final event; there is no data buffering because no bulk bytes ever flow.
@@ -492,7 +547,14 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 		DBName:           req.GetTarget().GetDbname(),
 		DatabaseInstance: req.GetTarget().GetDatabaseInstance(),
 	}
-	return remotequeriesimpl.NewRemoteQueryExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetIncludeSchema(), remoteQueryResultDeliveryFromProto(req.GetResultDelivery()))
+	execReq, err := remotequeriesimpl.NewRemoteQueryExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetIncludeSchema(), remoteQueryResultDeliveryFromProto(req.GetResultDelivery()))
+	if err != nil {
+		return remotequeriesimpl.RemoteQueryExecuteRequest{}, err
+	}
+	// The resolve-time fingerprint is opaque: it crosses the boundary for the pre-SQL
+	// revalidation and is never validated locally.
+	execReq.MatchFingerprint = req.GetMatchFingerprint()
+	return execReq, nil
 }
 
 // remoteQueryResultDeliveryFromProto maps the backend-injected upload instructions. The
