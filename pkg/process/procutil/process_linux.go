@@ -250,7 +250,6 @@ func (p *probe) processFromPID(pid int32, collectStats bool, now time.Time) (*Pr
 			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
 			return nil, nil
 		}
-		log.Debugf("process with empty cmdline not skipped pid:%d", pid)
 	}
 
 	// On linux, setting the `collectStats` parameter to false will only prevent collection of memory stats.
