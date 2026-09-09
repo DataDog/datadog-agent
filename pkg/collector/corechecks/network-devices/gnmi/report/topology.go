@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/lldp"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
@@ -18,27 +19,22 @@ import (
 
 const topologyLinkSourceTypeLLDP = "lldp"
 
-const (
-	pathLLDPChassisID         = "/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id"
-	pathLLDPChassisIDType     = "/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id-type"
-	pathLLDPPortID            = "/lldp/interfaces/interface/neighbors/neighbor/state/port-id"
-	pathLLDPPortIDType        = "/lldp/interfaces/interface/neighbors/neighbor/state/port-id-type"
-	pathLLDPSystemName        = "/lldp/interfaces/interface/neighbors/neighbor/state/system-name"
-	pathLLDPSystemDescription = "/lldp/interfaces/interface/neighbors/neighbor/state/system-description"
-	pathLLDPPortDescription   = "/lldp/interfaces/interface/neighbors/neighbor/state/port-description"
-	pathLLDPManagementAddress = "/lldp/interfaces/interface/neighbors/neighbor/state/management-address"
-)
+func buildTopologyLinks(deviceID string, topology config.TopologyConfig, snapshot []client.CachedValue, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
+	if topology.IsZero() {
+		return nil
+	}
 
-func buildTopologyLinks(deviceID string, snapshot []client.CachedValue, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
 	index := indexSnapshot(snapshot)
-	neighborKeys := lldpNeighborKeys(index)
+	neighborKeys := lldpNeighborKeys(index, topology)
 	if len(neighborKeys) == 0 {
 		return nil
 	}
 
 	sort.Slice(neighborKeys, func(i, j int) bool {
-		left := neighborKeys[i]["name"] + "\x00" + neighborKeys[i]["id"]
-		right := neighborKeys[j]["name"] + "\x00" + neighborKeys[j]["id"]
+		interfaceKey := topology.NeighborInterfaceKey()
+		neighborIDKey := topology.NeighborIDKey()
+		left := neighborKeys[i][interfaceKey] + "\x00" + neighborKeys[i][neighborIDKey]
+		right := neighborKeys[j][interfaceKey] + "\x00" + neighborKeys[j][neighborIDKey]
 		return left < right
 	})
 
@@ -46,14 +42,14 @@ func buildTopologyLinks(deviceID string, snapshot []client.CachedValue, interfac
 	links := make([]devicemetadata.TopologyLinkMetadata, 0, len(neighborKeys))
 
 	for _, keys := range neighborKeys {
-		interfaceName := keys["name"]
-		neighborID := keys["id"]
+		interfaceName := keys[topology.NeighborInterfaceKey()]
+		neighborID := keys[topology.NeighborIDKey()]
 
-		remoteChassisIDType := normalizeLLDPIDType(firstStringValue(index, pathLLDPChassisIDType, keys))
-		remoteChassisID := formatLLDPID(remoteChassisIDType, firstStringValue(index, pathLLDPChassisID, keys))
+		remoteChassisIDType := normalizeLLDPIDType(firstStringValue(index, topology.LLDP.ChassisIDType, keys))
+		remoteChassisID := formatLLDPID(remoteChassisIDType, firstStringValue(index, topology.LLDP.ChassisID, keys))
 
-		remotePortIDType := normalizeLLDPIDType(firstStringValue(index, pathLLDPPortIDType, keys))
-		remotePortID := formatLLDPID(remotePortIDType, firstStringValue(index, pathLLDPPortID, keys))
+		remotePortIDType := normalizeLLDPIDType(firstStringValue(index, topology.LLDP.PortIDType, keys))
+		remotePortID := formatLLDPID(remotePortIDType, firstStringValue(index, topology.LLDP.PortID, keys))
 
 		localInterfaceID := resolveLocalInterface(deviceID, interfaceIndexByIDType, devicemetadata.IDTypeInterfaceName, interfaceName)
 
@@ -64,16 +60,16 @@ func buildTopologyLinks(deviceID string, snapshot []client.CachedValue, interfac
 			Integration: string(integrations.Gnmi),
 			Remote: &devicemetadata.TopologyLinkSide{
 				Device: &devicemetadata.TopologyLinkDevice{
-					Name:        firstStringValue(index, pathLLDPSystemName, keys),
-					Description: firstStringValue(index, pathLLDPSystemDescription, keys),
+					Name:        firstStringValue(index, topology.LLDP.SystemName, keys),
+					Description: firstStringValue(index, topology.LLDP.SystemDescription, keys),
 					ID:          remoteChassisID,
 					IDType:      remoteChassisIDType,
-					IPAddress:   firstStringValue(index, pathLLDPManagementAddress, keys),
+					IPAddress:   firstStringValue(index, topology.LLDP.ManagementAddress, keys),
 				},
 				Interface: &devicemetadata.TopologyLinkInterface{
 					ID:          remotePortID,
 					IDType:      remotePortIDType,
-					Description: firstStringValue(index, pathLLDPPortDescription, keys),
+					Description: firstStringValue(index, topology.LLDP.PortDescription, keys),
 				},
 			},
 			Local: &devicemetadata.TopologyLinkSide{

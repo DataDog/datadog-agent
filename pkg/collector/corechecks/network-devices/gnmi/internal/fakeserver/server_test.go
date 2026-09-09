@@ -240,7 +240,7 @@ func TestValueHelpers(t *testing.T) {
 	require.Equal(t, "open", fakeserver.ScalarString("open").GetStringVal())
 
 	update := fakeserver.InterfaceInOctetsUpdate("ge-0/0/0", 999)
-	require.Equal(t, "ge-0/0/0", update.GetPath().GetElem()[1].GetKey()["name"])
+	require.Equal(t, "ge-0/0/0", update.GetPath().GetElem()[2].GetKey()["name"])
 	require.Equal(t, uint64(999), update.GetVal().GetUintVal())
 }
 
