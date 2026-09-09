@@ -23,6 +23,7 @@ use tokio::sync::Notify;
 pub(crate) use spawn::{SpawnCredential, resolve_spawn_identity, spawn_child_handle};
 
 pub(crate) use child_env::apply_child_baseline_env;
+pub(crate) use child_env::apply_legacy_scm_env;
 pub(crate) use child_env::{baseline_env_vars_for_spawn, merge_env_overrides};
 pub(crate) use console::console_lock;
 pub use console::{

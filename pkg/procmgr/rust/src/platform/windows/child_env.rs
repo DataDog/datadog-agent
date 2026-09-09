@@ -163,6 +163,119 @@ pub(crate) fn merge_env_overrides(
     }
 }
 
+const LEGACY_SCM_ENV_DENYLIST: &[&str] = &[
+    "DD_FLEET_POLICIES_DIR",
+    "DD_OTELCOLLECTOR_INSTALLATION_METHOD",
+];
+
+fn legacy_scm_service_name(process_name: &str) -> Option<&'static str> {
+    match process_name {
+        "datadog-agent-process" => Some("datadog-process-agent"),
+        "datadog-agent-action" => Some("datadog-agent-action"),
+        "datadog-agent-ddot" => Some("datadog-otel-agent"),
+        _ => None,
+    }
+}
+
+pub(crate) fn apply_legacy_scm_env(cmd: &mut tokio::process::Command, process_name: &str) {
+    let Some(service_name) = legacy_scm_service_name(process_name) else {
+        return;
+    };
+    let overrides = legacy_scm_env_overrides_for_service(process_name, service_name);
+    if overrides.is_empty() {
+        return;
+    }
+
+    let names: Vec<&str> = overrides.iter().map(|(k, _)| k.as_str()).collect();
+    log::info!(
+        "[{process_name}] applying {} legacy SCM environment variable(s) from {service_name}: {}",
+        names.len(),
+        names.join(", ")
+    );
+    for (key, value) in overrides {
+        cmd.env(key, value);
+    }
+}
+
+pub(crate) fn merge_legacy_scm_env(process_name: &str, vars: &mut HashMap<String, String>) {
+    let Some(service_name) = legacy_scm_service_name(process_name) else {
+        return;
+    };
+    let overrides = legacy_scm_env_overrides_for_service(process_name, service_name);
+    if overrides.is_empty() {
+        return;
+    }
+
+    let names: Vec<&str> = overrides.iter().map(|(k, _)| k.as_str()).collect();
+    log::info!(
+        "[{process_name}] applying {} legacy SCM environment variable(s) from {service_name}: {}",
+        names.len(),
+        names.join(", ")
+    );
+    merge_env_overrides(vars, &overrides);
+}
+
+fn legacy_scm_env_overrides_for_service(
+    process_name: &str,
+    service_name: &str,
+) -> Vec<(String, String)> {
+    match read_service_environment(service_name) {
+        Ok(entries) => filter_legacy_scm_env(&parse_scm_environment_entries(&entries)),
+        Err(e) => {
+            log::warn!(
+                "[{process_name}] failed to read legacy SCM Environment for {service_name}: {e:#}"
+            );
+            Vec::new()
+        }
+    }
+}
+
+fn read_service_environment(service_name: &str) -> Result<Vec<String>> {
+    use windows_registry::LOCAL_MACHINE;
+    use windows_sys::Win32::System::Registry::KEY_WOW64_64KEY;
+
+    let key = LOCAL_MACHINE
+        .options()
+        .read()
+        .access(KEY_WOW64_64KEY)
+        .open(format!(r"SYSTEM\CurrentControlSet\Services\{service_name}"))?;
+
+    match key.get_multi_string("Environment") {
+        Ok(entries) => Ok(entries),
+        Err(_) => Ok(Vec::new()),
+    }
+}
+
+fn parse_scm_environment_entries(entries: &[String]) -> Vec<(String, String)> {
+    entries
+        .iter()
+        .filter_map(|entry| {
+            if entry.trim().is_empty() {
+                return None;
+            }
+            let (key, value) = entry.split_once('=')?;
+            if key.is_empty() {
+                return None;
+            }
+            Some((key.to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+fn filter_legacy_scm_env(entries: &[(String, String)]) -> Vec<(String, String)> {
+    entries
+        .iter()
+        .filter(|(key, _)| !is_denied_legacy_scm_env_key(key))
+        .cloned()
+        .collect()
+}
+
+fn is_denied_legacy_scm_env_key(key: &str) -> bool {
+    LEGACY_SCM_ENV_DENYLIST
+        .iter()
+        .any(|denied| denied.eq_ignore_ascii_case(key))
+}
+
 fn wide_env_block_to_map(block: *const u16) -> HashMap<String, String> {
     if block.is_null() {
         return HashMap::new();
@@ -276,5 +389,98 @@ fn expand_environment_string_for_user(token: HANDLE, src: &str) -> Result<Option
             log::debug!("ExpandEnvironmentStringsForUserW({src}) failed: {err}");
             return Ok(None);
         }
+    }
+}
+
+#[cfg(test)]
+mod legacy_scm_tests {
+    use super::*;
+
+    #[test]
+    fn parse_scm_environment_entries_preserves_value_whitespace() {
+        let entries = vec!["DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED=true ".to_string()];
+        let parsed = parse_scm_environment_entries(&entries);
+        assert_eq!(
+            parsed,
+            [(
+                "DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED".to_string(),
+                "true ".to_string()
+            )]
+        );
+    }
+
+    #[test]
+    fn parse_scm_environment_entries_skips_empty_and_malformed() {
+        let entries = vec![
+            "DD_PROXY_HTTP=http://proxy.example.com".to_string(),
+            "MALFORMED".to_string(),
+            "".to_string(),
+            "   ".to_string(),
+            "  DD_LOG_LEVEL=debug  ".to_string(),
+        ];
+        let parsed = parse_scm_environment_entries(&entries);
+        assert_eq!(
+            parsed,
+            [
+                (
+                    "DD_PROXY_HTTP".to_string(),
+                    "http://proxy.example.com".to_string()
+                ),
+                ("  DD_LOG_LEVEL".to_string(), "debug  ".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn filter_legacy_scm_env_drops_denylisted_keys_case_insensitively() {
+        let entries = vec![
+            ("DD_PROXY_HTTP".to_string(), "http://x".to_string()),
+            ("dd_fleet_policies_dir".to_string(), r"C:\stale".to_string()),
+            (
+                "DD_OTELCOLLECTOR_INSTALLATION_METHOD".to_string(),
+                "bare-metal".to_string(),
+            ),
+            ("DD_LOG_LEVEL".to_string(), "debug".to_string()),
+        ];
+        let filtered = filter_legacy_scm_env(&entries);
+        assert_eq!(
+            filtered,
+            [
+                ("DD_PROXY_HTTP".to_string(), "http://x".to_string()),
+                ("DD_LOG_LEVEL".to_string(), "debug".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn legacy_scm_service_name_maps_procmgr_managed_processes() {
+        assert_eq!(
+            legacy_scm_service_name("datadog-agent-process"),
+            Some("datadog-process-agent")
+        );
+        assert_eq!(
+            legacy_scm_service_name("datadog-agent-action"),
+            Some("datadog-agent-action")
+        );
+        assert_eq!(
+            legacy_scm_service_name("datadog-agent-ddot"),
+            Some("datadog-otel-agent")
+        );
+        assert_eq!(legacy_scm_service_name("datadog-agent-trace"), None);
+    }
+
+    #[test]
+    fn merge_legacy_scm_env_leaves_processes_d_overrides_winning() {
+        let mut vars = HashMap::from([("BASE".to_string(), "1".to_string())]);
+        merge_env_overrides(
+            &mut vars,
+            &[("DD_CUSTOM".to_string(), "from-legacy".to_string())],
+        );
+        merge_env_overrides(
+            &mut vars,
+            &[("DD_CUSTOM".to_string(), "from-yaml".to_string())],
+        );
+        assert_eq!(vars.get("DD_CUSTOM").unwrap(), "from-yaml");
+        assert_eq!(vars.get("BASE").unwrap(), "1");
     }
 }
