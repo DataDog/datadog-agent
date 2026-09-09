@@ -26,6 +26,8 @@ type Config struct {
 	Enabled bool
 	// EnableEBPFProbes indicates whether the GPU monitoring eBPF probes should be loaded.
 	EnableEBPFProbes bool
+	// DriverEventsEnabled indicates whether NVIDIA driver events should be collected from the kernel log.
+	DriverEventsEnabled bool
 	// PRMEndpointEnabled indicates whether the privileged PRM endpoint should be exposed.
 	PRMEndpointEnabled bool
 	// ScanProcessesInterval is the interval at which the probe scans for new or terminated processes.
@@ -83,6 +85,7 @@ func New() *Config {
 		InitialProcessSync:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
 		Enabled:                      spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enabled")),
 		EnableEBPFProbes:             spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_ebpf_probes")),
+		DriverEventsEnabled:          spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "driver_events_enabled")),
 		PRMEndpointEnabled:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "prm_endpoint_enabled")),
 		ConfigureCgroupPerms:         spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
 		EnableFatbinParsing:          spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
