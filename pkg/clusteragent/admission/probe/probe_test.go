@@ -182,6 +182,28 @@ func TestRunProbe_StatsOnForbidden(t *testing.T) {
 	assert.Contains(t, snap.ConfigError, "does not have permission")
 }
 
+func TestRunProbe_ReportsHealthIssueOnConfigMapForbidden(t *testing.T) {
+	// Even though the probe can't tell whether the webhook itself is
+	// reachable, the RBAC denial on its own dry-run ConfigMap is a known,
+	// actionable cause and should be reported as a health issue rather than
+	// silently cleared.
+	client := fakeclientset.NewSimpleClientset()
+	client.PrependReactor("create", "configmaps", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		underlying := errors.New(`User "system:serviceaccount:test-probe-ns:datadog-cluster-agent" cannot create resource "configmaps" in API group "" in the namespace "test-probe-ns"`)
+		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "configmaps"}, "", underlying)
+	})
+
+	p, hp := newTestProbeWithHP(t, client)
+	p.runProbe(context.Background())
+
+	issue := hp.GetIssue(healthIssueID)
+	require.NotNil(t, issue)
+	assert.Contains(t, issue.Description, "does not have permission to create configmaps")
+	assert.Contains(t, issue.Description, "does not mean the webhook itself is unreachable")
+	require.NotEmpty(t, issue.Remediation.Steps)
+	assert.Equal(t, `Grant service account "system:serviceaccount:test-probe-ns:datadog-cluster-agent" "create" permission on configmaps "" in namespace "test-probe-ns"`, issue.Remediation.Steps[0].Text)
+}
+
 func TestRunProbe_ConfigErrorClearedOnSuccess(t *testing.T) {
 	client := fakeclientset.NewSimpleClientset()
 	client.PrependReactor("create", "configmaps", func(_ k8stesting.Action) (bool, runtime.Object, error) {
@@ -263,18 +285,6 @@ func TestRunProbe_ReportsHealthIssueOnConnectivityFailure(t *testing.T) {
 
 	issue := hp.GetIssue(healthIssueID)
 	require.NotNil(t, issue, "expected a health issue to be reported on connectivity failure")
-}
-
-func TestRunProbe_NoHealthIssueOnForbidden(t *testing.T) {
-	client := fakeclientset.NewSimpleClientset()
-	client.PrependReactor("create", "configmaps", func(_ k8stesting.Action) (bool, runtime.Object, error) {
-		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "configmaps"}, "", errors.New("forbidden"))
-	})
-
-	p, hp := newTestProbeWithHP(t, client)
-	p.runProbe(context.Background())
-
-	assert.Nil(t, hp.GetIssue(healthIssueID), "forbidden errors should not report health issues")
 }
 
 func TestRunProbe_ClearsHealthIssueOnSuccess(t *testing.T) {
@@ -458,7 +468,8 @@ func TestRunProbe_ReportsWebhookMissingIssue(t *testing.T) {
 
 	issue := hp.GetIssue(healthIssueID)
 	require.NotNil(t, issue)
-	assert.Contains(t, issue.Description, "does not exist")
+	assert.Contains(t, issue.Description, `"datadog-webhook" does not exist`)
+	assert.Contains(t, issue.Description, "deleted after being created")
 }
 
 func TestRunProbe_ReportsNetworkIssueWhenWebhookConfirmedExists(t *testing.T) {
@@ -484,13 +495,15 @@ func TestRunProbe_ReportsNetworkIssueWhenWebhookConfirmedExists(t *testing.T) {
 func TestRunProbe_ReportsUnknownIssueWhenExistenceCheckErrors(t *testing.T) {
 	withRealWebhookStatusLookup(t)
 
-	// If webhookExists itself can't determine an answer (e.g. RBAC denies the
-	// lookup), the probe can't rule out either a missing webhook or a network
-	// issue, so it should report a distinct "could not determine" diagnosis
-	// rather than claiming either one.
+	// If webhookExists itself can't determine an answer because the lookup
+	// itself is RBAC-denied, the probe can't rule out either a missing
+	// webhook or a network issue — but since the denial is right there in the
+	// error, the remediation should state the exact permission to grant
+	// instead of a generic "could not determine" checklist.
 	client := fakeclientset.NewSimpleClientset()
 	client.PrependReactor("get", "mutatingwebhookconfigurations", func(_ k8stesting.Action) (bool, runtime.Object, error) {
-		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "mutatingwebhookconfigurations"}, "datadog-webhook", errors.New("forbidden"))
+		underlying := errors.New(`User "system:serviceaccount:test-probe-ns:datadog-cluster-agent" cannot get resource "mutatingwebhookconfigurations" in API group "admissionregistration.k8s.io" at the cluster scope`)
+		return true, nil, k8serrors.NewForbidden(schema.GroupResource{Resource: "mutatingwebhookconfigurations"}, "datadog-webhook", underlying)
 	})
 	p, hp := newTestProbeWithHP(t, client)
 	p.webhookName = "datadog-webhook"
@@ -502,4 +515,139 @@ func TestRunProbe_ReportsUnknownIssueWhenExistenceCheckErrors(t *testing.T) {
 	require.NotNil(t, issue)
 	assert.NotContains(t, issue.Description, "does not exist")
 	assert.Contains(t, issue.Description, "Could not determine whether")
+	require.NotEmpty(t, issue.Remediation.Steps)
+	assert.Equal(t, `Grant service account "system:serviceaccount:test-probe-ns:datadog-cluster-agent" "get" permission on the cluster-scoped mutatingwebhookconfigurations "datadog-webhook"`, issue.Remediation.Steps[0].Text)
+}
+
+// fakeReconcileStatusProvider is a minimal stand-in for the secret and
+// webhook controllers, letting tests simulate a reconciliation failure
+// without standing up a real controller.
+type fakeReconcileStatusProvider struct {
+	err error
+}
+
+func (f *fakeReconcileStatusProvider) LastReconcileError() error {
+	return f.err
+}
+
+func TestRunProbe_ReportsSecretControllerForbiddenFailure(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	// The webhook configuration exists (so the webhookExists fallback alone
+	// would diagnose a network issue), but the secret controller reports its
+	// own RBAC reconciliation error, which should take priority and produce
+	// a remediation step pointing directly at the RBAC fix — not a guess.
+	client := fakeclientset.NewSimpleClientset(&admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "datadog-webhook"},
+	})
+	p, hp := newTestProbeWithHP(t, client)
+	p.webhookName = "datadog-webhook"
+	p.mutationEnabled = true
+	underlying := errors.New(`User "system:serviceaccount:test-probe-ns:datadog-cluster-agent" cannot create resource "secrets" in API group "" in the namespace "test-probe-ns"`)
+	forbiddenErr := k8serrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, "datadog-webhook-certificate", underlying)
+	wrappedErr := admcommon.WrapIfForbidden(forbiddenErr, "create", "secrets", testNamespace, "datadog-webhook-certificate")
+	p.secretController = &fakeReconcileStatusProvider{err: wrappedErr}
+
+	p.runProbe(context.Background())
+
+	issue := hp.GetIssue(healthIssueID)
+	require.NotNil(t, issue)
+	assert.Contains(t, issue.Description, "TLS certificate Secret")
+	assert.Contains(t, issue.Description, "forbidden")
+	require.NotEmpty(t, issue.Remediation.Steps)
+	assert.Equal(t, `Grant service account "system:serviceaccount:test-probe-ns:datadog-cluster-agent" "create" permission on secrets "datadog-webhook-certificate" in namespace "test-probe-ns"`, issue.Remediation.Steps[0].Text)
+}
+
+func TestRunProbe_ReportsSecretControllerNonRBACFailure(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	// When the secret controller's error is not an RBAC denial, the
+	// remediation must not guess that RBAC is the cause.
+	client := fakeclientset.NewSimpleClientset(&admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "datadog-webhook"},
+	})
+	p, hp := newTestProbeWithHP(t, client)
+	p.webhookName = "datadog-webhook"
+	p.mutationEnabled = true
+	p.secretController = &fakeReconcileStatusProvider{err: errors.New("connection refused")}
+
+	p.runProbe(context.Background())
+
+	issue := hp.GetIssue(healthIssueID)
+	require.NotNil(t, issue)
+	assert.Contains(t, issue.Description, "TLS certificate Secret")
+	for _, step := range issue.Remediation.Steps {
+		assert.NotContains(t, step.Text, "RBAC", "should not guess RBAC when the error isn't a Forbidden error")
+	}
+}
+
+func TestRunProbe_ReportsWebhookControllerForbiddenFailure(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	// The webhook configuration exists and the secret controller is healthy,
+	// but the webhook controller itself reports an RBAC reconciliation
+	// error, which should take priority over the generic network diagnosis.
+	client := fakeclientset.NewSimpleClientset(&admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{Name: "datadog-webhook"},
+	})
+	p, hp := newTestProbeWithHP(t, client)
+	p.webhookName = "datadog-webhook"
+	p.mutationEnabled = true
+	p.secretController = &fakeReconcileStatusProvider{err: nil}
+	underlying := errors.New(`User "system:serviceaccount:test-probe-ns:datadog-cluster-agent" cannot create resource "mutatingwebhookconfigurations" in API group "admissionregistration.k8s.io" at the cluster scope`)
+	forbiddenErr := k8serrors.NewForbidden(schema.GroupResource{Resource: "mutatingwebhookconfigurations"}, "datadog-webhook", underlying)
+	wrappedErr := admcommon.WrapIfForbidden(forbiddenErr, "create", "mutatingwebhookconfigurations", "", "datadog-webhook")
+	p.webhookController = &fakeReconcileStatusProvider{err: wrappedErr}
+
+	p.runProbe(context.Background())
+
+	issue := hp.GetIssue(healthIssueID)
+	require.NotNil(t, issue)
+	assert.Contains(t, issue.Description, "register the admission webhook configuration")
+	assert.Contains(t, issue.Description, "forbidden")
+	require.NotEmpty(t, issue.Remediation.Steps)
+	assert.Equal(t, `Grant service account "system:serviceaccount:test-probe-ns:datadog-cluster-agent" "create" permission on the cluster-scoped mutatingwebhookconfigurations "datadog-webhook"`, issue.Remediation.Steps[0].Text)
+}
+
+func TestRunProbe_SecretControllerFailureTakesPriorityOverWebhookMissing(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	// The webhook configuration doesn't exist yet, which alone would be
+	// diagnosed as "webhook missing" — but since that's commonly caused by
+	// the certificate secret never getting created, a live secret controller
+	// error is a more specific and more useful diagnosis to surface first.
+	client := fakeclientset.NewSimpleClientset()
+	p, hp := newTestProbeWithHP(t, client)
+	p.webhookName = "datadog-webhook"
+	p.mutationEnabled = true
+	forbiddenErr := k8serrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, "datadog-webhook-certificate", errors.New("forbidden"))
+	wrappedErr := admcommon.WrapIfForbidden(forbiddenErr, "create", "secrets", testNamespace, "datadog-webhook-certificate")
+	p.secretController = &fakeReconcileStatusProvider{err: wrappedErr}
+
+	p.runProbe(context.Background())
+
+	issue := hp.GetIssue(healthIssueID)
+	require.NotNil(t, issue)
+	assert.Contains(t, issue.Description, "TLS certificate Secret")
+	assert.NotContains(t, issue.Description, "does not exist")
+}
+
+func TestRunProbe_NilControllersFallBackToWebhookExistsCheck(t *testing.T) {
+	withRealWebhookStatusLookup(t)
+
+	// With no controllers wired in (the zero-value case for probes built via
+	// struct literal, as in newTestProbe), the probe must still fall back to
+	// the pre-existing webhookExists-based diagnosis rather than panicking.
+	client := fakeclientset.NewSimpleClientset()
+	p, hp := newTestProbeWithHP(t, client)
+	p.webhookName = "datadog-webhook"
+	p.mutationEnabled = true
+
+	assert.NotPanics(t, func() {
+		p.runProbe(context.Background())
+	})
+
+	issue := hp.GetIssue(healthIssueID)
+	require.NotNil(t, issue)
+	assert.Contains(t, issue.Description, "does not exist")
 }
