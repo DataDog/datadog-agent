@@ -1,5 +1,4 @@
-# Dynamically link openssl-sys against the Agent's OpenSSL instead of
-# compiling a second crypto library into Rust cdylibs.
+# Necessary to link rust checks to Agent OpenSSL.
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
 
 inject_repo(crate, "openssl")
@@ -14,6 +13,4 @@ crate.annotation(
         "OPENSSL_STATIC": "0",
     },
     crate = "openssl-sys",
-    data = ["@openssl//:gen_dir"],
-    deps = ["@openssl"],
 )
