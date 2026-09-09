@@ -35,7 +35,7 @@ func ReportMetrics(s sender.Sender, cfg *config.CheckConfig, metricSnapshot []cl
 
 	baseTags := buildBaseTags(cfg)
 	deviceID := buildDeviceID(cfg.Instance.Address)
-	interfaceInventory := interfaceInventoryByName(deviceID, inventorySnapshot)
+	interfaceInventory := interfaceInventoryByName(deviceID, cfg.Profile.Metadata, inventorySnapshot)
 	byPath := indexSnapshotByPath(metricSnapshot)
 
 	for _, metric := range cfg.Profile.Metrics {
@@ -102,8 +102,8 @@ func buildMetricTags(baseTags []string, metric config.MetricConfig, keys map[str
 	return tags
 }
 
-func interfaceInventoryByName(deviceID string, snapshot []client.CachedValue) map[string]devicemetadata.InterfaceMetadata {
-	interfaces := buildInterfaceMetadata(deviceID, snapshot)
+func interfaceInventoryByName(deviceID string, metadata config.MetadataConfig, snapshot []client.CachedValue) map[string]devicemetadata.InterfaceMetadata {
+	interfaces := buildInterfaceMetadata(deviceID, metadata, snapshot)
 	inventory := make(map[string]devicemetadata.InterfaceMetadata, len(interfaces))
 	for _, iface := range interfaces {
 		if iface.Name == "" {
