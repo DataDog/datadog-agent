@@ -242,6 +242,35 @@ func TestDeviceEventsCollectorSupportsDriverEventsWithoutNVMLEvents(t *testing.T
 	require.ErrorIs(t, err, errUnsupportedDevice)
 }
 
+func TestDeviceEventsCollectorSupportsDriverEventsAfterNVMLCapabilityQueryFailure(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+		device.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
+			return 0, nvml.ERROR_UNKNOWN
+		}
+	}))
+	uuid := device.GetDeviceInfo().UUID
+	gatherer := NewDeviceEventsGatherer(nil)
+	setGathererEvents(gatherer, uuid, []xidEvent{{
+		DeviceUUID: uuid,
+		XIDCode:    31,
+		Timestamp:  time.Unix(123, 0),
+	}})
+
+	collector, err := newDeviceEventsCollector(device, &CollectorDependencies{
+		DeviceEventsGatherer: gatherer,
+		Config: gpuconfig.Config{
+			Enabled:             true,
+			DriverEventsEnabled: true,
+		},
+	})
+	require.NoError(t, err)
+
+	samples, err := collector.Collect()
+	require.NoError(t, err)
+	assert.Empty(t, gatherer.GetRegisteredDeviceUUIDs())
+	assert.Len(t, eventSamples(samples), 1)
+}
+
 func TestDeviceEventsCollectorContinuesAfterNVMLRegistrationFailureWhenDriverEventsEnabled(t *testing.T) {
 	device := setupMockDevice(t)
 	uuid := device.GetDeviceInfo().UUID

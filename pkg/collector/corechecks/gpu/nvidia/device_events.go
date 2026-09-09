@@ -63,7 +63,11 @@ func newDeviceEventsCollector(device ddnvml.Device, deps *CollectorDependencies)
 
 	nvmlEventsSupported, err := cache.SupportsDevice(device)
 	if err != nil {
-		return nil, err
+		if !driverEventsEnabled {
+			return nil, err
+		}
+		log.Warnf("could not query NVML event support for device %s; collecting driver events only: %v", device.GetDeviceInfo().UUID, err)
+		nvmlEventsSupported = false
 	}
 	if !nvmlEventsSupported && !driverEventsEnabled {
 		return nil, errUnsupportedDevice
