@@ -1,3 +1,4 @@
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 dd_agent_go_test(
@@ -14,6 +15,7 @@ dd_agent_go_test(
     data = [
         "fixtures/custom_mycheck.py",
     ],
+    embed = [":infra-mode"],
     embedsrcs = [
         "fixtures/custom_mycheck.py",
     ],
@@ -31,4 +33,11 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
+)
+
+go_library(
+    name = "infra-mode",
+    srcs = ["docs.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/infra-mode",
+    visibility = ["//visibility:public"],
 )

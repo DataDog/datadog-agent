@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package inframode provides e2e tests for infrastructure mode functionality (basic,
-// end_user_device, cloud_cost_only)
 package inframode
 
 import (
