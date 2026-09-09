@@ -7,14 +7,22 @@
     <br>&nbsp;&nbsp;<span class="error">Reason: {{ .disabledReason }}</span>
     {{- end }}
     {{- else }}
-    <span class="stat_subtitle">Cloud Provider:</span> {{ .provider }}<br>
+    {{- if .provider }}
+    <span class="stat_subtitle">Default Cloud Provider:</span> {{ .provider }}<br>
     {{- if .awsRegion }}
-    <span class="stat_subtitle">AWS Region:</span> {{ .awsRegion }}<br>
+    <span class="stat_subtitle">Default AWS Region:</span> {{ .awsRegion }}<br>
+    {{- end }}
     {{- end }}
     <span class="stat_subtitle">Delegated Auth Instances:</span><br>
     {{- range $key, $info := .instances }}
     <span class="stat_subsubtitle">{{ $key }}</span><br>
     &nbsp;&nbsp;Status: {{ $info.Status }}<br>
+    {{- if $info.Provider }}
+    &nbsp;&nbsp;Provider: {{ $info.Provider }}<br>
+    {{- end }}
+    {{- if $info.AWSRegion }}
+    &nbsp;&nbsp;AWS Region: {{ $info.AWSRegion }}<br>
+    {{- end }}
     {{- if $info.CredentialSource }}
     &nbsp;&nbsp;Credential Source: {{ $info.CredentialSource }}<br>
     {{- end }}

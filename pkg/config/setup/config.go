@@ -515,6 +515,10 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		}
 	}
 
+	// Register directives embedded in the supported additional endpoint settings.
+	configureAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
+	configureListShapeAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
+
 	return ctx.Err()
 }
 

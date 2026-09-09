@@ -6,15 +6,23 @@ Delegated Authentication is not enabled
 {{- else }}
 
 === Delegated Authentication ===
-Cloud Provider: {{ .provider }}
+{{- if .provider }}
+Default Cloud Provider: {{ .provider }}
 {{- if .awsRegion }}
-AWS Region: {{ .awsRegion }}
+Default AWS Region: {{ .awsRegion }}
+{{- end }}
 {{- end }}
 
 Configured Delegated Auth Instances:
 {{- range $key, $info := .instances }}
 - {{ $key }}
   Status: {{ $info.Status }}
+  {{- if $info.Provider }}
+  Provider: {{ $info.Provider }}
+  {{- end }}
+  {{- if $info.AWSRegion }}
+  AWS Region: {{ $info.AWSRegion }}
+  {{- end }}
   {{- if $info.CredentialSource }}
   Credential Source: {{ $info.CredentialSource }}
   {{- end }}
