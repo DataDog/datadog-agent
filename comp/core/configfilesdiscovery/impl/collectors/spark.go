@@ -8,6 +8,7 @@ package collectors
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	configfilesdiscoveryimpl "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/impl"
 )
@@ -21,6 +22,13 @@ const (
 	// identity that distinguishes a Driver from the submitting client and the
 	// Worker itself.
 	sparkStandaloneDriverClass = "org.apache.spark.deploy.worker.DriverWrapper"
+
+	// sparkSubmitClass starts Spark applications in client deploy mode. It is
+	// only a driver when the process includes the explicit driver role tag.
+	sparkSubmitClass = "org.apache.spark.deploy.SparkSubmit"
+
+	sparkDriverRoleTag   = "spark_process_role:driver"
+	sparkDDTagsArgPrefix = "-Ddd.tags="
 )
 
 type sparkConfigCollector struct{}
@@ -79,15 +87,15 @@ var sparkEnvAllowlist = map[string]struct{}{
 	"SPARK_WORKER_WEBUI_PORT":                {},
 }
 
-// NewSpark returns a collector for Spark Standalone Drivers running in cluster
-// deploy mode. Other Spark deployment modes do not have a portable,
-// unambiguous Driver process identity available through ConfigReader.
+// NewSpark returns a collector for Spark drivers. It identifies Spark
+// Standalone drivers by their DriverWrapper class and SparkSubmit drivers by
+// their explicit spark_process_role:driver JVM tag.
 func NewSpark() configfilesdiscoveryimpl.ConfigCollector {
 	return sparkConfigCollector{}
 }
 
 // CanCollectFromProcess returns whether a process event identifies a Spark
-// Standalone Driver and can trigger the one-shot recollection fallback.
+// driver and can trigger the one-shot recollection fallback.
 func (sparkConfigCollector) CanCollectFromProcess(commandline configfilesdiscoveryimpl.TargetCommandline) bool {
 	return isSparkDriverCommand(commandline.Args)
 }
@@ -135,9 +143,32 @@ func isSparkDriver(ctx context.Context, reader configfilesdiscoveryimpl.ConfigRe
 }
 
 func isSparkDriverCommand(args []string) bool {
-	for _, arg := range unwrapShellCommandline(args) {
+	args = unwrapShellCommandline(args)
+	for i, arg := range args {
 		if arg == sparkStandaloneDriverClass {
 			return true
+		}
+		if arg == sparkSubmitClass {
+			// JVM system properties precede the main class. SparkSubmit options
+			// after it can configure a remote driver and do not identify this
+			// process as a driver.
+			return hasSparkDriverRoleTag(args[:i])
+		}
+	}
+
+	return false
+}
+
+func hasSparkDriverRoleTag(args []string) bool {
+	for _, arg := range args {
+		tags, found := strings.CutPrefix(arg, sparkDDTagsArgPrefix)
+		if !found {
+			continue
+		}
+		for _, tag := range strings.Split(tags, ",") {
+			if tag == sparkDriverRoleTag {
+				return true
+			}
 		}
 	}
 	return false
