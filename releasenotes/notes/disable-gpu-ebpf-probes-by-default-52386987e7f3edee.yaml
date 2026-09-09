@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    The eBPF probes for GPU Monitoring are deprecated and are now disabled by
+    default. Set ``gpu_monitoring.enable_ebpf_probes`` to ``true`` in
+    ``system-probe.yaml`` to keep using them.

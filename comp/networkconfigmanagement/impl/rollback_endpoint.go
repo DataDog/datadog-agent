@@ -7,8 +7,11 @@ package networkconfigmanagementimpl
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -27,13 +30,26 @@ func (n *networkDeviceConfigImpl) RollbackEndpointHandler() http.HandlerFunc {
 			httputils.SetJSONError(w, err, http.StatusBadRequest)
 			return
 		}
-		if err := n.RollbackConfig(r.Context(), req.DeviceID, req.ConfigVersion, req.Hash); err != nil {
-			// TODO set error code to distinguish between bad requests (e.g.
-			// unrecognized device id or hash mismatch) and actual internal
-			// errors
-			httputils.SetJSONError(w, err, http.StatusInternalServerError)
+		var response types.RollbackResponse
+		result, rberr := n.RollbackConfig(r.Context(), req.DeviceID, req.ConfigVersion, req.Hash)
+		if result == nil && rberr == nil {
+			// this shouldn't be possible.
+			httputils.SetJSONError(w, errors.New("no response from RollbackConfig; this should be impossible"), http.StatusInternalServerError)
 			return
 		}
+		response.CommandResults = result
+		if rberr != nil {
+			response.ErrorCode = string(rberr.Type())
+			response.ErrorMsg = rberr.Error()
+		}
+		body, err := json.Marshal(response)
+		if err != nil {
+			httputils.SetJSONError(w, fmt.Errorf("error marshaling response: %w", err), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, string(body))
 	}
 }

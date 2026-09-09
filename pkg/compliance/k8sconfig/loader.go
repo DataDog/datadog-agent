@@ -31,7 +31,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-const version = "202403"
+const version = "202608"
 
 const (
 	k8sManifestsDir   = "/etc/kubernetes/manifests"
@@ -201,6 +201,21 @@ func (l *loader) detectManagedEnvironment(flags map[string]string, kubelet *K8sK
 	return nil
 }
 
+// flagDefault returns the value to assume for a flag left off the command line.
+// Kubernetes keeps historical defaults for a few kubelet flags to preserve the
+// command line API and drops them once --config is used, where the configuration
+// file defaults apply instead. The two disagree on the settings the CIS
+// benchmarks check.
+func flagDefault(config *K8sConfigFileMeta, cli, file string) string {
+	if config == nil {
+		return cli
+	}
+	return file
+}
+
+// loadMeta stats name under the host root and, if loadContent is set, reads it.
+// The content is nil when the read failed. An empty file yields an empty slice,
+// so the two stay apart.
 func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, []byte, bool) {
 	name = filepath.Join(l.hostroot, name)
 	info, err := os.Stat(name)
@@ -222,6 +237,7 @@ func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, [
 			b, err = io.ReadAll(io.LimitReader(f, maxSize))
 			if err != nil {
 				l.pushError(err)
+				b = nil
 			}
 		}
 	}
@@ -307,19 +323,28 @@ func (l *loader) configFileMetaHasField(meta *K8sConfigFileMeta, path string) bo
 	return false
 }
 
-func (l *loader) loadKubeletConfigFileMeta(name string) *K8sConfigFileMeta {
+func (l *loader) loadKubeletConfigFileMeta(name, dropinDir string) *K8sConfigFileMeta {
 	meta, ok := l.loadConfigFileMeta(name)
-	if !ok {
-		return &K8sConfigFileMeta{Path: name}
+	if !ok || meta.Content == nil {
+		return meta
 	}
 	content, ok := meta.Content.(map[string]interface{})
 	if !ok {
 		l.pushError(fmt.Errorf("kubelet configuration loaded from %q is not a valid configuration", name))
-		return &K8sConfigFileMeta{Path: name}
+		meta.Content = nil
+		return meta
 	}
 	if kind := content["kind"]; kind != "KubeletConfiguration" {
 		l.pushError(fmt.Errorf(`kubelet configuration loaded from %q is expected to be of kind "KubeletConfiguration"`, name))
-		return &K8sConfigFileMeta{Path: name}
+		meta.Content = nil
+		return meta
+	}
+	// The drop-ins of --config-dir land on top of the file given to --config,
+	// so they have to be folded in before anything reads a setting.
+	if dropinDir != "" {
+		for _, dropin := range l.loadKubeletDropins(dropinDir) {
+			mergeConfig(content, dropin)
+		}
 	}
 	// specifically parse key/cert files path to load their associated meta info.
 	if keyPath, ok := content["tlsPrivateKeyFile"].(string); ok {
@@ -336,6 +361,65 @@ func (l *loader) loadKubeletConfigFileMeta(name string) *K8sConfigFileMeta {
 		}
 	}
 	return meta
+}
+
+// loadKubeletDropins returns the KubeletConfiguration drop-ins under dir, in
+// the order the kubelet merges them: a lexical walk of the tree keeping the
+// files named *.conf.
+func (l *loader) loadKubeletDropins(dir string) []map[string]interface{} {
+	entries, err := os.ReadDir(filepath.Join(l.hostroot, dir))
+	if err != nil {
+		l.pushError(err)
+		return nil
+	}
+	var dropins []map[string]interface{}
+	for _, entry := range entries {
+		name := filepath.Join(dir, entry.Name())
+		if entry.IsDir() {
+			dropins = append(dropins, l.loadKubeletDropins(name)...)
+			continue
+		}
+		if filepath.Ext(entry.Name()) != ".conf" {
+			continue
+		}
+		meta, ok := l.loadConfigFileMeta(name)
+		if !ok {
+			continue
+		}
+		content, ok := meta.Content.(map[string]interface{})
+		if !ok {
+			l.pushError(fmt.Errorf("kubelet configuration drop-in loaded from %q is not a valid configuration", name))
+			continue
+		}
+		if kind := content["kind"]; kind != "KubeletConfiguration" {
+			l.pushError(fmt.Errorf(`kubelet configuration drop-in loaded from %q is expected to be of kind "KubeletConfiguration"`, name))
+			continue
+		}
+		dropins = append(dropins, content)
+	}
+	return dropins
+}
+
+// mergeConfig folds patch into content the way the kubelet folds a drop-in into
+// its configuration file, with the JSON merge patch rules of RFC 7386: an
+// object merges into an object, a null drops the key, anything else replaces.
+func mergeConfig(content, patch map[string]interface{}) {
+	for k, v := range patch {
+		if v == nil {
+			delete(content, k)
+			continue
+		}
+		if sub, ok := v.(map[string]interface{}); ok {
+			dst, ok := content[k].(map[string]interface{})
+			if !ok {
+				dst = make(map[string]interface{})
+				content[k] = dst
+			}
+			mergeConfig(dst, sub)
+			continue
+		}
+		content[k] = v
+	}
 }
 
 func (l *loader) loadAdmissionConfigFileMeta(name string) *K8sAdmissionConfigFileMeta {
@@ -481,6 +565,16 @@ func (l *loader) loadKubeconfigMeta(name string) (*K8sKubeconfigMeta, bool) {
 		return &K8sKubeconfigMeta{Path: name}, false
 	}
 
+	meta := &K8sKubeconfigMeta{
+		Path:  name,
+		User:  utils.GetFileUser(info),
+		Group: utils.GetFileGroup(info),
+		Mode:  uint32(info.Mode()),
+	}
+	if b == nil {
+		return meta, true
+	}
+
 	var source k8SKubeconfigSource
 	erru := json.Unmarshal(b, &source)
 	if erru != nil {
@@ -488,7 +582,7 @@ func (l *loader) loadKubeconfigMeta(name string) (*K8sKubeconfigMeta, bool) {
 	}
 	if erru != nil {
 		l.pushError(erru)
-		return &K8sKubeconfigMeta{Path: name}, false
+		return meta, false
 	}
 
 	content := &K8SKubeconfig{
@@ -554,13 +648,8 @@ func (l *loader) loadKubeconfigMeta(name string) (*K8sKubeconfigMeta, bool) {
 		}
 	}
 
-	return &K8sKubeconfigMeta{
-		Path:       name,
-		User:       utils.GetFileUser(info),
-		Group:      utils.GetFileGroup(info),
-		Mode:       uint32(info.Mode()),
-		Kubeconfig: content,
-	}, true
+	meta.Kubeconfig = content
+	return meta, true
 }
 
 // in OpenSSH >= 2.6, a fingerprint is now displayed as base64 SHA256.
@@ -627,7 +716,7 @@ func (l *loader) parseBool(v string) *bool {
 	return &b
 }
 
-//nolint:unused,deadcode
+//nolint:unused
 func (l *loader) parseFloat(v string) *float64 {
 	if v == "" {
 		return nil

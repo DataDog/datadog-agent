@@ -8,32 +8,45 @@ package privateactionrunnerimpl
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"runtime"
 	"sync"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
+	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -52,18 +65,33 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
+func splitDeploymentEnabled(configEnabled, containerized bool, envValue string) bool {
+	if containerized {
+		return envValue == "true"
+	}
+	return configEnabled
+}
+
+func splitDeploymentSupported(goos string, fipsEnabled bool) bool {
+	return goos == "linux" && !fipsEnabled
+}
+
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
 	Config        config.Component
 	Log           log.Component
 	Lifecycle     compdef.Lifecycle
+	Shutdowner    compdef.Shutdowner
 	RcClient      rcclient.Component
+	KeysManager   taskverifier.KeysManager
 	Hostname      hostname.Component
 	Tagger        tagger.Component
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
 	IPC           ipc.Component
+	Secrets       secrets.Component
 	Statsd        statsdcomp.Component
+	HelmActions   helmactions.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -80,15 +108,24 @@ type PrivateActionRunner struct {
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
 	ipc            ipc.Component
+	secretResolver secrets.Component
 	// metricsClient is the resolved metrics sink: a DogStatsD client built from
 	// config (standalone runner) or an in-process adapter (Cluster Agent).
 	metricsClient     statsdclient.ClientInterface
 	ownsMetricsClient bool
+	ha                helmactions.Component
+	ka                kubeactions.Component
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
 
-	telemetry *telemetry.Telemetry
+	executorServer  *executor.Server
+	encryptionStore *encryptioncontext.Store
+	executorDone    chan struct{}
+	shutdowner      compdef.Shutdowner
+
+	telemetry   *telemetry.Telemetry
+	keysManager taskverifier.KeysManager
 
 	started     bool
 	startOnce   sync.Once
@@ -104,6 +141,22 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
+	if splitDeploymentEnabled(
+		reqs.Config.GetBool(privateactionrunner.PARSplitEnabled),
+		configenv.IsContainerized(),
+		os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
+	) {
+		fipsEnabled := reqs.Config.GetBool("fips.enabled")
+		if buildFIPSEnabled, err := fips.Enabled(); err == nil {
+			fipsEnabled = fipsEnabled || buildFIPSEnabled
+		}
+		if splitDeploymentSupported(runtime.GOOS, fipsEnabled) {
+			reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
+			reqs.Log.Flush()
+			return Provides{}, privateactionrunner.ErrSplitDeployment
+		}
+		reqs.Log.Warn("Split deployment is not supported in this environment; continuing with the monolithic PAR")
+	}
 
 	// The standalone runner sends metrics over a DogStatsD socket/UDP, built from
 	// the Agent's configured endpoint (it runs alongside a node Agent listener).
@@ -111,14 +164,46 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		reqs.Log.Errorf("Private action runner metrics disabled: %v", err)
 	}
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient)
+	// The standalone/executor runner has no kubeactions provider (it is
+	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, reqs.Secrets, metricsClient, reqs.HelmActions, nil)
 	if err != nil {
 		return Provides{}, err
 	}
+	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
 		OnStop:  runner.Stop,
+	})
+	return Provides{Comp: runner}, nil
+}
+
+// NewExecutorComponent creates a privateactionrunner component in on-demand executor mode.
+func NewExecutorComponent(reqs Requires) (Provides, error) {
+	ctx := context.Background()
+	if !isEnabled(reqs.Config) {
+		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
+		reqs.Log.Flush()
+		return Provides{}, privateactionrunner.ErrNotEnabled
+	}
+
+	metricsClient, err := parconfig.NewMetricsClient(reqs.Config, reqs.Statsd)
+	if err != nil {
+		reqs.Log.Errorf("Private action runner metrics disabled: %v", err)
+	}
+	// The standalone/executor runner has no kubeactions provider (it is
+	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, reqs.Secrets, metricsClient, reqs.HelmActions, nil)
+	if err != nil {
+		return Provides{}, err
+	}
+	runner.keysManager = reqs.KeysManager
+	runner.ownsMetricsClient = true
+	runner.shutdowner = reqs.Shutdowner
+	reqs.Lifecycle.Append(compdef.Hook{
+		OnStart: runner.StartExecutor,
+		OnStop:  runner.StopExecutor,
 	})
 	return Provides{Comp: runner}, nil
 }
@@ -133,7 +218,10 @@ func NewPrivateActionRunner(
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
 	ipcComp ipc.Component,
+	secretResolver secrets.Component,
 	metricsClient statsdclient.ClientInterface,
+	ha helmactions.Component,
+	ka kubeactions.Component,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,
@@ -144,8 +232,11 @@ func NewPrivateActionRunner(
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
 		ipc:            ipcComp,
+		secretResolver: secretResolver,
 		metricsClient:  metricsClient,
 		startChan:      make(chan struct{}),
+		ha:             ha,
+		ka:             ka,
 	}, nil
 }
 
@@ -159,7 +250,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
-	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity) {
+	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
@@ -208,6 +299,143 @@ func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
 	return errChan
 }
 
+// StartExecutor starts the on-demand executor gRPC server. Idempotent via startOnce.
+func (p *PrivateActionRunner) StartExecutor(ctx context.Context) error {
+	var err error
+	p.started = true
+	p.startOnce.Do(func() {
+		defer close(p.startChan)
+		err = p.startExecutor(ctx)
+	})
+	return err
+}
+
+func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
+	// Detached from ctx's deadline: the server must run until Stop(), not until the fx start timeout.
+	runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	p.cancelStart = cancel
+	defer p.logger.Flush()
+
+	cfg, err := p.getRunnerConfig(ctx)
+	if err != nil {
+		p.logger.Errorf("Private action runner executor failed to start: %v", err)
+		return err
+	}
+	commonTags := observability.CommonTags{
+		RunnerId:      cfg.RunnerId,
+		RunnerVersion: cfg.Version,
+		Modes:         cfg.Modes,
+		ExtraTags:     cfg.Tags,
+	}
+	runCtx = observability.AddCommonTagsToLogs(runCtx, commonTags)
+	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
+
+	p.logger.Info("Private action runner executor starting")
+	p.logger.Info("==> Version : " + parversion.RunnerVersion)
+	p.logger.Info("==> URN : " + cfg.Urn)
+
+	keysManager := p.getKeysManager()
+	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
+	p.encryptionStore = encryptioncontext.NewStore()
+	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka, p.secretResolver)
+
+	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
+
+	go p.encryptionStore.Start()
+	keysManager.Start(runCtx)
+	go func() {
+		keysManager.WaitForReady()
+		p.executorServer.SetReady(true)
+		p.logger.Info("Private action runner executor ready to accept actions")
+	}()
+
+	socketPath := p.coreConfig.GetString(privateactionrunner.PARExecutorSocketPath)
+	lis, err := executor.Listen(socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to listen on executor socket %q: %w", socketPath, err)
+	}
+	p.logger.Info("Private action runner executor listening on " + socketPath)
+
+	p.executorDone = make(chan struct{})
+	drainTimeout := 60 * time.Second
+	if cfg.TaskTimeoutSeconds != nil {
+		drainTimeout = time.Duration(*cfg.TaskTimeoutSeconds) * time.Second
+	}
+	serveOpts := executor.ServeOptions{
+		DrainTimeout: drainTimeout,
+		IdleTimeout:  executorIdleTimeout(p.coreConfig.GetInt(privateactionrunner.PARIdleTimeoutSeconds)),
+		OnIdleTimeout: func() {
+			p.logger.Info("Private action runner executor idle timeout elapsed; shutting down")
+			if err := p.shutdowner.Shutdown(); err != nil {
+				p.logger.Errorf("Private action runner executor failed to initiate shutdown: %v", err)
+			}
+		},
+	}
+	// mTLS via the agent IPC cert: only a client with a CA-signed cert can dispatch.
+	tlsConfig := p.ipc.GetTLSServerConfig()
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	creds := grpc.Creds(credentials.NewTLS(tlsConfig))
+
+	go func() {
+		defer close(p.executorDone)
+		if serveErr := executor.Serve(runCtx, lis, p.executorServer, serveOpts, creds); serveErr != nil {
+			p.logger.Errorf("Private action runner executor server stopped with error: %v", serveErr)
+		}
+	}()
+	return nil
+}
+
+func (p *PrivateActionRunner) getKeysManager() taskverifier.KeysManager {
+	if p.keysManager == nil {
+		p.keysManager = taskverifier.NewKeyManager(p.rcClient)
+	}
+	return p.keysManager
+}
+
+func executorIdleTimeout(idleSeconds int) time.Duration {
+	if idleSeconds <= 0 {
+		return 0
+	}
+	return time.Duration(idleSeconds) * time.Second
+}
+
+// StopExecutor gracefully stops the executor gRPC server and releases resources.
+func (p *PrivateActionRunner) StopExecutor(ctx context.Context) error {
+	if !p.started {
+		return nil // Never started, nothing to stop
+	}
+
+	p.cancelStart()
+	waitCtx, cancelWaitCtx := context.WithTimeout(ctx, maxStartupWaitTimeout)
+	defer cancelWaitCtx()
+	if err := p.waitForStartup(waitCtx); err != nil {
+		p.logger.Warn("PAR executor startup did not complete in time, forcing cleanup")
+	}
+
+	if p.executorDone != nil {
+		select {
+		case <-p.executorDone:
+			p.logger.Info("Private action runner executor stopped gracefully")
+		case <-ctx.Done():
+			p.logger.Warn("Private action runner executor did not stop in time")
+		}
+	}
+
+	var stopErr error
+	if p.encryptionStore != nil {
+		p.encryptionStore.Stop()
+	}
+	if p.ownsMetricsClient && p.metricsClient != nil {
+		if err := p.metricsClient.Flush(); err != nil {
+			stopErr = errors.Join(stopErr, fmt.Errorf("failed to flush metrics client: %w", err))
+		}
+		if err := p.metricsClient.Close(); err != nil {
+			stopErr = errors.Join(stopErr, fmt.Errorf("failed to close metrics client: %w", err))
+		}
+	}
+	return stopErr
+}
+
 func (p *PrivateActionRunner) start(ctx context.Context) error {
 	// Keep the parent context's deadline for the startup phase (config, enrollment, etc.)
 	// but allow Stop() to cancel as well.
@@ -243,11 +471,11 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	p.logger.Info("==> API Host : " + cfg.DDApiHost)
 	p.logger.Info("==> URN : " + cfg.Urn)
 
-	keysManager := taskverifier.NewKeyManager(p.rcClient)
+	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient())
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka, p.secretResolver)
 	if err != nil {
 		return err
 	}

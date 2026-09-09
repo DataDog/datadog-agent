@@ -5,7 +5,12 @@
 
 package main
 
-import "strings"
+import (
+	"context"
+	"strings"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+)
 
 //nolint:all
 //go:noinline
@@ -54,7 +59,18 @@ func testEmptyString(x string) {}
 func testSubstrings(a string, b string, c string) {}
 
 //nolint:all
-func executeStringFuncs() {
+//go:noinline
+func testInvalidUtf8Strings(a string, b string) {}
+
+//nolint:all
+//go:noinline
+func testMultibyteUtf8String(x string) {}
+
+//nolint:all
+func executeStringFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.strings")
+	defer span.Finish()
+
 	abc := "abc"
 	testSingleString(abc)
 	testThreeStrings(abc, "def", "ghi")
@@ -71,6 +87,10 @@ func executeStringFuncs() {
 	// Check captures when multiple variables are aliasing the same underlying buffer.
 	s := "abcdef"
 	testSubstrings(s[:4], s[:2], s)
+
+	// Go strings are not required to hold valid UTF-8.
+	testInvalidUtf8Strings("\xff\xfe", "ok\xffbad")
+	testMultibyteUtf8String(strings.Repeat("世界", 8))
 }
 
 var x = strings.Repeat("x", 100000)

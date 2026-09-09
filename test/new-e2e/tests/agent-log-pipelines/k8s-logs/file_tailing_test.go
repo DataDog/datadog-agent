@@ -69,7 +69,7 @@ func (v *k8sSuite) TestSingleLogAndMetadata() {
 	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpec, metav1.CreateOptions{})
 	require.NoError(v.T(), err, "Could not create job")
 
-	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "job-1", 30*time.Second)
+	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "job-1", jobPodStartTimeout)
 	if err != nil {
 		require.Fail(v.T(), "Job pod failed to start",
 			"%v\n%s", err, k8sutils.DescribeJob(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "job-1"))
@@ -136,7 +136,7 @@ func (v *k8sSuite) TestLongLogLine() {
 	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpec, metav1.CreateOptions{})
 	require.NoError(v.T(), err, "Could not create job")
 
-	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "long-line-job", 30*time.Second)
+	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "long-line-job", jobPodStartTimeout)
 	if err != nil {
 		require.Fail(v.T(), "Long line job pod failed to start",
 			"%v\n%s", err, k8sutils.DescribeJob(context.TODO(), v.Env().KubernetesCluster.Client(), "default", "long-line-job"))
@@ -209,7 +209,7 @@ func (v *k8sSuite) TestContainerExclude() {
 	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs(namespaceName).Create(context.TODO(), jobSpec, metav1.CreateOptions{})
 	require.NoError(v.T(), err, "Could not create job")
 
-	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), namespaceName, "exclude-job", 30*time.Second)
+	_, err = k8sutils.WaitForJobPodRunning(context.TODO(), v.Env().KubernetesCluster.Client(), namespaceName, "exclude-job", jobPodStartTimeout)
 	if err != nil {
 		require.Fail(v.T(), "Exclude job pod failed to start",
 			"%v\n%s", err, k8sutils.DescribeJob(context.TODO(), v.Env().KubernetesCluster.Client(), namespaceName, "exclude-job"))

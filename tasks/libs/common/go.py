@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import os
 import os.path
 import platform
@@ -16,8 +15,10 @@ from invoke.exceptions import Exit
 from invoke.runners import Local, Result
 
 from tasks.libs.build.bazel import bazel
+from tasks.libs.common.color import color_message
 from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import timed
+from tasks.schema.generate import schema_codegen
 
 
 def download_go_dependencies(
@@ -98,23 +99,19 @@ def _with_pdb_extldflag(ldflags: str, bin_path: str) -> str:
     return (ldflags + suffix) if ldflags else suffix.lstrip()
 
 
-def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str] | None:
+def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str]:
     """
     Prepend the Bazel hermetic MinGW (GNU ld >= 2.44) to PATH for a Windows cgo
     build, so the linker emits PDBs that Microsoft dbghelp/symstore can read. The
     build image's default mingw is ld 2.43, whose `--pdb` output those tools
-    can't parse (WINA-2770). Returns env unchanged if it can't be resolved.
+    can't parse (WINA-2770).
 
     TODO: remove once migrated fully to the Bazel MinGW toolchain.
     """
     # bazel cquery is idempotent: it fetches/extracts @winlibs_mingw64 only if missing.
-    if not (
-        gcc := bazel(ctx, "cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True, ignore_errors=True)
-    ):
-        return env
-    if not (output_base := bazel(ctx, "info", "output_base", capture_output=True, ignore_errors=True)):
-        return env
-    mingw_bin = Path(output_base.strip(), gcc.strip()).parent
+    gcc = bazel("cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True).strip()
+    output_base = bazel("info", "output_base", capture_output=True).strip()
+    mingw_bin = Path(output_base, gcc).parent
     path = (env or {}).get("PATH") or os.environ.get("PATH", "")
     return {**(env or {}), "PATH": f"{mingw_bin}{os.pathsep}{path}"}
 
@@ -136,6 +133,13 @@ def go_build(
     coverage: bool = False,
     trimpath: bool = True,
 ) -> Result:
+    if check_deadcode and sys.platform == "aix":
+        print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
+        check_deadcode = False
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     # When targeting Windows with a known output path, ensure the parent
     # directory exists and ask mingw ld to emit a PDB next to the binary
     # so cdb/WPA/xperf can resolve Go symbols. ld writes the PDB during
@@ -167,7 +171,8 @@ def go_build(
     if echo:
         cmd += " -x"
     if build_tags:
-        cmd += f" -tags \"{' '.join(build_tags)}\""
+        # sort build tags to have the same order and ensure caching hits properly
+        cmd += f" -tags \"{','.join(sorted(build_tags))}\""
     if bin_path:
         cmd += f" -o {bin_path}"
     if gcflags:
@@ -210,38 +215,23 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
     _ = runner.input_sleep  # please linters
 
     # -dumpdep is very verbose so we hide that
-    # any unrecognized log line is shown by whydeadcode anyway
     result = cast(Result, runner.run(cmd, env=env, hide="stderr"))
 
-    # worst case it's already installed and nothing happens
-    with ctx.cd("internal/tools"):
-        # pass the env to the command so that it can check GOPATH/GOBIN if provided
-        ctx.run("go install github.com/aarzilli/whydeadcode", env=env)
-
-    # whydeadcode prints unexpected input on stderr (eg. build warnings), and
-    # dead code call stack on stdout
-    # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
+    # whydeadcode --ignore-unrecognized-input prints dead code call stack on stdout
+    # it returns 0, even if dead code elimination is disabled
     # so we check whether stdout is empty to know if dead code elimination is disabled
-    whydeadcoderes = cast(
-        Result, runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
+    whydeadcode_out = bazel(
+        "run",
+        *(f"--run_env={k}={v}" for k, v in (env or {}).items()),
+        "@com_github_aarzilli_whydeadcode//:whydeadcode",
+        "--",
+        "--ignore-unrecognized-input",
+        input=result.stderr,
+        capture_output=True,
     )
-    if whydeadcoderes.stdout:
+    if whydeadcode_out:
         print(
-            f"dead code elimination is disabled for {name} on {sys.platform} {platform.machine()} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
+            f"dead code elimination is disabled for {name} on {sys.platform} {platform.machine()} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcode_out}"
         )
 
     return result
-
-
-class CustomReader(io.StringIO):
-    """
-    Custom reader to read 10MiB at a time.
-    This is a workaround to increase invoke performance at reading from stdin
-    See https://github.com/pyinvoke/invoke/issues/819
-    """
-
-    def __init__(self, data: str):
-        super().__init__(data)
-
-    def read(self, n: int | None = None) -> str:
-        return super().read(1024 * 1024 * 10)

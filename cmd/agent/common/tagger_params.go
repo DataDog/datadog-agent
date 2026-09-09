@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -21,7 +21,7 @@ import (
 func DualTaggerParams() (tagger.DualParams, tagger.RemoteParams) {
 	return tagger.DualParams{
 			UseRemote: func(c config.Component) bool {
-				return pkgconfigsetup.IsCLCRunner(c) && c.GetBool("clc_runner_remote_tagger_enabled")
+				return helper.IsCLCRunner(c) && c.GetBool("clc_runner_remote_tagger_enabled")
 			},
 		}, tagger.NewRemoteParams(
 			tagger.WithRemoteTarget(func(config.Component) (string, error) {

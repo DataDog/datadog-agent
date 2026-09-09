@@ -142,6 +142,14 @@ func (s *instrumentedStorage) ListSeries(filter observerdef.SeriesFilter) []obse
 	return result
 }
 
+func (s *instrumentedStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observerdef.SeriesMeta {
+	return s.inner.GetSeriesMeta(ref)
+}
+
+func (s *instrumentedStorage) GetContext(ref observerdef.SeriesRef) *observerdef.MetricContext {
+	return s.inner.GetContext(ref)
+}
+
 func (s *instrumentedStorage) ListSeriesRefsInto(filter observerdef.SeriesFilter, dst []observerdef.SeriesRef) []observerdef.SeriesRef {
 	s.readCount++
 	result := listSeriesRefs(s.inner, filter, dst)
@@ -167,6 +175,13 @@ func (s *instrumentedStorage) ListSeriesRefsInto(filter observerdef.SeriesFilter
 	}
 	s.callHashes = append(s.callHashes, ch.sum())
 	return result
+}
+
+func (s *instrumentedStorage) SupportsAggregate(ref observerdef.SeriesRef, agg observerdef.Aggregate) bool {
+	if support, ok := s.inner.(seriesAggregateSupport); ok {
+		return support.SupportsAggregate(ref, agg)
+	}
+	return true
 }
 
 func (s *instrumentedStorage) GetSeriesRange(ref observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) *observerdef.Series {

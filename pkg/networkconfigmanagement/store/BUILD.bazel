@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "store",
@@ -13,6 +14,7 @@ go_library(
         "//pkg/networkconfigmanagement/types",
         "//pkg/util/compression",
         "//pkg/util/compression/selector",
+        "//pkg/util/log",
         "//pkg/version",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_google_uuid//:uuid",
@@ -20,14 +22,13 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "store_test",
     srcs = [
         "eviction_test.go",
         "store_test.go",
     ],
     embed = [":store"],
-    gotags = ["test"],
     deps = [
         "//pkg/networkconfigmanagement/types",
         "@com_github_stretchr_testify//assert",

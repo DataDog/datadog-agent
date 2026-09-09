@@ -7,6 +7,7 @@
 package pathteststore
 
 import (
+	"slices"
 	"sync"
 	time "time"
 
@@ -39,6 +40,17 @@ func (p *PathtestContext) LastFlushInterval() time.Duration {
 // SetLastFlushInterval sets last flush interval
 func (p *PathtestContext) SetLastFlushInterval(lastFlushInterval time.Duration) {
 	p.lastFlushInterval = lastFlushInterval
+}
+
+// snapshot returns an independent copy safe to hand to a worker. The store can
+// refresh the retained context concurrently while the worker reads the flushed
+// Pathtest, so both the context and its nested Pathtest must be copied.
+func (p *PathtestContext) snapshot() *PathtestContext {
+	contextSnapshot := *p
+	pathtestSnapshot := *p.Pathtest
+	pathtestSnapshot.Tags = slices.Clone(p.Pathtest.Tags)
+	contextSnapshot.Pathtest = &pathtestSnapshot
+	return &contextSnapshot
 }
 
 // Config is the configuration for the PathtestStore
@@ -120,6 +132,7 @@ func NewPathtestStore(config Config, logger log.Component, statsdClient ddgostat
 
 // Flush will flush specific Pathtest context (distinct hash) if nextRun is reached
 // once a Pathtest context is flushed nextRun will be updated to the next flush time
+// except for one-shot contexts, which are removed after their first flush attempt.
 //
 // ttl:
 // ttl defines the duration we should keep a specific PathtestContext in `Store.contexts`
@@ -148,14 +161,22 @@ func (f *Store) Flush() []*PathtestContext {
 			}
 			continue
 		}
-		if ptConfigCtx.nextRun.After(now) || !f.rateLimiter.AllowN(now, 1) {
+		if ptConfigCtx.nextRun.After(now) {
+			continue
+		}
+		allowed := f.rateLimiter.AllowN(now, 1)
+		if ptConfigCtx.Pathtest.RunOnce {
+			// One-shot paths consume their opportunity even when rate-limited.
+			delete(f.contexts, key)
+		}
+		if !allowed {
 			continue
 		}
 		if !ptConfigCtx.lastFlushTime.IsZero() {
 			ptConfigCtx.lastFlushInterval = now.Sub(ptConfigCtx.lastFlushTime)
 		}
 		ptConfigCtx.lastFlushTime = now
-		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx)
+		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx.snapshot())
 		ptConfigCtx.nextRun = ptConfigCtx.nextRun.Add(f.config.Interval)
 	}
 
@@ -171,6 +192,23 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	f.contextsMutex.Lock()
 	defer f.contextsMutex.Unlock()
 
+	// Check for an existing path before enforcing the context limit: a full store
+	// must still refresh the TTL and attribution of paths it already contains.
+	hash := pathtestToAdd.GetHash()
+	pathtestCtx, ok := f.contexts[hash]
+	if ok {
+		// Refresh attribution from the latest admission without creating a second
+		// context for the same path.
+		pathtestCtx.Pathtest.TestConfigID = pathtestToAdd.TestConfigID
+		pathtestCtx.Pathtest.TestConfigName = pathtestToAdd.TestConfigName
+		pathtestCtx.Pathtest.TestConfigSource = pathtestToAdd.TestConfigSource
+		pathtestCtx.Pathtest.DynamicTestProfile = pathtestToAdd.DynamicTestProfile
+		pathtestCtx.Pathtest.Tags = slices.Clone(pathtestToAdd.Tags)
+		pathtestCtx.Pathtest.RunOnce = pathtestToAdd.RunOnce
+		pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
+		return
+	}
+
 	if len(f.contexts) >= f.config.ContextsLimit {
 		// only log if it has been 1 minute since the last warning
 		if time.Since(f.lastContextWarning) >= time.Minute {
@@ -180,13 +218,9 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 		return
 	}
 
-	hash := pathtestToAdd.GetHash()
-	pathtestCtx, ok := f.contexts[hash]
-	if !ok {
-		f.contexts[hash] = f.newPathtestContext(pathtestToAdd, f.config.TTL)
-		return
-	}
-	pathtestCtx.runUntil = f.timeNowFn().Add(f.config.TTL)
+	pathtestToStore := *pathtestToAdd
+	pathtestToStore.Tags = slices.Clone(pathtestToAdd.Tags)
+	f.contexts[hash] = f.newPathtestContext(&pathtestToStore, f.config.TTL)
 }
 
 // GetContextsCount returns pathtest contexts count

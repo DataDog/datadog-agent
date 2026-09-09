@@ -8,6 +8,7 @@
 package sbom
 
 import (
+	"sync"
 	"testing"
 
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
@@ -57,5 +58,42 @@ func TestQueryFileUsrMerge(t *testing.T) {
 	plain := newFileQuerier(report, backing, false)
 	if pkg := plain.queryFile("/usr/bin/mount"); pkg != nil {
 		t.Errorf("queryFile(/usr/bin/mount) attributed to %q on a non-usr-merged layout, want no match", pkg.Name)
+	}
+}
+
+// TestFixedSizeQueueConcurrentAccess calls push/contains concurrently on a
+// shared fixedSizeQueue, as happens when containers share an image. Run with -race.
+func TestFixedSizeQueueConcurrentAccess(t *testing.T) {
+	q := newFixedSizeQueue[uint64](2)
+
+	const goroutines = 50
+	const iterations = 200
+
+	var wg sync.WaitGroup
+
+	for g := 0; g < goroutines; g++ {
+		seed := uint64(g)
+		wg.Go(func() {
+			for i := uint64(0); i < iterations; i++ {
+				q.push(seed*iterations + i)
+			}
+		})
+	}
+
+	for g := 0; g < goroutines; g++ {
+		seed := uint64(g)
+		wg.Go(func() {
+			for i := uint64(0); i < iterations; i++ {
+				q.contains(seed*iterations + i)
+			}
+		})
+	}
+
+	wg.Wait()
+
+	// The queue must never grow past its configured bound, even under
+	// concurrent access.
+	if got := len(q.queue); got > 2 {
+		t.Errorf("queue length = %d, want at most 2", got)
 	}
 }

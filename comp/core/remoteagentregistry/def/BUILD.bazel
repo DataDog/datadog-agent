@@ -4,8 +4,10 @@ go_library(
     name = "def",
     srcs = [
         "component.go",
+        "subscriber.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def",
     visibility = ["//visibility:public"],
+    deps = ["@org_uber_go_fx//:fx"],
 )

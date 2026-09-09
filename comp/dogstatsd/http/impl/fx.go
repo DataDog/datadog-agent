@@ -11,18 +11,22 @@ import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	comp "github.com/DataDog/datadog-agent/comp/def"
 	def "github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 )
 
 // Requires declares the inputs for NewComponent
 type Requires struct {
-	Lc       comp.Lifecycle
-	Log      log.Component
-	Config   config.Component
-	Tagger   tagger.Component
-	Hostname hostname.Component
-	Demux    demultiplexer.Component
+	Lc         comp.Lifecycle
+	Log        log.Component
+	Config     config.Component
+	Tagger     tagger.Component
+	Hostname   hostname.Component
+	Demux      demultiplexer.Component
+	FilterList filterlist.Component
+	Telemetry  telemetry.Component
 }
 
 // Provides defines the output of this component
@@ -32,10 +36,12 @@ type Provides struct {
 
 func NewComponent(req Requires) (Provides, error) {
 	s := &server{
-		config:   req.Config,
-		log:      req.Log,
-		tagger:   req.Tagger,
-		hostname: req.Hostname,
+		config:     req.Config,
+		log:        req.Log,
+		tagger:     req.Tagger,
+		hostname:   req.Hostname,
+		filterList: req.FilterList,
+		telemetry:  newTelemetryStore(req.Telemetry),
 
 		out: req.Demux.Serializer(),
 	}

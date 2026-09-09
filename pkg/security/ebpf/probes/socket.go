@@ -35,6 +35,34 @@ func getSocketProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_post_bind4",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_post_bind6",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_connect4",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_connect6",
+			},
+			CGroupPath: cgroup2MountPoint,
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_io_socket",
 			},
 		},
@@ -60,12 +88,16 @@ func GetAllSocketProgramFunctions() []string {
 	return []string{
 		"hook_sock_create",
 		"hook_sock_release",
+		"hook_post_bind4",
+		"hook_post_bind6",
+		"hook_connect4",
+		"hook_connect6",
 	}
 }
 
 // CheckCgroupSocketReturnCode checks if the return code is 1(accept)
 //
-//nolint:unused,deadcode
+//nolint:unused
 func CheckCgroupSocketReturnCode(progSpecs map[string]*ebpf.ProgramSpec) error {
 	for _, progSpec := range progSpecs {
 		if progSpec.Type == ebpf.CGroupSock {

@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/.pre/common/macos.yml
-
 .lint_macos_gitlab:
   stage: lint
   extends: .macos_gitlab

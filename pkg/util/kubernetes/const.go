@@ -100,6 +100,8 @@ const (
 	CronJobKind = "CronJob"
 	// ServiceKind represents the ServiceKind object kind
 	ServiceKind = "Service"
+	// ConfigMapKind represents the ConfigMap object kind
+	ConfigMapKind = "ConfigMap"
 	// NamespaceKind represents the NamespaceKind object kind
 	NamespaceKind = "Namespace"
 	// ClusterRoleKind represents the ClusterRole object kind
@@ -146,6 +148,8 @@ const (
 	RolloutAPIVersion = "argoproj.io/v1alpha1"
 	// RolloutKind represents the Argo Rollout object kind
 	RolloutKind = "Rollout"
+	// StrimziPodSetKind represents the Strimzi PodSet object kind
+	StrimziPodSetKind = "StrimziPodSet"
 
 	// CriContainerNamespaceLabel is the label set on containers by runtimes with Pod Namespace
 	CriContainerNamespaceLabel = "io.kubernetes.pod.namespace"

@@ -33,7 +33,7 @@ In order to ease/speed up our review, here are some items you can check/improve 
 - [X] The added code comes with tests.
 - [X] The CI is green, all tests are passing (required or not).
 - [X] All applicable labels are set on the PR (see [PR labels list](#pr-labels)).
-- [X] If applicable, the [config schema](https://github.com/DataDog/datadog-agent/tree/main/pkg/config/schema/yaml) has been regenerated (`dda inv schema.generate --agent-bin=./bin/agent/agent`).
+- [X] If applicable, the <<<repo("pkg/config/schema/yaml", "config schema")>>> has been modified.
 ///
 
 /// note
@@ -247,6 +247,7 @@ For internal PRs (from people in the Datadog organization), you have few extra l
 - `community/help-wanted`: for community PRs where help is needed to finish it.
 - `community`: for community PRs.
 - `changelog/no-changelog`: for PRs that don't require a reno releasenote (useful for PRs only changing documentation or tests).
+- `qa/rc-required`: for changes that can only be validated on the Release Candidate, such as those needing workloads we cannot emulate or validation on prod during RC deployment. Explain why in the PR description; these PRs generate a QA card at RC time.
 - `qa/done` or `qa/no-code-change`: used to skip the QA week:
     - `qa/done` label is recommended in case of code changes ***and*** manual / automated QA done before merge.
     - `qa/no-code-change` is recommended if there's no code changes in the Agent binary code.

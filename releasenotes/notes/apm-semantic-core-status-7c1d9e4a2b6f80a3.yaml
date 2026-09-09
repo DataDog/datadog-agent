@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    APM: ``agent status`` now shows the live trace-semantics registry in the APM
+    Agent section, reporting whether it comes from Remote Configuration or the
+    embedded default along with its content hash and version.

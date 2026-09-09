@@ -23,20 +23,21 @@ const regexLinesCombinedTelemetryMetricName = "datadog.logs_agent.auto_multi_lin
 // to identify the start of a new log entry. It is the equivalent of the decoder's MultiLineHandler.
 // The flush timer is managed externally by the Preprocessor.
 type RegexAggregator struct {
-	newContentRe      *regexp.Regexp
-	buffer            *bytes.Buffer
-	lineLimit         int
-	shouldTruncate    bool
-	isBufferTruncated bool
-	linesLen          int
-	msg               *message.Message
-	firstLineTokens   []Token
-	linesCombined     int
-	telemetryEnabled  bool
-	multiLineTagValue string
-	countInfo         *status.CountInfo
-	linesCombinedInfo *status.CountInfo
-	collected         []AggregatedMessageWithTokens
+	newContentRe       *regexp.Regexp
+	buffer             *bytes.Buffer
+	lineLimit          int
+	shouldTruncate     bool
+	isBufferTruncated  bool
+	linesLen           int
+	checkpointLinesLen int
+	msg                *message.Message
+	firstLineTokens    BorrowedTokens
+	linesCombined      int
+	telemetryEnabled   bool
+	multiLineTagValue  string
+	countInfo          *status.CountInfo
+	linesCombinedInfo  *status.CountInfo
+	collected          []AggregatedMessageWithTokens
 	// patternMatchedOnce tracks whether the regex has ever matched.
 	// Before the first match, lines are sent individually to prevent a misconfigured
 	// pattern from silently joining all lines into a single message.
@@ -85,7 +86,7 @@ func (a *RegexAggregator) SetLinesCombinedInfo(info *status.CountInfo) {
 
 // Process aggregates log lines using the regex to detect new log entry boundaries.
 // Returns any completed messages (may be empty if the current line is buffered). label is unused.
-func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens []Token) []AggregatedMessageWithTokens {
+func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens BorrowedTokens) []AggregatedMessageWithTokens {
 	a.collected = a.collected[:0]
 
 	if a.newContentRe.Match(msg.GetContent()) {
@@ -93,16 +94,17 @@ func (a *RegexAggregator) Process(msg *message.Message, _ Label, tokens []Token)
 		a.patternMatchedOnce = true
 		a.sendBuffer()
 		// This line starts a new group; capture its tokens as the first-line tokens.
-		a.firstLineTokens = tokens
+		a.firstLineTokens = tokens.retained()
 	} else if !a.patternMatchedOnce {
 		a.sendBuffer()
-		a.firstLineTokens = tokens
+		a.firstLineTokens = tokens.retained()
 	}
 
 	isTruncated := a.shouldTruncate
 	a.shouldTruncate = false
 
 	a.linesLen += msg.RawDataLen
+	a.checkpointLinesLen += msg.RawDataLenForCheckpoint()
 	a.msg = msg
 	a.linesCombined++
 
@@ -144,10 +146,11 @@ func (a *RegexAggregator) sendBuffer() {
 	defer func() {
 		a.buffer.Reset()
 		a.linesLen = 0
+		a.checkpointLinesLen = 0
 		a.linesCombined = 0
 		a.shouldTruncate = false
 		a.isBufferTruncated = false
-		a.firstLineTokens = nil
+		a.firstLineTokens = BorrowedTokens{}
 	}()
 
 	data := bytes.TrimSpace(a.buffer.Bytes())
@@ -169,6 +172,7 @@ func (a *RegexAggregator) sendBuffer() {
 	msg := a.msg
 	msg.SetContent(content)
 	msg.RawDataLen = a.linesLen
+	msg.SetRawDataLenForCheckpoint(a.checkpointLinesLen)
 	msg.ParsingExtra.IsTruncated = a.isBufferTruncated
 
 	tlmTags := []string{"false", "single_line"}

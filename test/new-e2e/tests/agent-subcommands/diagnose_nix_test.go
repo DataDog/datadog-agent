@@ -29,12 +29,12 @@ func TestLinuxDiagnoseSuite(t *testing.T) {
 	// periodic docker-socket check adds a non-deterministic warning to diagnose
 	// output that is unrelated to the suites under test and breaks their counts.
 	params := agentparams.WithAgentConfig("health_platform:\n  enabled: false")
-	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(params)))))
+	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(params), scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseOtherCmdPort() {
 	params := agentparams.WithAgentConfig("cmd_port: 4567")
-	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(params))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(params), scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()))))
 
 	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite)
 	v.AssertOutputNotError(diagnose)

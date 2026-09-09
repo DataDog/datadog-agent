@@ -19,6 +19,7 @@ go_library(
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
         "//pkg/collector/corechecks/cluster",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
@@ -44,10 +45,14 @@ dd_agent_go_test(
         "releases_store_test.go",
     ],
     embed = [":helm"],
-    flavors = [
-        "base",
-        "fips",
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/aggregator/mocksender",
         "//pkg/metrics/event",

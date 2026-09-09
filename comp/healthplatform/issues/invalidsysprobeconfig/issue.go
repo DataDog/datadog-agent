@@ -76,6 +76,7 @@ func (InvalidSysprobeConfigIssue) BuildIssue(ctx map[string]string) (*healthplat
 
 	return &healthplatform.Issue{
 		IssueName:   IssueName,
+		IssueType:   IssueType,
 		Title:       fmt.Sprintf("Datadog System-Probe Configuration Has %d Schema Violation%s in %s", count, suffix, filepath.Base(path)),
 		Description: desc,
 		Category:    "configuration",

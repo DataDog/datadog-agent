@@ -41,10 +41,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	statutil "github.com/DataDog/datadog-agent/pkg/util/stat"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
@@ -366,13 +366,20 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	return s
 }
 
+// errNoListeners is the only startup failure that dogstatsd_require_listener
+// treats as fatal.
+var errNoListeners = errors.New("listening on neither udp nor socket, please check your configuration")
+
 func (s *dsdServer) startHook(context context.Context) error {
 	err := s.start(context)
-	if err != nil {
-		s.log.Errorf("Could not start dogstatsd: %s", err)
-	} else {
+	if err == nil {
 		s.log.Debug("dogstatsd started")
+		return nil
 	}
+	if errors.Is(err, errNoListeners) && s.config.GetBool("dogstatsd_require_listener") {
+		return fmt.Errorf("dogstatsd start failed: %w", err)
+	}
+	s.log.Errorf("Could not start dogstatsd: %s", err)
 	return nil
 }
 
@@ -418,7 +425,6 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	if len(socketStreamPath) > 0 {
-		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
 		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
@@ -448,7 +454,7 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	if len(tmpListeners) == 0 {
-		return errors.New("listening on neither udp nor socket, please check your configuration")
+		return errNoListeners
 	}
 
 	s.packetsIn = packetsChannel
@@ -546,7 +552,7 @@ func (s *dsdServer) IsRunning() bool {
 	return s.Started
 }
 
-func (s *dsdServer) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstrings.Matcher) {
+func (s *dsdServer) onFilterListUpdate(filterList metricname.Matcher, _ metricname.Matcher) {
 	s.startedMtx.RLock()
 	defer s.startedMtx.RUnlock()
 
@@ -689,7 +695,7 @@ func (s *dsdServer) errLog(format string, params ...interface{}) {
 }
 
 // workers are running this function in their goroutine
-func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *utilstrings.Matcher) metrics.MetricSampleBatch {
+func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *metricname.Matcher) metrics.MetricSampleBatch {
 	for _, packet := range packets {
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -801,7 +807,7 @@ func (s *dsdServer) getOriginCounter(origin string) (okCnt telemetry.SimpleCount
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
 func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string,
-	processID uint32, listenerID string, originTelemetry bool, filterList *utilstrings.Matcher) ([]metrics.MetricSample, error) {
+	processID uint32, listenerID string, originTelemetry bool, filterList *metricname.Matcher) ([]metrics.MetricSample, error) {
 	okCnt := s.tlmProcessedOk
 	errorCnt := s.tlmProcessedError
 	if origin != "" && originTelemetry {

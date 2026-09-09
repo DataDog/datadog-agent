@@ -3,8 +3,8 @@
 """
 
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+load("@rules_python//python:py_binary.bzl", "py_binary")
 
 package(
     default_package_metadata = [":license"],
@@ -67,11 +67,11 @@ pkg_filegroup(
     }),
 )
 
-# Only call this directly for testing. It should be called
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
-    tags = ["manual"],
+# Tool to update the certs file.
+# This is a root of trust. A human (or their agent) should run it.
+# Do not turn this into a test which can run in CI.
+py_binary(
+    name = "update_cacerts",
+    srcs = ["update_cacerts.py"],
+    main = "update_cacerts.py",
 )

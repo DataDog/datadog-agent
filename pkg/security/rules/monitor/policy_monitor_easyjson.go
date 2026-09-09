@@ -1425,6 +1425,12 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor3(
 			} else {
 				out.Field = string(in.String())
 			}
+		case "capture":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Capture = string(in.String())
+			}
 		case "expression":
 			if in.IsNull() {
 				in.Skip()
@@ -1534,6 +1540,16 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor3(
 			out.RawString(prefix)
 		}
 		out.String(string(in.Field))
+	}
+	if in.Capture != "" {
+		const prefix string = ",\"capture\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Capture))
 	}
 	if in.Expression != "" {
 		const prefix string = ",\"expression\":"
@@ -2093,7 +2109,7 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor7(
 			if in.IsNull() {
 				in.Skip()
 			} else {
-				out.Policy = string(in.String())
+				out.Policy = rules.NetworkFilterPolicy(in.String())
 			}
 		case "scope":
 			if in.IsNull() {

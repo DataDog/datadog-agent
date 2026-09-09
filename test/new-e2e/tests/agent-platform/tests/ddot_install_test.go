@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
@@ -64,8 +65,12 @@ func TestDDOTInstallScript(t *testing.T) {
 
 		t.Run("test ddot install on "+osDesc.String(), func(tt *testing.T) {
 			tt.Parallel()
+			if osDesc.Flavor == e2eos.Ubuntu && strings.Contains(osDesc.Version, "16-04") {
+				// Quarantine Xenial because its EOL apt mirrors are unreliable (incident 60253).
+				flake.Mark(tt)
+			}
 			tt.Logf("Testing %s", osDesc.Version)
-			slice := strings.Split(osDesc.Version, "-")
+			slice := strings.Split(strings.TrimSuffix(osDesc.Version, "-e2e"), "-")
 			var version float64
 			if len(slice) == 2 {
 				version, err = strconv.ParseFloat(slice[1], 64)
@@ -78,6 +83,7 @@ func TestDDOTInstallScript(t *testing.T) {
 			}
 
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
+			vmOpts = append(vmOpts, ec2.WithInternetAccess())
 
 			e2e.Run(tt,
 				&ddotInstallSuite{osVersion: version, osDesc: osDesc},
@@ -96,6 +102,17 @@ func (is *ddotInstallSuite) SetupSuite() {
 	defer is.CleanupOnSetupFailure()
 
 	is.host = host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
+	// Harden apt against Ubuntu/Debian package-mirror outages before the ddot install runs
+	// "apt-get install apt-transport-https ...". This bounds apt's timeout/retries and adds the
+	// global archive.ubuntu.com / ports.ubuntu.com fallbacks so a 503/slow regional EC2 mirror
+	// fails fast instead of hanging until the 2h CI timeout. Without it the
+	// new-e2e-agent-platform-ddot-ubuntu-a7-arm64 job flakes on mirror outages (incident 59571).
+	// No-op on non-apt flavors. Same helper already used by the installer suites.
+	is.host.ConfigureAptMirrors()
+	// CentOS 7 is EOL and its stock vault path 403s; repoint yum at the working vault
+	// archive/mirrors before the ddot RPM install refreshes CentOS base metadata. No-op on
+	// non-CentOS-7 flavors (e.g. the RedHat descriptor this job also runs).
+	is.host.ConfigureYumMirrors()
 }
 
 func (is *ddotInstallSuite) TestDDOTInstall() {
@@ -167,7 +184,12 @@ func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 	var err error
 
 	is.T().Run("create /usr/share keyring and source list", func(t *testing.T) {
-		ExecuteWithoutError(t, VMclient, "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
+		// Debian 11 is currently the only Debian version with these dependencies prebaked.
+		// Keep installing them at runtime for other versions until they have E2E AMIs too.
+		isDebian11E2E := is.osDesc.Flavor == e2eos.Debian && is.osDesc.Version == e2eos.Debian11E2E.Version
+		if !isDebian11E2E {
+			ExecuteWithoutError(t, VMclient, "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
+		}
 		tmpFileContent := fmt.Sprintf("deb %s %s 7", aptrepo, aptrepoDist)
 		_, err = fileManager.WriteFile("/etc/apt/sources.list.d/datadog.list", []byte(tmpFileContent))
 		require.NoError(t, err)

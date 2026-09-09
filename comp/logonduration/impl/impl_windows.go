@@ -10,6 +10,7 @@ package logondurationimpl
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -226,18 +227,15 @@ func durationBetween(start, end time.Time) time.Duration {
 	return end.Sub(start)
 }
 
-// buildTimelineMilestones returns an ordered slice of boot milestones.
-// Only milestones with a non-zero timestamp are included.
-func buildTimelineMilestones(tl BootTimeline) []Milestone {
-	const tsFmt = "2006-01-02T15:04:05.000Z"
-	boot := tl.BootStart
+type milestoneCandidate struct {
+	id       string
+	name     string
+	ts       time.Time
+	duration time.Duration
+}
 
-	candidates := []struct {
-		id       string
-		name     string
-		ts       time.Time
-		duration time.Duration
-	}{
+func timelineCandidates(tl BootTimeline) []milestoneCandidate {
+	return []milestoneCandidate{
 		{"boot_duration", "Boot Duration", tl.BootStart, durationBetween(tl.BootStart, tl.LoginUIStart)},
 		{"login_ui_start", "Login UI Start", tl.LoginUIStart, durationBetween(tl.LoginUIStart, tl.LoginUIDone)},
 		{"computer_group_policy", "Computer Group Policy", tl.MachineGPStart, durationBetween(tl.MachineGPStart, tl.MachineGPEnd)},
@@ -250,33 +248,93 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 		{"desktop_visible", "Desktop Visible", tl.DesktopCreateStart, durationBetween(tl.DesktopCreateStart, tl.DesktopVisibleEnd)},
 		{"desktop_startup_apps", "Desktop Startup Apps", tl.DesktopStartupAppsStart, durationBetween(tl.DesktopStartupAppsStart, tl.DesktopStartupAppsEnd)},
 	}
+}
 
-	hasBootRef := !boot.IsZero()
+type interval struct {
+	start time.Time
+	end   time.Time
+}
 
-	// gap is the idle time at the login screen (LoginUIDone -> SessionLogon).
-	// It is collapsed out of post-logon offsets so the timeline renders
-	// contiguously; the per-milestone Timestamp retains wall-clock truth.
-	gap := time.Duration(0)
-	if !tl.LoginUIDone.IsZero() && !tl.SessionLogon.IsZero() && tl.SessionLogon.After(tl.LoginUIDone) {
-		gap = tl.SessionLogon.Sub(tl.LoginUIDone)
-	}
-
-	var milestones []Milestone
-	for _, c := range candidates {
-		if c.ts.IsZero() {
+// unobservedIntervals returns the sub-intervals of [start, end) that no milestone covers,
+// sorted and disjoint - bootOffsetFunc walks them in order and stops at the first one past ts.
+func unobservedIntervals(tl BootTimeline, start, end time.Time) []interval {
+	var busy []interval
+	for _, c := range timelineCandidates(tl) {
+		if c.ts.IsZero() || c.duration <= 0 {
 			continue
 		}
-		var offset float64
-		if hasBootRef {
-			offset = float64(c.ts.Sub(boot).Milliseconds())
-			if gap > 0 && !c.ts.Before(tl.SessionLogon) {
-				offset -= float64(gap.Milliseconds())
+		s, e := c.ts, c.ts.Add(c.duration)
+		if !e.After(start) || !s.Before(end) {
+			continue
+		}
+		busy = append(busy, interval{s, e})
+	}
+	sort.Slice(busy, func(i, j int) bool { return busy[i].start.Before(busy[j].start) })
+
+	var idle []interval
+	cursor := start
+	for _, b := range busy {
+		if b.start.After(cursor) {
+			idle = append(idle, interval{cursor, b.start})
+		}
+		if b.end.After(cursor) {
+			cursor = b.end
+		}
+	}
+	if end.After(cursor) {
+		idle = append(idle, interval{cursor, end})
+	}
+	return idle
+}
+
+// bootOffsetFunc returns the boot-relative offset in milliseconds of a timestamp. The stretches of
+// the login screen wait (LoginUIDone -> SessionLogon) where nothing was observed are elided so the
+// timeline renders contiguously; the per-milestone Timestamp retains wall-clock truth. Eliding only
+// the unobserved stretches, never an observed span, is what keeps the mapping order-preserving.
+func bootOffsetFunc(tl BootTimeline) func(time.Time) int64 {
+	boot := tl.BootStart
+	if boot.IsZero() {
+		return func(time.Time) int64 { return 0 }
+	}
+
+	if tl.LoginUIDone.IsZero() || tl.SessionLogon.IsZero() || !tl.SessionLogon.After(tl.LoginUIDone) {
+		return func(ts time.Time) int64 { return ts.Sub(boot).Milliseconds() }
+	}
+
+	elided := unobservedIntervals(tl, tl.LoginUIDone, tl.SessionLogon)
+
+	return func(ts time.Time) int64 {
+		offset := ts.Sub(boot)
+		for _, iv := range elided {
+			if !ts.After(iv.start) {
+				break
 			}
+			if ts.Before(iv.end) {
+				offset -= ts.Sub(iv.start)
+				break
+			}
+			offset -= iv.end.Sub(iv.start)
+		}
+		return offset.Milliseconds()
+	}
+}
+
+// buildTimelineMilestones returns an ordered slice of boot milestones.
+// Only milestones with a non-zero timestamp are included.
+func buildTimelineMilestones(tl BootTimeline) []Milestone {
+	const tsFmt = "2006-01-02T15:04:05.000Z"
+
+	offsetOf := bootOffsetFunc(tl)
+
+	var milestones []Milestone
+	for _, c := range timelineCandidates(tl) {
+		if c.ts.IsZero() {
+			continue
 		}
 		milestones = append(milestones, Milestone{
 			ID:         c.id,
 			Name:       c.name,
-			OffsetMs:   offset,
+			OffsetMs:   float64(offsetOf(c.ts)),
 			Timestamp:  c.ts.UTC().Format(tsFmt),
 			DurationMs: float64(c.duration.Milliseconds()),
 		})
@@ -284,7 +342,7 @@ func buildTimelineMilestones(tl BootTimeline) []Milestone {
 	return milestones
 }
 
-func buildCustomPayload(tl BootTimeline) map[string]interface{} {
+func buildCustomPayload(tl BootTimeline, gp *GroupPolicyDetails) map[string]interface{} {
 	custom := make(map[string]interface{})
 
 	milestones := buildTimelineMilestones(tl)
@@ -328,6 +386,10 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 		custom["durations"] = durations
 	}
 
+	if gp != nil {
+		custom["group_policy_details"] = gp
+	}
+
 	return custom
 }
 
@@ -336,7 +398,7 @@ func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 	tl := result.Timeline
 
-	custom := buildCustomPayload(tl)
+	custom := buildCustomPayload(tl, result.GroupPolicy)
 
 	eventTimestamp := tl.BootStart
 	if eventTimestamp.IsZero() {
@@ -350,10 +412,8 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 	title := buildEventTitle(complete, totalMs)
 
 	msg := "Total boot duration analysis after reboot"
-	if durations, ok := custom["durations"].(map[string]interface{}); ok {
-		if totalMs, ok := durations["total_boot_duration_ms"]; ok {
-			msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
-		}
+	if complete {
+		msg = fmt.Sprintf("Total boot duration took %d ms.", totalMs)
 	}
 
 	return sendEvent(c.eventPlatformForwarder, eventInput{

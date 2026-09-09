@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
@@ -93,7 +93,7 @@ func (w *workloadmeta) start(ctx context.Context) {
 		// but also don't block on full startCandidatesWithRetry.
 		select {
 		case <-w.firstCollectorReady:
-			w.log.Debug("at least one workloadmeta collector ready, starting pull loop")
+			w.log.Debug("collector startup resolved, starting pull loop")
 		case <-time.After(firstPullWaitTimeout):
 			w.log.Warnf("no workloadmeta collector ready after %s, starting pull loop anyway", firstPullWaitTimeout)
 		case <-ctx.Done():
@@ -422,6 +422,28 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*wmdef.
 	return pod.cached.(*wmdef.KubernetesPod), nil
 }
 
+// GetKubernetesNode implements Store#GetKubernetesNode.
+func (w *workloadmeta) GetKubernetesNode(name string) (*wmdef.KubernetesNode, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesNode, name)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesNode), nil
+}
+
+// ListKubernetesNodes implements Store#ListKubernetesNodes.
+func (w *workloadmeta) ListKubernetesNodes() []*wmdef.KubernetesNode {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesNode)
+
+	nodes := make([]*wmdef.KubernetesNode, 0, len(entities))
+	for _, entity := range entities {
+		nodes = append(nodes, entity.(*wmdef.KubernetesNode))
+	}
+
+	return nodes
+}
+
 // GetKubernetesDeployment implements Store#GetKubernetesDeployment
 func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDeployment, error) {
 	entity, err := w.getEntityByKind(wmdef.KindKubernetesDeployment, id)
@@ -702,6 +724,14 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 		}
 
 		if w.startCandidates(ctx) {
+			// All candidates have been processed (started successfully or failed
+			// with a non-retriable error). If none of them actually started,
+			// unblock the pull goroutine so it can proceed with an empty first
+			// pull and signal that the store is initialized, instead of waiting
+			// for firstPullWaitTimeout. This avoids autodiscovery logging a
+			// spurious "Workloadmeta collectors are not ready" error on every
+			// startup in environments with no applicable collector.
+			w.firstCollectorReadyOnce.Do(func() { close(w.firstCollectorReady) })
 			return nil, nil
 		}
 

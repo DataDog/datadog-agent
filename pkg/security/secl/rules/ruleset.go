@@ -439,6 +439,32 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					continue
 				}
 
+				// 'capture' extracts a substring out of the field value, so it is only
+				// supported on fields holding a single string
+				if actionDef.Set.Capture != "" {
+					baseField, _, isArrayAccess := parseArrayFieldAccess(actionDef.Set.Field)
+					fieldToValidate := actionDef.Set.Field
+					if isArrayAccess {
+						fieldToValidate = baseField
+					}
+
+					_, kind, goType, isArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
+					if err != nil {
+						errs = appendRuleLoadError(errs, rule, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
+						continue
+					}
+
+					if kind != reflect.String {
+						errs = appendRuleLoadError(errs, rule, fmt.Errorf("'capture' is only supported on string fields, but field '%s' of variable '%s' is of type '%s (%s)'", actionDef.Set.Field, actionDef.Set.Name, kind, goType))
+						continue
+					}
+
+					if isArray && !isArrayAccess {
+						errs = appendRuleLoadError(errs, rule, fmt.Errorf("'capture' is not supported on array field '%s' for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
+						continue
+					}
+				}
+
 				var variableValue = actionDef.Set.DefaultValue
 				if variableValue == nil {
 					variableValue = actionDef.Set.Value
@@ -748,6 +774,12 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 				}
 			}
 
+			// compile the capture pattern once, per action: two rules can capture
+			// different patterns out of the same field
+			if err := action.CompileCaptureMatcher(); err != nil {
+				return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
+			}
+
 			if field := action.Def.Set.Field; field != "" {
 				ev := model.NewFakeEvent()
 				ruleEventType, err := rule.GetEventType()
@@ -1054,6 +1086,24 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 						value = evaluator.Eval(ctx)
 					}
 				}
+
+				// extract the correlation artifact out of the field value. A value that
+				// doesn't match is a no-op leaving the variable untouched: capture rules
+				// can be attached to high frequency events, so this must stay silent.
+				if action.CaptureMatcher != nil {
+					strValue, ok := value.(string)
+					if !ok {
+						break
+					}
+
+					captured, found := action.CaptureMatcher.Capture(strValue)
+					if !found {
+						break
+					}
+
+					value = captured
+				}
+
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {
 						if errors.Is(err, eval.ErrScopeNotAvailable) {

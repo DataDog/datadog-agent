@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
 // buildSyntheticStorage creates a storage pre-populated with numSeries series,
@@ -57,5 +59,141 @@ func BenchmarkIngestion_SeriesCount(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// BenchmarkStorage_BucketCounts measures the allocation cost of retaining a
+// 30-second window when buckets contain either one sample (the common metric
+// path) or repeated same-second samples that require explicit counts.
+func BenchmarkStorage_BucketCounts(b *testing.B) {
+	const (
+		numSeries  = 200
+		numSeconds = 30
+	)
+	names := make([]string, numSeries)
+	for i := range names {
+		names[i] = fmt.Sprintf("metric_%d", i)
+	}
+
+	for _, samplesPerBucket := range []int{1, 4} {
+		b.Run(fmt.Sprintf("samples=%d", samplesPerBucket), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				storage := newTimeSeriesStorageWith(StorageConfig{PointRetentionSecs: numSeconds})
+				for sec := int64(0); sec < numSeconds; sec++ {
+					for series, name := range names {
+						for sample := 0; sample < samplesPerBucket; sample++ {
+							storage.Add("ns", name, float64(series+sample), sec, nil)
+						}
+					}
+				}
+				if got := storage.TotalSeriesCount(); got != numSeries {
+					b.Fatalf("series count = %d, want %d", got, numSeries)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkMetricFilterV1Rules(b *testing.B) {
+	filter := newV1MetricFilter(b)
+	for _, tc := range []struct {
+		name         string
+		metricName   string
+		wantRejected bool
+	}{
+		{name: "rejected_unmatched_16_tags", metricName: "kubernetes.pod.count", wantRejected: true},
+		{name: "accepted_first_rule_16_tags", metricName: "system.cpu.user"},
+		{name: "accepted_last_rule_16_tags", metricName: "container.net.rcvd"},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			sample := highLoadMetric(tc.metricName)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				decision := prepareMetricIngest("check", sample, filter)
+				if gotRejected := decision.metric == nil; gotRejected != tc.wantRejected {
+					b.Fatalf("rejected=%t, want %t", gotRejected, tc.wantRejected)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkHandleObserveMetricV1RulesParallelRejectedMetric(b *testing.B) {
+	telemetryComp := telemetryimpl.NewMock(b)
+
+	h := &handle{
+		source:    "check",
+		filter:    newV1MetricFilter(b),
+		telemetry: newObserverTelemetry(telemetryComp),
+	}
+	sample := highLoadMetric("kubernetes.pod.count")
+	if h.ObserveMetricAndReportDrop(sample) {
+		b.Fatal("expected metric to be rejected by processing rules")
+	}
+
+	b.ReportAllocs()
+	b.SetParallelism(4)
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if h.ObserveMetricAndReportDrop(sample) {
+				panic("expected metric to be rejected by processing rules")
+			}
+		}
+	})
+}
+
+func newV1MetricFilter(b *testing.B) *metricsFilterRules {
+	b.Helper()
+
+	rules := make([]metricsProcessingRule, 0, 16)
+	for _, name := range []string{
+		"system.cpu.user",
+		"system.cpu.system",
+		"system.cpu.iowait",
+		"system.load.norm.1",
+		"system.mem.pct_usable",
+		"system.io.r_await",
+		"system.io.w_await",
+		"system.io.util",
+		"container.cpu.usage",
+		"container.cpu.throttled",
+		"container.memory.working_set",
+		"container.memory.oom_events",
+		"container.io.partial_stall",
+		"container.net.sent",
+		"container.net.rcvd",
+	} {
+		rules = append(rules, metricsProcessingRule{
+			Type:        includeAtMatch,
+			Name:        "keep_" + name,
+			NamePattern: name,
+		})
+	}
+	rules = append(rules, metricsProcessingRule{
+		Type:        excludeAtMatch,
+		Name:        "drop_everything_else",
+		NamePattern: "*",
+	})
+
+	filter, err := newMetricsFilterRules(rules)
+	if err != nil {
+		b.Fatal(err)
+	}
+	return filter
+}
+
+func highLoadMetric(name string) *metricObs {
+	return &metricObs{
+		name:      name,
+		timestamp: 1000,
+		tags: []string{
+			"pod_name:api-123", "container_id:abc", "env:staging", "service:api",
+			"kube_namespace:default", "kube_deployment:api", "image_name:api", "image_tag:v1",
+			"cluster_name:stormeagle", "region:us-east-1", "team:agent", "version:7.84.0",
+			"orchestrator:ecs", "container_name:api", "kube_replica_set:api-123", "short_image:api",
+		},
 	}
 }

@@ -40,10 +40,11 @@ type RunParams struct {
 	deployTestWorkload bool
 	deployArgoRollout  bool
 
-	// standaloneAgentFunc, when non-nil, deploys a standalone agent DaemonSet
-	// using raw Kubernetes resources instead of the Datadog Helm chart.
-	// See StandaloneAgentDeployFunc and WithStandaloneOTelAgent.
-	standaloneAgentFunc StandaloneAgentDeployFunc
+	// standaloneDdotFunc, when non-nil, deploys a standalone DDOT (Datadog
+	// Distribution of OpenTelemetry) agent DaemonSet using raw Kubernetes
+	// resources instead of the Datadog Helm chart.
+	// See StandaloneDdotDeployFunc and WithStandaloneOTelAgent.
+	standaloneDdotFunc StandaloneDdotDeployFunc
 
 	// workerNodes configures the kind cluster worker nodes with custom labels and taints.
 	// When empty the cluster uses the default single worker node.
@@ -118,6 +119,20 @@ func WithName(name string) RunOption { return func(p *RunParams) error { p.Name 
 // WithVMOptions sets VM options
 func WithVMOptions(opts ...ec2.VMOption) RunOption {
 	return func(p *RunParams) error { p.vmOptions = append(p.vmOptions, opts...); return nil }
+}
+
+// WithoutInternetAccess opts the Kind VM out of internet access: the account's default
+// security groups are replaced with the ones configured to block internet access (see
+// ec2.WithoutInternetAccess). This is opt-in: internet access remains the default, and
+// a suite only uses this once its bootstrap and image pulls work without internet.
+func WithoutInternetAccess() RunOption {
+	return WithVMOptions(ec2.WithoutInternetAccess())
+}
+
+// WithInternetAccess explicitly opts the Kind VM into internet access, overriding a
+// WithoutInternetAccess option set earlier in the options list.
+func WithInternetAccess() RunOption {
+	return WithVMOptions(ec2.WithInternetAccess())
 }
 
 // WithAgentOptions sets agent options
@@ -203,8 +218,8 @@ func WithOperatorOptions(opts ...operatorparams.Option) RunOption {
 // WithStandaloneOTelAgent sets a callback that deploys a standalone agent DaemonSet
 // (e.g. otel-agent with DD_OTEL_STANDALONE=true) using raw Kubernetes resources,
 // bypassing the Datadog Helm chart.
-func WithStandaloneOTelAgent(fn StandaloneAgentDeployFunc) RunOption {
-	return func(p *RunParams) error { p.standaloneAgentFunc = fn; return nil }
+func WithStandaloneOTelAgent(fn StandaloneDdotDeployFunc) RunOption {
+	return func(p *RunParams) error { p.standaloneDdotFunc = fn; return nil }
 }
 
 // WithKindWorkerNodes configures the kind cluster worker nodes with custom labels and taints.

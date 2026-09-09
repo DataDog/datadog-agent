@@ -20,14 +20,14 @@ Probes:
           events:
             - Kind: Entry
               Type: 997 EventRootType Probe[main.HandleHTTP]
-              InjectionPoints: [{PC: "0x86dd70", Frameless: false}]
+              InjectionPoints: [{PC: "0x86dd40", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 998 EventRootType Probe[main.HandleHTTP]Return
               InjectionPoints:
-                - PC: "0x86df48"
+                - PC: "0x86df18"
                   Frameless: false
-                - PC: "0x86df60"
+                - PC: "0x86df30"
                   Frameless: false
               Condition: null
     - id: look_at_the_request
@@ -43,34 +43,34 @@ Probes:
           events:
             - Kind: Entry
               Type: 999 EventRootType Probe[main.LookAtTheRequest]
-              InjectionPoints: [{PC: "0x86e078", Frameless: false}]
+              InjectionPoints: [{PC: "0x86e048", Frameless: false}]
               Condition: null
             - Kind: Return
               Type: 1000 EventRootType Probe[main.LookAtTheRequest]Return
-              InjectionPoints: [{PC: "0x86e0ec", Frameless: false}]
+              InjectionPoints: [{PC: "0x86e0bc", Frameless: false}]
               Condition: null
 Subprograms:
     - ID: 1
       Name: main.HandleHTTP
-      OutOfLinePCRanges: [0x86dd50..0x86df90]
+      OutOfLinePCRanges: [0x86dd20..0x86df60]
       InlinePCRanges: []
       Variables:
         - Name: w
           Type: 110 GoInterfaceType net/http.ResponseWriter
           Locations:
-            - Range: 0x86dd50..0x86dda8
+            - Range: 0x86dd20..0x86dd78
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-            - Range: 0x86dda8..0x86ddac
+            - Range: 0x86dd78..0x86dd7c
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 8}
                 - Size: 8
                   Op: {CfaOffset: 16}
-            - Range: 0x86ddac..0x86df90
+            - Range: 0x86dd7c..0x86df60
               Pieces:
                 - Size: 8
                   Op: {CfaOffset: 8}
@@ -82,9 +82,9 @@ Subprograms:
         - Name: r
           Type: 111 PointerType *net/http.Request
           Locations:
-            - Range: 0x86dd50..0x86ddb4
+            - Range: 0x86dd20..0x86dd84
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
-            - Range: 0x86ddb4..0x86df90
+            - Range: 0x86dd84..0x86df60
               Pieces: [{Size: 8, Op: {CfaOffset: 24}}]
           Role: Parameter
           DictIndex: -1
@@ -92,9 +92,9 @@ Subprograms:
         - Name: '&buf'
           Type: 113 PointerType *bytes.Buffer
           Locations:
-            - Range: 0x86dea4..0x86deb8
+            - Range: 0x86de74..0x86de88
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-            - Range: 0x86deb8..0x86df90
+            - Range: 0x86de88..0x86df60
               Pieces: [{Size: 8, Op: {CfaOffset: -128}}]
           Role: Local
           DictIndex: -1
@@ -102,19 +102,19 @@ Subprograms:
         - Name: span
           Type: 115 GoInterfaceType gopkg.in/DataDog/dd-trace-go.v1/ddtrace.Span
           Locations:
-            - Range: 0x86ddc8..0x86ddc8
+            - Range: 0x86dd98..0x86dd98
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: null
-            - Range: 0x86ddc8..0x86de00
+            - Range: 0x86dd98..0x86ddd0
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 1, Shift: 0}
-            - Range: 0x86de00..0x86de04
+            - Range: 0x86ddd0..0x86ddd4
               Pieces:
                 - Size: 8
                   Op: null
@@ -126,13 +126,13 @@ Subprograms:
       DictRegister: null
     - ID: 2
       Name: main.LookAtTheRequest
-      OutOfLinePCRanges: [0x86e060..0x86e110]
+      OutOfLinePCRanges: [0x86e030..0x86e0e0]
       InlinePCRanges: []
       Variables:
         - Name: path
           Type: 11 GoStringHeaderType string
           Locations:
-            - Range: 0x86e060..0x86e084
+            - Range: 0x86e030..0x86e054
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -477,14 +477,14 @@ Types:
       ByteSize: 8
       GoRuntimeType: 1532832
       GoKind: 22
-      Pointee: 165 StructureType context.backgroundCtx
+      Pointee: 165 GoContextImplementationType context.backgroundCtx
     - __kind: PointerType
       ID: 175
       Name: '*context.cancelCtx'
       ByteSize: 8
       GoRuntimeType: 1705792
       GoKind: 22
-      Pointee: 176 StructureType context.cancelCtx
+      Pointee: 176 GoContextImplementationType context.cancelCtx
     - __kind: PointerType
       ID: 608
       Name: '*context.deadlineExceededError'
@@ -498,42 +498,42 @@ Types:
       ByteSize: 8
       GoRuntimeType: 1399168
       GoKind: 22
-      Pointee: 152 StructureType context.emptyCtx
+      Pointee: 152 GoContextImplementationType context.emptyCtx
     - __kind: PointerType
       ID: 153
       Name: '*context.stopCtx'
       ByteSize: 8
       GoRuntimeType: 1399328
       GoKind: 22
-      Pointee: 154 StructureType context.stopCtx
+      Pointee: 154 GoContextImplementationType context.stopCtx
     - __kind: PointerType
       ID: 183
       Name: '*context.timerCtx'
       ByteSize: 8
       GoRuntimeType: 1705984
       GoKind: 22
-      Pointee: 184 StructureType context.timerCtx
+      Pointee: 184 GoContextImplementationType context.timerCtx
     - __kind: PointerType
       ID: 166
       Name: '*context.todoCtx'
       ByteSize: 8
       GoRuntimeType: 1532992
       GoKind: 22
-      Pointee: 167 StructureType context.todoCtx
+      Pointee: 167 GoContextImplementationType context.todoCtx
     - __kind: PointerType
       ID: 160
       Name: '*context.valueCtx'
       ByteSize: 8
       GoRuntimeType: 1532512
       GoKind: 22
-      Pointee: 161 StructureType context.valueCtx
+      Pointee: 161 GoContextImplementationType context.valueCtx
     - __kind: PointerType
       ID: 162
       Name: '*context.withoutCancelCtx'
       ByteSize: 8
       GoRuntimeType: 1532672
       GoKind: 22
-      Pointee: 163 StructureType context.withoutCancelCtx
+      Pointee: 163 GoContextImplementationType context.withoutCancelCtx
     - __kind: PointerType
       ID: 434
       Name: '*crypto/aes.KeySizeError'
@@ -1514,7 +1514,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 2291456
       GoKind: 22
-      Pointee: 117 StructureType gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.span
+      Pointee: 117 DDTraceSpanType gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.span
     - __kind: PointerType
       ID: 145
       Name: '*gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.spanContext'
@@ -1563,7 +1563,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 1410208
       GoKind: 22
-      Pointee: 159 StructureType gopkg.in/DataDog/dd-trace-go.v1/internal/orchestrion.glsContext
+      Pointee: 159 GoContextImplementationType gopkg.in/DataDog/dd-trace-go.v1/internal/orchestrion.glsContext
     - __kind: PointerType
       ID: 786
       Name: '*gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry.client'
@@ -1914,7 +1914,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 1399808
       GoKind: 22
-      Pointee: 157 StructureType net.onlyValuesCtx
+      Pointee: 157 GoContextImplementationType net.onlyValuesCtx
     - __kind: PointerType
       ID: 341
       Name: '*net.result·2'
@@ -2477,7 +2477,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 1603648
       GoKind: 22
-      Pointee: 169 StructureType os/signal.signalCtx
+      Pointee: 169 GoContextImplementationType os/signal.signalCtx
     - __kind: PointerType
       ID: 490
       Name: '*os/user.UnknownGroupIdError'
@@ -3797,7 +3797,7 @@ Types:
       RawFields:
         - Name: emptyCtx
           Offset: 0
-          Type: 152 StructureType context.emptyCtx
+          Type: 152 GoContextImplementationType context.emptyCtx
       ContextOffset: -1
       KeyOffset: -1
       ValueOffset: -1
@@ -3880,7 +3880,7 @@ Types:
       RawFields:
         - Name: cancelCtx
           Offset: 0
-          Type: 176 StructureType context.cancelCtx
+          Type: 176 GoContextImplementationType context.cancelCtx
         - Name: timer
           Offset: 80
           Type: 185 PointerType *time.Timer
@@ -3897,7 +3897,7 @@ Types:
       RawFields:
         - Name: emptyCtx
           Offset: 0
-          Type: 152 StructureType context.emptyCtx
+          Type: 152 GoContextImplementationType context.emptyCtx
       ContextOffset: -1
       KeyOffset: -1
       ValueOffset: -1

@@ -1,0 +1,25 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "anomalydetection_test",
+    srcs = [
+        "anomalydetection_nix_test.go",
+        "config_matrix_nix_test.go",
+        "defaults_nix_test.go",
+        "helpers_test.go",
+        "scorer_helper_nix_test.go",
+        "smart_adaptive_log_sampling_nix_test.go",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/fakeintake/aggregator",
+        "//test/new-e2e/tests/agent-log-pipelines/utils",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

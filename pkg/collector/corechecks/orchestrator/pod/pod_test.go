@@ -18,7 +18,6 @@ import (
 	"sync"
 	"testing"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
@@ -121,7 +120,6 @@ type PodTestSuite struct {
 func (suite *PodTestSuite) SetupSuite() {
 	kubelet.ResetGlobalKubeUtil()
 	kubelet.ResetCache()
-	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 
 	suite.dummyKubelet = newDummyKubelet()
 	ts, kubeletPort, err := suite.dummyKubelet.Start()

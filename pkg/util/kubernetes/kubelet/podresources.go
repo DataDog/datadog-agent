@@ -84,19 +84,18 @@ func (c *PodResourcesClient) ListPodResources(ctx context.Context) ([]*podresour
 	return resp.GetPodResources(), err
 }
 
-// GetContainerToDevicesMap returns a map that contains all the containers and
-// the devices assigned to them. Only containers with devices are included
-func (c *PodResourcesClient) GetContainerToDevicesMap(ctx context.Context) (map[ContainerKey][]*podresourcesv1.ContainerDevices, error) {
+// GetContainerResourcesMap returns the PodResources allocations assigned to each container.
+func (c *PodResourcesClient) GetContainerResourcesMap(ctx context.Context) (map[ContainerKey][]ContainerAllocatedResource, error) {
 	pods, err := c.ListPodResources(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	containerResourceMap := make(map[ContainerKey][]*podresourcesv1.ContainerDevices)
+	containerResourceMap := make(map[ContainerKey][]ContainerAllocatedResource)
 	for _, pod := range pods {
 		for _, container := range pod.GetContainers() {
-			devices := container.GetDevices()
-			if len(devices) == 0 {
+			resources := extractAllocatedResources(container)
+			if len(resources) == 0 {
 				continue
 			}
 
@@ -105,9 +104,30 @@ func (c *PodResourcesClient) GetContainerToDevicesMap(ctx context.Context) (map[
 				PodName:       pod.GetName(),
 				ContainerName: container.GetName(),
 			}
-			containerResourceMap[key] = devices
+			containerResourceMap[key] = resources
 		}
 	}
 
 	return containerResourceMap, nil
+}
+
+func extractAllocatedResources(container *podresourcesv1.ContainerResources) []ContainerAllocatedResource {
+	resources := make([]ContainerAllocatedResource, 0)
+	for _, device := range container.GetDevices() {
+		for _, id := range device.GetDeviceIds() {
+			resources = append(resources, ContainerAllocatedResource{
+				Name: device.GetResourceName(),
+				ID:   id,
+			})
+		}
+	}
+	for _, dynamicResource := range container.GetDynamicResources() {
+		for _, claimResource := range dynamicResource.GetClaimResources() {
+			resources = append(resources, ContainerAllocatedResource{
+				Name: claimResource.GetDriverName(),
+				ID:   claimResource.GetDeviceName(),
+			})
+		}
+	}
+	return resources
 }

@@ -22,5 +22,5 @@ type windowsHealthSuite struct {
 func TestWindowsHealthSuite(t *testing.T) {
 	t.Parallel()
 	suite := &windowsHealthSuite{baseHealthSuite{descriptor: os.WindowsServerDefault}}
-	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(suite.descriptor))))))
+	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(suite.descriptor), ec2.WithInternetAccess())))))
 }

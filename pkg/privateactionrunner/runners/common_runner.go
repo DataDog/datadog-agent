@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -65,15 +66,18 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 		case <-timer.C:
 			logger := log.FromContext(ctx)
 			healthResponse, err := n.opmsClient.HealthCheck(ctx)
+			observability.ReportHealthCheck(n.config.MetricsClient)
 			if healthResponse != nil && healthResponse.ServerTime != nil {
 				logger = logger.With(log.String("server-time", healthResponse.ServerTime.UTC().Format(time.RFC3339)))
 			}
 			if err != nil {
 				logger.Error("health check failed", log.ErrorField(err))
-			} else if healthCheckLogLimit.ShouldLog() {
-				logger.Info("health check succeeded")
 			} else {
-				logger.Debug("health check succeeded")
+				if healthCheckLogLimit.ShouldLog() {
+					logger.Info("health check succeeded")
+				} else {
+					logger.Debug("health check succeeded")
+				}
 			}
 
 			nextInterval := defaultInterval

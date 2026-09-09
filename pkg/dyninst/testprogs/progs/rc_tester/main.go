@@ -30,9 +30,7 @@ func main() {
 		log.Println("Stopping sample process")
 	}()
 
-	tracerEnabled := os.Getenv("DD_SERVICE") != "" &&
-		os.Getenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED") != "" &&
-		os.Getenv("DD_DYNAMIC_INSTRUMENTATION_OFFLINE") == ""
+	tracerEnabled := os.Getenv("DD_SERVICE") != ""
 
 	log.Println("Starting sample process with tracerEnabled=", tracerEnabled)
 

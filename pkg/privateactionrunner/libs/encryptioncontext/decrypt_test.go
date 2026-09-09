@@ -6,24 +6,24 @@
 package encryptioncontext
 
 import (
-	"crypto/rand"
+	"crypto/ecdh"
+	"crypto/hpke"
 	"encoding/base64"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/nacl/box"
 )
 
 // sealForContext seals plaintext for a fresh key pair stored under encryptionContextID.
 func sealForContext(t *testing.T, store *Store, encryptionContextID string, plaintext []byte) string {
 	t.Helper()
 
-	publicKey, privateKey, err := box.GenerateKey(rand.Reader)
+	privateKey, err := hpke.DHKEM(ecdh.P256()).GenerateKey()
 	require.NoError(t, err)
 	store.Set(encryptionContextID, privateKey)
 
-	sealed, err := box.SealAnonymous(nil, plaintext, publicKey, nil)
+	sealed, err := hpke.Seal(privateKey.PublicKey(), hpke.HKDFSHA256(), hpke.AES256GCM(), hpkeInfo, plaintext)
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(sealed)
 }
@@ -38,12 +38,12 @@ func TestDecrypt(t *testing.T) {
 	}{
 		{
 			name:              "decrypts a sealed payload",
-			encryptionContext: EncryptionContext{KeyType: KeyTypeCurve25519, EncryptionContextID: "ctx-1"},
+			encryptionContext: EncryptionContext{KeyType: KeyTypeHPKE, EncryptionContextID: "ctx-1"},
 			plaintext:         "super-secret",
 		},
 		{
 			name:              "rejects missing encryptionContextId",
-			encryptionContext: EncryptionContext{KeyType: KeyTypeCurve25519},
+			encryptionContext: EncryptionContext{KeyType: KeyTypeHPKE},
 			plaintext:         "super-secret",
 			wantErrContains:   "encryptionContextId is required",
 		},
@@ -55,7 +55,7 @@ func TestDecrypt(t *testing.T) {
 		},
 		{
 			name:              "rejects unknown encryptionContextId",
-			encryptionContext: EncryptionContext{KeyType: KeyTypeCurve25519, EncryptionContextID: "ctx-unknown"},
+			encryptionContext: EncryptionContext{KeyType: KeyTypeHPKE, EncryptionContextID: "ctx-unknown"},
 			plaintext:         "super-secret",
 			skipSeal:          true,
 			wantErrContains:   "no private key found",
@@ -86,16 +86,18 @@ func TestDecrypt(t *testing.T) {
 
 	t.Run("rejects empty encryptedInput", func(t *testing.T) {
 		store := NewStoreWithTTL(time.Minute)
-		_, err := Decrypt(store, EncryptionContext{KeyType: KeyTypeCurve25519, EncryptionContextID: "ctx-1"}, "")
+		_, err := Decrypt(store, EncryptionContext{KeyType: KeyTypeHPKE, EncryptionContextID: "ctx-1"}, "")
 		require.ErrorContains(t, err, "encryptedInput is required")
 	})
 
 	t.Run("rejects non-base64 encryptedInput", func(t *testing.T) {
 		store := NewStoreWithTTL(time.Minute)
-		encryptionContext := EncryptionContext{KeyType: KeyTypeCurve25519, EncryptionContextID: "ctx-1"}
-		store.Set(encryptionContext.EncryptionContextID, &[32]byte{})
+		encryptionContext := EncryptionContext{KeyType: KeyTypeHPKE, EncryptionContextID: "ctx-1"}
+		privateKey, err := hpke.DHKEM(ecdh.P256()).GenerateKey()
+		require.NoError(t, err)
+		store.Set(encryptionContext.EncryptionContextID, privateKey)
 
-		_, err := Decrypt(store, encryptionContext, "not-base64!!!")
+		_, err = Decrypt(store, encryptionContext, "not-base64!!!")
 		require.ErrorContains(t, err, "not valid base64")
 	})
 }
@@ -127,7 +129,7 @@ func TestDecryptInto(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			store := NewStoreWithTTL(time.Minute)
-			encryptionContext := EncryptionContext{KeyType: KeyTypeCurve25519, EncryptionContextID: "ctx-1"}
+			encryptionContext := EncryptionContext{KeyType: KeyTypeHPKE, EncryptionContextID: "ctx-1"}
 			encryptedInput := sealForContext(t, store, encryptionContext.EncryptionContextID, []byte(testCase.plaintext))
 
 			got, err := DecryptInto[decryptedCredentials](store, encryptionContext, encryptedInput)

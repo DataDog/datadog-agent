@@ -28,6 +28,7 @@ func TestOpenShiftVMSuite(t *testing.T) {
 		),
 		gcpopenshiftvm.WithAgentOptions(
 			kubernetesagentparams.WithDualShipping(),
+			kubernetesagentparams.WithHelmValues(containerHelmValues),
 		),
 		gcpopenshiftvm.WithDeployArgoRollout(),
 	)))

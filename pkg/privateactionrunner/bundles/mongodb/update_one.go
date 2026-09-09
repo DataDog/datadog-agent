@@ -10,8 +10,8 @@ import (
 	"errors"
 	"fmt"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -52,7 +52,7 @@ func (uo UpdateOneAction) Run(ctx context.Context, task *types.Task, credential 
 		return nil, err
 	}
 
-	client, err := mongo.Connect(ctx, clientOptions)
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to MongoDB: %w", err)
 	}
@@ -72,7 +72,7 @@ func (uo UpdateOneAction) Run(ctx context.Context, task *types.Task, credential 
 
 	var upsertedID string
 	if result.UpsertedID != nil {
-		objectID, ok := result.UpsertedID.(primitive.ObjectID)
+		objectID, ok := result.UpsertedID.(bson.ObjectID)
 		if !ok {
 			return nil, errors.New("Failed to retrieve upserted ID")
 		}

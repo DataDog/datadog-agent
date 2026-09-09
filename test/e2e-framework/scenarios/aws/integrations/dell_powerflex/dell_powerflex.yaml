@@ -1,0 +1,36 @@
+## Dell PowerFlex check configuration (lab template).
+##
+## The released dell_powerflex check polls the PFMP Gateway REST API. In this
+## all-in-one nested-libvirt lab the PFMP MVM cluster is reachable from the host
+## Agent at the MetalLB gateway VIP (https://10.55.0.40:443). The check obtains
+## an OAuth2 token from Keycloak (realm "powerflex", client_id "powerflexUI",
+## direct access grant) then calls /api/*.
+##
+## IMPORTANT: the check reads `powerflex_username` / `powerflex_password` (NOT
+## bare `username`/`password` — those are silently ignored and auth is skipped,
+## yielding can_connect=0 with no error).
+##
+## Credentials: use a PFMP Keycloak user that has Direct Access Grants enabled
+## and no pending required-action (the default `admin` is blocked by an
+## UPDATE_PASSWORD action on first login). The lab uses the PFMP service account
+## from k8s secret `powerflex/keycloak-pm-auth-info` (user `platform-manager`).
+##
+## Overridable at deploy time via ddinfra config:
+##   ddinfra:dell_powerflex/gatewayUrl -> powerflex_gateway_url
+##   ddinfra:dell_powerflex/username   -> powerflex_username
+##   ddinfra:dell_powerflex/password   -> powerflex_password
+##
+## NOTE: PFMP and the nested cluster are brought up during live exploration
+## (see components/integration/dell_powerflex/bootstrap.sh). Until then the
+## check reports dell_powerflex.api.can_connect=0, which is expected. Resource
+## metrics (system/sds/storagepool/volume) require a provisioned PowerFlex block
+## storage system (MDM/SDS) registered into PFMP; a management-only MVM yields
+## only can_connect.
+init_config:
+
+instances:
+  - powerflex_gateway_url: "https://10.55.0.40:443"
+    powerflex_username: "platform-manager"
+    powerflex_password: "CHANGEME"
+    tls_verify: false
+    min_collection_interval: 30

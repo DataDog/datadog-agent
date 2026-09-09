@@ -1,0 +1,30 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  # kubeletstats is pointed at a connection-refused address so its Scrape()
+  # call fails deterministically on every collection_interval. scraperhelper
+  # logs each failure via zap.Logger.Error("Error scraping metrics", ...),
+  # which comp/otelcol/collector/impl bridges into pkg/util/log — the same
+  # pipeline the errortracking feature hooks into.
+  kubeletstats:
+    collection_interval: 5s
+    auth_type: none
+    endpoint: 127.0.0.1:1
+exporters:
+  datadog:
+    api:
+      key: ${env:DD_API_KEY}
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: []
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp, kubeletstats]
+      processors: []
+      exporters: [datadog]

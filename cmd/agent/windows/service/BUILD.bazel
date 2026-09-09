@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "service",
+    srcs = ["service.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/windows/service",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//cmd/agent/common",
+            "//cmd/agent/subcommands/run",
+            "//pkg/util/winutil/servicemain",
+        ],
+        "//conditions:default": [],
+    }),
+)

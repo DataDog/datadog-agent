@@ -1,8 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# gazelle:dd_agent_go_test on
-
 go_library(
     name = "windowscertificate",
     srcs = [
@@ -83,10 +81,10 @@ go_library(
             "//pkg/util/log",
             "//pkg/util/option",
             "//pkg/util/winutil",
-            "@com_github_ghodss_yaml//:yaml",
             "@com_github_swaggest_jsonschema_go//:jsonschema-go",
             "@com_github_xeipuuv_gojsonschema//:gojsonschema",
             "@in_yaml_go_yaml_v2//:yaml",
+            "@io_k8s_sigs_yaml//:yaml",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
         ],

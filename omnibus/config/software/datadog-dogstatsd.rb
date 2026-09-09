@@ -10,7 +10,7 @@ skip_transitive_dependency_licensing true
 
 source path: '..',
        options: {
-         exclude: ["**/.cache/**/*"],
+         exclude: ["**/.cache/**/*", "**/.git/fsmonitor--daemon.ipc"],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -48,7 +48,7 @@ build do
     end
     # Bazel places the yaml example, init scripts, service file, and creates
     # /etc/datadog-dogstatsd/ and /var/log/datadog/.
-    command_on_repo_root "bazel run --//:install_dir=#{install_dir} -- #{install_target} --destdir=/",
+    command "bazel run #{omnibazel_flags} -- #{install_target} --destdir=/",
       :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/run"
     mkdir "#{install_dir}/scripts"

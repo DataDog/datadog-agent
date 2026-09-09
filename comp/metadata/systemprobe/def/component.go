@@ -6,7 +6,7 @@
 // Package systemprobe is the metadata provider for system-probe process
 package systemprobe
 
-// team: agent-configuration
+// team: fleet-automation
 
 // Component is the component type.
 type Component interface{}

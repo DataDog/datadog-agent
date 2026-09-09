@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,6 +51,19 @@ const (
 	// idle stretches.
 	maxRetryAfter = 2 * time.Minute
 )
+
+// ErrJobNotFound means the task no longer exists remotely; callers stop heartbeating.
+var ErrJobNotFound = errors.New("job not found")
+
+// HTTPError carries the HTTP status code of an unexpected response.
+type HTTPError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("request failed with status code %d and body %s", e.StatusCode, e.Body)
+}
 
 type DequeueJSONRequest struct {
 	ID                 string `jsonapi:"primary,dequeue"`
@@ -156,16 +170,14 @@ func NewClient(coreCfg model.Reader, cfg *config.Config) Client {
 	}
 }
 
-// endpointURL constructs a full URL for the given path.
-// Production always uses https://api.<site>. When DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION=true
-// (e2e tests only) and DD_DD_URL points at an http:// server, use that host directly so PAR
-// can reach an in-cluster or ECS-hosted fake OPMS over plain HTTP.
 func (c *client) endpointURL(path string) string {
-	scheme := "https"
-	host := c.config.DDApiHost
-	if os.Getenv(app.InternalSkipTaskVerificationEnvVar) == "true" && strings.HasPrefix(c.config.DDHost, "http://") {
-		scheme = "http"
-		host = strings.TrimPrefix(c.config.DDHost, "http://")
+	scheme, host := "https", c.config.DDApiHost
+	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {
+		host = c.config.DDHost
+		if strings.HasPrefix(host, "http://") {
+			scheme = "http"
+		}
+		host = strings.TrimPrefix(strings.TrimPrefix(host, "http://"), "https://")
 	}
 	return (&url.URL{Scheme: scheme, Host: host, Path: path}).String()
 }
@@ -370,6 +382,10 @@ func (c *client) Heartbeat(ctx context.Context, client actionsclientpb.Client, t
 	}
 
 	if _, err := c.makeHeartbeatRequest(ctx, http.MethodPost, c.endpointURL(heartbeat), request); err != nil {
+		var httpErr *HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+			return fmt.Errorf("%w: %v", ErrJobNotFound, err)
+		}
 		return fmt.Errorf("error sending heartbeat: %w", err)
 	}
 
@@ -449,7 +465,7 @@ func (c *client) makeRequest(
 	}
 
 	if len(expectedStatusCodes) != 0 && !slices.Contains(expectedStatusCodes, res.StatusCode) {
-		return nil, res.Header, fmt.Errorf("request failed with status code %d and body %s", res.StatusCode, resBody)
+		return nil, res.Header, &HTTPError{StatusCode: res.StatusCode, Body: string(resBody)}
 	}
 
 	return resBody, res.Header, nil

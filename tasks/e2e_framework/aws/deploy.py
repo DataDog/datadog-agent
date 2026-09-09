@@ -45,7 +45,13 @@ def deploy(
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
+
+    # Keep ~/.aws/config in sync: add the SSO profile if it's missing (e.g. after a role
+    # rename like account-admin -> account-admin-8h). No-op if already present.
+    from tasks.e2e_framework.setup.aws import setup_aws_sso_config
+
+    setup_aws_sso_config(cfg, interactive=False)
 
     awsKeyPairName = cfg.get_aws().keyPairName
 
@@ -92,7 +98,7 @@ def deploy(
         flags["ddagent:imagePullRegistry"] = "376334461865.dkr.ecr.us-east-1.amazonaws.com"
         flags["ddagent:imagePullUsername"] = "AWS"
         flags["ddagent:imagePullPassword"] = ctx.run(
-            "aws-vault exec sso-agent-sandbox-account-admin -- aws ecr get-login-password --region us-east-1",
+            "aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password --region us-east-1",
             hide=True,
         ).stdout.strip()
     return common_deploy(

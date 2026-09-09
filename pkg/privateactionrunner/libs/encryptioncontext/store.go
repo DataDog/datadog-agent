@@ -10,6 +10,7 @@
 package encryptioncontext
 
 import (
+	"crypto/hpke"
 	"time"
 
 	"github.com/jellydator/ttlcache/v3"
@@ -22,7 +23,7 @@ const DefaultTTL = 5 * time.Minute
 // Store keeps private keys indexed by encryptionContextID, evicted after
 // their TTL elapses or once explicitly deleted.
 type Store struct {
-	cache *ttlcache.Cache[string, *[32]byte]
+	cache *ttlcache.Cache[string, hpke.PrivateKey]
 }
 
 // NewStore returns an in-memory Store using DefaultTTL.
@@ -34,18 +35,18 @@ func NewStore() *Store {
 // retrievable after being stored.
 func NewStoreWithTTL(ttl time.Duration) *Store {
 	return &Store{
-		cache: ttlcache.New(ttlcache.WithTTL[string, *[32]byte](ttl)),
+		cache: ttlcache.New(ttlcache.WithTTL[string, hpke.PrivateKey](ttl)),
 	}
 }
 
 // Set stores privateKey under encryptionContextID, overwriting any existing entry.
-func (store *Store) Set(encryptionContextID string, privateKey *[32]byte) {
+func (store *Store) Set(encryptionContextID string, privateKey hpke.PrivateKey) {
 	store.cache.Set(encryptionContextID, privateKey, ttlcache.DefaultTTL)
 }
 
 // GetAndDelete retrieves and evicts the entry for encryptionContextID.
 // Returns (nil, false) if no live entry exists.
-func (store *Store) GetAndDelete(encryptionContextID string) (*[32]byte, bool) {
+func (store *Store) GetAndDelete(encryptionContextID string) (hpke.PrivateKey, bool) {
 	item, found := store.cache.GetAndDelete(encryptionContextID)
 	if !found {
 		return nil, false

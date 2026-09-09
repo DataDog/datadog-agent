@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    On Windows, fix Cross-Org Agent Telemetry (COAT) reporting for DDOT under **dd-procmgr**: ``runtime.agent_service_procmgr_configured{service:ddot}`` now checks ``InstallPath\processes.d`` where the installer writes the YAML, instead of ``ProgramData\Datadog\dd-procmgr\processes.d``.

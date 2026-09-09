@@ -74,5 +74,7 @@ func registerExecutors(registry *ExecutorRegistry, clientset kubernetes.Interfac
 	registry.Register("restart_deployment", &executorAdapter{exec: executors.NewRestartDeploymentExecutor(clientset)})
 	registry.Register("patch_deployment", &executorAdapter{exec: executors.NewPatchDeploymentExecutor(clientset)})
 	registry.Register("rollback_deployment", &executorAdapter{exec: executors.NewRollbackDeploymentExecutor(clientset)})
+	registry.Register("patch_daemonset", &executorAdapter{exec: executors.NewPatchDaemonSetExecutor(clientset)})
+	registry.Register("patch_statefulset", &executorAdapter{exec: executors.NewPatchStatefulSetExecutor(clientset)})
 	registry.Register("get_resource", &executorAdapter{exec: executors.NewGetResourceExecutor(dynamicClient)})
 }

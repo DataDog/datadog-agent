@@ -21,7 +21,6 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	forwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
@@ -63,7 +62,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	forwarderOpts.Secrets = secrets
 	sharedForwarder := forwarderimpl.NewDefaultForwarder(mockConfig, deps.Log, forwarderOpts)
 	orchestratorForwarder := option.New[forwarder.Forwarder](forwardernoop.NewComponent())
-	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, logscompressionmock.NewMockCompressor()))
+	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
 	haAgent := haagentmock.NewMockHaAgent()
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
 	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, haAgent, deps.Compressor, taggerComponent, filterList, "hostname")

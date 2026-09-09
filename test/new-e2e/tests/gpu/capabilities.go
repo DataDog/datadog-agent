@@ -89,7 +89,9 @@ func (c *hostCapabilities) Agent() agentclient.Agent {
 // UNIX socket present in the root filesystem.
 func (c *hostCapabilities) QuerySysprobe(path string) (string, error) {
 	sysprobeSocket := "/opt/datadog-agent/run/sysprobe.sock"
-	cmd := fmt.Sprintf("sudo curl -s --unix-socket %s http://unix/%s", sysprobeSocket, path)
+	// --fail makes curl exit non-zero on an HTTP error status, so callers see a
+	// failed request instead of the error page as a successful response body.
+	cmd := fmt.Sprintf("sudo curl -s --fail --unix-socket %s http://unix/%s", sysprobeSocket, path)
 	return c.suite.Env().RemoteHost.Execute(cmd)
 }
 
@@ -235,7 +237,9 @@ func (c *kubernetesCapabilities) QuerySysprobe(path string) (string, error) {
 
 	pod := pods.Items[0]
 
-	cmd := []string{"curl", "-s", "--unix-socket", "/var/run/sysprobe/sysprobe.sock", "http://unix/" + path}
+	// --fail makes curl exit non-zero on an HTTP error status, so callers see a
+	// failed request instead of the error page as a successful response body.
+	cmd := []string{"curl", "-s", "--fail", "--unix-socket", "/var/run/sysprobe/sysprobe.sock", "http://unix/" + path}
 	stdout, stderr, err := c.suite.Env().KubernetesCluster.KubernetesClient.PodExec(agentNamespace, pod.Name, "agent", cmd)
 	return stdout + " " + stderr, err
 }

@@ -128,13 +128,7 @@ func (m *metadataController) run(stopCh <-chan struct{}) {
 		return
 	}
 
-	filter := workloadmeta.NewFilterBuilder().AddKindWithEntityFilter(
-		workloadmeta.KindKubernetesMetadata,
-		func(entity workloadmeta.Entity) bool {
-			metadata := entity.(*workloadmeta.KubernetesMetadata)
-			return workloadmeta.IsNodeMetadata(metadata)
-		},
-	).Build()
+	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesNode).Build()
 
 	wmetaEventsCh := m.wmeta.Subscribe(
 		"metadata-controller",
@@ -174,7 +168,7 @@ func (m *metadataController) processWorkloadmetaNodeMetadataEvents(wmetaEventsCh
 		eventBundle.Acknowledge()
 
 		for _, event := range eventBundle.Events {
-			node := event.Entity.(*workloadmeta.KubernetesMetadata)
+			node := event.Entity.(*workloadmeta.KubernetesNode)
 
 			switch event.Type {
 			case workloadmeta.EventTypeSet:
@@ -549,7 +543,7 @@ func (m *metadataController) getCachedServiceName(namespace, sliceName string) s
 
 // deleteService removes a service's metadata from all nodes.
 func (m *metadataController) deleteService(namespace, svc string) error {
-	nodes := m.wmeta.ListKubernetesMetadata(workloadmeta.IsNodeMetadata)
+	nodes := m.wmeta.ListKubernetesNodes()
 
 	// Delete the service from the metadata bundle for each node.
 	for _, node := range nodes {

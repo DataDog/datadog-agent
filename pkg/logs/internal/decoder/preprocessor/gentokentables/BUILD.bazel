@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "gentokentables_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor/gentokentables",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/template/text"],
+)
+
+go_binary(
+    name = "gentokentables",
+    embed = [":gentokentables_lib"],
+    visibility = [
+        "//pkg/logs:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_message//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_sources//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_statusinterface//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_status_utils//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_types//:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_logs_util_testutils//:__subpackages__",
+    ],
+)

@@ -17,6 +17,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -41,6 +42,7 @@ const (
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
 	SoftwareInventoryModule      types.ModuleName = "software_inventory"
+	NotableEventsModule          types.ModuleName = "notable_events"
 	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
 	InjectorModule               types.ModuleName = "injector"
 	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
@@ -126,6 +128,9 @@ func load() (*types.Config, error) {
 	eudmEnabled := coreCfg.GetString("infrastructure_mode") == "end_user_device"
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
+	// The GPU module only consumes process events when its eBPF probes are
+	// loaded, so the event monitor is only needed for that combination.
+	gpuEBPFProbesEnabled := gpuEnabled && cfg.GetBool(gpuNS("enable_ebpf_probes"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
 	swEnabled := coreCfg.GetBool(swNS("enabled"))
 	discoveryServiceMapEnabled := cfg.GetBool(discoveryNS("service_map", "enabled"))
@@ -144,7 +149,7 @@ func load() (*types.Config, error) {
 		coreCfg.GetBool("sbom.enrichment.usage.enabled") ||
 		(usmEnabled && cfg.GetBool(smNS("enable_event_stream"))) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) ||
-		gpuEnabled ||
+		gpuEBPFProbesEnabled ||
 		diEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
@@ -177,7 +182,12 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(pngNS("enabled")) {
 		c.EnabledModules[PingModule] = struct{}{}
 	}
-	if cfg.GetBool(tracerouteNS("enabled")) {
+	if tracerouteEnabled(cfg, coreCfg, npmEnabled) {
+		if !cfg.IsConfigured(tracerouteNS("enabled")) {
+			// Expose the effective value through the runtime config so inventory and
+			// diagnostics report the module that is actually running.
+			cfg.Set(tracerouteNS("enabled"), true, pkgconfigmodel.SourceAgentRuntime)
+		}
 		c.EnabledModules[TracerouteModule] = struct{}{}
 	}
 	if cfg.GetBool(discoveryNS("enabled")) {
@@ -192,7 +202,10 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
 		c.EnabledModules[NoisyNeighborModule] = struct{}{}
 	}
-	if runtime.GOOS == "darwin" && cfg.GetBool(logonDurationNS("enabled")) {
+	// Read from the core config (datadog.yaml), not the system-probe config, so that
+	// enabling logon_duration in the core agent (e.g. via infrastructure_mode:
+	// end_user_device) also starts the system-probe module.
+	if runtime.GOOS == "darwin" && coreCfg.GetBool(logonDurationNS("enabled")) {
 		c.EnabledModules[LogonDurationModule] = struct{}{}
 	}
 
@@ -210,6 +223,9 @@ func load() (*types.Config, error) {
 	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
 		if swEnabled {
 			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
+		}
+		if runtime.GOOS == "darwin" && coreCfg.GetBool("notable_events.enabled") {
+			c.EnabledModules[NotableEventsModule] = struct{}{}
 		}
 
 		// injector telemetry is enabled by default, disable only if explicitly configured by the user
@@ -233,6 +249,24 @@ func load() (*types.Config, error) {
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
 
 	return c, nil
+}
+
+// tracerouteEnabled reports whether the traceroute module should be enabled.
+// An explicit traceroute.enabled value always takes precedence. When the setting
+// is unset, CNM Dynamic Tests enable traceroute only when CNM is also enabled.
+// It logs a warning when Dynamic Tests require traceroute but it was explicitly disabled.
+func tracerouteEnabled(cfg, coreCfg pkgconfigmodel.Reader, npmEnabled bool) bool {
+	dynamicTestsEnabled := coreCfg.GetBool("network_path.connections_monitoring.enabled") ||
+		coreCfg.GetBool("network_path.connections_monitoring.basic_tests_enabled")
+	enabled := cfg.GetBool(tracerouteNS("enabled"))
+
+	if !enabled && !cfg.IsConfigured(tracerouteNS("enabled")) {
+		return npmEnabled && dynamicTestsEnabled
+	}
+	if !enabled && cfg.IsConfigured(tracerouteNS("enabled")) && npmEnabled && dynamicTestsEnabled {
+		log.Warn("Network Path Dynamic Tests are enabled, but system-probe traceroute was explicitly disabled")
+	}
+	return enabled
 }
 
 func applyFleetPolicy(cfg pkgconfigmodel.Config) error {

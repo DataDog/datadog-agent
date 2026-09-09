@@ -1,0 +1,11 @@
+# User already defines a cumulativetodelta processor in the metrics pipeline, so
+# the converter must NOT inject its own (dedup by base name) — this config is a no-op.
+processors:
+  cumulativetodelta:
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [cumulativetodelta]
+      exporters: [datadog]

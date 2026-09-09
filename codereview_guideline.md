@@ -20,6 +20,9 @@ check whether an E2E test asserts the expected data arrives in fakeintake. Unit
 tests alone are not sufficient for validating the agent's end-to-end data
 pipeline.
 
+When a PR creates a new E2E test, use the `e2e-audit` skill to verify that its
+assertions require the deployed Agent or its real environment.
+
 ### Branch-conditional CI creates blind spots
 Most E2E tests only run on `main`, release branches (`N.N.x`), and RC tags —
 not on PR branches. Be extra careful reviewing:

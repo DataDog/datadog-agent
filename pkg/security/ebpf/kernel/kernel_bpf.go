@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && linux_bpf
+//go:build linux && bpf
 
 // Package kernel holds kernel related files
 package kernel
@@ -14,10 +14,11 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 	"golang.org/x/sys/unix"
+
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 )
 
 // HaveMmapableMaps returns whether the kernel supports mmapable maps.
@@ -201,7 +202,7 @@ func (k *Version) HaveFentryNoDuplicatedWeakSymbols() bool {
 
 // SupportCORE returns is CORE is supported
 func (k *Version) SupportCORE() bool {
-	_, err := btf.LoadKernelSpec()
+	_, err := ddbtf.GetKernelSpec()
 	return err == nil
 }
 
@@ -215,6 +216,22 @@ func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
 // https://github.com/torvalds/linux/commit/c501bf55c88b834adefda870c7c092ec9052a437
 func (k *Version) HasBpfGetCurrentCgroupIDForSchedCLS() bool {
 	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnGetCurrentCgroupId) == nil
+}
+
+// HasSkLookupForSchedCLS returns true if the kernel supports bpf_sk_lookup_tcp/udp for the Sched CLS program type
+// https://github.com/torvalds/linux/commit/6acc9b432e6714d72d7d77ec7c27f6f8358d0c71
+func (k *Version) HasSkLookupForSchedCLS() bool {
+	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnSkLookupTcp) == nil
+}
+
+// HasSKStorageInSchedCLS returns true if the kernel supports bpf_sk_storage_get in Sched CLS programs
+func (k *Version) HasSKStorageInSchedCLS() bool {
+	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnSkStorageGet) == nil
+}
+
+// HasSKStorageInCgroupSock returns true if the kernel supports bpf_sk_storage_get in cgroup/sock programs
+func (k *Version) HasSKStorageInCgroupSock() bool {
+	return features.HaveProgramHelper(ebpf.CGroupSock, asm.FnSkStorageGet) == nil
 }
 
 // HasBpfGetCurrentCgroupID returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type
@@ -258,4 +275,36 @@ func (k *Version) HasJITBlindingSubprogsFix() bool {
 	}
 
 	return false
+}
+
+// HasTaskStorage returns true if the kernel supports BPF_MAP_TYPE_TASK_STORAGE maps
+// See https://github.com/torvalds/linux/commit/4cf1bc1f10452065a29d576fc5693fc4fab5b919
+func (k *Version) HasTaskStorage() bool {
+	if features.HaveMapType(ebpf.TaskStorage) == nil {
+		return true
+	}
+
+	return k.Code != 0 && k.Code >= Kernel5_11
+}
+
+// hasTaskStorageForProgramType returns true if the kernel supports using task local storage for the given program type
+// See https://github.com/torvalds/linux/commit/a10787e6d58c24b51e91c19c6d16c5da89fcaa4b
+func (k *Version) hasTaskStorageForProgramType(progType ebpf.ProgramType) bool {
+	return features.HaveProgramHelper(progType, asm.FnTaskStorageGet) == nil &&
+		features.HaveProgramHelper(progType, asm.FnGetCurrentTaskBtf) == nil
+}
+
+// HasTaskStorageInKprobePrograms returns true if the kernel supports using task local storage in kprobe programs
+func (k *Version) HasTaskStorageInKprobePrograms() bool {
+	return k.hasTaskStorageForProgramType(ebpf.Kprobe)
+}
+
+// HasTaskStorageInTracingPrograms returns true if the kernel supports using task local storage in tracing (fentry) programs
+func (k *Version) HasTaskStorageInTracingPrograms() bool {
+	return k.hasTaskStorageForProgramType(ebpf.Tracing)
+}
+
+// HasTaskStorageInTracePointPrograms returns true if the kernel supports using task local storage in tracepoint programs
+func (k *Version) HasTaskStorageInTracePointPrograms() bool {
+	return k.hasTaskStorageForProgramType(ebpf.TracePoint)
 }

@@ -1,7 +1,6 @@
 # jmxfetch JAR file.
 
 load("@agent_volatile//:env_vars.bzl", "env_vars")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("//bazel/rules/macos/codesign:code_sign_jar_macos.bzl", "code_sign_jar_macos")
 load(":module_utils_test.bzl", "jmxfetch_module_utils_test_suite")
@@ -50,14 +49,6 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":jar_file",
-    ],
-    tags = ["manual"],
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
     ],
     tags = ["manual"],
 )

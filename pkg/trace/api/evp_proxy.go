@@ -34,7 +34,7 @@ const (
 )
 
 // EvpProxyAllowedHeaders contains the headers that the proxy will forward. All others will be cleared.
-var EvpProxyAllowedHeaders = []string{"Content-Type", "Accept-Encoding", "Content-Encoding", "User-Agent", "DD-CI-PROVIDER-NAME"}
+var EvpProxyAllowedHeaders = []string{"Content-Type", "Accept-Encoding", "Content-Encoding", "User-Agent", "DD-CI-PROVIDER-NAME", "DD-EVP-ORIGIN", "DD-EVP-ORIGIN-VERSION"}
 
 // evpProxyEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
 func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
@@ -179,7 +179,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	timeout := getConfiguredEVPRequestTimeoutDuration(t.conf)
 	req.Header.Set("X-Datadog-Timeout", strconv.Itoa((int(timeout.Seconds()))))
 	deadline := time.Now().Add(timeout)
-	//nolint:govet,lostcancel // we don't need to manually cancel this context, we can rely on the parent context being cancelled
+	//nolint:govet // we don't need to manually cancel this context, we can rely on the parent context being cancelled
 	ctx, _ := context.WithDeadline(req.Context(), deadline)
 	req = req.WithContext(ctx)
 

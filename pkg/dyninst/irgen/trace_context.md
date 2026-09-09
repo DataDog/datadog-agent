@@ -165,11 +165,26 @@ the `GoContextAttributes` / `DDTraceAttributes` blobs once embedded in
 `GoTypeAttributes`), irgen wraps the affected struct types in dedicated IR
 types after the main type-graph build:
 
-- `*ir.GoContextImplementationType` — wraps `*StructureType` for stdlib
-  context impls (`cancelCtx`, `valueCtx`, `timerCtx`, `stopCtx`,
-  `afterFuncCtx`, `withoutCancelCtx`, `signalCtx`, `backgroundCtx`,
-  `todoCtx`, `emptyCtx`). Carries `GoContextAttributes` (the embedded
-  Context offset, plus key/value offsets for valueCtx).
+- `*ir.GoContextImplementationType` — wraps `*StructureType` for any concrete
+  context.Context implementation (stdlib impls like `cancelCtx`, `valueCtx`,
+  `timerCtx`, `stopCtx`, `afterFuncCtx`, `withoutCancelCtx`, `signalCtx`,
+  `backgroundCtx`, `todoCtx`, `emptyCtx`, plus application types that satisfy
+  the interface). Carries `GoContextAttributes` (the embedded Context offset,
+  plus key/value offsets for valueCtx).
+
+  A wrapped type only drives the chain walk when it is a *chain link*, i.e.
+  `GoContextAttributes.HasChainData()` is true: it has an embedded parent
+  Context or (for valueCtx) a key/value payload. An impl with none of these is
+  not a chain link: it implements context.Context without holding a context of
+  its own (e.g. a request type whose methods forward to the request's
+  `Context()`, or a terminal root like `context.Background`), so there is no
+  chain to walk. Such a type keeps the descriptive
+  `GoContextImplementationType` label, but the compiler emits ordinary
+  struct-field descent for it and the loader leaves `go_context_is_context`
+  unset and does not floor `byte_len` — its capture is byte-for-byte identical
+  to a plain struct, so its own fields are captured. Running it through the
+  chain walk instead would rewrite its data item to a (dead-end, all-zero)
+  trace context and discard the struct's fields.
 - `*ir.DDTraceSpanType` — wraps the dd-trace `tracer.span` (v1) /
   `tracer.Span` (v2) struct type. Carries `DDTraceAttributes` (kind, span
   ID / trace ID / parent ID offsets, span context offsets).
@@ -187,11 +202,12 @@ IR type.
 - **Buffer waste**: the chase preamble copies `sizeof(cancelCtx)` (typically
   ~80 bytes) before INIT overwrites the first 40 bytes. Trailing bytes are
   unread by the decoder. A few dozen wasted bytes per captured Context.
-- **byte_len floor**: tiny context impls (`emptyCtx`, `backgroundCtx`,
-  `todoCtx`) can have `byte_len < 40`. The loader floors `byte_len` to 40
-  for any `*ir.GoContextImplementationType` and for pointer types whose
-  pointee is one, so the payload reservation is always wide enough for
-  INIT's 40-byte zero. See `pkg/dyninst/loader/serialize.go`.
+- **byte_len floor**: tiny chain-walked context impls can have `byte_len < 40`.
+  The loader floors `byte_len` to 40 for any chain-walked
+  `*ir.GoContextImplementationType` (i.e. `HasChainData()` true) and for
+  pointer types whose pointee is one, so the payload reservation is always
+  wide enough for INIT's 40-byte zero. Non-chain-link impls are not floored.
+  See `pkg/dyninst/loader/serialize.go`.
 - **No concrete impl rendering**: a captured Context's struct fields no
   longer appear in the snapshot. If a future user needs them, the rendering
   path can be re-introduced by emitting a sibling data item (synthetic +
@@ -207,11 +223,12 @@ IR type.
   dd-trace-span entries in the type catalog with the wrapper types after
   type-graph construction.
 - `pkg/dyninst/compiler/generate.go` — emits `[INIT, HOP, RETURN]` as the
-  enqueue_pc subroutine for `*ir.GoContextImplementationType` (and pointer
-  types whose pointee is one).
-- `pkg/dyninst/loader/serialize.go` — floors `byte_len` to 40 for
-  `*ir.GoContextImplementationType` and publishes the synthetic IR id as
-  the BPF volatile-const `trace_context_type_id`.
+  enqueue_pc subroutine for a chain-walked `*ir.GoContextImplementationType`
+  (and pointer types whose pointee is one); an impl that is not a chain link
+  (`HasChainData()` false) gets ordinary struct-field descent instead.
+- `pkg/dyninst/loader/serialize.go` — floors `byte_len` to 40 for a
+  chain-walked `*ir.GoContextImplementationType` and publishes the synthetic
+  IR id as the BPF volatile-const `trace_context_type_id`.
 - `pkg/dyninst/ebpf/stack_machine.h` — `SM_OP_GO_CONTEXT_CHAIN_INIT` and
   `SM_OP_GO_CONTEXT_CHAIN_HOP` opcode bodies; `sm_extract_ddtrace_span` /
   `sm_maybe_extract_ddtrace_span_from_value_ctx` helpers.

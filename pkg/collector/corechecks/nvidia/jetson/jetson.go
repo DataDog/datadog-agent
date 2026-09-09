@@ -134,9 +134,11 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	}
 
 	for _, metricSender := range c.metricsSenders {
-		err = metricSender.SendMetrics(sender, tegraStatsOuptut)
-		if err != nil {
-			return err
+		if err := metricSender.SendMetrics(sender, tegraStatsOuptut); err != nil {
+			// A single metric sender failing to parse its fields (e.g. a power rail
+			// that isn't present on this device) shouldn't prevent every other
+			// metric from being reported.
+			log.Warnf("error sending jetson metric: %s", err)
 		}
 	}
 	sender.Commit()

@@ -168,7 +168,7 @@ To accomplish this, create a new lifecycle instance, create a `Require` struct i
 To create a lifecycle instance, use the helper function `compdef.NewTestLifecycle(t *testing.T)`. The function returns a lifecycle wrapper that can be used to populate the `Requires` struct. The `Start` and `Stop` functions can also be called.
 
 /// info
-You can see the `NewTestLifecycle` function [here](https://github.com/DataDog/datadog-agent/blob/c9395595e34c6a96de9446083b8b1d0423bed991/comp/def/lifecycle_mock.go#L21).
+You can see the `NewTestLifecycle` function <<<repo("comp/def/lifecycle_mock.go", "here", match="^func NewTestLifecycle")>>>.
 ///
 
 /// tab | :octicons-file-code-16: comp/somecomponent/impl/component_test.go

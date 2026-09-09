@@ -59,6 +59,7 @@ func TestFilterBuilderOps(t *testing.T) {
 					KueueResourceFlavor:    {},
 					KueueWorkload:          {},
 					KubernetesMetadata:     {},
+					KubernetesNode:         {},
 					KubernetesPodUID:       {},
 					Process:                {},
 					InternalID:             {},

@@ -15,7 +15,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
 // ErrorMsgSet contains a list of unique configuration errors for a provider
@@ -38,7 +38,7 @@ const (
 )
 
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance
-type ConfigProviderFactory func(providerConfig *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, taggerComp tagger.Component, filterComp workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (ConfigProvider, error)
+type ConfigProviderFactory func(providerConfig *constants.ConfigurationProviders, wmeta workloadmeta.Component, taggerComp tagger.Component, filterComp workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (ConfigProvider, error)
 
 // ConfigProvider represents a source of `integration.Config` values
 // that can either be applied immediately or resolved for a service and

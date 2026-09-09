@@ -21,9 +21,7 @@ import (
 // ObserveMetric calls while logs and log-derived virtual metrics still
 // reach the engine.
 func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	defaultFilter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
@@ -100,7 +98,7 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	requireNoCounterMetricForNameBySource(t, telemetryFilteredMetrics, "dogstatsd", telComp)
 }
 
-func TestAgentMetricsAreDropped(t *testing.T) {
+func TestInternalAgentMetricsAreIngestedAndObserverTelemetryIsDropped(t *testing.T) {
 	defaultFilter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
 
@@ -141,6 +139,11 @@ func TestAgentMetricsAreDropped(t *testing.T) {
 		value:     1,
 		timestamp: 1000,
 	})
+	h.ObserveMetric(&metricObs{
+		name:      observerTelemetryMetricPrefix + "metrics.filtered",
+		value:     1,
+		timestamp: 1000,
+	})
 
 	stopFn()
 
@@ -149,14 +152,14 @@ func TestAgentMetricsAreDropped(t *testing.T) {
 	assert.Equal(t, "system.cpu.user", dogstatsdSeries[0].Name)
 
 	agentSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.AgentNamespace})
-	assert.Empty(t, agentSeries)
+	require.Len(t, agentSeries, 1)
+	assert.Equal(t, "datadog.agent.running", agentSeries[0].Name)
 
 	workloadSeries := storage.ListSeries(observerdef.WorkloadSeriesFilter())
-	require.Len(t, workloadSeries, 1)
-	assert.Equal(t, "dogstatsd", workloadSeries[0].Namespace)
+	require.Len(t, workloadSeries, 2)
 }
 
-func TestIngestMetricSyncDropsNormalizedAgentMetrics(t *testing.T) {
+func TestIngestMetricSyncAllowsInternalAgentMetricsAndDropsObserverTelemetry(t *testing.T) {
 	defaultFilter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
 
@@ -176,13 +179,19 @@ func TestIngestMetricSyncDropsNormalizedAgentMetrics(t *testing.T) {
 		value:     1,
 		timestamp: 1000,
 	})
+	obs.IngestMetricSync("dogstatsd", &metricObs{
+		name:      observerTelemetryMetricPrefix + "metrics.filtered",
+		value:     1,
+		timestamp: 1000,
+	})
 
 	dogstatsdSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: "dogstatsd"})
 	require.Len(t, dogstatsdSeries, 1)
 	assert.Equal(t, "system.cpu.user", dogstatsdSeries[0].Name)
 
 	agentSeries := storage.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.AgentNamespace})
-	assert.Empty(t, agentSeries)
+	require.Len(t, agentSeries, 1)
+	assert.Equal(t, "datadog.agent.running", agentSeries[0].Name)
 }
 
 // TestMetricDropHandle covers the metricDropHandle wrapper in isolation.

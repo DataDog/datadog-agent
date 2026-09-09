@@ -1,0 +1,26 @@
+receivers:
+  otlp:
+
+exporters:
+  nop:
+
+extensions:
+  ddflare/z:
+  ddflare:
+  pprof/b:
+  pprof/a:
+
+service:
+  extensions:
+    - pprof/a
+    - ddflare
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [nop]
+    metrics:
+      receivers: [otlp]
+      exporters: [nop]
+    logs:
+      receivers: [otlp]
+      exporters: [nop]

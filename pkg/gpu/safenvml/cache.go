@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,6 +28,8 @@ type DeviceCache interface {
 	GetByUUID(uuid string) (Device, error)
 	// GetByIndex returns a device by its index
 	GetByIndex(index int) (Device, error)
+	// GetByPCIBusID returns a physical GPU device by its normalized PCI BDF.
+	GetByPCIBusID(pciBusID string) (Device, error)
 	// Count returns the number of physical devices in the cache
 	Count() (int, error)
 	// SMVersionSet returns a set of all SM versions in the cache
@@ -51,6 +54,7 @@ type deviceCache struct {
 	allPhysicalDevices []Device
 	allMigDevices      []Device
 	uuidToDevice       map[string]Device
+	pciBusIDToDevice   map[string]Device
 	smVersionSet       map[uint32]struct{}
 	lib                SafeNVML
 	initialized        bool
@@ -109,6 +113,7 @@ func (c *deviceCache) Refresh() error {
 	allPhysicalDevices := []Device{}
 	allMigDevices := []Device{}
 	uuidToDevice := make(map[string]Device)
+	pciBusIDToDevice := make(map[string]Device)
 	smVersionSet := make(map[uint32]struct{})
 
 	for i := range count {
@@ -127,6 +132,12 @@ func (c *deviceCache) Refresh() error {
 		}
 
 		uuidToDevice[dev.UUID] = dev
+		pciInfo, err := dev.GetPciInfo()
+		if err != nil {
+			log.Warnf("error getting PCI information for device %s: %s", dev.UUID, err)
+		} else {
+			pciBusIDToDevice[gpuutil.PCIInfoToBusID(pciInfo)] = dev
+		}
 		allDevices = append(allDevices, dev)
 		allPhysicalDevices = append(allPhysicalDevices, dev)
 		smVersionSet[dev.SMVersion] = struct{}{}
@@ -143,6 +154,7 @@ func (c *deviceCache) Refresh() error {
 	c.allPhysicalDevices = allPhysicalDevices
 	c.allMigDevices = allMigDevices
 	c.uuidToDevice = uuidToDevice
+	c.pciBusIDToDevice = pciBusIDToDevice
 	c.smVersionSet = smVersionSet
 	c.initialized = true
 	c.lib = lib
@@ -179,6 +191,20 @@ func (c *deviceCache) GetByIndex(index int) (Device, error) {
 	}
 
 	return c.allDevices[index], nil
+}
+
+func (c *deviceCache) GetByPCIBusID(pciBusID string) (Device, error) {
+	if err := c.ensureInit(); err != nil {
+		return nil, fmt.Errorf("failed to initialize device cache: %w", err)
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	device, found := c.pciBusIDToDevice[pciBusID]
+	if !found {
+		return nil, fmt.Errorf("device with PCI bus ID %s not found", pciBusID)
+	}
+	return device, nil
 }
 
 // Count returns the number of physical devices in the cache

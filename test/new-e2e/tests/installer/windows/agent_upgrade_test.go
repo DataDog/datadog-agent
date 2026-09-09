@@ -9,6 +9,7 @@ package installer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -25,7 +26,7 @@ import (
 
 	"testing"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 )
 
 type testAgentUpgradeSuite struct {
@@ -903,9 +904,36 @@ func (s *testAgentUpgradeSuite) waitForExperimentMSIRollback() {
 	// so we can wait for the stable version to be placed on disk once again via MSI rollback
 	err = s.waitForInstallerVersion(s.StableAgentVersion().Version())
 	s.Require().NoError(err)
+	// The installer binary can be present before Windows Installer has finished
+	// restoring product registration and Agent registry values.
+	err = s.waitForAgentMSIInstalledState()
+	s.Require().NoError(err)
 	// and wait again to ensure the stable service is running
 	err = s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
+}
+
+func (s *testAgentUpgradeSuite) waitForAgentMSIInstalledState() error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
+		productCode, err := windowsagent.GetDatadogAgentProductCode(s.Env().RemoteHost)
+		if err != nil {
+			return nil, fmt.Errorf("Datadog Agent product is not registered yet: %w", err)
+		}
+		if strings.TrimSpace(productCode) == "" {
+			return nil, errors.New("Datadog Agent product code is empty")
+		}
+
+		installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
+		if err != nil {
+			return nil, fmt.Errorf("Datadog Agent InstallPath is not restored yet: %w", err)
+		}
+		if strings.TrimSpace(installPath) == "" {
+			return nil, errors.New("Datadog Agent InstallPath is empty")
+		}
+
+		return nil, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithMaxTries(100))
+	return err
 }
 
 // setExperimentMSIArgs stores a list of MSI options for the installer to provide to the MSI when starting an experiment.

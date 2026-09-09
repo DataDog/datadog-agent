@@ -127,6 +127,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// URI Generic Syntax
 	// https://tools.ietf.org/html/rfc3986
 	uriPasswordReplacer := Replacer{
+		Hints: []string{"@"}, // regex cannot match without it, so skipping spares a backtracking scan
 		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:\s]+):([^\s|"]+)@`),
 		Repl:  []byte(`$1$2:********@`),
 
@@ -367,7 +368,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_|-)*%s(\w|_|-)*\s*:).+`, part)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_|-)*%s(\w|_|-)*\s*:)\s+.+`, part)),
 		YAMLKeyRegex: regexp.MustCompile(part),
 		Hints:        hints,
 		Repl:         repl,
@@ -376,7 +377,7 @@ func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:)\s+.+`, key)),
 		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s$`, key)),
 		Hints:        hints,
 		Repl:         repl,
@@ -385,7 +386,7 @@ func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_|-)*%s\s*:).+`, ending)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_|-)*%s\s*:)\s+.+`, ending)),
 		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^.*%s$`, ending)),
 		Hints:        hints,
 		Repl:         repl,
@@ -394,7 +395,7 @@ func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 
 func matchYAMLKeyPrefixSuffix(prefix, suffix string, hints []string, repl []byte) Replacer {
 	return Replacer{
-		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s(\w|_|-)*%s\s*:).+`, prefix, suffix)),
+		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s(\w|_|-)*%s\s*:)\s+.+`, prefix, suffix)),
 		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s.*%s$`, prefix, suffix)),
 		Hints:        hints,
 		Repl:         repl,

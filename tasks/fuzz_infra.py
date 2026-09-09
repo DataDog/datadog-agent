@@ -8,12 +8,25 @@ import sys
 import requests
 from invoke import task
 
+from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
+from tasks.schema.generate import schema_codegen
 
 DEFAULT_FUZZING_SLACK_CHANNEL = "agent-fuzz-findings"
+
+
+def get_fuzz_build_tags() -> list[str]:
+    """Return the Linux unit-test tags used to build native fuzz targets."""
+    return sorted(set(get_default_build_tags(build="unit-tests", platform="linux")) | {"amd64", "bpf"})
+
+
+def get_fuzz_build_command(func: str, build_file: str = "fuzz.test") -> str:
+    """Build one native fuzz target with the repository's supported test tags."""
+    tags = ",".join(get_fuzz_build_tags())
+    return f"go test . -c -fuzz={func}$ -o {build_file} -cover -tags={tags}"
 
 
 def get_slack_channel_for_directory(directory_path: str) -> str:
@@ -74,6 +87,9 @@ def build_and_upload_fuzz(
         'vault read -field=token identity/oidc/token/security-fuzzing-platform', hide=True
     ).stdout.strip()
 
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     max_pkg_name_length = 50
     for directory, func in search_fuzz_tests(os.getcwd()):
         with ctx.cd(directory):
@@ -88,7 +104,7 @@ def build_and_upload_fuzz(
             build_file = "fuzz.test"
 
             print(f'Building {pkgname}/{func} for {git_sha}...')
-            fuzz_build_cmd = f'go test . -c -fuzz={func}$ -o {build_file} -cover -tags=test,linux_bpf,nvml,amd64'
+            fuzz_build_cmd = get_fuzz_build_command(func, build_file)
             try:
                 ctx.run(fuzz_build_cmd)
             except Exception as e:

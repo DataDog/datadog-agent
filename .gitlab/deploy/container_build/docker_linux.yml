@@ -20,14 +20,18 @@
     - CACHE_TARGET=${CACHE_TARGET:-}
     # Don't use caching on nightlies, to allow for regular cache invalidation,
     # and update the cache on both main and nightly builds
+    # compression=gzip,force-compression=true keeps cache blobs gzip-encoded so a
+    # later build can never reuse a zstd-compressed cache layer under the
+    # gzip-only Docker media types forced on the final image export below
+    # (see the crane flatten "magic number mismatch" comment further down).
     - |
       if [[ "$BUCKET_BRANCH" == "nightly" ]]; then
         DOCKER_NO_CACHE="--no-cache"
         CACHE_SOURCE=""
-        CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET},mode=max"
+        CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET},mode=max,compression=gzip,force-compression=true"
       fi
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
-        CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET},mode=max"
+        CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET},mode=max,compression=gzip,force-compression=true"
       fi
     # Don't use the cache on deploy pipelines to make sure we get the latest of everything
     - |
@@ -81,8 +85,13 @@
         DOCKER_NO_CACHE=""
       fi
     # Build image, use target none label to avoid replication
+    # Force Docker media types to prevent buildx from switching to OCI manifests (#incident-59848)
+    # Force gzip + re-encode on export so a layer reused from the registry build
+    # cache (which buildkit may store as zstd) can never be re-exported with a
+    # mismatched compressed-content/media-type, which crane flatten's registry
+    # verification rejects as "invalid input: magic number mismatch".
     - |-
-      docker buildx build --push --pull --platform linux/$ARCH \
+      docker buildx build --output=type=image,push=true,oci-mediatypes=false,compression=gzip,force-compression=true --pull --platform linux/$ARCH \
         ${CACHE_SOURCE} \
         ${DOCKER_NO_CACHE} \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
@@ -546,6 +555,27 @@ docker_build_secret_generic_connector_arm64:
       artifacts: true
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_arm64"
+
+# FIPS variant: the FIPS binary is CGO/boringcrypto, so it is dynamically linked and needs glibc at
+# runtime - it cannot run on scratch. Build it against the public Ubuntu glibc base via a dedicated build
+# context (Dockerfiles/secret-generic-connector-fips).
+.docker_build_secret_generic_connector_fips:
+  extends: .docker_build_secret_generic_connector
+  variables:
+    TAG_SUFFIX: -fips
+    BUILD_CONTEXT: Dockerfiles/secret-generic-connector-fips
+
+docker_build_secret_generic_connector_fips_amd64:
+  extends: [.docker_build_secret_generic_connector_fips, .docker_build_amd64]
+  needs:
+    - job: secret_generic_connector_fips-build_amd64
+      artifacts: true
+
+docker_build_secret_generic_connector_fips_arm64:
+  extends: [.docker_build_secret_generic_connector_fips, .docker_build_arm64]
+  needs:
+    - job: secret_generic_connector_fips-build_arm64
+      artifacts: true
 
 # build the dogstatsd image
 .docker_build_dogstatsd:

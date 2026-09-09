@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    OTel Agent: The ``datadog`` extension no longer probes cloud metadata source providers when a hostname
+    is already set in the configuration, avoiding spurious GCP metadata server requests on non-GCP hosts.
+    See `open-telemetry/opentelemetry-collector-contrib#49241 <https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/49241>`_.

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 

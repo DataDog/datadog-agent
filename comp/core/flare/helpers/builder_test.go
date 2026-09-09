@@ -10,7 +10,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,7 +69,12 @@ func TestNewFlareBuilder(t *testing.T) {
 	require.FileExists(t, filepath.Join(fb.flareDir, "flare_creation.log"))
 
 	archive, err := fb.Save()
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		info, err := os.Lstat(archive)
+		return err == nil && !info.IsDir()
+	}, 3*time.Second, 10*time.Millisecond, "unable to find file %q", archive)
 	assert.FileExists(t, archive)
 	os.RemoveAll(archive)
 
@@ -85,6 +92,11 @@ func TestSave(t *testing.T) {
 	archivePath, err := fb.Save()
 	require.NoError(t, err)
 	assert.NoDirExists(t, fb.tmpDir)
+
+	require.Eventually(t, func() bool {
+		info, err := os.Lstat(archivePath)
+		return err == nil && !info.IsDir()
+	}, 3*time.Second, 10*time.Millisecond, "unable to find file %q", archivePath)
 	require.FileExists(t, archivePath)
 
 	defer os.RemoveAll(archivePath)
@@ -99,8 +111,61 @@ func TestSave(t *testing.T) {
 
 	err = archive.Unzip(archivePath, tmpDir)
 	assert.Nil(t, err)
-	assert.FileExists(t, filepath.Join(tmpDir, hostname, "test.data"))
-	assert.FileExists(t, filepath.Join(tmpDir, hostname, "test/depth1/depth2/test4"))
+
+	for _, extracted := range []string{
+		filepath.Join(tmpDir, hostname, "test.data"),
+		filepath.Join(tmpDir, hostname, "test/depth1/depth2/test4"),
+	} {
+		assert.Eventually(t, func() bool {
+			info, err := os.Lstat(extracted)
+			return err == nil && !info.IsDir()
+		}, 3*time.Second, 10*time.Millisecond, "unable to find file %q", extracted)
+	}
+}
+
+func TestGetArchiveNameIsUniqueWithinSameSecond(t *testing.T) {
+	timestamp := time.Date(2026, time.August, 14, 12, 0, 0, 0, time.UTC)
+	names := make(map[string]struct{})
+
+	for range 100 {
+		name := getArchiveNameForTime(timestamp, newArchiveNameID())
+		if _, found := names[name]; found {
+			t.Fatalf("archive name %q was generated more than once", name)
+		}
+		names[name] = struct{}{}
+	}
+}
+
+// TestGetArchiveNameIsUniqueUnderConcurrency exercises the same race that a real Agent can hit in
+// production: the /agent/flare HTTP handler and the remote-config listener can independently call
+// Save() around the same time, each generating an archive name via getArchiveName(). Releasing many
+// goroutines through a shared barrier makes them call getArchiveName() as close to simultaneously as
+// the Go scheduler allows.
+func TestGetArchiveNameIsUniqueUnderConcurrency(t *testing.T) {
+	const totalConcurrentRuns = 200
+
+	start := make(chan struct{})
+	names := make(chan string, totalConcurrentRuns)
+	var wg sync.WaitGroup
+	for i := 0; i < totalConcurrentRuns; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			names <- getArchiveName()
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(names)
+
+	seen := make(map[string]struct{}, totalConcurrentRuns)
+	for name := range names {
+		if _, dup := seen[name]; dup {
+			t.Fatalf("duplicate archive name: %s", name)
+		}
+		seen[name] = struct{}{}
+	}
 }
 
 func TestAddFileFromFunc(t *testing.T) {

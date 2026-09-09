@@ -22,6 +22,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -57,6 +58,8 @@ type rcClient struct {
 	agentVersion      string
 	IPC               ipc.Component
 }
+
+var _ rcclient.TUFProofProvider = (*rcClient)(nil)
 
 // Dependencies defines the dependencies for the rcclient component.
 type Dependencies struct {
@@ -117,7 +120,7 @@ func NewComponent(deps Dependencies) (rcclient.Component, error) {
 }
 
 func (rc *rcClient) createGRPCClient() error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -130,7 +133,7 @@ func (rc *rcClient) createGRPCClient() error {
 
 	rc.client, err = client.NewUnverifiedGRPCClient(
 		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
+		pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 		rc.IPC.GetAuthToken(),
 		rc.IPC.GetTLSClientConfig(),
 		optsWithDefault...,
@@ -142,7 +145,7 @@ func (rc *rcClient) createGRPCClient() error {
 	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
 		rc.clientMRF, err = client.NewUnverifiedMRFGRPCClient(
 			ipcAddress,
-			pkgconfigsetup.GetIPCPort(),
+			pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 			rc.IPC.GetAuthToken(),
 			rc.IPC.GetTLSClientConfig(),
 			optsWithDefault...,
@@ -363,6 +366,14 @@ func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]st
 		return
 	}
 	rc.client.Subscribe(string(product), fn)
+}
+
+// GetConfigTUFProof returns the current Director proof for a Remote Config target.
+func (rc *rcClient) GetConfigTUFProof(targetPath string) (state.ConfigTUFProof, bool) {
+	if rc.client == nil {
+		return state.ConfigTUFProof{}, false
+	}
+	return rc.client.GetConfigTUFProof(targetPath)
 }
 
 func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {

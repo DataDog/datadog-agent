@@ -46,6 +46,9 @@ func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	// ourselves the result of a prior handoff, fetch the matching
 	// installer.exe and re-exec from it.
 	if os.Getenv(envFromVersionHandoff) != "true" {
+		if err := applyAgentDistOptions(env); err != nil {
+			return err
+		}
 		tag, err := requestedAgentVersion(env)
 		if err != nil {
 			return err

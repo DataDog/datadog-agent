@@ -14,6 +14,13 @@ const (
 	// ClusterName is the resource name for Kubernetes clusters
 	ClusterName = "clusters"
 
+	// ConfigMapName is the resource name for Kubernetes ConfigMaps
+	ConfigMapName = "configmaps"
+	// ConfigMapGroup is the API group for ConfigMap resources (core API)
+	ConfigMapGroup = ""
+	// ConfigMapVersion is the API version for ConfigMap resources
+	ConfigMapVersion = "v1"
+
 	// ClusterRoleName is the resource name for Kubernetes ClusterRoles
 	ClusterRoleName = "clusterroles"
 	// ClusterRoleGroup is the API group for ClusterRole resources

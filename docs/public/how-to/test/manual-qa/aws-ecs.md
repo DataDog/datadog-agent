@@ -44,7 +44,7 @@ The agent runs as an ECS task. Use the ECS console or the AWS CLI to inspect
 task logs and container status:
 
 ```bash
-aws-vault exec sso-agent-sandbox-account-admin -- aws ecs list-tasks --cluster <cluster-name>
+aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecs list-tasks --cluster <cluster-name>
 ```
 
 ## Destroy

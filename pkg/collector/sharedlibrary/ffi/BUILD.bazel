@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "ffi.c",
         "ffi.h",
+        "ffi_noop.go",
         "library_loader.go",
         "library_loader_test_util.go",
     ],
@@ -28,11 +29,8 @@ dd_agent_go_test(
     name = "ffi_test",
     srcs = ["library_loader_test.go"],
     embed = [":ffi"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    gotags_sets = [["sharedlibrarycheck"]],
+    include_default = False,
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -1,1 +1,23 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "ai-sandbox_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/ai-sandbox",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/standalone",
+    ],
+)
+
+go_binary(
+    name = "ai-sandbox",
+    embed = [":ai-sandbox_lib"],
+    visibility = ["//visibility:public"],
+)

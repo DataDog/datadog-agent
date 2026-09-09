@@ -179,6 +179,38 @@ func patcherTestStoreWithData() *store {
 		},
 	}.Build(), "")
 
+	// In ns5, autoscaler-apply and autoscaler-preview both target "mixed-mode-target".
+	item, _ = store.Get("ns5/autoscaler-apply")
+	item.Upsert(model.FakePodAutoscalerInternal{
+		Namespace: "ns5",
+		Name:      "autoscaler-apply",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind:       "ReplicaSet",
+				APIVersion: "apps/v1",
+				Name:       "mixed-mode-target",
+			},
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
+			},
+		},
+	}.Build(), "")
+	item, _ = store.Get("ns5/autoscaler-preview")
+	item.Upsert(model.FakePodAutoscalerInternal{
+		Namespace: "ns5",
+		Name:      "autoscaler-preview",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind:       "ReplicaSet",
+				APIVersion: "apps/v1",
+				Name:       "mixed-mode-target",
+			},
+			ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+				Mode: datadoghq.DatadogPodAutoscalerApplyModePreview,
+			},
+		},
+	}.Build(), "")
+
 	// ns1/autoscaler-burstable targets "burstable-deployment" in burstable mode.
 	// applyVerticalConstraints has already stamped removeLimitSentinel (-1) on CPU limit in the
 	// stored ScalingValues (so patchContainerResources will remove the CPU limit).
@@ -1093,6 +1125,24 @@ func TestFindAutoscaler(t *testing.T) {
 			},
 			expectedAutoscalerID: "",
 			expectedError:        errors.New("Multiple autoscaler found for POD ns2/pod2, ownerRef: ReplicaSet/duplicate-target, cannot update POD"),
+		},
+		{
+			name: "Pod with owner and multiple matching autoscalers with different apply policies should return the Apply autoscaler",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "ns5",
+					Name:      "pod5",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							Kind:       "ReplicaSet",
+							Name:       "mixed-mode-target",
+							APIVersion: "apps/v1",
+						},
+					},
+				},
+			},
+			expectedAutoscalerID: "ns5/autoscaler-apply",
+			expectedError:        nil,
 		},
 		{
 			name: "Pod without owner",

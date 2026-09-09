@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The orchestrator check now collects ``DatadogInstrumentation``
+    (``datadoghq.com/v1alpha1``) custom resources as part of the out-of-the-box
+    set indexed by the Kubernetes Explorer, alongside the other
+    ``datadoghq.com`` custom resources. Collection requires
+    ``orchestrator_explorer.custom_resources.ootb.enabled`` (enabled by
+    default) and is skipped when the custom resource definition is absent from
+    the cluster.

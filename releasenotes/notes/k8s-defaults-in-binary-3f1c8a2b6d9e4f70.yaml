@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    In Kubernetes environments, the ``apm_config.apm_non_local_traffic`` and
+    ``jmx_use_container_support`` defaults are now applied directly by the Agent
+    binary instead of relying on the ``datadog-kubernetes.yaml`` file shipped in
+    the container image. This preserves these Kubernetes defaults even when
+    external tooling (such as the Datadog Operator or Helm chart) replaces
+    ``datadog.yaml``. Values explicitly set via a config file or environment
+    variable continue to take precedence.

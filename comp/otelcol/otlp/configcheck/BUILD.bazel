@@ -11,7 +11,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/config/setup",
         "@io_opentelemetry_go_collector_confmap//:confmap",
@@ -22,11 +21,8 @@ dd_agent_go_test(
     name = "configcheck_test",
     srcs = ["configcheck_test.go"],
     embed = [":configcheck"],
-    flavors = [
-        "base",
-        "fips",
-        "heroku",
-    ],
+    gotags_sets = [["otlp"]],
+    include_default = False,
     deps = [
         "//pkg/config/mock",
         "//pkg/config/setup",

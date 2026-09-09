@@ -17,6 +17,7 @@ go_library(
         "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
         "//comp/logs-library/diagnostic",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/filesystem",
         "//pkg/util/fxutil",

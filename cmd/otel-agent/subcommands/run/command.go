@@ -72,10 +72,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
-	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
-	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
+	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
@@ -135,7 +135,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 
 	uris := buildConfigURIs(params)
 
-	if err == agentConfig.ErrNoDDExporter {
+	if err == agentConfig.ErrNoDDExporter && !acfg.GetBool("otel_standalone") {
 		return fxutil.Run(
 			fx.Supply(uris),
 			fx.Provide(func() coreconfig.Component {
@@ -268,7 +268,7 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
-		gzipfx.Module(),
+		zstdfx.Module(),
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
@@ -313,7 +313,9 @@ func standaloneAgentFxOptions(params *cliParams) fx.Option {
 		// Resolve hostname locally; no core agent to ask
 		hostnameimpl.Module(),
 		// No on-init config sync (no core agent to sync from); periodic sync is also
-		// effectively disabled by the default agent_ipc.config_refresh_interval=0
+		// force-disabled in agent_config.go (agent_ipc.config_refresh_interval=0 via
+		// SourceAgentRuntime) so it can't be re-enabled by an env var meant for a
+		// colocated core agent.
 		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, false, params.SyncOnInitTimeout)),
 		// Local workloadmeta-backed tagger so the infraattributes processor can enrich
 		// spans with K8s tags (pod, namespace, deployment, ...) without a core agent
@@ -354,8 +356,10 @@ func buildConfigURIs(params *cliParams) []string {
 	// Apply overrides
 	uris := append([]string{}, params.ConfPaths...)
 
-	// Add fleet policy config if DD_FLEET_POLICIES_DIR is set
-	if fleetPoliciesDir := os.Getenv("DD_FLEET_POLICIES_DIR"); fleetPoliciesDir != "" {
+	// Add fleet policy config when a fleet policies directory is configured.
+	// On Windows, managed procmgr children omit DD_FLEET_POLICIES_DIR from processes.d and
+	// resolve the directory via registry with a stable managed-path fallback (see paths.FleetPoliciesDirForManagedProcess).
+	if fleetPoliciesDir := resolveFleetPoliciesDir(); fleetPoliciesDir != "" {
 		resolvedFleetPoliciesDir, err := filepath.EvalSymlinks(fleetPoliciesDir)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -392,4 +396,13 @@ func buildConfigURIs(params *cliParams) []string {
 	uris = append(uris, params.Sets...)
 
 	return uris
+}
+
+// resolveFleetPoliciesDir returns DD_FLEET_POLICIES_DIR when set, otherwise a
+// platform-specific fleet policies directory (registry or stable managed dir on Windows).
+func resolveFleetPoliciesDir() string {
+	if v := os.Getenv("DD_FLEET_POLICIES_DIR"); v != "" {
+		return v
+	}
+	return fleetPoliciesDirFromPlatform()
 }

@@ -9,9 +9,14 @@ package kubelet
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
+	"os"
+	"strconv"
 	"time"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,6 +25,46 @@ import (
 type connectionInfo struct {
 	ips       []string
 	hostnames []string
+}
+
+func getKubeletConnectionInfo() (hosts *connectionInfo, httpsPort int, httpPort int, pathPrefix string, err error) {
+	httpsPort = pkgconfigsetup.Datadog().GetInt("kubernetes_https_kubelet_port")
+	httpPort = pkgconfigsetup.Datadog().GetInt("kubernetes_http_kubelet_port")
+
+	// Kubelet is unavailable, proxying calls through the APIServer (for instance EKS Fargate)
+	if pkgconfigsetup.Datadog().GetBool("eks_fargate") {
+		// Explicitly disable HTTP to reach APIServer
+		httpPort = 0
+
+		var httpsPort64 uint64
+		httpsPort64, err = strconv.ParseUint(os.Getenv("KUBERNETES_SERVICE_PORT"), 10, 16)
+		if err != nil {
+			return nil, 0, 0, "", fmt.Errorf("unable to get APIServer port: %w", err)
+		}
+
+		httpsPort = int(httpsPort64)
+
+		kubeletNodeName := pkgconfigsetup.Datadog().Get("kubernetes_kubelet_nodename")
+		if kubeletNodeName == "" {
+			return nil, 0, 0, "", errors.New("kubelet proxy mode enabled but nodename is empty - unable to query")
+		}
+
+		pathPrefix = fmt.Sprintf("/api/v1/nodes/%s/proxy", kubeletNodeName)
+		apiServerIP := os.Getenv("KUBERNETES_SERVICE_HOST")
+
+		hosts = &connectionInfo{
+			ips: []string{apiServerIP},
+		}
+		log.Infof("EKS on Fargate mode detected, will proxy calls to the Kubelet through the APIServer at %s:%d%s", apiServerIP, httpsPort, pathPrefix)
+
+		return hosts, httpsPort, httpPort, pathPrefix, nil
+	}
+
+	// Building a list of potential ips/hostnames to reach Kubelet
+	kubeletHost := pkgconfigsetup.Datadog().GetString("kubernetes_kubelet_host")
+	hosts = getPotentialKubeletHosts(kubeletHost)
+
+	return hosts, httpsPort, httpPort, pathPrefix, nil
 }
 
 func getPotentialKubeletHosts(kubeletHost string) *connectionInfo {

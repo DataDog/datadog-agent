@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
@@ -84,6 +84,7 @@ func startDatadogInstrumentationController(ctx *ControllerContext, _ chan error)
 			ctx.DynamicInformerFactory,
 			ctx.InstrumentationHandlers,
 			ctx.IsLeaderFunc,
+			ctx.Telemetry,
 		)
 		if err != nil {
 			log.Errorf("Failed to create DatadogInstrumentation controller: %v", err)

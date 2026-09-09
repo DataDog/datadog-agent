@@ -35,7 +35,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -334,18 +334,15 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 				defaultpaths.GetEmbeddedBinPath(),
 				"secret-generic-connector.exe",
 			)
+		} else if flavor.GetFlavor() == flavor.ClusterAgent {
+			// The cluster-agent image isn't built via omnibus and has no "embedded/"
+			// tree; the connector ships next to the binary under GetInstallPath()/bin.
+			r.backendCommand = filepath.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector")
 		} else {
-			if flavor.GetFlavor() != flavor.ClusterAgent {
-				r.backendCommand = filepath.Join(
-					defaultpaths.GetEmbeddedBinPath(),
-					"secret-generic-connector",
-				)
-			} else {
-				r.backendCommand = filepath.Join(
-					defaultpaths.GetInstallPath(),
-					"secret-generic-connector",
-				)
-			}
+			r.backendCommand = filepath.Join(
+				defaultpaths.GetEmbeddedBinPath(),
+				"secret-generic-connector",
+			)
 		}
 		r.embeddedBackendPermissiveRights = true
 	}
@@ -531,6 +528,29 @@ func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imag
 	return true
 }
 
+func (r *secretResolver) registerError(origin string, err error) {
+	// Unwrap per-handle errors from errors.Join so each appears as its own
+	// bullet in the 'agent secret' status output.
+	type multiErr interface{ Unwrap() []error }
+
+	msg := []string{}
+	if joined, ok := err.(multiErr); ok {
+		for _, e := range joined.Unwrap() {
+			msg = append(msg, fmt.Sprintf("'%s' %s", origin, e))
+		}
+	} else {
+		msg = append(msg, fmt.Sprintf("from '%s': %s", origin, err))
+	}
+
+	for _, m := range msg {
+		if _, ok := r.unresolvedSecrets[m]; !ok {
+			r.unresolvedSecrets[m] = struct{}{}
+			log.Error(m)
+		}
+		log.Flush()
+	}
+}
+
 // Resolve replaces all encoded secrets in data by executing "secret_backend_command" once if all secrets aren't
 // present in the cache.
 func (r *secretResolver) Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool) ([]byte, error) {
@@ -603,16 +623,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 			secretResponse, fetchErr = r.fetchSecret(newHandles)
 		}
 		if fetchErr != nil {
-			// Unwrap per-handle errors from errors.Join so each appears as its own
-			// bullet in the 'agent secret' status output.
-			type multiErr interface{ Unwrap() []error }
-			if joined, ok := fetchErr.(multiErr); ok {
-				for _, e := range joined.Unwrap() {
-					r.unresolvedSecrets[fmt.Sprintf("'%s' %s", origin, e)] = struct{}{}
-				}
-			} else {
-				r.unresolvedSecrets[fmt.Sprintf("from %s: %s", origin, fetchErr)] = struct{}{}
-			}
+			r.registerError(origin, fetchErr)
 			resolveErr = errors.New("could not resolve secret handle(s), see 'agent secret' for details")
 		}
 

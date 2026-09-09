@@ -10,9 +10,9 @@ package providers
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants" //nolint:depguard
 )
 
 // NewPrometheusHTTPSDConfigProvider returns a new ConfigProvider that polls
 // a Prometheus HTTP Service Discovery endpoint.
-var NewPrometheusHTTPSDConfigProvider func(providerConfig *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error)
+var NewPrometheusHTTPSDConfigProvider func(providerConfig *constants.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import json
-import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,7 +9,7 @@ from pathlib import Path
 import yaml
 
 from tasks.libs.common.git import get_changed_files, get_origin_default_branch
-from tasks.libs.common.utils import is_installed
+from tasks.libs.common.utils import is_installed, join_command
 
 CODE_REVIEW_ACTION_REPOSITORY = "DataDog/code-review-action"
 CODE_REVIEW_ACTION_WORKFLOW = f"{CODE_REVIEW_ACTION_REPOSITORY}/.github/workflows/code-review.yml"
@@ -63,14 +62,14 @@ def build_review_prompt(
 
     changed_files = tuple(get_changed_files(ctx, resolved_base))
     prompt_file_pattern = _get_prompt_file_pattern(repo_root)
-    _warn_deleted_prompt_files(ctx, resolved_base, prompt_file_pattern)
+    _warn_deleted_prompt_files(ctx, repo_root, resolved_base, prompt_file_pattern)
     guidelines = load_guidelines(ctx, repo_root, changed_files, prompt_file_pattern=prompt_file_pattern)
     content = render_prompt(guidelines, extra_prompt=extra_prompt)
     return ReviewPrompt(base=resolved_base, changed_files=changed_files, guidelines=guidelines, content=content)
 
 
-def _warn_deleted_prompt_files(ctx, base: str, prompt_file_pattern: str) -> None:
-    deleted_prompt_files = _get_deleted_prompt_files(ctx, base, prompt_file_pattern)
+def _warn_deleted_prompt_files(ctx, repo_root: Path, base: str, prompt_file_pattern: str) -> None:
+    deleted_prompt_files = _get_deleted_prompt_files(ctx, repo_root, base, prompt_file_pattern)
     if not deleted_prompt_files:
         return
 
@@ -82,13 +81,22 @@ def _warn_deleted_prompt_files(ctx, base: str, prompt_file_pattern: str) -> None
     )
 
 
-def _get_deleted_prompt_files(ctx, base: str, prompt_file_pattern: str) -> tuple[str, ...]:
-    base_to_head = shlex.quote(f"{base}...HEAD")
-    prompt_file_pathspec = f":(glob){prompt_file_pattern}"
-    result = ctx.run(
-        f"git diff --name-only --diff-filter=D {base_to_head} -- {shlex.quote(prompt_file_pathspec)}",
-        hide=True,
+def _get_deleted_prompt_files(ctx, repo_root: Path, base: str, prompt_file_pattern: str) -> tuple[str, ...]:
+    # `-C` keeps the pathspec anchored to the repository root when the task is run from a subdirectory.
+    command = join_command(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--name-only",
+            "--diff-filter=D",
+            f"{base}...HEAD",
+            "--",
+            f":(glob){prompt_file_pattern}",
+        ]
     )
+    result = ctx.run(command, hide=True, encoding="utf-8")
     return tuple(line for line in result.stdout.splitlines() if line)
 
 
@@ -148,17 +156,28 @@ def load_guidelines(
 
 
 def _run_find_guidelines(ctx, repo_root: Path, changed_files: tuple[str, ...], prompt_file_pattern: str) -> dict:
-    command = (
-        f"npm exec --yes --package {shlex.quote(_get_code_review_action_package(repo_root))} "
-        "-- find-guidelines "
-        f"--repo-root {shlex.quote(str(repo_root))} "
-        f"--pattern {shlex.quote(prompt_file_pattern)} "
-        "--changed-files -"
+    command = join_command(
+        [
+            "npm",
+            "exec",
+            "--yes",
+            "--package",
+            _get_code_review_action_package(repo_root),
+            "--",
+            "find-guidelines",
+            "--repo-root",
+            str(repo_root),
+            "--pattern",
+            prompt_file_pattern,
+            "--changed-files",
+            "-",
+        ]
     )
     result = ctx.run(
         command,
         hide=True,
         warn=True,
+        encoding="utf-8",
         in_stream=io.StringIO("\n".join(changed_files)),
     )
 

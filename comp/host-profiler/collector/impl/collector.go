@@ -128,6 +128,8 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories, p Params) (
 			},
 		},
 		LoggingOptions: extraFactories.GetLoggingOptions(),
+		// skip if not running standalone mode to avoid racing with other gRPC clients in-process
+		SkipSettingGRPCLogger: extraFactories.GetAgentConfig() != nil,
 	}, nil
 }
 

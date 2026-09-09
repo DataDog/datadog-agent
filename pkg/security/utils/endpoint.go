@@ -8,6 +8,7 @@ package utils
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -16,7 +17,18 @@ import (
 
 // GetEndpointURL returns the formatted URL of the provided endpoint
 func GetEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
+	host := endpoint.Host
 	port := endpoint.Port
+
+	if h, p, err := net.SplitHostPort(host); err == nil {
+		host = h
+		if port == 0 {
+			if parsed, perr := strconv.Atoi(p); perr == nil {
+				port = parsed
+			}
+		}
+	}
+
 	var protocol string
 	if endpoint.UseSSL() {
 		protocol = "https"
@@ -29,5 +41,5 @@ func GetEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
 			port = 80 // use default port
 		}
 	}
-	return fmt.Sprintf("%s://%s%s/%s", protocol, hostport.Join(endpoint.Host, strconv.Itoa(port)), endpoint.PathPrefix, uri)
+	return fmt.Sprintf("%s://%s%s/%s", protocol, hostport.Join(host, strconv.Itoa(port)), endpoint.PathPrefix, uri)
 }

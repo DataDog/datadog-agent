@@ -125,14 +125,16 @@ func TestWebhookLabelSelectors(t *testing.T) {
 		expectedSelector          *metav1.LabelSelector
 		expectedNamespaceSelector *metav1.LabelSelector
 	}{
-		"default config with namespace selector enabled only uses namespace selector": {
+		"default on-demand config with namespace selector enabled only uses namespace selector": {
 			useNamespaceSelector: true,
 			expectedSelector:     nil,
 			expectedNamespaceSelector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					admissioncommon.EnabledLabelKey: "true",
-				},
 				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      admissioncommon.EnabledLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"false"},
+					},
 					{
 						Key:      admissioncommon.NamespaceLabelKey,
 						Operator: metav1.LabelSelectorOpNotIn,
@@ -141,11 +143,15 @@ func TestWebhookLabelSelectors(t *testing.T) {
 				},
 			},
 		},
-		"default config with namespace selector disabled uses both selectors": {
+		"default on-demand config with namespace selector disabled uses both selectors": {
 			useNamespaceSelector: false,
 			expectedSelector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					admissioncommon.EnabledLabelKey: "true",
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      admissioncommon.EnabledLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"false"},
+					},
 				},
 			},
 			expectedNamespaceSelector: &metav1.LabelSelector{

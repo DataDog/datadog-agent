@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -1124,6 +1125,16 @@ func TestDefaultForwarder_SwallowsErrors(t *testing.T) {
 // path (NewFactoryForOSSExporter, f.s == nil) also uses OTelSyncForwarder when
 // the UseSyncForwarder gate is on, and propagates intake errors back to the caller.
 func TestOSSSyncForwarder_PropagatesErrors(t *testing.T) {
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
+
 	restore := setSyncForwarderGate(t, true)
 	defer restore()
 

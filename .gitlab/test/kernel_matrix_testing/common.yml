@@ -82,22 +82,28 @@
 .collect_outcomes_kmt:
   - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   - export MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
-  # Collect setup-ddvm systemd service logs
-  - mkdir -p $CI_PROJECT_DIR/logs
-  - ssh metal_instance "ssh ${MICRO_VM_IP} \"journalctl -u setup-ddvm.service\"" > $CI_PROJECT_DIR/logs/setup-ddvm.log || true
-  - cat $CI_PROJECT_DIR/logs/setup-ddvm.log || true
-  - ssh metal_instance "ssh ${MICRO_VM_IP} \"systemctl is-active setup-ddvm.service\"" | tee $CI_PROJECT_DIR/logs/setup-ddvm.status || true
-  # Retrieve the junit generated
-  - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" || true
-  - scp "metal_instance:/home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
-  - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz" || true
-  - scp "metal_instance:/home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
-  - ssh metal_instance "scp -r ${MICRO_VM_IP}:/tmp/test_pcaps /home/ubuntu/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" || true
-  - mkdir -p "$CI_PROJECT_DIR/pcaps" && scp -r "metal_instance:/home/ubuntu/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" "$CI_PROJECT_DIR/pcaps/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" || true
+  # If the script section could not find the metal instance (e.g. this job is a retry of a job whose
+  # instance was already cleaned up), it leaves instance_not_found behind and never sets up ssh access.
+  # There is nothing to collect over ssh/scp in that case, so skip straight to tagging.
+  - |
+    if [ ! -f ${CI_PROJECT_DIR}/instance_not_found ]; then
+      # Collect setup-ddvm systemd service logs
+      mkdir -p $CI_PROJECT_DIR/logs
+      ssh metal_instance "ssh ${MICRO_VM_IP} \"journalctl -u setup-ddvm.service\"" > $CI_PROJECT_DIR/logs/setup-ddvm.log || true
+      cat $CI_PROJECT_DIR/logs/setup-ddvm.log || true
+      ssh metal_instance "ssh ${MICRO_VM_IP} \"systemctl is-active setup-ddvm.service\"" | tee $CI_PROJECT_DIR/logs/setup-ddvm.status || true
+      # Retrieve the junit generated
+      ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" || true
+      scp "metal_instance:/home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
+      ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz" || true
+      scp "metal_instance:/home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
+      ssh metal_instance "scp -r ${MICRO_VM_IP}:/tmp/test_pcaps /home/ubuntu/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" || true
+      mkdir -p "$CI_PROJECT_DIR/pcaps" && scp -r "metal_instance:/home/ubuntu/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" "$CI_PROJECT_DIR/pcaps/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" || true
+    fi
   # Retrieve complexity data
   - !reference [.define_if_collect_complexity]
   - |
-    if [ "${COLLECT_COMPLEXITY}" = "yes" ]; then
+    if [ "${COLLECT_COMPLEXITY}" = "yes" ] && [ ! -f ${CI_PROJECT_DIR}/instance_not_found ]; then
       ssh metal_instance "scp ${MICRO_VM_IP}:/verifier-complexity.tar.gz /home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_COMPONENT}.tar.gz" || true
       scp "metal_instance:/home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_COMPONENT}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
     fi
@@ -166,8 +172,8 @@
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
     RESOURCE_TAGS: "instance-type:${INSTANCE_TYPE},arch:${ARCH},test-component:${TEST_COMPONENT},git-branch:${CI_COMMIT_REF_NAME}"
-    KUBERNETES_MEMORY_REQUEST: "12Gi"
-    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "20Gi"
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
@@ -287,8 +293,10 @@
     - RUNNING_INSTANCES=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_TEST_COMPONENT "Name=private-ip-address,Values=$INSTANCE_IP" --output text --query $QUERY_INSTANCE_IDS | wc -l )
     - |
       if [ $RUNNING_INSTANCES -eq "0" ]; then
-        echo "These jobs do not permit retries. The go tests are retried a user-specified number of times automatically. In order to re-run the tests, you must trigger the pipeline again"
-        'false'
+        echo "WARNING: the metal instance for this job could not be found. This test job does not support being retried: it was likely retried automatically by GitLab or manually by a user after the original instance was already cleaned up."
+        echo "The go tests themselves are retried a user-specified number of times automatically. To re-run the tests from scratch, trigger the pipeline again instead of retrying this job."
+        touch ${CI_PROJECT_DIR}/instance_not_found
+        exit 1
       fi
     - MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
     - MICRO_VM_NAME=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].id' $CI_PROJECT_DIR/stack.output)
@@ -330,6 +338,8 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   timeout: 15m
+  variables:
+    GIT_DEPTH: 0  # Full history: ebpf.generate-complexity-summary-for-pr uses merge-base
   needs:
     # We need to specify the jobs that generate complexity explicitly, else we hit the limit of "needs"
     # Important: the list of platforms should match the one in .define_if_collect_complexity

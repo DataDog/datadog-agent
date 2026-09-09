@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -55,6 +56,7 @@ type verticalController struct {
 	patchClient                *workloadpatcher.Patcher
 	podWatcher                 PodWatcher
 	progressTracker            *rolloutProgressTracker
+	inPlaceResizeMu            sync.Mutex
 	inPlaceResizeSupported     *bool
 	inPlaceResizeSupportedTime time.Time
 }

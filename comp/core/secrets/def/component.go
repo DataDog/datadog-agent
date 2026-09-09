@@ -6,7 +6,7 @@
 // Package secrets decodes secret values by invoking the configured executable command
 package secrets
 
-// team: agent-configuration
+// team: fleet-automation
 
 // SecretBackendConfig holds the configuration for a single named backend in multi_secret_backends.
 type SecretBackendConfig struct {

@@ -26,6 +26,7 @@ go_test(
     srcs = ["command_test.go"],
     embed = [":coverage"],
     gotags = ["test"],
+    tags = ["manual"],
     deps = [
         "//cmd/agent/command",
         "//pkg/util/fxutil",

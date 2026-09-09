@@ -9,16 +9,34 @@ import random
 import re
 import shlex
 import shutil
+import sys
+import tempfile
 import time
+from contextlib import chdir
 from dataclasses import dataclass
+from pathlib import Path
 
 from invoke import Exit, task
 
+from tasks.libs.anomalydetection.ddeval import (
+    ARTIFACT_BUCKET,
+    ARTIFACT_REGION,
+    RedactingWriter,
+    artifact_metadata_matches,
+    build_experiment_config,
+    local_testbench_key,
+    redacted_presigned_url,
+    sha256_file,
+    validate_linux_amd64_executable,
+    validate_presigned_artifact_url,
+    workflow_run_args,
+)
 from tasks.libs.anomalydetection.eval import (
-    CORRELATORS,
+    ABLATION_CORRELATORS,
     DETECTORS,
     EXTRACTORS,
     SCENARIOS,
+    SUPPORTED_CORRELATORS,
     StepLogger,
     _anchor_combos,
     _build_optuna_config,
@@ -35,7 +53,12 @@ from tasks.libs.anomalydetection.eval import (
     print_eval_tp_summary,
     random_component_combinations,
 )
+from tasks.libs.anomalydetection.eval import (
+    AWS_PROFILE as AWS_VAULT_PROFILE,
+)
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.utils import join_command
+from tasks.schema.generate import schema_codegen
 
 
 @dataclass(frozen=True)
@@ -64,6 +87,9 @@ def build_scorer(ctx):
     """
     Builds the anomalydetection-scorer binary to bin/anomalydetection-scorer.
     """
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     ctx.run("go build -C internal/qbranch/anomalydetection-scorer -o ../../../bin/anomalydetection-scorer .")
 
 
@@ -72,8 +98,15 @@ def build_testbench(ctx):
     """
     Builds the anomalydetection-testbench binary to bin/anomalydetection-testbench.
     """
+    _build_testbench(ctx)
+
+
+def _build_testbench(ctx, *, env: dict[str, str] | None = None):
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
     ctx.run(
-        "go build -C internal/qbranch/anomalydetection-testbench -tags python -o ../../../bin/anomalydetection-testbench ."
+        "go build -C internal/qbranch/anomalydetection-testbench -tags python,anomalydetectiontestbench -o ../../../bin/anomalydetection-testbench .",
+        env=env or {},
     )
 
 
@@ -87,15 +120,18 @@ def launch_testbench(
     build: bool = False,
     headless_scenario: str = "",
     headless_output: str = "",
-    profile: bool = False,
+    mem_profile: bool = False,
+    cpu_profile: bool = False,
     open_pprof: bool = False,
     verbose: bool = False,
-    profile_path: str = "",
+    mem_profile_path: str = "",
+    cpu_profile_path: str = "",
     config: str = "",
     enable: str = "",
     disable: str = "",
     timeout: int = 0,
     logs_only: bool = False,
+    retain_parquet: bool = False,
 ):
     """
     Launches the anomalydetection-testbench backend (and UI in interactive mode).
@@ -103,25 +139,35 @@ def launch_testbench(
     Args:
         scenarios_dir: Directory containing the scenarios to load.
         build: Whether to build the binary before launching.
-        profile: Whether to capture a heap profile (headless mode only).
-        open_pprof: Open pprof UI after headless run (requires --profile).
+        mem_profile: Whether to capture a heap profile (headless mode only).
+        cpu_profile: Whether to capture a CPU profile (headless mode only).
+        open_pprof: Open pprof UI after headless run (requires exactly one profile type).
         verbose: Pass --verbose to the testbench.
-        profile_path: Override the default heap-profile output path.
+        mem_profile_path: Override the default heap-profile output path.
+        cpu_profile_path: Override the default CPU-profile output path.
         config: JSON params file; overrides --enable/--disable when set.
         enable: Comma-separated components to enable (passed as --enable).
         disable: Comma-separated components to disable (passed as --disable).
         timeout: Kill the headless process after this many seconds (0 = no limit).
         logs_only: Pass --logs-only (skip parquet metrics and trace stats).
+        retain_parquet: Pass --retain-parquet for unordered recordings (headless mode only).
     """
     if build:
         print("Building anomalydetection-testbench...")
         build_testbench(ctx)
+
+    if open_pprof and not (mem_profile or cpu_profile):
+        raise Exit("--open-pprof requires --mem-profile or --cpu-profile")
+    if open_pprof and mem_profile and cpu_profile:
+        raise Exit("--open-pprof supports one profile type at a time; choose --mem-profile or --cpu-profile")
 
     flags = ""
     if verbose:
         flags += " --verbose"
     if logs_only:
         flags += " --logs-only"
+    if retain_parquet:
+        flags += " --retain-parquet"
     if config:
         flags += f" --config {shlex.quote(config)}"
     else:
@@ -133,10 +179,14 @@ def launch_testbench(
     if headless_scenario:
         if not headless_output:
             headless_output = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.json"
-        if profile:
-            if not profile_path:
-                profile_path = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.prof"
-            flags += f" --memprofile {profile_path}"
+        if mem_profile:
+            if not mem_profile_path:
+                mem_profile_path = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.mem.prof"
+            flags += f" --memprofile {shlex.quote(mem_profile_path)}"
+        if cpu_profile:
+            if not cpu_profile_path:
+                cpu_profile_path = f"/tmp/anomalydetection-testbench-headless-{headless_scenario}.cpu.prof"
+            flags += f" --cpuprofile {shlex.quote(cpu_profile_path)}"
         print(
             f"Launching anomalydetection-testbench in headless mode for scenario {headless_scenario}, output to {headless_output}"
         )
@@ -150,12 +200,13 @@ def launch_testbench(
                 print(color_message(f"testbench timed out after {timeout}s", Color.ORANGE))
             else:
                 raise
-        if profile:
+        selected_profile_path = mem_profile_path if mem_profile else cpu_profile_path
+        if selected_profile_path:
             if open_pprof:
                 print("Running pprof...")
-                ctx.run(f"go tool pprof -http=:8081 {profile_path}")
+                ctx.run(f"go tool pprof -http=:8081 {shlex.quote(selected_profile_path)}")
             else:
-                print(f"To profile, run: go tool pprof -http=:8081 {profile_path}")
+                print(f"To profile, run: go tool pprof -http=:8081 {selected_profile_path}")
     else:
         if not config and not enable and not disable:
             flags += " --only scanmw,scanwelch,bocpd"
@@ -169,6 +220,274 @@ def launch_testbench(
 
 
 # --- Eval ---
+
+
+@task(auto_shortflags=False)
+def eval_ddeval(
+    ctx,
+    dataset: str = "Golden 25",
+    dataset_version: int = 0,
+    project: str = "observer-log-ad",
+    service: str = "eval_worker_agent_aad",
+    jobs: int = 6,
+    max_attempts: int = 1,
+    limit: int = 0,
+    where_in: str = "",
+    data_env: str = "staging",
+    experiment_config: str = "",
+    testbench_config: str = "",
+    ddsource_dir: str = "",
+    ddeval_executable: str = "",
+    aws_profile: str = "",
+    expires_in: int = 21600,
+    build: bool = True,
+    testbench_binary: str = "bin/anomalydetection-testbench",
+):
+    """
+    Build a local testbench and evaluate it remotely with the DDBuild DDEval worker.
+
+    The binary is stored privately in qbranch-gensim-recordings under its SHA-256;
+    an existing matching object is reused. It is shared with the worker through a
+    six-hour presigned URL, which is redacted from local output but remains in
+    Atlas/LLMObs workflow metadata until it expires.
+
+    Examples:
+        dda inv anomalydetection.eval-ddeval
+        dda inv anomalydetection.eval-ddeval --where-in=metadata.record_id=scenario-a,scenario-b
+        dda inv anomalydetection.eval-ddeval --testbench-config=/tmp/observer-config.json
+        dda inv anomalydetection.eval-ddeval --ddeval-executable="C:\\Program Files\\DDEval\\ddeval.exe"
+
+    Args:
+        dataset: LLMObs dataset to evaluate.
+        dataset_version: Optional dataset version to pin (0 uses the latest).
+        project: LLMObs/DDEval project name.
+        service: Remote DDEval worker service.
+        jobs: Maximum number of scenarios evaluated concurrently (1-100).
+        max_attempts: Maximum attempts per DDEval pipeline activity.
+        limit: Optional maximum number of dataset records after filtering.
+        where_in: Optional DDEval inclusion filter, such as metadata.record_id=a,b.
+        data_env: Datadog site from which the worker reads evaluation data.
+        experiment_config: Optional base DDEval experiment-config JSON file.
+        testbench_config: Optional Observer component-config JSON file.
+        ddsource_dir: dd-source checkout used to run DDEval with Bazel.
+        ddeval_executable: Path or name of an installed DDEval executable; bypasses dd-source/Bazel discovery.
+        aws_profile: Optional AWS CLI profile with write access to qbranch-gensim-recordings.
+            When omitted, uses the standard 8-hour agent-sandbox aws-vault profile.
+        expires_in: Presigned URL lifetime in seconds (60-604800).
+        build: Build the testbench before uploading it.
+        testbench_binary: Testbench binary to upload. Custom paths require --no-build.
+    """
+    if not 1 <= jobs <= 100:
+        raise Exit("--jobs must be between 1 and 100", code=2)
+    if dataset_version < 0:
+        raise Exit("--dataset-version must be non-negative", code=2)
+    if max_attempts < 1:
+        raise Exit("--max-attempts must be at least 1", code=2)
+    if limit < 0:
+        raise Exit("--limit must be non-negative", code=2)
+    if not 60 <= expires_in <= 604800:
+        raise Exit("--expires-in must be between 60 and 604800 seconds", code=2)
+    if data_env not in {"staging", "prod", "eu1", "us3"}:
+        raise Exit("--data-env must be one of staging, prod, eu1, or us3", code=2)
+
+    binary_path = Path(testbench_binary).expanduser().resolve()
+    default_binary_path = Path("bin/anomalydetection-testbench").resolve()
+    if build and binary_path != default_binary_path:
+        raise Exit("custom --testbench-binary requires --no-build", code=2)
+
+    if build:
+        print("Building anomalydetection-testbench for Linux/amd64...")
+        _build_testbench(ctx, env={"GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "0"})
+
+    if not binary_path.is_file():
+        raise Exit(f"testbench binary not found: {binary_path}", code=2)
+    try:
+        validate_linux_amd64_executable(binary_path)
+    except ValueError as error:
+        raise Exit(str(error), code=2) from error
+
+    try:
+        base_config = _load_json_object(experiment_config, "experiment config") if experiment_config else {}
+        component_config = _load_json_object(testbench_config, "testbench config") if testbench_config else None
+        command_prefix, command_dir = _local_ddeval_command(ddeval_executable, ddsource_dir)
+    except ValueError as error:
+        raise Exit(str(error), code=2) from error
+
+    aws_command = _local_aws_command(aws_profile)
+    digest = sha256_file(binary_path)
+    commit = ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
+    object_key = local_testbench_key(digest)
+    s3_uri = f"s3://{ARTIFACT_BUCKET}/{object_key}"
+
+    head_result = ctx.run(
+        join_command(
+            [
+                *aws_command,
+                "--region",
+                ARTIFACT_REGION,
+                "s3api",
+                "head-object",
+                "--bucket",
+                ARTIFACT_BUCKET,
+                "--key",
+                object_key,
+            ]
+        ),
+        hide=True,
+        warn=True,
+    )
+    remote_matches = False
+    if head_result.ok:
+        try:
+            remote_matches = artifact_metadata_matches(
+                json.loads(head_result.stdout), digest, binary_path.stat().st_size
+            )
+        except json.JSONDecodeError:
+            pass
+
+    if remote_matches:
+        print(f"Reusing {s3_uri}")
+    else:
+        print(f"Uploading {binary_path.name} to {s3_uri}")
+        upload_command = join_command(
+            [
+                *aws_command,
+                "--region",
+                ARTIFACT_REGION,
+                "s3",
+                "cp",
+                str(binary_path),
+                s3_uri,
+                "--sse",
+                "AES256",
+                "--metadata",
+                f"sha256={digest},agent-commit={commit}",
+                "--only-show-errors",
+            ]
+        )
+        ctx.run(upload_command)
+
+    config_path = ""
+    presigned_url = ""
+    stdout_writer = None
+    stderr_writer = None
+    try:
+        presign_result = ctx.run(
+            join_command(
+                [
+                    *aws_command,
+                    "--region",
+                    ARTIFACT_REGION,
+                    "s3",
+                    "presign",
+                    s3_uri,
+                    "--expires-in",
+                    str(expires_in),
+                ]
+            ),
+            hide=True,
+            warn=True,
+        )
+        if presign_result.failed:
+            raise Exit("failed to create a presigned testbench URL", code=1)
+        presigned_url = presign_result.stdout.strip()
+        try:
+            validate_presigned_artifact_url(presigned_url)
+            config = build_experiment_config(
+                base_config,
+                testbench_url=presigned_url,
+                testbench_sha256=digest,
+                testbench_config=component_config,
+            )
+        except ValueError as error:
+            raise Exit(str(error), code=1) from error
+
+        config_fd, config_path = tempfile.mkstemp(prefix="observer-ddeval-", suffix=".json")
+        with os.fdopen(config_fd, "w") as config_file:
+            json.dump(config, config_file)
+
+        command = workflow_run_args(
+            command_prefix,
+            service=service,
+            project=project,
+            dataset=dataset,
+            dataset_version=dataset_version,
+            config_path=config_path,
+            jobs=jobs,
+            max_attempts=max_attempts,
+            data_env=data_env,
+            limit=limit,
+            where_in=where_in,
+        )
+        safe_url = redacted_presigned_url(presigned_url)
+        stdout_writer = RedactingWriter(sys.stdout, presigned_url, safe_url)
+        stderr_writer = RedactingWriter(sys.stderr, presigned_url, safe_url)
+
+        print(f"Starting DDEval with testbench SHA-256 {digest}")
+        if command_dir:
+            with chdir(command_dir):
+                result = ctx.run(
+                    join_command(command),
+                    warn=True,
+                    out_stream=stdout_writer,
+                    err_stream=stderr_writer,
+                )
+        else:
+            result = ctx.run(
+                join_command(command),
+                warn=True,
+                out_stream=stdout_writer,
+                err_stream=stderr_writer,
+            )
+        if result.failed:
+            raise Exit("DDEval workflow failed", code=result.exited or 1)
+    finally:
+        if stdout_writer:
+            stdout_writer.finish()
+        if stderr_writer:
+            stderr_writer.finish()
+        if config_path:
+            Path(config_path).unlink(missing_ok=True)
+
+
+def _load_json_object(path: str, description: str) -> dict:
+    resolved_path = Path(path).expanduser().resolve()
+    if not resolved_path.is_file():
+        raise ValueError(f"{description} not found: {resolved_path}")
+    try:
+        with resolved_path.open() as source:
+            value = json.load(source)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{description} is not valid JSON: {error}") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{description} must be a JSON object")
+    return value
+
+
+def _local_ddeval_command(ddeval_executable: str, ddsource_dir: str) -> tuple[list[str], Path | None]:
+    executable = (ddeval_executable or os.environ.get("DDEVAL_EXECUTABLE", "")).strip()
+    if executable:
+        return [executable], None
+
+    configured_dir = ddsource_dir or os.environ.get("DDSOURCE_DIR") or os.environ.get("DD_SOURCE_DIR")
+    candidates = [Path(configured_dir).expanduser()] if configured_dir else [Path.home() / "dd" / "dd-source"]
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        target = resolved / "domains/ai_platform/shared/libs/ddeval/cli/BUILD.bazel"
+        if target.is_file():
+            return ["bzl", "run", "//domains/ai_platform/shared/libs/ddeval/cli:ddeval", "--"], resolved
+
+    if configured_dir:
+        raise ValueError(f"dd-source checkout does not contain the DDEval target: {candidates[0].resolve()}")
+    raise ValueError(
+        "could not find dd-source at ~/dd/dd-source; set --ddsource-dir, $DDSOURCE_DIR, or --ddeval-executable"
+    )
+
+
+def _local_aws_command(aws_profile: str) -> list[str]:
+    if aws_profile:
+        return ["aws", "--profile", aws_profile]
+    return ["aws-vault", "exec", AWS_VAULT_PROFILE, "--", "aws"]
 
 
 @task
@@ -193,7 +512,8 @@ def eval_scenarios(
     source of truth for anomaly detection accuracy.
 
     Uses testbench --only to control which components are active.
-    Default (no --only): uses testbench defaults (bocpd,rrcf,time_cluster + other default-enabled components).
+    Default (no --only): uses testbench defaults (bocpd, rrcf, and
+      anomaly_scorer; time_cluster is disabled).
     With --only: enables ONLY listed components + extractors, disables everything else.
       time_cluster is auto-added if not specified.
     With --config: JSON params file for testbench; overrides --only when both are set.
@@ -346,10 +666,10 @@ def eval_tp(
     build: bool = True,
 ):
     """
-    Runs TP metric scoring: replays scenarios with passthrough correlator and scores
+    Runs TP metric scoring: replays scenarios with the testbench passthrough adapter and scores
     each detected anomaly against ground truth metric labels in ground_truth.json.
 
-    passthrough correlator is auto-added if not specified (required for TP scoring).
+    The passthrough adapter is auto-added if not specified (required for TP scoring).
 
     Examples:
         dda inv anomalydetection.eval-tp --only scanmw              # scanmw + passthrough (auto)
@@ -539,7 +859,7 @@ def eval_combinations(
     if force_disable_list:
         print(color_message(f"Force-disabled: {', '.join(force_disable_list)}", Color.BLUE))
 
-    full_combo = _full_stack_combo(force_disable_list)
+    full_combo = _full_stack_combo(force_disable_list, force_enable_list)
     full_key = (tuple(full_combo["detectors"]), tuple(full_combo["correlators"]))
     random_count = max(0, n - 1)
     random_combos = random_component_combinations(
@@ -663,6 +983,77 @@ def eval_combinations(
 # --- Bayesian Optimization ---
 
 
+def _load_completed_bayesian_report(
+    output_dir: str,
+    *,
+    components: list[str],
+    n_trials: int,
+    seed: int,
+    eval_backend: str,
+    evaluation_inputs: dict,
+) -> dict | None:
+    """Load a completed Bayesian report only when it matches the requested run."""
+    report_path = os.path.join(output_dir, "report.json")
+    try:
+        with open(report_path) as f:
+            report = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+
+    if (
+        report.get("n_trials") != n_trials
+        or report.get("completed_trials") != n_trials
+        or report.get("failed_trials") != 0
+        or report.get("seed") != seed
+        or sorted(report.get("components", [])) != sorted(components)
+        or report.get("eval_backend") != eval_backend
+        or report.get("evaluation_inputs") != evaluation_inputs
+    ):
+        return None
+    return report
+
+
+def _bayesian_evaluation_inputs(
+    *,
+    scenarios_dir: str,
+    sigma: float,
+    timeout: int,
+    scenarios: str,
+    lock: str,
+    eval_backend: str,
+    ddeval_options: _DDEvalOptions | None,
+) -> dict:
+    """Return the score-affecting inputs used to validate resumable runs."""
+    selected_scenarios = (
+        sorted(s.strip() for s in scenarios.split(",") if s.strip()) if scenarios else sorted(SCENARIOS)
+    )
+    inputs = {
+        "scenarios": selected_scenarios if eval_backend == "local" else [],
+        "scenarios_dir": os.path.abspath(scenarios_dir) if eval_backend == "local" else "",
+        "sigma": float(sigma),
+        "timeout": int(timeout),
+        "locked_components": sorted(c.strip() for c in lock.split(",") if c.strip()),
+    }
+    if ddeval_options is not None:
+        template = None
+        if ddeval_options.config_template:
+            with open(ddeval_options.config_template) as f:
+                template = json.load(f)
+        inputs["ddeval"] = {
+            "service": ddeval_options.service,
+            "project": ddeval_options.project,
+            "dataset": ddeval_options.dataset,
+            "env": ddeval_options.env,
+            "test_drive": ddeval_options.test_drive,
+            "limit": ddeval_options.limit,
+            "where_in": ddeval_options.where_in,
+            "testbench_binary_s3_uri": ddeval_options.testbench_binary_s3_uri,
+            "scorer_binary_s3_uri": ddeval_options.scorer_binary_s3_uri,
+            "config_template": template,
+        }
+    return inputs
+
+
 def _run_bayesian_runs(
     ctx,
     components_list: list,
@@ -679,6 +1070,7 @@ def _run_bayesian_runs(
     ddeval_options: _DDEvalOptions | None = None,
     run_logger: StepLogger | None = None,
     step_label_prefix: str = "",
+    resume: bool = False,
 ) -> dict:
     """Run M independent Bayesian optimisations on a fixed component set.
 
@@ -687,6 +1079,15 @@ def _run_bayesian_runs(
     """
     run_scores: list[float] = []
     run_details: list[dict] = []
+    evaluation_inputs = _bayesian_evaluation_inputs(
+        scenarios_dir=scenarios_dir,
+        sigma=sigma,
+        timeout=timeout,
+        scenarios=scenarios,
+        lock=lock,
+        eval_backend=eval_backend,
+        ddeval_options=ddeval_options,
+    )
 
     for ri in range(m_runs):
         run_label = f"run_{ri:03d}"
@@ -702,24 +1103,38 @@ def _run_bayesian_runs(
             run_logger.step(step_title)
             run_logger.detail(f"components: {', '.join(components_list)}")
 
-        trial_logger = run_logger.child(n_trials, "Trial") if run_logger else None
-        report = eval_bayesian(
-            ctx,
-            components=",".join(components_list),
-            lock=lock,
-            n_trials=n_trials,
-            output_dir=run_dir,
-            scenarios_dir=scenarios_dir,
-            sigma=sigma,
-            seed=run_seed,
-            build=False,
-            overwrite=True,
-            timeout=timeout,
-            scenarios=scenarios,
-            eval_backend=eval_backend,
-            **_ddeval_options_kwargs(ddeval_options),
-            _logger=trial_logger,
-        )
+        report = None
+        if resume:
+            report = _load_completed_bayesian_report(
+                run_dir,
+                components=components_list,
+                n_trials=n_trials,
+                seed=run_seed,
+                eval_backend=eval_backend,
+                evaluation_inputs=evaluation_inputs,
+            )
+            if report is not None and run_logger:
+                run_logger.detail(f"reusing completed {run_label}", Color.GREEN)
+
+        if report is None:
+            trial_logger = run_logger.child(n_trials, "Trial") if run_logger else None
+            report = eval_bayesian(
+                ctx,
+                components=",".join(components_list),
+                lock=lock,
+                n_trials=n_trials,
+                output_dir=run_dir,
+                scenarios_dir=scenarios_dir,
+                sigma=sigma,
+                seed=run_seed,
+                build=False,
+                overwrite=True,
+                timeout=timeout,
+                scenarios=scenarios,
+                eval_backend=eval_backend,
+                **_ddeval_options_kwargs(ddeval_options),
+                _logger=trial_logger,
+            )
 
         run_failed = report is None or report.get("completed_trials", 0) == 0
         if run_failed and run_logger:
@@ -867,13 +1282,14 @@ def eval_bayesian(
     components_list = [c.strip() for c in components.split(",") if c.strip()]
 
     if only_list:
-        all_components = DETECTORS + CORRELATORS + EXTRACTORS
-        unknown_only = set(only_list) - set(all_components)
+        default_components = DETECTORS + ABLATION_CORRELATORS + EXTRACTORS
+        known_components = DETECTORS + SUPPORTED_CORRELATORS + EXTRACTORS
+        unknown_only = set(only_list) - set(known_components)
         if unknown_only:
             print(color_message(f"Error: unknown components in --only: {', '.join(sorted(unknown_only))}", Color.RED))
             return
         if not components_list:
-            components_list = all_components
+            components_list = list(dict.fromkeys(default_components + only_list))
         else:
             unknown_only_in_subset = set(only_list) - set(components_list)
             if unknown_only_in_subset:
@@ -887,14 +1303,14 @@ def eval_bayesian(
         locked_set = {c for c in components_list if c not in set(only_list)}
     else:
         if not components_list:
-            components_list = DETECTORS + CORRELATORS + EXTRACTORS
+            components_list = DETECTORS + ABLATION_CORRELATORS + EXTRACTORS
         locked_set = {c.strip() for c in lock.split(",") if c.strip()}
 
     if not components_list:
         print(color_message("Error: at least one component is required (--components)", Color.RED))
         return
 
-    unknown = (set(components_list) | locked_set) - set(DETECTORS + CORRELATORS + EXTRACTORS)
+    unknown = (set(components_list) | locked_set) - set(DETECTORS + SUPPORTED_CORRELATORS + EXTRACTORS)
     if unknown:
         print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
         return
@@ -933,6 +1349,16 @@ def eval_bayesian(
 
     if not _validate_ddeval_scenario_filter(eval_backend, scenarios):
         return
+
+    evaluation_inputs = _bayesian_evaluation_inputs(
+        scenarios_dir=scenarios_dir,
+        sigma=sigma,
+        timeout=timeout,
+        scenarios=scenarios,
+        lock=",".join(sorted(locked_set)),
+        eval_backend=eval_backend,
+        ddeval_options=ddeval_options,
+    )
 
     if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
@@ -1010,6 +1436,12 @@ def eval_bayesian(
                     _logger=trial_logger.child(len(scenarios_list), "Scenario"),
                 )
         except Exception as e:
+            if eval_backend == "ddeval":
+                trial_logger.detail(
+                    f"DDEval failed; aborting optimization to avoid biased results: {type(e).__name__}: {e}",
+                    Color.RED,
+                )
+                raise
             failure_reason = f"{eval_backend} eval raised {type(e).__name__}: {e}"
 
         if failure_reason is None and report is None:
@@ -1084,6 +1516,7 @@ def eval_bayesian(
         "components": components_list,
         "locked": sorted(locked_set),
         "eval_backend": eval_backend,
+        "evaluation_inputs": evaluation_inputs,
         "best_combination": best,
         "trials": completed_trials,
         "failures": failed_trials,
@@ -1233,7 +1666,8 @@ def _ddeval_experiment_config(
         experiment_config = {}
 
     input_parameters = dict(experiment_config.get("input_parameters") or {})
-    input_parameters["component_config"] = trial_config
+    # The DDEval worker reads generated component settings from testbench_config.
+    input_parameters["testbench_config"] = trial_config
     input_parameters["trial_metadata"] = {
         **dict(input_parameters.get("trial_metadata") or {}),
         "trial_config_path": trial_config_path,
@@ -1439,6 +1873,7 @@ def eval_pipeline(
     seed: int = None,
     build: bool = True,
     overwrite: bool = False,
+    resume: bool = False,
     force_enable: str = "",
     force_disable: str = "",
     timeout: int = 0,
@@ -1482,6 +1917,8 @@ def eval_pipeline(
         m_runs: Independent Bayesian runs per combination (default: 1).
         output_dir: Root output directory.
         overwrite: Allow replacing an existing output_dir that contains report.json.
+        resume: Reuse fully completed matching Bayesian runs in an existing output_dir.
+            Requires an explicit seed so component combinations and run seeds are reproducible.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
         seed: Base seed for deterministic reproducibility.
@@ -1513,7 +1950,7 @@ def eval_pipeline(
         dda inv --dep optuna anomalydetection.eval-pipeline
         dda inv --dep optuna anomalydetection.eval-pipeline --n-combos 20 --n-trials-search 10 --n-trials-tune 50 --seed 42
         dda inv --dep optuna anomalydetection.eval-pipeline --force-enable scanmw
-        dda inv --dep optuna anomalydetection.eval-pipeline --force-disable cusum,scanwelch
+        dda inv --dep optuna anomalydetection.eval-pipeline --force-disable scanwelch
         dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval \
             --ddeval-command ddeval \
             --ddeval-testbench-binary-s3-uri s3://.../anomalydetection-testbench \
@@ -1545,6 +1982,10 @@ def eval_pipeline(
     if not _validate_ddeval_scenario_filter(eval_backend, scenarios):
         return
 
+    if resume and seed is None:
+        print(color_message("Error: --resume requires an explicit --seed.", Color.RED))
+        return
+
     if seed is not None:
         seed = int(seed)
     else:
@@ -1554,16 +1995,20 @@ def eval_pipeline(
     force_enable_list = [c.strip() for c in force_enable.split(",") if c.strip()]
     force_disable_list = [c.strip() for c in force_disable.split(",") if c.strip()]
 
-    all_known = DETECTORS + CORRELATORS + EXTRACTORS
+    all_known = DETECTORS + ABLATION_CORRELATORS + EXTRACTORS
     unknown = set(force_enable_list + force_disable_list) - set(all_known)
     if unknown:
         print(color_message(f"Error: unknown components: {', '.join(sorted(unknown))}", Color.RED))
         return
 
-    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+    if resume:
+        if not os.path.isdir(output_dir):
+            print(color_message(f"Error: resume output directory does not exist: {output_dir}", Color.RED))
+            return
+    elif not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
         return
 
-    full_combo = _full_stack_combo(force_disable=force_disable_list)
+    full_combo = _full_stack_combo(force_disable=force_disable_list, force_enable=force_enable_list)
     anchor_list = _anchor_combos(force_disable=force_disable_list, force_enable=force_enable_list)
     fixed_combos = [full_combo] + anchor_list
     fixed_keys = {(tuple(c["detectors"]), tuple(c["correlators"])) for c in fixed_combos}
@@ -1605,6 +2050,7 @@ def eval_pipeline(
     print(color_message(f"  seed:                {seed}", Color.BLUE))
     print(color_message(f"  output_dir:          {output_dir}", Color.BLUE))
     print(color_message(f"  backend:             {eval_backend}", Color.BLUE))
+    print(color_message(f"  resume:              {resume}", Color.BLUE))
     if force_enable_list:
         print(color_message(f"  force-enabled:       {', '.join(force_enable_list)}", Color.BLUE))
     if force_disable_list:
@@ -1653,6 +2099,7 @@ def eval_pipeline(
             ddeval_options=ddeval_options,
             run_logger=run_logger,
             step_label_prefix=combo_label,
+            resume=resume,
         )
 
         combo_results.append(
@@ -1697,21 +2144,44 @@ def eval_pipeline(
     print(color_message(f"  Components: {', '.join(best_combo['components'])}", Color.BLUE))
 
     tune_dir = os.path.join(output_dir, "tune")
-    tune_result = eval_bayesian(
-        ctx,
-        components=",".join(best_combo["components"]),
-        n_trials=n_trials_tune,
-        output_dir=tune_dir,
-        scenarios_dir=scenarios_dir,
-        sigma=sigma,
-        seed=tune_seed,
-        build=False,
-        overwrite=True,
-        timeout=timeout,
-        scenarios=scenarios,
-        eval_backend=eval_backend,
-        **_ddeval_options_kwargs(ddeval_options),
-    )
+    tune_result = None
+    if resume:
+        evaluation_inputs = _bayesian_evaluation_inputs(
+            scenarios_dir=scenarios_dir,
+            sigma=sigma,
+            timeout=timeout,
+            scenarios=scenarios,
+            lock="",
+            eval_backend=eval_backend,
+            ddeval_options=ddeval_options,
+        )
+        tune_result = _load_completed_bayesian_report(
+            tune_dir,
+            components=best_combo["components"],
+            n_trials=n_trials_tune,
+            seed=tune_seed,
+            eval_backend=eval_backend,
+            evaluation_inputs=evaluation_inputs,
+        )
+        if tune_result is not None:
+            print(color_message("  Reusing completed fine-tuning run.", Color.GREEN))
+
+    if tune_result is None:
+        tune_result = eval_bayesian(
+            ctx,
+            components=",".join(best_combo["components"]),
+            n_trials=n_trials_tune,
+            output_dir=tune_dir,
+            scenarios_dir=scenarios_dir,
+            sigma=sigma,
+            seed=tune_seed,
+            build=False,
+            overwrite=True,
+            timeout=timeout,
+            scenarios=scenarios,
+            eval_backend=eval_backend,
+            **_ddeval_options_kwargs(ddeval_options),
+        )
 
     if not tune_result or tune_result.get("completed_trials", 0) == 0:
         print(color_message("Error: fine-tuning produced no results.", Color.RED))
@@ -1728,6 +2198,7 @@ def eval_pipeline(
         "n_combos": actual_n_combos,
         "n_trials_search": n_trials_search,
         "n_trials_tune": n_trials_tune,
+        "resumed": resume,
         "best_combo": best_combo,
         "tune": {
             "components": best_combo["components"],
@@ -1776,7 +2247,7 @@ def eval_component(
     overwrite: bool = False,
     tune_evaluated_component: bool = False,
     enable: str = "",
-    disable: str = "cusum",
+    disable: str = "",
     lock: str = "",
     timeout: int = 300,
     scenarios: str = "",
@@ -1807,7 +2278,7 @@ def eval_component(
         build: Whether to build testbench and scorer first.
         tune_evaluated_component: If True, Optuna also tunes the target component's hyperparameters.
         enable: Comma-separated components to force-enable in every subset.
-        disable: Comma-separated components to force-disable from every subset (default: cusum).
+        disable: Comma-separated components to force-disable from every subset.
         lock: Comma-separated components to lock at Go defaults in every Bayesian run.
         timeout: Per-scenario time budget in seconds (default: 300).
         scenarios: Comma-separated scenario names (default: all SCENARIOS).
@@ -1818,7 +2289,7 @@ def eval_component(
         dda inv --dep optuna anomalydetection.eval-component --component bocpd --timeout 120
         dda inv --dep optuna anomalydetection.eval-component --component bocpd --scenarios food_delivery_redis
     """
-    all_known = DETECTORS + CORRELATORS + EXTRACTORS
+    all_known = DETECTORS + SUPPORTED_CORRELATORS + EXTRACTORS
     if component not in all_known:
         print(color_message(f"Error: unknown component '{component}'. Known: {', '.join(all_known)}", Color.RED))
         return
@@ -1862,7 +2333,7 @@ def eval_component(
     is_extractor = component in EXTRACTORS
     force_disable_subsets: list[str] = sorted(set(([] if is_extractor else [component]) + force_disable_extra_list))
 
-    full_stack = _full_stack_combo(force_disable=force_disable_subsets)
+    full_stack = _full_stack_combo(force_disable=force_disable_subsets, force_enable=force_enable_list)
     anchor_subsets = _anchor_combos(force_disable=force_disable_subsets, force_enable=force_enable_list)
     fixed_subsets = [full_stack] + anchor_subsets
     fixed_keys = {(tuple(s["detectors"]), tuple(s["correlators"])) for s in fixed_subsets}

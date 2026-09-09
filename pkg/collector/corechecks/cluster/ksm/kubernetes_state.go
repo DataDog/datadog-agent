@@ -41,6 +41,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -351,6 +352,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	}
 
 	k.mergeLabelJoins(defaultLabelJoins())
+	k.ensureArgoRolloutLabelJoin()
 
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
@@ -665,7 +667,9 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
 		client, _ := f.CreateClient(nil)
-		clients[f.Name()] = client
+		// Key by the group-aware GVR string (see CustomResourceClientKey) so
+		// that resources sharing a plural across API groups do not collide.
+		clients[kubestatemetrics.CustomResourceClientKey(f.Name(), f.ExpectedType())] = client
 	}
 
 	if k.instance.usesCustomResourceMetrics() {
@@ -950,6 +954,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	tagList := make([]string, 0, len(labels)+len(labelsToAdd))
 
 	ownerKind, ownerName, resourceNamespace := "", "", ""
+	isArgoRollout := false
 
 	for key, value := range labels {
 
@@ -962,6 +967,8 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 			ownerKind = value
 		case createdByNameKey, ownerNameKey:
 			ownerName = value
+		case argoRolloutLabelName:
+			isArgoRollout = value != ""
 		default:
 			tag, hostTag := k.buildTag(key, value, lMapperOverride)
 			tagList = append(tagList, tag)
@@ -987,6 +994,8 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 			ownerKind = label.value
 		case createdByNameKey, ownerNameKey:
 			ownerName = label.value
+		case argoRolloutLabelName:
+			isArgoRollout = label.value != ""
 		default:
 			tag, hostTag := k.buildTag(label.key, label.value, lMapperOverride)
 			tagList = append(tagList, tag)
@@ -1000,8 +1009,13 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		}
 	}
 
-	if owners := ownerTags(ownerKind, ownerName); len(owners) != 0 {
+	owners, deploymentName := ownerTags(ownerKind, ownerName)
+	if len(owners) != 0 {
 		tagList = append(tagList, owners...)
+	}
+
+	if isArgoRollout && deploymentName != "" {
+		tagList = append(tagList, tags.KubeArgoRollout+":"+deploymentName)
 	}
 
 	var namespaceTags []string
@@ -1074,6 +1088,20 @@ func (k *KSMCheck) mergeLabelsMapper(extra map[string]string) {
 			k.instance.LabelsMapper[key] = value
 		}
 	}
+}
+
+// ensureArgoRolloutLabelJoin makes sure the internal label the
+// kube_argo_rollout tag is derived from is joined for pod labels.
+// mergeLabelJoins only adds the default kube_pod_labels join when the key is
+// absent, so a user-defined kube_pod_labels join would otherwise silently
+// drop this required label.
+func (k *KSMCheck) ensureArgoRolloutLabelJoin() {
+	podLabelJoin, found := k.instance.LabelJoins["kube_pod_labels"]
+	if !found || podLabelJoin.GetAllLabels || slices.Contains(podLabelJoin.LabelsToGet, argoRolloutLabelName) {
+		return
+	}
+
+	podLabelJoin.LabelsToGet = append(podLabelJoin.LabelsToGet, argoRolloutLabelName)
 }
 
 // mergeLabelJoins adds extra label joins to the configured label joins
@@ -1324,8 +1352,8 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		instance:                   instance,
 		telemetry:                  newTelemetryCache(),
 		tagger:                     tagger,
-		isCLCRunner:                pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
-		isRunningOnNodeAgent:       flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isCLCRunner:                helper.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isRunningOnNodeAgent:       flavor.GetFlavor() != flavor.ClusterAgent && !helper.IsCLCRunner(pkgconfigsetup.Datadog()),
 		metricNamesMapper:          defaultMetricNamesMapper(),
 		metricAggregators:          defaultMetricAggregators(),
 		workloadmetaStore:          wmeta,
@@ -1460,31 +1488,31 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	return deniedMetrics
 }
 
-// ownerTags returns kube_<kind> tags based on given kind and name.
-// If the owner is a replicaset, it tries to get the kube_deployment tag in addition to kube_replica_set.
+// ownerTags returns kube_<kind> tags based on given kind and name, along with the resolved Deployment name.
+// If the owner is a replicaset, it tries to get the kube_deployment tag and Deployment name in addition to kube_replica_set.
 // If the owner is a job, it tries to get the kube_cronjob tag in addition to kube_job.
-func ownerTags(kind, name string) []string {
+func ownerTags(kind, name string) ([]string, string) {
 	if kind == "" || name == "" {
-		return nil
+		return nil, ""
 	}
 
 	tagKey, err := kubetags.GetTagForKubernetesKind(kind)
 	if err != nil {
-		return nil
+		return nil, ""
 	}
 
 	switch kind {
 	case kubernetes.JobKind:
 		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
-			return []string{tagKey + ":" + name, tags.KubeCronjob + ":" + cronjob}
+			return []string{tagKey + ":" + name, tags.KubeCronjob + ":" + cronjob}, ""
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			return []string{tagKey + ":" + name, tags.KubeDeployment + ":" + deployment}
+			return []string{tagKey + ":" + name, tags.KubeDeployment + ":" + deployment}, deployment
 		}
 	}
 
-	return []string{tagKey + ":" + name}
+	return []string{tagKey + ":" + name}, ""
 }
 
 // labelsMapperOverride allows overriding the default label mapping for

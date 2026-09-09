@@ -18,7 +18,7 @@ alwaysApply: false
    bazel test //path/to/module/...
    ```
 
-4. **Verify `//...`** still works after migration — intermediate BUILD files that reference external repos for local modules trigger the `bazelify_go_work` / `go_deps` `@rules_go` visibility bug.
+4. **Verify `//...`** still works after migration.
 
 ## Custom `//go:build` tags and `_GAZELLE_BUILD_TAGS`
 
@@ -62,8 +62,8 @@ Proto source-only trees (`pkg/proto/datadog`, `pkg/proto/protodep`) still need `
 
 ## `gazelle:ignore` vs `gazelle:exclude`
 
-- `gazelle:exclude` — stops Gazelle AND affects `bazelify_go_work` filtering of `go.work` entries for `go_deps`.
-- `gazelle:ignore` — only stops Gazelle from generating/updating targets in that directory. Safe for stub BUILD files at intermediate unmigrated packages.
+- `gazelle:exclude <pattern>` — a directory match stops Gazelle from recursing into it, whereas a file match excludes it from managed rules,
+- `gazelle:ignore` — stops Gazelle from modifying its containing BUILD.bazel file.
 
 ## Known issue: `go_deps` external repo `@rules_go` visibility
 

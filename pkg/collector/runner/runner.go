@@ -16,7 +16,6 @@ import (
 	"go.uber.org/atomic"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -24,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,7 +44,6 @@ var (
 type Runner struct {
 	senderManager       sender.SenderManager
 	haAgent             haagent.Component
-	healthPlatform      healthplatform.Component // Health platform component for reporting issues
 	isRunning           *atomic.Bool
 	id                  int                           // Globally unique identifier for the Runner
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
@@ -58,6 +57,7 @@ type Runner struct {
 	schedulerLock       sync.RWMutex                  // Lock around operations on the scheduler
 	utilizationMonitor  *worker.UtilizationMonitor    // Monitor in charge of checking the worker utilization
 	utilizationLogLimit *log.Limit                    // Log limiter for utilization warnings
+	stopWG              sync.WaitGroup                // Goroutines Stop waits for: monitor and checks
 	// ctx is cancelled when the runner stops, providing a cancellation signal
 	// to any context-aware operation inside workers (e.g. hostname resolution).
 	ctx    context.Context
@@ -65,7 +65,7 @@ type Runner struct {
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, healthPlatform healthplatform.Component) *Runner {
+func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *Runner {
 	numWorkers := pkgconfigsetup.Datadog().GetInt("check_runners")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -73,7 +73,6 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, he
 	r := &Runner{
 		senderManager:       senderManager,
 		haAgent:             haAgent,
-		healthPlatform:      healthPlatform,
 		id:                  int(runnerIDGenerator.Inc()),
 		isRunning:           atomic.NewBool(true),
 		workers:             make(map[int]*worker.Worker),
@@ -89,13 +88,13 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, he
 	}
 
 	if !r.isStaticWorkerCount {
-		numWorkers = pkgconfigsetup.DefaultNumWorkers
+		numWorkers = constants.DefaultNumWorkers
 	}
 
 	r.ensureMinWorkers(numWorkers)
 
 	// Start monitoring worker utilization
-	go r.monitorWorkerUtilization()
+	r.stopWG.Go(r.monitorWorkerUtilization)
 
 	return r
 }
@@ -162,7 +161,6 @@ func (r *Runner) newWorker(pendingChecksChan chan check.Check, isShadowWorker bo
 	worker, err := newWorker(
 		r.senderManager,
 		r.haAgent,
-		r.healthPlatform,
 		r.id,
 		int(workerIDGenerator.Inc()),
 		pendingChecksChan,
@@ -215,7 +213,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 	case numChecks <= 25:
 		desiredNumWorkers = 20
 	default:
-		desiredNumWorkers = pkgconfigsetup.MaxNumWorkers
+		desiredNumWorkers = constants.MaxNumWorkers
 	}
 
 	r.ensureMinWorkers(desiredNumWorkers)
@@ -230,14 +228,13 @@ func (r *Runner) Stop() {
 	}
 
 	// Cancel the runner context to unblock any context-aware operations in workers
-	// (e.g. hostname resolution via EC2 IMDS) that may be waiting on I/O.
+	// (e.g. hostname resolution via EC2 IMDS) that may be waiting on I/O, and to
+	// wake up monitorWorkerUtilization immediately instead of on its next tick.
 	r.cancel()
 
 	log.Infof("Runner %d is shutting down...", r.id)
 	close(r.pendingChecksChan)
 	close(r.shadowChecksChan)
-
-	wg := sync.WaitGroup{}
 
 	// Stop running checks
 	r.checksTracker.WithRunningChecks(func(runningChecks map[checkid.ID]check.Check) {
@@ -245,22 +242,19 @@ func (r *Runner) Stop() {
 		terminateChecksRunningProcesses()
 
 		for _, c := range runningChecks {
-			wg.Add(1)
-			go func(ch check.Check) {
-				err := r.StopCheck(ch.ID())
+			r.stopWG.Go(func() {
+				err := r.StopCheck(c.ID())
 				if err != nil {
-					log.Warnf("Check %v not responding after %v: %s", ch, stopCheckTimeout, err)
+					log.Warnf("Check %v not responding after %v: %s", c, stopCheckTimeout, err)
 				}
-
-				wg.Done()
-			}(c)
+			})
 		}
 	})
 
 	globalDone := make(chan struct{})
 	go func() {
 		log.Debugf("Runner %d waiting for all the workers to exit...", r.id)
-		wg.Wait()
+		r.stopWG.Wait()
 
 		log.Debugf("All runner %d workers have been shut down", r.id)
 		close(globalDone)
@@ -365,8 +359,12 @@ func (r *Runner) monitorWorkerUtilization() {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for r.isRunning.Load() {
-		<-ticker.C
-		r.logWorkerUtilization()
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case <-ticker.C:
+			r.logWorkerUtilization()
+		}
 	}
 }

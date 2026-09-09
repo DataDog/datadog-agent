@@ -33,11 +33,137 @@ func (suite *ConfigTestSuite) SetupTest() {
 	configmock.New(suite.T())
 	suite.T().Setenv("DD_API_KEY", "")
 	suite.T().Setenv("DD_SITE", "")
+	// LoadProxyFromEnv treats a present-but-empty var as set, so these must be
+	// unset rather than set to "" - otherwise DD_PROXY_* short-circuits the
+	// HTTP_PROXY/HTTPS_PROXY/NO_PROXY fallback even when a test sets those.
+	// The lowercase variants are cleared too since LoadProxyFromEnv falls
+	// back to them when the uppercase ones aren't set.
+	os.Unsetenv("HTTP_PROXY")
+	os.Unsetenv("http_proxy")
+	os.Unsetenv("HTTPS_PROXY")
+	os.Unsetenv("https_proxy")
+	os.Unsetenv("NO_PROXY")
+	os.Unsetenv("no_proxy")
+	os.Unsetenv("DD_PROXY_HTTP")
+	os.Unsetenv("DD_PROXY_HTTPS")
+	os.Unsetenv("DD_PROXY_NO_PROXY")
 }
 
 func TestNoURIsProvided(t *testing.T) {
 	_, err := NewConfigComponent(context.Background(), "", []string{})
 	assert.Error(t, err, "no URIs provided for configs")
+}
+
+// TestDDOTSeriesV3EnabledForDefaultEndpoint verifies DDOT opts its default Datadog series
+// endpoint in to the v3 metrics intake. The default endpoint is api.<site>, which
+// datadog_only's IsDatadogURL does not recognize, so without an explicit per-endpoint
+// override series would silently stay on v2. The override must be keyed by the exact dd_url
+// the forwarder resolver reports as its config name.
+func TestDDOTSeriesV3EnabledForDefaultEndpoint(t *testing.T) {
+	configmock.New(t)
+	// CI runners (Fabric Egress Gateway) set HTTP(S)_PROXY; DDOT keeps proxied Agents on
+	// v2, so clear proxy env to exercise the no-proxy enable path. DD_PROXY_* shadow HTTP(S)_PROXY.
+	t.Setenv("DD_PROXY_HTTP", "")
+	t.Setenv("DD_PROXY_HTTPS", "")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err)
+
+	ddURL := c.GetString("dd_url")
+	require.Equal(t, "https://api.datadoghq.com", ddURL, "DDOT default metrics endpoint")
+
+	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
+	assert.Equal(t, "true", endpoints[ddURL],
+		"DDOT must opt the default api.<site> endpoint in to v3, keyed by dd_url")
+
+	// The global default stays datadog_only, so custom (non-Datadog) endpoints are not
+	// forced onto v3.
+	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
+}
+
+// TestDDOTSeriesV3NotForcedForCustomEndpoint verifies a non-default (custom / proxy) metrics
+// endpoint is NOT force-opted into v3: it falls through to the global datadog_only default,
+// preserving the safeguard that keeps non-Datadog destinations on v2.
+func TestDDOTSeriesV3NotForcedForCustomEndpoint(t *testing.T) {
+	configmock.New(t)
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_custom_metrics_endpoint.yaml"})
+	require.NoError(t, err)
+
+	ddURL := c.GetString("dd_url")
+	require.Equal(t, "https://custom-proxy.example.test", ddURL)
+
+	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
+	_, present := endpoints[ddURL]
+	assert.False(t, present, "custom endpoint must not be force-opted into v3")
+	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
+}
+
+// TestDDOTSeriesV3NotForcedForNonDatadogSite verifies a non-Datadog site (private or proxy)
+// is NOT force-opted into v3, even though its default derived endpoint has the same
+// https://api.<site> shape as a real Datadog default. IsDatadogURL only recognizes Datadog
+// domains, so the override is withheld and the destination stays on the datadog_only default
+// (v2) — guarding against shipping an unsupported v3 payload to a non-Datadog intake.
+func TestDDOTSeriesV3NotForcedForNonDatadogSite(t *testing.T) {
+	configmock.New(t)
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_non_datadog_site.yaml"})
+	require.NoError(t, err)
+
+	ddURL := c.GetString("dd_url")
+	require.Equal(t, "https://api.mycompany.internal", ddURL,
+		"exporter still derives api.<site> for a non-Datadog site")
+
+	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
+	_, present := endpoints[ddURL]
+	assert.False(t, present, "a non-Datadog site must not be force-opted into v3")
+	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
+}
+
+// TestDDOTSeriesV3NotForcedBehindProxy verifies a proxied Agent is NOT force-opted into v3,
+// even on a default Datadog endpoint. A forwarding proxy may inflate/recompress payloads and
+// reject the v3 format (and custom proxy/pipeline endpoints may not support v3 yet), so per
+// the v3 migration RFC a proxied deployment stays on v2 under datadog_only.
+func TestDDOTSeriesV3NotForcedBehindProxy(t *testing.T) {
+	configmock.New(t)
+	t.Setenv("DD_PROXY_HTTPS", "http://proxy.corp.internal:3128")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err)
+
+	require.Equal(t, "https://api.datadoghq.com", c.GetString("dd_url"))
+	require.NotEmpty(t, c.GetString("proxy.https"), "proxy env var must be loaded")
+
+	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
+	_, present := endpoints[c.GetString("dd_url")]
+	assert.False(t, present, "a proxied Agent must not be force-opted into v3")
+	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
+}
+
+// TestDDOTSeriesV3RespectsExplicitOptOut verifies DD_USE_V3_API_SERIES_ENABLED=false keeps
+// the default api.<site> endpoint on v2: the per-endpoint opt-in is only injected on the
+// datadog_only default, so an explicit operator kill-switch is honored (a per-endpoint entry
+// would otherwise outrank use_v3_api.series.enabled).
+func TestDDOTSeriesV3RespectsExplicitOptOut(t *testing.T) {
+	configmock.New(t)
+	t.Setenv("DD_USE_V3_API_SERIES_ENABLED", "false")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err)
+
+	require.Equal(t, "https://api.datadoghq.com", c.GetString("dd_url"))
+	require.Equal(t, "false", c.GetString("use_v3_api.series.enabled"))
+
+	endpoints := c.GetStringMapString("use_v3_api.series.endpoints")
+	_, present := endpoints[c.GetString("dd_url")]
+	assert.False(t, present, "explicit enabled=false must not be overridden by the per-endpoint opt-in")
+}
+
+// TestDDOTSketchesV3BetaShadowDisabled verifies DDOT opts out of the v3beta sketches
+// shadow, which defaults to a non-zero sample rate in the core Agent. SourceAgentRuntime
+// outranks SourceEnvVar, so a colocated core Agent's DD_ env vars cannot re-enable it.
+func TestDDOTSketchesV3BetaShadowDisabled(t *testing.T) {
+	configmock.New(t)
+	t.Setenv("DD_SERIALIZER_EXPERIMENTAL_USE_V3_API_SKETCHES_SHADOW_SAMPLE_RATE", "1")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err)
+
+	assert.Zero(t, c.GetFloat64("serializer_experimental_use_v3_api.sketches.shadow_sample_rate"))
 }
 
 func (suite *ConfigTestSuite) TestAgentConfig() {
@@ -169,8 +295,8 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
 	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
-	// The otel-agent forces zlib, which is incompatible with the v3 metrics intake.
-	assert.Equal(t, "false", c.GetString("use_v3_api.series.enabled"))
+	// DDOT uses zstd (v3-compatible), so it inherits the global datadog_only v3 default.
+	assert.Equal(t, "datadog_only", c.GetString("use_v3_api.series.enabled"))
 
 	// log_level from datadog.yaml takes precedence -> more verbose
 	assert.Equal(t, "debug", c.Get("log_level"))
@@ -191,6 +317,27 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlKeysAvailable() {
 	assert.Equal(t, "https://localhost:7777", c.GetString("otelcollector.extension_url"))
 	assert.Equal(t, 5009, c.GetInt("agent_ipc.port"))
 	assert.Equal(t, 60, c.GetInt("agent_ipc.config_refresh_interval"))
+}
+
+// TestStandaloneModeIgnoresCoreAgentIPCEnvVars reproduces OTAGENT-1149: a
+// deployment tool that colocates otel-agent with a core Datadog Agent (e.g.
+// the Datadog Operator's DaemonSet) injects that agent's env vars —
+// DD_REMOTE_CONFIGURATION_ENABLED=true and DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL
+// — into the otel-agent container too. Standalone mode must win regardless,
+// since there is no core agent IPC endpoint for the RC client or configsync
+// to talk to.
+func (suite *ConfigTestSuite) TestStandaloneModeIgnoresCoreAgentIPCEnvVars() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
+	t.Setenv("DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL", "60")
+
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, -1, c.GetInt("cmd_port"))
+	assert.False(t, c.GetBool("remote_configuration.enabled"))
+	assert.Equal(t, 0, c.GetInt("agent_ipc.config_refresh_interval"))
 }
 
 func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromDatadogYaml() {
@@ -670,6 +817,39 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_NoDogtelExtension() {
 	assert.Equal(t, "", c.GetString("hostname"))
 	assert.Equal(t, "", c.GetString("secret_backend_command"))
 	assert.Equal(t, "", c.GetString("kubernetes_kubelet_host"))
+}
+
+// TestDogtelExtensionConfig_StandaloneNoDDExporter verifies that dogtelextension
+// config (hostname, metadata interval, kubelet settings, secret backend) and
+// ENC[] secret resolution are still applied in standalone mode even when the
+// OTel Collector config has no datadog exporter — NewConfigComponent returns
+// ErrNoDDExporter, but that must not skip config that doesn't come from the
+// exporter section.
+func (suite *ConfigTestSuite) TestDogtelExtensionConfig_StandaloneNoDDExporter() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_no_dd_exporter.yaml"})
+	require.ErrorIs(t, err, ErrNoDDExporter)
+	require.NotNil(t, c)
+
+	assert.Equal(t, true, c.GetBool("enable_metadata_collection"))
+	assert.Equal(t, "my-standalone-host", c.Get("hostname"))
+	assert.Equal(t, "/usr/local/bin/secret-provider", c.Get("secret_backend_command"))
+	assert.Equal(t, []string{"--timeout", "30"}, c.GetStringSlice("secret_backend_arguments"))
+	assert.Equal(t, 60, c.GetInt("secret_backend_timeout"))
+	assert.Equal(t, 8192, c.GetInt("secret_backend_output_max_size"))
+	assert.Equal(t, "10.0.0.1", c.Get("kubernetes_kubelet_host"))
+	assert.Equal(t, false, c.GetBool("kubelet_tls_verify"))
+	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
+	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
+
+	providers := c.Get("metadata_providers")
+	require.NotNil(t, providers)
+	providerList, ok := providers.([]map[string]interface{})
+	require.True(t, ok)
+	require.Len(t, providerList, 1)
+	assert.Equal(t, "host", providerList[0]["name"])
+	assert.Equal(t, 600, providerList[0]["interval"])
 }
 
 // TestDogtelExtensionConfig_ConnectedModeIgnored verifies that dogtelextension

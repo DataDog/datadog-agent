@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -29,7 +30,7 @@ func TestDeviceEventsGatherer_RegisterBeforeStart(t *testing.T) {
 }
 
 func TestDeviceEventsGatherer_RegisterWithUnsupportedEvents(t *testing.T) {
-	device := setupMockDevice(t, testutil.WithCustomHook(func(device *mock.Device) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
 		device.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
 			return 0, nvml.SUCCESS
 		}
@@ -40,7 +41,7 @@ func TestDeviceEventsGatherer_RegisterWithUnsupportedEvents(t *testing.T) {
 }
 
 func TestDeviceEventsGatherer_GetWithUnregistered(t *testing.T) {
-	safenvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	nvmltestutil.SetupMockNVML(t)
 
 	gatherer := NewDeviceEventsGatherer()
 	require.NoError(t, gatherer.Start())
@@ -60,8 +61,8 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 	gatheredDeviceEvents := make(chan nvml.EventData, 10)
 	t.Cleanup(func() { close(gatheredDeviceEvents) })
 
-	// setup mock device, and the nvml lib to return events at our command
-	device := setupMockDevice(t,
+	// Setup the mock device and library to return events at our command.
+	nvmlMock := nvmltestutil.SetupMockNVML(t,
 		testutil.WithSymbolsMock(map[string]struct{}{"nvmlDeviceGetUUID": {}}),
 		testutil.WithMockAllFunctions(),
 		testutil.WithEventSetCreate(func() (nvml.EventSet, nvml.Return) {
@@ -75,7 +76,9 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 					return <-gatheredDeviceEvents, nvml.SUCCESS
 				},
 			}, nvml.SUCCESS
-		}))
+		}),
+	)
+	device := nvmltestutil.PhysicalDevice(t, nvmlMock, 0)
 
 	// create gatherer after lib initialization so that it picks up the mock
 	gatherer := NewDeviceEventsGatherer()
@@ -95,7 +98,7 @@ func TestDeviceEventsGatherer_RefreshGetSequence(t *testing.T) {
 
 	// create an event to be gathered, then make sure it is not available until we refresh
 	sampleDeviceEvent := nvml.EventData{
-		Device:    &mock.Device{GetUUIDFunc: func() (string, nvml.Return) { return uuid, nvml.SUCCESS }},
+		Device:    nvmlMock.Device(0),
 		EventType: nvml.EventTypeXidCriticalError,
 		EventData: 31, // sample xid error for invalid mem access
 	}
@@ -170,7 +173,7 @@ func TestDeviceEventsCollector(t *testing.T) {
 	require.NotNil(t, collector)
 
 	// initially, no device should be registered before the first metrics collection
-	require.Equal(t, uuid, collector.DeviceUUID())
+	require.Equal(t, uuid, collector.Device().GetDeviceInfo().UUID)
 	require.Equal(t, deviceEvents, collector.Name())
 	require.Empty(t, cache.uuids)
 
@@ -193,9 +196,23 @@ func TestDeviceEventsCollector(t *testing.T) {
 	require.Empty(t, mm)
 
 	// add event to cache and check that metrics are properly computed.
-	// since we don't change events between subsequent calls, we check
-	// that the counter is increased
-	xidErrorsMetricName := "errors.xid.total"
+	// GetEvents is idempotent until Refresh, so subsequent Collect calls with
+	// the same cached events increase the lifetime gauge and re-emit the
+	// interval count as the number of events in that Collect call.
+	xid31Tags := []string{"type:31", "origin:hardware"}
+	xid12Tags := []string{"type:12", "origin:driver"}
+	xid31Total := func(value float64) *Metric {
+		return NewMetric(xidErrorsTotalMetricName, value, metrics.GaugeType, Medium, xid31Tags, nil)
+	}
+	xid31Count := func(value float64) *Metric {
+		return NewMetric(xidErrorsCountMetricName, value, metrics.CountType, Medium, xid31Tags, nil)
+	}
+	xid12Total := func(value float64) *Metric {
+		return NewMetric(xidErrorsTotalMetricName, value, metrics.GaugeType, Medium, xid12Tags, nil)
+	}
+	xid12Count := func(value float64) *Metric {
+		return NewMetric(xidErrorsCountMetricName, value, metrics.CountType, Medium, xid12Tags, nil)
+	}
 	cache.events = []safenvml.DeviceEventData{
 		{
 			DeviceUUID: uuid,
@@ -205,19 +222,11 @@ func TestDeviceEventsCollector(t *testing.T) {
 	}
 	mm, err = collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, mm, 1)
-	assert.Equal(t, &Metric{
-		Name:     xidErrorsMetricName,
-		Value:    1,
-		Type:     metrics.GaugeType,
-		Priority: Medium,
-		Tags:     []string{"type:31", "origin:hardware"},
-	}, mm[0])
+	assert.ElementsMatch(t, []*Metric{xid31Total(1), xid31Count(1)}, mm)
 
 	mm, err = collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, mm, 1)
-	assert.Equal(t, float64(2), mm[0].Value)
+	assert.ElementsMatch(t, []*Metric{xid31Total(2), xid31Count(1)}, mm)
 
 	// make sure different xid errors produce distinct metric contexts
 	cache.events = []safenvml.DeviceEventData{
@@ -229,27 +238,43 @@ func TestDeviceEventsCollector(t *testing.T) {
 	}
 	mm2, err := collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, mm2, 2)
 	assert.ElementsMatch(t, []*Metric{
-		{
-			Name:     xidErrorsMetricName,
-			Value:    1,
-			Type:     metrics.GaugeType,
-			Priority: Medium,
-			Tags:     []string{"type:12", "origin:driver"},
-		},
-		{
-			Name:     xidErrorsMetricName,
-			Value:    2,
-			Type:     metrics.GaugeType,
-			Priority: Medium,
-			Tags:     []string{"type:31", "origin:hardware"},
-		},
+		xid12Total(1),
+		xid12Count(1),
+		xid31Total(2),
+		xid31Count(0),
 	}, mm2)
 
-	// make sure there's no update in case we have no cached events
+	// no new events: lifetime gauges stay, interval counts are emitted as zero
 	cache.events = nil
 	mm3, err := collector.Collect()
 	require.NoError(t, err)
-	require.ElementsMatch(t, mm2, mm3)
+	assert.ElementsMatch(t, []*Metric{
+		xid12Total(1),
+		xid12Count(0),
+		xid31Total(2),
+		xid31Count(0),
+	}, mm3)
+
+	// multiple events of the same xid in one interval increase the count by that amount
+	cache.events = []safenvml.DeviceEventData{
+		{
+			DeviceUUID: uuid,
+			EventType:  nvml.EventTypeXidCriticalError,
+			EventData:  31,
+		},
+		{
+			DeviceUUID: uuid,
+			EventType:  nvml.EventTypeXidCriticalError,
+			EventData:  31,
+		},
+	}
+	mm4, err := collector.Collect()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []*Metric{
+		xid31Total(4),
+		xid31Count(2),
+		xid12Total(1),
+		xid12Count(0),
+	}, mm4)
 }

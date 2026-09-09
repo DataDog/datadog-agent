@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package process provides shared process-related types used by dynamic
 // instrumentation components.
@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // Info captures the instrumentation metadata associated with a process.
@@ -29,6 +30,9 @@ type Info struct {
 	GitInfo     GitInfo
 	Container   ContainerInfo
 	ProcessTags []string
+	// DiscoveredAt is when the process was discovered, or the zero time if
+	// whoever produced this Info does not know.
+	DiscoveredAt time.Time
 }
 
 // ID is a unique identifier for a process.

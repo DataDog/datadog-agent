@@ -8,6 +8,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -63,10 +64,10 @@ func (l *UDPListener) Start() {
 	err := l.startNewTailer()
 	if err != nil {
 		log.Errorf("Can't start UDP forwarder on port %d: %v", l.source.Config.Port, err)
-		l.source.Status.Error(err)
+		l.source.Status().Error(err)
 		return
 	}
-	l.source.Status.Success()
+	l.source.Status().Success()
 }
 
 // Stop stops the tailer.
@@ -101,16 +102,17 @@ func (l *UDPListener) resetTailer() {
 	err := l.startNewTailer()
 	if err != nil {
 		log.Errorf("Could not reset the UDP connection on port %d: %v", l.source.Config.Port, err)
-		l.source.Status.Error(err)
+		l.source.Status().Error(err)
 		return
 	}
-	l.source.Status.Success()
+	l.source.Status().Success()
 }
 
 // newUDPConnection returns a new UDP connection,
 // returns an error if the creation failed.
 func (l *UDPListener) newUDPConnection() (*net.UDPConn, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", l.source.Config.Port))
+	bindAddr := net.JoinHostPort(l.source.Config.BindHost, strconv.Itoa(l.source.Config.Port))
+	udpAddr, err := net.ResolveUDPAddr("udp", bindAddr)
 	if err != nil {
 		return nil, err
 	}

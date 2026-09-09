@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix a bug where a Data Observability query action targeting a bare host
+    shared by multiple database instances on different ports (e.g. two
+    postgres instances on the same host) could drop every instance on that
+    host from the remaining file-provider configuration, silently stopping
+    normal DBM collection on the untargeted ports. Only the instance actually
+    selected as the Data Observability check is now excluded.

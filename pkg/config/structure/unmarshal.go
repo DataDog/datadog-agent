@@ -13,9 +13,7 @@ import (
 
 	mapstructure "github.com/go-viper/mapstructure/v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 )
 
 // features allowed for handling edge-cases
@@ -140,12 +138,7 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 		dc.ErrorUnused = true
 	}
 
-	var input interface{}
-	if _, ok := cfg.(nodetreemodel.NodeTreeConfig); ok {
-		input = cfg.Get(key)
-	} else {
-		input = helper.GetViperCombine(cfg, key)
-	}
+	input := cfg.Get(key)
 
 	decoder, err := mapstructure.NewDecoder(dc)
 	if err != nil {

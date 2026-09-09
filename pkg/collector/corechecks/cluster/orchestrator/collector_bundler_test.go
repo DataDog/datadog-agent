@@ -36,14 +36,15 @@ func createMockAPIClient() *apiserver.APIClient {
 	dynamicClient := fake.NewSimpleDynamicClientWithCustomListKinds(scheme,
 		map[schema.GroupVersionResource]string{
 			// Datadog resources
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}:        "DatadogMetricList",
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmonitors"}:       "DatadogMonitorList",
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogslos"}:           "DatadogSloList",
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogdashboards"}:     "DatadogDashboardList",
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogagentprofiles"}:  "DatadogAgentProfileList",
-			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogpodautoscalers"}: "DatadogPodAutoscalerList",
-			{Group: "datadoghq.com", Version: "v1alpha2", Resource: "datadogpodautoscalers"}: "DatadogPodAutoscalerList",
-			{Group: "datadoghq.com", Version: "v2alpha1", Resource: "datadogagents"}:         "DatadogAgentList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}:          "DatadogMetricList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmonitors"}:         "DatadogMonitorList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogslos"}:             "DatadogSloList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogdashboards"}:       "DatadogDashboardList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogagentprofiles"}:    "DatadogAgentProfileList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogpodautoscalers"}:   "DatadogPodAutoscalerList",
+			{Group: "datadoghq.com", Version: "v1alpha2", Resource: "datadogpodautoscalers"}:   "DatadogPodAutoscalerList",
+			{Group: "datadoghq.com", Version: "v2alpha1", Resource: "datadogagents"}:           "DatadogAgentList",
+			{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadoginstrumentations"}: "DatadogInstrumentationList",
 			// Third-party resources
 			{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"}: "RolloutList",
 		})
@@ -63,15 +64,16 @@ func TestImportBuiltinCollectors(t *testing.T) {
 	collectorDiscovery := &discovery.DiscoveryCollector{}
 	collectorDiscovery.SetCache(discovery.DiscoveryCache{
 		CollectorForVersion: map[discovery.CollectorVersion]struct{}{
-			{GroupVersion: "v1", Kind: "pods"}:                                      {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:        {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}:       {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogslos"}:           {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogdashboards"}:     {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogagentprofiles"}:  {},
-			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogpodautoscalers"}: {},
-			{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}: {},
-			{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:         {},
+			{GroupVersion: "v1", Kind: "pods"}:                                        {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmetrics"}:          {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogmonitors"}:         {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogslos"}:             {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogdashboards"}:       {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogagentprofiles"}:    {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadogpodautoscalers"}:   {},
+			{GroupVersion: "datadoghq.com/v1alpha2", Kind: "datadogpodautoscalers"}:   {},
+			{GroupVersion: "datadoghq.com/v2alpha1", Kind: "datadogagents"}:           {},
+			{GroupVersion: "datadoghq.com/v1alpha1", Kind: "datadoginstrumentations"}: {},
 		},
 		Groups: []*v1.APIGroup{
 			{
@@ -121,6 +123,7 @@ func TestImportBuiltinCollectors(t *testing.T) {
 		"datadoghq.com/v1alpha1/datadogagentprofiles",
 		"datadoghq.com/v1alpha2/datadogpodautoscalers", // preferred version selected
 		"datadoghq.com/v2alpha1/datadogagents",
+		"datadoghq.com/v1alpha1/datadoginstrumentations",
 	}
 	require.ElementsMatch(t, expected, names)
 }
@@ -407,6 +410,7 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 		"datadoghq.com/v1alpha1/datadogagentprofiles",
 		"datadoghq.com/v1alpha1/datadogmonitors",
 		"datadoghq.com/v1alpha1/datadogmetrics",
+		"datadoghq.com/v1alpha1/datadoginstrumentations",
 
 		// Argo
 		"argoproj.io/v1alpha1/rollouts",
@@ -429,6 +433,21 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 
 		// EKS Auto Mode NodeClass resource
 		"eks.amazonaws.com/v1/nodeclasses",
+
+		// Dynamo
+		"nvidia.com/v1alpha1/dynamocheckpoints",
+		"nvidia.com/v1beta1/dynamocomponentdeployments",
+		"nvidia.com/v1beta1/dynamographdeploymentrequests",
+		"nvidia.com/v1beta1/dynamographdeployments",
+		"nvidia.com/v1beta1/dynamographdeploymentscalingadapters",
+		"nvidia.com/v1alpha1/dynamomodels",
+		"nvidia.com/v1alpha1/dynamoworkermetadatas",
+
+		// KubeRay
+		"ray.io/v1/rayclusters",
+		"ray.io/v1/raycronjobs",
+		"ray.io/v1/rayjobs",
+		"ray.io/v1/rayservices",
 
 		// Gateway API
 		"gateway.networking.k8s.io/v1/gateways",

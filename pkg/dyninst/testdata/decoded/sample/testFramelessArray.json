@@ -18,22 +18,22 @@
           {
             "function": "main.testFramelessArray",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
-            "lineNumber": 93
+            "lineNumber": 96
           },
           {
             "function": "main.executeInlined",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go",
-            "lineNumber": 105
+            "lineNumber": 111
           },
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 61
+            "lineNumber": 62
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 39
+            "lineNumber": 40
           },
           {
             "function": "runtime.main",

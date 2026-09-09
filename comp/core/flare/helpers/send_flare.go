@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -42,8 +43,10 @@ type flareResponse struct {
 
 // FlareSource has metadata about why the flare was sent
 type FlareSource struct {
-	sourceType string
-	rcTaskUUID string
+	sourceType  string
+	rcTaskUUID  string
+	flareSource string
+	tags        []string
 }
 
 // NewLocalFlareSource returns a flare source struct for local flares
@@ -59,6 +62,14 @@ func NewRemoteConfigFlareSource(rcTaskUUID string) FlareSource {
 		sourceType: "remote-config",
 		rcTaskUUID: rcTaskUUID,
 	}
+}
+
+// WithFlareSourceTags returns a copy of the FlareSource with the given flare source and tags attached.
+// These come from the AGENT_TASK config args ("source" and "tags") and are forwarded to the support upload.
+func (s FlareSource) WithFlareSourceTags(flareSource string, tags []string) FlareSource {
+	s.flareSource = flareSource
+	s.tags = tags
+	return s
 }
 
 func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string, source FlareSource) io.ReadCloser {
@@ -86,6 +97,14 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 		if source.rcTaskUUID != "" {
 			// UUID of the remote-config task sending the flare
 			writer.WriteField("rc_task_uuid", source.rcTaskUUID) //nolint:errcheck
+		}
+		if source.flareSource != "" {
+			// Source provided by the AGENT_TASK config (describes what triggered the flare)
+			writer.WriteField("flare_source", source.flareSource) //nolint:errcheck
+		}
+		for _, tag := range source.tags {
+			// Tags provided by the AGENT_TASK config, one field per tag
+			writer.WriteField("tags", tag) //nolint:errcheck
 		}
 
 		p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))
@@ -274,15 +293,15 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 	for attempt := 3; attempt > 0; attempt-- {
 		r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
 		if err != nil {
-			// Always close the response body if it exists
-			statusCode := 0
-			if r != nil {
-				statusCode = r.StatusCode
+			// A response (even 5xx) means the server received the non-idempotent POST, so
+			// don't retry; only a transport failure with no response is a retry candidate.
+			responseReceived := r != nil
+			if responseReceived {
 				r.Body.Close()
 			}
 			lastErr = err
 
-			if !isRetryableFlareError(err, statusCode) {
+			if responseReceived || !isRetryableFlareError(err) {
 				return "", err
 			}
 			log.Warn("Failed to send flare, retrying in 1 second")
@@ -297,22 +316,22 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 	return "", fmt.Errorf("failed to send flare after 3 attempts: %w", lastErr)
 }
 
-func isRetryableFlareError(err error, statusCode int) bool {
+// isRetryableFlareError reports whether a transport failure (no HTTP response) is safe to
+// retry: only DNS- and dial-phase failures, where the non-idempotent POST never left.
+func isRetryableFlareError(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	if statusCode >= 500 && statusCode < 600 {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
 		return true
 	}
-
-	errStr := strings.ToLower(err.Error())
-
-	return strings.Contains(errStr, "timeout") ||
-		strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "connection reset") ||
-		strings.Contains(errStr, "network unreachable") ||
-		strings.Contains(errStr, "temporary failure")
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return opErr.Op == "dial"
+	}
+	// net/http's TLS handshake timeout error is unexported, so match on its message.
+	return strings.Contains(err.Error(), "net/http: TLS handshake timeout")
 }
 
 // buildFlareBaseURL returns the versioned flare domain for a given raw endpoint URL.

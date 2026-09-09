@@ -18,12 +18,12 @@
           {
             "function": "main.testInt8Array",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go",
-            "lineNumber": 34
+            "lineNumber": 40
           },
           {
             "function": "main.executeArrayFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go",
-            "lineNumber": 109
+            "lineNumber": 118
           },
           {
             "function": "main.runAll",
@@ -33,7 +33,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 39
+            "lineNumber": 40
           },
           {
             "function": "runtime.main",

@@ -182,6 +182,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *ot
 			MType:    apiTypeFromTranslatorType(typ),
 			Interval: interval,
 			Source:   msrc,
+			Unit:     dimensions.Unit(),
 		},
 	)
 }

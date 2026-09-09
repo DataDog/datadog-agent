@@ -63,6 +63,14 @@
           WARNING: Stats API errors (1 min): {{.stats_writer.Errors}}
           {{- end}}
         </span>
+        {{- with .trace_semantics }}
+        <span class="stat_subtitle">Trace Semantics</span>
+        <span class="stat_subdata">
+          Source: {{ if eq .Source "remote-config" }}Remote Config{{ else }}embedded default{{ end }}<br>
+          Content hash: {{ .ContentHash }}<br>
+          Version: {{ .Version }}<br>
+        </span>
+        {{- end }}
       {{- end }}
     {{ end }}
   </span>

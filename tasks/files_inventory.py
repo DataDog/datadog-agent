@@ -76,7 +76,7 @@ def compare_inventories(_, parent_inventory_report, current_inventory_report):
     added, removed, changed = _compare_inventories(parent_file_inventory, current_file_inventory)
     if len(added) == 0 and len(removed) == 0 and len(changed) == 0:
         print(color_message('✅ No change detected', 'green'))
-        body = "No change detected"
+        body = "No change detected\n\n"
     else:
         _print_inventory_diff(added, removed, changed)
         body = _inventory_changes_to_comment(added, removed, changed)
@@ -120,12 +120,12 @@ def _inventory_changes_to_comment(added, removed, changed):
         body += f"<details><summary>\n\n### {len(added)} Added files:\n\n</summary>\n\n"
         for f in added:
             body += f"* `{f.relative_path}` ({byte_to_string(f.size_bytes)})\n"
-        body += "</details>"
+        body += "</details>\n\n"
     if len(removed):
         body += f"<details><summary>\n\n### {len(removed)} Removed files:\n\n</summary>\n\n"
         for f in removed:
             body += f"* `{f.relative_path}` ({byte_to_string(f.size_bytes)})\n"
-        body += "</details>"
+        body += "</details>\n\n"
     if len(changed):
         body += f"<details><summary>\n\n### {len(changed)} Changed files:\n\n</summary>\n\n"
         for path, change in changed.items():
@@ -137,7 +137,7 @@ def _inventory_changes_to_comment(added, removed, changed):
             if change.flags & (FileChange.Flags.Owner | FileChange.Flags.Group):
                 change_str += f'  * File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}\n'
             body += change_str
-        body += "</details>"
+        body += "</details>\n\n"
     return body
 
 
@@ -162,23 +162,33 @@ def _filter_files(path: str) -> bool:
     ]
 
 
+# Each entry maps {reports_folder}/{package_prefix}*.deb to a
+# static_quality_gate_{gate_prefix}_deb_{arch} gate (see test/static/static_quality_gates.yml).
+_PRODUCTS = [
+    {'package_prefix': 'datadog-agent', 'gate_prefix': 'agent'},
+    # armhf isn't cross-compiled by Bazel yet, so it's skipped below.
+    {'package_prefix': 'datadog-iot-agent', 'gate_prefix': 'iot_agent'},
+]
+
+
 @task
 def check(ctx, branch_name, reports_folder):
-    package_types = ['deb', 'rpm']
     parent_sha = get_ancestor(ctx, branch_name)
     pr_comment = f"File checks results against ancestor [{parent_sha[:8]}](https://github.com/DataDog/datadog-agent/commit/{parent_sha}):\n\n"
 
-    for package_type in package_types:
-        for artifact in glob.glob(f'{reports_folder}/datadog-agent*.{package_type}'):
-            # deb pattern is $packagename-$version
-            # rpm pattern is $packagename_$version
+    for product in _PRODUCTS:
+        for artifact in glob.glob(f'{reports_folder}/{product["package_prefix"]}*.deb'):
+            # deb pattern is $packagename_$version
             if '-dbg-' in artifact or '-dbg_' in artifact:
+                continue
+            # armhf cross-compilation isn't wired up for these checks yet.
+            if 'armhf' in artifact:
                 continue
             pr_comment += f'### Results for {os.path.basename(artifact)}:\n'
             arch = "amd64"
             if 'aarch64' in artifact or 'arm64' in artifact:
                 arch = "arm64"
-            gate_short_name = f'agent_{package_type}_{arch}'
+            gate_short_name = f'{product["gate_prefix"]}_deb_{arch}'
             report_filename = f'{gate_short_name}_{arch}_size_report_{os.environ["CI_COMMIT_SHORT_SHA"]}.yml'
             _measure_package_local(
                 ctx=ctx,

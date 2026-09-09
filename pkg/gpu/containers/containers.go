@@ -28,6 +28,7 @@ import (
 // ErrCannotMatchDevice is returned when a device cannot be matched to a container
 var ErrCannotMatchDevice = errors.New("cannot find matching device")
 var numberedResourceRegex = regexp.MustCompile(`^nvidia([0-9]+)$`)
+var draDeviceNameRegex = regexp.MustCompile(`^gpu-([0-9]+)$`)
 
 const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
@@ -184,7 +185,13 @@ func matchKubernetesDevices(container *workloadmeta.Container, devices []ddnvml.
 			continue
 		}
 
-		matchingDevice, err := findDeviceForResourceName(devices, resource.ID)
+		var matchingDevice ddnvml.Device
+		var err error
+		if resource.Name == string(gpuutil.GpuNvidiaDRA) {
+			matchingDevice, err = findDeviceForDRAResourceName(devices, resource.ID)
+		} else {
+			matchingDevice, err = findDeviceForResourceName(devices, resource.ID)
+		}
 		if err != nil {
 			multiErr = errors.Join(multiErr, err)
 			continue
@@ -224,6 +231,25 @@ func findDeviceForResourceName(devices []ddnvml.Device, resourceID string) (ddnv
 	}
 
 	// Match -> GKE device plugin
+	return findDeviceByIndex(devices, match[1])
+}
+
+func findDeviceForDRAResourceName(devices []ddnvml.Device, deviceName string) (ddnvml.Device, error) {
+	match := draDeviceNameRegex.FindStringSubmatch(deviceName)
+	if len(match) == 0 {
+		return nil, fmt.Errorf("%w with DRA device name %s", ErrCannotMatchDevice, deviceName)
+	}
+
+	// DRA device names are mapped to physical NVML indexes. This mapping does
+	// not identify individual MIG devices.
+	for _, device := range devices {
+		physicalDevice, isPhysicalDevice := device.(*ddnvml.PhysicalDevice)
+		_, isMigDevice := device.(*ddnvml.MIGDevice)
+		if isMigDevice || (isPhysicalDevice && len(physicalDevice.MIGChildren) > 0) {
+			return nil, errors.New("MIG devices are not supported for DRA index matching")
+		}
+	}
+
 	return findDeviceByIndex(devices, match[1])
 }
 

@@ -10,17 +10,22 @@ package com_datadoghq_remoteaction_rshell
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path"
+	"runtime"
 	"slices"
 	"strings"
 
+	"google.golang.org/protobuf/types/known/structpb"
 	"mvdan.cc/sh/v3/syntax"
 
 	"github.com/DataDog/rshell/interp"
+	"github.com/DataDog/rshell/privilegedhelper"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -31,8 +36,16 @@ import (
 )
 
 const (
-	defaultProcPath         = "/proc"
-	containerizedPathPrefix = "/host"
+	defaultProcPath              = "/proc"
+	defaultRunPath               = "/run"
+	defaultVarRunPath            = "/var/run"
+	defaultPersistentJournalPath = "/var/log/journal"
+	defaultMachineIDPath         = "/etc/machine-id"
+	runtimeJournalPath           = "log/journal"
+	journalControlSocketPath     = "systemd/journal/io.systemd.journal"
+	systemdManagerBusSocketPath  = "dbus/system_bus_socket"
+	containerizedPathPrefix      = "/host"
+	directorProofKeyType         = privilegedhelper.KeyType("TUF_DIRECTOR")
 )
 
 // statFn is the function used to check path existence. It defaults to os.Stat
@@ -41,8 +54,12 @@ var statFn = os.Stat
 
 // RunCommandHandlerConfig carries agent-side rshell policy settings.
 type RunCommandHandlerConfig struct {
-	OperatorAllowedPaths    []string
-	OperatorAllowedCommands []string
+	OperatorAllowedPaths          []string
+	OperatorAllowedCommands       []string
+	OperatorAllowedSystemServices map[string][]string
+	DisableDetailedTelemetry      bool
+	PrivilegedEnabled             bool
+	PrivilegedSocket              string
 }
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
@@ -50,12 +67,13 @@ type RunCommandHandlerConfig struct {
 // The two actions share all sandboxing logic and differ only in mode:
 // - runCommand runs rshell in read-only mode (interp.ModeReadOnly) ;
 // - runRemediationCommand runs it in remediation mode (interp.ModeRemediation)
-// both still confined to the effective AllowedPaths sandbox.
+// both still confined to the effective AllowedPaths sandbox. Either action can
+// delegate selectively elevated execution to the privileged helper; the helper
+// independently authenticates the signed action and enforces its corresponding
+// execution mode.
 //
-// Both allow-lists are intersected unconditionally with the per-task backend
-// list before being passed to rshell. They use different equivalence
-// notions, and each axis has a sentinel value that means "allow whatever
-// the backend allowed":
+// The operator allowlists narrow the per-task backend lists before being passed
+// to rshell. They use different equivalence notions:
 //
 //   - commands compare by exact string equality, with one special case:
 //     the literal "rshell:*" admits every backend entry in the "rshell:"
@@ -63,12 +81,20 @@ type RunCommandHandlerConfig struct {
 //     form to match.
 //   - paths compare by containment with the narrower side winning; the
 //     sentinel "/" admits every POSIX or Windows drive-rooted absolute path.
+//   - system services compare exact service names and intersect action lists.
+//     The "*" action admits every action granted by the other side for that
+//     service. An unset local map admits all backend grants.
 //
-// On either axis, an explicit empty operator list is the kill-switch.
+// An explicitly configured empty operator list or service map is the
+// kill-switch for that axis.
 type RunCommandHandler struct {
-	operatorAllowedPaths    []string
-	operatorAllowedCommands []string
-	mode                    interp.Mode
+	operatorAllowedPaths          []string
+	operatorAllowedCommands       []string
+	operatorAllowedSystemServices map[string][]string
+	disableCommandTelemetry       bool
+	mode                          interp.Mode
+	privilegedEnabled             bool
+	privilegedSocket              string
 }
 
 // newRunCommandHandler builds a run-command handler and precomputes the
@@ -77,27 +103,35 @@ type RunCommandHandler struct {
 //  1. Paths are normalized, reduced to the broadest entries per access group,
 //     and deduplicated so same-path read-write entries replace read-only ones.
 //  2. Commands are deduplicated.
-func newRunCommandHandler(operatorAllowedPaths []string, operatorAllowedCommands []string, mode interp.Mode) *RunCommandHandler {
+//  3. System-service actions are sorted and deduplicated while preserving nil
+//     as an unset operator policy.
+func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCommandHandler {
 	// remove duplicates
-	commands := slices.Clone(operatorAllowedCommands)
+	commands := slices.Clone(cfg.OperatorAllowedCommands)
 	slices.Sort(commands)
 	commands = slices.Compact(commands)
+
+	services := cloneSystemServiceAllowlist(cfg.OperatorAllowedSystemServices)
 	return &RunCommandHandler{
-		operatorAllowedPaths:    reducePathListToBroadest(cleanPathList(operatorAllowedPaths)),
-		operatorAllowedCommands: commands,
-		mode:                    mode,
+		operatorAllowedPaths:          reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
+		operatorAllowedCommands:       commands,
+		operatorAllowedSystemServices: services,
+		disableCommandTelemetry:       cfg.DisableDetailedTelemetry,
+		mode:                          mode,
+		privilegedEnabled:             cfg.PrivilegedEnabled,
+		privilegedSocket:              cfg.PrivilegedSocket,
 	}
 }
 
 func NewRunCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeReadOnly)
+	return newRunCommandHandler(cfg, interp.ModeReadOnly)
 }
 
 // NewRunRemediationCommandHandler builds the write-capable runRemediationCommand
 // handler. It shares all sandboxing with runCommand and only switches rshell into
 // remediation mode.
 func NewRunRemediationCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg.OperatorAllowedPaths, cfg.OperatorAllowedCommands, interp.ModeRemediation)
+	return newRunCommandHandler(cfg, interp.ModeRemediation)
 }
 
 // filterAllowedCommands returns the effective command allowlist, passed to rshell:
@@ -121,15 +155,118 @@ func (h *RunCommandHandler) filterAllowedPaths(backend []string) []string {
 	return intersectAllowedPathsByAccess(h.operatorAllowedPaths, backendPaths)
 }
 
+// backendSystemServiceGrants converts the backend policy into a deterministic
+// list of exact service/action grants. Non-string action values are ignored
+// with a warning; duplicate actions are collapsed.
+func backendSystemServiceGrants(backend map[string]*structpb.ListValue) []interp.SystemServiceControlGrant {
+	services := slices.Sorted(maps.Keys(backend))
+
+	grants := make([]interp.SystemServiceControlGrant, 0, len(services))
+	for _, service := range services {
+		values := backend[service].GetValues()
+		actionSet := make(map[string]struct{}, len(values))
+		for i, value := range values {
+			stringValue, ok := value.GetKind().(*structpb.Value_StringValue)
+			if !ok {
+				log.Warnf("ignoring non-string system service action at index %d for %q", i, service)
+				continue
+			}
+			actionSet[stringValue.StringValue] = struct{}{}
+		}
+
+		if len(actionSet) == 0 {
+			continue
+		}
+
+		actions := make([]interp.SystemServiceAction, 0, len(actionSet))
+		for action := range actionSet {
+			actions = append(actions, interp.SystemServiceAction(action))
+		}
+		slices.Sort(actions)
+		grants = append(grants, interp.SystemServiceControlGrant{
+			Service: service,
+			Actions: actions,
+		})
+	}
+	return grants
+}
+
+// filterSystemServiceGrants narrows normalized backend grants with the local
+// operator policy. A nil operator policy leaves the backend grants unchanged,
+// while a configured empty policy denies every service. Within an exact
+// service, "*" stands for every action granted by the other policy.
+func (h *RunCommandHandler) filterSystemServiceGrants(backend []interp.SystemServiceControlGrant) []interp.SystemServiceControlGrant {
+	if h.operatorAllowedSystemServices == nil {
+		return backend
+	}
+
+	grants := make([]interp.SystemServiceControlGrant, 0, len(backend))
+	for _, grant := range backend {
+		allowed, ok := h.operatorAllowedSystemServices[grant.Service]
+		if !ok {
+			continue
+		}
+
+		actions := intersectSystemServiceActions(grant.Actions, allowed)
+		if len(actions) == 0 {
+			continue
+		}
+
+		grants = append(grants, interp.SystemServiceControlGrant{
+			Service: grant.Service,
+			Actions: actions,
+		})
+	}
+	return grants
+}
+
+func intersectSystemServiceActions(backend []interp.SystemServiceAction, operator []string) []interp.SystemServiceAction {
+	if slices.Contains(operator, string(interp.SystemServiceAllActions)) {
+		return slices.Clone(backend)
+	}
+
+	if slices.Contains(backend, interp.SystemServiceAllActions) {
+		actions := make([]interp.SystemServiceAction, 0, len(operator))
+		for _, action := range operator {
+			actions = append(actions, interp.SystemServiceAction(action))
+		}
+		return actions
+	}
+
+	actions := make([]interp.SystemServiceAction, 0, len(backend))
+	for _, action := range backend {
+		if _, ok := slices.BinarySearch(operator, string(action)); ok {
+			actions = append(actions, action)
+		}
+	}
+	return actions
+}
+
+func cloneSystemServiceAllowlist(services map[string][]string) map[string][]string {
+	if services == nil {
+		return nil
+	}
+
+	cloned := make(map[string][]string, len(services))
+	for service, actions := range services {
+		clonedActions := slices.Clone(actions)
+		slices.Sort(clonedActions)
+		cloned[service] = slices.Compact(clonedActions)
+	}
+	return cloned
+}
+
 // RunCommandInputs defines the user-supplied inputs for the runCommand action.
 //
 // Newer tasks carry backend allowlists in system_inputs.remote_action. The
 // legacy allowedCommands/allowedPaths input fields are still accepted as a
 // compatibility fallback for tasks signed by older servers.
 type RunCommandInputs struct {
-	Command         string              `json:"command"`
-	AllowedCommands []string            `json:"allowedCommands"`
-	AllowedPaths    map[string][]string `json:"allowedPaths"`
+	Command              string              `json:"command"`
+	AllowedCommands      []string            `json:"allowedCommands"`
+	AllowedPaths         map[string][]string `json:"allowedPaths"`
+	EffectivePermissions string              `json:"effectivePermissions"`
+	ElevatableCommands   []string            `json:"elevatableCommands"`
 }
 
 // RunCommandOutputs defines the outputs for the runCommand action.
@@ -160,12 +297,24 @@ func (h *RunCommandHandler) Run(
 	if inputs.Command == "" {
 		return nil, errors.New("command is required")
 	}
+	if inputs.EffectivePermissions != "" {
+		switch inputs.EffectivePermissions {
+		case privilegedhelper.EscalationAllowed:
+			return h.runPrivileged(ctx, task)
+		case "Root":
+			return nil, errors.New("whole-script root execution is not supported")
+		default:
+			return nil, fmt.Errorf("unsupported effective permissions %q", inputs.EffectivePermissions)
+		}
+	}
 
-	backendCommands, backendPaths := backendAllowlistsFromTask(task, inputs)
+	backendCommands, backendPaths, backendSystemServices := backendAllowlistsFromTask(task, inputs)
 	effectiveAllowedCommands := h.filterAllowedCommands(backendCommands)
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
-	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v",
-		h.mode, inputs.Command, backendCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths)
+	backendAllowedSystemServices := backendSystemServiceGrants(backendSystemServices)
+	effectiveAllowedSystemServices := h.filterSystemServiceGrants(backendAllowedSystemServices)
+	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v backendAllowedSystemServices=%v effectiveAllowedSystemServices=%v",
+		h.mode, inputs.Command, backendCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths, backendAllowedSystemServices, effectiveAllowedSystemServices)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {
@@ -182,14 +331,23 @@ func (h *RunCommandHandler) Run(
 	// Route sandbox diagnostics to a dedicated sink so they do not leak
 	// into the action's stderr field. We discard the streaming output and
 	// read the messages back via runner.Warnings() into SandboxWarnings.
-	runner, err := interp.New(
+	runnerOptions := []interp.RunnerOption{
 		interp.StdIO(nil, &stdout, &stderr),
 		interp.WarningsWriter(io.Discard),
+		interp.Script(inputs.Command),
 		interp.AllowedPaths(effectiveAllowedPaths),
 		interp.ProcPath(resolveProcPath()),
 		interp.AllowedCommands(effectiveAllowedCommands),
+		interp.AllowedSystemServices(effectiveAllowedSystemServices),
 		interp.WithMode(h.mode),
-	)
+	}
+	if h.disableCommandTelemetry {
+		runnerOptions = append(runnerOptions, interp.DisableDetailedTelemetry())
+	}
+	if runtime.GOOS == "linux" {
+		runnerOptions = append(runnerOptions, interp.WithSystemdTarget(resolveSystemdTarget()))
+	}
+	runner, err := interp.New(runnerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runner: %w", err)
 	}
@@ -215,14 +373,67 @@ func (h *RunCommandHandler) Run(
 	}, nil
 }
 
-func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (commands []string, paths []string) {
+func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task) (interface{}, error) {
+	if !h.privilegedEnabled {
+		return nil, errors.New("privileged rshell execution is disabled by local configuration")
+	}
+	if h.privilegedSocket == "" {
+		return nil, errors.New("privileged rshell socket is not configured")
+	}
+	envelope := task.Data.Attributes.SignedEnvelope
+	if envelope == nil {
+		return nil, errors.New("verified signed envelope is required for privileged execution")
+	}
+	verificationKey := task.Data.Attributes.VerificationKey
+	if verificationKey == nil {
+		return nil, errors.New("verified public key is required for privileged execution")
+	}
+	if verificationKey.DirectorProof == nil {
+		return nil, errors.New("verified Director proof is required for privileged execution")
+	}
+	proofJSON, err := json.Marshal(verificationKey.DirectorProof)
+	if err != nil {
+		return nil, fmt.Errorf("encode Director proof: %w", err)
+	}
+	signatures := make([]privilegedhelper.Signature, 0, len(envelope.Signatures))
+	for _, signature := range envelope.Signatures {
+		var keyType privilegedhelper.KeyType
+		switch signature.KeyType.String() {
+		case "X509_RSA":
+			keyType = privilegedhelper.KeyTypeX509RSA
+		case "ED25519":
+			keyType = privilegedhelper.KeyTypeED25519
+		default:
+			return nil, fmt.Errorf("unsupported signature key type %s", signature.KeyType)
+		}
+		signatures = append(signatures, privilegedhelper.Signature{KeyType: keyType, KeyID: signature.KeyId, Signature: signature.Signature})
+	}
+	request := privilegedhelper.ExecuteRequest{
+		Version: privilegedhelper.ProtocolVersion,
+		Envelope: privilegedhelper.SignedEnvelope{
+			Data: envelope.Data, HashType: envelope.HashType.String(), Signatures: signatures,
+		},
+		VerificationKeys: []privilegedhelper.CredentialKey{{
+			ID: verificationKey.DirectorProof.TargetPath, Type: directorProofKeyType, PEM: string(proofJSON),
+		}, {
+			ID: verificationKey.ID, Type: privilegedhelper.KeyType(verificationKey.KeyType), PEM: verificationKey.PEM,
+		}},
+	}
+	response, err := (privilegedhelper.Client{SocketPath: h.privilegedSocket}).Execute(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("privileged rshell helper: %w", err)
+	}
+	return &RunCommandOutputs{ExitCode: response.ExitCode, Stdout: response.Stdout, Stderr: response.Stderr, SandboxWarnings: response.SandboxWarnings}, nil
+}
+
+func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (commands []string, paths []string, systemServices map[string]*structpb.ListValue) {
 	// The signed system inputs are authoritative for new tasks. A present but
 	// empty remote_action allowlist intentionally blocks that axis.
 	if remoteAction := task.Data.Attributes.SystemInputs.GetRemoteAction(); remoteAction != nil {
-		return remoteAction.AllowedCommands, remoteAction.AllowedPaths
+		return remoteAction.AllowedCommands, remoteAction.AllowedPaths, remoteAction.SystemServices
 	}
 
-	return inputs.AllowedCommands, selectBackendPathsFromEnv(inputs.AllowedPaths)
+	return inputs.AllowedCommands, selectBackendPathsFromEnv(inputs.AllowedPaths), nil
 }
 
 // resolveProcPath returns the proc filesystem path appropriate for the current
@@ -230,10 +441,64 @@ func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (comma
 // /host/proc; otherwise it falls back to /proc.
 func resolveProcPath() string {
 	if env.IsContainerized() {
-		hostProc := path.Join(containerizedPathPrefix, defaultProcPath)
-		if _, err := statFn(hostProc); err == nil {
+		if hostProc := resolveMountedHostPath(defaultProcPath); hostProc != "" {
 			return hostProc
 		}
 	}
 	return defaultProcPath
+}
+
+// Bare metal uses rshell's local defaults. Containers always receive an
+// explicit host machine-ID path so missing mounts cannot fall back to
+// container-local systemd endpoints.
+func resolveSystemdTarget() interp.SystemdTargetConfig {
+	if !env.IsContainerized() {
+		return interp.SystemdTargetConfig{}
+	}
+
+	target := interp.SystemdTargetConfig{MachineIDPath: containerizedHostPath(defaultMachineIDPath)}
+	if hostPath := resolveMountedHostPath(defaultPersistentJournalPath); hostPath != "" {
+		target.JournalDirs = append(target.JournalDirs, hostPath)
+	}
+	resolveSystemdRuntimePaths(&target)
+	return target
+}
+
+func resolveMountedHostPath(defaultPath string) string {
+	return resolveMountedPath(containerizedHostPath(defaultPath))
+}
+
+func resolveMountedPath(candidatePath string) string {
+	if _, err := statFn(candidatePath); err != nil {
+		return ""
+	}
+	return candidatePath
+}
+
+// resolveSystemdRuntimePaths selects one container-visible runtime root for all
+// systemd endpoints. /host/run supports direct /run and full-host-root mounts;
+// /host/var/run matches the standard Agent container manifests.
+func resolveSystemdRuntimePaths(target *interp.SystemdTargetConfig) {
+	for _, runtimePath := range []string{
+		containerizedHostPath(defaultRunPath),
+		containerizedHostPath(defaultVarRunPath),
+	} {
+		runtimeJournal := resolveMountedPath(path.Join(runtimePath, runtimeJournalPath))
+		journalControlSocket := resolveMountedPath(path.Join(runtimePath, journalControlSocketPath))
+		managerBusSocket := resolveMountedPath(path.Join(runtimePath, systemdManagerBusSocketPath))
+		if runtimeJournal == "" && journalControlSocket == "" && managerBusSocket == "" {
+			continue
+		}
+
+		if runtimeJournal != "" {
+			target.JournalDirs = append(target.JournalDirs, runtimeJournal)
+		}
+		target.JournalControlSocket = journalControlSocket
+		target.ManagerBusSocket = managerBusSocket
+		return
+	}
+}
+
+func containerizedHostPath(defaultPath string) string {
+	return path.Join(containerizedPathPrefix, defaultPath)
 }

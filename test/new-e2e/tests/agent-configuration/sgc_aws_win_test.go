@@ -26,9 +26,9 @@ secret_backend_config:
     aws_region: us-east-1`
 
 	v.UpdateEnv(
-		awshost.Provisioner(
+		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
-				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess()),
 				ec2.WithAgentOptions(
 					agentparams.WithSkipAPIKeyInConfig(),
 					agentparams.WithAgentConfig(config),

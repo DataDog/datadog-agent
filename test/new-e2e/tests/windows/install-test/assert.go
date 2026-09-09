@@ -158,11 +158,16 @@ func getExpectedBinFilesForAgentMajorVersion(majorVersion string) []string {
 		// user binaries
 		`bin\agent.exe`,
 		`bin\secret-generic-connector.exe`,
+		`bin\dd-compile-policy.exe`,
 		`bin\agent\ddtray.exe`,
 		`bin\agent\trace-agent.exe`,
 		`bin\agent\process-agent.exe`,
 		`bin\agent\security-agent.exe`,
 		`bin\agent\system-probe.exe`,
+		`bin\agent\privateactionrunner.exe`,
+		`bin\agent\dd-procmgr.exe`,
+		`bin\agent\dd-procmgrd.exe`,
+		`bin\agent\agent-data-plane.exe`,
 		// drivers
 		`bin\agent\driver\ddnpm.sys`,
 		`bin\agent\driver\ddnpm.inf`,

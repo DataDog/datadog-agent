@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: Reduce allocations when decoding v0.4 traces by interning strings
+    directly from the incoming payload instead of allocating a string for
+    every value already present in the string table.
+  - |
+    APM: Reserve room for the trailing end-of-body read when buffering an
+    incoming trace payload, avoiding a reallocation and copy of the buffer.

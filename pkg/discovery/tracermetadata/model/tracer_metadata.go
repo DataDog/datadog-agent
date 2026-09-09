@@ -30,6 +30,21 @@ type TracerMetadata struct {
 	LogsCollected  bool   `json:"logs_collected,omitempty"`
 }
 
+// IsZero returns true if the TracerMetadata is empty (zero value).
+func (t TracerMetadata) IsZero() bool {
+	return t.SchemaVersion == 0 &&
+		t.RuntimeID == "" &&
+		t.TracerLanguage == "" &&
+		t.TracerVersion == "" &&
+		t.Hostname == "" &&
+		t.ServiceName == "" &&
+		t.ServiceEnv == "" &&
+		t.ServiceVersion == "" &&
+		t.ProcessTags == "" &&
+		t.ContainerID == "" &&
+		!t.LogsCollected
+}
+
 // ShouldSkipServiceTagKV checks if a tracer service tag key-value pair should be
 // skipped if it matches the UST tags.
 func ShouldSkipServiceTagKV(tagKey, tagValue, ustService, ustEnv, ustVersion string) bool {

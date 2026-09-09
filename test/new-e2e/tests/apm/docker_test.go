@@ -126,7 +126,7 @@ func (s *DockerFakeintakeSuite) TestAutoVersionTraces() {
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testAutoVersionTraces(s.T(), c, s.Env().FakeIntake)
+		testAutoVersionTraces(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding version tags")
 }
 
@@ -138,7 +138,7 @@ func (s *DockerFakeintakeSuite) TestAutoVersionStats() {
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testAutoVersionStats(s.T(), c, s.Env().FakeIntake)
+		testAutoVersionStats(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding version tags")
 }
 
@@ -150,7 +150,7 @@ func (s *DockerFakeintakeSuite) TestIsTraceRootTag() {
 	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testIsTraceRootTag(s.T(), c, s.Env().FakeIntake)
+		testIsTraceRootTag(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding is_trace_root tag")
 }
 
@@ -225,7 +225,7 @@ func (s *DockerFakeintakeSuite) TestTPS() {
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testTPS(c, s.Env().FakeIntake, agentTPS)
+		testTPS(c, s.Env().FakeIntake, service, agentTPS)
 	}, 2*time.Minute, 10*time.Second, "Failed to test TargetTPS")
 }
 
@@ -257,7 +257,7 @@ func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		tracesSampledByProbabilitySampler(s.T(), c, s.Env().FakeIntake)
+		tracesSampledByProbabilitySampler(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
 }
 
@@ -275,7 +275,7 @@ func (s *DockerFakeintakeSuite) TestAPMModeDefault() {
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testAPMMode(c, s.Env().FakeIntake, "")
+		testAPMMode(c, s.Env().FakeIntake, service, "")
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces with _dd.apm_mode=default")
 }
 
@@ -301,6 +301,6 @@ func (s *DockerFakeintakeSuite) TestAPMModeEdge() {
 
 	s.T().Log("Waiting for traces.")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testAPMMode(c, s.Env().FakeIntake, "edge")
+		testAPMMode(c, s.Env().FakeIntake, service, "edge")
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces with _dd.apm_mode=edge")
 }

@@ -1,0 +1,21 @@
+---
+features:
+  - |
+    APM : Add support for span-derived primary tags on span metrics produced by
+    the Datadog Distribution of OpenTelemetry Collector (DDOT). Set
+    ``span_derived_primary_tags`` on the ``datadog`` connector's ``traces``
+    section to a list of attribute keys, and the value of each key found on a
+    span (or, failing that, on its resource) is attached to the APM stats the
+    connector emits, letting you break down span metrics by those tags:
+
+    .. code-block:: yaml
+
+        connectors:
+          datadog/connector:
+            traces:
+              span_derived_primary_tags: [team, region]
+
+    Keys absent from both the span and its resource attributes are omitted.
+    Each key must also be configured as a primary tag in your Datadog
+    organization; keys that are not registered as primary tags are dropped by
+    the intake and do not appear on the resulting span metrics.

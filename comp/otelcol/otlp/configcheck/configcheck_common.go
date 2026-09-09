@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	confighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -55,9 +54,7 @@ func convertToStringConfMap(cfg configmodel.Reader, inmap map[string]interface{}
 func readConfigSection(cfg configmodel.Reader, section string) map[string]interface{} {
 	stringMap := map[string]interface{}{}
 
-	// Get all layers combined when using viper, which doesn't correctly
-	// merge all layers when calling .Get(key)
-	val := confighelper.GetViperCombine(cfg, section)
+	val := cfg.Get(section)
 	if sectionData, ok := val.(map[string]interface{}); ok {
 		// Convert from retrieved section into a scoped confmap separated by "::"
 		convertToStringConfMap(cfg, sectionData, section+".", nil, stringMap)

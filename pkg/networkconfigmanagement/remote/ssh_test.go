@@ -92,15 +92,15 @@ interface GigabitEthernet0/1
 		},
 	})
 	t.Run("running_config", func(t *testing.T) {
-		config, err := conn.RetrieveRunningConfig(context.Background())
+		result, err := conn.RetrieveRunningConfig(context.Background())
 		if assert.NoError(t, err) {
-			assert.Equal(t, expectedConfig, string(config))
+			assert.Equal(t, expectedConfig, string(result.Output))
 		}
 	})
 	t.Run("startup_config", func(t *testing.T) {
-		config, err := conn.RetrieveStartupConfig(context.Background())
+		result, err := conn.RetrieveStartupConfig(context.Background())
 		if assert.NoError(t, err) {
-			assert.Equal(t, expectedConfig, string(config))
+			assert.Equal(t, expectedConfig, string(result.Output))
 		}
 	})
 }

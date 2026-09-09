@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "hostname",
+    srcs = [
+        "doc.go",
+        "hostname.go",
+        "hostname_stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostname",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
+    ],
+)

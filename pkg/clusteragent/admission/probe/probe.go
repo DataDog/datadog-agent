@@ -258,6 +258,7 @@ func (p *Probe) reportHealthIssue() {
 		issue = &healthplatformpayload.Issue{
 			Id:        healthIssueID,
 			IssueName: admissionprobe.IssueName,
+			IssueType: admissionprobe.IssueType,
 			Title:     "Admission Controller Unreachable",
 			Source:    "cluster-agent",
 		}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package decode
 
@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strconv"
 	"time"
+	"unicode/utf8"
 	"unsafe"
 
 	"github.com/dustin/go-humanize"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // formatLimits tracks formatting limits for log output.
@@ -102,9 +104,7 @@ func writeBoundedError(
 			return false
 		}
 		available := limits.maxBytes - 2
-		if len(msg) > available {
-			msg = msg[:available]
-		}
+		msg = utilstrings.TruncateUTF8(msg, available)
 		errorMsg = "{" + msg + "}"
 	} else {
 		// Format: "{prefix: message}"
@@ -113,9 +113,7 @@ func writeBoundedError(
 			return false
 		}
 		available := limits.maxBytes - prefixLen
-		if len(msg) > available {
-			msg = msg[:available]
-		}
+		msg = utilstrings.TruncateUTF8(msg, available)
 		errorMsg = "{" + prefix + ": " + msg + "}"
 	}
 	buf.WriteString(errorMsg)
@@ -189,9 +187,23 @@ func (e *encodingContext) forEachOfType(typeID ir.TypeID, fn func(output.DataIte
 	}
 }
 
+var errInvalidTypeName = errors.New("type name is not valid UTF-8")
+
 // ResolveTypeName implements encodingContext.
 func (e *encodingContext) ResolveTypeName(typeID gotype.TypeID) (string, error) {
-	return e.typeResolver.ResolveTypeName(typeID)
+	name, err := e.typeResolver.ResolveTypeName(typeID)
+	if err != nil {
+		return "", err
+	}
+	// Runtime type names are read out of the target's types blob without any
+	// validation, so a bogus runtime type word resolves to arbitrary bytes.
+	// Report those as unresolved: callers fall back to the unknown-type
+	// rendering and the garbage never reaches the missing type collector,
+	// which would otherwise keep asking for a type that can never resolve.
+	if !utf8.ValidString(name) {
+		return "", errInvalidTypeName
+	}
+	return name, nil
 }
 
 // getPtr implements encodingContext.
@@ -2033,7 +2045,8 @@ func (s *goStringHeaderType) encodeValueFields(
 		)
 	}
 	length := stringValue.Header().Length
-	if strLen > uint64(length) {
+	truncated := strLen > uint64(length)
+	if truncated {
 		// We captured partial data for the string, report truncation.
 		if err := writeTokens(enc,
 			jsontext.String("size"),
@@ -2048,6 +2061,9 @@ func (s *goStringHeaderType) encodeValueFields(
 		return err
 	}
 	str := unsafe.String(unsafe.SliceData(stringData), min(int(length), int(strLen)))
+	if truncated {
+		str = trimPartialRune(str)
+	}
 	return writeTokens(enc, jsontext.String(str))
 }
 
@@ -2093,7 +2109,9 @@ func (s *goStringHeaderType) formatValueFields(
 	}
 	// We display truncated string with ellipsis if possible, nothing otherwise.
 	if limits.maxBytes > len(formatEllipsis) {
-		str := string(strData[:min(displayLen, limits.maxBytes-len(formatEllipsis))]) + formatEllipsis
+		str := trimPartialRune(
+			string(strData[:min(displayLen, limits.maxBytes-len(formatEllipsis))]),
+		) + formatEllipsis
 		writeBoundedString(buf, limits, str)
 	}
 	return nil

@@ -51,6 +51,10 @@ type staticConfig struct {
 	// An empty list allows all registries (default).
 	registryAllowList []string
 
+	// defaultDDRegistries contains the Datadog-owned registries that the automatic
+	// injection mode can safely use through the CSI driver without extra credentials.
+	defaultDDRegistries []string
+
 	// mutateUnlabelled is used to control if we require workloads to have a label when using Local Lib Injection.
 	mutateUnlabelled bool
 
@@ -132,6 +136,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
 	registryAllowList := datadogConfig.GetStringSlice("admission_controller.auto_instrumentation.container_registry_allow_list")
+	defaultDDRegistries := datadogConfig.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries")
 	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
 
 	return &Config{
@@ -141,6 +146,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 			Instrumentation:               instrumentationConfig,
 			containerRegistry:             containerRegistry,
 			registryAllowList:             registryAllowList,
+			defaultDDRegistries:           defaultDDRegistries,
 			mutateUnlabelled:              mutateUnlabelled,
 			initResources:                 initResources,
 			initSecurityContext:           initSecurityContext,
@@ -183,6 +189,10 @@ type InstrumentationConfig struct {
 	// caveat of the annotation based instrumentation. Full config
 	// key: apm_config.instrumentation.enabled
 	Enabled bool `mapstructure:"enabled" json:"enabled"`
+	// OnDemand keeps the SSI admission webhook available for runtime workload
+	// selection without enabling implicit instrumentation. Full config key:
+	// apm_config.instrumentation.on_demand
+	OnDemand bool `mapstructure:"on_demand" json:"on_demand"`
 	// EnabledNamespaces is a list of namespaces where the autoinstrumentation is enabled. If empty, it is enabled in
 	// all namespaces. EnabledNamespace and DisabledNamespaces are mutually exclusive and cannot be set together. Full
 	// config key: apm_config.instrumentation.enabled_namespaces

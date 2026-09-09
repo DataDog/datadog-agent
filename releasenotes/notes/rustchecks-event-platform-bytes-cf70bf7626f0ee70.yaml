@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Shared-library (Rust) checks can now submit event platform events as raw
+    bytes, in addition to strings, allowing binary payloads such as protobuf.

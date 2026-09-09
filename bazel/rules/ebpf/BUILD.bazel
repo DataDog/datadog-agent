@@ -1,5 +1,22 @@
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_test.bzl", "py_test")
 load("//bazel/rules/ebpf:cgo_godefs_test.bzl", "cgo_godefs_test_suite")
+
+py_binary(
+    name = "clang_with_unused_inputs",
+    srcs = ["clang_with_unused_inputs.py"],
+    visibility = ["//visibility:private"],
+)
+
+py_test(
+    name = "clang_with_unused_inputs_test",
+    srcs = [
+        "clang_with_unused_inputs.py",
+        "clang_with_unused_inputs_test.py",
+    ],
+    main = "clang_with_unused_inputs_test.py",
+)
 
 string_flag(
     name = "target_arch",

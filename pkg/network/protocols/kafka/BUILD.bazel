@@ -1,5 +1,6 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/ebpf:cgo_godefs.bzl", "cgo_godefs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest //pkg/ebpf/ebpftest:cgo_align
 
@@ -32,36 +33,61 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka",
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/ebpf",
-        "//pkg/network/config",
-        "//pkg/network/protocols",
-        "//pkg/network/protocols/events",
         "//pkg/network/protocols/http/testutil",
-        "//pkg/network/protocols/telemetry",
-        "//pkg/network/types",
-        "//pkg/network/usm/buildmode",
-        "//pkg/network/usm/config",
-        "//pkg/network/usm/utils",
-        "//pkg/process/util",
-        "//pkg/util/intern",
-        "//pkg/util/log",
-        "//pkg/util/sync",
         "//pkg/util/testutil",
         "//pkg/util/testutil/docker",
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_datadog_ebpf_manager//:ebpf-manager",
-        "@com_github_datadog_sketches_go//ddsketch",
-        "@com_github_davecgh_go_spew//spew",
         "@com_github_stretchr_testify//require",
         "@com_github_twmb_franz_go//pkg/kgo",
         "@com_github_twmb_franz_go_pkg_kadm//:kadm",
-        "@org_golang_x_sys//unix",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+            "//pkg/network/config",
+            "//pkg/network/protocols",
+            "//pkg/network/protocols/events",
+            "//pkg/network/protocols/telemetry",
+            "//pkg/network/types",
+            "//pkg/network/usm/buildmode",
+            "//pkg/network/usm/config",
+            "//pkg/network/usm/utils",
+            "//pkg/process/util",
+            "//pkg/util/intern",
+            "//pkg/util/log",
+            "//pkg/util/sync",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_datadog_sketches_go//ddsketch",
+            "@com_github_davecgh_go_spew//spew",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+            "//pkg/network/config",
+            "//pkg/network/protocols",
+            "//pkg/network/protocols/events",
+            "//pkg/network/protocols/telemetry",
+            "//pkg/network/types",
+            "//pkg/network/usm/buildmode",
+            "//pkg/network/usm/config",
+            "//pkg/network/usm/utils",
+            "//pkg/process/util",
+            "//pkg/util/intern",
+            "//pkg/util/log",
+            "//pkg/util/sync",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_datadog_sketches_go//ddsketch",
+            "@com_github_davecgh_go_spew//spew",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "kafka_test",
     srcs = [
         "api_version_counter_test.go",
@@ -70,27 +96,32 @@ go_test(
         "telemetry_test.go",
         "types_linux_test.go",
     ],
-    # FIXME(agent-build) remove allow_empty once we don't build with omnibus
     data = glob(
         ["testdata/**"],
         allow_empty = True,
     ),
     embed = [":kafka"],
-    gotags = ["test"],
-    deps = [
-        "//pkg/network/config",
-        "//pkg/network/protocols/telemetry",
-        "//pkg/process/util",
-        "//pkg/util/intern",
-        "@com_github_datadog_sketches_go//ddsketch",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ] + select({
+    gotags_sets = [["bpf"]],
+    deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf/ebpftest:cgo_align",
+            "//pkg/network/config",
+            "//pkg/network/protocols/telemetry",
+            "//pkg/process/util",
+            "//pkg/util/intern",
+            "@com_github_datadog_sketches_go//ddsketch",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf/ebpftest:cgo_align",
+            "//pkg/network/config",
+            "//pkg/network/protocols/telemetry",
+            "//pkg/process/util",
+            "//pkg/util/intern",
+            "@com_github_datadog_sketches_go//ddsketch",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

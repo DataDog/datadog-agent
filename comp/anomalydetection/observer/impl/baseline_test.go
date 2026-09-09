@@ -22,7 +22,45 @@ type alwaysFiringDetector struct {
 	ref       observerdef.SeriesRef
 }
 
+// baselineTestDetector can model independently timed detector baselines and
+// records series reclamation from another detector's baseline completion.
+type baselineTestDetector struct {
+	name          string
+	readyAtSec    int64
+	ready         bool
+	source        observerdef.SeriesDescriptor
+	ref           observerdef.SeriesRef
+	emitAfterSec  int64
+	includeSource bool
+	removed       []observerdef.SeriesRef
+}
+
+func (d *baselineTestDetector) Name() string { return d.name }
+func (d *baselineTestDetector) Ready() bool  { return d.ready }
+func (d *baselineTestDetector) Detect(_ observerdef.StorageReader, dataSec int64) observerdef.DetectionResult {
+	if dataSec >= d.readyAtSec {
+		d.ready = true
+	}
+	if dataSec < d.emitAfterSec {
+		return observerdef.DetectionResult{}
+	}
+	anomaly := observerdef.Anomaly{
+		Source:       d.source,
+		DetectorName: d.name,
+		Timestamp:    dataSec,
+		Title:        "anomaly",
+	}
+	if d.includeSource {
+		anomaly.SourceRef = &observerdef.QueryHandle{Ref: d.ref, Aggregate: AggregateAverage}
+	}
+	return observerdef.DetectionResult{Anomalies: []observerdef.Anomaly{anomaly}}
+}
+func (d *baselineTestDetector) RemoveSeries(refs []observerdef.SeriesRef) {
+	d.removed = append(d.removed, refs...)
+}
+
 func (d *alwaysFiringDetector) Name() string { return "always_firing" }
+func (*alwaysFiringDetector) Ready() bool    { return true }
 func (d *alwaysFiringDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{{
@@ -70,74 +108,111 @@ func makeBaselineEngine(cfg BaselineConfig, correlator observerdef.Correlator) (
 
 // ---- baselineController unit tests ----
 
-func TestBaselineController_WindowSeededOnFirstActiveAt(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-	assert.Equal(t, int64(0), b.startSec)
+func TestBaselineController_DetectorReadinessStartsIndependentWindows(t *testing.T) {
+	b := newBaselineController(BaselineConfig{DurationSec: 600}, []string{"fast", "slow"})
+	assert.False(t, b.debugStatus().Started)
+	b.start(1000)
+	status := b.debugStatus()
+	assert.True(t, status.Started)
+	require.Len(t, status.Detectors, 2)
+	assert.Equal(t, BaselineDetectorDebugStatus{Name: "fast"}, status.Detectors[0])
+	assert.Equal(t, BaselineDetectorDebugStatus{Name: "slow"}, status.Detectors[1])
+	assert.True(t, b.isAnalyzingAt("fast", 1000))
+	assert.True(t, b.isAnalyzingAt("slow", 1299))
+	assert.True(t, b.ready("fast", 1000))
+	assert.False(t, b.ready("fast", 1001))
+	assert.True(t, b.ready("slow", 1300))
+	assert.True(t, b.isAnalyzingAt("slow", 1899))
+	assert.False(t, b.isAnalyzingAt("slow", 1900))
+	assert.False(t, b.isAnalyzingAt("unknown", 1000))
+	assert.Equal(t, []string{"fast"}, b.due(1600))
 
-	assert.True(t, b.activeAt(1000))
-	assert.Equal(t, int64(1000), b.startSec)
-
-	assert.True(t, b.activeAt(1599))
-	assert.False(t, b.activeAt(1600))
-}
-
-func TestBaselineController_MarkAccumulatesAndDeduplicates(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-	b.activeAt(0)
-
-	b.mark(1)
-	b.mark(2)
-	b.mark(1) // duplicate hash
-
-	assert.Equal(t, 3, b.windowAnomalyCount) // count includes re-fires
-	assert.Len(t, b.mutedHashes, 2)          // set deduplicates
-}
-
-func TestBaselineController_MarkNoOpWhenFrozen(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-	b.activeAt(0)
-
-	b.frozen = true
-	b.mark(1)
-	assert.Empty(t, b.mutedHashes)
-}
-
-func TestBaselineController_ShouldFreeze(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-
-	assert.False(t, b.shouldFreeze(1000)) // no startSec yet
-
-	b.activeAt(1000) // seed startSec=1000
-	assert.False(t, b.shouldFreeze(1599))
-	assert.True(t, b.shouldFreeze(1600))
-}
-
-func TestBaselineController_FreezeReturnsCount(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-	b.activeAt(1000)
-	b.mark(100)
-	b.mark(200)
-
-	count := b.freeze()
-
+	b.mark("fast", 1)
+	b.mark("fast", 1)
+	newHashes, changed, count, allComplete := b.complete("fast")
+	assert.True(t, changed)
 	assert.Equal(t, 2, count)
-	assert.Len(t, b.mutedHashes, 2)
-	assert.True(t, b.frozen)
+	assert.Len(t, newHashes, 1)
+	assert.False(t, allComplete)
+	status = b.debugStatus()
+	assert.True(t, status.Detectors[0].Completed)
+	assert.False(t, status.Detectors[1].Completed)
+	assert.Equal(t, 1, status.Detectors[0].MutedCount)
+	assert.Equal(t, []string{"slow"}, b.due(1900))
+	_, _, _, allComplete = b.complete("slow")
+	assert.True(t, allComplete)
+	assert.False(t, b.isAnalyzingAt("slow", 1900))
+	assert.True(t, b.debugStatus().AllComplete)
 }
 
-func TestBaselineController_Reset(t *testing.T) {
-	b := newBaselineController(BaselineConfig{DurationSec: 600})
-	b.activeAt(1000)
-	b.mark(100)
-	b.freeze()
-	require.True(t, b.frozen)
+func TestBaselineController_WaitingDetectorSuppressesWithoutMuting(t *testing.T) {
+	b := newBaselineController(BaselineConfig{DurationSec: 60}, []string{"waiting"})
+	b.start(100)
 
-	b.reset()
+	assert.True(t, b.isAnalyzingAt("waiting", 100))
+	b.mark("waiting", 1) // defensive suppression before Ready must not mute
+	assert.Empty(t, b.detectors["waiting"].pendingHashes)
+	assert.Empty(t, b.due(1_000))
+	assert.False(t, b.allComplete())
 
-	assert.Equal(t, int64(0), b.startSec)
-	assert.Empty(t, b.mutedHashes)
-	assert.Equal(t, 0, b.windowAnomalyCount)
-	assert.False(t, b.frozen)
+	b.ready("waiting", 130)
+	b.mark("waiting", 1)
+	assert.Equal(t, []string{"waiting"}, b.due(190))
+}
+
+func TestBaselineController_CompletionPublishesImmutableUnionAndReleasesPendingHashes(t *testing.T) {
+	b := newBaselineController(BaselineConfig{DurationSec: 600}, []string{"first", "second"})
+	b.start(1000)
+	b.ready("first", 1000)
+	b.ready("second", 1000)
+	b.mark("first", 1)
+	b.mark("second", 1)
+	b.mark("second", 2)
+
+	firstDelta, changed, _, _ := b.complete("first")
+	require.True(t, changed)
+	assert.Equal(t, map[uint64]struct{}{1: {}}, firstDelta)
+	firstSnapshot := b.mutedHashes
+	assert.Nil(t, b.detectors["first"].pendingHashes)
+	assert.Equal(t, 1, b.detectors["first"].mutedCount)
+
+	secondDelta, changed, _, _ := b.complete("second")
+	require.True(t, changed)
+	assert.Equal(t, map[uint64]struct{}{2: {}}, secondDelta)
+	assert.Equal(t, map[uint64]struct{}{1: {}}, firstSnapshot)
+	assert.Equal(t, map[uint64]struct{}{1: {}, 2: {}}, b.mutedHashes)
+	assert.Nil(t, b.detectors["second"].pendingHashes)
+	assert.Equal(t, 2, b.detectors["second"].mutedCount)
+
+	status := b.debugStatus()
+	assert.Equal(t, 1, status.Detectors[0].MutedCount)
+	assert.Equal(t, 2, status.Detectors[1].MutedCount)
+}
+
+func TestBaselineController_DuplicateCompletionDoesNotReplaceUnionSnapshot(t *testing.T) {
+	b := newBaselineController(BaselineConfig{DurationSec: 600}, []string{"first", "second"})
+	b.start(1000)
+	b.ready("first", 1000)
+	b.ready("second", 1000)
+	b.mark("first", 1)
+	b.mark("second", 1)
+
+	_, changed, _, _ := b.complete("first")
+	require.True(t, changed)
+	newHashes, changed, _, _ := b.complete("second")
+	assert.Empty(t, newHashes)
+	assert.False(t, changed)
+	assert.Equal(t, map[uint64]struct{}{1: {}}, b.mutedHashes)
+}
+
+func TestBaselineController_VerboseNamesAreLazyAndReleased(t *testing.T) {
+	b := newBaselineController(BaselineConfig{}, nil)
+	assert.Nil(t, b.mutedNames)
+
+	b.recordMutedNames([]string{"ns/cpu", "ns/memory", "ns/cpu"})
+	assert.Equal(t, map[string]struct{}{"ns/cpu": {}, "ns/memory": {}}, b.mutedNames)
+	assert.Equal(t, []string{"ns/cpu", "ns/memory"}, b.takeMutedDisplayNames())
+	assert.Nil(t, b.mutedNames)
 }
 
 // ---- engine integration tests ----
@@ -162,6 +237,88 @@ func TestBaseline_AnomaliesForwardedAfterWindow(t *testing.T) {
 	assert.NotEmpty(t, correlator.received)
 }
 
+func TestBaseline_WaitingDetectorDoesNotMuteUntilReady(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.Add("ns", "cpu", 1.0, 100, nil).Ref
+	detector := &baselineTestDetector{
+		name:          "waiting",
+		readyAtSec:    200,
+		emitAfterSec:  100,
+		includeSource: true,
+		ref:           ref,
+		source:        observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage},
+	}
+	e := newEngine(engineConfig{storage: storage, detectors: []observerdef.Detector{detector}, baseline: BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true}})
+
+	e.Advance(100) // detector emits before Ready; it is suppressed but cannot mute
+	assert.Empty(t, e.baseline.mutedHashes)
+	assert.False(t, e.baseline.detectors["waiting"].ready)
+
+	e.Advance(200) // readiness transition anomaly is included in qualification
+	assert.True(t, e.baseline.detectors["waiting"].ready)
+	assert.Len(t, e.baseline.detectors["waiting"].pendingHashes, 1)
+	e.Advance(300)
+	assert.Len(t, e.baseline.mutedHashes, 1)
+}
+
+func TestBaseline_FastCompletionRemovesSeriesFromSlowerDetector(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.Add("ns", "cpu", 1.0, 100, nil).Ref
+	source := observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage}
+	fast := &baselineTestDetector{name: "fast", source: source, ref: ref, includeSource: true}
+	slow := &baselineTestDetector{
+		name:          "slow",
+		readyAtSec:    400,
+		source:        source,
+		ref:           ref,
+		includeSource: true,
+	}
+	e := newEngine(engineConfig{
+		storage:   storage,
+		detectors: []observerdef.Detector{fast, slow},
+		baseline:  BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
+	})
+
+	e.Advance(100) // both detectors are analysing and nominate cpu for muting
+	e.Advance(200) // fast completes, immediately reclaiming cpu everywhere
+
+	assert.Zero(t, storage.TotalSeriesCount())
+	assert.Equal(t, []observerdef.SeriesRef{ref}, fast.removed)
+	assert.Equal(t, []observerdef.SeriesRef{ref}, slow.removed)
+	assert.True(t, e.baseline.detectors["fast"].completed)
+	assert.False(t, e.baseline.detectors["slow"].completed)
+	assert.False(t, e.baseline.allComplete())
+}
+
+func TestBaseline_FastDetectorForwardsWhileSlowerDetectorStillAnalyses(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.Add("ns", "memory", 1.0, 100, nil).Ref
+	fast := &baselineTestDetector{
+		name:          "fast",
+		source:        observerdef.SeriesDescriptor{Namespace: "ns", Name: "memory", Aggregate: AggregateAverage},
+		ref:           ref,
+		emitAfterSec:  200,
+		includeSource: true,
+	}
+	slow := &baselineTestDetector{name: "slow", readyAtSec: 400, emitAfterSec: 1<<62 - 1}
+	correlator := &recordingCorrelator{}
+	e := newEngine(engineConfig{
+		storage:     storage,
+		detectors:   []observerdef.Detector{fast, slow},
+		correlators: []observerdef.Correlator{correlator},
+		baseline:    BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
+	})
+
+	e.Advance(100) // starts both windows; neither detector emits
+	e.Advance(200) // fast completes and its first anomaly is forwarded
+
+	require.Len(t, correlator.received, 1)
+	assert.Equal(t, "fast", correlator.received[0].DetectorName)
+	assert.True(t, e.baseline.detectors["fast"].completed)
+	assert.False(t, e.baseline.detectors["slow"].completed)
+	assert.False(t, e.baseline.allComplete())
+}
+
 func TestBaseline_ExactFreezeTimeBoundary(t *testing.T) {
 	// Window: [100, 700). activeAt uses strict <, so t=699 is the last in-window
 	// second and t=700 is the first out-of-window second (exact freeze point).
@@ -172,11 +329,11 @@ func TestBaseline_ExactFreezeTimeBoundary(t *testing.T) {
 	e.Advance(start)           // seeds window, anomaly held back and marked
 	e.Advance(start + dur - 1) // t=699: still in window, anomaly held back
 	assert.Empty(t, correlator.received)
-	assert.False(t, e.baseline.frozen)
+	assert.False(t, e.baseline.allComplete())
 
 	e.Advance(start + dur) // t=700: exact freeze point — freeze fires, muted anomaly blocked
 	assert.Empty(t, correlator.received)
-	assert.True(t, e.baseline.frozen)
+	assert.True(t, e.baseline.allComplete())
 }
 
 func TestBaseline_FreezeAdvanceAnomalyNotForwardedToCorrelator(t *testing.T) {
@@ -245,7 +402,7 @@ func TestBaseline_MuteNoisyMetricsFalseDoesNotDropMetrics(t *testing.T) {
 	e.Advance(700) // freeze
 
 	assert.True(t, filter.isAllowed("cpu", "ns", nil))
-	assert.False(t, e.baseline.frozen && e.baseline.config.MuteNoisyMetrics)
+	assert.False(t, e.baseline.config.MuteNoisyMetrics)
 }
 
 // storageAwareDetector fires one anomaly per series found in storage.
@@ -253,6 +410,7 @@ func TestBaseline_MuteNoisyMetricsFalseDoesNotDropMetrics(t *testing.T) {
 type storageAwareDetector struct{}
 
 func (d *storageAwareDetector) Name() string { return "storage_aware" }
+func (*storageAwareDetector) Ready() bool    { return true }
 func (d *storageAwareDetector) Detect(sr observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	metas := sr.ListSeries(observerdef.SeriesFilter{})
 	anomalies := make([]observerdef.Anomaly, 0, len(metas))
@@ -294,14 +452,14 @@ func TestBaseline_VirtualMetricDroppedAfterFreeze(t *testing.T) {
 	e.Advance(100)
 
 	// During the window: subsequent ingests must still reach storage.
-	countBefore := storage.TotalSeriesCount("")
+	countBefore := storage.TotalSeriesCount()
 	e.IngestLog("src", &logObs{timestampMs: 200_000})
-	assert.Equal(t, countBefore, storage.TotalSeriesCount(""))
+	assert.Equal(t, countBefore, storage.TotalSeriesCount())
 
 	e.Advance(700) // freeze: series removed from storage
-	assert.Equal(t, 0, storage.TotalSeriesCount(""))
+	assert.Equal(t, 0, storage.TotalSeriesCount())
 
 	// After freeze: virtual metric is dropped at ingest and not re-created.
 	e.IngestLog("src", &logObs{timestampMs: 800_000})
-	assert.Equal(t, 0, storage.TotalSeriesCount(""))
+	assert.Equal(t, 0, storage.TotalSeriesCount())
 }

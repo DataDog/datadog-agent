@@ -80,6 +80,7 @@ func TestGetStatus(t *testing.T) {
 	env.SetFeatures(t)
 	cfg.SetInTest("hostname", "test") // Prevents panic since feature detection has not run
 	cfg.SetInTest("language_detection.enabled", true)
+	cfg.SetInTest("cloud_provider_metadata", []string{}) // Avoid real HTTP calls to cloud metadata
 
 	expectedStatus := &Status{
 		Date: float64(testTime.UnixNano()),

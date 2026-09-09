@@ -5,21 +5,25 @@ go_library(
     name = "helper",
     srcs = [
         "env.go",
-        "get_combine.go",
+        "helpers.go",
+        "ipc_address.go",
         "set_tree.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/helper",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/model",
+        "//pkg/config/setup/constants",
+        "//pkg/config/structure",
         "//pkg/util/log",
+        "//pkg/util/system",
     ],
 )
 
 dd_agent_go_test(
     name = "helper_test",
     srcs = [
-        "get_combine_test.go",
+        "ipc_address_test.go",
         "set_tree_test.go",
     ],
     embed = [":helper"],

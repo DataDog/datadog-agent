@@ -92,6 +92,10 @@ func ConfigsForServiceEndpointSlices(pc *types.PrometheusCheck, svc *v1.Service,
 	instances, found := buildInstances(pc, svc.GetAnnotations(), namespacedName)
 	if found {
 		for _, endpoint := range slice.Endpoints {
+			if !apiserver.IsEndpointServing(&endpoint) {
+				continue
+			}
+
 			for _, ip := range endpoint.Addresses {
 				endpointsID := apiserver.EntityForEndpoints(slice.GetNamespace(), svc.GetName(), ip)
 

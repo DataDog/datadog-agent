@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"      //nolint:depguard
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -69,6 +70,11 @@ type httpSDEntry struct {
 	client        *http.Client
 	checkTemplate httpSDCheckTemplate
 	filterProgram cel.Program // compiled exclude_filter CEL program; nil if no filter
+	// renameLabels mirrors the check template's openmetrics "rename_labels" map.
+	// It is applied to the SD target labels before they are injected as instance
+	// tags, so the same rename_labels the user configures for scraped metrics also
+	// covers the tags derived from the SD response. nil if the template has none.
+	renameLabels map[string]string
 }
 
 // httpSDConfigEntry mirrors a single entry under prometheus_http_sd.configs in
@@ -113,6 +119,7 @@ func buildEntries(rawConfigs []httpSDConfigEntry, sharedClient *http.Client) ([]
 			client:        sharedClient,
 			checkTemplate: tmpl,
 			filterProgram: filterProg,
+			renameLabels:  extractRenameLabels(tmpl),
 		})
 	}
 	return entries, errs
@@ -129,7 +136,7 @@ type PrometheusHTTPSDConfigProvider struct {
 
 // NewPrometheusHTTPSDConfigProvider creates a new PrometheusHTTPSDConfigProvider.
 func NewPrometheusHTTPSDConfigProvider(
-	providerConfig *pkgconfigsetup.ConfigurationProviders,
+	providerConfig *constants.ConfigurationProviders,
 	_ *telemetry.Store,
 ) (types.ConfigProvider, error) {
 	cfg := pkgconfigsetup.Datadog()
@@ -178,7 +185,7 @@ func parseCheckTemplate(templateJSON string) (httpSDCheckTemplate, error) {
 	return tmpl, nil
 }
 
-func buildHTTPSDClient(providerConfig *pkgconfigsetup.ConfigurationProviders) (*http.Client, error) {
+func buildHTTPSDClient(providerConfig *constants.ConfigurationProviders) (*http.Client, error) {
 	transport := httputils.CreateHTTPTransport(pkgconfigsetup.Datadog())
 
 	// Layer on provider-specific TLS configuration (custom CA, mTLS)
@@ -269,7 +276,7 @@ func (e *httpSDEntry) collect() ([]integration.Config, error) {
 
 	var configs []integration.Config
 	for _, tg := range targetGroups {
-		tags := labelsToTags(tg.Labels)
+		tags := labelsToTags(tg.Labels, e.renameLabels)
 
 		for _, target := range tg.Targets {
 			host, port, splitErr := net.SplitHostPort(target)
@@ -359,8 +366,13 @@ func (e *httpSDEntry) buildConfig(host, port string, tags []string) (integration
 
 // labelsToTags converts HTTP SD labels to Datadog tags.
 // Internal labels (prefixed with __) except __meta_ are skipped.
+// When renameLabels is non-empty, a tag key matching one of its entries is
+// renamed, mirroring the openmetrics check's rename_labels behavior so the same
+// mapping applies to both scraped labels and SD-derived tags. The lookup uses
+// the effective tag key (after the __meta_ prefix is stripped), which is the
+// name the user sees as a tag.
 // Tags are sorted for stable config digests across polls.
-func labelsToTags(labels map[string]string) []string {
+func labelsToTags(labels, renameLabels map[string]string) []string {
 	var tags []string
 	for k, v := range labels {
 		tagKey := k
@@ -369,10 +381,38 @@ func labelsToTags(labels map[string]string) []string {
 		} else if strings.HasPrefix(k, "__") {
 			continue
 		}
+		if renamed, ok := renameLabels[tagKey]; ok {
+			tagKey = renamed
+		}
 		tags = append(tags, tagKey+":"+v)
 	}
 	sort.Strings(tags)
 	return tags
+}
+
+// extractRenameLabels reads the openmetrics "rename_labels" map from the first
+// instance of the check template, if present. The provider is otherwise
+// check-agnostic; this reaches into the openmetrics schema intentionally so the
+// SD-derived tags honor the same rename_labels the user already configures for
+// scraped metrics. Returns nil when the field is absent or malformed.
+func extractRenameLabels(tmpl httpSDCheckTemplate) map[string]string {
+	if len(tmpl.Instances) == 0 {
+		return nil
+	}
+	raw, ok := tmpl.Instances[0]["rename_labels"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	renameLabels := make(map[string]string, len(raw))
+	for k, v := range raw {
+		if s, ok := v.(string); ok {
+			renameLabels[k] = s
+		}
+	}
+	if len(renameLabels) == 0 {
+		return nil
+	}
+	return renameLabels
 }
 
 // substituteTemplateVars replaces %%host%% and %%port%% placeholders in a value.

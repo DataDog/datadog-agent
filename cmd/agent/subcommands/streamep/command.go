@@ -24,6 +24,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -60,7 +61,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func streamEventPlatform(_ log.Component, config config.Component, client ipc.HTTPClient, cliParams *cliParams) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}

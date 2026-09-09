@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed the Agent crashing when the stored SBOM of a container image could
+    not be uncompressed. The image is now skipped instead.

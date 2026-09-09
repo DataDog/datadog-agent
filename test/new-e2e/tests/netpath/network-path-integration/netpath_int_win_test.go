@@ -36,7 +36,7 @@ func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 				agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 				agentparams.WithIntegration("network_path.d", string(networkPathIntegrationWindows)),
 			),
-			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess()),
 		),
 	)))
 }

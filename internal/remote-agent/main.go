@@ -19,7 +19,7 @@ import (
 	"os"
 	"time"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -210,7 +210,11 @@ func streamConfigEvents(ctx context.Context, agentIpcAddress, agentAuthToken, ag
 		case *pbcore.ConfigEvent_Snapshot:
 			log.Printf("Config snapshot received: %d settings (seq=%d)", len(e.Snapshot.GetSettings()), e.Snapshot.GetSequenceId())
 		case *pbcore.ConfigEvent_Update:
-			log.Printf("Config update received: seq=%d", e.Update.GetSequenceId())
+			if unsetSource := e.Update.GetSetting().GetUnsetSource(); unsetSource != "" {
+				log.Printf("Config unset received: seq=%d key=%s cleared_source=%s", e.Update.GetSequenceId(), e.Update.GetSetting().GetKey(), unsetSource)
+			} else {
+				log.Printf("Config update received: seq=%d", e.Update.GetSequenceId())
+			}
 		}
 	}
 }

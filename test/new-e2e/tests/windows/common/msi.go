@@ -10,10 +10,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
@@ -25,7 +26,16 @@ const (
 	msiExitSuccessRebootRequired    = 3010 // ERROR_SUCCESS_REBOOT_REQUIRED
 	msiExitSuccessRebootInitiated   = 1641 // ERROR_SUCCESS_REBOOT_INITIATED
 	msiExitInstallPackageOpenFailed = 1619 // ERROR_INSTALL_PACKAGE_OPEN_FAILED
+	msiExitInstallPackageInvalid    = 1620 // ERROR_INSTALL_PACKAGE_INVALID
 )
+
+// msiTransientPackageFailureExitCodes are msiexec exit codes that indicate the package could
+// not be opened or read. These are typically transient when the package is fetched over the
+// network, so they're retried. Add new transient codes here.
+var msiTransientPackageFailureExitCodes = []int{
+	msiExitInstallPackageOpenFailed,
+	msiExitInstallPackageInvalid,
+}
 
 func isMsiSuccessExitCode(err error) bool {
 	if err == nil {
@@ -39,10 +49,9 @@ func isMsiSuccessExitCode(err error) bool {
 	return code == msiExitSuccessRebootRequired || code == msiExitSuccessRebootInitiated
 }
 
-// isMsiPackageOpenFailedExitCode reports whether err is an msiexec failure with exit code
-// 1619 (ERROR_INSTALL_PACKAGE_OPEN_FAILED) — typically transient when the package is
-// fetched over the network.
-func isMsiPackageOpenFailedExitCode(err error) bool {
+// isMsiTransientPackageFailureExitCode reports whether err is an msiexec failure with one of the
+// transient package-failure exit codes in msiTransientPackageFailureExitCodes.
+func isMsiTransientPackageFailureExitCode(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -50,7 +59,7 @@ func isMsiPackageOpenFailedExitCode(err error) bool {
 	if !errors.As(err, &exitErr) {
 		return false
 	}
-	return exitErr.ExitStatus() == msiExitInstallPackageOpenFailed
+	return slices.Contains(msiTransientPackageFailureExitCodes, exitErr.ExitStatus())
 }
 
 func isRemoteMSIPath(p string) bool {
@@ -81,12 +90,13 @@ func MsiExec(host *components.RemoteHost, operation string, product string, args
 		if err == nil || isMsiSuccessExitCode(err) {
 			return nil, nil // Treat reboot-required exit codes as success
 		}
-		// Retry transient package-open failures (exit 1619) when installing from a remote URL.
-		// We've seen S3-hosted MSIs fail to open momentarily mid-test even when the same URL
-		// succeeded earlier in the same run (e.g. WINA-2296). 1619 fires before msiexec writes
-		// any action to the log, so it's a clean signal that nothing actually started.
-		if isMsiPackageOpenFailedExitCode(err) && operation == "/i" && isRemoteMSIPath(product) {
-			fmt.Printf("msiexec /i %s failed with ERROR_INSTALL_PACKAGE_OPEN_FAILED (1619), retrying\n", product)
+		// Retry transient package failures (exit 1619 ERROR_INSTALL_PACKAGE_OPEN_FAILED or
+		// 1620 ERROR_INSTALL_PACKAGE_INVALID) when installing from a remote URL. We've seen
+		// S3-hosted MSIs fail to open or download momentarily mid-test even when the same URL
+		// succeeded earlier in the same run (e.g. WINA-2296, WINA-2869). These codes fire before
+		// msiexec writes any action to the log, so they're a clean signal that nothing actually started.
+		if isMsiTransientPackageFailureExitCode(err) && operation == "/i" && isRemoteMSIPath(product) {
+			fmt.Printf("msiexec /i %s failed with a transient package error, retrying\n", product)
 			return nil, err
 		}
 		// Fail on any other error

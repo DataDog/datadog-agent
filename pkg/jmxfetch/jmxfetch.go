@@ -27,6 +27,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	dogstatsdConfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -287,7 +288,7 @@ func (j *JMXFetch) Start(manage bool) error {
 		jmxLogLevel = "INFO"
 	}
 
-	ipcHost, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcHost, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}

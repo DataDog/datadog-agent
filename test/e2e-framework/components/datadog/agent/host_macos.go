@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	remoteComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -46,7 +47,7 @@ func (am *agentMacOSManager) getInstallCommand(version agentparams.PackageVersio
 	}
 
 	if version.PipelineID != "" {
-		exports = append(exports, fmt.Sprintf("DD_REPO_URL=https://dd-agent-macostesting.s3.amazonaws.com/ci/datadog-agent/pipeline-%s-%s", version.PipelineID, am.host.OS.Descriptor().Architecture))
+		exports = append(exports, fmt.Sprintf("DD_REPO_URL=https://dd-agent-macostesting.s3.amazonaws.com/ci/datadog-agent/pipeline-%s-%s", version.PipelineID, macosPipelineArch(am.host.OS.Descriptor().Architecture)))
 	}
 
 	env := strings.Join(exports, " ")
@@ -54,6 +55,20 @@ func (am *agentMacOSManager) getInstallCommand(version agentparams.PackageVersio
 	cmd := fmt.Sprintf(`for i in 1 2 3 4 5; do curl -fsSL https://install.datadoghq.com/scripts/install_mac_os.sh -o install-script.sh && break || sleep $((2**$i)); done && for i in 1 2 3; do DD_API_KEY=%%s %%s %[1]s DD_INSTALL_ONLY=true bash install-script.sh && exit 0 || sleep $((2**$i)); done; exit 1`, env)
 	pulumiCmdStr := pulumi.Sprintf(cmd, apiKey, pulumi.String(""))
 	return pulumiCmdStr, nil
+}
+
+// macosPipelineArch maps an OS descriptor architecture onto the architecture segment used in
+// the macOS testing bucket's pipeline prefix.
+//
+// deploy_dmg_testing-a7_x64 uploads to pipeline-<id>-x64
+// (.gitlab/deploy/e2e_testing_deploy/e2e_deploy.yml), but the descriptor reports the
+// architecture as x86_64, so composing the URL from the descriptor alone yields a prefix that
+// does not exist and the install fails with a 404. arm64 matches on both sides.
+func macosPipelineArch(arch os.Architecture) string {
+	if arch == os.AMD64Arch {
+		return "x64"
+	}
+	return string(arch)
 }
 
 func (am *agentMacOSManager) getAgentConfigFolder() string {

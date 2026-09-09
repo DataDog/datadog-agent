@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/internal_profiling.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/internal_profiling.yaml
 node_type: section
 type: object
 properties:
@@ -45,7 +45,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: internal profiling
   extra_tags:
     node_type: setting
     type: array

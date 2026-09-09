@@ -24,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -372,13 +372,35 @@ func (k *KubeASCheck) startEventCollection() error {
 	k.mu.Unlock()
 
 	// If the checkpoint is present, seed the watermark from it so the initial list only forwards newer events.
-	if resVer, _, err := k.ac.GetTokenFromConfigmap(eventTokenKey); err != nil {
-		log.Warnf("Could not read persisted event checkpoint, starting fresh: %s", err)
+	resVer, err := k.readEventCheckpointWithRetry()
+	if err != nil {
+		log.Warnf("Could not read persisted event checkpoint after retries, starting fresh: %s", err)
 	} else {
 		ec.SetCheckpoint(resVer)
 	}
 
 	return ec.Start(stopCh)
+}
+
+// readEventCheckpointWithRetry reads the persisted event checkpoint, retrying with backoff
+func (k *KubeASCheck) readEventCheckpointWithRetry() (string, error) {
+	const maxAttempts = 5
+
+	delay := time.Second
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		resVer, _, err := k.ac.GetTokenFromConfigmap(eventTokenKey)
+		if err == nil {
+			return resVer, nil
+		}
+		lastErr = err
+		if attempt < maxAttempts {
+			log.Warnf("Could not read persisted event checkpoint (attempt %d/%d): %s", attempt, maxAttempts, err)
+			time.Sleep(delay)
+			delay *= 2
+		}
+	}
+	return "", lastErr
 }
 
 // stopEventCollection stops the running EventCollector by closing its stop
@@ -492,6 +514,7 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 		for _, condition := range component.Conditions {
 			statusCheck := servicecheck.ServiceCheckUnknown
 			message := ""
+			statusValue := 0.0
 
 			// We only expect the Healthy condition. May change in the future. https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#typical-status-properties
 			if condition.Type != "Healthy" {
@@ -504,6 +527,7 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 			case "True":
 				statusCheck = servicecheck.ServiceCheckOK
 				message = condition.Message
+				statusValue = 1.0
 			case "False":
 				statusCheck = servicecheck.ServiceCheckCritical
 				message = condition.Error
@@ -514,6 +538,7 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 
 			tags := []string{"component:" + component.Name}
 			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, "", tags, message)
+			sender.Gauge("datadog.cluster_agent."+component.Name+".component_status", statusValue, "", tags)
 		}
 	}
 	return nil

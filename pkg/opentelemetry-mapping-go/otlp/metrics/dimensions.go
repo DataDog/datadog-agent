@@ -35,6 +35,7 @@ type Dimensions struct {
 	tags     []string
 	host     string
 	originID string
+	unit     string
 
 	originProduct       OriginProduct
 	originSubProduct    OriginSubProduct
@@ -54,6 +55,11 @@ func (d *Dimensions) Tags() []string {
 // Host of the metric (may be empty).
 func (d *Dimensions) Host() string {
 	return d.host
+}
+
+// Unit of the metric (may be empty).
+func (d *Dimensions) Unit() string {
+	return d.unit
 }
 
 // OriginID of the metric (may be empty).
@@ -98,6 +104,7 @@ func (d *Dimensions) AddTags(tags ...string) *Dimensions {
 		tags:                newTags,
 		host:                d.host,
 		originID:            d.originID,
+		unit:                d.unit,
 		originProduct:       d.originProduct,
 		originSubProduct:    d.originSubProduct,
 		originProductDetail: d.originProductDetail,
@@ -116,10 +123,18 @@ func (d *Dimensions) WithSuffix(suffix string) *Dimensions {
 		host:                d.host,
 		tags:                d.tags,
 		originID:            d.originID,
+		unit:                d.unit,
 		originProduct:       d.originProduct,
 		originSubProduct:    d.originSubProduct,
 		originProductDetail: d.originProductDetail,
 	}
+}
+
+// WithoutUnit creates a new dimensions struct with the unit cleared.
+func (d *Dimensions) WithoutUnit() *Dimensions {
+	newDims := *d
+	newDims.unit = ""
+	return &newDims
 }
 
 // Uses a logic similar to what is done in the span processor to build metric keys:

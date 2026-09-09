@@ -19,6 +19,7 @@ import (
 func TestGetMeta(t *testing.T) {
 	ctx := context.Background()
 	cfg := config.NewMock(t)
+	cfg.SetInTest("cloud_provider_metadata", []string{})
 
 	meta := getMeta(ctx, cfg, hostnameimpl.NewHostnameService())
 	assert.NotEmpty(t, meta.SocketHostname)
@@ -29,6 +30,7 @@ func TestGetMeta(t *testing.T) {
 func TestGetMetaFromCache(t *testing.T) {
 	ctx := context.Background()
 	cfg := config.NewMock(t)
+	cfg.SetInTest("cloud_provider_metadata", []string{})
 
 	cache.Cache.Set(metaCacheKey, &Meta{
 		SocketHostname: "socket_test",

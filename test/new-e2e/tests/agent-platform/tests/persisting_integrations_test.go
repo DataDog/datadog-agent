@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v6"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
@@ -36,6 +37,15 @@ type persistingIntegrationsSuite struct {
 	srcVersion     string
 	osDesc         e2eos.Descriptor
 	testingKeysURL string
+}
+
+func (is *persistingIntegrationsSuite) SetupSuite() {
+	is.BaseSuite.SetupSuite()
+	defer is.CleanupOnSetupFailure()
+
+	h := host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
+	h.ConfigureYumMirrors()
+	h.ConfigureAptMirrors()
 }
 
 func (is *persistingIntegrationsSuite) AfterTest(suiteName, testName string) {
@@ -82,7 +92,7 @@ func TestPersistingIntegrations(t *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", osDesc.String())
 
-			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
+			vmOpts = append(vmOpts, ec2.WithOS(osDesc), ec2.WithInternetAccess())
 
 			// To avoid stack name too long
 			simpleFlavorName := *flavorName

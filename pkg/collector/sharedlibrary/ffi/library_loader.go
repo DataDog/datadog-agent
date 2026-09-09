@@ -31,13 +31,14 @@ import (
 // package. The void* to callback-type casts are done here in C so this package
 // never references the aggregator's exported symbols in its own cgo link (which
 // fails on the MinGW/Windows linker).
-const aggregator_t *build_aggregator(void *m, void *sc, void *e, void *h, void *ep) {
+const aggregator_t *build_aggregator(void *m, void *sc, void *e, void *h, void *ep, void *l) {
 	static aggregator_t aggregator;
 	aggregator.cb_submit_metric = (cb_submit_metric_t)m;
 	aggregator.cb_submit_service_check = (cb_submit_service_check_t)sc;
 	aggregator.cb_submit_event = (cb_submit_event_t)e;
 	aggregator.cb_submit_histogram_bucket = (cb_submit_histogram_bucket_t)h;
 	aggregator.cb_submit_event_platform_event = (cb_submit_event_platform_event_t)ep;
+	aggregator.cb_log_msg = (cb_log_t)l;
 	return &aggregator;
 }
 */
@@ -210,7 +211,7 @@ func NewSharedLibraryLoader(folderPath string) (*SharedLibraryLoader, error) {
 	cb := aggregator.GetCallbacks()
 	return &SharedLibraryLoader{
 		folderPath: folderPath,
-		aggregator: C.build_aggregator(cb.Metric, cb.ServiceCheck, cb.Event, cb.HistogramBucket, cb.EventPlatformEvent),
+		aggregator: C.build_aggregator(cb.Metric, cb.ServiceCheck, cb.Event, cb.HistogramBucket, cb.EventPlatformEvent, cb.LogMsg),
 		permission: permission,
 	}, nil
 }

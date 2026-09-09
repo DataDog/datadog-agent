@@ -1,0 +1,37 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+exporters:
+  datadog:
+    hostname: "otelcol-docker"
+    api:
+      key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
+processors:
+  infraattributes:
+    cardinality: 2
+    logs_tags_as_ddtags: true
+extensions:
+  pprof:
+  health_check:
+  zpages:
+    endpoint: "localhost:55679"
+  ddflare:
+service:
+  extensions:
+    [
+      pprof,
+      zpages,
+      health_check,
+      ddflare,
+    ]
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [infraattributes]
+      exporters: [datadog]

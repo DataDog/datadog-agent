@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add the Data Security feature to scan monitored PostgreSQL databases for
+    sensitive data, driven remotely through Remote Configuration
+    (``DATA_SECURITY_DB_SCAN_TASKS``). Enabled with ``data_security.enabled`` and
+    ``shared_library_check.enabled``.

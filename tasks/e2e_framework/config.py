@@ -8,7 +8,7 @@ from invoke.exceptions import Exit
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from termcolor import colored
 
-from .tool import info
+from .tool import info, write_secret_file
 
 profile_filename = ".test_infra_config.yaml"
 
@@ -152,17 +152,9 @@ You should consider moving to the agent-sandbox account. Please follow https://d
     def save_to_local_config(self, config_path: str | None = None):
         profile_path = get_full_profile_path(config_path)
         try:
-            with open(profile_path, "w") as outfile:
-                yaml.dump(self.dict(), outfile)
+            write_secret_file(profile_path, yaml.dump(self.dict()))
         except Exception as e:
             raise Exit(f"Error saving config file {profile_path}: {e}") from e
-        # The file holds the auto-generated Pulumi passphrase, so tighten perms.
-        # Skip on Windows where chmod has no effect on the ACL model.
-        if os.name == "posix":
-            try:
-                os.chmod(profile_path, 0o600)
-            except OSError:
-                pass
         info(f"Configuration file saved at {profile_path}")
 
 

@@ -56,7 +56,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="CiInfo.cs" />
-    <Compile Include="AiUsageDesktopMonitorCustomAction.cs" />
     <Compile Include="AutoLoggerCustomAction.cs" />
     <Compile Include="CleanUpFilesCustomAction.cs" />
     <Compile Include="ConfigCustomActions.cs" />
@@ -84,6 +83,7 @@
     <Compile Include="Interfaces\IWindowsService.cs" />
     <Compile Include="Native\FileSystemServices.cs" />
     <Compile Include="Native\Registries.cs" />
+    <Compile Include="Native\SecureDirectory.cs" />
     <Compile Include="Native\RegistryKey.cs" />
     <Compile Include="Native\RegistryServices.cs" />
     <Compile Include="Native\ServiceController.cs" />
@@ -118,7 +118,7 @@
       <Version>13.0.4</Version>
     </PackageReference>
     <PackageReference Include="YamlDotNet">
-      <Version>18.0.0</Version>
+      <Version>18.1.0</Version>
     </PackageReference>
   </ItemGroup>
   <ItemGroup>

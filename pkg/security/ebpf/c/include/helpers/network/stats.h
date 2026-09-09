@@ -49,12 +49,13 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
     // process context
     fill_network_process_context(&evt->process, pid, entry->netns);
 
+    // reset and fill span context unconditionally
+    reset_span_context(&evt->span, &evt->go_labels);
+
     u64 sched_cls_has_current_pid_tgid_helper = 0;
     LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
     if (sched_cls_has_current_pid_tgid_helper) {
-        // reset and fill span context
-        reset_span_context(&evt->span);
-        fill_span_context(&evt->span);
+        fill_span_context(&evt->span, &evt->go_labels);
     }
 
     // network context

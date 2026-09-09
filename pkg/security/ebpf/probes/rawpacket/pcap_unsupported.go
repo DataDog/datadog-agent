@@ -40,6 +40,11 @@ func (opts *ProgOpts) WithGetCurrentCgroupID(_ bool) *ProgOpts {
 	return opts
 }
 
+// WithDropStatsMapFd sets the map fd used to count dropped packets per filter index.
+func (opts *ProgOpts) WithDropStatsMapFd(_ int) *ProgOpts {
+	return opts
+}
+
 // FilterToInsts compile a bpf filter expression
 func FilterToInsts(_ int, _ Filter, _ ProgOpts) (asm.Instructions, error) {
 	return asm.Instructions{}, errors.New("not supported")

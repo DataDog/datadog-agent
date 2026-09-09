@@ -32,11 +32,12 @@ var oscapResults = map[string]string{
 	"5": "skipped", "6": "notchecked", "7": "notselected",
 }
 
-// logGolden (below) logs a per-rule snapshot and, when a baseline is committed, its diff.
-// On a pinned host it also gates: a rule flipping result on an unchanged rule set is an
-// agent regression and fails, while a changed rule set is a content move to re-baseline.
-// TestCrossCheck is a real assertion too: the agent and oscap-io share an engine, so any
-// divergence is an agent Go-layer bug.
+// logGolden (below) only reports. A per-rule gate was tried and removed: it keyed on the
+// rule set being unchanged to tell an agent regression from benchmark content moving, so
+// any policy bump editing a check in place read as a regression. What does gate, and
+// survives a content bump: the bands, minRules and the probed-rules-must-evaluate check in
+// assertConsistency, TestProbes, TestDeterminism, and TestCrossCheck, where diverging from
+// oscap-io on a shared engine is an agent Go-layer bug.
 
 // snapshot renders a rule->result map as sorted "rule result" lines.
 func snapshot(results map[string]string) string {
@@ -87,11 +88,6 @@ func goldenDiff(base, results map[string]string) (added, removed []string, flips
 	return added, removed, flips
 }
 
-// timeSensitiveRules are excluded from the golden gate because their result can change with
-// the calendar even on a pinned host (for example a rule comparing an account or certificate
-// age against the current date). None are known yet.
-var timeSensitiveRules = map[string]struct{}{}
-
 // writeArtifact saves diagnostic output to the suite output dir for CI to upload.
 func writeArtifact(t *testing.T, outDir, name, content string) {
 	if err := os.WriteFile(filepath.Join(outDir, name), []byte(content+"\n"), 0o644); err != nil {
@@ -101,15 +97,10 @@ func writeArtifact(t *testing.T, outDir, name, content string) {
 
 // logGolden logs the per-rule result snapshot and, when a baseline is committed for this
 // framework+environment, its diff. The host and container variants of a framework keep
-// separate baselines (cis-x.txt vs cis-x-container.txt) since their results differ.
-//
-// When gate is set the golden also acts as a regression check. On a pinned host with an
-// unchanged rule set a flipped result is an agent regression and fails. A changed rule set
-// instead means the benchmark content moved (a policy bump), which is logged as a
-// re-baseline prompt rather than a failure. Callers gate only where the result is
-// deterministic: host on a pinned AMI. AlmaLinux (latest AMI) and the container variants
-// stay informational.
-func logGolden(t *testing.T, d distro, env, outDir string, results map[string]string, gate bool) {
+// separate baselines (cis-x.txt vs cis-x-container.txt) since their results differ. It
+// answers "which rules moved" when another test fails, and the diff is the prompt to
+// re-baseline after a policy bump.
+func logGolden(t *testing.T, d distro, env, outDir string, results map[string]string) {
 	key := d.frameworkID
 	if env != "host" {
 		key += "-" + env
@@ -140,28 +131,8 @@ func logGolden(t *testing.T, d distro, env, outDir string, results map[string]st
 	}
 	sort.Strings(diff)
 	t.Logf("%s (%s) golden diff vs baseline (- removed, + added, ~ changed):\n%s", d.frameworkID, env, strings.Join(diff, "\n"))
-
-	if !gate {
-		return
-	}
-	// A changed rule set is a content move (policy bump), not a regression: prompt a
-	// re-baseline and stop, so an expected content change does not read as a failure.
-	if len(added)+len(removed) > 0 {
-		t.Logf("%s (%s) golden: rule set changed (%d added, %d removed) — re-baseline testdata/golden/%s.txt (not treated as a regression)",
-			d.frameworkID, env, len(added), len(removed), key)
-		return
-	}
-	// Same rule set, so a flipped result on this pinned host is an agent regression.
-	var regressions []string
-	for rule, change := range flips {
-		if _, skip := timeSensitiveRules[rule]; skip {
-			continue
-		}
-		regressions = append(regressions, rule+" "+change)
-	}
-	sort.Strings(regressions)
-	assert.Emptyf(t, regressions, "%s golden: %d rule(s) flipped result on a pinned host with an unchanged rule set — agent regression:\n%s",
-		d.frameworkID, len(regressions), strings.Join(regressions, "\n"))
+	t.Logf("%s (%s) golden: %d added, %d removed, %d changed — re-baseline testdata/golden/%s.txt from this run's golden-%s.txt artifact",
+		d.frameworkID, env, len(added), len(removed), len(flips), key, key)
 }
 
 // benchmarkInput extracts the datastream path and XCCDF profile the agent uses for a
@@ -201,17 +172,15 @@ func runOscapIO(run func(string) string, invoke, datastream, profile string, rul
 	return m
 }
 
-// TestGolden compares the per-rule results to the committed baseline and, on a pinned host,
-// gates on regressions (see logGolden). AlmaLinux resolves the latest AMI, so its results
-// drift with the OS and it stays informational.
+// TestGolden logs the per-rule results and their diff against the committed baseline.
 func (s *hostBenchmarksSuite) TestGolden() {
-	logGolden(s.T(), s.distro, "host", s.SessionOutputDir(), resultsByRule(s.distro, s.check), !s.distro.latestAMI)
+	logGolden(s.T(), s.distro, "host", s.SessionOutputDir(), resultsByRule(s.distro, s.check))
 }
 
-// TestGolden logs the per-rule result snapshot and baseline diff. Container baselines are
-// not committed, so this stays informational.
+// TestGolden logs the per-rule results. Container baselines are not committed, so this
+// only reports the snapshot.
 func (s *containerBenchmarksSuite) TestGolden() {
-	logGolden(s.T(), s.distro, "container", s.SessionOutputDir(), resultsByRule(s.distro, s.check), false)
+	logGolden(s.T(), s.distro, "container", s.SessionOutputDir(), resultsByRule(s.distro, s.check))
 }
 
 // assertCrossCheck drives oscap-io directly and asserts the agent's per-rule results match

@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -48,7 +48,7 @@ func (fa FindAction) Run(ctx context.Context, task *types.Task, credential *priv
 		return nil, err
 	}
 
-	client, err := mongo.Connect(ctx, clientOptions)
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to MongoDB: %w", err)
 	}

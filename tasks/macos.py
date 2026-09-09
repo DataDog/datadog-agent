@@ -1,5 +1,6 @@
 import glob
 import os
+import shutil
 import time
 
 from invoke import task
@@ -143,4 +144,4 @@ def remove_inactive_versions(ctx, lang, target_version="", n_days=30, dry_run=Fa
                     elif lang == "go":
                         install_dir = glob.glob(f"{os.environ['HOME']}/.gimme/versions/go{version}*")
                         assert len(install_dir) == 1, f"Expected one Go version for {version}: {install_dir}"
-                        ctx.run(f"rm -rf {install_dir}")
+                        shutil.rmtree(install_dir[0])

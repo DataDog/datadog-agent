@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# gazelle:dd_agent_go_test on
+
 go_library(
     name = "sbom",
     srcs = ["sbom.go"],

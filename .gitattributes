@@ -1,15 +1,23 @@
+# Default to LF for all files that git identifies as text files, regardless of platform
+* text=auto eol=lf
+
+# TODO(alopezz): These exceptions, matching files that are stored with CRLF endings in
+# git, are transitional while migrating to LF as the default eol for all text files.
+*.ps1 -text
+cmd/trace-agent/test/testsuite/testdata/trace_with_rates.json -text
+comp/core/gui/impl/views/private/images/datadog_icon_white.svg -text
+deps/msodbcsql18/LICENSE.txt -text
+devenv/answer_files/**/*.xml -text
+pkg/collector/corechecks/containers/kubelet/testdata/summary.json -text
+tasks/unit_tests/testdata/secret.tar.gz/*.xml -text
+
 # Set batch file line endings to CRLF so that they can be executed on Windows
 *.bat text eol=crlf
 *.cmd text eol=crlf
+# Set C# file line endings to CRLF to match dotnet format's expectation on Windows
+*.cs text eol=crlf
 *.bin binary
 
-# Set go source line endings to LF on all platforms so gofmt can be used
-*.go text=auto eol=lf
-# Same for gopatch (does not handle CRLF line endings)
-*.gopatch text eol=lf
-# Same for go workspace files (root and testdata)
-*go.work text eol=lf
-go.mod text eol=lf
 go.sum -diff -merge linguist-generated=true
 # Merge changelog entries without conflicts when multiple PRs add lines simultaneously
 CHANGELOG-AIX.md merge=union
@@ -22,19 +30,6 @@ CHANGELOG-AIX.md merge=union
 pkg/config/schema/*.yaml text eol=lf
 pkg/security/probe/constantfetch/btfhub/constants.json -diff -merge linguist-generated=true
 pkg/security/seclwin/** -diff -merge linguist-generated=true
-# CWS doc JSON is generated as LF on Linux; force LF on Windows too
-# so Bazel's byte-exact diff_test doesn't trip on core.autocrlf-rewritten CRLF.
-docs/cloud-workload-security/** text eol=lf
-# Fixtures should have LF line endings because they are checked against OCI packages built on Linux
-pkg/fleet/installer/fixtures/** text=auto eol=lf
-
-# Bazel writes LF; force LF on Windows too to avoid autocrlf churn after `bazel run` / `dda inv tidy`
-*.bazel text eol=lf
-*.bzl text eol=lf
-MODULE.bazel.lock text eol=lf
-
-# Use LF for python files that need to pass Bazel's byte-exact diff_test
-tasks/core_checks.py text eol=lf
 
 # Fix `git diff` when running on the below file formats.
 # Our windows build image uses MinGit which tries to use the astextplain diff algorithm (https://git-scm.com/docs/gitattributes#_setting_the_internal_diff_algorithm).

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Add new ``bind_host`` configuration option to TCP and UDP log listeners.

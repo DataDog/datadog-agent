@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Add the ``-l`` and ``--list`` options to ``datadog-cluster-agent status``
+    to list available status sections. A section name can now be passed to the
+    command to display only that section.

@@ -20,6 +20,8 @@ import (
 
 const datadogCSIDriverName = "k8s.csi.datadoghq.com"
 
+var defaultCSIAutoRegistries = []string{"gcr.io/datadoghq", "public.ecr.aws/datadog"}
+
 // fakeCSIDriverWatcher is a deterministic CSIDriverWatcher implementation
 // used in unit tests so we can drive the AutoProvider decision tree without
 // spinning up a workloadmeta subscription.
@@ -63,7 +65,9 @@ func TestAutoProvider_PicksCSIWhenWatcherReportsAPMEnabled(t *testing.T) {
 	pod := newPod()
 
 	provider := libraryinjection.NewAutoProvider(libraryinjection.LibraryInjectionConfig{
-		CSIDriverWatcher: fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+		Injector:          injectorConfig(),
+		CSIAutoRegistries: defaultCSIAutoRegistries,
+		CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
 	})
 
 	result := provider.InjectInjector(pod, injectorConfig())
@@ -76,6 +80,61 @@ func TestAutoProvider_PicksCSIWhenWatcherReportsAPMEnabled(t *testing.T) {
 	vol := findInstrumentationVolume(t, pod)
 	r.NotNil(vol.CSI, "instrumentation volume should be a CSI volume")
 	r.Equal(datadogCSIDriverName, vol.CSI.Driver)
+}
+
+func TestAutoProvider_RegistrySelection(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      libraryinjection.LibraryInjectionConfig
+		wantMode string
+	}{
+		{
+			name: "selects csi when every image uses an allowed registry",
+			cfg: libraryinjection.LibraryInjectionConfig{
+				Injector: injectorConfig(),
+				Libraries: []libraryinjection.LibraryConfig{
+					{Package: libraryinjection.LibraryImage{Registry: "public.ecr.aws/datadog"}},
+				},
+				CSIAutoRegistries: []string{"gcr.io/datadoghq", "public.ecr.aws/datadog"},
+			},
+			wantMode: "csi (auto)",
+		},
+		{
+			name: "falls back when the injector uses another registry",
+			cfg: libraryinjection.LibraryInjectionConfig{
+				Injector: libraryinjection.InjectorConfig{
+					Package: libraryinjection.LibraryImage{Registry: "registry.example.com/datadog"},
+				},
+				CSIAutoRegistries: []string{"gcr.io/datadoghq"},
+			},
+			wantMode: "init_container (auto)",
+		},
+		{
+			name: "falls back when a library uses another registry",
+			cfg: libraryinjection.LibraryInjectionConfig{
+				Injector: injectorConfig(),
+				Libraries: []libraryinjection.LibraryConfig{
+					{Package: libraryinjection.LibraryImage{Registry: "registry.example.com/datadog"}},
+				},
+				CSIAutoRegistries: []string{"gcr.io/datadoghq"},
+			},
+			wantMode: "init_container (auto)",
+		},
+		{
+			name: "falls back when no csi registry is configured",
+			cfg: libraryinjection.LibraryInjectionConfig{
+				Injector: injectorConfig(),
+			},
+			wantMode: "init_container (auto)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.cfg.CSIDriverWatcher = fakeCSIDriverWatcher{registered: true, apmEnabled: true}
+			require.Equal(t, tt.wantMode, libraryinjection.NewAutoProvider(tt.cfg).GetName())
+		})
+	}
 }
 
 func TestAutoProvider_FallsBackToInitContainerWhenWatcherReportsAPMDisabled(t *testing.T) {
