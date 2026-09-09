@@ -183,6 +183,7 @@ func mergeMetadataConfig(base, override MetadataConfig) MetadataConfig {
 	merged := base
 	merged.Device = mergeDeviceMetadataConfig(base.Device, override.Device)
 	merged.Interface = mergeInterfaceMetadataConfig(base.Interface, override.Interface)
+	merged.IPAddress = mergeIPAddressMetadataConfig(base.IPAddress, override.IPAddress)
 	return merged
 }
 
@@ -235,6 +236,19 @@ func mergeInterfaceMetadataConfig(base, override InterfaceMetadataConfig) Interf
 	}
 	if override.Type != "" {
 		base.Type = override.Type
+	}
+	return base
+}
+
+func mergeIPAddressMetadataConfig(base, override IPAddressMetadataConfig) IPAddressMetadataConfig {
+	if len(override.Keys) > 0 {
+		base.Keys = copyStringMap(override.Keys)
+	}
+	if override.IP != "" {
+		base.IP = override.IP
+	}
+	if override.PrefixLength != "" {
+		base.PrefixLength = override.PrefixLength
 	}
 	return base
 }

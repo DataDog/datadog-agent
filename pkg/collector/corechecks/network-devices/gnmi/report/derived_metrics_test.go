@@ -20,13 +20,35 @@ import (
 
 func TestReportDerivedMetricsMemoryUsage(t *testing.T) {
 	deviceAddress := "10.0.0.5"
+	deviceID := buildDeviceIDFromConfigAddress(deviceAddress)
 	baseTags := []string{
+		deviceNamespaceTag,
 		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		integrationSourceGNMITag,
+		internalDeviceResourceTag(deviceID),
 	}
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: deviceAddress},
-		Profile:  config.ProfileDefinition{},
+		Profile: config.ProfileDefinition{
+			Metrics: []config.MetricConfig{
+				{
+					Path: pathMemoryUsed,
+					Metric: "snmp.memory.used",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
+				{
+					Path: pathMemoryAvail,
+					Metric: "snmp.memory.free",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
+			},
+		},
 	}
 	snapshot := []client.CachedValue{
 		{
@@ -54,15 +76,125 @@ func TestReportDerivedMetricsMemoryUsage(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", metricMemoryUsage, 25.0, "", append(baseTags, "memory:Chassis"))
 }
 
+func TestReportDerivedMetricsMemoryUsageRequiresBothPaths(t *testing.T) {
+	deviceAddress := "10.0.0.5"
+	cfg := &config.CheckConfig{
+		Instance: config.InstanceConfig{Address: deviceAddress},
+		Profile: config.ProfileDefinition{
+			Metrics: []config.MetricConfig{
+				{
+					Path: pathMemoryUsed,
+					Metric: "snmp.memory.used",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
+				{
+					Path: pathMemoryAvail,
+					Metric: "snmp.memory.free",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
+			},
+		},
+	}
+	snapshot := []client.CachedValue{
+		{
+			Key: client.CacheKey{
+				Path: pathMemoryUsed,
+				Keys: map[string]string{"name": "FanTray3"},
+			},
+			Entry: client.CacheEntry{Value: int64(10)},
+		},
+		{
+			Key: client.CacheKey{
+				Path: pathMemoryAvail,
+				Keys: map[string]string{"name": "ControlA"},
+			},
+			Entry: client.CacheEntry{Value: int64(90)},
+		},
+	}
+
+	mockSender := mocksender.NewMockSender(t, checkid.ID("gnmi"))
+	mockSender.SetupAcceptAll()
+
+	err := ReportDerivedMetrics(mockSender, cfg, snapshot, NewBandwidthState())
+	require.NoError(t, err)
+
+	mockSender.AssertNotCalled(t, "Gauge", metricMemoryUsage)
+}
+
+func TestReportDerivedMetricsMemoryUsageMatchesProfileComponentTags(t *testing.T) {
+	deviceAddress := "10.0.0.5"
+	deviceID := buildDeviceIDFromConfigAddress(deviceAddress)
+	controlTags := []string{
+		deviceNamespaceTag,
+		"device_ip:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		"integration_source:gnmi",
+		"memory:ControlA",
+	}
+	cfg := &config.CheckConfig{
+		Instance: config.InstanceConfig{Address: deviceAddress},
+		Profile: config.ProfileDefinition{
+			Metrics: []config.MetricConfig{
+				{
+					Path:   pathMemoryUsed,
+					Metric: "snmp.memory.used",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
+				{
+					Path:   pathMemoryAvail,
+					Metric: "snmp.memory.free",
+					Type:   config.MetricTypeGauge,
+					Keys:   map[string]string{"component": "name"},
+					Tags:   map[string]string{"memory": "name"},
+				},
+			},
+		},
+	}
+	snapshot := []client.CachedValue{
+		{
+			Key: client.CacheKey{
+				Path: pathMemoryUsed,
+				Keys: map[string]string{"name": "ControlA"},
+			},
+			Entry: client.CacheEntry{Value: int64(25)},
+		},
+		{
+			Key: client.CacheKey{
+				Path: pathMemoryAvail,
+				Keys: map[string]string{"name": "ControlA"},
+			},
+			Entry: client.CacheEntry{Value: int64(75)},
+		},
+	}
+
+	mockSender := mocksender.NewMockSender(t, checkid.ID("gnmi"))
+	mockSender.SetupAcceptAll()
+
+	err := ReportDerivedMetrics(mockSender, cfg, snapshot, NewBandwidthState())
+	require.NoError(t, err)
+
+	mockSender.AssertMetric(t, "Gauge", metricMemoryUsage, 25.0, "", controlTags)
+}
+
 func TestReportDerivedMetricsInterfaceBandwidthUsage(t *testing.T) {
 	deviceAddress := "10.0.0.5"
+	deviceID := buildDeviceIDFromConfigAddress(deviceAddress)
 	ifSpeed := uint64(1_000_000_000)
 	interfaceTags := []string{
+		deviceNamespaceTag,
 		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		"integration_source:gnmi",
 		"interface:eth0",
-		"interface_index:42",
-		"dd.internal.resource:ndm_interface:default:" + deviceAddress + ":42",
+		"dd.internal.resource:ndm_interface:" + deviceID + ":eth0",
 	}
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: deviceAddress},
@@ -155,6 +287,7 @@ func TestReportDerivedMetricsInterfaceBandwidthUsage(t *testing.T) {
 
 func TestReportMetricsEmitsThroughputRates(t *testing.T) {
 	deviceAddress := "10.0.0.1"
+	deviceID := buildDeviceIDFromConfigAddress(deviceAddress)
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: deviceAddress},
 		Profile: config.ProfileDefinition{
@@ -187,13 +320,19 @@ func TestReportMetricsEmitsThroughputRates(t *testing.T) {
 	require.NoError(t, err)
 
 	mockSender.AssertMetric(t, "MonotonicCount", "snmp.ifHCInOctets", 2_000_000, "", []string{
+		deviceNamespaceTag,
 		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		"integration_source:gnmi",
 		"interface:eth0",
 	})
 	mockSender.AssertMetric(t, "Rate", "snmp.ifHCInOctets.rate", 2_000_000, "", []string{
+		deviceNamespaceTag,
 		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		"integration_source:gnmi",
 		"interface:eth0",
 	})
 }

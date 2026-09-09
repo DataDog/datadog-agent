@@ -7,7 +7,6 @@ package report
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
@@ -43,13 +42,13 @@ func ReportDerivedMetrics(s sender.Sender, cfg *config.CheckConfig, snapshot []c
 		return errors.New("bandwidth state is nil")
 	}
 
-	baseTags := buildBaseTags(cfg)
-	deviceID := buildDeviceID(cfg.Instance.Address)
-	interfaceInventory := interfaceInventoryByName(deviceID, cfg.Profile.Metadata, snapshot)
+	baseTags := buildBaseTags(cfg, snapshot)
+	deviceID := buildDeviceID(cfg)
+	interfaceInventory := interfaceInventoryByName(deviceID, cfg.Profile, snapshot)
 	speedValueMap := portSpeedValueMap(cfg.Profile)
 
 	reportInterfaceBandwidthUsage(s, baseTags, deviceID, snapshot, interfaceInventory, speedValueMap, bandwidthState)
-	reportMemoryUsage(s, snapshot, baseTags)
+	reportMemoryUsage(s, cfg.Profile, snapshot, baseTags)
 
 	return nil
 }
@@ -105,36 +104,58 @@ func collectInterfaceBandwidthData(
 	inventory map[string]devicemetadata.InterfaceMetadata,
 	speedValueMap map[string]int,
 ) map[string]*interfaceBandwidthData {
+	byPath := indexSnapshotByPath(snapshot)
 	interfaces := make(map[string]*interfaceBandwidthData)
 
-	for _, cached := range snapshot {
+	for _, cached := range byPath[pathInOctets] {
+		keysID := cacheKeysID(cached.Key.Keys)
+		if keysID == "" {
+			continue
+		}
+		value, ok := decodeNumericValue(cached.Entry.Value)
+		if !ok {
+			continue
+		}
+
 		interfaceName := cached.Key.Keys["name"]
 		if interfaceName == "" {
 			continue
 		}
 
-		entry := interfaces[interfaceName]
+		entry := interfaces[keysID]
 		if entry == nil {
 			entry = &interfaceBandwidthData{name: interfaceName, inOctets: -1, outOctets: -1}
-			interfaces[interfaceName] = entry
+			interfaces[keysID] = entry
 		}
+		entry.inOctets = value
+		entry.inTags = interfaceBandwidthTags(baseTags, deviceID, interfaceName, inventory)
+	}
 
-		switch cached.Key.Path {
-		case pathInOctets:
-			if value, ok := decodeNumericValue(cached.Entry.Value); ok {
-				entry.inOctets = value
-				entry.inTags = interfaceBandwidthTags(baseTags, deviceID, interfaceName, inventory)
-			}
-		case pathOutOctets:
-			if value, ok := decodeNumericValue(cached.Entry.Value); ok {
-				entry.outOctets = value
-				entry.outTags = interfaceBandwidthTags(baseTags, deviceID, interfaceName, inventory)
-			}
-		case pathPortSpeed:
-			if value, ok := decodeMetricValue(cached.Entry.Value, speedValueMap); ok && value > 0 {
-				entry.speed = uint64(value)
-			}
+	for _, cached := range byPath[pathOutOctets] {
+		keysID := cacheKeysID(cached.Key.Keys)
+		entry := interfaces[keysID]
+		if entry == nil {
+			continue
 		}
+		value, ok := decodeNumericValue(cached.Entry.Value)
+		if !ok {
+			continue
+		}
+		entry.outOctets = value
+		entry.outTags = interfaceBandwidthTags(baseTags, deviceID, entry.name, inventory)
+	}
+
+	for _, cached := range byPath[pathPortSpeed] {
+		keysID := cacheKeysID(cached.Key.Keys)
+		entry := interfaces[keysID]
+		if entry == nil {
+			continue
+		}
+		value, ok := decodeMetricValue(cached.Entry.Value, speedValueMap)
+		if !ok || value <= 0 {
+			continue
+		}
+		entry.speed = uint64(value)
 	}
 
 	return interfaces
@@ -143,15 +164,14 @@ func collectInterfaceBandwidthData(
 func interfaceBandwidthTags(baseTags []string, deviceID string, interfaceName string, inventory map[string]devicemetadata.InterfaceMetadata) []string {
 	tags := append(ndmutils.CopyStrings(baseTags), "interface:"+interfaceName)
 	iface, ok := inventory[interfaceName]
-	if !ok || iface.Index <= 0 {
+	if !ok || iface.Name == "" {
 		return tags
 	}
 
-	tags = append(tags, "interface_index:"+fmt.Sprintf("%d", iface.Index))
 	if iface.Description != "" {
 		tags = append(tags, "interface_alias:"+iface.Description)
 	}
-	return append(tags, internalInterfaceResourceTag(deviceID, iface.Index))
+	return append(tags, internalInterfaceResourceTag(deviceID, iface.Name))
 }
 
 func emitBandwidthUsageRate(
@@ -180,53 +200,67 @@ func emitBandwidthUsageRate(
 	s.Gauge(metricName, rate, "", tags)
 }
 
-type memoryComponentData struct {
-	used  float64
-	free  float64
-	tags  []string
-	hasOK bool
+func reportMemoryUsage(s sender.Sender, profile config.ProfileDefinition, snapshot []client.CachedValue, baseTags []string) {
+	usedMetric, freeMetric, ok := memoryMetricsFromProfile(profile)
+	if !ok {
+		return
+	}
+
+	usedPath := normalizeProfilePath(usedMetric.Path)
+	freePath := normalizeProfilePath(freeMetric.Path)
+	if _, ok := pathsShareParent(usedPath, freePath); !ok {
+		log.Tracef("skip memory usage metric: %s and %s do not share the same parent path", usedPath, freePath)
+		return
+	}
+
+	byPath := indexSnapshotByPath(snapshot)
+	freeByKeys := indexCachedValuesByKeys(byPath[freePath])
+
+	for _, usedCached := range sortCachedValues(byPath[usedPath]) {
+		keys := usedCached.Key.Keys
+		if len(keys) == 0 {
+			continue
+		}
+
+		freeCached, ok := freeByKeys[cacheKeysID(keys)]
+		if !ok {
+			continue
+		}
+
+		used, ok := decodeNumericValue(usedCached.Entry.Value)
+		if !ok {
+			continue
+		}
+		free, ok := decodeNumericValue(freeCached.Entry.Value)
+		if !ok {
+			continue
+		}
+
+		usage, err := evaluateMemoryUsage(used, used+free)
+		if err != nil {
+			log.Tracef("skip memory usage metric for %s: %s", cacheKeysID(keys), err)
+			continue
+		}
+
+		tags := buildMetricTags(baseTags, usedMetric, keys)
+		s.Gauge(metricMemoryUsage, usage, "", tags)
+	}
 }
 
-func reportMemoryUsage(s sender.Sender, snapshot []client.CachedValue, baseTags []string) {
-	components := make(map[string]*memoryComponentData)
-
-	for _, cached := range snapshot {
-		componentName := cached.Key.Keys["name"]
-		if componentName == "" {
-			continue
-		}
-
-		entry := components[componentName]
-		if entry == nil {
-			entry = &memoryComponentData{tags: append(baseTags, "memory:"+componentName)}
-			components[componentName] = entry
-		}
-
-		switch cached.Key.Path {
-		case pathMemoryUsed:
-			if value, ok := decodeNumericValue(cached.Entry.Value); ok {
-				entry.used = value
-				entry.hasOK = true
-			}
-		case pathMemoryAvail:
-			if value, ok := decodeNumericValue(cached.Entry.Value); ok {
-				entry.free = value
-				entry.hasOK = true
-			}
+func memoryMetricsFromProfile(profile config.ProfileDefinition) (used config.MetricConfig, free config.MetricConfig, ok bool) {
+	var foundUsed bool
+	var foundFree bool
+	for _, metric := range profile.Metrics {
+		switch metric.Metric {
+		case "snmp.memory.used":
+			used = metric
+			foundUsed = true
+		case "snmp.memory.free":
+			free = metric
+			foundFree = true
 		}
 	}
-
-	for componentName, entry := range components {
-		if !entry.hasOK {
-			continue
-		}
-		usage, err := evaluateMemoryUsage(entry.used, entry.used+entry.free)
-		if err != nil {
-			log.Tracef("skip memory usage metric for %s: %s", componentName, err)
-			continue
-		}
-		s.Gauge(metricMemoryUsage, usage, "", entry.tags)
-	}
+	return used, free, foundUsed && foundFree
 }
 
 func evaluateMemoryUsage(memoryUsed float64, memoryTotal float64) (float64, error) {

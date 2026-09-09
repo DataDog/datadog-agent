@@ -8,6 +8,7 @@ package report
 
 import (
 	"errors"
+	"sort"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -18,6 +19,8 @@ import (
 )
 
 const defaultDeviceNamespace = "default"
+const integrationSourceGNMITag = "integration_source:gnmi"
+const deviceNamespaceTag = "device_namespace:" + defaultDeviceNamespace
 
 // ReportMetrics submits snmp.* metrics from a client snapshot using profile mappings.
 // metricSnapshot contains the values to emit; inventorySnapshot supplies interface metadata
@@ -33,9 +36,9 @@ func ReportMetrics(s sender.Sender, cfg *config.CheckConfig, metricSnapshot []cl
 		inventorySnapshot = metricSnapshot
 	}
 
-	baseTags := buildBaseTags(cfg)
-	deviceID := buildDeviceID(cfg.Instance.Address)
-	interfaceInventory := interfaceInventoryByName(deviceID, cfg.Profile.Metadata, inventorySnapshot)
+	baseTags := buildBaseTags(cfg, inventorySnapshot)
+	deviceID := buildDeviceID(cfg)
+	interfaceInventory := interfaceInventoryByName(deviceID, cfg.Profile, inventorySnapshot)
 	byPath := indexSnapshotByPath(metricSnapshot)
 
 	for _, metric := range cfg.Profile.Metrics {
@@ -73,18 +76,61 @@ func normalizeProfilePath(path string) string {
 	return trimmed
 }
 
-func buildBaseTags(cfg *config.CheckConfig) []string {
+func buildBaseTags(cfg *config.CheckConfig, snapshot []client.CachedValue) []string {
 	address := cfg.Instance.Address
-	deviceID := buildDeviceID(address)
+	deviceID := buildDeviceID(cfg)
+	hostname := ResolveDeviceHostname(snapshot, cfg.Profile.Metadata)
 	tags := []string{
+		deviceNamespaceTag,
 		"device_ip:" + address,
 		"device_id:" + deviceID,
+		"snmp_device:" + address,
+		integrationSourceGNMITag,
+		internalDeviceResourceTag(deviceID),
+	}
+	if cfg.Profile.Name != "" {
+		tags = append(tags, "snmp_profile:"+cfg.Profile.Name)
+	}
+	if hostname != "" {
+		tags = append(tags, "snmp_host:"+hostname)
 	}
 	return append(tags, ndmutils.CopyStrings(cfg.Instance.Tags)...)
 }
 
-func buildDeviceID(address string) string {
+func buildDeviceIDTags(cfg *config.CheckConfig) []string {
+	if cfg == nil {
+		return nil
+	}
+	tags := []string{
+		deviceNamespaceTag,
+		"snmp_device:" + cfg.Instance.Address,
+	}
+	sort.Strings(tags)
+	return tags
+}
+
+// buildDeviceID returns the NDM device identifier used for metadata and metric tags.
+// It always uses the configured address verbatim (hostname or IP).
+func buildDeviceID(cfg *config.CheckConfig) string {
+	if cfg == nil {
+		return defaultDeviceNamespace + ":"
+	}
+	return buildDeviceIDFromConfigAddress(cfg.Instance.Address)
+}
+
+func buildDeviceIDFromConfigAddress(address string) string {
 	return defaultDeviceNamespace + ":" + address
+}
+
+func buildInterfaceID(deviceID string, interfaceName string) string {
+	return deviceID + ":" + interfaceName
+}
+
+// buildInterfaceIDFromIndex builds the canonical interface_id used to join IPAddressMetadata
+// to InterfaceMetadata, matching the deviceID:ifIndex convention used by the other NDM
+// integrations (SNMP, Cisco SD-WAN).
+func buildInterfaceIDFromIndex(deviceID string, ifIndex int32) string {
+	return deviceID + ":" + strconv.Itoa(int(ifIndex))
 }
 
 func buildMetricTags(baseTags []string, metric config.MetricConfig, keys map[string]string) []string {
@@ -102,8 +148,20 @@ func buildMetricTags(baseTags []string, metric config.MetricConfig, keys map[str
 	return tags
 }
 
-func interfaceInventoryByName(deviceID string, metadata config.MetadataConfig, snapshot []client.CachedValue) map[string]devicemetadata.InterfaceMetadata {
-	interfaces := buildInterfaceMetadata(deviceID, metadata, snapshot)
+func interfaceMetricPathsFromProfile(profile config.ProfileDefinition) []string {
+	paths := make([]string, 0, len(profile.Metrics))
+	for _, metric := range profile.Metrics {
+		keyName, ok := metric.Tags["interface"]
+		if !ok || keyName == "" {
+			continue
+		}
+		paths = append(paths, normalizeProfilePath(metric.Path))
+	}
+	return paths
+}
+
+func interfaceInventoryByName(deviceID string, profile config.ProfileDefinition, snapshot []client.CachedValue) map[string]devicemetadata.InterfaceMetadata {
+	interfaces := buildInterfaceMetadata(deviceID, profile.Metadata, snapshot, interfaceMetricPathsFromProfile(profile))
 	inventory := make(map[string]devicemetadata.InterfaceMetadata, len(interfaces))
 	for _, iface := range interfaces {
 		if iface.Name == "" {
@@ -127,15 +185,14 @@ func enrichInterfaceMetricTags(
 	}
 
 	iface, ok := inventory[interfaceName]
-	if !ok || iface.Index <= 0 {
+	if !ok || iface.Name == "" {
 		return tags
 	}
 
-	tags = append(tags, "interface_index:"+strconv.Itoa(int(iface.Index)))
 	if iface.Description != "" {
 		tags = append(tags, "interface_alias:"+iface.Description)
 	}
-	return append(tags, internalInterfaceResourceTag(deviceID, iface.Index))
+	return append(tags, internalInterfaceResourceTag(deviceID, iface.Name))
 }
 
 func interfaceNameFromMetricTags(metric config.MetricConfig, keys map[string]string) string {
@@ -146,8 +203,12 @@ func interfaceNameFromMetricTags(metric config.MetricConfig, keys map[string]str
 	return keys[keyName]
 }
 
-func internalInterfaceResourceTag(deviceID string, ifIndex int32) string {
-	return "dd.internal.resource:ndm_interface:" + deviceID + ":" + strconv.FormatInt(int64(ifIndex), 10)
+func internalInterfaceResourceTag(deviceID string, interfaceName string) string {
+	return "dd.internal.resource:ndm_interface:" + buildInterfaceID(deviceID, interfaceName)
+}
+
+func internalDeviceResourceTag(deviceID string) string {
+	return "dd.internal.resource:ndm_device:" + deviceID
 }
 
 func decodeMetricValue(value any, valueMap map[string]int) (float64, bool) {
