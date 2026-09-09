@@ -6,22 +6,22 @@ go 1.26.0
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/create v0.84.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/model v0.84.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.84.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/create v0.84.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.84.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.84.0-rc.2
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/stretchr/testify v1.12.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.84.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.84.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.84.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.84.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.84.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.84.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.84.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.84.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.84.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.84.0-rc.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
