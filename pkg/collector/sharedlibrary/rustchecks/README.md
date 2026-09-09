@@ -20,7 +20,7 @@ To start writing a new Rust check, follow these steps:
 - In `checks`, copy the crate `example` and rename it with your check name. The check 'example' is a template for Rust-based checks.
 - Change the crate name in `Cargo.toml`.
 - Add your crate in `workspace.members` in the `Cargo.toml` located at the root level.
-- Write your implementation in the `check` function in `check.rs`. 
+- Write your implementation in the `check` function in `check.rs`.
 
 And you're done!
 

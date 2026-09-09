@@ -1,3 +1,4 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 # Map of check name -> cdylib target for each Rust check we ship. Add an entry
@@ -23,4 +24,13 @@ pkg_files(
     prefix = "checks.d",
     renames = {target: "libdatadog-agent-" + check_name + ".so" for check_name, target in ENABLED_CHECKS.items()},
     visibility = ["//visibility:public"],
+)
+
+# DO NOT USE. This is only left as a vestage for hacky-image-build.
+# `bazel run //pkg/collector/sharedlibrary/rustchecks:install -- --destdir=<dir>`
+# stages every enabled check into <dir>/checks.d with root/root-group-only (0550) perms.
+pkg_install(
+    name = "install",
+    srcs = [":enabled_checks"],
+    visibility = ["//visibility:private"],
 )
