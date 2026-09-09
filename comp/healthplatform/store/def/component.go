@@ -69,4 +69,12 @@ type Component interface {
 	// backend issue, or hostID as a fallback for non-Kubernetes agents. It never
 	// returns "" unless hostID is empty and the OS hostname is unavailable.
 	IssueDiscriminator(hostID string) string
+
+	// ResourceIdentity returns the resource_type/resource_id describing the
+	// entity this agent process represents, for HostInfo enrichment on
+	// outbound reports: ("cluster", cluster id) for the Cluster Agent,
+	// ("deployment", DaemonSet UID) for a node agent under a DaemonSet, or
+	// ("host", hostname) otherwise. Callers pass the hostname they already
+	// resolved for the report so Host.Hostname and resource_id can't diverge.
+	ResourceIdentity(hostname string) (resourceType string, resourceID string)
 }

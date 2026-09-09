@@ -555,3 +555,13 @@ func TestIssuesObserverResolvedNotification(t *testing.T) {
 	got := <-obs.ResolvedCh
 	assert.Equal(t, IssueStateResolved, got.PersistedIssue.GetState())
 }
+
+// TestResourceIdentityHost verifies the default, non-Kubernetes fallback:
+// resource_type/resource_id describe the plain host agent process by hostname.
+func TestResourceIdentityHost(t *testing.T) {
+	h := newTestStore(t)
+
+	resourceType, resourceID := h.ResourceIdentity("test-host")
+	assert.Equal(t, "host", resourceType)
+	assert.Equal(t, "test-host", resourceID)
+}
