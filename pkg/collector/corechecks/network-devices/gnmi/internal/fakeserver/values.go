@@ -41,6 +41,7 @@ func InterfaceInOctetsUpdate(interfaceName string, octets uint64) *gnmipb.Update
 	return &gnmipb.Update{
 		Path: &gnmipb.Path{
 			Elem: []*gnmipb.PathElem{
+				{Name: "openconfig"},
 				{Name: "interfaces"},
 				{Name: "interface", Key: map[string]string{"name": interfaceName}},
 				{Name: "state"},
@@ -57,6 +58,7 @@ func InterfaceOutOctetsUpdate(interfaceName string, octets uint64) *gnmipb.Updat
 	return &gnmipb.Update{
 		Path: &gnmipb.Path{
 			Elem: []*gnmipb.PathElem{
+				{Name: "openconfig"},
 				{Name: "interfaces"},
 				{Name: "interface", Key: map[string]string{"name": interfaceName}},
 				{Name: "state"},

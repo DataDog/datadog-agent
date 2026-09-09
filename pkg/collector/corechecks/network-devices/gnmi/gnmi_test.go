@@ -25,14 +25,14 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
-const basicInterfacesProfile = `
+const interfaceStatsProfile = `
 metrics:
-  - path: /interfaces/interface/state/counters/in-octets
+  - path: /openconfig/interfaces/interface/state/counters/in-octets
     metric: snmp.ifHCInOctets
     type: monotonic_count
     tags:
       interface: name
-  - path: /interfaces/interface/state/counters/out-octets
+  - path: /openconfig/interfaces/interface/state/counters/out-octets
     metric: snmp.ifHCOutOctets
     type: monotonic_count
     tags:
@@ -49,7 +49,7 @@ func TestCheckRunReportsSNMPMetrics(t *testing.T) {
 
 	profileDir := filepath.Join(profilesRoot, "gnmi.d", "profiles")
 	require.NoError(t, os.MkdirAll(profileDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "basic-interfaces.yaml"), []byte(basicInterfacesProfile), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "interface-stats.yaml"), []byte(interfaceStatsProfile), 0o644))
 
 	server, err := fakeserver.New()
 	require.NoError(t, err)
@@ -66,7 +66,7 @@ address: ` + host + `
 port: ` + strconv.Itoa(port) + `
 username: user
 password: test-password
-profile: basic-interfaces
+profile: interface-stats
 min_collection_interval: 15
 `)
 
@@ -133,7 +133,7 @@ func TestCheckRunEmitsHealthMetricsOnlyWhenCacheEmpty(t *testing.T) {
 
 	profileDir := filepath.Join(profilesRoot, "gnmi.d", "profiles")
 	require.NoError(t, os.MkdirAll(profileDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "basic-interfaces.yaml"), []byte(basicInterfacesProfile), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "interface-stats.yaml"), []byte(interfaceStatsProfile), 0o644))
 
 	server, err := fakeserver.New()
 	require.NoError(t, err)
@@ -150,7 +150,7 @@ address: ` + host + `
 port: ` + strconv.Itoa(port) + `
 username: user
 password: test-password
-profile: basic-interfaces
+profile: interface-stats
 min_collection_interval: 15
 `)
 

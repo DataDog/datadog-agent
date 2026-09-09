@@ -93,7 +93,7 @@ func subscribePathFromMetric(metric config.MetricConfig) (*gnmipb.Path, error) {
 	elems := make([]*gnmipb.PathElem, 0, len(segments))
 	for _, segment := range segments {
 		elem := &gnmipb.PathElem{Name: segment}
-		if keyName, ok := metric.Tags[segment]; ok && keyName != "" {
+		if keyName, ok := metric.SubscriptionKeys()[segment]; ok && keyName != "" {
 			elem.Key = map[string]string{keyName: "*"}
 		}
 		elems = append(elems, elem)
