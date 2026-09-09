@@ -432,6 +432,93 @@ func TestBuildIPAddressMetadata(t *testing.T) {
 	assert.Equal(t, int32(24), ipAddresses[0].Prefixlen)
 }
 
+func TestBuildIPAddressMetadataIncludesIPv6(t *testing.T) {
+	metadata := config.DefaultOpenConfigMetadata()
+	deviceID := "default:router-1"
+	snapshot := []client.CachedValue{
+		{
+			Key: client.CacheKey{
+				Path: metadata.Interface.IfIndex,
+				Keys: map[string]string{"name": "Ethernet1"},
+			},
+			Entry: client.CacheEntry{Value: int32(42)},
+		},
+		{
+			Key: client.CacheKey{
+				Path: metadata.IPAddress.IP,
+				Keys: map[string]string{"name": "Ethernet1", "index": "0", "ip": "10.1.1.1"},
+			},
+			Entry: client.CacheEntry{Value: "10.1.1.1"},
+		},
+		{
+			Key: client.CacheKey{
+				Path: metadata.IPAddress.PrefixLength,
+				Keys: map[string]string{"name": "Ethernet1", "index": "0", "ip": "10.1.1.1"},
+			},
+			Entry: client.CacheEntry{Value: int32(24)},
+		},
+		{
+			Key: client.CacheKey{
+				Path: metadata.IPAddress.IPv6,
+				Keys: map[string]string{"name": "Ethernet1", "index": "0", "ip": "2001:db8::1"},
+			},
+			Entry: client.CacheEntry{Value: "2001:db8::1"},
+		},
+		{
+			Key: client.CacheKey{
+				Path: metadata.IPAddress.IPv6PrefixLength,
+				Keys: map[string]string{"name": "Ethernet1", "index": "0", "ip": "2001:db8::1"},
+			},
+			Entry: client.CacheEntry{Value: int32(64)},
+		},
+	}
+	interfaces := buildInterfaceMetadata(deviceID, metadata, snapshot, nil)
+
+	ipAddresses := buildIPAddressMetadata(deviceID, metadata, interfaces, snapshot)
+	require.Len(t, ipAddresses, 2)
+	assert.Equal(t, "default:router-1:42", ipAddresses[0].InterfaceID)
+	assert.Equal(t, "10.1.1.1", ipAddresses[0].IPAddress)
+	assert.Equal(t, int32(24), ipAddresses[0].Prefixlen)
+	assert.Equal(t, "default:router-1:42", ipAddresses[1].InterfaceID)
+	assert.Equal(t, "2001:db8::1", ipAddresses[1].IPAddress)
+	assert.Equal(t, int32(64), ipAddresses[1].Prefixlen)
+}
+
+func TestBuildIPAddressMetadataIPv6Only(t *testing.T) {
+	metadata := config.DefaultOpenConfigMetadata()
+	deviceID := "default:router-1"
+	snapshot := []client.CachedValue{
+		{
+			Key: client.CacheKey{
+				Path: metadata.Interface.IfIndex,
+				Keys: map[string]string{"name": "Ethernet1"},
+			},
+			Entry: client.CacheEntry{Value: int32(42)},
+		},
+		{
+			Key: client.CacheKey{
+				Path: metadata.IPAddress.IPv6,
+				Keys: map[string]string{"name": "Ethernet1", "index": "0", "ip": "2001:db8::1"},
+			},
+			Entry: client.CacheEntry{Value: "2001:db8::1"},
+		},
+		{
+			Key: client.CacheKey{
+				Path: metadata.IPAddress.IPv6PrefixLength,
+				Keys: map[string]string{"name": "Ethernet1", "index": "0", "ip": "2001:db8::1"},
+			},
+			Entry: client.CacheEntry{Value: int32(64)},
+		},
+	}
+	interfaces := buildInterfaceMetadata(deviceID, metadata, snapshot, nil)
+
+	ipAddresses := buildIPAddressMetadata(deviceID, metadata, interfaces, snapshot)
+	require.Len(t, ipAddresses, 1)
+	assert.Equal(t, "default:router-1:42", ipAddresses[0].InterfaceID)
+	assert.Equal(t, "2001:db8::1", ipAddresses[0].IPAddress)
+	assert.Equal(t, int32(64), ipAddresses[0].Prefixlen)
+}
+
 func TestReportMetadataIncludesIPAddresses(t *testing.T) {
 	cfg := &config.CheckConfig{
 		Instance: config.InstanceConfig{Address: "10.0.0.5"},
