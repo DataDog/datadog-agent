@@ -420,6 +420,7 @@ func extractFromConfigBlob(ctx context.Context, img containerd.Image, manifest o
 
 	outImage.Layers = getLayersWithHistory(ocispecImage, manifest)
 	outImage.Labels = getImageLabels(img, ocispecImage)
+	outImage.Annotations = getImageAnnotations(img, manifest)
 	return nil
 }
 
@@ -521,4 +522,19 @@ func getImageLabels(img containerd.Image, ocispecImage ocispec.Image) map[string
 	maps.Copy(labels, ocispecImage.Config.Labels)
 
 	return labels
+}
+
+func getImageAnnotations(img containerd.Image, manifest ocispec.Manifest) map[string]string {
+	// OCI annotations live on the image descriptors rather than in the config
+	// blob. The target descriptor may carry index-level annotations, while the
+	// platform-specific manifest carries manifest-level annotations (for
+	// example, the containerd.io/snapshot/nydus-* keys). Manifest annotations
+	// take precedence when a key is present in both.
+	annotations := map[string]string{}
+
+	maps.Copy(annotations, img.Target().Annotations)
+
+	maps.Copy(annotations, manifest.Annotations)
+
+	return annotations
 }

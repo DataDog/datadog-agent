@@ -231,7 +231,7 @@ func InstallOpenShiftBinary(env config.Env, vm *remote.Host, opts ...pulumi.Reso
 	return vm.OS.Runner().Command(
 		env.CommonNamer().ResourceName("crc-install"),
 		&command.Args{
-			Create: pulumi.Sprintf(`curl -fsSL https://developers.redhat.com/content-gateway/file/pub/openshift-v4/clients/crc/%s/crc-linux-%s.tar.xz | \
+			Create: pulumi.Sprintf(`curl --fail -sL https://mirror.openshift.com/pub/openshift-v4/clients/crc/%s/crc-linux-%s.tar.xz | \
 	sudo tar -xJ -C /usr/local/bin --strip-components=1 crc-linux-%s-%s/crc`, crcVersion, openShiftArch, crcVersion, openShiftArch),
 		}, opts...)
 }

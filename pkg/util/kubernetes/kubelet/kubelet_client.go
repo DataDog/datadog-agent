@@ -121,17 +121,13 @@ func newForConfig(config *kubeletClientConfig, timeout time.Duration) (*kubeletC
 }
 
 func (kc *kubeletClient) checkConnection(ctx context.Context) error {
-	// override the timeout for the check only
-	// this will not affect the timeout for the actual client at runtime.
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	_, statusCode, err := kc.query(ctx, "/healthz")
 	if err != nil {
 		return err
 	}
 
-	// unauthorized error, we can reach it but it's likely a token error
+	log.Debugf("check kubelet connection url=%s - response_code=%d", kc.kubeletURL, statusCode)
+
 	if statusCode == http.StatusUnauthorized {
 		return fmt.Errorf("unauthorized to request test kubelet endpoint (/healthz) - token used: %t", kc.config.token != "")
 	}
@@ -275,8 +271,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 			if httpPort <= 0 {
 				return nil, httpsErr
 			}
-
-			log.Warnf("Impossible to reach Kubelet through HTTPS, fallback to HTTP, err=%s", httpsErr.Error())
+			log.Warnf("Impossible to reach Kubelet through HTTPS, trying to fallback to HTTP err=%s", httpsErr.Error())
 		} else {
 			return newKubeletClient, nil
 		}
@@ -323,7 +318,12 @@ func checkGetKubeletClient(ctx context.Context, scheme string, port int, prefix 
 			continue
 		}
 
-		err = kubeClient.checkConnection(ctx)
+		// override the context for the checkConnection call to 5s
+		checkConnectionCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+
+		err = kubeClient.checkConnection(checkConnectionCtx)
+		cancel()
+
 		if err != nil {
 			logConnectionError(clientConfig, err)
 			continue
@@ -343,7 +343,12 @@ func checkGetKubeletClient(ctx context.Context, scheme string, port int, prefix 
 			continue
 		}
 
-		err = kubeClient.checkConnection(ctx)
+		// override the context for the checkConnection call to 5s
+		checkConnectionCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+
+		err = kubeClient.checkConnection(checkConnectionCtx)
+		cancel()
+
 		if err != nil {
 			logConnectionError(clientConfig, err)
 			continue
