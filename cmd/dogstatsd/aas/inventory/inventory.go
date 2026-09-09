@@ -11,7 +11,6 @@ package inventory
 
 import (
 	"os"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -20,13 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
-const periodicInterval = 10 * time.Minute
-
 const aasInventoryFlavor = "serverless-extension"
 
 const (
-	reportReasonStartup  = "startup"
-	reportReasonPeriodic = "periodic"
+	reportReasonStartup = "startup"
 
 	workloadTypeAzureAppService = "azure_app_service"
 	workloadTypeAzureFunction   = "azure_function"
@@ -101,35 +97,12 @@ func Inject(ia inventoryagent.Component, conf configmodel.Reader) bool {
 }
 
 // Submit enqueues the inventory payload synchronously so it is delivered before
-// the metadata runner goroutine fires. After submission it switches
-// report_reason to "periodic" so subsequent ticks from StartPeriodicRunner are
-// tagged correctly without another Inject call.
-//
-// It is a no-op when IsEnabled() is false.
+// the metadata runner goroutine fires. It is a no-op when IsEnabled() is false.
+// Subsequent periodic submissions are handled by the inventoryagent built-in
+// runner (defaultMaxInterval = 10 min), so no separate goroutine is needed.
 func Submit(ia inventoryagent.Component) {
 	if !IsEnabled() {
 		return
 	}
 	ia.Submit()
-	ia.Set("report_reason", reportReasonPeriodic)
-}
-
-// StartPeriodicRunner launches a goroutine that calls Submit every
-// periodicInterval (~10 min) until stopCh is closed. It must only be called
-// after a successful Inject so the payload fields are already set. The runner
-// is scoped to the AAS inventory gate and does not depend on the global
-// enable_metadata_collection flag.
-func StartPeriodicRunner(ia inventoryagent.Component, stopCh <-chan struct{}) {
-	go func() {
-		ticker := time.NewTicker(periodicInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				Submit(ia)
-			case <-stopCh:
-				return
-			}
-		}
-	}()
 }

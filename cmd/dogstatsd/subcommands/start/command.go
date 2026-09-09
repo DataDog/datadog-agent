@@ -225,7 +225,6 @@ func start(
 	if aasinventory.IsEnabled() {
 		if aasinventory.Inject(inventoryAgent, config) {
 			aasinventory.Submit(inventoryAgent)
-			aasinventory.StartPeriodicRunner(inventoryAgent, stopCh)
 		}
 	}
 
