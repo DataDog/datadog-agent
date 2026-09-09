@@ -735,14 +735,13 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	}
 }
 
-// WriteProcesses writes the processes for the given package path
+// WriteProcesses writes the processes for the given package path. It is a no-op under any manager
+// other than procmgr.
 func (s *datadogAgentService) WriteProcesses(packagePath string) error {
-	switch service.GetServiceManagerType(packagePath) {
-	case service.ProcmgrType:
-		return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)
-	default:
-		return nil // Only procmgr defines processes
+	if service.GetServiceManagerType(packagePath) != service.ProcmgrType {
+		return nil
 	}
+	return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)
 }
 
 // WriteStable writes the stable units to the system and reloads the systemd daemon

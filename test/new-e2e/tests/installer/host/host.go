@@ -8,7 +8,6 @@ package host
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -75,14 +74,13 @@ func (h *Host) GetPkgManager() string {
 	return h.pkgManager
 }
 
-// Procmgr enabled returns true if the procmgr is enabled on the host, ie if the folder processes.d exists
+// Procmgr enabled returns true if the procmgr is enabled on the host, ie if a process definition has
+// been written to processes.d. The processes.d folder itself always exists (it ships empty with the
+// package), so its presence alone cannot be used as the signal.
 func (h *Host) ProcmgrEnabled() bool {
-	_, err := h.remote.ReadDir("/opt/datadog-packages/datadog-agent/stable/processes.d")
-	if errors.Is(err, fs.ErrNotExist) {
-		return false
-	}
+	exists, err := h.remote.FileExists("/opt/datadog-packages/datadog-agent/stable/processes.d/datadog-agent-ddot.yaml")
 	require.NoError(h.t(), err)
-	return true
+	return exists
 }
 
 // procmgr COAT telemetry gauge names, reported via `datadog-agent diagnose show-metadata agent-full-telemetry`.

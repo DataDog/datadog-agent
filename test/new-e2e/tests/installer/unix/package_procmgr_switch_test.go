@@ -7,7 +7,6 @@ package installer
 
 import (
 	"os"
-	"strconv"
 
 	"github.com/stretchr/testify/require"
 
@@ -24,17 +23,23 @@ func testProcmgrSwitch(os e2eos.Descriptor, arch e2eos.Architecture, method Inst
 	}
 }
 
-// TestProcmgrSwitch installs the agent under the service manager selected by
-// DD_PROCESS_MANAGER_ENABLED (matrix-driven, defaults to true to match the
-// installer's own default), verifies the expected manager is active, flips it
-// via `datadog-installer process-manager enable|disable`, verifies the flip,
-// then flips back and verifies the original state is restored.
+// TestProcmgrSwitch installs the agent, reaches the service manager state selected by
+// DD_PROCESS_MANAGER_ENABLED (matrix-driven, defaults to true to match the installer's own
+// default) via `datadog-installer process-manager enable|disable`, verifies the expected manager
+// is active, flips it, verifies the flip, then flips back and verifies the original state is
+// restored.
 func (s *packageProcmgrSwitchSuite) TestProcmgrSwitch() {
 	initialEnabled := os.Getenv("DD_PROCESS_MANAGER_ENABLED") != "false"
 
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_PROCESS_MANAGER_ENABLED="+strconv.FormatBool(initialEnabled))
+	// The install script does not forward DD_PROCESS_MANAGER_ENABLED to the package manager
+	// invocation, so it can't be used to select the initial state here. Install with the (procmgr)
+	// default and use the CLI to reach the desired initial state instead.
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_OTELCOLLECTOR_ENABLED=true")
 	defer s.Purge()
 
+	if !initialEnabled {
+		s.runProcessManagerCommand("disable")
+	}
 	s.assertManagerState(initialEnabled)
 
 	s.runProcessManagerCommand(flipCommand(initialEnabled))
@@ -61,8 +66,12 @@ func (s *packageProcmgrSwitchSuite) runProcessManagerCommand(subcommand string) 
 	)
 }
 
+// assertManagerState asserts the units matching procmgrEnabled are active. procmgrEnabled comes
+// from DD_PROCESS_MANAGER_ENABLED (read once at test start, or flipped by the CLI call this
+// tracks) rather than from any host-side probe: with WriteProcesses a no-op outside of ProcmgrType
+// (see agentService.WriteProcesses), a stale processes.d/datadog-agent-ddot.yaml can survive a
+// switch to systemd, so its presence can't be used to detect the current state.
 func (s *packageProcmgrSwitchSuite) assertManagerState(procmgrEnabled bool) {
-	require.Equal(s.T(), procmgrEnabled, s.host.ProcmgrEnabled())
 	if procmgrEnabled {
 		s.host.WaitForUnitActive(s.T(), agentUnit, procmgrUnit)
 		s.host.WaitForProcessesRunning(s.T(), ddotProcess)

@@ -25,11 +25,12 @@ import (
 // change takes effect immediately. It is a no-op if the desired state already matches the current
 // one.
 func SetProcessManagerEnabled(ctx context.Context, enabled bool) error {
-	if env.FromEnv().ProcessManagerEnabled == enabled {
+	installRoot := filepath.Join(paths.PackagesPath, agentPackage, "stable")
+	currentType := service.GetServiceManagerType(installRoot)
+	if (currentType == service.ProcmgrType) == enabled {
 		return nil
 	}
-	installRoot := filepath.Join(paths.PackagesPath, agentPackage, "stable")
-	switch service.GetServiceManagerType(installRoot) {
+	switch currentType {
 	case service.SystemdType, service.ProcmgrType:
 	default:
 		return errors.New("switching the process manager is only supported under systemd")
