@@ -10,6 +10,7 @@ package selfident
 import (
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -230,33 +231,46 @@ func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 // node-agent HTTP client can take ~10s and the Cluster Agent's Kubernetes
 // calls take no caller deadline, so the caller wait is bounded by
 // clusterResolveTimeout regardless of how long lookup() blocks.
+//
+// Runs inside a synctest bubble so the timeout is virtual: fake time advances
+// deterministically once every goroutine is durably blocked, replacing the
+// real sleeps, wall-clock margins, and polling that a loaded CI worker could
+// bust even when the resolver behaves correctly. release, the resolver's
+// blocking channel, is created inside the bubble so blocking on it counts as
+// durably blocked and lets the clusterResolveTimeout timer fire.
 func TestClusterID_BlockedLookupDoesNotBlockCallerBeyondTimeout(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
-	release := make(chan struct{})
-	stubClusterIDFuncs(t,
-		func() (string, error) {
-			<-release // block as a hung Cluster Agent/API server call would
-			return "node-agent-id", nil
-		},
-		func() (string, error) { return "", errors.New("unused") },
-	)
+	synctest.Test(t, func(t *testing.T) {
+		release := make(chan struct{})
+		stubClusterIDFuncs(t,
+			func() (string, error) {
+				<-release // block as a hung Cluster Agent/API server call would
+				return "node-agent-id", nil
+			},
+			func() (string, error) { return "", errors.New("unused") },
+		)
 
-	s := New(nil)
-	s.clusterResolveTimeout = 20 * time.Millisecond
+		s := New(nil)
+		s.clusterResolveTimeout = 20 * time.Millisecond
 
-	start := time.Now()
-	id := s.ClusterID()
-	elapsed := time.Since(start)
-	assert.Empty(t, id, "a blocked lookup must not surface an id")
-	assert.Less(t, elapsed, time.Second, "caller must return once the bounded wait elapses, not wait for the blocked lookup")
+		start := time.Now()
+		id := s.ClusterID()
+		elapsed := time.Since(start)
+		assert.Empty(t, id, "a blocked lookup must not surface an id")
+		// Virtual time advances exactly to the bounded wait: the caller returns
+		// the moment clusterResolveTimeout elapses, never waiting for the still-
+		// blocked lookup.
+		assert.Equal(t, s.clusterResolveTimeout, elapsed, "caller must return once the bounded wait elapses, not wait for the blocked lookup")
 
-	// Unblock the lookup and wait for the resolver to settle: this both proves
-	// a later call picks up the id the timed-out one missed, and lets the
-	// resolver goroutine finish before t.Cleanup restores the stub globals it
-	// reads (which would otherwise race the still-running resolver).
-	close(release)
-	assert.Eventually(t, func() bool { return s.ClusterID() == "node-agent-id" }, time.Second, time.Millisecond)
+		// Unblock the lookup and let the shared resolver goroutine settle. This
+		// both proves a later call picks up the id the timed-out one missed, and
+		// lets the resolver finish (via synctest.Wait) before t.Cleanup restores
+		// the stub globals it reads, which would otherwise race it.
+		close(release)
+		synctest.Wait()
+		assert.Equal(t, "node-agent-id", s.ClusterID(), "a later call must pick up the id the timed-out caller missed")
+	})
 }
 
 // TestClusterID_CachesSuccessfulResolution verifies that once resolution
