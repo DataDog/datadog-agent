@@ -45,9 +45,11 @@ on-log:
 
 # TODO: https://datadoghq.atlassian.net/browse/FLREM-153
 # TODO: https://datadoghq.atlassian.net/browse/FLREM-154
+# TODO: https://datadoghq.atlassian.net/browse/FLREM-146
 test/new-e2e/tests/agent-subcommands:
   - test: TestLinuxFlareSuite/TestFlareDefaultFiles
   - test: TestWindowsDiagnoseSuite/TestDiagnoseOtherCmdPort
+  - test: TestWindowsFlareSuite/TestFlareDefaultFiles
 
 # TODO: https://datadoghq.atlassian.net/browse/FLREM-148
 # TODO: https://datadoghq.atlassian.net/browse/FLREM-155
