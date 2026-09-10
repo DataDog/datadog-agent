@@ -27,7 +27,6 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//pkg/aggregator",
-        "//pkg/aggregator/contexttop",
         "@com_github_stretchr_testify//require",
     ],
 )
