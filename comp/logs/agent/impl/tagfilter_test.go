@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -22,6 +23,7 @@ import (
 
 func tagFilterTestAgent(t *testing.T, global map[string]interface{}) *logAgent {
 	t.Helper()
+	t.Cleanup(func() { tagfilter.SetGlobal(nil) })
 	cfg := configmock.New(t)
 	if global != nil {
 		cfg.SetInTest("logs_config.tag_filters", global)
@@ -159,6 +161,7 @@ func TestTagFilterIncludeRulesAreReportedToStatus(t *testing.T) {
 }
 
 func TestMatchEverythingPatternFailsStartup(t *testing.T) {
+	t.Cleanup(func() { tagfilter.SetGlobal(nil) })
 	cfg := configmock.New(t)
 	cfg.SetInTest("logs_config.tag_filters", map[string]interface{}{"exclude": []string{"*"}})
 	a := &logAgent{log: logmock.New(t), config: cfg, sources: sources.NewLogSources()}

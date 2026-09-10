@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
@@ -245,46 +247,63 @@ func TestPartialRestart(t *testing.T) {
 	}
 }
 
-type dropAllFilter struct{}
-
-func (dropAllFilter) Apply([]string) []string { return nil }
-
-func TestAddSourceAttachesTagFilterOncePerSource(t *testing.T) {
-	logSources := NewLogSources()
-
-	calls := 0
-	logSources.SetTagFilterBuilder(func(source *LogSource) TagFilter {
-		calls++
-		if source.Name == "filtered" {
-			return dropAllFilter{}
-		}
-		return nil
-	})
-
-	filtered := NewLogSource("filtered", &config.LogsConfig{Type: "boo"})
-	plain := NewLogSource("plain", &config.LogsConfig{Type: "boo"})
-	logSources.AddSource(filtered)
-	logSources.AddSource(plain)
-
-	assert.Equal(t, 2, calls)
-	assert.Equal(t, dropAllFilter{}, filtered.TagFilters())
-	assert.Nil(t, plain.TagFilters())
+func setGlobalTagFilters(t *testing.T, include, exclude []string) {
+	t.Helper()
+	compiled, err := tagfilter.Compile(include, exclude)
+	require.NoError(t, err)
+	tagfilter.SetGlobal(compiled)
+	t.Cleanup(func() { tagfilter.SetGlobal(nil) })
 }
 
-func TestAddSourceAttachesTagFilterBeforeValidation(t *testing.T) {
-	logSources := NewLogSources()
-	logSources.SetTagFilterBuilder(func(*LogSource) TagFilter { return dropAllFilter{} })
+func TestAddSourceCompilesTagFilterEagerly(t *testing.T) {
+	setGlobalTagFilters(t, nil, []string{"dirname:*"})
 
-	invalid := NewLogSource("invalid", &config.LogsConfig{})
-	logSources.AddSource(invalid)
-
-	assert.Equal(t, dropAllFilter{}, invalid.TagFilters())
-}
-
-func TestAddSourceWithoutTagFilterBuilder(t *testing.T) {
-	logSources := NewLogSources()
 	source := NewLogSource("foo", &config.LogsConfig{Type: "boo"})
-	logSources.AddSource(source)
+	NewLogSources().AddSource(source)
+
+	assert.Equal(t, []string{"kube_app_name:web"},
+		source.TagFilters().Apply([]string{"dirname:/var/log", "kube_app_name:web"}))
+	assert.Equal(t, []string{"global exclude: dirname:*"}, source.GetInfoStatus(true)["Tag Filters"])
+}
+
+func TestUnregisteredSourceStillGetsTheGlobalTagFilter(t *testing.T) {
+	setGlobalTagFilters(t, nil, []string{"dirname:*"})
+
+	// The OTLP exporter, the CWS and CSPM reporters and the Windows checks all
+	// build a source this way and never call AddSource.
+	source := NewLogSource("unregistered", &config.LogsConfig{Type: "boo"})
+
+	assert.Equal(t, []string{"kube_app_name:web"},
+		source.TagFilters().Apply([]string{"dirname:/var/log", "kube_app_name:web"}))
+}
+
+func TestSourceWithNoFiltersConfiguredGetsNone(t *testing.T) {
+	source := NewLogSource("foo", &config.LogsConfig{Type: "boo"})
+	NewLogSources().AddSource(source)
 
 	assert.Nil(t, source.TagFilters())
+	assert.Empty(t, source.GetInfoStatus(true)["Tag Filters"])
+}
+
+func TestMalformedSourceTagFilterFallsBackToGlobal(t *testing.T) {
+	setGlobalTagFilters(t, nil, []string{"dirname:*"})
+
+	source := NewLogSource("typo", &config.LogsConfig{
+		Type:       "boo",
+		TagFilters: &config.TagFilters{Exclude: []string{":novalue"}},
+	})
+	logSources := NewLogSources()
+	stream := logSources.GetAddedForType("boo", make(chan struct{}))
+	go func() { logSources.AddSource(source) }()
+
+	select {
+	case got := <-stream:
+		assert.Equal(t, source, got, "a filter typo must not stop the source from being collected")
+	case <-time.After(time.Second):
+		t.Fatal("source was never published to subscribers")
+	}
+
+	assert.Equal(t, []string{"kube_app_name:web"},
+		source.TagFilters().Apply([]string{"dirname:/var/log", "kube_app_name:web"}))
+	assert.Contains(t, source.Messages.GetMessages()[0], "Invalid tag_filters")
 }

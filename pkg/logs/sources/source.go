@@ -11,8 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/statstracker"
 )
 
@@ -51,14 +53,10 @@ type LogSource struct {
 	BytesRead        *status.CountInfo
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
-	// tagFilters is written once in AddSource before the source is published; nil means no filtering.
-	tagFilters TagFilter
-}
-
-// TagFilter drops tags that must not leave the Agent. nil means no filtering.
-type TagFilter interface {
-	// Apply returns the surviving tags without mutating or aliasing tags.
-	Apply(tags []string) []string
+	// tagFilters is resolved on first use by TagFilters; nil means no filtering.
+	// The Once is a pointer for the same reason lock is: LogSource is copied by value in places.
+	tagFilters    TagFilter
+	tagFilterOnce *sync.Once
 }
 
 // NewLogSource creates a new log source.
@@ -75,6 +73,7 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 		info:             status.NewInfoRegistry(),
 		LatencyStats:     statstracker.NewTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
+		tagFilterOnce:    &sync.Once{},
 	}
 	source.RegisterInfo(source.BytesRead)
 	source.RegisterInfo(source.ProcessingInfo)
@@ -82,17 +81,43 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 	return source
 }
 
-// SetTagFilters attaches the compiled tag filter. Call once, before the source is published.
-func (s *LogSource) SetTagFilters(f TagFilter) {
-	s.tagFilters = f
-}
-
-// TagFilters returns this source's compiled tag filter, or nil.
+// TagFilters returns this source's compiled tag filter, or nil. Compiling on
+// first use rather than at registration is what lets sources built outside
+// LogSources.AddSource pick up the agent-wide filter.
 func (s *LogSource) TagFilters() TagFilter {
-	if s == nil {
+	if s == nil || s.tagFilterOnce == nil {
 		return nil
 	}
+	s.tagFilterOnce.Do(s.resolveTagFilters)
 	return s.tagFilters
+}
+
+// resolveTagFilters merges the source's own tag_filters with the agent-wide
+// block. An unparseable source block falls back to the global filter alone.
+func (s *LogSource) resolveTagFilters() {
+	global := tagfilter.Global()
+
+	var perSource *tagfilter.Filters
+	if s.Config != nil {
+		compiled, err := s.Config.TagFilters.Compile()
+		if err != nil {
+			message := fmt.Sprintf("Invalid tag_filters, applying global tag filters only: %v", err)
+			log.Warnf("%s: %s", s.Name, message)
+			s.Messages.AddMessage("tag_filters", message)
+		} else {
+			perSource = compiled
+			for _, warning := range perSource.Warnings() {
+				log.Warnf("%s tag_filters: %s", s.Name, warning)
+			}
+		}
+	}
+
+	merged := tagfilter.NewScoped(global, perSource)
+	if merged.IsEmpty() {
+		return
+	}
+	s.RegisterInfo(newTagFilterInfo(global, perSource))
+	s.tagFilters = merged
 }
 
 // AddInput registers an input as being handled by this source.

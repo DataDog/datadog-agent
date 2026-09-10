@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -275,78 +274,29 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.Fingerprin
 	return processingRules, fingerprintConfig, nil
 }
 
-// setupTagFilters compiles logs_config.tag_filters and installs the per-source builder.
+// setupTagFilters compiles logs_config.tag_filters and installs it agent-wide.
+// Sources merge their own tag_filters block with it in LogSource.TagFilters.
 func (a *logAgent) setupTagFilters() error {
+	fail := func(err error) error {
+		message := fmt.Sprintf("Invalid tag filters: %v", err)
+		status.AddGlobalError(invalidTagFilters, message)
+		return errors.New(message)
+	}
+
 	globalFilters, err := config.GlobalTagFilters(a.config)
 	if err != nil {
-		message := fmt.Sprintf("Invalid tag filters: %v", err)
-		status.AddGlobalError(invalidTagFilters, message)
-		return errors.New(message)
+		return fail(err)
 	}
-
-	globalCompiled, err := globalFilters.Compile()
+	compiled, err := globalFilters.Compile()
 	if err != nil {
-		message := fmt.Sprintf("Invalid tag filters: %v", err)
-		status.AddGlobalError(invalidTagFilters, message)
-		return errors.New(message)
+		return fail(err)
 	}
-	a.logTagFilterWarnings("logs_config.tag_filters", globalCompiled)
 
-	a.sources.SetTagFilterBuilder(func(source *sources.LogSource) sources.TagFilter {
-		var perSource *tagfilter.Filters
-		if source.Config != nil {
-			compiled, compileErr := source.Config.TagFilters.Compile()
-			if compileErr != nil {
-				a.log.Warnf("Invalid tag_filters for source %s, applying global tag filters only: %v", source.Name, compileErr)
-			} else {
-				perSource = compiled
-				a.logTagFilterWarnings("tag_filters for source "+source.Name, perSource)
-			}
-		}
-
-		merged := tagfilter.NewScoped(globalCompiled, perSource)
-		if merged.IsEmpty() {
-			return nil
-		}
-
-		source.RegisterInfo(newTagFilterInfo(globalCompiled, perSource))
-		return merged
-	})
+	for _, warning := range compiled.Warnings() {
+		a.log.Warnf("logs_config.tag_filters: %s", warning)
+	}
+	tagfilter.SetGlobal(compiled)
 	return nil
-}
-
-func (a *logAgent) logTagFilterWarnings(scope string, f *tagfilter.Filters) {
-	for _, warning := range f.Warnings() {
-		a.log.Warnf("%s: %s", scope, warning)
-	}
-}
-
-type tagFilterInfo struct {
-	global    *tagfilter.Filters
-	perSource *tagfilter.Filters
-}
-
-func newTagFilterInfo(global, perSource *tagfilter.Filters) *tagFilterInfo {
-	return &tagFilterInfo{global: global, perSource: perSource}
-}
-
-func (t *tagFilterInfo) InfoKey() string { return "Tag Filters" }
-
-func (t *tagFilterInfo) IsVerbose() bool { return true }
-
-func (t *tagFilterInfo) Info() []string {
-	lines := appendTagFilterPatterns(nil, "global", t.global.Patterns())
-	return appendTagFilterPatterns(lines, "source", t.perSource.Patterns())
-}
-
-func appendTagFilterPatterns(lines []string, scope string, p tagfilter.Patterns) []string {
-	if len(p.Include) > 0 {
-		lines = append(lines, fmt.Sprintf("%s include: %s", scope, strings.Join(p.Include, ", ")))
-	}
-	if len(p.Exclude) > 0 {
-		lines = append(lines, fmt.Sprintf("%s exclude: %s", scope, strings.Join(p.Exclude, ", ")))
-	}
-	return lines
 }
 
 // Start starts all the elements of the data pipeline

@@ -26,16 +26,13 @@ type Origin struct {
 	source       string
 	mappedSource string
 	tags         []string
-	// tagFilters is applied on the intake path only; nil means no filtering.
-	tagFilters TagFilter
+	// tagFilterOverride replaces the LogSource's filter when set.
+	tagFilterOverride TagFilter
 }
 
 // NewOrigin returns a new Origin.
 func NewOrigin(source *sources.LogSource) *Origin {
-	return &Origin{
-		LogSource:  source,
-		tagFilters: source.TagFilters(),
-	}
+	return &Origin{LogSource: source}
 }
 
 // TagFilter drops tags that must not leave the Agent. nil means no filtering.
@@ -70,28 +67,44 @@ func (o *Origin) TransportTagsToString() string {
 	return strings.Join(tags, ",")
 }
 
-// SetTagFilters overrides the filter NewOrigin copied from the LogSource.
+// SetTagFilters overrides the filter this origin inherits from its LogSource.
 func (o *Origin) SetTagFilters(f TagFilter) {
-	o.tagFilters = f
+	o.tagFilterOverride = f
 }
 
-// TagFilters returns the origin's tag filter, if any.
+// TagFilters returns the filter applied on the intake path, if any.
 func (o *Origin) TagFilters() TagFilter {
 	if o == nil {
 		return nil
 	}
-	return o.tagFilters
+	if o.tagFilterOverride != nil {
+		return o.tagFilterOverride
+	}
+	return o.LogSource.TagFilters()
 }
 
 func (o *Origin) applyTagFilters(tags []string) []string {
-	if o == nil || o.tagFilters == nil {
+	f := o.TagFilters()
+	if f == nil {
 		return tags
 	}
-	return o.tagFilters.Apply(tags)
+	return f.Apply(tags)
+}
+
+// retainsTag reports whether a single tag survives the filter. Used for values
+// the intake receives as their own field instead of inside ddtags.
+func (o *Origin) retainsTag(tag string) bool {
+	f := o.TagFilters()
+	if f == nil {
+		return true
+	}
+	return len(f.Apply([]string{tag})) == 1
 }
 
 // TagsPayload returns the RFC5424 structured-data tag payload, with tag
-// filtering applied. ddsource and ddsourcecategory are not tags and are not filtered.
+// filtering applied. ddsource is not filtered; ddsourcecategory is, so that
+// excluding `sourcecategory` drops it on this transport as it does on HTTP,
+// where it travels inside ddtags.
 func (o *Origin) TagsPayload(processingTags []string) []byte {
 	if o == nil || o.LogSource == nil {
 		return []byte{}
@@ -104,7 +117,7 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+source+"\"]")...)
 	}
 	sourceCategory := o.LogSource.Config.SourceCategory
-	if sourceCategory != "" {
+	if sourceCategory != "" && o.retainsTag("sourcecategory:"+sourceCategory) {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+sourceCategory+"\"]")...)
 	}
 

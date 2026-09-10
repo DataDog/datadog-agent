@@ -580,14 +580,9 @@ func (c *LogsConfig) Validate() error {
 		return err
 	}
 
-	if err := CompileProcessingRules(c.ProcessingRules); err != nil {
-		return err
-	}
-
-	if _, err := c.TagFilters.Compile(); err != nil {
-		return fmt.Errorf("invalid tag_filters: %w", err)
-	}
-	return nil
+	// tag_filters is checked in LogSource.TagFilters instead: a failed Validate
+	// stops collection entirely, and a bad filter should only cost the filter.
+	return CompileProcessingRules(c.ProcessingRules)
 }
 
 func (c *LogsConfig) validateTailingMode() error {

@@ -335,13 +335,17 @@ func TestValidateShouldSucceedWithProtectedTagFilterKey(t *testing.T) {
 	}
 }
 
-func TestValidateShouldFailWithMalformedTagFilter(t *testing.T) {
+// A malformed tag filter must not fail validation: an invalid Config stops the
+// source from being collected, and a bad filter should only cost the filter.
+func TestValidateShouldSucceedWithMalformedTagFilter(t *testing.T) {
 	cfg := &LogsConfig{
 		Type:       FileType,
 		Path:       "/var/log/foo.log",
 		TagFilters: &TagFilters{Exclude: []string{":novalue"}},
 	}
-	err := cfg.Validate()
+	require.NoError(t, cfg.Validate())
+
+	_, err := cfg.TagFilters.Compile()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing tag key")
 }

@@ -127,6 +127,26 @@ func TestTagsPayloadHonorsTagFilters(t *testing.T) {
 		string(origin.TagsPayload([]string{"processing:tag", "second:tag"})))
 }
 
+func TestTagsPayloadDropsSourceCategoryWhenExcluded(t *testing.T) {
+	origin := filteredOrigin(t, excludeKeys("sourcecategory"))
+
+	assert.Equal(t, []string{"kube_app_name:web", "service:web", "env:prod", "dirname:/var/log"}, origin.TransportTags())
+	assert.Equal(t,
+		`[dd ddsource="a"][dd ddtags="env:prod,dirname:/var/log,kube_app_name:web,service:web"]`,
+		string(origin.TagsPayload(nil)))
+}
+
+func TestOriginInheritsTheSourceTagFilter(t *testing.T) {
+	origin := NewOrigin(sources.NewLogSource("", &config.LogsConfig{
+		Tags:       []string{"env:prod", "dirname:/var/log"},
+		TagFilters: &config.TagFilters{Exclude: []string{"dirname:*"}},
+	}))
+	origin.SetTags([]string{"kube_app_name:web"})
+
+	assert.Equal(t, []string{"kube_app_name:web", "env:prod"}, origin.TransportTags())
+	assert.Equal(t, []string{"kube_app_name:web", "env:prod", "dirname:/var/log"}, origin.Tags())
+}
+
 func TestTagsPayloadEmptyWhenFilterDropsEverything(t *testing.T) {
 	origin := filteredOrigin(t, excludeKeys("dirname", "kube_app_name", "env", "service"))
 

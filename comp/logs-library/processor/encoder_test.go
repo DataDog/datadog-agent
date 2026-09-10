@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/pb"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -475,6 +476,39 @@ func TestJSONServerlessInitEncoder(t *testing.T) {
 	assert.Equal(t, message.StatusInfo, log.Status)
 	assert.NotEmpty(t, log.Timestamp)
 	assert.Equal(t, "env:prod,region:us-east-1", log.Tags)
+}
+
+// TestJSONServerlessInitEncoder_AppliesTagFilters covers both ways the cache
+// gets populated: derived from the first message, and set directly by the
+// MicroVM /run hook. Neither may leak an excluded tag.
+func TestJSONServerlessInitEncoder_AppliesTagFilters(t *testing.T) {
+	t.Cleanup(func() {
+		SetServerlessInitTagCache(nil)
+		tagfilter.SetGlobal(nil)
+	})
+
+	compiled, err := tagfilter.Compile(nil, []string{"region:*"})
+	assert.NoError(t, err)
+	tagfilter.SetGlobal(compiled)
+
+	source := sources.NewLogSource("", &config.LogsConfig{Source: "src"})
+	encode := func(tags []string) string {
+		msg := newMessage([]byte("hello"), source, message.StatusInfo)
+		msg.State = message.StateRendered
+		msg.Origin.SetTags(tags)
+		assert.NoError(t, JSONServerlessInitEncoder.Encode(msg, "host"))
+
+		var p struct {
+			Tags string `json:"ddtags"`
+		}
+		assert.NoError(t, json.Unmarshal(msg.GetContent(), &p))
+		return p.Tags
+	}
+
+	assert.Equal(t, "env:prod", encode([]string{"env:prod", "region:us-east-1"}))
+
+	SetServerlessInitTagCache([]string{"env:prod", "region:us-east-1", "microvm_id:vm-abc"})
+	assert.Equal(t, "env:prod,microvm_id:vm-abc", encode(nil))
 }
 
 // TestJSONServerlessInitEncoder_CachesTagsOnFirstUse pins the cache behavior:

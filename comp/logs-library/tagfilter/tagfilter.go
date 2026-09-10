@@ -15,7 +15,22 @@ package tagfilter
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 )
+
+var global atomic.Pointer[Filters]
+
+// SetGlobal installs the agent-wide filter. Sources that never pass through
+// LogSources.AddSource resolve their filter through it, so it must be installed
+// before any log is encoded.
+func SetGlobal(f *Filters) {
+	global.Store(f)
+}
+
+// Global returns the agent-wide filter, or nil when none is configured.
+func Global() *Filters {
+	return global.Load()
+}
 
 // ProtectedKeys are always sent. `status` and `timestamp` are omitted because
 // they are encoder fields, not tags.

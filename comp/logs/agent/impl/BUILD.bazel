@@ -109,6 +109,7 @@ dd_agent_go_test(
         "//comp/logs-library/kubehealth/def",
         "//comp/logs-library/kubehealth/mock",
         "//comp/logs-library/metrics",
+        "//comp/logs-library/tagfilter",
         "//comp/logs/agent/config",
         "//comp/logs/agent/flare",
         "//comp/logs/auditor/def",
