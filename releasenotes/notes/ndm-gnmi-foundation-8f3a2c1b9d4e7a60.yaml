@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Add experimental ``network_devices.gnmi.enabled`` configuration to gate the
-    upcoming NDM gNMI core check. The setting defaults to ``false``.
+    Add an experimental NDM gNMI core check. As with the SNMP core check, the
+    check runs on any instance configured under ``conf.d/gnmi.d``.
