@@ -26,7 +26,7 @@ const (
 // remote_agent.core_agent_ipc.enabled schema defaults; bootstrap runs before
 // schema-backed defaults are loaded, so these have to be kept in sync by hand.
 const (
-	defaultEnabled             = true
+	defaultEnabled             = false
 	defaultCoreAgentIPCEnabled = true
 )
 

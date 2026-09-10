@@ -12,7 +12,21 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
+
+// TestBootstrapDefaultsMirrorSchema guards the hand-maintained constants against
+// drift. Bootstrap runs before the schema-backed defaults are loaded, so it cannot
+// read them at runtime and has to duplicate them -- but a test can compare the two.
+func TestBootstrapDefaultsMirrorSchema(t *testing.T) {
+	cfg := configmock.New(t)
+
+	require.Equal(t, cfg.GetBool("remote_agent.configstream.consumer.enabled"), defaultEnabled,
+		"defaultEnabled no longer mirrors remote_agent.configstream.consumer.enabled in core_schema.yaml")
+	require.Equal(t, cfg.GetBool("remote_agent.core_agent_ipc.enabled"), defaultCoreAgentIPCEnabled,
+		"defaultCoreAgentIPCEnabled no longer mirrors remote_agent.core_agent_ipc.enabled in core_schema.yaml")
+}
 
 func TestIsEnabled(t *testing.T) {
 	t.Run("false when env and yaml are empty", func(t *testing.T) {
@@ -83,13 +97,29 @@ remote_agent:
 		require.False(t, isEnabled(path))
 	})
 
-	t.Run("core agent IPC enabled leaves the consumer default untouched", func(t *testing.T) {
+	t.Run("core agent IPC enabled falls through to the consumer default", func(t *testing.T) {
 		os.Unsetenv(enabledEnvVar)
 		os.Unsetenv(coreAgentIPCEnvVar)
 		path := writeYAML(t, `
 remote_agent:
   core_agent_ipc:
     enabled: true
+`)
+		// Enabling core agent IPC must not enable the consumer by itself: with
+		// nothing else set it stays at its own default.
+		require.False(t, isEnabled(path))
+	})
+
+	t.Run("core agent IPC enabled leaves an explicitly enabled consumer alone", func(t *testing.T) {
+		os.Unsetenv(enabledEnvVar)
+		os.Unsetenv(coreAgentIPCEnvVar)
+		path := writeYAML(t, `
+remote_agent:
+  core_agent_ipc:
+    enabled: true
+  configstream:
+    consumer:
+      enabled: true
 `)
 		require.True(t, isEnabled(path))
 	})
