@@ -184,9 +184,11 @@ func TestEngineCapacityEvictionDropsIdleBucketizerState(t *testing.T) {
 		"fixed_log_count", "log.fixed.count", logTags, observerdef.AggregateAverage,
 	))
 
-	// A real metric observed later is more active than the log series. The
-	// synthetic zero written at t=10 must not make the log series look newer.
-	storage.Add("native", "metric", 1, 7, nil)
+	// A real metric observed later reaches the hard admission limit and evicts
+	// the log series before it is stored. Engine cleanup must immediately remove
+	// the corresponding bucketizer state.
+	e.IngestMetric("native", &metricObs{name: "metric", value: 1, timestamp: 7})
+	require.Empty(t, e.logCounts.series)
 	e.Advance(10)
 	require.Nil(t, storage.GetSeries(
 		"fixed_log_count", "log.fixed.count", logTags, observerdef.AggregateAverage,

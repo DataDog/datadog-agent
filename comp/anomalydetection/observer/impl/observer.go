@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -449,10 +450,20 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 		return storageCfg
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.max_series") {
-		storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
+		configuredMaxSeries := cfg.GetInt("anomaly_detection.storage.max_series")
+		if configuredMaxSeries <= 0 {
+			pkglog.Warnf("anomaly_detection.storage.max_series must be > 0, got %d; using default %d", configuredMaxSeries, storageCfg.MaxSeries)
+		} else {
+			storageCfg.MaxSeries = configuredMaxSeries
+		}
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
-		storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+		configuredRatio := cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+		if math.IsNaN(configuredRatio) || configuredRatio < 0 || configuredRatio >= 1 {
+			pkglog.Warnf("anomaly_detection.storage.eviction_floor_ratio must be >= 0 and < 1, got %g; using default %g", configuredRatio, storageCfg.EvictionFloorRatio)
+		} else {
+			storageCfg.EvictionFloorRatio = configuredRatio
+		}
 	}
 	if cfg.IsConfigured("anomaly_detection.storage.point_retention") {
 		configuredRetention := cfg.GetDuration("anomaly_detection.storage.point_retention")

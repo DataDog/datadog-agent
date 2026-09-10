@@ -143,11 +143,13 @@ func (b *materializedLogCountBucketizer) observe(
 	return true
 }
 
-// flush writes every completed bucket through upTo into shared storage.
-func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo int64) {
+// flush writes every completed bucket through upTo into shared storage and
+// returns any series evicted while admitting newly materialized series.
+func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo int64) []observerdef.SeriesRef {
 	if upTo <= b.flushedThrough {
-		return
+		return nil
 	}
+	var capacityEvictedRefs []observerdef.SeriesRef
 	for key, state := range b.series {
 		remaining := state.intervals[:0]
 		for _, interval := range state.intervals {
@@ -160,6 +162,7 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 					nextEnd,
 					state.tags,
 				)
+				capacityEvictedRefs = append(capacityEvictedRefs, result.CapacityEvictedRefs...)
 				if state.context != nil && result.Ref >= 0 {
 					storage.SetContext(result.Ref, state.context)
 				}
@@ -183,6 +186,7 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 		}
 	}
 	b.flushedThrough = upTo
+	return capacityEvictedRefs
 }
 
 func (b *materializedLogCountBucketizer) removeMetricName(namespace, name string) {

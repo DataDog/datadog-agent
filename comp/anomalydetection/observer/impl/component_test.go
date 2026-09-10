@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -38,6 +39,38 @@ func TestStorageConfigFromAgentConfigDerivesRetentionFromDetectorWindows(t *test
 			storageCfg := storageConfigFromAgentConfig(cfg, detectors)
 			require.Equal(t, test.want, storageCfg.PointRetentionSecs)
 			require.Equal(t, 120, storageCfg.MaxPointsPerSeries)
+		})
+	}
+}
+
+func TestStorageConfigFromAgentConfigValidatesSeriesCapacity(t *testing.T) {
+	defaults := DefaultStorageConfig()
+	tests := []struct {
+		name      string
+		maxSeries int
+		ratio     float64
+		wantMax   int
+		wantRatio float64
+	}{
+		{name: "valid lower bounds", maxSeries: 1, ratio: 0, wantMax: 1, wantRatio: 0},
+		{name: "valid ratio below one", maxSeries: 123, ratio: 0.999, wantMax: 123, wantRatio: 0.999},
+		{name: "zero max and ratio one use defaults", maxSeries: 0, ratio: 1, wantMax: defaults.MaxSeries, wantRatio: defaults.EvictionFloorRatio},
+		{name: "negative values use defaults", maxSeries: -1, ratio: -0.1, wantMax: defaults.MaxSeries, wantRatio: defaults.EvictionFloorRatio},
+		{name: "ratio above one uses default", maxSeries: 123, ratio: 1.1, wantMax: 123, wantRatio: defaults.EvictionFloorRatio},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+anomaly_detection:
+  storage:
+    max_series: %d
+    eviction_floor_ratio: %g
+`, tc.maxSeries, tc.ratio))
+
+			got := storageConfigFromAgentConfig(cfg, nil)
+			require.Equal(t, tc.wantMax, got.MaxSeries)
+			require.Equal(t, tc.wantRatio, got.EvictionFloorRatio)
 		})
 	}
 }

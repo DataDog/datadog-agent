@@ -117,6 +117,13 @@ Storage keeps sum/count summary stats per 1-second bucket.
 Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
 
+### Bounded series admission
+
+Storage never admits a new non-telemetry series above `MaxSeries`. At capacity,
+the incoming identity wins admission: storage evicts the least-recently-active
+existing series to the configured floor before allocating it, then synchronously
+clears evicted detector and auxiliary state before the next detection pass.
+
 ### Non-blocking ingestion
 
 Handles do non-blocking sends to a buffered channel. If the channel is full,
