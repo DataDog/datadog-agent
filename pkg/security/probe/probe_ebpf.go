@@ -1205,6 +1205,21 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
+	if p.dnsRequests != nil {
+		for _, m := range []struct {
+			name    string
+			counter *atomic.Uint64
+		}{
+			{metrics.MetricDNSADCorrelationHits, p.dnsRequests.hits},
+			{metrics.MetricDNSADCorrelationMisses, p.dnsRequests.misses},
+			{metrics.MetricDNSADCorrelationCollisions, p.dnsRequests.collisions},
+		} {
+			if err := p.statsdClient.Count(m.name, int64(m.counter.Swap(0)), []string{}, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+
 	if err := p.eventStream.SendStats(); err != nil {
 		return err
 	}
