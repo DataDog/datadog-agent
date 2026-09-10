@@ -32,7 +32,7 @@ instances:
     ## @param profile - string - required
     ## Profile name or path under conf.d/gnmi.d/profiles/.
     #
-    # profile: basic-interfaces
+    # profile: interface-stats
 
     ## @param min_collection_interval - integer - optional - default: 15
     ## This changes the collection interval of the check. For more information, see:

@@ -24,6 +24,19 @@ func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0o644)
 }
 
+func TestMetricConfigSubscriptionKeys(t *testing.T) {
+	interfaceMetric := MetricConfig{
+		Tags: map[string]string{"interface": "name"},
+	}
+	assert.Equal(t, map[string]string{"interface": "name"}, interfaceMetric.SubscriptionKeys())
+
+	componentMetric := MetricConfig{
+		Keys: map[string]string{"component": "name"},
+		Tags: map[string]string{"cpu": "name"},
+	}
+	assert.Equal(t, map[string]string{"component": "name"}, componentMetric.SubscriptionKeys())
+}
+
 func TestLoadProfile(t *testing.T) {
 	mockConfig := configmock.New(t)
 	profilesRoot := t.TempDir()
@@ -33,7 +46,7 @@ func TestLoadProfile(t *testing.T) {
 	require.NoError(t, writeTestProfile(profileDir, "cisco.yaml", validProfileYAML))
 	require.NoError(t, writeTestProfile(profileDir, "enum.yaml", `
 metrics:
-  - path: /interfaces/interface/state/admin-status
+  - path: /openconfig/interfaces/interface/state/admin-status
     metric: snmp.ifAdminStatus
     type: gauge
     value_map:
@@ -131,7 +144,7 @@ metrics:
 			name: "empty metric name",
 			raw: `
 metrics:
-  - path: /interfaces/interface/state/counters/in-octets
+  - path: /openconfig/interfaces/interface/state/counters/in-octets
     metric: " "
     type: monotonic_count
 `,
@@ -141,7 +154,7 @@ metrics:
 			name: "unsupported metric type",
 			raw: `
 metrics:
-  - path: /interfaces/interface/state/counters/in-octets
+  - path: /openconfig/interfaces/interface/state/counters/in-octets
     metric: snmp.ifHCInOctets
     type: rate
 `,
@@ -180,4 +193,70 @@ func TestResolveProfilePath(t *testing.T) {
 	got, err := resolveProfilePath("cisco")
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(profileDir, "cisco.yaml"), got)
+}
+
+func TestLoadProfileWithMetadataExtend(t *testing.T) {
+	mockConfig := configmock.New(t)
+	profilesRoot := t.TempDir()
+	mockConfig.SetInTest("confd_path", profilesRoot)
+
+	profileDir := filepath.Join(profilesRoot, "gnmi.d", profilesFolder)
+	require.NoError(t, writeTestProfile(profileDir, "_openconfig-metadata.yaml", `
+metadata:
+  device:
+    hostname: /openconfig/system/state/hostname
+  interface:
+    keys:
+      interface: name
+    ifindex: /openconfig/interfaces/interface/state/ifindex
+`))
+	require.NoError(t, writeTestProfile(profileDir, "with-metadata.yaml", `
+extends:
+  - _openconfig-metadata
+metrics:
+  - path: /openconfig/interfaces/interface/state/counters/in-octets
+    metric: snmp.ifHCInOctets
+    type: monotonic_count
+`))
+
+	profile, err := LoadProfile("with-metadata")
+	require.NoError(t, err)
+	assert.Equal(t, "/openconfig/system/state/hostname", profile.Metadata.Device.Hostname)
+	assert.Equal(t, "/openconfig/interfaces/interface/state/ifindex", profile.Metadata.Interface.IfIndex)
+}
+
+func TestLoadProfileWithTopologyExtend(t *testing.T) {
+	mockConfig := configmock.New(t)
+	profilesRoot := t.TempDir()
+	mockConfig.SetInTest("confd_path", profilesRoot)
+
+	profileDir := filepath.Join(profilesRoot, "gnmi.d", profilesFolder)
+	require.NoError(t, writeTestProfile(profileDir, "_openconfig-lldp.yaml", `
+topology:
+  lldp:
+    keys:
+      interface: name
+      neighbor: id
+    chassis_id: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id
+    chassis_id_type: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id-type
+    port_id: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/port-id
+    port_id_type: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/port-id-type
+    system_name: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/system-name
+    system_description: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/system-description
+    port_description: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/port-description
+    management_address: /openconfig/lldp/interfaces/interface/neighbors/neighbor/state/management-address
+`))
+	require.NoError(t, writeTestProfile(profileDir, "with-topology.yaml", `
+extends:
+  - _openconfig-lldp
+metrics:
+  - path: /openconfig/interfaces/interface/state/counters/in-octets
+    metric: snmp.ifHCInOctets
+    type: monotonic_count
+`))
+
+	profile, err := LoadProfile("with-topology")
+	require.NoError(t, err)
+	assert.Equal(t, "/openconfig/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id", profile.Topology.LLDP.ChassisID)
+	require.NotEmpty(t, profile.Topology.SubscriptionPaths())
 }

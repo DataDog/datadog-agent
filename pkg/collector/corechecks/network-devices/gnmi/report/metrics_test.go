@@ -41,7 +41,7 @@ func TestReportMetrics(t *testing.T) {
 				Profile: config.ProfileDefinition{
 					Metrics: []config.MetricConfig{
 						{
-							Path:   "/components/component/state/temperature",
+							Path:   "/openconfig/components/component/state/temperature",
 							Metric: "snmp.temp",
 							Type:   config.MetricTypeGauge,
 						},
@@ -50,7 +50,7 @@ func TestReportMetrics(t *testing.T) {
 			},
 			snapshot: []client.CachedValue{
 				{
-					Key: client.CacheKey{Path: "/components/component/state/temperature"},
+					Key: client.CacheKey{Path: "/openconfig/components/component/state/temperature"},
 					Entry: client.CacheEntry{
 						Value:     float32(42.5),
 						Timestamp: time.Unix(1, 0),
@@ -70,7 +70,7 @@ func TestReportMetrics(t *testing.T) {
 				Profile: config.ProfileDefinition{
 					Metrics: []config.MetricConfig{
 						{
-							Path:   "/interfaces/interface/state/counters/in-octets",
+							Path:   "/openconfig/interfaces/interface/state/counters/in-octets",
 							Metric: "snmp.ifHCInOctets",
 							Type:   config.MetricTypeMonotonicCount,
 							Tags: map[string]string{
@@ -83,7 +83,7 @@ func TestReportMetrics(t *testing.T) {
 			snapshot: []client.CachedValue{
 				{
 					Key: client.CacheKey{
-						Path: "/interfaces/interface/state/counters/in-octets",
+						Path: "/openconfig/interfaces/interface/state/counters/in-octets",
 						Keys: map[string]string{"name": "eth0"},
 					},
 					Entry: client.CacheEntry{
@@ -93,14 +93,14 @@ func TestReportMetrics(t *testing.T) {
 				},
 				{
 					Key: client.CacheKey{
-						Path: "/interfaces/interface/state/ifindex",
+						Path: "/openconfig/interfaces/interface/state/ifindex",
 						Keys: map[string]string{"name": "eth0"},
 					},
 					Entry: client.CacheEntry{Value: int32(42)},
 				},
 				{
 					Key: client.CacheKey{
-						Path: "/interfaces/interface/state/description",
+						Path: "/openconfig/interfaces/interface/state/description",
 						Keys: map[string]string{"name": "eth0"},
 					},
 					Entry: client.CacheEntry{Value: "uplink"},
@@ -131,7 +131,7 @@ func TestReportMetrics(t *testing.T) {
 				Profile: config.ProfileDefinition{
 					Metrics: []config.MetricConfig{
 						{
-							Path:   "/interfaces/interface/state/admin-status",
+							Path:   "/openconfig/interfaces/interface/state/admin-status",
 							Metric: "snmp.ifAdminStatus",
 							Type:   config.MetricTypeGauge,
 							Tags: map[string]string{
@@ -148,7 +148,7 @@ func TestReportMetrics(t *testing.T) {
 			snapshot: []client.CachedValue{
 				{
 					Key: client.CacheKey{
-						Path: "/interfaces/interface/state/admin-status",
+						Path: "/openconfig/interfaces/interface/state/admin-status",
 						Keys: map[string]string{"name": "eth0"},
 					},
 					Entry: client.CacheEntry{
@@ -158,7 +158,7 @@ func TestReportMetrics(t *testing.T) {
 				},
 				{
 					Key: client.CacheKey{
-						Path: "/interfaces/interface/state/admin-status",
+						Path: "/openconfig/interfaces/interface/state/admin-status",
 						Keys: map[string]string{"name": "eth1"},
 					},
 					Entry: client.CacheEntry{
@@ -192,7 +192,7 @@ func TestReportMetrics(t *testing.T) {
 				Profile: config.ProfileDefinition{
 					Metrics: []config.MetricConfig{
 						{
-							Path:   "/system/state/uptime",
+							Path:   "/openconfig/system/state/uptime",
 							Metric: "snmp.sysUpTime",
 							Type:   config.MetricTypeGauge,
 						},
@@ -201,7 +201,7 @@ func TestReportMetrics(t *testing.T) {
 			},
 			snapshot: []client.CachedValue{
 				{
-					Key:   client.CacheKey{Path: "/system/state/uptime"},
+					Key:   client.CacheKey{Path: "/openconfig/system/state/uptime"},
 					Entry: client.CacheEntry{Value: int64(12345)},
 				},
 			},
@@ -223,12 +223,12 @@ func TestReportMetrics(t *testing.T) {
 				Profile: config.ProfileDefinition{
 					Metrics: []config.MetricConfig{
 						{
-							Path:   "/interfaces/interface/state/counters/in-octets",
+							Path:   "/openconfig/interfaces/interface/state/counters/in-octets",
 							Metric: "snmp.ifHCInOctets",
 							Type:   config.MetricTypeMonotonicCount,
 						},
 						{
-							Path:   "/interfaces/interface/state/admin-status",
+							Path:   "/openconfig/interfaces/interface/state/admin-status",
 							Metric: "snmp.ifAdminStatus",
 							Type:   config.MetricTypeGauge,
 							ValueMap: map[string]int{
@@ -240,15 +240,15 @@ func TestReportMetrics(t *testing.T) {
 			},
 			snapshot: []client.CachedValue{
 				{
-					Key:   client.CacheKey{Path: "/interfaces/interface/state/counters/in-octets"},
+					Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/counters/in-octets"},
 					Entry: client.CacheEntry{Value: []byte{1, 2, 3}},
 				},
 				{
-					Key:   client.CacheKey{Path: "/interfaces/interface/state/admin-status"},
+					Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/admin-status"},
 					Entry: client.CacheEntry{Value: "UNKNOWN"},
 				},
 				{
-					Key:   client.CacheKey{Path: "/interfaces/interface/state/counters/out-octets"},
+					Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/counters/out-octets"},
 					Entry: client.CacheEntry{Value: int64(99)},
 				},
 			},
@@ -263,7 +263,7 @@ func TestReportMetrics(t *testing.T) {
 				Profile: config.ProfileDefinition{
 					Metrics: []config.MetricConfig{
 						{
-							Path:   "system/state/uptime",
+							Path:   "openconfig/system/state/uptime",
 							Metric: "snmp.sysUpTime",
 							Type:   config.MetricTypeGauge,
 						},
@@ -272,7 +272,7 @@ func TestReportMetrics(t *testing.T) {
 			},
 			snapshot: []client.CachedValue{
 				{
-					Key:   client.CacheKey{Path: "/system/state/uptime"},
+					Key:   client.CacheKey{Path: "/openconfig/system/state/uptime"},
 					Entry: client.CacheEntry{Value: int64(7)},
 				},
 			},
@@ -317,7 +317,7 @@ func TestReportMetricsValidation(t *testing.T) {
 		Instance: config.InstanceConfig{Address: "10.0.0.1"},
 		Profile: config.ProfileDefinition{
 			Metrics: []config.MetricConfig{
-				{Path: "/system/state/uptime", Metric: "snmp.sysUpTime", Type: config.MetricTypeGauge},
+				{Path: "/openconfig/system/state/uptime", Metric: "snmp.sysUpTime", Type: config.MetricTypeGauge},
 			},
 		},
 	}

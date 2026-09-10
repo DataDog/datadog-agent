@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 )
 
 type snapshotIndex map[string][]client.CachedValue
@@ -127,7 +128,9 @@ func formatColonSepBytes(val []byte) string {
 	return strings.Join(octetsList, ":")
 }
 
-func interfaceNames(index snapshotIndex) []string {
+func interfaceNames(index snapshotIndex, metadata config.MetadataConfig, metricPaths []string) []string {
+	resolved := metadata.Resolved()
+	nameKey := interfaceNameKey(metadata)
 	names := make(map[string]struct{})
 	collectName := func(name string) {
 		if name != "" {
@@ -135,26 +138,22 @@ func interfaceNames(index snapshotIndex) []string {
 		}
 	}
 
-	for _, cached := range index["/interfaces/interface/state/name"] {
+	for _, cached := range index[resolved.Interface.Name] {
 		if name, ok := stringValue(cached.Entry.Value); ok {
 			collectName(name)
 		}
-		collectName(cached.Key.Keys["name"])
+		collectName(cached.Key.Keys[nameKey])
 	}
 
-	interfacePaths := []string{
-		"/interfaces/interface/state/admin-status",
-		"/interfaces/interface/state/oper-status",
-		"/interfaces/interface/state/ifindex",
-		"/interfaces/interface/state/description",
-		"/interfaces/interface/state/mac-address",
-		"/interfaces/interface/state/type",
-		"/interfaces/interface/state/counters/in-octets",
-		"/interfaces/interface/state/counters/out-octets",
-	}
-	for _, path := range interfacePaths {
+	for _, path := range resolved.InterfaceLookupPaths() {
 		for _, cached := range index[path] {
-			collectName(cached.Key.Keys["name"])
+			collectName(cached.Key.Keys[nameKey])
+		}
+	}
+
+	for _, path := range metricPaths {
+		for _, cached := range index[path] {
+			collectName(cached.Key.Keys[nameKey])
 		}
 	}
 
@@ -165,20 +164,32 @@ func interfaceNames(index snapshotIndex) []string {
 	return out
 }
 
-func lldpNeighborKeys(index snapshotIndex) []map[string]string {
-	seen := make(map[string]map[string]string)
-	for path := range index {
-		if !strings.HasPrefix(path, "/lldp/interfaces/interface/neighbors/neighbor/state/") {
-			continue
+func interfaceNameKey(metadata config.MetadataConfig) string {
+	for _, keyName := range metadata.Resolved().Interface.Keys {
+		if keyName != "" {
+			return keyName
 		}
+	}
+	return "name"
+}
+
+func lldpNeighborKeys(index snapshotIndex, topology config.TopologyConfig) []map[string]string {
+	if topology.IsZero() {
+		return nil
+	}
+
+	interfaceKey := topology.NeighborInterfaceKey()
+	neighborKey := topology.NeighborIDKey()
+	seen := make(map[string]map[string]string)
+	for _, path := range topology.LookupPaths() {
 		for _, cached := range index[path] {
-			interfaceName := cached.Key.Keys["name"]
-			neighborID := cached.Key.Keys["id"]
+			interfaceName := cached.Key.Keys[interfaceKey]
+			neighborID := cached.Key.Keys[neighborKey]
 			if interfaceName == "" || neighborID == "" {
 				continue
 			}
 			key := interfaceName + "\x00" + neighborID
-			seen[key] = map[string]string{"name": interfaceName, "id": neighborID}
+			seen[key] = map[string]string{interfaceKey: interfaceName, neighborKey: neighborID}
 		}
 	}
 

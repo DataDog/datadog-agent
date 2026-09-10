@@ -160,7 +160,7 @@ func (c *Check) Run() error {
 
 	readyForMetadata := gnmiClient.StreamState() == client.StreamStateConnected &&
 		gnmiClient.Synchronized() &&
-		report.InterfaceSnapshotComplete(snapshot)
+		report.InterfaceSnapshotComplete(snapshot, checkConfig.Profile.Metadata)
 
 	if readyForMetadata {
 		if err := report.ReportInterfaceStatus(s, checkConfig, snapshot); err != nil {
