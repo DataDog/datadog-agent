@@ -39,6 +39,7 @@ dd_agent_go_test(
 go_library(
     name = "agent-health",
     srcs = [
+        "demo.go",
         "provisioner.go",
         "scenario.go",
     ],
