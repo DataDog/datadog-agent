@@ -8,11 +8,8 @@
 ---
 features:
   - |
-    Installer: Added a ``datadog-installer process-manager enable|disable`` command to switch
-    which service manager (``dd-procmgrd`` or the native systemd/SCM services) supervises the
-    Agent's extension processes after install.
-fixes:
-  - |
-    Installer: The ``process-manager enable|disable`` switch now runs inside the installer
-    daemon instead of the one-off ``datadog-installer`` CLI process, so it reliably sees the
-    host's actual process manager state instead of reverting to the compiled default.
+    Installer: The installer daemon can now switch which service manager (``dd-procmgrd`` or the
+    native systemd/SCM services) supervises the Agent's extension processes after install, via
+    its internal ``datadog-installer daemon process-manager enable|disable`` entry point. The
+    switch runs inside the daemon itself so it reliably sees the host's actual process manager
+    state, rather than reverting to the compiled default like a one-off CLI invocation would.

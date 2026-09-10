@@ -52,7 +52,7 @@ func RestartDatadogAgent(_ context.Context) error {
 	return nil
 }
 
-// SetProcessManagerEnabled is a no-op on darwin
-func SetProcessManagerEnabled(_ context.Context, _ bool) error {
+// SetProcessManager is a no-op on darwin
+func SetProcessManager(_ context.Context, _ bool) error {
 	return nil
 }

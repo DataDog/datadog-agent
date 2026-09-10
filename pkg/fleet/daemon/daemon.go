@@ -77,7 +77,7 @@ type Daemon interface {
 	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations, encryptedSecrets map[string]string) error
 	StopConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
-	SetProcessManagerEnabled(ctx context.Context, enabled bool) error
+	SetProcessManager(ctx context.Context, enabled bool) error
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState(ctx context.Context) (map[string]PackageState, error)
@@ -578,24 +578,22 @@ func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err 
 	return nil
 }
 
-// SetProcessManagerEnabled flips the effective process manager for the agent's supervised
-// components between dd-procmgrd and the native service manager (systemd/SCM). This must run
-// inside the daemon: DD_PROCESS_MANAGER_ENABLED is only reliably populated in the daemon's own
-// process environment (baked into its own service unit at install time), unlike a one-off
-// datadog-installer CLI invocation, which never inherits it.
-func (d *daemonImpl) SetProcessManagerEnabled(ctx context.Context, enabled bool) (err error) {
+// SetProcessManager flips the effective process manager for the agent's supervised components
+// between dd-procmgrd and the native service manager (systemd/SCM). This must run inside the
+// daemon: DD_PROCESS_MANAGER_ENABLED is only reliably populated in the daemon's own process
+// environment (baked into its own service unit at install time), which is why the switch is only
+// exposed through `datadog-installer daemon process-manager`, not as a top-level CLI command.
+func (d *daemonImpl) SetProcessManager(ctx context.Context, enabled bool) (err error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
-	span, ctx := telemetry.StartSpanFromContext(ctx, "set_process_manager_enabled")
+	span, ctx := telemetry.StartSpanFromContext(ctx, "set_process_manager")
 	defer func() { span.Finish(err) }()
 
 	log.Infof("Daemon: Setting process manager enabled=%t", enabled)
-	if err = packages.SetProcessManagerEnabled(ctx, enabled); err != nil {
+	if err = packages.SetProcessManager(ctx, enabled); err != nil {
 		return fmt.Errorf("could not set process manager enabled: %w", err)
 	}
-	// Keep the daemon's own env in sync so subsequent hook subprocesses (spawned via
-	// d.installer(d.env).ToEnv()) see the new state instead of the value captured at startup.
 	d.env.ProcessManagerEnabled = enabled
 	log.Infof("Daemon: Successfully set process manager enabled=%t", enabled)
 	return nil

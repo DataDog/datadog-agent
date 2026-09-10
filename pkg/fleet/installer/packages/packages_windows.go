@@ -44,10 +44,10 @@ var (
 // the extension is installed.
 const parServiceName = "datadog-agent-action"
 
-// SetProcessManagerEnabled flips the effective process manager for ADP/PAR/PAR-executor/DDOT
+// SetProcessManager flips the effective process manager for ADP/PAR/PAR-executor/DDOT
 // between dd-procmgrd and the native SCM services, restarting the Datadog Agent services so the
 // change takes effect. It is a no-op if the desired state already matches the current one.
-func SetProcessManagerEnabled(ctx context.Context, enabled bool) error {
+func SetProcessManager(ctx context.Context, enabled bool) error {
 	if env.FromEnv().ProcessManagerEnabled == enabled {
 		return nil
 	}

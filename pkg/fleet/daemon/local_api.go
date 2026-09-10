@@ -95,7 +95,8 @@ func (l *localAPIImpl) handler() http.Handler {
 	apiMux.HandleFunc("POST /{package}/config_experiment/promote", l.promoteConfigExperiment)
 	apiMux.HandleFunc("POST /{package}/install", l.install)
 	apiMux.HandleFunc("POST /{package}/remove", l.remove)
-	apiMux.HandleFunc("POST /process-manager", l.setProcessManagerEnabled)
+	apiMux.HandleFunc("POST /process-manager/enable", l.enableProcessManager)
+	apiMux.HandleFunc("POST /process-manager/disable", l.disableProcessManager)
 
 	r := http.NewServeMux()
 	// Mount the API sub-mux behind the Content-Type check.
@@ -356,27 +357,24 @@ func (l *localAPIImpl) remove(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// setProcessManagerEnabledRequest is the request to the process manager endpoint.
-type setProcessManagerEnabledRequest struct {
-	Enabled bool `json:"enabled"`
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/process-manager/enable
+func (l *localAPIImpl) enableProcessManager(w http.ResponseWriter, r *http.Request) {
+	l.setProcessManager(w, r, true)
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/process-manager -d '{"enabled":true}'
-func (l *localAPIImpl) setProcessManagerEnabled(w http.ResponseWriter, r *http.Request) {
+// example: curl -X POST --unix-socket /opt/datadog-packages/run/installer.sock -H 'Content-Type: application/json' http://installer/process-manager/disable
+func (l *localAPIImpl) disableProcessManager(w http.ResponseWriter, r *http.Request) {
+	l.setProcessManager(w, r, false)
+}
+
+func (l *localAPIImpl) setProcessManager(w http.ResponseWriter, r *http.Request, enabled bool) {
 	w.Header().Set("Content-Type", "application/json")
-	var request setProcessManagerEnabledRequest
 	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
-	err := json.NewDecoder(r.Body).Decode(&request)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		response.Error = &APIError{Message: err.Error()}
-		return
-	}
-	log.Infof("Received local request to set process manager enabled=%t", request.Enabled)
-	err = l.daemon.SetProcessManagerEnabled(r.Context(), request.Enabled)
+	log.Infof("Received local request to set process manager enabled=%t", enabled)
+	err := l.daemon.SetProcessManager(r.Context(), enabled)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -398,7 +396,7 @@ type LocalAPIClient interface {
 	StartConfigExperiment(pkg, operations string, encryptedSecrets map[string]string) error
 	StopConfigExperiment(pkg string) error
 	PromoteConfigExperiment(pkg string) error
-	SetProcessManagerEnabled(enabled bool) error
+	SetProcessManager(enabled bool) error
 }
 
 // LocalAPIClient is a client to interact with the locally exposed daemon API.
@@ -669,15 +667,14 @@ func (c *localAPIClientImpl) Install(pkg, version string) error {
 	return nil
 }
 
-// SetProcessManagerEnabled flips the effective process manager between dd-procmgrd and the
+// SetProcessManager flips the effective process manager between dd-procmgrd and the
 // native service manager.
-func (c *localAPIClientImpl) SetProcessManagerEnabled(enabled bool) error {
-	request := setProcessManagerEnabledRequest{Enabled: enabled}
-	body, err := json.Marshal(request)
-	if err != nil {
-		return err
+func (c *localAPIClientImpl) SetProcessManager(enabled bool) error {
+	path := "disable"
+	if enabled {
+		path = "enable"
 	}
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/process-manager", c.addr), bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/process-manager/%s", c.addr, path), nil)
 	if err != nil {
 		return err
 	}

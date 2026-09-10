@@ -74,7 +74,7 @@ func (m *testDaemon) PromoteConfigExperiment(ctx context.Context, pkg string) er
 	return args.Error(0)
 }
 
-func (m *testDaemon) SetProcessManagerEnabled(ctx context.Context, enabled bool) error {
+func (m *testDaemon) SetProcessManager(ctx context.Context, enabled bool) error {
 	args := m.Called(ctx, enabled)
 	return args.Error(0)
 }
@@ -220,9 +220,20 @@ func TestAPISetProcessManagerEnabled(t *testing.T) {
 	api := newTestLocalAPI(t)
 	defer api.Stop()
 
-	api.i.On("SetProcessManagerEnabled", mock.Anything, true).Return(nil)
+	api.i.On("SetProcessManager", mock.Anything, true).Return(nil)
 
-	err := api.c.SetProcessManagerEnabled(true)
+	err := api.c.SetProcessManager(true)
+
+	assert.NoError(t, err)
+}
+
+func TestAPISetProcessManagerDisabled(t *testing.T) {
+	api := newTestLocalAPI(t)
+	defer api.Stop()
+
+	api.i.On("SetProcessManager", mock.Anything, false).Return(nil)
+
+	err := api.c.SetProcessManager(false)
 
 	assert.NoError(t, err)
 }
@@ -231,9 +242,9 @@ func TestAPISetProcessManagerEnabledError(t *testing.T) {
 	api := newTestLocalAPI(t)
 	defer api.Stop()
 
-	api.i.On("SetProcessManagerEnabled", mock.Anything, false).Return(errors.New("boom"))
+	api.i.On("SetProcessManager", mock.Anything, false).Return(errors.New("boom"))
 
-	err := api.c.SetProcessManagerEnabled(false)
+	err := api.c.SetProcessManager(false)
 
 	assert.ErrorContains(t, err, "boom")
 }

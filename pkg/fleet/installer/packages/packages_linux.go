@@ -39,11 +39,11 @@ var (
 )
 
 // currentProcmgrEnabled reports whether the host is actually running under procmgr right now, by
-// checking for datadog-agent-procmgr.service in the unit directory. It cannot be derived from
-// DD_PROCESS_MANAGER_ENABLED / service.GetServiceManagerType: a plain
-// `sudo datadog-installer process-manager ...` invocation inherits no unit environment (only the
-// generated unit files bake DD_PROCESS_MANAGER_ENABLED in), so env.FromEnv() always resolves to
-// the compiled default instead of the host's real state.
+// checking for datadog-agent-procmgr.service in the unit directory, rather than trusting
+// DD_PROCESS_MANAGER_ENABLED / service.GetServiceManagerType. This function is only ever reached
+// through the daemon (see daemon.Daemon.SetProcessManager), whose own environment reliably
+// tracks the current state — but probing the real unit on disk is still the safer ground truth,
+// e.g. across a daemon restart that happens mid-switch.
 func currentProcmgrEnabled() (bool, error) {
 	_, err := os.Stat(filepath.Join(ociUnitsPath, "datadog-agent-procmgr.service"))
 	if err == nil {
@@ -55,11 +55,10 @@ func currentProcmgrEnabled() (bool, error) {
 	return false, err
 }
 
-// SetProcessManagerEnabled flips the effective process manager for the agent's supervised
-// components between dd-procmgrd and native systemd, and reconciles the running services so the
-// change takes effect immediately. It is a no-op if the desired state already matches the current
-// one.
-func SetProcessManagerEnabled(ctx context.Context, enabled bool) error {
+// SetProcessManager flips the effective process manager for the agent's supervised components
+// between dd-procmgrd and native systemd, and reconciles the running services so the change
+// takes effect immediately. It is a no-op if the desired state already matches the current one.
+func SetProcessManager(ctx context.Context, enabled bool) error {
 	installRoot := filepath.Join(paths.PackagesPath, agentPackage, "stable")
 
 	currentlyEnabled, err := currentProcmgrEnabled()

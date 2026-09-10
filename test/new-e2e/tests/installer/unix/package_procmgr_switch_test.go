@@ -58,8 +58,11 @@ func (s *packageProcmgrSwitchSuite) TestProcmgrSwitch() {
 	}
 }
 
+// runProcessManagerCommand goes through the daemon's internal `daemon process-manager` entry
+// point (like `daemon start-experiment`): the switch is only exposed there, not as a top-level
+// datadog-installer command, since it must execute inside the running daemon.
 func (s *packageProcmgrSwitchSuite) runProcessManagerCommand(subcommand string) {
-	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer process-manager " + subcommand)
+	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer daemon process-manager " + subcommand)
 	require.NoError(s.T(), err, "Failed to run process-manager %s: datadog-agent-installer journalctl:\n%s",
 		subcommand,
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-agent-installer.service --no-pager"),
