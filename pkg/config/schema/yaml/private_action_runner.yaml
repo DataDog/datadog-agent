@@ -67,6 +67,26 @@ properties:
       When true, a set of default actions are automatically
       allowed without needing to be listed in actions_allowlist.
       Set to false to disable these default actions.
+  credentials:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Credentials explicitly made available to valid backend tasks executed by
+      this Private Action Runner. Credential values and secret-backend handles
+      are never sent to the backend.
+    properties:
+      values:
+        node_type: setting
+        type: object
+        default: {}
+        visibility: public
+        additionalProperties:
+          type: string
+        description: |-
+          Named credentials available to Private Action Runner tasks. Values
+          may use ENC[...] secret-backend handles; tasks reference only the
+          configured names.
   http_timeout_seconds:
     node_type: setting
     type: integer
