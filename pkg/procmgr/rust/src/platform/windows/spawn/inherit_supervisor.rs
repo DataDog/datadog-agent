@@ -24,7 +24,7 @@ use super::startup_info_ex::StartupInfoEx;
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 use super::win32::{
     build_windows_command_line, env_block_from_baseline_plus_overrides,
-    managed_process_creation_flags, managed_process_creation_flags_for_job_list,
+    managed_process_creation_flags_for_job_list, managed_process_creation_flags_for_post_assign,
 };
 
 /// Spawns a child in the supervisor's security context (`CreateProcessW`).
@@ -117,7 +117,7 @@ pub(super) fn spawn_inherit_supervisor(
                 std::ptr::null(),
                 std::ptr::null(),
                 1,
-                managed_process_creation_flags(),
+                managed_process_creation_flags_for_post_assign(),
                 env_block_ptr,
                 current_dir_w
                     .as_ref()

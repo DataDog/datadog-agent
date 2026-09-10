@@ -23,7 +23,7 @@ use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 use super::user_profile::UserProfileGuard;
 use super::win32::{
     build_windows_command_line, env_block_from_baseline_plus_overrides,
-    managed_process_creation_flags, managed_process_creation_flags_for_job_list,
+    managed_process_creation_flags_for_job_list, managed_process_creation_flags_for_post_assign,
 };
 
 /// Spawn a child with `CreateProcessAsUserW` using a **primary access token**.
@@ -133,7 +133,7 @@ pub(super) fn spawn_as_primary_token(
                 std::ptr::null(),
                 std::ptr::null(),
                 1,
-                managed_process_creation_flags(),
+                managed_process_creation_flags_for_post_assign(),
                 env_block_ptr,
                 current_dir_w
                     .as_ref()

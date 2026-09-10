@@ -12,7 +12,7 @@ use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPrimary};
 use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
 use windows_sys::Win32::System::Threading::{
-    CREATE_BREAKAWAY_FROM_JOB, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW,
+    CREATE_BREAKAWAY_FROM_JOB, CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW,
     CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
 };
 
@@ -136,6 +136,17 @@ pub(crate) fn managed_process_creation_flags() -> u32 {
 /// `FF_USE_WINDOWS_JOB_OBJECT`), the child must break away before joining our job.
 pub(crate) fn managed_process_creation_flags_for_job_list() -> u32 {
     managed_process_creation_flags() | CREATE_BREAKAWAY_FROM_JOB
+}
+
+/// Flags for post-create job assignment when create-time `JOB_LIST` is rejected.
+///
+/// Uses `CREATE_NEW_CONSOLE` instead of `CREATE_NO_WINDOW` so spawn succeeds when the
+/// supervisor has no console (e.g. GitLab CI job runners).
+pub(crate) fn managed_process_creation_flags_for_post_assign() -> u32 {
+    CREATE_NEW_PROCESS_GROUP
+        | CREATE_NEW_CONSOLE
+        | CREATE_UNICODE_ENVIRONMENT
+        | EXTENDED_STARTUPINFO_PRESENT
 }
 
 #[cfg(test)]
