@@ -56,6 +56,51 @@ var (
 	imageResolver = imageresolver.NewNoOpResolver()
 )
 
+func TestHasAllowedTracerConfigPrefix(t *testing.T) {
+	require.True(t, hasAllowedTracerConfigPrefix("DD_PROFILING_ENABLED"))
+	require.True(t, hasAllowedTracerConfigPrefix("OTEL_TRACES_EXPORTER"))
+	require.False(t, hasAllowedTracerConfigPrefix("NOT_DD"))
+	require.False(t, hasAllowedTracerConfigPrefix(""))
+}
+
+func TestBuildInternalTargetsTracerConfigPrefix(t *testing.T) {
+	config := &Config{staticConfig: staticConfig{containerRegistry: "registry"}}
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Supply(coreconfig.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	t.Run("DD_ and OTEL_ prefixed tracer configs are accepted", func(t *testing.T) {
+		targets, err := buildInternalTargets(config, wmeta, []Target{
+			{
+				Name: "otel-mode",
+				TracerConfigs: []TracerConfig{
+					{Name: "DD_TRACE_OTEL_ENABLED", Value: "true"},
+					{Name: "OTEL_TRACES_EXPORTER", Value: "otlp"},
+				},
+			},
+		}, nil)
+		require.NoError(t, err)
+		require.Len(t, targets, 1)
+		require.Equal(t, []corev1.EnvVar{
+			{Name: "DD_TRACE_OTEL_ENABLED", Value: "true"},
+			{Name: "OTEL_TRACES_EXPORTER", Value: "otlp"},
+		}, targets[0].envVars)
+	})
+
+	t.Run("tracer config without an allowed prefix is rejected", func(t *testing.T) {
+		_, err := buildInternalTargets(config, wmeta, []Target{
+			{
+				Name:          "bad-target",
+				TracerConfigs: []TracerConfig{{Name: "GENERIC_VAR", Value: "true"}},
+			},
+		}, nil)
+		require.Error(t, err)
+	})
+}
+
 func TestNewTargetMutator(t *testing.T) {
 	tests := map[string]struct {
 		configPath string
@@ -600,7 +645,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 				},
 			},
 		},
-		"tracer-configs entries without a DD_ prefix are skipped": {
+		"tracer-configs entries without a DD_ or OTEL_ prefix are skipped": {
 			configPath: "testdata/filter_limited.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -620,6 +665,30 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 				},
 				envVars: []corev1.EnvVar{
 					{Name: "DD_PROFILING_ENABLED", Value: "true"},
+				},
+			},
+		},
+		"tracer-configs entries with an OTEL_ prefix are forwarded": {
+			configPath: "testdata/filter_limited.yaml",
+			in: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "foo",
+					Labels: map[string]string{
+						common.EnabledLabelKey: "true",
+					},
+					Annotations: map[string]string{
+						"admission.datadoghq.com/python-lib.version":        "v3",
+						"admission.datadoghq.com/apm-inject.tracer-configs": `[{"name":"OTEL_TRACES_EXPORTER","value":"otlp"},{"name":"DD_TRACE_OTEL_ENABLED","value":"true"}]`,
+					},
+				},
+			},
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(python, "v3"),
+				},
+				envVars: []corev1.EnvVar{
+					{Name: "OTEL_TRACES_EXPORTER", Value: "otlp"},
+					{Name: "DD_TRACE_OTEL_ENABLED", Value: "true"},
 				},
 			},
 		},
