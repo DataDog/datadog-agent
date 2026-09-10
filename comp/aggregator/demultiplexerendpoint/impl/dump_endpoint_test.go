@@ -10,21 +10,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-type blockingContextDumper struct {
-	started chan struct{}
-	release chan struct{}
-}
+type contextDumperFunc func(io.Writer) error
 
-func (d *blockingContextDumper) DumpDogstatsdContexts(w io.Writer) error {
-	d.started <- struct{}{}
-	<-d.release
-	_, err := io.WriteString(w, "{}\n")
-	return err
+func (f contextDumperFunc) DumpDogstatsdContexts(w io.Writer) error {
+	return f(w)
 }
 
 func TestDumpDogstatsdContextsRejectsWhenDataPlaneOwnsDogstatsd(t *testing.T) {
@@ -37,34 +30,20 @@ func TestDumpDogstatsdContextsRejectsWhenDataPlaneOwnsDogstatsd(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), "Agent Data Plane")
 }
 
-func TestWriteDogstatsdContextsSerializesConcurrentDumps(t *testing.T) {
-	dumper := &blockingContextDumper{
-		started: make(chan struct{}, 2),
-		release: make(chan struct{}),
-	}
-	endpoint := demultiplexerEndpoint{
-		demux:   dumper,
-		runPath: t.TempDir(),
-	}
-	results := make(chan error, 2)
+func TestWriteDogstatsdContextsLocksDump(t *testing.T) {
+	endpoint := demultiplexerEndpoint{runPath: t.TempDir()}
+	lockHeld := false
+	endpoint.demux = contextDumperFunc(func(w io.Writer) error {
+		if endpoint.dumpMu.TryLock() {
+			endpoint.dumpMu.Unlock()
+		} else {
+			lockHeld = true
+		}
+		_, err := io.WriteString(w, "{}\n")
+		return err
+	})
 
-	for range 2 {
-		go func() {
-			_, err := endpoint.writeDogstatsdContexts()
-			results <- err
-		}()
-	}
-
-	<-dumper.started
-	concurrent := false
-	select {
-	case <-dumper.started:
-		concurrent = true
-	case <-time.After(100 * time.Millisecond):
-	}
-	close(dumper.release)
-
-	require.NoError(t, <-results)
-	require.NoError(t, <-results)
-	require.False(t, concurrent)
+	_, err := endpoint.writeDogstatsdContexts()
+	require.NoError(t, err)
+	require.True(t, lockHeld)
 }
