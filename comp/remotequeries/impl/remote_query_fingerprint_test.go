@@ -77,7 +77,7 @@ func TestComputeMatchFingerprintChangesWithIdentity(t *testing.T) {
 	base, err := computeMatchFingerprint("postgres", fingerprintTupleTarget(), match)
 	require.NoError(t, err)
 
-	mutateIdentity := func(name string, mutate func(*remoteQueryMatchIdentity)) remoteQueryMatchIdentity {
+	mutateIdentity := func(_ string, mutate func(*remoteQueryMatchIdentity)) remoteQueryMatchIdentity {
 		identity := fingerprintTestIdentity()
 		mutate(&identity)
 		return identity

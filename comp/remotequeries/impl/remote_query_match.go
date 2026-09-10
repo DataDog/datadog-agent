@@ -590,7 +590,7 @@ type remoteQueryResolveTargetRequestJSON struct {
 func marshalResolveTargetRequest(target remoteQueryTarget) (string, error) {
 	requestJSON, err := json.Marshal(remoteQueryResolveTargetRequestJSON{
 		Operation: RemoteQueryOperationResolveTarget,
-		Target:    remoteQueryTargetJSON{Host: target.Host, Port: target.Port, DBName: target.DBName, DatabaseInstance: target.DatabaseInstance},
+		Target:    remoteQueryTargetJSON(target),
 	})
 	if err != nil {
 		return "", err

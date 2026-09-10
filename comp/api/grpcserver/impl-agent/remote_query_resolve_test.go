@@ -45,7 +45,7 @@ type resolveFakeCheck struct {
 	resolveCalls  int
 }
 
-func (f *resolveFakeCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error {
+func (f *resolveFakeCheck) RunRemoteQueryStream(integration string, _ string, emit func(check.RemoteQueryStreamEvent) error) error {
 	if integration != f.name {
 		return assert.AnError
 	}
