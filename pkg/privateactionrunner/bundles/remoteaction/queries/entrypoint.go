@@ -13,9 +13,6 @@ const (
 
 	// ExecuteActionName is the action part of com.datadoghq.remoteaction.queries.execute.
 	ExecuteActionName = "execute"
-
-	// ResolveActionName is the action part of com.datadoghq.remoteaction.queries.resolve.
-	ResolveActionName = "resolve"
 )
 
 type RemoteQueriesBundle struct {
@@ -24,11 +21,15 @@ type RemoteQueriesBundle struct {
 
 var defaultBridgeClientFactory BridgeClientFactory = NewDefaultBridgeClient
 
+// NewRemoteQueriesBundle registers the single Remote Queries action. Target
+// resolution is not a separate action FQN: it is the execute action's resolveOnly
+// mode, so one FQN covers every FQN-scoped authorization surface (AP
+// service-account allowlists, org Execution Policies, and the Agent PAR actions
+// allowlist).
 func NewRemoteQueriesBundle() *RemoteQueriesBundle {
 	return &RemoteQueriesBundle{
 		actions: map[string]types.Action{
 			ExecuteActionName: NewExecuteAction(defaultBridgeClientFactory),
-			ResolveActionName: NewResolveAction(defaultBridgeClientFactory),
 		},
 	}
 }

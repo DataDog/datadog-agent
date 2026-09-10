@@ -7,7 +7,6 @@ go_library(
         "entrypoint.go",
         "execute.go",
         "ipc_client.go",
-        "resolve.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/queries",
     visibility = ["//visibility:public"],
@@ -28,7 +27,6 @@ dd_agent_go_test(
     name = "queries_test",
     srcs = [
         "execute_test.go",
-        "resolve_test.go",
     ],
     embed = [":queries"],
     deps = [
