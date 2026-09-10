@@ -26,6 +26,7 @@ go_library(
         "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
+
 dd_agent_go_test(
     name = "datadogagent_test",
     srcs = [
