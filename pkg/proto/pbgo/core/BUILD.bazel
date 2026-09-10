@@ -48,6 +48,9 @@ write_pb_go(
             "echo_grpc.pb.go",
             "remoteconfig.pb.go",
         ],
+        "//pkg/proto/datadog/remotequeries:remotequeries_go_proto": [
+            "remotequeries.pb.go",
+        ],
         "//pkg/proto/datadog/workloadfilter:workloadfilter_go_proto": [
             "workloadfilter.pb.go",
         ],
@@ -73,6 +76,7 @@ go_library(
         "remoteagent_grpc.pb.go",
         "remoteconfig.pb.go",
         "remoteconfig_gen.go",
+        "remotequeries.pb.go",
         "status.pb.go",
         "status_grpc.pb.go",
         "telemetry.pb.go",
