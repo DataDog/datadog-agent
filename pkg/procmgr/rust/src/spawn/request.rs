@@ -7,16 +7,17 @@ use anyhow::{Context, Result};
 use log::info;
 use std::ffi::OsString;
 use std::path::PathBuf;
+#[cfg(not(windows))]
 use tokio::process::Command;
 
 use crate::config::ProcessConfig;
 use crate::env::{expand_env_vars, parse_environment_file, try_expand_env_vars};
 
-use super::stdio::{StdioSetting, parse_stdio_setting, to_command_stdio};
+#[cfg(not(windows))]
+use super::stdio::to_command_stdio;
+use super::stdio::{StdioSetting, parse_stdio_setting};
 
 pub(crate) struct SpawnRequest {
-    #[cfg(windows)]
-    process_name: String,
     command: String,
     args: Vec<String>,
     env: Vec<(String, String)>,
@@ -58,8 +59,6 @@ impl SpawnRequest {
 
     pub(crate) fn from_config(process_name: &str, config: &ProcessConfig) -> Result<Self> {
         Ok(Self {
-            #[cfg(windows)]
-            process_name: process_name.to_string(),
             command: expand_env_vars(&config.command),
             args: config.args.iter().map(|a| expand_env_vars(a)).collect(),
             env: collect_env(process_name, config)?,
@@ -72,15 +71,11 @@ impl SpawnRequest {
         })
     }
 
+    #[cfg(not(windows))]
     pub(crate) fn to_command(&self, stdout_inheritable: bool, stderr_inheritable: bool) -> Command {
         let mut cmd = Command::new(&self.command);
         cmd.args(&self.args);
         cmd.env_clear();
-        #[cfg(windows)]
-        {
-            crate::platform::apply_child_baseline_env(&mut cmd);
-            crate::platform::apply_legacy_scm_env(&mut cmd, &self.process_name);
-        }
         for (k, v) in &self.env {
             cmd.env(k, v);
         }

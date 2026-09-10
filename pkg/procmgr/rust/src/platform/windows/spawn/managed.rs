@@ -3,19 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use log::{info, warn};
-use std::process::Stdio;
 
 use crate::handle::ProcessHandle;
 use crate::process::ManagedProcess;
 use crate::spawn::{SpawnProfile, SpawnRequest};
 
-use super::super::{
-    JobObject, send_force_kill, setup_process_group, stderr_inheritable, stdout_inheritable,
-};
+use super::super::JobObject;
 use super::credential::SpawnCredential;
 use super::inherit_supervisor::spawn_inherit_supervisor;
+use super::primary_token::spawn_as_primary_token;
 
 const PRIVILEGED_INTENDED_USER: &str = r"NT AUTHORITY\SYSTEM";
 
@@ -65,17 +63,13 @@ fn spawn_agent(
     };
 
     if credential.reuses_supervisor_token() {
-        return spawn_agent_inherit(process, process_name, request, &credential);
+        return spawn_with_supervisor_inherit(process, process_name, request, &credential);
     }
 
-    let intended_user = credential.display_name();
-    bail!(
-        "[{process_name}] cannot spawn as {intended_user}: supervisor token does not match the \
-         installed agent account; run dd-procmgr-service as {intended_user}"
-    );
+    spawn_agent_logon(process, process_name, request, &credential)
 }
 
-fn spawn_agent_inherit(
+fn spawn_agent_logon(
     process: &mut ManagedProcess,
     process_name: &str,
     request: SpawnRequest,
@@ -84,12 +78,14 @@ fn spawn_agent_inherit(
     let job = JobObject::new()
         .with_context(|| format!("[{process_name}] create job object for child supervision"))?;
 
-    let suspended = spawn_inherit_supervisor(process_name, &request, credential)
-        .with_context(|| format!("[{process_name}] supervisor-token inherit spawn failed"))?;
+    let (handle, user_profile) =
+        spawn_as_primary_token(process_name, &request, credential, &job)
+            .with_context(|| format!("[{process_name}] CreateProcessAsUserW spawn failed"))?;
 
-    suspended
-        .supervise(process, job)
-        .with_context(|| format!("[{process_name}] start supervised child"))
+    process.set_user_profile_guard(user_profile);
+
+    process.set_job_object(job);
+    Ok(handle)
 }
 
 fn spawn_privileged_inherit(
@@ -97,47 +93,28 @@ fn spawn_privileged_inherit(
     process_name: &str,
     request: SpawnRequest,
 ) -> Result<ProcessHandle> {
-    let mut cmd = request.to_command(stdout_inheritable(), stderr_inheritable());
-    cmd.stdin(Stdio::null());
-    setup_process_group(&mut cmd);
+    spawn_with_supervisor_inherit(
+        process,
+        process_name,
+        request,
+        &SpawnCredential::privileged(),
+    )
+}
 
-    let child = cmd
-        .spawn()
-        .with_context(|| format!("[{process_name}] failed to spawn: {}", request.command()))?;
-
-    let pid = child.id().unwrap_or(0);
-    let handle = match ProcessHandle::from_tokio_child(child) {
-        Ok(handle) => handle,
-        Err(e) => {
-            terminate_unsupervised_child(process_name, pid);
-            return Err(e);
-        }
-    };
-
+fn spawn_with_supervisor_inherit(
+    process: &mut ManagedProcess,
+    process_name: &str,
+    request: SpawnRequest,
+    credential: &SpawnCredential,
+) -> Result<ProcessHandle> {
     let job = JobObject::new()
-        .inspect_err(|_| {
-            terminate_unsupervised_child(process_name, pid);
-        })
         .with_context(|| format!("[{process_name}] create job object for child supervision"))?;
 
-    job.assign_process(pid)
-        .inspect_err(|_| {
-            terminate_unsupervised_child(process_name, pid);
-        })
-        .with_context(|| {
-            format!("[{process_name}] failed to assign pid {pid} to supervision job")
-        })?;
+    let handle = spawn_inherit_supervisor(process_name, &request, credential, &job)
+        .with_context(|| format!("[{process_name}] supervisor-token inherit spawn failed"))?;
 
     process.set_job_object(job);
     Ok(handle)
-}
-
-fn terminate_unsupervised_child(process_name: &str, pid: u32) {
-    if let Err(e) = send_force_kill(pid) {
-        warn!(
-            "[{process_name}] failed to terminate unsupervised child (pid={pid}) after job setup failure: {e:#}"
-        );
-    }
 }
 
 #[cfg(test)]

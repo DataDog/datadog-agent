@@ -5,6 +5,7 @@
 
 use anyhow::{Result, bail};
 use std::ptr;
+use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
 use windows_sys::Win32::Security::{CreateWellKnownSid, LookupAccountNameW, WELL_KNOWN_SID_TYPE};
 
 use super::wide;
@@ -12,12 +13,15 @@ use super::wide;
 pub(crate) fn create_well_known_sid(well_known: WELL_KNOWN_SID_TYPE) -> Result<Vec<u8>> {
     unsafe {
         let mut sid_size = 0u32;
-        let _ = CreateWellKnownSid(well_known, ptr::null_mut(), ptr::null_mut(), &mut sid_size);
+        if CreateWellKnownSid(well_known, ptr::null_mut(), ptr::null_mut(), &mut sid_size) == 0 {
+            let err = std::io::Error::last_os_error();
+            // Sizing probe: this call is expected to fail with ERROR_INSUFFICIENT_BUFFER.
+            if err.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+                bail!("CreateWellKnownSid size: {err}");
+            }
+        }
         if sid_size == 0 {
-            bail!(
-                "CreateWellKnownSid size query: {}",
-                std::io::Error::last_os_error()
-            );
+            bail!("CreateWellKnownSid size query returned 0");
         }
         let mut sid = vec![0u8; sid_size as usize];
         let ok = CreateWellKnownSid(
@@ -47,7 +51,7 @@ pub(crate) fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
         let mut domain_size = 0u32;
         let mut sid_type = 0i32;
 
-        let _ = LookupAccountNameW(
+        if LookupAccountNameW(
             ptr::null(),
             account_w.as_ptr(),
             ptr::null_mut(),
@@ -55,7 +59,14 @@ pub(crate) fn lookup_account_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
             ptr::null_mut(),
             &mut domain_size,
             &mut sid_type,
-        );
+        ) == 0
+        {
+            let err = std::io::Error::last_os_error();
+            // Sizing probe: this call is expected to fail with ERROR_INSUFFICIENT_BUFFER.
+            if err.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+                bail!("LookupAccountNameW({account}) size: {err}");
+            }
+        }
 
         let mut sid = vec![0u8; sid_size as usize];
         let mut _domain_buf = vec![0u16; domain_size as usize];

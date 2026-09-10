@@ -21,7 +21,12 @@ use crate::spawn::StdioSetting;
 
 use super::super::wide;
 use super::credential::SpawnCredential;
+use super::logon::{logon_user_credentials, logon_user_token, with_impersonated_token};
 
+/// Map a processes.d stdio setting to an inheritable Win32 handle for the child.
+///
+/// On Windows, children inherit stdio via HANDLEs, not file descriptors. We impersonate the
+/// spawn account when opening log paths so ACLs match that user. Falls back to inherit or NUL.
 pub(super) fn map_stdio_setting(
     process_name: &str,
     setting: &StdioSetting,
@@ -94,14 +99,18 @@ impl Drop for MappedStdioHandle {
 }
 
 fn open_stdio_file_as_account(
-    _process_name: &str,
+    process_name: &str,
     path: &str,
     credential: &SpawnCredential,
 ) -> Result<MappedStdioHandle> {
     if credential.reuses_supervisor_token() {
         return Ok(MappedStdioHandle(open_append_file(path)?));
     }
-    bail!("file stdio for non-supervisor credentials requires LogonUser");
+    let creds = logon_user_credentials(credential.account());
+    let token = logon_user_token(process_name, &creds)?;
+    with_impersonated_token(process_name, token.raw(), || {
+        Ok(MappedStdioHandle(open_append_file(path)?))
+    })
 }
 
 fn open_append_file(path: &str) -> Result<HANDLE> {
