@@ -18,8 +18,7 @@ deprecations:
     any effect. Remove it from ``datadog.yaml`` and deployment manifests.
 enhancements:
   - |
-    The Process Agent now reports per-parent zombie aggregation on each
-    parent process record via two new fields, ``zombie_children_count`` and
-    ``zombie_net_rate``. This dramatically reduces process-agent memory and
-    intake volume on hosts whose parents fail to reap children, while still
-    surfacing actionable signal about which parent is leaking.
+    The Process Agent now aggregates zombie processes by parent instead of
+    emitting standalone zombie process records. Each parent process record
+    includes two new fields, ``zombie_children_count`` and
+    ``zombie_net_rate``.
