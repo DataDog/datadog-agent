@@ -7,6 +7,7 @@
 package socket
 
 import (
+	"errors"
 	"os"
 	"time"
 
@@ -16,22 +17,15 @@ import (
 // IsAvailable returns named pipe availability, as on Windows sockets do not exist.
 // The second return value is the dial error, if any.
 func IsAvailable(path string, timeout time.Duration) (bool, error) {
-	if !checkExists(path) {
-		return false, nil
-	}
-
 	conn, err := winio.DialPipe(path, &timeout)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
 		return true, err
 	}
 
 	conn.Close()
 
 	return true, nil
-}
-
-func checkExists(path string) bool {
-	// On Windows there's not easy way to check if a path is a named pipe
-	_, err := os.Stat(path)
-	return err == nil
 }
