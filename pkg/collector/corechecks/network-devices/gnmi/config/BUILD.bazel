@@ -5,7 +5,6 @@ go_library(
     name = "config",
     srcs = [
         "config.go",
-        "enabled.go",
         "profile.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config",

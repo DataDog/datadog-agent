@@ -182,15 +182,6 @@ func TestInstanceConfigStringRedactsPassword(t *testing.T) {
 	assert.Contains(t, str, "admin")
 }
 
-func TestIsEnabled(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("network_devices.gnmi.enabled", true)
-	assert.True(t, IsEnabled())
-
-	mockConfig.SetInTest("network_devices.gnmi.enabled", false)
-	assert.False(t, IsEnabled())
-}
-
 func TestNewCheckConfig(t *testing.T) {
 	mockConfig := configmock.New(t)
 	profilesRoot := t.TempDir()
