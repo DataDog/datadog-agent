@@ -8,11 +8,11 @@
 package runtime
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -83,7 +83,13 @@ func showSecurityProfile(_ log.Component, _ config.Component, _ secrets.Componen
 		return err
 	}
 
-	b, err := json.MarshalIndent(pp, "", "  ")
+	// protojson so enums render as names and defaults are emitted.
+	opts := protojson.MarshalOptions{
+		EmitUnpopulated: true,
+		UseProtoNames:   true,
+		Indent:          "  ",
+	}
+	b, err := opts.Marshal(pp)
 	if err != nil {
 		return err
 	}

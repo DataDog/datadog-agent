@@ -66,12 +66,18 @@ func TestWorkloadmetaResolver_PrivilegedOnly(t *testing.T) {
 }
 
 func TestWorkloadmetaResolver_EmptySecurityContext(t *testing.T) {
+	// Known SecurityContext (all defaults) must produce a non-nil Declared.
 	r := &WorkloadmetaResolver{wmeta: &fakeWmeta{
 		containers: map[string]*workloadmeta.Container{
 			"cid": {SecurityContext: &workloadmeta.ContainerSecurityContext{}},
 		},
 	}}
-	assert.Nil(t, r.Resolve(containerutils.ContainerID("cid")))
+	got := r.Resolve(containerutils.ContainerID("cid"))
+	require.NotNil(t, got)
+	assert.False(t, got.Privileged)
+	assert.Nil(t, got.CapabilitiesAdd)
+	assert.Nil(t, got.CapabilitiesDrop)
+	assert.Nil(t, got.Seccomp)
 }
 
 func TestWorkloadmetaResolver_Full(t *testing.T) {

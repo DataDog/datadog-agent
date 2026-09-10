@@ -35,6 +35,9 @@ func NewWorkloadmetaResolver(wmeta workloadmeta.Component) *WorkloadmetaResolver
 }
 
 // Resolve implements Resolver.
+//
+// Wire convention: nil Declared == unknown posture; a present Declared means
+// workloadmeta had an answer, so proto3 defaults on sub-fields are meaningful.
 func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) *Declared {
 	if r == nil || r.wmeta == nil || len(id) == 0 {
 		return nil
@@ -47,24 +50,16 @@ func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) *Declared 
 	sc := container.SecurityContext
 
 	d := &Declared{Privileged: sc.Privileged}
-	populated := sc.Privileged
 	if sc.Capabilities != nil {
 		if len(sc.Capabilities.Add) > 0 {
 			d.CapabilitiesAdd = slices.Clone(sc.Capabilities.Add)
-			populated = true
 		}
 		if len(sc.Capabilities.Drop) > 0 {
 			d.CapabilitiesDrop = slices.Clone(sc.Capabilities.Drop)
-			populated = true
 		}
 	}
 	if seccomp := seccompFromWmeta(sc.SeccompProfile); seccomp != nil {
 		d.Seccomp = seccomp
-		populated = true
-	}
-
-	if !populated {
-		return nil
 	}
 	return d
 }
