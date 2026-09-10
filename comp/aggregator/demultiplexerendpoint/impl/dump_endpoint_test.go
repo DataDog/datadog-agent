@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
@@ -46,7 +45,6 @@ func TestWriteDogstatsdContextsSerializesConcurrentDumps(t *testing.T) {
 	endpoint := demultiplexerEndpoint{
 		demux:   dumper,
 		runPath: t.TempDir(),
-		dumpMu:  &sync.Mutex{},
 	}
 	results := make(chan error, 2)
 
