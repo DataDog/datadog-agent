@@ -23,6 +23,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -710,7 +711,10 @@ func TestApplyVerticalConstraints_AllFeatures(t *testing.T) {
 
 	// --- Hash should be recomputed and valid ---
 	assert.NotEqual(t, "original-hash", vertical.ResourcesHash)
-	expectedHash, err := autoscaling.ObjectHash(vertical.ContainerResources)
+	expectedHash, err := autoscaling.ObjectHash(struct {
+		ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
+		RuntimeValues      map[string]model.ContainerRuntimeValues
+	}{ContainerResources: vertical.ContainerResources, RuntimeValues: vertical.RuntimeValues})
 	require.NoError(t, err)
 	assert.Equal(t, expectedHash, vertical.ResourcesHash)
 }
@@ -754,7 +758,10 @@ func TestApplyVerticalConstraints_CPURequestsRemoveLimits(t *testing.T) {
 
 	// Hash must be recomputed
 	assert.NotEqual(t, "original-hash", vertical.ResourcesHash)
-	expectedHash, err := autoscaling.ObjectHash(vertical.ContainerResources)
+	expectedHash, err := autoscaling.ObjectHash(struct {
+		ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
+		RuntimeValues      map[string]model.ContainerRuntimeValues
+	}{ContainerResources: vertical.ContainerResources, RuntimeValues: vertical.RuntimeValues})
 	require.NoError(t, err)
 	assert.Equal(t, expectedHash, vertical.ResourcesHash)
 }
@@ -1120,4 +1127,97 @@ func TestApplyVerticalConstraints_BurstableHashChange(t *testing.T) {
 			"toggling burstable must change the recommendationID so the vertical controller "+
 				"detects that pods carry a stale hash and triggers a rollout to restore CPU limits")
 	})
+}
+
+func TestIsRolloutRequired_RuntimeValues(t *testing.T) {
+	// Enable in-place vertical scaling so that the flag-based early-return does not interfere.
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	defer pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+
+	sv := model.ScalingValues{
+		Vertical: &model.VerticalScalingValues{
+			ResourcesHash: "hash-1",
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{Name: "app", Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")}},
+			},
+		},
+	}
+
+	t.Run("no RuntimeValues — rollout not forced", func(t *testing.T) {
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace:     "default",
+			Name:          "ai",
+			ScalingValues: sv,
+		}).Build()
+		assert.False(t, isRolloutRequired(&ai), "no RuntimeValues should not force a rollout")
+	})
+
+	t.Run("RuntimeValues present — rollout forced", func(t *testing.T) {
+		svWithRuntime := model.ScalingValues{
+			Vertical: &model.VerticalScalingValues{
+				ResourcesHash:      "hash-2",
+				ContainerResources: sv.Vertical.ContainerResources,
+				RuntimeValues: map[string]model.ContainerRuntimeValues{
+					"app": {GoMemLimit: "256MiB"},
+				},
+			},
+		}
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace:     "default",
+			Name:          "ai",
+			ScalingValues: svWithRuntime,
+		}).Build()
+		assert.True(t, isRolloutRequired(&ai),
+			"RuntimeValues must force the rollout path so pods are recreated via the admission webhook")
+	})
+}
+
+func TestApplyVerticalConstraints_RuntimeValuesFiltered(t *testing.T) {
+	vertical := &model.VerticalScalingValues{
+		ResourcesHash: "original-hash",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+			},
+			{
+				Name:     "disabled",
+				Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("128Mi")},
+			},
+		},
+		RuntimeValues: map[string]model.ContainerRuntimeValues{
+			"app":      {GoMemLimit: "256MiB"},
+			"disabled": {GoMemLimit: "128MiB"},
+		},
+	}
+
+	constraints := &datadoghqcommon.DatadogPodAutoscalerConstraints{
+		Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
+			{Name: "disabled", Enabled: pointer.Ptr(false)},
+		},
+	}
+
+	limitErr, err := applyVerticalConstraints(vertical, constraints, false)
+	require.NoError(t, err)
+	assert.Nil(t, limitErr)
+
+	// "disabled" container must be gone from ContainerResources
+	require.Len(t, vertical.ContainerResources, 1)
+	assert.Equal(t, "app", vertical.ContainerResources[0].Name)
+
+	// RuntimeValues for "disabled" must be removed; "app" must be kept
+	require.Len(t, vertical.RuntimeValues, 1)
+	_, hasApp := vertical.RuntimeValues["app"]
+	assert.True(t, hasApp, "RuntimeValues for 'app' must be preserved")
+	_, hasDisabled := vertical.RuntimeValues["disabled"]
+	assert.False(t, hasDisabled, "RuntimeValues for 'disabled' must be removed")
+
+	// Hash must be recomputed and consistent with the new state
+	assert.NotEqual(t, "original-hash", vertical.ResourcesHash)
+	expectedHash, err := autoscaling.ObjectHash(struct {
+		ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
+		RuntimeValues      map[string]model.ContainerRuntimeValues
+	}{ContainerResources: vertical.ContainerResources, RuntimeValues: vertical.RuntimeValues})
+	require.NoError(t, err)
+	assert.Equal(t, expectedHash, vertical.ResourcesHash)
 }
