@@ -967,7 +967,7 @@ func TestFiltersRetains(t *testing.T) {
 	f, err := Compile([]string{"kube_app_name:*"}, []string{"dirname:*", "kube_*", "service:old"})
 	require.NoError(t, err)
 
-	assert.True(t, f.Retains("env:prod"), "unmatched tags are kept")
+	assert.True(t, f.Retains("team:logs"), "unmatched tags are kept")
 	assert.False(t, f.Retains("dirname:/var/log"), "excluded tags are dropped")
 	assert.True(t, f.Retains("kube_app_name:web"), "include rescues from exclude")
 	assert.False(t, f.Retains("kube_namespace:default"), "exclude glob still applies")
@@ -990,7 +990,8 @@ func TestScopedRetains(t *testing.T) {
 
 	assert.True(t, s.Retains("dirname:/var/log"), "source include rescues from global exclude")
 	assert.False(t, s.Retains("team:logs"), "global exclude applies where the source is silent")
-	assert.True(t, s.Retains("env:prod"))
+	assert.True(t, s.Retains("pod_name:web-0"), "a tag named by neither scope is kept")
+	assert.True(t, s.Retains("env:prod"), "protected keys are never dropped")
 
 	var nilScoped *Scoped
 	assert.True(t, nilScoped.Retains("dirname:/var/log"))
