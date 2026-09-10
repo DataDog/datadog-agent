@@ -307,11 +307,11 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 
 		// Decode, if needed, the raw ddsketches from the first payload that reached the bucket
 		if len(agg.okDistributionRaw) > 0 {
-			agg.okDistribution = decodeAndNormalize(agg.okDistributionRaw, "OK")
+			agg.okDistribution = decodeAndNormalize(agg.okDistributionRaw)
 			agg.okDistributionRaw = nil
 		}
 		if len(agg.errDistributionRaw) > 0 {
-			agg.errDistribution = decodeAndNormalize(agg.errDistributionRaw, "Error")
+			agg.errDistribution = decodeAndNormalize(agg.errDistributionRaw)
 			agg.errDistributionRaw = nil
 		}
 
@@ -533,17 +533,14 @@ func normalizeSketch(s *ddsketch.DDSketch) (*ddsketch.DDSketch, error) {
 }
 
 // decodeAndNormalize decodes a raw client sketch and re-maps it onto the agent's
-// canonical mapping, returning nil if either step fails. kind names the
-// distribution for logging.
-func decodeAndNormalize(raw []byte, kind string) *ddsketch.DDSketch {
+// canonical mapping, returning nil if either step fails.
+func decodeAndNormalize(raw []byte) *ddsketch.DDSketch {
 	sketch, err := decodeSketch(raw)
-	if err != nil {
-		logger.Error("Unable to decode %s distribution ddsketch: %v", kind, err)
-		return nil
+	if err == nil {
+		sketch, err = normalizeSketch(sketch)
 	}
-	sketch, err = normalizeSketch(sketch)
 	if err != nil {
-		logger.Error("Unable to normalize %s distribution ddsketch: %v", kind, err)
+		logger.Error("Unable to decode distribution ddsketch: %v", err)
 		return nil
 	}
 	return sketch
