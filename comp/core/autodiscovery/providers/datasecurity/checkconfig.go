@@ -33,5 +33,5 @@ type connection struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	SSLMode  string `json:"ssl,omitempty"`
-	// TODO(DATASEC-156): add ssl cert fields (ssl_root_cert, ssl_cert, ssl_key, ssl_password).
+	// TODO(DATASEC-318): add ssl cert fields (ssl_root_cert, ssl_cert, ssl_key, ssl_password).
 }
