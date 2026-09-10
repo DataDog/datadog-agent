@@ -421,10 +421,9 @@ func (e *Env) ToEnv() []string {
 	if e.OTelCollectorEnabled {
 		env = append(env, envOTelCollectorEnabled+"=true")
 	}
-	// Unlike the flags above, ProcessManagerEnabled defaults to true, so "only append when true"
-	// can't express an explicit false. Always serialize the resolved value so it reliably
-	// overrides whatever is already in a spawned subprocess's inherited environment.
-	env = append(env, EnvProcessManagerEnabled+"="+strconv.FormatBool(e.ProcessManagerEnabled))
+	if !e.ProcessManagerEnabled {
+		env = append(env, EnvProcessManagerEnabled+"=false")
+	}
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
 	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
 	env = appendStringEnv(env, envRegistryAuth, e.RegistryAuthOverride, "")
@@ -580,7 +579,7 @@ func boolEnvOrDefault(env string, defaultValue bool) bool {
 	if !set {
 		return defaultValue
 	}
-	return !strings.EqualFold(v, "false")
+	return strings.ToLower(v) == "true"
 }
 
 func getProxySetting(ddEnv string, env string) string {

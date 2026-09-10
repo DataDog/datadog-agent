@@ -7,6 +7,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"testing"
@@ -70,6 +71,11 @@ func (m *testDaemon) StopConfigExperiment(ctx context.Context, pkg string) error
 
 func (m *testDaemon) PromoteConfigExperiment(ctx context.Context, pkg string) error {
 	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testDaemon) SetProcessManagerEnabled(ctx context.Context, enabled bool) error {
+	args := m.Called(ctx, enabled)
 	return args.Error(0)
 }
 
@@ -208,4 +214,26 @@ func TestAPIPromoteExperiment(t *testing.T) {
 	err := api.c.PromoteExperiment(testPackage)
 
 	assert.NoError(t, err)
+}
+
+func TestAPISetProcessManagerEnabled(t *testing.T) {
+	api := newTestLocalAPI(t)
+	defer api.Stop()
+
+	api.i.On("SetProcessManagerEnabled", mock.Anything, true).Return(nil)
+
+	err := api.c.SetProcessManagerEnabled(true)
+
+	assert.NoError(t, err)
+}
+
+func TestAPISetProcessManagerEnabledError(t *testing.T) {
+	api := newTestLocalAPI(t)
+	defer api.Stop()
+
+	api.i.On("SetProcessManagerEnabled", mock.Anything, false).Return(errors.New("boom"))
+
+	err := api.c.SetProcessManagerEnabled(false)
+
+	assert.ErrorContains(t, err, "boom")
 }

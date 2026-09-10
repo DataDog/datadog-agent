@@ -153,9 +153,6 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	if err := ensurePARExecutorProcmgrConfig(processManagerEnabled); err != nil {
 		return fmt.Errorf("failed to write PAR executor process manager config: %w", err)
 	}
-	if err := persistProcessManagerEnabledWindows(processManagerEnabled); err != nil {
-		log.Warnf("failed to persist process manager state: %v", err)
-	}
 
 	// No need to explicitly start the Agent here
 	// - MSI: done at the end in StartDDServices custom action
@@ -207,9 +204,6 @@ func resolveDatadogProgramFilesInstallRoot() (string, error) {
 	return installRoot, nil
 }
 
-// ensureADPProcmgrConfig writes or removes ADP's dd-procmgr config depending on enabled.
-// enabled is passed explicitly (rather than read internally) so the process-manager flip
-// command can apply a value that hasn't been persisted to the environment yet.
 func ensureADPProcmgrConfig(enabled bool) error {
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {

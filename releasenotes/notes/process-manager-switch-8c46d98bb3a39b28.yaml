@@ -13,6 +13,6 @@ features:
     Agent's extension processes after install.
 fixes:
   - |
-    Installer: The ``DD_PROCESS_MANAGER_ENABLED`` choice now persists across installer daemon
-    restarts, updates, and experiments instead of reverting to the default on every operation
-    that does not explicitly set it.
+    Installer: The ``process-manager enable|disable`` switch now runs inside the installer
+    daemon instead of the one-off ``datadog-installer`` CLI process, so it reliably sees the
+    host's actual process manager state instead of reverting to the compiled default.

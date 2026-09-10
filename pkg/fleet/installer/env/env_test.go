@@ -398,10 +398,10 @@ func TestToEnvFIPSMode(t *testing.T) {
 }
 
 func TestToEnvProcessManagerEnabled(t *testing.T) {
-	// Unlike most other flags, ProcessManagerEnabled must always be serialized (even when
-	// false) so it reliably overrides whatever a spawned subprocess would otherwise inherit.
+	// ProcessManagerEnabled defaults to true, so like the other flags above, only the
+	// non-default (false) value needs to be serialized explicitly.
 	assert.Contains(t, (&Env{ProcessManagerEnabled: false}).ToEnv(), "DD_PROCESS_MANAGER_ENABLED=false")
-	assert.Contains(t, (&Env{ProcessManagerEnabled: true}).ToEnv(), "DD_PROCESS_MANAGER_ENABLED=true")
+	assert.NotContains(t, (&Env{ProcessManagerEnabled: true}).ToEnv(), "DD_PROCESS_MANAGER_ENABLED=true")
 }
 
 func TestAgentUserVars(t *testing.T) {

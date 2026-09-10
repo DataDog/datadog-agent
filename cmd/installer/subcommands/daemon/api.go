@@ -175,6 +175,26 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
+	processManagerEnableCmd := &cobra.Command{
+		Hidden: true,
+		Use:    "process-manager-enable",
+		Short:  "Internal command to use dd-procmgrd as the process manager",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return experimentFxWrapper(setProcessManagerEnabled(true), &cliParams{
+				GlobalParams: *global,
+			})
+		},
+	}
+	processManagerDisableCmd := &cobra.Command{
+		Hidden: true,
+		Use:    "process-manager-disable",
+		Short:  "Internal command to use the native service manager (systemd/SCM) as the process manager",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return experimentFxWrapper(setProcessManagerEnabled(false), &cliParams{
+				GlobalParams: *global,
+			})
+		},
+	}
 	return []*cobra.Command{
 		setCatalogCmd,
 		setConfigCatalogCmd,
@@ -187,6 +207,8 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		stopConfigExperimentCmd,
 		promoteConfigExperimentCmd,
 		remoteConfigStatusCmd,
+		processManagerEnableCmd,
+		processManagerDisableCmd,
 	}
 }
 
@@ -293,6 +315,17 @@ func remove(params *cliParams, client localapiclient.Component) error {
 	}
 	return nil
 }
+func setProcessManagerEnabled(enabled bool) func(*cliParams, localapiclient.Component) error {
+	return func(_ *cliParams, client localapiclient.Component) error {
+		err := client.SetProcessManagerEnabled(enabled)
+		if err != nil {
+			fmt.Println("Error setting process manager enabled:", err)
+			return err
+		}
+		return nil
+	}
+}
+
 func status(_ *cliParams, client localapiclient.Component) error {
 	status, err := client.Status()
 	if err != nil {

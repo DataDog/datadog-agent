@@ -228,7 +228,6 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err = retireLegacyProcmgrUnits(ctx); err != nil {
 		log.Warnf("failed to retire legacy procmgr units: %v", err)
 	}
-
 	return nil
 }
 
@@ -735,13 +734,14 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	}
 }
 
-// WriteProcesses writes the processes for the given package path. It is a no-op under any manager
-// other than procmgr.
+// WriteProcesses writes the processes for the given package path
 func (s *datadogAgentService) WriteProcesses(packagePath string) error {
-	if service.GetServiceManagerType(packagePath) != service.ProcmgrType {
-		return nil
+	switch service.GetServiceManagerType(packagePath) {
+	case service.ProcmgrType:
+		return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)
+	default:
+		return nil // Only procmgr defines processes
 	}
-	return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)
 }
 
 // WriteStable writes the stable units to the system and reloads the systemd daemon

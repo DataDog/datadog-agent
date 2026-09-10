@@ -13,6 +13,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	installerexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -650,7 +652,7 @@ func packageCommand() *cobra.Command {
 }
 
 // processManagerCommands lets an operator switch between dd-procmgrd and the native service
-// manager (systemd/SCM) for the components the installer supervises (ddot, PAR executor, ...).
+// manager (systemd/SCM) for the components procmgr can supervises (ddot, PAR executor, ...).
 func processManagerCommands() *cobra.Command {
 	parent := &cobra.Command{
 		Use:     "process-manager [command]",
@@ -664,11 +666,11 @@ func processManagerCommands() *cobra.Command {
 func processManagerEnableCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "enable",
-		Short: "Use dd-procmgrd to manage extension processes (ddot, PAR executor, ...)",
+		Short: "Use dd-procmgrd to manage supported processes (ddot, PAR executor, ...)",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			c := newCmd("process_manager_enable")
 			defer func() { c.stop(err) }()
-			return packages.SetProcessManagerEnabled(c.ctx, true)
+			return runProcessManagerDaemonCommand("process-manager-enable")
 		},
 	}
 }
@@ -680,9 +682,27 @@ func processManagerDisableCommand() *cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			c := newCmd("process_manager_disable")
 			defer func() { c.stop(err) }()
-			return packages.SetProcessManagerEnabled(c.ctx, false)
+			return runProcessManagerDaemonCommand("process-manager-disable")
 		},
 	}
+}
+
+// runProcessManagerDaemonCommand forwards a process-manager switch to the running daemon via its
+// internal `daemon <subcommand>` entry point (like status.go's getRCStatus). This binary is a
+// one-off CLI invocation and never has DD_PROCESS_MANAGER_ENABLED reliably in its own environment
+// (only the daemon's own service unit bakes it in), so the switch must execute inside the daemon.
+func runProcessManagerDaemonCommand(subcommand string) error {
+	installerBinary, err := installerexec.GetExecutable()
+	if err != nil {
+		return fmt.Errorf("error getting executable path: %w", err)
+	}
+	stderr := new(strings.Builder)
+	cmd := exec.Command(installerBinary, "daemon", subcommand)
+	cmd.Stderr = stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("error running process manager %s (is the daemon running?): %s", subcommand, stderr.String())
+	}
+	return nil
 }
 
 // extensionsCommands are the extensions installer commands
