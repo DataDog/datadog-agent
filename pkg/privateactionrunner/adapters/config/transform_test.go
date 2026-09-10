@@ -457,6 +457,74 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
 	assert.Equal(t, []string{"cat", "ls"}, cfg.RShellAllowedCommands)
 }
 
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	// Unlike allowed_commands, elevatable_commands has no wildcard-friendly
+	// default: elevation to root must be explicitly opted into per command.
+	assert.Empty(t, cfg.RShellPrivilegedElevatableCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsSet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedElevatableCommands, []string{"rshell:journalctl", "rshell:systemctl"})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"rshell:journalctl", "rshell:systemctl"}, cfg.RShellPrivilegedElevatableCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsWarnsForUnnamespaced(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedElevatableCommands, []string{"truncate", "rshell:journalctl"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, setup.PARRestrictedShellPrivilegedElevatableCommands)
+	assert.Contains(t, logs, `"truncate"`)
+	assert.Contains(t, logs, `"rshell:"`)
+	assert.Contains(t, logs, `"rshell:truncate"`)
+	assert.NotContains(t, logs, `"rshell:journalctl"`)
+}
+
+// TestFromDDConfigPARRestrictedShellPrivilegedNarrowingConfiguredFlags covers
+// the Configured booleans used exclusively to build the privileged path's
+// AgentPolicy (see buildAgentPolicy in the rshell bundle): they track whether
+// the operator explicitly set allowed_commands/allowed_paths, independent of
+// the wildcard-admitting default value those settings carry for the
+// non-privileged path.
+func TestFromDDConfigPARRestrictedShellPrivilegedNarrowingConfiguredFlags(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(setup.PARPrivateKey, "")
+	mockConfig.SetInTest(setup.PARUrn, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.RShellAllowedCommandsConfigured)
+	assert.False(t, cfg.RShellAllowedPathsConfigured)
+
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"rshell:*"})
+	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{"/"})
+	cfg, err = FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	// Explicitly configuring the setting to its default value still counts
+	// as configured: IsConfigured tracks whether the key was set, not
+	// whether the resulting value differs from the default.
+	assert.True(t, cfg.RShellAllowedCommandsConfigured)
+	assert.True(t, cfg.RShellAllowedPathsConfigured)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest(setup.PARPrivateKey, "")
