@@ -13,6 +13,8 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -507,7 +509,7 @@ func TestCache(t *testing.T) {
 				devices:  tt.devices,
 			}
 
-			l.writeCache(subnet)
+			l.writeCacheLocked(subnet)
 
 			cacheContent, err := persistentcache.Read(cacheKey)
 			assert.NoError(t, err)
@@ -1098,7 +1100,7 @@ func TestCheckDeviceDeleteAfterAllowedFailures(t *testing.T) {
 	l.config.AllowedFailures = 3
 
 	subnets := l.initializeSubnets()
-	subnet := &subnets[0]
+	subnet := subnets[0]
 
 	// First scan: device is reachable
 	factory.sessions["192.168.0.1"] = makeReachableSession()
@@ -1135,7 +1137,7 @@ func TestCheckDeviceFailureResetOnSuccess(t *testing.T) {
 	l.config.AllowedFailures = 3
 
 	subnets := l.initializeSubnets()
-	subnet := &subnets[0]
+	subnet := subnets[0]
 
 	// First scan: device is reachable
 	factory.sessions["192.168.0.1"] = makeReachableSession()
@@ -1166,4 +1168,144 @@ func TestCheckDeviceFailureResetOnSuccess(t *testing.T) {
 	device, exists := subnet.devices[entityID]
 	assert.True(t, exists)
 	assert.Equal(t, 0, device.Failures)
+}
+
+// TestCheckDeviceConcurrentSubnetAccess exercises many workers scanning a single subnet at once,
+// which is what production does whenever `network_devices.autodiscovery.workers` is above 1.
+//
+// It is a regression test for AGENT-16950: checkDevice used to read, write and iterate
+// subnet.devices (through writeCache) with no lock held, while deleteService and registerService
+// mutated the same map under the listener lock. That is an unsynchronized concurrent map access
+// and the Go runtime aborts the process with
+// "fatal error: concurrent map iteration and map write".
+//
+// Must be run with -race to be meaningful.
+func TestCheckDeviceConcurrentSubnetAccess(t *testing.T) {
+	l, factory := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/24", "community": "public"},
+	}, nil)
+
+	newSvc := make(chan Service)
+	delSvc := make(chan Service)
+	l.newService = newSvc
+	l.delService = delSvc
+	l.config.AllowedFailures = 2
+
+	// Drain the service channels. They are unbuffered in production, so this also covers the
+	// case where a send happens while a lock is held.
+	drained := make(chan struct{})
+	go func() {
+		defer close(drained)
+		for {
+			select {
+			case <-newSvc:
+			case <-delSvc:
+			case <-l.stop:
+				return
+			}
+		}
+	}()
+
+	subnets := l.initializeSubnets()
+	require.Len(t, subnets, 1)
+	subnet := subnets[0]
+
+	// Half of the IPs answer, half do not, so both the failure-reset path in checkDevice and the
+	// eviction path in deleteService run concurrently against the same devices map.
+	const numIPs = 40
+	for i := 1; i <= numIPs; i += 2 {
+		factory.mu.Lock()
+		factory.sessions[fmt.Sprintf("192.168.0.%d", i)] = makeReachableSession()
+		factory.mu.Unlock()
+	}
+
+	const rounds = 5
+	var wg sync.WaitGroup
+	for i := 1; i <= numIPs; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			job := snmpJob{subnet: subnet, currentIP: net.ParseIP(fmt.Sprintf("192.168.0.%d", i))}
+			for r := 0; r < rounds; r++ {
+				l.checkDevice(job)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	close(l.stop)
+	<-drained
+
+	// Sanity check that the run actually discovered devices rather than no-oping.
+	subnet.devicesMu.Lock()
+	found := len(subnet.devices)
+	subnet.devicesMu.Unlock()
+	assert.NotZero(t, found, "expected the concurrent scan to discover at least one device")
+}
+
+// TestCreateServiceDoesNotHoldLockWhileAnnouncing is a regression test for the lock contention
+// half of AGENT-16950: createService used to send on the unbuffered newService channel while
+// holding the listener lock, so a slow autodiscovery consumer stalled every other listener
+// goroutine (the crash dump showed 421 goroutines blocked on Lock()).
+func TestCreateServiceDoesNotHoldLockWhileAnnouncing(t *testing.T) {
+	l, _ := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
+
+	newSvc := make(chan Service)
+	l.newService = newSvc
+	l.delService = make(chan Service)
+
+	_, ipNet, err := net.ParseCIDR("192.168.0.0/30")
+	require.NoError(t, err)
+
+	subnet := &snmpSubnet{
+		adIdentifier: "snmp",
+		config:       l.config.Configs[0],
+		network:      *ipNet,
+		cacheKey:     "snmp:concurrency-test",
+		devices:      map[string]deviceCache{},
+	}
+
+	// Keep exercising an unrelated listener operation in the background and count how often it
+	// completes. It must keep making progress even while nobody is reading newService.
+	var progress atomic.Int64
+	stopPolling := make(chan struct{})
+	pollDone := make(chan struct{})
+	go func() {
+		defer close(pollDone)
+		for {
+			select {
+			case <-stopPolling:
+				return
+			default:
+			}
+			l.getDevicesFoundInSubnet(subnet.cacheKey)
+			progress.Add(1)
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	entityID := subnet.config.Digest("192.168.0.1")
+	created := make(chan struct{})
+	go func() {
+		defer close(created)
+		l.createService(entityID, subnet, "192.168.0.1", devicededuper.DeviceInfo{}, 0, 0, false)
+	}()
+
+	// Long enough for createService to reach the send and block there: nothing else in the call
+	// is slow, and the channel has no reader yet.
+	time.Sleep(300 * time.Millisecond)
+	mark := progress.Load()
+	time.Sleep(300 * time.Millisecond)
+	stalled := progress.Load() == mark
+
+	// Unblock createService before asserting, so a failure does not leak a stuck goroutine.
+	<-newSvc
+	<-created
+	close(stopPolling)
+	<-pollDone
+
+	assert.False(t, stalled,
+		"getDevicesFoundInSubnet stopped making progress while createService was announcing: the listener lock is held across the unbuffered channel send")
 }
