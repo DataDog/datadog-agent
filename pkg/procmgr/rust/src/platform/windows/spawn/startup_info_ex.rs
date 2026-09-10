@@ -27,6 +27,57 @@ pub(crate) struct StartupInfoEx {
 }
 
 impl StartupInfoEx {
+    /// Builds startup info with a restricted stdio handle inheritance list only.
+    pub(crate) fn with_stdio_handles(
+        stdin: HANDLE,
+        stdout: HANDLE,
+        stderr: HANDLE,
+    ) -> Result<Self> {
+        const ATTRIBUTE_COUNT: u32 = 1;
+        let mut attribute_list_size = 0usize;
+        unsafe {
+            InitializeProcThreadAttributeList(
+                ptr::null_mut(),
+                ATTRIBUTE_COUNT,
+                0,
+                &mut attribute_list_size,
+            );
+        }
+        if std::io::Error::last_os_error().raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32)
+        {
+            bail!(
+                "InitializeProcThreadAttributeList sizing failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+
+        let mut attribute_list_storage = vec![0u8; attribute_list_size];
+        let attribute_list = attribute_list_storage.as_mut_ptr() as *mut std::ffi::c_void;
+        let ok = unsafe {
+            InitializeProcThreadAttributeList(
+                attribute_list,
+                ATTRIBUTE_COUNT,
+                0,
+                &mut attribute_list_size,
+            )
+        };
+        if ok == 0 {
+            bail!(
+                "InitializeProcThreadAttributeList failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+
+        let mut startup = Self {
+            siex: new_siex(stdin, stdout, stderr, attribute_list),
+            attribute_list_storage,
+            stdio_handles: [stdin, stdout, stderr],
+            job_handles: [ptr::null_mut()],
+        };
+        startup.attach_stdio_handle_list()?;
+        Ok(startup)
+    }
+
     /// Builds startup info with stdio inheritance and job membership at create time.
     pub(crate) fn with_stdio_and_job(
         stdin: HANDLE,

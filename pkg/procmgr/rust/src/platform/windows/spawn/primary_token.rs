@@ -6,7 +6,7 @@
 use anyhow::{Result, bail};
 use std::mem;
 use std::os::windows::ffi::OsStrExt;
-use windows_sys::Win32::Foundation::CloseHandle;
+use windows_sys::Win32::Foundation::{CloseHandle, ERROR_INVALID_PARAMETER};
 use windows_sys::Win32::System::Console::{STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
 use windows_sys::Win32::System::Threading::{CreateProcessAsUserW, PROCESS_INFORMATION};
 
@@ -23,7 +23,7 @@ use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 use super::user_profile::UserProfileGuard;
 use super::win32::{
     build_windows_command_line, env_block_from_baseline_plus_overrides,
-    managed_process_creation_flags,
+    managed_process_creation_flags, managed_process_creation_flags_for_job_list,
 };
 
 /// Spawn a child with `CreateProcessAsUserW` using a **primary access token**.
@@ -90,15 +90,13 @@ pub(super) fn spawn_as_primary_token(
     )?;
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 
-    // Job object: Windows kernel construct to group processes for kill-on-stop (see managed.rs).
-    let mut startup_info = StartupInfoEx::with_stdio_and_job(
-        stdin_handle.raw(),
-        stdout_handle.raw(),
-        stderr_handle.raw(),
-        job.raw_handle(),
-    )?;
+    let stdin = stdin_handle.raw();
+    let stdout = stdout_handle.raw();
+    let stderr = stderr_handle.raw();
 
-    let dw_creation_flags = managed_process_creation_flags();
+    // Job object: Windows kernel construct to group processes for kill-on-stop (see managed.rs).
+    let mut startup_info =
+        StartupInfoEx::with_stdio_and_job(stdin, stdout, stderr, job.raw_handle())?;
 
     let mut pi: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     // bInheritHandles=1 plus PROC_THREAD_ATTRIBUTE_HANDLE_LIST: only listed handles are inherited.
@@ -110,7 +108,7 @@ pub(super) fn spawn_as_primary_token(
             std::ptr::null(),
             std::ptr::null(),
             1,
-            dw_creation_flags,
+            managed_process_creation_flags_for_job_list(),
             env_block_ptr,
             current_dir_w
                 .as_ref()
@@ -121,10 +119,39 @@ pub(super) fn spawn_as_primary_token(
         )
     };
     if ok == 0 {
-        bail!(
-            "[{process_name}] CreateProcessAsUserW failed: {}",
-            std::io::Error::last_os_error()
-        );
+        let err = std::io::Error::last_os_error();
+        if err.raw_os_error() != Some(ERROR_INVALID_PARAMETER as i32) {
+            bail!("[{process_name}] CreateProcessAsUserW failed: {err}");
+        }
+
+        let mut startup_info = StartupInfoEx::with_stdio_handles(stdin, stdout, stderr)?;
+        let ok = unsafe {
+            CreateProcessAsUserW(
+                primary_token_guard.raw(),
+                std::ptr::null(),
+                command_line_w.as_mut_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                1,
+                managed_process_creation_flags(),
+                env_block_ptr,
+                current_dir_w
+                    .as_ref()
+                    .map(|w| w.as_ptr())
+                    .unwrap_or(std::ptr::null()),
+                startup_info.startup_info(),
+                &mut pi,
+            )
+        };
+        if ok == 0 {
+            bail!(
+                "[{process_name}] CreateProcessAsUserW failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        job.assign_process(pi.dwProcessId).map_err(|e| {
+            anyhow::anyhow!("[{process_name}] post-create job assignment failed: {e}")
+        })?;
     }
 
     let pid = pi.dwProcessId;
