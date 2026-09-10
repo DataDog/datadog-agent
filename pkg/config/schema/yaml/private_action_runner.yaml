@@ -72,9 +72,7 @@ properties:
     type: object
     visibility: public
     description: |-
-      Credentials explicitly made available to valid backend tasks executed by
-      this Private Action Runner. Credential values and secret-backend handles
-      are never sent to the backend.
+      Named credentials available to Private Action Runner tasks.
     properties:
       values:
         node_type: setting
@@ -84,9 +82,7 @@ properties:
         additionalProperties:
           type: string
         description: |-
-          Named credentials available to Private Action Runner tasks. Values
-          may use ENC[...] secret-backend handles; tasks reference only the
-          configured names.
+          Credential values. Agent secret management is supported.
   http_timeout_seconds:
     node_type: setting
     type: integer
