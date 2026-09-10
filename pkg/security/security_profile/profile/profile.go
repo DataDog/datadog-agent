@@ -306,6 +306,15 @@ func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageT
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
 
+// InsertMount inserts a mount into the profile's deduplicated mount table
+func (p *Profile) InsertMount(mnt *model.Mount, imageTag string, generationType activity_tree.NodeGenerationType, timestamp time.Time) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	imageTagID := p.ActivityTree.GetOrInsertImageTag(imageTag)
+	return p.ActivityTree.InsertMount(mnt.NamespaceInode, mnt.Path, mnt.RootStr, mnt.FSType, mnt.MountFlags, imageTagID, generationType, timestamp, false)
+}
+
 // ComputeInMemorySize returns the legacy shallow size estimate of the profile in memory
 // (node counts × struct header sizes). Kept for V1 (legacy Manager / ActivityDump) which
 // has tuned its thresholds against this number — do not change its semantics.

@@ -440,7 +440,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 88 {
+	if len(data) < 96 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -471,7 +471,9 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	m.Detached = binary.NativeEndian.Uint16(data[50:52]) != 0
 
 	m.NamespaceInode = binary.NativeEndian.Uint32(data[52:56])
-	return 88, nil
+	m.MountFlags = NormalizeMountFlagsFromVFS(binary.NativeEndian.Uint32(data[56:60]))
+	// data[60:64] is the struct's trailing padding to 8-byte alignment.
+	return 96, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

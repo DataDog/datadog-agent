@@ -120,6 +120,7 @@ struct syscall_cache_t {
             int source;
             u64 ns_inum;
             u64 unshare_flags;
+            u32 mnt_flags;
         } mount;
 
         struct {

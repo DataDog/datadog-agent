@@ -28,6 +28,28 @@ func ProtoDecodeActivityTree(dest *ActivityTree, nodes []*adproto.ProcessActivit
 	}
 }
 
+// ProtoDecodeMounts decodes the workload's deduplicated mount table from its protobuf representation
+func ProtoDecodeMounts(dest *ActivityTree, nodes []*adproto.MountNode) {
+	getIDFromTag := func(imageTag string) uint64 {
+		return dest.GetOrInsertImageTag(imageTag)
+	}
+	for _, m := range nodes {
+		if m == nil {
+			continue
+		}
+		mn := NewMountNode(m.MountPoint, m.MountRoot, m.Filesystem, m.MountFlags, Runtime, 0, time.Time{})
+		mn.InBaseNamespace = m.BaseNamespace
+		if m.NodeBase != nil {
+			for tag, imageTagTimes := range m.NodeBase.Seen {
+				firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
+				lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
+				mn.RecordWithTimestamps(getIDFromTag(tag), firstSeen, lastSeen)
+			}
+		}
+		dest.Mounts = append(dest.Mounts, mn)
+	}
+}
+
 func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.ProcessActivityNode, getIDFromImageTag func(string) uint64) *ProcessNode {
 	if pan == nil {
 		return nil

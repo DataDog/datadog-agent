@@ -1176,6 +1176,11 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 )
 
+// TEMPORARY (do not merge): builds CWS workload-mounts against the local
+// agent-payload MountNode change. Swap for an agent-payload version bump once
+// that change is tagged and published.
+replace github.com/DataDog/agent-payload/v5 => ../agent-payload
+
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
 // use datadog fork of vault/api/auth/aws to reduce binary size for secret-generic-connector
