@@ -11,10 +11,15 @@ import (
 	"os"
 )
 
-func init() {
-	level := os.Getenv("DD_LOG_LEVEL")
-	if level == "" {
-		level = "debug"
+// TestLogLevel returns the level test binaries log at. It defaults to info, debug costing every
+// emitted line a scrub and burying a failure's own output in unrelated noise.
+func TestLogLevel() string {
+	if level := os.Getenv("DD_LOG_LEVEL"); level != "" {
+		return level
 	}
-	SetupLogger(Default(), level)
+	return InfoStr
+}
+
+func init() {
+	SetupLogger(Default(), TestLogLevel())
 }

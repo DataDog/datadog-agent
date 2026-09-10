@@ -37,13 +37,19 @@ func New(t testing.TB) log.Component {
 		t.Fatal(err.Error())
 	}
 
+	// The level in effect may not be the default, ebpftest.LogLevel being one way to change it.
+	restore := pkglog.TestLogLevel()
+	if previous, err := pkglog.GetLogLevel(); err == nil {
+		restore = previous.String()
+	}
+
 	t.Cleanup(func() {
-		pkglog.SetupLogger(pkglog.Default(), pkglog.DebugStr)
+		pkglog.SetupLogger(pkglog.Default(), restore)
 		iface.Close()
 	})
 
 	// install the logger into pkg/util/log
-	pkglog.SetupLogger(iface, pkglog.DebugStr)
+	pkglog.SetupLogger(iface, pkglog.TestLogLevel())
 
 	return pkglog.NewWrapper(2)
 }
