@@ -6,6 +6,7 @@
 package eks
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -28,9 +29,59 @@ const (
 	windowsAmiType                  = "WINDOWS_CORE_2022_x86_64"
 )
 
-func NewAL2023LinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
+// NewNoInternetNodeSG creates a security group for EKS nodes whose egress is restricted to the VPC CIDR,
+// so that nodes cannot reach the internet. It replaces the account's default security groups (which allow all
+// egress) in the node groups' launch templates.
+//
+// Ingress replicates what attaching the EKS-managed cluster security group used to provide (which EKS does not
+// attach to nodes when the launch template specifies security groups): control-plane to kubelet traffic, plus
+// all traffic within the node group.
+//
+// It must only be used together with a launch template: when a node group does not use a custom launch template,
+// EKS attaches its own security groups with allow-all egress to the nodes, which would defeat the restriction.
+func NewNoInternetNodeSG(e aws.Environment, cluster *eks.Cluster, opts ...pulumi.ResourceOption) (*awsEc2.SecurityGroup, error) {
+	vpc, err := awsEc2.LookupVpc(e.Ctx(), &awsEc2.LookupVpcArgs{Id: pulumi.StringRef(e.DefaultVPCID())}, e.WithProvider(config.ProviderAWS))
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up VPC %s: %w", e.DefaultVPCID(), err)
+	}
+
+	return awsEc2.NewSecurityGroup(e.Ctx(), e.Namer.ResourceName("eks-no-internet-node-sg"), &awsEc2.SecurityGroupArgs{
+		Description: pulumi.StringPtr("EKS nodes SG without internet access for stack: " + e.Ctx().Stack()),
+		Ingress: awsEc2.SecurityGroupIngressArray{
+			// All traffic within the node group (node-to-node, pod traffic on the node network interfaces)
+			awsEc2.SecurityGroupIngressArgs{
+				Self:     pulumi.BoolPtr(true),
+				FromPort: pulumi.Int(0),
+				ToPort:   pulumi.Int(0),
+				Protocol: pulumi.String("-1"),
+			},
+			// Control plane to kubelet (10250), kubelet read-only (10255) and other node-local ports.
+			// The control plane ENIs carry the EKS-managed cluster security group, referenced here as source.
+			awsEc2.SecurityGroupIngressArgs{
+				SecurityGroups: pulumi.StringArray{cluster.EksCluster.VpcConfig().ClusterSecurityGroupId().Elem()},
+				FromPort:       pulumi.Int(1025),
+				ToPort:         pulumi.Int(65535),
+				Protocol:       pulumi.String("tcp"),
+			},
+		},
+		// Egress restricted to the VPC: control plane (private endpoint), VPC endpoints, node-to-node,
+		// fakeintake and other in-VPC resources remain reachable; internet egress is blocked.
+		// Note: instance metadata (IMDS, 169.254.169.254) is not subject to security group evaluation.
+		Egress: awsEc2.SecurityGroupEgressArray{
+			awsEc2.SecurityGroupEgressArgs{
+				CidrBlocks: pulumi.StringArray{pulumi.String(vpc.CidrBlock)},
+				FromPort:   pulumi.Int(0),
+				ToPort:     pulumi.Int(0),
+				Protocol:   pulumi.String("-1"),
+			},
+		},
+		VpcId: pulumi.StringPtr(e.DefaultVPCID()),
+	}, append(opts, e.WithProviders(config.ProviderAWS))...)
+}
+
+func NewAL2023LinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, noInternetSG *awsEc2.SecurityGroup, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
 	name := "linux"
-	lt, err := newAL2023LaunchTemplate(e, name+"-launch-template", opts...)
+	lt, err := newAL2023LaunchTemplate(e, name+"-launch-template", noInternetSG, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -38,9 +89,9 @@ func NewAL2023LinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *
 
 }
 
-func NewAL2023LinuxARMNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
+func NewAL2023LinuxARMNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, noInternetSG *awsEc2.SecurityGroup, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
 	name := "linux-arm"
-	lt, err := newAL2023LaunchTemplate(e, name+"-launch-template", opts...)
+	lt, err := newAL2023LaunchTemplate(e, name+"-launch-template", noInternetSG, opts...)
 
 	if err != nil {
 		return nil, err
@@ -49,20 +100,34 @@ func NewAL2023LinuxARMNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRol
 	return newManagedNodeGroup(e, name, cluster, nodeRole, amazonLinux2023ARM64AmiType, e.DefaultARMInstanceType(), lt, opts...)
 }
 
-func NewBottlerocketNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
-	return newManagedNodeGroup(e, "bottlerocket", cluster, nodeRole, bottlerocketAmiType, e.DefaultInstanceType(), nil, opts...)
+// NewBottlerocketNodeGroup creates a Bottlerocket node group. Without a no-internet security group, EKS
+// manages the node group's security groups (allow-all egress). With one, the nodes get a minimal launch
+// template carrying only our security groups, so no EKS-managed allow-all security group is attached.
+func NewBottlerocketNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, noInternetSG *awsEc2.SecurityGroup, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
+	lt, err := newNoInternetLaunchTemplate(e, "bottlerocket-launch-template", noInternetSG, false, "/dev/xvda", opts...)
+	if err != nil {
+		return nil, err
+	}
+	return newManagedNodeGroup(e, "bottlerocket", cluster, nodeRole, bottlerocketAmiType, e.DefaultInstanceType(), lt, opts...)
 }
 
-func NewWindowsNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
-	return newManagedNodeGroup(e, "windows", cluster, nodeRole, windowsAmiType, e.DefaultInstanceType(), nil, opts...)
+// NewWindowsNodeGroup creates a Windows node group. Without a no-internet security group, EKS manages the
+// node group's security groups (allow-all egress). With one, the nodes get a minimal launch template carrying
+// only our security groups, so no EKS-managed allow-all security group is attached.
+func NewWindowsNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, noInternetSG *awsEc2.SecurityGroup, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
+	lt, err := newNoInternetLaunchTemplate(e, "windows-launch-template", noInternetSG, true, "/dev/sda1", opts...)
+	if err != nil {
+		return nil, err
+	}
+	return newManagedNodeGroup(e, "windows", cluster, nodeRole, windowsAmiType, e.DefaultInstanceType(), lt, opts...)
 }
 
 // NewGPULinuxNodeGroup creates a GPU-enabled Linux node group using Amazon Linux 2023 with NVIDIA GPU support.
 // The node group uses the AL2023_x86_64_NVIDIA AMI which has pre-installed NVIDIA drivers.
 // Note: AL2_x86_64_GPU is only supported for Kubernetes 1.32 or earlier, so we use AL2023_x86_64_NVIDIA for K8s 1.33+.
-func NewGPULinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, instanceType string, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
+func NewGPULinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, noInternetSG *awsEc2.SecurityGroup, instanceType string, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
 	name := "linux-gpu"
-	lt, err := newAL2023LaunchTemplate(e, name+"-launch-template", opts...)
+	lt, err := newAL2023LaunchTemplate(e, name+"-launch-template", noInternetSG, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +139,10 @@ func NewGPULinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *aws
 	return newManagedNodeGroupWithLabels(e, name, cluster, nodeRole, amazonLinux2023NVIDIAGPUAmiType, instanceType, lt, labels, opts...)
 }
 
-func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.ResourceOption) (*awsEc2.LaunchTemplate, error) {
+// newNodeRemoteAccessSG creates the security group allowing direct SSH access to the nodes of a node group.
+// When restrictEgress is set, its egress is restricted to the VPC CIDR instead of the default allow-all, so that
+// attaching it does not defeat the no-internet restriction (security group rules are additive).
+func newNodeRemoteAccessSG(e aws.Environment, name string, restrictEgress bool, opts ...pulumi.ResourceOption) (*awsEc2.SecurityGroup, error) {
 	prefixLists := make([]string, 0, len(e.EKSAllowedInboundManagedPrefixListNames()))
 	for _, plName := range e.EKSAllowedInboundManagedPrefixListNames() {
 		pl, err := awsEc2.LookupManagedPrefixList(e.Ctx(), &awsEc2.LookupManagedPrefixListArgs{
@@ -88,7 +156,7 @@ func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.Reso
 		}
 	}
 
-	sshSG, err := awsEc2.NewSecurityGroup(e.Ctx(), e.Namer.ResourceName(name+"-remote-access-sg"), &awsEc2.SecurityGroupArgs{
+	sgArgs := &awsEc2.SecurityGroupArgs{
 		Description: pulumi.StringPtr("Security group for all nodes in the nodeGroup to allow direct SSH access"),
 		Ingress: awsEc2.SecurityGroupIngressArray{
 			awsEc2.SecurityGroupIngressArgs{
@@ -100,9 +168,79 @@ func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.Reso
 			},
 		},
 		VpcId: pulumi.StringPtr(e.DefaultVPCID()),
-	}, e.WithProviders(config.ProviderAWS))
+	}
+	if restrictEgress {
+		vpc, err := awsEc2.LookupVpc(e.Ctx(), &awsEc2.LookupVpcArgs{Id: pulumi.StringRef(e.DefaultVPCID())}, e.WithProvider(config.ProviderAWS))
+		if err != nil {
+			return nil, fmt.Errorf("failed to look up VPC %s: %w", e.DefaultVPCID(), err)
+		}
+		sgArgs.Egress = awsEc2.SecurityGroupEgressArray{
+			awsEc2.SecurityGroupEgressArgs{
+				CidrBlocks: pulumi.StringArray{pulumi.String(vpc.CidrBlock)},
+				FromPort:   pulumi.Int(0),
+				ToPort:     pulumi.Int(0),
+				Protocol:   pulumi.String("-1"),
+			},
+		}
+	}
+
+	return awsEc2.NewSecurityGroup(e.Ctx(), e.Namer.ResourceName(name+"-remote-access-sg"), sgArgs, append(opts, e.WithProviders(config.ProviderAWS))...)
+}
+
+// newNoInternetLaunchTemplate returns a minimal launch template for node groups that have no launch template
+// of their own today (Windows, Bottlerocket): when noInternetSG is nil it returns (nil, nil) so the node group
+// keeps its current shape (EKS-managed security groups, remote access, disk size). When noInternetSG is set, it
+// returns a launch template carrying only our security groups: with a custom launch template that specifies
+// security groups, EKS does not attach its own permissive ones to the nodes.
+// Note: the AMI is intentionally not specified, the node group's amiType/releaseVersion stay authoritative.
+func newNoInternetLaunchTemplate(e aws.Environment, name string, noInternetSG *awsEc2.SecurityGroup, withKeyPair bool, rootDeviceName string, opts ...pulumi.ResourceOption) (*awsEc2.LaunchTemplate, error) {
+	if noInternetSG == nil {
+		return nil, nil
+	}
+
+	sshSG, err := newNodeRemoteAccessSG(e, name, true, opts...)
 	if err != nil {
 		return nil, err
+	}
+
+	ltArgs := &awsEc2.LaunchTemplateArgs{
+		UpdateDefaultVersion: pulumi.BoolPtr(true),
+		MetadataOptions: &awsEc2.LaunchTemplateMetadataOptionsArgs{
+			HttpPutResponseHopLimit: pulumi.IntPtr(2),
+		},
+		BlockDeviceMappings: awsEc2.LaunchTemplateBlockDeviceMappingArray{
+			&awsEc2.LaunchTemplateBlockDeviceMappingArgs{
+				DeviceName: pulumi.String(rootDeviceName),
+				Ebs: &awsEc2.LaunchTemplateBlockDeviceMappingEbsArgs{
+					VolumeSize:          pulumi.Int(80),
+					VolumeType:          pulumi.String("gp3"),
+					DeleteOnTermination: pulumi.String("true"),
+					Encrypted:           pulumi.String("false"),
+				},
+			},
+		},
+		VpcSecurityGroupIds: pulumi.StringArray{sshSG.ID(), noInternetSG.ID()},
+	}
+	if withKeyPair {
+		ltArgs.KeyName = pulumi.String(e.DefaultKeyPairName())
+	}
+
+	return awsEc2.NewLaunchTemplate(e.Ctx(), name, ltArgs, utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS, config.ProviderEKS))...)
+}
+
+func newAL2023LaunchTemplate(e aws.Environment, name string, noInternetSG *awsEc2.SecurityGroup, opts ...pulumi.ResourceOption) (*awsEc2.LaunchTemplate, error) {
+	sshSG, err := newNodeRemoteAccessSG(e, name, noInternetSG != nil, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Attach the SSH access Security Group created above, as well as the default security groups.
+	// This is done to replicate what EKS does behind the scenes when you don't specify a launch template.
+	// When blocking internet access, the default security groups (allow-all egress) are replaced with the
+	// no-internet security group instead.
+	nodeSGs := append(pulumi.StringArray{sshSG.ID()}, pulumi.ToStringArray(e.DefaultSecurityGroups())...)
+	if noInternetSG != nil {
+		nodeSGs = pulumi.StringArray{sshSG.ID(), noInternetSG.ID()}
 	}
 
 	return awsEc2.NewLaunchTemplate(e.Ctx(), name, &awsEc2.LaunchTemplateArgs{
@@ -129,9 +267,7 @@ func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.Reso
 				},
 			},
 		},
-		// Attach the SSH access Security Group created above, as well as the default security groups.
-		// This is done to replicate what EKS does behind the scenes when you don't specify a launch template
-		VpcSecurityGroupIds: append(pulumi.StringArray{sshSG.ID()}, pulumi.ToStringArray(e.DefaultSecurityGroups())...),
+		VpcSecurityGroupIds: nodeSGs,
 	}, utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS, config.ProviderEKS))...)
 }
 

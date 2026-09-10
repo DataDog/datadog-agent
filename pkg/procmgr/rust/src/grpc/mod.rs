@@ -72,7 +72,7 @@ mod tests {
             drop(dir);
         });
 
-        let (exit_tx, mut exit_rx) = mpsc::channel::<crate::manager::ExitEvent>(256);
+        let (exit_tx, mut exit_rx) = mpsc::channel::<crate::process::ExitEvent>(256);
         let mgr_loop = mgr.clone();
         let exit_tx_loop = exit_tx.clone();
         tokio::spawn(async move {

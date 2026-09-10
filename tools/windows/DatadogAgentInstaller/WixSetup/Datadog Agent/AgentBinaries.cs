@@ -21,6 +21,7 @@ namespace WixSetup.Datadog_Agent
         public string DdCompilePolicy => $@"{_binSource}\dd-compile-policy.exe";
         public string ProcmgrService => $@"{_binSource}\dd-procmgrd.exe";
         public string Procmgr => $@"{_binSource}\dd-procmgr.exe";
+        public string ParControl => $@"{_binSource}\par-control.exe";
         public string AgentDataPlane => $@"{_binSource}\agent-data-plane.exe";
 
         public AgentBinaries(string binSource, string installerSource)

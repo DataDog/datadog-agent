@@ -43,6 +43,21 @@ func (m *ksmShardingManager) isEnabled() bool {
 	return m.enabled
 }
 
+// label satisfies shardingStrategy.
+func (m *ksmShardingManager) label() string {
+	return "resource-sharded KSM"
+}
+
+// shouldShard satisfies shardingStrategy; see shouldShardKSMCheck.
+func (m *ksmShardingManager) shouldShard(config integration.Config) bool {
+	return m.shouldShardKSMCheck(config)
+}
+
+// createShardedConfigs satisfies shardingStrategy; see createShardedKSMConfigs.
+func (m *ksmShardingManager) createShardedConfigs(config integration.Config) ([]integration.Config, error) {
+	return m.createShardedKSMConfigs(config)
+}
+
 // isKSMCheck returns true if the config is a KSM check
 // Only kubernetes_state_core (Go implementation) is supported for sharding
 // The legacy kubernetes_state (Python) check doesn't support the "collectors" parameter

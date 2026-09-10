@@ -18,6 +18,7 @@ type Params struct {
 	GPUNodeGroup          bool
 	GPUInstanceType       string
 	DisableFargate        bool
+	WithoutInternetAccess bool
 }
 
 type Option = func(*Params) error
@@ -74,6 +75,34 @@ func WithGPUNodeGroup(instanceType string) Option {
 func WithoutFargate() Option {
 	return func(p *Params) error {
 		p.DisableFargate = true
+		return nil
+	}
+}
+
+// WithoutInternetAccess blocks internet egress for the cluster nodes: the account's
+// default security groups are replaced by a per-stack security group whose egress is
+// restricted to the VPC CIDR, on every security group we create and attach to nodes,
+// pod ENIs and the control plane.
+//
+// This is opt-in: internet access remains the default, and a suite only uses this once
+// its image pulls work without internet (e.g. ECR VPC endpoints and pull-through cache
+// rules for the public registries it pulls from).
+//
+// Limitation: EKS-Fargate pods keep internet access, because their ENIs carry the
+// AWS-managed cluster security group, which we do not control and which allows all
+// egress.
+func WithoutInternetAccess() Option {
+	return func(p *Params) error {
+		p.WithoutInternetAccess = true
+		return nil
+	}
+}
+
+// WithInternetAccess explicitly opts the cluster nodes into internet access, overriding
+// a WithoutInternetAccess option set earlier in the options list.
+func WithInternetAccess() Option {
+	return func(p *Params) error {
+		p.WithoutInternetAccess = false
 		return nil
 	}
 }

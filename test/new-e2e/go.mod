@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.26.0
+go 1.26.6
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.209
@@ -42,7 +42,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.44.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.0
-	github.com/pulumi/pulumi/sdk/v3 v3.259.0
+	github.com/pulumi/pulumi/sdk/v3 v3.260.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -62,7 +62,7 @@ require (
 )
 
 require (
-	al.essio.dev/pkg/shellescape v1.6.0 // indirect
+	al.essio.dev/pkg/shellescape v1.6.1 // indirect
 	cloud.google.com/go/auth v0.20.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute v1.67.0 // indirect
@@ -127,7 +127,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.326.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.327.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.63.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.96.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
@@ -169,6 +169,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.7.0 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/dave/dst v0.27.4 // indirect
+	github.com/deckarep/golang-set/v2 v2.5.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/djherbis/times v1.6.0 // indirect
 	github.com/docker/cli v29.7.2+incompatible // indirect
@@ -309,7 +310,7 @@ require (
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v9 v9.35.1 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.1 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 // indirect
@@ -324,7 +325,7 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.11.1 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.7 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.8 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/spf13/cast v1.10.0 // indirect

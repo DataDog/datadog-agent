@@ -280,7 +280,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	}
 
 	low, orch, high, standard := tagList.Compute()
-	return []*types.TagInfo{
+	tagInfos := []*types.TagInfo{
 		{
 			Source:               containerSource,
 			EntityID:             common.BuildTaggerEntityID(container.EntityID),
@@ -290,6 +290,70 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 			StandardTags:         standard,
 			IsComplete:           c.containerCompleteness(container.ID, ev.IsComplete),
 		},
+	}
+
+	// Propagate container image annotation tags to the container so they are
+	// applied to container.* metrics. This handles the common case where the
+	// image metadata is already available when the container starts; late or
+	// changed image metadata is handled from handleContainerImage.
+	if imageTagInfo := c.imageAnnotationTagsForContainer(container, ev.IsComplete); imageTagInfo != nil {
+		tagInfos = append(tagInfos, imageTagInfo)
+	}
+
+	return tagInfos
+}
+
+// imageAnnotationTagsForContainer builds the TagInfo that maps a container's
+// image OCI annotations to tags on the container entity, or nil when the
+// feature is disabled, the image metadata is not (yet) in the store, or no
+// annotation matches the configured mapping.
+//
+// The tags are published under containerImageSource (not containerSource) so
+// that they are refreshed and cleaned up together with the image entity: the
+// container is registered as a child of the image, letting the parent/children
+// machinery re-emit or delete them when the image entity changes or goes away.
+//
+// rawComplete is the container's own event completeness. It is intentionally
+// run through containerCompleteness so this TagInfo carries the same effective
+// completeness as the base container TagInfo emitted in handleContainer: on
+// Kubernetes/ECS a container is only "complete" once its pod/task metadata is
+// also complete. Publishing raw completeness here would let this later TagInfo
+// overwrite the entity's completeness in the tag store with true before the
+// parent tags have arrived, which can affect custom-metrics billing and
+// cardinality for consumers that gate on completeness.
+func (c *WorkloadMetaCollector) imageAnnotationTagsForContainer(container *workloadmeta.Container, rawComplete bool) *types.TagInfo {
+	if len(c.containerImageAnnotationsAsTags) == 0 {
+		return nil
+	}
+
+	image, err := c.store.GetImage(container.Image.ID)
+	if err != nil || len(image.Annotations) == 0 {
+		return nil
+	}
+
+	tagList := taglist.NewTagList()
+	for annotation, value := range image.Annotations {
+		k8smetadata.AddMetadataAsTags(annotation, value, c.containerImageAnnotationsAsTags, c.globContainerImageAnnotations, tagList)
+	}
+
+	low, orch, high, standard := tagList.Compute()
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	c.registerChild(image.EntityID, container.EntityID)
+
+	return &types.TagInfo{
+		// containerImageSource here is not a mistake: image annotation tags are
+		// owned by the image entity, so the container inherits them from that
+		// source.
+		Source:               containerImageSource,
+		EntityID:             common.BuildTaggerEntityID(container.EntityID),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
+		IsComplete:           c.containerCompleteness(container.ID, rawComplete),
 	}
 }
 
@@ -390,8 +454,13 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 
 	c.labelsToTags(image.Labels, tagList)
 
+	// image annotations as tags
+	for annotation, value := range image.Annotations {
+		k8smetadata.AddMetadataAsTags(annotation, value, c.containerImageAnnotationsAsTags, c.globContainerImageAnnotations, tagList)
+	}
+
 	low, orch, high, standard := tagList.Compute()
-	return []*types.TagInfo{
+	tagInfos := []*types.TagInfo{
 		{
 			Source:               containerImageSource,
 			EntityID:             common.BuildTaggerEntityID(image.EntityID),
@@ -402,6 +471,29 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 			IsComplete:           ev.IsComplete,
 		},
 	}
+
+	// Re-apply the image annotation tags to every container currently using
+	// this image, so that image metadata that arrives or changes after a
+	// container has already been tagged still propagates to container.*
+	// metrics. Containers are registered as children of the image above, in
+	// imageAnnotationTagsForContainer, so the parent/children machinery cleans
+	// them up when the image is deleted.
+	if len(c.containerImageAnnotationsAsTags) > 0 {
+		containers := c.store.ListContainersWithFilter(func(container *workloadmeta.Container) bool {
+			return container.Image.ID == image.ID
+		})
+		for _, container := range containers {
+			// entityCompleteness stores the container's raw event completeness;
+			// imageAnnotationTagsForContainer runs it through containerCompleteness
+			// to match the base container TagInfo's effective completeness.
+			rawComplete := c.entityCompleteness[container.EntityID]
+			if imageTagInfo := c.imageAnnotationTagsForContainer(container, rawComplete); imageTagInfo != nil {
+				tagInfos = append(tagInfos, imageTagInfo)
+			}
+		}
+	}
+
+	return tagInfos
 }
 
 func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *taglist.TagList) {
@@ -1354,6 +1446,18 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*types.Tag
 		DeleteEntity: true,
 	})
 	tagInfos = append(tagInfos, c.handleDeleteChildren(source, children)...)
+
+	// A container may also carry image annotation tags published under
+	// containerImageSource (see imageAnnotationTagsForContainer). Those are not
+	// covered by the entity's own source above, so expire them explicitly here
+	// rather than waiting for the next image event to prune the stale child.
+	if entityID.Kind == workloadmeta.KindContainer && len(c.containerImageAnnotationsAsTags) > 0 {
+		tagInfos = append(tagInfos, &types.TagInfo{
+			Source:       containerImageSource,
+			EntityID:     taggerEntityID,
+			DeleteEntity: true,
+		})
+	}
 
 	delete(c.children, taggerEntityID)
 	delete(c.entityCompleteness, entityID)

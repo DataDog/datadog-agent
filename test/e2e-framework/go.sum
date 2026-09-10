@@ -1,5 +1,5 @@
-al.essio.dev/pkg/shellescape v1.6.0 h1:NxFcEqzFSEVCGN2yq7Huv/9hyCEGVa/TncnOOBBeXHA=
-al.essio.dev/pkg/shellescape v1.6.0/go.mod h1:6sIqp7X2P6mThCQ7twERpZTuigpr6KbZWtls1U8I890=
+al.essio.dev/pkg/shellescape v1.6.1 h1:ki/kUs/D3dDbZpyKbNRhwY/ajgAEIJFagVKDWKnofQ8=
+al.essio.dev/pkg/shellescape v1.6.1/go.mod h1:6sIqp7X2P6mThCQ7twERpZTuigpr6KbZWtls1U8I890=
 cloud.google.com/go v0.123.0 h1:2NAUJwPR47q+E35uaJeYoNhuNEM9kM8SjgRgdeOJUSE=
 cloud.google.com/go v0.123.0/go.mod h1:xBoMV08QcqUGuPW65Qfm1o9Y4zKZBpGS+7bImXLTAZU=
 cloud.google.com/go/auth v0.20.0 h1:kXTssoVb4azsVDoUiF8KvxAqrsQcQtB53DcSgta74CA=
@@ -75,8 +75,8 @@ github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.1 h1:K0JsbZQj+1h208Ro1zH
 github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.1/go.mod h1:W3/vL6EtCIatICGy9ab29QhMuae+cOKPWcMxv02CO+Q=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.1 h1:yhw5KD1phVyP9vijxOUzDfEtJx+bt+L63k+VfuiYFAA=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.1/go.mod h1:ZW2e0d7DYlRxlS9hEiMXE47gTdX5KRN4byUiNbUpG+Q=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.326.0 h1:Ss1S5gY5ElwOreWCTvOZxgNf4iQCkoX6lQqNLP/Mh0k=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.326.0/go.mod h1:M8AJ/M7737nKBNqZvXUNrADGBy+d3PNggJGmAStCWxI=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.327.0 h1:RQ2Dt43PSvHWnc0+NgOUPNIpGd7vpx9cOyuKWV15/54=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.327.0/go.mod h1:M8AJ/M7737nKBNqZvXUNrADGBy+d3PNggJGmAStCWxI=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.63.0 h1:VuxqZe6/5y5c26XZYNAs/iZ9HDnn9Te9T1ahA1rz188=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.63.0/go.mod h1:BITpKEMb6U6dnjcbrlonpiStseuI9I0GZ21p61iqeFA=
 github.com/aws/aws-sdk-go-v2/service/ecs v1.94.0 h1:ey3kjfy8T1lXxJNBGrQFkDghtaCNpFVvF6/0bS9ONa8=
@@ -176,6 +176,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/deckarep/golang-set/v2 v2.5.0 h1:hn6cEZtQ0h3J8kFrHR/NrzyOoTnjgW1+FmNJzQ7y/sA=
+github.com/deckarep/golang-set/v2 v2.5.0/go.mod h1:VAky9rY/yGXJOLEDv3OMci+7wtDpOF4IN+y82NBOac4=
 github.com/distribution/distribution/v3 v3.0.0 h1:q4R8wemdRQDClzoNNStftB2ZAfqOiN6UX90KJc4HjyM=
 github.com/distribution/distribution/v3 v3.0.0/go.mod h1:tRNuFoZsUdyRVegq8xGNeds4KLjwLCRin/tTo6i1DhU=
 github.com/distribution/reference v0.6.0 h1:0IXCQ5g4/QMHHkarYzh5l+u8T3t73zM5QvfrDyIgxBk=
@@ -520,8 +522,8 @@ github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 h1:mc9IbrRi1pWSg9HWEFT6EcQ274WnZ9
 github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2/go.mod h1:gPNbbz+ywFqnRRQMDxQQbMp4nXJIk43QBUj0N+xWXbw=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0 h1:YFX8Pzx9qXyQVcrArwjE4E8b41ZUbLkPgeRxGKYF6lE=
 github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0/go.mod h1:hgcC2HINtvhF+0Q4SbTQqXxQdUO/0cn/swtGfJvOMWQ=
-github.com/pulumi/pulumi-gcp/sdk/v9 v9.35.1 h1:zQx5ojtiMeG9M19etHyTLiDadMl5/POWy9iIOyc5Jio=
-github.com/pulumi/pulumi-gcp/sdk/v9 v9.35.1/go.mod h1:YMIpKrD4W1lhzfiHGCDklsl8qh0jl3dwbc8CRifBzUQ=
+github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.0 h1:oFgO6yIv19GOqBDq0XzkYK/RkcLOcrm8Smpu+vyrNuk=
+github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.0/go.mod h1:Pakk2FAgJvbFbZT0MfmRBp8q8SiansOZaoWN1E7tiXg=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.0 h1:r00p17ecoDVWqBg38/Is/9jU/JsWLPxnWzhfYqKitx0=
 github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.0/go.mod h1:/klrd3ib4AMRlFMjrxkv5r76x3Bdr68wIMEKfRkRzHU=
 github.com/pulumi/pulumi-libvirt/sdk v0.5.4 h1:7nS8ATK0Iml+yid80BrkW8WDynzwWYevx0cLpbPOYdM=
@@ -530,8 +532,8 @@ github.com/pulumi/pulumi-random/sdk/v4 v4.21.1 h1:pqvBaBMwFPP3DV8BYh/f45V4A62kFq
 github.com/pulumi/pulumi-random/sdk/v4 v4.21.1/go.mod h1:4Q2jFqgCimgOQxvWntZSnV6u8+JhCkPHewloJQfLoeQ=
 github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 h1:S7M6vA3XES1oAmohZL/q8QWfNXRr9vtX7k8WA9Y2qfA=
 github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4/go.mod h1:UVLWiEodmuXpBYdm+XdrjBpoWaucl+evAj02dzJlhjo=
-github.com/pulumi/pulumi/sdk/v3 v3.259.0 h1:mJP9tXF9oxcfwidBgteXkUUchIz2L59SbGS5byZBo1w=
-github.com/pulumi/pulumi/sdk/v3 v3.259.0/go.mod h1:DPK83ZiPYy55hY0MoaFAbl95Yee/dCGc6cQAqI7/ctw=
+github.com/pulumi/pulumi/sdk/v3 v3.260.0 h1:Bc848YiSK8oZqYn+xOnuuGb0oMK/w17DV6X5G0OIWvM=
+github.com/pulumi/pulumi/sdk/v3 v3.260.0/go.mod h1:xlOo55i2hj5tDyMY8diTS5LfFAn2sFew+50d67sVNdg=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0 h1:xfi9HKDgV+GgDxQ23oSv9KxC3DQqViGTcMrJICRgJv0=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0/go.mod h1:NUa1zA74DF002WrM6iF111A6UjX9knPpXufVRvBwNyg=
 github.com/redis/go-redis/extra/rediscmd/v9 v9.0.5 h1:EaDatTxkdHG+U3Bk4EUr+DZ7fOGwTfezUiUJMaIcaho=

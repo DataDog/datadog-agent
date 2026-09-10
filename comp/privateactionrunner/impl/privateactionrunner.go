@@ -72,8 +72,11 @@ func splitDeploymentEnabled(configEnabled, containerized bool, envValue string) 
 	return configEnabled
 }
 
-func splitDeploymentSupported(goos string, fipsEnabled bool) bool {
-	return goos == "linux" && !fipsEnabled
+func splitDeploymentSupported(goos string, containerized, fipsEnabled, processManagerEnabled bool) bool {
+	if fipsEnabled {
+		return false
+	}
+	return goos == "linux" || (goos == "windows" && !containerized && processManagerEnabled)
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -150,7 +153,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		if buildFIPSEnabled, err := fips.Enabled(); err == nil {
 			fipsEnabled = fipsEnabled || buildFIPSEnabled
 		}
-		if splitDeploymentSupported(runtime.GOOS, fipsEnabled) {
+		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized(), fipsEnabled, reqs.Config.GetBool("process_manager.enabled")) {
 			reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
 			reqs.Log.Flush()
 			return Provides{}, privateactionrunner.ErrSplitDeployment
@@ -250,7 +253,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
-	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity) {
+	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {

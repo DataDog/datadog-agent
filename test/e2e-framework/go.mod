@@ -1,9 +1,9 @@
 module github.com/DataDog/datadog-agent/test/e2e-framework
 
-go 1.26.0
+go 1.26.6
 
 require (
-	al.essio.dev/pkg/shellescape v1.6.0
+	al.essio.dev/pkg/shellescape v1.6.1
 	cloud.google.com/go/compute v1.67.0
 	dario.cat/mergo v1.0.2
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
@@ -14,7 +14,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/aws/aws-sdk-go-v2 v1.45.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.2
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.326.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.327.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.63.0
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.94.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.96.0
@@ -39,12 +39,12 @@ require (
 	github.com/pulumi/pulumi-command/sdk v1.2.1
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0
-	github.com/pulumi/pulumi-gcp/sdk/v9 v9.35.1
+	github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.0
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.1
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4
-	github.com/pulumi/pulumi/sdk/v3 v3.259.0
+	github.com/pulumi/pulumi/sdk/v3 v3.260.0
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
@@ -130,6 +130,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.7.0 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/deckarep/golang-set/v2 v2.5.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/djherbis/times v1.6.0 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
