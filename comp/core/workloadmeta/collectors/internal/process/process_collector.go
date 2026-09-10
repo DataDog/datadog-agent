@@ -922,6 +922,7 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 	}
 }
 
+// serviceCollectionTimer lets tests observe when Reset completes before advancing the mock clock.
 type serviceCollectionTimer interface {
 	C() <-chan time.Time
 	Reset(time.Duration) bool
