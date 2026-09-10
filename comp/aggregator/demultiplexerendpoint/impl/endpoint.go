@@ -10,9 +10,11 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path"
+	"sync"
 
 	"github.com/DataDog/zstd"
 
@@ -26,6 +28,10 @@ import (
 
 var errDogstatsdOnDataPlane = errors.New("DogStatsD traffic is being served by the Agent Data Plane; run DogStatsD diagnostic commands against the agent-data-plane process instead")
 
+type contextDumper interface {
+	DumpDogstatsdContexts(io.Writer) error
+}
+
 // Requires defines the dependencies for the demultiplexerendpoint component
 type Requires struct {
 	Log           log.Component
@@ -34,10 +40,11 @@ type Requires struct {
 }
 
 type demultiplexerEndpoint struct {
-	demux                demultiplexerComp.Component
-	config               config.Component
+	demux                contextDumper
+	runPath              string
 	dogstatsdOnDataPlane bool
 	log                  log.Component
+	dumpMu               *sync.Mutex
 }
 
 // Provides defines the output of the demultiplexerendpoint component
@@ -49,9 +56,10 @@ type Provides struct {
 func NewComponent(reqs Requires) Provides {
 	endpoint := demultiplexerEndpoint{
 		demux:                reqs.Demultiplexer,
-		config:               reqs.Config,
+		runPath:              reqs.Config.GetString("run_path"),
 		dogstatsdOnDataPlane: dogstatsdconfig.NewConfig(reqs.Config).EnabledDataPlane(),
 		log:                  reqs.Log,
+		dumpMu:               &sync.Mutex{},
 	}
 
 	return Provides{
@@ -82,7 +90,10 @@ func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.Response
 }
 
 func (demuxendpoint demultiplexerEndpoint) writeDogstatsdContexts() (string, error) {
-	path := path.Join(demuxendpoint.config.GetString("run_path"), "dogstatsd_contexts.json.zstd")
+	demuxendpoint.dumpMu.Lock()
+	defer demuxendpoint.dumpMu.Unlock()
+
+	path := path.Join(demuxendpoint.runPath, "dogstatsd_contexts.json.zstd")
 
 	f, err := os.Create(path)
 	if err != nil {
