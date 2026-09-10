@@ -1,3 +1,11 @@
+env: dev
+private_action_runner:
+  enabled: true
+  actions_allowlist:
+    - com.datadoghq.remoteaction.rshell.runRemediationCommand
+  restricted_shell:
+    privileged:
+      enabled: true
 health_platform:
   enabled: true
   forwarder:
