@@ -18,7 +18,7 @@ case "${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-false}" in
         ;;
     true)
         export DD_PM_CONFIG_DIR="${processes_dir}"
-        export DD_PM_INHERIT_ENV_PREFIXES="DD_"
+        export DD_PM_INHERIT_ENV_PREFIXES="DD_${DD_PM_INHERIT_ENV_PREFIXES:+,${DD_PM_INHERIT_ENV_PREFIXES}}"
         export DD_PM_INHERIT_ENV_NAMES="${inherited_env_names}${DD_PM_INHERIT_ENV_NAMES:+,${DD_PM_INHERIT_ENV_NAMES}}"
         exec "${procmgrd}"
         ;;
