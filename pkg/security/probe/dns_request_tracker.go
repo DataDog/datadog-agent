@@ -22,9 +22,11 @@ import (
 )
 
 const (
-	// dnsRequestTrackerSize bounds how many in-flight DNS questions are remembered at once. Only
-	// questions asked by a process an activity dump is tracing are recorded, so this is sized for
-	// concurrent lookups from traced workloads rather than for host-wide DNS volume.
+	// dnsRequestTrackerSize bounds how many in-flight DNS questions are remembered at once. The
+	// tracked population is normally just the processes an activity dump traces (5 cgroups by
+	// default), which is what this is sized for. Rate-limited DNS sampling, when enabled, adds
+	// untraced requests to the same table; over-subscription then costs correlation hits, never
+	// correctness, because an evicted key simply stops matching.
 	dnsRequestTrackerSize = 1024
 	// dnsRequestTrackerTTL is how long a question stays correlatable. It matches the timeout a
 	// typical stub resolver gives up after, so an answer arriving later than this belongs to a
