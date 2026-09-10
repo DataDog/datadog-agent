@@ -282,23 +282,6 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-dns-response", func(t *testing.T) {
-		// TODO(CWS-6919): the activity tree can hold and serialize DNS answers, but nothing
-		// feeds them to it yet, so this cannot pass.
-		//
-		// A DNS response is never attributed to the process that asked the question when the
-		// query comes from a container: responses arrive inbound on the network softirq path,
-		// where there is no current process, so fill_network_process_context_from_pkt yields
-		// pid 0 (confirmed in KMT: host-side lookups report real pids, the container's
-		// nslookup reports pid=0). lookup_or_delete_traced_pid can therefore never match a
-		// traced pid, EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE is never set on the response, and
-		// Manager.ProcessEvent drops it before it reaches the tree.
-		//
-		// Fixing this needs the response correlated back to its request rather than attributed
-		// independently — the DNS transaction ID is already tracked in-kernel in the
-		// dns_responses_sent_to_userspace LRU. That is a CWS network-path design change,
-		// tracked in CWS-6919; removing this skip is that ticket's acceptance test.
-		t.Skip("CWS-6919: DNS responses are not attributed to a traced process for container queries")
-
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
