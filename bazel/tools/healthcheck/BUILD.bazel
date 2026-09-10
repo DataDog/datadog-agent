@@ -38,6 +38,13 @@ py_binary(
     deps = [":lib"],
 )
 
+py_binary(
+    name = "gate",
+    srcs = ["gate.py"],
+    imports = ["."],
+    deps = [":lib"],
+)
+
 exports_files(
     ["healthcheck.py"],
     visibility = ["//bazel/tools/healthcheck:__subpackages__"],
