@@ -36,8 +36,12 @@ pub(super) fn agent_profile_credential() -> anyhow::Result<SpawnCredential> {
 }
 
 fn supervisor_account_from_display(display: String) -> AgentAccount {
-    let (domain, user) = parse_account_display(display);
-    AgentAccount::SupervisorAccount { domain, user }
+    let (registry_domain, user) = parse_account_display(display);
+    AgentAccount::SupervisorAccount {
+        registry_domain,
+        logon_domain: String::new(),
+        user,
+    }
 }
 
 fn parse_account_display(display: String) -> (String, String) {

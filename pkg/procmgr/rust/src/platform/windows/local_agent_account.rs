@@ -13,8 +13,9 @@ use windows_sys::Win32::Security::{
 };
 
 use super::agent_service_sid::lookup_installed_user_sid;
+#[cfg(not(test))]
 use super::local_account::is_local_account;
-use super::sid::{create_well_known_sid, lookup_account_sid};
+use super::sid::create_well_known_sid;
 use super::token_identity::current_process_sid_matches;
 #[cfg(not(test))]
 use super::{open_datadog_agent_key, registry_nonempty_string};
@@ -50,12 +51,14 @@ pub(crate) enum AgentAccount {
     LocalService,
     NetworkService,
     SupervisorAccount {
-        domain: String,
+        registry_domain: String,
+        logon_domain: String,
         user: String,
     },
     #[allow(dead_code)]
     PasswordLogon {
-        domain: String,
+        registry_domain: String,
+        logon_domain: String,
         user: String,
         password: String,
     },
@@ -67,14 +70,25 @@ impl std::fmt::Debug for AgentAccount {
             Self::LocalSystem => f.write_str("LocalSystem"),
             Self::LocalService => f.write_str("LocalService"),
             Self::NetworkService => f.write_str("NetworkService"),
-            Self::SupervisorAccount { domain, user } => f
+            Self::SupervisorAccount {
+                registry_domain,
+                logon_domain,
+                user,
+            } => f
                 .debug_struct("SupervisorAccount")
-                .field("domain", domain)
+                .field("registry_domain", registry_domain)
+                .field("logon_domain", logon_domain)
                 .field("user", user)
                 .finish(),
-            Self::PasswordLogon { domain, user, .. } => f
+            Self::PasswordLogon {
+                registry_domain,
+                logon_domain,
+                user,
+                ..
+            } => f
                 .debug_struct("PasswordLogon")
-                .field("domain", domain)
+                .field("registry_domain", registry_domain)
+                .field("logon_domain", logon_domain)
                 .field("user", user)
                 .field("password", &"****")
                 .finish(),
@@ -96,8 +110,10 @@ impl AgentAccount {
                 current_process_sid_matches(&sid)
                     .with_context(|| format!("compare supervisor token to {}", self.display_name()))
             }
-            AgentAccount::PasswordLogon { domain, user, .. } => {
-                let sid = lookup_installed_user_sid(domain, user)
+            AgentAccount::PasswordLogon {
+                logon_domain, user, ..
+            } => {
+                let sid = lookup_installed_user_sid(logon_domain, user)
                     .with_context(|| format!("lookup SID for {}", self.display_name()))?;
                 current_process_sid_matches(&sid)
                     .with_context(|| format!("compare supervisor token to {}", self.display_name()))
@@ -106,18 +122,32 @@ impl AgentAccount {
     }
 
     pub(crate) fn display_name(&self) -> String {
-        self.account_name().display()
+        match self {
+            AgentAccount::SupervisorAccount {
+                registry_domain,
+                user,
+                ..
+            }
+            | AgentAccount::PasswordLogon {
+                registry_domain,
+                user,
+                ..
+            } => AccountName::new(registry_domain, user).display(),
+            _ => self.logon_account_name().display(),
+        }
     }
 
-    pub(crate) fn account_name(&self) -> AccountName {
+    pub(crate) fn logon_account_name(&self) -> AccountName {
         match self {
             AgentAccount::LocalSystem => AccountName::new(NT_AUTHORITY, "SYSTEM"),
             AgentAccount::LocalService => AccountName::new(NT_AUTHORITY, "LocalService"),
             AgentAccount::NetworkService => AccountName::new(NT_AUTHORITY, "NetworkService"),
-            AgentAccount::SupervisorAccount { domain, user }
-            | AgentAccount::PasswordLogon { domain, user, .. } => {
-                account_name_for_logon(domain, user)
+            AgentAccount::SupervisorAccount {
+                logon_domain, user, ..
             }
+            | AgentAccount::PasswordLogon {
+                logon_domain, user, ..
+            } => AccountName::new(logon_domain, user),
         }
     }
 
@@ -130,17 +160,6 @@ impl AgentAccount {
         };
         Some(create_well_known_sid(well_known))
     }
-}
-
-fn account_name_for_logon(domain: &str, user: &str) -> AccountName {
-    let display_domain = match lookup_account_sid(domain, user)
-        .ok()
-        .and_then(|sid| is_local_account(&sid).ok())
-    {
-        Some(true) => String::new(),
-        _ => domain.to_string(),
-    };
-    AccountName::new(display_domain, user)
 }
 
 #[cfg(not(test))]
@@ -195,8 +214,10 @@ fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Resu
         info!(
             "dd-procmgrd runs as installed agent account {display}; inheriting supervisor token for agent spawn"
         );
+        let logon_domain = stored_logon_domain(&domain, sid)?;
         return Ok(AgentAccount::SupervisorAccount {
-            domain: stored_logon_domain(&domain, sid)?,
+            registry_domain: domain,
+            logon_domain,
             user,
         });
     }
@@ -322,27 +343,41 @@ mod tests {
         );
         assert_eq!(
             AgentAccount::SupervisorAccount {
-                domain: String::new(),
+                registry_domain: "WIN-HOST".to_string(),
+                logon_domain: String::new(),
                 user: "ddagentuser".to_string(),
             }
             .display_name(),
-            AccountName::new("", "ddagentuser").display(),
+            r"WIN-HOST\ddagentuser",
         );
         assert_eq!(
             AgentAccount::PasswordLogon {
-                domain: String::new(),
+                registry_domain: "WIN-HOST".to_string(),
+                logon_domain: String::new(),
                 user: "ddagentuser".to_string(),
                 password: "secret".to_string(),
             }
             .display_name(),
-            AccountName::new("", "ddagentuser").display(),
+            r"WIN-HOST\ddagentuser",
         );
+    }
+
+    #[test]
+    fn supervisor_registry_display_differs_from_logon_account_name() {
+        let account = AgentAccount::SupervisorAccount {
+            registry_domain: "WIN-HOST".to_string(),
+            logon_domain: String::new(),
+            user: "ddagentuser".to_string(),
+        };
+        assert_eq!(account.display_name(), r"WIN-HOST\ddagentuser");
+        assert_eq!(account.logon_account_name().display(), r".\ddagentuser");
     }
 
     #[test]
     fn supervisor_account_always_reuses_supervisor_token() {
         let account = AgentAccount::SupervisorAccount {
-            domain: String::new(),
+            registry_domain: String::new(),
+            logon_domain: String::new(),
             user: "ddagentuser".to_string(),
         };
         assert!(account.reuses_supervisor_token().unwrap());
