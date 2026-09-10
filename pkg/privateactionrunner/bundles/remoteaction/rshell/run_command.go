@@ -313,8 +313,13 @@ func (h *RunCommandHandler) Run(
 	effectiveAllowedPaths := h.filterAllowedPaths(backendPaths)
 	backendAllowedSystemServices := backendSystemServiceGrants(backendSystemServices)
 	effectiveAllowedSystemServices := h.filterSystemServiceGrants(backendAllowedSystemServices)
-	log.Debugf("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v backendAllowedSystemServices=%v effectiveAllowedSystemServices=%v",
-		h.mode, inputs.Command, backendCommands, effectiveAllowedCommands, backendPaths, effectiveAllowedPaths, backendAllowedSystemServices, effectiveAllowedSystemServices)
+	procPath := resolveProcPath()
+	var systemdTarget interp.SystemdTargetConfig
+	if runtime.GOOS == "linux" {
+		systemdTarget = resolveSystemdTarget()
+	}
+	log.Infof("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v elevatableCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v backendAllowedSystemServices=%v effectiveAllowedSystemServices=%v procPath=%s systemdTarget=%+v disableDetailedTelemetry=%v",
+		h.mode, inputs.Command, backendCommands, effectiveAllowedCommands, inputs.ElevatableCommands, backendPaths, effectiveAllowedPaths, backendAllowedSystemServices, effectiveAllowedSystemServices, procPath, systemdTarget, h.disableCommandTelemetry)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {
@@ -336,7 +341,7 @@ func (h *RunCommandHandler) Run(
 		interp.WarningsWriter(io.Discard),
 		interp.Script(inputs.Command),
 		interp.AllowedPaths(effectiveAllowedPaths),
-		interp.ProcPath(resolveProcPath()),
+		interp.ProcPath(procPath),
 		interp.AllowedCommands(effectiveAllowedCommands),
 		interp.AllowedSystemServices(effectiveAllowedSystemServices),
 		interp.WithMode(h.mode),
@@ -345,7 +350,7 @@ func (h *RunCommandHandler) Run(
 		runnerOptions = append(runnerOptions, interp.DisableDetailedTelemetry())
 	}
 	if runtime.GOOS == "linux" {
-		runnerOptions = append(runnerOptions, interp.WithSystemdTarget(resolveSystemdTarget()))
+		runnerOptions = append(runnerOptions, interp.WithSystemdTarget(systemdTarget))
 	}
 	runner, err := interp.New(runnerOptions...)
 	if err != nil {
@@ -374,6 +379,12 @@ func (h *RunCommandHandler) Run(
 }
 
 func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task) (interface{}, error) {
+	inputs, err := types.ExtractInputs[RunCommandInputs](task)
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("rshell runPrivileged (mode=%s): command=%q elevatableCommands=%v privilegedEnabled=%v privilegedSocket=%s disableDetailedTelemetry=%v",
+		h.mode, inputs.Command, inputs.ElevatableCommands, h.privilegedEnabled, h.privilegedSocket, h.disableCommandTelemetry)
 	if !h.privilegedEnabled {
 		return nil, errors.New("privileged rshell execution is disabled by local configuration")
 	}

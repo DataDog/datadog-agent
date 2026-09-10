@@ -660,6 +660,32 @@ func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
 	}
 }
 
+// TestRunPrivilegedLogsSettingsAtInfoLevel pins that runPrivileged also emits
+// an Info-level settings summary line before it is rejected by local
+// configuration, so a rejected privileged attempt is still visible in
+// journalctl.
+func TestRunPrivilegedLogsSettingsAtInfoLevel(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.InfoLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
+	log.SetupLogger(logger, "info")
+
+	handler := newDefaultRunCommandHandler()
+	task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
+	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
+	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.ErrorContains(t, err, "disabled by local configuration")
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
+	assert.Contains(t, logs, "elevatableCommands=[rshell:cat]")
+	assert.Contains(t, logs, "privilegedEnabled=false")
+}
+
 func TestWholeScriptRootIsRejected(t *testing.T) {
 	handler := newDefaultRunRemediationCommandHandler()
 	task := makeTask("truncate -s 0 /var/log/app.log", []string{"rshell:truncate"})
@@ -826,6 +852,39 @@ func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
 	logs := logBuffer.String()
 	assert.Contains(t, logs, "backendAllowedSystemServices=[{mysql.service [read restart]} {nginx.service [reload]}]")
 	assert.Contains(t, logs, "effectiveAllowedSystemServices=[{mysql.service [read]}]")
+}
+
+// TestRunCommandLogsSettingsAtInfoLevel pins that the settings summary line
+// is emitted at Info level (visible in journalctl without opting into debug
+// logging), and that it reports every effective rshell setting: allowed
+// commands, elevatable commands, allowed paths, allowed system services,
+// proc path, systemd target, and the detailed-telemetry toggle.
+func TestRunCommandLogsSettingsAtInfoLevel(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.InfoLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
+	log.SetupLogger(logger, "info")
+
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:     []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:  []string{rShellCommandAllowAllWildcard},
+		DisableDetailedTelemetry: true,
+	})
+	task := makeTask("echo hello", []string{"rshell:echo"})
+	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "[INFO] rshell runCommand")
+	assert.Contains(t, logs, "effectiveAllowedCommands=[rshell:echo]")
+	assert.Contains(t, logs, "elevatableCommands=[rshell:echo]")
+	assert.Contains(t, logs, "procPath=")
+	assert.Contains(t, logs, "systemdTarget=")
+	assert.Contains(t, logs, "disableDetailedTelemetry=true")
 }
 
 func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
