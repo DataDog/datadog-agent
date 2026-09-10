@@ -134,12 +134,33 @@ func (m *MetricMetadataSpec) UnmarshalYAML(unmarshal func(interface{}) error) er
 
 // MetricSpec is a metric definition without the name (name is the map key).
 type MetricSpec struct {
-	Metadata     *MetricMetadataSpec `yaml:"metadata,omitempty"`
-	Tagsets      []string            `yaml:"tagsets"`
-	CustomTags   []string            `yaml:"custom_tags,omitempty"`
-	WorkloadOnly bool                `yaml:"workload_only,omitempty"`
-	Support      MetricSupportSpec   `yaml:"support"`
-	Validator    *MetricValidator    `yaml:"validator,omitempty"`
+	Metadata       *MetricMetadataSpec `yaml:"metadata,omitempty"`
+	Tagsets        []string            `yaml:"tagsets"`
+	CustomTags     []string            `yaml:"custom_tags,omitempty"`
+	WorkloadOnly   bool                `yaml:"workload_only,omitempty"`
+	Optional       bool                `yaml:"optional,omitempty"`
+	ConfigRequired []ConfigFeature     `yaml:"config_required,omitempty"`
+	Support        MetricSupportSpec   `yaml:"support"`
+	Validator      *MetricValidator    `yaml:"validator,omitempty"`
+}
+
+// ConfigFeature identifies an Agent configuration feature required to emit a metric.
+type ConfigFeature string
+
+const (
+	// ConfigFeatureSystemProbeEBPF enables GPU eBPF probe metrics from system-probe.
+	ConfigFeatureSystemProbeEBPF ConfigFeature = "system_probe_ebpf"
+	// ConfigFeatureSystemProbePRM enables GPU NVLink PRM metrics from system-probe.
+	ConfigFeatureSystemProbePRM ConfigFeature = "system_probe_prm"
+)
+
+func isKnownConfigFeature(feature ConfigFeature) bool {
+	switch feature {
+	case ConfigFeatureSystemProbeEBPF, ConfigFeatureSystemProbePRM:
+		return true
+	default:
+		return false
+	}
 }
 
 // MetricValidatorRange defines an inclusive numeric range validator.
@@ -148,10 +169,20 @@ type MetricValidatorRange struct {
 	Max *float64 `yaml:"max"`
 }
 
+// MetricValueTolerance defines acceptable absolute and relative differences
+// from a known-good reference value. Relative is expressed as a percentage.
+type MetricValueTolerance struct {
+	Absolute *float64 `yaml:"absolute,omitempty"`
+	Relative *float64 `yaml:"relative,omitempty"`
+}
+
 // MetricValidator validates emitted metric values against the spec.
 type MetricValidator struct {
-	Range  *MetricValidatorRange `yaml:"range,omitempty"`
-	Values []float64             `yaml:"values,omitempty"`
+	Range              *MetricValidatorRange `yaml:"range,omitempty"`
+	Values             []float64             `yaml:"values,omitempty"`
+	CalibratedWorkload bool                  `yaml:"calibrated_workload,omitempty"`
+	NvidiaSMI          bool                  `yaml:"nvidia_smi,omitempty"`
+	ValueTolerance     *MetricValueTolerance `yaml:"value_tolerance,omitempty"`
 }
 
 // UnmarshalYAML parses the supported validator shapes while keeping the internal fields private.
@@ -167,8 +198,21 @@ func (v *MetricValidator) UnmarshalYAML(unmarshal func(interface{}) error) error
 	return v.validateDefinition()
 }
 
-// Validate checks whether the metric value matches the validator.
-func (v *MetricValidator) Validate(value float64) error {
+// HasStaticValueValidation reports whether this validator defines a range or
+// set of discrete values.
+func (v *MetricValidator) HasStaticValueValidation() bool {
+	return v != nil && (v.Range != nil || len(v.Values) > 0)
+}
+
+// RequiresKnownGoodValue reports whether validation requires an external
+// reference value.
+func (v *MetricValidator) RequiresKnownGoodValue() bool {
+	return v != nil && (v.CalibratedWorkload || v.NvidiaSMI)
+}
+
+// ValidateStaticValue checks the finite/range/discrete-value constraints that
+// can be evaluated without an external reference.
+func (v *MetricValidator) ValidateStaticValue(value float64) error {
 	if v == nil {
 		return nil
 	}
@@ -181,6 +225,9 @@ func (v *MetricValidator) Validate(value float64) error {
 		}
 		return nil
 	}
+	if len(v.Values) == 0 {
+		return nil
+	}
 
 	for _, allowedValue := range v.Values {
 		if value == allowedValue {
@@ -190,6 +237,44 @@ func (v *MetricValidator) Validate(value float64) error {
 	return fmt.Errorf("%v not in %v", value, v.Values)
 }
 
+// Validate checks static constraints and, where requested, validates value
+// against a known-good external reference.
+func (v *MetricValidator) Validate(value float64, knownGood *float64) error {
+	if err := v.ValidateStaticValue(value); err != nil {
+		return err
+	}
+	return v.ValidateKnownGoodValue(value, knownGood)
+}
+
+// ValidateKnownGoodValue checks an external reference without repeating static
+// range or discrete-value validation.
+func (v *MetricValidator) ValidateKnownGoodValue(value float64, knownGood *float64) error {
+	if !v.RequiresKnownGoodValue() {
+		return nil
+	}
+	if v.ValueTolerance == nil {
+		return errors.New("known-good validation requires value_tolerance")
+	}
+	if knownGood == nil {
+		return errors.New("known-good value is required")
+	}
+	if math.IsNaN(*knownGood) || math.IsInf(*knownGood, 0) {
+		return fmt.Errorf("known-good value %v not finite", *knownGood)
+	}
+
+	difference := math.Abs(value - *knownGood)
+	if v.ValueTolerance.Absolute != nil && difference > *v.ValueTolerance.Absolute {
+		return fmt.Errorf("difference %v exceeds absolute tolerance %v", difference, *v.ValueTolerance.Absolute)
+	}
+	if v.ValueTolerance.Relative != nil {
+		relativeAllowance := math.Abs(*knownGood) * *v.ValueTolerance.Relative / 100
+		if difference > relativeAllowance {
+			return fmt.Errorf("difference %v exceeds relative tolerance %v%% of known-good value %v", difference, *v.ValueTolerance.Relative, *knownGood)
+		}
+	}
+	return nil
+}
+
 func (v *MetricValidator) validateDefinition() error {
 	if v == nil {
 		return nil
@@ -197,12 +282,17 @@ func (v *MetricValidator) validateDefinition() error {
 
 	hasRange := v.Range != nil
 	hasValues := len(v.Values) > 0
+	requiresKnownGoodValue := v.RequiresKnownGoodValue()
 
 	switch {
 	case hasRange && hasValues:
 		return errors.New("metric validator must define exactly one of range or values")
-	case !hasRange && !hasValues:
-		return errors.New("metric validator must define exactly one of range or values")
+	case !hasRange && !hasValues && !requiresKnownGoodValue:
+		return errors.New("metric validator must define range, values, or an external validation source")
+	case requiresKnownGoodValue && v.ValueTolerance == nil:
+		return errors.New("metric validator external validation requires value_tolerance")
+	case !requiresKnownGoodValue && v.ValueTolerance != nil:
+		return errors.New("metric validator value_tolerance requires an external validation source")
 	}
 
 	if hasRange {
@@ -218,12 +308,27 @@ func (v *MetricValidator) validateDefinition() error {
 		if *v.Range.Min > *v.Range.Max {
 			return fmt.Errorf("metric validator range min %v must be less than or equal to max %v", *v.Range.Min, *v.Range.Max)
 		}
-		return nil
 	}
 
 	for _, allowedValue := range v.Values {
 		if math.IsNaN(allowedValue) || math.IsInf(allowedValue, 0) {
 			return fmt.Errorf("metric validator values must be finite, got %v", allowedValue)
+		}
+	}
+
+	if v.ValueTolerance != nil {
+		if v.ValueTolerance.Absolute == nil && v.ValueTolerance.Relative == nil {
+			return errors.New("metric validator value_tolerance must define absolute or relative")
+		}
+		if v.ValueTolerance.Absolute != nil {
+			if math.IsNaN(*v.ValueTolerance.Absolute) || math.IsInf(*v.ValueTolerance.Absolute, 0) || *v.ValueTolerance.Absolute < 0 {
+				return fmt.Errorf("metric validator absolute tolerance must be finite and non-negative, got %v", *v.ValueTolerance.Absolute)
+			}
+		}
+		if v.ValueTolerance.Relative != nil {
+			if math.IsNaN(*v.ValueTolerance.Relative) || math.IsInf(*v.ValueTolerance.Relative, 0) || *v.ValueTolerance.Relative < 0 || *v.ValueTolerance.Relative > 100 {
+				return fmt.Errorf("metric validator relative tolerance must be finite and between 0 and 100, got %v", *v.ValueTolerance.Relative)
+			}
 		}
 	}
 
@@ -511,6 +616,9 @@ func LoadSpecs() (*Specs, error) {
 	}
 
 	for metricName, metricSpec := range metrics.Metrics {
+		if err := validateConfigRequirements(metricName, metricSpec.ConfigRequired); err != nil {
+			return nil, err
+		}
 		if metricSpec.Metadata == nil || metricSpec.Metadata.Aggregation == "" {
 			continue
 		}
@@ -525,4 +633,13 @@ func LoadSpecs() (*Specs, error) {
 		Architectures: architectures,
 		Aggregations:  aggregations,
 	}, nil
+}
+
+func validateConfigRequirements(metricName string, requirements []ConfigFeature) error {
+	for _, feature := range requirements {
+		if !isKnownConfigFeature(feature) {
+			return fmt.Errorf("metric %q references unknown config feature %q", metricName, feature)
+		}
+	}
+	return nil
 }
