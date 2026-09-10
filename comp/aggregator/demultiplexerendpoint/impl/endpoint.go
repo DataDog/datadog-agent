@@ -197,7 +197,7 @@ func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContexts() (string, er
 	return path, nil
 }
 
-func (demuxendpoint demultiplexerEndpoint) writeDogstatsdContextsFile(f *os.File) error {
+func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsFile(f *os.File) error {
 	c := zstd.NewWriter(f)
 	w := bufio.NewWriter(c)
 
