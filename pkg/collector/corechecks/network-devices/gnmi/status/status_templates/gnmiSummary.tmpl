@@ -1,0 +1,9 @@
+{{- if .devices }}
+  Devices
+  =======
+{{- range $device := .devices }}
+  {{$device.StatusLabel}} | {{$device.DeviceName}} | {{$device.Address}}:{{$device.Port}} | state={{$device.StreamState}} | samples={{$device.ReceivedSamples}} | metrics={{$device.MetricsCollected}}{{- if $device.LastConnectedAt }} | last_connected={{ formatUnixTimeSince $device.LastConnectedAt }}{{- end }}{{- if $device.LastError }} | last_error={{$device.LastError}}{{- end }}
+{{- end }}
+{{- else }}
+  No gNMI devices configured.
+{{- end -}}

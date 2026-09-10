@@ -54,11 +54,19 @@ func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 }
 
 // Text renders the text output.
-func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "gnmi.tmpl", buffer, p.getStatusInfo())
+func (p Provider) Text(verbose bool, buffer io.Writer) error {
+	templateName := "gnmiSummary.tmpl"
+	if verbose {
+		templateName = "gnmi.tmpl"
+	}
+	return status.RenderText(templatesFS, templateName, buffer, p.getStatusInfo())
 }
 
 // HTML renders the html output.
-func (p Provider) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "gnmiHTML.tmpl", buffer, p.getStatusInfo())
+func (p Provider) HTML(verbose bool, buffer io.Writer) error {
+	templateName := "gnmiSummaryHTML.tmpl"
+	if verbose {
+		templateName = "gnmiHTML.tmpl"
+	}
+	return status.RenderHTML(templatesFS, templateName, buffer, p.getStatusInfo())
 }
