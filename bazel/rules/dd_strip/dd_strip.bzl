@@ -6,9 +6,9 @@ cc_binary, cc_shared_library, or rust_binary) to provide 3 potential outputs.
 - a stripped version of the taget
 - the debug symbols only version of the target.
 
-The split outputs are only materialized for
-consumers that ask for them via OutputGroupInfo (`--output_groups=+debug` or
-`+stripped`) or by reading DdStripInfo directly
+The debug output is only materialized for
+consumers that ask for it via OutputGroupInfo (`--output_groups=+debug` or
+) or by reading DdStripInfo directly
 
 """
 
