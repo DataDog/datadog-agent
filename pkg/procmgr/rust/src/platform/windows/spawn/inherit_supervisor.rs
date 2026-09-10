@@ -7,7 +7,7 @@ use std::mem;
 use std::os::windows::ffi::OsStrExt;
 
 use anyhow::{Result, bail};
-use windows_sys::Win32::Security::TOKEN_QUERY;
+use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_SUSPENDED,
@@ -57,9 +57,10 @@ pub(super) fn spawn_inherit_supervisor(
         .working_dir()
         .map(|d| wide::null_terminated(d.to_string_lossy().as_ref()));
 
-    let supervisor_token = open_current_process_token(TOKEN_QUERY).map_err(|e| {
-        anyhow::anyhow!("[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {e}")
-    })?;
+    let supervisor_token =
+        open_current_process_token(TOKEN_QUERY | TOKEN_DUPLICATE).map_err(|e| {
+            anyhow::anyhow!("[{process_name}] OpenProcessToken(GetCurrentProcess()) failed: {e}")
+        })?;
     let env_block = env_block_from_baseline_plus_overrides(
         process_name,
         supervisor_token.as_handle(),
