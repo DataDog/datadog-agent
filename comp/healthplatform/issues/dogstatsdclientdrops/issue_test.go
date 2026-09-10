@@ -31,6 +31,7 @@ func TestBuildUDSIssue(t *testing.T) {
 			name: "UDS drop",
 			context: UDSDetectionContext{
 				ClientLibrary:               ClientLibraryGo,
+				ClientTransport:             ClientTransportUDS,
 				AgentHostname:               "test-host",
 				DroppedRatio:                0.02,
 				Threshold:                   0.01,
@@ -41,7 +42,7 @@ func TestBuildUDSIssue(t *testing.T) {
 				DropReasonBreakdownComplete: true,
 			},
 			expectedTitle:       "Sustained DogStatsD Go UDS payload drops detected by Agent test-host",
-			expectedTransport:   transportFamilyUDS,
+			expectedTransport:   string(ClientTransportUDS),
 			expectedDescription: "2.0000% payload-byte drop rate",
 			expectedBytes:       "dropped=20.00",
 			expectedBreakdown:   "queue=12.00, writer=8.00",
@@ -51,6 +52,7 @@ func TestBuildUDSIssue(t *testing.T) {
 			name: "fractional near-threshold values remain visible",
 			context: UDSDetectionContext{
 				ClientLibrary:            ClientLibraryGo,
+				ClientTransport:          ClientTransportUDS,
 				AgentHostname:            "test-host",
 				DroppedRatio:             0.010001,
 				Threshold:                0.01,
@@ -59,7 +61,7 @@ func TestBuildUDSIssue(t *testing.T) {
 				BytesDroppedUnclassified: 0.5,
 			},
 			expectedTitle:        "Sustained DogStatsD Go UDS payload drops detected by Agent test-host",
-			expectedTransport:    transportFamilyUDS,
+			expectedTransport:    string(ClientTransportUDS),
 			expectedDescription:  "1.0001% payload-byte drop rate",
 			expectedBytes:        "dropped=0.50",
 			expectedBreakdown:    "partial breakdown: queue=0.00, writer=0.00, unclassified=0.50",
@@ -67,9 +69,9 @@ func TestBuildUDSIssue(t *testing.T) {
 		},
 		{
 			name:                "missing hostname uses safe default",
-			context:             UDSDetectionContext{ClientLibrary: ClientLibraryGo},
+			context:             UDSDetectionContext{ClientLibrary: ClientLibraryGo, ClientTransport: ClientTransportUDS},
 			expectedTitle:       "Sustained DogStatsD Go UDS payload drops detected by Agent unknown host",
-			expectedTransport:   transportFamilyUDS,
+			expectedTransport:   string(ClientTransportUDS),
 			expectedDescription: "0.0000% payload-byte drop rate",
 			expectedBytes:       "dropped=0.00",
 			expectedBreakdown:   "partial breakdown: queue=0.00, writer=0.00, unclassified=0.00",
@@ -90,20 +92,23 @@ func TestBuildUDSIssue(t *testing.T) {
 			assert.Contains(t, issue.Description, "above the ")
 			assert.Contains(t, issue.Description, test.expectedBytes)
 			assert.Contains(t, issue.Description, test.expectedBreakdown)
-			assert.Contains(t, issue.Tags, test.expectedTransport)
+			assert.Contains(t, issue.Tags, contextKeyClientTransport+":"+test.expectedTransport)
 			assert.Contains(t, issue.Tags, "dogstatsd")
+			assert.NotContains(t, issue.Tags, "client")
+			assert.NotContains(t, issue.Tags, "payload-drops")
+			assert.NotContains(t, issue.Tags, test.expectedTransport)
 			assert.Equal(t, category, issue.Category)
 			assert.Equal(t, location, issue.Location)
 			assert.Equal(t, source, issue.Source)
 			require.NotNil(t, issue.Extra)
 			fields := issue.Extra.GetFields()
-			assert.Contains(t, issue.Tags, "host:"+fields[contextKeyHostname].GetStringValue())
-			assert.Equal(t, test.expectedTransport, fields[contextKeyTransportFamily].GetStringValue())
+			assert.Contains(t, issue.Tags, "host:"+fields[contextKeyAgentHostname].GetStringValue())
+			assert.Equal(t, test.expectedTransport, fields[contextKeyClientTransport].GetStringValue())
 			assert.Equal(t, string(library), fields[contextKeyClientLibrary].GetStringValue())
 			assert.True(t, fields[contextKeyDetectionEvidenceAvailable].GetBoolValue())
-			assert.Contains(t, fields, contextKeyHostname)
+			assert.Contains(t, fields, contextKeyAgentHostname)
 			assert.Contains(t, fields, contextKeyDroppedRatio)
-			assert.Contains(t, fields, contextKeyThreshold)
+			assert.Contains(t, fields, contextKeyDroppedRatioThreshold)
 			assert.Contains(t, fields, contextKeyBytesSent)
 			assert.Contains(t, fields, contextKeyBytesDropped)
 			assert.Contains(t, fields, contextKeyBytesDroppedQueue)
@@ -118,27 +123,32 @@ func TestBuildUDSIssue(t *testing.T) {
 	}
 }
 
-func TestBuildUDSIssueRejectsUnsupportedLibrary(t *testing.T) {
-	issue, err := BuildUDSIssue(UDSDetectionContext{ClientLibrary: "ruby", AgentHostname: "test-host"})
-	require.Error(t, err)
-	assert.Nil(t, issue)
+func TestBuildUDSIssueRejectsUnsupportedContext(t *testing.T) {
+	for _, context := range []UDSDetectionContext{
+		{ClientLibrary: "ruby", ClientTransport: ClientTransportUDS, AgentHostname: "test-host"},
+		{ClientLibrary: ClientLibraryGo, ClientTransport: "udp", AgentHostname: "test-host"},
+	} {
+		issue, err := BuildUDSIssue(context)
+		require.Error(t, err)
+		assert.Nil(t, issue)
+	}
 }
 
 func TestBuildRestoredUDSIssue(t *testing.T) {
-	issue, err := BuildRestoredUDSIssue(ClientLibraryPython, "test-host")
+	issue, err := BuildRestoredUDSIssue(ClientLibraryPython, ClientTransportUDSStream, "test-host")
 	require.NoError(t, err)
 	assert.Empty(t, issue.Id)
 	assert.Equal(t, UDSIssueName(ClientLibraryPython), issue.IssueName)
 	assert.Equal(t, UDSIssueType(ClientLibraryPython), issue.IssueType)
 	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.Severity)
-	assert.Equal(t, "Sustained DogStatsD Python UDS payload drops detected by Agent test-host", issue.Title)
+	assert.Equal(t, "Sustained DogStatsD Python UDS stream payload drops detected by Agent test-host", issue.Title)
 	assert.Contains(t, issue.Description, "previously detected")
 	assert.Contains(t, issue.Description, "awaiting current client telemetry")
 	require.NotNil(t, issue.Extra)
 	fields := issue.Extra.GetFields()
-	assert.Equal(t, "test-host", fields[contextKeyHostname].GetStringValue())
+	assert.Equal(t, "test-host", fields[contextKeyAgentHostname].GetStringValue())
 	assert.Equal(t, "py", fields[contextKeyClientLibrary].GetStringValue())
-	assert.Equal(t, transportFamilyUDS, fields[contextKeyTransportFamily].GetStringValue())
+	assert.Equal(t, string(ClientTransportUDSStream), fields[contextKeyClientTransport].GetStringValue())
 	assert.False(t, fields[contextKeyDetectionEvidenceAvailable].GetBoolValue())
 	assert.NotContains(t, fields, contextKeyDroppedRatio)
 	assert.NotContains(t, fields, contextKeyBytesSent)
@@ -171,10 +181,16 @@ func TestLibrarySpecificUDSRemediation(t *testing.T) {
 		{library: ClientLibraryJava, contains: []string{"client:java", "errorHandler", "enableAggregation(true)", "connectionTimeout", "code-lang=java"}, notContains: []string{bytesDroppedQueueMetric, bytesDroppedWriterMetric}},
 	} {
 		t.Run(string(test.library), func(t *testing.T) {
-			issue, err := BuildUDSIssue(UDSDetectionContext{ClientLibrary: test.library, AgentHostname: "test-host"})
+			issue, err := BuildUDSIssue(UDSDetectionContext{ClientLibrary: test.library, ClientTransport: ClientTransportUDS, AgentHostname: "test-host"})
 			require.NoError(t, err)
+			if test.library == ClientLibraryJava {
+				assert.NotContains(t, issue.Extra.GetFields(), contextKeyBytesDroppedQueue)
+				assert.NotContains(t, issue.Extra.GetFields(), contextKeyBytesDroppedWriter)
+				assert.NotContains(t, issue.Extra.GetFields(), contextKeyBytesDroppedUnclassified)
+				assert.NotContains(t, issue.Extra.GetFields(), contextKeyDropReasonBreakdownComplete)
+			}
 			require.Contains(t, issue.Remediation.Steps[0].Text, "review "+bytesDroppedMetric)
-			require.Contains(t, issue.Remediation.Steps[0].Text, "client_transport set to either uds or uds-stream")
+			require.Contains(t, issue.Remediation.Steps[0].Text, "client_transport:uds")
 			var remediation strings.Builder
 			for _, step := range issue.Remediation.Steps {
 				remediation.WriteString(step.Text)
@@ -192,10 +208,11 @@ func TestLibrarySpecificUDSRemediation(t *testing.T) {
 func TestStableUDSIssueIdentity(t *testing.T) {
 	assert.Equal(t, "DogStatsD Go UDS Client Payload Drops", UDSIssueName(ClientLibraryGo))
 	assert.Equal(t, "dogstatsd_go_uds_client_payload_drops", UDSIssueType(ClientLibraryGo))
-	assert.Equal(t, "dogstatsd-go-uds-client-payload-drops:uuid:test-uuid", UDSIssueIDForHost(ClientLibraryGo, "test-uuid", "test-host"))
-	assert.Equal(t, "dogstatsd-go-uds-client-payload-drops:hostname:test-host", UDSIssueIDForHost(ClientLibraryGo, "", "test-host"))
-	assert.Equal(t, UDSIssueIDForHost(ClientLibraryGo, "test-uuid", "old-host"), UDSIssueIDForHost(ClientLibraryGo, "test-uuid", "new-host"))
-	assert.NotEqual(t, UDSIssueIDForHost(ClientLibraryGo, "test-uuid", "test-host"), UDSIssueIDForHost(ClientLibraryPython, "test-uuid", "test-host"))
-	assert.NotEqual(t, UDSIssueIDForHost(ClientLibraryGo, "first-uuid", "test-host"), UDSIssueIDForHost(ClientLibraryGo, "second-uuid", "test-host"))
-	assert.NotEqual(t, UDSIssueIDForHost(ClientLibraryGo, "", "first-host"), UDSIssueIDForHost(ClientLibraryGo, "", "second-host"))
+	assert.Equal(t, "dogstatsd-go-uds-client-payload-drops:uds:uuid:test-uuid", UDSIssueIDForHost(ClientLibraryGo, ClientTransportUDS, "test-uuid", "test-host"))
+	assert.Equal(t, "dogstatsd-go-uds-client-payload-drops:uds:hostname:test-host", UDSIssueIDForHost(ClientLibraryGo, ClientTransportUDS, "", "test-host"))
+	assert.Equal(t, UDSIssueIDForHost(ClientLibraryGo, ClientTransportUDS, "test-uuid", "old-host"), UDSIssueIDForHost(ClientLibraryGo, ClientTransportUDS, "test-uuid", "new-host"))
+	assert.NotEqual(t, UDSIssueIDForHost(ClientLibraryGo, ClientTransportUDS, "test-uuid", "test-host"), UDSIssueIDForHost(ClientLibraryPython, ClientTransportUDS, "test-uuid", "test-host"))
+	assert.NotEqual(t, UDSIssueIDForHost(ClientLibraryGo, ClientTransportUDS, "test-uuid", "test-host"), UDSIssueIDForHost(ClientLibraryGo, ClientTransportUDSStream, "test-uuid", "test-host"))
+	assert.NotEqual(t, UDSIssueIDForHost(ClientLibraryGo, ClientTransportUDS, "first-uuid", "test-host"), UDSIssueIDForHost(ClientLibraryGo, ClientTransportUDS, "second-uuid", "test-host"))
+	assert.NotEqual(t, UDSIssueIDForHost(ClientLibraryGo, ClientTransportUDS, "", "first-host"), UDSIssueIDForHost(ClientLibraryGo, ClientTransportUDS, "", "second-host"))
 }

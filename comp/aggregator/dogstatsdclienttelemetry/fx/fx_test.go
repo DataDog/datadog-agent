@@ -21,7 +21,7 @@ import (
 
 type noopDropDetector struct{}
 
-func (*noopDropDetector) ObserveClientBytes(string, dogstatsdclientdropdetector.ClientByteMetric, float64) {
+func (*noopDropDetector) ObserveClientBytes(string, string, dogstatsdclientdropdetector.ClientByteMetric, float64) {
 }
 func (*noopDropDetector) CompleteFinalDogStatsDSerieFlush() {}
 

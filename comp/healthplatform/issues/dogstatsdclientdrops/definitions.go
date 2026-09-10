@@ -8,10 +8,16 @@ package dogstatsdclientdrops
 // ClientLibrary identifies a supported DogStatsD client telemetry library.
 type ClientLibrary string
 
+// ClientTransport identifies a supported DogStatsD client transport.
+type ClientTransport string
+
 const (
 	ClientLibraryGo     ClientLibrary = "go"
 	ClientLibraryPython ClientLibrary = "py"
 	ClientLibraryJava   ClientLibrary = "java"
+
+	ClientTransportUDS       ClientTransport = "uds"
+	ClientTransportUDSStream ClientTransport = "uds-stream"
 
 	GoUDSIssueName = "DogStatsD Go UDS Client Payload Drops"
 	GoUDSIssueType = "dogstatsd_go_uds_client_payload_drops"

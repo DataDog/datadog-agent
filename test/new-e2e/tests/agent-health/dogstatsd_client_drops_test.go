@@ -27,7 +27,7 @@ import (
 var dogstatsdClientTelemetryScript string
 
 const (
-	dogstatsdClientDropsIssueIDPrefix = "dogstatsd-go-uds-client-payload-drops:"
+	dogstatsdClientDropsIssueIDPrefix = "dogstatsd-go-uds-client-payload-drops:uds:"
 	dogstatsdSocketPath               = "/var/run/datadog/dsd.socket"
 	dogstatsdClientTelemetryPath      = "/tmp/dogstatsd_client_telemetry.py"
 	dogstatsdClientTelemetryPIDPath   = "/tmp/dogstatsd_client_telemetry.pid"
@@ -98,7 +98,12 @@ func (suite *dogstatsdClientDropsSuite) TestDogStatsDClientDropsIssueLifecycle()
 	assert.Equal(suite.T(), "dogstatsd", detectedIssue.Source)
 	assert.Equal(suite.T(), healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, detectedIssue.Severity)
 	assert.Contains(suite.T(), detectedIssue.Tags, "client:go")
-	assert.Contains(suite.T(), detectedIssue.Tags, "uds")
+	assert.Contains(suite.T(), detectedIssue.Tags, "client_transport:uds")
+	require.NotNil(suite.T(), detectedIssue.Extra)
+	extra := detectedIssue.Extra.GetFields()
+	assert.Equal(suite.T(), "go", extra["client_library"].GetStringValue())
+	assert.Equal(suite.T(), "uds", extra["client_transport"].GetStringValue())
+	assert.NotEmpty(suite.T(), extra["agent_hostname"].GetStringValue())
 	require.NotNil(suite.T(), detectedIssue.Remediation)
 	assert.NotEmpty(suite.T(), detectedIssue.Remediation.Steps)
 
