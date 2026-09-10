@@ -22,7 +22,13 @@ pkg_files(
     }),
     attributes = pkg_attributes(mode = "0550"),
     prefix = "checks.d",
-    renames = {target: "libdatadog-agent-" + check_name + ".so" for check_name, target in ENABLED_CHECKS.items()},
+    renames = select({
+        "@platforms//os:linux": {
+            target: "libdatadog-agent-" + check_name + ".so"
+            for check_name, target in ENABLED_CHECKS.items()
+        },
+        "//conditions:default": {},
+    }),
     visibility = ["//visibility:public"],
 )
 
