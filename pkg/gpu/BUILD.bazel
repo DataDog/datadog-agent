@@ -17,7 +17,6 @@ go_library(
         "stream.go",
         "stream_collection.go",
         "support_linux.go",
-        "support_other.go",
         "testutil.go",
         "tseries.go",
     ],
