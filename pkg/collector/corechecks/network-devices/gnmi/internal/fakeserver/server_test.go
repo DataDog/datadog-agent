@@ -7,6 +7,7 @@ package fakeserver_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -240,6 +241,84 @@ func TestCloseStreamAndCounts(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	require.Equal(t, 0, server.ActiveStreamCount())
+}
+
+func TestConcurrentCloseStopsActiveStream(t *testing.T) {
+	server := startServer(t)
+
+	client := dialGNMI(t, server.Addr(), "user", "pass")
+	stream := openSubscribeStream(t, client, "user", "pass")
+	require.NoError(t, stream.Send(subscribeRequest()))
+	waitSubscribeEvent(t, server)
+	_, err := stream.Recv()
+	require.NoError(t, err)
+
+	const closeCount = 8
+	closeErrors := make(chan error, closeCount)
+	var wg sync.WaitGroup
+	for range closeCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			closeErrors <- server.Close()
+		}()
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out closing server with an active stream")
+	}
+	close(closeErrors)
+	for err := range closeErrors {
+		require.NoError(t, err)
+	}
+
+	_, err = stream.Recv()
+	require.Error(t, err)
+	require.Eventually(t, func() bool {
+		return server.ActiveStreamCount() == 0
+	}, 2*time.Second, 10*time.Millisecond)
+}
+
+func TestConcurrentSendUpdate(t *testing.T) {
+	server := startServer(t)
+	server.SetDelaySync(true)
+
+	client := dialGNMI(t, server.Addr(), "user", "pass")
+	stream := openSubscribeStream(t, client, "user", "pass")
+	require.NoError(t, stream.Send(subscribeRequest()))
+	event := waitSubscribeEvent(t, server)
+
+	const updateCount = 16
+	sendErrors := make(chan error, updateCount)
+	var wg sync.WaitGroup
+	for value := range updateCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sendErrors <- server.SendUpdate(event.StreamID, fakeserver.InterfaceInOctetsUpdate("eth0", uint64(value)))
+		}()
+	}
+	wg.Wait()
+	close(sendErrors)
+	for err := range sendErrors {
+		require.NoError(t, err)
+	}
+
+	values := make(map[uint64]struct{}, updateCount)
+	for range updateCount {
+		resp, err := stream.Recv()
+		require.NoError(t, err)
+		require.Len(t, resp.GetUpdate().GetUpdate(), 1)
+		values[resp.GetUpdate().GetUpdate()[0].GetVal().GetUintVal()] = struct{}{}
+	}
+	require.Len(t, values, updateCount)
 }
 
 func TestValueHelpers(t *testing.T) {
