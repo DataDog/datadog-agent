@@ -69,9 +69,10 @@ type JobRecord struct {
 	Succeeded   int32
 	Failed      int32
 	Message     string
-	CreatedAt   int64 // unix seconds, time we started tracking
-	UpdatedAt   int64 // unix seconds, last watch event time
-	CompletedAt int64 // unix seconds, 0 until succeeded/failed
+	CreatedAt   int64     // unix seconds, time we started tracking
+	UpdatedAt   int64     // unix seconds, last watch event time
+	CompletedAt int64     // unix seconds, 0 until succeeded/failed
+	ReportedTs  time.Time // When final status report was sent to EVP
 
 	// Action metadata copied from RollbackInputs at TrackJob time and carried
 	// forward, unchanged, through every UpdateJob rebuild (same treatment as
@@ -100,6 +101,14 @@ type PodRecord struct {
 	CreatedAt   int64
 	UpdatedAt   int64
 	CompletedAt int64
+}
+
+func (r *JobRecord) phaseIsTerminal() bool {
+	return r.Phase == JobPhaseFailed || r.Phase == JobPhaseSucceeded
+}
+
+func (r *JobRecord) reported() bool {
+	return !r.ReportedTs.IsZero()
 }
 
 // ActionStore tracks processed actions in-memory to prevent duplicate execution.
@@ -145,16 +154,16 @@ type trackedLifecycle interface {
 func upsertTracked[T trackedLifecycle](
 	m map[types.UID]*T,
 	uid types.UID,
-	build func(prev *T, now int64) (*T, bool),
-) (*T, bool) {
+	build func(prev *T, now int64) *T,
+) *T {
 	prev := m[uid]
 	if prev == nil {
 		prev = new(T)
 	}
 	now := time.Now().Unix()
-	rec, transitioned := build(prev, now)
+	rec := build(prev, now)
 	m[uid] = rec
-	return rec, transitioned
+	return rec
 }
 
 // TrackJob registers a Job for status tracking. Idempotent: a second call with
@@ -188,24 +197,24 @@ func (s *ActionStore) TrackJob(job *batchv1.Job, in *helmactions.RollbackInputs,
 // UpdateJob applies the latest observed state of a Job to the store. Called by
 // the Job watcher on ADDED/MODIFIED events. Returns the resulting record and
 // whether it represents a transition into a terminal phase (succeeded/failed).
-func (s *ActionStore) UpdateJob(job *batchv1.Job) (*JobRecord, bool) {
-	return upsertTracked(s.jobs, job.UID, func(prev *JobRecord, now int64) (*JobRecord, bool) {
+func (s *ActionStore) UpdateJob(job *batchv1.Job) *JobRecord {
+	return upsertTracked(s.jobs, job.UID, func(prev *JobRecord, now int64) *JobRecord {
 		actionID := jobActionID(job, prev.ActionID)
 
 		phase, msg := classifyJob(job)
 		rec := &JobRecord{
-			UID:         job.UID,
-			Namespace:   job.Namespace,
-			Name:        job.Name,
-			Phase:       phase,
-			Active:      job.Status.Active,
-			Succeeded:   job.Status.Succeeded,
-			Failed:      job.Status.Failed,
-			Message:     msg,
-			CreatedAt:   prev.CreatedAt,
-			UpdatedAt:   now,
-			CompletedAt: prev.CompletedAt,
-
+			UID:              job.UID,
+			Namespace:        job.Namespace,
+			Name:             job.Name,
+			Phase:            phase,
+			Active:           job.Status.Active,
+			Succeeded:        job.Status.Succeeded,
+			Failed:           job.Status.Failed,
+			Message:          msg,
+			CreatedAt:        prev.CreatedAt,
+			UpdatedAt:        now,
+			CompletedAt:      prev.CompletedAt,
+			ReportedTs:       prev.ReportedTs,
 			ActionID:         actionID,
 			OrgID:            prev.OrgID,
 			Release:          prev.Release,
@@ -218,9 +227,15 @@ func (s *ActionStore) UpdateJob(job *batchv1.Job) (*JobRecord, bool) {
 		if rec.CompletedAt == 0 && (phase == JobPhaseSucceeded || phase == JobPhaseFailed) {
 			rec.CompletedAt = now
 		}
-		terminal := rec.CompletedAt > 0 && prev.CompletedAt == 0
-		return rec, terminal
+		return rec
 	})
+}
+
+func (s *ActionStore) MarkReported(r *JobRecord) {
+	// update only if not set before.
+	if r.ReportedTs.IsZero() {
+		r.ReportedTs = time.Now()
+	}
 }
 
 // jobActionID determines actionID for current job usign following logic:
@@ -244,8 +259,8 @@ func (s *ActionStore) RemoveJob(uid types.UID) {
 // UpdatePod applies the latest observed state of a Pod. Returns the resulting
 // record and whether this update is the transition into the Failed phase — the
 // caller uses that signal to trigger log capture.
-func (s *ActionStore) UpdatePod(pod *corev1.Pod) (*PodRecord, bool) {
-	return upsertTracked(s.pods, pod.UID, func(prev *PodRecord, now int64) (*PodRecord, bool) {
+func (s *ActionStore) UpdatePod(pod *corev1.Pod) *PodRecord {
+	return upsertTracked(s.pods, pod.UID, func(prev *PodRecord, now int64) *PodRecord {
 		phase, reason, message, exitCode := classifyPod(pod)
 		rec := &PodRecord{
 			UID:         pod.UID,
@@ -268,8 +283,8 @@ func (s *ActionStore) UpdatePod(pod *corev1.Pod) (*PodRecord, bool) {
 			rec.CompletedAt = now
 		}
 		// "Just failed" — the caller uses this edge to fetch logs exactly once.
-		justFailed := phase == corev1.PodFailed && prev.Phase != corev1.PodFailed
-		return rec, justFailed
+		// justFailed := phase == corev1.PodFailed && prev.Phase != corev1.PodFailed
+		return rec
 	})
 }
 
@@ -280,15 +295,15 @@ func (s *ActionStore) RemovePod(uid types.UID) {
 
 // GetPodsForJob returns the tracked Pods whose batch.kubernetes.io/job-name
 // label matches the given Job name.
-func (s *ActionStore) GetPodsForJob(jobName string) []*PodRecord {
-	var out []*PodRecord
-	for _, p := range s.pods {
-		if p.JobName == jobName {
-			out = append(out, p)
-		}
-	}
-	return out
-}
+// func (s *ActionStore) GetPodsForJob(jobName string) []*PodRecord {
+// 	var out []*PodRecord
+// 	for _, p := range s.pods {
+// 		if p.JobName == jobName {
+// 			out = append(out, p)
+// 		}
+// 	}
+// 	return out
+// }
 
 // AttachPodLogs stores the captured tail of a Pod's logs on its record. Safe to
 // call when the Pod has already been removed — the update is dropped.

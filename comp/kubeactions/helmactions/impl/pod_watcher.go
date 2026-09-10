@@ -23,14 +23,14 @@ func (w *jobWatcher) handlePod(_ context.Context, ev watch.Event) {
 	}
 	switch ev.Type {
 	case watch.Added, watch.Modified:
-		rec, justFailed := w.store.UpdatePod(pod)
+		rec := w.store.UpdatePod(pod)
 
 		// TODO: report POD failure to EVP
-		if justFailed {
-			log.Warnf("[HelmActions] Pod %s/%s failed (job=%s reason=%q exit=%d): %s",
-				rec.Namespace, rec.Name, rec.JobName, rec.Reason, rec.ExitCode, rec.Message)
-			captureLogs(w.store, pod, rec)
-		}
+		// if justFailed {
+		log.Warnf("[HelmActions] Pod %s/%s failed (job=%s reason=%q exit=%d): %s",
+			rec.Namespace, rec.Name, rec.JobName, rec.Reason, rec.ExitCode, rec.Message)
+		captureLogs(w.store, pod, rec)
+		// }
 	case watch.Deleted:
 		w.store.RemovePod(pod.UID)
 		log.Debugf("[HelmActions] Pod %s/%s deleted, dropped from store", pod.Namespace, pod.Name)

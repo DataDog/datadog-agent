@@ -98,7 +98,10 @@ func (rh *HelmRollbackHandler) reportPreflightFailure(report kubeactions.ActionR
 // ActionID is taken from TaskID since if created using kube_actions API it is so.
 func newReport(actionType string, task *types.Task) kubeactions.ActionReport {
 	report := kubeactions.ActionReport{
-		ActionType: actionType,
+		ActionType:   actionType,
+		RequestedBy:  "dummy",
+		ResourceID:   "dummy", // no ID for HELM
+		ResourceKind: "dummy", // multiple kinds for HELM
 	}
 
 	if task != nil && task.Data.Attributes != nil {

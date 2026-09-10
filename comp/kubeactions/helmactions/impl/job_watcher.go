@@ -24,7 +24,7 @@ import (
 const (
 	jobStuckDurationLimit = 5 * time.Minute
 	// TODO: remove in prod before commit
-	jobStuckLimitDurationTest = 60 * time.Second
+	jobStuckLimitDurationTODOTest = 60 * time.Second
 )
 
 func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
@@ -36,16 +36,17 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 			log.Debugf("[HelmActions] Job unexpected object type: %T, ignoring", ev.Object)
 			return
 		}
-		rec, terminal := w.store.UpdateJob(job)
+		rec := w.store.UpdateJob(job)
 
-		// check job is reported already
-
-		if terminal {
-			log.Infof("[HelmActions] Job %s/%s [%s] reached terminal phase=%s (succeeded=%d failed=%d): %s",
-				rec.Namespace, rec.Name, rec.ActionID, rec.Phase, rec.Succeeded, rec.Failed, rec.Message)
-
-			// mark job as reported
-			w.reportDone(rec)
+		if rec.phaseIsTerminal() {
+			// check job is reported already
+			if !rec.reported() {
+				log.Infof("[HelmActions] Job %s/%s [%s] reached terminal phase=%s (succeeded=%d failed=%d): %s",
+					rec.Namespace, rec.Name, rec.ActionID, rec.Phase, rec.Succeeded, rec.Failed, rec.Message)
+				w.reportDone(rec)
+				// mark job as reported
+				w.store.MarkReported(rec)
+			}
 			return
 		}
 
@@ -54,7 +55,7 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 		log.Infof("[HelmActions] Job %s/%s [%s] reached phase=%s (succeeded=%d failed=%d): %sm conds:%v",
 			rec.Namespace, rec.Name, rec.ActionID, rec.Phase, rec.Succeeded, rec.Failed, rec.Message, job.Status.Conditions)
 
-		if !isStuck(job, jobStuckLimitDurationTest) {
+		if !isStuck(job, jobStuckLimitDurationTODOTest) {
 			return
 		}
 
@@ -84,7 +85,7 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 	case watch.Error:
 		jobStatus, ok := ev.Object.(*metav1.Status)
 		if !ok {
-			log.Debugf("[HelmActions] Job %s/%s error, unexpected object type: %T, ignoring", ev.Object)
+			log.Debugf("[HelmActions] Job error, unexpected object type: %T, ignoring", ev.Object)
 			return
 		}
 
@@ -145,6 +146,9 @@ func reportFromRecord(rec *JobRecord) kubeactions.ActionReport {
 		OrgID:             rec.OrgID,
 		ResourceName:      rec.Release,
 		ResourceNamespace: rec.ReleaseNamespace,
+		RequestedBy:       "dummy",
+		ResourceID:        "dummy", // no ID for HELM
+		ResourceKind:      "dummy", // multiple kinds for HELM
 	}
 }
 
