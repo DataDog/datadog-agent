@@ -257,11 +257,9 @@ func TestConcurrentCloseStopsActiveStream(t *testing.T) {
 	closeErrors := make(chan error, closeCount)
 	var wg sync.WaitGroup
 	for range closeCount {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			closeErrors <- server.Close()
-		}()
+		})
 	}
 
 	closed := make(chan struct{})
@@ -288,7 +286,6 @@ func TestConcurrentCloseStopsActiveStream(t *testing.T) {
 
 func TestConcurrentSendUpdate(t *testing.T) {
 	server := startServer(t)
-	server.SetDelaySync(true)
 
 	client := dialGNMI(t, server.Addr(), "user", "pass")
 	stream := openSubscribeStream(t, client, "user", "pass")
@@ -299,17 +296,14 @@ func TestConcurrentSendUpdate(t *testing.T) {
 	sendErrors := make(chan error, updateCount)
 	var wg sync.WaitGroup
 	for value := range updateCount {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			sendErrors <- server.SendUpdate(event.StreamID, fakeserver.InterfaceInOctetsUpdate("eth0", uint64(value)))
-		}()
+		})
 	}
-	wg.Wait()
-	close(sendErrors)
-	for err := range sendErrors {
-		require.NoError(t, err)
-	}
+
+	syncResp, err := stream.Recv()
+	require.NoError(t, err)
+	require.True(t, syncResp.GetSyncResponse())
 
 	values := make(map[uint64]struct{}, updateCount)
 	for range updateCount {
@@ -319,6 +313,12 @@ func TestConcurrentSendUpdate(t *testing.T) {
 		values[resp.GetUpdate().GetUpdate()[0].GetVal().GetUintVal()] = struct{}{}
 	}
 	require.Len(t, values, updateCount)
+
+	wg.Wait()
+	close(sendErrors)
+	for err := range sendErrors {
+		require.NoError(t, err)
+	}
 }
 
 func TestValueHelpers(t *testing.T) {
