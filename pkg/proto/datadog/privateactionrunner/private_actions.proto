@@ -76,6 +76,27 @@ message ConnectionInfo {
   repeated ConnectionToken tokens = 2;
   CredentialsType credentials_type = 3;
   string runner_id = 4;
+  // Connection tokens whose values are either inline or selected from the
+  // credential catalog configured on this runner.
+  repeated ConnectionTokenV2 tokens_v2 = 5;
+}
+
+message ConnectionTokenV2 {
+  repeated string name_segments = 1;
+
+  oneof source {
+    PlainText plain_text = 2;
+    RunnerCredential runner_credential = 3;
+  }
+
+  message PlainText {
+    string value = 1;
+  }
+
+  message RunnerCredential {
+    // Identifier in the runner credential catalog.
+    string key = 1;
+  }
 }
 
 // The ConnectionToken is similar to connectionpb.ConnectionToken, but is specifically limited to data pertinent to private actions.
@@ -111,4 +132,5 @@ enum CredentialsType {
   TOKEN_AUTH = 1;
   BASIC_AUTH = 2;
   OAUTH2 = 3;
+  CONNECTION_TOKENS_V2 = 5;
 }
