@@ -31,6 +31,16 @@ func TestIsAvailableReachable(t *testing.T) {
 	require.NoError(t, err)
 	defer listener.Close()
 
+	// A real named pipe server (e.g. the Docker daemon) is actively accepting
+	// connections; without a pending Accept() the server never completes the
+	// connect handshake, and the client dial can time out on loaded CI hosts.
+	go func() {
+		conn, err := listener.Accept()
+		if err == nil {
+			conn.Close()
+		}
+	}()
+
 	exists, availErr := IsAvailable(pipePath, testTimeout)
 	assert.True(t, exists)
 	assert.NoError(t, availErr)
