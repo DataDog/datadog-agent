@@ -245,6 +245,12 @@ func setupCommonHostTags(s *common.Setup) {
 	if workspace, ok := os.LookupEnv("DATABRICKS_WORKSPACE"); ok {
 		normalizedWorkspace = normalizeWorkspaceName(workspace)
 		setClearHostTag(s, "workspace", normalizedWorkspace)
+
+		// default DD_ENV to the normalized workspace name so spans emitted from this host
+		// carry the same env as the workspace host tag
+		if _, ok := os.LookupEnv("DD_ENV"); !ok && normalizedWorkspace != "" {
+			s.Config.DatadogYAML.Env = normalizedWorkspace
+		}
 	}
 	setIfExists(s, "WORKSPACE_URL", "workspace_url", nil)
 
