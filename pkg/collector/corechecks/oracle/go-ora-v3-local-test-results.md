@@ -12,7 +12,6 @@ Pre-existing failures on `main` (11g suite/initdb assume a CDB; `TestActiveSessi
 | 18c 18.4 XE | gvenzl/oracle-xe:18.4.0-slim | 56 pass / 0 fail | panic on connect |
 | 19c 19.3 EE | banglamon/oracle193db:19.3.0-ee | 56 pass / 1 fail | 54 pass / 3 fail |
 | 21c 21.3 XE | gvenzl/oracle-xe:21.3.0-slim | 56 pass / 0 fail | 55 pass / 1 fail |
-| 23ai Free | gvenzl/oracle-free:23-slim | 55 pass / 1 fail | 29 pass / 28 fail |
 
 ## 1. Panic on connect, Oracle <= 18c
 
@@ -27,7 +26,7 @@ go-ora/v3@v3.0.1.(*Connection).OpenWithContext
 
 `newAcceptPacketFromData` returns early only for `len(packetData) < 32`, then reads
 `packetData[41:]` (`NegotiatedOptions2`). 11g/12c/18c send a 41-byte ACCEPT packet, so the first
-connection panics and the suite aborts (`TestLongMultibyteQuery`, 4 pass / 1 fail). 19c/21c/23ai
+connection panics and the suite aborts (`TestLongMultibyteQuery`, 4 pass / 1 fail). 19c and 21c
 send longer packets and are unaffected.
 
 ## 2. CLOB out-parameter unsupported, 19c and 21c
@@ -41,11 +40,6 @@ no parameter coder registered for go type types.Clob
 v3 resolves CLOB through the coder maps populated in `OracleDriver`; connections opened via
 `go_ora.NewConnection` do not get them. 19c additionally fails `TestChkRun`, which asserts on the
 same code path.
-
-## 3. All connections EOF, 23ai
-
-Every test after the first fails with `failed to ping oracle instance: EOF` against the same
-container that `main` passes on. Not root-caused.
 
 ## Reproducing
 
