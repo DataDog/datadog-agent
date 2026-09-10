@@ -31,8 +31,8 @@ func NewGetDogstatsdTopHandler(client ipc.HTTPClient) *GetDogstatsdTopHandler {
 
 // GetDogstatsdTopInputs defines the options for the DogStatsD context summary.
 type GetDogstatsdTopInputs struct {
-	NumMetrics int    `json:"num_metrics,omitempty"`
-	NumTags    int    `json:"num_tags,omitempty"`
+	NumMetrics *int   `json:"num_metrics,omitempty"`
+	NumTags    *int   `json:"num_tags,omitempty"`
 	Source     string `json:"source,omitempty"`
 }
 
