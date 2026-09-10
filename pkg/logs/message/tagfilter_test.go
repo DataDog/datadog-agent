@@ -293,3 +293,43 @@ func TestAppendTransportTagsAppendsToCallerSlice(t *testing.T) {
 		"version:1.2.3",
 	}, got)
 }
+
+func TestFusedTransportTagsMatchesFilterAfterAssemble(t *testing.T) {
+	filterSets := [][]string{
+		nil,
+		{"dirname:*"},
+		{"kube_*"},
+		{"dirname:*", "kube_*", "container_id"},
+		{"sourcecategory"},
+		{"env:*"},
+		{"*_name"},
+		{"filename:access.log"},
+	}
+
+	for _, exclude := range filterSets {
+		t.Run(strings.Join(exclude, ","), func(t *testing.T) {
+			origin := newBenchOrigin(exclude)
+
+			// Reference: assemble the full set, then filter it — the old shape.
+			reference := origin.tagsToStringArray()
+			if f := origin.TagFilters(); f != nil {
+				reference = f.Apply(reference)
+			}
+
+			assert.Equal(t, reference, origin.TransportTags(),
+				"fused walk must equal filter-after-assemble")
+			assert.Equal(t, strings.Join(reference, ","), origin.TransportTagsToString())
+		})
+	}
+}
+
+func TestTransportTagsDoesNotAliasOriginTags(t *testing.T) {
+	origin := newBenchOrigin(nil)
+
+	got := origin.TransportTags()
+	require.NotEmpty(t, got)
+	got[0] = "clobbered:yes"
+
+	assert.NotContains(t, origin.Tags(), "clobbered:yes",
+		"TransportTags must not hand out a slice aliasing o.tags")
+}
