@@ -217,31 +217,38 @@ func TestExecuteActionAcceptsDatabaseInstanceTarget(t *testing.T) {
 	assert.Equal(t, "SUCCEEDED", output.(map[string]interface{})["status"])
 }
 
-// TestExecuteActionAcceptsDatabaseInstanceWithDbnameTarget proves the managed
-// instance + requested execution database mode: the AgentSecure request carries
-// both the database_instance selector and the requested dbname, and the check is
-// still selected by the identifier alone.
-func TestExecuteActionAcceptsDatabaseInstanceWithDbnameTarget(t *testing.T) {
-	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, validReceipt(), nil),
-		finalMarker(1),
-	}}
-	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+// TestExecuteActionRejectsDatabaseInstanceWithDbnameTargetBeforeRPC proves the
+// managed-instance selector carries no database override: dbname alongside
+// database_instance would select a check identity and then override its
+// configured database, so the input is rejected before the bridge client is ever
+// created, in both dispatch modes.
+func TestExecuteActionRejectsDatabaseInstanceWithDbnameTargetBeforeRPC(t *testing.T) {
+	for _, mode := range []string{"execute", "resolveOnly"} {
+		t.Run(mode, func(t *testing.T) {
+			action := NewExecuteAction(func() (BridgeClient, error) {
+				require.Fail(t, "bridge client should not be created for a database_instance + dbname target")
+				return nil, nil
+			})
 
-	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-		"integration":    "postgres",
-		"target":         map[string]interface{}{"database_instance": "Rq-Proof-A1-DB1", "dbname": "rq_requested_db"},
-		"query":          "SELECT city, country FROM cities ORDER BY city",
-		"resultDelivery": resultDeliveryInputs(),
-	}), nil)
+			inputs := map[string]interface{}{
+				"integration": "postgres",
+				"target":      map[string]interface{}{"database_instance": "Rq-Proof-A1-DB1", "dbname": "rq_requested_db"},
+			}
+			var err error
+			if mode == "resolveOnly" {
+				_, err = action.Run(context.Background(), resolveOnlyTaskWithInputs(inputs), nil)
+			} else {
+				inputs["query"] = "SELECT city, country FROM cities ORDER BY city"
+				inputs["resultDelivery"] = resultDeliveryInputs()
+				_, err = action.Run(context.Background(), taskWithInputs(inputs), nil)
+			}
 
-	require.NoError(t, err)
-	require.NotNil(t, client.request)
-	assert.Equal(t, "Rq-Proof-A1-DB1", client.request.GetTarget().GetDatabaseInstance())
-	assert.Equal(t, "rq_requested_db", client.request.GetTarget().GetDbname())
-	assert.Empty(t, client.request.GetTarget().GetHost())
-	assert.Zero(t, client.request.GetTarget().GetPort())
-	assert.Equal(t, "SUCCEEDED", output.(map[string]interface{})["status"])
+			require.Error(t, err)
+			var parErr util.PARError
+			require.ErrorAs(t, err, &parErr)
+			assert.Equal(t, "invalid remote query action inputs", parErr.Message)
+		})
+	}
 }
 
 func TestExecuteActionRejectsMixedAndPartialTargetSelectorsBeforeRPC(t *testing.T) {
@@ -251,6 +258,7 @@ func TestExecuteActionRejectsMixedAndPartialTargetSelectorsBeforeRPC(t *testing.
 	}{
 		{name: "mixed", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "host": "localhost", "port": 5432, "dbname": "postgres"}},
 		{name: "mixed empty host", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "host": ""}},
+		{name: "database instance with dbname", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "dbname": "rq_requested_db"}},
 		{name: "mixed dbname with empty host", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "dbname": "rq_requested_db", "host": ""}},
 		{name: "mixed dbname with port", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "dbname": "rq_requested_db", "port": 5432}},
 		{name: "database instance with empty dbname", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "dbname": ""}},
@@ -677,6 +685,7 @@ func TestExecuteActionResolveOnlyRejectsInvalidTargetBeforeRPC(t *testing.T) {
 		target map[string]interface{}
 	}{
 		{name: "mixed selectors", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "host": "localhost", "port": 5432, "dbname": "postgres"}},
+		{name: "database instance with dbname", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "dbname": "rq_requested_db"}},
 		{name: "partial tuple", target: map[string]interface{}{"host": "localhost", "dbname": "postgres"}},
 		{name: "whitespace instance", target: map[string]interface{}{"database_instance": " rq-proof-a1-db1 "}},
 		{name: "unknown credential field", target: map[string]interface{}{"database_instance": "rq-proof-a1-db1", "password": "secret-value"}},

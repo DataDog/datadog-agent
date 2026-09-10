@@ -113,19 +113,19 @@ func TestParseMatchRequestAllowsDatabaseInstanceTarget(t *testing.T) {
 	assert.Equal(t, remoteQueryTarget{DatabaseInstance: "Rq-Proof-A1-DB1"}, parsed.Target)
 }
 
-// TestParseMatchRequestAllowsDatabaseInstanceWithDbnameTarget proves the managed
-// instance + database selector mode: database_instance selects the check and dbname
-// is the requested logical execution database carried alongside, never an endpoint
-// selector.
-func TestParseMatchRequestAllowsDatabaseInstanceWithDbnameTarget(t *testing.T) {
+// TestParseMatchRequestRejectsDatabaseInstanceWithDbnameTarget proves the
+// managed-instance selector carries no database override: dbname alongside
+// database_instance would select a check identity and then override its
+// configured database, so its presence is rejected even with a non-empty value.
+func TestParseMatchRequestRejectsDatabaseInstanceWithDbnameTarget(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, RemoteQueryMatchEndpointPath, strings.NewReader(
 		`{"integration":"postgres","target":{"database_instance":"Rq-Proof-A1-DB1","dbname":"rq_requested_db"}}`,
 	))
 	req.Header.Set("Content-Type", "application/json")
 
-	parsed, err := parseMatchRequest(req)
-	require.NoError(t, err)
-	assert.Equal(t, remoteQueryTarget{DatabaseInstance: "Rq-Proof-A1-DB1", DBName: "rq_requested_db"}, parsed.Target)
+	_, err := parseMatchRequest(req)
+	require.Error(t, err)
+	assert.EqualError(t, err, "target.database_instance must not be combined with dbname")
 }
 
 func TestParseMatchRequestRejectsMixedAndPartialTargetSelectors(t *testing.T) {
@@ -147,7 +147,12 @@ func TestParseMatchRequestRejectsMixedAndPartialTargetSelectors(t *testing.T) {
 		{
 			name:      "database instance with empty dbname field",
 			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":""}}`,
-			wantError: "target.dbname is required",
+			wantError: "target.database_instance must not be combined with dbname",
+		},
+		{
+			name:      "database instance with null dbname field",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":null}}`,
+			wantError: "target.database_instance must not be combined with dbname",
 		},
 		{
 			name:      "database instance with dbname and host is still mixed",
@@ -669,19 +674,20 @@ func TestParseExecuteRequestAllowsDatabaseInstanceTarget(t *testing.T) {
 	assert.Equal(t, RemoteQueryExecuteTarget{DatabaseInstance: "Rq-Proof-A1-DB1"}, parsed.Target)
 }
 
-// TestParseExecuteRequestAllowsDatabaseInstanceWithDbnameTarget proves the managed
-// instance + requested execution database mode parses on the execute wire and
-// survives the typed request boundary with both fields intact.
-func TestParseExecuteRequestAllowsDatabaseInstanceWithDbnameTarget(t *testing.T) {
+// TestParseExecuteRequestRejectsDatabaseInstanceWithDbnameTarget proves the
+// execute wire rejects the managed-instance selector with a database override
+// before any dispatch: execution must stay on the selected check's materialized
+// configured database.
+func TestParseExecuteRequestRejectsDatabaseInstanceWithDbnameTarget(t *testing.T) {
 	body := strings.Replace(executeRequestBody(validDeliveryJSON),
 		`"target":{"host":"localhost","port":5432,"dbname":"postgres"}`,
 		`"target":{"database_instance":"Rq-Proof-A1-DB1","dbname":"rq_requested_db"}`, 1)
 	req := httptest.NewRequest(http.MethodPost, RemoteQueryExecuteEndpointPath, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	parsed, err := parseExecuteRequest(req)
-	require.NoError(t, err)
-	assert.Equal(t, RemoteQueryExecuteTarget{DatabaseInstance: "Rq-Proof-A1-DB1", DBName: "rq_requested_db"}, parsed.Target)
+	_, err := parseExecuteRequest(req)
+	require.Error(t, err)
+	assert.EqualError(t, err, "target.database_instance must not be combined with dbname")
 }
 
 func TestParseExecuteRequestRejectsMixedDatabaseInstanceTargetSelectors(t *testing.T) {
@@ -703,7 +709,12 @@ func TestParseExecuteRequestRejectsMixedDatabaseInstanceTargetSelectors(t *testi
 		{
 			name:      "empty dbname field",
 			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":""},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
-			wantError: "target.dbname is required",
+			wantError: "target.database_instance must not be combined with dbname",
+		},
+		{
+			name:      "null dbname field",
+			body:      `{"integration":"postgres","target":{"database_instance":"rq-proof-a1-db1","dbname":null},"query":"SELECT 1 AS value","resultDelivery":` + validDeliveryJSON + `}`,
+			wantError: "target.database_instance must not be combined with dbname",
 		},
 		{
 			name:      "dbname with null host field",
@@ -1159,25 +1170,17 @@ func TestRemoteQueryExecuteServicePostgresTieredTupleSelection(t *testing.T) {
 	})
 }
 
-// TestRemoteQueryExecuteServiceDatabaseInstanceWithDbnameForwardsBoth proves the
-// managed instance + requested execution database mode survives the full
-// Agent -> integration request JSON boundary with both selector fields intact.
-func TestRemoteQueryExecuteServiceDatabaseInstanceWithDbnameForwardsBoth(t *testing.T) {
-	runner := &fakeStreamRunnerCheck{
-		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-value\n"}},
-		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`}},
-	}
-	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, false, nil)
-	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: "rq-proof-a1-db1", DBName: "rq_requested_db"}, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
-	require.NoError(t, err)
+// TestRemoteQueryExecuteServiceRejectsDatabaseInstanceWithDbname proves the typed
+// request boundary rejects the managed-instance selector with a database override
+// before the executor ever matches or forwards: every entry point (the HTTP
+// execute endpoint, the AgentSecure proto mapping, and the resolve service)
+// constructs its request through NewRemoteQueryExecuteRequest, so no dispatch can
+// reach the integration with a selected check identity plus an overridden database.
+func TestRemoteQueryExecuteServiceRejectsDatabaseInstanceWithDbname(t *testing.T) {
+	_, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: "rq-proof-a1-db1", DBName: "rq_requested_db"}, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 
-	result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
-
-	require.Nil(t, result.Error)
-	assert.Equal(t, 1, runner.streamCalls)
-	assert.Contains(t, runner.streamSeen, `"database_instance":"rq-proof-a1-db1"`)
-	assert.Contains(t, runner.streamSeen, `"dbname":"rq_requested_db"`)
-	assert.NotContains(t, runner.streamSeen, "secret-value")
+	require.Error(t, err)
+	assert.EqualError(t, err, "target.database_instance must not be combined with dbname")
 }
 
 func TestRemoteQueryExecuteServiceNoMatchAndAmbiguousAreSanitized(t *testing.T) {

@@ -286,16 +286,19 @@ func parseTarget(target *remoteQueryTargetRequestJSON) (remoteQueryTarget, error
 		if strings.TrimSpace(databaseInstance) != databaseInstance {
 			return remoteQueryTarget{}, errors.New("target.database_instance must not contain surrounding whitespace")
 		}
-		// database_instance selects the check; host/port are still a different
-		// selector mode. dbname is allowed alongside: it is the requested logical
-		// execution database, resolved dynamically on the matched integration.
+		// database_instance selects one loaded check and execution stays on that
+		// check's materialized configured database: host/port and dbname each name a
+		// different selector mode. dbname alongside database_instance would select a
+		// check identity and then override its configured database, bypassing the
+		// configured-scope contract, so its presence is rejected even when the value
+		// is empty or null.
 		if target.hostSet || target.portSet {
 			return remoteQueryTarget{}, errors.New("target must specify exactly one selector mode")
 		}
-		if target.dbnameSet && target.DBName == "" {
-			return remoteQueryTarget{}, errors.New("target.dbname is required")
+		if target.dbnameSet {
+			return remoteQueryTarget{}, errors.New("target.database_instance must not be combined with dbname")
 		}
-		return remoteQueryTarget{DatabaseInstance: databaseInstance, DBName: target.DBName}, nil
+		return remoteQueryTarget{DatabaseInstance: databaseInstance}, nil
 	}
 
 	if host == "" {
