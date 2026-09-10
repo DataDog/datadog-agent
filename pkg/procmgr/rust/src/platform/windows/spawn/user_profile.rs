@@ -86,14 +86,10 @@ fn profile_load_user_name(account: &AgentAccount) -> Result<String> {
         AgentAccount::LocalService => Ok(r"NT AUTHORITY\LocalService".to_string()),
         AgentAccount::NetworkService => Ok(r"NT AUTHORITY\NetworkService".to_string()),
         AgentAccount::SupervisorAccount {
-            logon_domain,
-            user,
-            ..
+            logon_domain, user, ..
         }
         | AgentAccount::PasswordLogon {
-            logon_domain,
-            user,
-            ..
+            logon_domain, user, ..
         } => {
             let computer = if logon_domain.is_empty() {
                 computer_name()?
