@@ -117,4 +117,3 @@ func TestWorkloadTypeDetection(t *testing.T) {
 	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "node")
 	assert.Equal(t, workloadTypeAzureFunction, workloadType())
 }
-
