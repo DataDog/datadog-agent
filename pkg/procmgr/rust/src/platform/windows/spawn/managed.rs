@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use log::{info, warn};
 use std::process::Stdio;
 
@@ -68,7 +68,11 @@ fn spawn_agent(
         return spawn_agent_inherit(process, process_name, request, &credential);
     }
 
-    spawn_privileged_inherit(process, process_name, request)
+    let intended_user = credential.display_name();
+    bail!(
+        "[{process_name}] cannot spawn as {intended_user}: supervisor token does not match the \
+         installed agent account; run dd-procmgr-service as {intended_user}"
+    );
 }
 
 fn spawn_agent_inherit(
