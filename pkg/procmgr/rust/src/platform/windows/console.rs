@@ -10,9 +10,6 @@ use windows_sys::Win32::System::Console::{
     AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent, GetStdHandle,
     STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, SetConsoleCtrlHandler, SetStdHandle,
 };
-use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW,
-};
 
 static CONSOLE_LOCK: Mutex<()> = Mutex::new(());
 
@@ -48,11 +45,6 @@ fn detach_console() {
         let _ = FreeConsole();
     }
     reset_std_handles();
-}
-
-/// Give the child its own process group and console for CTRL_BREAK graceful shutdown.
-pub fn setup_process_group(cmd: &mut tokio::process::Command) {
-    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NEW_CONSOLE | CREATE_NO_WINDOW);
 }
 
 unsafe extern "system" fn ignore_console_ctrl_events(_: u32) -> i32 {

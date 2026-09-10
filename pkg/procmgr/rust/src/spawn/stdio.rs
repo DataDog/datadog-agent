@@ -22,6 +22,7 @@ pub(crate) fn parse_stdio_setting(yaml_value: &str) -> StdioSetting {
     }
 }
 
+#[cfg_attr(windows, allow(dead_code))]
 pub(crate) fn to_command_stdio(setting: &StdioSetting, inheritable: bool) -> Stdio {
     match setting {
         StdioSetting::Null => Stdio::null(),

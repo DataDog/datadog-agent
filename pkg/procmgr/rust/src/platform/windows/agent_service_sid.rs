@@ -21,6 +21,8 @@ pub(crate) fn lookup_installed_user_sid(domain: &str, user: &str) -> Result<Vec<
 }
 
 fn installed_user_lookup_candidates(domain: &str, user: &str) -> Vec<(String, String)> {
+    // LookupAccountNameW accepts SAM (DOMAIN\user), UPN (user@domain), and bare user.
+    // Registry installedDomain does not always match the form Windows resolves, so try all three.
     let mut candidates = vec![(domain.to_string(), user.to_string())];
     if !domain.is_empty() {
         candidates.push((String::new(), format!("{user}@{domain}")));

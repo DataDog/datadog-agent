@@ -4,11 +4,20 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context, Result};
+use windows_sys::Win32::Foundation::HANDLE;
 
 use super::super::local_agent_account::AgentAccount;
 #[cfg(not(test))]
 use super::super::local_agent_account::resolve_agent_account;
+use super::logon::{logon_user_credentials, logon_user_token};
+use super::win32::duplicate_primary_token;
 
+/// Resolved spawn identity for Windows spawn.
+///
+/// If you are not familiar with Windows: we either reuse procmgrd's access token (when it
+/// already runs as the target account) or call `LogonUser` for a primary token. Password
+/// retrieval is a follow-up (A4-lsa). This type only holds the resolved account and which
+/// path to take.
 #[derive(Clone, Debug)]
 pub(crate) struct SpawnCredential {
     account: AgentAccount,
@@ -16,6 +25,18 @@ pub(crate) struct SpawnCredential {
 }
 
 impl SpawnCredential {
+    /// Privileged children inherit dd-procmgrd's token via `CreateProcessW`.
+    ///
+    /// Always `reuses_supervisor_token`: we do not `LogonUser` as LocalSystem, and we do
+    /// not use `CreateProcessAsUserW` (that API needs `SeIncreaseQuotaPrivilege`, which
+    /// the installed agent account does not hold).
+    pub(crate) fn privileged() -> Self {
+        Self {
+            account: AgentAccount::LocalSystem,
+            reuses_supervisor_token: true,
+        }
+    }
+
     pub(crate) fn resolve_agent() -> Result<Self> {
         #[cfg(test)]
         {
@@ -41,8 +62,22 @@ impl SpawnCredential {
         self.account.display_name()
     }
 
+    pub(crate) fn account(&self) -> &AgentAccount {
+        &self.account
+    }
+
     pub(crate) fn reuses_supervisor_token(&self) -> bool {
         self.reuses_supervisor_token
+    }
+
+    /// Primary token for `CreateProcessAsUserW` (required Win32 token type for new processes).
+    ///
+    /// LogonUser path only. Same-account spawns use `CreateProcessW` and do not call this.
+    pub(crate) fn duplicate_primary_token(&self, process_name: &str) -> Result<HANDLE> {
+        duplicate_primary_token(
+            process_name,
+            logon_user_token(process_name, &logon_user_credentials(&self.account))?.raw(),
+        )
     }
 }
 
@@ -50,10 +85,6 @@ impl SpawnCredential {
 impl SpawnCredential {
     pub(super) fn from_account(account: AgentAccount) -> Result<Self> {
         Self::new(account)
-    }
-
-    pub(crate) fn account(&self) -> &AgentAccount {
-        &self.account
     }
 }
 
@@ -76,6 +107,16 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn privileged_spawn_always_inherits_supervisor_token() {
+        let credential = SpawnCredential::privileged();
+        assert!(credential.reuses_supervisor_token());
+        assert_eq!(
+            credential.display_name(),
+            AgentAccount::LocalSystem.display_name()
+        );
     }
 
     #[test]

@@ -183,6 +183,7 @@ fn lookup_token_account(token: windows_sys::Win32::Foundation::HANDLE) -> Option
 #[cfg(windows)]
 fn lookup_account_display(sid: &mut [u8]) -> Option<String> {
     use std::ptr;
+    use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
     use windows_sys::Win32::Security::LookupAccountSidW;
 
     unsafe {
@@ -190,7 +191,7 @@ fn lookup_account_display(sid: &mut [u8]) -> Option<String> {
         let mut name_size = 0u32;
         let mut domain_size = 0u32;
         let mut sid_type = 0i32;
-        let _ = LookupAccountSidW(
+        if LookupAccountSidW(
             ptr::null(),
             sid_ptr,
             ptr::null_mut(),
@@ -198,7 +199,14 @@ fn lookup_account_display(sid: &mut [u8]) -> Option<String> {
             ptr::null_mut(),
             &mut domain_size,
             &mut sid_type,
-        );
+        ) == 0
+        {
+            let err = std::io::Error::last_os_error();
+            // Sizing probe: this call is expected to fail with ERROR_INSUFFICIENT_BUFFER.
+            if err.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+                return None;
+            }
+        }
 
         let mut name = vec![0u16; name_size as usize];
         let mut domain = vec![0u16; domain_size as usize];

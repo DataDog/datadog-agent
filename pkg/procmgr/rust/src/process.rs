@@ -102,6 +102,8 @@ pub struct ManagedProcess {
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
     #[cfg(windows)]
+    user_profile: Option<platform::UserProfileGuard>,
+    #[cfg(windows)]
     agent_credential: Option<platform::SpawnCredential>,
 }
 
@@ -139,6 +141,8 @@ impl ManagedProcess {
             #[cfg(windows)]
             job_object: None,
             #[cfg(windows)]
+            user_profile: None,
+            #[cfg(windows)]
             agent_credential,
         }
     }
@@ -173,8 +177,14 @@ impl ManagedProcess {
     }
 
     #[cfg(windows)]
+    pub(crate) fn set_user_profile_guard(&mut self, profile: platform::UserProfileGuard) {
+        self.user_profile = Some(profile);
+    }
+
+    #[cfg(windows)]
     pub(crate) fn clear_windows_spawn_resources(&mut self) {
         self.job_object = None;
+        self.user_profile = None;
     }
 
     pub(crate) fn profile(&self) -> SpawnProfile {
