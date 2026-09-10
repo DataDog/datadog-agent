@@ -272,8 +272,13 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 // Pull collects the GPUs available on the node and notifies the store
 func (c *collector) Pull(ctx context.Context) error {
-	lib, err := ddnvml.GetSafeNvmlLib()
-	if err != nil {
+	// While NVML is deliberately released, skip quietly: touching the
+	// library would re-initialize it and re-block the GPU reset the window
+	// exists to allow. A pull before the first initialization is NOT skipped.
+	if err := ddnvml.BeginNVMLUse(); err != nil {
+		if errors.Is(err, ddnvml.ErrNVMLReleased) {
+			return nil
+		}
 		// Do not consider an unloaded driver as an error more than once.
 		// Some installations will have the NVIDIA libraries but not the driver. Report the error
 		// only once to avoid log spam, treat it the same as if there was no library available or
@@ -285,8 +290,11 @@ func (c *collector) Pull(ctx context.Context) error {
 
 		return fmt.Errorf("failed to get NVML library : %w", err)
 	}
+	// Hold the NVML gate for the whole pull: a deliberate release waits for
+	// the in-flight pull to finish instead of racing it.
+	defer ddnvml.EndNVMLUse()
 
-	deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(lib))
+	deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(ddnvml.AcquiredLib()))
 	if err := deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to initialize device cache: %w", err)
 	}
@@ -294,7 +302,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	// driver version is equal to all devices of the same vendor
 	// currently we handle only nvidia.
 	// in the future this function should be refactored to support more vendors
-	driverVersion, err := lib.SystemGetDriverVersion()
+	driverVersion, err := ddnvml.AcquiredLib().SystemGetDriverVersion()
 	// we try to get the driver version as best effort, just log warning if it fails
 	if err != nil {
 		if logLimiter.ShouldLog() {

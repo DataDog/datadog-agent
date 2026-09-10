@@ -59,7 +59,20 @@ func NewNvmlStateTelemetry(tm telemetry.Component) *NvmlStateTelemetry {
 // If the library remains unavailable for more than nvmlUnavailableThreshold,
 // it sets the unavailable gauge to 1. Should only be called from a single goroutine.
 func (n *NvmlStateTelemetry) Check() {
-	_, err := GetSafeNvmlLib() // GetSafeNvmlLib is thread-safe
+	if IsNVMLReleased() {
+		// NVML is deliberately released for a GPU reset window: that is an
+		// operational choice, not an availability problem — don't count it
+		// toward the unavailable gauge.
+		n.unavailableGauge.Set(0)
+		n.firstCheckTime = time.Time{}
+		n.unavailable = false
+		return
+	}
+
+	err := BeginNVMLUse()
+	if err == nil {
+		defer EndNVMLUse()
+	}
 	if err != nil {
 		// Track the first check time
 		if n.firstCheckTime.IsZero() {

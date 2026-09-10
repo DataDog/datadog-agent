@@ -8,17 +8,18 @@
 package gpu
 
 import (
-	"strconv"
-	"strings"
-	"testing"
-
-	"github.com/stretchr/testify/require"
-
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
 )
 
 func getTestSystemContext(tb testing.TB, extraOpts ...systemContextOption) *systemContext {
@@ -285,4 +286,69 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			// environment variable is updated.
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// NVML release
+//
+
+// TestNvmlReleaseLease pins the lease the core agent holds on the
+// system-probe NVML release: a push renews it, a released=false push clears
+// it, and — the point of the lease — it expires on its own when the core
+// agent stops renewing (crash, check reload), so a half-finished release
+// window never leaves this probe's GPU monitoring dead forever.
+func TestNvmlReleaseLease(t *testing.T) {
+	var lease NvmlReleaseLease
+
+	assert.False(t, lease.Held(), "no lease yet")
+
+	lease.Renew(NvmlReleaseLeaseTTL)
+	assert.True(t, lease.Held())
+
+	// a stale lease self-heals: backdate the deadline past the TTL
+	lease.deadlineNanos.Store(time.Now().Add(-time.Second).UnixNano())
+	assert.False(t, lease.Held(), "an expired lease must release the probe")
+
+	// renewal after expiry re-arms the window (e.g. system-probe socket blip)
+	lease.Renew(NvmlReleaseLeaseTTL)
+	assert.True(t, lease.Held())
+
+	// an explicit end push clears the window immediately
+	lease.Clear()
+	assert.False(t, lease.Held())
+}
+
+// TestSystemContextNvmlReleaseCycle covers the system-probe side of the NVML
+// release: system-probe is an independent NVML client in a separate process
+// — the core agent's release does not reach it — so the release monitor
+// drives it from the release lease. The system context must drop everything
+// that holds NVML (device cache handles, per-process visible-device caches,
+// the library itself) and re-acquire cleanly so the caches re-enumerate on
+// the next use.
+func TestSystemContextNvmlReleaseCycle(t *testing.T) {
+	sysCtx := getTestSystemContext(t)
+
+	require.False(t, ddnvml.IsNVMLReleased())
+	// NVML is deliberately NOT initialized in this test (no mock, no real
+	// library): the release path's ShutdownIfInited no-ops, and what matters
+	// here are the guards, the released flag and the per-process caches. The
+	// inited → shutdown transition is covered by the safenvml suite against
+	// the NVML mock.
+
+	// a stale per-process entry must be dropped on release: its handles die
+	// with the nvmlShutdown
+	sysCtx.visibleDevicesCache[42] = []ddnvml.Device{nil}
+
+	sysCtx.releaseNVMLForReset()
+	assert.True(t, ddnvml.IsNVMLReleased())
+	assert.Empty(t, sysCtx.visibleDevicesCache, "dead NVML handles must not survive the release")
+	assert.True(t, sysCtx.lastDeviceCacheRefreshTime.IsZero(), "the next use must re-enumerate immediately")
+
+	// while released, the library cannot be re-acquired: this is what keeps
+	// system-probe out of the way of the reconfiguration's GPU reset
+	_, err := ddnvml.GetSafeNvmlLib()
+	assert.ErrorIs(t, err, ddnvml.ErrNVMLReleased)
+
+	sysCtx.reacquireNVML()
+	assert.False(t, ddnvml.IsNVMLReleased())
 }
