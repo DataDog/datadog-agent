@@ -1417,8 +1417,13 @@ type ContainerSecurityContext struct {
 	Capabilities   *Capabilities          `protobuf:"bytes,1,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
 	Privileged     bool                   `protobuf:"varint,2,opt,name=privileged,proto3" json:"privileged,omitempty"`
 	SeccompProfile *SeccompProfile        `protobuf:"bytes,3,opt,name=seccompProfile,proto3" json:"seccompProfile,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Kubernetes tri-state fields: absent = unset in the pod spec, which is
+	// semantically distinct from an explicit false value.
+	RunAsNonRoot             *bool `protobuf:"varint,4,opt,name=runAsNonRoot,proto3,oneof" json:"runAsNonRoot,omitempty"`
+	AllowPrivilegeEscalation *bool `protobuf:"varint,5,opt,name=allowPrivilegeEscalation,proto3,oneof" json:"allowPrivilegeEscalation,omitempty"`
+	ReadOnlyRootFilesystem   *bool `protobuf:"varint,6,opt,name=readOnlyRootFilesystem,proto3,oneof" json:"readOnlyRootFilesystem,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *ContainerSecurityContext) Reset() {
@@ -1470,6 +1475,27 @@ func (x *ContainerSecurityContext) GetSeccompProfile() *SeccompProfile {
 		return x.SeccompProfile
 	}
 	return nil
+}
+
+func (x *ContainerSecurityContext) GetRunAsNonRoot() bool {
+	if x != nil && x.RunAsNonRoot != nil {
+		return *x.RunAsNonRoot
+	}
+	return false
+}
+
+func (x *ContainerSecurityContext) GetAllowPrivilegeEscalation() bool {
+	if x != nil && x.AllowPrivilegeEscalation != nil {
+		return *x.AllowPrivilegeEscalation
+	}
+	return false
+}
+
+func (x *ContainerSecurityContext) GetReadOnlyRootFilesystem() bool {
+	if x != nil && x.ReadOnlyRootFilesystem != nil {
+		return *x.ReadOnlyRootFilesystem
+	}
+	return false
 }
 
 type Container struct {
@@ -2807,13 +2833,19 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\x04drop\x18\x02 \x03(\tR\x04drop\"P\n" +
 	"\x0eSeccompProfile\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12*\n" +
-	"\x10localhostProfile\x18\x02 \x01(\tR\x10localhostProfile\"\xd0\x01\n" +
+	"\x10localhostProfile\x18\x02 \x01(\tR\x10localhostProfile\"\xc0\x03\n" +
 	"\x18ContainerSecurityContext\x12F\n" +
 	"\fcapabilities\x18\x01 \x01(\v2\".datadog.workloadmeta.CapabilitiesR\fcapabilities\x12\x1e\n" +
 	"\n" +
 	"privileged\x18\x02 \x01(\bR\n" +
 	"privileged\x12L\n" +
-	"\x0eseccompProfile\x18\x03 \x01(\v2$.datadog.workloadmeta.SeccompProfileR\x0eseccompProfile\"\xdf\b\n" +
+	"\x0eseccompProfile\x18\x03 \x01(\v2$.datadog.workloadmeta.SeccompProfileR\x0eseccompProfile\x12'\n" +
+	"\frunAsNonRoot\x18\x04 \x01(\bH\x00R\frunAsNonRoot\x88\x01\x01\x12?\n" +
+	"\x18allowPrivilegeEscalation\x18\x05 \x01(\bH\x01R\x18allowPrivilegeEscalation\x88\x01\x01\x12;\n" +
+	"\x16readOnlyRootFilesystem\x18\x06 \x01(\bH\x02R\x16readOnlyRootFilesystem\x88\x01\x01B\x0f\n" +
+	"\r_runAsNonRootB\x1b\n" +
+	"\x19_allowPrivilegeEscalationB\x19\n" +
+	"\x17_readOnlyRootFilesystem\"\xdf\b\n" +
 	"\tContainer\x12F\n" +
 	"\bentityId\x18\x01 \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\bentityId\x12@\n" +
 	"\n" +
@@ -3139,6 +3171,7 @@ func file_datadog_workloadmeta_workloadmeta_proto_init() {
 		return
 	}
 	file_datadog_workloadmeta_workloadmeta_proto_msgTypes[11].OneofWrappers = []any{}
+	file_datadog_workloadmeta_workloadmeta_proto_msgTypes[14].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

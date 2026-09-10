@@ -25,28 +25,44 @@ import (
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
-func declaredToProto(d *securitycontext.Declared) *adprotov1.HardeningDeclared {
-	if d == nil {
+func securityContextToProto(sc *securitycontext.SecurityContext) *adprotov1.SecurityContext {
+	if sc == nil {
 		return nil
 	}
-	return &adprotov1.HardeningDeclared{
-		Privileged:       d.Privileged,
-		Seccomp:          seccompToProto(d.Seccomp),
-		CapabilitiesAdd:  d.CapabilitiesAdd,
-		CapabilitiesDrop: d.CapabilitiesDrop,
+	return &adprotov1.SecurityContext{
+		Privileged:               sc.Privileged,
+		Seccomp:                  seccompToProto(sc.Seccomp),
+		CapabilitiesAdd:          sc.CapabilitiesAdd,
+		CapabilitiesDrop:         sc.CapabilitiesDrop,
+		RunAsNonRoot:             copyBoolPtr(sc.RunAsNonRoot),
+		AllowPrivilegeEscalation: copyBoolPtr(sc.AllowPrivilegeEscalation),
+		ReadOnlyRootFilesystem:   copyBoolPtr(sc.ReadOnlyRootFilesystem),
 	}
 }
 
-func protoToDeclared(d *adprotov1.HardeningDeclared) *securitycontext.Declared {
-	if d == nil {
+func protoToSecurityContext(sc *adprotov1.SecurityContext) *securitycontext.SecurityContext {
+	if sc == nil {
 		return nil
 	}
-	return &securitycontext.Declared{
-		Privileged:       d.GetPrivileged(),
-		Seccomp:          seccompFromProto(d.GetSeccomp()),
-		CapabilitiesAdd:  d.GetCapabilitiesAdd(),
-		CapabilitiesDrop: d.GetCapabilitiesDrop(),
+	return &securitycontext.SecurityContext{
+		Privileged:               sc.GetPrivileged(),
+		Seccomp:                  seccompFromProto(sc.GetSeccomp()),
+		CapabilitiesAdd:          sc.GetCapabilitiesAdd(),
+		CapabilitiesDrop:         sc.GetCapabilitiesDrop(),
+		RunAsNonRoot:             copyBoolPtr(sc.RunAsNonRoot),
+		AllowPrivilegeEscalation: copyBoolPtr(sc.AllowPrivilegeEscalation),
+		ReadOnlyRootFilesystem:   copyBoolPtr(sc.ReadOnlyRootFilesystem),
 	}
+}
+
+// copyBoolPtr returns a fresh *bool with src's value, or nil when src is nil,
+// so callers never alias the sender's storage across the wire boundary.
+func copyBoolPtr(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	v := *src
+	return &v
 }
 
 // seccompToProto drops LocalhostProfile for any type != Localhost to keep the
@@ -117,10 +133,10 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 		Host:     p.Header.Host,
 		Service:  p.Header.Service,
 		Source:   p.Header.Source,
-		Metadata: mtdt.ToProto(&p.Metadata),
-		Tags:     make([]string, len(p.tags)),
-		Tree:     activity_tree.ToProto(p.ActivityTree),
-		Declared: declaredToProto(p.Declared),
+		Metadata:        mtdt.ToProto(&p.Metadata),
+		Tags:            make([]string, len(p.tags)),
+		Tree:            activity_tree.ToProto(p.ActivityTree),
+		SecurityContext: securityContextToProto(p.SecurityContext),
 	}
 	copy(pad.Tags, p.tags)
 
@@ -137,7 +153,7 @@ func secDumpProtoToProfile(p *Profile, ad *adprotov1.SecDump) {
 	p.Header.Service = ad.Service
 	p.Header.Source = ad.Source
 	p.Metadata = mtdt.ProtoMetadataToMetadata(ad.Metadata)
-	p.Declared = protoToDeclared(ad.Declared)
+	p.SecurityContext = protoToSecurityContext(ad.SecurityContext)
 
 	p.tags = make([]string, len(ad.Tags))
 	copy(p.tags, ad.Tags)
@@ -236,7 +252,7 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 		Tree:            activity_tree.ToProto(p.ActivityTree),
 		Selector:        cgroupModel.WorkloadSelectorToProto(&p.selector),
 		Disabled:        !p.isEnabled,
-		Declared:        declaredToProto(p.Declared),
+		SecurityContext: securityContextToProto(p.SecurityContext),
 	}
 
 	for key, ctx := range p.versionContexts {
@@ -286,7 +302,7 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 	output.Metadata = mtdt.ProtoMetadataToMetadata(input.Metadata)
 	output.selector = cgroupModel.ProtoToWorkloadSelector(input.Selector)
 	output.isEnabled = !input.Disabled
-	output.Declared = protoToDeclared(input.Declared)
+	output.SecurityContext = protoToSecurityContext(input.SecurityContext)
 
 	for key, ctx := range input.ProfileContexts {
 		outCtx := &VersionContext{

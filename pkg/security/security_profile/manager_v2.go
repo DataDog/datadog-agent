@@ -1150,8 +1150,8 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 
 	// Backfill only — never overwrite so a later rollout with a different
 	// SecurityContext can't silently rewrite historical data.
-	if secprof.Declared == nil {
-		secprof.Declared = m.resolveDeclared(event.ProcessContext.Process.ContainerContext.ContainerID)
+	if secprof.SecurityContext == nil {
+		secprof.SecurityContext = m.resolveSecurityContext(event.ProcessContext.Process.ContainerContext.ContainerID)
 	}
 
 	// Apply eviction right away if configured
@@ -1204,7 +1204,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		Start:             eventTime,
 		End:               eventTime,
 	}
-	secprof.Declared = m.resolveDeclared(event.ProcessContext.Process.ContainerContext.ContainerID)
+	secprof.SecurityContext = m.resolveSecurityContext(event.ProcessContext.Process.ContainerContext.ContainerID)
 	secprof.Header.Host = m.hostname
 	secprof.Header.Source = ActivityDumpSource
 
@@ -1216,7 +1216,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	return secprof, nil
 }
 
-func (m *ManagerV2) resolveDeclared(id containerutils.ContainerID) *securitycontext.Declared {
+func (m *ManagerV2) resolveSecurityContext(id containerutils.ContainerID) *securitycontext.SecurityContext {
 	if m.resolvers == nil || m.resolvers.SecurityContextResolver == nil || len(id) == 0 {
 		return nil
 	}

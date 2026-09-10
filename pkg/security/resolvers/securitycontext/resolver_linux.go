@@ -20,8 +20,8 @@ type wmetaSource interface {
 	GetContainer(id string) (*workloadmeta.Container, error)
 }
 
-// WorkloadmetaResolver resolves declared hardening posture via workloadmeta.
-// Only the kubelet collector populates ContainerSecurityContext today.
+// WorkloadmetaResolver resolves the declared container security context via
+// workloadmeta. Only the kubelet collector populates SecurityContext today.
 type WorkloadmetaResolver struct {
 	wmeta wmetaSource
 }
@@ -36,9 +36,9 @@ func NewWorkloadmetaResolver(wmeta workloadmeta.Component) *WorkloadmetaResolver
 
 // Resolve implements Resolver.
 //
-// Wire convention: nil Declared == unknown posture; a present Declared means
+// Wire convention: nil == unknown posture; a present SecurityContext means
 // workloadmeta had an answer, so proto3 defaults on sub-fields are meaningful.
-func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) *Declared {
+func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) *SecurityContext {
 	if r == nil || r.wmeta == nil || len(id) == 0 {
 		return nil
 	}
@@ -49,19 +49,35 @@ func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) *Declared 
 	}
 	sc := container.SecurityContext
 
-	d := &Declared{Privileged: sc.Privileged}
+	out := &SecurityContext{
+		Privileged:               sc.Privileged,
+		RunAsNonRoot:             copyBoolPtr(sc.RunAsNonRoot),
+		AllowPrivilegeEscalation: copyBoolPtr(sc.AllowPrivilegeEscalation),
+		ReadOnlyRootFilesystem:   copyBoolPtr(sc.ReadOnlyRootFilesystem),
+	}
 	if sc.Capabilities != nil {
 		if len(sc.Capabilities.Add) > 0 {
-			d.CapabilitiesAdd = slices.Clone(sc.Capabilities.Add)
+			out.CapabilitiesAdd = slices.Clone(sc.Capabilities.Add)
 		}
 		if len(sc.Capabilities.Drop) > 0 {
-			d.CapabilitiesDrop = slices.Clone(sc.Capabilities.Drop)
+			out.CapabilitiesDrop = slices.Clone(sc.Capabilities.Drop)
 		}
 	}
 	if seccomp := seccompFromWmeta(sc.SeccompProfile); seccomp != nil {
-		d.Seccomp = seccomp
+		out.Seccomp = seccomp
 	}
-	return d
+	return out
+}
+
+// copyBoolPtr returns a fresh *bool with src's value, or nil if src is nil,
+// so a mutation on the returned SecurityContext can never leak back into the
+// workloadmeta cache.
+func copyBoolPtr(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	v := *src
+	return &v
 }
 
 // seccompFromWmeta returns nil for unknown/empty types so "no declared

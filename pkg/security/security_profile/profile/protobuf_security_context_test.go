@@ -31,16 +31,20 @@ func newProfileWithSelector(t *testing.T) *Profile {
 	return p
 }
 
-func TestSecDumpDeclaredRoundtrip(t *testing.T) {
+func TestSecDumpSecurityContextRoundtrip(t *testing.T) {
+	yes, no := true, false
 	in := newProfileWithSelector(t)
-	in.Declared = &securitycontext.Declared{
+	in.SecurityContext = &securitycontext.SecurityContext{
 		Privileged: true,
 		Seccomp: &securitycontext.SeccompProfile{
 			Type:             securitycontext.SeccompLocalhost,
 			LocalhostProfile: "profiles/audit.json",
 		},
-		CapabilitiesAdd:  []string{"NET_ADMIN", "SYS_PTRACE"},
-		CapabilitiesDrop: []string{"MKNOD"},
+		CapabilitiesAdd:          []string{"NET_ADMIN", "SYS_PTRACE"},
+		CapabilitiesDrop:         []string{"MKNOD"},
+		RunAsNonRoot:             &yes,
+		AllowPrivilegeEscalation: &no,
+		ReadOnlyRootFilesystem:   &yes,
 	}
 
 	buf, err := in.EncodeSecDumpProtobuf()
@@ -48,18 +52,43 @@ func TestSecDumpDeclaredRoundtrip(t *testing.T) {
 
 	out := newProfileWithSelector(t)
 	require.NoError(t, out.DecodeSecDumpProtobuf(bytes.NewReader(buf.Bytes())))
-	require.NotNil(t, out.Declared)
-	assert.Equal(t, in.Declared.Privileged, out.Declared.Privileged)
-	assert.Equal(t, in.Declared.CapabilitiesAdd, out.Declared.CapabilitiesAdd)
-	assert.Equal(t, in.Declared.CapabilitiesDrop, out.Declared.CapabilitiesDrop)
-	require.NotNil(t, out.Declared.Seccomp)
-	assert.Equal(t, securitycontext.SeccompLocalhost, out.Declared.Seccomp.Type)
-	assert.Equal(t, "profiles/audit.json", out.Declared.Seccomp.LocalhostProfile)
+	require.NotNil(t, out.SecurityContext)
+	assert.Equal(t, in.SecurityContext.Privileged, out.SecurityContext.Privileged)
+	assert.Equal(t, in.SecurityContext.CapabilitiesAdd, out.SecurityContext.CapabilitiesAdd)
+	assert.Equal(t, in.SecurityContext.CapabilitiesDrop, out.SecurityContext.CapabilitiesDrop)
+	require.NotNil(t, out.SecurityContext.Seccomp)
+	assert.Equal(t, securitycontext.SeccompLocalhost, out.SecurityContext.Seccomp.Type)
+	assert.Equal(t, "profiles/audit.json", out.SecurityContext.Seccomp.LocalhostProfile)
+	require.NotNil(t, out.SecurityContext.RunAsNonRoot)
+	assert.True(t, *out.SecurityContext.RunAsNonRoot)
+	require.NotNil(t, out.SecurityContext.AllowPrivilegeEscalation)
+	assert.False(t, *out.SecurityContext.AllowPrivilegeEscalation,
+		"explicit false must round-trip as *bool(false), not be flattened into nil")
+	require.NotNil(t, out.SecurityContext.ReadOnlyRootFilesystem)
+	assert.True(t, *out.SecurityContext.ReadOnlyRootFilesystem)
 }
 
-func TestSecurityProfileDeclaredRoundtrip(t *testing.T) {
+func TestSecDumpSecurityContextTriStateAbsent(t *testing.T) {
+	// If the pod spec never set the three tri-state fields, we must not
+	// synthesize a false value on the wire — the profile would otherwise
+	// claim a stance the workload never took.
 	in := newProfileWithSelector(t)
-	in.Declared = &securitycontext.Declared{
+	in.SecurityContext = &securitycontext.SecurityContext{}
+
+	buf, err := in.EncodeSecDumpProtobuf()
+	require.NoError(t, err)
+
+	out := newProfileWithSelector(t)
+	require.NoError(t, out.DecodeSecDumpProtobuf(bytes.NewReader(buf.Bytes())))
+	require.NotNil(t, out.SecurityContext)
+	assert.Nil(t, out.SecurityContext.RunAsNonRoot)
+	assert.Nil(t, out.SecurityContext.AllowPrivilegeEscalation)
+	assert.Nil(t, out.SecurityContext.ReadOnlyRootFilesystem)
+}
+
+func TestSecurityProfileSecurityContextRoundtrip(t *testing.T) {
+	in := newProfileWithSelector(t)
+	in.SecurityContext = &securitycontext.SecurityContext{
 		Seccomp:         &securitycontext.SeccompProfile{Type: securitycontext.SeccompRuntimeDefault},
 		CapabilitiesAdd: []string{"NET_ADMIN"},
 	}
@@ -69,23 +98,23 @@ func TestSecurityProfileDeclaredRoundtrip(t *testing.T) {
 
 	out := newProfileWithSelector(t)
 	require.NoError(t, out.DecodeSecurityProfileProtobuf(bytes.NewReader(buf.Bytes())))
-	require.NotNil(t, out.Declared)
-	assert.False(t, out.Declared.Privileged)
-	assert.Equal(t, []string{"NET_ADMIN"}, out.Declared.CapabilitiesAdd)
-	assert.Nil(t, out.Declared.CapabilitiesDrop)
-	require.NotNil(t, out.Declared.Seccomp)
-	assert.Equal(t, securitycontext.SeccompRuntimeDefault, out.Declared.Seccomp.Type)
-	assert.Empty(t, out.Declared.Seccomp.LocalhostProfile)
+	require.NotNil(t, out.SecurityContext)
+	assert.False(t, out.SecurityContext.Privileged)
+	assert.Equal(t, []string{"NET_ADMIN"}, out.SecurityContext.CapabilitiesAdd)
+	assert.Nil(t, out.SecurityContext.CapabilitiesDrop)
+	require.NotNil(t, out.SecurityContext.Seccomp)
+	assert.Equal(t, securitycontext.SeccompRuntimeDefault, out.SecurityContext.Seccomp.Type)
+	assert.Empty(t, out.SecurityContext.Seccomp.LocalhostProfile)
 }
 
-func TestDeclaredNilRoundtrip(t *testing.T) {
+func TestSecurityContextNilRoundtrip(t *testing.T) {
 	t.Run("secdump", func(t *testing.T) {
 		in := newProfileWithSelector(t)
 		buf, err := in.EncodeSecDumpProtobuf()
 		require.NoError(t, err)
 		out := newProfileWithSelector(t)
 		require.NoError(t, out.DecodeSecDumpProtobuf(bytes.NewReader(buf.Bytes())))
-		assert.Nil(t, out.Declared)
+		assert.Nil(t, out.SecurityContext)
 	})
 	t.Run("securityprofile", func(t *testing.T) {
 		in := newProfileWithSelector(t)
@@ -93,13 +122,13 @@ func TestDeclaredNilRoundtrip(t *testing.T) {
 		require.NoError(t, err)
 		out := newProfileWithSelector(t)
 		require.NoError(t, out.DecodeSecurityProfileProtobuf(bytes.NewReader(buf.Bytes())))
-		assert.Nil(t, out.Declared)
+		assert.Nil(t, out.SecurityContext)
 	})
 }
 
-// TestDeclaredEncoderShape guards the proto tag mapping.
-func TestDeclaredEncoderShape(t *testing.T) {
-	got := declaredToProto(&securitycontext.Declared{
+// TestSecurityContextEncoderShape guards the proto tag mapping.
+func TestSecurityContextEncoderShape(t *testing.T) {
+	got := securityContextToProto(&securitycontext.SecurityContext{
 		Privileged: true,
 		Seccomp: &securitycontext.SeccompProfile{
 			Type:             securitycontext.SeccompLocalhost,
@@ -109,7 +138,7 @@ func TestDeclaredEncoderShape(t *testing.T) {
 		CapabilitiesDrop: []string{"MKNOD"},
 	})
 	lp := "audit.json"
-	assert.Equal(t, &adprotov1.HardeningDeclared{
+	assert.Equal(t, &adprotov1.SecurityContext{
 		Privileged: true,
 		Seccomp: &adprotov1.SeccompProfile{
 			Type:             adprotov1.SeccompProfile_TYPE_LOCALHOST,

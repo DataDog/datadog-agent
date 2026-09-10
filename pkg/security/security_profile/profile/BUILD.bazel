@@ -120,7 +120,7 @@ dd_agent_go_test(
     name = "profile_test",
     srcs = [
         "disable_test.go",
-        "protobuf_declared_test.go",
+        "protobuf_security_context_test.go",
     ],
     embed = [":profile"],
     deps = select({

@@ -71,8 +71,9 @@ type Profile struct {
 
 	Header   ActivityDumpHeader
 	Metadata mtdt.Metadata
-	// Declared is the declared hardening posture; nil when unknown.
-	Declared *securitycontext.Declared
+	// SecurityContext is the declared container security context;
+	// nil when unknown.
+	SecurityContext *securitycontext.SecurityContext
 	selector cgroupModel.WorkloadSelector
 	tags     []string
 

@@ -382,10 +382,23 @@ func toProtoContainerSecurityContext(sc *workloadmeta.ContainerSecurityContext) 
 		return nil
 	}
 	return &pb.ContainerSecurityContext{
-		Capabilities:   toProtoCapabilities(sc.Capabilities),
-		Privileged:     sc.Privileged,
-		SeccompProfile: toProtoSeccompProfile(sc.SeccompProfile),
+		Capabilities:             toProtoCapabilities(sc.Capabilities),
+		Privileged:               sc.Privileged,
+		SeccompProfile:           toProtoSeccompProfile(sc.SeccompProfile),
+		RunAsNonRoot:             copyBoolPtr(sc.RunAsNonRoot),
+		AllowPrivilegeEscalation: copyBoolPtr(sc.AllowPrivilegeEscalation),
+		ReadOnlyRootFilesystem:   copyBoolPtr(sc.ReadOnlyRootFilesystem),
 	}
+}
+
+// copyBoolPtr returns a fresh *bool with src's value, or nil if src is nil,
+// so wire-side callers never alias workloadmeta cache storage.
+func copyBoolPtr(src *bool) *bool {
+	if src == nil {
+		return nil
+	}
+	v := *src
+	return &v
 }
 
 func toProtoCapabilities(caps *workloadmeta.Capabilities) *pb.Capabilities {
@@ -1030,9 +1043,12 @@ func toWorkloadmetaContainerSecurityContext(sc *pb.ContainerSecurityContext) *wo
 		return nil
 	}
 	return &workloadmeta.ContainerSecurityContext{
-		Capabilities:   toWorkloadmetaCapabilities(sc.Capabilities),
-		Privileged:     sc.Privileged,
-		SeccompProfile: toWorkloadmetaSeccompProfile(sc.SeccompProfile),
+		Capabilities:             toWorkloadmetaCapabilities(sc.Capabilities),
+		Privileged:               sc.Privileged,
+		SeccompProfile:           toWorkloadmetaSeccompProfile(sc.SeccompProfile),
+		RunAsNonRoot:             copyBoolPtr(sc.RunAsNonRoot),
+		AllowPrivilegeEscalation: copyBoolPtr(sc.AllowPrivilegeEscalation),
+		ReadOnlyRootFilesystem:   copyBoolPtr(sc.ReadOnlyRootFilesystem),
 	}
 }
 

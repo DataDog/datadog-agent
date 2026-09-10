@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package securitycontext resolves the declared hardening posture for a workload.
+// Package securitycontext resolves the declared container security context for a workload.
 package securitycontext
 
 import "github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -26,22 +26,29 @@ type SeccompProfile struct {
 	LocalhostProfile string
 }
 
-// Declared mirrors adproto.HardeningDeclared.
-type Declared struct {
-	Privileged       bool
-	Seccomp          *SeccompProfile
-	CapabilitiesAdd  []string
-	CapabilitiesDrop []string
+// SecurityContext mirrors adproto.SecurityContext.
+//
+// The three *bool fields preserve Kubernetes tri-state semantics: nil means
+// the pod spec left the field unset (kubelet / PSA falls back to pod-level
+// or admission defaults), which is different from an explicit false.
+type SecurityContext struct {
+	Privileged               bool
+	Seccomp                  *SeccompProfile
+	CapabilitiesAdd          []string
+	CapabilitiesDrop         []string
+	RunAsNonRoot             *bool
+	AllowPrivilegeEscalation *bool
+	ReadOnlyRootFilesystem   *bool
 }
 
-// Resolver resolves the declared hardening posture of a workload.
+// Resolver resolves the declared container security context of a workload.
 // Implementations MUST return nil when no data is available.
 type Resolver interface {
-	Resolve(id containerutils.ContainerID) *Declared
+	Resolve(id containerutils.ContainerID) *SecurityContext
 }
 
 // NoopResolver always returns nil.
 type NoopResolver struct{}
 
 // Resolve implements Resolver.
-func (NoopResolver) Resolve(_ containerutils.ContainerID) *Declared { return nil }
+func (NoopResolver) Resolve(_ containerutils.ContainerID) *SecurityContext { return nil }

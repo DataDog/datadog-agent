@@ -157,6 +157,11 @@ message ContainerSecurityContext {
   Capabilities capabilities = 1;
   bool privileged = 2;
   SeccompProfile seccompProfile = 3;
+  // Kubernetes tri-state fields: absent = unset in the pod spec, which is
+  // semantically distinct from an explicit false value.
+  optional bool runAsNonRoot = 4;
+  optional bool allowPrivilegeEscalation = 5;
+  optional bool readOnlyRootFilesystem = 6;
 }
 
 message Container {

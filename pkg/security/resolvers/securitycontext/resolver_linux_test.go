@@ -66,7 +66,7 @@ func TestWorkloadmetaResolver_PrivilegedOnly(t *testing.T) {
 }
 
 func TestWorkloadmetaResolver_EmptySecurityContext(t *testing.T) {
-	// Known SecurityContext (all defaults) must produce a non-nil Declared.
+	// Known SecurityContext (all defaults) must produce a non-nil SecurityContext.
 	r := &WorkloadmetaResolver{wmeta: &fakeWmeta{
 		containers: map[string]*workloadmeta.Container{
 			"cid": {SecurityContext: &workloadmeta.ContainerSecurityContext{}},
@@ -78,6 +78,53 @@ func TestWorkloadmetaResolver_EmptySecurityContext(t *testing.T) {
 	assert.Nil(t, got.CapabilitiesAdd)
 	assert.Nil(t, got.CapabilitiesDrop)
 	assert.Nil(t, got.Seccomp)
+	assert.Nil(t, got.RunAsNonRoot, "unset tri-state must round-trip as nil, not zero-value false")
+	assert.Nil(t, got.AllowPrivilegeEscalation, "unset tri-state must round-trip as nil, not zero-value false")
+	assert.Nil(t, got.ReadOnlyRootFilesystem, "unset tri-state must round-trip as nil, not zero-value false")
+}
+
+func TestWorkloadmetaResolver_TriStateBooleansPreserveExplicitFalse(t *testing.T) {
+	// The pod spec setting a bool to false is a real policy statement and
+	// must round-trip distinctly from "field absent".
+	no, yes := false, true
+	src := &fakeWmeta{
+		containers: map[string]*workloadmeta.Container{
+			"cid": {
+				SecurityContext: &workloadmeta.ContainerSecurityContext{
+					RunAsNonRoot:             &yes,
+					AllowPrivilegeEscalation: &no,
+					ReadOnlyRootFilesystem:   &yes,
+				},
+			},
+		},
+	}
+	got := (&WorkloadmetaResolver{wmeta: src}).Resolve(containerutils.ContainerID("cid"))
+	require.NotNil(t, got)
+	require.NotNil(t, got.RunAsNonRoot)
+	assert.True(t, *got.RunAsNonRoot)
+	require.NotNil(t, got.AllowPrivilegeEscalation)
+	assert.False(t, *got.AllowPrivilegeEscalation)
+	require.NotNil(t, got.ReadOnlyRootFilesystem)
+	assert.True(t, *got.ReadOnlyRootFilesystem)
+}
+
+func TestWorkloadmetaResolver_TriStateBooleansCloned(t *testing.T) {
+	// Mutating the returned SecurityContext must not corrupt the shared
+	// workloadmeta cache.
+	yes := true
+	src := &fakeWmeta{
+		containers: map[string]*workloadmeta.Container{
+			"cid": {
+				SecurityContext: &workloadmeta.ContainerSecurityContext{RunAsNonRoot: &yes},
+			},
+		},
+	}
+	got := (&WorkloadmetaResolver{wmeta: src}).Resolve(containerutils.ContainerID("cid"))
+	require.NotNil(t, got)
+	require.NotNil(t, got.RunAsNonRoot)
+	*got.RunAsNonRoot = false
+	assert.True(t, *src.containers["cid"].SecurityContext.RunAsNonRoot,
+		"resolver must copy *bool fields so mutating the output can't leak into wmeta")
 }
 
 func TestWorkloadmetaResolver_Full(t *testing.T) {
