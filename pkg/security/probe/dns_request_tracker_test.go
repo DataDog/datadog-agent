@@ -172,3 +172,25 @@ func TestDNSRequestTrackerIgnoresNilProcessCacheEntry(t *testing.T) {
 
 	assert.Nil(t, tracker.matchResponse(0x1234, "one.one.one.one", testQTypeA, now))
 }
+
+// A tombstone must keep rejecting through the whole intermediate window, not only once its
+// deadline has passed. Ambiguity resolving as a miss is the safety property the feature rests on.
+func TestDNSRequestTrackerPoisonHoldsThroughIntermediateCollisions(t *testing.T) {
+	tracker := newTestDNSRequestTracker(t)
+	first := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+	second := model.NewPlaceholderProcessCacheEntry(43, 43, false)
+	third := model.NewPlaceholderProcessCacheEntry(44, 44, false)
+	now := time.Now()
+
+	tracker.recordRequest(0x1234, "one.one.one.one", testQTypeA, first, now)
+	tracker.recordRequest(0x1234, "one.one.one.one", testQTypeA, second, now.Add(time.Second))
+
+	// still poisoned partway through the original entry's life
+	assert.Nil(t, tracker.matchResponse(0x1234, "one.one.one.one", testQTypeA, now.Add(2*time.Second)))
+
+	tracker.recordRequest(0x1234, "one.one.one.one", testQTypeA, third, now.Add(3*time.Second))
+
+	// a third colliding request must not lift the tombstone or hand the answer to anyone
+	assert.Nil(t, tracker.matchResponse(0x1234, "one.one.one.one", testQTypeA, now.Add(4*time.Second)))
+	assert.Equal(t, uint64(2), tracker.collisions.Load())
+}
