@@ -141,19 +141,26 @@ func (cs *configStream) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.Confi
 func (cs *configStream) run() {
 	updatesChan := make(chan *pb.ConfigEvent, 100)
 
-	cs.config.OnUpdate(func(setting string, source model.Source, _, newValue interface{}, sequenceID uint64) {
+	cs.config.OnUpdate(func(setting string, source model.Source, _, newValue interface{}, sequenceID uint64, unsetSource model.Source) {
 		if cs.stopped.Load() {
 			return
 		}
-		sanitizedValue, err := sanitizeValue(newValue)
+
+		pbSetting, err := newConfigSetting(setting, newValue, source)
 		if err != nil {
-			cs.log.Warnf("Failed to sanitize setting '%s': %v", setting, err)
+			// The skipped sequence ID is what repairs the subscriber: the gap resyncs it, though not
+			// until some later event is dispatched.
+			cs.log.Warnf("Failed to encode setting '%s', dropping the event: %v", setting, err)
 			return
 		}
-		pbValue, err := structpb.NewValue(sanitizedValue)
-		if err != nil {
-			cs.log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", setting, err)
-			return
+		if unsetSource != "" {
+			pbSetting.UnsetSource = unsetSource.String()
+			// Only reachable for an undeclared key: every declared setting falls back to its
+			// default. The key leaves the config, so the subscriber just drops the cleared layer.
+			if source == model.SourceUnknown {
+				pbSetting.Source = ""
+				pbSetting.Value = nil
+			}
 		}
 
 		configUpdate := &pb.ConfigEvent{
@@ -161,11 +168,7 @@ func (cs *configStream) run() {
 				Update: &pb.ConfigUpdate{
 					SequenceId: int32(sequenceID),
 					Origin:     cs.origin,
-					Setting: &pb.ConfigSetting{
-						Key:    setting,
-						Value:  pbValue,
-						Source: source.String(),
-					},
+					Setting:    pbSetting,
 				},
 			},
 		}
@@ -234,6 +237,19 @@ func (cs *configStream) removeSubscriber(id string) {
 		// Update telemetry
 		cs.subscribersGauge.Set(float64(len(cs.subscribers)))
 	}
+}
+
+// newConfigSetting encodes one resolved setting for the wire.
+func newConfigSetting(key string, value interface{}, source model.Source) (*pb.ConfigSetting, error) {
+	sanitizedValue, err := sanitizeValue(value)
+	if err != nil {
+		return nil, err
+	}
+	pbValue, err := structpb.NewValue(sanitizedValue)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.ConfigSetting{Key: key, Source: source.String(), Value: pbValue}, nil
 }
 
 func (cs *configStream) handleConfigUpdate(event *pb.ConfigEvent) {

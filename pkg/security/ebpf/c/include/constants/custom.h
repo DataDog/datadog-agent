@@ -18,7 +18,7 @@
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
 #define MAX_ARRAY_ELEMENT_SIZE 4096
-#define MAX_ARRAY_ELEMENT_PER_TAIL 27
+#define MAX_ARRAY_ELEMENT_PER_TAIL 26
 #define MAX_ARGS_ELEMENTS (MAX_ARRAY_ELEMENT_PER_TAIL * (32 / 2)) // split tailcall limit
 #define MAX_ARGS_READ_PER_TAIL 160
 
@@ -63,6 +63,7 @@ enum DENTRY_ERPC_RESOLUTION_CODE {
     DR_ERPC_TAIL_CALL_ERROR,
     DR_ERPC_READ_PAGE_FAULT,
     DR_ERPC_UNKNOWN_ERROR,
+    DR_ERPC_LAST,
 };
 
 enum TC_TAIL_CALL_KEYS {
@@ -119,6 +120,12 @@ enum TC_RAWPACKET_KEYS {
 #ifndef USE_RING_BUFFER
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 #define USE_RING_BUFFER 1
+#endif
+#endif
+
+#ifndef USE_SYSCALL_TASK_STORAGE
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+#define USE_SYSCALL_TASK_STORAGE 1
 #endif
 #endif
 
@@ -265,6 +272,14 @@ static __attribute__((always_inline)) u64 is_sk_storage_supported() {
     u64 is_sk_storage_supported;
     LOAD_CONSTANT("is_sk_storage_supported", is_sk_storage_supported);
     return is_sk_storage_supported;
+}
+
+// is_sk_lookup_pid_enabled returns whether TC pid resolution uses bpf_sk_lookup + sk-local storage
+// instead of the flow_pid map.
+static __attribute__((always_inline)) u64 is_sk_lookup_pid_enabled() {
+    u64 is_sk_lookup_pid_enabled;
+    LOAD_CONSTANT("sk_lookup_pid_enabled", is_sk_lookup_pid_enabled);
+    return is_sk_lookup_pid_enabled;
 }
 
 static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {

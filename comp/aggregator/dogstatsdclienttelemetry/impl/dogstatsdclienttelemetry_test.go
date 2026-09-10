@@ -15,6 +15,7 @@ import (
 
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func TestComponentObservesClientByteRateSeries(t *testing.T) {
@@ -37,12 +38,13 @@ func TestComponentObservesClientByteRateSeries(t *testing.T) {
 				MType:    metrics.APIRateType,
 				Interval: 10,
 				Points:   []metrics.Point{{Value: test.value}},
+				Tags:     tagset.CompositeTagsFromSlice([]string{"client:go", "client_transport:uds"}),
 			})
 
 			metrics, err := telemetry.GetCountMetric("dogstatsd_client", test.name[len("datadog.dogstatsd.client."):])
 			require.NoError(t, err)
 			require.Len(t, metrics, 1)
-			require.Empty(t, metrics[0].Tags())
+			require.Equal(t, map[string]string{"client": "go", "client_transport": "uds"}, metrics[0].Tags())
 			require.Equal(t, test.expected, metrics[0].Value())
 		})
 	}

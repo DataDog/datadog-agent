@@ -139,6 +139,11 @@
       },
       {
         "matchManagers": ["gomod"],
+        "matchDepNames": ["istio.io/**"],
+        "groupName": "istio"
+      },
+      {
+        "matchManagers": ["gomod"],
         "matchDepNames": ["k8s.io/**"],
         "matchUpdateTypes": ["patch"],
         "groupName": "k8s-io"

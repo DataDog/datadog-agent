@@ -14,6 +14,7 @@ import (
 	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
@@ -27,6 +28,13 @@ const (
 	// auto-vanishes on reboot. See apminject.defaultTmpfsInjectDir.
 	injectTmpfsLauncher = "/run/datadog-apm-inject/launcher.preload.so"
 )
+
+func injectTmpfsLauncherFor(arch e2eos.Architecture) string {
+	if arch == e2eos.AMD64Arch {
+		return strings.Replace(injectTmpfsLauncher, "/launcher.preload.so", "/$LIB/launcher.preload.so", 1)
+	}
+	return injectTmpfsLauncher
+}
 
 type packageApmInjectSuite struct {
 	packageBaseSuite
@@ -480,13 +488,16 @@ func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()
 		assert.NoError(s.T(), err)
+		// The convert-traces feature is enabled by default, so the agent
+		// serializes tracer payloads in the v1 string-indexed idx format
+		// (AgentPayload.IdxTracerPayloads) and leaves the legacy
+		// TracerPayloads field empty. The trace ID lives on the chunk as the
+		// full 128 bits; its lowest 8 bytes are the legacy 64-bit trace ID.
 		for _, tracePayload := range tracePayloads {
-			for _, tracerPayload := range tracePayload.TracerPayloads {
+			for _, tracerPayload := range tracePayload.IdxTracerPayloads {
 				for _, chunk := range tracerPayload.Chunks {
-					for _, span := range chunk.Spans {
-						if span.TraceID == traceID {
-							return true
-						}
+					if fakeintakeclient.IdxChunkTraceID(chunk) == traceID {
+						return true
 					}
 				}
 			}
@@ -527,7 +538,7 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(injectorRoot string)
 
 	if injectorRoot == injectOCIPath && s.isSystemdPID1() {
 		ociPersistentLauncher := filepath.Join(injectorRoot, "stable", "inject", "launcher.preload.so")
-		assert.Contains(s.T(), string(content), injectTmpfsLauncher)
+		assert.Contains(s.T(), string(content), injectTmpfsLauncherFor(s.arch))
 		assert.NotContains(s.T(), string(content), ociPersistentLauncher,
 			"systemd-managed OCI host must not keep the persistent launcher path in ld.so.preload")
 		return
@@ -570,7 +581,7 @@ func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
 		// failed instrument-start after a reboot wiped /run) does not contain
 		// injectOCIPath, so without this check it would slip through — yet ld.so
 		// prints a "cannot be preloaded ... ignored" warning for it on every exec.
-		assert.NotContains(s.T(), string(content), injectTmpfsLauncher)
+		assert.NotContains(s.T(), string(content), injectTmpfsLauncherFor(s.arch))
 	}
 	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
 	assert.NotContains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'")

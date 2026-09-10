@@ -280,7 +280,7 @@ func TestAWSIMDSv2Response(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_aws_imds_v2_response",
-			Expression: fmt.Sprintf(`imds.aws.is_imds_v2 == true && imds.type == "response" && imds.aws.security_credentials.type == "%s" && process.file.name == "%s"`, testutils.AWSSecurityCredentialsTypeTestValue, path.Base(executable)),
+			Expression: fmt.Sprintf(`imds.aws.is_imds_v2 == true && imds.type == "response" && imds.aws.security_credentials.type == "%s" && imds.aws.security_credentials.access_key_id == "%s" && process.file.name == "%s"`, testutils.AWSSecurityCredentialsTypeTestValue, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, path.Base(executable)),
 		},
 	}
 
