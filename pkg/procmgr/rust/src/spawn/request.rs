@@ -93,7 +93,15 @@ impl SpawnRequest {
 }
 
 fn collect_env(process_name: &str, config: &ProcessConfig) -> Result<Vec<(String, String)>> {
-    let mut env = Vec::new();
+    // Parent environment inheritance is opt-in so host-managed children stay isolated.
+    let prefixes = env_list("DD_PM_INHERIT_ENV_PREFIXES");
+    let exact_names = env_list("DD_PM_INHERIT_ENV_NAMES");
+    let mut env = std::env::vars()
+        .filter(|(name, _)| {
+            prefixes.iter().any(|prefix| name.starts_with(prefix))
+                || exact_names.iter().any(|exact_name| name == exact_name)
+        })
+        .collect::<Vec<_>>();
 
     if let Some(ref raw_path) = config.environment_file {
         let raw_path = expand_env_vars(raw_path);
@@ -126,4 +134,14 @@ fn collect_env(process_name: &str, config: &ProcessConfig) -> Result<Vec<(String
     }
 
     Ok(env)
+}
+
+fn env_list(name: &str) -> Vec<String> {
+    std::env::var(name)
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
 }
