@@ -5,6 +5,7 @@ package datadog.api.v1;
 import "datadog/model/v1/model.proto";
 import "datadog/remoteagent/remoteagent.proto";
 import "datadog/remoteconfig/remoteconfig.proto";
+import "datadog/sbomusage/usage.proto";
 import "datadog/workloadmeta/workloadmeta.proto";
 import "datadog/workloadfilter/workloadfilter.proto";
 import "datadog/autodiscovery/autodiscovery.proto";
@@ -87,6 +88,15 @@ service AgentSecure {
     // Registered remote agents MUST supply remote_agent_session_id (same rules as
     // ReportHealthIssue).
     rpc ResolveHealthIssue(datadog.api.v1.ResolveHealthIssueRequest) returns (google.protobuf.Empty);
+
+    // Streams the file-to-component table of every workload the core agent has
+    // scanned, so a runtime observer can attribute the file accesses it sees to
+    // the components of the SBOM the core agent owns.
+    rpc SBOMStreamIndex(datadog.sbomusage.IndexRequest) returns (stream datadog.sbomusage.IndexUpdate);
+
+    // Receives the runtime usage a consumer observed against the indexes it was
+    // given, and its requests to rescan a workload whose packages changed.
+    rpc SBOMReportUsage(stream datadog.sbomusage.UsageMessage) returns (stream datadog.sbomusage.UsageAck);
 }
 
 // ReportHealthIssueRequest carries a health issue from a sub-agent or registered

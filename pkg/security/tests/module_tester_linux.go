@@ -132,8 +132,6 @@ runtime_security_config:
       enabled: {{ .OnDemandRateLimiterEnabled}}
   sbom:
     enabled: {{ .SBOMEnabled }}
-    host:
-      enabled: {{ .HostSBOMEnabled }}
   activity_dump:
     enabled: {{ .EnableActivityDump }}
     syscall_monitor:

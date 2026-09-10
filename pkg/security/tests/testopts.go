@@ -50,7 +50,6 @@ type testOpts struct {
 	envsWithValue                              []string
 	disableRuntimeSecurity                     bool
 	enableSBOM                                 bool
-	enableHostSBOM                             bool
 	preStartCallback                           func(test *testModule)
 	tagger                                     tags.Tagger
 	ruleMatchHandler                           func(*testModule, *model.Event, *rules.Rule)

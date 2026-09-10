@@ -23,6 +23,7 @@ go_library(
         "//comp/networkconfigmanagement/def",
         "//comp/networkpath/traceroute/def",
         "//comp/remote-config/rcclient/def",
+        "//comp/sbom/usage/def",
         "//comp/snmpscanmanager/def",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",

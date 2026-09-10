@@ -60,6 +60,7 @@ go_library(
         "//comp/networkconfigmanagement/def",
         "//comp/networkpath/traceroute/def",
         "//comp/networkpath/traceroute/fx-remote",
+        "//comp/sbom/usage/def",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/fx",
         "//pkg/aggregator",

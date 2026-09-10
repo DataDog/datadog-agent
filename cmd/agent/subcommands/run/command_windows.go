@@ -21,6 +21,7 @@ import (
 	etwfx "github.com/DataDog/datadog-agent/comp/etw/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	sbomusage "github.com/DataDog/datadog-agent/comp/sbom/usage/def"
 	etwtracer "github.com/DataDog/datadog-agent/comp/trace/etwtracer/def"
 	etwtracerimpl "github.com/DataDog/datadog-agent/comp/trace/etwtracer/fx"
 
@@ -152,6 +153,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			traceroute traceroute.Component,
 			healthplatformComp healthplatformdef.Component,
 			ncmComp option.Option[networkconfigmanagement.Component],
+			sbomUsage option.Option[sbomusage.Component],
 
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
@@ -182,6 +184,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				traceroute,
 				healthplatformComp,
 				ncmComp,
+				sbomUsage,
 			)
 			if err != nil {
 				return err

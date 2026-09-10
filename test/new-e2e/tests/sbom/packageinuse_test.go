@@ -8,6 +8,7 @@ package sbom
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,12 +36,12 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 )
 
-// Runtime-usage ("package in use") properties merged onto the container-image
-// SBOM components by the core-agent SBOM collector from the system-probe SBOM
-// resolver. "Not in use" is reported as LastSeenRunning == "0"; "in use" is a
-// recent Unix timestamp (seconds). HasSetSuidBit / RunningAsRoot are "true" /
-// "false". See pkg/security/resolvers/sbom/report.go and
-// comp/core/workloadmeta/collectors/internal/remote/sbomcollector.
+// Runtime-usage ("package in use") properties the core agent stamps onto the
+// container-image SBOM from the usage system-probe reports against the file
+// index the core agent published for that scan. "Not in use" is reported as
+// LastSeenRunning == "0", "in use" is a recent Unix timestamp in seconds, and a
+// component the scan could tie to no file carries no property at all. See
+// pkg/sbom/usage and comp/sbom/usage.
 const (
 	propLastSeenRunning = "LastSeenRunning"
 	propHasSetSuidBit   = "HasSetSuidBit"
@@ -106,13 +107,13 @@ var pkgInUseDistros = []pkgInUseDistro{
 // (overlayfs direct scan, os+languages analyzers) with everything needed for the
 // "package in use" enrichment on a containerd kubeadm node:
 //   - the system-probe security module + SBOM resolver
-//     (DD_RUNTIME_SECURITY_CONFIG_SBOM_ENABLED) that tracks which packages a
-//     running process accesses, and
-//   - the core-agent enrichment collector (DD_SBOM_ENRICHMENT_USAGE_ENABLED) that
-//     merges those runtime properties onto the Trivy container-image SBOM.
+//     (DD_RUNTIME_SECURITY_CONFIG_SBOM_ENABLED) that attributes the file
+//     accesses it observes to the components of the index it was given, and
+//   - the core-agent side (DD_SBOM_ENRICHMENT_USAGE_ENABLED) that publishes that
+//     index and stamps the usage onto the SBOM it sends.
 //
-// The enrichment/forward intervals are shortened so a package's in-use timestamp
-// surfaces within the test window instead of the 1m default.
+// The report interval is shortened so a package's in-use timestamp surfaces
+// within the test window instead of the 1m default.
 func packageInUseHelmValues() string {
 	return `datadog:
   criSocketPath: /run/containerd/containerd.sock
@@ -137,26 +138,17 @@ agents:
           value: "true"
     systemProbe:
       env:
-        # The UsageConsumer that registers the SBOMCollector gRPC stream the core
-        # agent consumes is created by system-probe only when it sees
-        # sbom.enrichment.usage.enabled, so this must be set on the system-probe
-        # container too (not just the core agent), else the agent's collector gets
-        # "unknown service datadog.sbom.SBOMCollector".
+        # The resolver runs when either switch is on. Both are set here because
+        # they live in different files, and the enrichment reads the same key on
+        # the core agent side.
         - name: DD_SBOM_ENRICHMENT_USAGE_ENABLED
           value: "true"
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENABLED
           value: "true"
+        # How often the resolver reports what it observed. Shortened from the 1m
+        # default so a package's usage surfaces within the test window.
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENRICHMENT_INTERVAL
           value: "10s"
-        - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENRICHMENT_TICKER
-          value: "10s"
-        # forward_interval x maxRetryForwarding(10) is the window the resolver
-        # waits for the image's Trivy SBOM to be available before giving up
-        # forwarding for good. Keep it wide enough to outlast the initial
-        # overlayfs Trivy scans (a 5s interval gave up after ~50s, before the
-        # container SBOMs were ready).
-        - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_FORWARD_INTERVAL
-          value: "30s"
   volumeMounts:
     - name: trivycache
       mountPath: /root/.cache/trivy
@@ -235,7 +227,7 @@ func (s *packageInUseSuite) Test00UpAndRunning() {
 
 // TestPackageInUse drives the full not-in-use -> in-use -> stale -> security ->
 // refresh cycle for each workload (rpm, dpkg, apk) as a nested subtest, then
-// checks the scope and the shape of the SBOMs the enrichment merges into.
+// checks the scope and the shape of the SBOMs the stamp annotates.
 func (s *packageInUseSuite) TestPackageInUse() {
 	for _, d := range pkgInUseDistros {
 		s.Run(d.name, func() {
@@ -243,23 +235,128 @@ func (s *packageInUseSuite) TestPackageInUse() {
 		})
 	}
 
-	s.Run("out-of-scope-components", func() {
-		s.runOutOfScopeComponents()
+	s.Run("unanchored-components", func() {
+		s.runUnanchoredComponents()
 	})
 	s.Run("component-list-preserved", func() {
 		s.runComponentListPreserved()
 	})
 }
 
+// pkgInUseLanguage is one language workload whose components are anchored to a
+// file rather than to a package database, which is the coverage the redesign
+// makes possible: the index is built from whatever Trivy found, so a component
+// with a file to watch is measurable whatever ecosystem it came from.
+type pkgInUseLanguage struct {
+	name       string // subtest name
+	workload   string // sbomtargets deployment/label (app=)
+	repo       string // fakeintake SBOM id match
+	purlPrefix string // ecosystem of the components expected to flip to in-use
+	cmd        string // shell that exercises them
+}
+
+// pkgInUseLanguages covers both ways a language component gets a file. A Go
+// binary is one executable that Trivy reports every module of, so each of them
+// is anchored to its path and an exec puts them in use together. A gem is its
+// own artifact, whose gemspec RubyGems reads when it activates one.
+//
+// The assertion is on the ecosystem rather than on a named package: which
+// component Trivy reports for a given image is its business, and the claim under
+// test is that a language component can be attributed at all.
+var pkgInUseLanguages = []pkgInUseLanguage{
+	{name: "gobinary", workload: "sbom-golang", repo: "golang", purlPrefix: "pkg:golang/",
+		cmd: "/usr/local/go/bin/go version >/dev/null 2>&1"},
+	{name: "gem", workload: "sbom-ruby", repo: "ruby", purlPrefix: "pkg:gem/",
+		cmd: "gem list >/dev/null 2>&1"},
+}
+
+// TestPackageInUseLanguages drives a language component from not in use to in
+// use, for each of the two ways one gets a file to watch. It is the acceptance
+// test for the redesign: reconciling two SBOMs by name and version, as the old
+// pipeline did, could never attribute a language component at all, because the
+// report it matched against held only OS packages.
+func (s *packageInUseSuite) TestPackageInUseLanguages() {
+	for _, l := range pkgInUseLanguages {
+		s.Run(l.name, func() {
+			s.langExec(l, fmt.Sprintf(
+				`nohup sh -c 'echo $$ > /tmp/lang.pid; while true; do %s; sleep 15; done' </dev/null >/dev/null 2>&1 &`, l.cmd))
+			defer s.langExec(l, `kill "$(cat /tmp/lang.pid)" 2>/dev/null; rm -f /tmp/lang.pid; echo stopped`)
+
+			s.EventuallyWithTf(func(collect *assert.CollectT) {
+				c := &myCollectT{CollectT: collect, errors: []error{}}
+				collect = nil //nolint:ineffassign
+
+				anchored, inUse := s.languageUsage(c, l.repo, l.purlPrefix)
+				require.Positivef(c, anchored, "no %s component carries a %s property, so the scan tied none of them to a file", l.purlPrefix, propLastSeenRunning)
+				s.T().Logf("PKG-IN-USE[%s] %s: %d anchored, in use: %v", l.name, l.purlPrefix, anchored, inUse)
+				assert.NotEmptyf(c, inUse, "%d %s components are anchored but none is reported in use", anchored, l.purlPrefix)
+			}, 14*time.Minute, 15*time.Second, "%s never reported a %s component as in use", l.name, l.purlPrefix)
+		})
+	}
+}
+
+// langExec runs a shell snippet in the language workload's pod.
+func (s *packageInUseSuite) langExec(l pkgInUseLanguage, script string) {
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(sbomtargets.Namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", l.workload).String(),
+	})
+	require.NoErrorf(s.T(), err, "failed to list %s workload pods", l.workload)
+	require.NotEmptyf(s.T(), pods.Items, "no %s workload pod found", l.workload)
+
+	_, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(sbomtargets.Namespace, pods.Items[0].Name, "main", []string{"sh", "-c", script})
+	require.NoErrorf(s.T(), err, "pod exec failed: %s", stderr)
+}
+
+// languageUsage counts the components of one ecosystem the scan could tie to a
+// file, and names those reported running. A component with no file to watch
+// carries no property at all, which is how the two are told apart.
+func (s *packageInUseSuite) languageUsage(c *myCollectT, repo, purlPrefix string) (anchored int, inUse []string) {
+	ids, err := s.Fakeintake.GetSBOMIDs()
+	require.NoErrorf(c, err, "Failed to query fake intake")
+	ids = lo.Filter(ids, func(id string, _ int) bool { return strings.Contains(id, repo+"@") })
+	require.NotEmptyf(c, ids, "No SBOM id for %s yet", repo)
+
+	seen := map[string]struct{}{}
+	for _, id := range ids {
+		payloads, err := s.Fakeintake.FilterSBOMs(id)
+		assert.NoErrorf(c, err, "Failed to query fake intake")
+		for _, p := range payloads {
+			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
+				continue
+			}
+			for _, comp := range p.GetCyclonedx().Components {
+				if !strings.HasPrefix(comp.GetPurl(), purlPrefix) {
+					continue
+				}
+				ts, ok := lastSeenRunning(comp)
+				if !ok {
+					continue
+				}
+				// A PURL can name several component occurrences. The payload's
+				// serial number scopes its BOM refs across retained reports.
+				identity := p.GetCyclonedx().GetSerialNumber() + "\x00" + comp.GetBomRef()
+				if _, dup := seen[identity]; !dup {
+					seen[identity] = struct{}{}
+					anchored++
+				}
+				if ts > 0 && len(inUse) < 5 && !slices.Contains(inUse, comp.GetName()) {
+					inUse = append(inUse, comp.GetName())
+				}
+			}
+		}
+	}
+	return anchored, inUse
+}
+
 func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 	repo := d.repo
 
 	// Keep the idle workload forwarding its runtime SBOM steadily (without
-	// touching the in-use package) so the enrichment merge reliably runs once its
+	// touching the in-use package) so the stamp reliably runs once its
 	// image SBOM lands.
 	s.keepActive(d)
 
-	// Phase 1: baseline. The enrichment merge must have run (the in-use package
+	// Phase 1: baseline. The stamp must have run (the in-use package
 	// carries a LastSeenRunning property at all) and it must be reported "not in
 	// use" (LastSeenRunning == "0"): the idle workload only runs `tail`.
 	s.Run("not-in-use", func() {
@@ -378,16 +475,20 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 	})
 }
 
-// runOutOfScopeComponents asserts the runtime properties reach the OS packages
-// alone. The resolver reads the dpkg, rpm and apk databases, so the image's
-// operating-system component and the application packages stay out of its scope,
-// and the absence of a property marks them so.
+// runUnanchoredComponents asserts that structural CycloneDX nodes, such as the
+// image's operating-system component and result-target aggregators, remain
+// unmeasurable. PURL-less package components are not structural: when Trivy tied
+// one to a file, its BOM ref now makes it measurable.
+//
+// This is the third stamp state, and the one that tells an idle package apart
+// from an unmeasurable one. A property of "0" here would claim the component was
+// looked for and found idle, where nothing ever looked.
 //
 // Every image SBOM holds one operating-system component, so every enriched image
 // exercises this. The phase stands alone, which suits the leaf-test retry loop in
 // tasks/new_e2e_tests.py: it reads whatever enriched payloads the fake intake
 // holds, and the Agent's own containers and the control plane keep it supplied.
-func (s *packageInUseSuite) runOutOfScopeComponents() {
+func (s *packageInUseSuite) runUnanchoredComponents() {
 	s.EventuallyWithTf(func(collect *assert.CollectT) {
 		c := &myCollectT{CollectT: collect, errors: []error{}}
 		collect = nil //nolint:ineffassign
@@ -396,25 +497,36 @@ func (s *packageInUseSuite) runOutOfScopeComponents() {
 		require.NotEmptyf(c, images, "no runtime-enriched container SBOM in fake intake")
 
 		for _, img := range images {
-			apps := applicationComponents(img.components)
-			s.T().Logf("PKG-IN-USE[scope] id=%q components=%d application=%d", img.id, len(img.components), len(apps))
+			unanchored := structuralComponents(img.components)
+			s.T().Logf("PKG-IN-USE[scope] id=%q components=%d structural=%d", img.id, len(img.components), len(unanchored))
+			require.NotEmptyf(c, unanchored, "%s holds no structural component, so the phase asserts nothing", img.id)
 
-			if osComp := findOSComponent(img.components); osComp != nil {
-				assertNoRuntimeProperties(c, img.id, osComp)
-			}
-			for _, comp := range apps {
+			for _, comp := range unanchored {
 				assertNoRuntimeProperties(c, img.id, comp)
 			}
 		}
 		// 15m: run on its own, the phase waits out the first enrichment, which
 		// lands ~10-15m in, once the overlayfs Trivy SBOMs reach workloadmeta.
-	}, 15*time.Minute, 15*time.Second, "runtime properties kept landing on components the resolver cannot observe")
+	}, 15*time.Minute, 15*time.Second, "usage properties kept landing on components no scan could anchor")
+}
+
+// structuralComponents returns result and operating-system nodes rather than
+// package occurrences. Trivy emits package occurrences as CycloneDX libraries,
+// whether or not it can construct a PURL for them.
+func structuralComponents(comps []*cyclonedx_v1_4.Component) []*cyclonedx_v1_4.Component {
+	var out []*cyclonedx_v1_4.Component
+	for _, c := range comps {
+		if c.GetType() != cyclonedx_v1_4.Classification_CLASSIFICATION_LIBRARY {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func assertNoRuntimeProperties(c *myCollectT, id string, comp *cyclonedx_v1_4.Component) {
 	for _, name := range []string{propLastSeenRunning, propHasSetSuidBit, propRunningAsRoot} {
 		assert.Emptyf(c, propertyValues(comp.GetProperties(), name),
-			"%s %q carries %s in %s, but the resolver cannot observe it", comp.GetType(), comp.GetName(), name, id)
+			"%s %q carries %s in %s, but no scan could anchor it", comp.GetType(), comp.GetName(), name, id)
 	}
 }
 
@@ -426,7 +538,7 @@ type enrichedImage struct {
 
 // enrichedImages returns, for every container image in the fake intake, the
 // components of its newest payload carrying a LastSeenRunning property. That
-// property marks the payloads the enrichment merge has been through, which are
+// property marks the payloads the stamp has been through, which are
 // the ones worth asserting on.
 func (s *packageInUseSuite) enrichedImages(c *myCollectT) []enrichedImage {
 	ids, err := s.Fakeintake.GetSBOMIDs()
@@ -584,8 +696,8 @@ func collectBomRefs(refs map[string]struct{}, comps []*cyclonedx_v1_4.Component)
 	}
 }
 
-// runComponentListPreserved asserts the enrichment merge annotates the image SBOM
-// and leaves its shape alone. The merge rebuilds the component list every round,
+// runComponentListPreserved asserts the stamp annotates the image SBOM and
+// leaves its shape alone. The stamp rebuilds the component list on every send,
 // so a component dropped there vanishes from the payload the backend sees while
 // the dependency graph, carried over as it stands, goes on referencing it.
 //
@@ -602,8 +714,9 @@ func (s *packageInUseSuite) runComponentListPreserved() {
 		require.NotEmptyf(c, images, "no runtime-enriched container SBOM in fake intake")
 
 		for _, img := range images {
-			// Components sharing a name and version are what a merge keyed on those
-			// two collapses, so log how many groups this image holds: that says how
+			// Components sharing a name and version are what a stamp keyed on those
+			// two would collapse, and the pair a multiarch install produces is the
+			// case in the field. Log how many groups this image holds: that says how
 			// much bite the assertions below have here.
 			groups := map[string]int{}
 			for _, comp := range img.components {
@@ -617,16 +730,16 @@ func (s *packageInUseSuite) runComponentListPreserved() {
 			assert.GreaterOrEqualf(c, len(img.components), img.rawCount,
 				"enriched %s has %d components, fewer than the %d of its un-enriched payload", img.id, len(img.components), img.rawCount)
 			assert.Emptyf(c, dangling,
-				"dependency refs of %s resolve to no component, the merge dropped them: %v", img.id, dangling)
+				"dependency refs of %s resolve to no component, the stamp dropped them: %v", img.id, dangling)
 		}
 		// 15m: run on its own, the phase waits out the first enrichment, which
 		// lands ~10-15m in, once the overlayfs Trivy SBOMs reach workloadmeta.
-	}, 15*time.Minute, 15*time.Second, "the enrichment merge kept reshaping the component list")
+	}, 15*time.Minute, 15*time.Second, "the stamp kept reshaping the component list")
 }
 
 // imagePayloads walks every container image payload in the fake intake and returns
 // one entry per image whose SBOM has been enriched. A LastSeenRunning property on
-// any component marks a payload the merge has been through, which leaves the raw
+// any component marks a payload the stamp has been through, which leaves the raw
 // Trivy ones as the baseline to compare against.
 func (s *packageInUseSuite) imagePayloads(c *myCollectT) []imagePayloads {
 	ids, err := s.Fakeintake.GetSBOMIDs()

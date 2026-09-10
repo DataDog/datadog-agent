@@ -100,10 +100,6 @@ const (
 	// by the RemoteProcessCollector.
 	SourceRemoteProcessCollector Source = "remote_process_collector"
 
-	// SourceRemoteSBOMCollector represents SBOM entities computed
-	// by the RemoteSBOMCollector.
-	SourceRemoteSBOMCollector Source = "remote_sbom_collector"
-
 	// SourceLanguageDetectionServer represents container languages
 	// detected by node agents
 	SourceLanguageDetectionServer Source = "language_detection_server"
@@ -1819,30 +1815,24 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
 	}
 
-	// Save SBOM pointers before the generic merge to prevent mergo from
-	// concatenating the compressed Bom []byte fields across sources. Two
-	// gzip-encoded protobufs appended byte-for-byte form a valid multistream
-	// gzip that decodes to a concatenated protobuf, which duplicates all
-	// repeated Components.  We apply our own "prefer dst if non-nil" rule
-	// instead: the remote SBOM collector (alphabetically first) always
-	// produces an already-enriched SBOM that supersedes the raw Trivy SBOM.
-	dstSBOM := i.SBOM
-	srcSBOM := otherImage.SBOM
-
-	// Shallow-copy src with SBOM cleared so the generic merge skips it.
+	// Hold the SBOM out of the generic merge, which concatenates byte slices.
+	// Two gzip-encoded protobufs appended form a valid multistream that decodes
+	// to a BOM with every component duplicated, and two sources can each carry
+	// one: the runtime collectors report under SourceRuntime and CRI-O under
+	// SourceTrivy. Prefer the destination, which is the higher-priority source
+	// the caller already resolved.
+	dstSBOM, srcSBOM := i.SBOM, otherImage.SBOM
 	otherImageCopy := *otherImage
 	otherImageCopy.SBOM = nil
 	i.SBOM = nil
 
 	err := merge(i, &otherImageCopy)
 
-	// Restore SBOM: keep dst's enriched SBOM when available, else fall back to src.
 	if dstSBOM != nil {
 		i.SBOM = dstSBOM
 	} else {
 		i.SBOM = srcSBOM
 	}
-
 	return err
 }
 

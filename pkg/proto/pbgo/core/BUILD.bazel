@@ -48,6 +48,9 @@ write_pb_go(
             "echo_grpc.pb.go",
             "remoteconfig.pb.go",
         ],
+        "//pkg/proto/datadog/sbomusage:sbomusage_go_proto": [
+            "usage.pb.go",
+        ],
         "//pkg/proto/datadog/workloadfilter:workloadfilter_go_proto": [
             "workloadfilter.pb.go",
         ],
@@ -77,6 +80,7 @@ go_library(
         "status_grpc.pb.go",
         "telemetry.pb.go",
         "telemetry_grpc.pb.go",
+        "usage.pb.go",
         "workloadfilter.pb.go",
         "workloadmeta.pb.go",
     ],

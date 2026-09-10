@@ -21,11 +21,13 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	sbomusage "github.com/DataDog/datadog-agent/comp/sbom/usage/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	scanner2 "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -119,7 +121,7 @@ func TestFactory(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	checkFactory := Factory(mockStore, mockFilterStore, cfg, fakeTagger)
+	checkFactory := Factory(mockStore, mockFilterStore, cfg, fakeTagger, option.None[sbomusage.Component]())
 	assert.NotNil(t, checkFactory)
 
 	check, ok := checkFactory.Get()
@@ -179,7 +181,7 @@ func TestConfigure(t *testing.T) {
 	cfg := app.Cfg
 	mockStore := app.Store
 
-	checkFactory := Factory(mockStore, mockFilterStore, cfg, fakeTagger)
+	checkFactory := Factory(mockStore, mockFilterStore, cfg, fakeTagger, option.None[sbomusage.Component]())
 	assert.NotNil(t, checkFactory)
 
 	check, ok := checkFactory.Get()

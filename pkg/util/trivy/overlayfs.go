@@ -18,6 +18,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/ddtrivy"
 
@@ -101,5 +102,5 @@ func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftyp
 		return nil, fmt.Errorf("unable to scan overlayfs image, err: %w", err)
 	}
 
-	return c.buildReport(trivyReport, imgMeta.ID)
+	return c.buildReport(trivyReport, imgMeta.ID, usage.ImageScan(imgMeta.ID), "")
 }

@@ -28,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	sbomapi "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -194,15 +192,6 @@ func mergeJSON(j1, j2 []byte) ([]byte, error) {
 
 	data := append(j1[:len(j1)-1], ',')
 	return append(data, j2[1:]...), nil
-}
-
-// SBOMAPISServer represents a gRPC server in charge of receiving SBOM requests sent by
-type SBOMAPIServer struct {
-	sbomapi.UnimplementedSBOMCollectorServer
-
-	sboms    chan *sbom.ScanResult
-	probe    *sprobe.Probe
-	stopChan chan struct{}
 }
 
 // APIServer represents a gRPC server in charge of receiving events sent by
@@ -981,16 +970,4 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	return as, nil
-}
-
-// NewSBOMAPIServer returns a new gRPC SBOM server
-func NewSBOMAPIServer(probe *sprobe.Probe, stopChan chan struct{}) *SBOMAPIServer {
-	as := &SBOMAPIServer{
-		probe:    probe,
-		sboms:    make(chan *sbom.ScanResult, 100),
-		stopChan: stopChan,
-	}
-
-	as.collectSBOMS()
-	return as
 }

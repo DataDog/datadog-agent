@@ -1,0 +1,17 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "sbomusage_proto",
+    srcs = ["usage.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "sbomusage_go_proto",
+    importpath = "pkg/proto/pbgo/core",
+    proto = ":sbomusage_proto",
+    tags = ["manual"],  # only for .pb.go files (sibling deps live in the same Go package)
+    visibility = ["//visibility:public"],
+)
