@@ -67,6 +67,24 @@ type SNMPListener struct {
 	deviceDeduper  devicededuper.DeviceDeduper
 	sessionFactory snmpSessionFactory
 	workerFunc     snmpWorkerFunc
+
+	// Service transitions are queued here and published by a single goroutine. Autodiscovery
+	// reads additions and deletions from two independent channels and selects between them, so
+	// it can observe them in either order: publishing from the discovery workers directly would
+	// let a device's re-addition overtake its pending deletion, leaving it in l.services but
+	// unscheduled, and never re-registered because registerDevice skips known entities.
+	// Enqueuing happens under the listener lock so the queue order matches the order in which
+	// l.services was mutated, while the blocking channel sends stay off the lock.
+	eventsMu      sync.Mutex
+	eventsCond    *sync.Cond
+	pendingEvents []serviceEvent
+	publisherOnce sync.Once
+}
+
+// serviceEvent is a queued service transition awaiting publication to autodiscovery.
+type serviceEvent struct {
+	svc     *SNMPService
+	removed bool
 }
 
 // SNMPService implements and store results from the Service interface for the SNMP listener
@@ -128,12 +146,81 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 	}, nil
 }
 
+// startPublisher brings up the publication goroutine, at most once. It is called both from
+// Listen and from the first enqueue, so that callers wiring the service channels up directly
+// do not have to know about it.
+func (l *SNMPListener) startPublisher() {
+	l.publisherOnce.Do(func() {
+		l.eventsMu.Lock()
+		l.eventsCond = sync.NewCond(&l.eventsMu)
+		l.eventsMu.Unlock()
+		go l.publishServices()
+	})
+}
+
+// stopped reports whether Stop has been called.
+func (l *SNMPListener) stopped() bool {
+	select {
+	case <-l.stop:
+		return true
+	default:
+		return false
+	}
+}
+
+// enqueueService queues a service transition for publication. It never blocks, so it is safe to
+// call with the listener lock held, which is how the queue stays ordered consistently with the
+// mutations of l.services.
+func (l *SNMPListener) enqueueService(svc *SNMPService, removed bool) {
+	if svc == nil {
+		return
+	}
+
+	l.startPublisher()
+
+	l.eventsMu.Lock()
+	l.pendingEvents = append(l.pendingEvents, serviceEvent{svc: svc, removed: removed})
+	l.eventsCond.Signal()
+	l.eventsMu.Unlock()
+}
+
+// publishServices drains the queue in order, one event at a time. It runs on its own goroutine
+// and holds no listener lock while sending, so a slow autodiscovery consumer cannot stall
+// device discovery.
+func (l *SNMPListener) publishServices() {
+	for {
+		l.eventsMu.Lock()
+		for len(l.pendingEvents) == 0 {
+			if l.stopped() {
+				l.eventsMu.Unlock()
+				return
+			}
+			l.eventsCond.Wait()
+		}
+		event := l.pendingEvents[0]
+		l.pendingEvents = l.pendingEvents[1:]
+		l.eventsMu.Unlock()
+
+		ch := l.newService
+		if event.removed {
+			ch = l.delService
+		}
+
+		select {
+		case ch <- event.svc:
+		case <-l.stop:
+			return
+		}
+	}
+}
+
 // Listen periodically refreshes devices
 func (l *SNMPListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
 
+	l.startPublisher()
 	go l.checkDevices()
 }
 
@@ -513,34 +600,17 @@ func (l *SNMPListener) createService(
 	deviceFailures int,
 	addedFromCache bool,
 ) {
-	// The AD service channels are unbuffered and drained by a single goroutine shared by every
-	// listener, so the send must happen outside of the listener lock: blocking on it while
-	// holding the lock stalls every other listener goroutine.
-	l.announceService(l.registerDevice(entityID, subnet, deviceIP, deviceInfo, authIndex, deviceFailures, addedFromCache))
-}
-
-// registerDevice records a newly discovered device and returns the service to announce, or nil
-// if there is nothing to announce yet (the device is still pending deduplication).
-func (l *SNMPListener) registerDevice(
-	entityID string,
-	subnet *snmpSubnet,
-	deviceIP string,
-	deviceInfo devicededuper.DeviceInfo,
-	authIndex int,
-	deviceFailures int,
-	addedFromCache bool,
-) *SNMPService {
 	l.Lock()
 	defer l.Unlock()
 
 	if _, present := l.services[entityID]; present {
-		return nil
+		return
 	}
 
 	config := subnet.config
 	if authIndex < 0 || authIndex >= len(config.Authentications) {
 		log.Errorf("Invalid authentication index %d for device %s (max: %d)", authIndex, deviceIP, len(config.Authentications)-1)
-		return nil
+		return
 	}
 	authentication := config.Authentications[authIndex]
 	config.Version = authentication.Version
@@ -575,29 +645,15 @@ func (l *SNMPListener) registerDevice(
 	}
 
 	if deviceInfo == (devicededuper.DeviceInfo{}) {
-		return l.registerServiceLocked(pendingDevice)
+		l.registerServiceLocked(pendingDevice)
+		return
 	}
 
-	var toAnnounce *SNMPService
 	if addedFromCache {
-		toAnnounce = l.registerServiceLocked(pendingDevice)
+		l.registerServiceLocked(pendingDevice)
 	}
 
 	l.deviceDeduper.AddPendingDevice(pendingDevice)
-
-	return toAnnounce
-}
-
-// announceService publishes a newly registered service to autodiscovery. The listener lock must
-// NOT be held: the channel is unbuffered and the send can block for as long as the consumer takes.
-func (l *SNMPListener) announceService(svc *SNMPService) {
-	if svc == nil {
-		return
-	}
-	select {
-	case l.newService <- svc:
-	case <-l.stop:
-	}
 }
 
 func (l *SNMPListener) registerDedupedDevices() {
@@ -606,32 +662,29 @@ func (l *SNMPListener) registerDedupedDevices() {
 	}
 
 	l.Lock()
-	var toAnnounce []*SNMPService
-	for _, pendingSvc := range l.deviceDeduper.GetDedupedDevices() {
-		if svc := l.registerServiceLocked(pendingSvc); svc != nil {
-			toAnnounce = append(toAnnounce, svc)
-		}
-	}
-	l.Unlock()
+	defer l.Unlock()
 
-	for _, svc := range toAnnounce {
-		l.announceService(svc)
+	for _, pendingSvc := range l.deviceDeduper.GetDedupedDevices() {
+		l.registerServiceLocked(pendingSvc)
 	}
 }
 
-// registerServiceLocked marks a pending service as registered. The listener lock must be held.
-// It returns the service to announce, which the caller must publish only after releasing the
-// lock, or nil when there is nothing to announce.
-func (l *SNMPListener) registerServiceLocked(pendingDevice devicededuper.PendingDevice) *SNMPService {
+// registerServiceLocked marks a pending service as registered and queues its publication.
+// The listener lock must be held, so that the queued event is ordered against the other
+// transitions of l.services.
+func (l *SNMPListener) registerServiceLocked(pendingDevice devicededuper.PendingDevice) {
 	entityID := pendingDevice.Config.Digest(pendingDevice.IP)
 
 	svc, ok := l.services[entityID]
 	if !ok {
-		return nil
+		return
 	}
 	svc.pending = false
 
-	// Lock order is always listener -> subnet.
+	// Lock order is always listener -> subnet. The cache write stays here, under both locks:
+	// snapshotting and writing must be atomic, or a slower goroutine holding an older snapshot
+	// could overwrite the file after a newer one and drop a device from the cache. This path
+	// only runs the first time a device is seen, so it is not the hot one.
 	svc.subnet.devicesMu.Lock()
 	svc.subnet.devices[svc.entityID] = deviceCache{
 		IP:        net.ParseIP(svc.deviceIP),
@@ -643,7 +696,7 @@ func (l *SNMPListener) registerServiceLocked(pendingDevice devicededuper.Pending
 	}
 	svc.subnet.devicesMu.Unlock()
 
-	return svc
+	l.enqueueService(svc, false)
 }
 
 func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
@@ -678,25 +731,23 @@ func (l *SNMPListener) deleteService(entityID string, subnet *snmpSubnet) {
 	}
 
 	l.Lock()
-	svc, stillPresent := l.services[entityID]
-	if stillPresent {
+	if svc, stillPresent := l.services[entityID]; stillPresent {
 		delete(l.services, entityID)
+		l.enqueueService(svc, true)
 	}
 	l.Unlock()
-
-	if !stillPresent {
-		return
-	}
-
-	select {
-	case l.delService <- svc:
-	case <-l.stop:
-	}
 }
 
 // Stop queues a shutdown of SNMPListener
 func (l *SNMPListener) Stop() {
 	close(l.stop)
+
+	// Wake the publisher so it observes the stop instead of blocking on an empty queue.
+	l.eventsMu.Lock()
+	if l.eventsCond != nil {
+		l.eventsCond.Broadcast()
+	}
+	l.eventsMu.Unlock()
 }
 
 // Equal returns whether the two SNMPService are equal

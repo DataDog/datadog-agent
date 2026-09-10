@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -595,8 +594,9 @@ func TestCreateServiceFromCacheRegistersImmediately(t *testing.T) {
 	entityID1 := subnet.config.Digest("192.168.0.1")
 	l.createService(entityID1, subnet, "192.168.0.1", deviceInfo, 0, 0, true)
 
-	assert.Equal(t, 1, len(newSvc))
-	svc := (<-newSvc).(*SNMPService)
+	// Services are published asynchronously, so wait for the event rather than sampling the
+	// channel length.
+	svc := collectServices(t, newSvc, 1, 2*time.Second)[0]
 	assert.Equal(t, "192.168.0.1", svc.deviceIP)
 	assert.False(t, svc.pending)
 
@@ -604,7 +604,7 @@ func TestCreateServiceFromCacheRegistersImmediately(t *testing.T) {
 	entityID2 := subnet.config.Digest("192.168.0.2")
 	l.createService(entityID2, subnet, "192.168.0.2", deviceInfo, 0, 0, false)
 
-	assert.Equal(t, 0, len(newSvc), "second IP for same device should not be registered")
+	noMoreServices(t, newSvc, 500*time.Millisecond)
 }
 
 func TestBuildCacheKey(t *testing.T) {
@@ -1243,18 +1243,21 @@ func TestCheckDeviceConcurrentSubnetAccess(t *testing.T) {
 	assert.NotZero(t, found, "expected the concurrent scan to discover at least one device")
 }
 
-// TestCreateServiceDoesNotHoldLockWhileAnnouncing is a regression test for the lock contention
-// half of AGENT-16950: createService used to send on the unbuffered newService channel while
-// holding the listener lock, so a slow autodiscovery consumer stalled every other listener
-// goroutine (the crash dump showed 421 goroutines blocked on Lock()).
-func TestCreateServiceDoesNotHoldLockWhileAnnouncing(t *testing.T) {
+// TestCreateServiceDoesNotBlockOnAutodiscovery is a regression test for the lock contention half
+// of AGENT-16950: createService used to send on the unbuffered newService channel while holding
+// the listener lock, so a slow autodiscovery consumer stalled every other listener goroutine
+// (the crash dump showed 421 goroutines blocked on Lock()). Discovery must now make progress
+// regardless of how slow the consumer is, so createService returns without anyone reading.
+func TestCreateServiceDoesNotBlockOnAutodiscovery(t *testing.T) {
 	l, _ := setupTestListener(t, []interface{}{
 		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
 	}, nil)
 
+	// Deliberately unbuffered and never read from, standing in for a stalled consumer.
 	newSvc := make(chan Service)
 	l.newService = newSvc
 	l.delService = make(chan Service)
+	defer l.Stop()
 
 	_, ipNet, err := net.ParseCIDR("192.168.0.0/30")
 	require.NoError(t, err)
@@ -1263,49 +1266,59 @@ func TestCreateServiceDoesNotHoldLockWhileAnnouncing(t *testing.T) {
 		adIdentifier: "snmp",
 		config:       l.config.Configs[0],
 		network:      *ipNet,
-		cacheKey:     "snmp:concurrency-test",
+		cacheKey:     "snmp:contention-test",
 		devices:      map[string]deviceCache{},
 	}
 
-	// Keep exercising an unrelated listener operation in the background and count how often it
-	// completes. It must keep making progress even while nobody is reading newService.
-	var progress atomic.Int64
-	stopPolling := make(chan struct{})
-	pollDone := make(chan struct{})
-	go func() {
-		defer close(pollDone)
-		for {
-			select {
-			case <-stopPolling:
-				return
-			default:
-			}
-			l.getDevicesFoundInSubnet(subnet.cacheKey)
-			progress.Add(1)
-			time.Sleep(time.Millisecond)
-		}
-	}()
-
 	entityID := subnet.config.Digest("192.168.0.1")
-	created := make(chan struct{})
+	done := make(chan struct{})
 	go func() {
-		defer close(created)
+		defer close(done)
 		l.createService(entityID, subnet, "192.168.0.1", devicededuper.DeviceInfo{}, 0, 0, false)
 	}()
 
-	// Long enough for createService to reach the send and block there: nothing else in the call
-	// is slow, and the channel has no reader yet.
-	time.Sleep(300 * time.Millisecond)
-	mark := progress.Load()
-	time.Sleep(300 * time.Millisecond)
-	stalled := progress.Load() == mark
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("createService blocked while no autodiscovery consumer was reading: discovery is coupled to the consumer's speed")
+	}
+}
 
-	// Unblock createService before asserting, so a failure does not leak a stuck goroutine.
-	<-newSvc
-	<-created
-	close(stopPolling)
-	<-pollDone
+// TestServiceEventsPublishedInOrder pins the ordering guarantee that publishing off the listener
+// lock has to preserve. Autodiscovery reads additions and deletions from two independent channels
+// and selects between them, so if a device's re-addition can overtake its pending deletion the
+// device ends up in l.services but unscheduled, and is never re-registered.
+func TestServiceEventsPublishedInOrder(t *testing.T) {
+	l, _ := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, nil)
 
-	assert.False(t, stalled,
-		"getDevicesFoundInSubnet stopped making progress while createService was announcing: the listener lock is held across the unbuffered channel send")
+	// Unbuffered, like the real autodiscovery channels.
+	newSvc := make(chan Service)
+	delSvc := make(chan Service)
+	l.newService = newSvc
+	l.delService = delSvc
+	defer l.Stop()
+
+	svc := &SNMPService{entityID: "entity-1", deviceIP: "192.168.0.1"}
+
+	// A deletion followed by a re-addition of the same entity.
+	l.enqueueService(svc, true)
+	l.enqueueService(svc, false)
+
+	// Consume exactly as autodiscovery does: select across both channels.
+	var got []string
+	for i := 0; i < 2; i++ {
+		select {
+		case <-newSvc:
+			got = append(got, "add")
+		case <-delSvc:
+			got = append(got, "del")
+		case <-time.After(10 * time.Second):
+			t.Fatalf("timed out waiting for event %d/2, got %v", i+1, got)
+		}
+	}
+
+	assert.Equal(t, []string{"del", "add"}, got,
+		"the re-addition overtook the pending deletion: autodiscovery would drop the rediscovered device")
 }

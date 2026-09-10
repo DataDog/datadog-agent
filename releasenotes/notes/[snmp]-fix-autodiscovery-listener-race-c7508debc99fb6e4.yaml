@@ -8,9 +8,10 @@ fixes:
     and its persistent cache entry are now guarded by a dedicated per-subnet lock.
   - |
     Fix SNMP autodiscovery becoming unresponsive on large networks. Service creation and deletion
-    published to autodiscovery, and wrote the discovery cache to disk, while holding the listener
-    lock, so a single slow consumer or cache write serialized every discovery worker. Both the
-    channel sends and the cache writes now happen outside the listener lock.
+    published to autodiscovery while holding the listener lock, so a single slow consumer
+    serialized every discovery worker. Publication is now queued and performed by a dedicated
+    goroutine, preserving event order without blocking on the lock. The per-IP cache writes done
+    when a device is unreachable also no longer take the listener lock.
 other:
   - |
     The SNMP autodiscovery listener now logs a warning when
