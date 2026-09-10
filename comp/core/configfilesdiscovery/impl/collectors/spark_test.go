@@ -272,8 +272,13 @@ func (r *sparkCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeTyp
 
 func (r *sparkCollectorTestReader) Close() {}
 
-func (r *sparkCollectorTestReader) ReadFile(context.Context, string) (configfilesdiscoveryimpl.ConfigFile, error) {
+func (r *sparkCollectorTestReader) ReadFile(context.Context, configfilesdiscoveryimpl.VerifiedConfigFilePath) (configfilesdiscoveryimpl.ConfigFile, error) {
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("not implemented")
+}
+
+// ReadMatchingFiles is not implemented by this test reader.
+func (r *sparkCollectorTestReader) ReadMatchingFiles(context.Context, configfilesdiscoveryimpl.ConfigFileSearch, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.ConfigFileReadResult, bool, error) {
+	return nil, false, errors.New("not implemented")
 }
 
 func (r *sparkCollectorTestReader) ReadEnvVars(_ context.Context, predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {
