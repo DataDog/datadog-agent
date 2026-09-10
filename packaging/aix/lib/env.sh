@@ -157,14 +157,18 @@ unset _mem_kb
 # Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
 # build volume so that large packages like datadogV2 don't exhaust /tmp.
 GOCACHE=/opt/dd-build/gocache
+# Keep Cargo's registry and cache on the build volume. Some Python packages
+# build Rust extensions through Cargo, and its default root-owned location can
+# exhaust the smaller root filesystem.
+CARGO_HOME=$BUILD_DIR/cargo-home
 # Give the build its own temp dir instead of the shared /tmp, so it is not
 # affected by a full /tmp or by unrelated files other processes leave there
 # (which can, for example, confuse cargo's workspace-root lookup during
 # wheel builds).
 TMPDIR=/opt/dd-build/buildtmp
-mkdir -p "$GOCACHE" "$TMPDIR"
+mkdir -p "$GOCACHE" "$CARGO_HOME" "$TMPDIR"
 
-export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE TMPDIR
+export PATH GOPATH GOROOT CGO_ENABLED CGO_CFLAGS CGO_LDFLAGS GOPROXY GOTOOLCHAIN GOCACHE CARGO_HOME TMPDIR
 
 # ── Utility functions ─────────────────────────────────────────────────────────
 
