@@ -9,12 +9,9 @@
 package gpu
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"strings"
-	"sync"
-	"time"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -30,8 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -62,6 +65,9 @@ type Check struct {
 	rateCalculator      *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
 	parallelCollectors  bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
 	issueReporter       healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
+	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
+	nvmlRelease         nvmlReleaseNotifier              // nvmlRelease pushes the release state to the system-probe GPU monitoring probe
+	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
 }
 
 type checkTelemetry struct {
@@ -96,6 +102,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		excludedDeviceUUIDs: make(map[string]struct{}),
 		deviceCache:         ddnvml.NewDeviceCache(),
 		rateCalculator:      nvidia.NewRateCalculator(),
+		nvmlRelease:         newNvmlReleaseNotifier(),
 	}
 }
 
@@ -260,14 +267,22 @@ func (c *Check) isDeviceExcluded(deviceUUID string) bool {
 
 // Cancel stops the check
 func (c *Check) Cancel() {
-	if err := c.deviceEvtGatherer.Stop(); err != nil {
-		log.Warnf("error stopping event set gatherer: %v", err)
+	if c.deviceEvtGatherer != nil {
+		if err := c.deviceEvtGatherer.Stop(); err != nil {
+			log.Warnf("error stopping event set gatherer: %v", err)
+		}
 	}
 
-	if lib, err := ddnvml.GetSafeNvmlLib(); err == nil {
-		if err := lib.Shutdown(); err != nil {
-			log.Warnf("error shutting down NVML lib: %v", err)
-		}
+	// NVML is deliberately not shut down here: the singleton is shared with
+	// the workloadmeta nvml collector, which re-initializes it on its next
+	// pull.
+
+	// The released flag is process-wide and only Run() clears it, so a check
+	// canceled mid-window would latch it forever — every NVML user in the
+	// process blocked until an agent restart. force=true because the drain
+	// deference needs a later Run() to retry and there is none.
+	if ddnvml.IsNVMLReleased() {
+		c.reacquireNVML(true)
 	}
 
 	c.CheckBase.Cancel()
@@ -288,6 +303,49 @@ func (c *Check) Interval() time.Duration {
 // Run executes the check. Configure must have been called before and returned no errors, otherwise
 // we will panic here as we assume certain components have been initialized.
 func (c *Check) Run() error {
+	// While an NVML release window is active, release NVML and skip
+	// collection so a GPU reset can proceed; re-acquire when the signals clear.
+	if c.shouldReleaseNVML() {
+		// Release exactly once per window; the global released state also
+		// covers an instance recreated mid-window (autoconfig reload).
+		if !ddnvml.IsNVMLReleased() {
+			c.releaseNVML()
+		}
+		// Renew the system-probe release lease (system-probe is an
+		// independent NVML client in a separate process); a failed renewal
+		// just means its lease expires on its own.
+		//
+		// Only once the local release actually took effect: releaseNVML bails
+		// out on a ReleaseNVML error without arming the flag, and the
+		// window-closed path below is gated on that same flag — so leasing
+		// system-probe here would pause it with nothing left to send the
+		// false push, until the lease expired on its own.
+		if ddnvml.IsNVMLReleased() {
+			if err := c.pushNvmlRelease(true); err != nil {
+				if logLimitCheck.ShouldLog() {
+					log.Warnf("error propagating the NVML release to the system-probe GPU monitoring probe: %v", err)
+				}
+			}
+		}
+		// Rate-limited: a window left open must keep being visible in the
+		// logs, with how long it has been open so a stuck signal is
+		// diagnosable.
+		if logLimitWindowOpen.ShouldLog() {
+			var since string
+			if !c.releaseWindowStart.IsZero() {
+				since = " for " + time.Since(c.releaseWindowStart).Round(time.Second).String()
+			}
+			log.Warnf("NVML release window active%s (GPU reset in progress or requested); GPU collection paused until it completes", since)
+		}
+		return nil
+	}
+	if ddnvml.IsNVMLReleased() {
+		// The release window closed: the device cache re-enumerates in the
+		// Refresh below, and the event gatherer restarts at the !Started() guard.
+		c.reacquireNVML(false)
+		log.Info("NVML release window closed; resuming GPU collection")
+	}
+
 	currentExecutionTime := time.Now()
 
 	snd, err := c.GetSender()
@@ -335,6 +393,10 @@ func (c *Check) Run() error {
 		if err := c.deviceEvtGatherer.Start(); err != nil {
 			log.Warnf("error starting device events collection: %v", err)
 		}
+		// The (re)started gatherer has a fresh event set: reset the
+		// collectors' registration latch, or XID collection would silently
+		// stay off.
+		nvidia.ResetEventRegistrations(c.collectors)
 	}
 
 	// Attempt refreshing device events
@@ -576,4 +638,176 @@ func (c *Check) emitSample(sample nvidia.Sample, snd sender.Sender, currentExecu
 	}
 
 	return errors.Join(multiErr...)
+}
+
+// ---------------------------------------------------------------------------
+// NVML release for GPU reset windows
+//
+
+// Any NVML client blocks a GPU reset, and the Agent holds nvmlInit for its
+// process lifetime: the check releases NVML while a release signal is
+// present and re-acquires when the signals clear, so the reset can proceed.
+
+const (
+	// migConfigStateLabel is the automated release signal: nvidia-mig-manager
+	// writes it around every MIG reconfiguration ("pending"/"rebooting" while
+	// it runs, terminal "success"/"failed" when it is done). It can also be
+	// set by hand with `kubectl label node <node> nvidia.com/mig.config.state=pending`.
+	migConfigStateLabel = "nvidia.com/mig.config.state"
+
+	// spNvmlReleaseEndpoint is the system-probe GPU module endpoint the core
+	// agent pushes the NVML release lease to (/gpu/nvml-release).
+	spNvmlReleaseEndpoint = "/nvml-release"
+)
+
+// logLimitWindowOpen is the rate limit of the window-open WARN: it stays
+// visible for as long as the window is open, so a forgotten or stuck signal
+// is diagnosable without any action being taken behind the operator's back.
+var logLimitWindowOpen = log.NewLogLimit(1, 10*time.Minute)
+
+// nvmlReleaseNotifier pushes the NVML release state (and, while releasing,
+// the lease duration the check asks for) to the system-probe GPU monitoring
+// probe. It is a field on the Check so tests can inject a fake.
+type nvmlReleaseNotifier func(released bool, ttl time.Duration) error
+
+// newNvmlReleaseNotifier pushes over the same sysprobe socket the check
+// already uses for GPU stats: no extra mount or protocol, the channel exists
+// whenever GPU monitoring works.
+func newNvmlReleaseNotifier() nvmlReleaseNotifier {
+	timeout := pkgconfigsetup.Datadog().GetDuration("gpu.sp_process_metrics_request_timeout")
+	client := sysprobeclient.GetCheckClient(
+		sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		sysprobeclient.WithCheckTimeout(timeout),
+		sysprobeclient.WithStartupCheckTimeout(timeout),
+	)
+
+	return func(released bool, ttl time.Duration) error {
+		body := struct {
+			Released bool `json:"released"`
+			TTL      int  `json:"ttl_seconds"`
+		}{
+			Released: released,
+			TTL:      int(ttl / time.Second),
+		}
+		_, err := sysprobeclient.Post[struct{}](client, spNvmlReleaseEndpoint, body, sysconfig.GPUMonitoringModule)
+		return err
+	}
+}
+
+// isMigReconfigState reports whether a mig.config.state value means a
+// reconfiguration is in flight. "failed" must NOT count: it is terminal and
+// stays on the node until the next attempt — treating it as in-flight would
+// permanently pause GPU monitoring.
+func isMigReconfigState(v string) bool {
+	return v == "pending" || v == "rebooting"
+}
+
+// shouldReleaseNVML reports whether an NVML release window is active, driven
+// by the release signal: the mig.config.state node label reporting an
+// in-flight reconfiguration (the automated path; for any other reset an
+// operator restarts the agent, which releases NVML with the process).
+//
+// The in-flight states are honored for however long they last, with no
+// staleness cap on purpose: an in-flight label means a reconfiguration may
+// still attempt its GPU reset, and re-acquiring NVML could block it — being
+// the blocker is strictly worse than missing telemetry while a label is
+// stuck. A stuck label keeps its visibility instead: the window-open WARN
+// below keeps firing, and the label itself shows the anomalous state for an
+// operator to clean up.
+//
+// The released state itself is NOT a signal — the window must be observed to
+// close through the real signals, or the check could never re-acquire.
+// Read errors fail open: a missed release only delays a reset, while a
+// spurious release stops GPU collection outright; a reset colliding with a
+// fresh nvml.Init is benign (Init gets a clean error and retries).
+func (c *Check) shouldReleaseNVML() bool {
+	// A label read failure must only skip this signal, not the whole check.
+	if c.nodeInfo == nil {
+		if ni, err := hostinfo.NewNodeInfo(); err == nil {
+			c.nodeInfo = ni
+		} // init failure: fail open on this signal, retry on the next run
+	}
+	if c.nodeInfo != nil {
+		// Bounded: an API-server wait loop with context.Background() could
+		// stall Run indefinitely during startup or an API outage, defeating
+		// the fail-open intent of this signal read.
+		labelCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if labels, err := c.nodeInfo.GetNodeLabels(labelCtx); err == nil {
+			if v, ok := labels[migConfigStateLabel]; ok && isMigReconfigState(v) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// releaseNVML tears down all NVML state so a GPU reset can proceed: the event
+// gatherer stops (its event set dies with NVML), the device cache is
+// invalidated (its handles are dead after shutdown), the library shuts down,
+// and the deliberate-release flag is set last so no NVML user can silently
+// re-acquire and re-block the reset mid-window.
+func (c *Check) releaseNVML() {
+	if c.deviceEvtGatherer != nil && c.deviceEvtGatherer.Started() {
+		if err := c.deviceEvtGatherer.Stop(); err != nil {
+			log.Warnf("error stopping device events gatherer for the NVML release: %v", err)
+		}
+	}
+
+	// The gated release FIRST: it arms the released flag (rejecting new NVML
+	// users, so no cache refresh can repopulate mid-release), waits for
+	// in-flight users and shuts the library down. On a shutdown error it does
+	// not arm the flag, so the next run retries instead of latching a released
+	// state over an initialized (still reset-blocking) library.
+	if err := ddnvml.ReleaseNVML(); err != nil {
+		log.Warnf("error shutting down NVML for the release (will retry next run): %v", err)
+		return
+	}
+
+	// Only now drop the NVML-backed state: the collectors hold pre-shutdown
+	// device handles (physical GPU UUIDs survive a reset, so
+	// ensureInitCollectors would otherwise match them by UUID and keep serving
+	// dead handles after the reacquire), and the device cache holds the same
+	// dead state.
+	c.deviceCache.Invalidate()
+	c.collectors = nil
+	c.releaseWindowStart = time.Now()
+}
+
+// pushNvmlRelease renews (released=true) or ends (released=false) the
+// system-probe release lease. Best-effort: on failure the lease expires on
+// its own, and the warn is rate-limited by the caller.
+// pushNvmlRelease renews (released=true) or ends (released=false) the
+// system-probe release lease. The lease duration is derived from the check
+// interval (3 runs, floored at 30s): a hardcoded TTL would expire between
+// renewals when gpu.collection_interval_override raises the interval, and
+// system-probe would silently re-acquire NVML mid-window. Best-effort: on
+// failure the lease expires on its own, and the warn is rate-limited by the
+// caller.
+func (c *Check) pushNvmlRelease(released bool) error {
+	ttl := 3 * c.Interval()
+	if ttl < 30*time.Second {
+		ttl = 30 * time.Second
+	}
+	return c.nvmlRelease(released, ttl)
+}
+
+// reacquireNVML ends the deliberate-release state: the next NVML use
+// re-initializes the library, and the event gatherer restarts on the next
+// run. The system-probe lease is ended explicitly too; if that push fails,
+// system-probe's lease expires on its own.
+// force skips the drain deference; only Cancel passes true (see there).
+func (c *Check) reacquireNVML(force bool) {
+	// Clearing the flag mid-drain would let new users re-initialize NVML while
+	// the reset is still in flight. Let the drain finish; the next Run retries.
+	if !force && ddnvml.IsNVMLReleased() && ddnvml.IsDraining() {
+		log.Warnf("NVML release drain still in progress; deferring the reacquire")
+		return
+	}
+	ddnvml.SetNVMLReleased(false)
+	c.releaseWindowStart = time.Time{}
+	if err := c.pushNvmlRelease(false); err != nil {
+		log.Warnf("error ending the system-probe NVML release lease (it will expire on its own): %v", err)
+	}
 }

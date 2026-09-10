@@ -496,3 +496,16 @@ var xidCodeToOrigin = map[uint64]string{
 	140: xidOriginHardware, // Unrecovered ECC Error
 	143: xidOriginHardware, // GPU Initialization Failure
 }
+
+// ResetEventRegistrations clears the device-registration latch of any
+// device-events collector in the list. Called when the events gatherer
+// (re)starts with a fresh event set, whose registrations the collectors'
+// latch would otherwise silently ignore.
+func ResetEventRegistrations(collectors []Collector) {
+	for _, c := range collectors {
+		if dec, ok := c.(*deviceEventsCollector); ok {
+			dec.registered = false
+			dec.registrationAttempts = 0
+		}
+	}
+}
