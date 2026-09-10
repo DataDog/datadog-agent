@@ -14,6 +14,7 @@ use crate::env::{expand_env_vars, parse_environment_file, try_expand_env_vars};
 use super::stdio::{StdioSetting, parse_stdio_setting, to_command_stdio};
 
 pub(crate) struct SpawnRequest {
+    #[cfg(windows)]
     process_name: String,
     command: String,
     args: Vec<String>,
@@ -56,6 +57,7 @@ impl SpawnRequest {
 
     pub(crate) fn from_config(process_name: &str, config: &ProcessConfig) -> Result<Self> {
         Ok(Self {
+            #[cfg(windows)]
             process_name: process_name.to_string(),
             command: expand_env_vars(&config.command),
             args: config.args.iter().map(|a| expand_env_vars(a)).collect(),

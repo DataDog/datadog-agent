@@ -67,11 +67,7 @@ pub(super) fn spawn_inherit_supervisor(
     )?;
     let env_block_ptr = env_block.as_ptr() as *const std::ffi::c_void;
 
-    let stdio_handles = [
-        stdin_handle.raw(),
-        stdout_handle.raw(),
-        stderr_handle.raw(),
-    ];
+    let stdio_handles = [stdin_handle.raw(), stdout_handle.raw(), stderr_handle.raw()];
     let mut startup_info = StartupInfoEx::with_stdio_handles(&stdio_handles)?;
 
     let creation_flags = CREATE_SUSPENDED
