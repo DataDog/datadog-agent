@@ -274,7 +274,7 @@
 /cmd/agent/dist/conf.d/docker.d/                       @DataDog/container-integrations
 /cmd/agent/dist/conf.d/file_handle.d/                  @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/go_expvar.d/                    @DataDog/agent-configuration
-/cmd/agent/dist/conf.d/gpu.d/                          @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
+/cmd/agent/dist/conf.d/gpu.d/                          @DataDog/gpu-monitoring-agent
 /cmd/agent/dist/conf.d/io.d/                           @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/jetson.d/                       @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/jmx.d/                          @DataDog/agent-metric-pipelines
@@ -283,7 +283,7 @@
 /cmd/agent/dist/conf.d/memory.d/                       @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/myapp.d/                        @DataDog/agent-log-pipelines
 /cmd/agent/dist/conf.d/mysql.d/                        @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/nccl.d/                         @DataDog/ebpf-platform @DataDog/gpu-monitoring-agent
+/cmd/agent/dist/conf.d/nccl.d/                         @DataDog/gpu-monitoring-agent
 /cmd/agent/dist/conf.d/network.d/                      @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/network_config_management.d/    @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/network_path.d/                 @DataDog/network-path
