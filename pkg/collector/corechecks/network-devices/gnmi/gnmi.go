@@ -54,10 +54,6 @@ func newCheck() check.Check {
 
 // Configure parses instance configuration and prepares the gNMI client.
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
-	if !config.IsEnabled() {
-		return errors.New("gNMI core check is disabled; set network_devices.gnmi.enabled to true to enable it")
-	}
-
 	checkConfig, err := config.NewCheckConfig(rawInstance)
 	if err != nil {
 		return fmt.Errorf("build config failed: %w", err)

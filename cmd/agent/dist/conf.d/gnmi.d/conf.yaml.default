@@ -3,7 +3,6 @@
 ## to `conf.yaml` and make your changes on that file.
 
 ## This integration is currently experimental.
-## Enable collection with network_devices.gnmi.enabled: true in datadog.yaml.
 
 init_config:
 

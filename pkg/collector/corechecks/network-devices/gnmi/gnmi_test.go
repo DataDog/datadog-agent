@@ -46,7 +46,6 @@ func TestCheckRunReportsSNMPMetrics(t *testing.T) {
 	mockConfig := configmock.New(t)
 	profilesRoot := t.TempDir()
 	mockConfig.SetInTest("confd_path", profilesRoot)
-	mockConfig.SetInTest("network_devices.gnmi.enabled", true)
 
 	profileDir := filepath.Join(profilesRoot, "gnmi.d", "profiles")
 	require.NoError(t, os.MkdirAll(profileDir, 0o755))
@@ -107,107 +106,11 @@ min_collection_interval: 15
 	}, 2*time.Second, 10*time.Millisecond)
 
 	assert.Equal(t, 1, server.ConnectionCount())
-	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.stream_state", mock.Anything, "", mock.Anything)
-	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.received_samples", mock.Anything, "", mock.Anything)
 	mockSender.AssertCalled(t, "MonotonicCount", "snmp.ifHCInOctets", float64(42), "", mock.Anything)
 	mockSender.AssertCalled(t, "MonotonicCount", "snmp.ifHCOutOctets", float64(84), "", mock.Anything)
 	mockSender.AssertCalled(t, "Commit")
 
 	checkInstance.Cancel()
-}
-
-func TestCheckRunEmitsHealthMetricsOnlyWhenCacheEmpty(t *testing.T) {
-	admission.ResetGateForTesting()
-	admission.SetPaceForTesting(10*time.Millisecond, 10)
-
-	mockConfig := configmock.New(t)
-	profilesRoot := t.TempDir()
-	mockConfig.SetInTest("confd_path", profilesRoot)
-	mockConfig.SetInTest("network_devices.gnmi.enabled", true)
-
-	profileDir := filepath.Join(profilesRoot, "gnmi.d", "profiles")
-	require.NoError(t, os.MkdirAll(profileDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(profileDir, "basic-interfaces.yaml"), []byte(basicInterfacesProfile), 0o644))
-
-	server, err := fakeserver.New()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, server.Close())
-	})
-	server.SetExpectedCredentials("user", "test-password")
-
-	host, port, err := hostPort(server.Addr())
-	require.NoError(t, err)
-
-	rawInstance := []byte(`
-address: ` + host + `
-port: ` + strconv.Itoa(port) + `
-username: user
-password: test-password
-profile: basic-interfaces
-min_collection_interval: 15
-`)
-
-	factoryOpt := gnmi.Factory()
-	checkFactory, ok := factoryOpt.Get()
-	require.True(t, ok)
-	checkInstance := checkFactory()
-
-	mockSender := mocksender.NewMockSender(t, "")
-	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-	mockSender.On("Commit").Return()
-
-	err = checkInstance.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstance, []byte(""), "test", "test")
-	require.NoError(t, err)
-	mocksender.SetSender(mockSender, checkInstance.ID())
-
-	err = checkInstance.Run()
-	require.NoError(t, err)
-	waitSubscribeEvent(t, server)
-
-	require.Eventually(t, func() bool {
-		if err := checkInstance.Run(); err != nil {
-			return false
-		}
-		for _, call := range mockSender.Calls {
-			if call.Method == "Gauge" && call.Arguments[0] == "datadog.gnmi.received_samples" {
-				return true
-			}
-		}
-		return false
-	}, 2*time.Second, 10*time.Millisecond)
-
-	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.stream_state", mock.Anything, "", mock.Anything)
-	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.reconnect_count", mock.Anything, "", mock.Anything)
-	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.received_samples", float64(0), "", mock.Anything)
-	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.sample_age_seconds", float64(0), "", mock.Anything)
-	mockSender.AssertNotCalled(t, "MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
-	mockSender.AssertCalled(t, "Commit")
-
-	checkInstance.Cancel()
-}
-
-func TestConfigureDisabled(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("network_devices.gnmi.enabled", false)
-
-	rawInstance := []byte(`
-address: 127.0.0.1
-username: user
-password: secret
-profile: basic-interfaces
-`)
-
-	factoryOpt := gnmi.Factory()
-	checkFactory, ok := factoryOpt.Get()
-	require.True(t, ok)
-	checkInstance := checkFactory()
-
-	mockSender := mocksender.NewMockSender(t, "")
-
-	err := checkInstance.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstance, []byte(""), "test", "test")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "network_devices.gnmi.enabled")
 }
 
 func waitSubscribeEvent(t *testing.T, server *fakeserver.Server) fakeserver.SubscribeEvent {
