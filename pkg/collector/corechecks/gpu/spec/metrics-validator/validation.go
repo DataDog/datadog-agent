@@ -62,12 +62,12 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 		State:  validationStateMissing,
 	}
 
-	// We still query all tags and metrics, even if they're workload only and some live hosts won't have them.
-	// The relaxation happens in the render phase, where metrics/tags that are sometimes missing will not be reported
-	// as errors if they're workload-only.
-	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, gpuspec.ValidationOptions{
-		WorkloadActive: true,
-	})
+	validationOptions := gpuspec.ValidationOptions{
+		WorkloadActive:  true,
+		ConfigFeatures:  gpuspec.AllConfigFeatures(),
+		WorkloadTagsets: gpuspec.AllWorkloadTagsets(specs.Tags),
+	}
+	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, validationOptions)
 	queryFilter := combineMetricFilters(config.TagFilter(), metricFilter)
 	tagInventoryFilters := tagInventoryFiltersForConfig(config, metricFilter)
 
@@ -90,13 +90,11 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 
 	for metricName, metricSpec := range expectedMetricsMap {
 		prefixedMetricName := gpuspec.PrefixedMetricName(specs, metricName)
-		validatesValues := metricSpec.Validator != nil
-		requiredTags, workloadOnlyTags, err := gpuspec.RequiredTagsForMetric(specs.Tags, metricSpec)
+		validatesValues := metricSpec.Validator.HasStaticValueValidation()
+		requiredTags, err := gpuspec.RequiredTagsForMetricWithOptions(specs.Tags, metricSpec, validationOptions)
 		if err != nil {
 			return result, fmt.Errorf("derive required tags for %s: %w", metricName, err)
 		}
-
-		maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
 
 		// Get the metric values
 		group.Go(func() error {
@@ -173,9 +171,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 		}
 	}
 
-	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, nil, gpuspec.ValidationOptions{
-		WorkloadActive: true,
-	})
+	result.DetailedResult, err = gpuspec.ValidateEmittedMetricsAgainstSpec(specs, config, observations, nil, validationOptions)
 	if err != nil {
 		allErrors = errors.Join(allErrors, fmt.Errorf("error validating emitted metrics against spec: %w", err))
 	}
