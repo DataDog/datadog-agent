@@ -221,13 +221,7 @@ func (f *Filters) Retains(tag string) bool {
 		return true
 	}
 	key, value, hasValue := strings.Cut(tag, ":")
-	if isProtectedKey(key) {
-		return true
-	}
-	if matchesAny(f.include, key, value, hasValue) {
-		return true
-	}
-	return !matchesAny(f.exclude, key, value, hasValue)
+	return f.retainsSplit(key, value, hasValue)
 }
 
 // Apply returns the surviving tags. The returned slice must not be modified.
@@ -237,11 +231,22 @@ func (f *Filters) Apply(tags []string) []string {
 	}
 	out := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		if f.Retains(tag) {
+		key, value, hasValue := strings.Cut(tag, ":")
+		if f.retainsSplit(key, value, hasValue) {
 			out = append(out, tag)
 		}
 	}
 	return out
+}
+
+func (f *Filters) retainsSplit(key, value string, hasValue bool) bool {
+	if isProtectedKey(key) {
+		return true
+	}
+	if matchesAny(f.include, key, value, hasValue) {
+		return true
+	}
+	return !matchesAny(f.exclude, key, value, hasValue)
 }
 
 func matchesAny(list []*pattern, key, value string, hasValue bool) bool {
@@ -296,10 +301,7 @@ func (s *Scoped) Retains(tag string) bool {
 		return true
 	}
 	key, value, hasValue := strings.Cut(tag, ":")
-	if isProtectedKey(key) {
-		return true
-	}
-	return s.retains(key, value, hasValue)
+	return s.retainsSplit(key, value, hasValue)
 }
 
 // Apply returns the surviving tags. The returned slice must not be modified.
@@ -309,11 +311,16 @@ func (s *Scoped) Apply(tags []string) []string {
 	}
 	out := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		if s.Retains(tag) {
+		key, value, hasValue := strings.Cut(tag, ":")
+		if s.retainsSplit(key, value, hasValue) {
 			out = append(out, tag)
 		}
 	}
 	return out
+}
+
+func (s *Scoped) retainsSplit(key, value string, hasValue bool) bool {
+	return isProtectedKey(key) || s.retains(key, value, hasValue)
 }
 
 func (s *Scoped) retains(key, value string, hasValue bool) bool {
