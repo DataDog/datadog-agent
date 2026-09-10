@@ -31,9 +31,16 @@ dd_agent_go_test(
         "fargate_test.go",
         "gcp_test.go",
         "kind_test.go",
+        "vsock_forwarding_test.go",
         "windows_test.go",
     ],
     embed = [":cws"],
+    # keep
+    embedsrcs = [
+        "//test/new-e2e/tests/cws/config:e2e-vsock-forwarder-security-agent.yaml",
+        "//test/new-e2e/tests/cws/config:e2e-vsock-forwarder-system-probe.yaml",
+        "//test/new-e2e/tests/cws/config:e2e-vsock-guest.env",
+    ],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/components/datadog/agentparams",

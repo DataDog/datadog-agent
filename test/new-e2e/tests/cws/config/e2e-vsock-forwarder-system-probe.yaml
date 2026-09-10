@@ -1,0 +1,14 @@
+# Forwarder role ("SystemProbe" vsock mode in datadog-operator#3186): this
+# system-probe hosts the remote runtime-security event server over vsock so a
+# system-probe isolated in a micro VM can push its events here, and ships what it
+# receives to the intake itself.
+system_probe_config:
+  # Trace is required: the proof that an event crossed the vsock hop is
+  # "received remote event from rule", logged at trace by RemoteEventServer.
+  log_level: trace
+runtime_security_config:
+  enabled: true
+  use_secruntime_track: false
+  socket: vsock:5020
+  event_grpc_server: system-probe
+  direct_send_from_system_probe: true
