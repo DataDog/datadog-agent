@@ -17,15 +17,14 @@ use windows_sys::Win32::System::Threading::{
 pub(crate) struct StartupInfoEx {
     siex: STARTUPINFOEXW,
     attribute_list_storage: Vec<u8>,
-    stdio_handles: [HANDLE; 3],
 }
 
 impl StartupInfoEx {
-    pub(crate) fn with_stdio_handles(
-        stdin: HANDLE,
-        stdout: HANDLE,
-        stderr: HANDLE,
-    ) -> Result<Self> {
+    /// Builds startup info with a restricted stdio handle inheritance list.
+    ///
+    /// `handles` must stay alive until `CreateProcessW` returns: the handle list attribute
+    /// stores a pointer to that array, not a copy.
+    pub(crate) fn with_stdio_handles(handles: &[HANDLE; 3]) -> Result<Self> {
         let mut attribute_list_size = 0usize;
         unsafe {
             InitializeProcThreadAttributeList(ptr::null_mut(), 1, 0, &mut attribute_list_size);
@@ -50,34 +49,33 @@ impl StartupInfoEx {
             );
         }
 
-        let startup = Self {
-            siex: new_siex(stdin, stdout, stderr, attribute_list),
+        let mut startup = Self {
+            siex: new_siex(handles[0], handles[1], handles[2], attribute_list),
             attribute_list_storage,
-            stdio_handles: [stdin, stdout, stderr],
         };
+        startup.attach_stdio_handle_list(handles)?;
+        Ok(startup)
+    }
 
+    fn attach_stdio_handle_list(&mut self, handles: &[HANDLE; 3]) -> Result<()> {
         let ok = unsafe {
             UpdateProcThreadAttribute(
-                startup.siex.lpAttributeList,
+                self.siex.lpAttributeList,
                 0,
                 PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
-                startup.stdio_handles.as_ptr().cast(),
-                startup.stdio_handles.len() * mem::size_of::<HANDLE>(),
+                handles.as_ptr().cast(),
+                handles.len() * mem::size_of::<HANDLE>(),
                 ptr::null_mut(),
                 ptr::null_mut(),
             )
         };
         if ok == 0 {
-            unsafe {
-                DeleteProcThreadAttributeList(startup.siex.lpAttributeList);
-            }
             bail!(
                 "UpdateProcThreadAttribute(HANDLE_LIST) failed: {}",
                 std::io::Error::last_os_error()
             );
         }
-
-        Ok(startup)
+        Ok(())
     }
 
     pub(crate) fn startup_info(&mut self) -> &mut STARTUPINFOW {
