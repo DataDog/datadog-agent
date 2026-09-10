@@ -94,8 +94,7 @@ message ConnectionTokenV2 {
   }
 
   message RunnerCredential {
-    // An identifier from the runner's operator-controlled credential catalog.
-    // This is deliberately not a secret-backend handle or a config path.
+    // Identifier in the runner credential catalog.
     string key = 1;
   }
 }
