@@ -671,7 +671,7 @@ func TestCollectServicesSchedulesRegularIntervalFromStartupCollection(t *testing
 	}
 	go func() {
 		defer close(done)
-		c.collector.collectServices(ctx, collectionTimer, time.Minute, processesReady, func(context.Context) error {
+		c.collector.collectServicesWithTimer(ctx, collectionTimer, time.Minute, processesReady, func(context.Context) error {
 			return nil
 		}, func(context.Context) {
 			calls <- c.mockClock.Now()
@@ -719,7 +719,7 @@ func TestCollectServicesWaitsForSystemProbeStartup(t *testing.T) {
 	collectionTimer := clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)}
 	go func() {
 		defer close(done)
-		c.collector.collectServices(ctx, collectionTimer, time.Minute, processesReady, func(ctx context.Context) error {
+		c.collector.collectServicesWithTimer(ctx, collectionTimer, time.Minute, processesReady, func(ctx context.Context) error {
 			close(waitStarted)
 			select {
 			case <-ctx.Done():
@@ -756,7 +756,7 @@ func TestCollectServicesDoesNotRunAfterCancellation(t *testing.T) {
 	cancel()
 
 	called := false
-	c.collector.collectServices(ctx, clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)}, time.Minute, nil, func(ctx context.Context) error {
+	c.collector.collectServicesWithTimer(ctx, clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)}, time.Minute, nil, func(ctx context.Context) error {
 		return ctx.Err()
 	}, func(context.Context) {
 		called = true
@@ -787,7 +787,7 @@ func TestCollectServicesRegularIntervalCancelsStartupWait(t *testing.T) {
 	collectionTimer := clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)}
 	go func() {
 		defer close(done)
-		c.collector.collectServices(ctx, collectionTimer, time.Minute, nil, func(ctx context.Context) error {
+		c.collector.collectServicesWithTimer(ctx, collectionTimer, time.Minute, nil, func(ctx context.Context) error {
 			close(waitStarted)
 			select {
 			case <-ctx.Done():
