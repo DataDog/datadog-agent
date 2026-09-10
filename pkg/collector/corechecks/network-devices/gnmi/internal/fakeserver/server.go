@@ -36,30 +36,21 @@ type streamState struct {
 	delaySync      bool
 	sendMu         sync.Mutex
 	stopPublishing bool
-	subscribeOnce  sync.Once
-	subscribeCh    chan struct{}
 	closeOnce      sync.Once
 	closeCh        chan struct{}
 }
 
 func newStreamState(stream grpc.BidiStreamingServer[gnmipb.SubscribeRequest, gnmipb.SubscribeResponse], delaySync bool) *streamState {
 	return &streamState{
-		stream:      stream,
-		delaySync:   delaySync,
-		subscribeCh: make(chan struct{}),
-		closeCh:     make(chan struct{}),
+		stream:    stream,
+		delaySync: delaySync,
+		closeCh:   make(chan struct{}),
 	}
 }
 
 func (s *streamState) close() {
 	s.closeOnce.Do(func() {
 		close(s.closeCh)
-	})
-}
-
-func (s *streamState) signalSubscribe() {
-	s.subscribeOnce.Do(func() {
-		close(s.subscribeCh)
 	})
 }
 
@@ -247,35 +238,13 @@ func (s *Server) CloseStream(streamID int) error {
 	return nil
 }
 
-// CloseConnections stops the gRPC server and closes all connections.
-func (s *Server) CloseConnections() {
-	s.Close()
-}
-
 // Close stops the server and releases resources.
 func (s *Server) Close() error {
 	s.closeOnce.Do(s.grpcServer.Stop)
 	return nil
 }
 
-// AwaitSubscribe waits until the stream receives its first Subscribe message or the context is done.
-func (s *Server) AwaitSubscribe(ctx context.Context, streamID int) error {
-	s.mu.RLock()
-	stream, ok := s.streams[streamID]
-	s.mu.RUnlock()
-	if !ok {
-		return fmt.Errorf("stream %d not found", streamID)
-	}
-
-	select {
-	case <-stream.subscribeCh:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-func (s *Server) registerStream(stream grpc.BidiStreamingServer[gnmipb.SubscribeRequest, gnmipb.SubscribeResponse], delaySync bool) int {
+func (s *Server) registerStream(stream grpc.BidiStreamingServer[gnmipb.SubscribeRequest, gnmipb.SubscribeResponse], delaySync bool) (int, *streamState) {
 	id := int(s.nextStreamID.Add(1))
 	state := newStreamState(stream, delaySync)
 
@@ -284,7 +253,7 @@ func (s *Server) registerStream(stream grpc.BidiStreamingServer[gnmipb.Subscribe
 	s.mu.Unlock()
 
 	s.activeStreams.Add(1)
-	return id
+	return id, state
 }
 
 func (s *Server) unregisterStream(id int) {
@@ -336,6 +305,11 @@ type gnmiService struct {
 	server *Server
 }
 
+type recvResult struct {
+	request *gnmipb.SubscribeRequest
+	err     error
+}
+
 func (g *gnmiService) Subscribe(stream grpc.BidiStreamingServer[gnmipb.SubscribeRequest, gnmipb.SubscribeResponse]) error {
 	username, password := credentialsFromContext(stream.Context())
 	if !g.server.credentialsAllowed(username, password) {
@@ -346,31 +320,19 @@ func (g *gnmiService) Subscribe(stream grpc.BidiStreamingServer[gnmipb.Subscribe
 	delaySync := g.server.delaySyncDefault
 	g.server.mu.RUnlock()
 
-	streamID := g.server.registerStream(stream, delaySync)
+	streamID, state := g.server.registerStream(stream, delaySync)
 	defer g.server.unregisterStream(streamID)
 
-	g.server.mu.RLock()
-	state := g.server.streams[streamID]
-	g.server.mu.RUnlock()
-	if state == nil {
-		return status.Error(codes.Internal, "stream state missing")
-	}
-
-	reqCh := make(chan *gnmipb.SubscribeRequest)
-	errCh := make(chan error, 1)
+	recvCh := make(chan recvResult)
 	go func() {
 		for {
 			req, err := stream.Recv()
-			if err != nil {
-				select {
-				case errCh <- err:
-				case <-stream.Context().Done():
-				}
+			select {
+			case recvCh <- recvResult{request: req, err: err}:
+			case <-stream.Context().Done():
 				return
 			}
-			select {
-			case reqCh <- req:
-			case <-stream.Context().Done():
+			if err != nil {
 				return
 			}
 		}
@@ -382,10 +344,11 @@ func (g *gnmiService) Subscribe(stream grpc.BidiStreamingServer[gnmipb.Subscribe
 			return status.Error(codes.Canceled, "stream closed by server")
 		case <-stream.Context().Done():
 			return stream.Context().Err()
-		case err := <-errCh:
-			return err
-		case req := <-reqCh:
-			if err := g.handleSubscribeRequest(streamID, state, username, password, req); err != nil {
+		case result := <-recvCh:
+			if result.err != nil {
+				return result.err
+			}
+			if err := g.handleSubscribeRequest(streamID, state, username, password, result.request); err != nil {
 				return err
 			}
 		}
@@ -396,7 +359,6 @@ func (g *gnmiService) handleSubscribeRequest(streamID int, state *streamState, u
 	switch req.GetRequest().(type) {
 	case *gnmipb.SubscribeRequest_Subscribe:
 		g.server.subscriptionCount.Add(1)
-		state.signalSubscribe()
 
 		event := SubscribeEvent{
 			StreamID: streamID,
