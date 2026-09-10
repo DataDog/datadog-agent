@@ -1654,6 +1654,29 @@ func TestAgentConfigInit(t *testing.T) {
 	assert.True(t, conf.IsKnown("inventories_enabled"))
 }
 
+func TestRemoteQueriesExecuteIntakeTestDriveConfig(t *testing.T) {
+	conf := newTestConf(t)
+
+	// remote_queries.execute.intake_test_drive is the Test Drive selector key
+	// read by integrations-core through datadog_agent.get_config. It must be
+	// registered in the Agent config schema (BindEnvAndSetDefault) so the
+	// Python bridge's GetConfig returns its value instead of nil for an
+	// unknown key.
+	assert.True(t, conf.IsKnown("remote_queries.execute.intake_test_drive"),
+		"intake_test_drive must be a registered config key")
+	assert.Equal(t, "", conf.GetString("remote_queries.execute.intake_test_drive"),
+		"intake_test_drive must default to an empty string")
+
+	// The superseded intake_test_drive_selector key must no longer be
+	// registered: IsKnown must not recognise it.
+	assert.False(t, conf.IsKnown("remote_queries.execute.intake_test_drive_selector"),
+		"the superseded intake_test_drive_selector key must not be registered")
+
+	// Sanity: the sibling remote_queries.execute settings stay registered.
+	assert.True(t, conf.IsKnown("remote_queries.execute.enabled"))
+	assert.True(t, conf.IsKnown("remote_queries.execute.enable_query_allowlist"))
+}
+
 func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
 	cfg := newEmptyMockConf(t)
