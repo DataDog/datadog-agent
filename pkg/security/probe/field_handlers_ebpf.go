@@ -779,6 +779,7 @@ func (fh *EBPFFieldHandlers) resolveGoLabelsSpanContext(ev *model.Event) {
 	ev.GoLabels.Resolved = true
 
 	spanID, traceID, err := fh.resolvers.GoLabelsCtxResolver.Resolve(ev.GoLabels.ID)
+	fh.resolvers.ProcessResolver.CountGoLabelsLookup(err)
 	if err != nil {
 		seclog.Tracef("unable to resolve the go labels span context: %s", err)
 		return
@@ -797,6 +798,7 @@ func (fh *EBPFFieldHandlers) resolveOTelSpanAttrs(ev *model.Event) {
 	ev.SpanContext.HasExtraAttrs = false
 
 	rawAttrs, err := fh.resolvers.OTelAttrsResolver.Resolve(ev.SpanContext.ExtraAttrsID)
+	fh.resolvers.ProcessResolver.CountOTelAttrsLookup(err)
 	if err != nil {
 		seclog.Tracef("unable to resolve the otel span attributes: %s", err)
 		return
