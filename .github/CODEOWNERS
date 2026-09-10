@@ -272,6 +272,7 @@
 /cmd/agent/dist/conf.d/powershell.d/                @DataDog/windows-products
 /cmd/agent/dist/conf.d/sbom.d/                      @DataDog/agent-security @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/                      @DataDog/network-device-monitoring-core
+/cmd/agent/dist/conf.d/vdi.d/                       @DataDog/windows-products
 /cmd/agent/dist/conf.d/win32_event_log.d/           @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/       @DataDog/windows-products
 /cmd/agent/dist/protected/                          @DataDog/windows-products
