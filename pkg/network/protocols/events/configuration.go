@@ -31,39 +31,75 @@ const (
 	eventsMapSuffix = "_batch_events"
 )
 
-// Configure a given `*manager.Manager` for event processing
-// This essentially instantiates the perf map/ring buffers and configure the
-// eBPF maps where events are enqueued.
-// Note this must be called *before* manager.InitWithOptions
+// Configure a given `*manager.Manager` for event processing.
+// This instantiates the perf map/ring buffer and configures the eBPF maps
+// where events are enqueued.
+//
+// Note this must be called *before* manager.InitWithOptions, and once per load
+// attempt. `o` is rebuilt from scratch on every attempt while `m` is reused
+// across them.
 func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.Options) {
-	if alreadySetUp(proto, m) {
-		return
-	}
-
 	numCPUs, err := kernel.PossibleCPUs()
 	if err != nil {
 		numCPUs = 96
 		log.Error("unable to detect number of CPUs. assuming 96 cores")
 	}
 
-	configureBatchMaps(proto, o, numCPUs)
-
 	useRingBuffer := cfg.EnableUSMRingBuffers && features.HaveMapType(ebpf.RingBuf) == nil
-	utils.AddBoolConst(o, useRingBuffer, "use_ring_buffer")
-
 	bufferSize := cfg.USMKernelBufferPages * os.Getpagesize()
 
-	if useRingBuffer {
-		setupPerfRing(proto, m, o, numCPUs, cfg.USMDataChannelSize, bufferSize)
-	} else {
-		setupPerfMap(proto, m, cfg.USMDataChannelSize, bufferSize)
+	configureOptions(proto, o, useRingBuffer, numCPUs, bufferSize)
+	configureManager(proto, m, useRingBuffer, cfg.USMDataChannelSize, bufferSize)
+}
+
+// configureOptions applies everything that lives on `*manager.Options`. It is
+// called on every load attempt because the options are rebuilt each time.
+func configureOptions(proto string, o *manager.Options, useRingBuffer bool, numCPUs, ringBufferSize int) {
+	configureBatchMaps(proto, o, numCPUs)
+	utils.AddBoolConst(o, useRingBuffer, "use_ring_buffer")
+
+	if !useRingBuffer {
+		return
+	}
+
+	// Adjusting ring buffer size with the number of CPUs and rounding it to the nearest power of 2
+	ringBufferSize = toPowerOf2(numCPUs * ringBufferSize)
+	o.MapSpecEditors[eventMapName(proto)] = manager.MapSpecEditor{
+		Type:       ebpf.RingBuf,
+		MaxEntries: uint32(ringBufferSize),
+		KeySize:    0,
+		ValueSize:  0,
+		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 	}
 }
 
-func setupPerfMap(proto string, m *manager.Manager, dataChannelSize, perfEventBufferSize int) {
-	handler := ddebpf.NewPerfHandler(dataChannelSize)
+// configureManager registers the perf map or ring buffer on `m`. The manager
+// outlives a single load attempt, so the reader and its handler are only
+// registered once; the removal from `m.Maps` is re-asserted every time because
+// the caller re-adds the protocol spec entry on each attempt.
+func configureManager(proto string, m *manager.Manager, useRingBuffer bool, dataChannelSize, perfEventBufferSize int) {
 	mapName := eventMapName(proto)
-	pm := &manager.PerfMap{
+
+	// The map appears in `m.Maps` as we list it in the Protocol struct, but it
+	// belongs in `m.PerfMaps`/`m.RingBuffers` instead.
+	m.Maps = slices.DeleteFunc(m.Maps, func(currentMap *manager.Map) bool {
+		return currentMap.Name == mapName
+	})
+
+	if alreadySetUp(proto, m) {
+		return
+	}
+
+	if useRingBuffer {
+		setupPerfRing(proto, m, mapName, dataChannelSize)
+		return
+	}
+	setupPerfMap(proto, m, mapName, dataChannelSize, perfEventBufferSize)
+}
+
+func setupPerfMap(proto string, m *manager.Manager, mapName string, dataChannelSize, perfEventBufferSize int) {
+	handler := ddebpf.NewPerfHandler(dataChannelSize)
+	m.PerfMaps = append(m.PerfMaps, &manager.PerfMap{
 		Map: manager.Map{Name: mapName},
 		PerfMapOptions: manager.PerfMapOptions{
 			PerfRingBufferSize: perfEventBufferSize,
@@ -76,44 +112,23 @@ func setupPerfMap(proto string, m *manager.Manager, dataChannelSize, perfEventBu
 			LostHandler:   handler.LostHandler,
 			RecordGetter:  handler.RecordGetter,
 		},
-	}
-	// The map appears as we list it in the Protocol struct.
-	m.Maps = slices.DeleteFunc(m.Maps, func(currentMap *manager.Map) bool {
-		return currentMap.Name == mapName
 	})
 
-	m.PerfMaps = append(m.PerfMaps, pm)
+	// Appends to `m.InstructionPatchers`, which is manager state: must only
+	// run once for the lifetime of the manager.
 	removeRingBufferHelperCalls(m)
 	setHandler(proto, handler)
 }
 
-func setupPerfRing(proto string, m *manager.Manager, o *manager.Options, numCPUs int, dataChannelSize, ringBufferSize int) {
+func setupPerfRing(proto string, m *manager.Manager, mapName string, dataChannelSize int) {
 	handler := ddebpf.NewRingBufferHandler(dataChannelSize)
-	mapName := eventMapName(proto)
-	// Adjusting ring buffer size with the number of CPUs and rounding it to the nearest power of 2
-	ringBufferSize = toPowerOf2(numCPUs * ringBufferSize)
-	rb := &manager.RingBuffer{
+	m.RingBuffers = append(m.RingBuffers, &manager.RingBuffer{
 		Map: manager.Map{Name: mapName},
 		RingBufferOptions: manager.RingBufferOptions{
 			RecordHandler: handler.RecordHandler,
 			RecordGetter:  handler.RecordGetter,
 		},
-	}
-
-	// The map appears as we list it in the Protocol struct.
-	m.Maps = slices.DeleteFunc(m.Maps, func(currentMap *manager.Map) bool {
-		return currentMap.Name == mapName
 	})
-
-	o.MapSpecEditors[mapName] = manager.MapSpecEditor{
-		Type:       ebpf.RingBuf,
-		MaxEntries: uint32(ringBufferSize),
-		KeySize:    0,
-		ValueSize:  0,
-		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
-	}
-
-	m.RingBuffers = append(m.RingBuffers, rb)
 	setHandler(proto, handler)
 }
 
