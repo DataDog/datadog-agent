@@ -13,6 +13,9 @@
 ##    echo a
 ##    echo b
 ##    EOF
+#
+# The helper functions and the git setup live in the .sh files next to this
+# template (aix_helpers.sh and aix_git_setup.sh), sourced in before_script.
 
 .aix_remote:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -45,52 +48,11 @@
     - chmod 644 ~/.ssh/config
 
     # Helpers for connecting to the AIX host.
-    - export AIX_SSH_COMMON_OPTS="-o ServerAliveInterval=20 -o ServerAliveCountMax=6"
-    - export AIX_SSH_DEST="$AIX_USER@$AIX_HOST"
-    - |
-      # this makes it very convenient to define and run multiline scripts on the AIX host
-      aix_run_cmd() {
-        local script
-        if [ "$#" -gt 0 ]; then
-          script="$*"
-        else
-          script=$(cat)
-        fi
-        local encoded=$(printf '%s' "$script" | base64 -w0)
-        # pass the script encoded in base64 to avoid quoting and stdin issues:
-        # - base64 makes the payload safe to embed in the ssh command line
-        # - the script is decoded to a temp file and run with `bash <file>` so
-        #   that stdin remains the PTY
-        # the script file is kept on failure to help with debugging
-        local script_file="/tmp/aix_run_cmd_${CI_PIPELINE_ID}_${CI_JOB_ID}_$(date +%s).sh"
-        ssh -tt $AIX_SSH_COMMON_OPTS $AIX_SSH_DEST \
-          "echo $encoded | openssl enc -base64 -d -A > '$script_file' && bash '$script_file'; rc=\$?; [ \$rc -eq 0 ] && rm -f '$script_file' || echo \"script kept at $script_file for debugging\"; exit \$rc"
-      }
-    - copy_file_from_aix () { scp $AIX_SSH_COMMON_OPTS "$AIX_SSH_DEST:$1" "$2" ; }
-    - copy_file_to_aix () { scp $AIX_SSH_COMMON_OPTS "$1" "$AIX_SSH_DEST:$2" ; }
+    - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_helpers.sh
 
-    # Ensure the agent source is cloned on the AIX host at the commit under
-    # test. Reuses any existing clone (fetch + checkout) to avoid cloning from
-    # scratch each run. The clone includes packaging/aix/ci/*.sh, so the host
-    # has the scripts the job later runs.
-    - 'echo "=== AIX: cloning agent source at $CI_COMMIT_SHA ==="'
-    - |
-      aix_run_cmd <<EOF
-      set -eu
-      export PATH=/opt/freeware/bin:/usr/bin:\$PATH
-      if [ ! -d "$AIX_AGENT_SRC/.git" ]; then
-        git clone --progress "$AIX_GIT_REMOTE" "$AIX_AGENT_SRC"
-      fi
-      cd "$AIX_AGENT_SRC"
-      git clean -df
-      git reset --hard
-      git fetch --progress origin
-      # The commit under test may not be reachable from origin yet (e.g. a
-      # brand-new branch push); fetch the branch ref as a fallback.
-      git fetch --progress origin "$CI_COMMIT_REF_NAME" || true
-      git checkout "$CI_COMMIT_SHA"
-      EOF
-    
+    # Ensure the agent source is cloned on the AIX host at the commit under test.
+    - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
+
     # Host setup (tools, etc)
     # -tt forces a PTY so the remote script's stdout/stderr stream live to the job log.
     - 'echo "=== AIX: provisioning host (setup-host.sh) ==="'

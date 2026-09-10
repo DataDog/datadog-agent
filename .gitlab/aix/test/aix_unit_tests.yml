@@ -9,7 +9,7 @@ tests_aix-ppc64:
     - !reference [.on_scheduled_main]
     - changes:
         paths:
-          - .gitlab/aix/aix_remote.yml
+          - .gitlab/aix/common/**/*
           - .gitlab/aix/test/aix_unit_tests.yml
         compare_to: $COMPARE_TO_BRANCH
       # TODO: uncomment once the job is stable enough
