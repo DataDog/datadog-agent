@@ -29,22 +29,24 @@ func (f *excludeKeysFilter) Apply(tags []string) []string {
 	f.seen = append(f.seen, tags)
 	kept := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		key := tag
-		if i := strings.Index(tag, ":"); i >= 0 {
-			key = tag[:i]
-		}
-		excluded := false
-		for _, k := range f.keys {
-			if k == key {
-				excluded = true
-				break
-			}
-		}
-		if !excluded {
+		if f.Retains(tag) {
 			kept = append(kept, tag)
 		}
 	}
 	return kept
+}
+
+func (f *excludeKeysFilter) Retains(tag string) bool {
+	key := tag
+	if i := strings.Index(tag, ":"); i >= 0 {
+		key = tag[:i]
+	}
+	for _, k := range f.keys {
+		if k == key {
+			return false
+		}
+	}
+	return true
 }
 
 func filteredOrigin(t *testing.T, filter TagFilter) *Origin {
@@ -254,4 +256,40 @@ func TestBenchOriginFilterIsEngaged(t *testing.T) {
 	assert.Contains(t, got, "filename:access.log")
 	assert.Contains(t, got, "sourcecategory:http")
 	assert.Less(t, len(got), len(filtered.Tags()), "the filter must actually drop something")
+}
+
+func TestTransportTagsGroupOrderIsPreserved(t *testing.T) {
+	origin := newBenchOrigin([]string{"dirname:*", "kube_*"})
+
+	// `dirname:*` and `kube_*` drop three tags; pod_name, container_id and
+	// image_name are not matched by either pattern and must survive.
+	want := []string{
+		"filename:access.log",
+		"pod_name:web-7d8f9c5b4-abcde",
+		"container_id:a1b2c3d4e5f6",
+		"image_name:nginx",
+		"sourcecategory:http",
+		"env:prod",
+		"version:1.2.3",
+	}
+	assert.Equal(t, want, origin.TransportTags(),
+		"order is origin tags, then sourcecategory, then config tags")
+	assert.Equal(t, strings.Join(want, ","), origin.TransportTagsToString())
+}
+
+func TestAppendTransportTagsAppendsToCallerSlice(t *testing.T) {
+	origin := newBenchOrigin([]string{"dirname:*", "kube_*"})
+
+	got := origin.appendTransportTags([]string{"pre:existing"})
+
+	assert.Equal(t, []string{
+		"pre:existing",
+		"filename:access.log",
+		"pod_name:web-7d8f9c5b4-abcde",
+		"container_id:a1b2c3d4e5f6",
+		"image_name:nginx",
+		"sourcecategory:http",
+		"env:prod",
+		"version:1.2.3",
+	}, got)
 }

@@ -36,10 +36,7 @@ func NewOrigin(source *sources.LogSource) *Origin {
 }
 
 // TagFilter drops tags that must not leave the Agent. nil means no filtering.
-type TagFilter interface {
-	// Apply returns the surviving tags without mutating or aliasing tags.
-	Apply(tags []string) []string
-}
+type TagFilter = sources.TagFilter
 
 // Tags returns the origin's tags, unfiltered. Agent-local consumers (e.g.
 // anomaly detection) need every tag; encoders must use TransportTags.
@@ -53,7 +50,7 @@ func (o *Origin) Tags() []string {
 //
 // The returned slice must not be modified by the caller.
 func (o *Origin) TransportTags() []string {
-	return o.applyTagFilters(o.tagsToStringArray())
+	return o.appendTransportTags(make([]string, 0, o.tagCapacity()))
 }
 
 // TransportTagsToString encodes TransportTags as a comma-separated string.
@@ -83,22 +80,51 @@ func (o *Origin) TagFilters() TagFilter {
 	return o.LogSource.TagFilters()
 }
 
-func (o *Origin) applyTagFilters(tags []string) []string {
+// appendTransportTags appends the tags that survive the filter, in the same
+// order and grouping as tagsToStringArray.
+func (o *Origin) appendTransportTags(dst []string) []string {
+	if o == nil || o.LogSource == nil {
+		return dst
+	}
+	sourceCategory := o.LogSource.Config.SourceCategory
+	configTags := o.LogSource.Config.Tags
+
 	f := o.TagFilters()
 	if f == nil {
-		return tags
+		dst = append(dst, o.tags...)
+		if sourceCategory != "" {
+			dst = append(dst, "sourcecategory:"+sourceCategory)
+		}
+		return append(dst, configTags...)
 	}
-	return f.Apply(tags)
+
+	for _, tag := range o.tags {
+		if f.Retains(tag) {
+			dst = append(dst, tag)
+		}
+	}
+	if sourceCategory != "" {
+		if tag := "sourcecategory:" + sourceCategory; f.Retains(tag) {
+			dst = append(dst, tag)
+		}
+	}
+	for _, tag := range configTags {
+		if f.Retains(tag) {
+			dst = append(dst, tag)
+		}
+	}
+	return dst
 }
 
-// retainsTag reports whether a single tag survives the filter. Used for values
-// the intake receives as their own field instead of inside ddtags.
-func (o *Origin) retainsTag(tag string) bool {
-	f := o.TagFilters()
-	if f == nil {
-		return true
+func (o *Origin) tagCapacity() int {
+	if o == nil || o.LogSource == nil {
+		return 0
 	}
-	return len(f.Apply([]string{tag})) == 1
+	n := len(o.tags) + len(o.LogSource.Config.Tags)
+	if o.LogSource.Config.SourceCategory != "" {
+		n++
+	}
+	return n
 }
 
 // TagsPayload returns the RFC5424 structured-data tag payload, with tag
@@ -109,6 +135,7 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 	if o == nil || o.LogSource == nil {
 		return []byte{}
 	}
+	f := o.TagFilters()
 
 	var tagsPayload []byte
 
@@ -117,15 +144,18 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+source+"\"]")...)
 	}
 	sourceCategory := o.LogSource.Config.SourceCategory
-	if sourceCategory != "" && o.retainsTag("sourcecategory:"+sourceCategory) {
+	if sourceCategory != "" && (f == nil || f.Retains("sourcecategory:"+sourceCategory)) {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+sourceCategory+"\"]")...)
 	}
 
-	var tags []string
-	tags = append(tags, o.LogSource.Config.Tags...)
-	tags = append(tags, o.tags...)
-	tags = append(tags, processingTags...)
-	tags = o.applyTagFilters(tags)
+	tags := make([]string, 0, o.tagCapacity()+len(processingTags))
+	for _, group := range [3][]string{o.LogSource.Config.Tags, o.tags, processingTags} {
+		for _, tag := range group {
+			if f == nil || f.Retains(tag) {
+				tags = append(tags, tag)
+			}
+		}
+	}
 
 	if len(tags) > 0 {
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)

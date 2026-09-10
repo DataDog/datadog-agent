@@ -14,8 +14,10 @@ import (
 
 // TagFilter drops tags that must not leave the Agent. nil means no filtering.
 type TagFilter interface {
-	// Apply returns the surviving tags without mutating or aliasing tags.
+	// Apply returns the surviving tags. The returned slice must not be modified.
 	Apply(tags []string) []string
+	// Retains reports whether one tag survives. It allocates nothing.
+	Retains(tag string) bool
 }
 
 type tagFilterInfo struct {
