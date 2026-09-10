@@ -8,6 +8,7 @@ package admission
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -85,12 +86,13 @@ func TestFDGuardBlocksUntilUtilizationDrops(t *testing.T) {
 	resetGate(t)
 	SetFDRetryIntervalForTesting(20 * time.Millisecond)
 
-	stats := &procfilestats.ProcessFileStats{
-		AgentOpenFiles: 900,
-		OsFileLimit:    1000,
-	}
+	var agentOpenFiles atomic.Uint64
+	agentOpenFiles.Store(900)
 	SetFileStatsFuncForTesting(func() (*procfilestats.ProcessFileStats, error) {
-		return stats, nil
+		return &procfilestats.ProcessFileStats{
+			AgentOpenFiles: agentOpenFiles.Load(),
+			OsFileLimit:    1000,
+		}, nil
 	})
 
 	g := Gate()
@@ -105,7 +107,7 @@ func TestFDGuardBlocksUntilUtilizationDrops(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 
-	stats.AgentOpenFiles = 100
+	agentOpenFiles.Store(100)
 
 	select {
 	case err := <-done:
