@@ -397,17 +397,14 @@ func (ra *remoteAgentRegistry) commandProviders(ctx context.Context) map[string]
 	results := make(chan discoveryResult, len(clients))
 	var wg sync.WaitGroup
 	for _, client := range clients {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			var header metadata.MD
 			response, err := client.ListCommands(callCtx, &pb.ListCommandsRequest{}, grpc.WaitForReady(true), grpc.Header(&header))
 			if err == nil {
 				err = client.validateSessionID(header)
 			}
 			results <- discoveryResult{client: client, response: response, err: err}
-		}()
+		})
 	}
 	go func() {
 		wg.Wait()

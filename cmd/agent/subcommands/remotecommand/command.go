@@ -127,6 +127,9 @@ func applyGlobalFlags(root *cobra.Command, args []string) error {
 
 		name, value, hasValue := strings.Cut(strings.TrimLeft(arg, "-"), "=")
 		flag := flags.Lookup(name)
+		if flag == nil && len(name) == 1 {
+			flag = flags.ShorthandLookup(name)
+		}
 		if flag == nil {
 			continue
 		}

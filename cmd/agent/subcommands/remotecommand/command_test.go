@@ -116,7 +116,7 @@ func TestApplyGlobalFlags(t *testing.T) {
 	globalParams, ok := remoteGlobalParams.Load(remote)
 	require.True(t, ok)
 
-	require.NoError(t, applyGlobalFlags(root, []string{"--cfgpath", "/tmp/config", "remote", "fixture", "--provider-flag", "--extracfgpath=extra.yaml", "--sysprobecfgpath", "/tmp/sysprobe", "--fleetcfgpath=/tmp/fleet", "--no-color"}))
+	require.NoError(t, applyGlobalFlags(root, []string{"-c", "/tmp/config", "remote", "fixture", "--provider-flag", "--extracfgpath=extra.yaml", "--sysprobecfgpath", "/tmp/sysprobe", "--fleetcfgpath=/tmp/fleet", "--no-color"}))
 	params := globalParams.(*command.GlobalParams)
 	require.Equal(t, "/tmp/config", params.ConfFilePath)
 	require.Equal(t, []string{"extra.yaml"}, params.ExtraConfFilePath)

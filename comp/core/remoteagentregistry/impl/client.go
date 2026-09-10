@@ -215,7 +215,6 @@ func (rac *remoteAgentClient) validateSessionID(responseMetadata metadata.MD) er
 // Returns:
 //   - []StructuredType: A slice of processed results, one per agent that supports the service.
 func callAgentsForService[PbType any, StructuredType any](
-	ctx context.Context,
 	registry *remoteAgentRegistry,
 	service remoteAgentServiceName,
 	grpcCall func(context.Context, *remoteAgentClient, ...grpc.CallOption) (PbType, error),
@@ -248,7 +247,7 @@ func callAgentsForService[PbType any, StructuredType any](
 	}
 
 	// Creates a context with a one second deadline for the RPC.
-	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
 
 	wg.Add(agentsLen)
