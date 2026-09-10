@@ -11,6 +11,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/dogstatsd/config",
         "//pkg/aggregator/contexttop",
         "//pkg/util/http",
         "@com_github_datadog_zstd//:zstd",

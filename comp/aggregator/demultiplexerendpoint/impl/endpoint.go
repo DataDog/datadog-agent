@@ -9,6 +9,7 @@ package demultiplexerendpointimpl
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	dogstatsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/contexttop"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -35,6 +37,8 @@ const (
 	dogstatsdContextsDumpFilename = "dogstatsd_contexts.json.zstd"
 )
 
+var errDogstatsdOnDataPlane = errors.New("DogStatsD traffic is being served by the Agent Data Plane; run DogStatsD diagnostic commands against the agent-data-plane process instead")
+
 type contextDumper interface {
 	DumpDogstatsdContexts(io.Writer) error
 }
@@ -47,9 +51,10 @@ type Requires struct {
 }
 
 type demultiplexerEndpoint struct {
-	demux   contextDumper
-	runPath string
-	log     log.Component
+	demux                contextDumper
+	runPath              string
+	dogstatsdOnDataPlane bool
+	log                  log.Component
 }
 
 // Provides defines the output of the demultiplexerendpoint component
@@ -61,9 +66,10 @@ type Provides struct {
 // NewComponent creates a new demultiplexerendpoint component
 func NewComponent(reqs Requires) Provides {
 	endpoint := demultiplexerEndpoint{
-		demux:   reqs.Demultiplexer,
-		runPath: reqs.Config.GetString("run_path"),
-		log:     reqs.Log,
+		demux:                reqs.Demultiplexer,
+		runPath:              reqs.Config.GetString("run_path"),
+		dogstatsdOnDataPlane: dogstatsdconfig.NewConfig(reqs.Config).EnabledDataPlane(),
+		log:                  reqs.Log,
 	}
 
 	return Provides{
@@ -94,6 +100,10 @@ func (demuxendpoint demultiplexerEndpoint) topDogstatsdContexts(w http.ResponseW
 
 	if err := validateTopRequest(request); err != nil {
 		httputils.SetJSONError(w, err, http.StatusBadRequest)
+		return
+	}
+	if request.Source == topSourceLive && demuxendpoint.dogstatsdOnDataPlane {
+		httputils.SetJSONError(w, errDogstatsdOnDataPlane, http.StatusServiceUnavailable)
 		return
 	}
 
