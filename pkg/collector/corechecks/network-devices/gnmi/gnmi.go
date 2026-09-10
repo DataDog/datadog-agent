@@ -33,11 +33,12 @@ const (
 type Check struct {
 	core.CheckBase
 
-	mu       sync.Mutex
-	config   *config.CheckConfig
-	interval time.Duration
-	client   *client.Client
-	started  bool
+	mu                 sync.Mutex
+	config             *config.CheckConfig
+	interval           time.Duration
+	client             *client.Client
+	started            bool
+	lastMetadataReport time.Time
 }
 
 // Factory creates a new check factory.
@@ -72,11 +73,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	}
 
 	gnmiClient, err := client.New(client.Config{
-		Address:  checkConfig.Instance.Address,
-		Port:     checkConfig.Instance.Port,
-		Username: checkConfig.Instance.Username,
-		Password: checkConfig.Instance.Password,
-		Profile:  checkConfig.Profile,
+		Address:         checkConfig.Instance.Address,
+		Port:            checkConfig.Instance.Port,
+		Username:        checkConfig.Instance.Username,
+		Password:        checkConfig.Instance.Password,
+		Profile:         checkConfig.Profile,
+		CollectTopology: checkConfig.Instance.CollectTopology,
 	})
 	if err != nil {
 		return fmt.Errorf("create gNMI client failed: %w", err)
@@ -89,6 +91,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.interval = time.Duration(checkConfig.Instance.MinCollectionInterval) * time.Second
 	c.client = gnmiClient
 	c.started = false
+	c.lastMetadataReport = time.Time{}
 
 	return nil
 }
@@ -134,6 +137,19 @@ func (c *Check) Run() error {
 		}
 	}
 
+	metadataInterval := report.MetadataCollectionInterval(checkConfig)
+	c.mu.Lock()
+	shouldReportMetadata := report.ShouldReportMetadata(c.lastMetadataReport, metadataInterval, now)
+	c.mu.Unlock()
+	if shouldReportMetadata {
+		if err := report.ReportMetadata(s, checkConfig, snapshot, now); err != nil {
+			return err
+		}
+		c.mu.Lock()
+		c.lastMetadataReport = now
+		c.mu.Unlock()
+	}
+
 	s.Commit()
 	return nil
 }
@@ -145,6 +161,7 @@ func (c *Check) Cancel() {
 	c.client = nil
 	c.config = nil
 	c.started = false
+	c.lastMetadataReport = time.Time{}
 	c.mu.Unlock()
 
 	if gnmiClient != nil {
