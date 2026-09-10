@@ -18,7 +18,7 @@ import (
 	"time"
 
 	// Refactor relevant bits
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"github.com/spf13/afero"
 
 	"google.golang.org/protobuf/proto"
@@ -54,7 +54,7 @@ var captureFs = backendFs{
 
 // TrafficCaptureWriter allows writing dogstatsd traffic to a file.
 type TrafficCaptureWriter struct {
-	zWriter   *zstd.Writer
+	zWriter   io.WriteCloser
 	writer    *bufio.Writer
 	Traffic   chan *replay.CaptureBuffer
 	ongoing   bool
@@ -161,7 +161,12 @@ func (tc *TrafficCaptureWriter) Capture(target io.WriteCloser, d time.Duration, 
 	log.Debug("Starting capture...")
 
 	if compressed {
-		tc.zWriter = zstd.NewWriter(target)
+		var err error
+		tc.zWriter, err = zstd.NewWriter(target)
+		if err != nil {
+			log.Errorf("Unable to create zstd writer: %s", err)
+			return
+		}
 		tc.writer = bufio.NewWriter(tc.zWriter)
 	} else {
 		tc.zWriter = nil
