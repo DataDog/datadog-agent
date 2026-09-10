@@ -27,10 +27,17 @@ import (
 )
 
 const (
-	// postgresIntegration and clickhouseIntegration are the integrations whose
-	// instance-config shapes the bridge parses. Any other integration fails closed:
-	// the bridge never guesses a config shape it has not been taught.
-	postgresIntegration   = "postgres"
+	// postgresIntegration is the integration whose target resolution is
+	// integration-owned: its database eligibility is autodiscovery-aware and lives
+	// only in the loaded Python check instance, so the Agent asks the bridge
+	// resolver once per loaded check and never parses its instance config itself.
+	// The name still scopes the proof-query allowlist.
+	postgresIntegration = "postgres"
+	// clickhouseIntegration is the one integration whose matching stays Agent-side
+	// in this wave: its effective identity is fully config-derived (documented
+	// defaults, no live discovery), so the Go matcher parses its instance config
+	// exactly. This branch must not authorize Postgres: Postgres eligibility is
+	// autodiscovery-aware and belongs to the resolver sweep.
 	clickhouseIntegration = "clickhouse"
 
 	// RemoteQueryMatchEndpointPath is mounted under /agent by the Agent command API.
@@ -77,6 +84,14 @@ type remoteQueryMatchHandler struct {
 	enabled   bool
 }
 
+// remoteQueryExecutionAdmission guards one complete integration-owned candidate
+// sweep: fail fast when another remote query holds admission, never queue. It is
+// the same mutex execute holds through resolution and execution, so the sweep
+// never races concurrent Python bridge or check-state access.
+func remoteQueryExecutionAdmission() bool {
+	return remoteQueryExecution.TryLock()
+}
+
 // RemoteQueryCollector is the narrow collector surface Remote Queries needs.
 // The Agent command provides its collector.Component as this interface at the application boundary
 // so this package does not force Bazel onboarding for the full collector component package.
@@ -98,17 +113,11 @@ type sanitizedMatch struct {
 	MatchKind      string `json:"match_kind"`
 }
 
-const (
-	// matchKindExact marks a match whose selection criterion is fully resolved at
-	// match time: the Postgres tier-1 exact configured tuple, any ClickHouse tuple
-	// match, or a database_instance identifier match.
-	matchKindExact = "exact"
-	// matchKindEndpointCandidate marks a Postgres tier-2 endpoint candidate: the
-	// configured host+port match but the configured dbname differs from or is absent
-	// for the request, so the requested logical execution database is resolved
-	// dynamically on the integration at execute time.
-	matchKindEndpointCandidate = "endpoint-candidate"
-)
+// matchKindExact marks a match whose selection criterion is fully resolved at
+// match time: the integration-owned resolver's admitted match, or a ClickHouse
+// exact tuple or database_instance identifier match. There is no endpoint
+// fallback kind anymore: endpoint reachability alone is never a match.
+const matchKindExact = "exact"
 
 type responseError struct {
 	Code    string `json:"code"`
@@ -158,10 +167,10 @@ func invalidRequestError(message string) error {
 
 var integrationNamePattern = regexp.MustCompile(`^[a-z0-9_]+$`)
 
-// integrationInstanceTarget is the effective target of one loaded check instance.
-// integration records which config shape parsed it, because tuple matching is
-// integration-specific: Postgres selects endpoint candidates on host+port while
-// ClickHouse compares the effective database exactly.
+// integrationInstanceTarget is the effective target of one loaded check instance
+// for the one Agent-matched integration (clickhouse). integration records which
+// config shape parsed it: only the ClickHouse shape is taught, and ClickHouse
+// compares the effective database exactly.
 type integrationInstanceTarget struct {
 	integration      string
 	host             string
@@ -184,14 +193,26 @@ func (h *remoteQueryMatchHandler) handle(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	matches := h.findMatches(req.Integration, req.Target)
-	switch len(matches) {
-	case 0:
-		writeMatchResponse(w, http.StatusNotFound, statusTargetNotFound, 0, nil, "no matching integration check found")
-	case 1:
-		writeMatchResponse(w, http.StatusOK, statusOK, 1, &matches[0].sanitized, "")
+	// The diagnostic reuses the exact resolution execute uses — never a second
+	// matcher — so it sweeps the integration-owned resolver under the same
+	// admission the resolve and execute paths hold, and fails fast when busy.
+	if !remoteQueryExecutionAdmission() {
+		writeMatchResponse(w, http.StatusServiceUnavailable, statusResolutionError, 0, nil, "another remote query is running on this Agent")
+		return
+	}
+	// Admission covers the sweep; the answer is built from values the sweep already
+	// captured, so the deferred release is panic-safe and still bounded.
+	defer remoteQueryExecution.Unlock()
+	resolution := resolveIntegrationTargets(h.collector, req.Integration, req.Target)
+	switch resolution.status {
+	case statusMatched:
+		writeMatchResponse(w, http.StatusOK, statusOK, 1, &resolution.matches[0].sanitized, "")
+	case statusTargetNotFound:
+		writeMatchResponse(w, http.StatusNotFound, statusTargetNotFound, 0, nil, resolution.message)
+	case statusAmbiguous:
+		writeMatchResponse(w, http.StatusConflict, statusAmbiguous, len(resolution.matches), nil, resolution.message)
 	default:
-		writeMatchResponse(w, http.StatusConflict, statusAmbiguous, len(matches), nil, "multiple matching integration checks found")
+		writeMatchResponse(w, http.StatusFailedDependency, statusResolutionError, 0, nil, resolution.message)
 	}
 }
 
@@ -399,61 +420,139 @@ func normalizeHost(host string) string {
 type integrationCheckMatch struct {
 	check     check.Check
 	sanitized sanitizedMatch
-	// instanceTarget is the sanitized target identity parsed from the matched
-	// check's instance config (host/port/dbname plus the rendered database
-	// identifier). It carries no credentials and no raw config: it feeds the
-	// match fingerprint and nothing else.
-	instanceTarget integrationInstanceTarget
+	// identity is the matched check's effective identity: the integration-reported
+	// sanitized identity for resolver-swept integrations (postgres), or the
+	// Go-parsed effective config for the explicitly Agent-matched integration
+	// (clickhouse). It carries no credentials and no raw config: it feeds the match
+	// fingerprint and nothing else.
+	identity remoteQueryMatchIdentity
 }
 
-func (h *remoteQueryMatchHandler) findMatches(integration string, target remoteQueryTarget) []integrationCheckMatch {
-	return findIntegrationMatches(h.collector, integration, target)
+func normalizeIntegrationName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
 }
 
-// findIntegrationMatches is the single selection shared by the match-check endpoint
-// and execute's matchExecutor. Postgres tuple targets select in two tiers: tier 1 is
-// the checks whose configured host+port+dbname all equal the request (the exact
-// configured tuple), and when tier 1 is non-empty it is the match set; only when tier
-// 1 is empty does tier 2 apply, the endpoint candidates whose configured host+port
-// equal the request (dbname differs or is absent from config, e.g. autodiscovery
-// global-view configs). Every other selector is single-tier exact: ClickHouse tuple
-// matching compares the effective database exactly and database_instance matching
-// is exact rendered identifier equality. The 0/1/many outcomes are computed on the
-// selected tier by the callers; cross-check ambiguity can only be decided here
-// because the rtloader bridge forwards exactly one check to Python.
-func findIntegrationMatches(collector RemoteQueryCollector, integration string, target remoteQueryTarget) []integrationCheckMatch {
-	checks := collector.GetChecks()
-	var exact, endpointCandidates []integrationCheckMatch
+// remoteQueryMatchIdentity is the sanitized effective identity of one matched
+// check: its endpoint, its materialized configured database, the database the
+// resolver admitted for this target, and the rendered database identifier when the
+// integration has one. For resolver-swept integrations the integration reports
+// every field; the Go side never derives, defaults, or renders them.
+type remoteQueryMatchIdentity struct {
+	host             string
+	port             int
+	configuredDBName string
+	resolvedDBName   string
+	databaseInstance string
+}
+
+// remoteQueryResolution is the aggregate outcome of one integration-owned target
+// resolution: per-check verdicts from the resolver sweep — or the explicitly
+// integration-specific Agent-side branch — reduced to the single outcome the match
+// diagnostic, resolve, and execute paths share. matches carries every reported
+// MATCHED verdict: exactly one element on statusMatched, all of them on
+// statusAmbiguous. A failed sweep carries no matches: it is fail-closed and never
+// reports a partial answer.
+type remoteQueryResolution struct {
+	matches []integrationCheckMatch
+	status  string
+	message string
+}
+
+// matchedResolution reduces the collected matches to the zero/one/many outcome. An
+// empty sweep reduces the same way: no loaded check of the integration is genuinely
+// no match, never an error.
+func matchedResolution(matches []integrationCheckMatch) remoteQueryResolution {
+	switch len(matches) {
+	case 0:
+		return remoteQueryResolution{status: statusTargetNotFound, message: "no matching integration check found"}
+	case 1:
+		return remoteQueryResolution{matches: matches, status: statusMatched}
+	default:
+		return remoteQueryResolution{matches: matches, status: statusAmbiguous, message: "multiple matching integration checks found"}
+	}
+}
+
+func failedResolution(message string) remoteQueryResolution {
+	return remoteQueryResolution{status: statusResolutionError, message: message}
+}
+
+// resolveIntegrationTargets resolves the requested target through the
+// integration-owned resolver. It asks EVERY currently loaded check of the requested
+// integration — no raw-YAML prefilter, no exact/endpoint tiers — and the
+// integration answers match/no-match per check with its own sanitized effective
+// identity. Any inability to establish a check's eligible set fails the whole
+// sweep as a resolution error, never a silent skip: a loaded check that cannot
+// provide the bridge resolver is a resolution error, not a no-match. ClickHouse is
+// the one explicitly sanctioned exception: its matching stays Agent-side in this
+// wave because its effective identity is fully config-derived.
+func resolveIntegrationTargets(collector RemoteQueryCollector, integration string, target remoteQueryTarget) remoteQueryResolution {
+	var checks []check.Check
+	for _, chk := range collector.GetChecks() {
+		if normalizeIntegrationName(chk.String()) == integration {
+			checks = append(checks, chk)
+		}
+	}
+	if len(checks) == 0 {
+		return matchedResolution(nil)
+	}
+	if integration == clickhouseIntegration {
+		return clickHouseExactResolution(checks, integration, target)
+	}
+	return sweepIntegrationChecks(checks, integration, target)
+}
+
+// clickHouseExactResolution is the integration-specific Agent-side branch the pinned
+// contract sanctions for ClickHouse in this wave. ClickHouse has no live database
+// discovery here, so its effective server/port/db (documented defaults included)
+// and its rendered identifier are fully config-derived and exact matching stays in
+// the Agent. This branch must not authorize Postgres: Postgres eligibility is
+// autodiscovery-aware and belongs to the bridge resolver sweep.
+func clickHouseExactResolution(checks []check.Check, integration string, target remoteQueryTarget) remoteQueryResolution {
+	matches := make([]integrationCheckMatch, 0, len(checks))
 	for _, chk := range checks {
-		if normalizeIntegrationName(chk.String()) != integration {
-			continue
-		}
-
 		instanceTarget, ok := parseIntegrationInstanceTarget(integration, chk.InstanceConfig())
-		if !ok {
+		if !ok || !instanceTarget.matches(target) {
 			continue
 		}
-
-		if !instanceTarget.matches(target) {
-			continue
-		}
-
-		if instanceTarget.isExactTupleMatch(target) {
-			exact = append(exact, newIntegrationCheckMatch(chk, integration, matchKindExact, instanceTarget))
-		} else {
-			endpointCandidates = append(endpointCandidates, newIntegrationCheckMatch(chk, integration, matchKindEndpointCandidate, instanceTarget))
-		}
+		// Exact matching means the effective database is both the configured and the
+		// admitted database; the identifier renders exactly as the check emits it.
+		matches = append(matches, newIntegrationCheckMatch(chk, integration, matchKindExact, remoteQueryMatchIdentity{
+			host:             instanceTarget.host,
+			port:             instanceTarget.port,
+			configuredDBName: instanceTarget.dbname,
+			resolvedDBName:   instanceTarget.dbname,
+			databaseInstance: instanceTarget.databaseInstance,
+		}))
 	}
-	if len(exact) > 0 {
-		return exact
-	}
-	return endpointCandidates
+	return matchedResolution(matches)
 }
 
-// newIntegrationCheckMatch builds one sanitized match entry. The parsed
-// instanceTarget carries no credentials or raw config: it feeds the match
-// fingerprint and nothing else.
-func newIntegrationCheckMatch(chk check.Check, integration string, matchKind string, instanceTarget integrationInstanceTarget) integrationCheckMatch {
+// sweepIntegrationChecks asks every loaded check through the remote-query bridge:
+// one resolve_target request per check instance, classified against the pinned
+// verdict contract, aggregated zero/one/many. Any per-check failure fails the whole
+// sweep as a resolution error — even if another check matched.
+func sweepIntegrationChecks(checks []check.Check, integration string, target remoteQueryTarget) remoteQueryResolution {
+	matches := make([]integrationCheckMatch, 0, len(checks))
+	for _, chk := range checks {
+		runner, ok := remoteQueryStreamRunnerFor(chk)
+		if !ok {
+			return failedResolution("loaded integration check does not support remote query resolution")
+		}
+		verdict, err := askIntegrationResolver(runner, integration, target)
+		if err != nil {
+			return failedResolution(err.Error())
+		}
+		if !verdict.matched {
+			continue
+		}
+		matches = append(matches, newIntegrationCheckMatch(chk, integration, matchKindExact, verdict.identity))
+	}
+	return matchedResolution(matches)
+}
+
+// newIntegrationCheckMatch builds one sanitized match entry. The identity carries
+// no credentials or raw config: it feeds the match fingerprint and nothing else.
+func newIntegrationCheckMatch(chk check.Check, integration string, matchKind string, identity remoteQueryMatchIdentity) integrationCheckMatch {
 	return integrationCheckMatch{
 		check: chk,
 		sanitized: sanitizedMatch{
@@ -462,52 +561,224 @@ func newIntegrationCheckMatch(chk check.Check, integration string, matchKind str
 			ConfigProvider: chk.ConfigProvider(),
 			MatchKind:      matchKind,
 		},
-		instanceTarget: instanceTarget}
+		identity: identity,
+	}
 }
 
-func normalizeIntegrationName(name string) string {
-	return strings.ToLower(strings.TrimSpace(name))
+// remoteQueryResolveVerdict is one check's answer to a resolve_target request.
+type remoteQueryResolveVerdict struct {
+	matched  bool
+	identity remoteQueryMatchIdentity
 }
 
-// matches is the candidate predicate for the request. database_instance targets
-// match on exact rendered identifier equality. Tuple matching is per integration:
-// a Postgres tuple target selects endpoint candidates on host+port — the requested
-// dbname is the logical execution database, not an identity requirement on the
-// check's configured dbname, and tier-1 exactness is layered on top by selection —
-// while a ClickHouse tuple target must name the database the instance actually
-// monitors, so the effective database is compared exactly.
+// RemoteQueryOperationResolveTarget is the side-effect-free per-check resolution
+// operation of the resolve-over-bridge contract. The request carries only the
+// operation and the target — no query, no result delivery, no fingerprint — and the
+// integration answers whether the requested target belongs to this check's
+// effective monitoring scope, reporting its sanitized effective identity when it
+// does. The Python entry point dispatches on this operation; the bridge transport
+// is unchanged.
+const RemoteQueryOperationResolveTarget = "resolve_target"
+
+// remoteQueryResolveTargetRequestJSON is the bridge wire shape of the resolution
+// request: the operation and the target only, under the generic target keys.
+type remoteQueryResolveTargetRequestJSON struct {
+	Operation string                `json:"operation"`
+	Target    remoteQueryTargetJSON `json:"target"`
+}
+
+func marshalResolveTargetRequest(target remoteQueryTarget) (string, error) {
+	requestJSON, err := json.Marshal(remoteQueryResolveTargetRequestJSON{
+		Operation: RemoteQueryOperationResolveTarget,
+		Target:    remoteQueryTargetJSON{Host: target.Host, Port: target.Port, DBName: target.DBName, DatabaseInstance: target.DatabaseInstance},
+	})
+	if err != nil {
+		return "", err
+	}
+	return string(requestJSON), nil
+}
+
+// askIntegrationResolver performs one bridge resolve call against one loaded check
+// and classifies its verdict. The pinned verdict is exactly one event: a final
+// MATCHED with the sanitized match identity, or an existing-style error with
+// error.code target_not_found. A second event fails the emit callback so the
+// bridge call itself fails instead of buffering an unbounded stream.
+func askIntegrationResolver(runner remoteQueryStreamRunner, integration string, target remoteQueryTarget) (remoteQueryResolveVerdict, error) {
+	requestJSON, err := marshalResolveTargetRequest(target)
+	if err != nil {
+		return remoteQueryResolveVerdict{}, errors.New("could not encode the remote query resolve request")
+	}
+	events := make([]check.RemoteQueryStreamEvent, 0, 1)
+	if err := runner.RunRemoteQueryStream(integration, requestJSON, func(event check.RemoteQueryStreamEvent) error {
+		if len(events) > 0 {
+			return errors.New("remote query resolver emitted more than one verdict event")
+		}
+		events = append(events, event)
+		return nil
+	}); err != nil {
+		return remoteQueryResolveVerdict{}, errors.New("remote query resolver bridge call failed")
+	}
+	return classifyResolveVerdict(events, target)
+}
+
+var errInvalidResolveVerdict = errors.New("remote query resolver returned an invalid verdict")
+
+// remoteQueryResolveFinalJSON is the strict wire shape of the matched verdict's
+// final event: exactly the status and the sanitized match identity.
+type remoteQueryResolveFinalJSON struct {
+	Status string          `json:"status"`
+	Match  json.RawMessage `json:"match"`
+}
+
+// remoteQueryResolveMatchJSON is the integration-reported sanitized match identity.
+// Pointer fields distinguish a genuinely absent field (nil, omitted from the
+// fingerprint) from a present-but-empty or present-but-invalid one, which fails
+// closed.
+type remoteQueryResolveMatchJSON struct {
+	Host             *string `json:"host,omitempty"`
+	Port             *int    `json:"port,omitempty"`
+	ConfiguredDBName *string `json:"configuredDbname,omitempty"`
+	ResolvedDBName   *string `json:"resolvedDbname,omitempty"`
+	DatabaseInstance *string `json:"databaseInstance,omitempty"`
+}
+
+// remoteQueryResolveErrorJSON is the existing-style error verdict: an error object
+// with a code, tolerating the envelope fields failed_event carries.
+type remoteQueryResolveErrorJSON struct {
+	Error *struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
+	Code string `json:"code"`
+}
+
+func classifyResolveVerdict(events []check.RemoteQueryStreamEvent, target remoteQueryTarget) (remoteQueryResolveVerdict, error) {
+	if len(events) != 1 {
+		return remoteQueryResolveVerdict{}, errInvalidResolveVerdict
+	}
+	switch events[0].Type {
+	case "final":
+		return parseMatchedResolveVerdict(events[0].MetadataJSON, target)
+	case "error":
+		return parseUnmatchedResolveVerdict(events[0].MetadataJSON)
+	default:
+		return remoteQueryResolveVerdict{}, errInvalidResolveVerdict
+	}
+}
+
+func parseMatchedResolveVerdict(metadataJSON string, target remoteQueryTarget) (remoteQueryResolveVerdict, error) {
+	var final remoteQueryResolveFinalJSON
+	if err := decodeStrictJSON(strings.NewReader(metadataJSON), &final); err != nil {
+		return remoteQueryResolveVerdict{}, errInvalidResolveVerdict
+	}
+	if final.Status != "MATCHED" || len(final.Match) == 0 {
+		return remoteQueryResolveVerdict{}, errInvalidResolveVerdict
+	}
+	var matchJSON remoteQueryResolveMatchJSON
+	if err := decodeStrictJSON(strings.NewReader(string(final.Match)), &matchJSON); err != nil {
+		return remoteQueryResolveVerdict{}, errInvalidResolveVerdict
+	}
+	identity, err := validateResolveMatchIdentity(&matchJSON, target)
+	if err != nil {
+		return remoteQueryResolveVerdict{}, err
+	}
+	return remoteQueryResolveVerdict{matched: true, identity: identity}, nil
+}
+
+func parseUnmatchedResolveVerdict(metadataJSON string) (remoteQueryResolveVerdict, error) {
+	var wire remoteQueryResolveErrorJSON
+	if err := json.Unmarshal([]byte(metadataJSON), &wire); err != nil {
+		return remoteQueryResolveVerdict{}, errInvalidResolveVerdict
+	}
+	code := wire.Code
+	if wire.Error != nil {
+		code = wire.Error.Code
+	}
+	if code == statusTargetNotFound {
+		return remoteQueryResolveVerdict{}, nil
+	}
+	// Any other verdict — an invalid request, or an inability to establish this
+	// check's eligible set — fails the aggregate resolution; it is never a silent
+	// no-match.
+	return remoteQueryResolveVerdict{}, errors.New("remote query resolution failed on a loaded integration check")
+}
+
+// validateResolveMatchIdentity enforces the pinned verdict contract: fields present
+// must be non-empty and valid, and the fields the selector and the fingerprint need
+// are required. A tuple target must identify its endpoint and the database the
+// resolver admitted; a database_instance target must identify the rendered
+// identifier it matched on and the materialized database execution uses.
+func validateResolveMatchIdentity(matchJSON *remoteQueryResolveMatchJSON, target remoteQueryTarget) (remoteQueryMatchIdentity, error) {
+	if matchJSON == nil {
+		return remoteQueryMatchIdentity{}, errInvalidResolveVerdict
+	}
+	identity := remoteQueryMatchIdentity{}
+	if matchJSON.Host != nil {
+		if *matchJSON.Host == "" {
+			return remoteQueryMatchIdentity{}, errInvalidResolveVerdict
+		}
+		identity.host = *matchJSON.Host
+	}
+	if matchJSON.Port != nil {
+		if *matchJSON.Port < 1 || *matchJSON.Port > 65535 {
+			return remoteQueryMatchIdentity{}, errInvalidResolveVerdict
+		}
+		identity.port = *matchJSON.Port
+	}
+	if matchJSON.ConfiguredDBName != nil {
+		if *matchJSON.ConfiguredDBName == "" {
+			return remoteQueryMatchIdentity{}, errInvalidResolveVerdict
+		}
+		identity.configuredDBName = *matchJSON.ConfiguredDBName
+	}
+	if matchJSON.ResolvedDBName != nil {
+		if *matchJSON.ResolvedDBName == "" {
+			return remoteQueryMatchIdentity{}, errInvalidResolveVerdict
+		}
+		identity.resolvedDBName = *matchJSON.ResolvedDBName
+	}
+	if matchJSON.DatabaseInstance != nil {
+		if *matchJSON.DatabaseInstance == "" {
+			return remoteQueryMatchIdentity{}, errInvalidResolveVerdict
+		}
+		identity.databaseInstance = *matchJSON.DatabaseInstance
+	}
+	if target.DatabaseInstance != "" {
+		if identity.databaseInstance == "" || identity.resolvedDBName == "" {
+			return remoteQueryMatchIdentity{}, errInvalidResolveVerdict
+		}
+	} else if identity.host == "" || identity.port == 0 || identity.resolvedDBName == "" {
+		return remoteQueryMatchIdentity{}, errInvalidResolveVerdict
+	}
+	return identity, nil
+}
+
+// matches is the exact candidate predicate for the one Agent-matched integration
+// (clickhouse). database_instance targets match on exact rendered identifier
+// equality; tuple targets must name the database the instance actually monitors, so
+// the effective database is compared exactly. No Postgres case exists here:
+// Postgres matching is integration-owned.
 func (t integrationInstanceTarget) matches(target remoteQueryTarget) bool {
 	if target.DatabaseInstance != "" {
 		return t.databaseInstance != "" && t.databaseInstance == target.DatabaseInstance
 	}
-	switch t.integration {
-	case postgresIntegration:
-		return t.host == target.Host && t.port == target.Port
-	case clickhouseIntegration:
-		return t.host == target.Host && t.port == target.Port && t.dbname == target.DBName
-	default:
+	if t.integration != clickhouseIntegration {
 		return false
 	}
+	return t.host == target.Host && t.port == target.Port && t.dbname == target.DBName
 }
 
-// isExactTupleMatch reports whether a candidate that already satisfied matches is a
-// tier-1 exact configured tuple: the configured dbname is present and equals the
-// requested dbname. Non-Postgres candidates and database_instance matches are exact
-// by construction (their matches predicate already compares every identity field),
-// so they always report true and never fall to an endpoint-candidate tier.
-func (t integrationInstanceTarget) isExactTupleMatch(target remoteQueryTarget) bool {
-	if target.DatabaseInstance != "" || t.integration != postgresIntegration {
-		return true
-	}
-	return t.dbname != "" && t.dbname == target.DBName
-}
-
+// parseIntegrationInstanceTarget parses the effective target of one loaded check
+// for the integrations whose matching stays Agent-side in this wave. ClickHouse
+// exact matching is config-derived — documented defaults, no live discovery — so
+// the Agent parses its effective server/port/db and renders its identifier.
+// Postgres is absent deliberately: its autodiscovery-aware eligibility belongs to
+// the integration-owned resolver sweep, and this parser must not become a Go
+// reimplementation of it. Any other integration fails closed.
 func parseIntegrationInstanceTarget(integration string, instanceConfig string) (integrationInstanceTarget, bool) {
 	var instanceTarget integrationInstanceTarget
 	var ok bool
 	switch integration {
-	case postgresIntegration:
-		instanceTarget, ok = parsePostgresInstanceTarget(instanceConfig)
 	case clickhouseIntegration:
 		instanceTarget, ok = parseClickHouseInstanceTarget(instanceConfig)
 	default:
@@ -518,44 +789,6 @@ func parseIntegrationInstanceTarget(integration string, instanceConfig string) (
 	}
 	instanceTarget.integration = integration
 	return instanceTarget, true
-}
-
-func parsePostgresInstanceTarget(instanceConfig string) (integrationInstanceTarget, bool) {
-	var fields map[string]any
-	if err := yaml.Unmarshal([]byte(instanceConfig), &fields); err != nil || fields == nil {
-		return integrationInstanceTarget{}, false
-	}
-
-	host, ok := fields["host"].(string)
-	if !ok {
-		return integrationInstanceTarget{}, false
-	}
-	host = normalizeHost(host)
-	if host == "" {
-		return integrationInstanceTarget{}, false
-	}
-
-	port, ok := yamlInt(fields["port"])
-	if !ok || port < 1 || port > 65535 {
-		return integrationInstanceTarget{}, false
-	}
-
-	// The configured dbname is optional: an endpoint candidate may have no
-	// configured dbname (autodiscovery global-view configs), in which case the
-	// requested dbname is the only execution database. A present-but-invalid dbname
-	// still fails closed like every other present-but-invalid key.
-	dbname := ""
-	if rawDB, present := fields["dbname"]; present {
-		parsed, ok := rawDB.(string)
-		if !ok || parsed == "" {
-			return integrationInstanceTarget{}, false
-		}
-		dbname = parsed
-	}
-
-	databaseInstance, _ := renderPostgresDatabaseIdentifier(fields, host, port)
-
-	return integrationInstanceTarget{host: host, port: port, dbname: dbname, databaseInstance: databaseInstance}, true
 }
 
 // The ClickHouse check's documented instance defaults: the HTTP interface port and
@@ -614,42 +847,6 @@ func parseClickHouseInstanceTarget(instanceConfig string) (integrationInstanceTa
 	databaseInstance, _ := renderClickHouseDatabaseIdentifier(fields, rawServer, port, db)
 
 	return integrationInstanceTarget{host: server, port: port, dbname: db, databaseInstance: databaseInstance}, true
-}
-
-func renderPostgresDatabaseIdentifier(fields map[string]any, host string, port int) (string, bool) {
-	template := "$resolved_hostname"
-	if rawIdentifier, ok := fields["database_identifier"]; ok {
-		identifier, ok := rawIdentifier.(map[string]any)
-		if !ok {
-			return "", false
-		}
-		rawTemplate, ok := identifier["template"]
-		if !ok {
-			return "", false
-		}
-		parsedTemplate, ok := rawTemplate.(string)
-		if !ok || parsedTemplate == "" {
-			return "", false
-		}
-		template = parsedTemplate
-	}
-
-	values := postgresDatabaseIdentifierTemplateValues(fields, host, port)
-	rendered, ok := renderPythonTemplate(template, values)
-	if !ok || rendered == "" {
-		return "", false
-	}
-	return rendered, true
-}
-
-func postgresDatabaseIdentifierTemplateValues(fields map[string]any, host string, port int) map[string]string {
-	values := tagTemplateValues(fields)
-	values["host"] = host
-	values["port"] = strconv.Itoa(port)
-	if reportedHostname, ok := fields["reported_hostname"].(string); ok && strings.TrimSpace(reportedHostname) != "" {
-		values["resolved_hostname"] = strings.TrimSpace(reportedHostname)
-	}
-	return values
 }
 
 // clickhouseDatabaseIdentifierDefaultTemplate mirrors the ClickHouse check's default

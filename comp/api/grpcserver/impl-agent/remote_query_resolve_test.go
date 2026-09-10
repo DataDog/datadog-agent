@@ -24,8 +24,9 @@ import (
 )
 
 // resolveFakeCollector and resolveFakeCheck mirror the impl-package fakes: the
-// smallest check.Check surface the shared matcher reads (name, loader, config
-// provider, instance config).
+// smallest check.Check surface plus the remote-query stream runner whose resolve
+// verdicts the integration-owned sweep classifies (name, loader, config provider,
+// instance config, resolve events).
 type resolveFakeCollector struct {
 	checks []check.Check
 }
@@ -37,6 +38,27 @@ type resolveFakeCheck struct {
 	loader   string
 	provider string
 	instance string
+	// resolveEvents mirrors the per-check resolve_target verdict: a final MATCHED
+	// with the sanitized identity, or an error with code target_not_found.
+	resolveEvents []check.RemoteQueryStreamEvent
+	resolveErr    error
+	resolveCalls  int
+}
+
+func (f *resolveFakeCheck) RunRemoteQueryStream(integration string, requestJSON string, emit func(check.RemoteQueryStreamEvent) error) error {
+	if integration != f.name {
+		return assert.AnError
+	}
+	f.resolveCalls++
+	if f.resolveErr != nil {
+		return f.resolveErr
+	}
+	for _, event := range f.resolveEvents {
+		if err := emit(event); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (f resolveFakeCheck) Run() error { return nil }
@@ -80,13 +102,25 @@ func TestRemoteQueryResolveReturnsResolutionErrorWhenServiceMissing(t *testing.T
 	assert.Empty(t, resp.GetMatchFingerprint())
 }
 
+// resolveMatchedEvents and resolveNotFoundEvents build the pinned per-check
+// resolve_target verdicts the integration emits: one final MATCHED with the
+// sanitized identity, or one existing-style error with code target_not_found.
+func resolveMatchedEvents() []check.RemoteQueryStreamEvent {
+	return []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"MATCHED","match":{"host":"localhost","port":5432,"configuredDbname":"postgres","resolvedDbname":"postgres"}}`}}
+}
+
+func resolveNotFoundEvents() []check.RemoteQueryStreamEvent {
+	return []check.RemoteQueryStreamEvent{{Type: "error", MetadataJSON: `{"status":"FAILED","error":{"code":"target_not_found","message":"no loaded integration instance matched target selector."}}`}}
+}
+
 // TestRemoteQueryResolveAnswersStructuredOutcomes proves the AgentSecure resolve
-// handler answers the contract statuses end to end through the shared resolver.
+// handler answers the contract statuses end to end through the integration-owned
+// resolver sweep.
 func TestRemoteQueryResolveAnswersStructuredOutcomes(t *testing.T) {
 	server := &serverSecure{
 		remoteQueriesResolve: remotequeriesimpl.NewRemoteQueryResolveService(resolveFakeCollector{checks: []check.Check{
-			resolveFakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\nusername: alice\npassword: secret-value\n"},
-			resolveFakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5433\ndbname: postgres\npassword: other-secret\n"},
+			&resolveFakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\nusername: alice\npassword: secret-value\n", resolveEvents: resolveMatchedEvents()},
+			&resolveFakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5433\ndbname: postgres\npassword: other-secret\n", resolveEvents: resolveNotFoundEvents()},
 		}}, true),
 	}
 
@@ -105,7 +139,13 @@ func TestRemoteQueryResolveAnswersStructuredOutcomes(t *testing.T) {
 	})
 
 	t.Run("zero matches answers target_not_found", func(t *testing.T) {
-		resp, err := server.RemoteQueryResolve(context.Background(), &pb.RemoteQueryResolveRequest{
+		noneServer := &serverSecure{
+			remoteQueriesResolve: remotequeriesimpl.NewRemoteQueryResolveService(resolveFakeCollector{checks: []check.Check{
+				&resolveFakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n", resolveEvents: resolveNotFoundEvents()},
+			}}, true),
+		}
+
+		resp, err := noneServer.RemoteQueryResolve(context.Background(), &pb.RemoteQueryResolveRequest{
 			Integration: "postgres",
 			Target:      &pb.RemoteQueryTarget{Host: "nowhere", Port: 5432, Dbname: "other"},
 		})
@@ -121,8 +161,8 @@ func TestRemoteQueryResolveAnswersStructuredOutcomes(t *testing.T) {
 	t.Run("multiple matches answer ambiguous_target", func(t *testing.T) {
 		duplicateServer := &serverSecure{
 			remoteQueriesResolve: remotequeriesimpl.NewRemoteQueryResolveService(resolveFakeCollector{checks: []check.Check{
-				resolveFakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-one\n"},
-				resolveFakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n"},
+				&resolveFakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-one\n", resolveEvents: resolveMatchedEvents()},
+				&resolveFakeCheck{name: "postgres", loader: "python", provider: "kube", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n", resolveEvents: resolveMatchedEvents()},
 			}}, true),
 		}
 

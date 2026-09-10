@@ -318,70 +318,53 @@ func TestRemoteQueryMatchHandlerClickHouse(t *testing.T) {
 	})
 }
 
-// TestRemoteQueryMatchHandlerFailsClosedForUnknownIntegration proves the
-// instance-config registry is explicit: an integration the bridge has not been taught
-// never matches, even with a config shape that happens to parse.
-func TestRemoteQueryMatchHandlerFailsClosedForUnknownIntegration(t *testing.T) {
-	handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
-		fakeCheck{name: "mysql", loader: "python", provider: "file", instance: "host: localhost\nport: 3306\ndbname: mysql\npassword: secret-value\n"},
-	}}}
+// TestRemoteQueryMatchHandlerFailsClosedForUnresolvableIntegration proves an
+// integration with loaded checks but no integration-owned resolver fails the
+// sweep as a resolution error, never a silent no-match: the sweep asks every
+// loaded check, and a check that cannot provide the bridge resolver is an
+// error. An integration with no loaded checks at all stays target_not_found.
+func TestRemoteQueryMatchHandlerFailsClosedForUnresolvableIntegration(t *testing.T) {
+	t.Run("loaded checks without the bridge resolver", func(t *testing.T) {
+		handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+			fakeCheck{name: "mysql", loader: "python", provider: "file", instance: "host: localhost\nport: 3306\ndbname: mysql\npassword: secret-value\n"},
+		}}}
 
-	recorder := callMatchHandler(handler, `{"integration":"mysql","target":{"host":"localhost","port":3306,"dbname":"mysql"}}`)
+		recorder := callMatchHandler(handler, `{"integration":"mysql","target":{"host":"localhost","port":3306,"dbname":"mysql"}}`)
 
-	assert.Equal(t, http.StatusNotFound, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"status":"target_not_found"`)
-	assert.NotContains(t, recorder.Body.String(), "secret-value")
+		assert.Equal(t, http.StatusFailedDependency, recorder.Code)
+		body := recorder.Body.String()
+		assert.Contains(t, body, `"status":"resolution_error"`)
+		assert.Contains(t, body, "loaded integration check does not support remote query resolution")
+		assert.NotContains(t, body, "secret-value")
+	})
+
+	t.Run("no loaded checks of the integration", func(t *testing.T) {
+		handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{checks: []check.Check{
+			fakeCheck{name: "mysql", loader: "python", provider: "file", instance: "host: localhost\nport: 3306\ndbname: mysql\npassword: secret-value\n"},
+		}}}
+
+		recorder := callMatchHandler(handler, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"}}`)
+
+		assert.Equal(t, http.StatusNotFound, recorder.Code)
+		assert.Contains(t, recorder.Body.String(), `"status":"target_not_found"`)
+		assert.NotContains(t, recorder.Body.String(), "secret-value")
+	})
 }
 
-// TestPostgresInstanceTargetParsingIsPreserved proves the Postgres parsing and
-// identifier rendering are unchanged by the integration-aware registry, including
-// the tiered-selection era: the configured dbname stays parsed when present, and
-// an absent configured dbname (an endpoint candidate) now parses instead of
-// failing closed.
-func TestPostgresInstanceTargetParsingIsPreserved(t *testing.T) {
-	t.Run("canonical fields with reported hostname", func(t *testing.T) {
-		instanceTarget, ok := parseIntegrationInstanceTarget("postgres", "host: LocalHost.\nport: 5432\ndbname: postgres\nreported_hostname: rq-proof-a1-db1\n")
-		require.True(t, ok)
-		assert.Equal(t, integrationInstanceTarget{integration: "postgres", host: "localhost", port: 5432, dbname: "postgres", databaseInstance: "rq-proof-a1-db1"}, instanceTarget)
-	})
-
-	t.Run("absent configured dbname parses as an endpoint candidate", func(t *testing.T) {
-		instanceTarget, ok := parseIntegrationInstanceTarget("postgres", "host: localhost\nport: 5432\n")
-		require.True(t, ok)
-		assert.Equal(t, integrationInstanceTarget{integration: "postgres", host: "localhost", port: 5432}, instanceTarget)
-		assert.True(t, instanceTarget.matches(remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "any_requested_db"}))
-		assert.False(t, instanceTarget.isExactTupleMatch(remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "any_requested_db"}))
-	})
-
-	t.Run("present but invalid configured dbname fails closed", func(t *testing.T) {
-		for _, instance := range []string{
-			"host: localhost\nport: 5432\ndbname:\n",
-			"host: localhost\nport: 5432\ndbname: \"\"\n",
-			"host: localhost\nport: 5432\ndbname: 12\n",
-		} {
-			_, ok := parseIntegrationInstanceTarget("postgres", instance)
-			assert.False(t, ok, instance)
-		}
-	})
-
-	t.Run("custom template from tags", func(t *testing.T) {
-		instanceTarget, ok := parseIntegrationInstanceTarget("postgres", "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\n")
-		require.True(t, ok)
-		assert.Equal(t, "rq-proof-a1-db1", instanceTarget.databaseInstance)
-	})
-
-	t.Run("default template without reported hostname fails closed for the identifier only", func(t *testing.T) {
-		instanceTarget, ok := parseIntegrationInstanceTarget("postgres", "host: localhost\nport: 5432\ndbname: postgres\n")
-		require.True(t, ok)
-		assert.Empty(t, instanceTarget.databaseInstance)
-		assert.True(t, instanceTarget.matches(remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "postgres"}))
-		assert.False(t, instanceTarget.matches(remoteQueryTarget{DatabaseInstance: "localhost"}))
-	})
-
-	t.Run("clickhouse-shaped config does not parse as postgres", func(t *testing.T) {
-		_, ok := parseIntegrationInstanceTarget("postgres", "server: localhost\nport: 5432\ndb: postgres\n")
-		assert.False(t, ok)
-	})
+// TestPostgresMatchingIsDelegatedToTheResolver proves the Go matcher no longer
+// parses Postgres instance configs at all: Postgres eligibility is
+// autodiscovery-aware and lives in the integration, so the config shape is
+// deliberately untaught and parsing fails closed. Postgres matching happens only
+// through the resolver sweep.
+func TestPostgresMatchingIsDelegatedToTheResolver(t *testing.T) {
+	for _, instance := range []string{
+		"host: LocalHost.\nport: 5432\ndbname: postgres\nreported_hostname: rq-proof-a1-db1\n",
+		"host: localhost\nport: 5432\n",
+		"host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\n",
+	} {
+		_, ok := parseIntegrationInstanceTarget("postgres", instance)
+		assert.False(t, ok, instance)
+	}
 }
 
 func newClickHouseStreamRunner(events []check.RemoteQueryStreamEvent) *fakeStreamRunnerCheck {
@@ -721,7 +704,7 @@ func TestRemoteQueryExecuteServicePostgresProofSetUnchanged(t *testing.T) {
 			result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
 
 			require.Nil(t, result.Error)
-			assert.Equal(t, 1, runner.streamCalls)
+			assert.Equal(t, 1, runner.executeCalls)
 		})
 	}
 

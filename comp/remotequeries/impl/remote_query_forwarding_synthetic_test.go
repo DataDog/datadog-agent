@@ -102,7 +102,10 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 	})
 
 	require.Nil(t, result.Error)
-	assert.Equal(t, 1, runner.streamCalls)
+	// The resolve sweep and the execute dispatch both reached the integration:
+	// one admission hold covers both.
+	assert.Equal(t, 1, runner.resolveCalls)
+	assert.Equal(t, 1, runner.executeCalls)
 
 	// The integration receives the fixed operation, the explicit schema flag, the
 	// normalized target, and the full upload handle including the intake base URL so it

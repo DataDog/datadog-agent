@@ -18,7 +18,7 @@ import (
 
 // resolveFingerprintFor runs the resolve service against the given collector and
 // target and returns the issued fingerprint, proving resolve and execute agree
-// through the same matcher and the same fingerprint computation.
+// through the same integration-owned sweep and the same fingerprint computation.
 func resolveFingerprintFor(t *testing.T, collector fakeCollector, target RemoteQueryExecuteTarget) string {
 	t.Helper()
 	service := NewRemoteQueryResolveService(collector, true)
@@ -48,10 +48,12 @@ func staleFingerprintExecuteRequest(t *testing.T) RemoteQueryExecuteRequest {
 }
 
 // TestExecuteStreamRevalidatesMatchFingerprint proves the match-before-execute
-// contract: an execute request carrying the resolve-time fingerprint proceeds
-// only when the same unique match still holds, and otherwise fails with
-// target_resolution_stale before any runner call — before the integration
-// request JSON is built, before any Python runs, before any database work.
+// contract: an execute request carrying the resolve-time fingerprint re-runs one
+// complete integration-owned sweep under the execution admission and proceeds
+// only when the same unique match with the same integration-reported identity
+// still holds. Any change — zero verdicts, multiple verdicts, or a different
+// identity — fails with target_resolution_stale before the execute dispatch, so
+// no Python execution call and no SQL ever happens.
 func TestExecuteStreamRevalidatesMatchFingerprint(t *testing.T) {
 	t.Run("matching fingerprint proceeds", func(t *testing.T) {
 		collector := singleMatchCollector("host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n")
@@ -64,10 +66,13 @@ func TestExecuteStreamRevalidatesMatchFingerprint(t *testing.T) {
 		result := service.ExecuteStream(context.Background(), req, func(check.RemoteQueryStreamEvent) error { return nil })
 
 		require.Nil(t, result.Error)
-		assert.Equal(t, 1, runner.streamCalls)
+		assert.Equal(t, 1, runner.executeCalls)
+		// The execute-time revalidation sweep asked the check once more before the
+		// execute dispatch.
+		assert.Equal(t, 2, runner.resolveCalls)
 	})
 
-	t.Run("different fingerprint fails before runner", func(t *testing.T) {
+	t.Run("different fingerprint fails before the execute dispatch", func(t *testing.T) {
 		collector := singleMatchCollector("host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n")
 		otherCollector := singleMatchCollector("host: otherhost\nport: 5432\ndbname: postgres\npassword: other-secret\n")
 		otherFingerprint := resolveFingerprintFor(t, otherCollector, RemoteQueryExecuteTarget{Host: "otherhost", Port: 5432, DBName: "postgres"})
@@ -82,17 +87,18 @@ func TestExecuteStreamRevalidatesMatchFingerprint(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, result.HTTPStatus)
 		assert.Equal(t, statusTargetResolutionStale, result.Error.Code)
 		assert.Equal(t, "target resolution changed since the selected match", result.Error.Message)
-		assert.Zero(t, runner.streamCalls)
+		assert.Zero(t, runner.executeCalls)
 		assert.NotContains(t, result.Error.Message, "otherhost")
 	})
 
-	t.Run("zero matches fails stale, not not-found", func(t *testing.T) {
-		// Resolve against a matching collector, then execute against one whose
-		// check no longer matches the requested target (config reload).
+	t.Run("zero matched verdicts fails stale, not not-found", func(t *testing.T) {
+		// Resolve against a matching sweep, then execute against one whose check no
+		// longer admits the target (the eligible set changed).
 		resolveCollector := singleMatchCollector("host: localhost\nport: 5432\ndbname: postgres\n")
 		fingerprint := resolveFingerprintFor(t, resolveCollector, RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"})
-		executeCollector := singleMatchCollector("host: localhost\nport: 5433\ndbname: postgres\n")
-		runner := executeCollector.checks[0].(fakeWrappedCheck).Check.(*fakeStreamRunnerCheck)
+		executeCollector := singleMatchCollector("host: localhost\nport: 5432\ndbname: postgres\n")
+		executeRunner := executeCollector.checks[0].(fakeWrappedCheck).Check.(*fakeStreamRunnerCheck)
+		executeRunner.resolveEvents = resolveTargetNotFoundEvents()
 		service := NewRemoteQueryExecuteService(executeCollector, true, false, nil)
 
 		req := staleFingerprintExecuteRequest(t)
@@ -102,15 +108,15 @@ func TestExecuteStreamRevalidatesMatchFingerprint(t *testing.T) {
 		require.NotNil(t, result.Error)
 		assert.Equal(t, http.StatusConflict, result.HTTPStatus)
 		assert.Equal(t, statusTargetResolutionStale, result.Error.Code)
-		assert.Zero(t, runner.streamCalls)
+		assert.Zero(t, executeRunner.executeCalls)
 	})
 
-	t.Run("multiple matches fails stale, not ambiguous", func(t *testing.T) {
+	t.Run("multiple matched verdicts fails stale, not ambiguous", func(t *testing.T) {
 		resolveCollector := singleMatchCollector("host: localhost\nport: 5432\ndbname: postgres\n")
 		fingerprint := resolveFingerprintFor(t, resolveCollector, RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"})
 		executeCollector := fakeCollector{checks: []check.Check{
 			fakeWrappedCheck{Check: &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-one\n"}}}},
-			fakeWrappedCheck{Check: &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n"}}}},
+			fakeWrappedCheck{Check: &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "kube", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n"}}}},
 		}}
 		service := NewRemoteQueryExecuteService(executeCollector, true, false, nil)
 
@@ -123,19 +129,20 @@ func TestExecuteStreamRevalidatesMatchFingerprint(t *testing.T) {
 		assert.Equal(t, statusTargetResolutionStale, result.Error.Code)
 		for _, chk := range executeCollector.checks {
 			runner := chk.(fakeWrappedCheck).Check.(*fakeStreamRunnerCheck)
-			assert.Zero(t, runner.streamCalls)
+			assert.Zero(t, runner.executeCalls)
 		}
 	})
 }
 
 // TestExecuteStreamWithoutFingerprintIsUnchanged proves the absent-fingerprint
-// behavior is exactly today's: a stale-looking world still answers
-// target_not_found and ambiguous_target with their original statuses, and a
-// plain unique match executes.
+// behavior keeps the plain zero/one/many outcomes of the sweep: a no-match sweep
+// answers target_not_found, multiple matched verdicts answer ambiguous_target,
+// and a plain unique verdict executes.
 func TestExecuteStreamWithoutFingerprintIsUnchanged(t *testing.T) {
-	t.Run("zero matches keeps target_not_found", func(t *testing.T) {
-		collector := singleMatchCollector("host: localhost\nport: 5433\ndbname: postgres\n")
+	t.Run("zero matched verdicts keeps target_not_found", func(t *testing.T) {
+		collector := singleMatchCollector("host: localhost\nport: 5432\ndbname: postgres\n")
 		runner := collector.checks[0].(fakeWrappedCheck).Check.(*fakeStreamRunnerCheck)
+		runner.resolveEvents = resolveTargetNotFoundEvents()
 		service := NewRemoteQueryExecuteService(collector, true, false, nil)
 
 		result := service.ExecuteStream(context.Background(), staleFingerprintExecuteRequest(t), func(check.RemoteQueryStreamEvent) error { return nil })
@@ -143,13 +150,13 @@ func TestExecuteStreamWithoutFingerprintIsUnchanged(t *testing.T) {
 		require.NotNil(t, result.Error)
 		assert.Equal(t, http.StatusNotFound, result.HTTPStatus)
 		assert.Equal(t, statusTargetNotFound, result.Error.Code)
-		assert.Zero(t, runner.streamCalls)
+		assert.Zero(t, runner.executeCalls)
 	})
 
-	t.Run("multiple matches keeps ambiguous_target", func(t *testing.T) {
+	t.Run("multiple matched verdicts keeps ambiguous_target", func(t *testing.T) {
 		collector := fakeCollector{checks: []check.Check{
 			fakeWrappedCheck{Check: &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-one\n"}}}},
-			fakeWrappedCheck{Check: &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n"}}}},
+			fakeWrappedCheck{Check: &fakeStreamRunnerCheck{fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "kube", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n"}}}},
 		}}
 		service := NewRemoteQueryExecuteService(collector, true, false, nil)
 
@@ -161,15 +168,16 @@ func TestExecuteStreamWithoutFingerprintIsUnchanged(t *testing.T) {
 	})
 }
 
-// TestExecuteStreamStaleFailsBeforeMarshal proves the fingerprint revalidation
-// gate runs before the integration request JSON is ever built: a stale
-// fingerprint with a valid delivery and allowlisted query never reaches
-// marshalExecuteRequest or the Python runner.
+// TestExecuteStreamStaleFailsBeforeMarshal proves the fingerprint revalidation gate
+// runs before the integration request JSON is ever built: a stale fingerprint with
+// a valid delivery and allowlisted query never reaches marshalExecuteRequest or
+// the Python execute dispatch — only the side-effect-free resolve sweep ran.
 func TestExecuteStreamStaleFailsBeforeMarshal(t *testing.T) {
 	resolveCollector := singleMatchCollector("host: localhost\nport: 5432\ndbname: postgres\n")
 	fingerprint := resolveFingerprintFor(t, resolveCollector, RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"})
 	executeCollector := singleMatchCollector("host: localhost\nport: 5432\ndbname: completely-elsewhere\n")
 	runner := executeCollector.checks[0].(fakeWrappedCheck).Check.(*fakeStreamRunnerCheck)
+	runner.resolveEvents = resolveTargetNotFoundEvents()
 	service := NewRemoteQueryExecuteService(executeCollector, true, true, nil)
 
 	req, err := NewRemoteQueryExecuteRequest("postgres",
@@ -182,6 +190,7 @@ func TestExecuteStreamStaleFailsBeforeMarshal(t *testing.T) {
 
 	require.NotNil(t, result.Error)
 	assert.Equal(t, statusTargetResolutionStale, result.Error.Code)
-	assert.Zero(t, runner.streamCalls)
+	assert.Zero(t, runner.executeCalls)
 	assert.Empty(t, runner.streamSeen)
+	assert.Equal(t, 1, runner.resolveCalls)
 }

@@ -79,10 +79,15 @@ type RemoteQueryResolveResult struct {
 }
 
 // Resolve answers the structured zero/one/many outcome for the requested target.
-// It reuses the exact matcher execute uses — never a second matcher — so the
-// diagnostic match-check, resolve, and execute paths cannot disagree. Internal
-// and contract failures answer resolution_error with a sanitized message, never a
-// silent target miss: a malformed request cannot look like a missing target.
+// It reuses the exact resolution execute uses — never a second matcher — through the
+// integration-owned resolver sweep, so the diagnostic match-check, resolve, and
+// execute paths cannot disagree. The sweep runs under the same admission mutex
+// execute holds, acquired once for the complete per-check sweep and released before
+// the answer is built: resolve stays side-effect-free (no query, no page writer, no
+// upload credentials ever reach this service), and busy answers fail fast instead of
+// queueing. Internal and contract failures answer resolution_error with a sanitized
+// message, never a silent target miss: a malformed request cannot look like a missing
+// target.
 func (s *RemoteQueryResolveService) Resolve(req RemoteQueryResolveRequest) RemoteQueryResolveResult {
 	if s == nil || !s.enabled {
 		return remoteQueryResolveErrorResult(http.StatusServiceUnavailable, statusResolutionError, "remote queries resolve bridge is disabled")
@@ -100,18 +105,26 @@ func (s *RemoteQueryResolveService) Resolve(req RemoteQueryResolveRequest) Remot
 		return remoteQueryResolveErrorResult(http.StatusBadRequest, statusResolutionError, err.Error())
 	}
 
-	matches := findIntegrationMatches(s.collector, integration, target)
-	switch len(matches) {
-	case 0:
-		return remoteQueryResolveErrorResult(http.StatusNotFound, statusTargetNotFound, "no matching integration check found")
-	case 1:
-		fingerprint, err := computeMatchFingerprint(integration, target, matches[0])
+	if !remoteQueryExecutionAdmission() {
+		return remoteQueryResolveErrorResult(http.StatusServiceUnavailable, statusResolutionError, "another remote query is running on this Agent")
+	}
+	// Admission covers the sweep; the fingerprint hashes only values the sweep
+	// already captured, so the deferred release is panic-safe and still bounded.
+	defer remoteQueryExecution.Unlock()
+	resolution := resolveIntegrationTargets(s.collector, integration, target)
+	switch resolution.status {
+	case statusMatched:
+		fingerprint, err := computeMatchFingerprint(integration, target, resolution.matches[0])
 		if err != nil {
 			return remoteQueryResolveErrorResult(http.StatusFailedDependency, statusResolutionError, "could not compute match fingerprint")
 		}
 		return RemoteQueryResolveResult{HTTPStatus: http.StatusOK, Status: statusMatched, MatchFingerprint: fingerprint}
+	case statusTargetNotFound:
+		return remoteQueryResolveErrorResult(http.StatusNotFound, statusTargetNotFound, resolution.message)
+	case statusAmbiguous:
+		return remoteQueryResolveErrorResult(http.StatusConflict, statusAmbiguous, resolution.message)
 	default:
-		return remoteQueryResolveErrorResult(http.StatusConflict, statusAmbiguous, "multiple matching integration checks found")
+		return remoteQueryResolveErrorResult(http.StatusFailedDependency, statusResolutionError, resolution.message)
 	}
 }
 

@@ -17,10 +17,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
+// resolveTestRunner builds one runner-backed postgres check whose resolver answers
+// the configured verdict; the instance config stays on the fake only to prove the
+// sweep never surfaces it.
+func resolveTestRunner(provider string, resolveEvents []check.RemoteQueryStreamEvent) *fakeStreamRunnerCheck {
+	return &fakeStreamRunnerCheck{
+		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{
+			name:     "postgres",
+			loader:   "python",
+			provider: provider,
+			instance: "host: localhost\nport: 5432\ndbname: postgres\nusername: alice\npassword: secret-value\n",
+		}},
+		resolveEvents: resolveEvents,
+	}
+}
+
 func resolveTestCollector() fakeCollector {
 	return fakeCollector{checks: []check.Check{
-		fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: LOCALHOST.\nport: 5432\ndbname: postgres\nusername: alice\npassword: secret-value\n"},
-		fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5433\ndbname: postgres\npassword: other-secret\n"},
+		fakeWrappedCheck{Check: resolveTestRunner("file", nil)},
+		fakeWrappedCheck{Check: resolveTestRunner("kube", resolveTargetNotFoundEvents())},
 		fakeCheck{name: "mysql", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: mysql-secret\n"},
 	}}
 }
@@ -33,15 +48,21 @@ func resolveTupleRequest() RemoteQueryResolveRequest {
 }
 
 // TestRemoteQueryResolveServiceAnswersStructuredOutcomes proves the resolve
-// service reuses the shared matcher's zero/one/many semantics with the
-// match-before-execute statuses: zero matches answer target_not_found, exactly
-// one answers matched with a non-empty fingerprint, and more than one answers
-// ambiguous_target. No secret from any instance config surfaces in any result.
+// service reduces the integration-owned sweep to the match-before-execute
+// statuses: all no-match verdicts answer target_not_found, exactly one matched
+// verdict answers matched with a non-empty fingerprint, and more than one matched
+// verdict answers ambiguous_target. No secret from any instance config or verdict
+// metadata surfaces in any result.
 func TestRemoteQueryResolveServiceAnswersStructuredOutcomes(t *testing.T) {
 	service := NewRemoteQueryResolveService(resolveTestCollector(), true)
 
-	t.Run("zero matches", func(t *testing.T) {
-		result := service.Resolve(RemoteQueryResolveRequest{
+	t.Run("zero matched verdicts", func(t *testing.T) {
+		noneService := NewRemoteQueryResolveService(fakeCollector{checks: []check.Check{
+			fakeWrappedCheck{Check: resolveTestRunner("file", resolveTargetNotFoundEvents())},
+			fakeWrappedCheck{Check: resolveTestRunner("kube", resolveTargetNotFoundEvents())},
+		}}, true)
+
+		result := noneService.Resolve(RemoteQueryResolveRequest{
 			Integration: "postgres",
 			Target:      RemoteQueryExecuteTarget{Host: "nowhere", Port: 5432, DBName: "other"},
 		})
@@ -56,7 +77,19 @@ func TestRemoteQueryResolveServiceAnswersStructuredOutcomes(t *testing.T) {
 		assert.NotContains(t, result.Error.Message, "other-secret")
 	})
 
-	t.Run("exactly one match", func(t *testing.T) {
+	t.Run("zero loaded checks of the integration", func(t *testing.T) {
+		emptyService := NewRemoteQueryResolveService(fakeCollector{checks: []check.Check{
+			fakeCheck{name: "mysql", loader: "python", provider: "file", instance: "host: localhost\nport: 3306\ndbname: mysql\npassword: mysql-secret\n"},
+		}}, true)
+
+		result := emptyService.Resolve(resolveTupleRequest())
+
+		assert.Equal(t, http.StatusNotFound, result.HTTPStatus)
+		assert.Equal(t, statusTargetNotFound, result.Status)
+		assert.NotContains(t, result.Error.Message, "mysql-secret")
+	})
+
+	t.Run("exactly one matched verdict", func(t *testing.T) {
 		result := service.Resolve(resolveTupleRequest())
 
 		assert.Equal(t, http.StatusOK, result.HTTPStatus)
@@ -65,14 +98,14 @@ func TestRemoteQueryResolveServiceAnswersStructuredOutcomes(t *testing.T) {
 		assert.Regexp(t, fingerprintHexPattern, result.MatchFingerprint)
 	})
 
-	// Tiered matcher semantics: the requested dbname is the logical execution
-	// database, not an identity requirement on the check's configured dbname —
-	// a host+port endpoint candidate with a differing configured dbname is a
-	// live match (the dynamic-database targeting contract).
-	t.Run("dynamic dbname endpoint candidate is matched", func(t *testing.T) {
+	// The resolver owns database eligibility: a requested database the raw instance
+	// config does not name is a live match when the integration's eligible set
+	// (an autodiscovered database, or the materialized effective default) admits
+	// it. The Go side never compares the requested dbname against the raw YAML.
+	t.Run("integration-admitted database is matched", func(t *testing.T) {
 		result := service.Resolve(RemoteQueryResolveRequest{
 			Integration: "postgres",
-			Target:      RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "other"},
+			Target:      RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "autodiscovered_ok"},
 		})
 
 		assert.Equal(t, http.StatusOK, result.HTTPStatus)
@@ -81,10 +114,10 @@ func TestRemoteQueryResolveServiceAnswersStructuredOutcomes(t *testing.T) {
 		assert.Regexp(t, fingerprintHexPattern, result.MatchFingerprint)
 	})
 
-	t.Run("multiple matches", func(t *testing.T) {
+	t.Run("multiple matched verdicts", func(t *testing.T) {
 		duplicateService := NewRemoteQueryResolveService(fakeCollector{checks: []check.Check{
-			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:duplicate\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-one\n"},
-			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5433\ndbname: postgres\ntags:\n  - rq_database_instance:duplicate\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-two\n"},
+			fakeWrappedCheck{Check: resolveTestRunner("file", nil)},
+			fakeWrappedCheck{Check: resolveTestRunner("kube", nil)},
 		}}, true)
 
 		result := duplicateService.Resolve(RemoteQueryResolveRequest{
@@ -101,10 +134,12 @@ func TestRemoteQueryResolveServiceAnswersStructuredOutcomes(t *testing.T) {
 }
 
 // TestRemoteQueryResolveServiceDatabaseInstanceTarget proves the managed-instance
-// selector resolves through the rendered identifier exactly like execute matches.
+// selector is delegated to the resolver sweep like tuple matching: the matched
+// check's verdict decides, and the fingerprint binds the integration-reported
+// identity.
 func TestRemoteQueryResolveServiceDatabaseInstanceTarget(t *testing.T) {
 	service := NewRemoteQueryResolveService(fakeCollector{checks: []check.Check{
-		fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-value\n"},
+		fakeWrappedCheck{Check: resolveTestRunner("file", nil)},
 	}}, true)
 
 	result := service.Resolve(RemoteQueryResolveRequest{
@@ -117,8 +152,74 @@ func TestRemoteQueryResolveServiceDatabaseInstanceTarget(t *testing.T) {
 	assert.Regexp(t, fingerprintHexPattern, result.MatchFingerprint)
 }
 
+// TestRemoteQueryResolveServiceSweepFailuresAreResolutionErrors proves every
+// inability to establish the eligible set fails the aggregate resolution —
+// never a silent target miss: a loaded check without the bridge resolver, a
+// failed bridge call, an invalid verdict, and a busy admission all answer
+// resolution_error with sanitized messages.
+func TestRemoteQueryResolveServiceSweepFailuresAreResolutionErrors(t *testing.T) {
+	t.Run("loaded check without the bridge resolver", func(t *testing.T) {
+		service := NewRemoteQueryResolveService(fakeCollector{checks: []check.Check{
+			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"},
+		}}, true)
+
+		result := service.Resolve(resolveTupleRequest())
+
+		assert.Equal(t, http.StatusFailedDependency, result.HTTPStatus)
+		assert.Equal(t, statusResolutionError, result.Status)
+		require.NotNil(t, result.Error)
+		assert.Equal(t, "loaded integration check does not support remote query resolution", result.Error.Message)
+		assert.NotContains(t, result.Error.Message, "secret-value")
+	})
+
+	t.Run("failed bridge call", func(t *testing.T) {
+		service := NewRemoteQueryResolveService(fakeCollector{checks: []check.Check{
+			fakeWrappedCheck{Check: &fakeStreamRunnerCheck{
+				fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}},
+				resolveErr:      assert.AnError,
+			}},
+		}}, true)
+
+		result := service.Resolve(resolveTupleRequest())
+
+		assert.Equal(t, http.StatusFailedDependency, result.HTTPStatus)
+		assert.Equal(t, statusResolutionError, result.Status)
+		assert.Equal(t, "remote query resolver bridge call failed", result.Error.Message)
+		assert.NotContains(t, result.Error.Message, assert.AnError.Error())
+	})
+
+	t.Run("invalid verdict", func(t *testing.T) {
+		service := NewRemoteQueryResolveService(fakeCollector{checks: []check.Check{
+			fakeWrappedCheck{Check: resolveTestRunner("file", []check.RemoteQueryStreamEvent{
+				{Type: "final", MetadataJSON: `{"status":"MATCHED","match":{"host":"localhost","port":5432}}`},
+			})},
+		}}, true)
+
+		result := service.Resolve(resolveTupleRequest())
+
+		assert.Equal(t, http.StatusFailedDependency, result.HTTPStatus)
+		assert.Equal(t, statusResolutionError, result.Status)
+		assert.Equal(t, "remote query resolver returned an invalid verdict", result.Error.Message)
+	})
+
+	t.Run("busy admission fails fast", func(t *testing.T) {
+		service := NewRemoteQueryResolveService(resolveTestCollector(), true)
+
+		remoteQueryExecution.Lock()
+		defer remoteQueryExecution.Unlock()
+
+		result := service.Resolve(resolveTupleRequest())
+
+		assert.Equal(t, http.StatusServiceUnavailable, result.HTTPStatus)
+		assert.Equal(t, statusResolutionError, result.Status)
+		require.NotNil(t, result.Error)
+		assert.Equal(t, "another remote query is running on this Agent", result.Error.Message)
+		assert.Empty(t, result.MatchFingerprint)
+	})
+}
+
 // TestRemoteQueryResolveServiceFailuresAreResolutionErrors proves every failure
-// to complete matching answers resolution_error — never a silent target miss: a
+// to even start resolving answers resolution_error — never a silent target miss: a
 // disabled bridge, a missing collector, and malformed input are all internal or
 // contract errors with sanitized messages.
 func TestRemoteQueryResolveServiceFailuresAreResolutionErrors(t *testing.T) {
@@ -204,7 +305,9 @@ func TestRemoteQueryResolveHandlerAnswersContractShape(t *testing.T) {
 	})
 
 	t.Run("target not found", func(t *testing.T) {
-		handler := &remoteQueryResolveHandler{service: NewRemoteQueryResolveService(resolveTestCollector(), true)}
+		handler := &remoteQueryResolveHandler{service: NewRemoteQueryResolveService(fakeCollector{checks: []check.Check{
+			fakeWrappedCheck{Check: resolveTestRunner("file", resolveTargetNotFoundEvents())},
+		}}, true)}
 
 		recorder := callResolveHandler(handler, `{"integration":"postgres","target":{"host":"nowhere","port":5432,"dbname":"other"}}`)
 
@@ -217,8 +320,8 @@ func TestRemoteQueryResolveHandlerAnswersContractShape(t *testing.T) {
 
 	t.Run("ambiguous", func(t *testing.T) {
 		handler := &remoteQueryResolveHandler{service: NewRemoteQueryResolveService(fakeCollector{checks: []check.Check{
-			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-one\n"},
-			fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-two\n"},
+			fakeWrappedCheck{Check: resolveTestRunner("file", nil)},
+			fakeWrappedCheck{Check: resolveTestRunner("kube", nil)},
 		}}, true)}
 
 		recorder := callResolveHandler(handler, `{"integration":"postgres","target":{"host":"localhost","port":5432,"dbname":"postgres"}}`)

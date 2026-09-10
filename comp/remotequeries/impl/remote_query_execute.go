@@ -705,8 +705,12 @@ func (s *RemoteQueryExecuteService) Execute(_ RemoteQueryExecuteRequest) RemoteQ
 	return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "remote queries execute only over the AgentSecure streaming RPC")
 }
 
-// Shared across service instances/listeners and integration types: each execution owns
-// a page-sized Python buffer. Admission is fail-fast, with no waiting request queue.
+// Shared across service instances/listeners and integration types: one admission
+// covers the complete integration-owned candidate sweep AND the execution itself.
+// Resolve holds it for its sweep only; execute acquires it before resolution and
+// retains it through the Python run, so there is no unlock/relock gap between the
+// revalidated match and customer SQL. Each execution also owns a page-sized Python
+// buffer. Admission is fail-fast, with no waiting request queue.
 var remoteQueryExecution sync.Mutex
 
 // ExecuteStream executes a paged-JSON request and emits metadata-only stream events. The
@@ -734,8 +738,15 @@ func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req Remot
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "query is not allowed")
 	}
 
+	if !remoteQueryExecutionAdmission() {
+		return remoteQueryExecuteErrorResult(http.StatusServiceUnavailable, statusExecutorUnavailable, "another remote query is running on this Agent")
+	}
+	// Retain admission from the resolution sweep until Python actually returns, even
+	// if the RPC is cancelled.
+	defer remoteQueryExecution.Unlock()
+
 	internal := req.internal()
-	match, result := s.matchExecutor(internal)
+	match, result := s.resolveExecutionTarget(internal)
 	if result.Error != nil {
 		return result
 	}
@@ -751,11 +762,6 @@ func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req Remot
 	if ctx.Err() != nil {
 		return remoteQueryExecuteErrorResult(http.StatusRequestTimeout, statusExecutorUnavailable, "remote query request was cancelled")
 	}
-	if !remoteQueryExecution.TryLock() {
-		return remoteQueryExecuteErrorResult(http.StatusServiceUnavailable, statusExecutorUnavailable, "another remote query is running on this Agent")
-	}
-	// Retain admission until Python actually returns, even if the RPC is cancelled.
-	defer remoteQueryExecution.Unlock()
 
 	runErr := runner.RunRemoteQueryStream(internal.Integration, requestJSON, emit)
 	if runErr != nil {
@@ -764,35 +770,39 @@ func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req Remot
 	return RemoteQueryExecuteResult{HTTPStatus: http.StatusOK, Status: "SUCCEEDED"}
 }
 
-// matchExecutor revalidates the resolve-time fingerprint before any SQL work
-// when the request carries one: the same unique match with the same fingerprint
-// proceeds; zero, multiple, or a different match answers target_resolution_stale
-// before marshalExecuteRequest, any Python call, or any database work. An absent
-// fingerprint keeps today's behavior unchanged.
-func (s *RemoteQueryExecuteService) matchExecutor(internal remoteQueryExecuteRequest) (integrationCheckMatch, RemoteQueryExecuteResult) {
-	matches := findIntegrationMatches(s.collector, internal.Integration, internal.Target)
+// resolveExecutionTarget resolves the execution target under the already-held
+// admission mutex: one complete integration-owned candidate sweep, then the
+// fingerprint revalidation when the request carries one. The same unique match with
+// the same fingerprint proceeds; zero, multiple, or a different match — including any
+// changed eligible set or identity the sweep reports — answers target_resolution_stale
+// before marshalExecuteRequest, any SQL dispatch, or any database work. An absent
+// fingerprint keeps the plain zero/one/many outcomes. A sweep failure fails closed as
+// executor_unavailable with the sweep's sanitized message.
+func (s *RemoteQueryExecuteService) resolveExecutionTarget(internal remoteQueryExecuteRequest) (integrationCheckMatch, RemoteQueryExecuteResult) {
+	resolution := resolveIntegrationTargets(s.collector, internal.Integration, internal.Target)
+	if resolution.status == statusResolutionError {
+		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, resolution.message)
+	}
 	if internal.MatchFingerprint != "" {
-		switch len(matches) {
-		case 1:
-			same, err := matchFingerprintEqual(internal.MatchFingerprint, internal.Integration, internal.Target, matches[0])
-			if err != nil {
-				return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "could not revalidate the match fingerprint")
-			}
-			if same {
-				return matches[0], RemoteQueryExecuteResult{HTTPStatus: http.StatusOK}
-			}
-			return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusConflict, statusTargetResolutionStale, "target resolution changed since the selected match")
-		default:
+		if resolution.status != statusMatched {
 			return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusConflict, statusTargetResolutionStale, "target resolution changed since the selected match")
 		}
+		same, err := matchFingerprintEqual(internal.MatchFingerprint, internal.Integration, internal.Target, resolution.matches[0])
+		if err != nil {
+			return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "could not revalidate the match fingerprint")
+		}
+		if !same {
+			return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusConflict, statusTargetResolutionStale, "target resolution changed since the selected match")
+		}
+		return resolution.matches[0], RemoteQueryExecuteResult{HTTPStatus: http.StatusOK}
 	}
-	switch len(matches) {
-	case 0:
-		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusNotFound, statusTargetNotFound, "no matching integration check found")
-	case 1:
-		return matches[0], RemoteQueryExecuteResult{HTTPStatus: http.StatusOK}
+	switch resolution.status {
+	case statusMatched:
+		return resolution.matches[0], RemoteQueryExecuteResult{HTTPStatus: http.StatusOK}
+	case statusTargetNotFound:
+		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusNotFound, statusTargetNotFound, resolution.message)
 	default:
-		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusConflict, statusAmbiguous, "multiple matching integration checks found")
+		return integrationCheckMatch{}, remoteQueryExecuteErrorResult(http.StatusConflict, statusAmbiguous, resolution.message)
 	}
 }
 

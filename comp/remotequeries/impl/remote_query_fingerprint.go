@@ -15,8 +15,11 @@ import (
 // remoteQueryMatchFingerprintVersion is the version of the canonical fingerprint
 // encoding. The version travels inside the hashed canonical JSON, so the encoding
 // can evolve without ambiguity: fingerprints from different versions compare
-// unequal by construction.
-const remoteQueryMatchFingerprintVersion = 1
+// unequal by construction. Version 2 binds the integration-reported sanitized match
+// identity (endpoint, configured and resolved dbname, rendered identifier) instead
+// of the Go-parsed instance config, so a changed eligible set or identity between
+// resolve and execute fails the revalidation.
+const remoteQueryMatchFingerprintVersion = 2
 
 // Target selector modes named in the canonical fingerprint: the flat host/port/
 // dbname tuple or the managed database_instance identifier. The selector type is
@@ -52,22 +55,36 @@ type remoteQueryFingerprintTargetJSON struct {
 }
 
 // remoteQueryFingerprintMatchJSON is the sanitized identity of the matched check:
-// its loader, config provider, and the target parsed from its instance config.
+// its Agent-known loader and config provider, plus the match identity — the
+// integration-reported sanitized identity for resolver-swept integrations, or the
+// Go-parsed effective config for the Agent-matched integration.
 type remoteQueryFingerprintMatchJSON struct {
-	Loader         string                                   `json:"loader"`
-	ConfigProvider string                                   `json:"config_provider"`
-	InstanceTarget remoteQueryFingerprintInstanceTargetJSON `json:"instance_target"`
+	Loader         string                             `json:"loader"`
+	ConfigProvider string                             `json:"config_provider"`
+	Identity       remoteQueryFingerprintIdentityJSON `json:"identity"`
 }
 
-// remoteQueryFingerprintInstanceTargetJSON is the matched check's effective
-// instance target: the normalized host/port/dbname plus the rendered database
-// identifier. A change to any of them changes the fingerprint, so a config reload
-// between resolve and execute fails the execute revalidation.
-type remoteQueryFingerprintInstanceTargetJSON struct {
+// remoteQueryFingerprintIdentityJSON is the matched check's effective identity: its
+// endpoint, its materialized configured database, the database the resolver admitted
+// for this target, and the rendered database identifier. Fields the match identity
+// does not carry are omitted, so a change to any reported field changes the
+// fingerprint and fails the execute revalidation.
+type remoteQueryFingerprintIdentityJSON struct {
 	Host             string `json:"host,omitempty"`
 	Port             int    `json:"port,omitempty"`
-	DBName           string `json:"dbname,omitempty"`
+	ConfiguredDBName string `json:"configured_dbname,omitempty"`
+	ResolvedDBName   string `json:"resolved_dbname,omitempty"`
 	DatabaseInstance string `json:"database_instance,omitempty"`
+}
+
+func remoteQueryFingerprintIdentityOf(identity remoteQueryMatchIdentity) remoteQueryFingerprintIdentityJSON {
+	return remoteQueryFingerprintIdentityJSON{
+		Host:             identity.host,
+		Port:             identity.port,
+		ConfiguredDBName: identity.configuredDBName,
+		ResolvedDBName:   identity.resolvedDBName,
+		DatabaseInstance: identity.databaseInstance,
+	}
 }
 
 func remoteQueryFingerprintTargetOf(target remoteQueryTarget) remoteQueryFingerprintTargetJSON {
@@ -85,21 +102,14 @@ func remoteQueryFingerprintTargetOf(target remoteQueryTarget) remoteQueryFingerp
 	}
 }
 
-func remoteQueryFingerprintInstanceTargetOf(instanceTarget integrationInstanceTarget) remoteQueryFingerprintInstanceTargetJSON {
-	return remoteQueryFingerprintInstanceTargetJSON{
-		Host:             instanceTarget.host,
-		Port:             instanceTarget.port,
-		DBName:           instanceTarget.dbname,
-		DatabaseInstance: instanceTarget.databaseInstance,
-	}
-}
-
 // computeMatchFingerprint returns the opaque, versioned fingerprint identifying
 // the selected check and the requested target: hex-encoded SHA-256 over the
 // canonical JSON. It is deterministic for the same inputs and changes whenever
-// the selected check identity (loader, config provider, or instance target) or
-// the requested target changes. The fingerprint has no cross-Agent meaning and
-// is only compared for equality within the resolve->execute gap.
+// the requested target, the selected check's Agent-known loader/config-provider
+// identity, or the match identity — including the configured and resolved dbname
+// the integration reported — changes. The fingerprint has no cross-Agent meaning
+// and is only compared for equality within the resolve->execute gap; execute
+// recomputes it from a fresh integration-owned sweep.
 func computeMatchFingerprint(integration string, target remoteQueryTarget, match integrationCheckMatch) (string, error) {
 	canonical := remoteQueryMatchFingerprintJSON{
 		Version:     remoteQueryMatchFingerprintVersion,
@@ -108,7 +118,7 @@ func computeMatchFingerprint(integration string, target remoteQueryTarget, match
 		Match: remoteQueryFingerprintMatchJSON{
 			Loader:         match.sanitized.Loader,
 			ConfigProvider: match.sanitized.ConfigProvider,
-			InstanceTarget: remoteQueryFingerprintInstanceTargetOf(match.instanceTarget),
+			Identity:       remoteQueryFingerprintIdentityOf(match.identity),
 		},
 	}
 	encoded, err := json.Marshal(canonical)
