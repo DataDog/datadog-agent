@@ -12,16 +12,18 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
-// wmetaSource is the subset of workloadmeta.Component this package uses.
-// Kept package-private so tests can inject a fake without Fx.
+// wmetaSource is the subset of workloadmeta.Component this package uses, kept
+// package-private so tests can inject a fake without Fx.
 type wmetaSource interface {
 	GetContainer(id string) (*workloadmeta.Container, error)
+	GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error)
 }
 
 // WorkloadmetaResolver resolves the declared container security context via
-// workloadmeta. Only the kubelet collector populates SecurityContext today.
+// workloadmeta.
 type WorkloadmetaResolver struct {
 	wmeta wmetaSource
 }
@@ -35,20 +37,24 @@ func NewWorkloadmetaResolver(wmeta workloadmeta.Component) *WorkloadmetaResolver
 }
 
 // Resolve implements Resolver.
-//
-// Wire convention: nil == unknown posture; a present SecurityContext means
-// workloadmeta had an answer, so proto3 defaults on sub-fields are meaningful.
-func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) *SecurityContext {
+func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) (Key, *SecurityContext) {
 	if r == nil || r.wmeta == nil || len(id) == 0 {
-		return nil
+		return Key{}, nil
 	}
 
 	container, err := r.wmeta.GetContainer(string(id))
 	if err != nil || container == nil || container.SecurityContext == nil {
-		return nil
+		return Key{}, nil
 	}
-	sc := container.SecurityContext
 
+	// Pod lookup is best-effort so non-k8s containers still get keyed by name.
+	key := Key{ContainerName: container.Name}
+	if pod, err := r.wmeta.GetKubernetesPodForContainer(string(id)); err == nil && pod != nil {
+		key.Namespace = pod.Namespace
+		key.OwnerKind, key.OwnerName = walkToTopLevelOwner(pod)
+	}
+
+	sc := container.SecurityContext
 	out := &SecurityContext{
 		Privileged:               sc.Privileged,
 		RunAsNonRoot:             copyBoolPtr(sc.RunAsNonRoot),
@@ -66,12 +72,32 @@ func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) *SecurityC
 	if seccomp := seccompFromWmeta(sc.SeccompProfile); seccomp != nil {
 		out.Seccomp = seccomp
 	}
-	return out
+	return key, out
 }
 
-// copyBoolPtr returns a fresh *bool with src's value, or nil if src is nil,
-// so a mutation on the returned SecurityContext can never leak back into the
-// workloadmeta cache.
+// walkToTopLevelOwner resolves the pod's OwnerReferences to its top-level
+// controller. The kubelet only sees immediate owners, so ReplicaSet → Deployment
+// and Job → CronJob are resolved via the shared pkg/util/kubernetes name-suffix
+// heuristic. Falls back to ("Pod", pod name) when no owner is known.
+func walkToTopLevelOwner(pod *workloadmeta.KubernetesPod) (kind, name string) {
+	if pod == nil || len(pod.Owners) == 0 {
+		return "Pod", pod.GetID().ID
+	}
+	owner := pod.Owners[0]
+	switch owner.Kind {
+	case kubernetes.ReplicaSetKind:
+		if dep := kubernetes.ParseDeploymentForReplicaSet(owner.Name); dep != "" {
+			return kubernetes.DeploymentKind, dep
+		}
+	case kubernetes.JobKind:
+		if cj, _ := kubernetes.ParseCronJobForJob(owner.Name); cj != "" {
+			return kubernetes.CronJobKind, cj
+		}
+	}
+	return owner.Kind, owner.Name
+}
+
+// copyBoolPtr returns a fresh *bool with src's value, or nil if src is nil.
 func copyBoolPtr(src *bool) *bool {
 	if src == nil {
 		return nil
@@ -80,8 +106,6 @@ func copyBoolPtr(src *bool) *bool {
 	return &v
 }
 
-// seccompFromWmeta returns nil for unknown/empty types so "no declared
-// seccomp" doesn't collide with a real value on the wire.
 func seccompFromWmeta(sp *workloadmeta.SeccompProfile) *SeccompProfile {
 	if sp == nil {
 		return nil

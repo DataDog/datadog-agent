@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1148,11 +1147,8 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 	secprof.Metadata.ContainerID = event.ProcessContext.Process.ContainerContext.ContainerID
 	secprof.Metadata.CGroupContext = event.ProcessContext.Process.CGroup
 
-	// Backfill only — never overwrite so a later rollout with a different
-	// SecurityContext can't silently rewrite historical data.
-	if secprof.SecurityContext == nil {
-		secprof.SecurityContext = m.resolveSecurityContext(event.ProcessContext.Process.ContainerContext.ContainerID)
-	}
+	// Backfill only: never overwrite an existing entry for the same slot.
+	m.observeSecurityContext(secprof, event.ProcessContext.Process.ContainerContext.ContainerID, false)
 
 	// Apply eviction right away if configured
 	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
@@ -1204,7 +1200,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		Start:             eventTime,
 		End:               eventTime,
 	}
-	secprof.SecurityContext = m.resolveSecurityContext(event.ProcessContext.Process.ContainerContext.ContainerID)
+	m.observeSecurityContext(secprof, event.ProcessContext.Process.ContainerContext.ContainerID, true)
 	secprof.Header.Host = m.hostname
 	secprof.Header.Source = ActivityDumpSource
 
@@ -1216,11 +1212,21 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	return secprof, nil
 }
 
-func (m *ManagerV2) resolveSecurityContext(id containerutils.ContainerID) *securitycontext.SecurityContext {
+// observeSecurityContext resolves the container's declared SecurityContext
+// and upserts it under its workload-template key. When allowOverwrite is
+// false, an existing entry for the same key is kept.
+func (m *ManagerV2) observeSecurityContext(secprof *profile.Profile, id containerutils.ContainerID, allowOverwrite bool) {
 	if m.resolvers == nil || m.resolvers.SecurityContextResolver == nil || len(id) == 0 {
-		return nil
+		return
 	}
-	return m.resolvers.SecurityContextResolver.Resolve(id)
+	key, sc := m.resolvers.SecurityContextResolver.Resolve(id)
+	if sc == nil || key.IsZero() {
+		return
+	}
+	if !allowOverwrite && secprof.HasSecurityContextFor(key) {
+		return
+	}
+	secprof.UpsertSecurityContext(key, sc)
 }
 
 // resolveAndAddProfileTags resolves tags for the profile's workload and adds them to the profile

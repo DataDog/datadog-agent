@@ -71,9 +71,9 @@ type Profile struct {
 
 	Header   ActivityDumpHeader
 	Metadata mtdt.Metadata
-	// SecurityContext is the declared container security context;
-	// nil when unknown.
-	SecurityContext *securitycontext.SecurityContext
+	// SecurityContexts holds the declared SecurityContexts observed for this
+	// image, keyed by workload-template slot.
+	SecurityContexts map[securitycontext.Key]*securitycontext.SecurityContext
 	selector cgroupModel.WorkloadSelector
 	tags     []string
 
@@ -102,6 +102,34 @@ func (p *Profile) IsEnabled() bool {
 	defer p.Unlock()
 
 	return p.isEnabled
+}
+
+// UpsertSecurityContext stores sc under key. Zero-value keys and nil values
+// are dropped. Last write wins per key.
+func (p *Profile) UpsertSecurityContext(key securitycontext.Key, sc *securitycontext.SecurityContext) {
+	if sc == nil || key.IsZero() {
+		return
+	}
+	p.Lock()
+	defer p.Unlock()
+	if p.SecurityContexts == nil {
+		p.SecurityContexts = make(map[securitycontext.Key]*securitycontext.SecurityContext, 1)
+	}
+	p.SecurityContexts[key] = sc
+}
+
+// HasSecurityContextFor reports whether the profile already has an entry for key.
+func (p *Profile) HasSecurityContextFor(key securitycontext.Key) bool {
+	if key.IsZero() {
+		return false
+	}
+	p.Lock()
+	defer p.Unlock()
+	if p.SecurityContexts == nil {
+		return false
+	}
+	_, ok := p.SecurityContexts[key]
+	return ok
 }
 
 // Disable disables the profile and drops its activity tree to free the memory it held.

@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
+	"strings"
 
 	adprotov1 "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
@@ -55,8 +57,71 @@ func protoToSecurityContext(sc *adprotov1.SecurityContext) *securitycontext.Secu
 	}
 }
 
-// copyBoolPtr returns a fresh *bool with src's value, or nil when src is nil,
-// so callers never alias the sender's storage across the wire boundary.
+// securityContextsToProto converts the in-memory map to a sorted repeated
+// list so encoding is deterministic.
+func securityContextsToProto(m map[securitycontext.Key]*securitycontext.SecurityContext) []*adprotov1.SecurityContextEntry {
+	if len(m) == 0 {
+		return nil
+	}
+	keys := make([]securitycontext.Key, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	slices.SortFunc(keys, compareSecurityContextKeys)
+	out := make([]*adprotov1.SecurityContextEntry, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, &adprotov1.SecurityContextEntry{
+			Namespace:       k.Namespace,
+			OwnerKind:       k.OwnerKind,
+			OwnerName:       k.OwnerName,
+			ContainerName:   k.ContainerName,
+			SecurityContext: securityContextToProto(m[k]),
+		})
+	}
+	return out
+}
+
+func protoToSecurityContexts(in []*adprotov1.SecurityContextEntry) map[securitycontext.Key]*securitycontext.SecurityContext {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[securitycontext.Key]*securitycontext.SecurityContext, len(in))
+	for _, e := range in {
+		if e == nil {
+			continue
+		}
+		k := securitycontext.Key{
+			Namespace:     e.GetNamespace(),
+			OwnerKind:     e.GetOwnerKind(),
+			OwnerName:     e.GetOwnerName(),
+			ContainerName: e.GetContainerName(),
+		}
+		sc := protoToSecurityContext(e.GetSecurityContext())
+		if k.IsZero() || sc == nil {
+			continue
+		}
+		out[k] = sc
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func compareSecurityContextKeys(a, b securitycontext.Key) int {
+	if c := strings.Compare(a.Namespace, b.Namespace); c != 0 {
+		return c
+	}
+	if c := strings.Compare(a.OwnerKind, b.OwnerKind); c != 0 {
+		return c
+	}
+	if c := strings.Compare(a.OwnerName, b.OwnerName); c != 0 {
+		return c
+	}
+	return strings.Compare(a.ContainerName, b.ContainerName)
+}
+
+// copyBoolPtr returns a fresh *bool with src's value, or nil when src is nil.
 func copyBoolPtr(src *bool) *bool {
 	if src == nil {
 		return nil
@@ -65,8 +130,6 @@ func copyBoolPtr(src *bool) *bool {
 	return &v
 }
 
-// seccompToProto drops LocalhostProfile for any type != Localhost to keep the
-// wire invariant tight even when the caller hand-builds a bogus struct.
 func seccompToProto(s *securitycontext.SeccompProfile) *adprotov1.SeccompProfile {
 	if s == nil {
 		return nil
@@ -79,8 +142,6 @@ func seccompToProto(s *securitycontext.SeccompProfile) *adprotov1.SeccompProfile
 	return out
 }
 
-// seccompFromProto returns nil for the UNKNOWN type so absence and "no data"
-// look the same to consumers.
 func seccompFromProto(s *adprotov1.SeccompProfile) *securitycontext.SeccompProfile {
 	if s == nil {
 		return nil
@@ -130,13 +191,13 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 
 	pad := adprotov1.SecDumpFromVTPool()
 	*pad = adprotov1.SecDump{
-		Host:     p.Header.Host,
-		Service:  p.Header.Service,
-		Source:   p.Header.Source,
-		Metadata:        mtdt.ToProto(&p.Metadata),
-		Tags:            make([]string, len(p.tags)),
-		Tree:            activity_tree.ToProto(p.ActivityTree),
-		SecurityContext: securityContextToProto(p.SecurityContext),
+		Host:             p.Header.Host,
+		Service:          p.Header.Service,
+		Source:           p.Header.Source,
+		Metadata:         mtdt.ToProto(&p.Metadata),
+		Tags:             make([]string, len(p.tags)),
+		Tree:             activity_tree.ToProto(p.ActivityTree),
+		SecurityContexts: securityContextsToProto(p.SecurityContexts),
 	}
 	copy(pad.Tags, p.tags)
 
@@ -153,7 +214,7 @@ func secDumpProtoToProfile(p *Profile, ad *adprotov1.SecDump) {
 	p.Header.Service = ad.Service
 	p.Header.Source = ad.Source
 	p.Metadata = mtdt.ProtoMetadataToMetadata(ad.Metadata)
-	p.SecurityContext = protoToSecurityContext(ad.SecurityContext)
+	p.SecurityContexts = protoToSecurityContexts(ad.SecurityContexts)
 
 	p.tags = make([]string, len(ad.Tags))
 	copy(p.tags, ad.Tags)
@@ -247,12 +308,12 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 	}
 
 	output := adprotov1.SecurityProfile{
-		Metadata:        mtdt.ToProto(&p.Metadata),
-		ProfileContexts: make(map[string]*adprotov1.ProfileContext),
-		Tree:            activity_tree.ToProto(p.ActivityTree),
-		Selector:        cgroupModel.WorkloadSelectorToProto(&p.selector),
-		Disabled:        !p.isEnabled,
-		SecurityContext: securityContextToProto(p.SecurityContext),
+		Metadata:         mtdt.ToProto(&p.Metadata),
+		ProfileContexts:  make(map[string]*adprotov1.ProfileContext),
+		Tree:             activity_tree.ToProto(p.ActivityTree),
+		Selector:         cgroupModel.WorkloadSelectorToProto(&p.selector),
+		Disabled:         !p.isEnabled,
+		SecurityContexts: securityContextsToProto(p.SecurityContexts),
 	}
 
 	for key, ctx := range p.versionContexts {
@@ -302,7 +363,7 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 	output.Metadata = mtdt.ProtoMetadataToMetadata(input.Metadata)
 	output.selector = cgroupModel.ProtoToWorkloadSelector(input.Selector)
 	output.isEnabled = !input.Disabled
-	output.SecurityContext = protoToSecurityContext(input.SecurityContext)
+	output.SecurityContexts = protoToSecurityContexts(input.SecurityContexts)
 
 	for key, ctx := range input.ProfileContexts {
 		outCtx := &VersionContext{

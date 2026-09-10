@@ -11,7 +11,7 @@ import "github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 // SeccompProfileType mirrors adproto.SeccompProfile_Type.
 type SeccompProfileType uint8
 
-// Zero value is the "unknown" sentinel so an unset field reads as "no data".
+// Seccomp profile types. Zero value is Unknown.
 const (
 	SeccompUnknown SeccompProfileType = iota
 	SeccompUnconfined
@@ -19,18 +19,14 @@ const (
 	SeccompLocalhost
 )
 
-// SeccompProfile is the declared seccomp profile. LocalhostProfile is set
-// only when Type == SeccompLocalhost.
+// SeccompProfile is the declared seccomp profile.
 type SeccompProfile struct {
 	Type             SeccompProfileType
 	LocalhostProfile string
 }
 
-// SecurityContext mirrors adproto.SecurityContext.
-//
-// The three *bool fields preserve Kubernetes tri-state semantics: nil means
-// the pod spec left the field unset (kubelet / PSA falls back to pod-level
-// or admission defaults), which is different from an explicit false.
+// SecurityContext holds the declared container security context. *bool fields
+// preserve Kubernetes tri-state semantics (nil = unset, not false).
 type SecurityContext struct {
 	Privileged               bool
 	Seccomp                  *SeccompProfile
@@ -41,14 +37,29 @@ type SecurityContext struct {
 	ReadOnlyRootFilesystem   *bool
 }
 
-// Resolver resolves the declared container security context of a workload.
-// Implementations MUST return nil when no data is available.
-type Resolver interface {
-	Resolve(id containerutils.ContainerID) *SecurityContext
+// Key identifies a container slot in a Kubernetes workload template. Pod name
+// is intentionally not part of the key so replicas, restarts, and rollouts
+// collapse into a single entry.
+type Key struct {
+	Namespace     string
+	OwnerKind     string
+	OwnerName     string
+	ContainerName string
 }
 
-// NoopResolver always returns nil.
+// IsZero reports whether k carries no attribution data.
+func (k Key) IsZero() bool { return k == Key{} }
+
+// Resolver resolves the declared container security context of a workload.
+// It returns (Key{}, nil) when no data is available.
+type Resolver interface {
+	Resolve(id containerutils.ContainerID) (Key, *SecurityContext)
+}
+
+// NoopResolver always returns (Key{}, nil).
 type NoopResolver struct{}
 
 // Resolve implements Resolver.
-func (NoopResolver) Resolve(_ containerutils.ContainerID) *SecurityContext { return nil }
+func (NoopResolver) Resolve(_ containerutils.ContainerID) (Key, *SecurityContext) {
+	return Key{}, nil
+}

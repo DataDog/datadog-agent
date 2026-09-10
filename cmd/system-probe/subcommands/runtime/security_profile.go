@@ -83,7 +83,6 @@ func showSecurityProfile(_ log.Component, _ config.Component, _ secrets.Componen
 		return err
 	}
 
-	// protojson so enums render as names and defaults are emitted.
 	opts := protojson.MarshalOptions{
 		EmitUnpopulated: true,
 		UseProtoNames:   true,

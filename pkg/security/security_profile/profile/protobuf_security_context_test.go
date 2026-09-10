@@ -31,10 +31,28 @@ func newProfileWithSelector(t *testing.T) *Profile {
 	return p
 }
 
+func frontendWebKey() securitycontext.Key {
+	return securitycontext.Key{
+		Namespace:     "frontend",
+		OwnerKind:     "Deployment",
+		OwnerName:     "web",
+		ContainerName: "nginx",
+	}
+}
+
+func networkToolsDebugKey() securitycontext.Key {
+	return securitycontext.Key{
+		Namespace:     "network-tools",
+		OwnerKind:     "DaemonSet",
+		OwnerName:     "nginx-debug",
+		ContainerName: "nginx",
+	}
+}
+
 func TestSecDumpSecurityContextRoundtrip(t *testing.T) {
 	yes, no := true, false
 	in := newProfileWithSelector(t)
-	in.SecurityContext = &securitycontext.SecurityContext{
+	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
 		Privileged: true,
 		Seccomp: &securitycontext.SeccompProfile{
 			Type:             securitycontext.SeccompLocalhost,
@@ -45,66 +63,68 @@ func TestSecDumpSecurityContextRoundtrip(t *testing.T) {
 		RunAsNonRoot:             &yes,
 		AllowPrivilegeEscalation: &no,
 		ReadOnlyRootFilesystem:   &yes,
-	}
+	})
 
 	buf, err := in.EncodeSecDumpProtobuf()
 	require.NoError(t, err)
 
 	out := newProfileWithSelector(t)
 	require.NoError(t, out.DecodeSecDumpProtobuf(bytes.NewReader(buf.Bytes())))
-	require.NotNil(t, out.SecurityContext)
-	assert.Equal(t, in.SecurityContext.Privileged, out.SecurityContext.Privileged)
-	assert.Equal(t, in.SecurityContext.CapabilitiesAdd, out.SecurityContext.CapabilitiesAdd)
-	assert.Equal(t, in.SecurityContext.CapabilitiesDrop, out.SecurityContext.CapabilitiesDrop)
-	require.NotNil(t, out.SecurityContext.Seccomp)
-	assert.Equal(t, securitycontext.SeccompLocalhost, out.SecurityContext.Seccomp.Type)
-	assert.Equal(t, "profiles/audit.json", out.SecurityContext.Seccomp.LocalhostProfile)
-	require.NotNil(t, out.SecurityContext.RunAsNonRoot)
-	assert.True(t, *out.SecurityContext.RunAsNonRoot)
-	require.NotNil(t, out.SecurityContext.AllowPrivilegeEscalation)
-	assert.False(t, *out.SecurityContext.AllowPrivilegeEscalation,
-		"explicit false must round-trip as *bool(false), not be flattened into nil")
-	require.NotNil(t, out.SecurityContext.ReadOnlyRootFilesystem)
-	assert.True(t, *out.SecurityContext.ReadOnlyRootFilesystem)
+	require.Len(t, out.SecurityContexts, 1)
+	sc := out.SecurityContexts[frontendWebKey()]
+	require.NotNil(t, sc)
+	assert.True(t, sc.Privileged)
+	assert.Equal(t, []string{"NET_ADMIN", "SYS_PTRACE"}, sc.CapabilitiesAdd)
+	assert.Equal(t, []string{"MKNOD"}, sc.CapabilitiesDrop)
+	require.NotNil(t, sc.Seccomp)
+	assert.Equal(t, securitycontext.SeccompLocalhost, sc.Seccomp.Type)
+	assert.Equal(t, "profiles/audit.json", sc.Seccomp.LocalhostProfile)
+	require.NotNil(t, sc.RunAsNonRoot)
+	assert.True(t, *sc.RunAsNonRoot)
+	require.NotNil(t, sc.AllowPrivilegeEscalation)
+	assert.False(t, *sc.AllowPrivilegeEscalation)
+	require.NotNil(t, sc.ReadOnlyRootFilesystem)
+	assert.True(t, *sc.ReadOnlyRootFilesystem)
 }
 
 func TestSecDumpSecurityContextTriStateAbsent(t *testing.T) {
-	// If the pod spec never set the three tri-state fields, we must not
-	// synthesize a false value on the wire — the profile would otherwise
-	// claim a stance the workload never took.
 	in := newProfileWithSelector(t)
-	in.SecurityContext = &securitycontext.SecurityContext{}
+	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{})
 
 	buf, err := in.EncodeSecDumpProtobuf()
 	require.NoError(t, err)
 
 	out := newProfileWithSelector(t)
 	require.NoError(t, out.DecodeSecDumpProtobuf(bytes.NewReader(buf.Bytes())))
-	require.NotNil(t, out.SecurityContext)
-	assert.Nil(t, out.SecurityContext.RunAsNonRoot)
-	assert.Nil(t, out.SecurityContext.AllowPrivilegeEscalation)
-	assert.Nil(t, out.SecurityContext.ReadOnlyRootFilesystem)
+	require.Len(t, out.SecurityContexts, 1)
+	sc := out.SecurityContexts[frontendWebKey()]
+	require.NotNil(t, sc)
+	assert.Nil(t, sc.RunAsNonRoot)
+	assert.Nil(t, sc.AllowPrivilegeEscalation)
+	assert.Nil(t, sc.ReadOnlyRootFilesystem)
 }
 
 func TestSecurityProfileSecurityContextRoundtrip(t *testing.T) {
 	in := newProfileWithSelector(t)
-	in.SecurityContext = &securitycontext.SecurityContext{
+	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
 		Seccomp:         &securitycontext.SeccompProfile{Type: securitycontext.SeccompRuntimeDefault},
 		CapabilitiesAdd: []string{"NET_ADMIN"},
-	}
+	})
 
 	buf, err := in.EncodeSecurityProfileProtobuf()
 	require.NoError(t, err)
 
 	out := newProfileWithSelector(t)
 	require.NoError(t, out.DecodeSecurityProfileProtobuf(bytes.NewReader(buf.Bytes())))
-	require.NotNil(t, out.SecurityContext)
-	assert.False(t, out.SecurityContext.Privileged)
-	assert.Equal(t, []string{"NET_ADMIN"}, out.SecurityContext.CapabilitiesAdd)
-	assert.Nil(t, out.SecurityContext.CapabilitiesDrop)
-	require.NotNil(t, out.SecurityContext.Seccomp)
-	assert.Equal(t, securitycontext.SeccompRuntimeDefault, out.SecurityContext.Seccomp.Type)
-	assert.Empty(t, out.SecurityContext.Seccomp.LocalhostProfile)
+	require.Len(t, out.SecurityContexts, 1)
+	sc := out.SecurityContexts[frontendWebKey()]
+	require.NotNil(t, sc)
+	assert.False(t, sc.Privileged)
+	assert.Equal(t, []string{"NET_ADMIN"}, sc.CapabilitiesAdd)
+	assert.Nil(t, sc.CapabilitiesDrop)
+	require.NotNil(t, sc.Seccomp)
+	assert.Equal(t, securitycontext.SeccompRuntimeDefault, sc.Seccomp.Type)
+	assert.Empty(t, sc.Seccomp.LocalhostProfile)
 }
 
 func TestSecurityContextNilRoundtrip(t *testing.T) {
@@ -114,7 +134,7 @@ func TestSecurityContextNilRoundtrip(t *testing.T) {
 		require.NoError(t, err)
 		out := newProfileWithSelector(t)
 		require.NoError(t, out.DecodeSecDumpProtobuf(bytes.NewReader(buf.Bytes())))
-		assert.Nil(t, out.SecurityContext)
+		assert.Nil(t, out.SecurityContexts)
 	})
 	t.Run("securityprofile", func(t *testing.T) {
 		in := newProfileWithSelector(t)
@@ -122,11 +142,94 @@ func TestSecurityContextNilRoundtrip(t *testing.T) {
 		require.NoError(t, err)
 		out := newProfileWithSelector(t)
 		require.NoError(t, out.DecodeSecurityProfileProtobuf(bytes.NewReader(buf.Bytes())))
-		assert.Nil(t, out.SecurityContext)
+		assert.Nil(t, out.SecurityContexts)
 	})
 }
 
-// TestSecurityContextEncoderShape guards the proto tag mapping.
+func TestSecDumpSecurityContextMultipleEntriesRoundtrip(t *testing.T) {
+	in := newProfileWithSelector(t)
+	yes := true
+	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
+		RunAsNonRoot:           &yes,
+		ReadOnlyRootFilesystem: &yes,
+		CapabilitiesDrop:       []string{"ALL"},
+		CapabilitiesAdd:        []string{"NET_BIND_SERVICE"},
+		Seccomp:                &securitycontext.SeccompProfile{Type: securitycontext.SeccompRuntimeDefault},
+	})
+	in.UpsertSecurityContext(networkToolsDebugKey(), &securitycontext.SecurityContext{
+		Privileged:      true,
+		CapabilitiesAdd: []string{"NET_ADMIN", "NET_RAW"},
+	})
+
+	buf, err := in.EncodeSecDumpProtobuf()
+	require.NoError(t, err)
+
+	out := newProfileWithSelector(t)
+	require.NoError(t, out.DecodeSecDumpProtobuf(bytes.NewReader(buf.Bytes())))
+	require.Len(t, out.SecurityContexts, 2)
+
+	web := out.SecurityContexts[frontendWebKey()]
+	require.NotNil(t, web)
+	require.NotNil(t, web.RunAsNonRoot)
+	assert.True(t, *web.RunAsNonRoot)
+	assert.Equal(t, []string{"NET_BIND_SERVICE"}, web.CapabilitiesAdd)
+	assert.False(t, web.Privileged)
+
+	debug := out.SecurityContexts[networkToolsDebugKey()]
+	require.NotNil(t, debug)
+	assert.True(t, debug.Privileged)
+	assert.Equal(t, []string{"NET_ADMIN", "NET_RAW"}, debug.CapabilitiesAdd)
+}
+
+func TestSecDumpSecurityContextRepeatedUpsertLastWins(t *testing.T) {
+	yes, no := true, false
+	in := newProfileWithSelector(t)
+	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
+		Privileged:             true,
+		ReadOnlyRootFilesystem: &no,
+	})
+	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
+		Privileged:             false,
+		ReadOnlyRootFilesystem: &yes,
+	})
+
+	buf, err := in.EncodeSecDumpProtobuf()
+	require.NoError(t, err)
+
+	out := newProfileWithSelector(t)
+	require.NoError(t, out.DecodeSecDumpProtobuf(bytes.NewReader(buf.Bytes())))
+	require.Len(t, out.SecurityContexts, 1)
+	sc := out.SecurityContexts[frontendWebKey()]
+	require.NotNil(t, sc)
+	assert.False(t, sc.Privileged)
+	require.NotNil(t, sc.ReadOnlyRootFilesystem)
+	assert.True(t, *sc.ReadOnlyRootFilesystem)
+}
+
+func TestUpsertSecurityContextIgnoresZeroKeyAndNilValue(t *testing.T) {
+	in := newProfileWithSelector(t)
+
+	in.UpsertSecurityContext(securitycontext.Key{}, &securitycontext.SecurityContext{Privileged: true})
+	assert.Nil(t, in.SecurityContexts)
+
+	in.UpsertSecurityContext(frontendWebKey(), nil)
+	assert.Nil(t, in.SecurityContexts)
+
+	in.UpsertSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{})
+	assert.Len(t, in.SecurityContexts, 1)
+}
+
+func TestSecurityContextsToProtoDeterministicOrder(t *testing.T) {
+	in := map[securitycontext.Key]*securitycontext.SecurityContext{
+		networkToolsDebugKey(): {Privileged: true},
+		frontendWebKey():       {},
+	}
+	got := securityContextsToProto(in)
+	require.Len(t, got, 2)
+	assert.Equal(t, "frontend", got[0].GetNamespace())
+	assert.Equal(t, "network-tools", got[1].GetNamespace())
+}
+
 func TestSecurityContextEncoderShape(t *testing.T) {
 	got := securityContextToProto(&securitycontext.SecurityContext{
 		Privileged: true,
