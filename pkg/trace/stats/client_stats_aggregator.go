@@ -536,11 +536,13 @@ func normalizeSketch(s *ddsketch.DDSketch) (*ddsketch.DDSketch, error) {
 // canonical mapping, returning nil if either step fails.
 func decodeAndNormalize(raw []byte) *ddsketch.DDSketch {
 	sketch, err := decodeSketch(raw)
-	if err == nil {
-		sketch, err = normalizeSketch(sketch)
-	}
 	if err != nil {
 		logger.Error("Unable to decode distribution ddsketch: %v", err)
+		return nil
+	}
+	sketch, err = normalizeSketch(sketch)
+	if err != nil {
+		logger.Error("Unable to normalize distribution ddsketch: %v", err)
 		return nil
 	}
 	return sketch
