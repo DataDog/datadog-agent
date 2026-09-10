@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
 
@@ -232,6 +233,39 @@ func (suite *ConfigTestSuite) TestGlobalTagFiltersShouldAcceptProtectedKeyInIncl
 	suite.Nil(err)
 	suite.Require().NotNil(filters)
 	suite.Equal([]string{"host"}, filters.Include)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersShouldRejectUnknownSubKey() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"excludes": []string{"dirname:*"},
+	})
+
+	filters, err := GlobalTagFilters(suite.config)
+	suite.Nil(filters)
+	suite.Require().Error(err)
+	suite.Contains(err.Error(), "excludes")
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersShouldRejectUnknownSubKeyAlongsideValidOne() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"exclude":  []string{"dirname:*"},
+		"inculdes": []string{"kube_*"},
+	})
+
+	filters, err := GlobalTagFilters(suite.config)
+	suite.Nil(filters)
+	suite.Require().Error(err)
+	suite.Contains(err.Error(), "inculdes")
+}
+
+func TestGlobalTagFiltersRejectsUnknownSubKeyFromEnv(t *testing.T) {
+	t.Setenv("DD_LOGS_CONFIG_TAG_FILTERS", `{"exclude":["dirname:*"],"inculde":["kube_*"]}`)
+	cfg := config.NewMock(t)
+
+	filters, err := GlobalTagFilters(cfg)
+	assert.Nil(t, filters)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "inculde")
 }
 
 func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {

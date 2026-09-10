@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -250,6 +251,31 @@ func TestFilterStopWhileStreaming(t *testing.T) {
 	for msg := range lineChan {
 		assert.Equal(t, "", msg, "unexpected message after shutdown: %q", msg)
 	}
+}
+
+// TestFormatShowsTransportTags pins the Tags field to the tag set the intake
+// actually receives, so a working tag filter does not look broken in
+// `agent stream-logs`.
+func TestFormatShowsTransportTags(t *testing.T) {
+	t.Cleanup(func() { tagfilter.SetGlobal(nil) })
+
+	compiled, err := tagfilter.Compile(nil, []string{"region:*"})
+	assert.NoError(t, err)
+	tagfilter.SetGlobal(compiled)
+
+	b := NewBufferedMessageReceiver(nil, getNewHostname("hname"), getTestConfig(t))
+	b.SetEnabled(true)
+
+	msg := newMessage("test", "a", "b", "service_a")
+	msg.Origin.SetTags([]string{"env:prod", "region:us-east-1"})
+	b.HandleMessage(msg, []byte("redacted"), "")
+
+	done := make(chan struct{})
+	defer close(done)
+	line := <-b.Filter(nil, done)
+
+	assert.Contains(t, line, "| Tags: env:prod |")
+	assert.NotContains(t, line, "region:us-east-1")
 }
 
 func newMessage(name, typ, source, service string) *message.Message {

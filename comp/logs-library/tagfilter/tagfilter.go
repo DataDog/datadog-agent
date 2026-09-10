@@ -266,6 +266,25 @@ func (s *Scoped) IsEmpty() bool {
 	return s == nil || (s.source.IsEmpty() && s.global.IsEmpty())
 }
 
+// IsIncludeOnly reports whether the two scopes together configure include
+// patterns but no exclude pattern, which drops nothing.
+func (s *Scoped) IsIncludeOnly() bool {
+	if s == nil {
+		return false
+	}
+	includes := 0
+	for _, f := range [2]*Filters{s.source, s.global} {
+		if f == nil {
+			continue
+		}
+		if len(f.exclude) > 0 {
+			return false
+		}
+		includes += len(f.include)
+	}
+	return includes > 0
+}
+
 // Apply returns the surviving tags. Same allocation contract as Filters.Apply.
 func (s *Scoped) Apply(tags []string) []string {
 	if s.IsEmpty() {
@@ -303,6 +322,12 @@ func (s *Scoped) retains(key, value string, hasValue bool) bool {
 // IsEmpty reports whether this filter set would change anything.
 func (f *Filters) IsEmpty() bool {
 	return f == nil || (len(f.include) == 0 && len(f.exclude) == 0)
+}
+
+// IsIncludeOnly reports whether include patterns are configured with no exclude
+// patterns for them to rescue tags from, which drops nothing.
+func (f *Filters) IsIncludeOnly() bool {
+	return f != nil && len(f.include) > 0 && len(f.exclude) == 0
 }
 
 // Warnings returns compile-time advisories. A config that produces warnings is still valid.

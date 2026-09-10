@@ -307,3 +307,42 @@ func TestMalformedSourceTagFilterFallsBackToGlobal(t *testing.T) {
 		source.TagFilters().Apply([]string{"dirname:/var/log", "kube_app_name:web"}))
 	assert.Contains(t, source.Messages.GetMessages()[0], "Invalid tag_filters")
 }
+
+func TestIncludeOnlySourceTagFilterWarns(t *testing.T) {
+	setGlobalTagFilters(t, nil, nil)
+
+	source := NewLogSource("include-only", &config.LogsConfig{
+		Type:       "boo",
+		TagFilters: &config.TagFilters{Include: []string{"team:*"}},
+	})
+	NewLogSources().AddSource(source)
+
+	tags := []string{"dirname:/var/log", "team:logs"}
+	assert.Equal(t, tags, source.TagFilters().Apply(tags), "an include-only filter drops nothing")
+	require.Len(t, source.Messages.GetMessages(), 1)
+	assert.Contains(t, source.Messages.GetMessages()[0], "include is not an allowlist")
+}
+
+func TestIncludeOnlyGlobalTagFilterWarnsOnTheSource(t *testing.T) {
+	setGlobalTagFilters(t, []string{"team:*"}, nil)
+
+	source := NewLogSource("global-include-only", &config.LogsConfig{Type: "boo"})
+	NewLogSources().AddSource(source)
+
+	require.Len(t, source.Messages.GetMessages(), 1)
+	assert.Contains(t, source.Messages.GetMessages()[0], "no tags will be dropped")
+}
+
+func TestSourceIncludeRescuingAGlobalExcludeDoesNotWarn(t *testing.T) {
+	setGlobalTagFilters(t, nil, []string{"team:*"})
+
+	source := NewLogSource("rescue", &config.LogsConfig{
+		Type:       "boo",
+		TagFilters: &config.TagFilters{Include: []string{"team:*"}},
+	})
+	NewLogSources().AddSource(source)
+
+	assert.Equal(t, []string{"team:logs"},
+		source.TagFilters().Apply([]string{"team:logs"}))
+	assert.Empty(t, source.Messages.GetMessages())
+}

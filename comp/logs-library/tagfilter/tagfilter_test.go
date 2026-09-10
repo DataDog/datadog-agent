@@ -603,6 +603,61 @@ func TestIsEmpty(t *testing.T) {
 	}
 }
 
+func TestIsIncludeOnly(t *testing.T) {
+	tests := []struct {
+		name    string
+		include []string
+		exclude []string
+		want    bool
+	}{
+		{name: "both nil"},
+		{name: "include only", include: []string{"team:*"}, want: true},
+		{name: "exclude only", exclude: []string{"dirname:*"}},
+		{name: "both set", include: []string{"team:*"}, exclude: []string{"dirname:*"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f, err := Compile(tc.include, tc.exclude)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, f.IsIncludeOnly())
+		})
+	}
+
+	var nilFilters *Filters
+	assert.False(t, nilFilters.IsIncludeOnly())
+}
+
+func TestIncludeOnlyDropsNothing(t *testing.T) {
+	f, err := Compile([]string{"env", "service"}, nil)
+	require.NoError(t, err)
+
+	tags := []string{"env:prod", "dirname:/var/log", "team:logs"}
+	assert.Equal(t, tags, f.Apply(tags))
+	assert.True(t, f.IsIncludeOnly())
+}
+
+func TestScopedIsIncludeOnly(t *testing.T) {
+	empty, err := Compile(nil, nil)
+	require.NoError(t, err)
+	includeOnly, err := Compile([]string{"team:*"}, nil)
+	require.NoError(t, err)
+	excludeOnly, err := Compile(nil, []string{"dirname:*"})
+	require.NoError(t, err)
+
+	var nilScoped *Scoped
+	assert.False(t, nilScoped.IsIncludeOnly())
+	assert.False(t, NewScoped(nil, nil).IsIncludeOnly())
+	assert.False(t, NewScoped(empty, empty).IsIncludeOnly())
+	assert.False(t, NewScoped(excludeOnly, nil).IsIncludeOnly())
+	assert.False(t, NewScoped(excludeOnly, includeOnly).IsIncludeOnly(),
+		"a source include legitimately rescues tags from a global exclude")
+	assert.False(t, NewScoped(includeOnly, excludeOnly).IsIncludeOnly())
+
+	assert.True(t, NewScoped(includeOnly, nil).IsIncludeOnly())
+	assert.True(t, NewScoped(nil, includeOnly).IsIncludeOnly())
+	assert.True(t, NewScoped(includeOnly, includeOnly).IsIncludeOnly())
+}
+
 func TestPatterns(t *testing.T) {
 	t.Run("reports the configured set, in configured order", func(t *testing.T) {
 		f, err := Compile([]string{"kube_*", "container_id"}, []string{"never_matches_*", "dirname:*"})

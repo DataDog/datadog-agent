@@ -23,6 +23,7 @@ dd_agent_go_test(
     embed = [":diagnostic"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/logs-library/tagfilter",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/config/model",

@@ -32,6 +32,6 @@ func (Formatter) Format(m *message.Message, _ string, redactedMsg []byte) string
 		ts,
 		m.Origin.Service(),
 		m.Origin.Source(),
-		m.TagsToString(),
+		m.TransportTagsToString(),
 		string(redactedMsg))
 }

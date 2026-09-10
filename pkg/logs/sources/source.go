@@ -54,7 +54,7 @@ type LogSource struct {
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
 	// tagFilters is resolved on first use by TagFilters; nil means no filtering.
-	// The Once is a pointer for the same reason lock is: LogSource is copied by value in places.
+	// The Once is a pointer so LogSource stays copyable, as lock already requires.
 	tagFilters    TagFilter
 	tagFilterOnce *sync.Once
 }
@@ -115,6 +115,16 @@ func (s *LogSource) resolveTagFilters() {
 	merged := tagfilter.NewScoped(global, perSource)
 	if merged.IsEmpty() {
 		return
+	}
+	if merged.IsIncludeOnly() {
+		message := "tag_filters include is set but no exclude patterns are configured, so no tags will be dropped; " +
+			"include is not an allowlist, it only rescues tags from exclude. " +
+			"List the tags you want dropped under exclude."
+		s.Messages.AddMessage("tag_filters_include_only", message)
+		// Only the source's own mistake is logged here; setupTagFilters already logged the global one.
+		if perSource.IsIncludeOnly() {
+			log.Warnf("%s: %s", s.Name, message)
+		}
 	}
 	s.RegisterInfo(newTagFilterInfo(global, perSource))
 	s.tagFilters = merged

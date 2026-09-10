@@ -801,6 +801,18 @@ properties:
     type: object
     default: {}
     env_parser: json
+    properties:
+      include:
+        type: array
+        items:
+          type: string
+      exclude:
+        type: array
+        items:
+          type: string
+    # unevaluatedProperties, not additionalProperties: the settings codegen reads
+    # additionalProperties as this object's Go value type.
+    unevaluatedProperties: false
     comment: |-
       Global include/exclude filters for agent-added tags sent to intake.
       Patterns are `key:value` or a bare `key`; `*` is the only metacharacter.

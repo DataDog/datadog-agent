@@ -295,6 +295,11 @@ func (a *logAgent) setupTagFilters() error {
 	for _, warning := range compiled.Warnings() {
 		a.log.Warnf("logs_config.tag_filters: %s", warning)
 	}
+	if compiled.IsIncludeOnly() {
+		a.log.Warnf("logs_config.tag_filters: include is set but exclude is empty, so no tags will be dropped; " +
+			"include is not an allowlist, it only rescues tags from exclude. " +
+			"List the tags you want dropped under exclude.")
+	}
 	tagfilter.SetGlobal(compiled)
 	return nil
 }

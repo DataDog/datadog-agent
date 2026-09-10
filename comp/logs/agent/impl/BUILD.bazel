@@ -131,6 +131,7 @@ dd_agent_go_test(
         "//pkg/logs/status",
         "//pkg/logs/tailers",
         "//pkg/util/fxutil",
+        "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/testutil",
         "@com_github_stretchr_testify//assert",

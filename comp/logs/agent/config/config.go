@@ -104,8 +104,8 @@ func GlobalProcessingRules(coreConfig pkgconfigmodel.Reader) ([]*ProcessingRule,
 // GlobalTagFilters returns the validated global tag filters, or nil when none are configured.
 func GlobalTagFilters(coreConfig pkgconfigmodel.Reader) (*TagFilters, error) {
 	var filters TagFilters
-	// DD_LOGS_CONFIG_TAG_FILTERS arrives as a JSON string.
-	err := structure.UnmarshalKey(coreConfig, "logs_config.tag_filters", &filters, structure.EnableStringUnmarshal)
+	// A JSON string written in datadog.yaml needs EnableStringUnmarshal, which bypasses ErrorUnused.
+	err := structure.UnmarshalKey(coreConfig, "logs_config.tag_filters", &filters, structure.EnableStringUnmarshal, structure.ErrorUnused)
 	if err != nil {
 		return nil, err
 	}

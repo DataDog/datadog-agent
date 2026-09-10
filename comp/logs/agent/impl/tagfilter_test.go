@@ -8,6 +8,7 @@
 package agentimpl
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,6 +20,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func tagFilterTestAgent(t *testing.T, global map[string]interface{}) *logAgent {
@@ -158,6 +160,47 @@ func TestTagFilterIncludeRulesAreReportedToStatus(t *testing.T) {
 		"source include: kube_app_name:*, team:*",
 		"source exclude: kube_*, team:*, dirname:*",
 	}, source.GetInfoStatus(true)["Tag Filters"])
+}
+
+// tagFilterWarningAgent builds an agent whose warnings land in the returned buffer.
+func tagFilterWarningAgent(t *testing.T, global map[string]interface{}) (*logAgent, *bytes.Buffer) {
+	t.Helper()
+	t.Cleanup(func() { tagfilter.SetGlobal(nil) })
+
+	var output bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(&output, pkglog.WarnLvl)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		pkglog.SetupLogger(pkglog.Default(), pkglog.InfoStr)
+		logger.Close()
+	})
+	pkglog.SetupLogger(logger, pkglog.WarnStr)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.tag_filters", global)
+	return &logAgent{log: pkglog.NewWrapper(2), config: cfg, sources: sources.NewLogSources()}, &output
+}
+
+func TestGlobalIncludeOnlyWarns(t *testing.T) {
+	a, output := tagFilterWarningAgent(t, map[string]interface{}{"include": []string{"env", "service"}})
+
+	require.NoError(t, a.setupTagFilters())
+	pkglog.Flush()
+
+	assert.Contains(t, output.String(), "logs_config.tag_filters: include is set but exclude is empty")
+	assert.Contains(t, output.String(), "include is not an allowlist")
+}
+
+func TestGlobalIncludeWithExcludeDoesNotWarn(t *testing.T) {
+	a, output := tagFilterWarningAgent(t, map[string]interface{}{
+		"include": []string{"env", "service"},
+		"exclude": []string{"dirname:*"},
+	})
+
+	require.NoError(t, a.setupTagFilters())
+	pkglog.Flush()
+
+	assert.NotContains(t, output.String(), "include is not an allowlist")
 }
 
 func TestMatchEverythingPatternFailsStartup(t *testing.T) {
