@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"io"
 	"slices"
 	"sort"
@@ -18,7 +17,9 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	grpcStatus "google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -71,19 +73,12 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 	eventSubscribers := append([]*remoteagentregistry.EventSubscriber{}, reqs.EventSubscribers...)
 	eventSubscribers = append(eventSubscribers, newSecretsRefreshEventSubscriber(reqs.Secrets))
 	registry := &remoteAgentRegistry{
-		conf:           reqs.Config,
-		ipc:            reqs.Ipc,
-		agentMap:       make(map[string]*remoteAgentClient),
-		shutdownChan:   shutdownChan,
-		telemetry:      reqs.Telemetry,
-		telemetryStore: newTelemetryStore(reqs.Telemetry),
-		// Services currently supported by the remote agent registry
-		remoteAgentServices: map[remoteAgentServiceName]struct{}{
-			StatusServiceName:          {},
-			FlareServiceName:           {},
-			TelemetryServiceName:       {},
-			CommandProviderServiceName: {},
-		},
+		conf:             reqs.Config,
+		ipc:              reqs.Ipc,
+		agentMap:         make(map[string]*remoteAgentClient),
+		shutdownChan:     shutdownChan,
+		telemetry:        reqs.Telemetry,
+		telemetryStore:   newTelemetryStore(reqs.Telemetry),
 		eventSubscribers: eventSubscribers,
 	}
 
