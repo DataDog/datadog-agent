@@ -152,14 +152,27 @@ func (t *dnsRequestTracker) matchResponse(id uint16, name string, qtype uint16, 
 	return pending.entry
 }
 
+// len reports how many questions are currently being tracked.
+func (t *dnsRequestTracker) len() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.pending.Len()
+}
+
 // newCorrelatedDNSEvent fills ev with a DNS event carrying the answers of a response together with
 // the process context of the request that asked for them.
 //
-// The activity dump manager drops any event without EventFlagsActivityDumpSample. The kernel sets
-// that flag on the request, where a pid is available; it cannot set it on the response, so it is
-// set here on the correlated event instead.
+// The V1 activity dump manager drops any event without EventFlagsActivityDumpSample (V2 has no
+// such gate; see correlateDNSResponseForActivityDump). The kernel sets that flag on the request,
+// where a pid is available; it cannot set it on the response, so it is set here on the correlated
+// event instead.
+//
+// The source is EventSourceRelated, as for every other event synthesized in user space rather than
+// received from the kernel: ManagerV2.ProcessEvent resolves it to bucket its per-source metrics, so
+// leaving it empty would file these under the runtime source and hide them.
 func newCorrelatedDNSEvent(ev *model.Event, entry *model.ProcessCacheEntry, id uint16, question model.DNSQuestion, response *model.DNSResponse, ts time.Time, tsRaw uint64) {
 	ev.Type = uint32(model.DNSEventType)
+	ev.Source = model.EventSourceRelated
 	ev.Timestamp = ts
 	ev.TimestampRaw = tsRaw
 	ev.ProcessCacheEntry = entry
@@ -179,7 +192,22 @@ func newCorrelatedDNSEvent(ev *model.Event, entry *model.ProcessCacheEntry, id u
 // This calls ProcessEvent directly rather than going through DispatchEvent. Dump enrichment is the
 // only thing wanted here: routing a synthesized event through DispatchEvent would expose it to rule
 // evaluation, so a rule on dns.question.name would fire a second time for dump-traced workloads
-// only, which is a config-dependent change in rule semantics.
+// only, which is a config-dependent change in rule semantics. It also keeps the event away from
+// event-monitor consumers and from LookupEventInProfiles.
+//
+// What ProcessEvent then does depends on which profile manager is running:
+//
+//   - V1 (security_profile/ad.go) drops anything without EventFlagsActivityDumpSample, which is why
+//     newCorrelatedDNSEvent sets that flag. The gate is V1-specific; V2 has no equivalent.
+//   - V2 (security_profile/manager_v2.go, the default since security_profile.v2.enabled defaults to
+//     true) ignores the flag and runs the event through tag resolution — deep-copying it into a
+//     pending queue when the workload's tags are not ready yet — and then through profile insertion.
+//
+// So under V2 this synthesized event does reach a profile. It stays off anomaly detection only
+// because InsertDNSEvent (security_profile/activity_tree/process_node.go) reports inserted == false
+// for a response-only merge, which is the deliberate "enrichment, not drift" choice made when
+// mergeDNSResponse was added. That is load-bearing: making mergeDNSResponse report a change would
+// silently start raising anomaly signals from this path.
 func (p *EBPFProbe) correlateDNSResponseForActivityDump(dnsLayer *layers.DNS, ips []net.IPNet, cnames []string) {
 	if p.profileManager == nil || p.dnsRequests == nil {
 		return
@@ -195,8 +223,17 @@ func (p *EBPFProbe) correlateDNSResponseForActivityDump(dnsLayer *layers.DNS, ip
 	}
 	question := dnsLayer.Questions[0]
 
+	// Nothing is being tracked, so there is no question this response could correlate to. Counting
+	// it as a miss would only measure host DNS volume: every response from a process in no traced
+	// cgroup would land in ad_correlation_misses and pin it at ~100%, which is unalertable.
+	if p.dnsRequests.len() == 0 {
+		return
+	}
+
+	questionName := string(question.Name)
+
 	now := time.Now()
-	entry := p.dnsRequests.matchResponse(dnsLayer.ID, string(question.Name), uint16(question.Type), now)
+	entry := p.dnsRequests.matchResponse(dnsLayer.ID, questionName, uint16(question.Type), now)
 	if entry == nil {
 		return
 	}
@@ -205,7 +242,7 @@ func (p *EBPFProbe) correlateDNSResponseForActivityDump(dnsLayer *layers.DNS, ip
 	defer p.putBackPoolEvent(ev)
 
 	newCorrelatedDNSEvent(ev, entry, dnsLayer.ID, model.DNSQuestion{
-		Name:  string(question.Name),
+		Name:  questionName,
 		Type:  uint16(question.Type),
 		Class: uint16(question.Class),
 	}, &model.DNSResponse{

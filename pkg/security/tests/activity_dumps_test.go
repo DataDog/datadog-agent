@@ -306,8 +306,11 @@ func TestActivityDumps(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// The resolved IPs come from the DNS response packet, which reaches the tree as a
-		// regular DNS event carrying DNS.Response (see FullDNSResponseEventType in probe_ebpf.go).
+		// The resolved IPs do not reach the tree on their own: an inbound response has no process
+		// context, and for container traffic its pid resolves to 0. They arrive on the short
+		// response path (ShortDNSResponseEventType in probe_ebpf.go), where user space correlates
+		// the answer back to the request that asked for it on (txid, qname, qtype) and synthesizes
+		// a DNS event carrying nslookup's own process context. See dns_request_tracker.go.
 		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
 			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes("nslookup")
 			if nodes == nil {

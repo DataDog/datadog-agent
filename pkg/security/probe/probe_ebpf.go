@@ -1856,7 +1856,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 
 		// Remember who asked, so the matching response can be attributed back to this process.
-		// Only questions from a process an activity dump is tracing are worth recording.
+		// The sample flag covers two kernel-side cases (reset_dns_event in
+		// helpers/network/dns.h): a pid an activity dump is tracing, and a rate-limited sample of
+		// everything else, taken by approve_dns_sample when
+		// runtime_security_config.event_sampling.dns.enabled is set (off by default, rate 500/s).
+		// Both genuinely feed profiles under the V2 manager, so both are recorded. Under sampling
+		// those extra requests do compete for the tracker's 1024 slots, but the cost of losing one
+		// is only a miss, never a misattribution: an evicted key simply stops matching.
 		if event.Error == nil && event.IsActivityDumpSample() && p.dnsRequests != nil {
 			p.dnsRequests.recordRequest(event.DNS.ID, event.DNS.Question.Name, event.DNS.Question.Type, event.ProcessCacheEntry, time.Now())
 		}
@@ -2160,13 +2166,14 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		return false
 	case model.ShortDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
-			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err == nil {
+			decodeErr := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback)
+			if decodeErr == nil {
 				ips, cnames := p.addToDNSResolver(p.dnsLayer)
 				p.correlateDNSResponseForActivityDump(p.dnsLayer, ips, cnames)
 				return false
 			}
 
-			seclog.Warnf("failed to decode the short DNS response: %s", err)
+			seclog.Warnf("failed to decode the short DNS response: %s", decodeErr)
 			event.Error = model.ErrFailedDNSPacketDecoding
 			event.FailedDNS = model.FailedDNSEvent{
 				Payload: trimRightZeros(data[offset:]),
