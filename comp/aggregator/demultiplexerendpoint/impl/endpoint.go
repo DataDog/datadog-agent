@@ -44,7 +44,7 @@ type demultiplexerEndpoint struct {
 	runPath              string
 	dogstatsdOnDataPlane bool
 	log                  log.Component
-	dumpMu               *sync.Mutex
+	dumpMu               sync.Mutex
 }
 
 // Provides defines the output of the demultiplexerendpoint component
@@ -59,7 +59,6 @@ func NewComponent(reqs Requires) Provides {
 		runPath:              reqs.Config.GetString("run_path"),
 		dogstatsdOnDataPlane: dogstatsdconfig.NewConfig(reqs.Config).EnabledDataPlane(),
 		log:                  reqs.Log,
-		dumpMu:               &sync.Mutex{},
 	}
 
 	return Provides{
@@ -67,7 +66,7 @@ func NewComponent(reqs Requires) Provides {
 	}
 }
 
-func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
+func (demuxendpoint *demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
 	if demuxendpoint.dogstatsdOnDataPlane {
 		httputils.SetJSONError(w, errDogstatsdOnDataPlane, http.StatusServiceUnavailable)
 		return
@@ -89,7 +88,7 @@ func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.Response
 	w.Write(resp)
 }
 
-func (demuxendpoint demultiplexerEndpoint) writeDogstatsdContexts() (string, error) {
+func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContexts() (string, error) {
 	demuxendpoint.dumpMu.Lock()
 	defer demuxendpoint.dumpMu.Unlock()
 
