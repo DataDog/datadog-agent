@@ -54,7 +54,7 @@ func NewEBPFProgram(c *config.Config) (*ddebpf.Manager, error) {
 			},
 		},
 	}
-	ddEbpfManager := ddebpf.NewManager(m, "usm", &ebpftelemetry.ErrorsTelemetryModifier{})
+	ddEbpfManager := ddebpf.NewManager(m, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}, &ddebpf.HashMapNoPreallocModifier{})
 
 	Configure(config.New(), "test", ddEbpfManager.Manager, &options)
 	err = ddEbpfManager.InitWithOptions(bc, &options)
