@@ -8,7 +8,7 @@ use crate::config::{Connection, SslMode};
 pub fn connector(conn: &Connection) -> Result<Option<MakeTlsConnector>> {
     match conn.ssl {
         SslMode::Disable => return Ok(None),
-        // TODO(DATASEC-156): verify-ca / verify-full (SslVerifyMode::PEER + CA).
+        // TODO(DATASEC-318): verify-ca / verify-full (SslVerifyMode::PEER + CA).
         SslMode::VerifyCa => bail!("ssl mode `verify-ca` is unsupported"),
         SslMode::VerifyFull => bail!("ssl mode `verify-full` is unsupported"),
         _ => {}

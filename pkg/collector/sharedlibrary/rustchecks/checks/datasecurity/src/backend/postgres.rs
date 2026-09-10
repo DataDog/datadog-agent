@@ -56,7 +56,7 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         .password(&conn.password)
         .application_name(&conn.application_name)
         .connect_timeout(timeout)
-        .ssl_mode(pg_ssl_mode(conn.ssl))
+        .ssl_mode(pg_ssl_mode(conn.ssl)?)
         .options(&format!(
             "-c statement_timeout={} -c default_transaction_read_only=on",
             timeout.as_millis()
@@ -75,16 +75,15 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
     .context("connecting to postgres")
 }
 
-fn pg_ssl_mode(mode: SslMode) -> PgSslMode {
-    match mode {
+fn pg_ssl_mode(mode: SslMode) -> Result<PgSslMode> {
+    Ok(match mode {
         SslMode::Disable => PgSslMode::Disable,
         // rust-postgres has no `allow` (plaintext first, then TLS).
         SslMode::Allow | SslMode::Prefer => PgSslMode::Prefer,
         SslMode::Require => PgSslMode::Require,
-        SslMode::VerifyCa | SslMode::VerifyFull => {
-            unreachable!("unsupported ssl mode rejected in tls::connector")
-        }
-    }
+        SslMode::VerifyCa => bail!("ssl mode `verify-ca` is unsupported"),
+        SslMode::VerifyFull => bail!("ssl mode `verify-full` is unsupported"),
+    })
 }
 
 /// Turns query rows into the scanner input plus scan metadata. The values are a
