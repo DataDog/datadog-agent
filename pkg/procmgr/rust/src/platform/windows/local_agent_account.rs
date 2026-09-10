@@ -85,8 +85,10 @@ impl std::fmt::Debug for AgentAccount {
 impl AgentAccount {
     pub(crate) fn reuses_supervisor_token(&self) -> Result<bool> {
         match self {
-            AgentAccount::LocalSystem | AgentAccount::SupervisorAccount { .. } => Ok(true),
-            AgentAccount::LocalService | AgentAccount::NetworkService => {
+            AgentAccount::SupervisorAccount { .. } => Ok(true),
+            AgentAccount::LocalSystem
+            | AgentAccount::LocalService
+            | AgentAccount::NetworkService => {
                 let sid = self
                     .well_known_account_sid()
                     .expect("well-known service account must have a SID")
@@ -371,5 +373,11 @@ mod tests {
             .expect("NetworkService SID")
             .expect("lookup NetworkService SID");
         assert!(is_network_service_sid(&network_service));
+
+        let local_system = AgentAccount::LocalSystem
+            .well_known_account_sid()
+            .expect("LocalSystem SID")
+            .expect("lookup LocalSystem SID");
+        assert!(is_local_system_sid(&local_system));
     }
 }

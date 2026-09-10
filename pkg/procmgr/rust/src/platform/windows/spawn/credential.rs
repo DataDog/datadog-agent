@@ -86,6 +86,11 @@ mod tests {
             credential.display_name(),
             AgentAccount::LocalSystem.display_name()
         );
-        assert!(credential.reuses_supervisor_token());
+        assert_eq!(
+            credential.reuses_supervisor_token(),
+            AgentAccount::LocalSystem
+                .reuses_supervisor_token()
+                .expect("compare LocalSystem to supervisor token")
+        );
     }
 }
