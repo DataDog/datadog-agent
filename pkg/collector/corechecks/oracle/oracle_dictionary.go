@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	go_ora "github.com/sijms/go-ora/v3"
+	oratypes "github.com/sijms/go-ora/v3/types"
 )
 
 func getFullSQLText(c *Check, SQLStatement *string, key string, value string) error {
@@ -33,11 +34,18 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 			err = nil
 		}
 	case common.GoOra:
-		var sqlFullText go_ora.Clob
+		var sqlFullText oratypes.Clob
 		sql = fmt.Sprintf("BEGIN SELECT /* DD */ sql_fulltext INTO :sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1; END;", key)
 		_, err = c.connection.Exec(sql, go_ora.Out{Dest: &sqlFullText, Size: 8000}, value)
-		if err == nil && sqlFullText.String != "" {
-			*SQLStatement = sqlFullText.String
+		var fullText string
+		if err == nil {
+			var val interface{}
+			if val, err = sqlFullText.Value(); err == nil {
+				fullText, _ = val.(string)
+			}
+		}
+		if err == nil && fullText != "" {
+			*SQLStatement = fullText
 		} else if err != nil {
 			if !isConnectionError(err) {
 				return err
@@ -54,7 +62,7 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 				c.connection = conn
 			}
 			return fmt.Errorf("failed to query sql full text for %s = %s %s", key, value, err)
-		} else if sqlFullText.String == "" {
+		} else if fullText == "" {
 			log.Warnf("%s The SQL text for the statement %s = %s couldn't be fetched because the SQL was evicted from shared pool", c.logPrompt, key, value)
 		}
 	}

@@ -57,5 +57,6 @@ go_library(
         "@com_github_jmoiron_sqlx//:sqlx",
         "@com_github_patrickmn_go_cache//:go-cache",
         "@com_github_sijms_go_ora_v3//:go-ora",
+        "@com_github_sijms_go_ora_v3//types",
     ],
 )
