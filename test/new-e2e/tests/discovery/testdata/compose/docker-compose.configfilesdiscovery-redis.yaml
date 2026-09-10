@@ -31,6 +31,7 @@ services:
   redis-configfilesdiscovery-explicit:
     image: ghcr.io/datadog/redis:{APPS_VERSION}
     container_name: redis-configfilesdiscovery-explicit
+    working_dir: /configfilesdiscovery
     command:
       - /bin/sh
       - /configfilesdiscovery/start-redis.sh

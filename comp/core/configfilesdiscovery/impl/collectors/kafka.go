@@ -68,7 +68,7 @@ func (kafkaConfigCollector) CanCollectFromProcess(commandline configfilesdiscove
 }
 
 func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdiscoveryimpl.ConfigReader) (configfilesdiscoveryimpl.CollectedConfig, error) {
-	file, ok, err := readConfigFile(ctx, reader, kafkaGetConfigArgFromCommandline, kafkaMatchesCommandline, "", kafkaDefaultConfigPathGroups...)
+	selection, err := selectConfigFile(ctx, reader, kafkaGetConfigArgFromCommandline, kafkaMatchesCommandline, "", kafkaDefaultConfigPathGroups...)
 	if err != nil {
 		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect kafka config file: %w", err)
 	}
@@ -78,7 +78,7 @@ func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdis
 		log.Debugf("config files discovery skipped kafka env var collection: %v", err)
 		envVars = nil
 	}
-	if !ok {
+	if selection == nil {
 		// Without a broker properties file, env vars are the only
 		// Kafka config source. Return the error so the scheduler retries.
 		if err != nil {
@@ -95,6 +95,7 @@ func (c kafkaConfigCollector) Collect(ctx context.Context, reader configfilesdis
 		}, nil
 	}
 
+	file := selection.file
 	file.PayloadFormat = kafkaConfigPayloadFormat
 
 	return configfilesdiscoveryimpl.CollectedConfig{
@@ -127,32 +128,28 @@ func denyKafkaEnvVar(name string) bool {
 	return false
 }
 
-// kafkaGetConfigArgFromCommandline returns the broker properties argument
-// passed to the Kafka server launcher. It intentionally ignores command-line
+// kafkaGetConfigArgFromCommandline returns the broker properties argument passed
+// to the running Kafka JVM. It intentionally ignores command-line
 // --override values: those mutate runtime config but do not identify an
 // additional file to read.
 func kafkaGetConfigArgFromCommandline(args []string) (string, bool) {
 	args = unwrapShellCommandline(args)
-	kafkaArgs, ok := kafkaGetArgs(args)
-	if !ok {
-		return "", false
+	for i, arg := range args {
+		if path.Base(arg) == "kafka.Kafka" {
+			return kafkaGetConfigArg(args[i+1:])
+		}
 	}
-	return kafkaGetConfigArg(kafkaArgs)
+	return "", false
 }
 
 func kafkaMatchesCommandline(args []string) bool {
-	_, ok := kafkaGetArgs(unwrapShellCommandline(args))
-	return ok
-}
-
-func kafkaGetArgs(args []string) ([]string, bool) {
-	for i, arg := range args {
-		switch path.Base(arg) {
-		case "kafka-server-start.sh", "kafka-server-start", "kafka.Kafka":
-			return args[i+1:], true
+	for _, arg := range unwrapShellCommandline(args) {
+		name := path.Base(arg)
+		if name == "kafka-server-start.sh" || name == "kafka-server-start" || name == "kafka.Kafka" {
+			return true
 		}
 	}
-	return nil, false
+	return false
 }
 
 func kafkaGetConfigArg(kafkaArgs []string) (string, bool) {

@@ -27,7 +27,10 @@ const (
 	kubernetesContainerdNamespace = "k8s.io"
 	kubernetesReadFileTimeout     = 5 * time.Second
 	kubernetesReadFileOutputLimit = maxConfigFileSize + 1
+	kubernetesFindOutputLimit     = 256 * 1024
 )
+
+const kubernetesFindConfigFilesScript = `find -P "$1" -type f -path "$2" -print0 | head -c "$3"`
 
 // kubernetesConfigClient is the narrow runtime boundary the Kubernetes reader
 // needs: CRI for file bytes and containerd for the OCI process spec.
@@ -89,13 +92,8 @@ func (r *kubernetesConfigReader) Close() {
 	r.client.close()
 }
 
-func (r *kubernetesConfigReader) ReadFile(ctx context.Context, filePath string) (ConfigFile, error) {
-	cleanPath, err := cleanContainerFilePath(filePath)
-	if err != nil {
-		return ConfigFile{}, err
-	}
-
-	stdout, stderr, exitCode, err := r.client.execSync(ctx, r.containerID, kubernetesReadFileCommand(cleanPath), kubernetesReadFileTimeout)
+func (r *kubernetesConfigReader) ReadFile(ctx context.Context, filePath VerifiedConfigFilePath) (ConfigFile, error) {
+	stdout, stderr, exitCode, err := r.client.execSync(ctx, r.containerID, kubernetesReadFileCommand(filePath.String()), kubernetesReadFileTimeout)
 	if err != nil {
 		return ConfigFile{}, fmt.Errorf("exec read config file in kubernetes container: %w", err)
 	}
@@ -109,14 +107,130 @@ func (r *kubernetesConfigReader) ReadFile(ctx context.Context, filePath string) 
 	}
 
 	return ConfigFile{
-		Path:      cleanPath,
+		Path:      filePath.String(),
 		Content:   content,
 		Truncated: truncated,
 	}, nil
 }
 
+// ReadMatchingFiles uses find without following symlinks below the trusted
+// search root, then reads the accepted regular files in lexical order.
+func (r *kubernetesConfigReader) ReadMatchingFiles(ctx context.Context, search ConfigFileSearch, maxMatches int, matches ConfigFilePathMatcher) ([]ConfigFileReadResult, bool, error) {
+	if maxMatches <= 0 {
+		return nil, false, errors.New("maximum file matches must be positive")
+	}
+
+	searchRoot := configFileSearchRoot(search)
+	command := kubernetesFindConfigFilesCommand(searchRoot, search.Pattern())
+	stdout, stderr, exitCode, err := r.client.execSync(ctx, r.containerID, command, kubernetesReadFileTimeout)
+	if err != nil {
+		return nil, false, fmt.Errorf("exec find config files in kubernetes container: %w", err)
+	}
+	if exitCode != 0 {
+		return nil, false, kubernetesExecExitError(exitCode, stderr)
+	}
+
+	discoveryLimited := len(stdout) > kubernetesFindOutputLimit
+	if discoveryLimited {
+		stdout = stdout[:kubernetesFindOutputLimit]
+	}
+	if len(stdout) != 0 && stdout[len(stdout)-1] != 0 {
+		discoveryLimited = true
+		lastSeparator := bytes.LastIndexByte(stdout, 0)
+		if lastSeparator < 0 {
+			stdout = nil
+		} else {
+			stdout = stdout[:lastSeparator+1]
+		}
+	}
+
+	var paths []VerifiedConfigFilePath
+	for _, outputPath := range bytes.Split(stdout, []byte{0}) {
+		if len(outputPath) == 0 {
+			continue
+		}
+		cleanPath, err := VerifyConfigFilePath(UnverifiedConfigFilePath(outputPath))
+		if err != nil {
+			continue
+		}
+		if !search.Contains(cleanPath) {
+			continue
+		}
+		matched, err := matches(cleanPath)
+		if err != nil {
+			return nil, false, fmt.Errorf("match kubernetes config file %q: %w", cleanPath.String(), err)
+		}
+		if !matched {
+			continue
+		}
+		paths = append(paths, cleanPath)
+	}
+	paths, limited, err := sortAndLimitFilePaths(paths, maxMatches)
+	if err != nil {
+		return nil, false, err
+	}
+
+	var results []ConfigFileReadResult
+	for _, filePath := range paths {
+		file, err := r.readFileWithinSearch(ctx, searchRoot, filePath)
+		if err != nil {
+			results = append(results, NewConfigFileReadError(filePath, err))
+			continue
+		}
+		results = append(results, NewConfigFileReadResult(filePath, file))
+	}
+	return results, discoveryLimited || limited, nil
+}
+
+// readFileWithinSearch revalidates and reads filePath without following a
+// symlink observed below searchRoot.
+func (r *kubernetesConfigReader) readFileWithinSearch(ctx context.Context, searchRoot VerifiedConfigFilePath, filePath VerifiedConfigFilePath) (ConfigFile, error) {
+	command := kubernetesReadFileWithinSearchCommand(searchRoot, filePath)
+	stdout, stderr, exitCode, err := r.client.execSync(ctx, r.containerID, command, kubernetesReadFileTimeout)
+	if err != nil {
+		return ConfigFile{}, fmt.Errorf("exec read scoped config file in kubernetes container: %w", err)
+	}
+	if exitCode != 0 {
+		return ConfigFile{}, kubernetesExecExitError(exitCode, stderr)
+	}
+	if len(stderr) != 0 {
+		return ConfigFile{}, fmt.Errorf("read scoped config file in kubernetes container: %s", strings.TrimSpace(string(stderr)))
+	}
+
+	pathPrefix := append([]byte(filePath.String()), 0)
+	if !bytes.HasPrefix(stdout, pathPrefix) {
+		return ConfigFile{}, fmt.Errorf("config file %q is not a regular file within search root %q", filePath.String(), searchRoot.String())
+	}
+	content, truncated, err := readLimitedFileContent(bytes.NewReader(stdout[len(pathPrefix):]), maxConfigFileSize)
+	if err != nil {
+		return ConfigFile{}, fmt.Errorf("read kubernetes config file output: %w", err)
+	}
+	return ConfigFile{Path: filePath.String(), Content: content, Truncated: truncated}, nil
+}
+
 func kubernetesReadFileCommand(cleanPath string) []string {
 	return []string{"head", "-c", strconv.Itoa(kubernetesReadFileOutputLimit), cleanPath}
+}
+
+// kubernetesFindConfigFilesCommand returns a command that bounds find output
+// while passing the verified root and pattern as shell arguments.
+func kubernetesFindConfigFilesCommand(searchRoot VerifiedConfigFilePath, pattern VerifiedConfigFilePattern) []string {
+	return []string{
+		"sh", "-c", kubernetesFindConfigFilesScript, "configfilesdiscovery",
+		searchRoot.String(), pattern.String(), strconv.Itoa(kubernetesFindOutputLimit + 1),
+	}
+}
+
+// kubernetesReadFileWithinSearchCommand returns a command that emits the path
+// followed by its bounded contents only when find observes a regular file.
+func kubernetesReadFileWithinSearchCommand(searchRoot VerifiedConfigFilePath, filePath VerifiedConfigFilePath) []string {
+	return []string{
+		"find", "-P", searchRoot.String(),
+		"-type", "f",
+		"-path", escapeFindPathPattern(filePath),
+		"-print0",
+		"-exec", "head", "-c", strconv.Itoa(kubernetesReadFileOutputLimit), "{}", ";",
+	}
 }
 
 func (r *kubernetesConfigReader) ReadEnvVars(ctx context.Context, predicate ConfigEnvVarPredicate) (map[string]string, error) {
