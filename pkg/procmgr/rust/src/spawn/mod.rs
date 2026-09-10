@@ -4,5 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 mod profile;
+mod request;
+mod stdio;
 
 pub(crate) use profile::SpawnProfile;
+pub(crate) use request::SpawnRequest;
