@@ -92,3 +92,18 @@ func TestTopDogstatsdContextsDefaultsToLive(t *testing.T) {
 		}]
 	}`, recorder.Body.String())
 }
+
+func TestTopDogstatsdContextsRejectsLiveWhenDataPlaneOwnsDogstatsd(t *testing.T) {
+	endpoint := demultiplexerEndpoint{
+		demux:                fakeContextDumper{{Name: "requests"}},
+		runPath:              t.TempDir(),
+		dogstatsdOnDataPlane: true,
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/dogstatsd-contexts-top", bytes.NewBufferString(`{}`))
+	endpoint.topDogstatsdContexts(recorder, request)
+
+	require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "Agent Data Plane")
+}

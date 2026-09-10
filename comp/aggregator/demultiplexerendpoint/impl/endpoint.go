@@ -104,6 +104,10 @@ func (demuxendpoint *demultiplexerEndpoint) topDogstatsdContexts(w http.Response
 		httputils.SetJSONError(w, err, http.StatusBadRequest)
 		return
 	}
+	if request.Source == topSourceLive && demuxendpoint.dogstatsdOnDataPlane {
+		httputils.SetJSONError(w, errDogstatsdOnDataPlane, http.StatusServiceUnavailable)
+		return
+	}
 
 	var result contexttop.Result
 	var err error
