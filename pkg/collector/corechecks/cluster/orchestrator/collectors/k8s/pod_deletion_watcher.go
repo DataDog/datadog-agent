@@ -91,12 +91,12 @@ func (w *PodDeletionWatcher) getInitialResourceVersion(ctx context.Context) (str
 // runWatch is used to watch events until the context is cancelled or an error not retried by the underlying
 // RetryWatcher occurs. In the later case the [errors.StatusError] object is returned.
 func (w *PodDeletionWatcher) runWatch(ctx context.Context, resourceVersion string) error {
-	watchFunc := func(options metav1.ListOptions) (watch.Interface, error) {
+	watchFunc := func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 		return w.client.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
 	}
 
 	retryWatcher, err := toolswatch.NewRetryWatcherWithContext(ctx, resourceVersion, &cache.ListWatch{
-		WatchFunc: watchFunc,
+		WatchFuncWithContext: watchFunc,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create retry watcher: %w", err)
