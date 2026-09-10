@@ -97,9 +97,6 @@
 /bazel/                     @DataDog/agent-build
 /bazel/configs/rust.bazelrc @DataDog/agent-discovery @DataDog/agent-runtimes @DataDog/agent-build
 /deps/                      @DataDog/agent-build
-# agent-data-plane owns the pinned version and hashes (bumped frequently, and only
-# they can validate the release being pinned); agent-build stays a co-owner of the
-# packaging scaffolding in BUILD.bazel.
 /deps/agent_data_plane/            @DataDog/agent-data-plane
 /deps/agent_data_plane/BUILD.bazel @DataDog/agent-data-plane @DataDog/agent-build
 
