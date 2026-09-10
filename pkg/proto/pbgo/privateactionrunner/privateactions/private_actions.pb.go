@@ -876,8 +876,7 @@ func (x *ConnectionTokenV2_PlainText) GetValue() string {
 
 type ConnectionTokenV2_RunnerCredential struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// An identifier from the runner's operator-controlled credential catalog.
-	// This is deliberately not a secret-backend handle or a config path.
+	// Identifier in the runner credential catalog.
 	Key           string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

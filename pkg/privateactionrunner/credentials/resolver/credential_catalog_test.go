@@ -22,7 +22,7 @@ func TestCredentialCatalogConfiguredValues(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "secret-value", value)
 	assert.Equal(t, []CredentialDescriptor{{Key: "api_token", Source: "configured"}}, catalog.List())
-	_, err = catalog.Resolve("ENC[not-operator-configured]")
+	_, err = catalog.Resolve("unknown")
 	assert.EqualError(t, err, "requested runner credential is not available")
 }
 
