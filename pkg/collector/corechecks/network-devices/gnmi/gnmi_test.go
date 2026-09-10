@@ -97,12 +97,20 @@ min_collection_interval: 15
 		if err := checkInstance.Run(); err != nil {
 			return false
 		}
+		gotIn := false
+		gotOut := false
 		for _, call := range mockSender.Calls {
-			if call.Method == "MonotonicCount" && call.Arguments[0] == "snmp.ifHCInOctets" {
-				return true
+			if call.Method != "MonotonicCount" {
+				continue
+			}
+			switch call.Arguments[0] {
+			case "snmp.ifHCInOctets":
+				gotIn = true
+			case "snmp.ifHCOutOctets":
+				gotOut = true
 			}
 		}
-		return false
+		return gotIn && gotOut
 	}, 2*time.Second, 10*time.Millisecond)
 
 	assert.Equal(t, 1, server.ConnectionCount())
