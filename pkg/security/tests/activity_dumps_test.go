@@ -284,9 +284,6 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-dns-response", func(t *testing.T) {
-		// TODO(CWS-6919): remove this skip once DNS responses are attributed to the querying process.
-		t.Skip("CWS-6919: DNS responses are not attributed to a traced process for container queries")
-
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
