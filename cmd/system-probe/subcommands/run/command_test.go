@@ -38,27 +38,53 @@ func prepareRunCommandTest(t *testing.T) (string, *configstreamtestutil.FakeCore
 	config := "hostname: test\n" + fakeCore.ConfigYAML()
 	require.NoError(t, os.WriteFile(configPath, []byte(config), 0644))
 
-	configComponent.NewMockFromYAMLFile(t, configPath)
-
-	fxutil.Test[ipc.Component](t,
-		ipcfx.ModuleReadWrite(),
-		core.MockBundle(),
-	)
-
 	return configPath, fakeCore
 }
 
 func TestRunCommand(t *testing.T) {
-	configPath, fakeCore := prepareRunCommandTest(t)
+	tests := []struct {
+		name   string
+		config string
+	}{
+		{
+			name:   "default",
+			config: "hostname: test\n",
+		},
+		{
+			// With core agent IPC disabled every component that would stream from
+			// the core agent falls back to a local or no-op implementation, and two
+			// of the gates hand fx a nil Comp. TestOneShotSubcommand validates the
+			// graph and then actually starts it, so this covers the whole fallback
+			// assembly rather than the gates individually.
+			name: "core agent IPC disabled",
+			config: "hostname: test\n" +
+				"remote_agent:\n" +
+				"  core_agent_ipc:\n" +
+				"    enabled: false\n",
+		},
+	}
 
-	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{
-			ConfFilePath: configPath,
-		}),
-		[]string{"run"},
-		run,
-		func() {})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			configPath, fakeCore := prepareRunCommandTest(t)
 
-	registers, _ := fakeCore.Counts()
-	require.NotZero(t, registers, "consumer never registered, so this test no longer covers configstream")
+			configComponent.NewMockFromYAMLFile(t, configPath)
+
+			fxutil.Test[ipc.Component](t,
+				ipcfx.ModuleReadWrite(),
+				core.MockBundle(),
+			)
+
+			fxutil.TestOneShotSubcommand(t,
+				Commands(&command.GlobalParams{
+					ConfFilePath: configPath,
+				}),
+				[]string{"run"},
+				run,
+				func() {})
+
+			registers, _ := fakeCore.Counts()
+			require.NotZero(t, registers, "consumer never registered, so this test no longer covers configstream")
+		})
+	}
 }
