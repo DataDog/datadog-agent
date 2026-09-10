@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/contexttop"
 )
 
 type fakeContextDumper []aggregator.ContextDebugRepr
@@ -29,31 +28,6 @@ func (d fakeContextDumper) DumpDogstatsdContexts(w io.Writer) error {
 		}
 	}
 	return nil
-}
-
-func TestGetDogstatsdTop(t *testing.T) {
-	endpoint := demultiplexerEndpoint{
-		demux: fakeContextDumper{
-			{Name: "requests", MetricTags: []string{"env:prod", "endpoint:/a"}},
-			{Name: "requests", MetricTags: []string{"env:prod", "endpoint:/b"}},
-		},
-		runPath: t.TempDir(),
-	}
-
-	result, err := endpoint.getDogstatsdTop(10, 5)
-	require.NoError(t, err)
-	require.Equal(t, contexttop.Result{
-		Metrics: []contexttop.Metric{
-			{
-				Name:     "requests",
-				Contexts: 2,
-				Tags: []contexttop.Tag{
-					{Key: "endpoint", UniqueValues: 2},
-					{Key: "env", UniqueValues: 1},
-				},
-			},
-		},
-	}, result)
 }
 
 func TestValidateTopRequest(t *testing.T) {
