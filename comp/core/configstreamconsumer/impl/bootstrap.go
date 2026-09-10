@@ -26,7 +26,7 @@ const (
 // remote_agent.core_agent_ipc.enabled schema defaults; bootstrap runs before
 // schema-backed defaults are loaded, so these have to be kept in sync by hand.
 const (
-	defaultEnabled             = false
+	defaultEnabled             = true
 	defaultCoreAgentIPCEnabled = true
 )
 
@@ -44,10 +44,6 @@ type bootstrapToggles struct {
 		} `yaml:"core_agent_ipc"`
 	} `yaml:"remote_agent"`
 }
-
-// Mirrors the remote_agent.configstream.consumer.enabled schema default; bootstrap runs before
-// schema-backed defaults are loaded, so the two have to be kept in sync by hand.
-const defaultEnabled = true
 
 // isEnabled reports whether the consumer should run, from env or datadog.yaml.
 func isEnabled(cliConfigPath string) bool {
