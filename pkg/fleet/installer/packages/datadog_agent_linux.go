@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/upstart"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -999,6 +1001,77 @@ func RestartDatadogAgent(ctx context.Context) error {
 		return nil
 	}
 	return systemd.RestartUnit(ctx, "datadog-agent.service")
+}
+
+// SetProcessManager enable or disable procmgr (custom service manager that replaces systemd for supported processes)
+func SetProcessManager(ctx context.Context, enabled bool) error {
+	var err error
+	hookCtx := HookContext{Context: ctx, PackagePath: filepath.Join(paths.PackagesPath, agentPackage, "stable"), PackageType: PackageTypeOCI}
+	span, hookCtx := hookCtx.StartSpan("set_process_manager")
+	span.SetTag("enabled", enabled)
+	defer func() {
+		span.Finish(err)
+	}()
+
+	if env.FromEnv().ProcessManagerEnabled == enabled {
+		log.Infof("process manager is already %t", enabled)
+		return nil
+	}
+
+	state, err := repository.NewRepositories(paths.PackagesPath, nil).GetState(agentPackage)
+	if err != nil {
+		return fmt.Errorf("failed to get agent package state: %w", err)
+	}
+	if state.HasExperiment() {
+		return errors.New("cannot switch the process manager while an experiment is in progress")
+	}
+
+	switch currentType := service.GetServiceManagerType(hookCtx.PackagePath); currentType {
+	case service.SystemdType, service.ProcmgrType:
+	default:
+		return errors.New("switching the process manager is only supported under systemd")
+	}
+
+	backwardActions := []func() error{}
+	backward := func() error {
+		var errs error
+		slices.Reverse(backwardActions)
+		for i, fallback := range backwardActions {
+			if err := fallback(); err != nil {
+				log.Errorf("failed to perform fallback step %d/%d: %w", i, len(backwardActions), err)
+				errs = errors.Join(errs, err)
+			}
+		}
+		return errs
+	}
+
+	backwardActions = append(backwardActions, func() error { return agentService.RestartStable(hookCtx) })
+	if err := agentService.StopStable(hookCtx); err != nil {
+		log.Errorf("failed to stop stable units: %w", err)
+		return backward()
+	}
+	backwardActions = append(backwardActions, func() error { return agentService.EnableStable(hookCtx) })
+	if err := agentService.DisableStable(hookCtx); err != nil {
+		log.Warnf("failed to disable stable units: %w", err)
+		return backward()
+	}
+	backwardActions = append(backwardActions, func() error { return agentService.WriteStable(hookCtx) })
+	if err := agentService.RemoveStable(hookCtx); err != nil {
+		log.Warnf("failed to remove stable units: %w", err)
+		return backward()
+	}
+
+	value := "false"
+	if enabled {
+		value = "true"
+	}
+	if err := os.Setenv(env.EnvProcessManagerEnabled, value); err != nil {
+		log.Warnf("failed to set process manager state: %w", err)
+		return backward()
+	}
+
+	backwardActions = append(backwardActions, func() error { return agentService.WriteProcesses(hookCtx.PackagePath) })
+	return backward()
 }
 
 var odbcConfigFiles = []string{"odbc.ini", "odbcinst.ini"}

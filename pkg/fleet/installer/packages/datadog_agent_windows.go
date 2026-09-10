@@ -67,6 +67,7 @@ var datadogAgentPackage = hooks{
 const (
 	watchdogStopEventName = "Global\\DatadogInstallerStop"
 	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
+	parServiceName        = "datadog-agent-action"
 )
 
 // getExtensionStoragePath returns the path where extension lists should be stored.
@@ -202,6 +203,21 @@ func resolveDatadogProgramFilesInstallRoot() (string, error) {
 	}
 	paths.DatadogProgramFilesDir = installRoot
 	return installRoot, nil
+}
+
+func ensureDDOTProcmgrConfig(enabled bool) error {
+	installRoot, err := resolveDatadogProgramFilesInstallRoot()
+	if err != nil {
+		return err
+	}
+
+	if enabled {
+		return processmanager.WriteDDOTProcmgrConfig(installRoot)
+	}
+	if err := processmanager.RemoveDDOTProcmgrConfig(installRoot); err != nil {
+		log.Warnf("DDOT: could not remove stale process manager config: %v", err)
+	}
+	return nil
 }
 
 func ensureADPProcmgrConfig(enabled bool) error {
@@ -1085,4 +1101,39 @@ func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 // RestartDatadogAgent restarts the datadog-agent service if it is running
 func RestartDatadogAgent(ctx context.Context) error {
 	return windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
+}
+
+func SetProcessManager(ctx context.Context, enabled bool) error {
+	if env.FromEnv().ProcessManagerEnabled == enabled {
+		return nil
+	}
+	if err := ensureADPProcmgrConfig(enabled); err != nil {
+		return fmt.Errorf("failed to configure ADP process manager config: %w", err)
+	}
+	if err := ensurePARExecutorProcmgrConfig(enabled); err != nil {
+		return fmt.Errorf("failed to configure PAR executor process manager config: %w", err)
+	}
+	if err := ensurePARProcmgrConfig(enabled); err != nil {
+		return fmt.Errorf("failed to configure PAR process manager config: %w", err)
+	}
+	if err := ensureDDOTProcmgrConfig(enabled); err != nil {
+		return fmt.Errorf("failed to configure DDOT process manager config: %w", err)
+	}
+	services := []string{otelServiceName, parServiceName}
+	if enabled {
+		for _, service := range services {
+			if err := stopServiceIfExists(service); err != nil {
+				log.Warnf("could not stop service: %v", err)
+			}
+		}
+		processmanager.ReloadOrRestartProcmgr()
+		return nil
+	}
+	processmanager.ReloadOrRestartProcmgr()
+	for _, service := range services {
+		if err := startServiceIfExists(service); err != nil {
+			log.Warnf("could not start service: %v", err)
+		}
+	}
+	return nil
 }

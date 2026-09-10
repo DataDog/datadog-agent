@@ -578,16 +578,12 @@ func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err 
 	return nil
 }
 
-// SetProcessManager flips the effective process manager for the agent's supervised components
-// between dd-procmgrd and the native service manager (systemd/SCM). This must run inside the
-// daemon: DD_PROCESS_MANAGER_ENABLED is only reliably populated in the daemon's own process
-// environment (baked into its own service unit at install time), which is why the switch is only
-// exposed through `datadog-installer daemon process-manager`, not as a top-level CLI command.
 func (d *daemonImpl) SetProcessManager(ctx context.Context, enabled bool) (err error) {
 	d.m.Lock()
 	defer d.m.Unlock()
 
 	span, ctx := telemetry.StartSpanFromContext(ctx, "set_process_manager")
+	span.SetTag("enabled", enabled)
 	defer func() { span.Finish(err) }()
 
 	log.Infof("Daemon: Setting process manager enabled=%t", enabled)

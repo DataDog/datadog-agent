@@ -85,24 +85,6 @@ func Platforms() []e2eos.Descriptor {
 	return AllPlatforms
 }
 
-// processManagerEnabledEnvVar selects which service manager (procmgr or
-// systemd) the fleet tests install the agent with. It is used to run the
-// fleet e2e jobs against both DD_PROCESS_MANAGER_ENABLED values.
-const processManagerEnabledEnvVar = "DD_PROCESS_MANAGER_ENABLED"
-
-// ProcessManagerEnabledFromEnv reads DD_PROCESS_MANAGER_ENABLED from the CI
-// environment. It returns nil when the variable is unset, in which case
-// callers should not pass agent.WithProcessManagerEnabled, preserving
-// today's installer default.
-func ProcessManagerEnabledFromEnv() *bool {
-	v, ok := os.LookupEnv(processManagerEnabledEnvVar)
-	if !ok {
-		return nil
-	}
-	enabled := strings.EqualFold(v, "true")
-	return &enabled
-}
-
 // FleetSuite is a base suite for fleet tests.
 type FleetSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -123,17 +105,6 @@ func (s *FleetSuite) SetupSuite() {
 	s.Backend = backend.New(s.T, s.Env())
 	s.Host = fleethost.New(s.Env())
 	s.Installer = installer.New(s.T, s.Env())
-}
-
-// InstallOptions returns extra alongside agent.WithProcessManagerEnabled when
-// DD_PROCESS_MANAGER_ENABLED is set in the CI environment, so every
-// s.Agent.Install/MustInstall call in the fleet suites installs under the
-// service manager selected by the CI matrix.
-func (s *FleetSuite) InstallOptions(extra ...agent.InstallOption) []agent.InstallOption {
-	if v := ProcessManagerEnabledFromEnv(); v != nil {
-		extra = append(extra, agent.WithProcessManagerEnabled(*v))
-	}
-	return extra
 }
 
 // Run runs the fleet suite for the given platforms.

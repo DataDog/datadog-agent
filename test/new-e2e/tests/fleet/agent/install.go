@@ -39,9 +39,19 @@ type installParams struct {
 }
 
 var defaultInstallParams = &installParams{
-	remoteUpdates:  false,
-	stablePackages: false,
-	pipelineID:     os.Getenv("E2E_PIPELINE_ID"),
+	remoteUpdates:         false,
+	stablePackages:        false,
+	pipelineID:            os.Getenv("E2E_PIPELINE_ID"),
+	processManagerEnabled: processManagerEnabledFromEnv(),
+}
+
+func processManagerEnabledFromEnv() *bool {
+	v, ok := os.LookupEnv("DD_PROCESS_MANAGER_ENABLED")
+	if !ok {
+		return nil
+	}
+	enabled := strings.EqualFold(v, "true")
+	return &enabled
 }
 
 // WithRemoteUpdates enables remote updates.

@@ -33,7 +33,7 @@ func TestFleetUpgrade(t *testing.T) {
 }
 
 func (s *upgradeSuite) TestUpgrade() {
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates(), agent.WithStablePackages())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
@@ -56,7 +56,7 @@ func (s *upgradeSuite) TestUpgrade() {
 }
 
 func (s *upgradeSuite) TestUpgradeFailureTimeout() {
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates(), agent.WithStablePackages())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	s.Agent.MustSetExperimentTimeout(60 * time.Second)
 	defer s.Agent.MustUnsetExperimentTimeout()
@@ -79,7 +79,7 @@ func (s *upgradeSuite) TestUpgradeFailureTimeout() {
 }
 
 func (s *upgradeSuite) TestUpgradeFailureHealth() {
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates(), agent.WithStablePackages())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 
 	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
@@ -101,7 +101,7 @@ func (s *upgradeSuite) TestUpgradeFailureHealth() {
 }
 
 func (s *upgradeSuite) TestIntegrationPreservationDebToOCI() {
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.Agent.MustUninstall()
 	snapshotIntegrationState(s.T(), s.Env(), "DebToOCI: after MustInstall (pipeline DEB stable)")
 
@@ -148,7 +148,7 @@ func (s *upgradeSuite) TestIntegrationPreservationDebToOCI() {
 // state, then experiments from that OCI version to another OCI version and verifies the integration
 // is preserved throughout.
 func (s *upgradeSuite) TestIntegrationPreservationOCIToOCI() {
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates(), agent.WithStablePackages())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	snapshotIntegrationState(s.T(), s.Env(), "OCIToOCI: after MustInstall (released OCI stable)")
 
@@ -214,7 +214,7 @@ func (s *upgradeSuite) TestODBCConfigPreservedOnUpgrade() {
 	// pipeline OCI as experiment) because the ODBC save/restore code is new and not yet
 	// in a released stable binary. Once this fix ships as a stable release, rewrite this
 	// test to use WithStablePackages() + BranchTesting experiment, like other upgrade tests.
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates())
 	defer s.Agent.MustUninstall()
 	_, err := s.Env().RemoteHost.Execute(`sudo sh -c 'printf "[ODBC]\nTrace=no\n" > /opt/datadog-agent/embedded/etc/odbc.ini'`)
 	s.Require().NoError(err)

@@ -145,7 +145,7 @@ func TestFleetIntegrationPreservation(t *testing.T) {
 // production upgrade path customers follow. The existing TestIntegrationPreservationOCIToOCI
 // inverts that direction by promoting the pipeline build to stable first.
 func (s *integrationPreservationSuite) TestIntegrationPreservationStableToOCIExperiment() {
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates(), agent.WithStablePackages())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	snapshotIntegrationState(s.T(), s.Env(), "StableToOCIExperiment: after MustInstall (released OCI stable)")
 
@@ -222,7 +222,7 @@ func (s *integrationPreservationSuite) TestIntegrationPreservationStableToOCIExp
 // so both the save (preStartExperiment) and restore (postStartExperiment) sides exercise
 // the new run-dir storage and pre.py's fallback logic.
 func (s *integrationPreservationSuite) TestIntegrationPreservationSurvivesTmpReaping() {
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates(), agent.WithStablePackages())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	snapshotIntegrationState(s.T(), s.Env(), "TmpReaping: after MustInstall (released OCI stable)")
 
@@ -301,7 +301,7 @@ func (s *integrationPreservationSuite) TestIntegrationPreservationSurvivesTmpRea
 // preStartExperiment must not destructively touch the stable's site-packages when only
 // saving for the experiment.
 func (s *integrationPreservationSuite) TestIntegrationPreservationOnExperimentRollback() {
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates(), agent.WithStablePackages())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	snapshotIntegrationState(s.T(), s.Env(), "Rollback: after MustInstall (released OCI stable)")
 
@@ -360,7 +360,7 @@ func (s *integrationPreservationSuite) TestIntegrationPreservationOnExperimentRo
 // against the right baseline. A broken refresh would either drop the integration from
 // the diff (silent loss) or carry stale entries that the new agent can't reinstall.
 func (s *integrationPreservationSuite) TestIntegrationPreservationMultiHop() {
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates(), agent.WithStablePackages())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 
 	snapshotIntegrationState(s.T(), s.Env(), "MultiHop: after MustInstall (released OCI stable)")
@@ -431,7 +431,7 @@ func (s *integrationPreservationSuite) TestIntegrationPreservationMultiHop() {
 // create_diff_installed_packages_file: a single .diff_python_installed_packages.txt
 // containing multiple entries, all of which must be reinstalled by post.py.
 func (s *integrationPreservationSuite) TestIntegrationPreservationMixedCustomization() {
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates(), agent.WithStablePackages())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	snapshotIntegrationState(s.T(), s.Env(), "MixedCustomization: after MustInstall (released OCI stable)")
 
@@ -489,7 +489,7 @@ func (s *integrationPreservationSuite) TestIntegrationPreservationMixedCustomiza
 // and asserts that the restored integration files are owned by dd-agent in both the
 // experiment and stable locations.
 func (s *integrationPreservationSuite) runIntegrationOwnershipTest(installUser, label string) {
-	s.Agent.MustInstall(s.InstallOptions(agent.WithRemoteUpdates(), agent.WithStablePackages())...)
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
 	defer s.Agent.MustUninstall()
 	snapshotIntegrationState(s.T(), s.Env(), label+": after MustInstall (released OCI stable)")
 
