@@ -32,20 +32,18 @@ type SubscribeEvent struct {
 }
 
 type streamState struct {
-	id             int
 	stream         grpc.BidiStreamingServer[gnmipb.SubscribeRequest, gnmipb.SubscribeResponse]
 	delaySync      bool
+	sendMu         sync.Mutex
 	stopPublishing bool
-	subscribed     bool
 	subscribeOnce  sync.Once
 	subscribeCh    chan struct{}
 	closeOnce      sync.Once
 	closeCh        chan struct{}
 }
 
-func newStreamState(id int, stream grpc.BidiStreamingServer[gnmipb.SubscribeRequest, gnmipb.SubscribeResponse], delaySync bool) *streamState {
+func newStreamState(stream grpc.BidiStreamingServer[gnmipb.SubscribeRequest, gnmipb.SubscribeResponse], delaySync bool) *streamState {
 	return &streamState{
-		id:          id,
 		stream:      stream,
 		delaySync:   delaySync,
 		subscribeCh: make(chan struct{}),
@@ -60,7 +58,6 @@ func (s *streamState) close() {
 }
 
 func (s *streamState) signalSubscribe() {
-	s.subscribed = true
 	s.subscribeOnce.Do(func() {
 		close(s.subscribeCh)
 	})
@@ -92,7 +89,6 @@ func (h *connStatsHandler) HandleConn(_ context.Context, s stats.ConnStats) {
 // Server is a loopback gNMI server with deterministic controls for Subscribe testing.
 type Server struct {
 	grpcServer *grpc.Server
-	listener   net.Listener
 	addr       string
 
 	mu           sync.RWMutex
@@ -110,7 +106,7 @@ type Server struct {
 	activeStreams     atomic.Int32
 	connStats         connStatsHandler
 
-	closed chan struct{}
+	closeOnce sync.Once
 }
 
 // New starts a gNMI server on a random loopback TCP port.
@@ -126,11 +122,9 @@ func NewOn(listenAddr string) (*Server, error) {
 	}
 
 	s := &Server{
-		listener:          listener,
 		addr:              listener.Addr().String(),
 		streams:           make(map[int]*streamState),
 		subscribeRequests: make(chan SubscribeEvent, 16),
-		closed:            make(chan struct{}),
 	}
 
 	grpcServer := grpc.NewServer(
@@ -196,26 +190,17 @@ func (s *Server) SetDelaySync(delay bool) {
 	s.delaySyncDefault = delay
 }
 
-// DelaySync prevents automatic sync_response for an existing stream until SendSyncResponse is called.
-func (s *Server) DelaySync(streamID int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	stream, ok := s.streams[streamID]
-	if !ok {
-		return fmt.Errorf("stream %d not found", streamID)
-	}
-	stream.delaySync = true
-	return nil
-}
-
 // StopPublishing prevents further updates from being sent on the stream.
 func (s *Server) StopPublishing(streamID int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
 	stream, ok := s.streams[streamID]
+	s.mu.RUnlock()
 	if !ok {
 		return fmt.Errorf("stream %d not found", streamID)
 	}
+
+	stream.sendMu.Lock()
+	defer stream.sendMu.Unlock()
 	stream.stopPublishing = true
 	return nil
 }
@@ -269,23 +254,7 @@ func (s *Server) CloseConnections() {
 
 // Close stops the server and releases resources.
 func (s *Server) Close() error {
-	select {
-	case <-s.closed:
-		return nil
-	default:
-		close(s.closed)
-	}
-
-	s.grpcServer.GracefulStop()
-	if err := s.listener.Close(); err != nil {
-		if errors.Is(err, net.ErrClosed) {
-			return nil
-		}
-		if opErr, ok := err.(*net.OpError); ok && opErr.Err != nil && errors.Is(opErr.Err, net.ErrClosed) {
-			return nil
-		}
-		return err
-	}
+	s.closeOnce.Do(s.grpcServer.Stop)
 	return nil
 }
 
@@ -308,7 +277,7 @@ func (s *Server) AwaitSubscribe(ctx context.Context, streamID int) error {
 
 func (s *Server) registerStream(stream grpc.BidiStreamingServer[gnmipb.SubscribeRequest, gnmipb.SubscribeResponse], delaySync bool) int {
 	id := int(s.nextStreamID.Add(1))
-	state := newStreamState(id, stream, delaySync)
+	state := newStreamState(stream, delaySync)
 
 	s.mu.Lock()
 	s.streams[id] = state
@@ -345,6 +314,9 @@ func (s *Server) sendResponse(streamID int, response *gnmipb.SubscribeResponse) 
 	if !ok {
 		return fmt.Errorf("stream %d not found", streamID)
 	}
+
+	stream.sendMu.Lock()
+	defer stream.sendMu.Unlock()
 	if stream.stopPublishing {
 		return fmt.Errorf("stream %d is not publishing", streamID)
 	}
@@ -390,10 +362,17 @@ func (g *gnmiService) Subscribe(stream grpc.BidiStreamingServer[gnmipb.Subscribe
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				errCh <- err
+				select {
+				case errCh <- err:
+				case <-stream.Context().Done():
+				}
 				return
 			}
-			reqCh <- req
+			select {
+			case reqCh <- req:
+			case <-stream.Context().Done():
+				return
+			}
 		}
 	}()
 
@@ -401,6 +380,8 @@ func (g *gnmiService) Subscribe(stream grpc.BidiStreamingServer[gnmipb.Subscribe
 		select {
 		case <-state.closeCh:
 			return status.Error(codes.Canceled, "stream closed by server")
+		case <-stream.Context().Done():
+			return stream.Context().Err()
 		case err := <-errCh:
 			return err
 		case req := <-reqCh:
@@ -423,15 +404,15 @@ func (g *gnmiService) handleSubscribeRequest(streamID int, state *streamState, u
 			Username: username,
 			Password: password,
 		}
-		select {
-		case g.server.subscribeRequests <- event:
-		default:
-		}
-
 		if !state.delaySync {
 			if err := g.server.SendSyncResponse(streamID); err != nil {
 				return err
 			}
+		}
+
+		select {
+		case g.server.subscribeRequests <- event:
+		default:
 		}
 	case *gnmipb.SubscribeRequest_Poll:
 		// Poll requests are accepted; tests drive responses explicitly.
