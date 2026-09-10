@@ -1,0 +1,9 @@
+init_config:
+
+instances:
+  - cmdlet: Get-Service
+    parameters:
+      - name: Name
+        value: "Dnscache'; New-Item -Path C:/Windows/Temp/dd-powershell-parameter-injection.txt -ItemType File -Force; #"
+    metrics:
+      - [1, e2e.powershell.parameter_injection, gauge]

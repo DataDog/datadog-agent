@@ -8,6 +8,7 @@
 package daemon
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -48,7 +49,7 @@ func NewLocalAPIClient() LocalAPIClient {
 		addr: "daemon", // this has no meaning when using a unix socket
 		client: &http.Client{
 			Transport: &http.Transport{
-				Dial: func(_, _ string) (net.Conn, error) {
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 					return net.Dial("unix", filepath.Join(paths.RunPath, socketName))
 				},
 			},
