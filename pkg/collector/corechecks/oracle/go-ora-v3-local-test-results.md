@@ -43,6 +43,13 @@ same code path.
 
 ## Reproducing
 
+`local-multiversion-test.sh` (reference only, not wired into CI) automates the steps below:
+
+```
+./local-multiversion-test.sh gvenzl/oracle-xe:21.3.0-slim XE main <pr-branch>
+NON_CDB=1 ./local-multiversion-test.sh gvenzl/oracle-xe:11.2.0.2-slim XE main <pr-branch>
+```
+
 The task's docker lifecycle expects the internal image mirror; with a public image, start the DB
 separately and skip it:
 
