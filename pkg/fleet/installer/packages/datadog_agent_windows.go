@@ -1103,7 +1103,7 @@ func RestartDatadogAgent(ctx context.Context) error {
 	return windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
 }
 
-func SetProcessManager(ctx context.Context, enabled bool) error {
+func SetProcessManager(_ context.Context, enabled bool) error {
 	if env.FromEnv().ProcessManagerEnabled == enabled {
 		return nil
 	}
