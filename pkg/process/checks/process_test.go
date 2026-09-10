@@ -678,8 +678,8 @@ func TestProcessTaggerIntegration(t *testing.T) {
 		syst2,
 		syst1,
 		lastRun,
-		nil,   // no lookup probe
-		nil,   // no zombie aggregates
+		nil, // no lookup probe
+		nil, // no zombie aggregates
 		serviceExtractor,
 		nil, // no GPU tags
 		taggerMock,
