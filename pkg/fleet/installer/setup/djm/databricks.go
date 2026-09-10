@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -247,8 +248,9 @@ func setupCommonHostTags(s *common.Setup) {
 		setClearHostTag(s, "workspace", normalizedWorkspace)
 
 		// default DD_ENV to the normalized workspace name so spans emitted from this host
-		// carry the same env as the workspace host tag
-		if _, ok := os.LookupEnv("DD_ENV"); !ok && normalizedWorkspace != "" {
+		// carry the same env as the workspace host tag, but never clobber an env already
+		// configured (via DD_ENV or a previous install) on upgrades/reinstalls
+		if os.Getenv("DD_ENV") == "" && normalizedWorkspace != "" && config.ReadCurrentEnv(paths.DatadogDataDir) == "" {
 			s.Config.DatadogYAML.Env = normalizedWorkspace
 		}
 	}
