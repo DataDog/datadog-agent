@@ -5,11 +5,10 @@
 
 //go:build !linux
 
-package config
+package gpu
 
 import "errors"
 
-// CheckGPUSupported checks if the host's kernel supports GPU monitoring
-func CheckGPUSupported() error {
+func checkGPUSupported() error {
 	return errors.New("GPU monitoring is not supported on this platform")
 }

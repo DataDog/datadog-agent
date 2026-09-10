@@ -19,7 +19,7 @@ import (
 
 func TestGPUCompile(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
-		if err := config.CheckGPUSupported(); err != nil {
+		if err := checkGPUSupported(); err != nil {
 			t.Skip("GPU Runtime compilation not supported on this kernel version")
 		}
 

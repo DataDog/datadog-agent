@@ -152,7 +152,7 @@ func newProbeTelemetry(tm telemetry.Component) *probeTelemetry {
 // streams into per-process GPU stats.
 func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	log.Tracef("creating GPU monitoring probe...")
-	if err := config.CheckGPUSupported(); err != nil {
+	if err := checkGPUSupported(); err != nil {
 		return nil, err
 	}
 	if deps.EBPFConfig == nil {

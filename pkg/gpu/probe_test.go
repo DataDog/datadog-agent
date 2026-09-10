@@ -48,7 +48,7 @@ type probeTestSuite struct {
 }
 
 func TestProbe(t *testing.T) {
-	if err := config.CheckGPUSupported(); err != nil {
+	if err := checkGPUSupported(); err != nil {
 		t.Skipf("minimum kernel version not met, %v", err)
 	}
 
@@ -365,7 +365,7 @@ func getCPUPercent(start, end cpuUsage, elapsed time.Duration) float64 {
 }
 
 func BenchmarkProbeEventProcessing(b *testing.B) {
-	if err := config.CheckGPUSupported(); err != nil {
+	if err := checkGPUSupported(); err != nil {
 		b.Skipf("minimum kernel version not met, %v", err)
 	}
 
