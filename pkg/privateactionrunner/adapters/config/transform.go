@@ -72,44 +72,47 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	}
 
 	return &Config{
-		MaxBackoff:                     maxBackoff,
-		MinBackoff:                     minBackoff,
-		MaxAttempts:                    maxAttempts,
-		WaitBeforeRetry:                waitBeforeRetry,
-		LoopInterval:                   loopInterval,
-		OpmsRequestTimeout:             opmsRequestTimeout,
-		RunnerPoolSize:                 config.GetInt32(setup.PARTaskConcurrency),
-		HealthCheckInterval:            healthCheckInterval,
-		HttpServerReadTimeout:          defaultHTTPServerReadTimeout,
-		HttpServerWriteTimeout:         defaultHTTPServerWriteTimeout,
-		HTTPTimeout:                    httpTimeout,
-		TaskTimeoutSeconds:             taskTimeoutSeconds,
-		RunnerAccessTokenHeader:        runnerAccessTokenHeader,
-		RunnerAccessTokenIdHeader:      runnerAccessTokenIDHeader,
-		Port:                           defaultPort,
-		JWTRefreshInterval:             defaultJwtRefreshInterval,
-		HealthCheckEndpoint:            defaultHealthCheckEndpoint,
-		HeartbeatInterval:              heartbeatInterval,
-		Version:                        version.AgentVersion,
-		MetricsClient:                  metricsClient,
-		ActionsAllowlist:               makeActionsAllowlist(config),
-		Allowlist:                      config.GetStringSlice(setup.PARHttpAllowlist),
-		AllowIMDSEndpoint:              config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		RShellAllowedPaths:             rshellAllowedPaths(config),
-		RShellAllowedCommands:          rshellAllowedCommands(config),
-		RShellAllowedSystemServices:    rshellAllowedSystemServices(config),
-		RShellDisableDetailedTelemetry: config.GetBool(setup.PARRestrictedShellDisableDetailedTelemetry),
-		RShellPrivilegedEnabled:        config.GetBool(setup.PARRestrictedShellPrivilegedEnabled),
-		RShellPrivilegedSocket:         config.GetString(setup.PARRestrictedShellPrivilegedSocket),
-		OpmsExtraHeaders:               config.GetStringMapString(setup.PAROpmsExtraHeaders),
-		DDHost:                         ddHost,
-		DDApiHost:                      "api." + ddSite,
-		Modes:                          []modes.Mode{modes.ModePull},
-		OrgId:                          orgID,
-		PrivateKey:                     privateKey,
-		RunnerId:                       runnerID,
-		Urn:                            urn,
-		DatadogSite:                    ddSite,
+		MaxBackoff:                         maxBackoff,
+		MinBackoff:                         minBackoff,
+		MaxAttempts:                        maxAttempts,
+		WaitBeforeRetry:                    waitBeforeRetry,
+		LoopInterval:                       loopInterval,
+		OpmsRequestTimeout:                 opmsRequestTimeout,
+		RunnerPoolSize:                     config.GetInt32(setup.PARTaskConcurrency),
+		HealthCheckInterval:                healthCheckInterval,
+		HttpServerReadTimeout:              defaultHTTPServerReadTimeout,
+		HttpServerWriteTimeout:             defaultHTTPServerWriteTimeout,
+		HTTPTimeout:                        httpTimeout,
+		TaskTimeoutSeconds:                 taskTimeoutSeconds,
+		RunnerAccessTokenHeader:            runnerAccessTokenHeader,
+		RunnerAccessTokenIdHeader:          runnerAccessTokenIDHeader,
+		Port:                               defaultPort,
+		JWTRefreshInterval:                 defaultJwtRefreshInterval,
+		HealthCheckEndpoint:                defaultHealthCheckEndpoint,
+		HeartbeatInterval:                  heartbeatInterval,
+		Version:                            version.AgentVersion,
+		MetricsClient:                      metricsClient,
+		ActionsAllowlist:                   makeActionsAllowlist(config),
+		Allowlist:                          config.GetStringSlice(setup.PARHttpAllowlist),
+		AllowIMDSEndpoint:                  config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		RShellAllowedPaths:                 rshellAllowedPaths(config),
+		RShellAllowedCommands:              rshellAllowedCommands(config),
+		RShellAllowedSystemServices:        rshellAllowedSystemServices(config),
+		RShellDisableDetailedTelemetry:     config.GetBool(setup.PARRestrictedShellDisableDetailedTelemetry),
+		RShellPrivilegedEnabled:            config.GetBool(setup.PARRestrictedShellPrivilegedEnabled),
+		RShellPrivilegedSocket:             config.GetString(setup.PARRestrictedShellPrivilegedSocket),
+		RShellPrivilegedElevatableCommands: rshellElevatableCommands(config),
+		RShellAllowedCommandsConfigured:    config.IsConfigured(setup.PARRestrictedShellAllowedCommands),
+		RShellAllowedPathsConfigured:       config.IsConfigured(setup.PARRestrictedShellAllowedPaths),
+		OpmsExtraHeaders:                   config.GetStringMapString(setup.PAROpmsExtraHeaders),
+		DDHost:                             ddHost,
+		DDApiHost:                          "api." + ddSite,
+		Modes:                              []modes.Mode{modes.ModePull},
+		OrgId:                              orgID,
+		PrivateKey:                         privateKey,
+		RunnerId:                           runnerID,
+		Urn:                                urn,
+		DatadogSite:                        ddSite,
 	}, nil
 }
 
@@ -162,7 +165,7 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 // AND the backend's allowed commands list. (intersection operation)
 func rshellAllowedCommands(config config.Component) []string {
 	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
-	warnUnnamespacedCommands(commands)
+	warnUnnamespacedCommands(setup.PARRestrictedShellAllowedCommands, commands)
 	return commands
 }
 
@@ -174,12 +177,25 @@ func rshellAllowedSystemServices(config config.Component) map[string][]string {
 	return config.GetStringMapStringSlice(setup.PARRestrictedShellAllowedSystemServices)
 }
 
-func warnUnnamespacedCommands(commands []string) {
+// rshellElevatableCommands returns the operator-configured list of rshell:-
+// namespaced commands allowed to temporarily regain root inside the
+// privileged helper's one-shot worker.
+//
+// Unlike allowed_commands, this setting has no wildcard-friendly default: an
+// unconfigured or empty list denies every elevation, since elevation grants
+// root and must be explicitly opted into per command.
+func rshellElevatableCommands(config config.Component) []string {
+	commands := config.GetStringSlice(setup.PARRestrictedShellPrivilegedElevatableCommands)
+	warnUnnamespacedCommands(setup.PARRestrictedShellPrivilegedElevatableCommands, commands)
+	return commands
+}
+
+func warnUnnamespacedCommands(key string, commands []string) {
 	for _, c := range commands {
 		if !strings.HasPrefix(c, RshellCommandNamespacePrefix) {
 			log.Warnf(
 				"%s entry %q is missing the %q prefix and will never match a backend command; use %q instead",
-				setup.PARRestrictedShellAllowedCommands,
+				key,
 				c,
 				RshellCommandNamespacePrefix,
 				RshellCommandNamespacePrefix+c,
