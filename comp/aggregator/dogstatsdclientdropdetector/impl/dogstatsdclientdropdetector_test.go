@@ -191,7 +191,7 @@ func TestComponentIgnoresWindowBeforeStartupReconciliation(t *testing.T) {
 	require.True(t, state.confirmationPending)
 }
 
-func TestComponentDisabledByDefault(t *testing.T) {
+func TestComponentCanBeDisabled(t *testing.T) {
 	healthPlatform := healthplatformmock.New(t)
 	issue, err := dogstatsdclientdrops.BuildUDSIssue(dogstatsdclientdrops.UDSDetectionContext{
 		ClientLibrary: dogstatsdclientdrops.ClientLibraryGo,
@@ -205,7 +205,7 @@ func TestComponentDisabledByDefault(t *testing.T) {
 	hostname, _ := hostnamemock.NewMock(hostnamemock.MockHostname(testHostname))
 	lifecycle := &testLifecycle{}
 	detector := NewComponent(Requires{
-		Lifecycle: lifecycle, Config: config.NewMockWithOverrides(t, map[string]interface{}{unhealthyConfirmationWindowConfig: "0s"}), Log: logmock.New(t),
+		Lifecycle: lifecycle, Config: config.NewMockWithOverrides(t, map[string]interface{}{enabledConfig: false, unhealthyConfirmationWindowConfig: "0s"}), Log: logmock.New(t),
 		Hostname: hostname, HealthPlatform: healthPlatform,
 	}).Comp
 	lifecycle.start(t)
