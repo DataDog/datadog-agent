@@ -113,7 +113,7 @@ func registerCommandProviderFlowFixture(t *testing.T, registry remoteagentregist
 		grpc.Creds(credentials.NewTLS(ipcComponent.GetTLSServerConfig())),
 		grpc.ChainUnaryInterceptor(
 			grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(ipcComponent.GetAuthToken())),
-			func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+			func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 				if err := grpc.SetHeader(ctx, metadata.Pairs("session_id", provider.sessionID)); err != nil {
 					return nil, err
 				}
