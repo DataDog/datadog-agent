@@ -372,7 +372,7 @@ type commandProviderTarget struct {
 	client   *remoteAgentClient
 }
 
-// commandProviders queries each registered RemoteCommandProvider once and selects the oldest registration for every provider name.
+// commandProviders queries each registered RemoteCommandProvider once and selects the newest registration for every provider name.
 func (ra *remoteAgentRegistry) commandProviders(ctx context.Context) map[string]commandProviderTarget {
 	queryTimeout := ra.conf.GetDuration("remote_agent.registry.query_timeout")
 
@@ -421,7 +421,7 @@ func (ra *remoteAgentRegistry) commandProviders(ctx context.Context) map[string]
 				continue
 			}
 			active, ok := providers[provider.GetName()]
-			if !ok || result.client.registrationOrder < active.client.registrationOrder {
+			if !ok || result.client.registrationOrder > active.client.registrationOrder {
 				providers[provider.GetName()] = commandProviderTarget{provider: provider, client: result.client}
 			}
 		}

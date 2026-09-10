@@ -23,6 +23,7 @@ import (
 func TestRemoteParentDisplaysHelp(t *testing.T) {
 	remote := Commands(&command.GlobalParams{})[0]
 	require.Equal(t, "remote", remote.Name())
+	require.Equal(t, "Run commands exposed by other Agent processes", remote.Short)
 	require.Empty(t, remote.Commands())
 }
 

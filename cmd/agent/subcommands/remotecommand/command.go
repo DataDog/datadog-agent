@@ -54,7 +54,7 @@ var remoteGlobalParams sync.Map // map[*cobra.Command]*command.GlobalParams
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	remote := &cobra.Command{
 		Use:           "remote",
-		Short:         "Run commands exposed by registered remote agents",
+		Short:         "Run commands exposed by other Agent processes",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {

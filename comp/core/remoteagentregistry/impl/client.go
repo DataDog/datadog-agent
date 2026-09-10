@@ -60,7 +60,7 @@ type remoteAgentClient struct {
 	// services are the capabilities advertised at registration. The registry uses them to avoid invoking an RPC that
 	// the remote endpoint does not implement.
 	services []remoteAgentServiceName
-	// registrationOrder determines oldest-provider selection for duplicate provider names.
+	// registrationOrder determines newest-provider selection for duplicate provider names.
 	registrationOrder uint64
 	conn              *grpc.ClientConn
 }
