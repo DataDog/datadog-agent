@@ -682,6 +682,104 @@ func TestRunPrivilegedLogsSettingsAtInfoLevel(t *testing.T) {
 	assert.Contains(t, logs, "privilegedEnabled=false")
 }
 
+// TestBuildAgentPolicyNoOperatorNarrowingIsNil covers the critical
+// backward-compatibility case: when the operator has configured none of the
+// four restricted_shell narrowing settings in datadog.yaml, buildAgentPolicy
+// must return nil so the resulting ExecuteRequest.AgentPolicy is entirely
+// absent — byte-for-byte identical to privileged execution's behavior before
+// this field existed.
+func TestBuildAgentPolicyNoOperatorNarrowingIsNil(t *testing.T) {
+	handler := newDefaultRunCommandHandler()
+
+	assert.Nil(t, handler.buildAgentPolicy())
+}
+
+// TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil is the
+// regression test for the per-field nil-vs-empty contract: configuring only
+// restricted_shell.allowed_commands must leave AllowedPaths,
+// AllowedSystemServices, and ElevatableCommands as Go nil (not empty slices
+// or maps) on the resulting AgentPolicy, so those axes are governed
+// exclusively by signed task ∩ policy.json on the rshell side, unaffected by
+// this Agent-side narrowing layer.
+func TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:           []string{"rshell:truncate"},
+		OperatorAllowedCommandsConfigured: true,
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:truncate"}, policy.AllowedCommands)
+	assert.Nil(t, policy.AllowedPaths)
+	assert.Nil(t, policy.AllowedSystemServices)
+	assert.Nil(t, policy.ElevatableCommands)
+}
+
+// TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil
+// mirrors the above for the new privileged-only elevatable_commands setting,
+// which has no non-privileged equivalent.
+func TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:       []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:    []string{rShellCommandAllowAllWildcard},
+		OperatorElevatableCommands: []string{"rshell:journalctl", "rshell:systemctl"},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:journalctl", "rshell:systemctl"}, policy.ElevatableCommands)
+	assert.Nil(t, policy.AllowedCommands)
+	assert.Nil(t, policy.AllowedPaths)
+	assert.Nil(t, policy.AllowedSystemServices)
+}
+
+// TestBuildAgentPolicyAllAxesConfigured covers the fully-configured case:
+// every field is populated once its corresponding datadog.yaml setting is
+// set, including an explicit empty allowlist acting as a deny-all kill
+// switch on that axis.
+func TestBuildAgentPolicyAllAxesConfigured(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{"/var/log:ro"},
+		OperatorAllowedCommands:           []string{"rshell:cat"},
+		OperatorAllowedCommandsConfigured: true,
+		OperatorAllowedPathsConfigured:    true,
+		OperatorAllowedSystemServices:     map[string][]string{"mysql.service": {"read"}},
+		OperatorElevatableCommands:        []string{"rshell:truncate"},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:cat"}, policy.AllowedCommands)
+	// operatorAllowedPaths is normalized by cleanPathList/reducePathListToBroadest
+	// in newRunCommandHandler, which appends a trailing separator.
+	assert.Equal(t, []string{"/var/log/:ro"}, policy.AllowedPaths)
+	assert.Equal(t, map[string][]string{"mysql.service": {"read"}}, policy.AllowedSystemServices)
+	assert.Equal(t, []string{"rshell:truncate"}, policy.ElevatableCommands)
+}
+
+// TestBuildAgentPolicyExplicitlyEmptyAllowedSystemServicesConfiguredIsKillSwitch
+// covers the system-services axis's existing nil-vs-configured-empty
+// contract (already used for the non-privileged path via
+// filterSystemServiceGrants): a configured empty map is a deny-all kill
+// switch distinct from an unconfigured nil map.
+func TestBuildAgentPolicyExplicitlyEmptyAllowedSystemServicesConfiguredIsKillSwitch(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:          []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:       []string{rShellCommandAllowAllWildcard},
+		OperatorAllowedSystemServices: map[string][]string{},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.NotNil(t, policy.AllowedSystemServices)
+	assert.Empty(t, policy.AllowedSystemServices)
+}
+
 func TestWholeScriptRootIsRejected(t *testing.T) {
 	handler := newDefaultRunRemediationCommandHandler()
 	task := makeTask("truncate -s 0 /var/log/app.log", []string{"rshell:truncate"})

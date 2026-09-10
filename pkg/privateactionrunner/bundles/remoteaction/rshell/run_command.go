@@ -60,6 +60,17 @@ type RunCommandHandlerConfig struct {
 	DisableDetailedTelemetry      bool
 	PrivilegedEnabled             bool
 	PrivilegedSocket              string
+	// OperatorElevatableCommands lists rshell:-namespaced commands allowed to
+	// temporarily regain root inside the privileged helper. Nil or empty
+	// means no command may elevate.
+	OperatorElevatableCommands []string
+	// OperatorAllowedCommandsConfigured and OperatorAllowedPathsConfigured
+	// record whether the operator explicitly set the corresponding
+	// datadog.yaml setting, as opposed to it carrying its wildcard-admitting
+	// default. Privileged execution uses these to decide whether to narrow
+	// that axis at all: see buildAgentPolicy.
+	OperatorAllowedCommandsConfigured bool
+	OperatorAllowedPathsConfigured    bool
 }
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
@@ -95,6 +106,12 @@ type RunCommandHandler struct {
 	mode                          interp.Mode
 	privilegedEnabled             bool
 	privilegedSocket              string
+	// operatorElevatableCommands and the two operatorAllowed*Configured flags
+	// are used only to construct the privileged path's AgentPolicy; see
+	// buildAgentPolicy.
+	operatorElevatableCommands        []string
+	operatorAllowedCommandsConfigured bool
+	operatorAllowedPathsConfigured    bool
 }
 
 // newRunCommandHandler builds a run-command handler and precomputes the
@@ -111,15 +128,22 @@ func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCom
 	slices.Sort(commands)
 	commands = slices.Compact(commands)
 
+	elevatableCommands := slices.Clone(cfg.OperatorElevatableCommands)
+	slices.Sort(elevatableCommands)
+	elevatableCommands = slices.Compact(elevatableCommands)
+
 	services := cloneSystemServiceAllowlist(cfg.OperatorAllowedSystemServices)
 	return &RunCommandHandler{
-		operatorAllowedPaths:          reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
-		operatorAllowedCommands:       commands,
-		operatorAllowedSystemServices: services,
-		disableCommandTelemetry:       cfg.DisableDetailedTelemetry,
-		mode:                          mode,
-		privilegedEnabled:             cfg.PrivilegedEnabled,
-		privilegedSocket:              cfg.PrivilegedSocket,
+		operatorAllowedPaths:              reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
+		operatorAllowedCommands:           commands,
+		operatorAllowedSystemServices:     services,
+		disableCommandTelemetry:           cfg.DisableDetailedTelemetry,
+		mode:                              mode,
+		privilegedEnabled:                 cfg.PrivilegedEnabled,
+		privilegedSocket:                  cfg.PrivilegedSocket,
+		operatorElevatableCommands:        elevatableCommands,
+		operatorAllowedCommandsConfigured: cfg.OperatorAllowedCommandsConfigured,
+		operatorAllowedPathsConfigured:    cfg.OperatorAllowedPathsConfigured,
 	}
 }
 
@@ -425,12 +449,76 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task,
 		}, {
 			ID: verificationKey.ID, Type: privilegedhelper.KeyType(verificationKey.KeyType), PEM: verificationKey.PEM,
 		}},
+		AgentPolicy: h.buildAgentPolicy(),
 	}
 	response, err := (privilegedhelper.Client{SocketPath: h.privilegedSocket}).Execute(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("privileged rshell helper: %w", err)
 	}
 	return &RunCommandOutputs{ExitCode: response.ExitCode, Stdout: response.Stdout, Stderr: response.Stderr, SandboxWarnings: response.SandboxWarnings}, nil
+}
+
+// buildAgentPolicy translates the operator's datadog.yaml restricted_shell
+// settings into the privileged helper's AgentPolicy, which narrows privileged
+// execution the same way the operator settings already narrow the
+// non-privileged path (see filterAllowedCommands/filterAllowedPaths/
+// filterSystemServiceGrants above).
+//
+// The AgentPolicy wire contract applies nil-vs-empty semantics per field:
+// a nil field means "the Agent imposes no narrowing on this axis", deferring
+// entirely to the signed backend task and the optional local policy.json;
+// a non-nil field (even if empty) narrows via intersection, with an empty
+// value denying every grant on that axis. This function reproduces that
+// per-field nil-vs-configured distinction from the corresponding datadog.yaml
+// setting:
+//
+//   - AllowedCommands / AllowedPaths are populated only when the operator
+//     explicitly configured restricted_shell.allowed_commands /
+//     allowed_paths (h.operatorAllowedCommandsConfigured /
+//     h.operatorAllowedPathsConfigured). Left at their wildcard-admitting
+//     defaults (["rshell:*"] / ["/"]), those defaults are still forwarded
+//     when the field IS populated, so the resulting intersection is a no-op
+//     — but the field itself stays nil, unconfigured, when the operator
+//     never touched the setting at all, which is behaviorally identical for
+//     this axis and keeps the AgentPolicy request minimal.
+//   - AllowedSystemServices is populated only when
+//     restricted_shell.allowed_system_services is configured, mirroring
+//     h.operatorAllowedSystemServices's own nil-means-unset contract for the
+//     non-privileged path.
+//   - ElevatableCommands is populated whenever the operator configured any
+//     restricted_shell.privileged.elevatable_commands entries. This setting
+//     has no non-privileged equivalent and defaults to an empty list, so an
+//     unconfigured value and an explicitly-empty configured value both
+//     correctly deny every elevation.
+//
+// If none of the four axes are configured, this returns nil so the request's
+// AgentPolicy is entirely absent — byte-for-byte identical to privileged
+// execution's behavior before this field existed.
+func (h *RunCommandHandler) buildAgentPolicy() *privilegedhelper.AgentPolicy {
+	policy := &privilegedhelper.AgentPolicy{}
+	configured := false
+
+	if h.operatorAllowedCommandsConfigured {
+		policy.AllowedCommands = h.operatorAllowedCommands
+		configured = true
+	}
+	if h.operatorAllowedPathsConfigured {
+		policy.AllowedPaths = h.operatorAllowedPaths
+		configured = true
+	}
+	if h.operatorAllowedSystemServices != nil {
+		policy.AllowedSystemServices = h.operatorAllowedSystemServices
+		configured = true
+	}
+	if h.operatorElevatableCommands != nil {
+		policy.ElevatableCommands = h.operatorElevatableCommands
+		configured = true
+	}
+
+	if !configured {
+		return nil
+	}
+	return policy
 }
 
 func backendAllowlistsFromTask(task *types.Task, inputs RunCommandInputs) (commands []string, paths []string, systemServices map[string]*structpb.ListValue) {
