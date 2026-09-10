@@ -548,6 +548,88 @@ func TestRemoteQueryMatchHandlerBusyFailsFast(t *testing.T) {
 	assert.Contains(t, body, `"status":"resolution_error"`)
 	assert.Contains(t, body, "another remote query is running on this Agent")
 }
+
+// TestAskIntegrationResolverConsumesPinnedPythonVerdictShapes proves the Agent's
+// per-check verdict classifier consumes the exact JSON the integrations-core
+// resolver emits — the shapes pinned by its own tests (postgres/tests/
+// test_remote_query.py, integrations-core 46dd06d996): the two sides meet only at
+// these bridge payloads, and any drift on either side fails this boundary test.
+func TestAskIntegrationResolverConsumesPinnedPythonVerdictShapes(t *testing.T) {
+	verdictRunner := func(events []check.RemoteQueryStreamEvent) remoteQueryStreamRunner {
+		return &fakeStreamRunnerCheck{
+			fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file"}},
+			resolveEvents:   events,
+		}
+	}
+
+	t.Run("tuple match reports the sanitized identity", func(t *testing.T) {
+		verdict, err := askIntegrationResolver(verdictRunner([]check.RemoteQueryStreamEvent{
+			{Type: "final", MetadataJSON: `{"status":"MATCHED","match":{"host":"localhost","port":5432,"configuredDbname":"datadog_test","resolvedDbname":"datadog_test","databaseInstance":"Postgres/Primary-A"}}`},
+		}), "postgres", remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "datadog_test"})
+
+		require.NoError(t, err)
+		assert.True(t, verdict.matched)
+		assert.Equal(t, remoteQueryMatchIdentity{
+			host:             "localhost",
+			port:             5432,
+			configuredDBName: "datadog_test",
+			resolvedDBName:   "datadog_test",
+			databaseInstance: "Postgres/Primary-A",
+		}, verdict.identity)
+	})
+
+	t.Run("autodiscovered match distinguishes configured and resolved dbname", func(t *testing.T) {
+		verdict, err := askIntegrationResolver(verdictRunner([]check.RemoteQueryStreamEvent{
+			{Type: "final", MetadataJSON: `{"status":"MATCHED","match":{"host":"localhost","port":5432,"configuredDbname":"postgres","resolvedDbname":"dogs_1"}}`},
+		}), "postgres", remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "dogs_1"})
+
+		require.NoError(t, err)
+		assert.True(t, verdict.matched)
+		assert.Equal(t, "postgres", verdict.identity.configuredDBName)
+		assert.Equal(t, "dogs_1", verdict.identity.resolvedDBName)
+	})
+
+	t.Run("database_instance match reports the materialized dbname", func(t *testing.T) {
+		verdict, err := askIntegrationResolver(verdictRunner([]check.RemoteQueryStreamEvent{
+			{Type: "final", MetadataJSON: `{"status":"MATCHED","match":{"configuredDbname":"production_ok","resolvedDbname":"production_ok","databaseInstance":"Postgres/Primary-A"}}`},
+		}), "postgres", remoteQueryTarget{DatabaseInstance: "Postgres/Primary-A"})
+
+		require.NoError(t, err)
+		assert.True(t, verdict.matched)
+		assert.Equal(t, "production_ok", verdict.identity.configuredDBName)
+		assert.Equal(t, "production_ok", verdict.identity.resolvedDBName)
+		assert.Equal(t, "Postgres/Primary-A", verdict.identity.databaseInstance)
+	})
+
+	t.Run("no match is one target_not_found error", func(t *testing.T) {
+		verdict, err := askIntegrationResolver(verdictRunner([]check.RemoteQueryStreamEvent{
+			{Type: "error", MetadataJSON: `{"status":"FAILED","error":{"code":"target_not_found","message":"No loaded Postgres integration instance matched target selector.","retryable":false},"stats":{"elapsedMs":3}}`},
+		}), "postgres", remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "unconfigured_existing_or_missing"})
+
+		require.NoError(t, err)
+		assert.False(t, verdict.matched)
+	})
+
+	t.Run("undeterminable eligible set fails the aggregate resolution", func(t *testing.T) {
+		_, err := askIntegrationResolver(verdictRunner([]check.RemoteQueryStreamEvent{
+			{Type: "error", MetadataJSON: `{"status":"FAILED","error":{"code":"target_unavailable","message":"Unable to determine the matched check's autodiscovered database scope: discovery broke","retryable":true},"stats":{"elapsedMs":5}}`},
+		}), "postgres", remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "dogs_1"})
+
+		require.Error(t, err)
+		assert.Equal(t, "remote query resolution failed on a loaded integration check", err.Error())
+		assert.NotContains(t, err.Error(), "discovery broke")
+	})
+
+	t.Run("invalid request verdict fails the aggregate resolution", func(t *testing.T) {
+		_, err := askIntegrationResolver(verdictRunner([]check.RemoteQueryStreamEvent{
+			{Type: "error", MetadataJSON: `{"status":"FAILED","error":{"code":"invalid_request","message":"Invalid remote query request: validation error for resultDelivery","retryable":false},"stats":{"elapsedMs":1}}`},
+		}), "postgres", remoteQueryTarget{Host: "localhost", Port: 5432, DBName: "postgres"})
+
+		require.Error(t, err)
+		assert.Equal(t, "remote query resolution failed on a loaded integration check", err.Error())
+	})
+}
+
 func TestRemoteQueryMatchHandlerUnknownTargetFieldDoesNotEchoValue(t *testing.T) {
 	handler := &remoteQueryMatchHandler{enabled: true, collector: fakeCollector{}}
 
