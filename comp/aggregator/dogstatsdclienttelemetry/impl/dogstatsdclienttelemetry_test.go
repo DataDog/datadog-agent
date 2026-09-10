@@ -20,17 +20,18 @@ import (
 )
 
 type observedClientBytes struct {
-	clientLibrary string
-	metric        dogstatsdclientdropdetector.ClientByteMetric
-	bytes         float64
+	clientLibrary   string
+	clientTransport string
+	metric          dogstatsdclientdropdetector.ClientByteMetric
+	bytes           float64
 }
 
 type recordingDropDetector struct {
 	observations []observedClientBytes
 }
 
-func (d *recordingDropDetector) ObserveClientBytes(clientLibrary string, metric dogstatsdclientdropdetector.ClientByteMetric, bytes float64) {
-	d.observations = append(d.observations, observedClientBytes{clientLibrary: clientLibrary, metric: metric, bytes: bytes})
+func (d *recordingDropDetector) ObserveClientBytes(clientLibrary, clientTransport string, metric dogstatsdclientdropdetector.ClientByteMetric, bytes float64) {
+	d.observations = append(d.observations, observedClientBytes{clientLibrary: clientLibrary, clientTransport: clientTransport, metric: metric, bytes: bytes})
 }
 
 func (*recordingDropDetector) CompleteFinalDogStatsDSerieFlush() {}
@@ -174,11 +175,11 @@ func TestComponentSharesOnlyValidUDSClientBytesWithDetector(t *testing.T) {
 	}
 
 	require.Equal(t, []observedClientBytes{
-		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 50},
-		{clientLibrary: "py", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 40},
-		{clientLibrary: "java", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 30},
-		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricDropped, bytes: 10},
-		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricDroppedQueue, bytes: 6},
-		{clientLibrary: "go", metric: dogstatsdclientdropdetector.ClientByteMetricDroppedWriter, bytes: 4},
+		{clientLibrary: "go", clientTransport: "uds", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 50},
+		{clientLibrary: "py", clientTransport: "uds-stream", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 40},
+		{clientLibrary: "java", clientTransport: "uds", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 30},
+		{clientLibrary: "go", clientTransport: "uds", metric: dogstatsdclientdropdetector.ClientByteMetricDropped, bytes: 10},
+		{clientLibrary: "go", clientTransport: "uds", metric: dogstatsdclientdropdetector.ClientByteMetricDroppedQueue, bytes: 6},
+		{clientLibrary: "go", clientTransport: "uds", metric: dogstatsdclientdropdetector.ClientByteMetricDroppedWriter, bytes: 4},
 	}, detector.observations)
 }

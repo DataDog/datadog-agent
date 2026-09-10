@@ -376,7 +376,7 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 		if err != nil {
 			return nil
 		}
-		issueID := dogstatsdclientdrops.UDSIssueIDForHost(dogstatsdclientdrops.ClientLibraryGo, hostuuid.GetUUID(), "my-hostname")
+		issueID := dogstatsdclientdrops.UDSIssueIDForHost(dogstatsdclientdrops.ClientLibraryGo, dogstatsdclientdrops.ClientTransportUDS, hostuuid.GetUUID(), "my-hostname")
 		for _, payload := range payloads {
 			issue := payload.Issues[issueID]
 			if issue != nil && issue.PersistedIssue != nil && issue.PersistedIssue.State == state {
@@ -393,12 +393,12 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 		active = findIssue(healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE)
 		return active != nil
 	}, 2*time.Second, 10*time.Millisecond)
-	require.Equal(t, dogstatsdclientdrops.UDSIssueIDForHost(dogstatsdclientdrops.ClientLibraryGo, hostuuid.GetUUID(), "my-hostname"), active.Id)
+	require.Equal(t, dogstatsdclientdrops.UDSIssueIDForHost(dogstatsdclientdrops.ClientLibraryGo, dogstatsdclientdrops.ClientTransportUDS, hostuuid.GetUUID(), "my-hostname"), active.Id)
 	require.Equal(t, dogstatsdclientdrops.UDSIssueName(dogstatsdclientdrops.ClientLibraryGo), active.IssueName)
 	require.Equal(t, dogstatsdclientdrops.UDSIssueType(dogstatsdclientdrops.ClientLibraryGo), active.IssueType)
 	require.Contains(t, active.Title, "UDS")
 	require.Contains(t, active.Title, "my-hostname")
-	require.Equal(t, "uds", active.Extra.GetFields()["transport_family"].GetStringValue())
+	require.Equal(t, "uds", active.Extra.GetFields()["client_transport"].GetStringValue())
 	require.True(t, active.Extra.GetFields()["detection_evidence_available"].GetBoolValue())
 	require.Equal(t, 0.02, active.Extra.GetFields()["dropped_ratio"].GetNumberValue())
 	require.Equal(t, 1960.0, active.Extra.GetFields()["bytes_sent"].GetNumberValue())

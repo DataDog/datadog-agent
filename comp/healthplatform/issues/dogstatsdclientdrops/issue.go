@@ -23,13 +23,11 @@ const (
 	mediumSeverityDroppedRatio = 0.05
 	highSeverityDroppedRatio   = 0.25
 
-	transportFamilyUDS = "uds"
-
-	contextKeyHostname                    = "hostname"
+	contextKeyAgentHostname               = "agent_hostname"
 	contextKeyClientLibrary               = "client_library"
-	contextKeyTransportFamily             = "transport_family"
+	contextKeyClientTransport             = "client_transport"
 	contextKeyDroppedRatio                = "dropped_ratio"
-	contextKeyThreshold                   = "threshold"
+	contextKeyDroppedRatioThreshold       = "dropped_ratio_threshold"
 	contextKeyBytesSent                   = "bytes_sent"
 	contextKeyBytesDropped                = "bytes_dropped"
 	contextKeyBytesDroppedQueue           = "bytes_dropped_queue"
@@ -43,6 +41,7 @@ const (
 // triggered a library-specific UDS issue.
 type UDSDetectionContext struct {
 	ClientLibrary               ClientLibrary
+	ClientTransport             ClientTransport
 	AgentHostname               string
 	DroppedRatio                float64
 	Threshold                   float64
@@ -59,10 +58,20 @@ func NormalizeClientLibrary(clientLibrary string) ClientLibrary {
 	return ClientLibrary(strings.ToLower(clientLibrary))
 }
 
+// NormalizeClientTransport normalizes a telemetry client-transport tag.
+func NormalizeClientTransport(clientTransport string) ClientTransport {
+	return ClientTransport(strings.ToLower(clientTransport))
+}
+
 // IsSupportedClientLibrary reports whether drop detection is implemented for a library.
 func IsSupportedClientLibrary(clientLibrary ClientLibrary) bool {
 	_, found := issueDefinitions[clientLibrary]
 	return found
+}
+
+// IsSupportedClientTransport reports whether drop detection is implemented for a transport.
+func IsSupportedClientTransport(clientTransport ClientTransport) bool {
+	return clientTransport == ClientTransportUDS || clientTransport == ClientTransportUDSStream
 }
 
 // ClientLibraries returns the client-library buckets maintained by the detector.
@@ -72,6 +81,11 @@ func ClientLibraries() []ClientLibrary {
 		libraries = append(libraries, library)
 	}
 	return libraries
+}
+
+// ClientTransports returns the transports maintained independently by the detector.
+func ClientTransports() []ClientTransport {
+	return []ClientTransport{ClientTransportUDS, ClientTransportUDSStream}
 }
 
 // UDSIssueName returns the stable issue name for a client library.
@@ -85,12 +99,17 @@ func UDSIssueType(clientLibrary ClientLibrary) string {
 }
 
 // UDSIssueIDForHost returns a deterministic library-specific UDS issue ID for one Agent/node.
-func UDSIssueIDForHost(clientLibrary ClientLibrary, hostUUID, agentHostname string) string {
-	base := definitionFor(clientLibrary).issueID
+func UDSIssueIDForHost(clientLibrary ClientLibrary, clientTransport ClientTransport, hostUUID, agentHostname string) string {
+	base := UDSIssueIDPrefix(clientLibrary, clientTransport)
 	if hostUUID != "" {
 		return fmt.Sprintf("%s:uuid:%s", base, hostUUID)
 	}
 	return fmt.Sprintf("%s:hostname:%s", base, agentHostname)
+}
+
+// UDSIssueIDPrefix returns the stable identity prefix for a library and transport.
+func UDSIssueIDPrefix(clientLibrary ClientLibrary, clientTransport ClientTransport) string {
+	return fmt.Sprintf("%s:%s", definitionFor(clientLibrary).issueID, clientTransport)
 }
 
 // SeverityForDroppedRatio maps the dropped-byte ratio to an Agent Health severity.
@@ -107,20 +126,28 @@ func SeverityForDroppedRatio(ratio float64) healthplatform.IssueSeverity {
 // BuildUDSIssue creates an Agent Health issue from a confirmed UDS violation.
 func BuildUDSIssue(context UDSDetectionContext) (*healthplatform.Issue, error) {
 	context.ClientLibrary = NormalizeClientLibrary(string(context.ClientLibrary))
+	context.ClientTransport = NormalizeClientTransport(string(context.ClientTransport))
 	if !IsSupportedClientLibrary(context.ClientLibrary) {
 		return nil, fmt.Errorf("unsupported DogStatsD client library %q", context.ClientLibrary)
+	}
+	if !IsSupportedClientTransport(context.ClientTransport) {
+		return nil, fmt.Errorf("unsupported DogStatsD client transport %q", context.ClientTransport)
 	}
 	return buildUDSIssue(context, false)
 }
 
 // BuildRestoredUDSIssue recreates an active UDS issue after an Agent restart
 // when its original detection evidence is no longer available in memory.
-func BuildRestoredUDSIssue(clientLibrary ClientLibrary, agentHostname string) (*healthplatform.Issue, error) {
+func BuildRestoredUDSIssue(clientLibrary ClientLibrary, clientTransport ClientTransport, agentHostname string) (*healthplatform.Issue, error) {
 	clientLibrary = NormalizeClientLibrary(string(clientLibrary))
+	clientTransport = NormalizeClientTransport(string(clientTransport))
 	if !IsSupportedClientLibrary(clientLibrary) {
 		return nil, fmt.Errorf("unsupported DogStatsD client library %q", clientLibrary)
 	}
-	return buildUDSIssue(UDSDetectionContext{ClientLibrary: clientLibrary, AgentHostname: agentHostname}, true)
+	if !IsSupportedClientTransport(clientTransport) {
+		return nil, fmt.Errorf("unsupported DogStatsD client transport %q", clientTransport)
+	}
+	return buildUDSIssue(UDSDetectionContext{ClientLibrary: clientLibrary, ClientTransport: clientTransport, AgentHostname: agentHostname}, true)
 }
 
 func definitionFor(clientLibrary ClientLibrary) issueDefinition {
@@ -133,25 +160,28 @@ func buildUDSIssue(context UDSDetectionContext, restored bool) (*healthplatform.
 	if agentHostname == "" {
 		agentHostname = "unknown host"
 	}
+	transportName := clientTransportDisplayName(context.ClientTransport)
 	extraValues := map[string]any{
-		contextKeyHostname:                   agentHostname,
+		contextKeyAgentHostname:              agentHostname,
 		contextKeyClientLibrary:              string(definition.library),
-		contextKeyTransportFamily:            transportFamilyUDS,
+		contextKeyClientTransport:            string(context.ClientTransport),
 		contextKeyDetectionEvidenceAvailable: !restored,
-		"impact":                             fmt.Sprintf("DogStatsD %s clients reporting through the affected Agent reported sustained UDS payload-byte loss. Metrics, events, service checks, and telemetry emitted by those clients may be missing from Datadog.", definition.displayName),
+		"impact":                             fmt.Sprintf("DogStatsD %s clients reporting through the affected Agent reported sustained %s payload-byte loss. Metrics, events, service checks, and telemetry emitted by those clients may be missing from Datadog.", definition.displayName, transportName),
 	}
 
-	title := fmt.Sprintf("Sustained DogStatsD %s UDS payload drops detected by Agent %s", definition.displayName, agentHostname)
-	description := fmt.Sprintf("The Agent previously detected sustained UDS payload drops from DogStatsD %s clients reporting through it and is awaiting current client telemetry after restart.", definition.displayName)
+	title := fmt.Sprintf("Sustained DogStatsD %s %s payload drops detected by Agent %s", definition.displayName, transportName, agentHostname)
+	description := fmt.Sprintf("The Agent previously detected sustained %s payload drops from DogStatsD %s clients reporting through it and is awaiting current client telemetry after restart.", transportName, definition.displayName)
 	if !restored {
 		extraValues[contextKeyDroppedRatio] = context.DroppedRatio
-		extraValues[contextKeyThreshold] = context.Threshold
+		extraValues[contextKeyDroppedRatioThreshold] = context.Threshold
 		extraValues[contextKeyBytesSent] = context.BytesSent
 		extraValues[contextKeyBytesDropped] = context.BytesDropped
-		extraValues[contextKeyBytesDroppedQueue] = context.BytesDroppedQueue
-		extraValues[contextKeyBytesDroppedWriter] = context.BytesDroppedWriter
-		extraValues[contextKeyBytesDroppedUnclassified] = context.BytesDroppedUnclassified
-		extraValues[contextKeyDropReasonBreakdownComplete] = context.DropReasonBreakdownComplete
+		if len(definition.dropReasonMetrics) > 0 {
+			extraValues[contextKeyBytesDroppedQueue] = context.BytesDroppedQueue
+			extraValues[contextKeyBytesDroppedWriter] = context.BytesDroppedWriter
+			extraValues[contextKeyBytesDroppedUnclassified] = context.BytesDroppedUnclassified
+			extraValues[contextKeyDropReasonBreakdownComplete] = context.DropReasonBreakdownComplete
+		}
 
 		breakdown := ""
 		if len(definition.dropReasonMetrics) > 0 {
@@ -161,8 +191,9 @@ func buildUDSIssue(context UDSDetectionContext, restored bool) (*healthplatform.
 			}
 		}
 		description = fmt.Sprintf(
-			"DogStatsD %s clients reporting through this Agent using UDS reported a %.4f%% payload-byte drop rate during the observation period, above the %.4f%% threshold (dropped=%.2f, sent=%.2f%s).",
+			"DogStatsD %s clients reporting through this Agent using %s reported a %.4f%% payload-byte drop rate during the observation period, above the %.4f%% threshold (dropped=%.2f, sent=%.2f%s).",
 			definition.displayName,
+			transportName,
 			context.DroppedRatio*100,
 			context.Threshold*100,
 			context.BytesDropped,
@@ -184,8 +215,8 @@ func buildUDSIssue(context UDSDetectionContext, restored bool) (*healthplatform.
 		Location:    location,
 		Severity:    issueSeverity,
 		Source:      source,
-		Tags:        []string{"dogstatsd", "client", "client:" + string(definition.library), "host:" + agentHostname, "payload-drops", transportFamilyUDS},
-		Remediation: buildUDSRemediation(definition, agentHostname),
+		Tags:        []string{"dogstatsd", "client:" + string(definition.library), contextKeyClientTransport + ":" + string(context.ClientTransport), "host:" + agentHostname},
+		Remediation: buildUDSRemediation(definition, context.ClientTransport, agentHostname),
 	}
 
 	extra, err := structpb.NewStruct(extraValues)
@@ -196,8 +227,8 @@ func buildUDSIssue(context UDSDetectionContext, restored bool) (*healthplatform.
 	return issue, nil
 }
 
-func buildUDSRemediation(definition issueDefinition, agentHostname string) *healthplatform.Remediation {
-	metricFilter := fmt.Sprintf("host:%s and client:%s, with client_transport set to either uds or uds-stream", agentHostname, definition.library)
+func buildUDSRemediation(definition issueDefinition, clientTransport ClientTransport, agentHostname string) *healthplatform.Remediation {
+	metricFilter := fmt.Sprintf("host:%s, client:%s, and client_transport:%s", agentHostname, definition.library, clientTransport)
 	docsURL := highThroughputDocs + "?code-lang=" + strings.ToLower(definition.displayName)
 	metricNames := []string{bytesDroppedMetric}
 	metricNames = append(metricNames, definition.dropReasonMetrics...)
@@ -218,7 +249,14 @@ func buildUDSRemediation(definition issueDefinition, agentHostname string) *heal
 	})
 
 	return &healthplatform.Remediation{
-		Summary: fmt.Sprintf("Reduce DogStatsD %s UDS payload drops reported through Agent %s.", definition.displayName, agentHostname),
+		Summary: fmt.Sprintf("Reduce DogStatsD %s %s payload drops reported through Agent %s.", definition.displayName, clientTransportDisplayName(clientTransport), agentHostname),
 		Steps:   steps,
 	}
+}
+
+func clientTransportDisplayName(clientTransport ClientTransport) string {
+	if clientTransport == ClientTransportUDSStream {
+		return "UDS stream"
+	}
+	return "UDS"
 }

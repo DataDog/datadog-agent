@@ -9,6 +9,7 @@ package dogstatsdclientdropdetectorimpl
 import (
 	"context"
 	"math"
+	"strings"
 	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -46,7 +47,7 @@ type Provides struct {
 
 type disabledComponent struct{}
 
-func (*disabledComponent) ObserveClientBytes(string, dogstatsdclientdropdetector.ClientByteMetric, float64) {
+func (*disabledComponent) ObserveClientBytes(string, string, dogstatsdclientdropdetector.ClientByteMetric, float64) {
 }
 
 func (*disabledComponent) CompleteFinalDogStatsDSerieFlush() {}
@@ -61,6 +62,7 @@ type clientByteStats struct {
 
 type clientState struct {
 	library       dogstatsdclientdrops.ClientLibrary
+	transport     dogstatsdclientdrops.ClientTransport
 	stats         clientByteStats
 	issueID       string
 	issueActive   bool
@@ -68,7 +70,7 @@ type clientState struct {
 	// issueNeedsRefresh marks restored active lifecycle state whose full issue
 	// payload must be reported again after an Agent restart.
 	issueNeedsRefresh bool
-	// staleIssueIDs are active IDs for this library that differ from the current host ID.
+	// staleIssueIDs are active IDs for this client and transport that differ from the current host ID.
 	staleIssueIDs []string
 	// confirmationPending means unhealthy confirmation when inactive and recovery when active.
 	confirmationPending bool
@@ -78,7 +80,7 @@ type clientState struct {
 }
 
 type component struct {
-	clients        map[dogstatsdclientdrops.ClientLibrary]*clientState
+	clients        map[clientKey]*clientState
 	logger         log.Component
 	healthPlatform healthplatformstore.Component
 	hostname       string
@@ -92,6 +94,11 @@ type component struct {
 	now func() time.Time
 }
 
+type clientKey struct {
+	library   dogstatsdclientdrops.ClientLibrary
+	transport dogstatsdclientdrops.ClientTransport
+}
+
 // NewComponent creates the DogStatsD client drop detector.
 func NewComponent(req Requires) Provides {
 	if !req.Config.GetBool(enabledConfig) {
@@ -103,7 +110,7 @@ func NewComponent(req Requires) Provides {
 	}
 
 	detector := &component{
-		clients:                       make(map[dogstatsdclientdrops.ClientLibrary]*clientState),
+		clients:                       make(map[clientKey]*clientState),
 		logger:                        req.Log,
 		healthPlatform:                req.HealthPlatform,
 		hostname:                      req.Hostname.GetSafe(context.Background()),
@@ -131,7 +138,7 @@ func resolveActiveIssues(healthPlatform healthplatformstore.Component) {
 }
 
 // ObserveClientBytes adds one validated UDS client byte total to the current window.
-func (d *component) ObserveClientBytes(clientLibrary string, metric dogstatsdclientdropdetector.ClientByteMetric, bytes float64) {
+func (d *component) ObserveClientBytes(clientLibrary, clientTransport string, metric dogstatsdclientdropdetector.ClientByteMetric, bytes float64) {
 	select {
 	case <-d.startupReconciled:
 	default:
@@ -139,10 +146,11 @@ func (d *component) ObserveClientBytes(clientLibrary string, metric dogstatsdcli
 	}
 
 	library := dogstatsdclientdrops.NormalizeClientLibrary(clientLibrary)
-	if !dogstatsdclientdrops.IsSupportedClientLibrary(library) {
+	transport := dogstatsdclientdrops.NormalizeClientTransport(clientTransport)
+	if !dogstatsdclientdrops.IsSupportedClientLibrary(library) || !dogstatsdclientdrops.IsSupportedClientTransport(transport) {
 		return
 	}
-	state := d.clientState(library)
+	state := d.clientState(library, transport)
 	switch metric {
 	case dogstatsdclientdropdetector.ClientByteMetricSent:
 		state.stats.sent += bytes
@@ -170,16 +178,18 @@ func (d *component) CompleteFinalDogStatsDSerieFlush() {
 	}
 }
 
-func (d *component) clientState(clientLibrary dogstatsdclientdrops.ClientLibrary) *clientState {
-	state, found := d.clients[clientLibrary]
+func (d *component) clientState(clientLibrary dogstatsdclientdrops.ClientLibrary, clientTransport dogstatsdclientdrops.ClientTransport) *clientState {
+	key := clientKey{library: clientLibrary, transport: clientTransport}
+	state, found := d.clients[key]
 	if found {
 		return state
 	}
 	state = &clientState{
-		library: clientLibrary,
-		issueID: dogstatsdclientdrops.UDSIssueIDForHost(clientLibrary, d.hostUUID, d.hostname),
+		library:   clientLibrary,
+		transport: clientTransport,
+		issueID:   dogstatsdclientdrops.UDSIssueIDForHost(clientLibrary, clientTransport, d.hostUUID, d.hostname),
 	}
-	d.clients[clientLibrary] = state
+	d.clients[key] = state
 	return state
 }
 
@@ -278,26 +288,28 @@ func (s clientByteStats) dropReasonBreakdown() (float64, bool) {
 func (d *component) reconcileIssueState() {
 	for _, library := range dogstatsdclientdrops.ClientLibraries() {
 		activeIDs := d.healthPlatform.GetActiveIssueIDsByIssueName(dogstatsdclientdrops.UDSIssueName(library))
-		if len(activeIDs) == 0 {
-			continue
-		}
-		state := d.clientState(library)
-		state.issueActive = true
-		state.issueNeedsRefresh = true
-		state.staleIssueIDs = state.staleIssueIDs[:0]
-		for _, activeID := range activeIDs {
-			if activeID != state.issueID {
-				state.staleIssueIDs = append(state.staleIssueIDs, activeID)
+		for _, transport := range dogstatsdclientdrops.ClientTransports() {
+			prefix := dogstatsdclientdrops.UDSIssueIDPrefix(library, transport) + ":"
+			state := d.clientState(library, transport)
+			for _, activeID := range activeIDs {
+				if !strings.HasPrefix(activeID, prefix) {
+					continue
+				}
+				state.issueActive = true
+				state.issueNeedsRefresh = true
+				if activeID != state.issueID {
+					state.staleIssueIDs = append(state.staleIssueIDs, activeID)
+				}
 			}
-		}
-		if d.reportRestoredIssue(state) {
-			d.resolveStaleIssues(state)
+			if state.issueActive && d.reportRestoredIssue(state) {
+				d.resolveStaleIssues(state)
+			}
 		}
 	}
 }
 
 func (d *component) reportRestoredIssue(state *clientState) bool {
-	issue, err := dogstatsdclientdrops.BuildRestoredUDSIssue(state.library, d.hostname)
+	issue, err := dogstatsdclientdrops.BuildRestoredUDSIssue(state.library, state.transport, d.hostname)
 	if issue == nil {
 		d.logger.Warnf("failed to build restored DogStatsD client payload drop health issue: %v", err)
 		return false
@@ -318,6 +330,7 @@ func (d *component) reportIssue(state *clientState, stats clientByteStats, ratio
 	unclassified, breakdownComplete := stats.dropReasonBreakdown()
 	issue, err := dogstatsdclientdrops.BuildUDSIssue(dogstatsdclientdrops.UDSDetectionContext{
 		ClientLibrary:               state.library,
+		ClientTransport:             state.transport,
 		AgentHostname:               d.hostname,
 		DroppedRatio:                ratio,
 		Threshold:                   d.droppedRatioThreshold,
