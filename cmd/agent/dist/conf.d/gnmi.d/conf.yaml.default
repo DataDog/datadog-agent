@@ -1,0 +1,52 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, please copy this file
+## to `conf.yaml` and make your changes on that file.
+
+## This integration is currently experimental.
+
+init_config:
+
+instances:
+
+  -
+    ## @param address - string - required
+    ## The IP address or hostname of the gNMI target device.
+    #
+    # address: <DEVICE_ADDRESS>
+
+    ## @param port - integer - optional - default: 57400
+    ## The gNMI gRPC port.
+    #
+    # port: 57400
+
+    ## @param username - string - required
+    ## Username used to authenticate to the gNMI target.
+    #
+    # username: <USERNAME>
+
+    ## @param password - string - required
+    ## Password used to authenticate to the gNMI target.
+    #
+    # password: <PASSWORD>
+
+    ## @param profile - string - required
+    ## Profile name or path under conf.d/gnmi.d/profiles/.
+    #
+    # profile: basic-interfaces
+
+    ## @param min_collection_interval - integer - optional - default: 15
+    ## This changes the collection interval of the check. For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 15
+
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric, event, and service check emitted by this instance.
+    #
+    # tags:
+    #   - <TAG_KEY>:<TAG_VALUE>
+
+    ## @param collect_topology - boolean - optional - default: false
+    ## Whether to collect topology metadata from the device.
+    #
+    # collect_topology: false
