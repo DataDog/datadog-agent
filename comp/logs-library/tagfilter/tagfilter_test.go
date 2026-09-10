@@ -848,6 +848,18 @@ func BenchmarkApplyEmptyFilters(b *testing.B) {
 	}
 }
 
+func BenchmarkRetains(b *testing.B) {
+	f, err := Compile(nil, []string{"dirname:*", "kube_app_*", "container_id"})
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = f.Retains("dirname:/var/log")
+	}
+}
+
 func TestScopedPrecedence(t *testing.T) {
 	tests := []struct {
 		name                 string
@@ -949,4 +961,67 @@ func TestScopedIsEmpty(t *testing.T) {
 	in := []string{"a:1", "b:2"}
 	out := NewScoped(empty, empty).Apply(in)
 	assert.True(t, &in[0] == &out[0])
+}
+
+func TestFiltersRetains(t *testing.T) {
+	f, err := Compile([]string{"kube_app_name:*"}, []string{"dirname:*", "kube_*", "service:old"})
+	require.NoError(t, err)
+
+	assert.True(t, f.Retains("env:prod"), "unmatched tags are kept")
+	assert.False(t, f.Retains("dirname:/var/log"), "excluded tags are dropped")
+	assert.True(t, f.Retains("kube_app_name:web"), "include rescues from exclude")
+	assert.False(t, f.Retains("kube_namespace:default"), "exclude glob still applies")
+	assert.True(t, f.Retains("service:old"), "protected keys are never dropped")
+
+	var nilFilters *Filters
+	assert.True(t, nilFilters.Retains("dirname:/var/log"), "a nil filter keeps everything")
+
+	empty, err := Compile(nil, nil)
+	require.NoError(t, err)
+	assert.True(t, empty.Retains("dirname:/var/log"), "an empty filter keeps everything")
+}
+
+func TestScopedRetains(t *testing.T) {
+	global, err := Compile(nil, []string{"dirname:*", "team:*"})
+	require.NoError(t, err)
+	source, err := Compile([]string{"dirname:*"}, nil)
+	require.NoError(t, err)
+	s := NewScoped(global, source)
+
+	assert.True(t, s.Retains("dirname:/var/log"), "source include rescues from global exclude")
+	assert.False(t, s.Retains("team:logs"), "global exclude applies where the source is silent")
+	assert.True(t, s.Retains("env:prod"))
+
+	var nilScoped *Scoped
+	assert.True(t, nilScoped.Retains("dirname:/var/log"))
+}
+
+func TestApplyAgreesWithRetains(t *testing.T) {
+	global, err := Compile([]string{"kube_app_name:*"}, []string{"dirname:*", "kube_*"})
+	require.NoError(t, err)
+	source, err := Compile(nil, []string{"team:*"})
+	require.NoError(t, err)
+
+	tags := []string{
+		"dirname:/var/log", "kube_app_name:web", "kube_namespace:default",
+		"team:logs", "env:prod", "service:web", "host:h1",
+	}
+
+	for name, filter := range map[string]interface {
+		Apply([]string) []string
+		Retains(string) bool
+	}{
+		"filters": global,
+		"scoped":  NewScoped(global, source),
+	} {
+		t.Run(name, func(t *testing.T) {
+			var want []string
+			for _, tag := range tags {
+				if filter.Retains(tag) {
+					want = append(want, tag)
+				}
+			}
+			assert.Equal(t, want, filter.Apply(tags))
+		})
+	}
 }

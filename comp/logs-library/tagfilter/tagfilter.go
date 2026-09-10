@@ -215,26 +215,31 @@ func globMatch(segs []string, s string) bool {
 	return true
 }
 
-// Apply returns the surviving tags. It never mutates or aliases tags.
+// Retains reports whether one tag survives this filter set.
+func (f *Filters) Retains(tag string) bool {
+	if f.IsEmpty() {
+		return true
+	}
+	key, value, hasValue := strings.Cut(tag, ":")
+	if isProtectedKey(key) {
+		return true
+	}
+	if matchesAny(f.include, key, value, hasValue) {
+		return true
+	}
+	return !matchesAny(f.exclude, key, value, hasValue)
+}
+
+// Apply returns the surviving tags. The returned slice must not be modified.
 func (f *Filters) Apply(tags []string) []string {
 	if f.IsEmpty() {
 		return tags
 	}
 	out := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		key, value, hasValue := strings.Cut(tag, ":")
-		if isProtectedKey(key) {
+		if f.Retains(tag) {
 			out = append(out, tag)
-			continue
 		}
-		if matchesAny(f.include, key, value, hasValue) {
-			out = append(out, tag)
-			continue
-		}
-		if matchesAny(f.exclude, key, value, hasValue) {
-			continue
-		}
-		out = append(out, tag)
 	}
 	return out
 }
@@ -285,19 +290,26 @@ func (s *Scoped) IsIncludeOnly() bool {
 	return includes > 0
 }
 
-// Apply returns the surviving tags. Same allocation contract as Filters.Apply.
+// Retains reports whether one tag survives both scopes.
+func (s *Scoped) Retains(tag string) bool {
+	if s.IsEmpty() {
+		return true
+	}
+	key, value, hasValue := strings.Cut(tag, ":")
+	if isProtectedKey(key) {
+		return true
+	}
+	return s.retains(key, value, hasValue)
+}
+
+// Apply returns the surviving tags. The returned slice must not be modified.
 func (s *Scoped) Apply(tags []string) []string {
 	if s.IsEmpty() {
 		return tags
 	}
 	out := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		key, value, hasValue := strings.Cut(tag, ":")
-		if isProtectedKey(key) {
-			out = append(out, tag)
-			continue
-		}
-		if s.retains(key, value, hasValue) {
+		if s.Retains(tag) {
 			out = append(out, tag)
 		}
 	}
