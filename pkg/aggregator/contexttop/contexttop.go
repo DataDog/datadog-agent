@@ -62,11 +62,10 @@ func FromFile(filePath string, numMetrics, numTags int) (Result, error) {
 		r = d
 	}
 
-	return FromReader(r, numMetrics, numTags)
+	return summarize(r, numMetrics, numTags)
 }
 
-// FromReader summarizes a sequence of JSON-encoded context representations.
-func FromReader(r io.Reader, numMetrics, numTags int) (Result, error) {
+func summarize(r io.Reader, numMetrics, numTags int) (Result, error) {
 	if numMetrics < 0 {
 		return Result{}, errors.New("number of metrics must not be negative")
 	}

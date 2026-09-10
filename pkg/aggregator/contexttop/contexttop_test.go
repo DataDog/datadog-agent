@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
-func TestFromReaderSummarizesMetricTags(t *testing.T) {
+func TestSummarizeMetricTags(t *testing.T) {
 	contexts := []aggregator.ContextDebugRepr{
 		{Name: "requests", Host: "host-a", MetricTags: []string{"env:prod", "endpoint:/a"}, TaggerTags: []string{"pod_name:first"}},
 		{Name: "requests", Host: "host-b", MetricTags: []string{"env:prod", "endpoint:/b"}, TaggerTags: []string{"pod_name:second"}},
@@ -28,7 +28,7 @@ func TestFromReaderSummarizesMetricTags(t *testing.T) {
 		require.NoError(t, enc.Encode(context))
 	}
 
-	result, err := FromReader(&dump, 10, 5)
+	result, err := summarize(&dump, 10, 5)
 	require.NoError(t, err)
 	require.Equal(t, Result{
 		Metrics: []Metric{
@@ -49,7 +49,7 @@ func TestFromReaderSummarizesMetricTags(t *testing.T) {
 	}, result)
 }
 
-func TestFromReaderLimitsMetricsAndTags(t *testing.T) {
+func TestSummarizeLimitsMetricsAndTags(t *testing.T) {
 	contexts := []aggregator.ContextDebugRepr{
 		{Name: "first", MetricTags: []string{"alpha:1", "beta:1", "gamma:1"}},
 		{Name: "first", MetricTags: []string{"alpha:2", "beta:2", "gamma:1"}},
@@ -64,7 +64,7 @@ func TestFromReaderLimitsMetricsAndTags(t *testing.T) {
 		require.NoError(t, enc.Encode(context))
 	}
 
-	result, err := FromReader(&dump, 2, 1)
+	result, err := summarize(&dump, 2, 1)
 	require.NoError(t, err)
 	require.Equal(t, Result{
 		Metrics: []Metric{
@@ -82,14 +82,14 @@ func TestFromReaderLimitsMetricsAndTags(t *testing.T) {
 	}, result)
 }
 
-func TestFromReaderIncludesSingleRemainder(t *testing.T) {
+func TestSummarizeIncludesSingleRemainder(t *testing.T) {
 	var dump bytes.Buffer
 	enc := json.NewEncoder(&dump)
 	for _, name := range []string{"first", "second", "third"} {
 		require.NoError(t, enc.Encode(aggregator.ContextDebugRepr{Name: name}))
 	}
 
-	result, err := FromReader(&dump, 2, 5)
+	result, err := summarize(&dump, 2, 5)
 	require.NoError(t, err)
 	require.Len(t, result.Metrics, 3)
 	require.Zero(t, result.OtherMetrics)

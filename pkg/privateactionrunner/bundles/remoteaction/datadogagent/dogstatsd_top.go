@@ -29,7 +29,7 @@ func NewGetDogstatsdTopHandler(client ipc.HTTPClient) *GetDogstatsdTopHandler {
 	return &GetDogstatsdTopHandler{ipcClient: client}
 }
 
-// GetDogstatsdTopInputs defines the display limits for the DogStatsD context summary.
+// GetDogstatsdTopInputs defines the options for the DogStatsD context summary.
 type GetDogstatsdTopInputs struct {
 	NumMetrics int    `json:"num_metrics,omitempty"`
 	NumTags    int    `json:"num_tags,omitempty"`
@@ -63,11 +63,10 @@ func (h *GetDogstatsdTopHandler) Run(
 
 	resp, err := h.ipcClient.Post(endpointURL, "application/json", bytes.NewReader(body), ipchttp.WithContext(ctx))
 	if err != nil {
-		msg := strings.TrimSpace(string(resp))
-		if msg == "" {
-			msg = err.Error()
+		if msg := strings.TrimSpace(string(resp)); msg != "" {
+			return nil, fmt.Errorf("getDogstatsdTop: request to agent failed: %s", msg)
 		}
-		return nil, fmt.Errorf("getDogstatsdTop: request to agent failed: %s", msg)
+		return nil, fmt.Errorf("getDogstatsdTop: request to agent failed: %w", err)
 	}
 
 	return decodeAgentObject(resp), nil
