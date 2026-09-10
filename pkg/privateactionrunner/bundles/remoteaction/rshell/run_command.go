@@ -403,8 +403,9 @@ func (h *RunCommandHandler) Run(
 }
 
 func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task, inputs RunCommandInputs) (interface{}, error) {
-	log.Infof("rshell runPrivileged (mode=%s): elevatableCommands=%v privilegedEnabled=%v privilegedSocket=%s disableDetailedTelemetry=%v",
-		h.mode, inputs.ElevatableCommands, h.privilegedEnabled, h.privilegedSocket, h.disableCommandTelemetry)
+	agentPolicy := h.buildAgentPolicy()
+	log.Infof("rshell runPrivileged (mode=%s): elevatableCommands=%v privilegedEnabled=%v privilegedSocket=%s disableDetailedTelemetry=%v agentPolicy=%+v",
+		h.mode, inputs.ElevatableCommands, h.privilegedEnabled, h.privilegedSocket, h.disableCommandTelemetry, agentPolicy)
 	if !h.privilegedEnabled {
 		return nil, errors.New("privileged rshell execution is disabled by local configuration")
 	}
@@ -449,7 +450,7 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task,
 		}, {
 			ID: verificationKey.ID, Type: privilegedhelper.KeyType(verificationKey.KeyType), PEM: verificationKey.PEM,
 		}},
-		AgentPolicy: h.buildAgentPolicy(),
+		AgentPolicy: agentPolicy,
 	}
 	response, err := (privilegedhelper.Client{SocketPath: h.privilegedSocket}).Execute(ctx, request)
 	if err != nil {

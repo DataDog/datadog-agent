@@ -680,6 +680,44 @@ func TestRunPrivilegedLogsSettingsAtInfoLevel(t *testing.T) {
 	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
 	assert.Contains(t, logs, "elevatableCommands=[rshell:cat]")
 	assert.Contains(t, logs, "privilegedEnabled=false")
+	// No operator restricted_shell settings are configured on this handler,
+	// so the logged AgentPolicy must be nil -- identical to privileged
+	// execution's behavior before this field existed.
+	assert.Contains(t, logs, "agentPolicy=<nil>")
+}
+
+// TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured pins that
+// runPrivileged's Info-level settings summary line surfaces the derived
+// AgentPolicy once an operator restricted_shell setting narrows privileged
+// execution, so the effective agent-side narrowing is observable in
+// journalctl without opting into debug logging.
+func TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.InfoLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
+	log.SetupLogger(logger, "info")
+
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:           []string{"rshell:cat"},
+		OperatorAllowedCommandsConfigured: true,
+		OperatorElevatableCommands:        []string{"rshell:cat"},
+		PrivilegedEnabled:                 true,
+		PrivilegedSocket:                  "",
+	})
+	task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
+	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
+	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.ErrorContains(t, err, "privileged rshell socket is not configured")
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
+	assert.Contains(t, logs, "AllowedCommands:[rshell:cat]")
+	assert.Contains(t, logs, "ElevatableCommands:[rshell:cat]")
 }
 
 // TestBuildAgentPolicyNoOperatorNarrowingIsNil covers the critical
