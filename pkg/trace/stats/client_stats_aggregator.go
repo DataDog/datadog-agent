@@ -6,6 +6,10 @@
 package stats
 
 import (
+	"errors"
+	"fmt"
+	"math"
+	"runtime"
 	"sync"
 	"time"
 
@@ -29,10 +33,13 @@ const (
 	bucketDuration       = 2 * time.Second
 	clientBucketDuration = 10 * time.Second
 	oldestBucketStart    = 20 * time.Second
+
+	maxRelativeAccuracy = 0.5 // a mapping above this bound is treated as malformed
 )
 
 var (
 	ddsketchMapping, _ = mapping.NewLogarithmicMapping(relativeAccuracy)
+	logger             = log.NewThrottled(5, 10*time.Second) // no more than 5 messages every 10 seconds
 )
 
 // ClientStatsAggregator aggregates client stats payloads on buckets of bucketDuration
@@ -171,6 +178,13 @@ func (a *ClientStatsAggregator) getAggregationBucketTime(now, bs time.Time) time
 
 // add takes a new ClientStatsPayload and aggregates its stats in the internal buckets.
 func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
+	// A malformed payload must not take down the trace-agent.
+	defer func() {
+		if r := recover(); r != nil {
+			a.onAggregationPanic(r)
+		}
+	}()
+
 	// populate container tags data on the payload
 	a.setVersionDataFromContainerTags(p)
 	p.ProcessTagsHash = processTagsHash(p.ProcessTags)
@@ -196,6 +210,14 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 		b.processTags[p.ProcessTagsHash] = p.ProcessTags
 		b.aggregateStatsBucket(clientBucket, payloadAggKey)
 	}
+}
+
+// onAggregationPanic reports a panic recovered while aggregating a payload. It
+// records what watchdog.LogOnPanic would have, without re-raising.
+func (a *ClientStatsAggregator) onAggregationPanic(r any) {
+	buf := make([]byte, 4096)
+	length := runtime.Stack(buf, false)
+	logger.Error("Recovered from panic aggregating client stats, dropping payload: %v\n%s", r, buf[:length])
 }
 
 func (a *ClientStatsAggregator) flushPayloads(p []*pb.ClientStatsPayload) {
@@ -291,21 +313,11 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 
 		// Decode, if needed, the raw ddsketches from the first payload that reached the bucket
 		if len(agg.okDistributionRaw) > 0 {
-			sketch, err := decodeSketch(agg.okDistributionRaw)
-			if err != nil {
-				log.Errorf("Unable to decode OK distribution ddsketch: %v", err)
-			} else {
-				agg.okDistribution = normalizeSketch(sketch)
-			}
+			agg.okDistribution = decodeAndNormalize(agg.okDistributionRaw, "OK")
 			agg.okDistributionRaw = nil
 		}
 		if len(agg.errDistributionRaw) > 0 {
-			sketch, err := decodeSketch(agg.errDistributionRaw)
-			if err != nil {
-				log.Errorf("Unable to decode Error distribution ddsketch: %v", err)
-			} else {
-				agg.errDistribution = normalizeSketch(sketch)
-			}
+			agg.errDistribution = decodeAndNormalize(agg.errDistributionRaw, "Error")
 			agg.errDistributionRaw = nil
 		}
 
@@ -313,13 +325,13 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		if sketch, err := mergeSketch(agg.okDistribution, gs.OkSummary); err == nil {
 			agg.okDistribution = sketch
 		} else {
-			log.Errorf("Unable to merge OK distribution ddsketch: %v", err)
+			logger.Error("Unable to merge OK distribution ddsketch: %v", err)
 		}
 
 		if sketch, err := mergeSketch(agg.errDistribution, gs.ErrorSummary); err == nil {
 			agg.errDistribution = sketch
 		} else {
-			log.Errorf("Unable to merge Error distribution ddsketch: %v", err)
+			logger.Error("Unable to merge Error distribution ddsketch: %v", err)
 		}
 	}
 }
@@ -342,7 +354,8 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 				Start:    uint64(b.ts.UnixNano()),
 				Duration: uint64(clientBucketDuration.Nanoseconds()),
 				Stats:    groupedStats,
-			}}
+			},
+		}
 		res = append(res, &pb.ClientStatsPayload{
 			Hostname:        payloadKey.Hostname,
 			Env:             payloadKey.Env,
@@ -469,7 +482,15 @@ func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) 
 	if err != nil {
 		return s1, err
 	}
-	s2 = normalizeSketch(s2)
+	s2, err = normalizeSketch(s2)
+	if err != nil {
+		return s1, err
+	}
+	// A rejected sketch leaves nothing to merge. MergeWith dereferences its
+	// argument's index mapping, so it must never be reached with a nil sketch.
+	if s2 == nil {
+		return s1, nil
+	}
 
 	if s1 == nil {
 		return s2, nil
@@ -481,16 +502,57 @@ func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) 
 	return s1, nil
 }
 
-func normalizeSketch(s *ddsketch.DDSketch) *ddsketch.DDSketch {
+// validMapping reports whether m is well formed.
+func validMapping(m mapping.IndexMapping) bool {
+	if m == nil {
+		return false
+	}
+	minValue, maxValue := m.MinIndexableValue(), m.MaxIndexableValue()
+	if math.IsNaN(minValue) || math.IsNaN(maxValue) {
+		return false
+	}
+	if minValue <= 0 || maxValue <= minValue || math.IsInf(maxValue, 0) {
+		return false
+	}
+	accuracy := m.RelativeAccuracy()
+	return !math.IsNaN(accuracy) && accuracy > 0 && accuracy < maxRelativeAccuracy
+}
+
+// normalizeSketch re-maps s onto the agent's canonical mapping.
+func normalizeSketch(s *ddsketch.DDSketch) (*ddsketch.DDSketch, error) {
 	if s == nil {
-		return nil
+		return nil, nil
+	}
+	if s.IndexMapping == nil {
+		return nil, errors.New("sketch has no index mapping")
 	}
 	if s.IndexMapping.Equals(ddsketchMapping) {
 		// already normalized
-		return s
+		return s, nil
+	}
+	if !validMapping(s.IndexMapping) {
+		return nil, fmt.Errorf("refusing to normalize sketch with degenerate index mapping (relative accuracy %g, indexable range [%g, %g])",
+			s.IndexMapping.RelativeAccuracy(), s.IndexMapping.MinIndexableValue(), s.IndexMapping.MaxIndexableValue())
 	}
 
-	return s.ChangeMapping(ddsketchMapping, store.NewCollapsingLowestDenseStore(maxNumBins), store.NewCollapsingLowestDenseStore(maxNumBins), 1)
+	return s.ChangeMapping(ddsketchMapping, store.NewCollapsingLowestDenseStore(maxNumBins), store.NewCollapsingLowestDenseStore(maxNumBins), 1), nil
+}
+
+// decodeAndNormalize decodes a raw client sketch and re-maps it onto the agent's
+// canonical mapping, returning nil if either step fails. kind names the
+// distribution for logging.
+func decodeAndNormalize(raw []byte, kind string) *ddsketch.DDSketch {
+	sketch, err := decodeSketch(raw)
+	if err != nil {
+		logger.Error("Unable to decode %s distribution ddsketch: %v", kind, err)
+		return nil
+	}
+	sketch, err = normalizeSketch(sketch)
+	if err != nil {
+		logger.Error("Unable to normalize %s distribution ddsketch: %v", kind, err)
+		return nil
+	}
+	return sketch
 }
 
 func decodeSketch(data []byte) (*ddsketch.DDSketch, error) {
