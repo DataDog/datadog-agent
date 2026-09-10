@@ -2492,7 +2492,7 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
         description: Enables Agent Health detection of DogStatsD client-reported
           payload drops.
       dropped_ratio_threshold:
