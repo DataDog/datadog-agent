@@ -181,7 +181,9 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 	// A malformed payload must not take down the trace-agent.
 	defer func() {
 		if r := recover(); r != nil {
-			a.onAggregationPanic(r)
+			buf := make([]byte, 4096)
+			length := runtime.Stack(buf, false)
+			logger.Error("Recovered from panic aggregating client stats, dropping payload: %v\n%s", r, buf[:length])
 		}
 	}()
 
@@ -210,14 +212,6 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 		b.processTags[p.ProcessTagsHash] = p.ProcessTags
 		b.aggregateStatsBucket(clientBucket, payloadAggKey)
 	}
-}
-
-// onAggregationPanic reports a panic recovered while aggregating a payload. It
-// records what watchdog.LogOnPanic would have, without re-raising.
-func (a *ClientStatsAggregator) onAggregationPanic(r any) {
-	buf := make([]byte, 4096)
-	length := runtime.Stack(buf, false)
-	logger.Error("Recovered from panic aggregating client stats, dropping payload: %v\n%s", r, buf[:length])
 }
 
 func (a *ClientStatsAggregator) flushPayloads(p []*pb.ClientStatsPayload) {
