@@ -1038,7 +1038,7 @@ func SetProcessManager(ctx context.Context, enabled bool) error {
 		slices.Reverse(backwardActions)
 		for i, fallback := range backwardActions {
 			if err := fallback(); err != nil {
-				log.Errorf("failed to perform fallback step %d/%d: %w", i, len(backwardActions), err)
+				log.Errorf("failed to perform fallback step %d/%d: %v", i, len(backwardActions), err)
 				errs = errors.Join(errs, err)
 			}
 		}
@@ -1047,17 +1047,17 @@ func SetProcessManager(ctx context.Context, enabled bool) error {
 
 	backwardActions = append(backwardActions, func() error { return agentService.RestartStable(hookCtx) })
 	if err := agentService.StopStable(hookCtx); err != nil {
-		log.Errorf("failed to stop stable units: %w", err)
+		log.Errorf("failed to stop stable units: %v", err)
 		return backward()
 	}
 	backwardActions = append(backwardActions, func() error { return agentService.EnableStable(hookCtx) })
 	if err := agentService.DisableStable(hookCtx); err != nil {
-		log.Warnf("failed to disable stable units: %w", err)
+		log.Warnf("failed to disable stable units: %v", err)
 		return backward()
 	}
 	backwardActions = append(backwardActions, func() error { return agentService.WriteStable(hookCtx) })
 	if err := agentService.RemoveStable(hookCtx); err != nil {
-		log.Warnf("failed to remove stable units: %w", err)
+		log.Warnf("failed to remove stable units: %v", err)
 		return backward()
 	}
 
@@ -1066,7 +1066,7 @@ func SetProcessManager(ctx context.Context, enabled bool) error {
 		value = "true"
 	}
 	if err := os.Setenv(env.EnvProcessManagerEnabled, value); err != nil {
-		log.Warnf("failed to set process manager state: %w", err)
+		log.Warnf("failed to set process manager state: %v", err)
 		return backward()
 	}
 

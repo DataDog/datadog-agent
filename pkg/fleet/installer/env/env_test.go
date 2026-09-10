@@ -233,8 +233,11 @@ func TestFromEnv(t *testing.T) {
 				RegistryPasswordByImage:        map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
-				Tags:                           []string{},
-				Hostname:                       "",
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:     []string{},
+				Hostname: "",
 			},
 		},
 	}
@@ -266,20 +269,21 @@ func TestToEnv(t *testing.T) {
 	}{
 		{
 			name:     "Empty configuration",
-			env:      &Env{},
+			env:      &Env{ProcessManagerEnabled: true},
 			expected: nil,
 		},
 		{
 			name: "All configuration set",
 			env: &Env{
-				APIKey:               "123456",
-				Site:                 "datadoghq.eu",
-				RemoteUpdates:        true,
-				Mirror:               "https://mirror.example.com",
-				RegistryOverride:     "registry.example.com",
-				RegistryAuthOverride: "auth",
-				RegistryUsername:     "username",
-				RegistryPassword:     "password",
+				APIKey:                "123456",
+				Site:                  "datadoghq.eu",
+				RemoteUpdates:         true,
+				ProcessManagerEnabled: true,
+				Mirror:                "https://mirror.example.com",
+				RegistryOverride:      "registry.example.com",
+				RegistryAuthOverride:  "auth",
+				RegistryUsername:      "username",
+				RegistryPassword:      "password",
 				RegistryOverrideByImage: map[string]string{
 					"image":         "another.registry.example.com",
 					"another-image": "yet.another.registry.example.com",
@@ -355,9 +359,10 @@ func TestToEnv(t *testing.T) {
 		{
 			name: "PAR enabled without app key",
 			env: &Env{
-				APIKey:              "123456",
-				PAREnabled:          true,
-				PARActionsAllowlist: "action1,action2",
+				APIKey:                "123456",
+				ProcessManagerEnabled: true,
+				PAREnabled:            true,
+				PARActionsAllowlist:   "action1,action2",
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
@@ -368,10 +373,11 @@ func TestToEnv(t *testing.T) {
 		{
 			name: "PAR disabled does not emit PAR env vars",
 			env: &Env{
-				APIKey:              "123456",
-				PAREnabled:          false,
-				AppKey:              "app_key_123",
-				PARActionsAllowlist: "action1",
+				APIKey:                "123456",
+				ProcessManagerEnabled: true,
+				PAREnabled:            false,
+				AppKey:                "app_key_123",
+				PARActionsAllowlist:   "action1",
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
