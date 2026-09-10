@@ -847,3 +847,107 @@ func TestEKSPodIdentityResponse(t *testing.T) {
 		}, "test_rule_eks_pod_identity_response")
 	})
 }
+
+var _ = declare(TestECSCredentialsResponse, testOpts{networkIngressEnabled: true})
+
+func TestECSCredentialsResponse(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkNetworkCompatibility(t)
+
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
+		}
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_ecs_request",
+			Expression: fmt.Sprintf(`imds.credential_source == "ecs" && imds.type == "request" && process.file.name == "%s"`, path.Base(executable)),
+		},
+		{
+			ID:         "test_rule_ecs_response",
+			Expression: fmt.Sprintf(`imds.credential_source == "ecs" && imds.type == "response" && imds.aws.security_credentials.access_key_id == "%s" && process.file.name == "%s"`, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, path.Base(executable)),
+		},
+	}
+
+	// create a dummy interface holding the ECS task credential endpoint address
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMECSDummyInterface, testutils.ECSTestServerCIDR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err = testutils.RemoveDummyInterface(dummy); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// create fake ECS task credential endpoint
+	ecsAddr := testutils.ECSTestServerIP + ":" + strconv.Itoa(testutils.ECSTestServerPort)
+	ecsServer := testutils.CreateECSCredentialsServer(ecsAddr)
+	defer func() {
+		if err = testutils.StopIMDSserver(ecsServer); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	queryECS := func() error {
+		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", ecsAddr, testutils.ECSCredentialsURL), nil)
+		if err != nil {
+			return fmt.Errorf("failed to instantiate request: %v", err)
+		}
+
+		response, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to query ECS credential endpoint: %v", err)
+		}
+		defer response.Body.Close()
+
+		return nil
+	}
+
+	t.Run("ecs_request", func(t *testing.T) {
+		test.WaitSignalFromRule(t, queryECS, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_ecs_request")
+			assert.Equal(t, "request", event.IMDS.Type, "wrong event type")
+			assert.Equal(t, model.CredentialSourceECSStr, event.IMDS.CredentialSource, "wrong credential source")
+			assert.Equal(t, ecsAddr, event.IMDS.Host, "wrong Host")
+			assert.Equal(t, testutils.ECSCredentialsURL, event.IMDS.URL, "wrong URL")
+			// ECS has no v1/v2 notion
+			assert.False(t, event.IMDS.AWS.IsIMDSv2, "is_imds_v2 should not be set for ECS")
+
+			test.validateIMDSSchema(t, event)
+		}, "test_rule_ecs_request")
+	})
+
+	t.Run("ecs_response", func(t *testing.T) {
+		test.WaitSignalFromRule(t, queryECS, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_ecs_response")
+			assert.Equal(t, "response", event.IMDS.Type, "wrong event type")
+			assert.Equal(t, model.CredentialSourceECSStr, event.IMDS.CredentialSource, "wrong credential source")
+			// the endpoint sends no identifying header, so it is resolved as AWS
+			assert.Equal(t, model.IMDSAWSCloudProvider, event.IMDS.CloudProvider, "wrong cloud provider")
+			assert.Equal(t, testutils.AWSSecurityCredentialsAccessKeyIDTestValue, event.IMDS.AWS.SecurityCredentials.AccessKeyID, "wrong AccessKeyID")
+			assert.Equal(t, testutils.AWSSecurityCredentialsExpirationTestValue, event.IMDS.AWS.SecurityCredentials.ExpirationRaw, "wrong ExpirationRaw")
+			// fields that only IMDS sends are absent from an ECS response
+			assert.Empty(t, event.IMDS.AWS.SecurityCredentials.Code, "Code should be empty")
+			assert.Empty(t, event.IMDS.AWS.SecurityCredentials.Type, "Type should be empty")
+			assert.Empty(t, event.IMDS.AWS.SecurityCredentials.LastUpdated, "LastUpdated should be empty")
+			assert.False(t, event.IMDS.AWS.IsIMDSv2, "is_imds_v2 should not be set for ECS")
+
+			test.validateIMDSSchema(t, event)
+		}, "test_rule_ecs_response")
+	})
+}

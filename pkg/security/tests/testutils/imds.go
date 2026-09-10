@@ -47,6 +47,17 @@ const (
 	EKSPodIdentityTestServerPort = 8081
 	// EKSPodIdentityAccountIDTestValue is the AccountId returned by the fake Pod Identity Agent
 	EKSPodIdentityAccountIDTestValue = "123456789012"
+
+	// ECSCredentialsURL is the relative URI served by the ECS task credential endpoint
+	ECSCredentialsURL = "/v2/credentials/2c1f0a1b-3d4e-5f60-7a8b-9c0d1e2f3a4b"
+	// ECSTestServerIP is the ECS task credential endpoint IP used by the tests
+	ECSTestServerIP = "169.254.170.2"
+	// ECSTestServerCIDR is the ECS task credential endpoint CIDR used by the tests
+	ECSTestServerCIDR = ECSTestServerIP + "/32"
+	// ECSTestServerPort is the ECS task credential endpoint port used by the tests
+	ECSTestServerPort = 8082
+	// ECSRoleARNTestValue is the RoleArn returned by the fake ECS credential endpoint
+	ECSRoleARNTestValue = "arn:aws:iam::123456789012:role/ecs-task-role"
 )
 
 // CreateIMDSServer creates a fake IMDS server
@@ -107,6 +118,42 @@ func CreateEKSPodIdentityServer(addr string) *http.Server {
 			"SecretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
 			"Token":           "FQoDYXdzEL3EXAMPLETOKEN",
 			"AccountId":       EKSPodIdentityAccountIDTestValue,
+			"Expiration":      AWSSecurityCredentialsExpirationTestValue,
+		}
+
+		response, err := json.Marshal(data)
+		if err != nil {
+			http.Error(w, "couldn't marshal data", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(response)
+	})
+
+	server := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fmt.Printf("HTTP server error: %v", err)
+		}
+	}()
+
+	return server
+}
+
+// CreateECSCredentialsServer creates a fake ECS task credential endpoint
+func CreateECSCredentialsServer(addr string) *http.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc(ECSCredentialsURL, func(w http.ResponseWriter, _ *http.Request) {
+		data := map[string]interface{}{
+			"RoleArn":         ECSRoleARNTestValue,
+			"AccessKeyId":     AWSSecurityCredentialsAccessKeyIDTestValue,
+			"SecretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+			"Token":           "FQoDYXdzEL3EXAMPLETOKEN",
 			"Expiration":      AWSSecurityCredentialsExpirationTestValue,
 		}
 

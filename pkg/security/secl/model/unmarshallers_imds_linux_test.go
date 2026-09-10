@@ -35,6 +35,46 @@ const imdsCredentialsResponse = "HTTP/1.1 200 OK\r\n" +
 	"\r\n" +
 	`{"Code":"Success","LastUpdated":"2012-04-26T16:39:16Z","Type":"AWS-HMAC","AccessKeyId":"ASIAIOSFODNN7EXAMPLE","SecretAccessKey":"wJalrXUtnFEMI/K7MDENG","Token":"FQoDYXdzEL3EXAMPLETOKEN","Expiration":"2324-05-01T12:00:00Z"}`
 
+// ECS task credential endpoint (/v2/credentials/<id>) response shape
+const ecsCredentialsResponse = "HTTP/1.1 200 OK\r\n" +
+	"Content-Type: application/json\r\n" +
+	"\r\n" +
+	`{"RoleArn":"arn:aws:iam::123456789012:role/ecs-task-role","AccessKeyId":"ASIAIOSFODNN7EXAMPLE","SecretAccessKey":"wJalrXUtnFEMI/K7MDENG","Token":"FQoDYXdzEL3EXAMPLETOKEN","Expiration":"2324-05-01T12:00:00Z"}`
+
+func TestIMDSEventUnmarshalECSResponse(t *testing.T) {
+	e := &IMDSEvent{}
+	_, err := e.UnmarshalBinary(imdsEventData(CredentialSourceECS, ecsCredentialsResponse))
+	require.NoError(t, err)
+
+	assert.Equal(t, IMDSResponseType, e.Type)
+	assert.Equal(t, CredentialSourceECSStr, e.CredentialSource)
+	assert.Equal(t, IMDSAWSCloudProvider, e.CloudProvider)
+	assert.Equal(t, "ASIAIOSFODNN7EXAMPLE", e.AWS.SecurityCredentials.AccessKeyID)
+	assert.Equal(t, "2324-05-01T12:00:00Z", e.AWS.SecurityCredentials.ExpirationRaw)
+	assert.False(t, e.AWS.SecurityCredentials.Expiration.IsZero(), "expiration should be parsed")
+	// ECS sends none of these, they are IMDS-only
+	assert.Empty(t, e.AWS.SecurityCredentials.Code)
+	assert.Empty(t, e.AWS.SecurityCredentials.Type)
+	assert.Empty(t, e.AWS.SecurityCredentials.LastUpdated)
+	assert.False(t, e.AWS.IsIMDSv2)
+}
+
+func TestIMDSEventUnmarshalECSRequest(t *testing.T) {
+	request := "GET /v2/credentials/2c1f0a1b-3d4e-5f60-7a8b-9c0d1e2f3a4b HTTP/1.1\r\n" +
+		"Host: 169.254.170.2\r\n" +
+		"User-Agent: aws-sdk-go-v2\r\n" +
+		"\r\n"
+
+	e := &IMDSEvent{}
+	_, err := e.UnmarshalBinary(imdsEventData(CredentialSourceECS, request))
+	require.NoError(t, err)
+
+	assert.Equal(t, IMDSRequestType, e.Type)
+	assert.Equal(t, CredentialSourceECSStr, e.CredentialSource)
+	assert.Equal(t, "/v2/credentials/2c1f0a1b-3d4e-5f60-7a8b-9c0d1e2f3a4b", e.URL)
+	assert.Equal(t, "169.254.170.2", e.Host)
+}
+
 func TestIMDSEventUnmarshalCredentialSource(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

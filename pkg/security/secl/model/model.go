@@ -736,7 +736,7 @@ type IMDSEvent struct {
 	Host             string `field:"host"`              // SECLDoc[host] Definition:`the host of the HTTP protocol`
 	UserAgent        string `field:"user_agent"`        // SECLDoc[user_agent] Definition:`the user agent of the HTTP client`
 	Server           string `field:"server"`            // SECLDoc[server] Definition:`the server header of a response`
-	CredentialSource string `field:"credential_source"` // SECLDoc[credential_source] Definition:`the credential endpoint that served the IMDS event, either imds or eks_pod_identity`
+	CredentialSource string `field:"credential_source"` // SECLDoc[credential_source] Definition:`the credential endpoint that served the IMDS event, one of imds, eks_pod_identity or ecs`
 
 	// The fields below are optional and cloud specific fields
 	AWS AWSIMDSEvent `field:"aws"` // SECLDoc[aws] Definition:`the AWS specific data parsed from the IMDS event`
