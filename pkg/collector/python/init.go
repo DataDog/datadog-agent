@@ -96,7 +96,7 @@ char* ObfuscateSQL(char *, char *, char **);
 char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
 char* ObfuscateMongoDBString(char *, char **);
-void EmitAgentTelemetry(char *, char *, double, char *);
+void EmitAgentTelemetry(char *, char *, double, char *, char *);
 void ReportIssue(char *, char *, char **);
 void ResolveIssue(char *, char **);
 

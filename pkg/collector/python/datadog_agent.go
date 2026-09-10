@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"unsafe"
@@ -564,7 +566,7 @@ var (
 	telemetryLock = sync.Mutex{}
 )
 
-func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.Histogram {
+func lazyInitTelemetryHistogram(checkName string, metricName string, labelNames []string) telemetry.Histogram {
 	var key = checkName + "." + metricName
 	telemetryLock.Lock()
 	defer telemetryLock.Unlock()
@@ -574,7 +576,7 @@ func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.H
 		histogram = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
 			checkName,
 			metricName,
-			nil,
+			labelNames,
 			fmt.Sprintf("Histogram of %s for Python check %s", metricName, checkName),
 			[]float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000},
 			telemetry.DefaultOptions,
@@ -591,7 +593,7 @@ func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.H
 	}
 }
 
-func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
+func lazyInitTelemetryCounter(checkName string, metricName string, labelNames []string) telemetry.Counter {
 	var key = checkName + "." + metricName
 	telemetryLock.Lock()
 	defer telemetryLock.Unlock()
@@ -601,7 +603,7 @@ func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Cou
 		counter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 			checkName,
 			metricName,
-			nil,
+			labelNames,
 			fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
 			telemetry.DefaultOptions,
 		)
@@ -617,7 +619,7 @@ func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Cou
 	}
 }
 
-func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
+func lazyInitTelemetryGauge(checkName string, metricName string, labelNames []string) telemetry.Gauge {
 	var key = checkName + "." + metricName
 	telemetryLock.Lock()
 	defer telemetryLock.Unlock()
@@ -627,7 +629,7 @@ func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge
 		gauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 			checkName,
 			metricName,
-			nil,
+			labelNames,
 			fmt.Sprintf("Gauge of %s for Python check %s", metricName, checkName),
 			telemetry.DefaultOptions,
 		)
@@ -643,32 +645,51 @@ func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge
 	}
 }
 
-// EmitAgentTelemetry records a telemetry data point for a Python integration
+// EmitAgentTelemetry records a telemetry data point for a Python integration.
+// labelsJSON is optional: NULL or empty means no labels, otherwise it must be a JSON
+// object whose keys and values are strings.
 // NB: Cross-org agent telemetry needs to be enabled for each metric in
-// comp/core/agenttelemetry/impl/config.go defaultProfiles
+// comp/core/agenttelemetry/impl/defaultProfiles.yaml.
 //
 //export EmitAgentTelemetry
-func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.double, metricType *C.char) {
+func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.double, metricType *C.char, labelsJSON *C.char) {
 	goCheckName := C.GoString(checkName)
 	goMetricName := C.GoString(metricName)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			log.Errorf("EmitAgentTelemetry: panic while emitting metric %s for check %s: %v", goMetricName, goCheckName, recovered)
+		}
+	}()
+
 	goMetricValue := float64(metricValue)
 	goMetricType := C.GoString(metricType)
 
+	var labels map[string]string
+	if labelsJSON != nil {
+		if goLabelsJSON := C.GoString(labelsJSON); goLabelsJSON != "" {
+			if err := json.Unmarshal([]byte(goLabelsJSON), &labels); err != nil {
+				log.Warnf("EmitAgentTelemetry: invalid labels for %s.%s: %v", goCheckName, goMetricName, err)
+				return
+			}
+		}
+	}
+
+	labelNames := slices.Sorted(maps.Keys(labels))
 	switch goMetricType {
 	case "counter":
-		counter := lazyInitTelemetryCounter(goCheckName, goMetricName)
+		counter := lazyInitTelemetryCounter(goCheckName, goMetricName, labelNames)
 		if counter != nil {
-			counter.Add(goMetricValue)
+			counter.AddWithTags(goMetricValue, labels)
 		}
 	case "histogram":
-		histogram := lazyInitTelemetryHistogram(goCheckName, goMetricName)
+		histogram := lazyInitTelemetryHistogram(goCheckName, goMetricName, labelNames)
 		if histogram != nil {
-			histogram.Observe(goMetricValue)
+			histogram.WithTags(labels).Observe(goMetricValue)
 		}
 	case "gauge":
-		gauge := lazyInitTelemetryGauge(goCheckName, goMetricName)
+		gauge := lazyInitTelemetryGauge(goCheckName, goMetricName, labelNames)
 		if gauge != nil {
-			gauge.Set(goMetricValue)
+			gauge.WithTags(labels).Set(goMetricValue)
 		}
 	default:
 		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)

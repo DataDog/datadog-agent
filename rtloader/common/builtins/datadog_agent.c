@@ -957,6 +957,7 @@ static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObje
     This function is callable as the `datadog_agent.emit_agent_telemetry` Python method and
     uses the `cb_emit_agent_telemetry()` callback to emit the agent telemetry
     with CGO. If the callback has not been set `None` will be returned.
+    The optional `labels` mapping is serialized to JSON and passed to the callback.
 */
 static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs)
 {
@@ -971,13 +972,27 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
     char *metric_name = NULL;
     double metric_value;
     char *metric_type = NULL;
-    if (!PyArg_ParseTuple(args, "ssds", &check_name, &metric_name, &metric_value, &metric_type)) {
+    PyObject *labels = Py_None;
+    static char *kwlist[] = { "check_name", "metric_name", "metric_value", "metric_type", "labels", NULL };
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ssds|O", kwlist, &check_name, &metric_name, &metric_value,
+                                     &metric_type, &labels)) {
         PyGILState_Release(gstate);
         return NULL;
     }
 
-    cb_emit_agent_telemetry(check_name, metric_name, metric_value, metric_type);
+    char *labels_json = NULL;
+    if (labels != Py_None) {
+        labels_json = as_json(labels);
+        if (labels_json == NULL) {
+            PyErr_Clear();
+            PyGILState_Release(gstate);
+            Py_RETURN_NONE;
+        }
+    }
 
+    cb_emit_agent_telemetry(check_name, metric_name, metric_value, metric_type, labels_json);
+
+    _free(labels_json);
     PyGILState_Release(gstate);
 
     Py_RETURN_NONE;

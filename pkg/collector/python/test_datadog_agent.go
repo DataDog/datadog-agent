@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v2"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -94,10 +95,10 @@ func testSetExternalTags(t *testing.T) {
 }
 
 func testEmitAgentTelemetry(t *testing.T) {
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"), nil)
 
 	// Test second time for laziness check
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"), nil)
 
 	// Test for lock problems
 	wg := sync.WaitGroup{}
@@ -105,27 +106,37 @@ func testEmitAgentTelemetry(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			time.Sleep(time.Millisecond * time.Duration(rand.IntN(10)))
-			EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+			EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"), nil)
 			wg.Done()
 		}()
 	}
 	wg.Wait()
 
-	// Test that changing the metric type doesn't crash the agent for all the permutations
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("counter"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("histogram"))
+	assert.Nil(t, lazyInitTelemetryCounter("test_check", "test_metric", nil))
+	require.NotNil(t, lazyInitTelemetryCounter("test_check", "test_type_conflict_counter", nil))
+	assert.Nil(t, lazyInitTelemetryHistogram("test_check", "test_type_conflict_counter", nil))
+	assert.Nil(t, lazyInitTelemetryGauge("test_check", "test_type_conflict_counter", nil))
+	require.NotNil(t, lazyInitTelemetryHistogram("test_check", "test_histogram_reuse", nil))
+	require.NotNil(t, lazyInitTelemetryHistogram("test_check", "test_histogram_reuse", nil))
 
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("counter"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("counter"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("histogram"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("gauge"))
+	// Labels reach the metric; label sets that disagree with the declaration, and
+	// invalid labels json, are dropped instead of panicking or adding a series.
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_labels"), 1.0, C.CString("counter"), C.CString(`{"check_name":"openmetrics"}`))
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_labels"), 1.0, C.CString("counter"), nil)
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_labels"), 1.0, C.CString("counter"), C.CString("}not json{"))
 
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("histogram"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("histogram"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("counter"))
-	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("gauge"))
-
-	assert.True(t, true)
+	families, err := telemetryimpl.GetCompatComponent().Gather(false)
+	require.NoError(t, err)
+	var labels []string
+	for _, family := range families {
+		if family.GetName() == "test_check__test_labels" {
+			require.Len(t, family.Metric, 1)
+			for _, label := range family.Metric[0].GetLabel() {
+				labels = append(labels, label.GetName()+"="+label.GetValue())
+			}
+		}
+	}
+	assert.Equal(t, []string{"check_name=openmetrics"}, labels)
 }
 
 func testObfuscaterConfig(t *testing.T) {
