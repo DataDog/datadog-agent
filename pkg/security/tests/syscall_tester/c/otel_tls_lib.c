@@ -11,6 +11,7 @@
 
 #define _GNU_SOURCE
 
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,7 +42,6 @@ enum otel_record_mode {
 
 struct otel_thread_opts {
     char **argv;
-    int memfd;
     enum otel_record_mode mode;
     // path_index is where the file to open, or the program to exec, sits in
     // argv: the commands publishing no record take no ids either.
@@ -55,13 +55,15 @@ static void publish_otel_record(struct otel_record_with_attrs *record) {
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
 }
 
-static int prepare_otel_context(struct otel_record_with_attrs *record, char **argv, int *memfd,
-                                enum otel_record_mode mode) {
-    *memfd = otel_create_tracer_memfd();
-    if (*memfd < 0) {
+static int prepare_otel_context(struct otel_record_with_attrs *record, char **argv, enum otel_record_mode mode) {
+    // The only thing this tester publishes about itself, and what the agent
+    // resolves it on.
+    if (otel_publish_process_ctx() < 0) {
         return -1;
     }
 
+    // Give the agent the time to resolve this process before a record is there
+    // to be read.
     usleep(500000);
     if (mode == otel_record_absent) {
         return 0;
@@ -93,7 +95,7 @@ static void *thread_otel_open(void *data) {
     struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
     struct otel_record_with_attrs record;
 
-    if (prepare_otel_context(&record, opts->argv, &opts->memfd, opts->mode) < 0) {
+    if (prepare_otel_context(&record, opts->argv, opts->mode) < 0) {
         return NULL;
     }
 
@@ -106,7 +108,7 @@ static void *thread_otel_open(void *data) {
 // run_on_thread publishes the record from a thread of its own, the way a traced
 // application would, and the record dies with it.
 static int run_on_thread(void *(*fn)(void *), char **argv, enum otel_record_mode mode, int path_index) {
-    struct otel_thread_opts opts = {.argv = argv, .memfd = -1, .mode = mode, .path_index = path_index};
+    struct otel_thread_opts opts = {.argv = argv, .mode = mode, .path_index = path_index};
     pthread_t thread;
 
     if (pthread_create(&thread, NULL, fn, &opts) != 0) {
@@ -114,9 +116,6 @@ static int run_on_thread(void *(*fn)(void *), char **argv, enum otel_record_mode
     }
     pthread_join(thread, NULL);
 
-    if (opts.memfd >= 0) {
-        close(opts.memfd);
-    }
     return EXIT_SUCCESS;
 }
 
@@ -161,20 +160,17 @@ int otel_span_open_wait(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    int memfd = -1;
     struct otel_record_with_attrs record;
-    if (prepare_otel_context(&record, argv, &memfd, otel_record_valid) < 0) {
+    if (prepare_otel_context(&record, argv, otel_record_valid) < 0) {
         return EXIT_FAILURE;
     }
 
     if (open_test_path(argv[3], 0) < 0 || wait_for_file(argv[4]) < 0 || open_test_path(argv[5], 1) < 0) {
         otel_thread_ctx_v1 = NULL;
-        close(memfd);
         return EXIT_FAILURE;
     }
 
     otel_thread_ctx_v1 = NULL;
-    close(memfd);
     return EXIT_SUCCESS;
 }
 
@@ -182,7 +178,7 @@ static void *thread_otel_exec(void *data) {
     struct otel_thread_opts *opts = (struct otel_thread_opts *)data;
     struct otel_record_with_attrs record;
 
-    if (prepare_otel_context(&record, opts->argv, &opts->memfd, opts->mode) < 0) {
+    if (prepare_otel_context(&record, opts->argv, opts->mode) < 0) {
         return NULL;
     }
 
@@ -225,9 +221,8 @@ int otel_span_fork_open(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    int memfd = -1;
     struct otel_record_with_attrs record;
-    if (prepare_otel_context(&record, argv, &memfd, otel_record_valid) < 0) {
+    if (prepare_otel_context(&record, argv, otel_record_valid) < 0) {
         return EXIT_FAILURE;
     }
 
@@ -235,7 +230,6 @@ int otel_span_fork_open(int argc, char **argv) {
     if (child < 0) {
         perror("fork");
         otel_thread_ctx_v1 = NULL;
-        close(memfd);
         return EXIT_FAILURE;
     }
     if (child == 0) {
@@ -250,7 +244,6 @@ int otel_span_fork_open(int argc, char **argv) {
     waitpid(child, &status, 0);
 
     otel_thread_ctx_v1 = NULL;
-    close(memfd);
     return WIFEXITED(status) ? WEXITSTATUS(status) : EXIT_FAILURE;
 }
 
@@ -260,9 +253,8 @@ int otel_span_fork_exec(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    int memfd = -1;
     struct otel_record_with_attrs record;
-    if (prepare_otel_context(&record, argv, &memfd, otel_record_valid) < 0) {
+    if (prepare_otel_context(&record, argv, otel_record_valid) < 0) {
         return EXIT_FAILURE;
     }
 
@@ -270,7 +262,6 @@ int otel_span_fork_exec(int argc, char **argv) {
     if (child < 0) {
         perror("fork");
         otel_thread_ctx_v1 = NULL;
-        close(memfd);
         return EXIT_FAILURE;
     }
     if (child == 0) {
@@ -283,6 +274,5 @@ int otel_span_fork_exec(int argc, char **argv) {
     waitpid(child, &status, 0);
 
     otel_thread_ctx_v1 = NULL;
-    close(memfd);
     return WIFEXITED(status) ? WEXITSTATUS(status) : EXIT_FAILURE;
 }
