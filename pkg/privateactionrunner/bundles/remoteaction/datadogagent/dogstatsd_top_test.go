@@ -18,22 +18,46 @@ import (
 )
 
 func TestGetDogstatsdTopHandler(t *testing.T) {
-	client := &fakeIPCClient{
-		post: func(endpointURL, contentType string, body io.Reader, _ ...ipc.RequestOption) ([]byte, error) {
-			require.True(t, strings.HasSuffix(endpointURL, "/agent/dogstatsd-contexts-top"))
-			require.Equal(t, "application/json", contentType)
-			payload, err := io.ReadAll(body)
-			require.NoError(t, err)
-			require.JSONEq(t, `{"num_metrics":20,"num_tags":10,"source":"dump"}`, string(payload))
-			return []byte(`{"source":"dump","metrics":[]}`), nil
+	tests := []struct {
+		name     string
+		inputs   map[string]interface{}
+		wantBody string
+	}{
+		{
+			name:     "all inputs",
+			inputs:   map[string]interface{}{"num_metrics": 20, "num_tags": 10, "source": "dump"},
+			wantBody: `{"num_metrics":20,"num_tags":10,"source":"dump"}`,
+		},
+		{
+			name:     "explicit zero limits",
+			inputs:   map[string]interface{}{"num_metrics": 0, "num_tags": 0},
+			wantBody: `{"num_metrics":0,"num_tags":0}`,
+		},
+		{
+			name:     "omitted limits",
+			inputs:   map[string]interface{}{"source": "live"},
+			wantBody: `{"source":"live"}`,
 		},
 	}
-	task := &types.Task{}
-	task.Data.Attributes = &types.Attributes{
-		Inputs: map[string]interface{}{"num_metrics": 20, "num_tags": 10, "source": "dump"},
-	}
 
-	result, err := NewGetDogstatsdTopHandler(client).Run(context.Background(), task, nil)
-	require.NoError(t, err)
-	require.Equal(t, map[string]interface{}{"source": "dump", "metrics": []interface{}{}}, result)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := &fakeIPCClient{
+				post: func(endpointURL, contentType string, body io.Reader, _ ...ipc.RequestOption) ([]byte, error) {
+					require.True(t, strings.HasSuffix(endpointURL, "/agent/dogstatsd-contexts-top"))
+					require.Equal(t, "application/json", contentType)
+					payload, err := io.ReadAll(body)
+					require.NoError(t, err)
+					require.JSONEq(t, test.wantBody, string(payload))
+					return []byte(`{"source":"dump","metrics":[]}`), nil
+				},
+			}
+			task := &types.Task{}
+			task.Data.Attributes = &types.Attributes{Inputs: test.inputs}
+
+			result, err := NewGetDogstatsdTopHandler(client).Run(context.Background(), task, nil)
+			require.NoError(t, err)
+			require.Equal(t, map[string]interface{}{"source": "dump", "metrics": []interface{}{}}, result)
+		})
+	}
 }
