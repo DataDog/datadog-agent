@@ -76,8 +76,9 @@ impl StartupInfoEx {
             stdio_handles: [stdin, stdout, stderr],
             job_handles: [job],
         };
-        startup.attach_stdio_handle_list()?;
+        // JOB_LIST before HANDLE_LIST: assign supervision job before restricting inheritance.
         startup.attach_job_list()?;
+        startup.attach_stdio_handle_list()?;
         Ok(startup)
     }
 

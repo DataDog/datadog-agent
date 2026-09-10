@@ -10,10 +10,7 @@ use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
-use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
-    CreateProcessW, EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION,
-};
+use windows_sys::Win32::System::Threading::{CreateProcessW, PROCESS_INFORMATION};
 
 use crate::handle::ProcessHandle;
 use crate::spawn::SpawnRequest;
@@ -25,7 +22,10 @@ use super::super::wide;
 use super::credential::SpawnCredential;
 use super::startup_info_ex::StartupInfoEx;
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
-use super::win32::{build_windows_command_line, env_block_from_baseline_plus_overrides};
+use super::win32::{
+    build_windows_command_line, env_block_from_baseline_plus_overrides,
+    managed_process_creation_flags,
+};
 
 /// Spawns a child in the supervisor's security context (`CreateProcessW`).
 ///
@@ -84,11 +84,7 @@ pub(super) fn spawn_inherit_supervisor(
         job.raw_handle(),
     )?;
 
-    let creation_flags = CREATE_NEW_PROCESS_GROUP
-        | CREATE_NEW_CONSOLE
-        | CREATE_NO_WINDOW
-        | CREATE_UNICODE_ENVIRONMENT
-        | EXTENDED_STARTUPINFO_PRESENT;
+    let creation_flags = managed_process_creation_flags();
 
     let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     let ok = unsafe {

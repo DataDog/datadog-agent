@@ -11,6 +11,10 @@ use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPrimary};
 use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
+use windows_sys::Win32::System::Threading::{
+    CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
+    EXTENDED_STARTUPINFO_PRESENT,
+};
 
 use super::super::child_env::merge_legacy_scm_env;
 use super::super::merge_env_overrides;
@@ -157,4 +161,15 @@ mod tests {
         }
         entries
     }
+}
+
+/// `CreateProcess*` flags shared by managed child spawn paths.
+///
+/// `CREATE_NO_WINDOW` spawns hidden console children. `CREATE_NEW_CONSOLE` is omitted:
+/// with both set, Windows ignores `CREATE_NO_WINDOW` and the child gets a visible console.
+pub(crate) fn managed_process_creation_flags() -> u32 {
+    CREATE_NEW_PROCESS_GROUP
+        | CREATE_NO_WINDOW
+        | CREATE_UNICODE_ENVIRONMENT
+        | EXTENDED_STARTUPINFO_PRESENT
 }

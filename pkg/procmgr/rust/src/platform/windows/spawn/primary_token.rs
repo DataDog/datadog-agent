@@ -8,10 +8,7 @@ use std::mem;
 use std::os::windows::ffi::OsStrExt;
 use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::System::Console::{STD_ERROR_HANDLE, STD_OUTPUT_HANDLE};
-use windows_sys::Win32::System::Threading::{
-    CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, CREATE_UNICODE_ENVIRONMENT,
-    CreateProcessAsUserW, EXTENDED_STARTUPINFO_PRESENT, PROCESS_INFORMATION,
-};
+use windows_sys::Win32::System::Threading::{CreateProcessAsUserW, PROCESS_INFORMATION};
 
 use crate::handle::ProcessHandle;
 use crate::spawn::SpawnRequest;
@@ -24,7 +21,10 @@ use super::logon::TokenHandle;
 use super::startup_info_ex::StartupInfoEx;
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
 use super::user_profile::UserProfileGuard;
-use super::win32::{build_windows_command_line, env_block_from_baseline_plus_overrides};
+use super::win32::{
+    build_windows_command_line, env_block_from_baseline_plus_overrides,
+    managed_process_creation_flags,
+};
 
 /// Spawn a child with `CreateProcessAsUserW` using a **primary access token**.
 ///
@@ -98,12 +98,7 @@ pub(super) fn spawn_as_primary_token(
         job.raw_handle(),
     )?;
 
-    // New process group, hidden console, Unicode env block.
-    let dw_creation_flags = CREATE_NEW_PROCESS_GROUP
-        | CREATE_NEW_CONSOLE
-        | CREATE_NO_WINDOW
-        | CREATE_UNICODE_ENVIRONMENT
-        | EXTENDED_STARTUPINFO_PRESENT;
+    let dw_creation_flags = managed_process_creation_flags();
 
     let mut pi: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     // bInheritHandles=1 plus PROC_THREAD_ATTRIBUTE_HANDLE_LIST: only listed handles are inherited.
