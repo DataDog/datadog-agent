@@ -1,0 +1,11 @@
+init_config:
+  loader: core
+
+instances:
+  - address: dd-gnmi
+    port: 57400
+    username: user
+    password: test-password
+    profile: interface-stats
+    min_collection_interval: 1
+    metadata_collection_interval: 1
