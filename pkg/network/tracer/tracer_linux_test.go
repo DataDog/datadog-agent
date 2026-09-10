@@ -1862,9 +1862,6 @@ func (s *TracerSuite) TestSendfileRegression() {
 }
 
 func httpSupported() bool {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		return false
-	}
 	return kv >= usmconfig.MinimumKernelVersion
 }
 
