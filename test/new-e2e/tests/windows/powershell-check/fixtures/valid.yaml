@@ -1,0 +1,15 @@
+init_config:
+
+instances:
+  - cmdlet: Get-Service
+    name: e2e.powershell
+    parameters:
+      - [Name, Dnscache]
+    where:
+      - [Status, eq, Running]
+    metrics:
+      - [1, service.running, gauge]
+    tag_by:
+      - Name AS service
+    tags:
+      - e2e:powershell-check

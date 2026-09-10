@@ -129,13 +129,13 @@ func (f *statefulSetRolloutFactory) ExpectedType() interface{} {
 func (f *statefulSetRolloutFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
 	return &cache.ListWatch{
-		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
-			return client.AppsV1().StatefulSets(ns).List(context.TODO(), opts)
+			return client.AppsV1().StatefulSets(ns).List(ctx, opts)
 		},
-		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
-			return client.AppsV1().StatefulSets(ns).Watch(context.TODO(), opts)
+			return client.AppsV1().StatefulSets(ns).Watch(ctx, opts)
 		},
 	}
 }

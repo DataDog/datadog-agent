@@ -375,11 +375,11 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 	}
 }
 
-func newPodStore(ctx context.Context, wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newPodStore(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
 	// The REST client approach doesn't work with protobuf, so fallback to typed
 	// client.
 	if config.GetBool("kubernetes_apiserver_use_protobuf") {
-		return newPodStoreWithTypedClient(ctx, wlm, config, client)
+		return newPodStoreWithTypedClient(wlm, config, client)
 	}
 	return newPodStoreWithRestClient(wlm, config, client)
 }
@@ -434,12 +434,12 @@ func newPodStoreWithRestClient(wlm workloadmeta.Component, config config.Reader,
 	return podReflector, podStore
 }
 
-func newPodStoreWithTypedClient(ctx context.Context, wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newPodStoreWithTypedClient(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
 	podListerWatcher := &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
 		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			return client.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
 		},
 	}
