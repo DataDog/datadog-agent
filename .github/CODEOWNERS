@@ -253,6 +253,8 @@
 /cmd/agent/subcommands/streamep                     @DataDog/container-integrations
 /cmd/agent/subcommands/taggerlist                   @DataDog/container-platform
 /cmd/agent/subcommands/workloadlist                 @DataDog/container-platform
+/cmd/agent/subcommands/workloadfilterlist           @DataDog/container-platform
+/cmd/agent/subcommands/validatepodannotation        @DataDog/container-platform
 /cmd/agent/subcommands/run/                         @DataDog/agent-runtimes
 /cmd/agent/subcommands/run/internal/clcrunnerapi/   @DataDog/container-platform
 /cmd/agent/windows                                  @DataDog/windows-products
@@ -326,6 +328,11 @@
 /examples/ # do not notify anyone
 
 /Dockerfiles/                            @DataDog/agent-build
+/Dockerfiles/agent/entrypoint.d/privateactionrunner                         @DataDog/action-platform
+/Dockerfiles/agent/par-probe.sh                                            @DataDog/action-platform
+/Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml          @DataDog/action-platform
+/Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml              @DataDog/action-platform
+/Dockerfiles/agent/s6-services/privateactionrunner/                        @DataDog/action-platform
 /Dockerfiles/agent/entrypoint.d.windows/ @DataDog/agent-build @DataDog/windows-products
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/agent-build @DataDog/windows-products
 /Dockerfiles/agent/windows/              @DataDog/agent-build @DataDog/windows-products
@@ -676,7 +683,7 @@
 /pkg/pidfile/                                                         @DataDog/agent-runtimes
 /pkg/persistentcache/                                                 @DataDog/agent-runtimes
 /pkg/procmgr/                                                         @DataDog/agent-runtimes
-/pkg/procmgr/rust/src/platform/windows.rs                             @DataDog/agent-runtimes @DataDog/windows-products
+/pkg/procmgr/rust/src/platform/windows/                               @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/procmgr/rust/src/transport/named_pipe.rs                         @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/privateactionrunner/                                             @DataDog/action-platform
 /pkg/privateactionrunner/bundles/remoteaction/rshell                  @DataDog/action-platform @DataDog/dd-agent-mcp @DataDog/fleet-remediation
