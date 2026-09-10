@@ -189,10 +189,12 @@ func (x *RemoteQueryUploadLimits) GetTimeoutMs() int64 {
 
 // RemoteQueryResultDelivery carries the backend-injected upload-session
 // instructions for one run: the authoritative run/task identity used by every
-// page envelope, the page artifact contract version, the scoped its-agent-intake
-// session handle, and the effective limits. The Agent forwards base_url and
-// token to the integration check, which performs the HTTP upload itself; bulk
-// result bytes never traverse AgentSecure.
+// page envelope, the page artifact contract version, the its-agent-intake
+// session handle, and the effective limits. The session is identified solely by
+// upload_id and authorized by the org API/application keys plus the intake's
+// org binding, so no upload credential crosses the AgentSecure boundary; the
+// Agent forwards base_url to the integration check, which performs the HTTP
+// upload itself, and bulk result bytes never traverse AgentSecure.
 type RemoteQueryResultDelivery struct {
 	state           protoimpl.MessageState   `protogen:"open.v1"`
 	RunId           string                   `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
@@ -200,7 +202,6 @@ type RemoteQueryResultDelivery struct {
 	ArtifactVersion int32                    `protobuf:"varint,3,opt,name=artifact_version,json=artifactVersion,proto3" json:"artifact_version,omitempty"`
 	UploadId        string                   `protobuf:"bytes,4,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
 	BaseUrl         string                   `protobuf:"bytes,5,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
-	Token           string                   `protobuf:"bytes,6,opt,name=token,proto3" json:"token,omitempty"`
 	Limits          *RemoteQueryUploadLimits `protobuf:"bytes,8,opt,name=limits,proto3" json:"limits,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -267,13 +268,6 @@ func (x *RemoteQueryResultDelivery) GetUploadId() string {
 func (x *RemoteQueryResultDelivery) GetBaseUrl() string {
 	if x != nil {
 		return x.BaseUrl
-	}
-	return ""
-}
-
-func (x *RemoteQueryResultDelivery) GetToken() string {
-	if x != nil {
-		return x.Token
 	}
 	return ""
 }
@@ -1072,15 +1066,14 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x10max_schema_bytes\x18\x05 \x01(\x03R\x0emaxSchemaBytes\x12\x1b\n" +
 	"\tmax_pages\x18\x06 \x01(\x03R\bmaxPages\x12\x1d\n" +
 	"\n" +
-	"timeout_ms\x18\a \x01(\x03R\ttimeoutMs\"\x8b\x02\n" +
+	"timeout_ms\x18\a \x01(\x03R\ttimeoutMs\"\xfb\x01\n" +
 	"\x19RemoteQueryResultDelivery\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12)\n" +
 	"\x10artifact_version\x18\x03 \x01(\x05R\x0fartifactVersion\x12\x1b\n" +
 	"\tupload_id\x18\x04 \x01(\tR\buploadId\x12\x19\n" +
-	"\bbase_url\x18\x05 \x01(\tR\abaseUrl\x12\x14\n" +
-	"\x05token\x18\x06 \x01(\tR\x05token\x12?\n" +
-	"\x06limits\x18\b \x01(\v2'.datadog.api.v1.RemoteQueryUploadLimitsR\x06limitsJ\x04\b\a\x10\b\"\xb6\x02\n" +
+	"\bbase_url\x18\x05 \x01(\tR\abaseUrl\x12?\n" +
+	"\x06limits\x18\b \x01(\v2'.datadog.api.v1.RemoteQueryUploadLimitsR\x06limitsJ\x04\b\x06\x10\aJ\x04\b\a\x10\b\"\xb6\x02\n" +
 	"\x19RemoteQueryExecuteRequest\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x129\n" +
 	"\x06target\x18\x02 \x01(\v2!.datadog.api.v1.RemoteQueryTargetR\x06target\x12\x14\n" +

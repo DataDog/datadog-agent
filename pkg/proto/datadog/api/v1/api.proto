@@ -44,17 +44,22 @@ message RemoteQueryUploadLimits {
 
 // RemoteQueryResultDelivery carries the backend-injected upload-session
 // instructions for one run: the authoritative run/task identity used by every
-// page envelope, the page artifact contract version, the scoped its-agent-intake
-// session handle, and the effective limits. The Agent forwards base_url and
-// token to the integration check, which performs the HTTP upload itself; bulk
-// result bytes never traverse AgentSecure.
+// page envelope, the page artifact contract version, the its-agent-intake
+// session handle, and the effective limits. The session is identified solely by
+// upload_id and authorized by the org API/application keys plus the intake's
+// org binding, so no upload credential crosses the AgentSecure boundary; the
+// Agent forwards base_url to the integration check, which performs the HTTP
+// upload itself, and bulk result bytes never traverse AgentSecure.
 message RemoteQueryResultDelivery {
     string run_id = 1;
     string task_id = 2;
     int32 artifact_version = 3;
     string upload_id = 4;
     string base_url = 5;
-    string token = 6;
+    // 6 was the per-session upload token: the session is identified solely by
+    // upload_id and authorized by the org API/application keys plus the intake's
+    // org binding, so no upload credential crosses the AgentSecure boundary.
+    reserved 6;
     // 7 was part_bytes: the direct-page contract uploads one complete bounded page
     // per request, so no public part sizing crosses the AgentSecure boundary.
     reserved 7;

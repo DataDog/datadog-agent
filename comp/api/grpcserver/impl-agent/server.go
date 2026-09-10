@@ -559,9 +559,9 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 
 // remoteQueryResultDeliveryFromProto maps the backend-injected upload instructions. The
 // Agent forwards baseUrl opaquely: the intake mints and owns the URL, and it is never
-// logged. The per-session upload token no longer exists in the session-id contract, so
-// the Agent never reads the legacy token field that still exists in the generated proto
-// surface — whatever a stale producer sets there is dropped, never forwarded.
+// logged. The session-id contract has no per-session upload token: the session is
+// identified solely by upload_id and the proto surface carries no token field, so no
+// upload credential can cross the AgentSecure boundary.
 func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) *remotequeriesimpl.RemoteQueryResultDelivery {
 	if delivery == nil {
 		return nil

@@ -118,8 +118,6 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	assert.Equal(t, int32(1), delivery.GetArtifactVersion())
 	assert.Equal(t, testUploadID, delivery.GetUploadId())
 	assert.Equal(t, testBaseURL, delivery.GetBaseUrl())
-	// The session has no upload token, so the bundle leaves the legacy proto field unset.
-	assert.Empty(t, delivery.GetToken())
 	require.NotNil(t, delivery.GetLimits())
 	assert.Equal(t, int64(33554432), delivery.GetLimits().GetMaxFileBytes())
 	assert.Equal(t, int64(107374182400), delivery.GetLimits().GetMaxResultBytes())
@@ -186,7 +184,6 @@ func TestExecuteActionDropsStaleUploadTokenFromInputs(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, client.request)
 	require.NotNil(t, client.request.GetResultDelivery())
-	assert.Empty(t, client.request.GetResultDelivery().GetToken())
 	evidence, err := json.Marshal(client.request)
 	require.NoError(t, err)
 	assert.NotContains(t, string(evidence), "stale-upload-token")
