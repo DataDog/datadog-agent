@@ -311,6 +311,7 @@
 /cmd/agent/dist/conf.d/telemetry.d/                    @DataDog/fleet-remediation
 /cmd/agent/dist/conf.d/thermal.d/                      @DataDog/windows-products
 /cmd/agent/dist/conf.d/uptime.d/                       @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/vdi.d/                          @DataDog/windows-products
 /cmd/agent/dist/conf.d/versa.d/                        @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/win32_event_log.d/              @DataDog/windows-products
 /cmd/agent/dist/conf.d/wincrashdetect.d/               @DataDog/windows-products
