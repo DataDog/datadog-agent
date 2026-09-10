@@ -305,12 +305,47 @@ func buildIPAddressMetadata(
 	snapshot []client.CachedValue,
 ) []devicemetadata.IPAddressMetadata {
 	resolved := metadata.Resolved()
-	ipPath := normalizeProfilePath(resolved.IPAddress.IP)
+	interfaceKey := interfaceNameKeyFromMetadataKeys(resolved.IPAddress.Keys)
+
+	interfaceByName := make(map[string]devicemetadata.InterfaceMetadata, len(interfaces))
+	for _, iface := range interfaces {
+		if iface.Name == "" {
+			continue
+		}
+		interfaceByName[iface.Name] = iface
+	}
+
+	var ipAddresses []devicemetadata.IPAddressMetadata
+	ipAddresses = append(ipAddresses, buildIPAddressMetadataForFamily(
+		deviceID, resolved.IPAddress.IP, resolved.IPAddress.PrefixLength, interfaceKey, interfaceByName, snapshot)...)
+	ipAddresses = append(ipAddresses, buildIPAddressMetadataForFamily(
+		deviceID, resolved.IPAddress.IPv6, resolved.IPAddress.IPv6PrefixLength, interfaceKey, interfaceByName, snapshot)...)
+
+	sort.Slice(ipAddresses, func(i, j int) bool {
+		if ipAddresses[i].InterfaceID == ipAddresses[j].InterfaceID {
+			return ipAddresses[i].IPAddress < ipAddresses[j].IPAddress
+		}
+		return ipAddresses[i].InterfaceID < ipAddresses[j].InterfaceID
+	})
+
+	return ipAddresses
+}
+
+// buildIPAddressMetadataForFamily correlates cached IP and prefix-length values for a single
+// address family (IPv4 or IPv6) into IPAddressMetadata entries, keyed by interface/subinterface/address.
+func buildIPAddressMetadataForFamily(
+	deviceID string,
+	ipPathConfig string,
+	prefixPathConfig string,
+	interfaceKey string,
+	interfaceByName map[string]devicemetadata.InterfaceMetadata,
+	snapshot []client.CachedValue,
+) []devicemetadata.IPAddressMetadata {
+	ipPath := normalizeProfilePath(ipPathConfig)
 	if ipPath == "" {
 		return nil
 	}
-	prefixPath := normalizeProfilePath(resolved.IPAddress.PrefixLength)
-	interfaceKey := interfaceNameKeyFromMetadataKeys(resolved.IPAddress.Keys)
+	prefixPath := normalizeProfilePath(prefixPathConfig)
 
 	type addressData struct {
 		ip        string
@@ -361,14 +396,6 @@ func buildIPAddressMetadata(
 		}
 	}
 
-	interfaceByName := make(map[string]devicemetadata.InterfaceMetadata, len(interfaces))
-	for _, iface := range interfaces {
-		if iface.Name == "" {
-			continue
-		}
-		interfaceByName[iface.Name] = iface
-	}
-
 	ipAddresses := make([]devicemetadata.IPAddressMetadata, 0, len(addresses))
 	for key, entry := range addresses {
 		if entry.ip == "" {
@@ -394,13 +421,6 @@ func buildIPAddressMetadata(
 		}
 		ipAddresses = append(ipAddresses, ipMetadata)
 	}
-
-	sort.Slice(ipAddresses, func(i, j int) bool {
-		if ipAddresses[i].InterfaceID == ipAddresses[j].InterfaceID {
-			return ipAddresses[i].IPAddress < ipAddresses[j].IPAddress
-		}
-		return ipAddresses[i].InterfaceID < ipAddresses[j].InterfaceID
-	})
 
 	return ipAddresses
 }

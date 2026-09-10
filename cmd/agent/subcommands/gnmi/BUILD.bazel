@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "gnmi",
-    srcs = ["command.go"],
+    srcs = [
+        "command.go",
+        "preview_metrics.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/gnmi",
     visibility = ["//visibility:public"],
     deps = [
@@ -13,6 +16,8 @@ go_library(
         "//comp/core/log/def",
         "//pkg/collector/corechecks/network-devices/gnmi/client",
         "//pkg/collector/corechecks/network-devices/gnmi/config",
+        "//pkg/collector/corechecks/network-devices/gnmi/report",
+        "//pkg/config/model",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",
         "@in_yaml_go_yaml_v2//:yaml",

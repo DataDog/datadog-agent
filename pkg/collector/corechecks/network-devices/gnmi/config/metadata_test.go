@@ -40,6 +40,10 @@ func TestMetadataConfigSubscriptionPaths(t *testing.T) {
 	ipPath := "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/ip"
 	assert.Contains(t, seen, ipPath)
 	assert.Equal(t, map[string]string{"interface": "name", "subinterface": "index", "address": "ip"}, seen[ipPath].Tags)
+
+	ipv6Path := "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv6/addresses/address/state/ip"
+	assert.Contains(t, seen, ipv6Path)
+	assert.Equal(t, map[string]string{"interface": "name", "subinterface": "index", "address": "ip"}, seen[ipv6Path].Tags)
 }
 
 func TestInterfaceKeyValues(t *testing.T) {

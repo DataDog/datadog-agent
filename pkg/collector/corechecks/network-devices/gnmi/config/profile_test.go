@@ -6,8 +6,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -264,4 +266,49 @@ metrics:
 	require.NoError(t, err)
 	assert.Equal(t, "/openconfig/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id", profile.Topology.LLDP.ChassisID)
 	require.NotEmpty(t, profile.Topology.SubscriptionPaths())
+}
+
+// TestMergeMetadataConfigPreservesAllFields guards against a merge* helper silently
+// dropping a sub-block or field: fillNonZero sets every leaf field to a unique value
+// via reflection, so a newly added field is covered automatically without updating
+// this test by hand.
+func TestMergeMetadataConfigPreservesAllFields(t *testing.T) {
+	override := fillNonZero(t, MetadataConfig{}).(MetadataConfig)
+	merged := mergeMetadataConfig(MetadataConfig{}, override)
+	assert.Equal(t, override, merged, "mergeMetadataConfig dropped a field: add it to the merge function")
+}
+
+func TestMergeTopologyConfigPreservesAllFields(t *testing.T) {
+	override := fillNonZero(t, TopologyConfig{}).(TopologyConfig)
+	merged := mergeTopologyConfig(TopologyConfig{}, override)
+	assert.Equal(t, override, merged, "mergeTopologyConfig dropped a field: add it to the merge function")
+}
+
+// fillNonZero returns a copy of v with every string field set to a unique
+// non-empty value and every map[string]string field set to a single-entry map,
+// recursing into nested structs.
+func fillNonZero(t *testing.T, v any) any {
+	t.Helper()
+	counter := 0
+	out := reflect.New(reflect.TypeOf(v)).Elem()
+	fillNonZeroValue(out, &counter)
+	return out.Interface()
+}
+
+func fillNonZeroValue(v reflect.Value, counter *int) {
+	switch v.Kind() {
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			fillNonZeroValue(v.Field(i), counter)
+		}
+	case reflect.String:
+		*counter++
+		v.SetString(fmt.Sprintf("value-%d", *counter))
+	case reflect.Map:
+		*counter++
+		key := fmt.Sprintf("key-%d", *counter)
+		value := fmt.Sprintf("value-%d", *counter)
+		v.Set(reflect.MakeMap(v.Type()))
+		v.SetMapIndex(reflect.ValueOf(key), reflect.ValueOf(value))
+	}
 }

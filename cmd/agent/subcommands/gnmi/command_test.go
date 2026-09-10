@@ -32,9 +32,14 @@ func TestFormatCacheKey(t *testing.T) {
 	assert.Equal(t, "/interfaces/interface/state/counters/in-octets{name=eth0}", key)
 }
 
-func TestCommandsRegistersSubscribe(t *testing.T) {
+func TestCommandsRegistersSubscribeAndPreviewMetrics(t *testing.T) {
 	commands := Commands(&command.GlobalParams{})
 	require.Len(t, commands, 1)
-	require.Len(t, commands[0].Commands(), 1)
-	assert.Equal(t, "subscribe", commands[0].Commands()[0].Name())
+	require.Len(t, commands[0].Commands(), 2)
+
+	names := []string{
+		commands[0].Commands()[0].Name(),
+		commands[0].Commands()[1].Name(),
+	}
+	assert.ElementsMatch(t, []string{"subscribe", "preview-metrics"}, names)
 }
