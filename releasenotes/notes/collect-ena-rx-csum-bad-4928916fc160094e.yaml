@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Collect per-queue ENA receive checksum error metrics exposed by current Linux drivers.
