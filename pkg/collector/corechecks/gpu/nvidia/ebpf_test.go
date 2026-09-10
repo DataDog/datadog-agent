@@ -164,31 +164,31 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(50), coreUsage.Value)
-	require.Len(t, coreUsage.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(coreUsage.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", coreUsage.AssociatedWorkloads[0].ID)
+	require.Len(t, coreUsage.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(coreUsage.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", coreUsage.AssociatedWorkloads()[0].ID)
 
 	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(1024), memoryUsage.Value)
-	require.Len(t, memoryUsage.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(memoryUsage.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", memoryUsage.AssociatedWorkloads[0].ID)
+	require.Len(t, memoryUsage.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(memoryUsage.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", memoryUsage.AssociatedWorkloads()[0].ID)
 
 	// Verify limit metrics have aggregated workloads
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
 	assert.Equal(t, float64(testutil.DefaultGpuCores), coreLimit.Value)
-	require.Len(t, coreLimit.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(coreLimit.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", coreLimit.AssociatedWorkloads[0].ID)
+	require.Len(t, coreLimit.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(coreLimit.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", coreLimit.AssociatedWorkloads()[0].ID)
 
 	memoryLimit := findMetric(metrics, "memory.limit")
 	require.NotNil(t, memoryLimit)
 	assert.Equal(t, float64(testutil.DefaultTotalMemory), memoryLimit.Value)
-	require.Len(t, memoryLimit.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(memoryLimit.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", memoryLimit.AssociatedWorkloads[0].ID)
+	require.Len(t, memoryLimit.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(memoryLimit.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", memoryLimit.AssociatedWorkloads()[0].ID)
 }
 
 func testCollectWithMultipleActiveProcesses(t *testing.T) {
@@ -239,14 +239,14 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 	// Verify limit metrics have aggregated workloads
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	require.Len(t, coreLimit.AssociatedWorkloads, 2)
-	workloadIDs := []string{coreLimit.AssociatedWorkloads[0].ID, coreLimit.AssociatedWorkloads[1].ID}
+	require.Len(t, coreLimit.AssociatedWorkloads(), 2)
+	workloadIDs := []string{coreLimit.AssociatedWorkloads()[0].ID, coreLimit.AssociatedWorkloads()[1].ID}
 	assert.ElementsMatch(t, []string{"123", "456"}, workloadIDs)
 
 	memoryLimit := findMetric(metrics, "memory.limit")
 	require.NotNil(t, memoryLimit)
-	require.Len(t, memoryLimit.AssociatedWorkloads, 2)
-	workloadIDs = []string{memoryLimit.AssociatedWorkloads[0].ID, memoryLimit.AssociatedWorkloads[1].ID}
+	require.Len(t, memoryLimit.AssociatedWorkloads(), 2)
+	workloadIDs = []string{memoryLimit.AssociatedWorkloads()[0].ID, memoryLimit.AssociatedWorkloads()[1].ID}
 	assert.ElementsMatch(t, []string{"123", "456"}, workloadIDs)
 }
 
@@ -292,23 +292,23 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(0), coreUsage.Value)
-	require.Len(t, coreUsage.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(coreUsage.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", coreUsage.AssociatedWorkloads[0].ID)
+	require.Len(t, coreUsage.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(coreUsage.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", coreUsage.AssociatedWorkloads()[0].ID)
 
 	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(0), memoryUsage.Value)
-	require.Len(t, memoryUsage.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(memoryUsage.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", memoryUsage.AssociatedWorkloads[0].ID)
+	require.Len(t, memoryUsage.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(memoryUsage.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", memoryUsage.AssociatedWorkloads()[0].ID)
 
 	// Verify limit metrics still include inactive process workload
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	require.Len(t, coreLimit.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(coreLimit.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", coreLimit.AssociatedWorkloads[0].ID)
+	require.Len(t, coreLimit.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(coreLimit.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", coreLimit.AssociatedWorkloads()[0].ID)
 }
 
 func testCollectFiltersByDeviceUUID(t *testing.T) {
@@ -360,14 +360,14 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 	assert.Len(t, metrics, 7)
 
 	// All metrics should be for PID 123 only
-	for _, metric := range metrics {
+	for _, metric := range requireMetrics(t, metrics) {
 		if metric.Name == "sm_active" || metric.Name == "gr_engine_active" {
 			continue
 		}
 
-		require.Len(t, metric.AssociatedWorkloads, 1)
-		assert.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind))
-		assert.Equal(t, "123", metric.AssociatedWorkloads[0].ID)
+		require.Len(t, metric.AssociatedWorkloads(), 1)
+		assert.Equal(t, "process", string(metric.AssociatedWorkloads()[0].Kind))
+		assert.Equal(t, "123", metric.AssociatedWorkloads()[0].ID)
 	}
 }
 
@@ -432,21 +432,21 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	// Verify limit metrics have all workloads aggregated
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	require.Len(t, coreLimit.AssociatedWorkloads, 3)
+	require.Len(t, coreLimit.AssociatedWorkloads(), 3)
 	workloadIDs := []string{
-		coreLimit.AssociatedWorkloads[0].ID,
-		coreLimit.AssociatedWorkloads[1].ID,
-		coreLimit.AssociatedWorkloads[2].ID,
+		coreLimit.AssociatedWorkloads()[0].ID,
+		coreLimit.AssociatedWorkloads()[1].ID,
+		coreLimit.AssociatedWorkloads()[2].ID,
 	}
 	assert.ElementsMatch(t, []string{"123", "456", "789"}, workloadIDs)
 
 	memoryLimit := findMetric(metrics, "memory.limit")
 	require.NotNil(t, memoryLimit)
-	require.Len(t, memoryLimit.AssociatedWorkloads, 3)
+	require.Len(t, memoryLimit.AssociatedWorkloads(), 3)
 	workloadIDs = []string{
-		memoryLimit.AssociatedWorkloads[0].ID,
-		memoryLimit.AssociatedWorkloads[1].ID,
-		memoryLimit.AssociatedWorkloads[2].ID,
+		memoryLimit.AssociatedWorkloads()[0].ID,
+		memoryLimit.AssociatedWorkloads()[1].ID,
+		memoryLimit.AssociatedWorkloads()[2].ID,
 	}
 	assert.ElementsMatch(t, []string{"123", "456", "789"}, workloadIDs)
 
@@ -454,8 +454,8 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	usageMetrics := findAllMetricsWithName(metrics, "process.core.usage")
 	assert.Len(t, usageMetrics, 3)
 	for _, metric := range usageMetrics {
-		require.Len(t, metric.AssociatedWorkloads, 1)
-		assert.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind))
+		require.Len(t, metric.AssociatedWorkloads(), 1)
+		assert.Equal(t, "process", string(metric.AssociatedWorkloads()[0].Kind))
 	}
 }
 
@@ -494,10 +494,10 @@ func testCollectEmitsSmActiveMetrics(t *testing.T) {
 	smActive := findMetric(metrics, "process.sm_active")
 	require.NotNil(t, smActive, "process.sm_active metric not found")
 	assert.Equal(t, 75.5, smActive.Value)
-	assert.Equal(t, Low, smActive.Priority, "process.sm_active should have Low priority")
-	require.Len(t, smActive.AssociatedWorkloads, 1)
-	assert.Equal(t, "process", string(smActive.AssociatedWorkloads[0].Kind))
-	assert.Equal(t, "123", smActive.AssociatedWorkloads[0].ID)
+	assert.Equal(t, Low, smActive.Priority(), "process.sm_active should have Low priority")
+	require.Len(t, smActive.AssociatedWorkloads(), 1)
+	assert.Equal(t, "process", string(smActive.AssociatedWorkloads()[0].Kind))
+	assert.Equal(t, "123", smActive.AssociatedWorkloads()[0].ID)
 }
 
 func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
@@ -563,22 +563,22 @@ func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
 	deviceSmActive := findMetric(metrics, "sm_active")
 	require.NotNil(t, deviceSmActive, "sm_active metric not found")
 	assert.Equal(t, 85.0, deviceSmActive.Value)
-	assert.Equal(t, Low, deviceSmActive.Priority, "sm_active should have Low priority")
-	assert.Empty(t, deviceSmActive.AssociatedWorkloads, "device-level sm_active should not have associated workloads")
+	assert.Equal(t, Low, deviceSmActive.Priority(), "sm_active should have Low priority")
+	assert.Empty(t, deviceSmActive.AssociatedWorkloads(), "device-level sm_active should not have associated workloads")
 
 	// Verify device-level gr_engine_active metric
 	deviceGrEngineActive := findMetric(metrics, "gr_engine_active")
 	require.NotNil(t, deviceGrEngineActive, "gr_engine_active metric not found")
 	assert.Equal(t, 85.0, deviceGrEngineActive.Value)
-	assert.Equal(t, Low, deviceGrEngineActive.Priority, "gr_engine_active should have Low priority")
-	assert.Empty(t, deviceGrEngineActive.AssociatedWorkloads, "device-level gr_engine_active should not have associated workloads")
+	assert.Equal(t, Low, deviceGrEngineActive.Priority(), "gr_engine_active should have Low priority")
+	assert.Empty(t, deviceGrEngineActive.AssociatedWorkloads(), "device-level gr_engine_active should not have associated workloads")
 
 	// Verify per-process sm_active metrics
 	processSmActiveMetrics := findAllMetricsWithName(metrics, "process.sm_active")
 	assert.Len(t, processSmActiveMetrics, 2)
 	for _, metric := range processSmActiveMetrics {
-		assert.Equal(t, Low, metric.Priority)
-		require.Len(t, metric.AssociatedWorkloads, 1)
+		assert.Equal(t, Low, metric.Priority())
+		require.Len(t, metric.AssociatedWorkloads(), 1)
 	}
 }
 
@@ -607,14 +607,14 @@ func testCollectEmitsZeroDeviceActivityWhenIdle(t *testing.T) {
 	deviceSmActive := findMetric(metrics, "sm_active")
 	require.NotNil(t, deviceSmActive, "sm_active metric not found")
 	assert.Equal(t, 0.0, deviceSmActive.Value)
-	assert.Equal(t, Low, deviceSmActive.Priority, "sm_active should have Low priority")
-	assert.Empty(t, deviceSmActive.AssociatedWorkloads, "device-level sm_active should not have associated workloads")
+	assert.Equal(t, Low, deviceSmActive.Priority(), "sm_active should have Low priority")
+	assert.Empty(t, deviceSmActive.AssociatedWorkloads(), "device-level sm_active should not have associated workloads")
 
 	deviceGrEngineActive := findMetric(metrics, "gr_engine_active")
 	require.NotNil(t, deviceGrEngineActive, "gr_engine_active metric not found")
 	assert.Equal(t, 0.0, deviceGrEngineActive.Value)
-	assert.Equal(t, Low, deviceGrEngineActive.Priority, "gr_engine_active should have Low priority")
-	assert.Empty(t, deviceGrEngineActive.AssociatedWorkloads, "device-level gr_engine_active should not have associated workloads")
+	assert.Equal(t, Low, deviceGrEngineActive.Priority(), "gr_engine_active should have Low priority")
+	assert.Empty(t, deviceGrEngineActive.AssociatedWorkloads(), "device-level gr_engine_active should not have associated workloads")
 }
 
 // Helper functions
@@ -627,8 +627,12 @@ func createMockCacheWithStats(statsTuples []model.ProcessStatsTuple) *SystemProb
 	return cache
 }
 
-func findMetric(metrics []*Metric, name string) *Metric {
-	for _, metric := range metrics {
+func findMetric(samples []Sample, name string) *Metric {
+	for _, sample := range samples {
+		metric, ok := sample.(*Metric)
+		if !ok {
+			continue
+		}
 		if metric.Name == name {
 			return metric
 		}
@@ -636,9 +640,13 @@ func findMetric(metrics []*Metric, name string) *Metric {
 	return nil
 }
 
-func findAllMetricsWithName(metrics []*Metric, name string) []*Metric {
+func findAllMetricsWithName(samples []Sample, name string) []*Metric {
 	var result []*Metric
-	for _, metric := range metrics {
+	for _, sample := range samples {
+		metric, ok := sample.(*Metric)
+		if !ok {
+			continue
+		}
 		if metric.Name == name {
 			result = append(result, metric)
 		}

@@ -32,12 +32,12 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
-    // exec is called from a non leader thread:
-    //   - we need to remember that this thread will change its pid to the thread group leader's in the flush_old_exec kernel function,
-    //     before sending the event to userspace
-    //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
-    //     the corresponding exit event
     if (tgid != pid) {
+        // exec is called from a non leader thread:
+        //   - we need to remember that this thread will change its pid to the thread group leader's in the flush_old_exec kernel function,
+        //     before sending the event to userspace
+        //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
+        //     the corresponding exit event
         bpf_map_update_elem(&exec_pid_transfer, &tgid, &pid_tgid, BPF_ANY);
     }
 
@@ -229,10 +229,12 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         return 0;
     }
 
-    event->pid_entry.ppid = ppid;
-    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value
+    // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value.
+    // Override ppid: fill_process_context set it to the grandparent (parent's real_parent), but for
+    // the child the ppid is the parent PID.
     event->process.pid = pid;
     event->process.tid = pid;
+    event->process.ppid = ppid;
 
     event->pid_entry.fork_flags = syscall->fork.flags;
 
@@ -271,6 +273,9 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     struct pid_cache_t on_stack_pid_entry = event->pid_entry;
     // insert the pid cache entry for the new process
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
+
+    // the child inherits the address space the thread-context readers describe
+    inherit_span_context(ppid, pid);
 
     // [activity_dump] inherit tracing state
     inherit_traced_state(ctx, ppid, pid, &event->cgroup);
@@ -363,7 +368,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         struct exit_event_t *event = SPAN_FILL_EVENT(struct exit_event_t, EVENT_EXIT);
         if (!event) {
             // tear down the process state even if the event can't be staged
-            unregister_go_labels();
+            unregister_span_context();
             cleanup_traced_state(tgid);
             pop_syscall(EVENT_ANY);
             return 0;
@@ -895,7 +900,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 
-    unregister_go_labels();
+    unregister_span_context();
 
     return 0;
 }

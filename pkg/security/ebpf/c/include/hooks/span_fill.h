@@ -10,6 +10,9 @@ static int __attribute__((always_inline)) fill_span_and_send_impl(void *ctx) {
     u32 zero = 0;
     struct span_fill_slot_t *slot = bpf_map_lookup_elem(&span_fill_event, &zero);
     if (!slot) {
+        // The whole event is lost: nothing downstream of the tail call runs
+        // without this slot.
+        monitor_span_ctx_event(SPAN_CTX_EVENT_READER_FILL, SPAN_CTX_EVENT_MAP_ERROR);
         return 0;
     }
 
@@ -24,12 +27,14 @@ static int __attribute__((always_inline)) fill_span_and_send_impl(void *ctx) {
     // adjacent to the map_value arithmetic it guards (this is done to please the verifier)
     u32 span_off = slot->span_off;
     if (span_off > sizeof(slot->data) - sizeof(span)) {
+        monitor_span_ctx_event(SPAN_CTX_EVENT_READER_FILL, SPAN_CTX_EVENT_MALFORMED);
         return 0;
     }
     *(struct span_context_t *)((char *)&slot->data + span_off) = span;
 
     u32 go_labels_off = slot->go_labels_off;
     if (go_labels_off > sizeof(slot->data) - sizeof(go_labels)) {
+        monitor_span_ctx_event(SPAN_CTX_EVENT_READER_FILL, SPAN_CTX_EVENT_MALFORMED);
         return 0;
     }
     *(struct go_labels_context_t *)((char *)&slot->data + go_labels_off) = go_labels;
@@ -61,6 +66,7 @@ static int __attribute__((always_inline)) fill_span_and_send_setsockopt_impl(voi
     u32 zero = 0;
     struct setsockopt_event_t *event = bpf_map_lookup_elem(&setsockopt_event, &zero);
     if (!event) {
+        monitor_span_ctx_event(SPAN_CTX_EVENT_READER_FILL, SPAN_CTX_EVENT_MAP_ERROR);
         return 0;
     }
 
@@ -83,11 +89,11 @@ TAIL_CALL_TRACEPOINT_FNC(fill_span_and_send_setsockopt, void *ctx) {
     return fill_span_and_send_setsockopt_impl(ctx);
 }
 
-// exit has its own target: it tears down the process' Go pprof-label
-// registration after sending the event
+// exit has its own target: it tears down the process' thread-context
+// registrations after sending the event
 TAIL_CALL_FNC(fill_span_and_send_exit, void *ctx) {
     int ret = fill_span_and_send_impl(ctx);
-    unregister_go_labels();
+    unregister_span_context();
     return ret;
 }
 

@@ -67,14 +67,6 @@ selects.config_setting_group(
 )
 
 selects.config_setting_group(
-    name = "linux_iot",
-    match_all = [
-        ":iot_flavor",
-        "@platforms//os:linux",
-    ],
-)
-
-selects.config_setting_group(
     name = "macos_x86_64_base",
     match_all = [
         ":base_flavor",

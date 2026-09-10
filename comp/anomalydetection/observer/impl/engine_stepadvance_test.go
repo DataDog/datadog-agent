@@ -56,7 +56,12 @@ func makeTestAnomaly(name string, ts int64) observer.Anomaly {
 }
 
 func makeEngine(anomalies []observer.Anomaly) (*engine, *TimeClusterCorrelator) {
-	storage := newTimeSeriesStorage()
+	storageCfg := DefaultStorageConfig()
+	// These tests intentionally detect anomalies more than 120 seconds behind
+	// the advance time. Keep their source points for the whole fixture, matching
+	// the detector-derived retention used by the live Observer.
+	storageCfg.PointRetentionSecs = 400
+	storage := newTimeSeriesStorageWith(storageCfg)
 	for sec := int64(0); sec < 400; sec++ {
 		storage.Add("ns", "metric_a", 100.0, sec, nil)
 		storage.Add("ns", "metric_b", 100.0, sec, nil)

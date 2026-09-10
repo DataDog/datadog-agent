@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // Demultiplexer is composed of multiple samplers (check and time/dogstatsd)
@@ -58,7 +58,7 @@ type Demultiplexer interface {
 
 	// SetSamplersFilterList triggers a reconfiguration of the filterlist
 	// applied in the time samplers.
-	SetSamplersFilterList(filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher)
+	SetSamplersFilterList(filterList metricname.Matcher, histoFilterList metricname.Matcher)
 
 	// Senders API, mainly used by collectors/checks
 	// --

@@ -1417,7 +1417,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	}
 
 	for _, pid := range pids {
-		pce := pr.Resolve(pid, pid, 0, true, nil)
+		pce := pr.Resolve(pid, pid, 0, 0, true, nil)
 		if pce == nil {
 			continue
 		}
@@ -1492,7 +1492,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 		}
 
 		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, true, nil)
+			pce := pr.Resolve(pid, pid, 0, 0, true, nil)
 			if pce == nil {
 				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue

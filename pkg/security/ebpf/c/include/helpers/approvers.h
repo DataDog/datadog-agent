@@ -210,7 +210,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 
 
 // approve_syscall_sample dedups (exec_cookie, syscall_id) tuples through an LRU map so that the
 // first hit per tuple is delivered as a syscall_monitor_event_t sample first-hit (EVENT_SYSCALLS
-// with event_reason=SYSCALL_DRIFT_REASON_SAMPLE) and later hits only emit a sample_refresh_event_t
+// with event_reason=SYSCALL_MONITOR_REASON_SAMPLE) and later hits only emit a sample_refresh_event_t
 // heartbeat (bounded by sample_refresh_period_ns). Mirrors approve_bind_sample: the LRU bounds
 // *distinct* tuples we remember, and sampling_admission_check bounds delivery *rate* so a burst
 // of first-time syscalls on new execs cannot drown the ringbuffer.
@@ -623,11 +623,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
         return DISCARDED;
     }
 
-    u32 ppid = 0;
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
-    if (pid_entry != NULL) {
-        ppid = pid_entry->ppid;
-    }
+    u32 ppid = get_current_ppid();
 
     struct process_path_key_t key = {
         .ppid = ppid,
@@ -875,6 +871,21 @@ static enum SYSCALL_STATE __attribute__((always_inline)) socket_approvers(struct
         state = approve_socket_by_protocol(syscall);
     }
     return state;
+}
+
+static enum SYSCALL_STATE __attribute__((always_inline)) unshare_approvers(struct syscall_cache_t *syscall) {
+    u32 flags = 0;
+
+    int exists = lookup_u32_flags(&unshare_flags_approvers, &flags);
+    if (!exists) {
+        return DISCARDED;
+    }
+
+    if ((flags == 0 && syscall->mount.unshare_flags == 0) || (syscall->mount.unshare_flags & flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
+        return APPROVED;
+    }
+    return DISCARDED;
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 tgid, struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {

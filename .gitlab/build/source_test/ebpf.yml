@@ -74,8 +74,8 @@ prepare_sysprobe_ebpf_functional_tests_arm64:
   tags: ["arch:arm64", "specific:true"]
   variables:
     ARCH: arm64
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 prepare_sysprobe_ebpf_functional_tests_x64:
   extends: .prepare_sysprobe_ebpf_functional_tests
@@ -83,8 +83,8 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   tags: ["arch:amd64", "specific:true"]
   variables:
     ARCH: amd64
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"
 
 .prepare_secagent_ebpf_functional_tests:
   extends: .bazel:defs:cache:progressive
@@ -116,8 +116,8 @@ prepare_secagent_ebpf_functional_tests_arm64:
   tags: ["arch:arm64", "specific:true"]
   variables:
     ARCH: arm64
-    DD_CC: "aarch64-unknown-linux-gnu-gcc"
-    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CC: "aarch64-linux-gnu-gcc"
+    DD_CXX: "aarch64-linux-gnu-g++"
 
 prepare_secagent_ebpf_functional_tests_x64:
   extends: .prepare_secagent_ebpf_functional_tests
@@ -125,5 +125,5 @@ prepare_secagent_ebpf_functional_tests_x64:
   tags: ["arch:amd64", "specific:true"]
   variables:
     ARCH: amd64
-    DD_CC: "x86_64-unknown-linux-gnu-gcc"
-    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CC: "x86_64-linux-gnu-gcc"
+    DD_CXX: "x86_64-linux-gnu-g++"

@@ -148,7 +148,7 @@ func checkBindFlowPidEntry(t *testing.T, testModule *testModule, key FlowPid, ex
 		return
 	}
 
-	m, _, err := p.Manager.GetMap("flow_pid")
+	m, _, err := p.Manager.Get().GetMap("flow_pid")
 	if err != nil {
 		close(closeClientSocket)
 		t.Errorf("failed to get map flow_pid: %v", err)
@@ -1021,7 +1021,7 @@ func TestMultipleProtocols(t *testing.T) {
 			return
 		}
 
-		m, _, err := p.Manager.GetMap("flow_pid")
+		m, _, err := p.Manager.Get().GetMap("flow_pid")
 		if err != nil {
 			t.Fatalf("failed to get map flow_pid: %v", err)
 		}

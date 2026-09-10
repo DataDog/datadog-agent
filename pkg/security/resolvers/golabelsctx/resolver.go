@@ -9,6 +9,7 @@
 package golabelsctx
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -19,6 +20,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
+)
+
+// Sentinels Resolve wraps its error with, for classifySpanCtxError
+// (resolvers/process/span_ctx_stats.go) to classify per-event lookup
+// failures without either package depending on the other's types.
+var (
+	// ErrMapLookup means the ring slot lookup itself failed.
+	ErrMapLookup = errors.New("go labels context map lookup failed")
+	// ErrStaleID means the ring slot's id no longer matches the one the event
+	// carried: the slot was reused before this event's labels were resolved.
+	ErrStaleID = errors.New("stale go labels context id")
 )
 
 // see kernel definitions (constants/custom.h)
@@ -60,11 +72,11 @@ func (r *Resolver) Resolve(ctxID uint32) (spanID uint64, traceID utils.TraceID, 
 
 	var entry kernelLabelsEntry
 	if err = r.ctxMap.Lookup(key, &entry); err != nil {
-		return 0, utils.TraceID{}, fmt.Errorf("unable to resolve the go labels context for `%d`: %w", ctxID, err)
+		return 0, utils.TraceID{}, fmt.Errorf("%w: unable to resolve the go labels context for `%d`: %w", ErrMapLookup, ctxID, err)
 	}
 
 	if ctxID != entry.ID {
-		return 0, utils.TraceID{}, fmt.Errorf("incorrect id `%d` vs `%d`", ctxID, entry.ID)
+		return 0, utils.TraceID{}, fmt.Errorf("%w: `%d` vs `%d`", ErrStaleID, ctxID, entry.ID)
 	}
 
 	for i := 0; i < maxPairs; i++ {

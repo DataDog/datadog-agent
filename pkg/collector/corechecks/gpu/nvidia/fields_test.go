@@ -38,7 +38,7 @@ func TestFieldsCollector_AllMetricsEmitted(t *testing.T) {
 
 	emittedValues := make(map[string][]float64)
 	emittedRateModes := make(map[string][]RateCalculationMode)
-	for _, m := range collected {
+	for _, m := range requireMetrics(t, collected) {
 		emittedValues[m.Name] = append(emittedValues[m.Name], m.Value)
 		emittedRateModes[m.Name] = append(emittedRateModes[m.Name], m.RateCalculationMode)
 	}
@@ -81,7 +81,7 @@ func TestFieldsCollectorPreservesRawValuesForRateMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	foundPositive, foundNegative, foundZero := false, false, false
-	for _, m := range collected {
+	for _, m := range requireMetrics(t, collected) {
 		if m.Name == "deltaPositive" {
 			foundPositive = true
 			require.Equal(t, 1500.0, m.Value)

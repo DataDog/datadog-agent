@@ -8,6 +8,7 @@ package filterlistimpl
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -19,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // Requires contains the config for RC
@@ -49,9 +50,9 @@ type FilterList struct {
 	telemetryComp telemetry.Component
 
 	updateMetricMtx        sync.RWMutex
-	metricFilterListUpdate []func(utilstrings.Matcher, utilstrings.Matcher)
-	filterList             utilstrings.Matcher
-	histoFilterList        utilstrings.Matcher
+	metricFilterListUpdate []func(metricname.Matcher, metricname.Matcher)
+	filterList             metricname.Matcher
+	histoFilterList        metricname.Matcher
 
 	updateTagMtx        sync.RWMutex
 	tagFilterListUpdate []func(filterlistdef.TagMatcher)
@@ -76,6 +77,7 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 		filterlist = config.GetStringSlice("statsd_metric_blocklist")
 		filterlistPrefix = config.GetBool("statsd_metric_blocklist_match_prefix")
 	}
+	filterlist = normalizeMetricNames(filterlist, filterlistPrefix, log)
 
 	// Load tag filter list from config
 	var tagFilterListEntries []MetricTagListEntry
@@ -178,7 +180,7 @@ func (fl *FilterList) GetTagFilterList() filterlistdef.TagMatcher {
 }
 
 // GetMetricFilterList returns the current metric filterlist.
-func (fl *FilterList) GetMetricFilterList() utilstrings.Matcher {
+func (fl *FilterList) GetMetricFilterList() metricname.Matcher {
 	fl.updateMetricMtx.RLock()
 	defer fl.updateMetricMtx.RUnlock()
 	return fl.filterList
@@ -189,41 +191,32 @@ func (fl *FilterList) GetMetricFilterList() utilstrings.Matcher {
 // match histogram aggregate suffixes. It is used by DogStatsD workers which
 // pre-filter regular metrics in listeners; only histogram-derived names need
 // post-aggregation filtering.
-func (fl *FilterList) GetHistoFilterList() utilstrings.Matcher {
+func (fl *FilterList) GetHistoFilterList() metricname.Matcher {
 	fl.updateMetricMtx.RLock()
 	defer fl.updateMetricMtx.RUnlock()
 	return fl.histoFilterList
 }
 
-// create a list based on all `metricNames` but only containing metric names
-// with histogram aggregates suffixes.
-func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string {
+// isHistogramAggregateSuffix reports whether `metricName` ends with a
+// configured histogram aggregate or percentile suffix, meaning it can only be
+// produced by aggregating a histogram: such a name isn't filterable until
+// after aggregation, so it belongs in the histogram-specific filter list.
+//
+// It is never asked about entries matched by prefix: those always belong in
+// the histogram filter list already (see `SetMetricFilterList`), regardless
+// of this predicate.
+func (fl *FilterList) isHistogramAggregateSuffix(metricName string) bool {
 	aggrs := fl.config.GetStringSlice("histogram_aggregates")
+	if slices.ContainsFunc(aggrs, func(aggr string) bool {
+		return strings.HasSuffix(metricName, "."+aggr)
+	}) {
+		return true
+	}
 
 	percentiles := metrics.ParsePercentiles(fl.config.GetStringSlice("histogram_percentiles"))
-	percentileAggrs := make([]string, len(percentiles))
-	for i, percentile := range percentiles {
-		percentileAggrs[i] = fmt.Sprintf("%dpercentile", percentile)
-	}
-
-	var histoMetricNames []string
-	for _, metricName := range metricNames {
-		// metric names ending with a histogram aggregates
-		for _, aggr := range aggrs {
-			if strings.HasSuffix(metricName, "."+aggr) {
-				histoMetricNames = append(histoMetricNames, metricName)
-			}
-		}
-		// metric names ending with a percentile
-		for _, percentileAggr := range percentileAggrs {
-			if strings.HasSuffix(metricName, "."+percentileAggr) {
-				histoMetricNames = append(histoMetricNames, metricName)
-			}
-		}
-	}
-
-	fl.log.Debugf("SetMetricFilterList created a histograms subset of %d metric names", len(histoMetricNames))
-	return histoMetricNames
+	return slices.ContainsFunc(percentiles, func(percentile int) bool {
+		return strings.HasSuffix(metricName, fmt.Sprintf(".%dpercentile", percentile))
+	})
 }
 
 // SetTagFilterList takes a map of metric names to tag configuration, hashes the
@@ -250,18 +243,43 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 	}
 }
 
+// normalizeMetricNames normalizes each entry so it matches the name space the
+// matcher compares in, and reports the ones dropped for not being able to match
+// any metric name the intake stores. `matchPrefix` makes every entry a prefix,
+// whether or not it is written with a trailing `*`.
+//
+// The entry format and the normalizing itself belong to metricname, which owns
+// both the `*` convention and the name space entries are compared in.
+func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) []string {
+	normalized, dropped := metricname.NormalizeEntries(names, matchPrefix)
+	for _, entry := range dropped {
+		log.Warnf("metric_filterlist: dropping entry %q that cannot match any metric name stored by Datadog", entry)
+	}
+	return normalized
+}
+
 // SetMetricFilterList updates the metric names filter on all running worker.
+// A metric name ending with `*` is a prefix, matching every name starting with
+// the rest of the entry. `matchPrefix` turns every entry into a prefix.
 func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool) {
 	fl.log.Debugf("SetMetricFilterList with %d metrics", len(metricNames))
 
 	// we will use two different filterlists:
 	// - one with all the metrics names, with all values from `metricNames`
 	// - one with only the metric names ending with histogram aggregates suffixes
+	//
+	// A prefix entry can match any name starting with it, including the
+	// aggregates derived from a histogram, so it always belongs in the
+	// histogram filter list too: its compiled prefixes are therefore always
+	// identical to the main filter list's, and RestrictExact shares them
+	// instead of recompiling a duplicate copy.
+	filterList := metricname.NewMatcher(metricNames, matchPrefix)
+	histoFilterList := filterList.RestrictExact(fl.isHistogramAggregateSuffix)
 
-	// only histogram metric names (including their aggregates suffixes)
-	histoMetricNames := fl.createHistogramsFilterList(metricNames)
-	filterList := utilstrings.NewMatcher(metricNames, matchPrefix)
-	histoFilterList := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
+	// Worth a warning, since it silently drops every metric.
+	if filterList.MatchesAll() {
+		fl.log.Error("the metric filterlist contains an entry matching every metric name: all metrics will be dropped")
+	}
 
 	// Report the compiled size: with prefix matching, NewMatcher compacts
 	// redundant sub-prefixes, so len(metricNames) can overcount.
@@ -299,7 +317,7 @@ func (fl *FilterList) restoreTagFilterListFromLocalConfig() {
 
 // OnUpdateMetricFilterList is called to register a callback to be called when the
 // metric list is updated.
-func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher, utilstrings.Matcher)) {
+func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(metricname.Matcher, metricname.Matcher)) {
 	fl.updateMetricMtx.Lock()
 	fl.metricFilterListUpdate = append(fl.metricFilterListUpdate, onUpdate)
 	fl.updateMetricMtx.Unlock()

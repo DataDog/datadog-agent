@@ -100,15 +100,15 @@ func TestNVLinkGPMCollectorGetPortMetricsConvertsValuesAndSetsPriority(t *testin
 		device: mockDevice,
 	}
 
-	collectedMetrics, err := collector.getPortMetrics(1)
+	collectedSamples, err := collector.getPortMetrics(1)
 	require.NoError(t, err)
-	require.Len(t, collectedMetrics, 2)
+	require.Len(t, collectedSamples, 2)
 
-	valuesByName := make(map[string]float64, len(collectedMetrics))
-	for _, metric := range collectedMetrics {
+	valuesByName := make(map[string]float64, len(collectedSamples))
+	for _, metric := range requireMetrics(t, collectedSamples) {
 		require.Equal(t, metrics.GaugeType, metric.Type)
-		require.Equal(t, High, metric.Priority)
-		require.Contains(t, metric.Tags, "nvlink_port:1")
+		require.Equal(t, High, metric.Priority())
+		require.Contains(t, metric.Tags(), "nvlink_port:1")
 		valuesByName[metric.Name] = metric.Value
 	}
 	require.Equal(t, 1.5*1024, valuesByName["nvlink.throughput.data.rx"])
@@ -214,10 +214,12 @@ func TestNVLinkGPMCollectorCollectReturnsPartialMetricsAndErrors(t *testing.T) {
 		},
 	}
 
-	collectedMetrics, err := collector.Collect()
+	collectedSamples, err := collector.Collect()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "get port metrics for port 2")
 	require.ErrorContains(t, err, nvml.ErrorString(nvml.ERROR_UNKNOWN))
+	collectedMetrics := requireMetrics(t, collectedSamples)
 	require.Len(t, collectedMetrics, 1)
-	require.Equal(t, "nvlink.throughput.data.rx", collectedMetrics[0].Name)
+	metric := collectedMetrics[0]
+	require.Equal(t, "nvlink.throughput.data.rx", metric.Name)
 }
