@@ -202,7 +202,7 @@ func TestKubernetesReaderReadMatchingFiles(t *testing.T) {
 			maxMatches:  2,
 			stdout:      []byte("/etc/redis/redis.conf\x00"),
 			wantPaths:   []string{"/etc/redis/redis.conf"},
-			wantCommand: []string{"find", "-P", "/etc/redis/redis.conf", "-type", "f", "-path", "/etc/redis/redis.conf", "-print0"},
+			wantCommand: []string{"sh", "-c", kubernetesFindConfigFilesScript, "configfilesdiscovery", "/etc/redis/redis.conf", "/etc/redis/redis.conf", strconv.Itoa(kubernetesFindOutputLimit + 1)},
 		},
 		{
 			name:        "wildcard parses nul delimited names and limits lexically",
@@ -211,13 +211,22 @@ func TestKubernetesReaderReadMatchingFiles(t *testing.T) {
 			stdout:      []byte("/etc/redis/conf.d/z.conf\x00/etc/redis/conf.d/a file.conf\x00/etc/redis/conf.d/b.conf\x00/etc/redis/conf.d/a file.conf\x00/outside.conf\x00"),
 			wantPaths:   []string{"/etc/redis/conf.d/a file.conf", "/etc/redis/conf.d/b.conf"},
 			wantLimited: true,
-			wantCommand: []string{"find", "-P", "/etc/redis/conf.d", "-type", "f", "-path", "/etc/redis/conf.d/*.conf", "-print0"},
+			wantCommand: []string{"sh", "-c", kubernetesFindConfigFilesScript, "configfilesdiscovery", "/etc/redis/conf.d", "/etc/redis/conf.d/*.conf", strconv.Itoa(kubernetesFindOutputLimit + 1)},
 		},
 		{
 			name:        "intermediate symlink is not traversed",
 			pattern:     "/etc/redis/link/token",
 			maxMatches:  1,
-			wantCommand: []string{"find", "-P", "/etc/redis/link", "-type", "f", "-path", "/etc/redis/link/token", "-print0"},
+			wantCommand: []string{"sh", "-c", kubernetesFindConfigFilesScript, "configfilesdiscovery", "/etc/redis/link", "/etc/redis/link/token", strconv.Itoa(kubernetesFindOutputLimit + 1)},
+		},
+		{
+			name:        "bounded discovery drops an incomplete path",
+			pattern:     "/etc/redis/*.conf",
+			maxMatches:  1,
+			stdout:      append([]byte("/etc/redis/a.conf\x00"), bytes.Repeat([]byte("x"), kubernetesFindOutputLimit+1-len("/etc/redis/a.conf\x00"))...),
+			wantPaths:   []string{"/etc/redis/a.conf"},
+			wantLimited: true,
+			wantCommand: []string{"sh", "-c", kubernetesFindConfigFilesScript, "configfilesdiscovery", "/etc/redis", "/etc/redis/*.conf", strconv.Itoa(kubernetesFindOutputLimit + 1)},
 		},
 	}
 
