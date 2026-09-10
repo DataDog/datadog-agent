@@ -23,10 +23,10 @@ var healthPlatformAgentConfig string
 var invalidAgentConfig string
 
 func init() {
-	registry.RegisterScenario("aws/agent-health-demo", agentHealthDemoRun)
+	registry.RegisterScenario(PulumiScenarioName, AgentHealthDemoRun)
 }
 
-// agentHealthDemoRun provisions an agent-health demo environment.
+// AgentHealthDemoRun provisions an agent-health demo environment.
 // It dispatches to a scenario-specific provisioner based on the demolab:scenario Pulumi config key.
 //
 // Pulumi config keys read by this function:
@@ -40,7 +40,7 @@ func init() {
 //   - site         — Datadog site, e.g. "datad0g.com" (optional)
 //   - pipelineId   — Agent CI pipeline ID (optional)
 //   - agentVersion — Explicit agent version, e.g. "7.57.0" (optional)
-func agentHealthDemoRun(ctx *pulumi.Context) error {
+func AgentHealthDemoRun(ctx *pulumi.Context) error {
 	switch config.New(ctx, "demolab").Get("demoScenario") {
 	case "docker-permissions":
 		return dockerPermissionEnvProvisioner()(ctx, nil)
