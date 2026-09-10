@@ -49,8 +49,8 @@ func NewExecuteAction(newBridgeClient BridgeClientFactory) *ExecuteAction {
 // target, query, the explicit includeSchema flag, and the backend-owned
 // resultDelivery (authoritative run/task identity, artifact version, scoped upload
 // instructions, and effective limits). The input carries no credentials: the org
-// API/application keys are read by the integration from Agent config, and the upload
-// token is scoped by the intake to the run session.
+// API/application keys are read by the integration from Agent config, and the session
+// is identified solely by its upload id — there is no per-session upload token.
 type ExecuteInputs struct {
 	Integration    string                `json:"integration"`
 	Target         TargetInputs          `json:"target"`
@@ -65,7 +65,6 @@ type ResultDeliveryInputs struct {
 	ArtifactVersion int64                 `json:"artifactVersion"`
 	UploadID        string                `json:"uploadId"`
 	BaseURL         string                `json:"baseUrl"`
-	Token           string                `json:"token"`
 	Limits          *DeliveryLimitsInputs `json:"limits"`
 }
 
@@ -242,7 +241,6 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs) *pb.RemoteQueryEx
 			ArtifactVersion: int32(delivery.ArtifactVersion),
 			UploadId:        delivery.UploadID,
 			BaseUrl:         delivery.BaseURL,
-			Token:           delivery.Token,
 		}
 		if limits := delivery.Limits; limits != nil {
 			protoDelivery.Limits = &pb.RemoteQueryUploadLimits{

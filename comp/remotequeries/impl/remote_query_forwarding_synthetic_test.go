@@ -18,9 +18,11 @@ import (
 // Synthetic producer proof for the M3 Agent role in the paged-JSON contract.
 //
 // The Agent is a control-plane forwarder only: it carries the backend-injected upload
-// instructions (including baseUrl and token) through to the integration request JSON,
-// and the org API key and POC application key are read by the integration via
-// datadog_agent.get_config, so they never appear on the request wire. The integration
+// instructions (including baseUrl) through to the integration request JSON, and the
+// org API key and POC application key are read by the integration via
+// datadog_agent.get_config, so they never appear on the request wire. The session has
+// one identifier, upload_id, and no per-session upload token, so the integration
+// request cannot carry one. The integration
 // uploads bounded JSON page files directly to its-agent-intake over HTTP; only
 // metadata/final/error events come back through the stream, and the only result
 // accounting that crosses the AgentSecure boundary is the compact run receipt.
@@ -32,7 +34,8 @@ import (
 //  1. The requestJSON forwarded to the integration emits the fixed operation
 //     produce_json_pages and carries the target, the query, the explicit includeSchema
 //     flag, and the full resultDelivery: runId, taskId, artifactVersion, uploadId,
-//     baseUrl, token, and the seven nested limits including timeoutMs.
+//     baseUrl, and the seven nested limits including timeoutMs — and no token, because
+//     the upload session no longer has one.
 //  2. The requestJSON does NOT carry the org API key or POC application key and carries
 //     no CSV/COPY-era fields: there is no format, no copyLimits, and no inline path.
 //  3. The Agent passes emit straight through: the events the integration emits surface
@@ -46,7 +49,6 @@ const (
 	syntheticForwardTaskID   = "task-243021"
 	syntheticForwardUploadID = "upload-243021"
 	syntheticForwardBaseURL  = "https://dd.datad0g.com/api/unstable/its-agent-intake"
-	syntheticForwardToken    = "scoped-upload-token-243021"
 )
 
 func newSyntheticForwardRunner(events []check.RemoteQueryStreamEvent) *fakeStreamRunnerCheck {
@@ -63,7 +65,6 @@ func syntheticForwardDelivery() *RemoteQueryResultDelivery {
 		ArtifactVersion: RemoteQueryArtifactVersion,
 		UploadID:        syntheticForwardUploadID,
 		BaseURL:         syntheticForwardBaseURL,
-		Token:           syntheticForwardToken,
 		Limits: &RemoteQueryUploadLimits{
 			MaxFileBytes:   32 << 20, // 32 MiB page cap
 			MaxResultBytes: 32 << 20, // 32 MiB total cap
@@ -104,9 +105,9 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 	assert.Equal(t, 1, runner.streamCalls)
 
 	// The integration receives the fixed operation, the explicit schema flag, the
-	// normalized target, and the full upload handle including the intake base URL and
-	// scoped upload token so it can upload page files directly. The nested limits carry
-	// the backend-owned effective values including timeoutMs.
+	// normalized target, and the full upload handle including the intake base URL so it
+	// can upload page files directly. The nested limits carry the backend-owned effective
+	// values including timeoutMs.
 	assert.JSONEq(t, `{
 		"operation": "produce_json_pages",
 		"target": {"host": "localhost", "port": 5432, "dbname": "postgres"},
@@ -118,7 +119,6 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 			"artifactVersion": 1,
 			"uploadId": "upload-243021",
 			"baseUrl": "https://dd.datad0g.com/api/unstable/its-agent-intake",
-			"token": "scoped-upload-token-243021",
 			"limits": {
 				"maxFileBytes": 33554432,
 				"maxResultBytes": 33554432,
@@ -144,6 +144,9 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 	assert.NotContains(t, runner.streamSeen, "copy")
 	assert.NotContains(t, runner.streamSeen, "secret-value")
 	assert.NotContains(t, runner.streamSeen, "integration")
+	// The per-session upload token is gone from the contract: no token key appears
+	// anywhere in the forwarded request.
+	assert.NotContains(t, runner.streamSeen, "token")
 
 	// The integration's metadata and final receipt surface downstream unmodified.
 	require.Len(t, seen, 2)

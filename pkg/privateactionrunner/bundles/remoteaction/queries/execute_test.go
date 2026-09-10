@@ -25,7 +25,6 @@ const (
 	testTaskID   = "task-01k"
 	testUploadID = "upload-01k"
 	testBaseURL  = "https://dd.datad0g.com/api/unstable/its-agent-intake"
-	testToken    = "scoped-upload-token"
 )
 
 func resultDeliveryInputs() map[string]interface{} {
@@ -35,7 +34,6 @@ func resultDeliveryInputs() map[string]interface{} {
 		"artifactVersion": 1,
 		"uploadId":        testUploadID,
 		"baseUrl":         testBaseURL,
-		"token":           testToken,
 		"limits": map[string]interface{}{
 			"maxFileBytes":   33554432,
 			"maxResultBytes": 107374182400, // 100 GiB, the backend-owned result cap.
@@ -120,7 +118,8 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	assert.Equal(t, int32(1), delivery.GetArtifactVersion())
 	assert.Equal(t, testUploadID, delivery.GetUploadId())
 	assert.Equal(t, testBaseURL, delivery.GetBaseUrl())
-	assert.Equal(t, testToken, delivery.GetToken())
+	// The session has no upload token, so the bundle leaves the legacy proto field unset.
+	assert.Empty(t, delivery.GetToken())
 	require.NotNil(t, delivery.GetLimits())
 	assert.Equal(t, int64(33554432), delivery.GetLimits().GetMaxFileBytes())
 	assert.Equal(t, int64(107374182400), delivery.GetLimits().GetMaxResultBytes())
@@ -130,11 +129,12 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	assert.Equal(t, int64(128), delivery.GetLimits().GetMaxPages())
 	assert.Equal(t, int64(30000), delivery.GetLimits().GetTimeoutMs())
 
-	// The scoped upload token and base URL are forwarded inside the delivery handle;
-	// the private credential tokens never reach the AgentSecure request.
+	// The delivery handle carries the base URL; the session has no upload token, so no
+	// token key appears anywhere in the AgentSecure request, and the private credential
+	// tokens never reach it either.
 	requestEvidence, err := json.Marshal(client.request)
 	require.NoError(t, err)
-	assert.Contains(t, string(requestEvidence), testToken)
+	assert.NotContains(t, string(requestEvidence), "token")
 	assert.Contains(t, string(requestEvidence), testBaseURL)
 	assert.NotContains(t, string(requestEvidence), "secret-value")
 
@@ -156,10 +156,41 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 
 	encoded, err := json.Marshal(out)
 	require.NoError(t, err)
-	assert.NotContains(t, string(encoded), testToken)
+	assert.NotContains(t, string(encoded), "token")
 	assert.NotContains(t, string(encoded), "STARTED")
 	assert.NotContains(t, string(encoded), "stats.rowsEmitted")
 	assert.NotContains(t, string(encoded), "agent_total_stream_ms")
+}
+
+// TestExecuteActionDropsStaleUploadTokenFromInputs proves the session-id contract on
+// the AP action input: the backend resultDelivery carries no token, and a stale
+// producer still including one is tolerated (the input decoding is not strict) but
+// the value never reaches the AgentSecure request.
+func TestExecuteActionDropsStaleUploadTokenFromInputs(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEvent(0, validReceipt(), nil),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	staleDelivery := resultDeliveryInputs()
+	staleDelivery["token"] = "stale-upload-token"
+
+	_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":          "SELECT city, country FROM cities ORDER BY city",
+		"resultDelivery": staleDelivery,
+	}), nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, client.request)
+	require.NotNil(t, client.request.GetResultDelivery())
+	assert.Empty(t, client.request.GetResultDelivery().GetToken())
+	evidence, err := json.Marshal(client.request)
+	require.NoError(t, err)
+	assert.NotContains(t, string(evidence), "stale-upload-token")
+	assert.NotContains(t, string(evidence), "token")
 }
 
 func TestExecuteActionAcceptsDatabaseInstanceTarget(t *testing.T) {
@@ -261,7 +292,7 @@ func TestExecuteActionRejectsMissingResultDeliveryBeforeRPC(t *testing.T) {
 		{name: "missing delivery", resultDelivery: nil},
 		{name: "missing limits", resultDelivery: map[string]interface{}{
 			"runId": testRunID, "taskId": testTaskID, "artifactVersion": 1,
-			"uploadId": testUploadID, "baseUrl": testBaseURL, "token": testToken,
+			"uploadId": testUploadID, "baseUrl": testBaseURL,
 		}},
 	}
 	for _, tt := range tests {

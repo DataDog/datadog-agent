@@ -285,9 +285,10 @@ type RemoteQueryUploadLimits struct {
 // RemoteQueryResultDelivery carries the backend-injected upload-session instructions for
 // one run: the authoritative run/task identity used by every page envelope, the page
 // artifact contract version, the scoped its-agent-intake session handle (including the
-// base URL and upload token), and the effective limits. The Agent forwards the full
-// handle, including BaseURL and Token, to the integration check, which performs the HTTP
-// upload to its-agent-intake itself; the Agent performs no URL allowlisting or HTTP
+// base URL), and the effective limits. The session has one identifier, upload_id: there
+// is no per-session upload token, so the Agent has no token to forward. The Agent
+// forwards the handle, including BaseURL, to the integration check, which performs the
+// HTTP upload to its-agent-intake itself; the Agent performs no URL allowlisting or HTTP
 // transport and never logs the handle.
 type RemoteQueryResultDelivery struct {
 	RunID           string
@@ -295,7 +296,6 @@ type RemoteQueryResultDelivery struct {
 	ArtifactVersion int
 	UploadID        string
 	BaseURL         string
-	Token           string
 	Limits          *RemoteQueryUploadLimits
 }
 
@@ -313,7 +313,7 @@ type RemoteQueryExecuteRequest struct {
 // validateRemoteQueryResultDelivery validates the backend-injected upload instructions.
 // The handle is required: every run uploads bounded JSON page files directly to
 // its-agent-intake. The Agent does not allowlist the base URL (the intake mints and owns
-// it) and never logs the token; it only checks shape and the forwarding caps fail-closed.
+// it) and never logs the handle; it only checks shape and the forwarding caps fail-closed.
 func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*RemoteQueryResultDelivery, error) {
 	if delivery == nil {
 		return nil, errors.New("result_delivery is required")
@@ -335,9 +335,6 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*Re
 	}
 	if delivery.BaseURL == "" {
 		return nil, errors.New("result_delivery.baseUrl is required")
-	}
-	if delivery.Token == "" {
-		return nil, errors.New("result_delivery.token is required")
 	}
 	limits := delivery.Limits
 	if limits == nil {
@@ -451,7 +448,6 @@ type remoteQueryResultDeliveryRequestJSON struct {
 	ArtifactVersion *int                                `json:"artifactVersion"`
 	UploadID        string                              `json:"uploadId"`
 	BaseURL         string                              `json:"baseUrl"`
-	Token           string                              `json:"token"`
 	Limits          *remoteQueryUploadLimitsRequestJSON `json:"limits"`
 }
 
@@ -516,7 +512,7 @@ func mapResultDeliveryTypeError(err error) error {
 	switch typeErr.Field {
 	case "limits":
 		return errLimitsMustBeObject
-	case "runId", "taskId", "uploadId", "baseUrl", "token":
+	case "runId", "taskId", "uploadId", "baseUrl":
 		return remoteQueryDeliveryTypeError{message: fmt.Sprintf("resultDelivery.%s must be a string", typeErr.Field)}
 	case "artifactVersion":
 		return remoteQueryDeliveryTypeError{message: fmt.Sprintf("resultDelivery.%s must be an integer", typeErr.Field)}
@@ -545,15 +541,15 @@ type remoteQueryProduceJSONPagesRequestJSON struct {
 }
 
 // remoteQueryResultDeliveryJSON is the result-delivery handle forwarded to the
-// integration check inside the request JSON. It carries baseUrl and token so the
-// integration can perform the HTTP page uploads to its-agent-intake directly.
+// integration check inside the request JSON. It carries baseUrl so the integration
+// can perform the HTTP page uploads to its-agent-intake directly; the session has one
+// identifier, upload_id, and no upload token, so the handle cannot carry one.
 type remoteQueryResultDeliveryJSON struct {
 	RunID           string                      `json:"runId"`
 	TaskID          string                      `json:"taskId"`
 	ArtifactVersion int                         `json:"artifactVersion"`
 	UploadID        string                      `json:"uploadId"`
 	BaseURL         string                      `json:"baseUrl"`
-	Token           string                      `json:"token"`
 	Limits          remoteQueryUploadLimitsJSON `json:"limits"`
 }
 
@@ -675,7 +671,6 @@ func resultDeliveryFromWire(delivery *remoteQueryResultDeliveryRequestJSON) (*Re
 		ArtifactVersion: *delivery.ArtifactVersion,
 		UploadID:        delivery.UploadID,
 		BaseURL:         delivery.BaseURL,
-		Token:           delivery.Token,
 		Limits: &RemoteQueryUploadLimits{
 			MaxFileBytes:   *limits.MaxFileBytes,
 			MaxResultBytes: *limits.MaxResultBytes,
@@ -817,9 +812,9 @@ func parseExecuteTarget(target RemoteQueryExecuteTarget) (remoteQueryTarget, err
 
 // marshalExecuteRequest builds the integration request JSON. It always emits the fixed
 // operation and the explicit includeSchema flag, and carries the full upload handle —
-// including baseUrl and token — so the integration can upload page files directly. The
-// integration reads the org API/application keys from Agent config, so they never appear
-// on the request wire.
+// including baseUrl — so the integration can upload page files directly; the session
+// has no upload token, so the request cannot carry one. The integration reads the org
+// API/application keys from Agent config, so they never appear on the request wire.
 func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 	if req.ResultDelivery == nil {
 		return "", errors.New("result_delivery is required")
@@ -839,7 +834,6 @@ func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 			ArtifactVersion: req.ResultDelivery.ArtifactVersion,
 			UploadID:        req.ResultDelivery.UploadID,
 			BaseURL:         req.ResultDelivery.BaseURL,
-			Token:           req.ResultDelivery.Token,
 			Limits: remoteQueryUploadLimitsJSON{
 				MaxFileBytes:   limits.MaxFileBytes,
 				MaxResultBytes: limits.MaxResultBytes,

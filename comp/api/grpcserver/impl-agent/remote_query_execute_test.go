@@ -60,7 +60,10 @@ func validRemoteQueryResultDeliveryProto() *pb.RemoteQueryResultDelivery {
 		ArtifactVersion: int32(remotequeriesimpl.RemoteQueryArtifactVersion),
 		UploadId:        "upload-proof",
 		BaseUrl:         "https://dd.datad0g.com/api/unstable/its-agent-intake",
-		Token:           "scoped-upload-token",
+		// Legacy per-session upload token: the field still exists in the generated proto
+		// surface (contract cleanup is deferred), so a stale producer may still set it.
+		// The Agent tolerates the value on the wire and never reads or forwards it.
+		Token: "scoped-upload-token",
 		Limits: &pb.RemoteQueryUploadLimits{
 			MaxFileBytes:   128 << 20,
 			MaxResultBytes: 100 << 30,
@@ -121,11 +124,12 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesDatabaseInstanceTarget(t *te
 	assert.Empty(t, req.Target.DBName)
 }
 
-// TestRemoteQueryExecuteRequestFromProtoPreservesResultDeliverySecrets proves the
-// AgentSecure proto boundary forwards baseUrl and token to the integration opaquely:
-// the intake mints and owns the URL, the token is scoped to the upload session, and the
-// Agent performs no allowlisting and no logging.
-func TestRemoteQueryExecuteRequestFromProtoPreservesResultDeliverySecrets(t *testing.T) {
+// TestRemoteQueryExecuteRequestFromProtoForwardsResultDeliveryWithoutToken proves
+// the AgentSecure proto boundary forwards the baseUrl handle opaquely — the intake
+// mints and owns the URL, and the Agent performs no allowlisting and no logging —
+// while the legacy upload-token proto field, still present in the generated surface,
+// is tolerated and never mapped: the typed delivery has no token to forward.
+func TestRemoteQueryExecuteRequestFromProtoForwardsResultDeliveryWithoutToken(t *testing.T) {
 	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
 		Integration:    "postgres",
 		Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
@@ -136,7 +140,6 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesResultDeliverySecrets(t *tes
 	require.NoError(t, err)
 	require.NotNil(t, req.ResultDelivery)
 	assert.Equal(t, "https://dd.datad0g.com/api/unstable/its-agent-intake", req.ResultDelivery.BaseURL)
-	assert.Equal(t, "scoped-upload-token", req.ResultDelivery.Token)
 	assert.Equal(t, "upload-proof", req.ResultDelivery.UploadID)
 }
 

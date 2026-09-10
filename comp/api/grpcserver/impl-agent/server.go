@@ -496,8 +496,10 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 }
 
 // remoteQueryResultDeliveryFromProto maps the backend-injected upload instructions. The
-// Agent forwards baseUrl and token opaquely: the intake mints and owns the URL, the token
-// is scoped to the upload session, and neither is ever logged.
+// Agent forwards baseUrl opaquely: the intake mints and owns the URL, and it is never
+// logged. The per-session upload token no longer exists in the session-id contract, so
+// the Agent never reads the legacy token field that still exists in the generated proto
+// surface — whatever a stale producer sets there is dropped, never forwarded.
 func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) *remotequeriesimpl.RemoteQueryResultDelivery {
 	if delivery == nil {
 		return nil
@@ -508,7 +510,6 @@ func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) 
 		ArtifactVersion: int(delivery.GetArtifactVersion()),
 		UploadID:        delivery.GetUploadId(),
 		BaseURL:         delivery.GetBaseUrl(),
-		Token:           delivery.GetToken(),
 	}
 	if limits := delivery.GetLimits(); limits != nil {
 		out.Limits = &remotequeriesimpl.RemoteQueryUploadLimits{
