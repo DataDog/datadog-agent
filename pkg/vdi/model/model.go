@@ -29,6 +29,22 @@ type SourceStatus struct {
 	Error  string `json:"error,omitempty"`
 }
 
+// WindowsSession describes a Windows desktop session discovered through WTS.
+type WindowsSession struct {
+	WindowsSessionID uint32     `json:"windows_session_id"`
+	User             string     `json:"user,omitempty"`
+	Domain           string     `json:"domain,omitempty"`
+	State            string     `json:"state"`
+	LogonAt          *time.Time `json:"logon_at,omitempty"`
+	LastInputAt      *time.Time `json:"last_input_at,omitempty"`
+}
+
+// WindowsInventory contains sessions reported by the local Windows host.
+type WindowsInventory struct {
+	SourceStatus
+	Sessions []WindowsSession `json:"sessions,omitempty"`
+}
+
 // Connection describes an optional authenticated connection to a VDI session.
 type Connection struct {
 	ID                string     `json:"id"`
@@ -63,5 +79,6 @@ type ProviderInventory struct {
 // InventoryResponse is returned by the local system-probe VDI endpoint.
 type InventoryResponse struct {
 	CollectedAt time.Time                    `json:"collected_at"`
+	Windows     WindowsInventory             `json:"windows"`
 	Providers   map[string]ProviderInventory `json:"providers"`
 }

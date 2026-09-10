@@ -9,6 +9,7 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,6 +28,9 @@ func (c fakeVDICollector) Collect(context.Context) vdimodel.ProviderInventory { 
 
 func TestVDIInventoryCollectsRegisteredProvidersIndependently(t *testing.T) {
 	module := newVDIModule(
+		func() ([]vdimodel.WindowsSession, error) {
+			return []vdimodel.WindowsSession{{WindowsSessionID: 4, User: "alice", State: "active"}}, nil
+		},
 		fakeVDICollector{provider: vdimodel.ProviderAWSWorkSpaces, result: vdimodel.ProviderInventory{
 			SourceStatus: vdimodel.SourceStatus{Status: vdimodel.StatusError, Error: "dcv unavailable"},
 		}},
@@ -36,6 +40,22 @@ func TestVDIInventoryCollectsRegisteredProvidersIndependently(t *testing.T) {
 	)
 
 	result := module.inventory(context.Background())
+	require.Equal(t, vdimodel.StatusOK, result.Windows.Status)
+	require.Equal(t, uint32(4), result.Windows.Sessions[0].WindowsSessionID)
 	require.Equal(t, vdimodel.StatusError, result.Providers[vdimodel.ProviderAWSWorkSpaces].Status)
 	require.Equal(t, vdimodel.StatusOK, result.Providers["future_provider"].Status)
+}
+
+func TestVDIInventoryReportsWTSFailureWithoutDroppingProviders(t *testing.T) {
+	module := newVDIModule(
+		func() ([]vdimodel.WindowsSession, error) { return nil, errors.New("WTS unavailable") },
+		fakeVDICollector{provider: vdimodel.ProviderAWSWorkSpaces, result: vdimodel.ProviderInventory{
+			SourceStatus: vdimodel.SourceStatus{Status: vdimodel.StatusOK},
+		}},
+	)
+
+	result := module.inventory(context.Background())
+	require.Equal(t, vdimodel.StatusError, result.Windows.Status)
+	require.Equal(t, "WTS unavailable", result.Windows.Error)
+	require.Equal(t, vdimodel.StatusOK, result.Providers[vdimodel.ProviderAWSWorkSpaces].Status)
 }

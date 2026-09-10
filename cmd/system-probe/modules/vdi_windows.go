@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	vdimodel "github.com/DataDog/datadog-agent/pkg/vdi/model"
 	"github.com/DataDog/datadog-agent/pkg/vdi/provider/dcv"
+	windowsessions "github.com/DataDog/datadog-agent/pkg/vdi/session/windows"
 )
 
 func init() { registerModule(VDI) }
@@ -26,7 +27,7 @@ func init() { registerModule(VDI) }
 var VDI = &module.Factory{
 	Name: config.VDIModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-		return newVDIModule(dcv.NewCollector(dcv.NewCommandRunner())), nil
+		return newVDIModule(windowsessions.EnumerateSessions, dcv.NewCollector(dcv.NewCommandRunner())), nil
 	},
 }
 
@@ -37,10 +38,11 @@ type vdiCollector interface {
 
 type vdiModule struct {
 	collectors []vdiCollector
+	windowsFn  func() ([]vdimodel.WindowsSession, error)
 }
 
-func newVDIModule(collectors ...vdiCollector) *vdiModule {
-	return &vdiModule{collectors: collectors}
+func newVDIModule(windowsFn func() ([]vdimodel.WindowsSession, error), collectors ...vdiCollector) *vdiModule {
+	return &vdiModule{collectors: collectors, windowsFn: windowsFn}
 }
 
 func (m *vdiModule) Register(router *module.Router) error {
@@ -55,6 +57,13 @@ func (m *vdiModule) inventory(ctx context.Context) vdimodel.InventoryResponse {
 	response := vdimodel.InventoryResponse{
 		CollectedAt: time.Now().UTC(),
 		Providers:   make(map[string]vdimodel.ProviderInventory, len(m.collectors)),
+	}
+	windowsInventory, err := m.windowsFn()
+	if err != nil {
+		response.Windows.SourceStatus = vdimodel.SourceStatus{Status: vdimodel.StatusError, Error: err.Error()}
+	} else {
+		response.Windows.SourceStatus = vdimodel.SourceStatus{Status: vdimodel.StatusOK}
+		response.Windows.Sessions = windowsInventory
 	}
 	for _, collector := range m.collectors {
 		response.Providers[collector.Provider()] = collector.Collect(ctx)
