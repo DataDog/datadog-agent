@@ -20,6 +20,11 @@ go_library(
 
 dd_agent_go_binary(
     name = "otel-agent",
+    # keep
+    srcs = select({
+        "@platforms//os:windows": ["//cmd/otel-agent/windows_resources:rsrc"],
+        "//conditions:default": [],
+    }),
     embed = [":otel-agent_lib"],
     gotags = OTEL_AGENT_TAGS,
     visibility = ["//visibility:public"],
