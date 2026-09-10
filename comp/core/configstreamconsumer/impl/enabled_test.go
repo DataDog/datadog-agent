@@ -8,6 +8,7 @@
 package configstreamconsumerimpl
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -122,22 +123,23 @@ remote_agent:
   core_agent_ipc:
     enabled: true
 `)
-		// Enabling core agent IPC must not enable the consumer by itself: with
+		// Enabling core agent IPC must not change the consumer by itself: with
 		// nothing else set it stays at its own default.
-		require.False(t, isEnabled(path))
+		require.Equal(t, defaultEnabled, isEnabled(path))
 	})
 
-	t.Run("core agent IPC enabled leaves an explicitly enabled consumer alone", func(t *testing.T) {
+	t.Run("core agent IPC enabled leaves an explicitly set consumer alone", func(t *testing.T) {
 		os.Unsetenv(enabledEnvVar)
 		os.Unsetenv(coreAgentIPCEnvVar)
-		path := writeYAML(t, `
+		// Use the opposite of the default so the assertion proves the yaml was read.
+		path := writeYAML(t, fmt.Sprintf(`
 remote_agent:
   core_agent_ipc:
     enabled: true
   configstream:
     consumer:
-      enabled: true
-`)
-		require.True(t, isEnabled(path))
+      enabled: %t
+`, !defaultEnabled))
+		require.Equal(t, !defaultEnabled, isEnabled(path))
 	})
 }
