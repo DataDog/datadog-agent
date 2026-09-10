@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -170,4 +171,87 @@ func TestTransportTagsDoesNotMutateOriginTags(t *testing.T) {
 
 	assert.Equal(t, []string{"kube_app_name:web", "env:prod"}, origin.TransportTags())
 	assert.Equal(t, []string{"kube_app_name:web", "dirname:/var/log", "env:prod"}, origin.Tags())
+}
+
+func newBenchOrigin(exclude []string) *Origin {
+	cfg := &config.LogsConfig{
+		Source:         "nginx",
+		SourceCategory: "http",
+		Tags:           []string{"env:prod", "version:1.2.3"},
+	}
+	if len(exclude) > 0 {
+		cfg.TagFilters = &config.TagFilters{Exclude: exclude}
+	}
+	origin := NewOrigin(sources.NewLogSource("bench", cfg))
+	origin.SetTags([]string{
+		"filename:access.log",
+		"dirname:/var/log/nginx",
+		"kube_namespace:default",
+		"kube_deployment:web",
+		"pod_name:web-7d8f9c5b4-abcde",
+		"container_id:a1b2c3d4e5f6",
+		"image_name:nginx",
+	})
+	return origin
+}
+
+func benchOrigin(b *testing.B, exclude []string) *Origin {
+	b.Helper()
+	return newBenchOrigin(exclude)
+}
+
+func benchOriginForTest(t *testing.T, exclude []string) *Origin {
+	t.Helper()
+	return newBenchOrigin(exclude)
+}
+
+var benchExclude = []string{"dirname:*", "kube_*", "container_id"}
+
+func BenchmarkTransportTagsToString(b *testing.B) {
+	origin := benchOrigin(b, benchExclude)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = origin.TransportTagsToString()
+	}
+}
+
+func BenchmarkTransportTagsToStringUnfiltered(b *testing.B) {
+	origin := benchOrigin(b, nil)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = origin.TransportTagsToString()
+	}
+}
+
+func BenchmarkTransportTags(b *testing.B) {
+	origin := benchOrigin(b, benchExclude)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = origin.TransportTags()
+	}
+}
+
+func BenchmarkTagsPayload(b *testing.B) {
+	origin := benchOrigin(b, benchExclude)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = origin.TagsPayload(nil)
+	}
+}
+
+func TestBenchOriginFilterIsEngaged(t *testing.T) {
+	filtered := benchOriginForTest(t, benchExclude)
+	require.NotNil(t, filtered.TagFilters(), "benchmark origin must have a live filter")
+
+	got := filtered.TransportTags()
+	assert.NotContains(t, got, "dirname:/var/log/nginx")
+	assert.NotContains(t, got, "kube_namespace:default")
+	assert.NotContains(t, got, "container_id:a1b2c3d4e5f6")
+	assert.Contains(t, got, "filename:access.log")
+	assert.Contains(t, got, "sourcecategory:http")
+	assert.Less(t, len(got), len(filtered.Tags()), "the filter must actually drop something")
 }
