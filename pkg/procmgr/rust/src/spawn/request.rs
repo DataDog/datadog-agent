@@ -145,7 +145,7 @@ fn collect_inherited_env(
         .filter_map(|(name, value)| {
             let name = name.into_string().ok()?;
             let matches = prefixes.iter().any(|prefix| name.starts_with(prefix))
-                || exact_names.iter().any(|exact_name| name == *exact_name);
+                || exact_names.contains(&name);
             if !matches {
                 return None;
             }
