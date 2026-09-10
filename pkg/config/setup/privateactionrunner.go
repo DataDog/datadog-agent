@@ -25,6 +25,7 @@ const (
 	PARIdleTimeoutSeconds    = "private_action_runner.idle_timeout_seconds"
 	PARActionsAllowlist      = "private_action_runner.actions_allowlist"
 	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
+	PARCredentialsValues     = "private_action_runner.credentials.values"
 
 	// HTTP Action related
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
