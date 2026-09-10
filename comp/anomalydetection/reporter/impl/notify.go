@@ -278,7 +278,7 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	}
 
 	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
-	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
+	return s.forwarder.SendEventPlatformEvent(epMsg, eventplatform.EventTypeEventManagement)
 }
 
 // sendEpisodeEvent sends a v2 change event for a scorer EpisodeStarted or EpisodeEnded
@@ -359,7 +359,7 @@ func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
 	}
 
 	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
-	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
+	return s.forwarder.SendEventPlatformEvent(epMsg, eventplatform.EventTypeEventManagement)
 }
 
 func formatScorerEpisodeMessage(evt observerdef.CorrelatorEvent, storage observerdef.StorageReader, direction string) string {
