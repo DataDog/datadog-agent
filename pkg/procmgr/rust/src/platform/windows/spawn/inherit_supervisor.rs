@@ -81,12 +81,8 @@ pub(super) fn spawn_inherit_supervisor(
     let stdout = stdout_handle.raw();
     let stderr = stderr_handle.raw();
 
-    let mut startup_info = StartupInfoEx::with_stdio_and_job(
-        stdin,
-        stdout,
-        stderr,
-        job.raw_handle(),
-    )?;
+    let mut startup_info =
+        StartupInfoEx::with_stdio_and_job(stdin, stdout, stderr, job.raw_handle())?;
 
     let mut process_info: PROCESS_INFORMATION = unsafe { mem::zeroed() };
     let ok = unsafe {
