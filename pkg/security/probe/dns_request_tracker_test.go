@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"net"
 	"testing"
 	"time"
 
@@ -193,4 +194,31 @@ func TestDNSRequestTrackerPoisonHoldsThroughIntermediateCollisions(t *testing.T)
 	// a third colliding request must not lift the tombstone or hand the answer to anyone
 	assert.Nil(t, tracker.matchResponse(0x1234, "one.one.one.one", testQTypeA, now.Add(4*time.Second)))
 	assert.Equal(t, uint64(2), tracker.collisions.Load())
+}
+
+func TestNewCorrelatedDNSEvent(t *testing.T) {
+	entry := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+	ev := model.NewFakeEvent()
+	ts := time.Unix(1757520000, 0)
+
+	question := model.DNSQuestion{Name: "one.one.one.one", Type: testQTypeA, Class: 1}
+	response := &model.DNSResponse{
+		ResponseCode: 0,
+		IPs:          []net.IPNet{{IP: net.IPv4(1, 1, 1, 1), Mask: net.CIDRMask(32, 32)}},
+		CNames:       []string{"cdn.example.com"},
+	}
+
+	newCorrelatedDNSEvent(ev, entry, 0x1234, question, response, ts, 99)
+
+	assert.Equal(t, model.DNSEventType, ev.GetEventType())
+	assert.Equal(t, ts, ev.Timestamp)
+	assert.Equal(t, uint64(99), ev.TimestampRaw)
+	assert.Same(t, entry, ev.ProcessCacheEntry)
+	assert.Same(t, &entry.ProcessContext, ev.ProcessContext)
+	assert.Equal(t, uint16(0x1234), ev.DNS.ID)
+	assert.Equal(t, question, ev.DNS.Question)
+	assert.Same(t, response, ev.DNS.Response)
+
+	// the activity dump manager drops anything not flagged as a sample
+	assert.True(t, ev.IsActivityDumpSample())
 }

@@ -125,6 +125,7 @@ type EBPFProbe struct {
 	// internals
 	event           *model.Event
 	dnsLayer        *layers.DNS
+	dnsRequests     *dnsRequestTracker
 	monitors        *EBPFMonitors
 	profileManager  securityprofile.ProfileManager
 	fieldHandlers   *EBPFFieldHandlers
@@ -1839,6 +1840,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 		}
 
+		// Remember who asked, so the matching response can be attributed back to this process.
+		// Only questions from a process an activity dump is tracing are worth recording.
+		if event.Error == nil && event.IsActivityDumpSample() && p.dnsRequests != nil {
+			p.dnsRequests.recordRequest(event.DNS.ID, event.DNS.Question.Name, event.DNS.Question.Type, event.ProcessCacheEntry, time.Now())
+		}
+
 	case model.FullDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
 			if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
@@ -2139,7 +2146,8 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 	case model.ShortDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
 			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err == nil {
-				p.addToDNSResolver(p.dnsLayer)
+				ips, cnames := p.addToDNSResolver(p.dnsLayer)
+				p.correlateDNSResponseForActivityDump(p.dnsLayer, ips, cnames)
 				return false
 			}
 
@@ -3454,6 +3462,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
+	dnsRequests, err := newDNSRequestTracker(dnsRequestTrackerSize, dnsRequestTrackerTTL)
+	if err != nil {
+		cancelFnc()
+		return nil, fmt.Errorf("couldn't create the DNS request tracker: %w", err)
+	}
+
 	p := &EBPFProbe{
 		probe:                probe,
 		config:               config,
@@ -3469,6 +3483,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		replayEventsState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
+		dnsRequests:          dnsRequests,
 		hostname:             hostname,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),

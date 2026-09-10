@@ -9,10 +9,12 @@
 package probe
 
 import (
+	"net"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/gopacket/layers"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -148,4 +150,71 @@ func (t *dnsRequestTracker) matchResponse(id uint16, name string, qtype uint16, 
 
 	t.hits.Inc()
 	return pending.entry
+}
+
+// newCorrelatedDNSEvent fills ev with a DNS event carrying the answers of a response together with
+// the process context of the request that asked for them.
+//
+// The activity dump manager drops any event without EventFlagsActivityDumpSample. The kernel sets
+// that flag on the request, where a pid is available; it cannot set it on the response, so it is
+// set here on the correlated event instead.
+func newCorrelatedDNSEvent(ev *model.Event, entry *model.ProcessCacheEntry, id uint16, question model.DNSQuestion, response *model.DNSResponse, ts time.Time, tsRaw uint64) {
+	ev.Type = uint32(model.DNSEventType)
+	ev.Timestamp = ts
+	ev.TimestampRaw = tsRaw
+	ev.ProcessCacheEntry = entry
+	ev.ProcessContext = &entry.ProcessContext
+	ev.DNS = model.DNSEvent{
+		ID:       id,
+		Question: question,
+		Response: response,
+	}
+	ev.AddToFlags(model.EventFlagsActivityDumpSample)
+}
+
+// correlateDNSResponseForActivityDump attributes a decoded DNS response to the process that asked
+// the question and feeds it to the activity dump manager, so the dump records what the question
+// resolved to.
+//
+// This calls ProcessEvent directly rather than going through DispatchEvent. Dump enrichment is the
+// only thing wanted here: routing a synthesized event through DispatchEvent would expose it to rule
+// evaluation, so a rule on dns.question.name would fire a second time for dump-traced workloads
+// only, which is a config-dependent change in rule semantics.
+func (p *EBPFProbe) correlateDNSResponseForActivityDump(dnsLayer *layers.DNS, ips []net.IPNet, cnames []string) {
+	if p.profileManager == nil || p.dnsRequests == nil {
+		return
+	}
+
+	// NODATA: a NOERROR response with no answers has nothing to enrich the dump with
+	if len(ips) == 0 && len(cnames) == 0 {
+		return
+	}
+
+	if len(dnsLayer.Questions) == 0 {
+		return
+	}
+	question := dnsLayer.Questions[0]
+
+	now := time.Now()
+	entry := p.dnsRequests.matchResponse(dnsLayer.ID, string(question.Name), uint16(question.Type), now)
+	if entry == nil {
+		return
+	}
+
+	ev := p.getPoolEvent()
+	defer p.putBackPoolEvent(ev)
+
+	newCorrelatedDNSEvent(ev, entry, dnsLayer.ID, model.DNSQuestion{
+		Name:  string(question.Name),
+		Type:  uint16(question.Type),
+		Class: uint16(question.Class),
+	}, &model.DNSResponse{
+		ResponseCode: uint8(dnsLayer.ResponseCode),
+		IPs:          ips,
+		CNames:       cnames,
+	}, now, uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(now)))
+
+	// Returning the event to the pool as soon as this returns is safe: the insert path deep-copies
+	// everything it keeps, precisely because events are pooled and reused.
+	p.profileManager.ProcessEvent(ev)
 }
