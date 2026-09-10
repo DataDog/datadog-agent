@@ -255,6 +255,11 @@ func TestNoTightReconnectLoopOnFailure(t *testing.T) {
 
 	require.GreaterOrEqual(t, attempts[1].Sub(attempts[0]), 50*time.Millisecond)
 	require.GreaterOrEqual(t, attempts[2].Sub(attempts[1]), 50*time.Millisecond)
+
+	require.Eventually(t, func() bool {
+		status := c.ConnectionStatus()
+		return status.LastError != "" && !status.LastErrorAt.IsZero() && !status.NextReconnectAt.IsZero()
+	}, 2*time.Second, 10*time.Millisecond)
 }
 
 func hostPort(addr string) (string, int, error) {

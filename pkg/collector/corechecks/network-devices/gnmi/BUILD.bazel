@@ -14,6 +14,7 @@ go_library(
         "//pkg/collector/corechecks/network-devices/gnmi/client",
         "//pkg/collector/corechecks/network-devices/gnmi/config",
         "//pkg/collector/corechecks/network-devices/gnmi/report",
+        "//pkg/collector/corechecks/network-devices/gnmi/status",
         "//pkg/util/log",
         "//pkg/util/option",
     ],

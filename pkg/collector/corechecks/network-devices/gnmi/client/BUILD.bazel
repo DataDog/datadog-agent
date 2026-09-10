@@ -6,9 +6,11 @@ go_library(
     srcs = [
         "cache.go",
         "client.go",
+        "credentials.go",
         "json_ietf.go",
         "path.go",
         "subscriptions.go",
+        "transport.go",
         "value.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client",
@@ -19,8 +21,8 @@ go_library(
         "//pkg/util/backoff",
         "@com_github_openconfig_gnmi//proto/gnmi",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//credentials/insecure",
-        "@org_golang_google_grpc//metadata",
     ],
 )
 
@@ -28,6 +30,7 @@ dd_agent_go_test(
     name = "client_test",
     srcs = [
         "client_test.go",
+        "credentials_test.go",
         "json_ietf_test.go",
         "path_test.go",
         "subscriptions_test.go",
