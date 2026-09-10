@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"go.uber.org/atomic"
 	corev1 "k8s.io/api/core/v1"
@@ -84,6 +85,13 @@ type TargetMutator struct {
 	injectAll *targetInternal
 	// remotePolicies is the current RC policy set. Nil when none are installed.
 	remotePolicies atomic.Pointer[policySet]
+	// remoteUpdateMu serializes RC callbacks with initial cache restoration.
+	remoteUpdateMu sync.Mutex
+	// remotePolicyCachePath stores the last acknowledged Kubernetes policy snapshot.
+	remotePolicyCachePath string
+	// remoteConfigInitialized distinguishes an authoritative snapshot from the
+	// empty repository used before the RC client's first successful fetch.
+	remoteConfigInitialized atomic.Bool
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
@@ -142,6 +150,9 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 	// policies. subscribeRemoteConfig is a no-op when rcClient is nil (e.g. in
 	// tests or when remote config is disabled).
 	if config.Instrumentation.OnDemand {
+		if rcClient != nil {
+			m.remotePolicyCachePath = remotePolicyCachePath(config.runPath)
+		}
 		m.subscribeRemoteConfig(rcClient)
 	}
 
@@ -226,16 +237,24 @@ func (m *TargetMutator) SetRemotePolicies(ps []policies.Policy) error {
 		return nil
 	}
 
-	remoteTargets, err := buildInternalTargetsFromPolicies(m.core.config, ps, m.defaultLibVersions)
+	set, err := m.buildRemotePolicySet(ps)
 	if err != nil {
 		return err
 	}
+	m.remotePolicies.Store(set)
+	return nil
+}
 
-	m.remotePolicies.Store(&policySet{
+func (m *TargetMutator) buildRemotePolicySet(ps []policies.Policy) (*policySet, error) {
+	remoteTargets, err := buildInternalTargetsFromPolicies(m.core.config, ps, m.defaultLibVersions)
+	if err != nil {
+		return nil, err
+	}
+
+	return &policySet{
 		targets: remoteTargets,
 		matcher: newPolicyMatcher(ps, m.core.wmeta),
-	})
-	return nil
+	}, nil
 }
 
 // ClearRemotePolicies drops remote-config policies. Matching falls back to DDI,

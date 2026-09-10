@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Preserve the last successfully applied Kubernetes APM workload-selection
+    policies across Cluster Agent process restarts while Remote Configuration
+    is temporarily unavailable.

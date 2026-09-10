@@ -33,12 +33,13 @@ import (
 type rcServerState struct {
 	mu sync.Mutex
 
-	enabled  bool
-	orgUUID  string
-	configs  map[string]rcstore.Config
-	version  uint64
-	polls    uint64
-	lastPoll time.Time
+	enabled   bool
+	available bool
+	orgUUID   string
+	configs   map[string]rcstore.Config
+	version   uint64
+	polls     uint64
+	lastPoll  time.Time
 
 	signing   ed25519.PrivateKey
 	keyID     string
@@ -95,6 +96,18 @@ func (s *rcServerState) recordPoll(now time.Time) {
 	s.lastPoll = now
 }
 
+func (s *rcServerState) setAvailable(available bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.available = available
+}
+
+func (s *rcServerState) isAvailable() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.available
+}
+
 // --- Options ---
 
 // WithRemoteConfig enables fakeintake's Remote Config endpoints. The server
@@ -115,6 +128,7 @@ func WithRemoteConfig(orgUUID string) Option {
 		}
 		fi.rc = &rcServerState{
 			enabled:   true,
+			available: true,
 			orgUUID:   orgUUID,
 			configs:   make(map[string]rcstore.Config),
 			version:   1,
@@ -269,6 +283,10 @@ func (fi *Server) handleRCConfigurations(w http.ResponseWriter, r *http.Request)
 	rc := fi.rc
 	if rc == nil {
 		http.Error(w, "remote config not enabled", http.StatusNotFound)
+		return
+	}
+	if !rc.isAvailable() {
+		http.Error(w, "remote config unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	body, err := io.ReadAll(r.Body)
@@ -430,6 +448,24 @@ func (fi *Server) handleRCSetExpiration(w http.ResponseWriter, r *http.Request) 
 	fi.rc.tufExpiry = req.ExpiresAt.UTC().Format(time.RFC3339)
 	fi.rc.version++
 	fi.rc.mu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (fi *Server) handleRCSetAvailability(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if fi.rc == nil {
+		http.Error(w, "remote config not enabled", http.StatusNotFound)
+		return
+	}
+	var req api.RCSetAvailabilityRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "decode request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	fi.rc.setAvailable(req.Available)
 	w.WriteHeader(http.StatusNoContent)
 }
 

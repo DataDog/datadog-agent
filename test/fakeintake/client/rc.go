@@ -63,6 +63,25 @@ func (c *Client) RCSetExpiration(expiresAt time.Time) error {
 	return nil
 }
 
+// RCSetAvailable controls whether fakeintake's agent-facing Remote Config
+// endpoint is available. Control endpoints remain reachable while unavailable.
+func (c *Client) RCSetAvailable(available bool) error {
+	body, err := json.Marshal(api.RCSetAvailabilityRequest{Available: available})
+	if err != nil {
+		return err
+	}
+	resp, err := http.Post(c.fakeIntakeURL+"/fakeintake/rc/availability", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		errBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("rc availability: status %d: %s", resp.StatusCode, errBody)
+	}
+	return nil
+}
+
 // RCListConfigs returns every Remote Config entry stored on fakeintake.
 func (c *Client) RCListConfigs() ([]api.RCConfig, error) {
 	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/rc/configs")
