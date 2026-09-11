@@ -66,6 +66,32 @@ enum DENTRY_ERPC_RESOLUTION_CODE {
     DR_ERPC_LAST,
 };
 
+// Reader that attempted a per-event span context fill. Matches
+// (span_ctx_stats.go)
+enum span_ctx_event_reader {
+    SPAN_CTX_EVENT_READER_OTEL,       // reader:otel_tls
+    SPAN_CTX_EVENT_READER_GO_LABELS,  // reader:go_labels
+    SPAN_CTX_EVENT_READER_FILL,       // reader:fill  (the tail-call plumbing itself)
+    SPAN_CTX_EVENT_READER_LAST,
+};
+
+// Why a per-event span context fill attempt produced nothing or failed attribute/label lookup
+enum span_ctx_event_status {
+    SPAN_CTX_EVENT_OK,                // filled; also the "no failure" return
+    SPAN_CTX_EVENT_NONE,              // nothing to read (no reader, no record, no labels)
+    SPAN_CTX_EVENT_NO_THREAD_POINTER, // read_thread_pointer() returned 0
+    SPAN_CTX_EVENT_READ_FAULT,        // a bpf_probe_read_user in the chain faulted
+    SPAN_CTX_EVENT_TORN,              // OTel record changed under the copy
+    SPAN_CTX_EVENT_G_NOT_FOUND,       // no goroutine pointer from TLS nor register
+    SPAN_CTX_EVENT_ATTRS_READ_FAULT,  // ids delivered, attributes payload unreadable
+    SPAN_CTX_EVENT_MAP_ERROR,         // scratch / ring / gen-id lookup failed
+    SPAN_CTX_EVENT_MALFORMED,         // fill plumbing: payload offsets out of bounds
+    SPAN_CTX_EVENT_STATUS_LAST,
+};
+
+// Statuses below this are outcomes, not failures, and are never counted.
+#define SPAN_CTX_EVENT_FIRST_ERROR SPAN_CTX_EVENT_NO_THREAD_POINTER
+
 enum TC_TAIL_CALL_KEYS {
     DNS_REQUEST = 1,
     DNS_REQUEST_PARSER,
