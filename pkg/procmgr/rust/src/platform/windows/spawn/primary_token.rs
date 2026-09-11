@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::mem;
 use std::os::windows::ffi::OsStrExt;
 use windows_sys::Win32::Foundation::{CloseHandle, ERROR_INVALID_PARAMETER};
@@ -13,10 +13,10 @@ use windows_sys::Win32::System::Threading::{CreateProcessAsUserW, PROCESS_INFORM
 use crate::handle::ProcessHandle;
 use crate::spawn::SpawnRequest;
 
+use super::super::JobObject;
 use super::super::job_object::current_process_in_job;
 use super::super::process::terminate_process;
 use super::super::wide;
-use super::super::JobObject;
 use super::credential::SpawnCredential;
 use super::logon::TokenHandle;
 use super::startup_info_ex::StartupInfoEx;
@@ -144,6 +144,7 @@ pub(super) fn spawn_as_primary_token(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spawn_post_assign_primary_token(
     process_name: &str,
     primary_token: windows_sys::Win32::Foundation::HANDLE,
@@ -196,7 +197,7 @@ fn spawn_post_assign_primary_token(
 }
 
 fn finish_primary_spawn(
-    process_name: &str,
+    _process_name: &str,
     pi: PROCESS_INFORMATION,
     profile_guard: UserProfileGuard,
 ) -> Result<(ProcessHandle, UserProfileGuard)> {

@@ -6,12 +6,12 @@
 use std::mem;
 use std::ptr;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, HANDLE};
 use windows_sys::Win32::System::Threading::{
-    DeleteProcThreadAttributeList, InitializeProcThreadAttributeList, UpdateProcThreadAttribute,
+    DeleteProcThreadAttributeList, InitializeProcThreadAttributeList,
     PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROC_THREAD_ATTRIBUTE_JOB_LIST, STARTF_USESTDHANDLES,
-    STARTUPINFOEXW, STARTUPINFOW,
+    STARTUPINFOEXW, STARTUPINFOW, UpdateProcThreadAttribute,
 };
 
 /// Extended `STARTUPINFO` used by `CreateProcessW` / `CreateProcessAsUserW`.

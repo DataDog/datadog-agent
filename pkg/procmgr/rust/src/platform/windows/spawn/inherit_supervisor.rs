@@ -6,7 +6,7 @@
 use std::mem;
 use std::os::windows::ffi::OsStrExt;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::{CloseHandle, ERROR_INVALID_PARAMETER};
 use windows_sys::Win32::Security::{TOKEN_DUPLICATE, TOKEN_QUERY};
 use windows_sys::Win32::System::Console::STD_ERROR_HANDLE;
@@ -15,11 +15,11 @@ use windows_sys::Win32::System::Threading::{CreateProcessW, PROCESS_INFORMATION}
 use crate::handle::ProcessHandle;
 use crate::spawn::SpawnRequest;
 
+use super::super::JobObject;
 use super::super::job_object::current_process_in_job;
 use super::super::process::terminate_process;
 use super::super::token_identity::open_current_process_token;
 use super::super::wide;
-use super::super::JobObject;
 use super::credential::SpawnCredential;
 use super::startup_info_ex::StartupInfoEx;
 use super::stdio::{map_stdio_handle_nul, map_stdio_setting};
@@ -128,6 +128,7 @@ pub(super) fn spawn_inherit_supervisor(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spawn_post_assign_inherit_supervisor(
     process_name: &str,
     command_line_w: &mut [u16],
@@ -179,7 +180,7 @@ fn spawn_post_assign_inherit_supervisor(
 }
 
 fn finish_inherit_spawn(
-    process_name: &str,
+    _process_name: &str,
     process_info: PROCESS_INFORMATION,
 ) -> Result<ProcessHandle> {
     let pid = process_info.dwProcessId;
