@@ -206,7 +206,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 		msg.SetRendered(rendered)
 
-		p.resolveTagFilter(msg)
+		filter := p.resolveTagFilter(msg)
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
@@ -216,7 +216,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 
 		// encode the message to its final format, it is done in-place
-		if err := p.encoder.Encode(msg, p.GetHostname(msg)); err != nil {
+		if err := p.encoder.Encode(msg, p.GetHostname(msg), filter); err != nil {
 			log.Error("unable to encode msg ", err)
 			return
 		}
@@ -228,22 +228,39 @@ func (p *Processor) processMessage(msg *message.Message) {
 }
 
 // ResolveSourceTagFilter compiles src's tag filters against the global set, records
-// any problems on src, registers its status block, and caches the result on src.
+// any problems on src, registers its status block, and caches the result on src
+// tagged with global's identity, then returns the resolved filter.
 //
-// Safe to call more than once for the same source, including concurrently: once
-// resolved, later calls return immediately, and racing calls converge on the same
-// value since global and src's config are immutable.
-func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) {
+// Safe to call more than once for the same source, including concurrently: it
+// computes the candidate result purely and installs it with a compare-and-swap,
+// so only the caller that wins the race performs the one-time side effects
+// (RegisterInfo, Messages.AddMessage). A call for a global that no longer
+// matches the cached generation re-resolves rather than trusting it forever.
+func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) sources.TagFilter {
 	// LogSources.SubscribeAll replays every source it holds, including ones AddSource
 	// appended before rejecting for a nil Config.
 	if src == nil || src.Config == nil {
-		return
+		return nil
 	}
-	if _, ok := src.TagFilter(); ok {
-		return
+	old := src.TagFilterState()
+	if old.ResolvedFor(global) {
+		return old.Filter()
 	}
 
 	sourceFilters, report := src.Config.TagFilters.Compile()
+
+	// Typed-nil trap: NewScoped can return a nil *Scoped. Only assign resolved when
+	// it doesn't, so a fully-unfiltered source stamps a genuinely nil
+	// sources.TagFilter rather than a non-nil interface wrapping a nil pointer.
+	var resolved sources.TagFilter
+	if scoped := tagfilter.NewScoped(global, sourceFilters); scoped != nil {
+		resolved = scoped
+	}
+
+	if !src.CompareAndSwapTagFilterState(old, sources.NewTagFilterState(global, resolved)) {
+		return resolved
+	}
+
 	// A malformed pattern degrades to filtering less, never blocks the source
 	// from tailing; record it so it's visible on the source's status block.
 	for _, rejected := range report.Rejected {
@@ -261,30 +278,21 @@ func ResolveSourceTagFilter(global *tagfilter.Filters, src *sources.LogSource) {
 			sourcePatterns.Include, sourcePatterns.Exclude))
 	}
 
-	// Typed-nil trap: NewScoped can return a nil *Scoped. Only assign resolved when
-	// it doesn't, so a fully-unfiltered source stamps a genuinely nil
-	// sources.TagFilter rather than a non-nil interface wrapping a nil pointer.
-	var resolved sources.TagFilter
-	if scoped := tagfilter.NewScoped(global, sourceFilters); scoped != nil {
-		resolved = scoped
-	}
-	src.SetTagFilter(resolved)
+	return resolved
 }
 
-// resolveTagFilter stamps msg with the tag filter for its source, resolving it via
+// resolveTagFilter returns the tag filter for msg's source, resolving it via
 // ResolveSourceTagFilter if the logs agent's eager subscriber hasn't already.
-func (p *Processor) resolveTagFilter(msg *message.Message) {
+func (p *Processor) resolveTagFilter(msg *message.Message) sources.TagFilter {
 	if msg.Origin == nil || msg.Origin.LogSource == nil {
-		return
+		return nil
 	}
 	src := msg.Origin.LogSource
 
-	f, ok := src.TagFilter()
-	if !ok {
-		ResolveSourceTagFilter(p.tagFilters, src)
-		f, _ = src.TagFilter()
+	if state := src.TagFilterState(); state.ResolvedFor(p.tagFilters) {
+		return state.Filter()
 	}
-	msg.SetTagFilter(f)
+	return ResolveSourceTagFilter(p.tagFilters, src)
 }
 
 // filterMRFMessages applies an MRF tag to messages that should be sent to MRF

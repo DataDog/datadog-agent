@@ -69,10 +69,13 @@ func TestFormatWithoutFilterMatchesTagsToString(t *testing.T) {
 
 // TestFormatShowsTransportTags pins that stream-logs reports the tags that
 // actually ship, so it can be used to verify a tag_filters configuration.
+// Format has no global filter to resolve with, so the filter is installed
+// directly on the source, as ResolveSourceTagFilter would from a processor.
 func TestFormatShowsTransportTags(t *testing.T) {
 	f := &logFormatter{hostname: getNewHostname("hostname")}
 	msg := formatTestMessage(t)
-	msg.SetTagFilter(&dropKeyFilter{drop: map[string]bool{"container_id": true}})
+	filter := &dropKeyFilter{drop: map[string]bool{"container_id": true}}
+	msg.Origin.LogSource.CompareAndSwapTagFilterState(nil, sources.NewTagFilterState(nil, filter))
 
 	got := tagsField(t, f.Format(msg, "", msg.GetContent()))
 

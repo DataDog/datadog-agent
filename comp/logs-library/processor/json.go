@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 const nanoToMillis = 1000000
@@ -45,7 +46,7 @@ type jsonPayload struct {
 }
 
 // Encode encodes a message into a JSON byte array.
-func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
+func (j *jsonEncoder) Encode(msg *message.Message, hostname string, filter sources.TagFilter) error {
 	if msg.State != message.StateRendered {
 		return errors.New("message passed to encoder isn't rendered")
 	}
@@ -67,7 +68,7 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
-		Tags:      strings.Join(msg.Origin.TransportTags(msg.TagFilter()), ","),
+		Tags:      strings.Join(msg.Origin.TransportTags(filter), ","),
 	})
 
 	if err != nil {

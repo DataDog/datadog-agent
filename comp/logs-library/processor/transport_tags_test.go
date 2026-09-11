@@ -59,9 +59,7 @@ func TestResolveTagFilter_TypedNilTrap(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
 	msg := newMessage([]byte("hello"), source, message.StatusInfo)
 
-	p.resolveTagFilter(msg)
-
-	f := msg.TagFilter()
+	f := p.resolveTagFilter(msg)
 	assert.True(t, f == nil, "expected a genuinely nil TagFilter interface, got %#v", f)
 
 	resolved, ok := source.TagFilter()
@@ -81,13 +79,13 @@ func TestResolveTagFilter_ResolvesOnceAndReuses(t *testing.T) {
 	msg1 := newMessage([]byte("one"), source, message.StatusInfo)
 	p.resolveTagFilter(msg1)
 
+	// Stamp a sentinel for the same generation p already resolved against, so a
+	// second call can only see it by reusing the cache, never by recomputing.
 	sentinel := &fakeTagFilter{Drop: map[string]bool{"sentinel": true}}
-	source.SetTagFilter(sentinel)
+	source.CompareAndSwapTagFilterState(source.TagFilterState(), sources.NewTagFilterState(p.tagFilters, sentinel))
 
 	msg2 := newMessage([]byte("two"), source, message.StatusInfo)
-	p.resolveTagFilter(msg2)
-
-	assert.Same(t, sentinel, msg2.TagFilter())
+	assert.Same(t, sentinel, p.resolveTagFilter(msg2))
 }
 
 // TestResolveTagFilter_NoSource is a defensive regression: a message with no
@@ -95,8 +93,9 @@ func TestResolveTagFilter_ResolvesOnceAndReuses(t *testing.T) {
 func TestResolveTagFilter_NoSource(t *testing.T) {
 	p := &Processor{}
 	msg := message.NewMessage([]byte("hello"), nil, message.StatusInfo, 0)
-	assert.NotPanics(t, func() { p.resolveTagFilter(msg) })
-	assert.True(t, msg.TagFilter() == nil)
+	var f sources.TagFilter
+	assert.NotPanics(t, func() { f = p.resolveTagFilter(msg) })
+	assert.True(t, f == nil)
 }
 
 // TestResolveTagFilter_MalformedPatternStillResolvesAndRecordsMessage pins the
@@ -155,7 +154,9 @@ func TestResolveTagFilter_NoInfoProviderWhenUnconfigured(t *testing.T) {
 
 // TestResolveSourceTagFilter_CalledTwice_RegistersOnce pins the idempotency the
 // eager subscriber and the processor both rely on: racing or repeated calls for
-// the same source must not double up its status info or messages.
+// the same source must not double up its status info or messages. The state
+// pointer identity check proves the second call took the early-return path
+// rather than recomputing and overwriting with an equivalent value.
 func TestResolveSourceTagFilter_CalledTwice_RegistersOnce(t *testing.T) {
 	global, _ := tagfilter.Compile(nil, []string{"team:*"})
 	source := sources.NewLogSource("", &config.LogsConfig{
@@ -163,7 +164,10 @@ func TestResolveSourceTagFilter_CalledTwice_RegistersOnce(t *testing.T) {
 	})
 
 	ResolveSourceTagFilter(global, source)
+	stateAfterFirst := source.TagFilterState()
 	ResolveSourceTagFilter(global, source)
+
+	assert.Same(t, stateAfterFirst, source.TagFilterState(), "second call for the same global must not recompute")
 
 	info := source.GetInfo("Tag Filters")
 	if assert.NotNil(t, info) {
@@ -177,6 +181,26 @@ func TestResolveSourceTagFilter_CalledTwice_RegistersOnce(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, rejectedCount)
+}
+
+// TestResolveSourceTagFilter_NewGlobalForcesReResolution pins the generation
+// check that lets a source surviving an agent restart detect that the global
+// filter it was resolved against is stale: the same global pointer must reuse
+// the cached state, and a different one must replace it.
+func TestResolveSourceTagFilter_NewGlobalForcesReResolution(t *testing.T) {
+	gen1, _ := tagfilter.Compile(nil, []string{"team:*"})
+	gen2, _ := tagfilter.Compile(nil, []string{"pod_name:*"})
+	source := sources.NewLogSource("", &config.LogsConfig{})
+
+	ResolveSourceTagFilter(gen1, source)
+	stateAfterGen1 := source.TagFilterState()
+
+	ResolveSourceTagFilter(gen1, source)
+	assert.Same(t, stateAfterGen1, source.TagFilterState(), "the same global must not force re-resolution")
+
+	ResolveSourceTagFilter(gen2, source)
+	assert.NotSame(t, stateAfterGen1, source.TagFilterState(), "a new global must force re-resolution")
+	assert.True(t, source.TagFilterState().ResolvedFor(gen2))
 }
 
 // TestResolveSourceTagFilter_SourceOnlyStillGetsInfo asserts that a source with
@@ -255,7 +279,7 @@ func TestByteParity_NilFilterMatchesUnfilteredAccessors(t *testing.T) {
 	t.Run("json", func(t *testing.T) {
 		msg := buildMsg()
 		expected := msg.TagsToString()
-		assert.NoError(t, JSONEncoder.Encode(msg, "host"))
+		assert.NoError(t, JSONEncoder.Encode(msg, "host", nil))
 
 		var decoded jsonPayload
 		assert.NoError(t, json.Unmarshal(msg.GetContent(), &decoded))
@@ -265,7 +289,7 @@ func TestByteParity_NilFilterMatchesUnfilteredAccessors(t *testing.T) {
 	t.Run("proto", func(t *testing.T) {
 		msg := buildMsg()
 		expected := msg.Tags()
-		assert.NoError(t, ProtoEncoder.Encode(msg, "host"))
+		assert.NoError(t, ProtoEncoder.Encode(msg, "host", nil))
 
 		log := &pb.Log{}
 		assert.NoError(t, log.Unmarshal(msg.GetContent()))
@@ -275,7 +299,7 @@ func TestByteParity_NilFilterMatchesUnfilteredAccessors(t *testing.T) {
 	t.Run("raw", func(t *testing.T) {
 		msg := buildMsg()
 		expected := msg.Origin.TagsPayload(nil)
-		assert.NoError(t, RawEncoder.Encode(msg, "host"))
+		assert.NoError(t, RawEncoder.Encode(msg, "host", nil))
 
 		content := string(msg.GetContent())
 		extra := content[strings.Index(content, "[") : strings.LastIndex(content, "]")+1]
@@ -299,13 +323,12 @@ func TestEncoders_ApplyStampedFilter(t *testing.T) {
 		msg := newMessage([]byte("message"), source, message.StatusInfo)
 		msg.State = message.StateRendered
 		msg.Origin.LogSource = source
-		msg.SetTagFilter(f)
 		return msg
 	}
 
 	t.Run("json", func(t *testing.T) {
 		msg := buildMsg()
-		assert.NoError(t, JSONEncoder.Encode(msg, "host"))
+		assert.NoError(t, JSONEncoder.Encode(msg, "host", f))
 		var decoded jsonPayload
 		assert.NoError(t, json.Unmarshal(msg.GetContent(), &decoded))
 		assert.NotContains(t, decoded.Tags, "drop:me")
@@ -314,7 +337,7 @@ func TestEncoders_ApplyStampedFilter(t *testing.T) {
 
 	t.Run("proto", func(t *testing.T) {
 		msg := buildMsg()
-		assert.NoError(t, ProtoEncoder.Encode(msg, "host"))
+		assert.NoError(t, ProtoEncoder.Encode(msg, "host", f))
 		log := &pb.Log{}
 		assert.NoError(t, log.Unmarshal(msg.GetContent()))
 		assert.NotContains(t, log.Tags, "drop:me")
@@ -323,7 +346,7 @@ func TestEncoders_ApplyStampedFilter(t *testing.T) {
 
 	t.Run("raw", func(t *testing.T) {
 		msg := buildMsg()
-		assert.NoError(t, RawEncoder.Encode(msg, "host"))
+		assert.NoError(t, RawEncoder.Encode(msg, "host", f))
 		content := string(msg.GetContent())
 		// ddsource survives even though the filter would drop the "source" key.
 		assert.Contains(t, content, "ddsource=\"mysource\"")

@@ -7,11 +7,13 @@ package sources
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
@@ -159,33 +161,91 @@ func TestLogSourceTagFilterUnset(t *testing.T) {
 	f, ok := source.TagFilter()
 	assert.False(t, ok)
 	assert.True(t, f == nil)
+	assert.Nil(t, source.TagFilterState())
 }
 
 func TestLogSourceTagFilterRoundTrip(t *testing.T) {
 	source := NewLogSource("test", nil)
 	want := fakeTagFilter{}
 
-	source.SetTagFilter(want)
-
-	got, ok := source.TagFilter()
+	ok := source.CompareAndSwapTagFilterState(nil, NewTagFilterState(nil, want))
 	assert.True(t, ok)
+
+	got, resolved := source.TagFilter()
+	assert.True(t, resolved)
 	assert.Equal(t, TagFilter(want), got)
 }
 
+// TestLogSourceTagFilterResolvedInert guards the middle of the three states: a
+// non-nil state whose filter is nil must read back as resolved with a filter
+// that compares equal to nil, not as unresolved.
+func TestLogSourceTagFilterResolvedInert(t *testing.T) {
+	source := NewLogSource("test", nil)
+
+	ok := source.CompareAndSwapTagFilterState(nil, NewTagFilterState(nil, nil))
+	assert.True(t, ok)
+
+	got, resolved := source.TagFilter()
+	assert.True(t, resolved)
+	assert.True(t, got == nil)
+}
+
 // TestLogSourceSetTagFilterNil guards the typed-nil trap: passing the untyped nil literal
-// must still yield an interface value that compares equal to nil.
+// must still yield an interface value that compares equal to nil, even after a real
+// filter was cached for an earlier generation.
 func TestLogSourceSetTagFilterNil(t *testing.T) {
 	source := NewLogSource("test", nil)
-	source.SetTagFilter(fakeTagFilter{})
+	gen1 := &tagfilter.Filters{}
+	gen2 := &tagfilter.Filters{}
 
-	source.SetTagFilter(nil)
+	assert.True(t, source.CompareAndSwapTagFilterState(nil, NewTagFilterState(gen1, fakeTagFilter{})))
+	assert.True(t, source.CompareAndSwapTagFilterState(source.TagFilterState(), NewTagFilterState(gen2, nil)))
 
 	got, ok := source.TagFilter()
 	assert.True(t, ok)
 	assert.True(t, got == nil)
 }
 
-// TestLogSourceTagFilterConcurrent runs SetTagFilter and TagFilter concurrently to catch races (-race).
+// TestLogSourceTagFilterStateResolvedForGeneration pins the generation check that
+// lets a resolver detect a stale cache after a source outlives a config reload.
+func TestLogSourceTagFilterStateResolvedForGeneration(t *testing.T) {
+	gen1 := &tagfilter.Filters{}
+	gen2 := &tagfilter.Filters{}
+	source := NewLogSource("test", nil)
+
+	assert.False(t, source.TagFilterState().ResolvedFor(gen1), "unresolved state must never match any generation")
+
+	source.CompareAndSwapTagFilterState(nil, NewTagFilterState(gen1, nil))
+	assert.True(t, source.TagFilterState().ResolvedFor(gen1))
+	assert.False(t, source.TagFilterState().ResolvedFor(gen2))
+}
+
+// TestLogSourceCompareAndSwapTagFilterState_ExactlyOneWinner races goroutines
+// through the same compare-and-swap and counts successes. ResolveSourceTagFilter
+// gates its one-time side effects (RegisterInfo, Messages.AddMessage) behind this
+// exact call, so exactly one winner here is what makes "side effects run once" true.
+func TestLogSourceCompareAndSwapTagFilterState_ExactlyOneWinner(t *testing.T) {
+	source := NewLogSource("test", nil)
+	old := source.TagFilterState() // nil: unresolved
+
+	var wins atomic.Int64
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if source.CompareAndSwapTagFilterState(old, NewTagFilterState(nil, fakeTagFilter{})) {
+				wins.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+
+	assert.Equal(t, int64(1), wins.Load())
+}
+
+// TestLogSourceTagFilterConcurrent runs CompareAndSwapTagFilterState and TagFilter
+// concurrently to catch races (-race).
 func TestLogSourceTagFilterConcurrent(t *testing.T) {
 	source := NewLogSource("racesource", nil)
 
@@ -198,7 +258,7 @@ func TestLogSourceTagFilterConcurrent(t *testing.T) {
 			case <-stop:
 				return
 			default:
-				source.SetTagFilter(fakeTagFilter{})
+				source.CompareAndSwapTagFilterState(source.TagFilterState(), NewTagFilterState(nil, fakeTagFilter{}))
 			}
 		}
 	})
