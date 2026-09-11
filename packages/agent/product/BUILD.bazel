@@ -31,7 +31,6 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
-        "//rtloader:all_files",
         ":dda_built_agent_binary",
 
         # TODO: sysprobe - windows
@@ -77,6 +76,7 @@ pkg_filegroup(
             "//packages/windows:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/procmgr/rust:all_files_windows",
+            "//rtloader:all_files",
         ],
         "//conditions:default": [],
     }),
