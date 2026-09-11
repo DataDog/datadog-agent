@@ -263,11 +263,16 @@ func IsDraining() bool {
 	return nvmlDraining
 }
 
-// AcquiredLib returns the shared library wrapper. The caller must hold the
-// NVML gate (BeginNVMLUse) for the duration of its use; prefer GetSafeNvmlLib
-// for one-shot acquisition.
-func AcquiredLib() SafeNVML {
-	return &singleton
+// WithNVML runs fn with the shared library wrapper while holding the NVML
+// gate (BeginNVMLUse/EndNVMLUse), so a concurrent deliberate release waits
+// for fn to finish instead of racing it. The wrapper never escapes this
+// function.
+func WithNVML(fn func(SafeNVML) error) error {
+	if err := BeginNVMLUse(); err != nil {
+		return err
+	}
+	defer EndNVMLUse()
+	return fn(&singleton)
 }
 
 // ReleaseNVML arms the deliberate-release state (rejecting all new
@@ -334,9 +339,7 @@ func ReleaseNVML() error {
 	return nil
 }
 
-// Shutdown shuts down the NVML library. Not thread safe (the underlying shutdown call is not thread safe either).
-// The caller must ensure that no other threads are using the library.
-// Should only be used for testing purposes/clean up before re-creating the library.
+// Shutdown shuts down the NVML library.
 func (s *safeNvml) Shutdown() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -582,11 +585,12 @@ var singleton safeNvml
 // and retry on their next cycle.
 var ErrNVMLReleased = errors.New("NVML deliberately released (GPU reset window)")
 
-// SetNVMLReleased toggles the deliberate-release state. The caller must
-// have shut NVML down first when releasing; clearing re-allows
-// initialization on the next acquire.
-func SetNVMLReleased(v bool) {
-	nvmlReleased.Store(v)
+// ReacquireNVML ends the deliberate-release state so NVML can be initialized
+// again on the next use. The caller must only clear the state once the release
+// window is really over; use IsDraining to defer until an in-flight release
+// drain has completed.
+func ReacquireNVML() {
+	nvmlReleased.Store(false)
 }
 
 // IsNVMLReleased reports whether NVML was deliberately released. Unlike a

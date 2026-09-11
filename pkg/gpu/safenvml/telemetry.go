@@ -36,6 +36,7 @@ type NvmlStateTelemetry struct {
 	// Telemetry metrics
 	errorCounter     telemetry.Counter
 	unavailableGauge telemetry.Gauge
+	releasedGauge    telemetry.Gauge
 	checkInterval    time.Duration
 
 	// Goroutine lifecycle management
@@ -50,6 +51,7 @@ func NewNvmlStateTelemetry(tm telemetry.Component) *NvmlStateTelemetry {
 	return &NvmlStateTelemetry{
 		errorCounter:     tm.NewCounter(subsystem, "init_errors", nil, "Number of errors when initializing NVML library"),
 		unavailableGauge: tm.NewGauge(subsystem, "library_unavailable", nil, "Whether NVML library is unavailable after threshold time (1=unavailable, 0=available)"),
+		releasedGauge:    tm.NewGauge(subsystem, "released", nil, "Whether NVML is deliberately released for a GPU reset window (1=released, 0=acquired)"),
 		done:             make(chan struct{}),
 		checkInterval:    defaultCheckInterval,
 	}
@@ -62,12 +64,15 @@ func (n *NvmlStateTelemetry) Check() {
 	if IsNVMLReleased() {
 		// NVML is deliberately released for a GPU reset window: that is an
 		// operational choice, not an availability problem — don't count it
-		// toward the unavailable gauge.
+		// toward the unavailable gauge. Track the released state on its own
+		// gauge instead, so the time spent released is observable.
 		n.unavailableGauge.Set(0)
+		n.releasedGauge.Set(1)
 		n.firstCheckTime = time.Time{}
 		n.unavailable = false
 		return
 	}
+	n.releasedGauge.Set(0)
 
 	err := BeginNVMLUse()
 	if err == nil {
