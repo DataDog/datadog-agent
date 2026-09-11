@@ -43,6 +43,7 @@ type CheckSampler struct {
 	logThrottling          util.SimpleThrottler
 	allowSketchBucketReset bool
 	observerHandle         observer.Handle
+	sdcCompressor          *checkSDCCompressor
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -67,6 +68,7 @@ func newCheckSampler(
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
 		allowSketchBucketReset: allowSketchBucketReset,
+		sdcCompressor:          newCheckSDCCompressor(id),
 	}
 }
 
@@ -79,6 +81,14 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
 		cs.observerHandle.ObserveMetric(metricSample)
+	}
+	if cs.sdcCompressor != nil &&
+		(metricSample.Mtype == metrics.GaugeType || metricSample.Mtype == metrics.GaugeWithTimestampType) {
+		// metricSample.Mtype is the unambiguous check-level kind, only
+		// available here — the outgoing Serie.MType seen later in
+		// commitSeries conflates Gauge and Rate (both wire as
+		// APIGaugeType), so eligibility must be decided at this layer.
+		cs.sdcCompressor.noteSample(contextKey)
 	}
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
@@ -234,6 +244,14 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.M
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
 
+		if cs.sdcCompressor != nil && cs.sdcCompressor.stashIfTracked(serie) {
+			// Defer the compression decision to the next flush (or to this
+			// context's expiry, if it goes idle before then) — see
+			// checkSDCCompressor.flushPending — so it's evaluated at the
+			// same globally-shared cadence for every check, regardless of
+			// this check's own min_collection_interval.
+			continue
+		}
 		cs.series = append(cs.series, serie)
 	}
 }
@@ -273,6 +291,11 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher
 	for _, ctxKey := range expiredContextKeys {
 		delete(cs.lastBucketValue, ctxKey)
 		delete(cs.lastBucketValueByBound, ctxKey)
+		if cs.sdcCompressor != nil {
+			if final := cs.sdcCompressor.expire(ctxKey); final != nil {
+				cs.series = append(cs.series, final)
+			}
+		}
 	}
 
 	cs.metrics.Expire(expiredContextKeys, timestamp)
@@ -280,6 +303,9 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	// series
+	if cs.sdcCompressor != nil {
+		cs.series = append(cs.series, cs.sdcCompressor.flushPending()...)
+	}
 	series := cs.series
 	cs.series = make([]*metrics.Serie, 0)
 
