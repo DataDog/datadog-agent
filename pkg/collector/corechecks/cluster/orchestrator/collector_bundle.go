@@ -49,7 +49,9 @@ const (
 	KubeRayAPIGroup         = "ray.io"
 
 	// Gateway API
-	GatewayAPIGroup = "gateway.networking.k8s.io"
+	GatewayAPIGroup               = "gateway.networking.k8s.io"
+	InferenceAPIGroup             = "inference.networking.k8s.io"
+	InferenceExperimentalAPIGroup = "inference.networking.x-k8s.io"
 
 	// Service mesh
 	IstioNetworkingAPIGroup = "networking.istio.io"
@@ -479,7 +481,7 @@ func (cb *CollectorBundle) importBuiltinCollectors() {
 
 	// add builtin collectors and check if they are already activated
 	for _, collector := range builtinCollectors {
-		if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
+		if cb.isBuiltinCollectorAlreadyActivated(collector) {
 			log.Debugf("collector %s has already been added", collector.Metadata().FullName())
 			continue
 		}
@@ -488,6 +490,28 @@ func (cb *CollectorBundle) importBuiltinCollectors() {
 		log.Debugf("import builtin collector: %s", collector.Metadata().FullName())
 		cb.collectors = append(cb.collectors, collector)
 	}
+}
+
+// isBuiltinCollectorAlreadyActivated returns true when the exact collector is active, or when
+// a custom resource collector for the same group and resource is active at another version.
+// Kubernetes serves the same objects through every served version of a CRD, so activating both
+// versions would emit duplicate manifests.
+func (cb *CollectorBundle) isBuiltinCollectorAlreadyActivated(collector collectors.K8sCollector) bool {
+	metadata := collector.Metadata()
+	if _, ok := cb.activatedCollectors[metadata.FullName()]; ok {
+		return true
+	}
+	if metadata.NodeType != orchestrator.K8sCR {
+		return false
+	}
+
+	for _, activeCollector := range cb.collectors {
+		activeMetadata := activeCollector.Metadata()
+		if activeMetadata.NodeType == orchestrator.K8sCR && activeMetadata.Group == metadata.Group && activeMetadata.Name == metadata.Name {
+			return true
+		}
+	}
+	return false
 }
 
 // builtinCRDConfig represents the configuration for a built-in custom resource definition.
@@ -573,11 +597,21 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(KubeRayAPIGroup, "rayservices", isOOTBCRDEnabled, "v1", "v1alpha1"),
 
 		// Gateway API resources
+		newBuiltinCRDConfig(GatewayAPIGroup, "gatewayclasses", isGatewayAPIEnabled, "v1", "v1beta1"),
 		newBuiltinCRDConfig(GatewayAPIGroup, "gateways", isGatewayAPIEnabled, "v1", "v1beta1"),
 		newBuiltinCRDConfig(GatewayAPIGroup, "httproutes", isGatewayAPIEnabled, "v1", "v1beta1"),
 		newBuiltinCRDConfig(GatewayAPIGroup, "grpcroutes", isGatewayAPIEnabled, "v1", "v1alpha2"),
-		newBuiltinCRDConfig(GatewayAPIGroup, "tlsroutes", isGatewayAPIEnabled, "v1alpha2"),
-		newBuiltinCRDConfig(GatewayAPIGroup, "listenersets", isGatewayAPIEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(GatewayAPIGroup, "backendtlspolicies", isGatewayAPIEnabled, "v1", "v1alpha3", "v1alpha2"),
+		newBuiltinCRDConfig(GatewayAPIGroup, "listenersets", isGatewayAPIEnabled, "v1", "v1alpha1"),
+		newBuiltinCRDConfig(GatewayAPIGroup, "referencegrants", isGatewayAPIEnabled, "v1", "v1beta1"),
+		newBuiltinCRDConfig(GatewayAPIGroup, "tcproutes", isGatewayAPIEnabled, "v1", "v1alpha2"),
+		newBuiltinCRDConfig(GatewayAPIGroup, "tlsroutes", isGatewayAPIEnabled, "v1", "v1alpha3", "v1alpha2"),
+		newBuiltinCRDConfig(GatewayAPIGroup, "udproutes", isGatewayAPIEnabled, "v1", "v1alpha2"),
+
+		// Gateway API Inference Extension resources
+		newBuiltinCRDConfig(InferenceAPIGroup, "inferencepools", isGatewayAPIEnabled, "v1"),
+		newBuiltinCRDConfig(InferenceExperimentalAPIGroup, "inferencepools", isGatewayAPIEnabled, "v1alpha2", "v1alpha1"),
+		newBuiltinCRDConfig(InferenceExperimentalAPIGroup, "inferencepoolimports", isGatewayAPIEnabled, "v1alpha1"),
 
 		// Service mesh — Istio (resource-specific to avoid over-collection)
 		newBuiltinCRDConfig(IstioNetworkingAPIGroup, "virtualservices", isServiceMeshEnabled, "v1", "v1beta1", "v1alpha3"),
@@ -632,7 +666,7 @@ func (cb *CollectorBundle) collectorsForBuiltinCRD(builtinCustomResource builtin
 		return nil
 	}
 
-	version, ok := cb.collectorDiscovery.OptimalVersion(builtinCustomResource.group, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
+	version, ok := cb.collectorDiscovery.OptimalVersion(builtinCustomResource.group, builtinCustomResource.kind, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)
 	if !ok {
 		log.Infof("Skipping built-in CR collector: no supported version found for %s/%s (preferred: %s, fallback: %s)",
 			builtinCustomResource.group, builtinCustomResource.kind, builtinCustomResource.preferredVersion, builtinCustomResource.fallbackVersions)

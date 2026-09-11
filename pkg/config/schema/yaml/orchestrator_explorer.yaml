@@ -41,7 +41,7 @@ properties:
           gateway_api:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           ingress_controllers:
             node_type: setting
             type: boolean

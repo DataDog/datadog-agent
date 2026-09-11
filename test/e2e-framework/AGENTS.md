@@ -195,6 +195,10 @@ When that's not enough, common advanced patterns:
 
 - **`e2e.WithDevMode()`** — keep infrastructure alive after test for faster iteration.
 - **`e2e.WithStackName(name)`** — custom Pulumi stack naming for parameterized tests.
+- **`kindvm.WithPreAgentWorkloadApp(...)`** — install CRDs or other setup workloads
+  before the Helm Agent or Operator. The Agent installation depends on the returned
+  workload component. This Kind-on-VM option cannot be combined with a standalone
+  OpenTelemetry Agent.
 
 ### Example tests by pattern
 

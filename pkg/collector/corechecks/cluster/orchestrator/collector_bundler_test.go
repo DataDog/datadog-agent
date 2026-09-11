@@ -450,11 +450,21 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 		"ray.io/v1/rayservices",
 
 		// Gateway API
+		"gateway.networking.k8s.io/v1/gatewayclasses",
 		"gateway.networking.k8s.io/v1/gateways",
 		"gateway.networking.k8s.io/v1/httproutes",
 		"gateway.networking.k8s.io/v1/grpcroutes",
-		"gateway.networking.k8s.io/v1alpha2/tlsroutes",
-		"gateway.networking.k8s.io/v1alpha1/listenersets",
+		"gateway.networking.k8s.io/v1/backendtlspolicies",
+		"gateway.networking.k8s.io/v1/listenersets",
+		"gateway.networking.k8s.io/v1/referencegrants",
+		"gateway.networking.k8s.io/v1/tcproutes",
+		"gateway.networking.k8s.io/v1/tlsroutes",
+		"gateway.networking.k8s.io/v1/udproutes",
+
+		// Gateway API Inference Extension
+		"inference.networking.k8s.io/v1/inferencepools",
+		"inference.networking.x-k8s.io/v1alpha2/inferencepools",
+		"inference.networking.x-k8s.io/v1alpha1/inferencepoolimports",
 
 		// Service mesh — Istio
 		"networking.istio.io/v1/virtualservices",
@@ -505,7 +515,7 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 		gatewayAPI          bool
 		serviceMesh         bool
 		ingressControllers  bool
-		expectedGatewayAPI  int // 5 entries
+		expectedGatewayAPI  int // 13 entries
 		expectedServiceMesh int // 11 entries (5 Istio + 6 group-level)
 		expectedIngress     int // 6 entries (2 NGINX + 1 Traefik + 3 group-level)
 	}{
@@ -515,7 +525,7 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 			gatewayAPI:          true,
 			serviceMesh:         true,
 			ingressControllers:  true,
-			expectedGatewayAPI:  5,
+			expectedGatewayAPI:  13,
 			expectedServiceMesh: 11,
 			expectedIngress:     6,
 		},
@@ -535,7 +545,7 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 			gatewayAPI:          true,
 			serviceMesh:         false,
 			ingressControllers:  true,
-			expectedGatewayAPI:  5,
+			expectedGatewayAPI:  13,
 			expectedServiceMesh: 0,
 			expectedIngress:     6,
 		},
@@ -545,7 +555,7 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 			gatewayAPI:          true,
 			serviceMesh:         true,
 			ingressControllers:  false,
-			expectedGatewayAPI:  5,
+			expectedGatewayAPI:  13,
 			expectedServiceMesh: 11,
 			expectedIngress:     0,
 		},
@@ -569,7 +579,11 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 
 			configs := newBuiltinCRDConfigs()
 
-			gatewayAPIGroups := map[string]bool{GatewayAPIGroup: true}
+			gatewayAPIGroups := map[string]bool{
+				GatewayAPIGroup:               true,
+				InferenceAPIGroup:             true,
+				InferenceExperimentalAPIGroup: true,
+			}
 			serviceMeshGroups := map[string]bool{
 				IstioNetworkingAPIGroup: true, EnvoyGatewayAPIGroup: true,
 				TraefikLegacyAPIGroup: true, LinkerdPolicyAPIGroup: true,
@@ -600,6 +614,29 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 			require.Equal(t, testCase.expectedIngress, ingressCount, "ingress controllers count mismatch")
 		})
 	}
+}
+
+func TestIsBuiltinCollectorAlreadyActivated(t *testing.T) {
+	explicitGateway, err := k8s.NewCRCollector("gateways", "gateway.networking.k8s.io/v1beta1")
+	require.NoError(t, err)
+	builtinGateway, err := k8s.NewCRCollector("gateways", "gateway.networking.k8s.io/v1")
+	require.NoError(t, err)
+	differentResource, err := k8s.NewCRCollector("httproutes", "gateway.networking.k8s.io/v1")
+	require.NoError(t, err)
+	differentGroup, err := k8s.NewCRCollector("gateways", "example.com/v1")
+	require.NoError(t, err)
+
+	cb := CollectorBundle{
+		collectors: []collectors.K8sCollector{explicitGateway},
+		activatedCollectors: map[string]struct{}{
+			explicitGateway.Metadata().FullName(): {},
+		},
+	}
+
+	require.True(t, cb.isBuiltinCollectorAlreadyActivated(explicitGateway))
+	require.True(t, cb.isBuiltinCollectorAlreadyActivated(builtinGateway))
+	require.False(t, cb.isBuiltinCollectorAlreadyActivated(differentResource))
+	require.False(t, cb.isBuiltinCollectorAlreadyActivated(differentGroup))
 }
 
 func TestFilterCRCollectorsByPermission(t *testing.T) {

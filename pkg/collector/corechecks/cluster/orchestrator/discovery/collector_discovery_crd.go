@@ -215,21 +215,26 @@ func matchesGroupVersion(cv, group, version string) bool {
 	}
 }
 
-// OptimalVersion returns the best available version for a given group.
-func (d *DiscoveryCollector) OptimalVersion(groupName, preferredVersion string, fallbackVersions []string) (string, bool) {
+// OptimalVersion returns the best available version for a given resource in a group.
+// An empty resource name matches any resource in the group.
+func (d *DiscoveryCollector) OptimalVersion(groupName, resourceName, preferredVersion string, fallbackVersions []string) (string, bool) {
 	supportedVersions := d.getSupportedVersions(groupName)
 	if len(supportedVersions) == 0 {
 		return "", false
 	}
 
+	isAvailable := func(version string) bool {
+		return supportedVersions[version] && (resourceName == "" || len(d.List(groupName, version, resourceName)) > 0)
+	}
+
 	// Try preferred version first
-	if preferredVersion != "" && supportedVersions[preferredVersion] {
+	if preferredVersion != "" && isAvailable(preferredVersion) {
 		return preferredVersion, true
 	}
 
 	// Try fallback versions in order
 	for _, version := range fallbackVersions {
-		if version != "" && supportedVersions[version] {
+		if version != "" && isAvailable(version) {
 			return version, true
 		}
 	}

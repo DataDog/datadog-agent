@@ -4,6 +4,9 @@ datadog:
   orchestratorExplorer:
     customResources:
       - datadoghq.com/v1alpha1/datadogmetrics
+      # Grant RBAC without adding Gateway API collectors to the custom orchestrator config below.
+      - gateway.networking.k8s.io/v1/httproutes
+      - inference.networking.k8s.io/v1/inferencepools
 agents:
   useHostNetwork: true
 
