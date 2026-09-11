@@ -23,7 +23,7 @@ func TestSeedGlobalBuilderResolvesIPCArtifactsNextToDatadogYaml(t *testing.T) {
 	require.Equal(t, filepath.Join(dir, "auth_token"), AuthTokenFilepath())
 }
 
-// configEnvVars reaches the accessor the same way bootstrap.go does.
+// configEnvVars asserts the accessor is present and returns the key-to-env-var mapping.
 func configEnvVars(t *testing.T, cfg pkgconfigmodel.Reader) map[string][]string {
 	t.Helper()
 	lister, ok := cfg.(interface{ ConfigEnvVars() map[string][]string })

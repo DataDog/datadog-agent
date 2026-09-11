@@ -14,7 +14,6 @@ import (
 )
 
 // ResetGlobalConfig rebuilds the global config so its env layer reflects the current environment.
-// Lives here because the pkgconfigusage depguard blocks pkg/config/setup imports from comp/.
 func ResetGlobalConfig(t testing.TB) {
 	t.Helper()
 	pkgconfigsetup.InitConfigObjects()

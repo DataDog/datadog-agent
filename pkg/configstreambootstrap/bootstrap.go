@@ -73,7 +73,7 @@ func SeedGlobalBuilder(s Settings, configFile string) {
 	cert.PersistCertFilepath(b)
 }
 
-// envOverride is a setting the local env layer was deciding the value of before the wipe.
+// envOverride is a setting whose value the local env layer was deciding before the wipe.
 type envOverride struct {
 	key    string
 	envVar string
@@ -81,8 +81,7 @@ type envOverride struct {
 }
 
 var (
-	// DisableLocalEnvLayer runs on the main goroutine at startup and the report runs on the
-	// consumer's stream goroutine; the ordering is not enforced by this package's API, so lock.
+	// Captured on the startup goroutine, read on the consumer's stream goroutine.
 	envOverridesMu        sync.Mutex
 	capturedEnvOverrides  []envOverride
 	lastEnvOverrideReport []string
@@ -107,8 +106,8 @@ func DisableLocalEnvLayer(clientName string) {
 	pkglog.Infof("configstreamconsumer[%s]: local env-var layer disabled", clientName)
 }
 
-// captureEnvOverrides records the settings the env layer is actually deciding. A key whose env var
-// is set but loses to a higher-precedence source was not being overridden by the env, so it is skipped.
+// captureEnvOverrides records the settings the env layer is deciding, skipping any key that loses
+// to a higher-precedence source.
 func captureEnvOverrides(cfg pkgconfigmodel.Reader, configEnvVars map[string][]string) []envOverride {
 	captured := make([]envOverride, 0, len(configEnvVars))
 	for key, envVars := range configEnvVars {
@@ -123,7 +122,7 @@ func captureEnvOverrides(cfg pkgconfigmodel.Reader, configEnvVars map[string][]s
 	return captured
 }
 
-// winningEnvVar mirrors nodetreemodel.buildEnvVars: the first var that is set and non-empty wins.
+// winningEnvVar returns the var a key resolved from: the first one that is set and non-empty.
 func winningEnvVar(envVars []string) string {
 	for _, name := range envVars {
 		if value, isSet := os.LookupEnv(name); isSet && value != "" {
@@ -133,9 +132,8 @@ func winningEnvVar(envVars []string) string {
 	return ""
 }
 
-// ReportDroppedEnvOverrides warns about settings the stream did not reproduce. It must run after
-// the first snapshot and after any post-snapshot remapping, and consumes the captured state so
-// that later value changes, which are ordinary operation, never warn.
+// ReportDroppedEnvOverrides warns about settings the stream did not reproduce, consuming the
+// captured state so it reports at most once. Run it after the first snapshot and any remapping.
 func ReportDroppedEnvOverrides(clientName string) {
 	envOverridesMu.Lock()
 	captured := capturedEnvOverrides
@@ -159,7 +157,7 @@ func ReportDroppedEnvOverrides(clientName string) {
 }
 
 // diffEnvOverrides names the captured settings whose current value differs from the pre-wipe one.
-// Names only, never values: several of these settings are credentials, and "differs" is the signal.
+// Names only, never values: several of these settings are credentials.
 func diffEnvOverrides(cfg pkgconfigmodel.Reader, captured []envOverride) []string {
 	var dropped []string
 	for _, o := range captured {
