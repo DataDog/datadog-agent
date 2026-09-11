@@ -26,7 +26,6 @@ func NewDumpDogstatsdContextsHandler(client ipc.HTTPClient) *DumpDogstatsdContex
 	return &DumpDogstatsdContextsHandler{ipcClient: client}
 }
 
-// Run executes the dumpDogstatsdContexts action.
 func (h *DumpDogstatsdContextsHandler) Run(
 	ctx context.Context,
 	_ *types.Task,
