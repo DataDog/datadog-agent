@@ -1277,6 +1277,8 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+      capabilities_required:
+        nvlink: 2
   nvlink.plr.codes_loss:
     metadata:
       metric_type: gauge

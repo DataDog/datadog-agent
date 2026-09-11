@@ -28,10 +28,10 @@ nvlink_generations:
       - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
       - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
   2: # NVLink 2.0
-    supported_fields: []
-  4: # NVLink 3.0
     supported_fields:
       - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
+  4: # NVLink 3.0
+    supported_fields: []
   6: # NVLink 4.0
     supported_fields: []
   7: # NVLink 5.0
