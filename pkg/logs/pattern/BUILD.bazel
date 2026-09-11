@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "pattern",
+    srcs = [
+        "doc.go",
+        "pattern.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/pattern",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/logs/internal/decoder/preprocessor"],
+)
+
+dd_agent_go_test(
+    name = "pattern_test",
+    srcs = ["pattern_test.go"],
+    deps = [
+        ":pattern",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

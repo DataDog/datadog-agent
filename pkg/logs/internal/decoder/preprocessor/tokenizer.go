@@ -76,6 +76,7 @@ type Tokenizer struct {
 	maxEvalBytes int
 	tsBuf        []Token // Reusable token buffer
 	idxBuf       []int   // Reusable index buffer
+	uuidEnd      int     // End offset of a UUID recognized while emitting a dash
 }
 
 // NewTokenizer returns a new Tokenizer detection heuristic.
@@ -135,6 +136,21 @@ func (t *Tokenizer) tokenizeBorrowed(input []byte) BorrowedTokens {
 // it into the loop or make it take/return the slices.
 func (t *Tokenizer) emitToken(input []byte, token Token, start, end int) {
 	runLen := end - start
+	if token == Dash && runLen == 1 {
+		candidateStart := start - uuidFirstDashOffset
+		if isUUIDAt(input, candidateStart) {
+			// The first UUID group may already be several character/digit runs.
+			// Replace all of those pieces with one stable token.
+			for len(t.idxBuf) > 0 && t.idxBuf[len(t.idxBuf)-1] >= candidateStart {
+				t.idxBuf = t.idxBuf[:len(t.idxBuf)-1]
+				t.tsBuf = t.tsBuf[:len(t.tsBuf)-1]
+			}
+			t.tsBuf = append(t.tsBuf, UUID)
+			t.idxBuf = append(t.idxBuf, candidateStart)
+			t.uuidEnd = candidateStart + uuidLength
+			return
+		}
+	}
 
 	// Check for special tokens (only for C1/letter runs, length 1-maxSpecialTokenLen)
 	if token == C1 && runLen <= maxSpecialTokenLen {
@@ -196,6 +212,7 @@ func (t *Tokenizer) emitRuns(input []byte) {
 		t.tsBuf = t.tsBuf[:0]
 		t.idxBuf = t.idxBuf[:0]
 	}
+	t.uuidEnd = 0
 
 	start := 0
 	lastToken := tokenLookup[input[0]]
@@ -208,12 +225,66 @@ func (t *Tokenizer) emitRuns(input []byte) {
 
 		if currentToken != lastToken {
 			t.emitToken(input, lastToken, start, i)
+			if t.uuidEnd > i {
+				next := t.uuidEnd
+				t.uuidEnd = 0
+				if next >= inputLen {
+					return
+				}
+				start = next
+				lastToken = tokenLookup[input[next]]
+				i = next
+				continue
+			}
 			start = i
 			lastToken = currentToken
 		}
 	}
 
 	t.emitToken(input, lastToken, start, inputLen)
+}
+
+const (
+	uuidLength          = 36
+	uuidFirstDashOffset = 8
+)
+
+// isUUIDAt reports whether input[start:] begins with a canonical 8-4-4-4-12
+// hexadecimal UUID delimited from adjacent ASCII word characters.
+func isUUIDAt(input []byte, start int) bool {
+	if start < 0 || start+uuidLength > len(input) {
+		return false
+	}
+	if start > 0 && !isUUIDBoundary(input[start-1]) {
+		return false
+	}
+	if start+uuidLength < len(input) && !isUUIDBoundary(input[start+uuidLength]) {
+		return false
+	}
+
+	for i := range uuidLength {
+		switch i {
+		case 8, 13, 18, 23:
+			if input[start+i] != '-' {
+				return false
+			}
+		default:
+			if !isHexByte(input[start+i]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isHexByte(value byte) bool {
+	return value >= '0' && value <= '9' ||
+		value >= 'a' && value <= 'f' ||
+		value >= 'A' && value <= 'F'
+}
+
+func isUUIDBoundary(value byte) bool {
+	return tokenLookup[value] != C1 && tokenLookup[value] != D1 && tokenLookup[value] != Underscore
 }
 
 func isIPv4OctetToken(tok Token) bool {

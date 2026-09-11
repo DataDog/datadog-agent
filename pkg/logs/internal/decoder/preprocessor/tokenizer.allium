@@ -52,10 +52,10 @@
 --     The corresponding regular Cn token is replaced by the
 --     special token.
 --
---   Hybrid: after run-length encoding and special-token promotion,
---     some multi-token patterns are collapsed into one token.
---     Currently IPv4: four 1-3 digit runs separated by single '.'
---     characters become one IPv4 token.
+--   Hybrid: structured values spanning multiple base-token classes are
+--     collapsed into one token:
+--       IPv4: four 1-3 digit runs separated by single '.' characters.
+--       UUID: a delimited 8-4-4-4-12 hexadecimal identifier.
 
 value TokenSequence {
     -- Ordered sequence of tokens produced by the tokenizer from
@@ -134,9 +134,8 @@ contract Tokenization {
         -- tokens, not a regex over content bytes.
 
     @invariant HybridTokenPromotion
-        -- After run-length encoding and special-token promotion, the
-        -- token sequence is scanned left to right for hybrid tokens.
-        -- Currently IPv4: seven consecutive tokens
+        -- Structured values spanning multiple base-token runs are
+        -- represented by one hybrid token. IPv4: seven consecutive tokens
         --   D1-D3, Period, D1-D3, Period, D1-D3, Period, D1-D3
         -- are replaced by one IPv4 token when each Period spans a
         -- single byte. A collapsed ".." or "..." run is still one
@@ -148,6 +147,14 @@ contract Tokenization {
         -- token. Octet values are not range-checked (0-255); the
         -- shape is what matters for timestamp detection and for
         -- keeping digit-for-digit substitution structure-preserving.
+        --
+        -- UUID: 36 bytes containing hexadecimal groups of lengths
+        -- 8-4-4-4-12 separated by single '-' bytes become one UUID token.
+        -- Matching accepts either case and requires the value not be directly
+        -- adjacent to a character, digit, or underscore token. UUID recognition
+        -- occurs within the same input scan; it does not require a second pass.
+        -- The internal letter/digit composition is discarded, so distinct
+        -- UUID values produce the same structural token.
 
     @invariant InputTruncation
         -- Only the first max_bytes of the input are tokenized.
@@ -185,6 +192,9 @@ contract Tokenization {
         -- Example: "connected from 10.1.48.10" and
         -- "connected from 192.168.0.1" both produce:
         --   C9 Space C4 Space IPv4
+        -- Example: "event_id=c05d056c-1c1f-457f-bfd2-f381f7f84e0d"
+        -- and any other canonical UUID value at that position both produce:
+        --   C5 Underscore C2 Equal UUID
 
     @guidance
         -- The default classification maps all unrecognised bytes to
@@ -193,9 +203,8 @@ contract Tokenization {
         -- run tokens. This means binary content in log lines is
         -- treated as character runs.
         --
-        -- The special token table is non-exhaustive and can be
-        -- expanded. Adding new recognised patterns changes which
-        -- log lines are considered structurally equivalent. The
-        -- same applies to hybrid tokens (IPv4 today; UUID and
-        -- file paths are expected later).
+        -- The special token table is non-exhaustive and can be expanded.
+        -- Adding new recognised patterns changes which log lines are
+        -- considered structurally equivalent. The same applies to hybrid
+        -- tokens (IPv4 and UUID today; file paths may follow later).
 }

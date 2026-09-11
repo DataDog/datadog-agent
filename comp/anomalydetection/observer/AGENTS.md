@@ -40,6 +40,7 @@ and the testbench use the same engine.
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
 | `impl/agent_logs.go` | Agent internal log tap (source: `agent_logs`) |
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
+| `impl/log_tokenizer_fuzzy_extractor.go` | Log → virtual metrics via the Logs tokenizer and positional fuzzy clustering |
 | `impl/log_metrics_extractor.go` | Log → virtual metrics via regex extraction |
 | `impl/anomaly_correlator_time_cluster.go` | Time-proximity correlator |
 | `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
@@ -54,6 +55,7 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 |------|------|---------|
 | Extractor | `log_metrics_extractor` | on |
 | Extractor | `log_pattern_extractor` | on |
+| Extractor | `log_tokenizer_fuzzy_extractor` | off |
 | Extractor | `connection_error_extractor` | off |
 | Detector | `bocpd` | on |
 | Detector | `rrcf` | on |
