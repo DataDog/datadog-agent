@@ -1,6 +1,7 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("//pkg/procmgr/rust:procmgr_rust_test.bzl", "dd_procmgrd_isolated_manager_tests", "dd_procmgrd_lib_test", "dd_procmgrd_skip_args_for_isolated")
 
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
@@ -155,57 +156,48 @@ _DD_PROCMGRD_TEST_ENV = select({
     "//conditions:default": {},
 })
 
-# Skip the split reload-modified tests here; they run as dedicated targets below so
-# each assertion gets its own PASS/FAIL line in Bazel output under --keep_going.
-rust_test(
+# Spawn-heavy manager::tests run as dedicated targets (one Bazel test per Rust test)
+# so CI reports each result separately and failures are easier to reproduce:
+#   bazel test //pkg/procmgr/rust:dd-procmgrd_reload_modified_03_restarts_test
+# To isolate another test, append (suffix, filter) here.
+_DD_PROCMGRD_ISOLATED_MANAGER_TESTS = [
+    ("complete_restart", "complete_restart_skips_already_running"),
+    ("reload_modified_01_result", "reload_modified_01_result_contains_service"),
+    ("reload_modified_02_updates", "reload_modified_02_updates_stored_config"),
+    ("reload_modified_03_restarts", "reload_modified_03_restarts_running_process"),
+    ("reload_modified_not_running", "reload_modified_not_running_stays_stopped"),
+    ("reload_unchanged", "reload_unchanged_config_not_modified"),
+    ("reload_preserves_runtime", "reload_preserves_runtime_created_processes"),
+    ("reload_recomputes_startup_order", "reload_recomputes_startup_order"),
+    ("shutdown_after_reload_adds", "shutdown_after_reload_adds_process"),
+    ("shutdown_after_reload_removes", "shutdown_after_reload_removes_process"),
+    ("shutdown_after_reload_runtime", "shutdown_after_reload_with_runtime_process"),
+    ("create_auto_start_spawns", "create_auto_start_spawns_process"),
+    ("create_auto_start_false", "create_auto_start_false_stays_created"),
+    ("create_auto_start_bad_command", "create_auto_start_bad_command_still_created"),
+    ("create_auto_start_condition", "create_auto_start_condition_not_met"),
+    ("create_runtime_startup_order", "create_includes_runtime_process_in_startup_order"),
+]
+
+_DD_PROCMGRD_ISOLATED_MANAGER_TEST_NAMES = dd_procmgrd_isolated_manager_tests(
+    "dd-procmgrd",
+    _DD_PROCMGRD_ISOLATED_MANAGER_TESTS,
+    _DD_PROCMGRD_TEST_ENV,
+)
+
+# Fast/unit tests plus process, grpc, config, ordering, etc. Isolated manager
+# integration tests are skipped here and run via dedicated targets above.
+dd_procmgrd_lib_test(
     name = "dd-procmgrd_test",
-    args = [
-        "--skip",
-        "reload_modified_01_result",
-        "--skip",
-        "reload_modified_02_updates",
-        "--skip",
-        "reload_modified_03_restarts",
-    ],
-    crate = ":dd-procmgrd-lib",
-    edition = "2024",
+    args = dd_procmgrd_skip_args_for_isolated(_DD_PROCMGRD_ISOLATED_MANAGER_TESTS),
     env = _DD_PROCMGRD_TEST_ENV,
-    rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
-    deps = ["@crates//:tempfile"],
 )
 
-rust_test(
-    name = "dd-procmgrd_reload_modified_01_result_test",
-    args = ["reload_modified_01_result_contains_service"],
-    crate = ":dd-procmgrd-lib",
-    edition = "2024",
-    env = _DD_PROCMGRD_TEST_ENV,
-    rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
-    deps = ["@crates//:tempfile"],
-)
-
-rust_test(
-    name = "dd-procmgrd_reload_modified_02_updates_test",
-    args = ["reload_modified_02_updates_stored_config"],
-    crate = ":dd-procmgrd-lib",
-    edition = "2024",
-    env = _DD_PROCMGRD_TEST_ENV,
-    rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
-    deps = ["@crates//:tempfile"],
-)
-
-rust_test(
-    name = "dd-procmgrd_reload_modified_03_restarts_test",
-    args = ["reload_modified_03_restarts_running_process"],
-    crate = ":dd-procmgrd-lib",
-    edition = "2024",
-    env = _DD_PROCMGRD_TEST_ENV,
-    rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
-    deps = ["@crates//:tempfile"],
+# Run every dd-procmgrd-lib test target:
+#   bazel test //pkg/procmgr/rust:dd-procmgrd_all_tests
+test_suite(
+    name = "dd-procmgrd_all_tests",
+    tests = [":dd-procmgrd_test"] + [":{}".format(name) for name in _DD_PROCMGRD_ISOLATED_MANAGER_TEST_NAMES],
 )
 
 rust_test(

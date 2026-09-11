@@ -362,15 +362,25 @@ impl ProcessManager {
     }
 
     async fn shutdown(&self) {
-        let order: Vec<usize> = self
-            .startup_order
-            .read()
-            .await
+        let stored_order = self.startup_order.read().await.clone();
+        let mut procs = self.processes.write().await;
+        let n = procs.len();
+
+        // Reverse dependency order; drop stale indices if the process list changed
+        // since the last reload without recomputing startup_order.
+        let mut order: Vec<usize> = stored_order
             .iter()
             .copied()
+            .filter(|&i| i < n)
             .rev()
             .collect();
-        let mut procs = self.processes.write().await;
+        // Also stop running processes excluded from startup_order (e.g. cycle skips).
+        for i in 0..n {
+            if !stored_order.contains(&i) && procs[i].is_running() {
+                order.push(i);
+            }
+        }
+
         shutdown::shutdown_ordered(&mut procs, &order).await;
     }
 }
