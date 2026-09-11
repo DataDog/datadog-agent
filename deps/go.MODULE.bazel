@@ -308,7 +308,7 @@ use_repo(
     "com_github_pulumi_pulumi_azure_native_sdk_network_v2",
     "com_github_pulumi_pulumi_azure_native_sdk_v2",
     "com_github_pulumi_pulumi_command_sdk",
-    "com_github_pulumi_pulumi_docker_sdk_v4",
+    "com_github_pulumi_pulumi_docker_sdk_v5",
     "com_github_pulumi_pulumi_eks_sdk_v4",
     "com_github_pulumi_pulumi_gcp_sdk_v9",
     "com_github_pulumi_pulumi_kubernetes_sdk_v4",
