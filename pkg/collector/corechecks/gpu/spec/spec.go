@@ -258,6 +258,9 @@ func (v *MetricValidator) ValidateKnownGoodValue(value float64, knownGood *float
 	if knownGood == nil {
 		return errors.New("known-good value is required")
 	}
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return fmt.Errorf("value %v not finite", value)
+	}
 	if math.IsNaN(*knownGood) || math.IsInf(*knownGood, 0) {
 		return fmt.Errorf("known-good value %v not finite", *knownGood)
 	}
