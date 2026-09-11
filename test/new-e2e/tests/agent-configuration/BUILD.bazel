@@ -30,6 +30,7 @@ dd_agent_go_test(
         "api_test.go",
         "configrefresh_api_key_refresh_test.go",
         "configrefresh_nix_test.go",
+        "configrefresh_systemprobe_secret_nix_test.go",
         "configrefresh_win_test.go",
         "gui_nix_test.go",
         "gui_win_test.go",
@@ -45,10 +46,12 @@ dd_agent_go_test(
     ],
     embed = [":agent-configuration"],
     embedsrcs = [
+        "config-refresh/fixtures/systemprobe-secret-config.yaml.tmpl",
         "secret/fixtures/secret_script.py",
         "//test/new-e2e/tests/agent-configuration/sgc-embedded:fixtures/secrets.yaml",  # keep
     ],
     deps = [
+        "//pkg/util/scrubber",
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/agentparams/filepermissions",
         "//test/e2e-framework/components/datadog/agentparams/msi",
@@ -63,5 +66,6 @@ dd_agent_go_test(
         "//test/new-e2e/tests/agent-configuration/secretsutils",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v2//:yaml",
     ],
 )

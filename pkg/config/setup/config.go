@@ -1032,6 +1032,60 @@ func ComputeDataPlaneStopTimeout(config pkgconfigmodel.Config) {
 	config.Set("data_plane.stop_timeout", sum, pkgconfigmodel.SourceDefault)
 }
 
+// Defaults used by EnableAgentIPCForSystemProbeSecurity when it turns the agent
+// IPC config endpoint on. The port matches the one the DDOT installer writes
+// (see pkg/fleet/installer/packages/otel_config_common.go) so that both
+// consumers of the endpoint agree on where it lives.
+const (
+	defaultSecurityAgentIPCPort                  = 5009
+	defaultSecurityAgentIPCConfigRefreshInterval = 60
+)
+
+// EnableAgentIPCForSystemProbeSecurity is a post-load override that turns on the
+// agent IPC config endpoint when CWS or CSPM ship their payloads straight from
+// system-probe instead of from the security-agent.
+//
+// system-probe runs with a no-op secrets resolver, so it cannot expand
+// secret-backed settings such as `api_key` on its own. Its only way to obtain
+// resolved values is configsync, which reads the core agent's IPC config
+// endpoint, and both ends of that link are off by default
+// (`agent_ipc.config_refresh_interval` and `agent_ipc.port` are 0). Enabling
+// them here — rather than flipping the shipped defaults — keeps the endpoint
+// closed on the installs that do not need it.
+//
+// The condition mirrors how the security-agent decides to stand down
+// (cmd/security-agent/subcommands/start/command.go) and how the compliance
+// system-probe module decides to run, so the endpoint opens exactly when the
+// security-agent stops shipping those payloads.
+//
+// Values are set at SourceDefault, so an explicit `agent_ipc` configuration
+// still wins and `IsConfigured` stays false.
+func EnableAgentIPCForSystemProbeSecurity(config pkgconfigmodel.Config) {
+	cwsFromSystemProbe := config.GetBool("runtime_security_config.enabled") &&
+		config.GetBool("runtime_security_config.direct_send_from_system_probe")
+	cspmFromSystemProbe := config.GetBool("compliance_config.enabled") &&
+		config.GetBool("compliance_config.run_in_system_probe")
+	if !cwsFromSystemProbe && !cspmFromSystemProbe {
+		return
+	}
+
+	if config.GetSource("agent_ipc.config_refresh_interval") == pkgconfigmodel.SourceDefault &&
+		config.GetInt("agent_ipc.config_refresh_interval") <= 0 {
+		config.Set("agent_ipc.config_refresh_interval", defaultSecurityAgentIPCConfigRefreshInterval, pkgconfigmodel.SourceDefault)
+	}
+
+	// A unix socket is only served on Linux (comp/api/api/apiimpl/listener) and
+	// would need a volume shared between the agent and system-probe containers,
+	// so fall back to the loopback port unless the user asked for the socket.
+	if config.GetBool("agent_ipc.use_socket") {
+		return
+	}
+	if config.GetSource("agent_ipc.port") == pkgconfigmodel.SourceDefault &&
+		config.GetInt("agent_ipc.port") <= 0 {
+		config.Set("agent_ipc.port", defaultSecurityAgentIPCPort, pkgconfigmodel.SourceDefault)
+	}
+}
+
 // pathExists returns true if the given path exists
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
