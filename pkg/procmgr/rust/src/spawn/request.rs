@@ -14,6 +14,8 @@ use crate::env::{expand_env_vars, parse_environment_file, try_expand_env_vars};
 use super::stdio::{StdioSetting, parse_stdio_setting, to_command_stdio};
 
 pub(crate) struct SpawnRequest {
+    #[cfg(windows)]
+    process_name: String,
     command: String,
     args: Vec<String>,
     env: Vec<(String, String)>,
@@ -23,8 +25,40 @@ pub(crate) struct SpawnRequest {
 }
 
 impl SpawnRequest {
+    #[cfg(windows)]
+    pub(crate) fn command(&self) -> &str {
+        &self.command
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn args(&self) -> &[String] {
+        &self.args
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn env(&self) -> &[(String, String)] {
+        &self.env
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn working_dir(&self) -> Option<&PathBuf> {
+        self.working_dir.as_ref()
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn stdout_setting(&self) -> &StdioSetting {
+        &self.stdout_setting
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn stderr_setting(&self) -> &StdioSetting {
+        &self.stderr_setting
+    }
+
     pub(crate) fn from_config(process_name: &str, config: &ProcessConfig) -> Result<Self> {
         Ok(Self {
+            #[cfg(windows)]
+            process_name: process_name.to_string(),
             command: expand_env_vars(&config.command),
             args: config.args.iter().map(|a| expand_env_vars(a)).collect(),
             env: collect_env(process_name, config)?,
@@ -42,7 +76,10 @@ impl SpawnRequest {
         cmd.args(&self.args);
         cmd.env_clear();
         #[cfg(windows)]
-        crate::platform::apply_child_baseline_env(&mut cmd);
+        {
+            crate::platform::apply_child_baseline_env(&mut cmd);
+            crate::platform::apply_legacy_scm_env(&mut cmd, &self.process_name);
+        }
         for (k, v) in &self.env {
             cmd.env(k, v);
         }

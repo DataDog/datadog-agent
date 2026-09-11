@@ -44,7 +44,10 @@ dd_agent_go_test(
         "sgc_win_test.go",
     ],
     embed = [":agent-configuration"],
-    embedsrcs = ["secret/fixtures/secret_script.py"],
+    embedsrcs = [
+        "secret/fixtures/secret_script.py",
+        "//test/new-e2e/tests/agent-configuration/sgc-embedded:fixtures/secrets.yaml",  # keep
+    ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/agentparams/filepermissions",
