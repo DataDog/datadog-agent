@@ -65,10 +65,10 @@ archive_override(
 
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
-bazel_dep(name = "gawk", version = "5.3.2.bcr.7")
-bazel_dep(name = "gazelle", version = "0.53.0")
+bazel_dep(name = "gawk", version = "5.4.0")
+bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "gcc_toolchain", version = "0.12.1")
-bazel_dep(name = "libarchive", version = "3.8.1.bcr.2")
+bazel_dep(name = "libarchive", version = "3.8.1.bcr.3")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.3.1")
@@ -78,7 +78,7 @@ bazel_dep(name = "rules_go", version = "0.63.0")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_python", version = "2.3.2")
+bazel_dep(name = "rules_python", version = "2.3.3")
 bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_prost", version = "0.74.0")
@@ -88,15 +88,6 @@ bazel_dep(name = "toolchains_llvm", version = "1.8.0")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
-
-# Temporary until gazelle cuts a release >0.53.0, to pick up build info improvements: bazel-contrib/bazel-gazelle#2407
-# (package metadata) and bazel-contrib/bazel-gazelle#2409 (checksum qualifiers)
-archive_override(
-    module_name = "gazelle",
-    sha256 = "f661997d326e2616ed6db4fbf86a99b2663fc1e4f5aa94d182603e2ec3ec0e21",
-    strip_prefix = "bazel-gazelle-48a1c5337c1c106ae9eedc5e1ae700925a61bc6f",
-    urls = ["https://github.com/bazel-contrib/bazel-gazelle/archive/48a1c5337c1c106ae9eedc5e1ae700925a61bc6f.tar.gz"],  # master as of August 31, 2026
-)
 
 single_version_override(
     module_name = "protobuf",
@@ -115,9 +106,9 @@ archive_override(
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
     ],
-    sha256 = "9f066d4ad363d049b7b6c3c7f64d73e5ba36caf065fab51848a540a49ab1bb49",
-    strip_prefix = "rules_go-f6afe7478c645595839adc211644e6e5474d9fd3",
-    urls = ["https://github.com/bazel-contrib/rules_go/archive/f6afe7478c645595839adc211644e6e5474d9fd3.tar.gz"],  # master as of September 3, 2026
+    sha256 = "7fc1406e690e6e434b91de9fc88832203dddc2f5d2615e616b9c9b960c95db55",
+    strip_prefix = "rules_go-7da903b60f6e97643166e56ecd15c46f9aa61a66",
+    urls = ["https://github.com/bazel-contrib/rules_go/archive/7da903b60f6e97643166e56ecd15c46f9aa61a66.tar.gz"],  # master as of September 10, 2026
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
@@ -159,9 +150,17 @@ find_macos_pkgbuild(
     exec_compatible_with = ["@platforms//os:macos"],
 )
 
+find_selinux_tools = use_repo_rule("//bazel/toolchains/selinux_tools:configure.bzl", "find_selinux_tools")
+
+find_selinux_tools(
+    name = "selinux_tools",
+    exec_compatible_with = ["@platforms//os:linux"],
+)
+
 register_toolchains(
     "@macos_codesign//:all",
     "@macos_pkgbuild//:all",
+    "@selinux_tools//:all",
     dev_dependency = True,
 )
 
@@ -543,7 +542,7 @@ include("//deps/agent_integrations:integrations.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.8.1")
+bazel_dep(name = "apple_support", version = "2.8.2")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
 

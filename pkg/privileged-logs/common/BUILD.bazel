@@ -28,10 +28,12 @@ dd_agent_go_test(
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),

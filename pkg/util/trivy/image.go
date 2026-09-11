@@ -127,13 +127,12 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 	}
 
 	return &v1.ConfigFile{
-		Architecture:  img.inspect.Architecture,
-		Author:        img.inspect.Author,
-		Created:       v1.Time{Time: created},
-		DockerVersion: "", // DockerVersion was removed from image.InspectResponse in Docker SDK v29
-		Config:        img.imageConfig(img.inspect.Config),
-		History:       img.history,
-		OS:            img.inspect.Os,
+		Architecture: img.inspect.Architecture,
+		Author:       img.inspect.Author,
+		Created:      v1.Time{Time: created},
+		Config:       img.imageConfig(img.inspect.Config),
+		History:      img.history,
+		OS:           img.inspect.Os,
 		RootFS: v1.RootFS{
 			Type:    img.inspect.RootFS.Type,
 			DiffIDs: diffIDs,

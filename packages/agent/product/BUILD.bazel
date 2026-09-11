@@ -54,7 +54,8 @@ pkg_filegroup(
     ] + select({
         "//packages/agent:linux_default": [
             "//pkg/discovery/module/rust:all_files",
-            "//pkg/privateactionrunner/par-control:all_files_linux",
+            "//pkg/privateactionrunner/par-control:all_files",
+            "//pkg/privateactionrunner/rshell:all_files_linux",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [
@@ -74,6 +75,7 @@ pkg_filegroup(
         ],
         "@platforms//os:windows": [
             "//packages/windows:all_files",
+            "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/procmgr/rust:all_files_windows",
         ],
         "//conditions:default": [],
@@ -125,7 +127,13 @@ pkg_files(
     name = "example_config",
     srcs = [
         "//pkg/config:agent_config",
-    ],
+    ] + select({
+        "//packages/agent:heroku_flavor": [],
+        "//conditions:default": ["//pkg/config:security_agent_example_config_src"],
+    }) + select({
+        "@platforms//os:linux": ["//pkg/config:application_monitoring_example_config_src"],
+        "//conditions:default": [],
+    }),
     prefix = select(ETC_DIR_SELECTOR),
     renames = {
         "//pkg/config:agent_config": "datadog.yaml.example",

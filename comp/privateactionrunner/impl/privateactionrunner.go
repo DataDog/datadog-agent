@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -24,7 +25,6 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
@@ -64,8 +64,18 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(privateactionrunner.PAREnabled)
 }
 
-func splitDeploymentSupported(goos string, containerized, fipsEnabled bool) bool {
-	return goos == "linux" && !containerized && !fipsEnabled
+func splitDeploymentEnabled(configEnabled, containerized bool, envValue string) bool {
+	if containerized {
+		return envValue == "true"
+	}
+	return configEnabled
+}
+
+func splitDeploymentSupported(goos string, containerized, fipsEnabled, processManagerEnabled bool) bool {
+	if fipsEnabled {
+		return false
+	}
+	return goos == "linux" || (goos == "windows" && !containerized && processManagerEnabled)
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -81,7 +91,6 @@ type Requires struct {
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
 	IPC           ipc.Component
-	Secrets       secrets.Component
 	Statsd        statsdcomp.Component
 	HelmActions   helmactions.Component
 }
@@ -100,7 +109,6 @@ type PrivateActionRunner struct {
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
 	ipc            ipc.Component
-	secretResolver secrets.Component
 	// metricsClient is the resolved metrics sink: a DogStatsD client built from
 	// config (standalone runner) or an in-process adapter (Cluster Agent).
 	metricsClient     statsdclient.ClientInterface
@@ -133,12 +141,16 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
-	if reqs.Config.GetBool(privateactionrunner.PARSplitEnabled) {
+	if splitDeploymentEnabled(
+		reqs.Config.GetBool(privateactionrunner.PARSplitEnabled),
+		configenv.IsContainerized(),
+		os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
+	) {
 		fipsEnabled := reqs.Config.GetBool("fips.enabled")
 		if buildFIPSEnabled, err := fips.Enabled(); err == nil {
 			fipsEnabled = fipsEnabled || buildFIPSEnabled
 		}
-		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized(), fipsEnabled) {
+		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized(), fipsEnabled, reqs.Config.GetBool("process_manager.enabled")) {
 			reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
 			reqs.Log.Flush()
 			return Provides{}, privateactionrunner.ErrSplitDeployment
@@ -154,7 +166,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, reqs.Secrets, metricsClient, reqs.HelmActions, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -182,7 +194,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, reqs.Secrets, metricsClient, reqs.HelmActions, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, reqs.HelmActions, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -206,7 +218,6 @@ func NewPrivateActionRunner(
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
 	ipcComp ipc.Component,
-	secretResolver secrets.Component,
 	metricsClient statsdclient.ClientInterface,
 	ha helmactions.Component,
 	ka kubeactions.Component,
@@ -220,7 +231,6 @@ func NewPrivateActionRunner(
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
 		ipc:            ipcComp,
-		secretResolver: secretResolver,
 		metricsClient:  metricsClient,
 		startChan:      make(chan struct{}),
 		ha:             ha,
@@ -238,7 +248,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
-	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity) {
+	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
@@ -325,7 +335,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka, p.secretResolver)
+	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
 
 	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
 
@@ -463,7 +473,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka, p.secretResolver)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka)
 	if err != nil {
 		return err
 	}
