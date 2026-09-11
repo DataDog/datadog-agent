@@ -49,6 +49,7 @@ func (suite *ProviderFailoverIntegrationSuite) SetupTest() {
 		2, // Only 2 pipelines to increase contention
 		&diagnostic.BufferedMessageReceiver{},
 		nil,
+		nil,
 		endpoints,
 		nil,
 		cfg,
@@ -179,6 +180,7 @@ func (suite *ProviderFailoverIntegrationSuite) TestRapidStartStopCycles() {
 		p := newProvider(
 			2,
 			&diagnostic.BufferedMessageReceiver{},
+			nil,
 			nil,
 			endpoints,
 			nil,

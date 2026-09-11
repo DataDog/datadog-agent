@@ -419,6 +419,41 @@ logs:
 	}
 }
 
+func TestParseYAMLWithTagFilters(t *testing.T) {
+	yamlConfig := []byte(`
+logs:
+  - type: file
+    path: /var/log/app.log
+    source: myapp
+    tag_filters:
+      exclude:
+        - filename:*
+        - dirname:*
+      include:
+        - filename:keep.log
+`)
+	configs, err := ParseYAML(yamlConfig)
+	assert.Nil(t, err)
+	require.Equal(t, 1, len(configs))
+	config := configs[0]
+	require.NotNil(t, config.TagFilters)
+	assert.Equal(t, []string{"filename:*", "dirname:*"}, config.TagFilters.Exclude)
+	assert.Equal(t, []string{"filename:keep.log"}, config.TagFilters.Include)
+}
+
+// TestParseJSONWithTagFilters covers the pod-annotation shape: a JSON array of LogsConfig
+// objects, as delivered by autodiscovery container labels / Kubernetes annotations.
+func TestParseJSONWithTagFilters(t *testing.T) {
+	jsonConfig := []byte(`[{"source":"myapp","service":"myapp","tag_filters":{"exclude":["container_id:*"],"include":["pod_name:keep-me"]}}]`)
+	configs, err := ParseJSON(jsonConfig)
+	assert.Nil(t, err)
+	require.Equal(t, 1, len(configs))
+	config := configs[0]
+	require.NotNil(t, config.TagFilters)
+	assert.Equal(t, []string{"container_id:*"}, config.TagFilters.Exclude)
+	assert.Equal(t, []string{"pod_name:keep-me"}, config.TagFilters.Include)
+}
+
 func TestParseJSONOrYAML(t *testing.T) {
 	tests := []struct {
 		name   string

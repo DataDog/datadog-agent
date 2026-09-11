@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/statstracker"
@@ -51,6 +53,9 @@ type LogSource struct {
 	BytesRead        *status.CountInfo
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
+	// tagFilterState is read on every message, so it's cached behind an atomic
+	// pointer rather than lock.
+	tagFilterState atomic.Pointer[TagFilterState]
 }
 
 // NewLogSource creates a new log source.
@@ -168,9 +173,64 @@ func (s *LogSource) GetInfo(key string) status.InfoProvider {
 
 // GetInfoStatus returns a primitive representation of the info for the status page
 func (s *LogSource) GetInfoStatus() map[string][]string {
+	return s.GetInfoStatusVerbose(false)
+}
+
+// GetInfoStatusVerbose returns a primitive representation of the info for the status page,
+// including verbose-only providers when verbose is true.
+func (s *LogSource) GetInfoStatusVerbose(verbose bool) map[string][]string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return s.info.Rendered()
+	return s.info.RenderedVerbose(verbose)
+}
+
+// TagFilterState is the immutable, atomically-swapped record of a source's
+// resolved tag filter, tagged with the global filter generation that produced
+// it. A source outlives pipeline rebuilds, so the generation lets a resolver
+// detect a stale cache instead of trusting resolution forever.
+type TagFilterState struct {
+	global *tagfilter.Filters
+	filter TagFilter
+}
+
+// NewTagFilterState returns the state produced by resolving against global; f
+// is nil when resolution found nothing for this source to filter.
+func NewTagFilterState(global *tagfilter.Filters, f TagFilter) *TagFilterState {
+	return &TagFilterState{global: global, filter: f}
+}
+
+// Filter returns the resolved filter. A nil state (unresolved) returns nil.
+func (t *TagFilterState) Filter() TagFilter {
+	if t == nil {
+		return nil
+	}
+	return t.filter
+}
+
+// ResolvedFor reports whether state is already resolved for global, i.e. needs
+// no re-resolution. Pointer identity of global is the generation marker.
+func (t *TagFilterState) ResolvedFor(global *tagfilter.Filters) bool {
+	return t != nil && t.global == global
+}
+
+// TagFilter returns the tag filter currently cached for this source, without
+// resolving it, and whether resolution has happened for any generation.
+func (s *LogSource) TagFilter() (TagFilter, bool) {
+	st := s.TagFilterState()
+	return st.Filter(), st != nil
+}
+
+// TagFilterState returns the currently cached resolution state, or nil if this
+// source has never been resolved. Lock-free: a single atomic load.
+func (s *LogSource) TagFilterState() *TagFilterState {
+	return s.tagFilterState.Load()
+}
+
+// CompareAndSwapTagFilterState installs newState if the cached state is still
+// old, mirroring atomic.Pointer.CompareAndSwap. Only the caller this returns
+// true for should perform one-time side effects tied to the resolution.
+func (s *LogSource) CompareAndSwapTagFilterState(old, newState *TagFilterState) bool {
+	return s.tagFilterState.CompareAndSwap(old, newState)
 }
 
 // HideFromStatus hides the source from the status output

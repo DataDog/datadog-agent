@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -99,6 +100,18 @@ func GlobalProcessingRules(coreConfig pkgconfigmodel.Reader) ([]*ProcessingRule,
 		return nil, err
 	}
 	return rules, nil
+}
+
+// GlobalTagFilters returns the compiled global tag filters and the compile report. A
+// structurally invalid config (e.g. an unknown sub-key) is returned as an error; a merely
+// malformed pattern is not — it is reported instead, so a bad global block never breaks logs.
+func GlobalTagFilters(coreConfig pkgconfigmodel.Reader) (*tagfilter.Filters, tagfilter.Report, error) {
+	var tf TagFilters
+	if err := structure.UnmarshalKey(coreConfig, "logs_config.tag_filters", &tf, structure.EnableStringUnmarshal, structure.ErrorUnused); err != nil {
+		return nil, tagfilter.Report{}, err
+	}
+	filters, report := tf.Compile()
+	return filters, report, nil
 }
 
 // HasMultiLineRule returns true if the rule set contains a multi_line rule

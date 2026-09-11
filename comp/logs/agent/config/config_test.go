@@ -52,6 +52,7 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal(30, suite.config.GetInt("logs_config.stop_grace_period"))
 	suite.Equal([]interface{}{}, suite.config.Get("logs_config.processing_rules"))
 	suite.Equal("", suite.config.GetString("logs_config.processing_rules"))
+	suite.Equal(map[string]interface{}{}, suite.config.Get("logs_config.tag_filters"))
 	suite.Equal(false, suite.config.GetBool("logs_config.use_tcp"))
 	suite.Equal(false, suite.config.GetBool("logs_config.force_use_tcp"))
 	suite.Equal(false, suite.config.GetBool("logs_config.use_http"))
@@ -156,6 +157,75 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithVali
 	suite.Equal("([A-Fa-f0-9]{28})", rule.Pattern)
 	suite.Equal("****************************", rule.ReplacePlaceholder)
 	suite.NotNil(rule.Regex)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersDefaultIsEmpty() {
+	filters, report, err := GlobalTagFilters(suite.config)
+	suite.NoError(err)
+	suite.NotNil(filters)
+	suite.True(filters.IsEmpty())
+	suite.True(report.IsEmpty())
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersNilAndEmptyString() {
+	suite.config.SetInTest("logs_config.tag_filters", nil)
+	filters, _, err := GlobalTagFilters(suite.config)
+	suite.NoError(err)
+	suite.True(filters.IsEmpty())
+
+	suite.config.SetInTest("logs_config.tag_filters", "")
+	filters, _, err = GlobalTagFilters(suite.config)
+	suite.NoError(err)
+	suite.True(filters.IsEmpty())
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersYAMLMapForm() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"exclude": []string{"container_id:*"},
+		"include": []string{"pod_name:keep-me"},
+	})
+	filters, report, err := GlobalTagFilters(suite.config)
+	suite.NoError(err)
+	suite.NotNil(filters)
+	suite.True(report.IsEmpty())
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersJSONEnvVarStringForm() {
+	suite.config.SetInTest("logs_config.tag_filters", `{"exclude":["container_id:*"]}`)
+	filters, report, err := GlobalTagFilters(suite.config)
+	suite.NoError(err)
+	suite.NotNil(filters)
+	suite.True(report.IsEmpty())
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersUnknownSubKeyErrors() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"inculde": []string{"foo:bar"},
+	})
+	filters, _, err := GlobalTagFilters(suite.config)
+	suite.Error(err)
+	suite.Nil(filters)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersProtectedKeyWarnsNotErrors() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"exclude": []string{"source:*"},
+	})
+	filters, report, err := GlobalTagFilters(suite.config)
+	suite.NoError(err)
+	suite.NotNil(filters)
+	suite.Empty(report.Rejected)
+	suite.NotEmpty(report.Warnings)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersMalformedPatternIsReportedNotErrored() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"exclude": []string{"no_colon_here"},
+	})
+	filters, report, err := GlobalTagFilters(suite.config)
+	suite.NoError(err)
+	suite.NotNil(filters)
+	suite.NotEmpty(report.Rejected)
 }
 
 func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {

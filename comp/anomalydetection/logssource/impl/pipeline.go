@@ -50,6 +50,7 @@ func newObserverPipeline(
 		inputChan,
 		outputChan,
 		processingRules,
+		nil, // Anomaly Detection is never filtered.
 		processor.PassthroughEncoder,
 		diagnostic.NewBufferedMessageReceiver(nil, hostname, cfg),
 		hostname,

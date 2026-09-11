@@ -12,11 +12,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-// Encoder turns a message into a raw byte array ready to be sent.
+// Encoder turns a message into a raw byte array ready to be sent. filter is
+// applied to the message's tags; a nil filter means unfiltered.
 type Encoder interface {
-	Encode(msg *message.Message, hostname string) error
+	Encode(msg *message.Message, hostname string, filter sources.TagFilter) error
 }
 
 type ValidUtf8Bytes []byte

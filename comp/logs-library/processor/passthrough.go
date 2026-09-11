@@ -5,7 +5,10 @@
 
 package processor
 
-import "github.com/DataDog/datadog-agent/pkg/logs/message"
+import (
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+)
 
 // PassthroughEncoder is an encoder that preserves the rendered log line in
 // GetContent() unchanged. Use this when the consumer reads GetContent()
@@ -15,7 +18,8 @@ var PassthroughEncoder Encoder = &passthroughEncoder{}
 
 type passthroughEncoder struct{}
 
-func (p *passthroughEncoder) Encode(msg *message.Message, _ string) error {
+// Encode ignores filter: anomaly detection is never filtered.
+func (p *passthroughEncoder) Encode(msg *message.Message, _ string, filter sources.TagFilter) error {
 	msg.SetEncoded(msg.GetContent())
 	return nil
 }

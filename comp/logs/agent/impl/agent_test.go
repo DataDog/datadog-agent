@@ -305,6 +305,45 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	assert.True(suite.T(), metrics.DestinationErrors.Value() > 0)
 }
 
+// TestEagerTagFilterResolution asserts that a source gets its tag filter
+// resolved (and its status block registered) as soon as it's added to the
+// agent, before any message from it ever reaches a processor.
+func (suite *AgentTestSuite) TestEagerTagFilterResolution() {
+	suite.configOverrides["logs_config.tag_filters"] = map[string]interface{}{
+		"exclude": []string{"team:*"},
+	}
+
+	endpoint := config.NewEndpoint("", "", "fake:", 0, config.EmptyPathPrefix, false)
+	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
+
+	agent, logSources, _ := createAgent(suite, endpoints)
+	agent.startPipeline()
+	defer agent.stop(context.TODO())
+
+	source := sources.NewLogSource("eager-test", &config.LogsConfig{
+		Type:       config.FileType,
+		Path:       suite.testDir + "/does-not-exist.log",
+		Identifier: "eager-test",
+	})
+	logSources.AddSource(source)
+
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 2*time.Second, func() bool {
+		_, ok := source.TagFilter()
+		return ok
+	})
+
+	resolved, ok := source.TagFilter()
+	assert.True(suite.T(), ok)
+	assert.NotNil(suite.T(), resolved)
+
+	info := source.GetInfo("Tag Filters")
+	if assert.NotNil(suite.T(), info) {
+		assert.Contains(suite.T(), strings.Join(info.Info(), " | "), "team:*")
+	}
+
+	assert.Equal(suite.T(), int64(0), metrics.LogsProcessed.Value())
+}
+
 func (suite *AgentTestSuite) TestGetPipelineProvider() {
 	metrics.ResetMissedBytesForTest()
 	defer metrics.ResetMissedBytesForTest()
