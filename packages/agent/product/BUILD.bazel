@@ -174,7 +174,7 @@ pkg_install(
 pkg_files(
     name = "dda_built_agent_binary",
     srcs = [
-        "@agent_binary//:agent",
+        "//cmd/agent",
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "bin/agent",
@@ -183,7 +183,7 @@ pkg_files(
 pkg_files(
     name = "dda_built_process_agent_binary",
     srcs = [
-        "@process_agent_binary//:process_agent",
+        "//cmd/process-agent",
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = select({
@@ -195,7 +195,7 @@ pkg_files(
 pkg_files(
     name = "dda_built_privateactionrunner_binary",
     srcs = [
-        "@privateactionrunner_binary//:privateactionrunner",
+        "//cmd/privateactionrunner",
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
@@ -204,7 +204,7 @@ pkg_files(
 pkg_files(
     name = "dda_built_trace_agent_binary",
     srcs = [
-        "@trace_agent_binary//:trace_agent",
+        "//cmd/trace-agent",
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
