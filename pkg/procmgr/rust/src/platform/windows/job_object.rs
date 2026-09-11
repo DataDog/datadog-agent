@@ -6,11 +6,23 @@
 use anyhow::Result;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-    SetInformationJobObject, TerminateJobObject,
+    AssignProcessToJobObject, CreateJobObjectW, IsProcessInJob, JobObjectExtendedLimitInformation,
+    SetInformationJobObject, TerminateJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
 };
-use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE};
+use windows_sys::Win32::System::Threading::{
+    GetCurrentProcess, OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
+};
+
+/// Returns whether the current process belongs to a Windows job object.
+///
+/// GitLab CI enables `FF_USE_WINDOWS_JOB_OBJECT`, so create-time `JOB_LIST` is rejected
+/// and the child must join our supervision job via post-create assignment instead.
+pub(crate) fn current_process_in_job() -> bool {
+    let mut in_job = 0i32;
+    let ok = unsafe { IsProcessInJob(GetCurrentProcess(), std::ptr::null_mut(), &mut in_job) };
+    ok != 0 && in_job != 0
+}
 
 pub struct JobObject {
     handle: HANDLE,
