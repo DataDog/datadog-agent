@@ -17,12 +17,21 @@ import (
 	"github.com/stretchr/testify/require"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	forwardermock "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/mock"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	storemock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 )
+
+type testHostname struct{ name string }
+
+func (h *testHostname) Get(_ context.Context) (string, error) { return h.name, nil }
+func (h *testHostname) GetSafe(_ context.Context) string      { return h.name }
+func (h *testHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{Hostname: h.name, Provider: "test"}, nil
+}
 
 // newTestEgress constructs the real egress type directly (bypassing New) so
 // tests exercise the actual tick()/buildReport() logic, with the store and
@@ -74,6 +83,23 @@ func TestTickSendsActiveIssues(t *testing.T) {
 	assert.Contains(t, reports[0].Issues, "issue-1")
 	assert.Equal(t, "test-host", reports[0].Host.Hostname)
 	assert.Equal(t, eventType, reports[0].EventType)
+}
+
+func TestTickRetriesMissingHostname(t *testing.T) {
+	store := storemock.New(t, storemock.WithIssue(&healthplatformpayload.Issue{Id: "issue-1"}))
+	var reports []*healthplatformpayload.HealthReport
+	fwd := forwardermock.New(t, forwardermock.WithSendFunc(func(_ context.Context, r *healthplatformpayload.HealthReport) error {
+		reports = append(reports, r)
+		return nil
+	}))
+	e := newTestEgress(t, store, fwd)
+	e.hostname = ""
+	e.hostnameProvider = &testHostname{name: " recovered-host "}
+
+	e.tick()
+
+	require.Len(t, reports, 1)
+	assert.Equal(t, "recovered-host", reports[0].Host.Hostname)
 }
 
 func TestTickSkipsWhenEmpty(t *testing.T) {
