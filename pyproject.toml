@@ -17,6 +17,7 @@ exclude = [
     "dev",
     "third_party",
     "cmd/system-probe/subcommands/usm/debug_scripts", # Standalone scripts for customer debugging
+    "deps/gstatus/glustercli_src", # Vendored glustercli/glusterlib source (upstream GPLv2/LGPLv3+)
 ]
 line-length = 120
 
