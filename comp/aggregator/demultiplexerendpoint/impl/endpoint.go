@@ -61,7 +61,7 @@ func NewComponent(reqs Requires) Provides {
 
 func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
 	if demuxendpoint.dogstatsdOnDataPlane {
-		httputils.SetJSONError(w, errDogstatsdOnDataPlane, http.StatusServiceUnavailable)
+		httputils.SetJSONError(w, errDogstatsdOnDataPlane, http.StatusNotFound)
 		return
 	}
 

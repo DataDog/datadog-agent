@@ -19,6 +19,6 @@ func TestDumpDogstatsdContextsRejectsWhenDataPlaneOwnsDogstatsd(t *testing.T) {
 
 	endpoint.dumpDogstatsdContexts(recorder, httptest.NewRequest(http.MethodPost, "/dogstatsd-contexts-dump", nil))
 
-	require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	require.Equal(t, http.StatusNotFound, recorder.Code)
 	require.Contains(t, recorder.Body.String(), "Agent Data Plane")
 }
