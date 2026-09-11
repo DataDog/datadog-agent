@@ -547,7 +547,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reload_modified_result_contains_service() -> anyhow::Result<()> {
+    async fn test_reload_modified_01_result_contains_service() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
@@ -572,7 +572,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reload_modified_updates_stored_config() -> anyhow::Result<()> {
+    async fn test_reload_modified_02_updates_stored_config() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
@@ -591,7 +591,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reload_modified_restarts_running_process() -> anyhow::Result<()> {
+    async fn test_reload_modified_03_restarts_running_process() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
