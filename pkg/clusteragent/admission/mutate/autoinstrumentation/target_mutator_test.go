@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -70,6 +69,13 @@ var (
 
 	imageResolver = imageresolver.NewNoOpResolver()
 )
+
+type mockDDIProvider map[ssi.WorkloadTarget]ssi.DDITarget
+
+func (m mockDDIProvider) GetTarget(target ssi.WorkloadTarget) (ssi.DDITarget, bool) {
+	t, ok := m[target]
+	return t, ok
+}
 
 func TestHasAllowedTracerConfigPrefix(t *testing.T) {
 	require.True(t, hasAllowedTracerConfigPrefix("DD_PROFILING_ENABLED"))
@@ -160,7 +166,7 @@ func TestMutatePod(t *testing.T) {
 		configOverrides             map[string]any
 		in                          *corev1.Pod
 		namespaces                  []workloadmeta.KubernetesMetadata
-		ddiTargetEntries            map[ssi.WorkloadTarget]ssi.DDITarget
+		ddiTargetEntries            mockDDIProvider
 		expectedEnv                 map[string]string
 		expectedAnnotations         map[string]string
 		expectedInitContainerImages []string
@@ -375,16 +381,11 @@ func TestMutatePod(t *testing.T) {
 				wmeta.Set(&ns)
 			}
 
-			var store *instrumentationhandlers.DDITargetStore
-			if len(test.ddiTargetEntries) > 0 {
-				store = instrumentationhandlers.NewDDITargetStore()
-				for workload, entry := range test.ddiTargetEntries {
-					store.UpsertTarget(workload, entry)
-				}
+			if test.ddiTargetEntries == nil {
+				test.ddiTargetEntries = make(mockDDIProvider)
 			}
-
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, store)
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, test.ddiTargetEntries)
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -811,9 +812,9 @@ func TestGetTargetFromCRD(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			store := instrumentationhandlers.NewDDITargetStore()
-			store.UpsertTarget(test.workload, test.entry)
-			mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, store)
+			mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, mockDDIProvider{
+				test.workload: test.entry,
+			})
 			require.NoError(t, err)
 
 			actual := mutator.getTargetFromDDI(test.pod)
@@ -847,9 +848,9 @@ func TestGetTargetPrecedenceWithCRD(t *testing.T) {
 		fx.Provide(func() coreconfig.Component { return coreconfig.NewMock(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	store := instrumentationhandlers.NewDDITargetStore()
+	store := make(mockDDIProvider)
 	workload := ssi.WorkloadTarget{Kind: "Deployment", Namespace: "application", Name: "web"}
-	store.UpsertTarget(workload, ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, true, map[string]string{"python": "v4"}, nil))
+	store[workload] = ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, true, map[string]string{"python": "v4"}, nil)
 	mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, store)
 	require.NoError(t, err)
 	require.NoError(t, mutator.SetRemotePolicies([]policies.Policy{{
@@ -878,10 +879,10 @@ func TestGetTargetPrecedenceWithCRD(t *testing.T) {
 	require.NotNil(t, target)
 	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, target.libVersions, "DDI should win over remote config")
 
-	store.UpsertTarget(workload, ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, false, nil, nil))
+	store[workload] = ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, false, nil, nil)
 	require.Nil(t, mutator.getTarget(pod), "CRD opt-out should block static and remote config fallback")
 
-	store.UpsertTarget(workload, ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, true, map[string]string{"python": "v4"}, nil))
+	store[workload] = ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, true, map[string]string{"python": "v4"}, nil)
 	mutator.ClearRemotePolicies()
 	target = mutator.getTarget(pod)
 	require.NotNil(t, target)
