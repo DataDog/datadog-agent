@@ -649,6 +649,8 @@ metrics:
       aggregation: sensor_data
     tagsets:
       - device
+    custom_tags:
+      - fan_index
     optional: true
     support:
       unsupported_architectures: []
@@ -2006,7 +2008,7 @@ metrics:
     validator:
       nvidia_smi: true
       value_tolerance:
-        absolute: 1000
+        relative: 1
     support:
       unsupported_architectures: []
       device_modes:

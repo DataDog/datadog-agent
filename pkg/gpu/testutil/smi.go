@@ -101,18 +101,18 @@ func CollectSmiSample(deviceID string, options ...SmiCollectionOption) (*SmiSamp
 		return nil, fmt.Errorf("bad gpu index %q: %w", values[0], err)
 	}
 	sample := &SmiSample{
-		Index:            idx,
-		PowerWatts:       parseFloatField(values[1]),
-		GPUTempC:         parseFloatField(values[2]),
-		MemTempC:         parseFloatField(values[3]),
-		SMUtilPct:        parseFloatField(values[4]),
-		MemUtilPct:       parseFloatField(values[5]),
-		EncoderPct:       parseFloatField(values[6]),
-		DecoderPct:       parseFloatField(values[7]),
-		JPEGPct:          parseFloatField(values[8]),
-		OFAPct:           parseFloatField(values[9]),
-		MemClockMHz:      parseFloatField(values[10]),
-		ProcClockMHz:     parseFloatField(values[11]),
+		Index:        idx,
+		PowerWatts:   parseFloatField(values[1]),
+		GPUTempC:     parseFloatField(values[2]),
+		MemTempC:     parseFloatField(values[3]),
+		SMUtilPct:    parseFloatField(values[4]),
+		MemUtilPct:   parseFloatField(values[5]),
+		EncoderPct:   parseFloatField(values[6]),
+		DecoderPct:   parseFloatField(values[7]),
+		JPEGPct:      parseFloatField(values[8]),
+		OFAPct:       parseFloatField(values[9]),
+		MemClockMHz:  parseFloatField(values[10]),
+		ProcClockMHz: parseFloatField(values[11]),
 	}
 	if config.includeGPM {
 		sample.GraphicsActivity = parseFloatField(values[12])
