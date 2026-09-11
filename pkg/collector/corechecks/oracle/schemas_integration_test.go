@@ -147,7 +147,6 @@ func setupSchemaFixtures(t *testing.T) string {
 }
 
 // ALTER SESSION and subsequent DDL must use the same physical connection.
-
 func setupPDBFixture(t *testing.T, sysCheck Check) string {
 	ctx := context.Background()
 
@@ -219,6 +218,16 @@ func tableEvents(events []schemaEvent) []schemaEvent {
 	return out
 }
 
+func viewEvents(events []schemaEvent) []schemaEvent {
+	var out []schemaEvent
+	for _, e := range events {
+		if e.Kind == "oracle_views" {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 func findTable(events []schemaEvent, owner, name string) *schemaTable {
 	for _, e := range events {
 		for _, container := range e.Metadata {
@@ -250,6 +259,24 @@ func findTableInContainer(events []schemaEvent, nameSubstr, owner, name string) 
 				for _, table := range schema.Tables {
 					if strings.EqualFold(table.Name, name) {
 						return table
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func findView(events []schemaEvent, owner, name string) *viewObject {
+	for _, e := range events {
+		for _, container := range e.Metadata {
+			for _, schema := range container.Schemas {
+				if !strings.EqualFold(schema.Name, owner) {
+					continue
+				}
+				for _, view := range schema.Views {
+					if strings.EqualFold(view.Name, name) {
+						return view
 					}
 				}
 			}
@@ -520,6 +547,44 @@ func TestSchemaCollectionRelationKinds(t *testing.T) {
 	assert.Equal(t, "RANGE", part.Partitioned.PartitioningType)
 	assert.EqualValues(t, 2, part.Partitioned.NumPartitions)
 	assert.Equal(t, "RANGE (CREATED_AT)", strings.ToUpper(part.Partitioned.PartitionKey))
+}
+
+func TestSchemaCollectionViews(t *testing.T) {
+	setupSchemaFixtures(t)
+	all := collectSchemaEvents(t)
+
+	views := viewEvents(all)
+	require.NotEmpty(t, views, "no oracle_views payload was emitted")
+
+	view := findView(views, schemaTestUser, "dd_orders_view")
+	require.NotNil(t, view, "the fixture view was not collected")
+	assert.Equal(t, "Schema collection view fixture", view.Comment)
+	assert.Contains(t, strings.ToUpper(view.Definition), "DD_ORDERS")
+	assert.NotEmpty(t, view.ID)
+
+	columns := columnMap(view.Columns)
+	require.Contains(t, columns, "ORDER_ID")
+	require.Contains(t, columns, "STATUS")
+}
+
+func TestSchemaCollectionViewsRespectTableFilters(t *testing.T) {
+	setupSchemaFixtures(t)
+
+	events := collectSchemaEventsWithConfig(t,
+		"schemas:\n  enabled: true\n  collection_interval: 1\n  exclude_tables:\n    - \"^DD_ORDERS_VIEW$\"\n")
+
+	views := viewEvents(events)
+	require.NotEmpty(t, views, "no oracle_views payload was emitted")
+
+	assert.Nil(t, findView(views, schemaTestUser, "dd_orders_view"),
+		"a view matching exclude_tables must be filtered out of the oracle_views payload")
+	assert.NotNil(t, findView(views, schemaTestUser, "dd_reports_view"),
+		"a view not matching exclude_tables must still be collected")
+
+	for _, e := range views {
+		assert.False(t, e.Truncated,
+			"a view removed by exclude_tables must not be reported as a max_views truncation")
+	}
 }
 
 func TestSchemaCollectionMultitenancy(t *testing.T) {

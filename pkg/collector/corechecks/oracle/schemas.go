@@ -638,6 +638,7 @@ type schemaCollector struct {
 	kind                string
 	emit                schemaEventEmitter
 	details             map[tableKey]*tableDetails
+	views               map[tableKey]*viewDetails
 	owners              map[ownerKey]string
 	containers          map[int64]string
 	started             map[int64]struct{}
@@ -655,14 +656,23 @@ type schemaCollector struct {
 
 	currentSchema *schemaObject
 	currentTable  *schemaTable
+	currentView   *viewObject
 }
 
 func newSchemaCollector(c *Check, emit payloadEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
 	return newSchemaEventCollector(c, schemaPayloadEmitter(c, emit), details, owners, containers)
 }
 
+func newViewCollector(c *Check, emit payloadEmitter, views map[tableKey]*viewDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
+	return newViewEventCollector(c, schemaPayloadEmitter(c, emit), views, owners, containers)
+}
+
 func newSchemaEventCollector(c *Check, emit schemaEventEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
 	return &schemaCollector{check: c, kind: "oracle_databases", emit: emit, details: details, owners: owners, containers: containers, conID: -1, started: make(map[int64]struct{})}
+}
+
+func newViewEventCollector(c *Check, emit schemaEventEmitter, views map[tableKey]*viewDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
+	return &schemaCollector{check: c, kind: "oracle_views", emit: emit, views: views, owners: owners, containers: containers, conID: -1, started: make(map[int64]struct{})}
 }
 
 func (s *schemaCollector) startContainer(conID int64) {
@@ -697,6 +707,7 @@ func (s *schemaCollector) reset() {
 	s.tableCount = 0
 	s.currentSchema = nil
 	s.currentTable = nil
+	s.currentView = nil
 }
 
 func (s *schemaCollector) baseEvent() schemaEvent {
@@ -752,6 +763,52 @@ func (s *schemaCollector) useSchema(conID int64, owner string) {
 	}
 	s.schemas = append(s.schemas, s.currentSchema)
 	s.currentTable = nil
+	s.currentView = nil
+}
+
+func (s *schemaCollector) addView(r schemaRowDB) {
+	if r.ConID != s.conID {
+		s.startContainer(r.ConID)
+	}
+
+	// Flush only at view boundaries to keep all columns in one payload.
+	newView := s.currentSchema == nil || s.currentSchema.Name != r.Owner || s.currentView == nil || s.currentView.Name != r.TableName
+	if newView {
+		s.maybeFlush(false)
+	}
+
+	s.useSchema(r.ConID, r.Owner)
+
+	if newView {
+		v := &viewObject{Name: r.TableName, Owner: r.Owner}
+		if d := s.views[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}]; d != nil {
+			v.ID = d.ID
+			v.Definition = d.Definition
+			v.Comment = d.Comment
+			v.CreateDate = d.CreateDate
+			v.ModifyDate = d.ModifyDate
+		}
+		s.currentSchema.Views = append(s.currentSchema.Views, v)
+		s.currentView = v
+		s.tableCount++
+		s.tablesTotal++
+
+		if r.TotalTables.Valid && r.TotalTables.Int64 > int64(s.check.config.Schemas.MaxViews) {
+			s.truncated = true
+		}
+		if r.TotalColumns.Valid && r.TotalColumns.Int64 > int64(s.check.config.Schemas.MaxColumns) {
+			s.truncated = true
+		}
+	}
+
+	col := schemaColumn{
+		Name:      r.ColumnName,
+		DataType:  dataType(r),
+		Nullable:  r.Nullable == "Y",
+		Virtual:   r.VirtualColumn == "YES",
+		Invisible: r.HiddenColumn == "YES",
+	}
+	s.currentView.Columns = append(s.currentView.Columns, col)
 }
 
 func (s *schemaCollector) add(r schemaRowDB) {
@@ -862,7 +919,6 @@ func (s *schemaCollector) add(r schemaRowDB) {
 }
 
 // Call only after successful collection; the final payload marks the snapshot complete.
-
 func (s *schemaCollector) finish() {
 	if s.conID == -1 {
 		return
@@ -882,6 +938,8 @@ func (s *schemaCollector) emitEmptyContainers(containers map[int64]string) {
 	}
 }
 
+// Oracle reports type attributes separately. DATA_LENGTH is always bytes, so character
+// semantics must use CHAR_LENGTH.
 func dataType(r schemaRowDB) string {
 	if !r.DataType.Valid {
 		return ""
@@ -975,6 +1033,40 @@ func tableProperties(r schemaRowDB) []string {
 
 // DATA_DEFAULT_VC exists from 23ai. Earlier versions require the LONG DATA_DEFAULT column,
 // which cannot be passed to a SQL function and is therefore truncated in Go.
+func (c *Check) defaultValueColumn() string {
+	major, _, _ := strings.Cut(c.dbVersion, ".")
+	if n, err := strconv.Atoi(major); err == nil && n >= 23 {
+		return "c.data_default_vc"
+	}
+	return "c.data_default"
+}
+
+// SEARCH_CONDITION_VC exists from 12c; earlier versions require LONG SEARCH_CONDITION.
+func (c *Check) conditionColumn() string {
+	major, _, _ := strings.Cut(c.dbVersion, ".")
+	if n, err := strconv.Atoi(major); err == nil && n >= 12 {
+		return "c.search_condition_vc"
+	}
+	return "c.search_condition"
+}
+
+// Function-based index expressions use the same 23ai _VC cutover under the tc alias.
+func (c *Check) indexExpressionColumn() string {
+	major, _, _ := strings.Cut(c.dbVersion, ".")
+	if n, err := strconv.Atoi(major); err == nil && n >= 23 {
+		return "tc.data_default_vc"
+	}
+	return "tc.data_default"
+}
+
+// Cap fallback LONG values at 4000 characters without splitting multi-byte characters.
+func truncateLongValue(s string) string {
+	r := []rune(s)
+	if len(r) <= 4000 {
+		return s
+	}
+	return string(r[:4000])
+}
 
 type ownerKey struct {
 	conID int64
@@ -1168,42 +1260,6 @@ func (c *Check) queryMetadata(ctx context.Context, query string, scan func(*sqlx
 }
 
 // Missing or version-incompatible optional detail views do not fail collection.
-
-func (c *Check) defaultValueColumn() string {
-	major, _, _ := strings.Cut(c.dbVersion, ".")
-	if n, err := strconv.Atoi(major); err == nil && n >= 23 {
-		return "c.data_default_vc"
-	}
-	return "c.data_default"
-}
-
-// SEARCH_CONDITION_VC exists from 12c; earlier versions require LONG SEARCH_CONDITION.
-func (c *Check) conditionColumn() string {
-	major, _, _ := strings.Cut(c.dbVersion, ".")
-	if n, err := strconv.Atoi(major); err == nil && n >= 12 {
-		return "c.search_condition_vc"
-	}
-	return "c.search_condition"
-}
-
-// Function-based index expressions use the same 23ai _VC cutover under the tc alias.
-func (c *Check) indexExpressionColumn() string {
-	major, _, _ := strings.Cut(c.dbVersion, ".")
-	if n, err := strconv.Atoi(major); err == nil && n >= 23 {
-		return "tc.data_default_vc"
-	}
-	return "tc.data_default"
-}
-
-// Cap fallback LONG values at 4000 characters without splitting multi-byte characters.
-func truncateLongValue(s string) string {
-	r := []rune(s)
-	if len(r) <= 4000 {
-		return s
-	}
-	return string(r[:4000])
-}
-
 func (c *Check) queryDetailFilters(ctx context.Context, name, template string, filters []string, scan func(*sqlx.Rows) error) {
 	for _, filter := range filters {
 		query := strings.Replace(template, "/*RELATIONS*/", filter, 1)
@@ -1557,6 +1613,67 @@ func (c *Check) tableDetails(ctx context.Context, allowed map[tableKey]struct{},
 	return details
 }
 
+func (c *Check) viewDetails(ctx context.Context, allowed map[tableKey]struct{}) map[tableKey]*viewDetails {
+	details := make(map[tableKey]*viewDetails)
+	at := func(conID int64, owner, name string) *viewDetails {
+		k := tableKey{conID: conID, owner: owner, table: name}
+		if _, ok := allowed[k]; !ok {
+			return &viewDetails{}
+		}
+		if details[k] == nil {
+			details[k] = &viewDetails{}
+		}
+		return details[k]
+	}
+
+	c.queryDetails(ctx, "view definitions", viewDefinitionsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "view_name"}, func(rows *sqlx.Rows) error {
+		var conID int64
+		var owner, name string
+		var text sql.NullString
+		if err := rows.Scan(&conID, &owner, &name, &text); err != nil {
+			return err
+		}
+		at(conID, owner, name).Definition = text.String
+		return nil
+	})
+
+	c.queryDetails(ctx, "view objects", viewObjectsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "object_name"}, func(rows *sqlx.Rows) error {
+		var conID int64
+		var owner, name string
+		var objectID sql.NullInt64
+		var created, lastDDL sql.NullTime
+		if err := rows.Scan(&conID, &owner, &name, &objectID, &created, &lastDDL); err != nil {
+			return err
+		}
+		d := at(conID, owner, name)
+		if objectID.Valid {
+			d.ID = strconv.FormatInt(objectID.Int64, 10)
+		}
+		if created.Valid {
+			d.CreateDate = created.Time.UTC().Format(time.RFC3339)
+		}
+		if lastDDL.Valid {
+			d.ModifyDate = lastDDL.Time.UTC().Format(time.RFC3339)
+		}
+		return nil
+	})
+
+	c.queryDetails(ctx, "view comments", tableCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
+		var conID int64
+		var owner, name, comment string
+		if err := rows.Scan(&conID, &owner, &name, &comment); err != nil {
+			return err
+		}
+		if d, ok := details[tableKey{conID: conID, owner: owner, table: name}]; ok {
+			d.Comment = comment
+		}
+		return nil
+	})
+
+	return details
+}
+
+// Buffering all rows before emission prevents query or scan errors from producing partial snapshots.
 func (c *Check) fetchMetadataRows(ctx context.Context, template string, ownerLists []string, owners map[ownerKey]string, extra map[string]string) ([]schemaRowDB, error) {
 	var all []schemaRowDB
 	for _, ownerList := range ownerLists {
@@ -1634,6 +1751,36 @@ func columnKeysFromRows(rows []schemaRowDB) map[columnKey]struct{} {
 	return keys
 }
 
+func (c *Check) ViewCollection(ctx context.Context, emit schemaEventEmitter, owners map[ownerKey]string, names []string, containers map[int64]string) error {
+	ownerLists := ownerListChunks(names)
+
+	extra := map[string]string{
+		"/*TABLE_FILTERS*/": regexSQLClauses("v.view_name", c.config.Schemas.IncludeTables, c.config.Schemas.ExcludeTables),
+		"/*MAX_VIEWS*/":     strconv.Itoa(c.config.Schemas.MaxViews),
+		"/*MAX_COLUMNS*/":   strconv.Itoa(c.config.Schemas.MaxColumns),
+	}
+	rows, err := c.fetchMetadataRows(ctx, viewsQueryTemplate, ownerLists, owners, extra)
+	if err != nil {
+		return fmt.Errorf("failed to query views: %w", err)
+	}
+	rows, cappedContainers := capMetadataRows(rows, c.config.Schemas.MaxViews)
+
+	collector := newViewEventCollector(c, emit, c.viewDetails(ctx, tableKeysFromRows(rows)), owners, containers)
+	collector.truncatedContainers = cappedContainers
+	for _, r := range rows {
+		collector.addView(r)
+	}
+	collector.finish()
+	collector.emitEmptyContainers(containers)
+
+	for conID := range cappedContainers {
+		log.Warnf("%s view collection stopped at max_views=%d for container %d; some views were not collected",
+			c.logPrompt, c.config.Schemas.MaxViews, conID)
+	}
+	log.Debugf("%s view collection sent %d views", c.logPrompt, collector.tablesTotal)
+	return nil
+}
+
 func schemaCollectionVersionSupported(version string) bool {
 	major, _, _ := strings.Cut(version, ".")
 	n, err := strconv.Atoi(major)
@@ -1673,6 +1820,9 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	if len(names) == 0 {
 		log.Debugf("%s no user schemas to collect, sending empty snapshot", c.logPrompt)
 		newSchemaEventCollector(c, buffer, nil, owners, containers).emitEmptyContainers(containers)
+		if c.config.Schemas.ViewsEnabled() {
+			newViewEventCollector(c, buffer, nil, owners, containers).emitEmptyContainers(containers)
+		}
 		if err := emitSchemaSnapshotEvents(events, true, emit); err != nil {
 			return err
 		}
@@ -1704,6 +1854,16 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 
 	log.Debugf("%s schema collection sent %d tables", c.logPrompt, collector.tablesTotal)
 
+	if c.config.Schemas.ViewsEnabled() {
+		if err := c.ViewCollection(ctx, buffer, owners, names, containers); err != nil {
+			log.Warnf("%s view collection failed, sending an incomplete table snapshot: %s", c.logPrompt, err)
+			if emitErr := emitSchemaSnapshotEvents(events, false, emit); emitErr != nil {
+				return emitErr
+			}
+			sender.Commit()
+			return nil
+		}
+	}
 	if err := emitSchemaSnapshotEvents(events, true, emit); err != nil {
 		return err
 	}
