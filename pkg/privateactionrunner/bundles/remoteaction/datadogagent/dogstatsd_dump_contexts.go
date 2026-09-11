@@ -22,7 +22,6 @@ type DumpDogstatsdContextsHandler struct {
 	ipcClient ipc.HTTPClient
 }
 
-// NewDumpDogstatsdContextsHandler creates a new DumpDogstatsdContextsHandler.
 func NewDumpDogstatsdContextsHandler(client ipc.HTTPClient) *DumpDogstatsdContextsHandler {
 	return &DumpDogstatsdContextsHandler{ipcClient: client}
 }
