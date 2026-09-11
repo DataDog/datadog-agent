@@ -22,6 +22,7 @@ unless do_repackage?
   host_distribution = ""
   if not Omnibus::Config.host_distribution().nil?
       host_distribution = "--//packages/agent:host_distribution=#{Omnibus::Config.host_distribution()}"
+  end
 
   build do
       command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
