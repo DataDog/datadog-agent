@@ -45,13 +45,13 @@ var supportedAPMLanguages = map[string]struct{}{
 // APMHandler translates DatadogInstrumentation APM sections into SSI admission
 // webhook configuration.
 type APMHandler struct {
-	ddiTargets *DDITargetStore
+	apmStore *APMTargetStore
 }
 
 // NewAPMHandler returns the APM DatadogInstrumentation handler.
 func NewAPMHandler(deps *Deps) *APMHandler {
 	return &APMHandler{
-		ddiTargets: deps.DDITargetStore,
+		apmStore: deps.APMTargetStore,
 	}
 }
 
@@ -122,7 +122,7 @@ func (h *APMHandler) Handle(_ context.Context, event instrumentation.EventType, 
 
 	crRef := types.NamespacedName{Namespace: cr.Namespace, Name: cr.Name}
 	if event == instrumentation.EventDelete {
-		h.ddiTargets.DeleteByCR(crRef)
+		h.apmStore.DeleteByCR(crRef)
 		return instrumentation.HandlerStatus{
 			Type:    apmReadyConditionType,
 			Status:  metav1.ConditionTrue,
@@ -137,7 +137,7 @@ func (h *APMHandler) Handle(_ context.Context, event instrumentation.EventType, 
 		Name:      cr.Spec.TargetRef.Name,
 	}
 	ddiTarget := ddiTargetFromCR(crRef, cr.Spec.Config.APM)
-	h.ddiTargets.UpsertTarget(target, ddiTarget)
+	h.apmStore.UpsertTarget(target, ddiTarget)
 
 	return instrumentation.HandlerStatus{
 		Type:    apmReadyConditionType,

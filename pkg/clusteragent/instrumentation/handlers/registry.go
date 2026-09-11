@@ -25,9 +25,9 @@ type Deps struct {
 	// Shared with the endpoint slices CR config provider that resolves templates into endpoint configs.
 	ServiceCheckTemplateStore *ServiceCheckTemplateStore
 
-	// DDITargetStore is used as a shared store for APM configuration produced by the
+	// APMTargetStore is used as a shared store for APM configuration produced by the
 	// DDI handler and consumed by the auto-instrumentation admission webhook.
-	DDITargetStore *DDITargetStore
+	APMTargetStore *APMTargetStore
 }
 
 // DefaultHandlers returns the product handlers registered for the shared controller.

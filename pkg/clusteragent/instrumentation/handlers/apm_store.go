@@ -15,23 +15,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ssi"
 )
 
-// DDITargetStore holds DDI targets indexed by workload target and CR.
-type DDITargetStore struct {
+// APMTargetStore holds DDI apm targets indexed by the workload they target.
+type APMTargetStore struct {
 	mu         sync.RWMutex
 	targets    map[ssi.WorkloadTarget]ssi.DDITarget
 	targetByCR map[types.NamespacedName]ssi.WorkloadTarget
 }
 
-// NewDDITargetStore returns an empty DDITargetStore.
-func NewDDITargetStore() *DDITargetStore {
-	return &DDITargetStore{
+// NewAPMTargetStore returns an empty APMTargetStore.
+func NewAPMTargetStore() *APMTargetStore {
+	return &APMTargetStore{
 		targets:    make(map[ssi.WorkloadTarget]ssi.DDITarget),
 		targetByCR: make(map[types.NamespacedName]ssi.WorkloadTarget),
 	}
 }
 
 // UpsertTarget stores the DDI target for a workload.
-func (s *DDITargetStore) UpsertTarget(workload ssi.WorkloadTarget, target ssi.DDITarget) {
+func (s *APMTargetStore) UpsertTarget(workload ssi.WorkloadTarget, target ssi.DDITarget) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -39,8 +39,8 @@ func (s *DDITargetStore) UpsertTarget(workload ssi.WorkloadTarget, target ssi.DD
 	s.targetByCR[target.CR] = workload
 }
 
-// DeleteByCR removes the entry sourced from the given CR, if present.
-func (s *DDITargetStore) DeleteByCR(cr types.NamespacedName) {
+// DeleteByCR removes the entry sourced from the given CR name, if present.
+func (s *APMTargetStore) DeleteByCR(cr types.NamespacedName) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -56,7 +56,7 @@ func (s *DDITargetStore) DeleteByCR(cr types.NamespacedName) {
 }
 
 // GetTarget returns the DDI target for a workload, if any.
-func (s *DDITargetStore) GetTarget(workload ssi.WorkloadTarget) (ssi.DDITarget, bool) {
+func (s *APMTargetStore) GetTarget(workload ssi.WorkloadTarget) (ssi.DDITarget, bool) {
 	if s == nil {
 		return ssi.DDITarget{}, false
 	}
