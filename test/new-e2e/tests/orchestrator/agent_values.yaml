@@ -4,6 +4,8 @@ datadog:
   orchestratorExplorer:
     customResources:
       - datadoghq.com/v1alpha1/datadogmetrics
+      # Grant RBAC without adding KServe to the custom orchestrator config below.
+      - serving.kserve.io/v1alpha1/llminferenceservices
 agents:
   useHostNetwork: true
 

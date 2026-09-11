@@ -47,6 +47,7 @@ const (
 	EKSAPIGroup             = "eks.amazonaws.com"
 	DynamoAPIGroup          = "nvidia.com"
 	KubeRayAPIGroup         = "ray.io"
+	KServeAPIGroup          = "serving.kserve.io"
 
 	// Gateway API
 	GatewayAPIGroup = "gateway.networking.k8s.io"
@@ -571,6 +572,20 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(KubeRayAPIGroup, "raycronjobs", isOOTBCRDEnabled, "v1"),
 		newBuiltinCRDConfig(KubeRayAPIGroup, "rayjobs", isOOTBCRDEnabled, "v1", "v1alpha1"),
 		newBuiltinCRDConfig(KubeRayAPIGroup, "rayservices", isOOTBCRDEnabled, "v1", "v1alpha1"),
+
+		// KServe resources
+		newBuiltinCRDConfig(KServeAPIGroup, "clusterstoragecontainers", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "llminferenceserviceconfigs", isOOTBCRDEnabled, "v1alpha2", "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "llminferenceservices", isOOTBCRDEnabled, "v1alpha2", "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelcaches", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnamespacecaches", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnodegroups", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnodes", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "clusterservingruntimes", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "inferencegraphs", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "inferenceservices", isOOTBCRDEnabled, "v1beta1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "servingruntimes", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "trainedmodels", isOOTBCRDEnabled, "v1alpha1"),
 
 		// Gateway API resources
 		newBuiltinCRDConfig(GatewayAPIGroup, "gateways", isGatewayAPIEnabled, "v1", "v1beta1"),
