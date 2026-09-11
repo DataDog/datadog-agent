@@ -259,28 +259,3 @@ func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool, ddot
 		state.AssertFileExists(filepath.Join("/opt/datadog-packages/datadog-agent/stable/processes.d", process), 0644, "dd-agent", "dd-agent")
 	}
 }
-
-// Verify ddot service running
-func (s *packageDDOTSuite) assertDDOTUnits(state host.State, oldUnits bool) {
-	state.AssertUnitsLoaded(ddotUnit)
-	state.AssertUnitsRunning(ddotUnit)
-
-	systemdPath := "/etc/systemd/system"
-	if oldUnits {
-		pkgManager := s.host.GetPkgManager()
-		switch pkgManager {
-		case "apt":
-			if s.os.Flavor == e2eos.Ubuntu {
-				systemdPath = "/usr/lib/systemd/system"
-			} else {
-				systemdPath = "/lib/systemd/system"
-			}
-		case "yum", "zypper":
-			systemdPath = "/usr/lib/systemd/system"
-		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
-		}
-	}
-
-	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(systemdPath, ddotUnit))
-}
