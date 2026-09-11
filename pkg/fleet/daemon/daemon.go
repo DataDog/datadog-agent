@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -587,7 +586,7 @@ func (d *daemonImpl) SetProcessManager(ctx context.Context, enabled bool) (err e
 	defer func() { span.Finish(err) }()
 
 	log.Infof("Daemon: Setting process manager enabled=%t", enabled)
-	if err = packages.SetProcessManager(ctx, enabled); err != nil {
+	if err = d.installer(d.env).SetProcessManager(ctx, enabled); err != nil {
 		return fmt.Errorf("could not set process manager enabled: %w", err)
 	}
 	d.env.ProcessManagerEnabled = enabled

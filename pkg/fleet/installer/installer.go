@@ -57,6 +57,7 @@ type Installer interface {
 	InstallExperiment(ctx context.Context, url string) error
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
+	SetProcessManager(ctx context.Context, enabled bool) error
 
 	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
@@ -530,6 +531,13 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 		Version:          state.Stable,
 		InstallerVersion: version.AgentVersion,
 	})
+}
+
+// SetProcessManager switches which service manager supervises the agent's processes.
+func (i *installerImpl) SetProcessManager(ctx context.Context, enabled bool) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+	return packages.SetProcessManager(ctx, enabled)
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
