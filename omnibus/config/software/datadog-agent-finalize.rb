@@ -57,6 +57,16 @@ build do
             delete "#{install_dir}/embedded/lib/libdbus-1.a"
             delete "#{install_dir}/embedded/include/dbus-1.0"
             delete "#{install_dir}/embedded/lib/dbus-1.0/include"
+
+            # Remove build-time development headers that are not needed at runtime.
+            # The Python headers are kept so users can `pip install` packages with C
+            # extensions at runtime; the systemd headers are already excluded at the
+            # project level. Everything else under embedded/include is only used
+            # during the omnibus build to compile the agent and its embedded libs.
+            Dir.glob("#{install_dir}/embedded/include/*").each do |dir|
+                next if File.basename(dir).start_with?("python3.")
+                delete dir
+            end
         end
 
         # TODO: Rather than move these, let's install them to the right place to start

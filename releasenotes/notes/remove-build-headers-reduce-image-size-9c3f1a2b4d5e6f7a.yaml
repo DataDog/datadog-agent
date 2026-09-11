@@ -1,0 +1,9 @@
+---
+other:
+  - |
+    Remove build-time development headers from the ``embedded/include`` directory
+    in Linux and macOS packages. These headers (openssl, libxml2, krb5, curl, rpm,
+    etc.) are only used during the omnibus build to compile the agent and its
+    embedded libraries and are not needed at runtime. The Python headers are kept
+    so users can still ``pip install`` packages with C extensions at runtime. This
+    reduces the on-disk size of the Docker agent image by ~6.9 MiB.
