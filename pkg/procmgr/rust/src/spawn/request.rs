@@ -160,7 +160,7 @@ fn env_list(name: &str) -> Vec<String> {
 }
 
 #[cfg(all(test, unix))]
-mod tests {
+mod inherited_env_tests {
     use super::collect_inherited_env;
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt;
@@ -176,6 +176,60 @@ mod tests {
         assert_eq!(
             collect_inherited_env(vars, &["DD_".to_string()], &[]),
             vec![("DD_GOOD".to_string(), "value".to_string())]
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ProcessConfig;
+
+    #[test]
+    fn from_config_collects_environment_file_vars() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "EXIT_CODE=42\n").unwrap();
+
+        let config = ProcessConfig {
+            environment_file: Some(env_file.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+
+        let request = SpawnRequest::from_config("envfile", &config).unwrap();
+        assert!(
+            request
+                .env
+                .iter()
+                .any(|(k, v)| k == "EXIT_CODE" && v == "42"),
+            "environment_file vars must be included in spawn env: {:?}",
+            request.env
+        );
+    }
+
+    #[test]
+    fn from_config_env_overrides_environment_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "MY_VAR=from_file\n").unwrap();
+
+        let config = ProcessConfig {
+            environment_file: Some(env_file.to_str().unwrap().to_string()),
+            env: [("MY_VAR".to_string(), "overridden".to_string())]
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        };
+
+        let request = SpawnRequest::from_config("override", &config).unwrap();
+        assert_eq!(
+            request
+                .env
+                .iter()
+                .rev()
+                .find(|(k, _)| k == "MY_VAR")
+                .map(|(_, v)| v.as_str()),
+            Some("overridden")
         );
     }
 }
