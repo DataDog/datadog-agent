@@ -9,9 +9,11 @@ package demultiplexerendpointimpl
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"path"
+	"sync"
 
 	"github.com/DataDog/zstd"
 
@@ -22,6 +24,10 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
+type contextDumper interface {
+	DumpDogstatsdContexts(io.Writer) error
+}
+
 // Requires defines the dependencies for the demultiplexerendpoint component
 type Requires struct {
 	Log           log.Component
@@ -30,9 +36,10 @@ type Requires struct {
 }
 
 type demultiplexerEndpoint struct {
-	demux  demultiplexerComp.Component
-	config config.Component
-	log    log.Component
+	demux   contextDumper
+	runPath string
+	log     log.Component
+	dumpMu  sync.Mutex
 }
 
 // Provides defines the output of the demultiplexerendpoint component
@@ -43,9 +50,9 @@ type Provides struct {
 // NewComponent creates a new demultiplexerendpoint component
 func NewComponent(reqs Requires) Provides {
 	endpoint := demultiplexerEndpoint{
-		demux:  reqs.Demultiplexer,
-		config: reqs.Config,
-		log:    reqs.Log,
+		demux:   reqs.Demultiplexer,
+		runPath: reqs.Config.GetString("run_path"),
+		log:     reqs.Log,
 	}
 
 	return Provides{
@@ -53,7 +60,7 @@ func NewComponent(reqs Requires) Provides {
 	}
 }
 
-func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
+func (demuxendpoint *demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
 	path, err := demuxendpoint.writeDogstatsdContexts()
 	if err != nil {
 		httputils.SetJSONError(w, demuxendpoint.log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
@@ -70,8 +77,11 @@ func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.Response
 	w.Write(resp)
 }
 
-func (demuxendpoint demultiplexerEndpoint) writeDogstatsdContexts() (string, error) {
-	path := path.Join(demuxendpoint.config.GetString("run_path"), "dogstatsd_contexts.json.zstd")
+func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContexts() (string, error) {
+	demuxendpoint.dumpMu.Lock()
+	defer demuxendpoint.dumpMu.Unlock()
+
+	path := path.Join(demuxendpoint.runPath, "dogstatsd_contexts.json.zstd")
 
 	f, err := os.Create(path)
 	if err != nil {

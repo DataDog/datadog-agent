@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -13,4 +14,11 @@ go_library(
         "//pkg/util/http",
         "@com_github_datadog_zstd//:zstd",
     ],
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = ["dump_endpoint_test.go"],
+    embed = [":impl"],
+    deps = ["@com_github_stretchr_testify//require"],
 )
