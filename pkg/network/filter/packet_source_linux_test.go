@@ -42,8 +42,8 @@ func (m *mockPacketReader) GetPacketInfoBuffer() *AFPacketInfo {
 func mockCaptureInfo(ancillaryData []interface{}) gopacket.CaptureInfo {
 	return gopacket.CaptureInfo{
 		Timestamp:      time.Now(),
-		CaptureLength:  0,
-		Length:         0,
+		CaptureLength:  128,
+		Length:         1500,
 		InterfaceIndex: 0,
 		AncillaryData:  ancillaryData,
 	}
@@ -72,6 +72,8 @@ func expectAncillaryPktType(t *testing.T, ancillaryData []interface{}, pktType u
 		pktInfo := info.(*AFPacketInfo)
 		// use assert so that we close the exit channel on failure
 		assert.Equal(t, pktType, pktInfo.PktType)
+		assert.Equal(t, 1500, pktInfo.OriginalLength())
+		assert.Equal(t, 128, pktInfo.CapturedLength())
 
 		return nil
 	})

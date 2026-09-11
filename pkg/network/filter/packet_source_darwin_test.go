@@ -337,3 +337,13 @@ func TestLibpcapSource_BufferPool_DefaultSnapLen(t *testing.T) {
 	assert.Equal(t, defaultSnapLen, cap(buf2))
 	ps.putBuffer(buf2)
 }
+
+func TestDarwinPacketInfoLengths(t *testing.T) {
+	info := &DarwinPacketInfo{
+		originalLen: 1500,
+		capturedLen: 256,
+	}
+
+	assert.Equal(t, 1500, info.OriginalLength())
+	assert.Equal(t, 256, info.CapturedLength())
+}
