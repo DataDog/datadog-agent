@@ -43,7 +43,6 @@
     "compile_policy_x86_64": "Pending tracking in Phase 2a. DataDog/dd-policy-engine GitHub release; will be tracked as one bundle with the arm64 and windows variants since they share VERSION.",
     "compile_policy_arm64": "Pending tracking in Phase 2a. Shares VERSION with compile_policy_x86_64; tracked together.",
     "compile_policy_windows_x86_64": "Pending tracking in Phase 2a. Shares VERSION with compile_policy_x86_64; tracked together.",
-    "gstatus_binary": "Pending tracking in Phase 2a (github-releases batch). Released at github.com/gluster/gstatus.",
     "msodbcsql18_deb_amd64": "Pending tracking. Microsoft .deb package; no native datasource for packages.microsoft.com. Both arches share VERSION and will be tracked as one bundle when a customDatasource is added. Phase 3.",
     "msodbcsql18_deb_arm64": "Pending tracking. Shares VERSION with msodbcsql18_deb_amd64; tracked together. Phase 3.",
     "snmp_traps": "Intentionally untracked. Datadog-internal SNMP traps DB published to dd-agent-omnibus S3; no public upstream to watch. Bumped manually when the traps DB is regenerated.",
