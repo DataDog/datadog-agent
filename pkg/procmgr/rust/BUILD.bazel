@@ -1,7 +1,7 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
-load("//pkg/procmgr/rust:procmgr_rust_test.bzl", "dd_procmgrd_isolated_manager_tests", "dd_procmgrd_lib_test", "dd_procmgrd_skip_args_for_isolated")
+load("//pkg/procmgr/rust:procmgr_rust_test.bzl", "dd_procmgrd_isolated_integration_tests", "dd_procmgrd_lib_test", "dd_procmgrd_skip_args_for_isolated")
 
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
@@ -156,11 +156,12 @@ _DD_PROCMGRD_TEST_ENV = select({
     "//conditions:default": {},
 })
 
-# Spawn-heavy manager::tests run as dedicated targets (one Bazel test per Rust test)
-# so CI reports each result separately and failures are easier to reproduce:
-#   bazel test //pkg/procmgr/rust:dd-procmgrd_reload_modified_03_restarts_test
-# To isolate another test, append (suffix, filter) here.
-_DD_PROCMGRD_ISOLATED_MANAGER_TESTS = [
+# Spawn-heavy integration tests run as dedicated targets (one Bazel test per Rust
+# test) so CI reports each result separately and Windows avoids cross-test
+# pollution in the monolithic dd-procmgrd_test process. To isolate another test,
+# append (suffix, filter) here.
+_DD_PROCMGRD_ISOLATED_INTEGRATION_TESTS = [
+    # manager::tests
     ("complete_restart", "complete_restart_skips_already_running"),
     ("reload_modified_01_result", "reload_modified_01_result_contains_service"),
     ("reload_modified_02_updates", "reload_modified_02_updates_stored_config"),
@@ -177,19 +178,45 @@ _DD_PROCMGRD_ISOLATED_MANAGER_TESTS = [
     ("create_auto_start_bad_command", "create_auto_start_bad_command_still_created"),
     ("create_auto_start_condition", "create_auto_start_condition_not_met"),
     ("create_runtime_startup_order", "create_includes_runtime_process_in_startup_order"),
+    # grpc::service::tests (spawn before process::tests alphabetically)
+    ("grpc_proto_running_pid", "test_process_to_proto_running_with_pid"),
+    ("grpc_proto_failed", "test_process_to_proto_failed"),
+    # process::tests
+    ("process_state_exit_success", "test_state_transitions_spawn_exit_success"),
+    ("process_state_exit_failure", "test_state_transitions_spawn_exit_failure"),
+    ("process_state_after_spawn", "test_state_after_spawn_watcher_owns_handle"),
+    ("process_spawn_and_is_running", "test_spawn_and_is_running"),
+    ("process_spawn_nonexistent", "test_spawn_nonexistent_binary"),
+    ("process_spawn_failure_after_stop", "test_spawn_failure_after_stop_goes_through_starting_to_failed"),
+    ("process_spawn_with_env", "test_spawn_with_env"),
+    ("process_spawn_with_args", "test_spawn_with_args"),
+    ("process_spawn_no_inherit_env", "test_spawn_does_not_inherit_parent_env"),
+    ("process_spawn_environment_file", "test_spawn_with_environment_file"),
+    ("process_env_overrides_file", "test_env_overrides_environment_file"),
+    ("process_spawn_missing_envfile", "test_spawn_fails_on_missing_environment_file"),
+    ("process_spawn_optional_envfile", "test_spawn_skips_missing_optional_environment_file"),
+    ("process_stop_requested", "test_stop_requested_transitions_to_stopped"),
+    ("process_stop_crash_restart", "test_stop_start_then_crash_restarts_on_failure"),
+    ("process_stop_skips_restart", "test_stop_requested_skips_restart"),
+    ("process_normal_exit_stop_flag", "test_normal_exit_not_affected_by_stop_flag"),
+    # shutdown::tests
+    ("shutdown_all_graceful", "test_shutdown_all_graceful"),
+    ("shutdown_sigkill_timeout", "test_shutdown_all_sigkill_on_timeout"),
+    ("shutdown_after_spawn", "test_shutdown_all_after_spawn_watcher_owns_handle"),
+    ("shutdown_ordered_reverse", "test_shutdown_ordered_reverse"),
 ]
 
-_DD_PROCMGRD_ISOLATED_MANAGER_TEST_NAMES = dd_procmgrd_isolated_manager_tests(
+_DD_PROCMGRD_ISOLATED_INTEGRATION_TEST_NAMES = dd_procmgrd_isolated_integration_tests(
     "dd-procmgrd",
-    _DD_PROCMGRD_ISOLATED_MANAGER_TESTS,
+    _DD_PROCMGRD_ISOLATED_INTEGRATION_TESTS,
     _DD_PROCMGRD_TEST_ENV,
 )
 
-# Fast/unit tests plus process, grpc, config, ordering, etc. Isolated manager
-# integration tests are skipped here and run via dedicated targets above.
+# Fast/unit tests only. Spawn-heavy integration tests are skipped here and run via
+# dedicated targets above.
 dd_procmgrd_lib_test(
     name = "dd-procmgrd_test",
-    args = dd_procmgrd_skip_args_for_isolated(_DD_PROCMGRD_ISOLATED_MANAGER_TESTS),
+    args = dd_procmgrd_skip_args_for_isolated(_DD_PROCMGRD_ISOLATED_INTEGRATION_TESTS),
     env = _DD_PROCMGRD_TEST_ENV,
 )
 
@@ -197,7 +224,7 @@ dd_procmgrd_lib_test(
 #   bazel test //pkg/procmgr/rust:dd-procmgrd_all_tests
 test_suite(
     name = "dd-procmgrd_all_tests",
-    tests = [":dd-procmgrd_test"] + [":{}".format(name) for name in _DD_PROCMGRD_ISOLATED_MANAGER_TEST_NAMES],
+    tests = [":dd-procmgrd_test"] + [":{}".format(name) for name in _DD_PROCMGRD_ISOLATED_INTEGRATION_TEST_NAMES],
 )
 
 rust_test(

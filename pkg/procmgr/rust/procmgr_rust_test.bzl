@@ -1,12 +1,12 @@
 """Bazel helpers for dd-procmgrd-lib integration tests.
 
-Spawn-heavy manager tests are listed in BUILD.bazel and run as one rust_test
-target per test filter. That gives each test its own PASS/FAIL line in CI
-(including under --keep_going) and avoids cross-test pollution when
+Spawn-heavy integration tests are listed in BUILD.bazel and run as one
+rust_test target per test filter. That gives each test its own PASS/FAIL line
+in CI (including under --keep_going) and avoids cross-test pollution when
 RUST_TEST_THREADS=1 still shares one process for the default monolithic target.
 
 To isolate another test, add a (suffix, filter) pair to
-_DD_PROCMGRD_ISOLATED_MANAGER_TESTS in BUILD.bazel.
+_DD_PROCMGRD_ISOLATED_INTEGRATION_TESTS in BUILD.bazel.
 """
 
 load("@rules_rust//rust:defs.bzl", "rust_test")
@@ -32,7 +32,7 @@ def dd_procmgrd_lib_test(name, args = [], env = {}):
         deps = _DD_PROCMGRD_LIB_TEST_DEPS,
     )
 
-def dd_procmgrd_isolated_manager_tests(name_prefix, tests, env):
+def dd_procmgrd_isolated_integration_tests(name_prefix, tests, env):
     """Declare one dd_procmgrd_lib_test per (suffix, filter) pair.
 
     Args:
@@ -59,7 +59,7 @@ def dd_procmgrd_skip_args_for_isolated(tests):
 
     Args:
         tests: List of (suffix, filter) tuples, same as for
-            dd_procmgrd_isolated_manager_tests.
+            dd_procmgrd_isolated_integration_tests.
 
     Returns:
         List of rust_test args alternating --skip and each filter substring.
