@@ -177,7 +177,6 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 	return cmd.Run()
 }
 
-// SetProcessManager switches which service manager supervises the agent's processes.
 func (i *InstallerExec) SetProcessManager(ctx context.Context, enabled bool) (err error) {
 	action := "disable"
 	if enabled {

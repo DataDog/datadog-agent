@@ -734,9 +734,7 @@ func (h *Host) getSystemdUnitInfo() map[string]SystemdUnitInfo {
 
 func (h *Host) getProcessesUnitInfo() map[string]ProcessesUnitInfo {
 	processes := make(map[string]ProcessesUnitInfo)
-	if !h.ProcmgrEnabled() {
-		return processes
-	}
+
 	// Return early if procmgr is not running
 	if _, err := h.remote.Execute("systemctl is-active --quiet datadog-agent-procmgr.service"); err != nil {
 		return processes

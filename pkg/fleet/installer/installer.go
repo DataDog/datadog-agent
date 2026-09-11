@@ -533,7 +533,6 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	})
 }
 
-// SetProcessManager switches which service manager supervises the agent's processes.
 func (i *installerImpl) SetProcessManager(ctx context.Context, enabled bool) error {
 	i.m.Lock()
 	defer i.m.Unlock()
