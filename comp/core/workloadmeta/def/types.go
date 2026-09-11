@@ -818,7 +818,14 @@ var GetRunningContainers EntityFilterFunc[*Container] = func(container *Containe
 type KubernetesPod struct {
 	EntityID
 	EntityMeta
-	Owners                     []KubernetesPodOwner
+
+	// Owners contains the direct ownerReferences declared on the Pod.
+	Owners []KubernetesPodOwner
+
+	// MatchedOwners contains configured owners matched while traversing the Pod's
+	// ownership chain. It may include direct or indirect owners and is not the
+	// complete ownership chain.
+	MatchedOwners              []KubernetesMatchedOwner `proto:"ignore"`
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
 	Containers                 []OrchestratorContainer
@@ -998,6 +1005,13 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "FsGroup:", p.SecurityContext.FsGroup)
 	}
 
+	if len(p.MatchedOwners) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Matched Owners -----------")
+		for _, o := range p.MatchedOwners {
+			_, _ = fmt.Fprint(&sb, o.String(verbose))
+		}
+	}
+
 	return sb.String()
 }
 
@@ -1010,11 +1024,29 @@ var _ Entity = &KubernetesPod{}
 
 // KubernetesPodOwner is extracted from a pod's owner references.
 type KubernetesPodOwner struct {
+	APIVersion string `proto:"ignore"`
 	Kind       string
 	Name       string
 	ID         string
 	Group      string
 	Controller *bool `proto:"ignore"`
+}
+
+// KubernetesMatchedOwner identifies a configured owner matched while traversing
+// a Pod's Kubernetes owner-reference chain.
+type KubernetesMatchedOwner struct {
+	Group     string
+	Version   string
+	Kind      string
+	Namespace string
+	Name      string
+}
+
+// String returns a string representation of KubernetesMatchedOwner.
+func (o KubernetesMatchedOwner) String(_ bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Group:", o.Group, "Version:", o.Version, "Kind:", o.Kind, "Namespace:", o.Namespace, "Name:", o.Name)
+	return sb.String()
 }
 
 // String returns a string representation of KubernetesPodOwner.

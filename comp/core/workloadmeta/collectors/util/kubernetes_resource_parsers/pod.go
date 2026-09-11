@@ -54,10 +54,12 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 	for _, o := range pod.OwnerReferences {
 		gv, _ := schema.ParseGroupVersion(o.APIVersion)
 		owners = append(owners, workloadmeta.KubernetesPodOwner{
-			Kind:  o.Kind,
-			Name:  o.Name,
-			ID:    string(o.UID),
-			Group: gv.Group,
+			APIVersion: o.APIVersion,
+			Kind:       o.Kind,
+			Name:       o.Name,
+			ID:         string(o.UID),
+			Group:      gv.Group,
+			Controller: o.Controller,
 		})
 	}
 

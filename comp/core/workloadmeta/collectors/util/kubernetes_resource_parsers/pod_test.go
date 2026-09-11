@@ -22,6 +22,7 @@ import (
 
 func TestPodParser_Parse(t *testing.T) {
 	filterAnnotations := []string{"ignoreAnnotation"}
+	controller := true
 
 	parser, err := NewPodParser(filterAnnotations)
 	assert.NoError(t, err)
@@ -32,9 +33,11 @@ func TestPodParser_Parse(t *testing.T) {
 			UID:  "uniqueIdentifier",
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					Kind: "ReplicaSet",
-					Name: "deployment-hashrs",
-					UID:  "ownerUID",
+					APIVersion: "apps.kruise.io/v1alpha1",
+					Kind:       "CloneSet",
+					Name:       "nginx",
+					UID:        "ownerUID",
+					Controller: &controller,
 				},
 			},
 			Annotations: map[string]string{
@@ -113,9 +116,12 @@ func TestPodParser_Parse(t *testing.T) {
 		Phase: "Running",
 		Owners: []workloadmeta.KubernetesPodOwner{
 			{
-				Kind: "ReplicaSet",
-				Name: "deployment-hashrs",
-				ID:   "ownerUID",
+				APIVersion: "apps.kruise.io/v1alpha1",
+				Kind:       "CloneSet",
+				Name:       "nginx",
+				ID:         "ownerUID",
+				Group:      "apps.kruise.io",
+				Controller: &controller,
 			},
 		},
 		PersistentVolumeClaimNames: []string{"pvcName"},
