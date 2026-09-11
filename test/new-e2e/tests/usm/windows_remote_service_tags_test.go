@@ -204,7 +204,7 @@ func (s *windowsUSMSuite) TestHTTPRemoteServiceTags() {
 	fetchAndAssertTaggedConnections(t, s.Env().FakeIntake.Client(), "http", 8083, 8084, requestsPerPort)
 }
 
-// pythonRemoteTagsDirectLinuxSuite is the direct send variant of pythonRemoteTagsLinuxSuite.
+// windowsUSMDirectSuite is the direct send variant of windowsUSMSuite.
 type windowsUSMDirectSuite struct {
 	windowsUSMSuite
 }
