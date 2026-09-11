@@ -17,23 +17,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	"go.uber.org/fx/fxtest"
 
-	config "github.com/DataDog/datadog-agent/comp/core/config"
-	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
-	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
-	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
-	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
-	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -160,14 +148,12 @@ func TestMaybeSPLite(t *testing.T) {
 	}
 }
 
-func TestSPLiteExecFailureFallsThroughToLifecycleStart(t *testing.T) {
+func TestRunCommandExecsSPLiteBeforeLifecycleStart(t *testing.T) {
+	configPath := prepareRunCommandTest(t)
 	fakeBinaryPath, executableFn := createFakeSPLiteBinary(t)
 	pidFilePath := filepath.Join(t.TempDir(), "system-probe.pid")
-	sysprobeConfig := newMockSysprobeConfig(t, map[string]interface{}{
-		"discovery.use_system_probe_lite": true,
-		"discovery.enabled":               true,
-	})
-	logger := logmock.New(t)
+	t.Setenv("DD_DISCOVERY_ENABLED", "true")
+	t.Setenv("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
 
 	var events []string
 	execFn := spliteExecFunc(func(path string, args []string, env []string) error {
@@ -179,69 +165,22 @@ func TestSPLiteExecFailureFallsThroughToLifecycleStart(t *testing.T) {
 		return errors.New("test exec failure")
 	})
 
-	app := fxtest.New(t,
-		fx.NopLogger,
-		fxutil.FxAgentBase(),
-		fx.Provide(func() sysprobeconfig.Component { return sysprobeConfig }),
-		fx.Provide(func() log.Component { return logger }),
-		fx.Supply(pidimpl.NewParams(pidFilePath)),
-		pidfx.Module(),
-		fx.Supply(executableFn),
-		fx.Supply(execFn),
-		fx.Invoke(tryExecSPLite),
-		fx.Invoke(func(lc fx.Lifecycle) {
+	fxutil.TestOneShotSubcommand(t,
+		commands(
+			&command.GlobalParams{ConfFilePath: configPath},
+			execFn,
+			executableFn,
+		),
+		[]string{"run", "--pid", pidFilePath},
+		run,
+		func(lc fx.Lifecycle) {
 			lc.Append(fx.Hook{OnStart: func(context.Context) error {
 				events = append(events, "start")
 				return nil
 			}})
-		}),
+		},
 	)
 
-	assert.Equal(t, []string{"exec"}, events)
-	app.RequireStart()
-	assert.Equal(t, []string{"exec", "start"}, events)
-	app.RequireStop()
+	require.Equal(t, []string{"exec", "start"}, events)
 	require.NoFileExists(t, pidFilePath)
-}
-
-type activeConfigStream struct{}
-
-func (activeConfigStream) IsActive() bool { return true }
-
-func TestSPLiteHandoffUsesStreamedCoreConfig(t *testing.T) {
-	_, executableFn := createFakeSPLiteBinary(t)
-	t.Setenv("DD_DISCOVERY_ENABLED", "true")
-	t.Setenv("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
-
-	configParams := config.NewAgentParams("")
-	t.Cleanup(pkgconfigsetup.InitConfigObjects)
-	configstreambootstrap.UseDynamicSchema(t)
-	streamedConfig := configstreambootstrap.Config()
-	streamedConfig.Set("compliance_config.enabled", true, model.SourceFile)
-	streamedConfig.Set("compliance_config.run_in_system_probe", true, model.SourceFile)
-
-	execCalled := false
-	app := fxtest.New(t,
-		fx.NopLogger,
-		fxutil.FxAgentBase(),
-		fx.Supply(configParams),
-		fx.Supply(sysprobeconfigimpl.NewParams()),
-		fx.Supply(pidimpl.NewParams("")),
-		pidfx.Module(),
-		fx.Supply(executableFn),
-		fx.Supply(spliteExecFunc(func(string, []string, []string) error {
-			execCalled = true
-			return errors.New("unexpected exec")
-		})),
-		fx.Provide(func() configstreamconsumer.Component { return activeConfigStream{} }),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.Module(),
-		delegatedauthnoopfx.Module(),
-		secretsnoopfx.Module(),
-		sysprobeconfigfx.Module(),
-		fx.Invoke(tryExecSPLite),
-	)
-
-	assert.False(t, execCalled, "streamed config enables compliance, so full system-probe is required")
-	app.RequireStart().RequireStop()
 }

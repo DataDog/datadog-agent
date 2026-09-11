@@ -118,6 +118,12 @@ const configSyncTimeout = 10 * time.Second
 
 // Commands returns a slice of subcommands for the 'system-probe' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	return commands(globalParams, spliteExecFunc(syscall.Exec), spliteExecutableFunc(os.Executable))
+}
+
+// commands allows tests to intercept the system-probe-lite handoff while
+// exercising the same Fx options as the production command.
+func commands(globalParams *command.GlobalParams, execFn spliteExecFunc, executableFn spliteExecutableFunc) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
@@ -130,8 +136,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
-				fx.Supply(spliteExecFunc(syscall.Exec)),
-				fx.Supply(spliteExecutableFunc(os.Executable)),
+				fx.Supply(execFn),
+				fx.Supply(executableFn),
 				fx.Invoke(tryExecSPLite),
 				fx.Supply(config.NewAgentParams(
 					globalParams.DatadogConfFilePath(),
