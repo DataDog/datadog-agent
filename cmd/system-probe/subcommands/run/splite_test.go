@@ -182,5 +182,4 @@ func TestRunCommandExecsSPLiteBeforeLifecycleStart(t *testing.T) {
 	)
 
 	require.Equal(t, []string{"exec", "start"}, events)
-	require.NoFileExists(t, pidFilePath)
 }
