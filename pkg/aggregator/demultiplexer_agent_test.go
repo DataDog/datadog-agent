@@ -158,6 +158,12 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 		require.Equal(mockSerializer.series[i].Tags.UnsafeToReadOnlySliceString(), lookback.series[i].Tags.UnsafeToReadOnlySliceString())
 		require.Equal(mockSerializer.series[i].MType, lookback.series[i].MType)
 		require.Equal(mockSerializer.series[i].Interval, lookback.series[i].Interval)
+		require.Equal(int64(bucketSize), mockSerializer.series[i].Interval)
+		if batch[i].Mtype == metrics.CounterType {
+			require.Equal(batch[i].Value/float64(bucketSize), mockSerializer.series[i].Points[0].Value)
+		} else {
+			require.Equal(batch[i].Value, mockSerializer.series[i].Points[0].Value)
+		}
 	}
 }
 

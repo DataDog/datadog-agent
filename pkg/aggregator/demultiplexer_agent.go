@@ -84,7 +84,8 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	FlushInterval time.Duration
+	FlushInterval                    time.Duration
+	UseOneSecondDogStatsDAggregation bool
 
 	NoAggregationPipelineWorkersCount int
 
@@ -163,6 +164,11 @@ func initAgentDemultiplexer(log log.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
 	hostname string) *AgentDemultiplexer {
+	dogStatsDIntervalSeconds := int64(bucketSize)
+	if options.UseOneSecondDogStatsDAggregation {
+		dogStatsDIntervalSeconds = 1
+	}
+
 	// prepare the multiple forwarders
 	// -------------------------------
 	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") && !pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store") {
@@ -197,7 +203,7 @@ func initAgentDemultiplexer(log log.Component,
 		// the sampler
 		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), dogStatsDIntervalSeconds, tagsStore, tagger, agg.hostname)
 		statsdSampler.dogStatsDLookback = options.DogStatsDLookback
 		statsdSampler.finalDogStatsDSerieObservers = append([]FinalDogStatsDSerieObserver(nil), options.FinalDogStatsDSerieObservers...)
 

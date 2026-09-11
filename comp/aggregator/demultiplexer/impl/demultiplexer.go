@@ -8,6 +8,7 @@ package demultiplexerimpl
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -27,6 +28,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/config/metricresolution"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -134,9 +136,20 @@ func createAgentDemultiplexerOptions(
 	options.DogStatsDLookbackFactory = dogStatsDLookbackFactory
 	options.FinalDogStatsDSerieObservers = finalDogStatsDSerieObservers
 
-	// Override FlushInterval only if flushInterval is set by the user
+	// Component parameters override defaults. A zero flush interval is a sentinel
+	// used by one-shot commands to disable automatic flushing and must survive the
+	// experiment override.
+	preserveZeroFlushInterval := false
 	if v, ok := params.flushInterval.Get(); ok {
 		options.FlushInterval = v
+		preserveZeroFlushInterval = v == 0
+	}
+
+	if metricresolution.Enabled() {
+		options.UseOneSecondDogStatsDAggregation = true
+		if !preserveZeroFlushInterval {
+			options.FlushInterval = time.Second
+		}
 	}
 	return options
 }
