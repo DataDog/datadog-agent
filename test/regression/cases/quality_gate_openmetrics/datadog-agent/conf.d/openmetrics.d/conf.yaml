@@ -1,0 +1,403 @@
+init_config:
+
+instances:
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0001
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0002
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0003
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0004
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0005
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0006
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0007
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0008
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0009
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0010
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0011
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0012
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0013
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0014
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0015
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0016
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0017
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0018
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0019
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0020
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0021
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0022
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0023
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0024
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0025
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0026
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0027
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0028
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0029
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0030
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0031
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0032
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0033
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0034
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0035
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0036
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0037
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0038
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0039
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0040
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0041
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0042
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0043
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0044
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0045
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0046
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0047
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0048
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0049
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0050
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0051
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0052
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0053
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0054
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0055
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0056
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0057
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0058
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0059
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0060
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0061
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0062
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0063
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0064
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0065
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0066
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0067
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0068
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0069
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0070
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0071
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0072
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0073
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0074
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0075
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0076
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0077
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0078
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0079
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0080
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0081
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0082
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0083
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0084
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0085
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0086
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0087
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0088
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0089
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0090
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0091
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0092
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0093
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0094
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0095
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0096
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0097
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0098
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0099
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000
+  - openmetrics_endpoint: http://127.0.0.1:9100/metrics?target=0100
+    min_collection_interval: 15
+    metrics: ['.*']
+    max_returned_metrics: 10000

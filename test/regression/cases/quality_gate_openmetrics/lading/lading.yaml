@@ -1,0 +1,117 @@
+generator: []
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+  - http:
+      binding_addr: "127.0.0.1:9093"
+  - http:
+      binding_addr: "127.0.0.1:9100"
+      concurrent_requests_max: 1000
+      body_variant:
+        openmetrics:
+          metric_name_prefix: "om_test"
+          include_help: true
+          include_type: true
+          counters:
+            count: 4000
+          gauges:
+            count: 4000
+          histograms:
+            count: 50
+            buckets: ["0.005", "0.01", "0.025", "0.05", "0.1", "0.25", "0.5", "1", "2.5", "5"]
+          summaries:
+            count: 50
+            quantiles: ["0.5", "0.75", "0.9", "0.95", "0.99"]
+          labels:
+            services:
+              - "checkout"
+              - "catalog"
+              - "payments"
+              - "fulfillment"
+              - "search"
+              - "inventory"
+              - "shipping"
+              - "notifications"
+              - "auth"
+              - "gateway"
+              - "recommendations"
+              - "reviews"
+              - "accounts"
+              - "reporting"
+              - "analytics"
+              - "billing"
+              - "compliance"
+              - "messaging"
+              - "scheduling"
+              - "monitoring"
+            regions:
+              - "us-east-1"
+              - "us-west-2"
+              - "eu-central-1"
+              - "ap-southeast-1"
+              - "eu-west-1"
+              - "ap-northeast-1"
+              - "sa-east-1"
+              - "us-west-1"
+            methods:
+              - "GET"
+              - "POST"
+              - "PUT"
+              - "DELETE"
+              - "PATCH"
+              - "HEAD"
+            status_classes:
+              - "2xx"
+              - "3xx"
+              - "4xx"
+              - "5xx"
+            consumers:
+              - "consumer-00"
+              - "consumer-01"
+              - "consumer-02"
+              - "consumer-03"
+              - "consumer-04"
+              - "consumer-05"
+              - "consumer-06"
+              - "consumer-07"
+              - "consumer-08"
+              - "consumer-09"
+              - "consumer-10"
+              - "consumer-11"
+              - "consumer-12"
+              - "consumer-13"
+              - "consumer-14"
+              - "consumer-15"
+              - "consumer-16"
+              - "consumer-17"
+              - "consumer-18"
+              - "consumer-19"
+              - "consumer-20"
+              - "consumer-21"
+              - "consumer-22"
+              - "consumer-23"
+              - "consumer-24"
+              - "consumer-25"
+              - "consumer-26"
+              - "consumer-27"
+              - "consumer-28"
+              - "consumer-29"
+            route_count: 200
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "core"
+        workload: "openmetrics"
+  - prometheus: # filtered scrape: server-side name[] filter avoids the 1s timeout on huge telemetry responses
+      uri: "http://127.0.0.1:5000/telemetry?name[]=checks__runs&name[]=checks__execution_time&name[]=checks__delay&name[]=checks__metrics_samples"
+      metrics:
+        - "checks__runs"
+        - "checks__execution_time"
+        - "checks__delay"
+        - "checks__metrics_samples"
+      tags:
+        sub_agent: "core"
+        workload: "openmetrics"
