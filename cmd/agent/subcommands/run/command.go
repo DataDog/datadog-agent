@@ -43,6 +43,7 @@ import (
 	dataplanepreflightmodefx "github.com/DataDog/datadog-agent/comp/dataplane/preflightmode/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
+	ndmdiscoveryfx "github.com/DataDog/datadog-agent/comp/ndmdiscovery/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
 	networkdevicesfx "github.com/DataDog/datadog-agent/comp/networkdevices/fx"
@@ -550,6 +551,7 @@ func getSharedFxOption() fx.Option {
 		snmpscanmanagerfx.Module(),
 		networkconfigmanagementfx.Module(),
 		networkdevicesfx.Module(),
+		ndmdiscoveryfx.Module(),
 		collectorimpl.Module(),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)

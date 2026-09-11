@@ -50,6 +50,13 @@ const (
 	ProductNetworkPath Product = "NETWORK_PATH"
 	// ProductDataSecurityDBScanTasks is used to remotely trigger Data Security DB scan tasks
 	ProductDataSecurityDBScanTasks Product = "DATA_SECURITY_DB_SCAN_TASKS"
+	// ProductNDM is the product used by Network Device Monitoring. The payload
+	// carries a "kind" field so that several NDM subscribers can share it.
+	ProductNDM Product = "NDM"
+	// ProductManagedDeploymentsDebug is a general-purpose debug product used to
+	// deliver arbitrary payloads to an Agent while a feature's own product is
+	// not yet provisioned backend side.
+	ProductManagedDeploymentsDebug Product = "MANAGED_DEPLOYMENTS_DEBUG"
 )
 
 // ProductListToString converts a product list to string list
