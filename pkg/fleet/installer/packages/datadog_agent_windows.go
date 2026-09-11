@@ -67,6 +67,7 @@ var datadogAgentPackage = hooks{
 const (
 	watchdogStopEventName = "Global\\DatadogInstallerStop"
 	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
+	parServiceName        = "datadog-agent-action"
 )
 
 // getExtensionStoragePath returns the path where extension lists should be stored.
@@ -143,8 +144,9 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
+	processManagerEnabled := env.FromEnv().ProcessManagerEnabled
 	for _, cfg := range procmgrConfigs {
-		if err := ensureProcmgrConfig(cfg); err != nil {
+		if err := ensureProcmgrConfig(cfg, processManagerEnabled); err != nil {
 			return fmt.Errorf("failed to write %s process manager config: %w", cfg.label, err)
 		}
 	}
@@ -211,15 +213,16 @@ var procmgrConfigs = []procmgrConfig{
 	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
 	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
 	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
+	{"DDOT", processmanager.WriteDDOTProcmgrConfig, processmanager.RemoveDDOTProcmgrConfig},
 }
 
-func ensureProcmgrConfig(cfg procmgrConfig) error {
+func ensureProcmgrConfig(cfg procmgrConfig, processManagerEnabled bool) error {
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
 
-	if env.FromEnv().ProcessManagerEnabled {
+	if processManagerEnabled {
 		return cfg.write(installRoot)
 	}
 	if err := cfg.remove(installRoot); err != nil {
@@ -1064,4 +1067,34 @@ func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 // RestartDatadogAgent restarts the datadog-agent service if it is running
 func RestartDatadogAgent(ctx context.Context) error {
 	return windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
+}
+
+// SetProcessManager enables or disables dd-procmgrd as the supervisor for the processes that
+// support it, moving them off (or back onto) their standalone Windows services.
+func SetProcessManager(_ context.Context, enabled bool) error {
+	if env.FromEnv().ProcessManagerEnabled == enabled {
+		return nil
+	}
+	for _, cfg := range procmgrConfigs {
+		if err := ensureProcmgrConfig(cfg, enabled); err != nil {
+			return fmt.Errorf("failed to configure %s process manager config: %w", cfg.label, err)
+		}
+	}
+	services := []string{otelServiceName, parServiceName}
+	if enabled {
+		for _, service := range services {
+			if err := stopServiceIfExists(service); err != nil {
+				log.Warnf("could not stop service: %v", err)
+			}
+		}
+		processmanager.ReloadOrRestartProcmgr()
+		return nil
+	}
+	processmanager.ReloadOrRestartProcmgr()
+	for _, service := range services {
+		if err := startServiceIfExists(service); err != nil {
+			log.Warnf("could not start service: %v", err)
+		}
+	}
+	return nil
 }

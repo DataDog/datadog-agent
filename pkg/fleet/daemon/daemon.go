@@ -76,6 +76,7 @@ type Daemon interface {
 	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations, encryptedSecrets map[string]string) error
 	StopConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
+	SetProcessManager(ctx context.Context, enabled bool) error
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState(ctx context.Context) (map[string]PackageState, error)
@@ -140,22 +141,23 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		configID = "empty"
 	}
 	env := &env.Env{
-		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
-		Site:                 config.GetString("site"),
-		RemoteUpdates:        config.GetBool("remote_updates"),
-		Mirror:               config.GetString("installer.mirror"),
-		RegistryOverride:     config.GetString("installer.registry.url"),
-		RegistryAuthOverride: config.GetString("installer.registry.auth"),
-		RegistryUsername:     config.GetString("installer.registry.username"),
-		RegistryPassword:     config.GetString("installer.registry.password"),
-		Tags:                 utils.GetConfiguredTags(config, false),
-		Hostname:             hostname,
-		HTTPProxy:            config.GetString("proxy.http"),
-		HTTPSProxy:           config.GetString("proxy.https"),
-		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
-		IsCentos6:            env.DetectCentos6(),
-		IsFromDaemon:         true,
-		ConfigID:             configID,
+		APIKey:                utils.SanitizeAPIKey(config.GetString("api_key")),
+		Site:                  config.GetString("site"),
+		RemoteUpdates:         config.GetBool("remote_updates"),
+		Mirror:                config.GetString("installer.mirror"),
+		RegistryOverride:      config.GetString("installer.registry.url"),
+		RegistryAuthOverride:  config.GetString("installer.registry.auth"),
+		RegistryUsername:      config.GetString("installer.registry.username"),
+		RegistryPassword:      config.GetString("installer.registry.password"),
+		Tags:                  utils.GetConfiguredTags(config, false),
+		Hostname:              hostname,
+		HTTPProxy:             config.GetString("proxy.http"),
+		HTTPSProxy:            config.GetString("proxy.https"),
+		NoProxy:               strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
+		IsCentos6:             env.DetectCentos6(),
+		IsFromDaemon:          true,
+		ConfigID:              configID,
+		ProcessManagerEnabled: strings.ToLower(os.Getenv(env.EnvProcessManagerEnabled)) != "false",
 		// The daemon builds its env by hand rather than via env.FromEnv, so mirror
 		// the same FIPS detection: FIPS build flavor or explicit DD_FIPS_MODE=true.
 		FIPSMode: pkgfips.BuiltForFIPS() || strings.ToLower(os.Getenv("DD_FIPS_MODE")) == "true",
@@ -572,6 +574,23 @@ func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err 
 		return fmt.Errorf("could not stop config experiment: %w", err)
 	}
 	log.Infof("Daemon: Successfully stopped config experiment for package %s", pkg)
+	return nil
+}
+
+func (d *daemonImpl) SetProcessManager(ctx context.Context, enabled bool) (err error) {
+	d.m.Lock()
+	defer d.m.Unlock()
+
+	span, ctx := telemetry.StartSpanFromContext(ctx, "set_process_manager")
+	span.SetTag("enabled", enabled)
+	defer func() { span.Finish(err) }()
+
+	log.Infof("Daemon: Setting process manager enabled=%t", enabled)
+	if err = d.installer(d.env).SetProcessManager(ctx, enabled); err != nil {
+		return fmt.Errorf("could not set process manager enabled: %w", err)
+	}
+	d.env.ProcessManagerEnabled = enabled
+	log.Infof("Daemon: Successfully set process manager enabled=%t", enabled)
 	return nil
 }
 

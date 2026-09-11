@@ -103,6 +103,11 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 	return args.Error(0)
 }
 
+func (m *testPackageManager) SetProcessManager(ctx context.Context, enabled bool) error {
+	args := m.Called(ctx, enabled)
+	return args.Error(0)
+}
+
 func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error {
 	args := m.Called(ctx, pkg, operations, decryptedSecrets)
 	return args.Error(0)

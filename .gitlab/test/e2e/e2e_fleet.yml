@@ -39,6 +39,7 @@ new-e2e-fleet-config:
   parallel:
     matrix:
       - E2E_FLEET_PLATFORM_GROUP: linux
+        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetConfig$"
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
@@ -53,6 +54,7 @@ new-e2e-fleet-upgrade:
       # TestFleetIntegrationPreservation is a separate Linux-only suite (provisions no
       # Windows VMs), so it runs alongside TestFleetUpgrade only in the linux entry.
       - E2E_FLEET_PLATFORM_GROUP: linux
+        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetUpgrade$|TestFleetIntegrationPreservation$"
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$"
@@ -65,11 +67,12 @@ new-e2e-fleet-extensions:
   parallel:
     matrix:
       - E2E_FLEET_PLATFORM_GROUP: linux
+        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
         EXTRA_PARAMS: --run "TestFleetExtensions$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        EXTRA_PARAMS: --run "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
+        EXTRA_PARAMS: --run "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment)$"
       - E2E_FLEET_PLATFORM_GROUP: windows
-        EXTRA_PARAMS: --run "TestFleetExtensions$" --skip "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$"
+        EXTRA_PARAMS: --run "TestFleetExtensions$" --skip "TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment)$"
 
 new-e2e-installer-script:
   extends: .new_e2e_template
@@ -127,6 +130,8 @@ new-e2e-installer:
       - EXTRA_PARAMS: --run "TestPackages/apm_inject_"
       - EXTRA_PARAMS: --run "TestPackages/ddot_"
       - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
+      - EXTRA_PARAMS: --run "TestPackages/procmgr_switch_"
+        DD_PROCESS_MANAGER_ENABLED: ["true", "false"]
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template

@@ -32,6 +32,7 @@ type cliParams struct {
 	catalog          string
 	configs          string
 	encryptedSecrets map[string]string
+	enabled          bool
 }
 
 func apiCommands(global *command.GlobalParams) []*cobra.Command {
@@ -175,6 +176,28 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
+	processManagerCmd := &cobra.Command{
+		Hidden: true,
+		Use:    "process-manager [enable|disable]",
+		Short:  "Internal command to use or not dd-procmgrd as the process manager for supported processes (ddot, ...)",
+		Args:   cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			switch args[0] {
+			case "enable":
+				return experimentFxWrapper(setProcessManager, &cliParams{
+					GlobalParams: *global,
+					enabled:      true,
+				})
+			case "disable":
+				return experimentFxWrapper(setProcessManager, &cliParams{
+					GlobalParams: *global,
+					enabled:      false,
+				})
+			default:
+				return fmt.Errorf("invalid argument: %s", args[0])
+			}
+		},
+	}
 	return []*cobra.Command{
 		setCatalogCmd,
 		setConfigCatalogCmd,
@@ -187,6 +210,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		stopConfigExperimentCmd,
 		promoteConfigExperimentCmd,
 		remoteConfigStatusCmd,
+		processManagerCmd,
 	}
 }
 
@@ -304,5 +328,14 @@ func status(_ *cliParams, client localapiclient.Component) error {
 		fmt.Println("Error marshalling status:", err)
 	}
 	fmt.Fprintf(os.Stdout, "%s", bytes)
+	return nil
+}
+
+func setProcessManager(params *cliParams, client localapiclient.Component) error {
+	err := client.SetProcessManager(params.enabled)
+	if err != nil {
+		fmt.Println("Error setting process manager enabled:", err)
+		return err
+	}
 	return nil
 }

@@ -149,10 +149,12 @@ func unitSetPrivilegedRshell(stableData, expData installerTemplateData, ambiantC
 // Getting the procmgr units will fallback to the systemd units if not find.
 func unitSetProcmgr(stableData, expData installerTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
 	units := map[string][]byte{
-		"datadog-agent.service":             mustReadUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported, true),
-		"datadog-agent-exp.service":         mustReadUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported, true),
-		"datadog-agent-procmgr.service":     mustReadUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported, true),
-		"datadog-agent-procmgr-exp.service": mustReadUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported, true),
+		"datadog-agent.service":               mustReadUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-exp.service":           mustReadUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-installer.service":     mustReadUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-installer-exp.service": mustReadUnit("datadog-agent-installer.service", expData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-procmgr.service":       mustReadUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported, true),
+		"datadog-agent-procmgr-exp.service":   mustReadUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported, true),
 	}
 	return units
 }
