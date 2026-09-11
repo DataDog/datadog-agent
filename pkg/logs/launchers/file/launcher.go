@@ -689,7 +689,19 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 
+	// A multiline group (or a CRI/Docker partial line) can straddle the rotation
+	// boundary. Rather than letting the old decoder flush it as a standalone,
+	// broken message, hand it to the replacement decoder, which holds the new
+	// file's content back until the handoff lands (or the aggregation timeout
+	// expires).
+	handoff := make(chan *decoder.PendingState, 1)
+
 	newTailer := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
+	// Registered before either side can produce or consume, so the new tailer
+	// cannot race ahead of the content it is supposed to continue.
+	newTailer.AwaitRotationHandoff(handoff)
+	oldTailer.SetRotationHandoffTarget(handoff)
+
 	// force reading file from beginning since it has been log-rotated
 	err := newTailer.StartFromBeginning()
 	if err != nil {

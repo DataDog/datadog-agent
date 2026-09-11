@@ -369,6 +369,11 @@ func (t *Tailer) readForever() {
 			return
 		default:
 			if n == 0 {
+				// Reaching the end of a rotated-away file means everything it
+				// still had is now through the decoder, so this is the point at
+				// which a partially aggregated group can be handed to the
+				// replacement tailer. No-op outside of a rotation handoff.
+				t.decoder.CompleteRotationHandoff()
 				// wait for new data to come
 				t.wait()
 			}
@@ -455,6 +460,20 @@ func getFormattedTime() string {
 // GetDetectedPattern returns the decoder's detected pattern.
 func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
 	return t.decoder.GetDetectedPattern()
+}
+
+// SetRotationHandoffTarget makes this tailer's decoder hand its buffered,
+// not-yet-emitted content to target once the rotated file has been read to the
+// end, rather than flushing it as a standalone message.
+func (t *Tailer) SetRotationHandoffTarget(target chan<- *decoder.PendingState) {
+	t.decoder.SetRotationHandoffTarget(target)
+}
+
+// AwaitRotationHandoff makes this tailer's decoder hold back the new file's
+// content until the tailer it replaces has handed over its buffer. It must be
+// called before the tailer is started.
+func (t *Tailer) AwaitRotationHandoff(source <-chan *decoder.PendingState) {
+	t.decoder.AwaitRotationHandoff(source)
 }
 
 // wait lets the tailer sleep for a bit

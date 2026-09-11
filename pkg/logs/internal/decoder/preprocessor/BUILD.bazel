@@ -38,6 +38,7 @@ go_library(
         "labeler.go",
         "pass_through_aggregator.go",
         "pattern_table.go",
+        "pending_content.go",
         "preprocessor.go",
         "regex_aggregator.go",
         "sampler.go",

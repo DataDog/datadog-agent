@@ -127,6 +127,32 @@ func (p *Preprocessor) Flush() {
 	p.stopFlushTimerIfNeeded()
 }
 
+// TakePendingContent implements PendingContentCarrier by delegating to the
+// configured aggregator. Aggregators that do not buffer across lines don't
+// implement the interface and yield nothing.
+func (p *Preprocessor) TakePendingContent() []PendingContent {
+	carrier, ok := p.aggregator.(PendingContentCarrier)
+	if !ok {
+		return nil
+	}
+	p.stopFlushTimerIfNeeded()
+	return carrier.TakePendingContent()
+}
+
+// SeedPendingContent implements PendingContentCarrier by delegating to the
+// configured aggregator, then arming the regular aggregation-timeout timer.
+func (p *Preprocessor) SeedPendingContent(pending []PendingContent) {
+	if len(pending) == 0 {
+		return
+	}
+	carrier, ok := p.aggregator.(PendingContentCarrier)
+	if !ok {
+		return
+	}
+	carrier.SeedPendingContent(pending)
+	p.startFlushTimerIfNeeded()
+}
+
 func (p *Preprocessor) isEmpty() bool {
 	return p.aggregator.IsEmpty() && p.jsonAggregator.IsEmpty() && p.stackTraceAggregator.IsEmpty()
 }

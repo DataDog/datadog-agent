@@ -38,6 +38,8 @@ dd_agent_go_test(
     srcs = [
         "fingerprint_tailer_diagnostics_test.go",
         "launcher_privileged_logs_test.go",
+        "launcher_rotation_cri_partial_test.go",
+        "launcher_rotation_multiline_test.go",
         "launcher_test.go",
         "position_test.go",
     ],

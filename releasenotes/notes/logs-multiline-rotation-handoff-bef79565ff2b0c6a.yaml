@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Log lines that span a file rotation are no longer split into two broken
+    messages. When a file is rotated while a multiline group (``multi_line_pattern``
+    or auto multiline) or a container runtime partial-line sequence is still
+    open, the tailer now hands the buffered content to the tailer that takes over
+    the new file, so the continuation completes the original line. The handoff
+    is bounded by ``logs_config.aggregation_timeout``: if the continuation does
+    not arrive within that window, the buffered content is flushed on its own as
+    before.

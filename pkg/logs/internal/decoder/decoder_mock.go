@@ -53,6 +53,15 @@ func (d *MockDecoder) GetLineCount() int64 {
 	return 0
 }
 
+// SetRotationHandoffTarget is a no-op: the mock decoder buffers nothing.
+func (d *MockDecoder) SetRotationHandoffTarget(chan<- *PendingState) {}
+
+// CompleteRotationHandoff is a no-op: the mock decoder buffers nothing.
+func (d *MockDecoder) CompleteRotationHandoff() {}
+
+// AwaitRotationHandoff is a no-op: the mock decoder buffers nothing.
+func (d *MockDecoder) AwaitRotationHandoff(<-chan *PendingState) {}
+
 // MockDecoderOptions are the options for creating a mock decoder
 type MockDecoderOptions struct {
 	InputChanSize  int

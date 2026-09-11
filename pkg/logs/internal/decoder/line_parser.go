@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -213,6 +214,65 @@ func (p *MultiLineParser) sendLine(stream string) {
 	state.bufferedMsg.SetContent(content)
 	state.bufferedMsg.ParsingExtra.IsTruncated = state.bufferedMsg.ParsingExtra.IsTruncated || state.isBufferTruncated
 	p.lineHandler.process(state.bufferedMsg)
+}
+
+// TakePendingContent implements preprocessor.PendingContentCarrier.
+func (p *MultiLineParser) TakePendingContent() []preprocessor.PendingContent {
+	if len(p.buffers) == 0 {
+		return nil
+	}
+	p.stopFlushTimer()
+
+	pending := make([]preprocessor.PendingContent, 0, len(p.buffers))
+	for _, stream := range p.bufferStreams() {
+		state := p.buffers[stream]
+		delete(p.buffers, stream)
+		if state.bufferedMsg == nil || state.buffer.Len() == 0 {
+			continue
+		}
+		content := make([]byte, state.buffer.Len())
+		copy(content, state.buffer.Bytes())
+		pending = append(pending, preprocessor.PendingContent{
+			Msg:        state.bufferedMsg,
+			Content:    content,
+			RawDataLen: state.rawDataLen,
+			Truncated:  state.isBufferTruncated,
+			Stream:     stream,
+		})
+	}
+	p.pendingRawDataLen = 0
+
+	if len(pending) == 0 {
+		return nil
+	}
+	return pending
+}
+
+// SeedPendingContent implements preprocessor.PendingContentCarrier.
+func (p *MultiLineParser) SeedPendingContent(pending []preprocessor.PendingContent) {
+	if len(pending) == 0 {
+		return
+	}
+
+	deadline := time.Now().Add(p.flushTimeout)
+	for _, pc := range pending {
+		if pc.Msg == nil {
+			continue
+		}
+		state := &partialLineState{
+			bufferedMsg:       pc.Msg,
+			rawDataLen:        pc.RawDataLen,
+			isBufferTruncated: pc.Truncated,
+			deadline:          deadline,
+			sequence:          p.nextSequence,
+		}
+		p.nextSequence++
+		state.buffer.Write(pc.Content)
+		p.buffers[pc.Stream] = state
+	}
+	// Reuse the regular aggregation timeout so a carried-over partial line whose
+	// completing chunk never lands is still emitted instead of waiting forever.
+	p.resetFlushTimer()
 }
 
 func (p *MultiLineParser) bufferStreams() []string {
