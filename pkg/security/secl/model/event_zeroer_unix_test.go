@@ -17,11 +17,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// unclearedSharedFields returns the names of the cross-cutting Event fields that
-// still differ from a freshly zeroed event. The per-event-type payload structs
-// (the `…Event` union fields) are excluded: the fast path in NewEventZeroer
-// intentionally leaves them untouched, since only the payload of the event's own
-// type has been written, and that one is cleared by its own switch branch.
+// unclearedSharedFields checks an event that has just been zeroed and returns
+// the names of any "shared" fields that were not reset to their empty value.
+// Shared fields are the ones read for every event, no matter its type (the
+// embedded BaseEvent plus Signature, Async, SpanContext, GoLabels and
+// NetworkContext). The per-type payload structs (the "...Event" fields) are
+// skipped on purpose: the zeroer only clears the payload of the event's own
+// type, so the others are expected to still hold data.
 func unclearedSharedFields(e *Event) []string {
 	want := Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 	got := reflect.ValueOf(*e)
@@ -41,6 +43,10 @@ func unclearedSharedFields(e *Event) []string {
 	return diffs
 }
 
+// TestEventZeroer_SharedFieldsAlwaysCleared makes sure that, for every event
+// type, zeroing an event wipes all the shared fields. It fills an event with
+// data, zeroes it, and fails if any shared field still has leftover data. This
+// guards against fields leaking from one event into the next reused event.
 func TestEventZeroer_SharedFieldsAlwaysCleared(t *testing.T) {
 	zero := NewEventZeroer()
 
@@ -58,6 +64,9 @@ func TestEventZeroer_SharedFieldsAlwaysCleared(t *testing.T) {
 	}
 }
 
+// TestEventZeroer_ActivePayloadCleared checks that for each event type handled
+// by the zeroer's fast path, zeroing the event clears that type's own payload.
+// For example, after zeroing a DNS event, the DNS payload should be empty.
 func TestEventZeroer_ActivePayloadCleared(t *testing.T) {
 	zero := NewEventZeroer()
 
