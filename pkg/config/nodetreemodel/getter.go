@@ -40,6 +40,17 @@ func (c *ntmConfig) GetEnvVars() []string {
 	return vars
 }
 
+// ConfigEnvVars returns a copy of the env vars bound to each config key, highest priority first.
+func (c *ntmConfig) ConfigEnvVars() map[string][]string {
+	c.RLock()
+	defer c.RUnlock()
+	out := make(map[string][]string, len(c.configEnvVars))
+	for key, envVars := range c.configEnvVars {
+		out[key] = slices.Clone(envVars)
+	}
+	return out
+}
+
 // GetProxies returns the proxy settings from the configuration
 func (c *ntmConfig) GetProxies() *model.Proxy {
 	c.Lock()

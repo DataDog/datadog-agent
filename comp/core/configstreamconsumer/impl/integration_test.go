@@ -21,6 +21,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -777,6 +778,58 @@ func TestLogLevelOverrideIsPerClient(t *testing.T) {
 					{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
 					{Key: "apm_config.log_level", Value: mustNewValue(t, "trace"), Source: string(model.SourceFile)},
 					{Key: "security_agent.log_level", Value: mustNewValue(t, "error"), Source: string(model.SourceFile)},
+				},
+			},
+		},
+	}
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("OneShot did not complete")
+	}
+}
+
+func TestRemappedKeyIsNotReportedAsADroppedEnvVar(t *testing.T) {
+	t.Setenv("DD_LOG_LEVEL", "debug")
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	configstreambootstrap.ResetGlobalConfig(t)
+	configstreambootstrap.UseDynamicSchema(t)
+
+	dir := t.TempDir()
+	addr, mock, cleanup := setupFakeCoreAgent(t, dir)
+	defer cleanup()
+
+	datadogPath := overrideTestConfig(t, dir, addr)
+
+	opts := fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		telemetryfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("security-agent", datadogPath, configstreamconsumer.WithReadyTimeout(10*time.Second))),
+		configstreamconsumerfx.Module(),
+	)
+
+	testRun := func(_ configstreamconsumer.Component) error {
+		// The report trails readiness, so it may land just after OneShot hands control back.
+		require.Eventually(t, func() bool {
+			return slices.Contains(configstreambootstrap.LastEnvOverrideReport(), "site (DD_SITE)")
+		}, 10*time.Second, 20*time.Millisecond, "a setting the core Agent never streamed must be reported")
+		require.NotContains(t, configstreambootstrap.LastEnvOverrideReport(), "log_level (DD_LOG_LEVEL)",
+			"the per-agent remap reproduced the local value, so nothing was lost")
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fxutil.OneShot(testRun, opts) }()
+
+	mock.events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "log_level", Value: mustNewValue(t, "info"), Source: string(model.SourceFile)},
+					{Key: "security_agent.log_level", Value: mustNewValue(t, "debug"), Source: string(model.SourceFile)},
 				},
 			},
 		},
