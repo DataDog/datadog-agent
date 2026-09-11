@@ -150,8 +150,13 @@ func ensureUser(ctx context.Context, userName string, installPath string) (err e
 // freeUID returns the lowest unused UID in the macOS service range.
 func freeUID() (int, error) {
 	for uid := agentUIDMin; uid < agentUIDMax; uid++ {
-		if _, err := user.LookupId(strconv.Itoa(uid)); err != nil {
+		_, err := user.LookupId(strconv.Itoa(uid))
+		var unknownUserID user.UnknownUserIdError
+		if errors.As(err, &unknownUserID) {
 			return uid, nil
+		}
+		if err != nil {
+			return 0, fmt.Errorf("error looking up uid %d: %w", uid, err)
 		}
 	}
 	return 0, fmt.Errorf("no free uid in the range %d-%d", agentUIDMin, agentUIDMax)
