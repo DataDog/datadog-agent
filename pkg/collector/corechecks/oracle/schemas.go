@@ -8,9 +8,23 @@
 package oracle
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/jmoiron/sqlx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// A snapshot is scoped to one container. Its payloads share collection_started_at, and only
+// the final payload carries collection_payloads_count.
 
 const schemaOwnersQuery = `SELECT con_id, username, user_id FROM cdb_users WHERE oracle_maintained = 'N'`
 
@@ -289,6 +303,73 @@ const (
 
 var schemaOwnerPattern = regexp.MustCompile(`^[A-Z0-9_$#]+$`)
 
+func compiledPatterns(patterns []string, logPrompt, kind string) []*regexp.Regexp {
+	if len(patterns) == 0 {
+		return nil
+	}
+	compiled := make([]*regexp.Regexp, 0, len(patterns))
+	for _, p := range patterns {
+		re, err := regexp.Compile(p)
+		if err != nil {
+			log.Warnf("%s invalid %s pattern %q: %s", logPrompt, kind, p, err)
+			continue
+		}
+		compiled = append(compiled, re)
+	}
+	return compiled
+}
+
+func matchesAny(name string, patterns []*regexp.Regexp) bool {
+	for _, re := range patterns {
+		if re.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func passesFilter(name string, include, exclude []*regexp.Regexp) bool {
+	if matchesAny(name, exclude) {
+		return false
+	}
+	return len(include) == 0 || matchesAny(name, include)
+}
+
+func escapeSQLLiteral(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
+}
+
+func regexSQLClauses(column string, include, exclude []string) string {
+	var b strings.Builder
+	for _, p := range exclude {
+		b.WriteString(" AND NOT REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "')")
+	}
+	if len(include) > 0 {
+		parts := make([]string, len(include))
+		for i, p := range include {
+			parts[i] = "REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "')"
+		}
+		b.WriteString(" AND (" + strings.Join(parts, " OR ") + ")")
+	}
+	return b.String()
+}
+
+// Oracle database filters match CDB root and PDB names.
+func filterContainers(containers map[int64]string, include, exclude []string, logPrompt string) map[int64]string {
+	if len(include) == 0 && len(exclude) == 0 {
+		return containers
+	}
+	includeRe := compiledPatterns(include, logPrompt, "include_databases")
+	excludeRe := compiledPatterns(exclude, logPrompt, "exclude_databases")
+	filtered := make(map[int64]string, len(containers))
+	for conID, name := range containers {
+		if passesFilter(name, includeRe, excludeRe) {
+			filtered[conID] = name
+		}
+	}
+	return filtered
+}
+
 type schemaRowDB struct {
 	ConID            int64          `db:"CON_ID"`
 	Owner            string         `db:"OWNER"`
@@ -495,15 +576,339 @@ type schemaEvent struct {
 type payloadEmitter func(payload []byte)
 type schemaEventEmitter func(event schemaEvent)
 
+func schemaPayloadEmitter(c *Check, emit payloadEmitter) schemaEventEmitter {
+	return func(event schemaEvent) {
+		payload, err := json.Marshal(event)
+		if err != nil {
+			log.Errorf("%s failed to marshal schema payload: %s", c.logPrompt, err)
+			return
+		}
+		emit(payload)
+	}
+}
+
 type tableKey struct {
 	conID int64
 	owner string
 	table string
 }
 
+type schemaCollector struct {
+	check               *Check
+	emit                schemaEventEmitter
+	owners              map[ownerKey]string
+	containers          map[int64]string
+	truncatedContainers map[int64]struct{}
+
+	conID       int64
+	conName     string
+	schemas     []*schemaObject
+	tableCount  int
+	tablesTotal int
+	truncated   bool
+
+	currentSchema *schemaObject
+	currentTable  *schemaTable
+}
+
+func newSchemaCollector(c *Check, emit payloadEmitter, _ map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
+	return &schemaCollector{
+		check:      c,
+		emit:       schemaPayloadEmitter(c, emit),
+		owners:     owners,
+		containers: containers,
+		conID:      -1,
+	}
+}
+
+func (s *schemaCollector) startContainer(conID int64) {
+	if s.conID != -1 {
+		s.emitContainer()
+	}
+	s.conID = conID
+	if name, ok := s.containers[conID]; ok {
+		s.conName = s.check.getFullPDBName(name)
+	} else {
+		s.conName = s.check.getFullPDBName(strconv.FormatInt(conID, 10))
+	}
+	_, s.truncated = s.truncatedContainers[conID]
+	s.reset()
+}
+
+func (s *schemaCollector) reset() {
+	s.schemas = nil
+	s.tableCount = 0
+	s.currentSchema = nil
+	s.currentTable = nil
+}
+
+func (s *schemaCollector) baseEvent() schemaEvent {
+	return schemaEvent{
+		Host:               s.check.dbHostname,
+		DatabaseInstance:   s.check.dbInstanceIdentifier,
+		AgentVersion:       s.check.agentVersion,
+		Dbms:               "oracle",
+		Kind:               "oracle_databases",
+		CollectionInterval: s.check.config.Schemas.CollectionInterval,
+		DbmsVersion:        s.check.dbVersion,
+		Tags:               s.check.tags,
+		Timestamp:          float64(s.check.clock.Now().UnixMilli()),
+	}
+}
+
+func (s *schemaCollector) emitContainer() {
+	if s.conID == -1 {
+		return
+	}
+	e := s.baseEvent()
+	e.Metadata = []containerObject{{
+		ID:      strconv.FormatInt(s.conID, 10),
+		Name:    s.conName,
+		Schemas: s.schemas,
+	}}
+	e.Truncated = s.truncated
+	s.emit(e)
+	s.reset()
+}
+
+func (s *schemaCollector) useSchema(conID int64, owner string) {
+	if s.currentSchema != nil && s.currentSchema.Name == owner {
+		return
+	}
+	s.currentSchema = &schemaObject{
+		ID:    s.owners[ownerKey{conID: conID, owner: owner}],
+		Name:  owner,
+		Owner: owner,
+	}
+	s.schemas = append(s.schemas, s.currentSchema)
+	s.currentTable = nil
+}
+
+func (s *schemaCollector) add(r schemaRowDB) {
+	if r.ConID != s.conID {
+		s.startContainer(r.ConID)
+	}
+
+	s.useSchema(r.ConID, r.Owner)
+
+	newTable := s.currentTable == nil || s.currentTable.Name != r.TableName
+	if newTable {
+		t := &schemaTable{
+			Name:       r.TableName,
+			Owner:      r.Owner,
+			TableType:  tableType(r),
+			Properties: tableProperties(r),
+		}
+		if r.Temporary == "Y" {
+			t.Temporary = &temporaryDetail{Scope: r.Duration}
+		}
+		if r.NumRows.Valid {
+			n := r.NumRows.Int64
+			t.NumRows = &n
+			t.RowCount = &n
+		}
+		if r.LastAnalyzed.Valid {
+			t.LastAnalyzed = r.LastAnalyzed.Time.UTC().Format(time.RFC3339)
+		}
+		if r.ObjectType != "" && r.ObjectType != "-" {
+			t.ObjectType = &objectTypeDetail{TypeName: r.ObjectType}
+			if r.ObjectTypeOwner != "" && r.ObjectTypeOwner != "-" {
+				t.ObjectType.TypeOwner = r.ObjectTypeOwner
+			}
+		}
+		s.currentTable = t
+		s.currentSchema.Tables = append(s.currentSchema.Tables, t)
+		s.tableCount++
+		s.tablesTotal++
+
+		if r.TotalTables.Valid && r.TotalTables.Int64 > int64(s.check.config.Schemas.MaxTables) {
+			s.truncated = true
+		}
+		if r.TotalColumns.Valid && r.TotalColumns.Int64 > int64(s.check.config.Schemas.MaxColumns) {
+			s.truncated = true
+		}
+	}
+
+	s.currentTable.Columns = append(s.currentTable.Columns, schemaColumn{
+		Name:      r.ColumnName,
+		DataType:  dataType(r),
+		Nullable:  r.Nullable == "Y",
+		Virtual:   r.VirtualColumn == "YES",
+		Invisible: r.HiddenColumn == "YES",
+	})
+}
+
+func (s *schemaCollector) finish() {
+	s.emitContainer()
+	s.conID = -1
+}
+
+func dataType(r schemaRowDB) string {
+	if !r.DataType.Valid {
+		return ""
+	}
+	t := r.DataType.String
+	var rendered string
+	switch t {
+	case "NUMBER":
+		if r.DataPrecision.Valid {
+			scale := int64(0)
+			if r.DataScale.Valid {
+				scale = r.DataScale.Int64
+			}
+			rendered = fmt.Sprintf("NUMBER(%d,%d)", r.DataPrecision.Int64, scale)
+		} else {
+			rendered = t
+		}
+	case "FLOAT":
+		if r.DataPrecision.Valid {
+			rendered = fmt.Sprintf("FLOAT(%d)", r.DataPrecision.Int64)
+		} else {
+			rendered = t
+		}
+	case "VARCHAR2", "CHAR":
+		if r.CharUsed == "C" && r.CharLength.Valid {
+			rendered = fmt.Sprintf("%s(%d CHAR)", t, r.CharLength.Int64)
+		} else if r.DataLength.Valid {
+			rendered = fmt.Sprintf("%s(%d BYTE)", t, r.DataLength.Int64)
+		} else {
+			rendered = t
+		}
+	case "NVARCHAR2", "NCHAR":
+		// The grammar has no BYTE/CHAR qualifier for national character types.
+		if r.CharLength.Valid {
+			rendered = fmt.Sprintf("%s(%d)", t, r.CharLength.Int64)
+		} else {
+			rendered = t
+		}
+	case "RAW":
+		if r.DataLength.Valid {
+			rendered = fmt.Sprintf("RAW(%d)", r.DataLength.Int64)
+		} else {
+			rendered = t
+		}
+	default:
+		// Temporal precision is already in DATA_TYPE; other lengths may be internal locator sizes.
+		rendered = t
+	}
+
+	if owner := r.DataTypeOwner.String; r.DataTypeOwner.Valid && owner != "" && owner != "SYS" && owner != "PUBLIC" {
+		rendered = owner + "." + rendered
+	}
+	if r.DataTypeMod.Valid && strings.TrimSpace(r.DataTypeMod.String) != "" {
+		rendered = strings.TrimSpace(r.DataTypeMod.String) + " " + rendered
+	}
+	return rendered
+}
+
+func tableType(r schemaRowDB) string {
+	if r.External == "YES" {
+		return "external"
+	}
+	return "table"
+}
+
+func tableProperties(r schemaRowDB) []string {
+	var props []string
+	if r.Temporary == "Y" {
+		props = append(props, "temporary")
+	}
+	if r.Partitioned == "YES" {
+		props = append(props, "partitioned")
+	}
+	if r.IotType != "-" {
+		props = append(props, "index_organized")
+	}
+	if r.ClusterName != "-" {
+		props = append(props, "clustered")
+	}
+	if r.Clustering == "YES" {
+		props = append(props, "attribute_clustered")
+	}
+	if r.ReadOnly == "YES" {
+		props = append(props, "read_only")
+	}
+	if r.ObjectType != "" && r.ObjectType != "-" {
+		props = append(props, "object_table")
+	}
+	return props
+}
+
+// DATA_DEFAULT_VC exists from 23ai. Earlier versions require the LONG DATA_DEFAULT column,
+// which cannot be passed to a SQL function and is therefore truncated in Go.
+
 type ownerKey struct {
 	conID int64
 	owner string
+}
+
+func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (map[ownerKey]string, []string, error) {
+	include := compiledPatterns(c.config.Schemas.IncludeSchemas, c.logPrompt, "include_schemas")
+	exclude := compiledPatterns(c.config.Schemas.ExcludeSchemas, c.logPrompt, "exclude_schemas")
+	// A failed or stale container lookup must not drop schemas unless database filters require it.
+	filterDatabases := len(c.config.Schemas.IncludeDatabases) > 0 || len(c.config.Schemas.ExcludeDatabases) > 0
+
+	owners := make(map[ownerKey]string)
+	names := make(map[string]struct{})
+	err := c.queryMetadata(ctx, schemaOwnersQuery, func(rows *sqlx.Rows) error {
+		var (
+			conID  int64
+			name   string
+			userID sql.NullInt64
+		)
+		if err := rows.Scan(&conID, &name, &userID); err != nil {
+			return fmt.Errorf("failed to scan schema owner: %w", err)
+		}
+		if filterDatabases {
+			if _, ok := containers[conID]; !ok {
+				return nil
+			}
+		}
+		if !schemaOwnerPattern.MatchString(name) {
+			log.Warnf("%s skipping schema owner with unexpected characters: %q", c.logPrompt, name)
+			return nil
+		}
+		if !passesFilter(name, include, exclude) {
+			return nil
+		}
+		id := ""
+		if userID.Valid {
+			id = strconv.FormatInt(userID.Int64, 10)
+		}
+		owners[ownerKey{conID: conID, owner: name}] = id
+		names[name] = struct{}{}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to query schema owners: %w", err)
+	}
+
+	distinct := make([]string, 0, len(names))
+	for n := range names {
+		distinct = append(distinct, n)
+	}
+	sort.Strings(distinct)
+	return owners, distinct, nil
+}
+
+func ownerListChunks(names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	chunks := make([]string, 0, (len(names)+maxSchemaOwners-1)/maxSchemaOwners)
+	for i := 0; i < len(names); i += maxSchemaOwners {
+		end := i + maxSchemaOwners
+		if end > len(names) {
+			end = len(names)
+		}
+		batch := names[i:end]
+		quoted := make([]string, len(batch))
+		for j, n := range batch {
+			quoted[j] = "'" + n + "'"
+		}
+		chunks = append(chunks, strings.Join(quoted, ", "))
+	}
+	return chunks
 }
 
 type relationColumnNames struct {
@@ -515,4 +920,250 @@ type relationColumnNames struct {
 type columnKey struct {
 	tableKey
 	column string
+}
+
+func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnNames) []string {
+	keys := make([]tableKey, 0, len(allowed))
+	for key := range allowed {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].conID != keys[j].conID {
+			return keys[i].conID < keys[j].conID
+		}
+		if keys[i].owner != keys[j].owner {
+			return keys[i].owner < keys[j].owner
+		}
+		return keys[i].table < keys[j].table
+	})
+
+	filters := make([]string, 0, (len(keys)+maxSchemaRelationsPerQuery-1)/maxSchemaRelationsPerQuery)
+	for start := 0; start < len(keys); start += maxSchemaRelationsPerQuery {
+		end := start + maxSchemaRelationsPerQuery
+		if end > len(keys) {
+			end = len(keys)
+		}
+		var groups []string
+		for i := start; i < end; {
+			j := i + 1
+			for j < end && keys[j].conID == keys[i].conID && keys[j].owner == keys[i].owner {
+				j++
+			}
+			names := make([]string, 0, j-i)
+			for _, key := range keys[i:j] {
+				names = append(names, "'"+escapeSQLLiteral(key.table)+"'")
+			}
+			groups = append(groups, fmt.Sprintf("(%s = %d AND %s = '%s' AND %s IN (%s))",
+				columns.conID, keys[i].conID,
+				columns.owner, escapeSQLLiteral(keys[i].owner),
+				columns.relation, strings.Join(names, ", ")))
+			i = j
+		}
+		filters = append(filters, "("+strings.Join(groups, " OR ")+")")
+	}
+	return filters
+}
+
+func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNames, columnName string) []string {
+	keys := make([]columnKey, 0, len(allowed))
+	for key := range allowed {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].conID != keys[j].conID {
+			return keys[i].conID < keys[j].conID
+		}
+		if keys[i].owner != keys[j].owner {
+			return keys[i].owner < keys[j].owner
+		}
+		if keys[i].table != keys[j].table {
+			return keys[i].table < keys[j].table
+		}
+		return keys[i].column < keys[j].column
+	})
+
+	filters := make([]string, 0, (len(keys)+maxSchemaRelationsPerQuery-1)/maxSchemaRelationsPerQuery)
+	for start := 0; start < len(keys); start += maxSchemaRelationsPerQuery {
+		end := start + maxSchemaRelationsPerQuery
+		if end > len(keys) {
+			end = len(keys)
+		}
+		var groups []string
+		for i := start; i < end; {
+			j := i + 1
+			for j < end && keys[j].tableKey == keys[i].tableKey {
+				j++
+			}
+			names := make([]string, 0, j-i)
+			for _, key := range keys[i:j] {
+				names = append(names, "'"+escapeSQLLiteral(key.column)+"'")
+			}
+			groups = append(groups, fmt.Sprintf("(%s = %d AND %s = '%s' AND %s = '%s' AND %s IN (%s))",
+				columns.conID, keys[i].conID,
+				columns.owner, escapeSQLLiteral(keys[i].owner),
+				columns.relation, escapeSQLLiteral(keys[i].table),
+				columnName, strings.Join(names, ", ")))
+			i = j
+		}
+		filters = append(filters, "("+strings.Join(groups, " OR ")+")")
+	}
+	return filters
+}
+
+func (c *Check) queryMetadata(ctx context.Context, query string, scan func(*sqlx.Rows) error) error {
+	queryCtx, cancel := context.WithTimeout(ctx, c.config.Schemas.MaxQueryDurationDuration())
+	defer cancel()
+
+	rows, err := c.db.QueryxContext(queryCtx, query)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		if err := scan(rows); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
+// Missing or version-incompatible optional detail views do not fail collection.
+
+func (c *Check) containerNames(ctx context.Context) map[int64]string {
+	names := make(map[int64]string)
+	err := c.queryMetadata(ctx, containerNamesQuery, func(rows *sqlx.Rows) error {
+		var (
+			conID int64
+			name  string
+		)
+		if err := rows.Scan(&conID, &name); err != nil {
+			return fmt.Errorf("failed to scan container name: %w", err)
+		}
+		names[conID] = name
+		return nil
+	})
+	if err != nil {
+		log.Warnf("%s failed to query container names: %s", c.logPrompt, err)
+	}
+	return names
+}
+
+func (c *Check) fetchMetadataRows(ctx context.Context, template string, ownerLists []string, owners map[ownerKey]string, extra map[string]string) ([]schemaRowDB, error) {
+	var all []schemaRowDB
+	for _, ownerList := range ownerLists {
+		query := strings.ReplaceAll(template, "/*OWNERS*/", ownerList)
+		for placeholder, value := range extra {
+			query = strings.ReplaceAll(query, placeholder, value)
+		}
+
+		err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
+			var r schemaRowDB
+			if err := rows.StructScan(&r); err != nil {
+				return err
+			}
+			if _, ok := owners[ownerKey{conID: r.ConID, owner: r.Owner}]; ok {
+				all = append(all, r)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return all, nil
+}
+
+func capMetadataRows(rows []schemaRowDB, maxRelations int) ([]schemaRowDB, map[int64]struct{}) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].ConID != rows[j].ConID {
+			return rows[i].ConID < rows[j].ConID
+		}
+		if rows[i].Owner != rows[j].Owner {
+			return rows[i].Owner < rows[j].Owner
+		}
+		return rows[i].TableName < rows[j].TableName
+	})
+
+	selected := make(map[tableKey]struct{})
+	counts := make(map[int64]int)
+	truncated := make(map[int64]struct{})
+	capped := make([]schemaRowDB, 0, len(rows))
+	for _, row := range rows {
+		if row.TotalTables.Valid && row.TotalTables.Int64 > int64(maxRelations) {
+			truncated[row.ConID] = struct{}{}
+		}
+		key := tableKey{conID: row.ConID, owner: row.Owner, table: row.TableName}
+		if _, ok := selected[key]; !ok {
+			if counts[row.ConID] >= maxRelations {
+				truncated[row.ConID] = struct{}{}
+				continue
+			}
+			selected[key] = struct{}{}
+			counts[row.ConID]++
+		}
+		capped = append(capped, row)
+	}
+	return capped, truncated
+}
+
+func schemaCollectionVersionSupported(version string) bool {
+	major, _, _ := strings.Cut(version, ".")
+	n, err := strconv.Atoi(major)
+	return err == nil && n >= 12
+}
+
+func (c *Check) SchemaCollection() error {
+	return c.schemaCollection(context.Background())
+}
+
+func (c *Check) schemaCollection(ctx context.Context) error {
+	if !schemaCollectionVersionSupported(c.dbVersion) {
+		log.Warnf("%s schema collection requires Oracle %sc or later", c.logPrompt, minMultitenantVersion)
+		return nil
+	}
+
+	sender, err := c.GetSender()
+	if err != nil {
+		return fmt.Errorf("failed to initialize sender: %w", err)
+	}
+
+	containers := filterContainers(c.containerNames(ctx), c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases, c.logPrompt)
+	owners, names, err := c.schemaOwners(ctx, containers)
+	if err != nil {
+		return err
+	}
+	if len(names) == 0 {
+		log.Debugf("%s no user schemas to collect", c.logPrompt)
+		return nil
+	}
+
+	extra := map[string]string{
+		"/*TABLE_FILTERS*/": regexSQLClauses("t.table_name", c.config.Schemas.IncludeTables, c.config.Schemas.ExcludeTables),
+		"/*MAX_TABLES*/":    strconv.Itoa(c.config.Schemas.MaxTables),
+		"/*MAX_COLUMNS*/":   strconv.Itoa(c.config.Schemas.MaxColumns),
+	}
+	rows, err := c.fetchMetadataRows(ctx, schemasQueryTemplate, ownerListChunks(names), owners, extra)
+	if err != nil {
+		return fmt.Errorf("failed to query schemas: %w", err)
+	}
+	rows, cappedContainers := capMetadataRows(rows, c.config.Schemas.MaxTables)
+
+	emit := func(payload []byte) {
+		sender.EventPlatformEvent(payload, "dbm-metadata")
+	}
+	collector := newSchemaCollector(c, emit, nil, owners, containers)
+	collector.truncatedContainers = cappedContainers
+	for _, r := range rows {
+		collector.add(r)
+	}
+	collector.finish()
+
+	for conID := range cappedContainers {
+		log.Warnf("%s table collection stopped at max_tables=%d for container %d; some tables were not collected",
+			c.logPrompt, c.config.Schemas.MaxTables, conID)
+	}
+	log.Debugf("%s schema collection sent %d tables", c.logPrompt, collector.tablesTotal)
+	sender.Commit()
+	return nil
 }
