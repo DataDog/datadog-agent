@@ -23,13 +23,17 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
-	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
+	configsyncimpl "github.com/DataDog/datadog-agent/comp/core/configsync/impl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	hostprofiler "github.com/DataDog/datadog-agent/comp/host-profiler"
@@ -144,15 +148,45 @@ func initStandaloneConfig() {
 
 func getRemoteTaggerOptions() []fx.Option {
 	return []fx.Option{
-		ipcfx.ModuleReadWrite(),
+		ipcfx.ModuleReadOnly(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
 	}
 }
 
 func getConfigOptions(params *globalparams.GlobalParams) []fx.Option {
 	return []fx.Option{
-		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
+		fx.Supply(configstreamconsumer.NewParams(
+			"host-profiler",
+			params.CoreConfPath,
+			configstreamconsumer.WithReadyTimeout(params.SyncOnInitTimeout),
+		)),
+		configstreamconsumerfx.Module(),
+		configSyncFallbackModule(configsync.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 	}
+}
+
+func configSyncFallbackModule(params configsync.Params) fx.Option {
+	return fx.Options(
+		fx.Provide(func(lc compdef.Lifecycle, cfg config.Component, logger log.Component, client ipc.HTTPClient, stream configstreamconsumer.Component) (configsync.Component, error) {
+			return newConfigSyncFallback(configsyncimpl.Requires{
+				Lc:         lc,
+				Config:     cfg,
+				Log:        logger,
+				IPCClient:  client,
+				SyncParams: params,
+			}, stream)
+		}),
+		fx.Invoke(func(_ configsync.Component) {}),
+	)
+}
+
+type noopConfigSync struct{}
+
+func newConfigSyncFallback(deps configsyncimpl.Requires, stream configstreamconsumer.Component) (configsync.Component, error) {
+	if stream.IsActive() {
+		return noopConfigSync{}, nil
+	}
+	return configsyncimpl.NewComponent(deps)
 }
 
 func getTraceAgentOptions(ctx context.Context) []fx.Option {
