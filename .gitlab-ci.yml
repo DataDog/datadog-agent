@@ -1759,3 +1759,16 @@ workflow:
       - scheduler_failure
       - stale_schedule
       - data_integrity_failure
+
+# One-off aliases for the PR 25093 custom Agent build. The source manifests were
+# already built by pipeline 136808321, so this job only republishes their index.
+retag_sql_stagger_20260911:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  needs: []
+  rules:
+    - when: always
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: registry.ddbuild.io/ci/datadog-agent/agent:v136808321-2697cc74-7-full-amd64,registry.ddbuild.io/ci/datadog-agent/agent:v136808321-2697cc74-7-full-arm64
+    IMG_DESTINATIONS: agent-dev:sql-stagger-20260911-full,agent-dev:sql-stagger-20260911-2697cc74-full
