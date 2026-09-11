@@ -710,7 +710,7 @@ func start(log log.Component,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
 			CSIDriverWatcher:             csiDriverWatcher,
-			DDITargets:                   ddiTargetStore,
+			DDITargets:                   apmTargetStore,
 			RcClient:                     rcClient,
 		}
 
