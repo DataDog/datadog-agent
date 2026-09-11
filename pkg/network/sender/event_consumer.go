@@ -85,6 +85,10 @@ func (d *directSenderConsumer) EventTypes() []model.EventType {
 
 // Start implements eventmonitor.EventConsumer
 func (d *directSenderConsumer) Start() error {
+	d.log.Tracef("direct sender start")
+	defer func() {
+		d.log.Tracef("direct sender start complete")
+	}()
 	return d.loadCurrentProcesses()
 }
 

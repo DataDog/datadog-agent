@@ -90,11 +90,13 @@ func (r *serviceResolver) Resolve(pid int32, remoteIP netip.Addr, remotePort, lo
 				remoteTags = append(remoteTags, pidTags...)
 			}
 		}
+		if len(remoteTags) > 0 {
+			log.Tracef("resolved pid=%d destPID=%d remoteIP=%s:%d localPort=%d tags=%v", pid, destPID, remoteIP, remotePort, localPort, remoteTags)
+		}
 	}
 
 	if len(remoteTags) == 0 {
 		return nil
 	}
-	log.Tracef("resolved pid=%d remoteIP=%s:%d localPort=%d tags=%v", pid, remoteIP, remotePort, localPort, remoteTags)
 	return remoteTags
 }
