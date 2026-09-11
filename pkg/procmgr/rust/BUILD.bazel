@@ -151,6 +151,14 @@ rust_test(
     name = "dd-procmgrd_test",
     crate = ":dd-procmgrd-lib",
     edition = "2024",
+    # TODO(procmgr): remove once Windows dd-procmgrd_test failures are fixed.
+    # Serializes tests so the failing case is visible in truncated CI logs.
+    env = select({
+        "@platforms//os:windows": {
+            "RUST_TEST_THREADS": "1",
+        },
+        "//conditions:default": {},
+    }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     deps = ["@crates//:tempfile"],
