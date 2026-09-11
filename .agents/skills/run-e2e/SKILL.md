@@ -60,7 +60,7 @@ machine the remedy belongs on.
 | Exit | Meaning | What to do |
 |---|---|---|
 | 0 | Ready | Step 4, using the printed `run_prefix` |
-| 2 | Host has no usable `~/.test_infra_config.yaml` | Read `references/setup.md`, offer `dda inv -- e2e.setup` **on the host**, retry |
+| 2 | Host has no usable `~/.test_infra_config.yaml` | Read `references/setup.md`, run `dda inv -- e2e.setup --team=<github-team>` **on the host** (ask the user for their team first; never the interactive form), retry |
 | 3 | The container would not hold this working tree | Follow the printed remedy; `references/devenv.md` per case. Offer `--host` if the checkout cannot be used |
 | 4 | The container cannot authenticate to AWS | Run the printed `aws-vault login` **inside the env**, then retry |
 | 5 | Already inside a dev env | Step 2 misread the marker; go to 3B |
