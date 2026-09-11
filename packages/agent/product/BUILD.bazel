@@ -185,18 +185,15 @@ pkg_files(
 # which stages relative to install_dir). Add more conf_dir-relative files here as they
 # migrate off Omnibus (e.g. bin/agent/dist/system-probe.yaml).
 pkg_filegroup(
-    name = "conf_dir_files",
+    name = "system_probe_files",
     srcs = [
         ":system_probe_selinux_policy_files",
     ],
 )
 
-# `bazel run //packages/agent/product:install_conf_dir_files -- --destdir=<conf_dir>`
-# stages :conf_dir_files into conf_dir. Callable unconditionally on any platform: the
-# selects on the components (e.g. :system_probe_selinux_policy_files) resolve to no-ops
-# where they don't apply.
+# Temporary during omnibus migration.
 pkg_install(
-    name = "install_conf_dir_files",
-    srcs = [":conf_dir_files"],
+    name = "install_system_probe_files",
+    srcs = [":system_probe_files"],
     visibility = ["//visibility:public"],
 )

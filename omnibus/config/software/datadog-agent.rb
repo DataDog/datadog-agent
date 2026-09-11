@@ -19,6 +19,10 @@ unless do_repackage?
   dependency "python3"
   dependency 'datadog-agent-integrations-py3'
 
+  host_distribution = ""
+  if not Omnibus::Config.host_distribution().nil?
+      host_distribution = "--//packages/agent:host_distribution=#{Omnibus::Config.host_distribution()}"
+
   build do
       command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
           :live_stream => Omnibus.logger.live_stream(:info)
@@ -113,8 +117,6 @@ build do
   else
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
-
-  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env
 
   # Stage Rust shared-library checks into checks.d (Linux only). Enabled checks
   # are listed in ENABLED_CHECKS in the rustchecks BUILD.bazel.
@@ -234,6 +236,7 @@ build do
     end
 
     move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe_files -- --destdir=\"#{conf_dir}\"", env: env
   end
 
   # System-probe eBPF files
