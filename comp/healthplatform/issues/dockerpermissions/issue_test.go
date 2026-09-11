@@ -79,13 +79,20 @@ func TestBuildIssue_Windows(t *testing.T) {
 
 	remediation := issue.GetRemediation()
 	require.NotNil(t, remediation)
-	assert.Contains(t, joinStepText(remediation.GetSteps()), "docker-users")
+	stepText := joinStepText(remediation.GetSteps())
+	assert.Contains(t, stepText, "docker-users")
+	assert.Contains(t, stepText, "daemon.json")
 
 	script := remediation.GetScript()
 	require.NotNil(t, script)
 	assert.Equal(t, "powershell", script.GetLanguage())
 	assert.Equal(t, "Fix-DockerSocketPermissions.ps1", script.GetFilename())
 	assert.Contains(t, script.GetContent(), "docker-users")
+	// The script must not assume "docker-users" is wired up to the pipe ACL:
+	// it has to read the daemon's actual configured group before adding the
+	// user to it, since standalone Docker Engine installs don't set one.
+	assert.Contains(t, script.GetContent(), "daemon.json")
+	assert.Contains(t, script.GetContent(), "$targetGroup")
 }
 
 func TestBuildIssue_Extra(t *testing.T) {

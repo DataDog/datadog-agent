@@ -100,13 +100,15 @@ func (t *DockerPermissionIssue) buildLinux(socketPaths string) *healthplatform.R
 // buildWindows creates Windows-specific remediation steps
 func (t *DockerPermissionIssue) buildWindows(socketPaths string) *healthplatform.Remediation {
 	return &healthplatform.Remediation{
-		Summary: "Add the ddagentuser account to the docker-users group so it can connect to the Docker named pipe.",
+		Summary: "Add the ddagentuser account to the local group Docker's daemon trusts for named-pipe access (docker-users by default on Docker Desktop).",
 		Steps: []*healthplatform.RemediationStep{
 			{Order: 1, Text: "Affected named pipe(s): " + socketPaths},
 			{Order: 2, Text: "Open PowerShell as Administrator"},
-			{Order: 3, Text: `Add ddagentuser to the docker-users group: Add-LocalGroupMember -Group "docker-users" -Member "ddagentuser"`},
-			{Order: 4, Text: "Restart the Datadog Agent service: Restart-Service -Name datadogagent"},
-			{Order: 5, Text: "Verify the issue is resolved by checking agent status"},
+			{Order: 3, Text: `Check the daemon's configured group in C:\ProgramData\docker\config\daemon.json (the "group" key); Docker Desktop sets this to docker-users, but a standalone Docker Engine install on Windows Server may not set it at all`},
+			{Order: 4, Text: `Add ddagentuser to that group (docker-users by default): Add-LocalGroupMember -Group "docker-users" -Member "ddagentuser"`},
+			{Order: 5, Text: `If daemon.json has no "group" configured, membership alone will not grant access: add "group": "docker-users" to it and restart the Docker service (Restart-Service docker)`},
+			{Order: 6, Text: "Restart the Datadog Agent service: Restart-Service -Name datadogagent"},
+			{Order: 7, Text: "Verify the issue is resolved by checking agent status"},
 		},
 		Script: &healthplatform.Script{
 			Language:        "powershell",
