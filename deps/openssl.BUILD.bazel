@@ -333,7 +333,6 @@ dd_cc_packaged(
     }),
 )
 
-# Install prefix (include/, lib/) for openssl-sys's OPENSSL_DIR.
 filegroup(
     name = "gen_dir",
     srcs = [":openssl"],

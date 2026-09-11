@@ -14,16 +14,6 @@ cc_library(
     target_compatible_with = _LINUX,
 )
 
-# RPATH to the embedded lib dir so the check loads the package's vendored
-# OpenSSL, not the host's. $(INSTALL_DIR) comes from //:install_dir, honoring
-# custom install prefixes.
-cc_library(
-    name = "embedded_openssl_rpath",
-    linkopts = ["-Wl,-rpath,$(INSTALL_DIR)/embedded/lib"],
-    target_compatible_with = _LINUX,
-    toolchains = ["//:install_dir"],
-)
-
 # cdylib loaded by the shared-library check loader.
 rust_shared_library(
     name = "datasecurity",
@@ -37,7 +27,7 @@ rust_shared_library(
     edition = "2024",
     link_deps = [
         ":cpp_stdlib",
-        ":embedded_openssl_rpath",
+        "//deps/openssl:embedded_openssl_rpath",
         "@openssl//:openssl_shared",
     ],
     # Use the Bazel proto crate instead of the cargo build-script path (src/proto.rs).
