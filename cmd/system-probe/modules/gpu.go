@@ -9,6 +9,7 @@ package modules
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -106,16 +108,29 @@ var GPUMonitoring = &module.Factory{
 			}
 		}
 
-		return &GPUMonitoringModule{
+		mod := &GPUMonitoringModule{
 			Probe:                 p,
 			driverEventSubscriber: driverEventSubscriber,
 			prmHandler: prm.NewHandler(func(uuid string) (prm.Device, error) {
+				// Gate the device access: the release monitor can shut NVML
+				// down concurrently with an active PRM request.
+				if err := ddnvml.BeginNVMLUse(); err != nil {
+					return nil, err
+				}
+				defer ddnvml.EndNVMLUse()
 				return deviceCache.GetByUUID(uuid)
 			}),
 			cfg:           c,
 			contextCancel: cancel,
 			context:       ctx,
-		}, nil
+			deviceCache:   deviceCache,
+			leaseDone:     make(chan struct{}),
+		}
+		// The release monitor lives on the module (not the probe) and runs
+		// in every mode: PRM requests, driver events and the eBPF probe all
+		// hold NVML, so all of them must participate in release windows.
+		mod.startNvmlReleaseMonitor()
+		return mod, nil
 	},
 	NeedsEBPF: func() bool {
 		return gpuconfig.New().EnableEBPFProbes
@@ -130,6 +145,15 @@ type GPUMonitoringModule struct {
 	cfg                   *gpuconfig.Config
 	context               context.Context    // Context associated with the module
 	contextCancel         context.CancelFunc // Cancel function associated with the context
+	deviceCache           ddnvml.DeviceCache // deviceCache is the module's cache in every mode (the probe's in eBPF mode)
+
+	// nvmlLease is the release lease held by the core agent over the
+	// /nvml-release endpoint. It lives on the module — not the probe — so
+	// driver-events-only mode (eBPF probes disabled, NVML still held by the
+	// subscriber) participates in release windows too.
+	nvmlLease gpu.NvmlReleaseLease
+	leaseDone chan struct{}
+	leaseWG   sync.WaitGroup
 }
 
 type driverEventSubscriber interface {
@@ -171,7 +195,17 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	}))
 
 	if t.cfg != nil && t.cfg.PRMEndpointEnabled && t.prmHandler != nil {
-		httpMux.HandleFunc("/prm-metrics", utils.WithConcurrencyLimit(1, t.prmHandler.HandlePRMMetrics))
+		// Gate the whole PRM operation: the handler performs device calls
+		// (architecture, port counters) after the device lookup, and the
+		// release monitor must not shut NVML down mid-request.
+		httpMux.HandleFunc("/prm-metrics", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+			if err := ddnvml.BeginNVMLUse(); err != nil {
+				http.Error(w, fmt.Sprintf("NVML unavailable (release window active): %v", err), http.StatusServiceUnavailable)
+				return
+			}
+			defer ddnvml.EndNVMLUse()
+			t.prmHandler.HandlePRMMetrics(w, req)
+		}))
 	}
 
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
@@ -181,7 +215,99 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/debug/detach-pid", usm.GetDetachPIDEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/collect-events", t.collectEventsHandler)
 
+	// The core agent holds a lease on this probe's NVML release through
+	// this endpoint, so a GPU reset is not blocked by system-probe either.
+	httpMux.HandleFunc("/nvml-release", t.nvmlReleaseHandler)
+
 	return nil
+}
+
+// startNvmlReleaseMonitor follows the release lease: while the core agent
+// holds it (a GPU reset window is open) the module releases its NVML; when it
+// clears or expires, NVML is re-acquired and the caches re-enumerate lazily.
+func (t *GPUMonitoringModule) startNvmlReleaseMonitor() {
+	t.leaseWG.Add(1)
+	go func() {
+		defer t.leaseWG.Done()
+
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-t.leaseDone:
+				return
+			case <-ticker.C:
+				window := t.nvmlLease.Held()
+				released := ddnvml.IsNVMLReleased()
+				switch {
+				case window && !released:
+					t.releaseNVMLForLease()
+				case !window && released:
+					t.reacquireNVMLForLease()
+				}
+			}
+		}
+	}()
+}
+
+// releaseNVMLForLease dispatches the release on the mode: eBPF mode goes
+// through the probe's system context (device cache + per-process caches +
+// library); driver-events-only mode releases the module's cache and the
+// library directly.
+func (t *GPUMonitoringModule) releaseNVMLForLease() {
+	if t.Probe != nil {
+		t.Probe.ReleaseForNvmlLease()
+		return
+	}
+	// Driver-events-only mode: no system context — release NVML directly,
+	// then drop the cache (the arm rejects new gated users, so nothing can
+	// repopulate it mid-release).
+	if err := ddnvml.ReleaseNVML(); err != nil {
+		log.Warnf("error shutting down NVML for the release in the GPU monitoring module (will retry next tick): %v", err)
+		return
+	}
+	t.deviceCache.Invalidate()
+	log.Warnf("NVML release window active (GPU reset in progress); GPU monitoring module releasing NVML until it completes")
+}
+
+// reacquireNVMLForLease ends the release window: the next device cache use
+// re-initializes NVML and re-enumerates.
+func (t *GPUMonitoringModule) reacquireNVMLForLease() {
+	if t.Probe != nil {
+		t.Probe.ReacquireForNvmlLease()
+		return
+	}
+	ddnvml.SetNVMLReleased(false)
+}
+
+// nvmlReleaseHandler receives the core agent's NVML release push: a push
+// with released=true renews the release lease, released=false ends the
+// window. If the core agent stops renewing (crash, check reload), the lease
+// simply expires.
+func (t *GPUMonitoringModule) nvmlReleaseHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Released bool `json:"released"`
+		// TTLSeconds is the lease duration the core agent asks for; it
+		// derives it from its check interval. 0 means the default.
+		TTLSeconds int `json:"ttl_seconds"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Released {
+		t.nvmlLease.Hold(time.Duration(req.TTLSeconds) * time.Second)
+	} else {
+		t.nvmlLease.Clear()
+	}
+
+	// The client helper always JSON-unmarshals the response body; an empty
+	// body would surface as an error on every successful renewal.
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("{}"))
 }
 
 // GetStats returns the debug stats for the GPU monitoring module
@@ -240,6 +366,10 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 
 // Close closes the GPU monitoring module
 func (t *GPUMonitoringModule) Close() {
+	if t.leaseDone != nil {
+		close(t.leaseDone)
+		t.leaseWG.Wait()
+	}
 	t.contextCancel()
 	if t.driverEventSubscriber != nil {
 		t.driverEventSubscriber.Stop()

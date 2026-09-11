@@ -8,6 +8,7 @@
 package safenvml
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -42,6 +43,10 @@ type DeviceCache interface {
 	AllMigDevices() ([]Device, error)
 	// Cores returns the number of cores for a device with a given UUID. Returns an error if the device is not found.
 	Cores(uuid string) (uint64, error)
+	// Invalidate marks the cache uninitialized and drops all cached device
+	// handles (called when NVML is deliberately released: the handles are
+	// dead once nvmlShutdown runs).
+	Invalidate()
 }
 
 // DeviceCacheOption customizes DeviceCache
@@ -89,19 +94,23 @@ func (c *deviceCache) ensureInit() error {
 }
 
 func (c *deviceCache) Refresh() error {
+	// Register as an NVML user for the whole enumeration: a deliberate
+	// release waits for in-flight refreshes and blocks new ones.
+	if err := BeginNVMLUse(); err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("error getting NVML library: %v", err)
+		}
+		return err
+	}
+	defer EndNVMLUse()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	// automatically acquire the library singleton if one is not provided
 	lib := c.lib
 	if lib == nil {
-		var err error
-		if lib, err = GetSafeNvmlLib(); err != nil {
-			if logLimiter.ShouldLog() {
-				log.Warnf("error getting NVML library: %v", err)
-			}
-			return err
-		}
+		lib = &singleton
 	}
 
 	count, err := lib.DeviceGetCount()
@@ -147,6 +156,25 @@ func (c *deviceCache) Refresh() error {
 			allDevices = append(allDevices, migChild)
 			allMigDevices = append(allMigDevices, migChild)
 		}
+	}
+
+	// Devices reported but none enumerated is a transient fault (release
+	// window, driver reload, permissions), not "the GPUs are gone". Publishing
+	// zero would make the workloadmeta pull unset every known GPU and drop the
+	// pod tags from GPU metrics, so keep the old contents and let the caller
+	// retry.
+	// A release armed while this refresh was in flight truncates it: the drain
+	// waits for our Begin count before shutting NVML down, but the flag goes up
+	// first, and every NewPhysicalDevice from then on fails with
+	// ErrNVMLReleased. Committing that prefix would make the workloadmeta pull
+	// unset the devices that never got built.
+	//
+	// Keyed on the release flag rather than on the device count on purpose:
+	// per-device faults (a bad handle, unreadable PCI info) must keep their
+	// skip-and-cache-the-rest behaviour, which TestDeviceCachePartialFailure
+	// pins. Partial degradation beats failing the whole refresh there.
+	if nvmlReleased.Load() {
+		return errors.New("NVML was released while refreshing; keeping the previous cache")
 	}
 
 	// on success, set the new data in the cache
@@ -253,6 +281,25 @@ func (c *deviceCache) AllPhysicalDevices() ([]Device, error) {
 	defer c.mu.RUnlock()
 
 	return c.allPhysicalDevices, nil
+}
+
+// Invalidate marks the cache uninitialized and drops all cached handles,
+// so the next accessor re-enumerates instead of serving handles that died
+// with the nvmlShutdown of the session that populated them.
+func (c *deviceCache) Invalidate() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.initialized = false
+	c.allDevices = nil
+	c.allPhysicalDevices = nil
+	c.allMigDevices = nil
+	c.uuidToDevice = nil
+	c.smVersionSet = nil
+	// Drop the captured library too: after a deliberate NVML shutdown the
+	// captured wrapper wraps a nil library, and Refresh must re-acquire the
+	// re-initialized singleton instead of reusing it.
+	c.lib = nil
 }
 
 // AllMigDevices returns all MIG children in the cache

@@ -10,19 +10,6 @@ package gpu
 import (
 	"errors"
 	"fmt"
-	"slices"
-	"strconv"
-	"strings"
-	"testing"
-	"time"
-
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
-	"go.uber.org/mock/gomock"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -45,6 +32,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+	"go.uber.org/mock/gomock"
+	"slices"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
 )
 
 func newMockContainerProvider(t *testing.T, pidToContainerID map[int]string) *mock_containers.MockContainerProvider {
@@ -1263,4 +1261,138 @@ func testPRMCounters(seed uint64) map[string]uint64 {
 		counters[field] = seed + uint64(i)
 	}
 	return counters
+}
+
+// ---------------------------------------------------------------------------
+// NVML release for GPU reset windows
+//
+
+// newReleaseTestCheck builds a Check for the release-signal tests, with a
+// recording fake for the system-probe lease push.
+func newReleaseTestCheck(t *testing.T) (*Check, *[]bool) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	wmeta := testutil.GetWorkloadMetaMock(t)
+	checkGeneric := newCheck(fakeTagger, testutil.GetTelemetryMock(t), wmeta)
+	c, ok := checkGeneric.(*Check)
+	require.True(t, ok)
+
+	pushes := &[]bool{}
+	c.nvmlRelease = func(released bool, _ time.Duration) error {
+		*pushes = append(*pushes, released)
+		return nil
+	}
+	return c, pushes
+}
+
+// TestIsMigReconfigState pins the label semantics: only "pending" and
+// "rebooting" mean a reconfiguration is in flight. "failed" is a TERMINAL
+// state that stays on the node until the next reconfiguration attempt —
+// treating it as in-flight would permanently pause GPU monitoring on that
+// node.
+func TestIsMigReconfigState(t *testing.T) {
+	assert.True(t, isMigReconfigState("pending"))
+	assert.True(t, isMigReconfigState("rebooting"))
+	assert.False(t, isMigReconfigState("success"))
+	assert.False(t, isMigReconfigState("failed"))
+	assert.False(t, isMigReconfigState(""))
+}
+
+// TestShouldReleaseNVML covers the signal reader: only the real external
+// signal (the node label) opens the window. The safenvml released state must
+// NOT act as a signal of its own — it would be a one-way latch (released →
+// reconfiguring forever → never re-acquire), which was caught live on the
+// H200 test cluster: after the node label was cleared the agent stayed
+// released indefinitely. With no signal the reader fails open (label read
+// errors in a non-k8s test environment read as "not reconfiguring" — the
+// fail-open decision).
+func TestShouldReleaseNVML(t *testing.T) {
+	c, _ := newReleaseTestCheck(t)
+
+	t.Run("released_state_is_not_a_signal", func(t *testing.T) {
+		// safenvml released state on, but no external signal → the window is
+		// closed: the check must be able to observe the window closing and
+		// re-acquire (SetNVMLReleased(false) happens in reacquireNVML)
+		ddnvml.SetNVMLReleased(true)
+		t.Cleanup(func() { ddnvml.SetNVMLReleased(false) })
+		assert.False(t, c.shouldReleaseNVML())
+	})
+
+	t.Run("no_signals_fails_open", func(t *testing.T) {
+		// released state off, label unreadable (no kubelet/DCA in tests) →
+		// fail open
+		ddnvml.SetNVMLReleased(false)
+		assert.False(t, c.shouldReleaseNVML())
+	})
+}
+
+// TestNvmlReleaseCycle covers the release → re-acquire cycle at the check
+// level: the release happens once while a signal is present (and the
+// system-probe lease is renewed on every push), and the window closing
+// (signal cleared) triggers the re-acquire and ends the system-probe lease.
+func TestNvmlReleaseCycle(t *testing.T) {
+	c, pushes := newReleaseTestCheck(t)
+
+	// window open: the release path arms the released flag. (releaseNVML
+	// shuts NVML down if inited; in unit tests NVML was never inited, so
+	// ShutdownIfInited is a no-op.) In production the window is opened by the
+	// label signal in Run; here it is driven directly — the label cannot be
+	// set in a unit-test environment.
+	require.False(t, ddnvml.IsNVMLReleased())
+	c.releaseNVML()
+	assert.True(t, ddnvml.IsNVMLReleased())
+
+	// the Run skip branch renews the system-probe lease on every cycle while
+	// the window is open
+	require.NoError(t, c.pushNvmlRelease(true))
+	require.NoError(t, c.pushNvmlRelease(true))
+	assert.Equal(t, []bool{true, true}, *pushes)
+
+	// window closes: signals clear → the re-acquire ends the system-probe
+	// lease too
+	c.reacquireNVML(true)
+	assert.False(t, ddnvml.IsNVMLReleased())
+	assert.Equal(t, []bool{true, true, false}, *pushes, "the reacquire must end the system-probe lease")
+}
+
+// TestReacquireAcrossInstanceRecreation guards the instance-recreation path:
+// autoconfig can rebuild the check instance in the middle of a window (config
+// reload). The new instance has its own notifier and no instance-level
+// release state, but the reacquire is driven by the global released state —
+// so the fresh instance still observes and ends a release the old instance
+// started, and its reacquire push ends the system-probe lease.
+func TestReacquireAcrossInstanceRecreation(t *testing.T) {
+	old, _ := newReleaseTestCheck(t)
+
+	// old instance releases for the window
+	old.releaseNVML()
+	require.True(t, ddnvml.IsNVMLReleased())
+	t.Cleanup(func() { ddnvml.SetNVMLReleased(false) })
+
+	// signals clear, then the instance is recreated mid-window: the fresh
+	// instance must still see that NVML is released and end the window, and
+	// end the system-probe lease with its own notifier
+	fresh, freshPushes := newReleaseTestCheck(t)
+	assert.True(t, ddnvml.IsNVMLReleased(), "the global released state must survive the instance recreation")
+
+	fresh.reacquireNVML(false)
+	assert.False(t, ddnvml.IsNVMLReleased())
+	assert.Equal(t, []bool{false}, *freshPushes, "the fresh instance must end the system-probe lease")
+}
+
+// TestCancelEndsReleaseWindow guards the removal path: a check canceled while
+// a release window is open (autoconfig removal, gpu.enabled off) has no Run()
+// left to re-acquire — without ending the window in Cancel, the released flag
+// would block every NVML user in this process silently, until an agent
+// restart, and the system-probe lease would expire without the window ever
+// being observed closed.
+func TestCancelEndsReleaseWindow(t *testing.T) {
+	c, pushes := newReleaseTestCheck(t)
+
+	c.releaseNVML()
+	require.True(t, ddnvml.IsNVMLReleased())
+	t.Cleanup(func() { ddnvml.SetNVMLReleased(false) })
+
+	c.Cancel()
+	assert.False(t, ddnvml.IsNVMLReleased(), "Cancel must end the release window: no Run() is coming")
+	assert.Equal(t, []bool{false}, *pushes, "Cancel must end the system-probe lease too")
 }

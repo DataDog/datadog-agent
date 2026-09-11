@@ -10,24 +10,11 @@ package gpu
 import (
 	"context"
 	"fmt"
-	"io"
-	"math"
-	"os"
-	"regexp"
-	"slices"
-	"sync/atomic"
-	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -36,7 +23,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	usmutils "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
+	"io"
+	"math"
+	"os"
+	"regexp"
+	"slices"
+	"sync/atomic"
+	"time"
 )
 
 // logLimitProbe is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
@@ -544,4 +541,77 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 // GetDeviceCache returns the device cache used by the GPU probe.
 func (p *Probe) GetDeviceCache() safenvml.DeviceCache {
 	return p.sysCtx.deviceCache
+}
+
+// ---------------------------------------------------------------------------
+// NVML release lease
+//
+
+// NvmlReleaseLeaseTTL is the default lease duration, used when a push does
+// not carry one (3x a default check interval). The core agent sends a TTL
+// derived from its actual check interval, so the lease always tolerates a
+// few missed pushes while still self-healing: a core agent that dies
+// mid-window leaves this probe released at most one lease long.
+
+// NvmlReleaseLeaseMaxTTL is the sanity bound on pushed lease durations. It
+// must stay above the longest plausible check interval: the lease has to
+// cover the renewal cadence (3 runs), and clamping below it would let
+// system-probe re-acquire NVML mid-window. 24h bounds garbage values while
+// keeping correctness for any sane interval.
+const NvmlReleaseLeaseMaxTTL = 24 * time.Hour
+const NvmlReleaseLeaseTTL = 30 * time.Second
+
+// NvmlReleaseLease is the lease the core agent holds on this probe's NVML
+// release: system-probe is a separate process and an independent NVML client,
+// so the core agent pushes renewals over the system-probe HTTP socket while
+// the window is open, and the lease expiring (or a released=false push) ends
+// it. Every failure mode — core agent crash, check reload, socket blips —
+// just stops the renewals.
+type NvmlReleaseLease struct {
+	// deadlineNanos is the Unix-nano deadline of the current lease; 0 means
+	// no window.
+	deadlineNanos atomic.Int64
+}
+
+// Renew extends the lease by ttl from now.
+func (l *NvmlReleaseLease) Renew(ttl time.Duration) {
+	l.deadlineNanos.Store(time.Now().Add(ttl).UnixNano())
+}
+
+// Clear ends the window immediately (released=false push).
+func (l *NvmlReleaseLease) Clear() {
+	l.deadlineNanos.Store(0)
+}
+
+// Held reports whether the release lease is currently held.
+func (l *NvmlReleaseLease) Held() bool {
+	deadline := l.deadlineNanos.Load()
+	return deadline != 0 && time.Now().UnixNano() < deadline
+}
+
+// Hold renews the lease for the pushed duration, clamping implausible values:
+// non-positive to the default TTL, oversized to the max (a lease shorter than
+// its renewal cadence would expire between renewals).
+func (l *NvmlReleaseLease) Hold(ttl time.Duration) {
+	switch {
+	case ttl <= 0:
+		ttl = NvmlReleaseLeaseTTL
+	case ttl > NvmlReleaseLeaseMaxTTL:
+		ttl = NvmlReleaseLeaseMaxTTL
+	}
+	l.Renew(ttl)
+}
+
+// ReleaseForNvmlLease releases the probe's NVML (device cache, per-process
+// caches, library) — called by the module's lease monitor when the core
+// agent's release lease is held. Exported for the driver-events-only mode's
+// dispatcher in cmd/system-probe/modules.
+func (p *Probe) ReleaseForNvmlLease() {
+	p.sysCtx.releaseNVMLForReset()
+}
+
+// ReacquireForNvmlLease ends the deliberate-release state; the next device
+// cache use re-initializes NVML and re-enumerates.
+func (p *Probe) ReacquireForNvmlLease() {
+	p.sysCtx.reacquireNVML()
 }
