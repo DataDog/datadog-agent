@@ -604,6 +604,49 @@ func TestStartConfiguration(t *testing.T) {
 	}
 }
 
+func TestProcessDataCollectionEnabled(t *testing.T) {
+	tests := []struct {
+		name                      string
+		processCollectionEnabled  bool
+		languageCollectionEnabled bool
+		gpuMonitoringEnabled      bool
+		expected                  bool
+	}{
+		{
+			name:                     "process collection enabled",
+			processCollectionEnabled: true,
+			expected:                 true,
+		},
+		{
+			name:                      "language collection enabled",
+			languageCollectionEnabled: true,
+			expected:                  true,
+		},
+		{
+			name:                 "GPU monitoring enabled",
+			gpuMonitoringEnabled: true,
+			expected:             true,
+		},
+		{
+			name:     "all disabled",
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("process_config.process_collection.enabled", tc.processCollectionEnabled)
+			cfg.SetInTest("language_detection.enabled", tc.languageCollectionEnabled)
+			cfg.SetInTest("gpu.enabled", tc.gpuMonitoringEnabled)
+
+			c := setUpCollectorTest(t, cfg, nil, nil)
+
+			assert.Equal(t, tc.expected, c.collector.isProcessDataCollectionEnabled())
+		})
+	}
+}
+
 func TestProcessCollectorIntervalConfig(t *testing.T) {
 	for _, tc := range []struct {
 		description      string
