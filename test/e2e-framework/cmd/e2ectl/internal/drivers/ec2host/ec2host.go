@@ -35,16 +35,15 @@ func (d *Driver) Installers() []installer.Installer {
 // params is prepared by the generic schema adapter. Forward its normalized YAML
 // from cfg: unlike re-marshalling with omitempty, this preserves explicit zeros
 // and applied defaults for any future fields. No second DTO is declared here.
+// Start provisions through the executor. Failure marking (status=error) is
+// owned by the command layer, not repeated here: cmdStart re-reads the
+// entry and marks it failed whenever Start returns an error.
 func (d *Driver) Start(_ ec2config.Config, cfg *config.File, entry envstore.Entry, store *envstore.Store) error {
 	fmt.Println("provisioning EC2 host (Pulumi executor), this takes a few minutes...")
 	if err := workerclient.Run(entry.Dir, executorJob(workerclient.ActionProvision, cfg, entry)); err != nil {
-		entry.Meta.Status = envstore.StatusError
-		_ = store.UpdateMeta(entry)
 		return err
 	}
 	if err := readFakeintakeOutput(entry, cfg.FakeIntakeEnabled(), &entry.Meta); err != nil {
-		entry.Meta.Status = envstore.StatusError
-		_ = store.UpdateMeta(entry)
 		return err
 	}
 	entry.Meta.Status = envstore.StatusReady

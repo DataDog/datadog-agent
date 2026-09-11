@@ -30,6 +30,7 @@ dd_agent_go_test(
     srcs = [
         "config_test.go",
         "discovery_test.go",
+        "lifecycle_test.go",
     ],
     embed = [":e2ectl_lib"],
     deps = [

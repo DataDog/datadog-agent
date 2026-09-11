@@ -64,6 +64,17 @@ executor binary. Agent installation reads credentials from the existing runner p
 (`~/.test_infra_config.yaml` or `E2E_API_KEY`; Helm also reads `E2E_APP_KEY`). Credentials
 are deliberately not generated into the starter configuration.
 
+### When a start fails
+
+A failed `start` marks the environment `error` — it never stays stuck in `provisioning` —
+and `e2ectl list` shows the truth. `e2ectl stop` recovers the entry: kind removes a
+half-created cluster best-effort (clusters are named after the environment) and reports
+a warning if one may remain; EC2 runs the normal teardown. If teardown itself fails
+(e.g. the executor cannot destroy a stack that was never created), `e2ectl stop --force`
+removes the entry anyway and warns which resources may remain to check manually
+(kind clusters are named after the environment; EC2 stacks are named `e2ectl-<name>`).
+The name is reusable once the entry is removed.
+
 ## Build
 
 From the repository root:

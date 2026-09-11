@@ -109,20 +109,33 @@ func (d *Driver) Stop(_ kindconfig.Config, _ *config.File, entry envstore.Entry,
 		ClusterName string `json:"clusterName"`
 	}
 	if err := provisioner.ReadSnapshotResource(entry.SnapshotPath(), "kubernetesCluster", &cluster); err != nil {
-		// half-created environment: nothing to delete beyond the entry
+		// Half-created environment: no snapshot was ever written, but a cluster
+		// may still exist — creation is deterministic, so the cluster is named
+		// after the environment. Best-effort delete (creation may have failed
+		// before the cluster existed), then clean the local fakeintake and
+		// always remove the entry: a failed start must be recoverable with
+		// plain `stop`.
+		if delErr := deleteKindCluster(entry.Name); delErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: a kind cluster named %q may remain (delete it manually if it exists): %v\n", entry.Name, delErr)
+		}
 		_ = localinfra.StopFakeintake(entry.Name + "-fakeintake")
 		return store.Delete(entry.Name)
 	}
 	if cluster.ClusterName != "" {
-		cmd := exec.Command("kind", "delete", "cluster", "--name", cluster.ClusterName)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		if err := deleteKindCluster(cluster.ClusterName); err != nil {
 			return fmt.Errorf("deleting kind cluster: %w", err)
 		}
 	}
 	_ = localinfra.StopFakeintake(entry.Name + "-fakeintake")
 	return store.Delete(entry.Name)
+}
+
+// deleteKindCluster removes a kind cluster by its deterministic name.
+func deleteKindCluster(name string) error {
+	cmd := exec.Command("kind", "delete", "cluster", "--name", name)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func createCluster(entry envstore.Entry, params kindconfig.Config) error {

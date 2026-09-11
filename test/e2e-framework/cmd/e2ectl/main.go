@@ -72,7 +72,7 @@ Usage:
   e2ectl install --env <name> [--config <file>]     install the agent on it
   e2ectl update --env <name> [--skip-build]         rebuild agent code and redeploy (kind)
   e2ectl fakeintake <names|metrics|health> --env <name>
-  e2ectl stop --env <name>                          destroy the environment
+  e2ectl stop --env <name> [--force]               destroy the environment (--force removes the entry even if teardown fails)
 
 Get started:
   e2ectl environments

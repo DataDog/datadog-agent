@@ -55,6 +55,17 @@ func cmdStart(args []string) error {
 	}
 
 	if err := prepared.Start(entry, store); err != nil {
+		// A failed start must never leave the entry looking stuck in
+		// "provisioning": re-read it (the driver may have persisted partial
+		// metadata) and mark it failed, so list shows the truth and stop can
+		// recover it.
+		if e, getErr := store.Get(*name); getErr == nil {
+			e.Meta.Status = envstore.StatusError
+			if updateErr := store.UpdateMeta(e); updateErr != nil {
+				fmt.Fprintf(os.Stderr, "warning: could not mark %q as failed: %v\n", *name, updateErr)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "environment %q failed to start (marked error; recover with `e2ectl stop --env %s`)\n", *name, *name)
 		return err
 	}
 
@@ -323,6 +334,7 @@ func cmdFakeintake(args []string) error {
 func cmdStop(args []string) error {
 	fs := flag.NewFlagSet("stop", flag.ContinueOnError)
 	name := fs.String("env", "", "environment name (required)")
+	force := fs.Bool("force", false, "remove the environment entry even if teardown fails (some resources may remain; the warning names them)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -341,7 +353,20 @@ func cmdStop(args []string) error {
 	if err != nil {
 		return err
 	}
-	return d.Stop(entry, store)
+	if err := d.Stop(entry, store); err != nil {
+		if !*force {
+			return fmt.Errorf("stopping %q: %w (fix the cause and retry, or use --force to remove the entry anyway)", *name, err)
+		}
+		fmt.Fprintf(os.Stderr, "warning: teardown of %q failed: %v\n", *name, err)
+		fmt.Fprintf(os.Stderr, "warning: removing the entry anyway — resources may remain (kind clusters are named after the environment; EC2 stacks are named e2ectl-<environment>)\n")
+		if delErr := store.Delete(*name); delErr != nil {
+			return delErr
+		}
+		fmt.Printf("environment %q removed (--force)\n", *name)
+		return nil
+	}
+	fmt.Printf("environment %q stopped\n", *name)
+	return nil
 }
 
 func age(t time.Time) string {
