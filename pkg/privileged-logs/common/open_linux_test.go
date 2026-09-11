@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 func TestOpenPathWithoutSymlinksNoSymlink(t *testing.T) {
@@ -30,6 +31,20 @@ func TestOpenPathWithoutSymlinksNoSymlink(t *testing.T) {
 	n, err := f.Read(buf)
 	require.NoError(t, err)
 	assert.Equal(t, "hello", string(buf[:n]))
+}
+
+func TestOpenPathWithoutSymlinksCloseOnExec(t *testing.T) {
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "test.log")
+	require.NoError(t, os.WriteFile(logFile, []byte("hello"), 0644))
+
+	f, err := OpenPathWithoutSymlinks(logFile)
+	require.NoError(t, err)
+	defer f.Close()
+
+	flags, err := unix.FcntlInt(f.Fd(), unix.F_GETFD, 0)
+	require.NoError(t, err)
+	assert.NotZero(t, flags&unix.FD_CLOEXEC)
 }
 
 func TestOpenPathWithoutSymlinksSymlinkInFile(t *testing.T) {

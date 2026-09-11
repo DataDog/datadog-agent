@@ -60,16 +60,6 @@ func (p Policy) String() string {
 	}
 }
 
-// Parse parses a string and sets the policy
-func (p *Policy) Parse(str string) {
-	switch str {
-	case "drop":
-		*p = PolicyDrop
-	default:
-		*p = PolicyAllow
-	}
-}
-
 // Filter defines a raw packet filter
 type Filter struct {
 	RuleID        eval.RuleID

@@ -66,18 +66,12 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 	eventSubscribers := append([]*remoteagentregistry.EventSubscriber{}, reqs.EventSubscribers...)
 	eventSubscribers = append(eventSubscribers, newSecretsRefreshEventSubscriber(reqs.Secrets))
 	registry := &remoteAgentRegistry{
-		conf:           reqs.Config,
-		ipc:            reqs.Ipc,
-		agentMap:       make(map[string]*remoteAgentClient),
-		shutdownChan:   shutdownChan,
-		telemetry:      reqs.Telemetry,
-		telemetryStore: newTelemetryStore(reqs.Telemetry),
-		// Services currently supported by the remote agent registry
-		remoteAgentServices: map[remoteAgentServiceName]struct{}{
-			StatusServiceName:    {},
-			FlareServiceName:     {},
-			TelemetryServiceName: {},
-		},
+		conf:             reqs.Config,
+		ipc:              reqs.Ipc,
+		agentMap:         make(map[string]*remoteAgentClient),
+		shutdownChan:     shutdownChan,
+		telemetry:        reqs.Telemetry,
+		telemetryStore:   newTelemetryStore(reqs.Telemetry),
 		eventSubscribers: eventSubscribers,
 	}
 
@@ -200,9 +194,6 @@ type remoteAgentRegistry struct {
 	shutdownChan   chan struct{}
 	telemetry      telemetry.Component
 	telemetryStore *telemetryStore
-
-	// Define the services that the remote agent supports
-	remoteAgentServices map[remoteAgentServiceName]struct{}
 
 	// eventSubscribers receive Remote Agent events reported via ReportRemoteAgentEvent. The slice is
 	// set once at construction and is immutable afterwards, so it needs no lock.
