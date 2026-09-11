@@ -1,6 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
-load("//tasks:build_tags.bzl", "AGENT_TAGS")
+load("//tasks:build_tags.bzl", "AGENT_HEROKU_TAGS", "AGENT_TAGS", "COMMON_TAGS")
 
 exports_files(["macos/uninstall_mac_os.sh"])
 
@@ -164,5 +164,18 @@ dd_agent_go_binary(
     }),
     embed = [":agent_lib"],
     gotags = AGENT_TAGS,
+    visibility = ["//visibility:public"],
+)
+
+# Heroku tags differ too much from the non-heroku variant to compose them based
+# on a select
+# Since the composition differ based on the binary, we can't implement it in
+# dd_agent_go_binary directly either.
+# Instead, we just expose a different target.
+dd_agent_go_binary(
+    name = "agent-heroku",
+    embed = [":agent_lib"],
+    # keep
+    exact_gotags = sorted(COMMON_TAGS | AGENT_HEROKU_TAGS),
     visibility = ["//visibility:public"],
 )
