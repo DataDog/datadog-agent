@@ -1,0 +1,154 @@
+"""Tests for the healthcheck tool.
+
+Unit tests exercise the per-OS parsers against captured ldd/otool fixtures.
+The smoke test runs the healthcheck binary end-to-end against an empty
+manifest. The integration test bakes controlled broken-and-healthy manifests
+from real compiled fixtures and asserts the healthcheck reaches the right
+verdict on each.
+"""
+
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
+py_test(
+    name = "file_type_test",
+    srcs = ["file_type_test.py"],
+    deps = ["//bazel/tools/healthcheck:lib"],
+)
+
+py_test(
+    name = "linux_test",
+    srcs = ["linux_test.py"],
+    deps = ["//bazel/tools/healthcheck:lib"],
+)
+
+py_test(
+    name = "macos_test",
+    srcs = ["macos_test.py"],
+    deps = ["//bazel/tools/healthcheck:lib"],
+)
+
+py_test(
+    name = "manifest_test",
+    srcs = ["manifest_test.py"],
+    deps = ["//bazel/tools/healthcheck:lib"],
+)
+
+write_file(
+    name = "empty_manifest",
+    out = "empty_manifest.json",
+    content = ["{}"],
+)
+
+py_test(
+    name = "healthcheck_smoketest",
+    srcs = ["//bazel/tools/healthcheck:healthcheck.py"],
+    args = [
+        "--manifest-rlocation=$(rlocationpath :empty_manifest)",
+    ] + select({
+        "@platforms//os:linux": [
+            "--target-os=linux",
+            "--install-prefix=/opt/datadog-agent",
+        ],
+        "@platforms//os:macos": ["--target-os=macos"],
+    }),
+    data = [":empty_manifest"],
+    main = "healthcheck.py",
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = ["//bazel/tools/healthcheck:lib"],
+)
+
+# --- Integration test fixtures (Linux only) -----------------------------------
+#
+# A dummy shared lib and a consumer .so whose DT_NEEDED references it. We
+# patch the consumer's RPATH under different scenarios and let the test
+# build synthetic manifests (dest path -> real compiled fixture) in Python,
+# resolved via the runfiles API, to exercise the healthcheck's verdict on
+# each.
+
+_LINUX_ONLY = select({
+    "@platforms//os:linux": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
+cc_library(
+    name = "dummybad_lib",
+    srcs = ["dummybad.c"],
+    target_compatible_with = _LINUX_ONLY,
+)
+
+cc_shared_library(
+    name = "libdummybad",
+    shared_lib_name = "libdummybad.so",
+    target_compatible_with = _LINUX_ONLY,
+    deps = [":dummybad_lib"],
+)
+
+cc_library(
+    name = "broken_consumer_lib",
+    srcs = ["broken_consumer.c"],
+    target_compatible_with = _LINUX_ONLY,
+)
+
+cc_shared_library(
+    name = "libbroken",
+    dynamic_deps = [":libdummybad"],
+    shared_lib_name = "libbroken.so",
+    target_compatible_with = _LINUX_ONLY,
+    deps = [":broken_consumer_lib"],
+)
+
+# Variant: absolute RPATH matching the configured install prefix (the only
+# form the healthcheck accepts; $ORIGIN is rejected by policy, see below).
+rewrite_rpath(
+    name = "libbroken_absolute_rpath",
+    inputs = [":libbroken"],
+    rpath = "/opt/datadog-agent/embedded/lib",
+    target_compatible_with = _LINUX_ONLY,
+    use_relative_rpaths = False,
+)
+
+# Variant: RPATH points at a non-existent path.
+rewrite_rpath(
+    name = "libbroken_bogus_rpath",
+    inputs = [":libbroken"],
+    rpath = "/this/path/does/not/exist",
+    target_compatible_with = _LINUX_ONLY,
+    use_relative_rpaths = False,
+)
+
+# Variant: $ORIGIN-relative RPATH, rejected outright: the dynamic linker
+# ignores $ORIGIN in secure-execution mode (setuid, file capabilities), so a
+# packaged binary relying on it would silently break at runtime.
+rewrite_rpath(
+    name = "libbroken_origin_rpath",
+    inputs = [":libbroken"],
+    rpath = "$ORIGIN/../lib",
+    target_compatible_with = _LINUX_ONLY,
+    use_relative_rpaths = False,
+)
+
+py_test(
+    name = "broken_install_test",
+    srcs = ["broken_install_test.py"],
+    args = [
+        "$(rlocationpath :libbroken_absolute_rpath)",
+        "$(rlocationpath :libbroken_bogus_rpath)",
+        "$(rlocationpath :libbroken_origin_rpath)",
+        "$(rlocationpath :libdummybad)",
+    ],
+    data = [
+        ":libbroken_absolute_rpath",
+        ":libbroken_bogus_rpath",
+        ":libbroken_origin_rpath",
+        ":libdummybad",
+    ],
+    target_compatible_with = _LINUX_ONLY,
+    deps = ["//bazel/tools/healthcheck:lib"],
+)

@@ -1,0 +1,51 @@
+"""Standalone library-dependency healthcheck for the staged install tree.
+
+Reimplementation of omnibus-ruby's lib/omnibus/health_check.rb so the check
+can be invoked from Bazel without the Ruby toolchain.
+"""
+
+load("@py_dev_requirements//:requirements.bzl", "requirement")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+
+py_library(
+    name = "lib",
+    srcs = [
+        "allowlists.py",
+        "file_type.py",
+        "healthcheck.py",
+        "linux.py",
+        "macos.py",
+        "manifest.py",
+        "result.py",
+        "windows.py",
+    ],
+    imports = ["."],
+    visibility = ["//bazel/tools/healthcheck:__subpackages__"],
+    deps = [
+        "@rules_python//python/runfiles",
+    ] + select({
+        "@platforms//os:windows": [requirement("pefile")],
+        "//conditions:default": [],
+    }),
+)
+
+py_binary(
+    name = "healthcheck",
+    srcs = ["healthcheck.py"],
+    imports = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":lib"],
+)
+
+py_binary(
+    name = "gate",
+    srcs = ["gate.py"],
+    imports = ["."],
+    deps = [":lib"],
+)
+
+exports_files(
+    ["healthcheck.py"],
+    visibility = ["//bazel/tools/healthcheck:__subpackages__"],
+)

@@ -12,6 +12,7 @@ load("@rules_pkg//pkg:rpm.bzl", "pkg_rpm")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
+load("//bazel/tools/healthcheck:gate.bzl", "healthcheck_gate")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/rules:package_naming.bzl", "make_version", "package_name_variables")
 
@@ -59,12 +60,24 @@ package_licenses(
     src = ":everything",
 )
 
+# Gates package builds on the healthcheck: anything depending on this
+# transitively runs it as a build-time validation, once, regardless of how
+# many package formats (deb, rpm, ...) are built from it.
+healthcheck_gate(
+    name = "everything_checked",
+    srcs = ":everything",
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
 # Everything that gets installed under /opt/datadog-agent: the product
 # files plus the licenses gathered for them.
 pkg_filegroup(
     name = "installed_distro",
     srcs = [
-        ":everything",
+        ":everything_checked",
         ":license_files",
     ],
     prefix = "/opt/datadog-agent",
