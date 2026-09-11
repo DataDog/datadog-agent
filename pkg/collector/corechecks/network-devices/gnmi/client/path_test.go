@@ -97,3 +97,15 @@ func TestNormalizedPathMatchesOriginAndTarget(t *testing.T) {
 		Elem:   []*gnmipb.PathElem{{Name: "interfaces"}},
 	})))
 }
+
+func TestCacheKeyFromGNMIPathModulePrefixedSegments(t *testing.T) {
+	path := &gnmipb.Path{
+		Elem: []*gnmipb.PathElem{
+			{Name: "openconfig-system:system"},
+			{Name: "state"},
+		},
+	}
+
+	key := cacheKeyFromGNMIPath(path)
+	require.Equal(t, "/openconfig/system/state", key.Path)
+}

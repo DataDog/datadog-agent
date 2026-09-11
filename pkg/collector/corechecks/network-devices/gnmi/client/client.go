@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -387,6 +388,29 @@ func (c *Client) applyUpdate(targetCache *cache, prefix *gnmipb.Path, update *gn
 		Timestamp: timestamp,
 		Keys:      cloneKeys(key.Keys),
 	})
+
+	for _, leaf := range flattenJSONLeaves(key.Path, key.Keys, value, timestamp) {
+		leafPath := path
+		leafPath.elements = append(append([]pathElement{}, path.elements...), leafSuffixElements(key.Path, leaf.Key.Path)...)
+		targetCache.set(leafPath, leaf.Entry)
+	}
+}
+
+// leafSuffixElements returns the path elements added by flattenJSONLeaves beyond
+// basePath, so a flattened leaf can be stored under a normalizedPath that extends
+// the real gNMI path it was decoded from (letting deletePrefix reach it structurally).
+func leafSuffixElements(basePath, leafPath string) []pathElement {
+	suffix := strings.TrimPrefix(leafPath, basePath)
+	suffix = strings.Trim(suffix, "/")
+	if suffix == "" {
+		return nil
+	}
+	segments := strings.Split(suffix, "/")
+	elements := make([]pathElement, 0, len(segments))
+	for _, segment := range segments {
+		elements = append(elements, pathElement{name: segment})
+	}
+	return elements
 }
 
 func (c *Client) applyDelete(targetCache *cache, prefix, path *gnmipb.Path) {
