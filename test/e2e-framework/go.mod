@@ -25,8 +25,8 @@ require (
 	github.com/docker/cli v29.7.2+incompatible
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
-	github.com/moby/moby/api v1.55.0
-	github.com/moby/moby/client v0.5.1
+	github.com/moby/moby/api v1.56.0
+	github.com/moby/moby/client v0.6.0
 	github.com/pkg/sftp v1.13.11
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.44.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
