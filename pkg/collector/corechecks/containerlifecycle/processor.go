@@ -31,9 +31,10 @@ type processor struct {
 	containersQueue *queue
 	tasksQueue      *queue
 	tagger          tagger.Component
+	tagCache        *tagCache
 }
 
-func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Component, tagger tagger.Component, extendedSet bool) *processor {
+func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Component, tagger tagger.Component, tagCacheTTL time.Duration, extendedSet bool) *processor {
 	handlers := []Handler{
 		NewContainerTerminationHandler(store),
 		&PodTerminationHandler{},
@@ -51,6 +52,7 @@ func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Compon
 		containersQueue: newQueue(chunkSize),
 		tasksQueue:      newQueue(chunkSize),
 		tagger:          tagger,
+		tagCache:        newTagCache(tagCacheTTL),
 	}
 }
 
@@ -190,10 +192,21 @@ func (p *processor) enrichTags(msgs []*contlcycle.EventsPayload, kind string) {
 				continue
 			}
 
-			ddTags, err := p.tagger.Tag(taggertypes.NewEntityID(prefix, entityID), taggertypes.HighCardinality)
-			if err != nil {
-				log.Debugf("Couldn't retrieve tags for %s %q: %v", kind, entityID, err)
-				continue
+			fullEntityID := taggertypes.NewEntityID(prefix, entityID)
+
+			var ddTags []string
+			if cached, found := p.tagCache.get(fullEntityID); found {
+				tagCacheQueries.Inc("hit")
+				ddTags = cached
+			} else {
+				tagCacheQueries.Inc("miss")
+				var err error
+				ddTags, err = p.tagger.Tag(fullEntityID, taggertypes.HighCardinality)
+				if err != nil {
+					log.Debugf("Couldn't retrieve tags for %s %q: %v", kind, entityID, err)
+					continue
+				}
+				p.tagCache.put(fullEntityID, ddTags)
 			}
 
 			switch typed := ev.TypedEvent.(type) {

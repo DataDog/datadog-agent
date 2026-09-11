@@ -87,7 +87,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	c.extendedSet = pkgconfigsetup.Datadog().GetBool("container_lifecycle.extended_set")
 
-	c.processor = newProcessor(sender, c.instance.ChunkSize, c.workloadmetaStore, c.tagger, c.extendedSet)
+	tagCacheTTL := time.Duration(pkgconfigsetup.Datadog().GetInt("container_lifecycle.tag_cache_ttl_seconds")) * time.Second
+
+	c.processor = newProcessor(sender, c.instance.ChunkSize, c.workloadmetaStore, c.tagger, tagCacheTTL, c.extendedSet)
 
 	return nil
 }

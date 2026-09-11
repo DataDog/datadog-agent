@@ -87,6 +87,10 @@ properties:
     node_type: setting
     type: boolean
     default: false
+  tag_cache_ttl_seconds:
+    node_type: setting
+    type: integer
+    default: 30
   use_compression:
     node_type: setting
     type: boolean

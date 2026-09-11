@@ -17,3 +17,11 @@ var emittedEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 	"Number of events emitted by the check",
 	telemetry.Options{NoDoubleUnderscoreSep: true},
 )
+
+var tagCacheQueries = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+	CheckName,
+	"tag_cache_queries",
+	[]string{"result"},
+	"Number of tagger lookups served by the tag cache, by result (hit, miss)",
+	telemetry.Options{NoDoubleUnderscoreSep: true},
+)
