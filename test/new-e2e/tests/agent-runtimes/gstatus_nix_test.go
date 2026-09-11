@@ -25,14 +25,6 @@ import (
 // gstatusPath is the path to the agent's bundled gstatus script.
 const gstatusPath = "/opt/datadog-agent/embedded/sbin/gstatus"
 
-// glusterUserData is a cloud-init script that installs glusterfs-server
-// during VM boot, before the CI network restrictions take effect.
-const glusterUserData = `#!/bin/bash
-DEBIAN_FRONTEND=noninteractive apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y glusterfs-server
-systemctl enable --now glusterd
-`
-
 // gstatusJSON represents the top-level JSON structure that gstatus -o json produces.
 type gstatusJSON struct {
 	LastUpdated string `json:"last_updated"`
@@ -64,14 +56,18 @@ func TestGstatusAgainstRealGluster(t *testing.T) {
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(
 					ec2.WithOS(os.Ubuntu2204),
-					ec2.WithUserData(glusterUserData),
+					// WithInternetAccess is required because SetupSuite
+					// installs glusterfs-server via apt-get, which needs
+					// to reach the Ubuntu mirrors. ProvisionerNoFakeIntake
+					// defaults to no internet access.
+					ec2.WithInternetAccess(),
 				),
 			),
 		)),
 	)
 }
 
-// SetupSuite starts glusterd (already installed via UserData) and creates a
+// SetupSuite installs GlusterFS on the host, starts glusterd, and creates a
 // replicated volume with local bricks so that gstatus has real data to report.
 func (s *gstatusSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
@@ -79,12 +75,19 @@ func (s *gstatusSuite) SetupSuite() {
 
 	host := s.Env().RemoteHost
 
-	// glusterfs-server was installed during VM boot via cloud-init UserData.
+	// Install GlusterFS server. Ubuntu 22.04 ships glusterfs-server in its
+	// default repos, so no extra repo config is needed.
+	host.MustExecute("sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq")
+	host.MustExecute("sudo DEBIAN_FRONTEND=noninteractive apt-get install -y glusterfs-server")
+
+	// Start glusterd.
+	host.MustExecute("sudo systemctl enable --now glusterd")
+
 	// Wait for glusterd to be ready.
 	require.Eventually(s.T(), func() bool {
 		_, err := host.Execute("sudo gluster peer status")
 		return err == nil
-	}, 60*time.Second, 5*time.Second, "glusterd did not become ready")
+	}, 30*time.Second, 2*time.Second, "glusterd did not become ready")
 
 	// Create brick directories on the local filesystem.
 	host.MustExecute("sudo mkdir -p /data/brick1/gv0 /data/brick2/gv0")
