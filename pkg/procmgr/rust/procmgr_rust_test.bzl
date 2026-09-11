@@ -55,7 +55,15 @@ def dd_procmgrd_isolated_manager_tests(name_prefix, tests, env):
     return declared
 
 def dd_procmgrd_skip_args_for_isolated(tests):
-    """Build --skip args for the main target from isolated test filters."""
+    """Build --skip args for the main target from isolated test filters.
+
+    Args:
+        tests: List of (suffix, filter) tuples, same as for
+            dd_procmgrd_isolated_manager_tests.
+
+    Returns:
+        List of rust_test args alternating --skip and each filter substring.
+    """
     args = []
     for _, filter_arg in tests:
         args.extend(["--skip", filter_arg])
