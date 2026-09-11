@@ -120,6 +120,7 @@ func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.Conn
 		}
 	}
 	if len(tagsStr) > 0 {
+		log.Tracef("connection tags: pid=%d localIP=%s:%d remoteIP=%s:%d tags=%v", nc.Pid, nc.Source, nc.SPort, nc.Dest, nc.DPort, tagsStr)
 		builder.SetTagsIdx(int32(connectionsTagsEncoder.Encode(tagsStr)))
 	} else {
 		builder.SetTagsIdx(-1)

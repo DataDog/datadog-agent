@@ -143,6 +143,8 @@ func fetchAndAssertTaggedConnections(t *testing.T, fi *fi.Client, label string, 
 			return false
 		}
 		stats = getConnectionStats(t, cnx, []int32{portA, portB}, "process_context:")
+		logStatsForPort(t, stats, portA, label)
+		logStatsForPort(t, stats, portB, label)
 		return stats.connsByPort[portA] >= minPerPort && stats.connsByPort[portB] >= minPerPort &&
 			stats.untaggedByPort[portA] == 0 && stats.untaggedByPort[portB] == 0
 	}, 180*time.Second, 5*time.Second, "%s: timed out waiting for tagged connections on both ports (%d: %d/%d untagged, %d: %d/%d untagged)",
@@ -152,12 +154,17 @@ func fetchAndAssertTaggedConnections(t *testing.T, fi *fi.Client, label string, 
 	assertTaggedConnectionsOnPort(t, stats, label, portB, minPerPort)
 }
 
+func logStatsForPort(t *testing.T, stats connectionStats, port int32, label string) {
+	t.Logf("%s: port=%d conns=%d untagged=%d missing=%v tags=%v pids=%v", label, port, stats.connsByPort[port], stats.untaggedByPort[port], stats.missingByTagPort[port], stats.tagsByPort[port], stats.pids[port])
+}
+
 // connectionStats holds the results of counting connections on test ports from FakeIntake.
 type connectionStats struct {
 	connsByPort      map[int32]int
 	untaggedByPort   map[int32]int
 	missingByTagPort map[int32]map[string]int
 	tagsByPort       map[int32]map[string]bool
+	pids             map[int32]map[int32]int
 }
 
 // getConnectionStats fetches connections from FakeIntake and counts connections
@@ -170,6 +177,7 @@ func getConnectionStats(t *testing.T, cnx *aggregator.ConnectionsAggregator, por
 		untaggedByPort:   make(map[int32]int),
 		missingByTagPort: make(map[int32]map[string]int),
 		tagsByPort:       make(map[int32]map[string]bool),
+		pids:             make(map[int32]map[int32]int),
 	}
 
 	portSet := make(map[int32]bool, len(ports))
@@ -182,6 +190,11 @@ func getConnectionStats(t *testing.T, cnx *aggregator.ConnectionsAggregator, por
 		if !portSet[port] {
 			return
 		}
+		if stats.pids[port] == nil {
+			stats.pids[port] = make(map[int32]int)
+		}
+		stats.pids[port][conn.Pid]++
+
 		stats.connsByPort[port]++
 		if stats.missingByTagPort[port] == nil {
 			stats.missingByTagPort[port] = make(map[string]int)

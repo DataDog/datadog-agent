@@ -7,6 +7,8 @@ package sender
 
 import (
 	"net/netip"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // listenKey identifies a listening socket by its bind IP and port. Two distinct
@@ -87,6 +89,9 @@ func (r *serviceResolver) Resolve(pid int32, remoteIP netip.Addr, remotePort, lo
 			if pidTags := r.GetProcessTags(destPID); len(pidTags) > 0 {
 				remoteTags = append(remoteTags, pidTags...)
 			}
+		}
+		if len(remoteTags) > 0 {
+			log.Tracef("resolved pid=%d destPID=%d remoteIP=%s:%d localPort=%d tags=%v", pid, destPID, remoteIP, remotePort, localPort, remoteTags)
 		}
 	}
 
