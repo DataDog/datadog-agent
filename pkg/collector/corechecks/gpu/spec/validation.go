@@ -278,18 +278,18 @@ func TagsToKeyValues(tags []string) map[string][]string {
 	return result
 }
 
-// RequiredTagsForMetric expands the required tags for a metric from tagsets and custom tags.
-func RequiredTagsForMetric(tagsSpec *TagsSpec, metricSpec MetricSpec) (map[string]TagSpec, map[string]TagSpec, error) {
-	requiredTags := make(map[string]TagSpec)
-	workloadOnlyTags := make(map[string]TagSpec)
+// ExpectedTagsForMetric expands the expected tags for a metric from tagsets and custom tags.
+func ExpectedTagsForMetric(tagsSpec *TagsSpec, metricSpec MetricSpec) (map[string]TagSpec, map[string]TagSpec, error) {
+	expectedTags := make(map[string]TagSpec)
+	workloadTags := make(map[string]TagSpec)
 	for _, tagsetName := range metricSpec.Tagsets {
 		tagsetSpec, ok := tagsSpec.Tagsets[tagsetName]
 		if !ok {
 			return nil, nil, fmt.Errorf("unknown tagset %q", tagsetName)
 		}
-		targetMap := requiredTags
+		targetMap := expectedTags
 		if tagsetSpec.WorkloadOnly {
-			targetMap = workloadOnlyTags
+			targetMap = workloadTags
 		}
 		for _, tag := range tagsetSpec.Tags {
 			tagSpec, found := tagsSpec.Tags[tag]
@@ -305,21 +305,21 @@ func RequiredTagsForMetric(tagsSpec *TagsSpec, metricSpec MetricSpec) (map[strin
 		if !found {
 			return nil, nil, fmt.Errorf("unknown custom tag %q", tag)
 		}
-		requiredTags[tag] = tagSpec
+		expectedTags[tag] = tagSpec
 	}
 
-	return requiredTags, workloadOnlyTags, nil
+	return expectedTags, workloadTags, nil
 }
 
-// RequiredTagsForMetricWithOptions returns tags required for a metric in the
+// ExpectedTagsForMetricWithOptions returns tags expected for a metric in the
 // supplied validation context.
-func RequiredTagsForMetricWithOptions(tagsSpec *TagsSpec, metricSpec MetricSpec, options ValidationOptions) (map[string]TagSpec, error) {
-	requiredTags, workloadOnlyTags, err := RequiredTagsForMetric(tagsSpec, metricSpec)
+func ExpectedTagsForMetricWithOptions(tagsSpec *TagsSpec, metricSpec MetricSpec, options ValidationOptions) (map[string]TagSpec, error) {
+	expectedTags, workloadTags, err := ExpectedTagsForMetric(tagsSpec, metricSpec)
 	if err != nil {
 		return nil, err
 	}
 	if !options.WorkloadActive {
-		return requiredTags, nil
+		return expectedTags, nil
 	}
 	for _, tagsetName := range metricSpec.Tagsets {
 		tagsetSpec := tagsSpec.Tagsets[tagsetName]
@@ -327,10 +327,10 @@ func RequiredTagsForMetricWithOptions(tagsSpec *TagsSpec, metricSpec MetricSpec,
 			continue
 		}
 		for _, tagName := range tagsetSpec.Tags {
-			requiredTags[tagName] = workloadOnlyTags[tagName]
+			expectedTags[tagName] = workloadTags[tagName]
 		}
 	}
-	return requiredTags, nil
+	return expectedTags, nil
 }
 
 // validateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.
@@ -338,9 +338,9 @@ func RequiredTagsForMetricWithOptions(tagsSpec *TagsSpec, metricSpec MetricSpec,
 func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string, options ValidationOptions) (map[string]*TagSummary, error) {
 	tagResults := make(map[string]*TagSummary)
 
-	requiredTags, workloadOnlyTags, err := RequiredTagsForMetric(spec.Tags, metricSpec)
+	expectedTags, workloadTags, err := ExpectedTagsForMetric(spec.Tags, metricSpec)
 	if err != nil {
-		return nil, fmt.Errorf("required tags failed: %w", err)
+		return nil, fmt.Errorf("expand expected tags: %w", err)
 	}
 
 	if options.WorkloadActive {
@@ -350,14 +350,14 @@ func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSam
 				continue
 			}
 			for _, tagName := range tagsetSpec.Tags {
-				requiredTags[tagName] = workloadOnlyTags[tagName]
+				expectedTags[tagName] = workloadTags[tagName]
 			}
 		}
 	}
 
 	getTagSummary := func(tag string) *TagSummary {
 		if _, found := tagResults[tag]; !found {
-			_, workloadOnly := workloadOnlyTags[tag]
+			_, workloadOnly := workloadTags[tag]
 			tagResults[tag] = &TagSummary{WorkloadOnly: workloadOnly}
 		}
 		return tagResults[tag]
@@ -366,9 +366,12 @@ func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSam
 	for _, sample := range metricSamples {
 		tagsByKey := TagsToKeyValues(sample.Tags)
 
-		for tag := range requiredTags {
+		for tag, tagSpec := range expectedTags {
 			summary := getTagSummary(tag)
 			if values, found := tagsByKey[tag]; !found || len(values) == 0 {
+				if tagSpec.Optional {
+					continue
+				}
 				summary.Missing++
 			} else {
 				summary.Found++
@@ -376,7 +379,7 @@ func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSam
 		}
 
 		for tag, values := range tagsByKey {
-			_, allowed := requiredTags[tag]
+			_, allowed := expectedTags[tag]
 			if !allowed {
 				getTagSummary(tag).Unknown++
 				continue
@@ -384,7 +387,7 @@ func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSam
 
 			for _, value := range values {
 				expectedValue, hasExpectedValue := knownTagValues[tag]
-				tagSpec, hasTagSpec := requiredTags[tag]
+				tagSpec, hasTagSpec := expectedTags[tag]
 
 				if value == "" || (hasExpectedValue && value != expectedValue) || (hasTagSpec && tagSpec.Regex != nil && !tagSpec.Regex.MatchString(value)) {
 					getTagSummary(tag).addInvalidValue(value)

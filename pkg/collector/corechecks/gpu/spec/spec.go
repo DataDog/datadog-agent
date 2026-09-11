@@ -71,19 +71,22 @@ type AggregationSpec struct {
 
 // TagSpec defines validation metadata for a reusable tag.
 type TagSpec struct {
-	Regex *regexp.Regexp `yaml:"-"`
+	Regex    *regexp.Regexp `yaml:"-"`
+	Optional bool          `yaml:"optional,omitempty"`
 }
 
 // UnmarshalYAML compiles the optional regex when the tag spec is decoded.
 func (s *TagSpec) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var raw struct {
-		Regex string `yaml:"regex,omitempty"`
+		Regex    string `yaml:"regex,omitempty"`
+		Optional bool   `yaml:"optional,omitempty"`
 	}
 
 	if err := unmarshal(&raw); err != nil {
 		return fmt.Errorf("unmarshal tag spec: %w", err)
 	}
 
+	s.Optional = raw.Optional
 	if raw.Regex == "" {
 		s.Regex = nil
 		return nil
@@ -266,16 +269,17 @@ func (v *MetricValidator) ValidateKnownGoodValue(value float64, knownGood *float
 	}
 
 	difference := math.Abs(value - *knownGood)
+	var validationErrors []error
 	if v.ValueTolerance.Absolute != nil && difference > *v.ValueTolerance.Absolute {
-		return fmt.Errorf("difference %v exceeds absolute tolerance %v", difference, *v.ValueTolerance.Absolute)
+		validationErrors = append(validationErrors, fmt.Errorf("value %v differs from known-good value %v by %v, exceeding absolute tolerance %v", value, *knownGood, difference, *v.ValueTolerance.Absolute))
 	}
 	if v.ValueTolerance.Relative != nil {
 		relativeAllowance := math.Abs(*knownGood) * *v.ValueTolerance.Relative / 100
 		if difference > relativeAllowance {
-			return fmt.Errorf("difference %v exceeds relative tolerance %v%% of known-good value %v", difference, *v.ValueTolerance.Relative, *knownGood)
+			validationErrors = append(validationErrors, fmt.Errorf("value %v differs from known-good value %v by %v, exceeding relative tolerance %v%% (%v)", value, *knownGood, difference, *v.ValueTolerance.Relative, relativeAllowance))
 		}
 	}
-	return nil
+	return errors.Join(validationErrors...)
 }
 
 func (v *MetricValidator) validateDefinition() error {
