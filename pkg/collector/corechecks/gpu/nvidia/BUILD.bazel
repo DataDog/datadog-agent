@@ -16,6 +16,7 @@ go_library(
         "nvlink_fields.go",
         "nvlink_gpm.go",
         "nvlink_plr.go",
+        "nvlink_stateless.go",
         "prm_cache.go",
         "rates.go",
         "sampling.go",

@@ -391,8 +391,8 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// PLR is not supported by this mock, so it is filtered out during collector creation.
 	parentCollectorTypes := nvidia.NumCollectors() - 1 // -1 for nvlink_plr
-	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
-	migCollectorTypes := parentCollectorTypes - 3
+	// MIG slices have no NVLink ports, so NVLink collectors are not created.
+	migCollectorTypes := parentCollectorTypes - 4
 
 	// Track the number of visible MIG children dynamically.
 	migDeviceCount := 0
@@ -1002,6 +1002,115 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 			require.Greater(t, m.Priority(), memLimitMetrics[ebpfCollector][0].Priority(), "memory.limit must always have higher priority in stateless collector than in ebpf collector")
 		}
 	}
+}
+
+// TestNvlinkErrorCounterDedupPrefersStatelessCollector verifies that on Hopper,
+// nvlink_stateless (Medium) wins over nvlink_fields (MediumLow) for overlapping
+// error counter metrics, matching RemoveDuplicateSamples in emitMetrics.
+func TestNvlinkErrorCounterDedupPrefersStatelessCollector(t *testing.T) {
+	const (
+		nvlinkFieldsCollector    = nvidia.CollectorName("nvlink_fields")
+		nvlinkStatelessCollector = nvidia.CollectorName("nvlink_stateless")
+	)
+
+	counterValues := map[nvml.NvLinkErrorCounter]uint64{
+		nvml.NVLINK_ERROR_DL_REPLAY:   1,
+		nvml.NVLINK_ERROR_DL_RECOVERY: 2,
+		nvml.NVLINK_ERROR_DL_CRC_FLIT: 3,
+		nvml.NVLINK_ERROR_DL_ECC_DATA: 4,
+	}
+	expectedByName := map[string]float64{
+		"nvlink.errors.replay":   1,
+		"nvlink.errors.recovery": 2,
+		"nvlink.errors.crc.flit": 3,
+		"nvlink.errors.ecc":      4,
+	}
+	fieldsValuesByName := map[string]float64{
+		"nvlink.errors.replay":   float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_ERROR_DL_REPLAY].Value),
+		"nvlink.errors.recovery": float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_ERROR_DL_RECOVERY].Value),
+		"nvlink.errors.crc.flit": float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_ERROR_DL_CRC].Value),
+	}
+	legacyFieldsValuesByName := map[string]float64{
+		"nvlink.errors.ecc": float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL].Value),
+	}
+
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithDeviceCount(1),
+		testutil.WithMockAllFunctions(),
+		testutil.WithArchitecture("hopper"),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
+		testutil.WithCustomHook(func(d *testutil.MockDevice) {
+			d.GetNvLinkErrorCounterFunc = func(_ int, counter nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
+				value, ok := counterValues[counter]
+				if !ok {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				return value, nvml.SUCCESS
+			}
+		}),
+	)
+
+	deviceCache := ddnvml.NewDeviceCache()
+	devices, err := deviceCache.AllPhysicalDevices()
+	require.NoError(t, err)
+
+	deps := &nvidia.CollectorDependencies{
+		Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+	}
+	disabled := []string{
+		"stateless", "sampling", "fields", "gpm", "device_events",
+		"nvlink_plr", "nvlink_fec", "nvlink_gpm",
+	}
+	collectors, err := nvidia.BuildCollectors(devices, deps, disabled)
+	require.NoError(t, err)
+	require.Len(t, collectors, 2)
+
+	collectorSamples := make(map[nvidia.CollectorName][]nvidia.Sample)
+	for _, collector := range collectors {
+		samples, collectErr := collector.Collect()
+		require.NoError(t, collectErr, "collector %s failed", collector.Name())
+		collectorSamples[collector.Name()] = samples
+	}
+	require.Contains(t, collectorSamples, nvlinkFieldsCollector)
+	require.Contains(t, collectorSamples, nvlinkStatelessCollector)
+
+	for metricName, fieldsValue := range fieldsValuesByName {
+		fieldsMetrics := nvlinkMetricsByName(collectorSamples[nvlinkFieldsCollector], metricName, nvidia.MediumLow)
+		require.NotEmpty(t, fieldsMetrics, "nvlink_fields should emit %s at MediumLow", metricName)
+		require.Equal(t, fieldsValue, fieldsMetrics[0].Value)
+	}
+	for metricName, fieldsValue := range legacyFieldsValuesByName {
+		fieldsMetrics := nvlinkMetricsByName(collectorSamples[nvlinkFieldsCollector], metricName, nvidia.Low)
+		require.NotEmpty(t, fieldsMetrics, "nvlink_fields should emit legacy %s", metricName)
+		require.Equal(t, fieldsValue, fieldsMetrics[0].Value)
+	}
+
+	for metricName, statelessValue := range expectedByName {
+		statelessMetrics := nvlinkMetricsByName(collectorSamples[nvlinkStatelessCollector], metricName, nvidia.Medium)
+		require.NotEmpty(t, statelessMetrics, "nvlink_stateless should emit %s", metricName)
+		require.Equal(t, statelessValue, statelessMetrics[0].Value)
+	}
+
+	deduped := nvidia.RemoveDuplicateSamples(collectorSamples)
+	for metricName, expectedValue := range expectedByName {
+		metrics := nvlinkMetricsByName(deduped, metricName, nvidia.Medium)
+		require.Len(t, metrics, 2, "expected one %s metric per NVLink port after dedup", metricName)
+		for _, metric := range metrics {
+			require.Equal(t, expectedValue, metric.Value)
+		}
+	}
+}
+
+func nvlinkMetricsByName(samples []nvidia.Sample, metricName string, priority nvidia.MetricPriority) []*nvidia.Metric {
+	metrics := make([]*nvidia.Metric, 0, len(samples))
+	for _, sample := range samples {
+		metric, ok := sample.(*nvidia.Metric)
+		if !ok || metric.Name != metricName || metric.Priority() != priority {
+			continue
+		}
+		metrics = append(metrics, metric)
+	}
+	return metrics
 }
 
 func TestDisabledCollectorsConfiguration(t *testing.T) {
