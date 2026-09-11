@@ -11,8 +11,6 @@ Toolchains:
   /usr/bin/dsymutil, the way rewrite_rpath hardcodes /usr/bin/otool)
 """
 
-DD_STRIP_TOOLCHAIN_TYPE = "//bazel/toolchains/dd_strip:dd_strip_toolchain_type"
-
 def _dd_strip_toolchain_impl(ctx):
     return [
         platform_common.ToolchainInfo(
