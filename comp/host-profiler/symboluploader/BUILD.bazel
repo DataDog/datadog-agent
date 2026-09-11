@@ -77,6 +77,16 @@ go_binary(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
+go_binary(
+    name = "helloworld_external_raw",
+    srcs = ["testdata/helloworld.go"],
+    gc_linkopts = ["-linkmode=external"],
+    linkmode = "normal",
+    pure = "off",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 objcopy_go_fixture(
     name = "helloworld_no_symbols",
     src = ":helloworld_no_symbols_raw",
@@ -89,19 +99,9 @@ objcopy_go_fixture(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-go_binary(
-    name = "helloworld_dynsym_raw",
-    srcs = ["testdata/helloworld.go"],
-    gc_linkopts = ["-linkmode=external"],
-    linkmode = "normal",
-    pure = "off",
-    race = "off",
-    target_compatible_with = ["@platforms//os:linux"],
-)
-
 objcopy_go_fixture(
     name = "helloworld_dynsym",
-    src = ":helloworld_dynsym_raw",
+    src = ":helloworld_external_raw",
     out = "helloworld_dynsym.out",
     objcopy_args = [
         "-R",
@@ -111,19 +111,9 @@ objcopy_go_fixture(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-go_binary(
-    name = "helloworld_symtab_raw",
-    srcs = ["testdata/helloworld.go"],
-    gc_linkopts = ["-linkmode=external"],
-    linkmode = "normal",
-    pure = "off",
-    race = "off",
-    target_compatible_with = ["@platforms//os:linux"],
-)
-
 objcopy_go_fixture(
     name = "helloworld_symtab",
-    src = ":helloworld_symtab_raw",
+    src = ":helloworld_external_raw",
     out = "helloworld_symtab.out",
     objcopy_args = [
         "-R",
@@ -133,19 +123,9 @@ objcopy_go_fixture(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-go_binary(
-    name = "helloworld_debug_infos_raw",
-    srcs = ["testdata/helloworld.go"],
-    gc_linkopts = ["-linkmode=external"],
-    linkmode = "normal",
-    pure = "off",
-    race = "off",
-    target_compatible_with = ["@platforms//os:linux"],
-)
-
 objcopy_go_fixture(
     name = "helloworld_debug_infos",
-    src = ":helloworld_debug_infos_raw",
+    src = ":helloworld_external_raw",
     out = "helloworld_debug_infos.out",
     objcopy_args = [
         "-R",
@@ -154,19 +134,9 @@ objcopy_go_fixture(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-go_binary(
-    name = "helloworld_dynsym_corrupt_gopclntab_raw",
-    srcs = ["testdata/helloworld.go"],
-    gc_linkopts = ["-linkmode=external"],
-    linkmode = "normal",
-    pure = "off",
-    race = "off",
-    target_compatible_with = ["@platforms//os:linux"],
-)
-
 objcopy_go_fixture(
     name = "helloworld_dynsym_corrupt_gopclntab",
-    src = ":helloworld_dynsym_corrupt_gopclntab_raw",
+    src = ":helloworld_external_raw",
     out = "helloworld_dynsym_corrupt_gopclntab.out",
     objcopy_args = [
         "-R",
@@ -178,19 +148,9 @@ objcopy_go_fixture(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-go_binary(
-    name = "helloworld_debug_infos_corrupt_gopclntab_raw",
-    srcs = ["testdata/helloworld.go"],
-    gc_linkopts = ["-linkmode=external"],
-    linkmode = "normal",
-    pure = "off",
-    race = "off",
-    target_compatible_with = ["@platforms//os:linux"],
-)
-
 objcopy_go_fixture(
     name = "helloworld_debug_infos_corrupt_gopclntab",
-    src = ":helloworld_debug_infos_corrupt_gopclntab_raw",
+    src = ":helloworld_external_raw",
     out = "helloworld_debug_infos_corrupt_gopclntab.out",
     objcopy_args = [
         "-R",
