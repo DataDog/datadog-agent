@@ -235,8 +235,7 @@ build do
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
 
-    move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
-    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe_files -- --destdir=\"#{conf_dir}\"", env: env
+    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe -- --destdir=\"#{conf_dir}\"", env: env
   end
 
   # System-probe eBPF files
