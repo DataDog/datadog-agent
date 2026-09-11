@@ -16,7 +16,7 @@ go_library(
         "//test/e2e-framework/testing/runner/parameters",
         "//test/fakeintake/server/rcstore",
         "//test/fakeintake/version",
-        "@com_github_pulumi_pulumi_docker_sdk_v4//go/docker",
+        "@com_github_pulumi_pulumi_docker_sdk_v5//go/docker",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
 )

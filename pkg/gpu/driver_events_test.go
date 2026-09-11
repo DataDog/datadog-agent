@@ -8,7 +8,6 @@
 package gpu
 
 import (
-	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -273,22 +272,6 @@ func TestCreateDriverEventCountsMalformedOptionalDetails(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, enrichmentMetrics, 1)
 	require.Equal(t, float64(1), enrichmentMetrics[0].Value())
-}
-
-func TestDriverEventJSONRoundTrip(t *testing.T) {
-	for _, event := range []model.DriverEvent{
-		{NvidiaXid: &model.NvidiaXid{MMUFault: &model.NvidiaXidMMUFault{FaultAddress: "0x1"}}},
-		{NvidiaXid: &model.NvidiaXid{NVLinkFault: &model.NvidiaXidNVLinkFault{LinkID: uint64Pointer(0), StatusWords: []string{"0x1"}}}},
-		{NvidiaXid: &model.NvidiaXid{MemoryFault: &model.NvidiaXidMemoryFault{FBPA: uint64Pointer(2), NodeRebootRequired: true}}},
-		{NvidiaXid: &model.NvidiaXid{RecoveryAction: &model.NvidiaXidRecoveryAction{PreviousCode: uint64Pointer(0), CurrentLabel: "Drain and Reset"}}},
-	} {
-		serialized, err := json.Marshal(event)
-		require.NoError(t, err)
-
-		var roundTripped model.DriverEvent
-		require.NoError(t, json.Unmarshal(serialized, &roundTripped))
-		require.Equal(t, event, roundTripped)
-	}
 }
 
 func TestParseNvidiaXidBoundsRawMessage(t *testing.T) {

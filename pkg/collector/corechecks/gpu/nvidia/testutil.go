@@ -63,7 +63,7 @@ func (c *DeviceEventsGatherer) InjectEventsForTest(deviceUUID string, events []d
 
 	for _, event := range events {
 		select {
-		case cache.pendingEvents <- event:
+		case cache.pendingEvents <- observedDeviceEvent{DeviceEventData: event, ObservedAt: time.Now()}:
 		default:
 			return fmt.Errorf("pending event queue is full for device %s", deviceUUID)
 		}

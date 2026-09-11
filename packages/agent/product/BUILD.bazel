@@ -127,7 +127,13 @@ pkg_files(
     name = "example_config",
     srcs = [
         "//pkg/config:agent_config",
-    ],
+    ] + select({
+        "//packages/agent:heroku_flavor": [],
+        "//conditions:default": ["//pkg/config:security_agent_example_config_src"],
+    }) + select({
+        "@platforms//os:linux": ["//pkg/config:application_monitoring_example_config_src"],
+        "//conditions:default": [],
+    }),
     prefix = select(ETC_DIR_SELECTOR),
     renames = {
         "//pkg/config:agent_config": "datadog.yaml.example",

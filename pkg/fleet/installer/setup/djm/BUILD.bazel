@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/setup/common",
         "//pkg/fleet/installer/setup/config",
         "//pkg/fleet/installer/telemetry",
