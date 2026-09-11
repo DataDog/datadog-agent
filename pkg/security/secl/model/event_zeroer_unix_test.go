@@ -47,8 +47,6 @@ func TestEventZeroer_SharedFieldsAlwaysCleared(t *testing.T) {
 	for evtType := UnknownEventType; evtType < MaxAllEventType; evtType++ {
 		t.Run(evtType.String(), func(t *testing.T) {
 			e := createFullyPopulatedEvent()
-			e.Signature = "leaked-signature"
-			e.GoLabels = GoLabelsContext{ID: 42, Resolved: true}
 			e.Type = uint32(evtType)
 
 			zero(e)
