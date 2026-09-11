@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// DumpDogstatsdContextsHandler writes the local Agent's DogStatsD contexts to disk.
 type DumpDogstatsdContextsHandler struct {
 	ipcClient ipc.HTTPClient
 }
