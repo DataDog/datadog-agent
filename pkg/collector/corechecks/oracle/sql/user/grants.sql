@@ -44,19 +44,45 @@ declare
     'gv_$lock',
     'dba_objects',
     'cdb_data_files',
-    'dba_data_files'
+    'dba_data_files',
+    'cdb_users',
+    'cdb_objects',
+    'cdb_tables',
+    'cdb_object_tables',
+    'cdb_tab_cols',
+    'cdb_tab_comments',
+    'cdb_col_comments',
+    'cdb_indexes',
+    'cdb_ind_columns',
+    'cdb_constraints',
+    'cdb_cons_columns',
+    'cdb_part_tables',
+    'cdb_part_key_columns',
+    'cdb_tab_modifications',
+    'cdb_external_tables',
+    'cdb_external_locations',
+    'cdb_mviews',
+    'cdb_views',
+    'cdb_blockchain_tables',
+    'cdb_immutable_tables'
   );
   command varchar2(4000);
   object_name varchar2(30);
+  -- CDB connections require container=all; otherwise CDB_* queries return only CDB$ROOT rows.
+  -- RDS has no equivalent, but its users are local and never use CDB connections.
+  container_clause varchar2(20) := '';
 begin
+   if :connection_type = :connection_type_cdb then
+      container_clause := ' container=all';
+   end if;
    for i in 1..array.count loop
       if :hostingType = :hostingTypeSelfManaged then
-        command := 'grant select on ' || array(i) || ' to &&user';
+        command := 'grant select on ' || array(i) || ' to &&user' || container_clause;
       elsif :hostingType = :hostingTypeRDS then
         command := 'begin rdsadmin.rdsadmin_util.grant_sys_object(''' || upper(array(i)) || ''',''&&user'',''SELECT'', p_grant_option => false); end;';
       elsif :hostingType = :hostingTypeOCI then
         object_name := replace(array(i), 'V_$', 'V$');
-        command := 'grant select on ' || array(i) || ' to &&user with grant option';
+        command := 'grant select on ' || array(i) || ' to &&user with grant option' || container_clause;
       end if;
       begin
          execute immediate command;

@@ -23,6 +23,7 @@ go_library(
         "plan_queries.go",
         "processes.go",
         "resource_manager.go",
+        "schemas.go",
         "sender_util.go",
         "shared_memory.go",
         "sql_wrappers.go",
