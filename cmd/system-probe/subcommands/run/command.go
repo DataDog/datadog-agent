@@ -98,6 +98,7 @@ type spLiteExecCmd struct {
 	Env  []string
 }
 
+// These are supplied for testability.
 type spliteExecFunc func(string, []string, []string) error
 type spliteExecutableFunc func() (string, error)
 
@@ -129,19 +130,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
-				// Unlike the function passed to fxutil.OneShot, regular Fx invokes run
-				// while the app is being built. This lets discovery-only installations
-				// hand off before unrelated system-probe lifecycle hooks are started,
-				// while still using the authoritative config from this same Fx graph.
-				fx.Invoke(tryExecSPLiteEarly),
+				fx.Supply(spliteExecFunc(syscall.Exec)),
+				fx.Supply(spliteExecutableFunc(os.Executable)),
+				fx.Invoke(tryExecSPLite),
 				fx.Supply(config.NewAgentParams(
 					globalParams.DatadogConfFilePath(),
 					config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 				)),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
-				fx.Supply(spliteExecFunc(syscall.Exec)),
-				fx.Supply(spliteExecutableFunc(os.Executable)),
 				fx.Supply(configstreamconsumer.NewParams(systemProbeBootstrapClient, globalParams.DatadogConfFilePath())),
 				configstreamconsumerfx.Module(),
 				getSharedFxOption(),
@@ -154,25 +151,20 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{runCmd}
 }
 
-// tryExecSPLiteEarly checks for a system-probe-lite handoff while Fx is building
-// the application. It runs before fxutil.OneShot starts lifecycle hooks for the
-// full system-probe graph. Using the graph's config components means an active
-// config stream applies its initial snapshot before this decision, and config
-// loading errors still abort startup normally. Resolving pid.Component writes
-// and validates the PID file that system-probe-lite will remove on exit.
-func tryExecSPLiteEarly(sysConfig sysprobeconfig.Component, _ pid.Component, pidParams pidimpl.Params, logger log.Component, executableFn spliteExecutableFunc, execFn spliteExecFunc) {
+// tryExecSPLite checks for a system-probe-lite handoff while Fx is
+// building the application, to do it as early as possible. It runs before
+// fxutil.OneShot starts lifecycle hooks for the full system-probe graph. Using
+// the graph's config components means an active config stream applies its
+// initial snapshot before this decision, and config loading errors still abort
+// startup normally. Resolving pid.Component writes and validates the PID file
+// that system-probe-lite will remove on exit.
+func tryExecSPLite(sysConfig sysprobeconfig.Component, _ pid.Component, pidParams pidimpl.Params, logger log.Component, executableFn spliteExecutableFunc, execFn spliteExecFunc) {
 	if cmd := maybeSPLite(sysConfig, pidParams.PIDfilePath, logger, executableFn); cmd != nil {
-		execSPLite(cmd, logger, execFn)
-	}
-}
-
-// execSPLite replaces system-probe with system-probe-lite. It only returns in
-// production when exec fails, in which case startup falls back to system-probe.
-func execSPLite(cmd *spLiteExecCmd, logger log.Component, execFn spliteExecFunc) {
-	logger.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
-	logger.Flush()
-	if err := execFn(cmd.Path, cmd.Args, cmd.Env); err != nil {
-		logger.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
+		logger.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
+		logger.Flush()
+		if err := execFn(cmd.Path, cmd.Args, cmd.Env); err != nil {
+			logger.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
+		}
 	}
 }
 

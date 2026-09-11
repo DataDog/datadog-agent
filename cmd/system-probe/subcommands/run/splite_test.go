@@ -160,7 +160,7 @@ func TestMaybeSPLite(t *testing.T) {
 	}
 }
 
-func TestEarlySPLiteExecFailureFallsThroughToLifecycleStart(t *testing.T) {
+func TestSPLiteExecFailureFallsThroughToLifecycleStart(t *testing.T) {
 	fakeBinaryPath, executableFn := createFakeSPLiteBinary(t)
 	pidFilePath := filepath.Join(t.TempDir(), "system-probe.pid")
 	sysprobeConfig := newMockSysprobeConfig(t, map[string]interface{}{
@@ -188,7 +188,7 @@ func TestEarlySPLiteExecFailureFallsThroughToLifecycleStart(t *testing.T) {
 		pidfx.Module(),
 		fx.Supply(executableFn),
 		fx.Supply(execFn),
-		fx.Invoke(tryExecSPLiteEarly),
+		fx.Invoke(tryExecSPLite),
 		fx.Invoke(func(lc fx.Lifecycle) {
 			lc.Append(fx.Hook{OnStart: func(context.Context) error {
 				events = append(events, "start")
@@ -208,7 +208,7 @@ type activeConfigStream struct{}
 
 func (activeConfigStream) IsActive() bool { return true }
 
-func TestEarlySPLiteHandoffUsesStreamedCoreConfig(t *testing.T) {
+func TestSPLiteHandoffUsesStreamedCoreConfig(t *testing.T) {
 	_, executableFn := createFakeSPLiteBinary(t)
 	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 	t.Setenv("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
@@ -239,7 +239,7 @@ func TestEarlySPLiteHandoffUsesStreamedCoreConfig(t *testing.T) {
 		delegatedauthnoopfx.Module(),
 		secretsnoopfx.Module(),
 		sysprobeconfigfx.Module(),
-		fx.Invoke(tryExecSPLiteEarly),
+		fx.Invoke(tryExecSPLite),
 	)
 
 	assert.False(t, execCalled, "streamed config enables compliance, so full system-probe is required")

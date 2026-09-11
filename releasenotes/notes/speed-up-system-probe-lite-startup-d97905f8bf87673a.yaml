@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Reduce service discovery startup time when system-probe-lite is enabled by
-    launching it before unrelated system-probe components are initialized.
