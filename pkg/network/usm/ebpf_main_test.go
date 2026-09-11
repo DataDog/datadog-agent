@@ -19,10 +19,12 @@ import (
 	"github.com/cilium/ebpf/asm"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -288,9 +290,18 @@ func TestRuntimeFallbackWorks(t *testing.T) {
 		"expected Init to settle on the runtime compiled build mode")
 }
 
+// skipIfPrebuiltUnsupported skips the caller on hosts where the prebuilt build mode is not exercised.
+func skipIfPrebuiltUnsupported(t *testing.T) {
+	if !slices.Contains(usmtestutil.SupportedBuildModes(), ebpftest.Prebuilt) {
+		t.Skip("prebuilt build mode is deprecated on this platform; set TEST_PREBUILT_OVERRIDE=true to run anyway")
+	}
+}
+
 // TestPrebuiltFallbackWorks fails both the CO-RE and the runtime compiled loads
 // and requires Init to fall back to prebuilt and succeed.
 func TestPrebuiltFallbackWorks(t *testing.T) {
+	skipIfPrebuiltUnsupported(t)
+
 	e := newFallbackTestProgram(t)
 	failBuildModes(e, buildmode.CORE, buildmode.RuntimeCompiled)
 
