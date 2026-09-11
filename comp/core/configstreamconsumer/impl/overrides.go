@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 )
 
-// Declared entry by entry: most namespaced keys sharing a trailing name mean something different.
+// Per each agent binary, define which configstream-sender keys map to which configstream-receiver key.
 // No system-probe entry: its key is absent from the core schema and config.Adjust already folds it on the sysprobe object.
 var overridesByClient = map[string]map[string]string{
 	"security-agent": {"security_agent.log_level": "log_level"},
@@ -27,8 +27,8 @@ func (c *consumer) applyOverrides() {
 	cfg := configstreambootstrap.Config()
 	for namespacedKey, baseKey := range overrides {
 		// Non-string values are dropped: pkg/util/log/setup's log_level callback asserts to string unchecked.
-		value, _ := cfg.Get(namespacedKey).(string)
-		if value != "" {
+		value, isString := cfg.Get(namespacedKey).(string)
+		if isString && value != "" {
 			// SourceAgentRuntime outranks file/env yet still loses to a streamed RC/CLI value; Set panics on SourceEnvVar.
 			cfg.Set(baseKey, value, pkgconfigmodel.SourceAgentRuntime)
 			if c.appliedOverrides == nil {

@@ -632,7 +632,7 @@ remote_agent:
 	}
 }
 
-// Cleanup matters here: the keys the remap touches live on the process-global config object.
+// overrideTestConfig overrides the config for the test, cleaning up when done.
 func overrideTestConfig(t *testing.T, dir, addr string) string {
 	t.Helper()
 	host, port, err := net.SplitHostPort(addr)

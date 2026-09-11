@@ -109,7 +109,7 @@ type consumer struct {
 
 	// Layers this stream has written, keyed by setting. Touched only from the stream goroutine.
 	streamedLayers map[string]map[pkgconfigmodel.Source]struct{}
-	// Base keys applyOverrides has written, so the override can be retracted. Same goroutine.
+	// Keys that applyOverrides has overridden. Only used by the stream goroutine.
 	appliedOverrides map[string]struct{}
 
 	ready     atomic.Bool
@@ -571,26 +571,25 @@ func (c *consumer) connectAndStream() error {
 }
 
 func (c *consumer) handleConfigEvent(event *pb.ConfigEvent) error {
-	snapshotApplied := false
 	switch e := event.Event.(type) {
 	case *pb.ConfigEvent_Snapshot:
 		applied, err := c.applySnapshot(e.Snapshot)
 		if err != nil {
 			return err
 		}
-		snapshotApplied = applied
+		if applied {
+			// Apply overrides after applySnapshot, in order to not undo earlier work.
+			c.applyOverrides()
+			// Finally mark the config as ready, after all other mutations are completed.
+			c.markReady()
+		}
 	case *pb.ConfigEvent_Update:
 		if err := c.applyUpdate(e.Update); err != nil {
 			return err
 		}
+		c.applyOverrides()
 	default:
 		return fmt.Errorf("unknown event type: %T", event.Event)
-	}
-	// After applySnapshot's retraction loop, so a remapped value is not retracted out from under itself.
-	c.applyOverrides()
-	if snapshotApplied {
-		// Signalled last: waitForReady must not release before the remap has folded in the override.
-		c.markReady()
 	}
 	return nil
 }
@@ -642,7 +641,7 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot) (bool, error) {
 	return true, nil
 }
 
-// markReady releases waitForReady. Only an applied snapshot signals it; updates never do.
+// markReady marks the config as being ready for usage. Only an applied snapshot signals it; updates never do.
 func (c *consumer) markReady() {
 	c.readyOnce.Do(func() {
 		close(c.readyCh)
