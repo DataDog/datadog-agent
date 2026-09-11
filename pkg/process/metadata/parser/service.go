@@ -184,6 +184,9 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	}
 
 	if meta, ok := d.serviceByPID[pid]; ok {
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("Found process_context for pid=%d service tags:%s", pid, meta.serviceContext)
+		}
 		return []string{meta.serviceContext}
 	}
 	return nil

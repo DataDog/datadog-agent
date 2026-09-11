@@ -1,4 +1,4 @@
-log_level: debug
+log_level: trace
 network_config:
   direct_send: false
 service_monitoring_config:

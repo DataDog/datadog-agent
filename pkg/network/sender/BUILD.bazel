@@ -45,6 +45,7 @@ go_library(
         "//comp/networkpath/npcollector/def",
         "//pkg/eventmonitor",
         "//pkg/network",
+        "//pkg/util/log",
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/tagger/types",
@@ -75,7 +76,6 @@ go_library(
             "//pkg/util/funcs",
             "//pkg/util/kernel",
             "//pkg/util/kernel/netns",
-            "//pkg/util/log",
             "//pkg/util/maps",
             "//pkg/util/os",
             "//pkg/util/port/portlist",
@@ -115,7 +115,6 @@ go_library(
             "//pkg/util/funcs",
             "//pkg/util/kernel",
             "//pkg/util/kernel/netns",
-            "//pkg/util/log",
             "//pkg/util/maps",
             "//pkg/util/os",
             "//pkg/util/port/portlist",
@@ -155,7 +154,6 @@ go_library(
             "//pkg/util/flavor",
             "//pkg/util/funcs",
             "//pkg/util/kernel",
-            "//pkg/util/log",
             "//pkg/util/maps",
             "//pkg/util/os",
             "//pkg/util/port/portlist",
