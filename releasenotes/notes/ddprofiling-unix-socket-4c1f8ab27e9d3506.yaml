@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    OTel Agent: the ``ddprofiling`` extension can now send profiles directly to a
+    trace agent listening on a unix socket, via the ``unix_socket`` config key or
+    the ``DD_OTELCOLLECTOR_INTERNAL_PROFILING_UNIX_SOCKET`` environment variable.
+    This matches ``internal_profiling.unix_socket``, already supported by the
+    other Agent processes, and makes the OTel Agent profileable in environments
+    that expose a socket rather than HTTP egress to the profiling intake.
+    The setting has no effect on Windows, where the Agent does not serve an
+    APM unix socket; profiles are sent over HTTP there instead.
