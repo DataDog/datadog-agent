@@ -580,7 +580,6 @@ metrics:
       unsupported_architectures:
         - pascal
         - volta
-        - turing
       device_modes:
         mig: false
         physical: true
@@ -595,7 +594,6 @@ metrics:
       unsupported_architectures:
         - pascal
         - volta
-        - turing
       device_modes:
         mig: false
         physical: true
@@ -1277,8 +1275,6 @@ metrics:
         mig: false
         physical: true
         vgpu: false
-      capabilities_required:
-        nvlink: 4
   nvlink.plr.codes_loss:
     metadata:
       metric_type: gauge
