@@ -1,0 +1,4084 @@
+{
+  "agent_blinding_contract": "uses_1hz and treatment labels must not be passed to the Bits agent, its prompt, Scenario Store metadata, or agent-visible scenario text",
+  "arms": [
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "technical_event_ineligible_no_transition",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 5145534,
+          "evp/trace": 64334
+        },
+        "reason": "No exact alert transition event identity exists.",
+        "role": "excluded"
+      },
+      "episode_id": 2467,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a058ab-d326-71c6-a7f9-82192c597417",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": false,
+          "event_identity_source": null,
+          "inventory_ddeval_alert_eligible": false,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2467-20260831-013513-611aea/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 844,
+          "total_rows": 5561455,
+          "workflow_id": "sims-archival-gs-pre-rendered-2467-20260831-013513-611aea-1788194050"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "No exact alert transition event identity exists.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "not_planned_event_identity_ineligible",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": null,
+          "dry_run_preview_passed": null,
+          "dry_run_status": "not_run_event_ineligible",
+          "enrichment_wire_bytes": null,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_ineligible"
+          },
+          "within_131072_byte_limit": null
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T02:24:05.931014+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "no_transition",
+          "started_at": "2026-08-31T01:40:12.576170+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "001-pre-rendered-2467-611aea",
+      "scenario_name": "cold-cache-stampede",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "technical_event_ineligible_no_transition",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 3170950,
+          "evp/trace": 64889
+        },
+        "reason": "No exact alert transition event identity exists.",
+        "role": "excluded"
+      },
+      "episode_id": 2467,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a058c5-3a29-70c6-aabc-ec550f8612a0",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": false,
+          "event_identity_source": null,
+          "inventory_ddeval_alert_eligible": false,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2467-20260831-013513-ac5659/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 839,
+          "total_rows": 4593849,
+          "workflow_id": "sims-archival-gs-pre-rendered-2467-20260831-013513-ac5659-1788195715"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "No exact alert transition event identity exists.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "not_planned_event_identity_ineligible",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": null,
+          "dry_run_preview_passed": null,
+          "dry_run_status": "not_run_event_ineligible",
+          "enrichment_wire_bytes": null,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_ineligible"
+          },
+          "within_131072_byte_limit": null
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T03:11:20.511734+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "no_transition",
+          "started_at": "2026-08-31T02:25:58.228498+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "002-pre-rendered-2467-ac5659",
+      "scenario_name": "cold-cache-stampede",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 3941422,
+          "evp/trace": 2275
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2481,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05944-3ef7-7dc6-a3ce-02cbe7aa1c5a",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/recovery-2481-a-full-20260831T191514Z/gs-pre-rendered-2481-20260831-013513-3a6f06/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 874,
+          "total_rows": 6110473,
+          "workflow_id": "sims-archival-gs-pre-rendered-2481-20260831-013513-3a6f06-1788204039"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 138863,
+          "production_ingestion": {
+            "empty_dataset_uuid": "72c8193a-4e6c-40cf-8120-510623bd1295",
+            "error": "rpc error: code = InvalidArgument desc = enrichment_contexts[0].data exceeds maximum size of 131072 bytes (got 138863 bytes); store large payloads out-of-band and reference them by URI",
+            "http_status": 200,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "failed_projection_too_large"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T03:48:48.371171+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T03:13:12.036089+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "003-pre-rendered-2481-3a6f06",
+      "scenario_name": "stack-parser-backtracking",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 3382186,
+          "evp/trace": 2308
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2481,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a058df-88a3-7354-9dc8-db7f37f63b38",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2481-20260831-013513-318b31/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 754,
+          "total_rows": 3813702,
+          "workflow_id": "sims-archival-gs-pre-rendered-2481-20260831-013513-318b31-1788197439"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 142882,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T04:26:15.291256+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T03:50:40.094753+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "004-pre-rendered-2481-318b31",
+      "scenario_name": "stack-parser-backtracking",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "technical_event_ineligible_evidence_unavailable",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/trace": 4780
+        },
+        "reason": "Exact trigger or recovery event was not unique.",
+        "role": "excluded"
+      },
+      "episode_id": 2483,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a058f1-146e-7ef3-8ab1-c049eca6618d",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": false,
+          "event_identity_source": null,
+          "inventory_ddeval_alert_eligible": false,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2483-20260831-013513-cc42a6/metadata.json",
+          "profile": "no_logs_v1",
+          "status": "completed",
+          "successful_archives": 651,
+          "total_rows": 3441742,
+          "workflow_id": "sims-archival-gs-pre-rendered-2483-20260831-013513-cc42a6-1788198589"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Exact trigger or recovery event was not unique.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "not_planned_event_identity_ineligible",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": null,
+          "dry_run_preview_passed": null,
+          "dry_run_status": "not_run_event_ineligible",
+          "enrichment_wire_bytes": null,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_ineligible"
+          },
+          "within_131072_byte_limit": null
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T05:06:57.806080+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "evidence_unavailable",
+          "started_at": "2026-08-31T04:28:06.996375+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "005-pre-rendered-2483-cc42a6",
+      "scenario_name": "serialization-regression",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "supplementary_unpaired",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/profile": 15,
+          "evp/profilemetrics": 122,
+          "evp/trace": 3600
+        },
+        "reason": "Technically eligible with diagnostic traces/profiles, but counterpart event identity is unavailable.",
+        "role": "supplementary"
+      },
+      "episode_id": 2483,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a058f6-28bf-7043-878f-6ceaaa07db02",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2483-20260831-013513-8b20b0/metadata.json",
+          "profile": "no_logs_v1",
+          "status": "completed",
+          "successful_archives": 790,
+          "total_rows": 2663183,
+          "workflow_id": "sims-archival-gs-pre-rendered-2483-20260831-013513-8b20b0-1788198922"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 142784,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T05:47:48.458330+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T05:08:49.356434+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "006-pre-rendered-2483-8b20b0",
+      "scenario_name": "serialization-regression",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-175351-9baa0d",
+      "campaign_role": "continuation",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 5081188,
+          "evp/trace": 2477
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2497,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05e44-d009-75c1-85e6-39483bced14d",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/recovery-2497-a-full-20260901T183611Z/gs-pre-rendered-2497-20260831-175351-5a336b/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 681,
+          "total_rows": 5401467,
+          "workflow_id": "sims-archival-gs-pre-rendered-2497-20260831-175351-5a336b-1788287963"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 132416,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T23:14:59.056347+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T22:38:43.181370+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "007-pre-rendered-2497-5a336b",
+      "scenario_name": "pool-routing-exhaustion",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-175351-9baa0d",
+      "campaign_role": "continuation",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 157233,
+          "evp/trace": 2550
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2497,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05e29-daa5-708a-a71a-25262c3b5956",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2497-20260831-175351-8ad701/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 681,
+          "total_rows": 416248,
+          "workflow_id": "sims-archival-gs-pre-rendered-2497-20260831-175351-8ad701-1788286196"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 123066,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": true
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T23:53:11.094346+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T23:16:51.234719+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "008-pre-rendered-2497-8ad701",
+      "scenario_name": "pool-routing-exhaustion",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 4291825,
+          "evp/profile": 1012,
+          "evp/profilemetrics": 10120,
+          "evp/trace": 112190
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2498,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a058fa-c891-7d01-b9cf-dc72e33c8692",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2498-20260831-013513-864d71/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 726,
+          "total_rows": 5046642,
+          "workflow_id": "sims-archival-gs-pre-rendered-2498-20260831-013513-864d71-1788199225"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 139016,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T06:24:53.080554+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T05:49:39.921341+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "007-pre-rendered-2498-864d71",
+      "scenario_name": "nla-drain-rebalance-storm",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 5376020,
+          "evp/profile": 1012,
+          "evp/profilemetrics": 10120,
+          "evp/trace": 112424
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2498,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a0590e-1723-7c2e-8e14-ce6c4ae4045d",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2498-20260831-013513-07bac5/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 722,
+          "total_rows": 6172473,
+          "workflow_id": "sims-archival-gs-pre-rendered-2498-20260831-013513-07bac5-1788200490"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 139943,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T07:02:39.849917+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T06:26:44.948345+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "008-pre-rendered-2498-07bac5",
+      "scenario_name": "nla-drain-rebalance-storm",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-175351-9baa0d",
+      "campaign_role": "continuation",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 105403,
+          "evp/profile": 10,
+          "evp/profilemetrics": 89,
+          "evp/trace": 11337
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2500,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05e2c-a00c-7200-b719-7e42254825d5",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/09/01/gs-pre-rendered-2500-20260831-175351-a751af/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 803,
+          "total_rows": 395411,
+          "workflow_id": "sims-archival-gs-pre-rendered-2500-20260831-175351-a751af-1788286377"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 146309,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-09-01T00:28:10.097474+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T23:55:02.872242+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "009-pre-rendered-2500-a751af",
+      "scenario_name": "flask-migration-console-errors",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-175351-9baa0d",
+      "campaign_role": "continuation",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 117272,
+          "evp/profile": 28,
+          "evp/profilemetrics": 342,
+          "evp/trace": 13093
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2500,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05e2f-dbc5-7678-a752-ae540e0dabec",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/09/01/gs-pre-rendered-2500-20260831-175351-5578c6/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 779,
+          "total_rows": 481551,
+          "workflow_id": "sims-archival-gs-pre-rendered-2500-20260831-175351-5578c6-1788286589"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 141309,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-09-01T01:03:29.515452+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-09-01T00:30:04.172055+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "010-pre-rendered-2500-5578c6",
+      "scenario_name": "flask-migration-console-errors",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "metric_neutral",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 385997,
+          "evp/profile": 25,
+          "evp/profilemetrics": 239,
+          "evp/trace": 5659
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2502,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05951-8cb0-7dbd-9e32-ffc206c164db",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2502-20260831-013513-a36a08/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 835,
+          "total_rows": 2137497,
+          "workflow_id": "sims-archival-gs-pre-rendered-2502-20260831-013513-a36a08-1788204911"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 152046,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T11:35:28.494293+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T10:57:39.659869+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "015-pre-rendered-2502-a36a08",
+      "scenario_name": "workflow-history-stall",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "metric_neutral",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 95171,
+          "evp/trace": 5712
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2502,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05954-d389-7a0e-9606-810876d32c7d",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2502-20260831-013513-911a4b/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 700,
+          "total_rows": 1971702,
+          "workflow_id": "sims-archival-gs-pre-rendered-2502-20260831-013513-911a4b-1788205126"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 126290,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": true
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T12:14:45.867958+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T11:37:20.310297+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "016-pre-rendered-2502-911a4b",
+      "scenario_name": "workflow-history-stall",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 2725435,
+          "evp/trace": 49618
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2563,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05929-2aae-72a0-bd07-f5166679209c",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2563-20260831-013513-ba5d84/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 708,
+          "total_rows": 3733825,
+          "workflow_id": "sims-archival-gs-pre-rendered-2563-20260831-013513-ba5d84-1788202265"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 133937,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T07:46:26.321416+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T07:04:31.859681+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "009-pre-rendered-2563-ba5d84",
+      "scenario_name": "broker-replication-overload",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 522108,
+          "evp/trace": 49369
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2563,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05932-fdc7-7d73-86af-012bfed66d28",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2563-20260831-013513-526567/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 695,
+          "total_rows": 1220347,
+          "workflow_id": "sims-archival-gs-pre-rendered-2563-20260831-013513-526567-1788202909"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 127912,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": true
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T08:29:46.720769+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T07:48:18.148751+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "010-pre-rendered-2563-526567",
+      "scenario_name": "broker-replication-overload",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-175351-9baa0d",
+      "campaign_role": "continuation",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 545252,
+          "evp/trace": 2536
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2574,
+      "expected_direction": "weak_improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05e09-8792-75c7-89a3-22f297af1822",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2574-20260831-175351-f160dc/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 824,
+          "total_rows": 1275828,
+          "workflow_id": "sims-archival-gs-pre-rendered-2574-20260831-175351-f160dc-1788284077"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 151899,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T20:22:49.398553+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T19:37:11.516483+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "003-pre-rendered-2574-f160dc",
+      "scenario_name": "fts-segment-corruption",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-175351-9baa0d",
+      "campaign_role": "continuation",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 155769,
+          "evp/trace": 72058
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2574,
+      "expected_direction": "weak_improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05e0f-874c-7574-a7d4-7d3be8691f32",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2574-20260831-175351-1dbd88/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 648,
+          "total_rows": 526094,
+          "workflow_id": "sims-archival-gs-pre-rendered-2574-20260831-175351-1dbd88-1788284471"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 118758,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": true
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T21:22:20.601936+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T20:24:42.001244+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "004-pre-rendered-2574-1dbd88",
+      "scenario_name": "fts-segment-corruption",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 779334,
+          "evp/profile": 4,
+          "evp/profilemetrics": 37,
+          "evp/trace": 184205
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2590,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05936-4905-7067-883f-f5ca3af10b58",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2590-20260831-013513-d586d8/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 850,
+          "total_rows": 1419956,
+          "workflow_id": "sims-archival-gs-pre-rendered-2590-20260831-013513-d586d8-1788203124"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 156751,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T09:06:40.073134+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T08:31:38.801350+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "011-pre-rendered-2590-d586d8",
+      "scenario_name": "empty-metric-zero-fill",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 2006821,
+          "evp/trace": 188171
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2590,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a0593a-f6e4-7c86-88b5-7d2a2a9b86d6",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2590-20260831-013513-1ae252/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 728,
+          "total_rows": 3373265,
+          "workflow_id": "sims-archival-gs-pre-rendered-2590-20260831-013513-1ae252-1788203431"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 134987,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T09:44:14.879577+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T09:08:33.986681+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "012-pre-rendered-2590-1ae252",
+      "scenario_name": "empty-metric-zero-fill",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 2280498,
+          "evp/trace": 2103
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2592,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05943-7216-79de-a116-1151bdfba218",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2592-20260831-013513-a96008/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 737,
+          "total_rows": 5047940,
+          "workflow_id": "sims-archival-gs-pre-rendered-2592-20260831-013513-a96008-1788203987"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 137302,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T10:20:18.133055+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T09:46:07.879037+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "013-pre-rendered-2592-a96008",
+      "scenario_name": "audit-logger-config-gap",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 567363,
+          "evp/profile": 44,
+          "evp/profilemetrics": 411,
+          "evp/trace": 2016
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2592,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a0594c-ed53-7269-b286-aa1185cc2003",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2592-20260831-013513-b1b6dd/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 827,
+          "total_rows": 2922732,
+          "workflow_id": "sims-archival-gs-pre-rendered-2592-20260831-013513-b1b6dd-1788204608"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 150624,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T10:55:48.158685+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T10:22:10.772770+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "014-pre-rendered-2592-b1b6dd",
+      "scenario_name": "audit-logger-config-gap",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-175351-9baa0d",
+      "campaign_role": "continuation",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 105777,
+          "evp/profile": 16,
+          "evp/profilemetrics": 190,
+          "evp/trace": 81660
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2597,
+      "expected_direction": "weak_improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05e11-d8d2-7b40-8b30-b9eb0ccb8333",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2597-20260831-175351-6a00e2/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 806,
+          "total_rows": 742529,
+          "workflow_id": "sims-archival-gs-pre-rendered-2597-20260831-175351-6a00e2-1788284623"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 145994,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T21:59:24.573292+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T21:24:12.547811+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "005-pre-rendered-2597-6a00e2",
+      "scenario_name": "distributed-login-failures",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-175351-9baa0d",
+      "campaign_role": "continuation",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 118378,
+          "evp/trace": 89603
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2597,
+      "expected_direction": "weak_improve",
+      "expected_to_improve": true,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05e15-8bea-7498-985e-e6b1bf5dfc46",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2597-20260831-175351-f6353f/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 847,
+          "total_rows": 811936,
+          "workflow_id": "sims-archival-gs-pre-rendered-2597-20260831-175351-f6353f-1788284865"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 151874,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T22:36:51.271233+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T22:01:16.421071+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "006-pre-rendered-2597-f6353f",
+      "scenario_name": "distributed-login-failures",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260901-183950-a758cc",
+      "campaign_role": "corrected_2601",
+      "cohort": {
+        "classification": "telemetry_empty",
+        "diagnostic_telemetry_gate_passed": false,
+        "diagnostic_telemetry_tracks": {},
+        "reason": "Exact alert event exists, but archive has zero usable logs, traces, metrics, deployments, or profiles; user prohibited Scenario Store submission.",
+        "role": "excluded"
+      },
+      "episode_id": 2601,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a08b88-952a-71ac-afb0-002fd7fa4c3e",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/09/01/gs-pre-rendered-2601-20260901-183950-0e9cde/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 13,
+          "total_rows": 1216,
+          "workflow_id": "sims-archival-gs-pre-rendered-2601-20260901-183950-0e9cde-1789047379"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Exact alert event exists, but archive has zero usable logs, traces, metrics, deployments, or profiles; user prohibited Scenario Store submission.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "not_planned_telemetry_empty",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 6156,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_ineligible"
+          },
+          "within_131072_byte_limit": true
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-09-01T19:25:31.214297+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-09-01T18:44:17.921646+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "001-pre-rendered-2601-0e9cde",
+      "scenario_name": "cloud-control-cascade",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260901-183950-a758cc",
+      "campaign_role": "corrected_2601",
+      "cohort": {
+        "classification": "telemetry_empty",
+        "diagnostic_telemetry_gate_passed": false,
+        "diagnostic_telemetry_tracks": {},
+        "reason": "Exact alert event exists, but archive has zero usable logs, traces, metrics, deployments, or profiles; user prohibited Scenario Store submission.",
+        "role": "excluded"
+      },
+      "episode_id": 2601,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a08b89-0c3a-786e-9fca-7a4b17801dfc",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/09/01/gs-pre-rendered-2601-20260901-183950-ac1de0/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 13,
+          "total_rows": 1232,
+          "workflow_id": "sims-archival-gs-pre-rendered-2601-20260901-183950-ac1de0-1789047409"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Exact alert event exists, but archive has zero usable logs, traces, metrics, deployments, or profiles; user prohibited Scenario Store submission.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "not_planned_telemetry_empty",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 6156,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_ineligible"
+          },
+          "within_131072_byte_limit": true
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-09-01T20:08:03.397939+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-09-01T19:27:25.013720+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "002-pre-rendered-2601-ac1de0",
+      "scenario_name": "cloud-control-cascade",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "metric_neutral",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 7013372,
+          "evp/trace": 38509
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2643,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05d53-b6aa-70a8-94ac-96df956db233",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/recovery-2643-a-full-v2-20260901T135131Z/gs-pre-rendered-2643-20260831-013513-dc8eb6/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 778,
+          "total_rows": 8723359,
+          "workflow_id": "sims-archival-gs-pre-rendered-2643-20260831-013513-dc8eb6-1788272162"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 150579,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T12:52:44.534663+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T12:16:38.616833+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "017-pre-rendered-2643-dc8eb6",
+      "scenario_name": "scanner-native-memory-oom",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "metric_neutral",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-013513-fcc2e2",
+      "campaign_role": "original",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 6981337,
+          "evp/trace": 38272
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2643,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a0596d-007f-7ef8-8ad4-5cf62ae70be3",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2643-20260831-013513-881e78/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 790,
+          "total_rows": 10054758,
+          "workflow_id": "sims-archival-gs-pre-rendered-2643-20260831-013513-881e78-1788206710"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 153307,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T13:30:19.864305+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T12:54:36.239413+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "018-pre-rendered-2643-881e78",
+      "scenario_name": "scanner-native-memory-oom",
+      "uses_1hz": true
+    },
+    {
+      "admission_class": "metric_neutral",
+      "arm": "arm-a",
+      "campaign_id": "campaign-20260831-175351-9baa0d",
+      "campaign_role": "continuation",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 2033114,
+          "evp/trace": 5522
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2666,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05d80-6563-79b1-9ef8-c2ac6a241ffe",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2666-20260831-175351-bbdc19/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 948,
+          "total_rows": 3201349,
+          "workflow_id": "sims-archival-gs-pre-rendered-2666-20260831-175351-bbdc19-1788275090"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 178037,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T18:52:43.824024+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T18:11:21.958180+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "001-pre-rendered-2666-bbdc19",
+      "scenario_name": "compliance-query-outage",
+      "uses_1hz": false
+    },
+    {
+      "admission_class": "metric_neutral",
+      "arm": "arm-b",
+      "campaign_id": "campaign-20260831-175351-9baa0d",
+      "campaign_role": "continuation",
+      "cohort": {
+        "classification": "primary_complete_pair",
+        "diagnostic_telemetry_gate_passed": true,
+        "diagnostic_telemetry_tracks": {
+          "evp/logs": 1357238,
+          "evp/trace": 5248
+        },
+        "reason": "Both opaque arms are technically event-eligible and have usable diagnostic telemetry.",
+        "role": "primary"
+      },
+      "episode_id": 2666,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "observed": {
+        "archive": {
+          "archive_run_id": "01a05df8-5236-7b10-931b-833ca672346c",
+          "direct_archive_gate_passed": true,
+          "direct_event_gate_passed": true,
+          "event_identity_source": "campaign_observer",
+          "inventory_ddeval_alert_eligible": true,
+          "metadata_s3_path": "s3://dd-applied-ai-research-us1-prod/gensim/2026/08/31/gs-pre-rendered-2666-20260831-175351-6e9bc5/metadata.json",
+          "profile": "full_telemetry_v1",
+          "status": "completed",
+          "successful_archives": 735,
+          "total_rows": 1788706,
+          "workflow_id": "sims-archival-gs-pre-rendered-2666-20260831-175351-6e9bc5-1788282950"
+        },
+        "ddeval": {
+          "artifacts": {
+            "llmobs_trace": null,
+            "run_log": null,
+            "saved_results": null
+          },
+          "bits_log_notes": [],
+          "bits_trace_id": null,
+          "judge": {
+            "contradiction_count": null,
+            "deeper_cause_found": null,
+            "deepjudge_score": null,
+            "immediate_cause_found": null,
+            "is_inconclusive": null,
+            "match_probability": null,
+            "passed": null,
+            "remediation_recall_f1": null
+          },
+          "metric_retrieval": {
+            "all_requests_interval_1000": null,
+            "all_requests_raw_data": null,
+            "all_windows_le_15m": null,
+            "eligible_complete_1hz_call_count": null,
+            "intended_metric_queried": null,
+            "metric_call_count": null,
+            "metric_tool_called": null,
+            "metric_use_classification": null,
+            "one_hz_evidence_used": null,
+            "query_scope_correct": null,
+            "returned_effective_intervals_ms": null,
+            "structural_gap_count": null,
+            "truncation_or_override": null
+          },
+          "reason": "Scenario Store ingestion is paused until archive_objects is removed from the projection, fresh exact previews pass real validation, and a new write is authorized.",
+          "reliability_efficiency": {
+            "agent_iteration_count": null,
+            "duration_seconds": null,
+            "input_tokens": null,
+            "model_cost_usd": null,
+            "output_tokens": null,
+            "tool_call_count": null,
+            "tool_error_count": null
+          },
+          "run_count": 0,
+          "safety": {
+            "false_resolution_claim": null,
+            "noise_introduced_contradiction": null,
+            "remediation_safe": null
+          },
+          "scenario_store_uuid": null,
+          "status": "pending_blocked_edp_projection_size",
+          "workflow_run_id": null
+        },
+        "eval_data_portal": {
+          "dry_run_http_status": 200,
+          "dry_run_preview_passed": true,
+          "dry_run_status": "previewed",
+          "enrichment_wire_bytes": 137964,
+          "production_ingestion": {
+            "empty_dataset_uuid": null,
+            "error": null,
+            "http_status": null,
+            "retry_count": 0,
+            "scenario_uuid": null,
+            "status": "not_submitted_after_stop"
+          },
+          "within_131072_byte_limit": false
+        },
+        "execution": {
+          "episode_status": "succeeded",
+          "exit_code": 0,
+          "finished_at": "2026-08-31T19:35:18.675882+00:00",
+          "monitor_definitions_status": "complete",
+          "observation_status": "transition_observed",
+          "started_at": "2026-08-31T18:54:35.720632+00:00",
+          "status": "succeeded"
+        }
+      },
+      "run_id": "002-pre-rendered-2666-6e9bc5",
+      "scenario_name": "compliance-query-outage",
+      "uses_1hz": true
+    }
+  ],
+  "assignment_visibility": "evaluator_only_not_agent_visible",
+  "cohort_definitions": {
+    "excluded": {
+      "arm_count": 5,
+      "definition": "2467 A/B and 2483 A lack usable event identity; corrected 2601 A/B are diagnostic-telemetry empty.",
+      "pair_count": 0
+    },
+    "primary": {
+      "arm_count": 24,
+      "definition": "Twelve complete A/B pairs whose arms have usable event identity and diagnostic telemetry.",
+      "pair_count": 12
+    },
+    "supplementary": {
+      "arm_count": 1,
+      "definition": "2483 arm B is individually eligible, but its arm-A counterpart lacks a unique event identity.",
+      "pair_count": 0
+    }
+  },
+  "evidence_cutoff": "2026-09-10T18:59:46.434779+00:00",
+  "historical_nonconfirmatory_smoke_reference": {
+    "all_request_windows_at_most_15_minutes": true,
+    "all_requests_interval_1000": true,
+    "all_requests_raw_data_true": true,
+    "deepjudge_score": 100,
+    "eligible_complete_1hz_call_count": 2,
+    "interpretation": "Proves mandatory 1 Hz request/retrieval plumbing only; it is a different capture and is not an observed result for any arm in this matrix.",
+    "match_probability": 0.9600688,
+    "metric_call_count": 6,
+    "scenario": "2483 serialization-regression",
+    "status": "passed_mandatory_1hz_capability"
+  },
+  "hypothesis_boolean_definition": "expected_to_improve is true when the pre-DDEval expectation is any positive change in Bits investigation quality; weak_improve therefore maps to true",
+  "kind": "global_1hz_unblinded_scoring_matrix",
+  "matrix_version": "pre_ddeval_v1",
+  "packet_adaptation_contract": {
+    "ledger_url": "https://github.com/DataDog/gensim/blob/bb927e366703e8ea740358941e47d3c56ddb59b8/src/controller/campaigns/global-1hz-derivative-change-ledger-v3.json",
+    "pair_invariant": "After normalizing the resolution toggle, each A/B pair is byte-and-mode identical; scenario behavior, monitor semantics, disruption actions, and phase timing are unchanged.",
+    "selected_corpus_version": "v3_with_corrected_2601_v1",
+    "shared_agent_paths": [
+      "chart/templates/datadog-agent.yaml",
+      "chart/values.yaml"
+    ],
+    "version_definition": "v3 is the final frozen 15-scenario derivative set; corrected_2601_v1 is the separately versioned, minimal replacement for the malformed original 2601 pair."
+  },
+  "pair_analysis_after_ddeval": [
+    "deepjudge_score_delta_1hz_minus_control",
+    "match_probability_delta_1hz_minus_control",
+    "immediate_cause_delta_1hz_minus_control",
+    "inconclusive_delta_1hz_minus_control",
+    "contradiction_delta_1hz_minus_control",
+    "duration_delta_1hz_minus_control",
+    "tool_error_delta_1hz_minus_control",
+    "metric_use_classification_change"
+  ],
+  "scenario_hypotheses": [
+    {
+      "admission_class": "resolution_exposed",
+      "classification_evidence": "Non-timestamped DogStatsD gauge in stream-processor.",
+      "episode_id": 2467,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "One-second cache telemetry should expose the short miss/load burst that starts the stampede.",
+      "scenario_name": "cold-cache-stampede"
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "classification_evidence": "Agent-owned recurring `container.cpu.user` metric.",
+      "episode_id": 2481,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "One-second container CPU should align transient regex backtracking with processing lag.",
+      "scenario_name": "stack-parser-backtracking"
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "classification_evidence": "Non-timestamped DogStatsD counts in event-transformer and notification-router.",
+      "episode_id": 2483,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "remove_two_invalid_simple_alert_new_group_delay_fields"
+      },
+      "prediction_reason": "One-second enqueue/error counts should separate serializer failure onset from the downstream drop.",
+      "scenario_name": "serialization-regression"
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "classification_evidence": "logs",
+      "episode_id": 2497,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "The decisive pool-routing evidence is in logs and traces, not metric cadence.",
+      "scenario_name": "pool-routing-exhaustion"
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "classification_evidence": "Non-timestamped DogStatsD gauges in context-rewriter services.",
+      "episode_id": 2498,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "packet_adaptation": {
+        "agent_values_adapter": "empty_env_single",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "One-second service gauges should resolve the simultaneous drain and rebalance sequence.",
+      "scenario_name": "nla-drain-rebalance-storm"
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "classification_evidence": "logs",
+      "episode_id": 2500,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "Deterministic Flask dispatch errors are already explicit in logs and traces.",
+      "scenario_name": "flask-migration-console-errors"
+    },
+    {
+      "admission_class": "metric_neutral",
+      "classification_evidence": "Non-timestamped DogStatsD count; durable workflow stall makes it neutral.",
+      "episode_id": 2502,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "The workflow stall is durable, so finer sampling should add little causal information.",
+      "scenario_name": "workflow-history-stall"
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "classification_evidence": "Non-timestamped DogStatsD gauge in message-broker-core.",
+      "episode_id": 2563,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "One-second broker gauges should reveal overload onset and replication-pressure ordering.",
+      "scenario_name": "broker-replication-overload"
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "classification_evidence": "Non-timestamped DogStatsD accuracy gauge, but logs and persistent corruption dominate.",
+      "episode_id": 2574,
+      "expected_direction": "weak_improve",
+      "expected_to_improve": true,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "A finer accuracy gauge may help timing, but logs and persistent corruption remain primary.",
+      "scenario_name": "fts-segment-corruption"
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "classification_evidence": "Non-timestamped DogStatsD count in cloud-metrics-collector.",
+      "episode_id": 2590,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "One-second empty-series counts should distinguish the zero-fill burst from apparent success.",
+      "scenario_name": "empty-metric-zero-fill"
+    },
+    {
+      "admission_class": "resolution_exposed",
+      "classification_evidence": "Non-timestamped DogStatsD counts in portal-gateway and security-alert-engine.",
+      "episode_id": 2592,
+      "expected_direction": "improve",
+      "expected_to_improve": true,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "One-second audit counts should expose the enqueue gap and its downstream alert impact.",
+      "scenario_name": "audit-logger-config-gap"
+    },
+    {
+      "admission_class": "mixed_secondary",
+      "classification_evidence": "Non-timestamped DogStatsD count, but authentication logs dominate the investigation.",
+      "episode_id": 2597,
+      "expected_direction": "weak_improve",
+      "expected_to_improve": true,
+      "packet_adaptation": {
+        "agent_values_adapter": "empty_env_single",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "Finer failure counts may improve timing, but authentication logs should dominate RCA.",
+      "scenario_name": "distributed-login-failures"
+    },
+    {
+      "admission_class": "resolution_irrelevant",
+      "classification_evidence": "logs",
+      "episode_id": 2601,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "corrected_2601_v1",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "Correct the generator, 12 generated service app.py files, and 12 matching readiness templates; exclude the malformed original v3 attempts."
+      },
+      "prediction_reason": "The cascade is log-led, and the corrected captures contain no diagnostic telemetry tracks.",
+      "scenario_name": "cloud-control-cascade"
+    },
+    {
+      "admission_class": "metric_neutral",
+      "classification_evidence": "Producer emits a DogStatsD gauge on a fixed 10-second ticker; neutral only.",
+      "episode_id": 2643,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "The producer emits the relevant gauge every 10 seconds, so Agent 1 Hz cannot add samples.",
+      "scenario_name": "scanner-native-memory-oom"
+    },
+    {
+      "admission_class": "metric_neutral",
+      "classification_evidence": "Compactor gauge is emitted on a fixed 30-second ticker; neutral only.",
+      "episode_id": 2666,
+      "expected_direction": "neutral",
+      "expected_to_improve": false,
+      "packet_adaptation": {
+        "agent_values_adapter": "standard_env_double",
+        "selected_packet": "v3",
+        "shared_agent_paths": [
+          "chart/templates/datadog-agent.yaml",
+          "chart/values.yaml"
+        ],
+        "shared_change": "Use the bounded one-replica Agent Deployment, disable the process Agent, remove node-local mounts, exclude only ntp, pin Agent identity, and set only the experiment resolution toggle.",
+        "special_change": "none"
+      },
+      "prediction_reason": "The compactor gauge is emitted every 30 seconds, so Agent 1 Hz cannot improve cadence.",
+      "scenario_name": "compliance-query-outage"
+    }
+  ],
+  "schema_version": 1,
+  "scoring_criteria": {
+    "admission_gates": [
+      {
+        "id": "execution_succeeded",
+        "interpretation": "Episode exited successfully.",
+        "type": "gate"
+      },
+      {
+        "id": "event_identity_usable",
+        "interpretation": "Exact trigger/recovery identity is usable.",
+        "type": "gate"
+      },
+      {
+        "id": "archive_integrity_passed",
+        "interpretation": "Metadata and referenced objects passed readback.",
+        "type": "gate"
+      },
+      {
+        "id": "diagnostic_telemetry_present",
+        "interpretation": "Logs, traces, metrics, or profiles support RCA.",
+        "type": "gate"
+      },
+      {
+        "id": "scenario_store_ready",
+        "interpretation": "Projection validates and has a Scenario Store UUID.",
+        "type": "gate"
+      }
+    ],
+    "evidence_use": [
+      {
+        "id": "one_hz_evidence_used",
+        "interpretation": "Reasoning used the fine-resolution ordering.",
+        "type": "bool"
+      },
+      {
+        "id": "causal_chain_supported",
+        "interpretation": "Conclusion links evidence to the canonical chain.",
+        "type": "bool"
+      },
+      {
+        "id": "competing_hypotheses_tested",
+        "interpretation": "Plausible alternatives were checked.",
+        "type": "bool"
+      },
+      {
+        "id": "negative_controls_used",
+        "interpretation": "Non-firing or unaffected signals constrained RCA.",
+        "type": "bool"
+      },
+      {
+        "id": "metric_use_classification",
+        "interpretation": "not_queried, rolled_up, ignored, immediate_improved, deeper_improved, or noise.",
+        "type": "enum"
+      }
+    ],
+    "metric_retrieval": [
+      {
+        "id": "metric_tool_called",
+        "interpretation": "Bits called the metric tool.",
+        "type": "bool"
+      },
+      {
+        "id": "intended_metric_queried",
+        "interpretation": "Query targeted a hypothesis-relevant metric.",
+        "type": "bool"
+      },
+      {
+        "id": "query_scope_correct",
+        "interpretation": "Org, tags, and historical window matched the capture.",
+        "type": "bool"
+      },
+      {
+        "id": "interval_1000_requested",
+        "interpretation": "Eligible requests explicitly used interval=1000.",
+        "type": "bool"
+      },
+      {
+        "id": "raw_data_requested",
+        "interpretation": "Eligible requests explicitly used raw_data=true.",
+        "type": "bool"
+      },
+      {
+        "id": "request_window_le_15m",
+        "interpretation": "Eligible metric windows were at most 15 minutes.",
+        "type": "bool"
+      },
+      {
+        "id": "complete_1hz_points_returned",
+        "interpretation": "Eligible Agent-owned series returned complete 1 Hz points.",
+        "type": "bool"
+      },
+      {
+        "id": "effective_interval_ms",
+        "interpretation": "Observed spacing, not merely requested spacing.",
+        "type": "integer"
+      },
+      {
+        "id": "structural_gap_count",
+        "interpretation": "Missing intervals in returned points.",
+        "type": "integer_lower_is_better"
+      },
+      {
+        "id": "truncation_or_override",
+        "interpretation": "Backend overrode cadence or truncated the response.",
+        "type": "bool_lower_is_better"
+      }
+    ],
+    "rca_quality": [
+      {
+        "id": "passed",
+        "interpretation": "Maintained DDEval pass result.",
+        "type": "bool"
+      },
+      {
+        "id": "is_inconclusive",
+        "interpretation": "Investigation did not reach a conclusion.",
+        "type": "bool_lower_is_better"
+      },
+      {
+        "id": "match_probability",
+        "interpretation": "New-score semantic match probability.",
+        "type": "float_0_1"
+      },
+      {
+        "id": "deepjudge_score",
+        "interpretation": "Maintained DeepJudge score.",
+        "type": "integer_0_100"
+      },
+      {
+        "id": "immediate_cause_found",
+        "interpretation": "Canonical immediate cause was identified.",
+        "type": "bool"
+      },
+      {
+        "id": "deeper_cause_found",
+        "interpretation": "Correct deeper causal chain was identified.",
+        "type": "bool"
+      },
+      {
+        "id": "remediation_recall_f1",
+        "interpretation": "Labeled remediation quality when applicable.",
+        "type": "float_0_1"
+      }
+    ],
+    "reliability_efficiency": [
+      {
+        "id": "duration_seconds",
+        "interpretation": "End-to-end investigation latency.",
+        "type": "number_lower_is_better"
+      },
+      {
+        "id": "agent_iteration_count",
+        "interpretation": "Reasoning-loop iterations.",
+        "type": "integer"
+      },
+      {
+        "id": "tool_call_count",
+        "interpretation": "Total tool calls.",
+        "type": "integer"
+      },
+      {
+        "id": "metric_call_count",
+        "interpretation": "Metric-tool calls.",
+        "type": "integer"
+      },
+      {
+        "id": "tool_error_count",
+        "interpretation": "Failed tool calls.",
+        "type": "integer_lower_is_better"
+      },
+      {
+        "id": "input_tokens",
+        "interpretation": "Input token usage when available.",
+        "type": "integer_lower_is_better"
+      },
+      {
+        "id": "output_tokens",
+        "interpretation": "Output token usage when available.",
+        "type": "integer_lower_is_better"
+      },
+      {
+        "id": "model_cost_usd",
+        "interpretation": "Model cost when available.",
+        "type": "number_lower_is_better"
+      }
+    ],
+    "safety": [
+      {
+        "id": "false_resolution_claim",
+        "interpretation": "Bits claimed 1 Hz despite coarse/incomplete data.",
+        "type": "bool_lower_is_better"
+      },
+      {
+        "id": "noise_introduced_contradiction",
+        "interpretation": "Fine-grained noise caused a contradiction.",
+        "type": "bool_lower_is_better"
+      },
+      {
+        "id": "contradiction_count",
+        "interpretation": "Judge-reported contradictions.",
+        "type": "integer_lower_is_better"
+      },
+      {
+        "id": "remediation_safe",
+        "interpretation": "Suggested remediation is evidence-bounded and safe.",
+        "type": "bool"
+      }
+    ]
+  },
+  "scoring_criteria_provenance": {
+    "admission_gates": {
+      "collection_mode": "copied",
+      "note": "Copied from campaign, observer, archive-readback, and readiness evidence.",
+      "source_contracts": [
+        "docs/dev/gensim-global-1hz-corpus-matrix.md#gate-separation",
+        "sealed corpus inventory, archive gate, and DDEval cohort plan"
+      ]
+    },
+    "evidence_use": {
+      "collection_mode": "derived_review",
+      "note": "Reviewer annotations classify whether retrieved evidence actually influenced the causal reasoning.",
+      "source_contracts": [
+        "docs/dev/metric-resolution-bits-eval-plan.md#5-prove-bits-can-consume-the-treatment-resolution",
+        "complete Bits conclusion, tool trace, and judge rationale"
+      ]
+    },
+    "metric_retrieval": {
+      "collection_mode": "copied_and_derived",
+      "note": "Requests and responses are copied from Bits logs/traces; cadence and gap fields are calculated from returned points.",
+      "source_contracts": [
+        "docs/dev/metric-resolution-bits-eval-plan.md#5-prove-bits-can-consume-the-treatment-resolution",
+        "bits-capability-e2e-v2 verification acceptance contract"
+      ]
+    },
+    "rca_quality": {
+      "collection_mode": "copied_and_derived",
+      "note": "Core scores are copied; deeper-cause and contradiction summaries may be derived from complete judge JSON.",
+      "source_contracts": [
+        "docs/dev/metric-resolution-bits-eval-plan.md#7-retain-every-iteration-and-all-provenance",
+        "maintained DDEval judge result payloads"
+      ]
+    },
+    "reliability_efficiency": {
+      "collection_mode": "copied",
+      "note": "Copied from workflow and trace metadata when present; unavailable values remain null.",
+      "source_contracts": [
+        "docs/dev/metric-resolution-bits-eval-plan.md#7-retain-every-iteration-and-all-provenance",
+        "DDEval workflow, LLMObs, and Bits tool logs"
+      ]
+    },
+    "safety": {
+      "collection_mode": "copied_and_derived",
+      "note": "Judge fields are copied; false-resolution and noise classifications require evidence-bounded review.",
+      "source_contracts": [
+        "docs/dev/metric-resolution-bits-eval-plan.md#8-scale-across-independent-matched-captures",
+        "complete judge contradiction and remediation outputs plus trace review"
+      ]
+    }
+  },
+  "source_evidence": {
+    "archive_gate": {
+      "path": "/Users/ella.taira/episode-bundles/global-1hz-campaign-evidence/ddeval-corpus-prep-continuation-20260910T183856Z/archive-gate.json",
+      "sha256": "d78812be969e379ca2f396b2e403b09ac59655a62472f345056646f4d08aa4b7"
+    },
+    "classification_baseline": {
+      "path": "docs/dev/gensim-global-1hz-classification-baseline.json",
+      "sha256": "c33b70a1cfa70a1cf80b40d5247dae35579c4da3eb0be985396e0d7d68fda8a8"
+    },
+    "cohort_plan": {
+      "path": "/Users/ella.taira/episode-bundles/global-1hz-campaign-evidence/ddeval-corpus-prep-continuation-20260910T183856Z/manifests/cohort-plan.json",
+      "sha256": "f79bf0b367c5a994700fa6ad58c6a0508ab7d072a0a9ffcf546a9634c2744b82"
+    },
+    "corpus_inventory": {
+      "path": "/Users/ella.taira/episode-bundles/global-1hz-campaign-evidence/global-1hz-corpus-brief-20260910T140439Z/global-1hz-corpus-inventory.json",
+      "sha256": "db63fbf636dfb2ce40db0a35d009822a34420f7cbdbc0698540764aaee9e26b9"
+    },
+    "dry_run_previews": {
+      "path": "/Users/ella.taira/episode-bundles/global-1hz-campaign-evidence/ddeval-corpus-prep-continuation-20260910T183856Z/dry-run-previews.json",
+      "sha256": "77c2b4b9f1cde594688847a9ed976736bd056c44062228f59f3dca1439ea24f0"
+    },
+    "enrichment_size_audit": {
+      "path": "/Users/ella.taira/episode-bundles/global-1hz-campaign-evidence/ddeval-corpus-prep-continuation-20260910T183856Z/diagnosis-first-ingest-20260910T185658Z/enrichment-size-audit.json",
+      "sha256": "1576477ca6fed73ba6088dfa9065251b7bee0e31cb2bdb7240564ee4d9ca81ae"
+    },
+    "first_ingest_diagnosis": {
+      "path": "/Users/ella.taira/episode-bundles/global-1hz-campaign-evidence/ddeval-corpus-prep-continuation-20260910T183856Z/diagnosis-first-ingest-20260910T185658Z/diagnosis.json",
+      "sha256": "681b22355d5f6bbf482ff171178671e52a2b4802c677e9ccdda69b0a31f7a3c1"
+    },
+    "private_arm_map": {
+      "path": "/Users/ella.taira/episode-bundles/global-1hz-private/global-1hz-execution-derivatives-v3-arm-map.json",
+      "sha256": "787a045e43f4917c345e8f48504b94df8e04a3e4475b884defe46857967b0d56"
+    },
+    "smoke_reference": {
+      "path": "/Users/ella.taira/episode-bundles/1hz-runs/episode-2483-1hz-20260816-164841-derivatives/bits-capability-e2e-v2-verification.json",
+      "sha256": "82744b33e8f3a86e194cddc41d2bd78fc94ed7cff67bfd716fe9c349a20e69f2"
+    }
+  },
+  "status": {
+    "blocker": "rpc error: code = InvalidArgument desc = enrichment_contexts[0].data exceeds maximum size of 131072 bytes (got 138863 bytes); store large payloads out-of-band and reference them by URI",
+    "campaign_arms": 30,
+    "ddeval_candidates_after_event_and_telemetry_gates": 25,
+    "ddeval_runs_completed": 0,
+    "excluded_arms": 5,
+    "primary_arms": 24,
+    "supplementary_arms": 1,
+    "writes_paused": true
+  }
+}
