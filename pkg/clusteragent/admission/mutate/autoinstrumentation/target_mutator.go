@@ -451,7 +451,7 @@ type filterResult struct {
 	target         *targetInternal
 }
 
-func (m *TargetMutator) getTargetFromCRD(pod *corev1.Pod) *filterResult {
+func (m *TargetMutator) getTargetFromDDI(pod *corev1.Pod) *filterResult {
 	if m.ddiTargets == nil {
 		return &filterResult{shouldContinue: true}
 	}
@@ -470,10 +470,10 @@ func (m *TargetMutator) getTargetFromCRD(pod *corev1.Pod) *filterResult {
 		return &filterResult{shouldContinue: false}
 	}
 
-	return &filterResult{shouldContinue: false, target: m.buildCRDTarget(workload, target)}
+	return &filterResult{shouldContinue: false, target: m.fromDDITarget(workload, target)}
 }
 
-func (m *TargetMutator) buildCRDTarget(workload ssi.WorkloadTarget, target ssi.DDITarget) *targetInternal {
+func (m *TargetMutator) fromDDITarget(workload ssi.WorkloadTarget, target ssi.DDITarget) *targetInternal {
 	libVersions := m.defaultLibVersions
 	usesDefaultLibs := true
 	if len(target.TracerVersions) > 0 {
@@ -483,16 +483,6 @@ func (m *TargetMutator) buildCRDTarget(workload ssi.WorkloadTarget, target ssi.D
 	}
 
 	name := fmt.Sprintf("datadoginstrumentation:%s", target.CR)
-	return &targetInternal{
-		name:            name,
-		libVersions:     libVersions,
-		envVars:         target.TracerConfigs,
-		json:            createCRDTargetJSON(name, workload, target),
-		usesDefaultLibs: usesDefaultLibs,
-	}
-}
-
-func createCRDTargetJSON(name string, workload ssi.WorkloadTarget, target ssi.DDITarget) string {
 	payload := struct {
 		Name           string             `json:"name"`
 		Workload       ssi.WorkloadTarget `json:"workload"`
@@ -506,10 +496,16 @@ func createCRDTargetJSON(name string, workload ssi.WorkloadTarget, target ssi.DD
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
-		log.Errorf("error marshalling CRD target %q: %v", name, err)
-		return ""
+		log.Warnf("error marshalling DDI target %q: %v", name, err)
 	}
-	return string(data)
+
+	return &targetInternal{
+		name:            name,
+		libVersions:     libVersions,
+		envVars:         target.TracerConfigs,
+		json:            string(data),
+		usesDefaultLibs: usesDefaultLibs,
+	}
 }
 
 // getTargetFromAnnotation determines which tracing libraries to use given
@@ -566,7 +562,7 @@ func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 		return nil
 	}
 
-	result := m.getTargetFromCRD(pod)
+	result := m.getTargetFromDDI(pod)
 	if !result.shouldContinue {
 		return result.target
 	}

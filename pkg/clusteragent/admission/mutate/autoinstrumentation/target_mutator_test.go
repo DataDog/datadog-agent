@@ -816,7 +816,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 			mutator, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, store)
 			require.NoError(t, err)
 
-			actual := mutator.getTargetFromCRD(test.pod)
+			actual := mutator.getTargetFromDDI(test.pod)
 			require.Equal(t, test.continueResolution, actual.shouldContinue)
 			if test.continueResolution {
 				require.Nil(t, actual.target)
