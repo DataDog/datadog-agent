@@ -72,7 +72,7 @@ type AggregationSpec struct {
 // TagSpec defines validation metadata for a reusable tag.
 type TagSpec struct {
 	Regex    *regexp.Regexp `yaml:"-"`
-	Optional bool          `yaml:"optional,omitempty"`
+	Optional bool           `yaml:"optional,omitempty"`
 }
 
 // UnmarshalYAML compiles the optional regex when the tag spec is decoded.
