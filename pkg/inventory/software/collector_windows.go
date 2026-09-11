@@ -20,6 +20,10 @@ func defaultCollectors() []Collector {
 		&desktopAppCollector{},
 		// msStoreAppsCollector collects Windows Store apps
 		&msStoreAppsCollector{},
+		// osCollector reports the running operating system
+		&osCollector{},
+		// driverCollector collects registered kernel-mode drivers
+		&driverCollector{},
 	}
 }
 
