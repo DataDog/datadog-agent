@@ -10,14 +10,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestProcessQueues(t *testing.T) {
@@ -73,6 +77,7 @@ func TestProcessQueues(t *testing.T) {
 				containersQueue: tt.containersQueue,
 				podsQueue:       tt.podsQueue,
 				tasksQueue:      tt.tasksQueue,
+				tagger:          taggerfxmock.SetupFakeTagger(t),
 			}
 
 			sender := mocksender.NewMockSender(t, checkid.ID(tt.name))
@@ -133,6 +138,7 @@ func TestProcessContainer(t *testing.T) {
 	p := &processor{
 		containersQueue: &queue{},
 		handlers:        []Handler{NewContainerTerminationHandler(&fakeStore{})},
+		tagger:          taggerfxmock.SetupFakeTagger(t),
 	}
 
 	p.processEvents(workloadmeta.EventBundle{
@@ -193,4 +199,225 @@ func TestProcessContainer(t *testing.T) {
 				},
 			}},
 	}, p.containersQueue.data)
+}
+
+// countingTagger counts Tag calls and forwards to another tagger.
+type countingTagger struct {
+	tagger.Component
+	tagCalls int
+}
+
+func (c *countingTagger) Tag(entityID taggertypes.EntityID, cardinality taggertypes.TagCardinality) ([]string, error) {
+	c.tagCalls++
+	return c.Component.Tag(entityID, cardinality)
+}
+
+// TestFlushTags tests tag enrichment at flush time.
+func TestFlushTags(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, "cont1"), "kubelet", []string{"kube_namespace:default"}, nil, []string{"kube_deployment:ben"}, nil)
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.KubernetesPodUID, "pod1"), "kubelet", []string{"kube_namespace:default"}, nil, nil, nil)
+
+	hostName, _ := hostname.Get(context.TODO())
+
+	tests := []struct {
+		name         string
+		kind         string
+		events       []*model.Event
+		expectedTags [][]string
+	}{
+		{
+			name: "container with tags in tagger",
+			kind: "container",
+			events: []*model.Event{{
+				EventType:  model.Event_Delete,
+				TypedEvent: &model.Event_Container{Container: &model.ContainerEvent{ContainerID: "cont1"}},
+			}},
+			expectedTags: [][]string{{"kube_deployment:ben", "kube_namespace:default"}},
+		},
+		{
+			name: "pod with tags in tagger",
+			kind: "pod",
+			events: []*model.Event{{
+				EventType:  model.Event_Delete,
+				TypedEvent: &model.Event_Pod{Pod: &model.PodEvent{PodUID: "pod1"}},
+			}},
+			expectedTags: [][]string{{"kube_namespace:default"}},
+		},
+		{
+			name: "container unknown to tagger",
+			kind: "container",
+			events: []*model.Event{{
+				EventType:  model.Event_Delete,
+				TypedEvent: &model.Event_Container{Container: &model.ContainerEvent{ContainerID: "louis-reasoner"}},
+			}},
+			expectedTags: [][]string{nil},
+		},
+		{
+			name: "container with empty ID",
+			kind: "container",
+			events: []*model.Event{{
+				EventType:  model.Event_Delete,
+				TypedEvent: &model.Event_Container{Container: &model.ContainerEvent{}},
+			}},
+			expectedTags: [][]string{nil},
+		},
+		{
+			name: "task events are not enriched",
+			kind: "task",
+			events: []*model.Event{{
+				EventType:  model.Event_Delete,
+				TypedEvent: &model.Event_Task{Task: &model.TaskEvent{TaskARN: "arn:aws:ecs:us-east-1:1:task/ben"}},
+			}},
+			expectedTags: [][]string{nil},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := mocksender.NewMockSender(t, checkid.ID(tt.name))
+			var sentPayloads []*model.EventsPayload
+			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
+				raw := args.Get(0).([]byte)
+				payload := &model.EventsPayload{}
+				err := proto.Unmarshal(raw, payload)
+				require.NoError(t, err)
+				sentPayloads = append(sentPayloads, payload)
+			})
+
+			p := &processor{
+				containersQueue: &queue{},
+				podsQueue:       &queue{},
+				tasksQueue:      &queue{},
+				tagger:          fakeTagger,
+				sender:          sender,
+			}
+
+			payload := &model.EventsPayload{Version: "v1", Host: hostName, Events: tt.events}
+			switch tt.kind {
+			case "container":
+				p.containersQueue.data = []*model.EventsPayload{payload}
+				p.flushContainers()
+			case "pod":
+				p.podsQueue.data = []*model.EventsPayload{payload}
+				p.flushPods()
+			case "task":
+				p.tasksQueue.data = []*model.EventsPayload{payload}
+				p.flushTasks()
+			}
+
+			require.Len(t, sentPayloads, 1)
+			require.Len(t, sentPayloads[0].Events, len(tt.expectedTags))
+			for i, expected := range tt.expectedTags {
+				var actual []string
+				switch typed := sentPayloads[0].Events[i].TypedEvent.(type) {
+				case *model.Event_Container:
+					actual = typed.Container.GetDdTags()
+				case *model.Event_Pod:
+					actual = typed.Pod.GetDdTags()
+				case *model.Event_Task:
+					// TaskEvent has no dd_tags field; nothing to assert.
+				}
+				assert.ElementsMatch(t, expected, actual)
+			}
+		})
+	}
+}
+
+// TestFlushTagsCache tests cache behavior during tag enrichment.
+func TestFlushTagsCache(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, "cont1"), "kubelet", []string{"kube_namespace:default"}, nil, []string{"kube_deployment:ben"}, nil)
+
+	hostName, _ := hostname.Get(context.TODO())
+
+	tests := []struct {
+		name             string
+		tagCacheTTL      time.Duration
+		events           []*model.Event
+		wantTagCalls     int
+		wantEventsTagged int
+	}{
+		{
+			name:        "repeat entity across flushes queries tagger once",
+			tagCacheTTL: time.Minute,
+			events: []*model.Event{
+				{EventType: model.Event_Delete, TypedEvent: &model.Event_Container{Container: &model.ContainerEvent{ContainerID: "cont1"}}},
+			},
+			wantTagCalls:     1,
+			wantEventsTagged: 2,
+		},
+		{
+			name:        "distinct entities query tagger each",
+			tagCacheTTL: time.Minute,
+			events: []*model.Event{
+				{EventType: model.Event_Delete, TypedEvent: &model.Event_Container{Container: &model.ContainerEvent{ContainerID: "cont1"}}},
+				{EventType: model.Event_Delete, TypedEvent: &model.Event_Container{Container: &model.ContainerEvent{ContainerID: "eva-lu-ator"}}},
+			},
+			wantTagCalls:     2,
+			wantEventsTagged: 2,
+		},
+		{
+			name:        "unknown entity caches negative result",
+			tagCacheTTL: time.Minute,
+			events: []*model.Event{
+				{EventType: model.Event_Delete, TypedEvent: &model.Event_Container{Container: &model.ContainerEvent{ContainerID: "louis-reasoner"}}},
+			},
+			wantTagCalls:     1,
+			wantEventsTagged: 0,
+		},
+		{
+			name:        "zero TTL disables cache",
+			tagCacheTTL: 0,
+			events: []*model.Event{
+				{EventType: model.Event_Delete, TypedEvent: &model.Event_Container{Container: &model.ContainerEvent{ContainerID: "cont1"}}},
+			},
+			wantTagCalls:     2,
+			wantEventsTagged: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			counting := &countingTagger{Component: fakeTagger}
+
+			sender := mocksender.NewMockSender(t, checkid.ID(tt.name))
+			var taggedPayloads []*model.EventsPayload
+			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
+				raw := args.Get(0).([]byte)
+				payload := &model.EventsPayload{}
+				err := proto.Unmarshal(raw, payload)
+				require.NoError(t, err)
+				taggedPayloads = append(taggedPayloads, payload)
+			})
+
+			p := &processor{
+				containersQueue: &queue{},
+				podsQueue:       &queue{},
+				tasksQueue:      &queue{},
+				tagger:          counting,
+				tagCache:        newTagCache(tt.tagCacheTTL),
+				sender:          sender,
+			}
+
+			// Flush the same queue content twice; the cache is shared across flushes.
+			for i := 0; i < 2; i++ {
+				p.containersQueue.data = []*model.EventsPayload{
+					{Version: "v1", Host: hostName, Events: tt.events},
+				}
+				p.flushContainers()
+			}
+
+			assert.Equal(t, tt.wantTagCalls, counting.tagCalls)
+
+			require.Len(t, taggedPayloads, 2)
+			totalTagged := 0
+			for _, payload := range taggedPayloads {
+				for _, ev := range payload.Events {
+					if typed, ok := ev.TypedEvent.(*model.Event_Container); ok && len(typed.Container.GetDdTags()) > 0 {
+						totalTagged++
+					}
+				}
+			}
+			assert.Equal(t, tt.wantEventsTagged, totalTagged)
+		})
+	}
 }

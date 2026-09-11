@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/contlcycle"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -28,9 +30,11 @@ type processor struct {
 	podsQueue       *queue
 	containersQueue *queue
 	tasksQueue      *queue
+	tagger          tagger.Component
+	tagCache        *tagCache
 }
 
-func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Component, extendedSet bool) *processor {
+func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Component, tagger tagger.Component, tagCacheTTL time.Duration, extendedSet bool) *processor {
 	handlers := []Handler{
 		NewContainerTerminationHandler(store),
 		&PodTerminationHandler{},
@@ -47,6 +51,8 @@ func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Compon
 		podsQueue:       newQueue(chunkSize),
 		containersQueue: newQueue(chunkSize),
 		tasksQueue:      newQueue(chunkSize),
+		tagger:          tagger,
+		tagCache:        newTagCache(tagCacheTTL),
 	}
 }
 
@@ -121,6 +127,7 @@ func (p *processor) flush() {
 func (p *processor) flushContainers() {
 	msgs := p.containersQueue.flush()
 	if len(msgs) > 0 {
+		p.enrichTags(msgs, types.ObjectKindContainer)
 		p.containerLifecycleEvent(msgs)
 
 		for eventType, eventCount := range eventCountByType(msgs) {
@@ -133,6 +140,7 @@ func (p *processor) flushContainers() {
 func (p *processor) flushPods() {
 	msgs := p.podsQueue.flush()
 	if len(msgs) > 0 {
+		p.enrichTags(msgs, types.ObjectKindPod)
 		p.containerLifecycleEvent(msgs)
 
 		for eventType, eventCount := range eventCountByType(msgs) {
@@ -149,6 +157,64 @@ func (p *processor) flushTasks() {
 
 		for eventType, eventCount := range eventCountByType(msgs) {
 			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindTask)
+		}
+	}
+}
+
+// enrichTags embeds the tagger tags in the dd_tags field of the events.
+func (p *processor) enrichTags(msgs []*contlcycle.EventsPayload, kind string) {
+	if p.tagger == nil || kind == types.ObjectKindTask {
+		return // for now Task events are not tagged but this may change in the future
+	}
+
+	var prefix taggertypes.EntityIDPrefix
+	switch kind {
+	case types.ObjectKindContainer:
+		prefix = taggertypes.ContainerID
+	case types.ObjectKindPod:
+		prefix = taggertypes.KubernetesPodUID
+	default:
+		return
+	}
+
+	for _, msg := range msgs {
+		for _, ev := range msg.Events {
+			var entityID string
+			switch typed := ev.TypedEvent.(type) {
+			case *contlcycle.Event_Container:
+				entityID = typed.Container.GetContainerID()
+			case *contlcycle.Event_Pod:
+				entityID = typed.Pod.GetPodUID()
+			default:
+				continue
+			}
+			if entityID == "" {
+				continue
+			}
+
+			fullEntityID := taggertypes.NewEntityID(prefix, entityID)
+
+			var ddTags []string
+			if cached, found := p.tagCache.get(fullEntityID); found {
+				tagCacheQueries.Inc("hit")
+				ddTags = cached
+			} else {
+				tagCacheQueries.Inc("miss")
+				var err error
+				ddTags, err = p.tagger.Tag(fullEntityID, taggertypes.HighCardinality)
+				if err != nil {
+					log.Debugf("Couldn't retrieve tags for %s %q: %v", kind, entityID, err)
+					continue
+				}
+				p.tagCache.put(fullEntityID, ddTags)
+			}
+
+			switch typed := ev.TypedEvent.(type) {
+			case *contlcycle.Event_Container:
+				typed.Container.DdTags = ddTags
+			case *contlcycle.Event_Pod:
+				typed.Pod.DdTags = ddTags
+			}
 		}
 	}
 }
