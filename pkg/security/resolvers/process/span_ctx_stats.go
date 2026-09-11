@@ -113,11 +113,10 @@ func (s spanCtxStatus) Tag() string {
 	return "status:" + s.String()
 }
 
-// expected reports whether s is an outcome we can't act on -- it drives the log
-// level in reportSpanCtxError.
-func (s spanCtxStatus) expected() bool {
+// warn reports whether s is worth surfacing at warn level
+func (s spanCtxStatus) warn() bool {
 	switch s {
-	case spanCtxOK, spanCtxNotApplicable, spanCtxUnpublished, spanCtxGone, spanCtxNoProcessEntry, spanCtxStaleID:
+	case spanCtxUnsupported, spanCtxMalformed, spanCtxTorn, spanCtxUnreadable, spanCtxQueueFull, spanCtxMapError, spanCtxUnknown:
 		return true
 	default:
 		return false
@@ -294,10 +293,10 @@ func (p *EBPFResolver) reportSpanCtxError(step spanCtxStep, pid uint32, err erro
 	status := classifySpanCtxError(err)
 	p.countSpanCtx(step, status)
 
-	if status.expected() {
-		seclog.Debugf("%s for pid %d: %s [%s]", step, pid, err, status)
-	} else {
+	if status.warn() {
 		seclog.Warnf("%s for pid %d: %s [%s]", step, pid, err, status)
+	} else {
+		seclog.Debugf("%s for pid %d: %s [%s]", step, pid, err, status)
 	}
 }
 
@@ -309,10 +308,10 @@ func (p *EBPFResolver) countLookup(step spanCtxStep, err error) {
 	if err == nil {
 		return
 	}
-	if status.expected() {
-		seclog.Debugf("%s: %s [%s]", step, err, status)
-	} else {
+	if status.warn() {
 		seclog.Warnf("%s: %s [%s]", step, err, status)
+	} else {
+		seclog.Debugf("%s: %s [%s]", step, err, status)
 	}
 }
 
