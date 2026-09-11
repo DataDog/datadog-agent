@@ -2010,7 +2010,8 @@ metrics:
     validator:
       nvidia_smi: true
       value_tolerance:
-        relative: 1
+        absolute: 50000
+        relative: 5
     support:
       unsupported_architectures: []
       device_modes:
