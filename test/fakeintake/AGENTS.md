@@ -115,9 +115,11 @@ The key ID and private key must match the public key delivered to PAR. Calls to
 ## Remote Config
 
 Fakeintake can stand in for the Datadog Remote Config backend so the agent
-applies test-defined configs end-to-end (TUF-signed). Disabled by default.
+applies test-defined configs end-to-end (TUF-signed). The server CLI enables
+Remote Config by default; use `--remoteconfig=false` to disable it. Go callers
+of `server.NewServer` must explicitly supply `WithRemoteConfig`.
 
-Enable on the server:
+Configure the server:
 
 ```
 fakeintake-server --remoteconfig \
@@ -290,7 +292,11 @@ The fakeintake Docker image consumed by e2e tests is pinned, not `:latest`:
   merge-queue gate; that trade-off was intentionally declined in favor of a
   simpler main-only publish.
 - `:latest` is still published (`publish_fakeintake_latest`) for external/manual
-  consumers, but no test references it anymore.
+  consumers. The standalone `e2ectl` local Docker helper
+  (`test/e2e-framework/cmd/e2ectl/internal/localinfra/fakeintake.go`) is a current
+  exception to framework pinning: it still hardcodes `:latest`. Migrate it through
+  a Pulumi-free image/default helper before relying on reproducible receiver
+  capabilities; do not import Pulumi solely to obtain the image selection policy.
 
 ## Key files
 

@@ -26,11 +26,11 @@ Ordinary e2e tests carry none. The `_nix`/`_win` filename suffix is a convention
 
 The exception is `e2eunit`. A package holding plain unit tests alongside e2e tests marks its e2e files `//go:build !e2eunit`, and the unit-test job in `.gitlab/build/source_test/linux.yml` runs with `--tags e2eunit`. Only `tests/installer/windows/` and `tests/windows/common/agent/` do this today; do not add the tag to a test with no unit-test sibling.
 
-## One fakeintake per suite
+## Suite-owned fakeintake lifecycle
 
-Every test in a suite ships to the same fakeintake, and the framework does not reset it between tests. A suite that needs each test to see only its own payloads resets the intake itself, calling `FlushServerAndResetAggregators()` from `BeforeTest`; around ten suites in tree do this today.
+Most standard environments share one fakeintake across a suite, and the framework does not reset it between tests. Custom environments can intentionally use several receivers or several Agents; `tests/agent-runtimes/forwarder_nss_failover_test.go` is an example with two fakeintakes. One fakeintake is a common default, not a cardinality restriction.
 
-Write assertions on the assumption that `FilterMetrics` returns your test's payloads. Where that assumption needs enforcing, reset in `BeforeTest` rather than tagging payloads and filtering on the tag — a test author should not have to label metrics to find them again.
+A suite that needs each test to see only its own payloads resets the relevant suite-owned intakes itself, calling `FlushServerAndResetAggregators()` from `BeforeTest`. For ordinary tests, prefer that reset to adding artificial tags solely to filter out an earlier test's data. Tests deliberately comparing multiple senders or receivers must also assert the intended producer/destination identity. Do not flush an intake owned by another concurrent test or external workflow.
 
 ## Working in this tree
 
