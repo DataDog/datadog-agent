@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"strconv"
 	"sync"
 	"time"
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	severityprovider "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -427,6 +429,17 @@ func buildSourceTag(source *sources.ReplaceableSource) func() string {
 
 type samplerMode int
 
+var tlmAdaptiveSamplerEnabled = telemetryimpl.GetCompatComponent().NewGauge(
+	"logs_adaptive_sampler",
+	"enabled",
+	[]string{"detection_only"},
+	"Whether adaptive sampling is enabled, split between active sampling and detection-only mode",
+)
+
+func recordAdaptiveSamplerEnabled(detectionOnly bool) {
+	tlmAdaptiveSamplerEnabled.Set(1, strconv.FormatBool(detectionOnly))
+}
+
 const (
 	samplerDisabled samplerMode = iota
 	samplerAdaptiveSampling
@@ -570,10 +583,12 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	switch resolveSamplerMode(sourceConfig.ExperimentalAdaptiveSampling, sourceConfig.ExperimentalNoisyLogDetection) {
 	case samplerAdaptiveSampling:
 		cfg := resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok, adaptiveSamplingSourceDetails(source.UnderlyingSource()))
+		recordAdaptiveSamplerEnabled(false)
 		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
 		sampler = preprocessor.NewAdaptiveSampler(cfg, buildSourceTag(source), baseBytesEstimate)
 	case samplerNoisyLogDetection:
 		cfg := resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
+		recordAdaptiveSamplerEnabled(true)
 		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
 		sampler = preprocessor.NewAdaptiveSampler(cfg, buildSourceTag(source), baseBytesEstimate)
 	default:

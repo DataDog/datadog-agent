@@ -727,6 +727,14 @@ func TestResolveSamplerMode(t *testing.T) {
 	}
 }
 
+func TestRecordAdaptiveSamplerEnabled(t *testing.T) {
+	recordAdaptiveSamplerEnabled(false)
+	recordAdaptiveSamplerEnabled(true)
+
+	assert.Equal(t, float64(1), tlmAdaptiveSamplerEnabled.WithValues("false").Get())
+	assert.Equal(t, float64(1), tlmAdaptiveSamplerEnabled.WithValues("true").Get())
+}
+
 func TestSmartSeverityProfileDiscrepancies(t *testing.T) {
 	profiles := func(low, medium, high preprocessor.SamplerProfile) [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile {
 		return [severityeventsdef.NumSeverityLevels]preprocessor.SamplerProfile{
