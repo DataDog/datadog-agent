@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
@@ -23,7 +24,7 @@ type CacheKey struct {
 }
 
 func (k CacheKey) cacheKey() string {
-	return k.Path + "{" + formatKeys(k.Keys) + "}"
+	return strconv.Quote(k.Path) + "{" + formatQuotedKeys(k.Keys) + "}"
 }
 
 // String returns a stable string representation for logging and debugging.
@@ -32,6 +33,14 @@ func (k CacheKey) String() string {
 }
 
 func formatKeys(keys map[string]string) string {
+	return formatKeysWith(keys, func(value string) string { return value })
+}
+
+func formatQuotedKeys(keys map[string]string) string {
+	return formatKeysWith(keys, strconv.Quote)
+}
+
+func formatKeysWith(keys map[string]string, format func(string) string) string {
 	if len(keys) == 0 {
 		return ""
 	}
@@ -44,34 +53,117 @@ func formatKeys(keys map[string]string) string {
 
 	parts := make([]string, 0, len(names))
 	for _, name := range names {
-		parts = append(parts, fmt.Sprintf("%s=%s", name, keys[name]))
+		parts = append(parts, format(name)+"="+format(keys[name]))
 	}
 	return strings.Join(parts, ",")
 }
 
-func cacheKeyFromGNMIPath(path *gnmipb.Path) CacheKey {
-	normalized, keys := normalizeGNMIPath(path)
-	return CacheKey{
-		Path: normalized,
-		Keys: keys,
+type pathElement struct {
+	name string
+	keys map[string]string
+}
+
+type normalizedPath struct {
+	origin   string
+	target   string
+	elements []pathElement
+}
+
+func normalizedPathFromGNMIPath(path *gnmipb.Path) normalizedPath {
+	if path == nil {
+		return normalizedPath{}
+	}
+
+	elements := make([]pathElement, 0, len(path.GetElem()))
+	for _, elem := range path.GetElem() {
+		elements = append(elements, pathElement{
+			name: elem.GetName(),
+			keys: cloneKeys(elem.GetKey()),
+		})
+	}
+	return normalizedPath{
+		origin:   path.GetOrigin(),
+		target:   path.GetTarget(),
+		elements: elements,
 	}
 }
 
-func normalizeGNMIPath(path *gnmipb.Path) (string, map[string]string) {
-	if path == nil {
-		return "", nil
+func (p normalizedPath) id() string {
+	var builder strings.Builder
+	builder.WriteString("origin=")
+	builder.WriteString(strconv.Quote(p.origin))
+	builder.WriteString(",target=")
+	builder.WriteString(strconv.Quote(p.target))
+	for _, elem := range p.elements {
+		builder.WriteByte('/')
+		builder.WriteString(strconv.Quote(elem.name))
+		builder.WriteByte('{')
+		builder.WriteString(formatQuotedKeys(elem.keys))
+		builder.WriteByte('}')
 	}
+	return builder.String()
+}
 
-	segments := make([]string, 0, len(path.GetElem()))
+func (p normalizedPath) cacheKey() CacheKey {
+	segments := make([]string, 0, len(p.elements))
 	keys := make(map[string]string)
-	for _, elem := range path.GetElem() {
-		segments = append(segments, elem.GetName())
-		for key, value := range elem.GetKey() {
-			keys[key] = value
+	for _, elem := range p.elements {
+		segments = append(segments, elem.name)
+		for name, value := range elem.keys {
+			keys[name] = value
 		}
 	}
+	if len(keys) == 0 {
+		keys = nil
+	}
+	return CacheKey{Path: "/" + strings.Join(segments, "/"), Keys: keys}
+}
 
-	return "/" + strings.Join(segments, "/"), keys
+func (p normalizedPath) matchesPrefix(prefix normalizedPath) bool {
+	if prefix.origin != "" && p.origin != prefix.origin {
+		return false
+	}
+	if prefix.target != "" && p.target != prefix.target {
+		return false
+	}
+	if len(prefix.elements) > len(p.elements) {
+		return false
+	}
+	for i, prefixElem := range prefix.elements {
+		elem := p.elements[i]
+		if elem.name != prefixElem.name {
+			return false
+		}
+		for name, value := range prefixElem.keys {
+			if elem.keys[name] != value {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func cacheKeyFromGNMIPath(path *gnmipb.Path) CacheKey {
+	return normalizedPathFromGNMIPath(path).cacheKey()
+}
+
+func joinGNMIPaths(prefix, path *gnmipb.Path) *gnmipb.Path {
+	joined := &gnmipb.Path{}
+	if prefix != nil {
+		joined.Origin = prefix.GetOrigin()
+		joined.Target = prefix.GetTarget()
+		joined.Elem = append(joined.Elem, prefix.GetElem()...)
+	}
+	if path != nil {
+		if path.GetOrigin() != "" {
+			joined.Origin = path.GetOrigin()
+		}
+		if path.GetTarget() != "" {
+			joined.Target = path.GetTarget()
+		}
+		joined.Elem = append(joined.Elem, path.GetElem()...)
+	}
+	return joined
 }
 
 func subscribePathFromMetric(metric config.MetricConfig) (*gnmipb.Path, error) {
@@ -110,19 +202,4 @@ func splitProfilePath(path string) ([]string, error) {
 		}
 	}
 	return segments, nil
-}
-
-func cacheKeyMatchesPrefix(key CacheKey, prefix CacheKey) bool {
-	if !strings.HasPrefix(key.Path, prefix.Path) {
-		return false
-	}
-	if len(prefix.Keys) == 0 {
-		return true
-	}
-	for name, value := range prefix.Keys {
-		if key.Keys[name] != value {
-			return false
-		}
-	}
-	return true
 }

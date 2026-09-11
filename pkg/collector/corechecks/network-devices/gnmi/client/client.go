@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -47,6 +48,7 @@ type options struct {
 	minReconnectDelay time.Duration
 	maxReconnectDelay time.Duration
 	dial              func(context.Context, string, ...grpc.DialOption) (*grpc.ClientConn, error)
+	clock             clock.Clock
 }
 
 // WithReconnectDelays overrides reconnect backoff bounds.
@@ -57,12 +59,20 @@ func WithReconnectDelays(minDelay, maxDelay time.Duration) Option {
 	}
 }
 
+// WithClock overrides the clock used by the reconnect loop.
+func WithClock(clk clock.Clock) Option {
+	return func(o *options) {
+		o.clock = clk
+	}
+}
+
 // Client maintains a streaming gNMI subscription and a latest-value cache.
 type Client struct {
 	cfg Config
 	opt options
 
 	mu       sync.Mutex
+	started  bool
 	conn     *grpc.ClientConn
 	cancel   context.CancelFunc
 	done     chan struct{}
@@ -97,6 +107,7 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 		dial: func(_ context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 			return grpc.NewClient(target, opts...)
 		},
+		clock: clock.New(),
 	}
 	for _, opt := range opts {
 		opt(&clientOpts)
@@ -106,6 +117,9 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 	}
 	if clientOpts.maxReconnectDelay < clientOpts.minReconnectDelay {
 		return nil, fmt.Errorf("max reconnect delay %s must be >= min reconnect delay %s", clientOpts.maxReconnectDelay, clientOpts.minReconnectDelay)
+	}
+	if clientOpts.clock == nil {
+		return nil, errors.New("clock is required")
 	}
 
 	return &Client{
@@ -120,13 +134,16 @@ func (c *Client) Start(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.cancel != nil {
+	if c.started {
 		return errors.New("client already started")
 	}
 
 	runCtx, cancel := context.WithCancel(ctx)
+	c.started = true
 	c.cancel = cancel
 	c.done = make(chan struct{})
+	c.closeErr = nil
+	c.reconnectAttempts = 0
 
 	go c.run(runCtx)
 	return nil
@@ -135,13 +152,12 @@ func (c *Client) Start(ctx context.Context) error {
 // Close stops the reconnect loop, closes the active stream and connection, and waits for shutdown.
 func (c *Client) Close() error {
 	c.mu.Lock()
-	if c.cancel == nil {
+	if !c.started {
 		c.mu.Unlock()
 		return nil
 	}
 	cancel := c.cancel
 	done := c.done
-	c.cancel = nil
 	c.mu.Unlock()
 
 	cancel()
@@ -201,19 +217,20 @@ func (c *Client) run(ctx context.Context) {
 			return
 		}
 
-		err := c.connectAndReceive(ctx)
+		synced, err := c.connectAndReceive(ctx)
 		if ctx.Err() != nil {
 			c.setCloseErr(ctx.Err())
 			return
 		}
 		if err != nil {
+			if synced {
+				numErrors = 0
+			}
 			numErrors = policy.IncError(numErrors)
-			c.mu.Lock()
-			c.reconnectAttempts = numErrors
-			c.mu.Unlock()
+			c.setReconnectAttempts(numErrors)
 
 			delay := policy.GetBackoffDuration(numErrors)
-			timer := time.NewTimer(delay)
+			timer := c.opt.clock.Timer(delay)
 			select {
 			case <-ctx.Done():
 				timer.Stop()
@@ -225,15 +242,14 @@ func (c *Client) run(ctx context.Context) {
 	}
 }
 
-func (c *Client) connectAndReceive(ctx context.Context) error {
+func (c *Client) connectAndReceive(ctx context.Context) (bool, error) {
 	conn, err := c.dial(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	c.mu.Lock()
 	c.conn = conn
-	c.reconnectAttempts = 0
 	c.mu.Unlock()
 
 	defer func() {
@@ -250,31 +266,43 @@ func (c *Client) connectAndReceive(ctx context.Context) error {
 	))
 	stream, err := gnmiClient.Subscribe(streamCtx)
 	if err != nil {
-		return fmt.Errorf("open subscribe stream: %w", err)
+		return false, fmt.Errorf("open subscribe stream: %w", err)
 	}
 
 	subscribeReq, err := c.buildSubscribeRequest()
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := stream.Send(subscribeReq); err != nil {
-		return fmt.Errorf("send subscribe request: %w", err)
+		return false, fmt.Errorf("send subscribe request: %w", err)
 	}
 
+	initialCache := newCache()
+	synced := false
 	for {
 		resp, err := stream.Recv()
 		if err != nil {
 			if errors.Is(err, context.Canceled) || ctx.Err() != nil {
-				return ctx.Err()
+				return synced, ctx.Err()
 			}
 			if errors.Is(err, io.EOF) {
-				return errors.New("subscribe stream closed")
+				return synced, errors.New("subscribe stream closed")
 			}
-			return fmt.Errorf("receive subscribe response: %w", err)
+			return synced, fmt.Errorf("receive subscribe response: %w", err)
 		}
 
-		if err := c.handleSubscribeResponse(resp); err != nil {
-			return err
+		targetCache := c.cache
+		if !synced {
+			targetCache = initialCache
+		}
+		isSync, err := c.handleSubscribeResponse(targetCache, resp)
+		if err != nil {
+			return synced, err
+		}
+		if isSync && !synced {
+			c.cache.replace(initialCache)
+			c.setReconnectAttempts(0)
+			synced = true
 		}
 	}
 }
@@ -313,33 +341,36 @@ func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
 	}, nil
 }
 
-func (c *Client) handleSubscribeResponse(resp *gnmipb.SubscribeResponse) error {
+func (c *Client) handleSubscribeResponse(targetCache *cache, resp *gnmipb.SubscribeResponse) (bool, error) {
 	switch payload := resp.GetResponse().(type) {
 	case *gnmipb.SubscribeResponse_SyncResponse:
-		return nil
+		if !payload.SyncResponse {
+			return false, errors.New("received false sync response")
+		}
+		return true, nil
 	case *gnmipb.SubscribeResponse_Update:
-		c.applyNotification(payload.Update)
-		return nil
+		c.applyNotification(targetCache, payload.Update)
+		return false, nil
 	default:
-		return fmt.Errorf("unsupported subscribe response type %T", payload)
+		return false, fmt.Errorf("unsupported subscribe response type %T", payload)
 	}
 }
 
-func (c *Client) applyNotification(notification *gnmipb.Notification) {
+func (c *Client) applyNotification(targetCache *cache, notification *gnmipb.Notification) {
 	if notification == nil {
 		return
 	}
 
 	timestamp := time.Unix(0, notification.GetTimestamp())
 	for _, update := range notification.GetUpdate() {
-		c.applyUpdate(update, timestamp)
+		c.applyUpdate(targetCache, notification.GetPrefix(), update, timestamp)
 	}
 	for _, deletedPath := range notification.GetDelete() {
-		c.applyDelete(deletedPath)
+		c.applyDelete(targetCache, notification.GetPrefix(), deletedPath)
 	}
 }
 
-func (c *Client) applyUpdate(update *gnmipb.Update, timestamp time.Time) {
+func (c *Client) applyUpdate(targetCache *cache, prefix *gnmipb.Path, update *gnmipb.Update, timestamp time.Time) {
 	if update == nil || update.GetPath() == nil {
 		return
 	}
@@ -349,21 +380,26 @@ func (c *Client) applyUpdate(update *gnmipb.Update, timestamp time.Time) {
 		return
 	}
 
-	key := cacheKeyFromGNMIPath(update.GetPath())
-	c.cache.set(key, CacheEntry{
+	path := normalizedPathFromGNMIPath(joinGNMIPaths(prefix, update.GetPath()))
+	key := path.cacheKey()
+	targetCache.set(path, CacheEntry{
 		Value:     value,
 		Timestamp: timestamp,
 		Keys:      cloneKeys(key.Keys),
 	})
 }
 
-func (c *Client) applyDelete(path *gnmipb.Path) {
-	key := cacheKeyFromGNMIPath(path)
-	if len(key.Keys) == 0 {
-		c.cache.deletePrefix(key)
+func (c *Client) applyDelete(targetCache *cache, prefix, path *gnmipb.Path) {
+	if path == nil {
 		return
 	}
-	c.cache.delete(key)
+	targetCache.deletePrefix(normalizedPathFromGNMIPath(joinGNMIPaths(prefix, path)))
+}
+
+func (c *Client) setReconnectAttempts(attempts int) {
+	c.mu.Lock()
+	c.reconnectAttempts = attempts
+	c.mu.Unlock()
 }
 
 func (c *Client) setCloseErr(err error) {

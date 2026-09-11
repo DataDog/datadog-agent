@@ -15,6 +15,7 @@ go_library(
         "//pkg/collector/corechecks/network-devices/gnmi",
         "//pkg/collector/corechecks/network-devices/gnmi/config",
         "//pkg/util/backoff",
+        "@com_github_benbjohnson_clock//:clock",
         "@com_github_openconfig_gnmi//proto/gnmi",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//credentials/insecure",
@@ -32,6 +33,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/collector/corechecks/network-devices/gnmi/config",
         "//pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver",
+        "@com_github_benbjohnson_clock//:clock",
         "@com_github_openconfig_gnmi//proto/gnmi",
         "@com_github_stretchr_testify//require",
     ],

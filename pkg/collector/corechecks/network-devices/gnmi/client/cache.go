@@ -6,7 +6,7 @@
 package client
 
 import (
-	"strings"
+	"maps"
 	"sync"
 	"time"
 )
@@ -19,38 +19,46 @@ type CacheEntry struct {
 }
 
 type cache struct {
-	mu      sync.RWMutex
-	entries map[string]CacheEntry
+	mu       sync.RWMutex
+	entries  map[string]storedEntry
+	byLookup map[string]string
+}
+
+type storedEntry struct {
+	path  normalizedPath
+	key   CacheKey
+	entry CacheEntry
 }
 
 func newCache() *cache {
 	return &cache{
-		entries: make(map[string]CacheEntry),
+		entries:  make(map[string]storedEntry),
+		byLookup: make(map[string]string),
 	}
 }
 
-func (c *cache) set(key CacheKey, entry CacheEntry) {
+func (c *cache) set(path normalizedPath, entry CacheEntry) {
+	key := path.cacheKey()
+	id := path.id()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[key.cacheKey()] = entry
+	c.entries[id] = storedEntry{path: path, key: key, entry: entry}
+	c.byLookup[key.cacheKey()] = id
 }
 
-func (c *cache) delete(key CacheKey) {
+func (c *cache) deletePrefix(prefix normalizedPath) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	delete(c.entries, key.cacheKey())
-}
-
-func (c *cache) deletePrefix(prefix CacheKey) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for key := range c.entries {
-		cacheKey, ok := parseCacheKey(key)
-		if !ok {
-			continue
-		}
-		if cacheKeyMatchesPrefix(cacheKey, prefix) {
-			delete(c.entries, key)
+	// A linear scan keeps the initial implementation simple. If cache sizes make
+	// similar-path lookups expensive, add a secondary path index or trie while
+	// retaining normalizedPath as the canonical representation.
+	for id, stored := range c.entries {
+		if stored.path.matchesPrefix(prefix) {
+			delete(c.entries, id)
+			lookupKey := stored.key.cacheKey()
+			if c.byLookup[lookupKey] == id {
+				delete(c.byLookup, lookupKey)
+			}
 		}
 	}
 }
@@ -58,11 +66,15 @@ func (c *cache) deletePrefix(prefix CacheKey) {
 func (c *cache) get(key CacheKey) (CacheEntry, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	entry, ok := c.entries[key.cacheKey()]
+	id, ok := c.byLookup[key.cacheKey()]
 	if !ok {
 		return CacheEntry{}, false
 	}
-	return cloneCacheEntry(entry), true
+	stored, ok := c.entries[id]
+	if !ok {
+		return CacheEntry{}, false
+	}
+	return cloneCacheEntry(stored.entry), true
 }
 
 func (c *cache) snapshot() []CachedValue {
@@ -70,60 +82,41 @@ func (c *cache) snapshot() []CachedValue {
 	defer c.mu.RUnlock()
 
 	out := make([]CachedValue, 0, len(c.entries))
-	for key, entry := range c.entries {
-		cacheKey, ok := parseCacheKey(key)
-		if !ok {
-			continue
-		}
+	for _, stored := range c.entries {
 		out = append(out, CachedValue{
-			Key:   cacheKey,
-			Entry: cloneCacheEntry(entry),
+			Key:   cloneCacheKey(stored.key),
+			Entry: cloneCacheEntry(stored.entry),
 		})
 	}
 	return out
 }
 
+func (c *cache) replace(other *cache) {
+	other.mu.RLock()
+	entries := make(map[string]storedEntry, len(other.entries))
+	for id, stored := range other.entries {
+		entries[id] = stored
+	}
+	byLookup := maps.Clone(other.byLookup)
+	other.mu.RUnlock()
+
+	c.mu.Lock()
+	c.entries = entries
+	c.byLookup = byLookup
+	c.mu.Unlock()
+}
+
 func cloneCacheEntry(entry CacheEntry) CacheEntry {
 	cloned := entry
-	if len(entry.Keys) > 0 {
-		cloned.Keys = make(map[string]string, len(entry.Keys))
-		for key, value := range entry.Keys {
-			cloned.Keys[key] = value
-		}
-	}
+	cloned.Keys = maps.Clone(entry.Keys)
 	return cloned
 }
 
-func parseCacheKey(raw string) (CacheKey, bool) {
-	open := strings.LastIndex(raw, "{")
-	if open == -1 || !strings.HasSuffix(raw, "}") {
-		return CacheKey{Path: raw}, true
-	}
-
-	path := raw[:open]
-	keysRaw := raw[open+1 : len(raw)-1]
-	if keysRaw == "" {
-		return CacheKey{Path: path}, true
-	}
-
-	keys := make(map[string]string)
-	for _, part := range strings.Split(keysRaw, ",") {
-		name, value, ok := strings.Cut(part, "=")
-		if !ok {
-			return CacheKey{}, false
-		}
-		keys[name] = value
-	}
-	return CacheKey{Path: path, Keys: keys}, true
+func cloneCacheKey(key CacheKey) CacheKey {
+	key.Keys = maps.Clone(key.Keys)
+	return key
 }
 
 func cloneKeys(keys map[string]string) map[string]string {
-	if len(keys) == 0 {
-		return nil
-	}
-	cloned := make(map[string]string, len(keys))
-	for key, value := range keys {
-		cloned[key] = value
-	}
-	return cloned
+	return maps.Clone(keys)
 }
