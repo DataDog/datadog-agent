@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -47,15 +48,15 @@ var _ check.IssueAwareCheck = (*Check)(nil)
 type Check struct {
 	core.CheckBase
 	collectors          []nvidia.Collector               // collectors for NVML metrics
-	disabledCollectors  []string                         // disabledCollectors is a list of collector names that should not be created
 	excludedDeviceUUIDs map[string]struct{}              // excludedDeviceUUIDs contains normalized device UUIDs whose metrics should not be collected
 	tagger              tagger.Component                 // Tagger instance to add tags to outgoing metrics
 	telemetry           *checkTelemetry                  // Internal telemetry metrics for the check
 	wmeta               workloadmeta.Component           // Workloadmeta store to get the list of containers
 	deviceTags          map[string][]string              // deviceTags is a map of device UUID to tags
 	deviceCache         ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
-	spCache             *nvidia.SystemProbeCache         // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
-	prmCache            *nvidia.PRMCache                 // prmCache manages privileged NVLink PRM metrics fetched from system-probe
+	spCache             *nvidia.SystemProbeCache         // spCache holds system-probe GPU process metrics
+	prmCache            *nvidia.PRMCache                 // prmCache holds system-probe privileged NVLink metrics
+	gpuConfig           *gpuconfig.Config                // gpuConfig is shared with the system-probe GPU module
 	deviceEvtGatherer   *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
 	workloadTagCache    *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
 	containerProvider   proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
@@ -145,9 +146,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 
-	// Get the list of disabled collectors from global configuration
-	c.disabledCollectors = pkgconfigsetup.Datadog().GetStringSlice("gpu.disabled_collectors")
-	for _, collectorName := range c.disabledCollectors {
+	c.gpuConfig = gpuconfig.New()
+	for _, collectorName := range c.gpuConfig.DisabledCollectors {
 		log.Infof("Collector %s is disabled by configuration", collectorName)
 	}
 	c.excludedDeviceUUIDs = make(map[string]struct{})
@@ -177,18 +177,26 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("error creating workload tag cache: %w", err)
 	}
 	c.workloadTagCache = workloadTagCache
-	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
-	// Compute whether we should prefer system-probe process metrics
-	systemProbeConfig := pkgconfigsetup.SystemProbe()
-	if systemProbeConfig.GetBool("gpu_monitoring.enabled") {
-		if systemProbeConfig.GetBool("gpu_monitoring.enable_ebpf_probes") {
-			c.spCache = nvidia.NewSystemProbeCache()
-		}
-		if systemProbeConfig.GetBool("gpu_monitoring.prm_endpoint_enabled") {
-			c.prmCache = nvidia.NewPRMCache()
+	c.spCache = nil
+	c.prmCache = nil
+	var driverEventsSource nvidia.DriverEventsSource
+	if c.gpuConfig.Enabled {
+		if c.gpuConfig.EnableEBPFProbes || c.gpuConfig.PRMEndpointEnabled || c.gpuConfig.DriverEventsEnabled {
+			client := nvidia.NewSystemProbeClient()
+			if c.gpuConfig.EnableEBPFProbes {
+				log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
+				c.spCache = nvidia.NewSystemProbeCache(client)
+			}
+			if c.gpuConfig.PRMEndpointEnabled {
+				c.prmCache = nvidia.NewPRMCache(client)
+			}
+			if c.gpuConfig.DriverEventsEnabled {
+				driverEventsSource = nvidia.NewDriverEventsCache(client)
+			}
 		}
 	}
+	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
 
 	return nil
 }
@@ -239,9 +247,8 @@ func (c *Check) ensureInitCollectors() error {
 				PRMCache:             c.prmCache,
 				Telemetry:            c.telemetry.collectorTelemetry,
 				Workloadmeta:         c.wmeta,
-				Config:               pkgconfigsetup.Datadog(),
-			},
-			c.disabledCollectors)
+				Config:               *c.gpuConfig,
+			})
 		if err != nil {
 			return fmt.Errorf("failed to build NVML collectors: %w", err)
 		}
@@ -314,12 +321,10 @@ func (c *Check) Run() error {
 	}
 	c.telemetry.metrics.deviceCount.Set(float64(deviceCount))
 
-	// Refresh SP cache before collecting metrics, if it is available
-	if c.spCache != nil {
+	// Refresh system-probe data before collecting metrics.
+	if c.spCache != nil && c.gpuConfig.EnableEBPFProbes {
 		if err := c.spCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
-			if logLimitCheck.ShouldLog() {
-				log.Warnf("error refreshing system-probe cache: %v", err)
-			}
+			log.Warnf("error refreshing system-probe stats cache: %v", err)
 			// Continue with NVML-only metrics, SP collectors will return empty metrics
 		}
 	}
@@ -338,7 +343,7 @@ func (c *Check) Run() error {
 	}
 
 	// Attempt refreshing device events
-	if err := c.deviceEvtGatherer.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+	if err := c.deviceEvtGatherer.Refresh(currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error refreshing device events cache: %v", err)
 		// Might cause empty metrics in collectors depending on device events
 	}
