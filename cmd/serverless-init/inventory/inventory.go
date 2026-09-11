@@ -23,6 +23,7 @@ import (
 	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -120,9 +121,10 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 
 	// wrapped_command is the customer workload command wrapped by serverless-init
 	// in init mode (os.Args[1:]); it is absent in sidecar mode, where
-	// serverless-init wraps nothing.
+	// serverless-init wraps nothing. Scrubbed before storage: command-line
+	// arguments can contain credentials (e.g. --password=secret, --token=…).
 	if !modeConf.SidecarMode && len(os.Args) > 1 {
-		fields["wrapped_command"] = strings.Join(os.Args[1:], " ")
+		fields["wrapped_command"] = scrubber.ScrubLine(strings.Join(os.Args[1:], " "))
 	}
 
 	return fields
