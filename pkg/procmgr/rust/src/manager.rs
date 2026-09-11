@@ -520,44 +520,89 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_reload_updates_modified_config() -> anyhow::Result<()> {
-        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
-        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
-        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-
-        mgr.handle_start("svc-a", &exit_tx).await?;
-        let old_pid = {
-            let procs = mgr.processes().await;
-            assert!(procs[0].is_running());
-            let expected_args = sleep_def("_").config.args;
-            assert_eq!(procs[0].config().args, expected_args);
-            procs[0].pid().unwrap()
-        };
-
-        // Reload with modified config (different args)
+    async fn reload_modified_running_svc_a(
+        mgr: &ProcessManager,
+        config_loader: &MutableConfigLoader,
+        exit_tx: &mpsc::Sender<ExitEvent>,
+    ) -> anyhow::Result<ReloadResult> {
+        mgr.handle_start("svc-a", exit_tx).await?;
         config_loader.set(vec![sleep_def_secs(
             "svc-a",
             test_helpers::ALT_TEST_SLEEP_SECS,
         )]);
-        let result = mgr.handle_reload_config(&exit_tx).await?;
-        assert!(result.modified.contains(&"svc-a".to_string()));
-        assert!(result.added.is_empty());
-        assert!(result.removed.is_empty());
-        assert!(result.unchanged.is_empty());
+        mgr.handle_reload_config(exit_tx).await.map_err(Into::into)
+    }
 
-        // Config should be updated and the old child fully replaced.
-        let procs = mgr.processes().await;
-        let expected_args = sleep_def_secs("_", test_helpers::ALT_TEST_SLEEP_SECS)
+    fn alt_sleep_args() -> Vec<String> {
+        sleep_def_secs("_", test_helpers::ALT_TEST_SLEEP_SECS)
             .config
-            .args;
-        assert_eq!(procs[0].config().args, expected_args);
+            .args
+    }
+
+    async fn cleanup_first_process(mgr: &ProcessManager) {
+        let procs = mgr.processes().await;
+        if let Some(pid) = procs.first().and_then(|p| p.pid()) {
+            test_helpers::cleanup_process(pid);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_reload_modified_result_contains_service() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        let result = reload_modified_running_svc_a(&mgr, &config_loader, &exit_tx).await?;
+
+        assert!(
+            result.modified.contains(&"svc-a".to_string()),
+            "modified: {:?}",
+            result.modified
+        );
+        assert!(result.added.is_empty(), "added: {:?}", result.added);
+        assert!(result.removed.is_empty(), "removed: {:?}", result.removed);
+        assert!(
+            result.unchanged.is_empty(),
+            "unchanged: {:?}",
+            result.unchanged
+        );
+
+        cleanup_first_process(&mgr).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_modified_updates_stored_config() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        reload_modified_running_svc_a(&mgr, &config_loader, &exit_tx).await?;
+
+        let procs = mgr.processes().await;
+        assert_eq!(
+            procs[0].config().args,
+            alt_sleep_args(),
+            "stored config args after reload"
+        );
+
+        cleanup_first_process(&mgr).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_modified_restarts_running_process() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        reload_modified_running_svc_a(&mgr, &config_loader, &exit_tx).await?;
+
+        let procs = mgr.processes().await;
         assert!(
             procs[0].is_running(),
-            "modified running process should be restarted (state={}, pid={:?}, old_pid={})",
-            procs[0].state(),
-            procs[0].pid(),
-            old_pid
+            "modified running process should be restarted (state={})",
+            procs[0].state()
         );
         let pid = procs[0].pid().expect("restarted process should have a PID");
         test_helpers::cleanup_process(pid);
