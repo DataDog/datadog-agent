@@ -7,6 +7,8 @@ system_probe_config:
   max_tracked_connections: 131072
   max_closed_connections_buffered: 65536
   conntrack_max_state_size: 131072
+  enable_oom_kill: true
+  enable_tcp_queue_length: true
 network_config:
   enabled: true
   collect_tcp_v6: true
