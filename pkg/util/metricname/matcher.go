@@ -393,6 +393,10 @@ func (m Matcher) RestrictExact(keep func(string) bool) Matcher {
 
 // Len returns the number of distinct entries in the compiled matcher. Several
 // rules written on the same prefix count as one.
+//
+// This walks every guard's nested matcher, so it costs O(guarded rule count),
+// not O(1): call it for reporting (e.g. telemetry after a config reload), not
+// as a per-lookup emptiness check. Test uses isEmpty for that instead.
 func (m *Matcher) Len() int {
 	if m == nil {
 		return 0
@@ -440,7 +444,7 @@ func (m *Matcher) Test(name string) bool {
 		return false
 	}
 
-	if m.Len() == 0 {
+	if m.isEmpty() {
 		return false
 	}
 
@@ -458,6 +462,28 @@ func (m *Matcher) Test(name string) bool {
 	// Safe: the string aliases buf, search only reads it for comparison and
 	// never retains it, and buf is not written again while it is alive.
 	return m.search(unsafe.String(unsafe.SliceData(key), len(key)))
+}
+
+// testNormalized behaves like Test, but skips the isNormalized scan: it
+// exists for callers inside this package that already hold a name normalized
+// by an outer Test call -- every guard.except[j] check in testGuarded does,
+// since it reuses the name the enclosing search was called with -- so
+// re-scanning it would repeat work for no reason.
+func (m *Matcher) testNormalized(name string) bool {
+	if m.isEmpty() {
+		return false
+	}
+	return m.search(name)
+}
+
+// isEmpty reports whether the matcher holds no entry at all. Unlike Len,
+// which walks every guard's nested matcher to report an exact count for
+// telemetry, this only reads the three top-level slices: an empty `guarded`
+// implies `guards` is too (see the Matcher invariants), so there is nothing
+// nested left to find. Test and testNormalized call this on every single
+// lookup, so unlike Len it must stay O(1) rather than O(rule count).
+func (m *Matcher) isEmpty() bool {
+	return m == nil || (len(m.exact) == 0 && len(m.prefixes) == 0 && len(m.guarded) == 0)
 }
 
 // search looks name up in the compiled lists. name must already be normalized.
@@ -493,7 +519,9 @@ func (m *Matcher) testGuarded(name string) bool {
 
 	guard := &m.guards[i]
 	for j := range guard.except {
-		if !guard.except[j].Test(name) {
+		// name is already normalized -- it was, to reach here at all -- so
+		// testNormalized skips re-scanning it, unlike Test.
+		if !guard.except[j].testNormalized(name) {
 			return true
 		}
 	}

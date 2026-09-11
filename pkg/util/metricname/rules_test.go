@@ -6,6 +6,7 @@
 package metricname
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -243,6 +244,43 @@ func TestNewRuleMatcherEquivalentToNewMatcher(t *testing.T) {
 	}
 }
 
+// TestIsEmptyMatchesLenZero pins that the O(1) isEmpty check Test relies on
+// agrees with Len() == 0 in every shape a Matcher can take, including guarded
+// rules and the nested nested matchers a longer guarded prefix produces:
+// isEmpty must never diverge from Len for Test to stay correct on an empty
+// matcher while skipping Len's O(rule count) walk.
+func TestIsEmptyMatchesLenZero(t *testing.T) {
+	cases := []struct {
+		name     string
+		rules    []Rule
+		nonEmpty bool
+	}{
+		{"nil", nil, false},
+		{"exact only", []Rule{{Pattern: "foo"}}, true},
+		{"prefix only", []Rule{{Pattern: "foo.*"}}, true},
+		{"guarded, no nesting", []Rule{{Pattern: "foo.*", Except: []string{"foo.keep"}}}, true},
+		{
+			"guarded, nested",
+			[]Rule{
+				{Pattern: "foo.*", Except: []string{"foo.a"}},
+				{Pattern: "foo.bar.*", Except: []string{"foo.bar.b"}},
+			},
+			true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := NewRuleMatcher(c.rules, false)
+			assert.Equal(t, m.Len() == 0, m.isEmpty())
+			assert.Equal(t, c.nonEmpty, !m.isEmpty())
+		})
+	}
+
+	var nilMatcher *Matcher
+	assert.True(t, nilMatcher.isEmpty())
+}
+
 func TestRestrictExactSharesGuarded(t *testing.T) {
 	m := NewRuleMatcher([]Rule{
 		{Pattern: "foo.avg"},
@@ -260,4 +298,44 @@ func TestRestrictExactSharesGuarded(t *testing.T) {
 	// its own exceptions) exactly like it did before restricting.
 	assert.True(t, restricted.Test("redis.mem.used"))
 	assert.False(t, restricted.Test("redis.keep"))
+}
+
+// BenchmarkGuardedRulesAtScale exercises Test against a matcher holding many
+// guarded (prefix + exceptions) rules alongside a large exact list, the shape
+// that let Test's per-lookup cost regress to O(guarded rule count) unnoticed:
+// the existing benchmarks only ever build plain exact/prefix matchers with
+// NewMatcher, which have no guarded entries to walk.
+func BenchmarkGuardedRulesAtScale(b *testing.B) {
+	const guardedCount = 1250
+	const exactCount = 5000
+
+	rules := make([]Rule, 0, guardedCount+exactCount)
+	for i := range guardedCount {
+		prefix := fmt.Sprintf("smp.filterlist.bench.prefix.%06d.", i)
+		rules = append(rules, Rule{
+			Pattern: prefix + "*",
+			Except:  []string{prefix + "keep1", prefix + "keep2*"},
+		})
+	}
+	for i := range exactCount {
+		rules = append(rules, Rule{Pattern: fmt.Sprintf("smp.filterlist.bench.exact.%06d", i)})
+	}
+
+	m := NewRuleMatcher(rules, false)
+
+	cases := map[string]string{
+		"guarded-hit":      "smp.filterlist.bench.prefix.000042.somethingnotexcepted",
+		"guarded-excepted": "smp.filterlist.bench.prefix.000042.keep1",
+		"exact-hit":        "smp.filterlist.bench.exact.000042",
+		"miss":             "smp.filterlist.bench.nothing.here.at.all",
+	}
+
+	for name, key := range cases {
+		b.Run(name, func(b *testing.B) {
+			b.ReportAllocs()
+			for range b.N {
+				m.Test(key)
+			}
+		})
+	}
 }
