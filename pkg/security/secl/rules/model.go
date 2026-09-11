@@ -296,6 +296,13 @@ func (k *KillDefinition) PreCheck(opts PolicyLoaderOpts) error {
 	if k.Signal == "" {
 		return errors.New("a valid signal has to be specified to the 'kill' action")
 	}
+	// default scope to process
+	if k.Scope == "" {
+		k.Scope = "process"
+	}
+	if k.Scope != "process" && k.Scope != "cgroup" && k.Scope != "container" {
+		return fmt.Errorf("invalid scope '%s'", k.Scope)
+	}
 
 	if _, found := model.SignalConstants[k.Signal]; !found {
 		return fmt.Errorf("unsupported signal '%s'", k.Signal)
