@@ -103,26 +103,47 @@ type macosInstallSuite struct {
 // host, so a leftover from a previous run can be removed before starting a fresh one.
 const macosLocalFakeIntakeContainer = "e2e-fakeintake"
 
+// macosSSHArgs returns the `ssh`/`scp` flags needed to reach a LOCAL_VM host non-interactively:
+// an explicit identity file (falling back to the framework's own E2E_LOCAL_PRIVATE_KEY_PATH/
+// E2E_AWS_PRIVATE_KEY_PATH env vars, same as getSSHClient's LOCAL_VM key resolution) and
+// IdentitiesOnly, so `ssh` doesn't first offer whatever unrelated keys the local ssh-agent
+// happens to hold and get disconnected for exceeding the host's MaxAuthTries.
+func macosSSHArgs() []string {
+	keyPath := goos.Getenv("E2E_LOCAL_PRIVATE_KEY_PATH")
+	if keyPath == "" {
+		keyPath = goos.Getenv("E2E_AWS_PRIVATE_KEY_PATH")
+	}
+	if keyPath == "" {
+		return nil
+	}
+	return []string{"-i", keyPath, "-o", "IdentitiesOnly=yes"}
+}
+
 // macosStartLocalFakeIntake starts a fakeintake container on the LOCAL_VM host at addr over
 // SSH (Docker must already be installed and running there -- e.g. via colima) and returns the
 // host port it published. Docker/colima are only on PATH through the login shell's profile, so
 // every command evaluates `brew shellenv` first. Registers a t.Cleanup to remove the container.
 func macosStartLocalFakeIntake(t *testing.T, user, addr string) uint32 {
 	sshTarget := user + "@" + addr
+	sshArgs := macosSSHArgs()
 	const brewEnv = `eval "$(/opt/homebrew/bin/brew shellenv)"; `
+	sshCmd := func(remoteCmd string) *exec.Cmd {
+		args := append(append([]string{}, sshArgs...), sshTarget, remoteCmd)
+		return exec.Command("ssh", args...)
+	}
 
 	// Best-effort: a container from a previous, aborted run may still be around.
-	_ = exec.Command("ssh", sshTarget, brewEnv+"docker rm -f "+macosLocalFakeIntakeContainer).Run()
+	_ = sshCmd(brewEnv + "docker rm -f " + macosLocalFakeIntakeContainer).Run()
 
-	runCmd := exec.Command("ssh", sshTarget, brewEnv+"docker run -d --name "+macosLocalFakeIntakeContainer+" -p 0:80 public.ecr.aws/datadog/fakeintake:"+fakeintakeversion.Tag)
+	runCmd := sshCmd(brewEnv + "docker run -d --name " + macosLocalFakeIntakeContainer + " -p 0:80 public.ecr.aws/datadog/fakeintake:" + fakeintakeversion.Tag)
 	out, err := runCmd.CombinedOutput()
 	require.NoError(t, err, "starting fakeintake container on %s: %s", addr, out)
 
 	t.Cleanup(func() {
-		_ = exec.Command("ssh", sshTarget, brewEnv+"docker rm -f "+macosLocalFakeIntakeContainer).Run()
+		_ = sshCmd(brewEnv + "docker rm -f " + macosLocalFakeIntakeContainer).Run()
 	})
 
-	portCmd := exec.Command("ssh", sshTarget, brewEnv+"docker port "+macosLocalFakeIntakeContainer+" 80/tcp")
+	portCmd := sshCmd(brewEnv + "docker port " + macosLocalFakeIntakeContainer + " 80/tcp")
 	portOut, err := portCmd.Output()
 	require.NoError(t, err, "resolving fakeintake port on %s", addr)
 
