@@ -119,6 +119,14 @@ Start it with `run_in_background: true`; these outlast a foreground Bash call. T
 env is much the slowest — the test binary compiles from a cold cache before any infrastructure is
 touched, so several minutes of silence is normal.
 
+**Report once a minute while it runs.** Poll the background output about every minute and post a
+one-line status update: which phase it is in (compiling · provisioning · running tests · tearing down)
+and the last meaningful output line. Long silent stretches are inherent to the run — the user cannot
+see your terminal, so from their side an agent that goes quiet for 10 minutes looks exactly like a
+hung one. Silence from the tool is normal; silence from you is not. If the phase has not changed,
+say so and note the elapsed time (`still provisioning, ~6m in, no new output`) rather than skipping
+the update.
+
 ## Step 6 — Report
 
 ```
