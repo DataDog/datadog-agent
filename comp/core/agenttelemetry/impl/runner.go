@@ -12,10 +12,15 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+// jobID identifies a job registered with the runner. It is an opaque handle so the
+// cron package does not leak through the runner interface.
+type jobID int
+
 type runner interface {
 	start()
 	stop() context.Context
-	addJob(j job)
+	addJob(j job) jobID
+	removeJob(id jobID)
 }
 
 type runnerImpl struct {
@@ -85,9 +90,20 @@ func (r *runnerImpl) stop() context.Context {
 	return r.taskCron.Stop()
 }
 
-func (r *runnerImpl) addJob(j job) {
+func (r *runnerImpl) addJob(j job) jobID {
 	schedule := &runnerSchedule{
 		schedule: j.schedule,
 	}
-	r.taskCron.Schedule(schedule, j)
+	return jobID(r.taskCron.Schedule(schedule, j))
+}
+
+// removeJob unregisters a previously added job so it will not fire again. An already
+// running invocation is not interrupted: cron runs each job in its own goroutine, and
+// the job value it holds is a copy taken at addJob time.
+//
+// Safe to call from inside a running job (cron's run loop is free to drain its remove
+// channel), but NOT from runnerSchedule.Next, which already holds the cron lock -- see
+// the comment there.
+func (r *runnerImpl) removeJob(id jobID) {
+	r.taskCron.Remove(cron.EntryID(id))
 }

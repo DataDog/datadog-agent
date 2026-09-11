@@ -49,6 +49,43 @@ properties:
     default: false
     tags:
     - no-env
+  dynamic_profiles:
+    node_type: section
+    type: object
+    properties:
+      cache_path:
+        node_type: setting
+        type: string
+        default: ''
+        comment: |-
+          Absolute path of the on-disk dynamic profiles cache. Empty resolves to
+          <run_path>/agent-telemetry-dynamic-profiles.json at runtime. A ${run_path}
+          schema default cannot be used here: relative-path defaults are
+          expanded against the compiled-in default run path (see
+          nodetreemodel/relative_path.go), so they ignore a user-set run_path.
+      enabled:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: |-
+          Kill switch for dynamic profiles, the remotely fetched additive
+          profiles. Also gated by agent_telemetry.enabled and, through
+          pkg/config/utils.IsAgentTelemetryEnabled, by fips.enabled and gov
+          sites.
+      poll_interval_seconds:
+        node_type: setting
+        type: integer
+        default: 86400
+      startup_jitter_seconds:
+        node_type: setting
+        type: integer
+        default: 300
+        comment: 'max random delay before the first poll; spreads fleet-wide load'
+      url:
+        node_type: setting
+        type: string
+        default: ''
+        comment: 'test/staging only; empty means the built-in constant'
   enabled:
     node_type: setting
     type: boolean
