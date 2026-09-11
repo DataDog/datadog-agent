@@ -48,6 +48,21 @@ const (
 // not published yet or in the middle of an update.
 const unpublished = 0
 
+// Sentinel errors classifying why Read failed
+var (
+	// ErrUnpublished means the process context is unpublished or being updated.
+	ErrUnpublished = errors.New("process context is unpublished or being updated")
+	// ErrTorn means the payload changed while being read; the only status Read
+	// retries on.
+	ErrTorn = errors.New("process context changed while being read")
+	// ErrMalformed means the process published something that violates the
+	// header/payload contract.
+	ErrMalformed = errors.New("malformed process context")
+	// ErrUnsupportedVersion means the header is well-formed but names a version
+	// this reader does not speak.
+	ErrUnsupportedVersion = errors.New("unsupported process context version")
+)
+
 var signature = [8]byte{'O', 'T', 'E', 'L', '_', 'C', 'T', 'X'}
 
 // header mirrors the OTEP 4719 mapping header.
@@ -62,15 +77,16 @@ type header struct {
 func parseHeader(buf []byte) (header, error) {
 	var h header
 	if len(buf) < headerSize {
-		return h, fmt.Errorf("short header: %d bytes", len(buf))
+		// Unreachable: readOnce always allocates exactly headerSize bytes.
+		return h, fmt.Errorf("%w: short header: %d bytes", ErrMalformed, len(buf))
 	}
 	copy(h.signature[:], buf[0:8])
 	if h.signature != signature {
-		return h, fmt.Errorf("bad signature %q", buf[0:8])
+		return h, fmt.Errorf("%w: bad signature %q", ErrMalformed, buf[0:8])
 	}
 	h.version = binary.NativeEndian.Uint32(buf[8:12])
 	if h.version != headerVersion {
-		return h, fmt.Errorf("unsupported process context version %d", h.version)
+		return h, fmt.Errorf("%w: %d", ErrUnsupportedVersion, h.version)
 	}
 	h.payloadSize = binary.NativeEndian.Uint32(buf[12:16])
 	h.monotonicPublishedAtNs = binary.NativeEndian.Uint64(buf[16:24])
@@ -98,11 +114,11 @@ func IsMappingName(pathname string) bool {
 func Read(mem procfs.Mem, headerAddr uint64) (ProcessContext, error) {
 	var lastErr error
 	for range readAttempts {
-		ctx, torn, err := readOnce(mem, headerAddr)
+		ctx, err := readOnce(mem, headerAddr)
 		if err == nil {
 			return ctx, nil
 		}
-		if !torn {
+		if !errors.Is(err, ErrTorn) {
 			return nil, err
 		}
 		lastErr = err
@@ -111,46 +127,46 @@ func Read(mem procfs.Mem, headerAddr uint64) (ProcessContext, error) {
 	return nil, lastErr
 }
 
-func readOnce(mem procfs.Mem, headerAddr uint64) (ProcessContext, bool, error) {
+func readOnce(mem procfs.Mem, headerAddr uint64) (ProcessContext, error) {
 	buf := make([]byte, headerSize)
 	if err := mem.Read(headerAddr, buf); err != nil {
-		return nil, false, fmt.Errorf("cannot read the process context header: %w", err)
+		return nil, fmt.Errorf("cannot read the process context header: %w", err)
 	}
 
 	before, err := parseHeader(buf)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	if before.monotonicPublishedAtNs == unpublished {
-		return nil, false, errors.New("process context is unpublished or being updated")
+		return nil, ErrUnpublished
 	}
 	if before.payloadSize == 0 || before.payloadSize > maxPayloadSize {
-		return nil, false, fmt.Errorf("implausible process context payload size %d", before.payloadSize)
+		return nil, fmt.Errorf("%w: implausible process context payload size %d", ErrMalformed, before.payloadSize)
 	}
 	if before.payloadPtr == 0 {
-		return nil, false, errors.New("null process context payload pointer")
+		return nil, fmt.Errorf("%w: null process context payload pointer", ErrMalformed)
 	}
 
 	payload := make([]byte, before.payloadSize)
 	if err := mem.Read(before.payloadPtr, payload); err != nil {
-		return nil, false, fmt.Errorf("cannot read the process context payload: %w", err)
+		return nil, fmt.Errorf("cannot read the process context payload: %w", err)
 	}
 
 	if err := mem.Read(headerAddr, buf); err != nil {
-		return nil, false, fmt.Errorf("cannot re-read the process context header: %w", err)
+		return nil, fmt.Errorf("cannot re-read the process context header: %w", err)
 	}
 	after, err := parseHeader(buf)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	if after.monotonicPublishedAtNs != before.monotonicPublishedAtNs {
-		return nil, true, errors.New("process context changed while being read")
+		return nil, ErrTorn
 	}
 
 	var pb processcontextpb.ProcessContext
 	if err := proto.Unmarshal(payload, &pb); err != nil {
-		return nil, false, err
+		return nil, fmt.Errorf("%w: %w", ErrMalformed, err)
 	}
 
-	return &pb, false, nil
+	return &pb, nil
 }
