@@ -335,13 +335,12 @@ func wrapVPAFunc(f func(*vpav1.VerticalPodAutoscaler) *metric.Family) func(inter
 
 func (f *vpaFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	vpaClient := customResourceClient.(versioned.Interface)
-	ctx := context.Background()
 	return &cache.ListWatch{
-		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
 			return vpaClient.AutoscalingV1().VerticalPodAutoscalers(ns).List(ctx, opts)
 		},
-		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
 			return vpaClient.AutoscalingV1().VerticalPodAutoscalers(ns).Watch(ctx, opts)
 		},
