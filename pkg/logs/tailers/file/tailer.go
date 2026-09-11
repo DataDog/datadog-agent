@@ -462,18 +462,18 @@ func (t *Tailer) GetDetectedPattern() *regexp.Regexp {
 	return t.decoder.GetDetectedPattern()
 }
 
-// SetRotationHandoffTarget makes this tailer's decoder hand its buffered,
-// not-yet-emitted content to target once the rotated file has been read to the
+// SetRotationHandoffTarget makes this tailer's decoder offer its buffered,
+// not-yet-emitted content to handoff once the rotated file has been read to the
 // end, rather than flushing it as a standalone message.
-func (t *Tailer) SetRotationHandoffTarget(target chan<- *decoder.PendingState) {
-	t.decoder.SetRotationHandoffTarget(target)
+func (t *Tailer) SetRotationHandoffTarget(handoff *decoder.RotationHandoff) {
+	t.decoder.SetRotationHandoffTarget(handoff)
 }
 
 // AwaitRotationHandoff makes this tailer's decoder hold back the new file's
-// content until the tailer it replaces has handed over its buffer. It must be
+// content until the tailer it replaces has offered its buffer. It must be
 // called before the tailer is started.
-func (t *Tailer) AwaitRotationHandoff(source <-chan *decoder.PendingState) {
-	t.decoder.AwaitRotationHandoff(source)
+func (t *Tailer) AwaitRotationHandoff(handoff *decoder.RotationHandoff) {
+	t.decoder.AwaitRotationHandoff(handoff)
 }
 
 // wait lets the tailer sleep for a bit

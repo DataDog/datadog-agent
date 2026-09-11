@@ -5,7 +5,19 @@ fixes:
     messages. When a file is rotated while a multiline group (``multi_line_pattern``
     or auto multiline) or a container runtime partial-line sequence is still
     open, the tailer now hands the buffered content to the tailer that takes over
-    the new file, so the continuation completes the original line. The handoff
-    is bounded by ``logs_config.aggregation_timeout``: if the continuation does
-    not arrive within that window, the buffered content is flushed on its own as
-    before.
+    the new file, so the continuation completes the original line. The handoff is
+    bounded: for rotations detected by inode or size it uses
+    ``logs_config.aggregation_timeout``, and for rotations detected by checksum
+    fingerprinting it uses the new
+    ``logs_config.fingerprint_rotation_handoff_timeout``. When the window
+    expires, or no replacement tailer takes over, the buffered content is flushed
+    on its own exactly as before.
+upgrade:
+  - |
+    Added ``logs_config.fingerprint_rotation_handoff_timeout`` (milliseconds,
+    default ``2000``). It bounds how long a rotated-away file's tailer keeps a
+    partially aggregated log group so the tailer taking over the new file can
+    complete it, for rotations detected through
+    ``logs_config.fingerprint_config``. The clock starts when the rotation is
+    detected. The default tracks ``logs_config.file_scan_period`` plus
+    ``logs_config.aggregation_timeout`` and should be raised alongside them.
