@@ -53,6 +53,14 @@ func (c *deadlineCountingContext) Deadline() (time.Time, bool) {
 	return time.Time{}, false
 }
 
+func columnParts(names ...string) []indexKeyPart {
+	parts := make([]indexKeyPart, len(names))
+	for i, n := range names {
+		parts[i] = indexKeyPart{Column: n}
+	}
+	return parts
+}
+
 func TestSchemaCollectionNoOwnersSkips(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -258,6 +266,19 @@ func TestTableTypeAndProperties(t *testing.T) {
 	assert.Equal(t, "table", tableType(objectTable),
 		"an object table is still a table, distinguished only by its properties")
 	assert.Equal(t, []string{"object_table"}, tableProperties(objectTable))
+}
+
+func TestDefaultValueColumnIsVersionGated(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	c.dbVersion = "23.26.2.0.0"
+	assert.Equal(t, "c.data_default_vc", c.defaultValueColumn())
+
+	for _, v := range []string{"19.21.0.0.0", "21.3.0.0.0", "12.2.0.1.0"} {
+		c.dbVersion = v
+		assert.Equal(t, "c.data_default", c.defaultValueColumn(), "version %s", v)
+	}
 }
 
 func TestMainQueriesDoNotProjectLongDefaults(t *testing.T) {
@@ -494,6 +515,67 @@ func TestEmitSchemaSnapshotEventsCombinesKindsPerContainer(t *testing.T) {
 	assert.Equal(t, 2, emitted[3].CollectionPayloadsCount)
 }
 
+func TestRowCountEstimateCombinesStatsAndDeltas(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	details := map[tableKey]*tableDetails{
+		{conID: 1, owner: "APP", table: "T"}: {
+			Modifications: &modificationsDetail{Inserts: 30, Deletes: 5},
+		},
+	}
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, details, map[ownerKey]string{}, map[int64]string{})
+
+	collector.add(schemaRowDB{
+		ConID: 1, Owner: "APP", TableName: "T", Temporary: "N", External: "NO",
+		IotType: "-", ClusterName: "-", Partitioned: "NO",
+		NumRows:    sql.NullInt64{Int64: 100, Valid: true},
+		ColumnName: "C1", DataType: sql.NullString{String: "NUMBER", Valid: true}, Nullable: "Y",
+	})
+	collector.finish()
+
+	require.Len(t, payloads, 1)
+	table := payloads[0].Metadata[0].Schemas[0].Tables[0]
+	require.NotNil(t, table.RowCount)
+	assert.Equal(t, int64(125), *table.RowCount, "NUM_ROWS plus inserts minus deletes")
+}
+
+func TestObjectTableDetailIsSurfaced(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
+
+	collector.add(schemaRowDB{
+		ConID: 3, Owner: "DEMO_APP", TableName: "ADDRESSES", Temporary: "N", External: "NO",
+		IotType: "-", ClusterName: "-", Partitioned: "NO",
+		ObjectTypeOwner: "DEMO_APP", ObjectType: "ADDRESS_T",
+		ColumnName: "STREET", DataType: sql.NullString{String: "VARCHAR2", Valid: true},
+		DataLength: sql.NullInt64{Int64: 100, Valid: true}, CharLength: sql.NullInt64{Int64: 100, Valid: true},
+		CharUsed: "C", Nullable: "Y",
+	})
+	collector.finish()
+
+	require.Len(t, payloads, 1)
+	table := payloads[0].Metadata[0].Schemas[0].Tables[0]
+	assert.Equal(t, "table", table.TableType)
+	assert.Contains(t, table.Properties, "object_table")
+	require.NotNil(t, table.ObjectType)
+	assert.Equal(t, "DEMO_APP", table.ObjectType.TypeOwner)
+	assert.Equal(t, "ADDRESS_T", table.ObjectType.TypeName)
+}
+
 func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -590,6 +672,242 @@ func TestContainerNamesUsePdbName(t *testing.T) {
 	assert.Equal(t, "free.FREEPDB1", payloads[1].Metadata[0].Name)
 	assert.Equal(t, "free.7", payloads[2].Metadata[0].Name, "unknown container falls back to con_id")
 }
+
+func TestTableDetailsIndexesGroupByName(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery(`(?s)cdb_indexes.*i\.con_id = 3 AND i\.table_owner = 'APP' AND i\.table_name IN \('ORDERS'\)`).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME", "COLUMN_EXPRESSION"}).
+			AddRow(3, "APP", "ORDERS", "ORDERS_COMPOSITE_IDX", "UNIQUE", "NORMAL", "STATUS", nil).
+			AddRow(3, "APP", "ORDERS", "ORDERS_COMPOSITE_IDX", "UNIQUE", "NORMAL", "CREATED_AT", nil).
+			AddRow(3, "APP", "ORDERS", "ORDERS_STATUS_IDX", "NONUNIQUE", "NORMAL", "STATUS", nil))
+
+	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "ORDERS"}: {}}
+	details := c.tableDetails(context.Background(), allowed, nil)
+
+	d := details[tableKey{conID: 3, owner: "APP", table: "ORDERS"}]
+	require.NotNil(t, d)
+	require.Len(t, d.Indexes, 2, "two distinct index names must produce two indexInfo entries")
+
+	composite := d.Indexes[0]
+	assert.Equal(t, "ORDERS_COMPOSITE_IDX", composite.Name)
+	assert.True(t, composite.Unique)
+	assert.Equal(t, columnParts("STATUS", "CREATED_AT"), composite.Columns,
+		"a composite index's columns must accumulate onto the same indexInfo, in position order")
+
+	single := d.Indexes[1]
+	assert.Equal(t, "ORDERS_STATUS_IDX", single.Name)
+	assert.False(t, single.Unique)
+	assert.Equal(t, columnParts("STATUS"), single.Columns)
+}
+
+func TestTableDetailsIndexesFunctionBasedSubstitutesExpression(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery("cdb_indexes").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME", "COLUMN_EXPRESSION"}).
+			AddRow(3, "APP", "ORDERS", "ORDERS_FBI_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00004$", `UPPER("STATUS")`).
+			AddRow(3, "APP", "ORDERS", "ORDERS_FBI_COMPOSITE_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "CUSTOMER_ID", nil).
+			AddRow(3, "APP", "ORDERS", "ORDERS_FBI_COMPOSITE_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00005$", `UPPER("STATUS")`))
+
+	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "ORDERS"}: {}}
+	details := c.tableDetails(context.Background(), allowed, nil)
+
+	d := details[tableKey{conID: 3, owner: "APP", table: "ORDERS"}]
+	require.NotNil(t, d)
+	require.Len(t, d.Indexes, 2)
+
+	single := d.Indexes[0]
+	assert.Equal(t, "ORDERS_FBI_IDX", single.Name)
+	assert.Equal(t, []indexKeyPart{{Expression: `UPPER("STATUS")`}}, single.Columns,
+		"a single-column FBI must report its expression, not be dropped for having zero columns")
+
+	composite := d.Indexes[1]
+	assert.Equal(t, "ORDERS_FBI_COMPOSITE_IDX", composite.Name)
+	assert.Equal(t, []indexKeyPart{{Column: "CUSTOMER_ID"}, {Expression: `UPPER("STATUS")`}}, composite.Columns,
+		"the plain column and the expression column must both survive, in position order")
+}
+
+func TestTableDetailsConstraintsResolveForeignKey(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery("cdb_constraints").WillReturnRows(
+		sqlmock.NewRows([]string{
+			"CON_ID", "OWNER", "TABLE_NAME", "CONSTRAINT_NAME", "CONSTRAINT_TYPE",
+			"R_OWNER", "R_CONSTRAINT_NAME", "COLUMN_NAME", "SEARCH_CONDITION",
+		}).
+			// Primary key of the referenced table, ORDERS.
+			AddRow(3, "APP", "ORDERS", "ORDERS_PK", "P", "-", "-", "ORDER_ID", nil).
+			// A two-column composite foreign key on ORDER_ITEMS, in column-position order.
+			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "ORDER_ID", nil).
+			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "LINE_NO", nil))
+
+	allowed := map[tableKey]struct{}{
+		{conID: 3, owner: "APP", table: "ORDERS"}:      {},
+		{conID: 3, owner: "APP", table: "ORDER_ITEMS"}: {},
+	}
+	details := c.tableDetails(context.Background(), allowed, nil)
+
+	items := details[tableKey{conID: 3, owner: "APP", table: "ORDER_ITEMS"}]
+	require.NotNil(t, items)
+	require.Len(t, items.Constraints, 1)
+	fk := items.Constraints[0]
+	assert.Equal(t, "foreign_key", fk.Type)
+	assert.Equal(t, []string{"ORDER_ID", "LINE_NO"}, fk.Columns,
+		"a composite FK's own columns must accumulate in position order")
+	assert.Equal(t, "ORDERS", fk.ReferencedTable, "resolved from the second pass over primaryKeys")
+	assert.Equal(t, []string{"ORDER_ID"}, fk.ReferencedColumns)
+	assert.Empty(t, fk.ReferencedConstraint, "a resolved FK does not need the constraint-name fallback")
+}
+
+func TestTableDetailsUnresolvedForeignKeyFallsBackToConstraintName(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery("cdb_constraints").WillReturnRows(
+		sqlmock.NewRows([]string{
+			"CON_ID", "OWNER", "TABLE_NAME", "CONSTRAINT_NAME", "CONSTRAINT_TYPE",
+			"R_OWNER", "R_CONSTRAINT_NAME", "COLUMN_NAME", "SEARCH_CONDITION",
+		}).
+			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "OTHER_APP", "ORDERS_PK", "ORDER_ID", nil))
+
+	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "ORDER_ITEMS"}: {}}
+	details := c.tableDetails(context.Background(), allowed, nil)
+
+	fk := details[tableKey{conID: 3, owner: "APP", table: "ORDER_ITEMS"}].Constraints[0]
+	assert.Empty(t, fk.ReferencedTable, "the referencing owner was never scanned, so the table cannot be resolved")
+	assert.Equal(t, "ORDERS_PK", fk.ReferencedConstraint, "falls back to naming the constraint instead of looking corrupt")
+}
+
+func TestTableDetailsCheckConstraint(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery("cdb_constraints").WillReturnRows(
+		sqlmock.NewRows([]string{
+			"CON_ID", "OWNER", "TABLE_NAME", "CONSTRAINT_NAME", "CONSTRAINT_TYPE",
+			"R_OWNER", "R_CONSTRAINT_NAME", "COLUMN_NAME", "SEARCH_CONDITION",
+		}).
+			AddRow(3, "APP", "ORDERS", "ORDERS_STATUS_CHK", "C", "-", "-", "STATUS", "status IN ('NEW','SHIPPED')"))
+
+	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "ORDERS"}: {}}
+	details := c.tableDetails(context.Background(), allowed, nil)
+
+	con := details[tableKey{conID: 3, owner: "APP", table: "ORDERS"}].Constraints[0]
+	assert.Equal(t, "check", con.Type, "constraintType must map C to \"check\", not pass through the raw code")
+	assert.Equal(t, "status IN ('NEW','SHIPPED')", con.Condition)
+	assert.Empty(t, con.ReferencedTable, "a check constraint has no referenced table")
+}
+
+func TestTableDetailsPartitionKeyJoin(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	dbMock.MatchExpectationsInOrder(false)
+	// The LEFT JOIN repeats the table fields for each partition key column.
+	dbMock.ExpectQuery("cdb_part_tables").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "PARTITIONING_TYPE", "SUBPARTITIONING_TYPE", "PARTITION_COUNT", "COLUMN_NAME"}).
+			AddRow(3, "APP", "EVENTS", "RANGE", "NONE", 4, "EVENT_DATE").
+			AddRow(3, "APP", "EVENTS", "RANGE", "NONE", 4, "REGION"))
+
+	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "EVENTS"}: {}}
+	details := c.tableDetails(context.Background(), allowed, nil)
+
+	p := details[tableKey{conID: 3, owner: "APP", table: "EVENTS"}].Partitioned
+	require.NotNil(t, p)
+	assert.Equal(t, int64(4), p.NumPartitions, "the repeated table row must not accumulate")
+	assert.Empty(t, p.SubpartitionsType, "NONE must not surface as a subpartitioning type")
+	assert.Equal(t, "RANGE (EVENT_DATE, REGION)", p.PartitionKey)
+}
+
+func TestTableDetailsPartitionedWithoutKeyColumns(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery("cdb_part_tables").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "PARTITIONING_TYPE", "SUBPARTITIONING_TYPE", "PARTITION_COUNT", "COLUMN_NAME"}).
+			AddRow(3, "APP", "EVENTS", "HASH", "NONE", 8, nil))
+
+	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "EVENTS"}: {}}
+	details := c.tableDetails(context.Background(), allowed, nil)
+
+	p := details[tableKey{conID: 3, owner: "APP", table: "EVENTS"}].Partitioned
+	require.NotNil(t, p, "a NULL key column must not discard the partitioning detail")
+	assert.Equal(t, "HASH", p.PartitioningType)
+	assert.Equal(t, int64(8), p.NumPartitions)
+	assert.Empty(t, p.PartitionKey)
+}
+
+func TestTableDetailsExternalLocationsConcat(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery("cdb_external_tables").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "TYPE_NAME", "NVL(default_directory_name, '-')", "NVL(directory_name, '-')", "LOCATION"}).
+			AddRow(3, "APP", "EXT_ORDERS", "ORACLE_LOADER", "DEFAULT_DIR", "LOAD_DIR", "orders_2024.csv").
+			AddRow(3, "APP", "EXT_ORDERS", "ORACLE_LOADER", "DEFAULT_DIR", "-", "orders_fallback.csv"))
+
+	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "EXT_ORDERS"}: {}}
+	details := c.tableDetails(context.Background(), allowed, nil)
+
+	ext := details[tableKey{conID: 3, owner: "APP", table: "EXT_ORDERS"}].External
+	require.NotNil(t, ext)
+	assert.Equal(t, "ORACLE_LOADER", ext.AccessDriver)
+	assert.Equal(t, "DEFAULT_DIR", ext.Directory)
+	require.Len(t, ext.Locations, 2)
+	assert.Equal(t, "LOAD_DIR:orders_2024.csv", ext.Locations[0])
+	assert.Equal(t, "orders_fallback.csv", ext.Locations[1],
+		"a NULL directory_name must not be concatenated as a literal '-:' prefix")
+}
+
+func TestTableDetailsBlockchainAndImmutableRetention(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery("cdb_blockchain_tables").WillReturnRows(
+		sqlmock.NewRows([]string{
+			"CON_ID", "SCHEMA_NAME", "TABLE_NAME", "ROW_RETENTION", "ROW_RETENTION_LOCKED",
+			"TABLE_INACTIVITY_RETENTION", "HASH_ALGORITHM", "TABLE_VERSION",
+		}).AddRow(3, "APP", "LEDGER", 90, "YES", 30, "SHA2_512", "v2"))
+	dbMock.ExpectQuery("cdb_immutable_tables").WillReturnRows(
+		sqlmock.NewRows([]string{
+			"CON_ID", "SCHEMA_NAME", "TABLE_NAME", "ROW_RETENTION", "ROW_RETENTION_LOCKED",
+			"TABLE_INACTIVITY_RETENTION",
+		}).AddRow(3, "APP", "AUDIT_LOG", 365, "NO", nil))
+
+	allowed := map[tableKey]struct{}{
+		{conID: 3, owner: "APP", table: "LEDGER"}:    {},
+		{conID: 3, owner: "APP", table: "AUDIT_LOG"}: {},
+	}
+	details := c.tableDetails(context.Background(), allowed, nil)
+
+	ledger := details[tableKey{conID: 3, owner: "APP", table: "LEDGER"}].Blockchain
+	require.NotNil(t, ledger)
+	require.NotNil(t, ledger.RowRetentionDays)
+	assert.Equal(t, int64(90), *ledger.RowRetentionDays)
+	assert.True(t, ledger.RowRetentionLocked)
+	assert.Equal(t, "SHA2_512", ledger.HashAlgorithm)
+	assert.Equal(t, "v2", ledger.TableVersion)
+
+	audit := details[tableKey{conID: 3, owner: "APP", table: "AUDIT_LOG"}].Immutable
+	require.NotNil(t, audit)
+	assert.False(t, audit.RowRetentionLocked)
+	assert.Nil(t, audit.InactivityRetentionDays, "a NULL inactivity retention must stay nil, not zero")
+	assert.Empty(t, audit.HashAlgorithm, "immutable tables carry no hash algorithm")
+}
+
+// Multiple columns per table ensure chunking happens at table boundaries, not row boundaries.
 
 func TestSnapshotChunkingAtRealisticTableBoundary(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
@@ -905,6 +1223,42 @@ func TestEmptyContainerSkippedIfAlreadyStarted(t *testing.T) {
 	collector.emitEmptyContainers(map[int64]string{3: "APP_PDB"})
 
 	require.Len(t, payloads, 1, "a container that already produced a payload must not get a second, empty one")
+}
+
+func TestColumnDefaultTruncatedAtVarchar4000Cap(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	c.config.Schemas.PayloadChunkSize = 100
+	dbMock.MatchExpectationsInOrder(false)
+
+	table := tableKey{conID: 3, owner: "APP", table: "T"}
+	allowed := map[tableKey]struct{}{table: {}}
+	allowedColumns := map[columnKey]struct{}{{tableKey: table, column: "C1"}: {}}
+	dbMock.ExpectQuery(`(?s)data_default_vc.*c\.column_name IN \('C1'\)`).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "DATA_DEFAULT"}).
+			AddRow(3, "APP", "T", "C1", strings.Repeat("x", 4500)))
+	details := c.tableDetails(context.Background(), allowed, allowedColumns)
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, details, map[ownerKey]string{}, map[int64]string{})
+
+	collector.add(schemaRowDB{
+		ConID: 3, Owner: "APP", TableName: "T", Temporary: "N", External: "NO",
+		IotType: "-", ClusterName: "-", Partitioned: "NO",
+		ColumnName: "C1", DataType: sql.NullString{String: "VARCHAR2", Valid: true},
+		DataLength: sql.NullInt64{Int64: 4000, Valid: true}, CharLength: sql.NullInt64{Int64: 4000, Valid: true},
+		CharUsed: "C", Nullable: "Y",
+	})
+	collector.finish()
+
+	require.Len(t, payloads, 1)
+	col := payloads[0].Metadata[0].Schemas[0].Tables[0].Columns[0]
+	assert.Len(t, col.Default, 4000, "a default value beyond VARCHAR2(4000) must be truncated to exactly that cap")
+	assert.NoError(t, dbMock.ExpectationsWereMet())
 }
 
 func TestPassesFilterExcludeWinsOverInclude(t *testing.T) {
