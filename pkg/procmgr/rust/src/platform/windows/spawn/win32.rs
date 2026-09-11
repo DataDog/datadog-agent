@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPrimary};
 use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
