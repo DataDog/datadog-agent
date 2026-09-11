@@ -808,9 +808,7 @@ mod tests {
                 procs[0].is_running(),
                 "process with auto_start=true should be running after create"
             );
-            procs[0]
-                .pid()
-                .expect("running process should have a PID")
+            procs[0].pid().expect("running process should have a PID")
         };
         test_helpers::cleanup_process(pid);
         Ok(())
