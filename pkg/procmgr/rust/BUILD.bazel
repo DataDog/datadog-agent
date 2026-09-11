@@ -155,19 +155,12 @@ _DD_PROCMGRD_TEST_ENV = select({
     "//conditions:default": {},
 })
 
-_DD_PROCMGRD_TEST_KWARGS = {
-    "crate": ":dd-procmgrd-lib",
-    "edition": "2024",
-    "env": _DD_PROCMGRD_TEST_ENV,
-    "rustc_flags": ["--cfg=bazel"],
-    "target_compatible_with": _LINUX_OR_WINDOWS,
-    "deps": ["@crates//:tempfile"],
-}
-
 # Skip the split reload-modified tests here; they run as dedicated targets below so
 # each assertion gets its own PASS/FAIL line in Bazel output under --keep_going.
 rust_test(
     name = "dd-procmgrd_test",
+    crate = ":dd-procmgrd-lib",
+    edition = "2024",
     args = [
         "--skip",
         "reload_modified_01_result",
@@ -176,25 +169,43 @@ rust_test(
         "--skip",
         "reload_modified_03_restarts",
     ],
-    **_DD_PROCMGRD_TEST_KWARGS,
+    env = _DD_PROCMGRD_TEST_ENV,
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    deps = ["@crates//:tempfile"],
 )
 
 rust_test(
     name = "dd-procmgrd_reload_modified_01_result_test",
+    crate = ":dd-procmgrd-lib",
+    edition = "2024",
     args = ["reload_modified_01_result_contains_service"],
-    **_DD_PROCMGRD_TEST_KWARGS,
+    env = _DD_PROCMGRD_TEST_ENV,
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    deps = ["@crates//:tempfile"],
 )
 
 rust_test(
     name = "dd-procmgrd_reload_modified_02_updates_test",
+    crate = ":dd-procmgrd-lib",
+    edition = "2024",
     args = ["reload_modified_02_updates_stored_config"],
-    **_DD_PROCMGRD_TEST_KWARGS,
+    env = _DD_PROCMGRD_TEST_ENV,
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    deps = ["@crates//:tempfile"],
 )
 
 rust_test(
     name = "dd-procmgrd_reload_modified_03_restarts_test",
+    crate = ":dd-procmgrd-lib",
+    edition = "2024",
     args = ["reload_modified_03_restarts_running_process"],
-    **_DD_PROCMGRD_TEST_KWARGS,
+    env = _DD_PROCMGRD_TEST_ENV,
+    rustc_flags = ["--cfg=bazel"],
+    target_compatible_with = _LINUX_OR_WINDOWS,
+    deps = ["@crates//:tempfile"],
 )
 
 rust_test(
