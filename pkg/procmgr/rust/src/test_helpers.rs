@@ -130,14 +130,14 @@ pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
 /// Command that ignores graceful-stop and sleeps forever.
 /// Used to test forced-kill (TerminateProcess) on timeout.
 ///
-/// PowerShell ignores CTRL_BREAK_EVENT by default, so the process
-/// outlives any stop_timeout and forces escalation to TerminateProcess.
+/// Long-running child that ignores graceful stop on Windows.
+///
+/// Uses `ping` (same as other sleep helpers): it ignores CTRL_BREAK_EVENT, so
+/// `wait_for_stop` must escalate to TerminateProcess. Avoids `powershell.exe`,
+/// which is not always on PATH in minimal CI containers.
 #[cfg(windows)]
 pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
-    (
-        "powershell.exe",
-        vec!["-Command".into(), "while($true){Start-Sleep 60}".into()],
-    )
+    sleep_cmd(60)
 }
 
 /// Shell command that exits with the value of the given environment variable.
@@ -247,7 +247,7 @@ pub fn cleanup_process(pid: u32) {
 /// On Windows, tests use `ping -n` as a sleep substitute. Keep this short so a
 /// missed teardown cannot burn the Tokio per-test timeout (60s).
 #[cfg(windows)]
-pub const TEST_SLEEP_SECS: u32 = 10;
+pub const TEST_SLEEP_SECS: u32 = 2;
 
 #[cfg(unix)]
 pub const TEST_SLEEP_SECS: u32 = 60;

@@ -59,11 +59,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_all_sigkill_on_timeout() {
-        let (cmd, args) = test_helpers::trap_term_sleep();
-        let mut cfg = test_helpers::make_config(cmd, args);
-        cfg.stop_timeout = Some(1);
-        let mut proc =
-            ManagedProcess::new_config("stubborn".into(), test_helpers::test_uuid(), cfg);
+        // Use ping (via sleep_config) instead of powershell: ping ignores graceful
+        // stop on Windows, and powershell.exe is not always on PATH in CI containers.
+        let mut proc = ManagedProcess::new_config(
+            "stubborn".into(),
+            test_helpers::test_uuid(),
+            sleep_config(),
+        );
         proc.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![proc];

@@ -551,7 +551,7 @@ pub mod tests {
             test_helpers::test_uuid(),
             test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
-        let _exit_rx = spawn_ok(&mut proc);
+        let mut exit_rx = spawn_ok(&mut proc);
         assert_eq!(proc.state(), ProcessState::Running);
         assert!(proc.is_running());
         assert!(proc.pid().is_some());
@@ -559,6 +559,9 @@ pub mod tests {
         if let Some(pid) = proc.pid() {
             test_helpers::cleanup_process(pid);
         }
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), exit_rx.recv())
+            .await
+            .expect("timed out waiting for watcher after external kill");
     }
 
     #[cfg(unix)]
@@ -1067,8 +1070,14 @@ runtime_success_sec: 5
         let _ = exit_rx.try_recv();
 
         let mut exit_rx = spawn_ok(&mut proc);
-        test_helpers::cleanup_process(proc.pid().expect("running pid"));
-        let status = exit_rx.recv().await.expect("exit event").status;
+        if let Some(pid) = proc.pid() {
+            test_helpers::cleanup_process(pid);
+        }
+        let status = tokio::time::timeout(std::time::Duration::from_secs(5), exit_rx.recv())
+            .await
+            .expect("timed out waiting for external kill exit")
+            .expect("exit event")
+            .status;
         proc.set_last_status(status);
 
         assert_eq!(proc.state(), ProcessState::Failed);
