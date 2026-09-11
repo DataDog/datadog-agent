@@ -659,6 +659,111 @@ func TestContainerNamesUsePdbName(t *testing.T) {
 	assert.Equal(t, "free.7", payloads[2].Metadata[0].Name, "unknown container falls back to con_id")
 }
 
+func TestViewCollectionEmitsSeparateKind(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	dbMock.MatchExpectationsInOrder(false)
+
+	c, sender := newDbDoesNotExistCheck(t, "", "")
+	c.db = sqlx.NewDb(db, "sqlmock")
+	mockClock := clock.NewMock()
+	mockClock.Set(time.Unix(1787000000, 0))
+	c.clock = mockClock
+	c.dbVersion = "23.26.2.0.0"
+	c.config.Schemas.Enabled = true
+	c.config.Schemas.CollectionInterval = 600
+	c.config.Schemas.PayloadChunkSize = 100
+
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows(
+		tableKey{conID: 3, owner: "APP", table: "ORDERS"}))
+	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "ORDERS", 1))
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows(
+		tableKey{conID: 3, owner: "APP", table: "V_ORDERS"}))
+	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(addViewRow(sqlmock.NewRows(viewRelationColumns), 3, "APP", "V_ORDERS", 1))
+
+	require.NoError(t, c.SchemaCollection())
+
+	byKind := map[string]schemaEvent{}
+	for _, call := range sender.Calls {
+		if call.Method != "EventPlatformEvent" {
+			continue
+		}
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &e))
+		byKind[e.Kind] = e
+	}
+
+	require.Contains(t, byKind, "oracle_databases")
+	require.Contains(t, byKind, "oracle_views")
+
+	tables := byKind["oracle_databases"]
+	require.Len(t, tables.Metadata[0].Schemas, 1)
+	assert.Len(t, tables.Metadata[0].Schemas[0].Tables, 1)
+	assert.Empty(t, tables.Metadata[0].Schemas[0].Views, "views must not ride along with tables")
+
+	views := byKind["oracle_views"]
+	require.Len(t, views.Metadata[0].Schemas, 1)
+	require.Len(t, views.Metadata[0].Schemas[0].Views, 1)
+	assert.Equal(t, "V_ORDERS", views.Metadata[0].Schemas[0].Views[0].Name)
+	assert.Empty(t, views.Metadata[0].Schemas[0].Tables, "a views payload carries no tables")
+	assert.Equal(t, tables.CollectionStartedAt, views.CollectionStartedAt,
+		"tables and views belong to the same snapshot")
+	assert.Zero(t, tables.CollectionPayloadsCount)
+	assert.Equal(t, 2, views.CollectionPayloadsCount)
+}
+
+func TestViewCollectionFailureKeepsTables(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	dbMock.MatchExpectationsInOrder(false)
+
+	c, sender := newDbDoesNotExistCheck(t, "", "")
+	c.db = sqlx.NewDb(db, "sqlmock")
+	c.clock = clock.NewMock()
+	c.dbVersion = "23.26.2.0.0"
+	c.config.Schemas.Enabled = true
+	c.config.Schemas.CollectionInterval = 600
+	c.config.Schemas.PayloadChunkSize = 100
+
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows(
+		tableKey{conID: 3, owner: "APP", table: "ORDERS"}))
+	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "ORDERS", 1))
+	// Leave the view query unprimed to simulate a missing grant.
+
+	require.Error(t, c.SchemaCollection())
+
+	var kinds []string
+	for _, call := range sender.Calls {
+		if call.Method != "EventPlatformEvent" {
+			continue
+		}
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &e))
+		kinds = append(kinds, e.Kind)
+	}
+	assert.Equal(t, []string{"oracle_databases"}, kinds)
+
+	var event schemaEvent
+	for _, call := range sender.Calls {
+		if call.Method == "EventPlatformEvent" {
+			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+		}
+	}
+	assert.Zero(t, event.CollectionPayloadsCount,
+		"a table payload must not complete a snapshot when view collection fails")
+	sender.AssertNumberOfCalls(t, "Commit", 1)
+}
+
 func TestTableDetailsIndexesGroupByName(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -992,7 +1097,6 @@ func TestTableDetailsBlockchainAndImmutableRetention(t *testing.T) {
 }
 
 // Multiple columns per table ensure chunking happens at table boundaries, not row boundaries.
-
 func TestSnapshotChunkingAtRealisticTableBoundary(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1031,7 +1135,6 @@ func TestSnapshotChunkingAtRealisticTableBoundary(t *testing.T) {
 }
 
 // A partial snapshot has no completion marker, so scan errors must emit no payload.
-
 func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1204,7 +1307,6 @@ func TestMaxColumnsNotTruncatedWhenExactlyAtCap(t *testing.T) {
 }
 
 // Owner names are interpolated into IN lists, so only unquoted Oracle identifiers are accepted.
-
 func TestSchemaOwnersRejectsUnexpectedCharacters(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -1425,13 +1527,14 @@ func TestSchemaCollectionEmitsCompletedPageBeforeNextPageFails(t *testing.T) {
 	dbMock.ExpectQuery("WITH ranked_columns").WillReturnError(errors.New("second page failed"))
 
 	require.ErrorContains(t, c.SchemaCollection(), "second page failed")
-	sender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+	sender.AssertNumberOfCalls(t, "EventPlatformEvent", 2)
 	sender.AssertNumberOfCalls(t, "Commit", 1)
-	call := sender.Calls[0]
-	var event schemaEvent
-	require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
-	assert.Len(t, event.Metadata[0].Schemas[0].Tables, 50)
-	assert.Zero(t, event.CollectionPayloadsCount)
+	for _, call := range sender.Calls[:2] {
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+		assert.Len(t, event.Metadata[0].Schemas[0].Tables, 50)
+		assert.Zero(t, event.CollectionPayloadsCount)
+	}
 }
 
 func TestEmptyContainerStillEmitsTerminatingPayload(t *testing.T) {
@@ -1513,6 +1616,56 @@ func TestColumnDefaultTruncatedAtVarchar4000Cap(t *testing.T) {
 	assert.NoError(t, dbMock.ExpectationsWereMet())
 }
 
+func TestSchemaCollectionGatedByDbmOrDataObservability(t *testing.T) {
+	cases := []struct {
+		name           string
+		schemasEnabled bool
+		dbmEnabled     bool
+		doEnabled      bool
+		wantGateOpen   bool
+	}{
+		{"schemas disabled blocks collection even with data_observability enabled", false, false, true, false},
+		{"schemas enabled but neither dbm nor data_observability leaves the gate closed", true, false, false, false},
+		{"dbm_enabled alone opens the gate", true, true, false, true},
+		{"data_observability.enabled alone opens the gate without dbm", true, false, true, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _, dbMock, closeDB := newSchemaCheck(t)
+			defer closeDB()
+			dbMock.MatchExpectationsInOrder(false)
+
+			c.initialized = true
+			c.dbmEnabled = tc.dbmEnabled
+			c.config.DataObservability.Enabled = tc.doEnabled
+			c.config.Schemas.Enabled = tc.schemasEnabled
+			c.config.QuerySamples.Enabled = false // Prevent unrelated session sampling when DBM is enabled.
+
+			// Mark unrelated collectors as recently run to isolate schema collection.
+			now := time.Now()
+			c.metricLastRun = now
+			c.dbInstanceLastRun = now
+			c.tablespaceLastRun = now
+			c.schemasLastRun = time.Time{}
+
+			if tc.wantGateOpen {
+				dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}))
+				dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}))
+			}
+
+			err := c.Run()
+
+			if tc.wantGateOpen {
+				require.NoError(t, err)
+				assert.NoError(t, dbMock.ExpectationsWereMet(), "the gate must have opened and queried cdb_users")
+			} else {
+				require.NoError(t, err, "the gate must stay closed and touch the database not at all")
+			}
+		})
+	}
+}
+
 func TestPassesFilterExcludeWinsOverInclude(t *testing.T) {
 	include := compiledPatterns([]string{"^APP.*"}, "", "include")
 	exclude := compiledPatterns([]string{"^APP_TMP$"}, "", "exclude")
@@ -1553,9 +1706,231 @@ func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 
 	dbMock.ExpectQuery(regexp.QuoteMeta(expectedFilter)).WillReturnRows(sqlmock.NewRows(
 		[]string{"CON_ID", "OWNER", "TABLE_NAME"}))
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows())
 
 	require.NoError(t, c.SchemaCollection())
 	assert.NoError(t, dbMock.ExpectationsWereMet(), "the query actually sent to Oracle must carry the substituted REGEXP_LIKE filter")
+}
+
+func TestViewCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	dbMock.MatchExpectationsInOrder(false)
+
+	c.config.Schemas.IncludeTables = []string{"^ORD"}
+	c.config.Schemas.ExcludeTables = []string{"^TMP_"}
+
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+
+	tableFilter := regexSQLClauses("t.table_name", c.config.Schemas.IncludeTables, c.config.Schemas.ExcludeTables)
+	dbMock.ExpectQuery(regexp.QuoteMeta(tableFilter)).WillReturnRows(identityRows())
+
+	viewFilter := regexSQLClauses("v.view_name", c.config.Schemas.IncludeTables, c.config.Schemas.ExcludeTables)
+	require.Contains(t, viewFilter, "REGEXP_LIKE")
+	dbMock.ExpectQuery(regexp.QuoteMeta(viewFilter)).WillReturnRows(identityRows())
+
+	require.NoError(t, c.SchemaCollection())
+	assert.NoError(t, dbMock.ExpectationsWereMet(), "the views query actually sent to Oracle must carry the substituted REGEXP_LIKE filter")
+}
+
+func TestViewCollectionFilteredViewNotCountedAsTruncated(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	dbMock.MatchExpectationsInOrder(false)
+
+	c, sender := newDbDoesNotExistCheck(t, "", "")
+	c.db = sqlx.NewDb(db, "sqlmock")
+	c.clock = clock.NewMock()
+	c.dbVersion = "23.26.2.0.0"
+	c.config.Schemas.Enabled = true
+	c.config.Schemas.CollectionInterval = 600
+	c.config.Schemas.PayloadChunkSize = 100
+	c.config.Schemas.MaxViews = 1
+	c.config.Schemas.ExcludeTables = []string{"^TMP_"}
+
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows(
+		tableKey{conID: 3, owner: "APP", table: "V_ORDERS"}))
+	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(
+		addViewRow(sqlmock.NewRows(viewRelationColumns), 3, "APP", "V_ORDERS", 1))
+
+	require.NoError(t, c.SchemaCollection())
+
+	var views schemaEvent
+	found := false
+	for _, call := range sender.Calls {
+		if call.Method != "EventPlatformEvent" {
+			continue
+		}
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &e))
+		if e.Kind == "oracle_views" {
+			views = e
+			found = true
+		}
+	}
+	require.True(t, found, "no oracle_views payload was emitted")
+
+	require.Len(t, views.Metadata[0].Schemas, 1)
+	require.Len(t, views.Metadata[0].Schemas[0].Views, 1)
+	assert.Equal(t, "V_ORDERS", views.Metadata[0].Schemas[0].Views[0].Name)
+	assert.False(t, views.Truncated,
+		"a container fully accounted for by exclude_tables plus the surviving view must not be flagged as truncated by max_views")
+}
+
+var viewRelationColumns = []string{
+	"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
+	"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
+	"OBJECT_TYPE_OWNER", "OBJECT_TYPE", "TOTAL_TABLES", "COLUMN_PRESENT",
+	"COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
+	"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
+	"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC", "TOTAL_COLUMNS",
+}
+
+func addViewRow(rows *sqlmock.Rows, conID int64, owner, viewName string, totalColumns int) *sqlmock.Rows {
+	return rows.AddRow(
+		conID, owner, viewName, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil,
+		"-", "-", nil, 1, "C1", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil, totalColumns,
+	)
+}
+
+func addViewWithoutColumns(rows *sqlmock.Rows, conID int64, owner, viewName string) *sqlmock.Rows {
+	return rows.AddRow(
+		conID, owner, viewName, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil,
+		"-", "-", nil, 0, "-", nil, nil, "-", "-", nil, nil, nil, nil, nil, nil, nil, "-", "-", nil, nil,
+	)
+}
+
+func identityRows(keys ...tableKey) *sqlmock.Rows {
+	rows := sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME"})
+	for _, key := range keys {
+		rows.AddRow(key.conID, key.owner, key.table)
+	}
+	return rows
+}
+
+func TestViewPagesAreBounded(t *testing.T) {
+	keys := make([]tableKey, schemaRelationPageSize+1)
+	for i := range keys {
+		keys[i] = tableKey{conID: 3, owner: "APP", table: fmt.Sprintf("V%03d", i)}
+	}
+	var sizes []int
+	require.NoError(t, forEachTablePage(keys, func(page []tableKey) error {
+		sizes = append(sizes, len(page))
+		return nil
+	}))
+	assert.Equal(t, []int{schemaRelationPageSize, 1}, sizes)
+}
+
+func TestViewPageRowsKeepsZeroColumnView(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	key := tableKey{conID: 3, owner: "APP", table: "EMPTY_VIEW"}
+	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(
+		addViewWithoutColumns(sqlmock.NewRows(viewRelationColumns), key.conID, key.owner, key.table))
+	rows, err := c.viewPageRows(context.Background(), []tableKey{key}, 50)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.False(t, rows[0].ColumnPresent.Valid && rows[0].ColumnPresent.Int64 == 1)
+}
+
+func TestViewPageRowsFailsWhenIdentityDisappears(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	key := tableKey{conID: 3, owner: "APP", table: "DROPPED_VIEW"}
+	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(sqlmock.NewRows(viewRelationColumns))
+	_, err := c.viewPageRows(context.Background(), []tableKey{key}, 50)
+	require.ErrorContains(t, err, "disappeared before hydration")
+}
+
+func TestViewDetailsAreScopedToPage(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	dbMock.MatchExpectationsInOrder(false)
+	key := tableKey{conID: 3, owner: "APP", table: "V1"}
+	dbMock.ExpectQuery("cdb_views").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "VIEW_NAME", "TEXT_VC"}).
+			AddRow(3, "APP", "V1", "SELECT 1 FROM dual").
+			AddRow(3, "APP", "V2", "SELECT 2 FROM dual"))
+	dbMock.ExpectQuery("cdb_objects").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "OBJECT_NAME", "OBJECT_ID", "CREATED", "LAST_DDL_TIME"}))
+	dbMock.ExpectQuery("cdb_tab_comments").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COMMENTS"}))
+
+	details := c.viewDetailsForPage(context.Background(), map[tableKey]struct{}{key: {}})
+	require.Len(t, details, 1)
+	assert.Equal(t, "SELECT 1 FROM dual", details[key].Definition)
+	assert.NotContains(t, details, tableKey{conID: 3, owner: "APP", table: "V2"})
+}
+
+func TestSchemaCollectionUsesOwnerContainerWhenContainerLookupIsEmpty(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	c, sender := newDbDoesNotExistCheck(t, "", "")
+	c.db = sqlx.NewDb(db, "sqlmock")
+	c.clock = clock.NewMock()
+	c.dbVersion = "23.0.0.0.0"
+	c.config.Schemas.Enabled = true
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows())
+
+	require.NoError(t, c.SchemaCollection())
+	var events []schemaEvent
+	for _, call := range sender.Calls {
+		if call.Method != "EventPlatformEvent" {
+			continue
+		}
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+		events = append(events, event)
+	}
+	require.Len(t, events, 1)
+	assert.Equal(t, "3", events[0].Metadata[0].ID)
+	assert.Equal(t, 1, events[0].CollectionPayloadsCount)
+}
+
+func TestSchemaCollectionContinuesAfterContainerIdentityFailure(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	c, sender := newDbDoesNotExistCheck(t, "", "")
+	c.db = sqlx.NewDb(db, "sqlmock")
+	c.clock = clock.NewMock()
+	c.dbVersion = "23.0.0.0.0"
+	c.config.Schemas.Enabled = true
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "PDB1").AddRow(4, "PDB2"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 103).AddRow(4, "APP", 104))
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name.*t.con_id = 3").WillReturnError(errors.New("identity failed"))
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name.*t.con_id = 4").WillReturnRows(identityRows())
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name.*v.con_id = 4").WillReturnRows(identityRows())
+
+	require.ErrorContains(t, c.SchemaCollection(), "container 3 table identities")
+	var completed []string
+	for _, call := range sender.Calls {
+		if call.Method != "EventPlatformEvent" {
+			continue
+		}
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+		if event.CollectionPayloadsCount > 0 {
+			completed = append(completed, event.Metadata[0].ID)
+		}
+	}
+	assert.Equal(t, []string{"4"}, completed)
 }
 
 func addTableRow(rows *sqlmock.Rows, conID int64, owner, table string, totalTables int) *sqlmock.Rows {
@@ -1581,4 +1956,191 @@ func emptyTablesRows() *sqlmock.Rows {
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
 	})
+}
+
+func viewPayloadsByContainer(t *testing.T, sender *mock.Mock) map[string]schemaEvent {
+	t.Helper()
+	byContainer := make(map[string]schemaEvent)
+	for _, call := range sender.Calls {
+		if call.Method != "EventPlatformEvent" {
+			continue
+		}
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &e))
+		if e.Kind != "oracle_views" {
+			continue
+		}
+		require.Len(t, e.Metadata, 1)
+		byContainer[e.Metadata[0].ID] = e
+	}
+	return byContainer
+}
+
+func TestMaxViewsCapsViewsAndFlagsTruncation(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	dbMock.MatchExpectationsInOrder(false)
+
+	c, sender := newDbDoesNotExistCheck(t, "", "")
+	c.db = sqlx.NewDb(db, "sqlmock")
+	c.clock = clock.NewMock()
+	c.dbVersion = "23.26.2.0.0"
+	c.config.Schemas.Enabled = true
+	c.config.Schemas.CollectionInterval = 600
+	c.config.Schemas.PayloadChunkSize = 100
+	c.config.Schemas.MaxViews = 2
+
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
+
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows(
+		tableKey{conID: 3, owner: "APP", table: "V1"}, tableKey{conID: 3, owner: "APP", table: "V2"},
+		tableKey{conID: 3, owner: "APP", table: "V3"}))
+	rows := sqlmock.NewRows(viewRelationColumns)
+	addViewRow(rows, 3, "APP", "V1", 1)
+	addViewRow(rows, 3, "APP", "V2", 1)
+	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(rows)
+
+	require.NoError(t, c.SchemaCollection())
+
+	byContainer := viewPayloadsByContainer(t, &sender.Mock)
+	require.Contains(t, byContainer, "3")
+	views := byContainer["3"]
+	require.Len(t, views.Metadata[0].Schemas, 1)
+	assert.Len(t, views.Metadata[0].Schemas[0].Views, 2, "max_views=2 must cap the container at 2 views")
+	assert.True(t, views.Truncated, "a container with more views than max_views must be marked truncated")
+}
+
+func TestMaxViewsNotTruncatedWhenUnderCap(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	dbMock.MatchExpectationsInOrder(false)
+
+	c, sender := newDbDoesNotExistCheck(t, "", "")
+	c.db = sqlx.NewDb(db, "sqlmock")
+	c.clock = clock.NewMock()
+	c.dbVersion = "23.26.2.0.0"
+	c.config.Schemas.Enabled = true
+	c.config.Schemas.CollectionInterval = 600
+	c.config.Schemas.PayloadChunkSize = 100
+	c.config.Schemas.MaxViews = 50
+
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
+
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows(
+		tableKey{conID: 3, owner: "APP", table: "V1"}))
+	rows := sqlmock.NewRows(viewRelationColumns)
+	addViewRow(rows, 3, "APP", "V1", 1)
+	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(rows)
+
+	require.NoError(t, c.SchemaCollection())
+
+	byContainer := viewPayloadsByContainer(t, &sender.Mock)
+	require.Contains(t, byContainer, "3")
+	views := byContainer["3"]
+	require.Len(t, views.Metadata[0].Schemas, 1)
+	assert.Len(t, views.Metadata[0].Schemas[0].Views, 1)
+	assert.False(t, views.Truncated, "a container with fewer views than max_views must not be marked truncated")
+}
+
+func TestMaxViewsNotTruncatedWhenExactlyAtCap(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	dbMock.MatchExpectationsInOrder(false)
+
+	c, sender := newDbDoesNotExistCheck(t, "", "")
+	c.db = sqlx.NewDb(db, "sqlmock")
+	c.clock = clock.NewMock()
+	c.dbVersion = "23.26.2.0.0"
+	c.config.Schemas.Enabled = true
+	c.config.Schemas.CollectionInterval = 600
+	c.config.Schemas.PayloadChunkSize = 100
+	c.config.Schemas.MaxViews = 2
+
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
+
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows(
+		tableKey{conID: 3, owner: "APP", table: "V1"}, tableKey{conID: 3, owner: "APP", table: "V2"}))
+	rows := sqlmock.NewRows(viewRelationColumns)
+	addViewRow(rows, 3, "APP", "V1", 1)
+	addViewRow(rows, 3, "APP", "V2", 1)
+	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(rows)
+
+	require.NoError(t, c.SchemaCollection())
+
+	byContainer := viewPayloadsByContainer(t, &sender.Mock)
+	require.Contains(t, byContainer, "3")
+	views := byContainer["3"]
+	require.Len(t, views.Metadata[0].Schemas, 1)
+	assert.Len(t, views.Metadata[0].Schemas[0].Views, 2)
+	assert.False(t, views.Truncated, "a container with exactly max_views views must not be marked truncated")
+}
+
+func TestMaxViewsCapEnforcedPerContainerIndependently(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	dbMock.MatchExpectationsInOrder(false)
+
+	c, sender := newDbDoesNotExistCheck(t, "", "")
+	c.db = sqlx.NewDb(db, "sqlmock")
+	c.clock = clock.NewMock()
+	c.dbVersion = "23.26.2.0.0"
+	c.config.Schemas.Enabled = true
+	c.config.Schemas.CollectionInterval = 600
+	c.config.Schemas.PayloadChunkSize = 100
+	c.config.Schemas.MaxViews = 2
+
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB1").AddRow(4, "APP_PDB2"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).
+			AddRow(3, "APP", 104).AddRow(4, "APP", 105))
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name.*t.con_id = 3").WillReturnRows(identityRows())
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name.*t.con_id = 4").WillReturnRows(identityRows())
+
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name.*v.con_id = 3").WillReturnRows(identityRows(
+		tableKey{conID: 3, owner: "APP", table: "V1"}, tableKey{conID: 3, owner: "APP", table: "V2"},
+		tableKey{conID: 3, owner: "APP", table: "V3"}))
+	rows3 := sqlmock.NewRows(viewRelationColumns)
+	addViewRow(rows3, 3, "APP", "V1", 1)
+	addViewRow(rows3, 3, "APP", "V2", 1)
+	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v.*v\.con_id = 3`).WillReturnRows(rows3)
+	dbMock.ExpectQuery("SELECT con_id, owner, view_name.*v.con_id = 4").WillReturnRows(identityRows(
+		tableKey{conID: 4, owner: "APP", table: "V4"}, tableKey{conID: 4, owner: "APP", table: "V5"}))
+	rows4 := sqlmock.NewRows(viewRelationColumns)
+	addViewRow(rows4, 4, "APP", "V4", 1)
+	addViewRow(rows4, 4, "APP", "V5", 1)
+	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v.*v\.con_id = 4`).WillReturnRows(rows4)
+
+	require.NoError(t, c.SchemaCollection())
+
+	byContainer := viewPayloadsByContainer(t, &sender.Mock)
+	require.Contains(t, byContainer, "3")
+	require.Contains(t, byContainer, "4")
+
+	first := byContainer["3"]
+	require.Len(t, first.Metadata[0].Schemas, 1)
+	assert.Len(t, first.Metadata[0].Schemas[0].Views, 2, "container 3 alone exceeds max_views and must be capped")
+	assert.True(t, first.Truncated, "container 3 hit max_views and must be marked truncated")
+
+	second := byContainer["4"]
+	require.Len(t, second.Metadata[0].Schemas, 1)
+	assert.Len(t, second.Metadata[0].Schemas[0].Views, 2,
+		"container 4's own views must not be starved by container 3 having already used up max_views")
+	assert.False(t, second.Truncated, "container 4 is under max_views on its own and must not be marked truncated")
 }
