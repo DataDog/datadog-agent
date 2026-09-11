@@ -24,6 +24,7 @@ go_library(
         "//pkg/clusteragent/admission/controllers/secret",
         "//pkg/clusteragent/admission/controllers/webhook",
         "//pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection",
+        "//pkg/clusteragent/admission/mutate/autoinstrumentation/otelinstrumentation",
         "//pkg/clusteragent/admission/probe",
         "//pkg/clusteragent/autoscaling/cluster/spot",
         "//pkg/clusteragent/autoscaling/workload",

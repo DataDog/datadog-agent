@@ -95,7 +95,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/otelinstrumentation"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
@@ -696,6 +698,25 @@ func start(log log.Component,
 			csiDriverWatcher = libraryinjection.NewCSIDriverWatcher(mainCtx, wmeta)
 		}
 
+		// A nil resolver means the community OpenTelemetry Operator Instrumentation
+		// CRD is not watched at all, which is also what an absent CRD ends up
+		// looking like from the admission path.
+		//
+		// An invalid mode is only logged here: the admission webhook's own
+		// configuration parsing rejects it, and duplicating that failure would
+		// bring the Cluster Agent down over a feature that is off by default.
+		otelMode, err := otelinstrumentation.ParseMode(config.GetString("apm_config.instrumentation.otel_instrumentation_crd_mode"))
+		if err != nil {
+			pkglog.Warnf("Not watching OpenTelemetry Instrumentation custom resources: %v", err)
+		}
+		var otelInstrumentationResolver *otelinstrumentation.Resolver
+		if config.GetBool("admission_controller.auto_instrumentation.enabled") && otelMode.Enabled() {
+			otelStore := otelinstrumentation.NewStore(apiCl.DynamicInformerCl)
+			go otelStore.Run(mainCtx)
+			otelInstrumentationResolver = otelinstrumentation.NewResolver(otelStore,
+				autoinstrumentation.NewNamespaceAnnotationGetter(wmeta), otelMode)
+		}
+
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
 			SecretInformers:              apiCl.CertificateSecretInformerFactory,
@@ -709,6 +730,7 @@ func start(log log.Component,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
 			CSIDriverWatcher:             csiDriverWatcher,
+			OtelInstrumentationResolver:  otelInstrumentationResolver,
 			RcClient:                     rcClient,
 		}
 

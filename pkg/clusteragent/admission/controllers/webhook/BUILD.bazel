@@ -23,6 +23,7 @@ go_library(
         "//pkg/clusteragent/admission/mutate/appsec",
         "//pkg/clusteragent/admission/mutate/autoinstrumentation",
         "//pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection",
+        "//pkg/clusteragent/admission/mutate/autoinstrumentation/otelinstrumentation",
         "//pkg/clusteragent/admission/mutate/autoscaling",
         "//pkg/clusteragent/admission/mutate/config",
         "//pkg/clusteragent/admission/mutate/cwsinstrumentation",

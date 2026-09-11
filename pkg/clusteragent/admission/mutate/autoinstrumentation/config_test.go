@@ -36,9 +36,10 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				LibVersions: map[string]string{
 					"python": "v3",
 				},
-				InjectorImageTag: "foo",
-				Targets:          []Target{},
-				InjectionMode:    "auto",
+				InjectorImageTag:           "foo",
+				Targets:                    []Target{},
+				InjectionMode:              "auto",
+				OtelInstrumentationCRDMode: "disabled",
 			},
 		},
 		{
@@ -59,9 +60,10 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				LibVersions: map[string]string{
 					"python": "default",
 				},
-				InjectorImageTag: "foo",
-				Targets:          []Target{},
-				InjectionMode:    "auto",
+				InjectorImageTag:           "foo",
+				Targets:                    []Target{},
+				InjectionMode:              "auto",
+				OtelInstrumentationCRDMode: "disabled",
 			},
 		},
 		{
@@ -110,7 +112,8 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
-				InjectionMode: "auto",
+				InjectionMode:              "auto",
+				OtelInstrumentationCRDMode: "disabled",
 			},
 		},
 		{
@@ -168,7 +171,8 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
-				InjectionMode: "auto",
+				InjectionMode:              "auto",
+				OtelInstrumentationCRDMode: "disabled",
 			},
 		},
 		{
@@ -196,7 +200,8 @@ func TestNewInstrumentationConfig(t *testing.T) {
 						},
 					},
 				},
-				InjectionMode: "auto",
+				InjectionMode:              "auto",
+				OtelInstrumentationCRDMode: "disabled",
 			},
 		},
 		{
@@ -217,6 +222,28 @@ func TestNewInstrumentationConfig(t *testing.T) {
 		{
 			name:       "both library versions and targets",
 			configPath: "testdata/both_versions_and_targets.yaml",
+			shouldErr:  true,
+		},
+		{
+			name:       "valid otel instrumentation crd mode",
+			configPath: "testdata/otel_crd_mode_datadog.yaml",
+			expected: &InstrumentationConfig{
+				Enabled:                    true,
+				OnDemand:                   true,
+				EnabledNamespaces:          []string{},
+				DisabledNamespaces:         []string{},
+				LibVersions:                map[string]string{},
+				InjectorImageTag:           "0",
+				Targets:                    []Target{},
+				InjectionMode:              "auto",
+				OtelInstrumentationCRDMode: "datadog",
+			},
+		},
+		{
+			// A typo must fail loudly: defaulting it would silently turn the feature
+			// off, or silently pick the wrong SDK.
+			name:       "unknown otel instrumentation crd mode",
+			configPath: "testdata/otel_crd_mode_invalid.yaml",
 			shouldErr:  true,
 		},
 	}

@@ -282,6 +282,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_receivercreator",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_zipkinreceiver",
+    "com_github_open_telemetry_opentelemetry_operator_apis",
     "com_github_opencontainers_go_digest",
     "com_github_opencontainers_image_spec",
     "com_github_opencontainers_runtime_spec",
