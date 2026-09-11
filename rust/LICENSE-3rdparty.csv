@@ -30,6 +30,8 @@ base62,https://github.com/fbernier/base62,MIT,"François Bernier <frankbernier@g
 base64,https://github.com/marshallpierce/rust-base64,MIT OR Apache-2.0,Marshall Pierce <marshall@mpierce.org>
 base64ct,https://github.com/RustCrypto/formats,Apache-2.0 OR MIT,RustCrypto Developers
 bech32,https://github.com/rust-bitcoin/rust-bech32,MIT,"Clark Moody, Andrew Poelstra, Tobin Harding"
+bit-set,https://github.com/contain-rs/bit-set,Apache-2.0 OR MIT,Alexis Beingessner <a.beingessner@gmail.com>
+bit-vec,https://github.com/contain-rs/bit-vec,Apache-2.0 OR MIT,Alexis Beingessner <a.beingessner@gmail.com>
 bitcoin,https://github.com/rust-bitcoin/rust-bitcoin,CC0-1.0,Andrew Poelstra <apoelstra@wpsoftware.net>
 bitcoin-consensus-encoding,https://github.com/rust-bitcoin/rust-bitcoin,CC0-1.0,"Andrew Poelstra <apoelstra@wpsoftware.net>, Nick Johnson <nick@yonson.dev>, Tobin C. Harding <me@tobin.cc>"
 bitcoin-internals,https://github.com/rust-bitcoin/rust-bitcoin,CC0-1.0,"Andrew Poelstra <apoelstra@wpsoftware.net>, The Rust Bitcoin developers"
@@ -40,6 +42,7 @@ bitflags,https://github.com/bitflags/bitflags,MIT OR Apache-2.0,The Rust Project
 bitmask-enum,https://github.com/Lukas3674/rust-bitmask-enum,MIT OR Apache-2.0,Lukas3674 <lukashassler@web.de>
 block-buffer,https://github.com/RustCrypto/utils,MIT OR Apache-2.0,RustCrypto Developers
 bs58,https://github.com/Nullus157/bs58-rs,MIT OR Apache-2.0,The bs58 Authors
+bstr,https://github.com/BurntSushi/bstr,MIT OR Apache-2.0,Andrew Gallant <jamslam@gmail.com>
 bumpalo,https://github.com/fitzgen/bumpalo,MIT OR Apache-2.0,Nick Fitzgerald <fitzgen@gmail.com>
 bytemuck,https://github.com/Lokathor/bytemuck,Zlib OR Apache-2.0 OR MIT,Lokathor <zefria@gmail.com>
 byteorder,https://github.com/BurntSushi/byteorder,Unlicense OR MIT,Andrew Gallant <jamslam@gmail.com>
@@ -105,6 +108,7 @@ equivalent,https://github.com/indexmap-rs/equivalent,Apache-2.0 OR MIT,The equiv
 errno,https://github.com/lambda-fairy/rust-errno,MIT OR Apache-2.0,"Chris Wong <lambda.fairy@gmail.com>, Dan Gohman <dev@sunfishcode.online>"
 ethaddr,https://github.com/nlordell/ethprim-rs,MIT OR Apache-2.0,Nicholas Rodrigues Lordello <nlordell@gmail.com>
 fallible-iterator,https://github.com/sfackler/rust-fallible-iterator,MIT OR Apache-2.0,Steven Fackler <sfackler@gmail.com>
+fancy-regex,https://github.com/fancy-regex/fancy-regex,MIT,"Raph Levien <raph@google.com>, Robin Stocker <robin@nibor.org>, Keith Hall <keith.hall@available.systems>"
 farmhash2,https://github.com/seiflotfy/rust-farmhash,MIT,Seif Lotfy <seif.lotfy@gmail.com>
 fastrand,https://github.com/smol-rs/fastrand,Apache-2.0 OR MIT,Stjepan Glavina <stjepang@gmail.com>
 ff,https://github.com/zkcrypto/ff,MIT OR Apache-2.0,"Sean Bowe <ewillbefull@gmail.com>, Jack Grigg <thestr4d@gmail.com>"
@@ -300,6 +304,7 @@ rfc6979,https://github.com/RustCrypto/signatures,Apache-2.0 OR MIT,RustCrypto De
 ring,https://github.com/briansmith/ring,Apache-2.0 AND ISC,The ring Authors
 rmp,https://github.com/3Hren/msgpack-rust,MIT,"Evgeny Safronov <division494@gmail.com>, Kornel <kornel@geekhood.net>"
 rmp-serde,https://github.com/3Hren/msgpack-rust,MIT,Evgeny Safronov <division494@gmail.com>
+rustc-hash,https://github.com/rust-lang-nursery/rustc-hash,Apache-2.0 OR MIT,The Rust Project Developers
 rustc-hex,https://github.com/debris/rustc-hex,MIT OR Apache-2.0,"The Rust Project Developers, debris <marek.kotewicz@gmail.com>, Robert Habermeier"
 rustix,https://github.com/bytecodealliance/rustix,Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT,"Dan Gohman <dev@sunfishcode.online>, Jakub Konka <kubkon@jakubkonka.com>"
 rustix-linux-procfs,https://github.com/sunfishcode/rustix-linux-procfs,Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT,Dan Gohman <dev@sunfishcode.online>
@@ -381,6 +386,7 @@ tagptr,https://github.com/oliver-giersch/tagptr,MIT OR Apache-2.0,Oliver Giersch
 tempfile,https://github.com/Stebalien/tempfile,MIT OR Apache-2.0,"Steven Allen <steven@stebalien.com>, The Rust Project Developers, Ashley Mannix <ashleymannix@live.com.au>, Jason White <me@jasonwhite.io>"
 thiserror,https://github.com/dtolnay/thiserror,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
 thiserror-impl,https://github.com/dtolnay/thiserror,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
+tiktoken-rs,https://github.com/zurawiki/tiktoken-rs,MIT,Roger Zurawicki <roger@zura.wiki>
 time,https://github.com/time-rs/time,MIT OR Apache-2.0,"Jacob Pratt <open-source@jhpratt.dev>, Time contributors"
 time-core,https://github.com/time-rs/time,MIT OR Apache-2.0,"Jacob Pratt <open-source@jhpratt.dev>, Time contributors"
 time-macros,https://github.com/time-rs/time,MIT OR Apache-2.0,"Jacob Pratt <open-source@jhpratt.dev>, Time contributors"
