@@ -20,6 +20,12 @@ import (
 // ErrStopWalk can be returned in WalkTarXZArchive to stop walking
 var ErrStopWalk = errors.New("stop walk")
 
+// maxExtractedFileSize is the maximum number of bytes untarFile will write for a single
+// archive entry. It guards against decompression bombs in the xz stream (a declared tar
+// header size cannot be trusted on its own); exceeding it is an error, not a silent
+// truncation.
+const maxExtractedFileSize = 5 << 30 // 5 GiB
+
 // WalkTarXZArchive walks the provided .tar.xz archive, calling walkFunc for each entry.
 // If ErrStopWalk is returned from walkFunc, then the walk is stopped.
 func WalkTarXZArchive(tarxzArchive string, walkFunc func(*tar.Reader, *tar.Header) error) error {
@@ -122,9 +128,12 @@ func untarFile(tr *tar.Reader, hdr *tar.Header, destinationDir string) error {
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, tr)
-	if err != nil {
+	n, err := io.CopyN(out, tr, maxExtractedFileSize+1)
+	if err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("copy file %s: %w", fpath, err)
+	}
+	if n > maxExtractedFileSize {
+		return fmt.Errorf("copy file %s: decompressed size exceeds maximum allowed size of %d bytes", fpath, maxExtractedFileSize)
 	}
 	return nil
 }
