@@ -39,7 +39,7 @@ type demultiplexerEndpoint struct {
 	demux   contextDumper
 	runPath string
 	log     log.Component
-	dumpMu  sync.Mutex
+	dumpMu  sync.RWMutex
 }
 
 // Provides defines the output of the demultiplexerendpoint component
