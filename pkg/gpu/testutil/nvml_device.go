@@ -334,7 +334,7 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			if isMIGOrVGPUUnsupported {
 				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
 			}
-			if arch < nvml.DEVICE_ARCH_AMPERE {
+			if arch < nvml.DEVICE_ARCH_TURING {
 				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
 			}
 			return nvml.RepairStatus{}, nvml.SUCCESS
