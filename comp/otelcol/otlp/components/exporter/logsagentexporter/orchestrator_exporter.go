@@ -45,7 +45,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	result := logsmapping.TranslateK8sObjects(ld, e.orchestratorExporter.manifestCache, e.set.Logger, false)
+	result := logsmapping.TranslateK8sObjects(ld, e.orchestratorExporter.manifestCache, e.set.Logger, false /* skipClusterManifest */, logsmapping.MaxPayloadSizeBytes)
 
 	hostname, err := e.orchestratorExporter.config.Hostname.Get(ctx)
 	if err != nil || hostname == "" {

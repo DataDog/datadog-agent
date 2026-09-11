@@ -2,6 +2,47 @@
 Release Notes
 =============
 
+.. _Release Notes_7.83.1:
+
+7.83.1
+======
+
+.. _Release Notes_7.83.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-09
+
+- Please refer to the `7.83.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7831>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.83.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix bug which made fast network path test billed to customer
+
+- Release the containerd view snapshot and lease taken for a container image
+  SBOM scan even when the scan is cancelled or times out. The release ran on
+  the scan's own context, so a scan that hit its deadline left the snapshot
+  behind, and on a lazy snapshotter that snapshot holds the layer it
+  materialised.
+
+
+.. _Release Notes_7.83.1_Other Notes:
+
+Other Notes
+-----------
+
+- The fleet installer daemon now reports the DDOT (OpenTelemetry Collector) process state
+  as part of the agent state sent to Datadog, so DDOT version and configuration updates
+  can be monitored. The state is read from the process manager when it supervises DDOT,
+  and from systemd or the Windows service manager otherwise. It is also visible in the
+  output of ``datadog-installer status``.
+
+
 .. _Release Notes_7.83.0:
 
 7.83.0

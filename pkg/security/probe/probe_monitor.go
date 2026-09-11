@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/dns"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/eventsample"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/rawpacketdrop"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/spanctxevent"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -38,6 +39,7 @@ type EBPFMonitors struct {
 	dnsMonitor           *dns.Monitor
 	eventSampleMonitor   *eventsample.Monitor
 	rawPacketDropMonitor *rawpacketdrop.Monitor
+	spanCtxEventMonitor  *spanctxevent.Monitor
 }
 
 // NewEBPFMonitors returns a new instance of a ProbeMonitor
@@ -92,6 +94,13 @@ func (m *EBPFMonitors) Init() error {
 		m.rawPacketDropMonitor, err = rawpacketdrop.NewMonitor(p.Manager.Get(), p.statsdClient, p.getDropActionRuleIDs)
 		if err != nil {
 			return fmt.Errorf("couldn't create the raw packet drop monitor: %w", err)
+		}
+	}
+
+	if p.config.Probe.SpanTrackingEnabled {
+		m.spanCtxEventMonitor, err = spanctxevent.NewMonitor(p.Manager.Get(), p.statsdClient)
+		if err != nil {
+			return fmt.Errorf("couldn't create the span context event monitor: %w", err)
 		}
 	}
 
@@ -184,6 +193,12 @@ func (m *EBPFMonitors) SendStats() error {
 	if m.rawPacketDropMonitor != nil {
 		if err := m.rawPacketDropMonitor.SendStats(); err != nil {
 			return fmt.Errorf("failed to send raw packet drop stats: %w", err)
+		}
+	}
+
+	if m.spanCtxEventMonitor != nil {
+		if err := m.spanCtxEventMonitor.SendStats(); err != nil {
+			return fmt.Errorf("failed to send span context event stats: %w", err)
 		}
 	}
 
