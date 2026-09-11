@@ -37,7 +37,8 @@ tonic-reflection.workspace = true
 uuid.workspace = true
 
 [target.'cfg(unix)'.dependencies]
-nix = { workspace = true, features = ["signal", "process"] }
+libc.workspace = true
+nix = { workspace = true, features = ["signal", "process", "user"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-registry.workspace = true
@@ -50,15 +51,20 @@ windows-sys = { workspace = true, features = [
     "Win32_System_Environment",
     "Win32_Security",
     "Win32_System_Registry",
+    "Win32_System_WindowsProgramming",
     "Win32_Storage_FileSystem",
+    "Win32_UI_Shell",
 ] }
 
 [target.'cfg(unix)'.dev-dependencies]
 nix = { workspace = true, features = ["signal", "process", "user"] }
 
 [dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 tempfile.workspace = true
 
 [[test]]
 name = "e2e"
+path = "tests/e2e/main.rs"
 required-features = ["test-helpers"]

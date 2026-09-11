@@ -121,9 +121,7 @@ func BenchmarkMetricFilterV1Rules(b *testing.B) {
 }
 
 func BenchmarkHandleObserveMetricV1RulesParallelRejectedMetric(b *testing.B) {
-	telemetryComp := telemetryimpl.GetCompatComponent()
-	telemetryComp.Reset()
-	b.Cleanup(telemetryComp.Reset)
+	telemetryComp := telemetryimpl.NewMock(b)
 
 	h := &handle{
 		source:    "check",

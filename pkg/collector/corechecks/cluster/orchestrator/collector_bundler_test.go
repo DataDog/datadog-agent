@@ -434,6 +434,21 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 		// EKS Auto Mode NodeClass resource
 		"eks.amazonaws.com/v1/nodeclasses",
 
+		// Dynamo
+		"nvidia.com/v1alpha1/dynamocheckpoints",
+		"nvidia.com/v1beta1/dynamocomponentdeployments",
+		"nvidia.com/v1beta1/dynamographdeploymentrequests",
+		"nvidia.com/v1beta1/dynamographdeployments",
+		"nvidia.com/v1beta1/dynamographdeploymentscalingadapters",
+		"nvidia.com/v1alpha1/dynamomodels",
+		"nvidia.com/v1alpha1/dynamoworkermetadatas",
+
+		// KubeRay
+		"ray.io/v1/rayclusters",
+		"ray.io/v1/raycronjobs",
+		"ray.io/v1/rayjobs",
+		"ray.io/v1/rayservices",
+
 		// Gateway API
 		"gateway.networking.k8s.io/v1/gateways",
 		"gateway.networking.k8s.io/v1/httproutes",

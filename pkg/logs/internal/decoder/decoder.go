@@ -761,7 +761,7 @@ func (d *decoderImpl) run() {
 
 		case <-d.lineParser.flushChan():
 			log.Debug("Flushing line parser because the flush timeout has been reached.")
-			d.lineParser.flush()
+			d.lineParser.flushTimedOut()
 
 		case <-d.lineHandler.flushChan():
 			log.Debug("Flushing line handler because the flush timeout has been reached.")

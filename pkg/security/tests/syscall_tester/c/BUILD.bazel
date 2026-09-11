@@ -10,6 +10,7 @@ load(":otel_tls.bzl", "otel_tls_dsos")
 filegroup(
     name = "otel_tls_headers",
     srcs = [
+        "otel_process_ctx_common.h",
         "otel_tls_common.h",
         "otel_tls_lib.h",
     ],

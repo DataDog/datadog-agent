@@ -105,9 +105,7 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 }
 
 func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	filter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)

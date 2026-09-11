@@ -328,7 +328,9 @@ func (s *packageBaseSuite) Purge() {
 	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer purge")
-	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer datadog-agent datadog-fips-agent || sudo yum remove -y datadog-installer datadog-agent datadog-fips-agent || sudo zypper remove -y datadog-installer datadog-agent datadog-fips-agent")
+	for _, pkg := range []string{"datadog-installer", "datadog-agent", "datadog-fips-agent", "datadog-apm-inject", "datadog-apm-library-python"} {
+		s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge " + pkg + " || sudo yum remove -y " + pkg + " || sudo zypper remove -y " + pkg)
+	}
 	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }
 

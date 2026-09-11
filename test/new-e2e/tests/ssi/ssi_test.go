@@ -69,13 +69,13 @@ var rcLastWinsOtherPolicyJSON []byte
 
 const (
 	apmPoliciesRCProduct              = "APM_POLICIES"
-	rcHostLinuxOnlyConfigID           = "1.host-linux-only"
+	rcHostLinuxOnlyConfigID           = "1.kubernetes.host-linux-only"
 	rcHostLinuxOnlyConfigName         = "config"
-	rcNamespaceOtherConfigID          = "1.namespace-other"
+	rcNamespaceOtherConfigID          = "1.kubernetes.namespace-other"
 	rcNamespaceOtherConfigName        = "config"
-	rcDenyTargetedNamespaceConfigID   = "1.deny-targeted-namespace"
+	rcDenyTargetedNamespaceConfigID   = "1.kubernetes.deny-targeted-namespace"
 	rcDenyTargetedNamespaceConfigName = "config"
-	rcLastWinsOtherConfigID           = "1.last-wins-other"
+	rcLastWinsOtherConfigID           = "1.kubernetes.last-wins-other"
 	rcLastWinsOtherConfigName         = "config"
 	rcFakeIntakeDefaultOrgID          = "42"
 	rcHelmTargetNamespace             = "targeted-namespace"
@@ -241,7 +241,7 @@ func (v *ssiSuite) TestInjectionMode() {
 
 			require.Eventually(v.T(), func() bool {
 				traces := FindTracesForService(v.T(), intake, tc.name)
-				return len(traces) != 0
+				return traces != 0
 			}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", tc.name)
 		})
 	}
@@ -311,7 +311,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "local-sdk-injection-app")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "local-sdk-injection-app")
 	})
 
@@ -384,7 +384,7 @@ func (v *ssiSuite) TestNamespaceSelection() {
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "namespace-selection-inject")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "namespace-selection-inject")
 	})
 	v.Run("ExpectNoInjection", func() {
@@ -459,7 +459,7 @@ func (v *ssiSuite) TestWorkloadSelection() {
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "workload-selection-inject")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "workload-selection-inject")
 	})
 
@@ -544,7 +544,7 @@ func (v *ssiSuite) TestRegistryAllowList() {
 
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "registry-allow-list-allowed")
-			return len(traces) != 0
+			return traces != 0
 		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "registry-allow-list-allowed")
 	})
 
