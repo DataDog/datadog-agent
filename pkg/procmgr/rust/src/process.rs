@@ -631,8 +631,8 @@ pub mod tests {
         assert!(proc.is_running());
 
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
 
@@ -654,8 +654,8 @@ pub mod tests {
         );
         let mut exit_rx = spawn_ok(&mut proc);
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
         assert_eq!(proc.state(), ProcessState::Stopped);
 
         let mut bad_cfg = proc.config().clone();
@@ -1049,8 +1049,8 @@ runtime_success_sec: 5
         assert_eq!(proc.state(), ProcessState::Running);
 
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
 
         assert_eq!(proc.state(), ProcessState::Stopped);
     }
@@ -1086,8 +1086,8 @@ runtime_success_sec: 5
         let mut exit_rx = spawn_ok(&mut proc);
 
         proc.request_stop();
-        let status = exit_rx.recv().await.expect("exit event").status;
-        proc.set_last_status(status);
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
 
         assert_eq!(proc.state(), ProcessState::Stopped);
         assert!(
