@@ -17,7 +17,6 @@ the Datadog integration relies on (``-a``, ``-o json``, ``-u``).
 
 import os
 import sys
-
 from optparse import OptionParser
 
 try:
@@ -38,8 +37,7 @@ def check_version(cluster):
         return
     if version(cluster.glusterfs_version) < version(SUPPORTED_GLUSTER_VERSION):
         print(
-            "gstatus: GlusterFS %s is not supported, use GlusterFS %s or above."
-            % (cluster.glusterfs_version, SUPPORTED_GLUSTER_VERSION),
+            f"gstatus: GlusterFS {cluster.glusterfs_version} is not supported, use GlusterFS {SUPPORTED_GLUSTER_VERSION} or above.",
             file=sys.stderr,
         )
         exit(1)
