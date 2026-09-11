@@ -25,6 +25,7 @@ func NewAgent(client ipc.HTTPClient) types.Bundle {
 			"getConfig":             NewGetConfigHandler(client),
 			"generateFlare":         NewGenerateFlareHandler(client),
 			"dumpDogstatsdContexts": NewDumpDogstatsdContextsHandler(client),
+			"getDogstatsdTop":       NewGetDogstatsdTopHandler(client),
 		},
 	}
 }

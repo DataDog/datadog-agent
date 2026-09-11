@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add a Private Action Runner action for investigating DogStatsD context
+    cardinality. The action can summarize either a current snapshot or the most
+    recent saved context dump, returning bounded metric names, context counts,
+    and tag-key cardinalities without returning tag values.
