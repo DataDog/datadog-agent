@@ -55,6 +55,20 @@ checks:
       # TODO: calibrate from a baseline run before enforcing.
       upper_bound: "300 MiB"
 
+  - name: checks_runs
+    description: "Check runs quality gate. This puts a bound on the average number of check runs per scrape cycle."
+    bounds:
+      series: avg(checks__runs)
+      # TODO: calibrate from a baseline run before enforcing.
+      upper_bound: 1000
+
+  - name: checks_execution_time
+    description: "Check execution time quality gate. This puts a bound on the average time to execute check instances."
+    bounds:
+      series: avg(checks__execution_time)
+      # TODO: calibrate from a baseline run before enforcing.
+      upper_bound: 1000
+
 report_links:
   - text: "bounds checks dashboard"
     link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"
