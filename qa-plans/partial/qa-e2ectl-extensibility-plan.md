@@ -1,9 +1,15 @@
 # e2ectl extensibility — driver interfaces and registration (plan)
 
+> **Category B — implemented foundation; details partially superseded.** Explicit
+> registration and process boundaries exist. The older parameter/validator/worker sketches
+> are historical; typed shared parameters supersede T2's original wording, and the later
+> custom-environment code plan proposes a further registration refactor that is not built.
+> See the [plan status index](../qa-e2ectl-plans-index.md#4-category-b--partially-implemented--active-hardening).
+
 > Plan for making "adding a new environment type" a matter of implementing a
 > few interfaces and registering them, instead of touching a switch in every
-> command. Companion docs: `qa-e2ectl-plan.md` (milestone), the consolidation
-> review, `qa-e2ectl-implementation-notes.md`.
+> command. Companion docs: `qa-plans/historical/qa-e2ectl-plan.md` (milestone), the consolidation
+> review, `qa-plans/notes/qa-e2ectl-implementation-notes.md`.
 
 ## 1. The pain, precisely inventoried
 

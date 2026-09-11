@@ -1,9 +1,13 @@
 # My vision regarding testing and QA experience on datadog-agent
 
+> **Category E — superseded vision draft.** Retained for history, not current feature
+> status or CLI syntax. See the [status index](../qa-e2ectl-plans-index.md#7-category-e--historical--superseded-documents-and-approaches)
+> and the later Confluence update proposal.
+
 > Local working draft — the live version lives on
 > [Confluence](https://datadoghq.atlassian.net/wiki/spaces/~7120201870126a495245b69e47156354de0ad9/pages/7146275864/My+vision+regarding+testing+and+qa+experience+on+datadog-agent).
 > Status: local draft v9 (test-run interaction contract).
-> **Superseded** by `qa-vision-confluence-update.md` — the update proposal for the
+> **Superseded** by `qa-plans/deferred/qa-vision-confluence-update.md` — the update proposal for the
 > Confluence page, which now carries the latest content (CI plan, test anatomy).
 
 _Disclaimer: This document will not go into details about how things are implemented, it is

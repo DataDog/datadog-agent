@@ -1,10 +1,14 @@
 # e2ectl: typed configuration as the source of truth
 
-**Status:** the core struct-first path is now implemented locally: shared config types,
+> **Category A — implemented foundation (bounded scope).** Core implementation committed
+> in `9151707198c`; broader installer/public-SDK/reproduction work remains pending.
+> See the [plan status index](../qa-e2ectl-plans-index.md#3-category-a--implemented-foundations).
+
+**Status:** the core struct-first path is implemented in this branch: shared config types,
 annotation-driven validation/defaults/examples, optional typed validators, generic driver
 preparation and normalized executor transport. This document retains the original design
 exploration; its illustrative syntax is not the API reference. See
-[`cmd/internal/configschema/README.md`](test/e2e-framework/cmd/internal/configschema/README.md)
+[`cmd/internal/configschema/README.md`](../../test/e2e-framework/cmd/internal/configschema/README.md)
 for the implemented vocabulary (`config:"required"`, not `required:"true"`). Installer-owned
 schemas/artifact-specific validation and complete resolved reproduction files remain
 follow-up work.

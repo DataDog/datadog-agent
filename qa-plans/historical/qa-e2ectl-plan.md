@@ -1,8 +1,14 @@
 # Milestone 1 plan — `e2ectl`: EC2 VM + install-script agent + fakeintake
 
+> **Category E — historical milestone plan.** Core workflows/seams are implemented,
+> but this layout/schema/milestone sequence is superseded and not every acceptance gate
+> is complete. Use the current CLI README and the
+> [status index](../qa-e2ectl-plans-index.md#7-category-e--historical--superseded-documents-and-approaches),
+> not the original examples below, as the implementation guide.
+
 > Implementation plan for the first concrete slice of the QA experience vision.
-> Companion docs: `qa-vision-confluence-update.md` (vision), `qa-vision-onepager.md` (pitch),
-> and `qa-e2ectl-m1-design.md` — the detailed engineering design (exact code layout,
+> Companion docs: `qa-plans/deferred/qa-vision-confluence-update.md` (vision), `qa-plans/deferred/qa-vision-onepager.md` (pitch),
+> and `qa-plans/historical/qa-e2ectl-m1-design.md` — the detailed engineering design (exact code layout,
 > integration symbols, config validation pipeline, week-1 experiments).
 > The binary name is still being chosen — `e2ectl` is a placeholder throughout.
 

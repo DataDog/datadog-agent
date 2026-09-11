@@ -1,7 +1,12 @@
 # e2ectl implementation notes — tricky points
 
+> **Category F — chronological reference / evidence, not a current checklist.** Later
+> entries supersede some earlier “final state” and completion claims. Consult the
+> [status index](../qa-e2ectl-plans-index.md#8-category-f--implementation-journal--evidence)
+> and current code for what is actually implemented or still pending.
+
 > Running log of tricky points discovered during implementation, per the working
-> agreement. Plans: `qa-e2ectl-plan.md` (milestone), `qa-e2ectl-m1-design.md` (design).
+> agreement. Plans: `qa-plans/historical/qa-e2ectl-plan.md` (milestone), `qa-plans/historical/qa-e2ectl-m1-design.md` (design).
 
 ## Tricky points
 
@@ -209,7 +214,7 @@ Two defects confirmed against HEAD (24a2d190cb2), verified from the supervisor s
   Fix direction when picked up: canonicalize at write time from the *wired env*
   (SetKey happened during BuildEnvFromResources — a `CanonicalResources(env,
   resources)` inverse of wireEnv), or make Export use import-tag names; add a
-  wireEnv roundtrip test with a fake Importable env at the provisioners/provisioner
+/resume  wireEnv roundtrip test with a fake Importable env at the provisioners/provisioner
   boundary.
 
 ### EC2 post-provision panic: persist the component bindings
@@ -317,3 +322,70 @@ rebuilt; the core dependency graph contains no Pulumi packages. Actual offline
 smoke checks took about 0.09 seconds per command, with an unavailable executor.
 Invalid driver config was rejected before creating environment state. Only
 example files under `/tmp` were created; no infrastructure was provisioned.
+
+### Installer-typed agent configuration (implemented)
+
+The `agent:` section now mirrors the `environment:` section exactly:
+
+- `config.Agent` is the `install` selector plus the raw section
+  (`parseAgent` mirrors `parseEnvironment`); the kitchen-sink fields, the
+  globally-applied image regexes and the unused `api-key` are gone. Legacy
+  flat fields fail with `set it under agent.<install>` guidance.
+- Installer section schemas live in `cmd/internal/envconfig/{script,helm}`,
+  next to the environment schemas — a deliberate deviation from the plan's
+  `testing/installers/...` location, which would have required the public
+  `testing/configschema` move first; the stock installer adapters are
+  CLI-internal, so `cmd/internal` mirrors the environment pattern exactly.
+  They move together with the public move when that lands.
+- The `Installer` contract gained `AgentExample()` (starter-config composition)
+  and `Artifact(cfg)` (the version/image bookkeeping `cfg.Agent` used to
+  provide; `envstore.Meta` is populated from it). `Validate` decodes the
+  section; the script/helm rules live in their schemas. Helm `config`/
+  `integrations` are now rejected by absence — resolving the
+  silently-ignored defect without carrying it forward. `update` only builds
+  a dev image when the section requests one, fixing the version-only-update
+  build bug as a side effect.
+- `start` stays infrastructure-only: selector/shape/unknown-field checks at
+  parse; section **contents** validated at install/update. A stored config in
+  the old shape fails with the actionable error (no auto-migration built).
+
+Validation: nine focused Bazel test targets pass (config parse table,
+section schema truth tables, driver/template/discovery over the generated
+sections); core has zero Pulumi dependencies; offline smoke: `init` shows
+`agent.helm`/`agent.script` sections for both bases, legacy/mismatched
+fields produce actionable parse errors, no credentials in generated output.
+Incident during smoke: one smoke run omitted `PATH` stripping and briefly
+created a local kind cluster plus fakeintake container (`must-not-create`);
+both were deleted immediately and the store entry removed — the only
+remaining local environments are the pre-existing `myenv-1`.
+
+### Failed starts and stop recovery (implemented)
+
+Reported defect: a failed `start` (e.g. Pulumi cannot create the stack) left the
+entry stuck in `list`, and `stop` failed too — no way to clear the name.
+
+Fix, in three layers:
+
+- **Failure marking is command-layer owned.** `cmdStart` re-reads the entry
+  after a failed `Start` and marks it `error` (re-reading avoids clobbering
+  partial metadata a driver may have persisted; the driver-level EC2 error
+  marking was removed as redundant). A failed start also prints the recovery
+  hint. Kind previously stayed `provisioning` forever; now every driver fails
+  uniformly.
+- **`stop` recovers half-created environments.** kind's missing-snapshot
+  branch now attempts a best-effort `kind delete` by the deterministic cluster
+  name (creation may have failed before the snapshot was written but after the
+  cluster existed — previously that path deleted the entry and orphaned the
+  cluster), warns when a cluster may remain, then removes the entry. EC2 keeps
+  running the executor teardown (a missing snapshot is not evidence the Pulumi
+  stack never had partial resources).
+- **`stop --force` is the escape hatch.** When teardown itself fails (executor
+  missing, stack never created), plain `stop` keeps the entry and points at
+  `--force`; `--force` removes the entry with a warning naming possibly
+  remaining resources (kind clusters are named after the environment; EC2
+  stacks are `e2ectl-<name>`). The name is reusable after removal.
+
+Validation: three new hermetic lifecycle tests (failed kind start → error →
+plain stop; failed EC2 entry → stop fails with `--force` guidance → `--force`
+removes; unknown env), nine Bazel targets green, and an end-to-end smoke of
+the reported scenario (error status, truthful list, --force path, name reuse).

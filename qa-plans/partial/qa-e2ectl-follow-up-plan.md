@@ -1,7 +1,12 @@
 # e2ectl — implementation plan after the integration review
 
-**Baseline:** `24a2d190cb2` on `rework-qa-experience`.
-**Status:** proposed implementation plan; no application code changes in this document.
+> **Category B — partially implemented / active hardening.** The eight steps are not all
+> complete. See the [current step-by-step status](../qa-e2ectl-plans-index.md#4-category-b--partially-implemented--active-hardening)
+> before treating an item below as pending or done.
+
+**Baseline:** original review at `24a2d190cb2` on `rework-qa-experience`.
+**Status:** partially implemented; snapshot bindings, cloud fakeintake ownership and typed
+configuration changes landed, while compatibility, lifecycle and installer work remain.
 **Detailed patches and proposed APIs:** [file-by-file code-change plan](qa-e2ectl-follow-up-code-plan.md).
 
 This supersedes the ordering and compatibility claims in the earlier consolidation plan.

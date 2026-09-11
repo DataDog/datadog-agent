@@ -1,6 +1,12 @@
 # M1 engineering design — `e2ectl` (placeholder name), EC2 + install-script + fakeintake
 
-> Detailed companion to `qa-e2ectl-plan.md` (milestone plan). Everything below is grounded
+> **Category E — historical / superseded engineering design.** The core seam exists,
+> but helper names, config layout, compatibility assumptions and trust-only executor
+> validation below are no longer authoritative. See the
+> [status index](../qa-e2ectl-plans-index.md#7-category-e--historical--superseded-documents-and-approaches)
+> and current typed-config documentation.
+
+> Detailed companion to `qa-plans/historical/qa-e2ectl-plan.md` (milestone plan). Everything below is grounded
 > in the actual codebase — existing symbols are real, new code is marked **NEW**, changed
 > code is marked **CHANGED**.
 

@@ -1,5 +1,9 @@
 # e2ectl follow-up — exact code-change plan
 
+> **Category B — partially implemented / active hardening.** This is the detailed
+> companion to the eight-step backlog, not a completed patch series. Track actual
+> completion in the [plan status index](../qa-e2ectl-plans-index.md#4-category-b--partially-implemented--active-hardening).
+
 **Baseline:** `24a2d190cb2`. Companion: [ordered follow-up plan](qa-e2ectl-follow-up-plan.md).
 
 This expands the same eight sections into proposed patches. It is not implementation:

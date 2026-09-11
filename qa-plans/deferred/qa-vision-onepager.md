@@ -1,5 +1,9 @@
 # QA experience on datadog-agent — what I'd like to do
 
+> **Category D — vision / reference.** The broad test, workload, artifact and CI workflows
+> below are not the current CLI API; several remain deferred. See the
+> [plan status index](../qa-e2ectl-plans-index.md#6-category-d--vision-and-deferred-roadmap).
+
 *(One-pager for the daily — full proposal: "My vision regarding testing and qa experience
 on datadog-agent" on Confluence.)*
 

@@ -1,5 +1,10 @@
 # Proposed update — "My vision regarding testing and qa experience on datadog-agent"
 
+> **Category D — vision / deferred roadmap, not a shipped CLI specification.** Some
+> foundations exist; test execution, workloads, CI generation and full reproduction remain
+> future work. Newer state/custom-environment plans qualify the older promises below.
+> See the [plan status index](../qa-e2ectl-plans-index.md#6-category-d--vision-and-deferred-roadmap).
+
 > **What this is:** a proposed new version of your Confluence page
 > ([current page](https://datadoghq.atlassian.net/wiki/spaces/~7120201870126a495245b69e47156354de0ad9/pages/7146275864/My+vision+regarding+testing+and+qa+experience+on+datadog-agent)),
 > based on the working session that sharpened the draft.

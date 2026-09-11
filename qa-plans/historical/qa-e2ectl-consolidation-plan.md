@@ -1,10 +1,15 @@
 # e2ectl integration & consolidation review — plan
 
+> **Category E — historical / superseded review.** The follow-up review replaced this
+> document's ordering and broad compatibility claims. Some deduplication landed; other
+> findings remain open in the active hardening backlog. See the
+> [status index](../qa-e2ectl-plans-index.md#7-category-e--historical--superseded-documents-and-approaches).
+
 > Evaluation of the five commits on `rework-qa-experience` against the existing
 > e2e-framework: duplication audit, consolidation opportunities, and a prioritized
 > action plan. No code — plan only.
 > Inputs: `git log 26119e657a4^..HEAD`, the framework source, and
-> `qa-e2ectl-implementation-notes.md`.
+> `qa-plans/notes/qa-e2ectl-implementation-notes.md`.
 
 ## 1. Integration status
 
@@ -114,4 +119,4 @@
 
 **Explicitly not planned:** touching existing suites, forcing any consumer to adopt
 anything, or the bigger vision items (needs/setup/ci sections, wipe, locks) — those
-follow the milestone plan (`qa-e2ectl-plan.md`), not this review.
+follow the milestone plan (`qa-plans/historical/qa-e2ectl-plan.md`), not this review.
