@@ -244,10 +244,13 @@ pub fn cleanup_process(pid: u32) {
 
 /// Sleep duration for long-running test children.
 ///
-/// On Windows, tests use `ping -n` as a sleep substitute. Keep this short so a
-/// missed teardown cannot burn the Tokio per-test timeout (60s).
+/// On Windows, tests use `ping -n` as a sleep substitute. This must stay well
+/// above typical CI scheduling jitter: if ping exits naturally before
+/// `request_stop`, `wait_for_stop` returns early and the process stays `Exited`
+/// instead of `Stopped`. Stop tests still finish in ~`stop_timeout` (1s) via
+/// force-kill, so a larger value here does not slow them down.
 #[cfg(windows)]
-pub const TEST_SLEEP_SECS: u32 = 2;
+pub const TEST_SLEEP_SECS: u32 = 30;
 
 #[cfg(unix)]
 pub const TEST_SLEEP_SECS: u32 = 60;
