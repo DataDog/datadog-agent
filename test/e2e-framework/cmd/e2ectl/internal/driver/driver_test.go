@@ -88,7 +88,6 @@ environment:
   base: ec2-host
 agent:
   install: script
-  version: "7.69.0"
 `)
 	f, errs = config.Parse(badEC2)
 	if len(errs) > 0 {

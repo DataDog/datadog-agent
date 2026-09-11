@@ -33,7 +33,10 @@ func TestRegisteredStarterConfigs(t *testing.T) {
 			if cfg.Environment.Base != id {
 				t.Fatalf("starter for %q selects %q", id, cfg.Environment.Base)
 			}
-			if cfg.Agent.APIKey != "" {
+			if cfg.Agent.SectionNode == nil {
+				t.Fatal("starter config must show the installer's typed agent section")
+			}
+			if strings.Contains(string(data), "api-key") {
 				t.Fatal("starter config must not contain credentials")
 			}
 			if !strings.HasPrefix(string(data), "#") {

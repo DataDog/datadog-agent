@@ -16,6 +16,7 @@ environment:
     # instance-type: t3.medium
 agent:
   install: script
-  version: "7.69.0"     # released agent version installed by the install script
-  # config: |          # optional datadog.yaml overrides
-  #   log_level: debug
+  script:               # the install-script-owned section
+    version: "7.69.0"   # released agent version installed by the install script
+    # config: |        # optional datadog.yaml overrides
+    #   log_level: debug

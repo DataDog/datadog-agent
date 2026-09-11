@@ -102,8 +102,11 @@ func TestInitToStdout(t *testing.T) {
 			if len(errs) != 0 {
 				t.Fatalf("stdout must contain only valid config YAML: %v", errs)
 			}
-			if cfg.Environment.Base != id || cfg.Agent.APIKey != "" {
-				t.Fatalf("unexpected generated config for %q", id)
+			if cfg.Environment.Base != id || cfg.Agent.SectionNode == nil {
+				t.Fatalf("generated config for %q must show the installer's agent section", id)
+			}
+			if strings.Contains(stdout.String(), "api-key") {
+				t.Fatalf("generated config for %q must not contain credentials", id)
 			}
 			if stderr.Len() != 0 {
 				t.Fatalf("unexpected diagnostics: %s", stderr.String())

@@ -177,7 +177,13 @@ config types in `cmd/internal/envconfig` and register them through `driver.Defin
 `Description` remains required, while validation/defaults/examples come from the
 schema annotations. Do not add duplicate worker parameter structs or handwritten
 YAML templates. Optional `Validate(params)` hooks run after automatic validation;
-cloud rules needed at both process boundaries belong on the shared schema. See
+cloud rules needed at both process boundaries belong on the shared schema. The
+`agent:` section mirrors this exactly: `install` selects the installer and the
+section named after it (`agent.script`, `agent.helm`) is that installer's typed
+config, declared in `cmd/internal/envconfig/{script,helm}` — fields an installation
+method does not consume (e.g. `image` for a script install) do not exist there, and
+section contents are validated at install/update time, so `start` may use an
+infrastructure-only config. See
 `cmd/e2ectl/README.md` and `cmd/internal/configschema/README.md`.
 
 Forward normalized parameter YAML to the executor, not a re-marshalled struct

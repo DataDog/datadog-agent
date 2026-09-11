@@ -106,7 +106,7 @@ func TestOptionalDriverValidate(t *testing.T) {
 }
 
 func TestPreparePreservesOriginalLocations(t *testing.T) {
-	cfg, errs := config.Parse([]byte("schema: 1\nenvironment:\n  kind:\n    nodes: -1\n  base: kind\nagent:\n  install: helm\n  version: '7.69.0'\n"))
+	cfg, errs := config.Parse([]byte("schema: 1\nenvironment:\n  kind:\n    nodes: -1\n  base: kind\nagent:\n  install: helm\n"))
 	if len(errs) != 0 {
 		t.Fatal(errs)
 	}

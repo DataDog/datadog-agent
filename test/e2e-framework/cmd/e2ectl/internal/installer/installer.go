@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// This product contains software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present, Datadog, Inc.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 // Package installer holds the SHARED agent installers, referenced by the
 // drivers, and the Installer/Updatable contracts the drivers advertise.
@@ -20,27 +20,54 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"regexp"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/e2ectl/internal/envstore"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/configschema"
+	helmconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/helm"
+	scriptconfig "github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/envconfig/script"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	scriptinstaller "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/host/installscript"
 	helminstaller "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/kubernetes/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioner"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/standalone"
+	"go.yaml.in/yaml/v3"
 )
 
 // Installer owns one agent installation method. The interfaces live here
 // (not in the driver package) so drivers implement them structurally without
-// importing the driver registry — no import cycle.
+// importing the driver registry — no import cycle. The agent section is
+// installer-typed, exactly like the environment section is driver-typed:
+// ID() is both the agent.install value and the agent section name, and the
+// installer's own schema validates and example-generates that section.
 type Installer interface {
-	// ID is the agent.install value.
+	// ID is the agent.install value; it is also the agent section name.
 	ID() string
-	// Validate checks the installer's own agent-section rules.
+	// AgentExample generates this installer's typed agent section for starter
+	// configs, from its own schema.
+	AgentExample() (*yaml.Node, error)
+	// Artifact reports the version and image requested by the decoded agent
+	// section, for bookkeeping (envstore meta). Zero values where absent.
+	Artifact(cfg *config.File) (version, image string, err error)
+	// Validate checks the installer's own agent-section rules: schema decode
+	// plus its semantic hook.
 	Validate(cfg *config.File) []error
 	// Install installs (or upgrades) the agent on the environment.
 	Install(cfg *config.File, entry envstore.Entry) error
+}
+
+// decodeAgentSection decodes the installer-owned agent section against its
+// schema, preserving the original file positions in errors. The section is
+// optional in the envelope; an absent section decodes as empty and the
+// schema's required/default rules then apply.
+func decodeAgentSection[A any](schema *configschema.Schema[A], cfg *config.File, id string) (A, error) {
+	path := "agent." + id
+	if cfg.Agent.SectionNode != nil {
+		value, _, err := schema.DecodeNode(cfg.Agent.SectionNode, path)
+		return value, err
+	}
+	value, _, err := schema.Decode(cfg.Agent.Section, path)
+	return value, err
 }
 
 // Updatable is the optional local-iteration capability: every environment
@@ -62,20 +89,31 @@ type Kubernetes struct {
 // ID implements driver.Installer.
 func (k *Kubernetes) ID() string { return "helm" }
 
-// Validate implements driver.Installer: the helm chart's own rules.
+// AgentExample implements driver.Installer: the helm section schema's example.
+func (k *Kubernetes) AgentExample() (*yaml.Node, error) { return helmconfig.Schema.Example(nil) }
+
+// Artifact implements driver.Installer.
+func (k *Kubernetes) Artifact(cfg *config.File) (string, string, error) {
+	section, err := decodeAgentSection(helmconfig.Schema, cfg, k.ID())
+	return section.Version, section.Image, err
+}
+
+// Validate implements driver.Installer: the helm section's own rules.
 func (k *Kubernetes) Validate(cfg *config.File) []error {
-	var errs []error
-	a := &cfg.Agent
-	if a.Version == "" && a.Image == "" {
-		errs = append(errs, fmt.Errorf("agent: either version or image is required when install is %q", k.ID()))
+	if _, err := decodeAgentSection(helmconfig.Schema, cfg, k.ID()); err != nil {
+		return []error{err}
 	}
-	return errs
+	return nil
 }
 
 // Install implements driver.Installer.
 func (k *Kubernetes) Install(cfg *config.File, entry envstore.Entry) error {
-	if k.DeliverImage != nil && cfg.Agent.Image != "" {
-		if err := k.DeliverImage(entry, cfg.Agent.Image); err != nil {
+	section, err := decodeAgentSection(helmconfig.Schema, cfg, k.ID())
+	if err != nil {
+		return err
+	}
+	if k.DeliverImage != nil && section.Image != "" {
+		if err := k.DeliverImage(entry, section.Image); err != nil {
 			return err
 		}
 	}
@@ -87,11 +125,11 @@ func (k *Kubernetes) Install(cfg *config.File, entry envstore.Entry) error {
 	values := map[string]interface{}{}
 	params := helminstaller.Params{Values: values}
 	params.Namespace = "datadog"
-	if cfg.Agent.Image != "" {
+	if section.Image != "" {
 		// In the upstream Datadog chart, agents.image.repository is the FULL
 		// image path including the registry (the chart's image-path helper
 		// renders repository:tag verbatim when repository is set).
-		repository, tag := splitImageRef(cfg.Agent.Image)
+		repository, tag := splitImageRef(section.Image)
 		values["agents"] = map[string]interface{}{
 			"image": map[string]interface{}{
 				"repository": repository,
@@ -102,8 +140,8 @@ func (k *Kubernetes) Install(cfg *config.File, entry envstore.Entry) error {
 		// cluster-agent keeps the public chart defaults.
 		params.ClusterAgentVersion = "latest"
 	} else {
-		params.AgentVersion = cfg.Agent.Version
-		params.ClusterAgentVersion = cfg.Agent.Version
+		params.AgentVersion = section.Version
+		params.ClusterAgentVersion = section.Version
 	}
 
 	if err := helminstaller.Install(nil, env, params); err != nil {
@@ -128,31 +166,38 @@ type HostScript struct{}
 // ID implements driver.Installer.
 func (h *HostScript) ID() string { return "script" }
 
-// Validate implements driver.Installer: the install script's own rules.
+// AgentExample implements driver.Installer: the script section schema's example.
+func (h *HostScript) AgentExample() (*yaml.Node, error) { return scriptconfig.Schema.Example(nil) }
+
+// Artifact implements driver.Installer. Host installs have no image field —
+// it does not exist in the script section.
+func (h *HostScript) Artifact(cfg *config.File) (string, string, error) {
+	section, err := decodeAgentSection(scriptconfig.Schema, cfg, h.ID())
+	return section.Version, "", err
+}
+
+// Validate implements driver.Installer: the script section's own rules.
 func (h *HostScript) Validate(cfg *config.File) []error {
-	var errs []error
-	a := &cfg.Agent
-	if a.Version == "" {
-		errs = append(errs, fmt.Errorf("agent.version: required when install is %q", h.ID()))
-	} else if !releasedVersionRegexp.MatchString(a.Version) {
-		errs = append(errs, fmt.Errorf("agent.version: %q is not a released agent version (expected e.g. \"7.69.0\")", a.Version))
+	if _, err := decodeAgentSection(scriptconfig.Schema, cfg, h.ID()); err != nil {
+		return []error{err}
 	}
-	if a.Image != "" {
-		errs = append(errs, fmt.Errorf("agent.image: not supported when install is %q", h.ID()))
-	}
-	return errs
+	return nil
 }
 
 // Install implements driver.Installer.
 func (h *HostScript) Install(cfg *config.File, entry envstore.Entry) error {
+	section, err := decodeAgentSection(scriptconfig.Schema, cfg, h.ID())
+	if err != nil {
+		return err
+	}
 	env, err := attach[environments.Host](entry)
 	if err != nil {
 		return err
 	}
 	if err := scriptinstaller.Install(nil, env, scriptinstaller.Params{
-		AgentVersion: cfg.Agent.Version,
-		AgentConfig:  cfg.Agent.Config,
-		Integrations: cfg.Agent.Integrations,
+		AgentVersion: section.Version,
+		AgentConfig:  section.Config,
+		Integrations: section.Integrations,
 	}); err != nil {
 		return err
 	}
@@ -208,8 +253,6 @@ func splitImageRef(ref string) (repository, tag string) {
 	}
 	return ref, ""
 }
-
-var releasedVersionRegexp = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 var (
 	_ Installer = (*Kubernetes)(nil)

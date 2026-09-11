@@ -8,10 +8,14 @@ go_library(
     deps = [
         "//test/e2e-framework/cmd/e2ectl/internal/config",
         "//test/e2e-framework/cmd/e2ectl/internal/envstore",
+        "//test/e2e-framework/cmd/internal/configschema",
+        "//test/e2e-framework/cmd/internal/envconfig/helm",
+        "//test/e2e-framework/cmd/internal/envconfig/script",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/installers/host/installscript",
         "//test/e2e-framework/testing/installers/kubernetes/helm",
         "//test/e2e-framework/testing/provisioner",
         "//test/e2e-framework/testing/standalone",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

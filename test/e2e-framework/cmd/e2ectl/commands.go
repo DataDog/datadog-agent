@@ -151,9 +151,13 @@ func cmdInstall(args []string) error {
 	if err := saveAppliedConfig(cfg, entry); err != nil {
 		return err
 	}
+	version, image, err := inst.Artifact(cfg)
+	if err != nil {
+		return err
+	}
 	entry.Meta.AgentInstalled = true
-	entry.Meta.AgentVersion = cfg.Agent.Version
-	entry.Meta.AgentImage = cfg.Agent.Image
+	entry.Meta.AgentVersion = version
+	entry.Meta.AgentImage = image
 	return store.UpdateMeta(entry)
 }
 
@@ -199,9 +203,15 @@ func cmdUpdate(args []string) error {
 		return config.NewErrors(errs)
 	}
 
-	if !*skipBuild {
-		fmt.Printf("building agent image %s (dda inv agent.hacky-dev-image-build)...\n", cfg.Agent.Image)
-		if err := buildAgentImage(cfg.Agent.Image); err != nil {
+	// Only an update that actually requests a local image builds one; a
+	// released-version update never invokes the dev image build.
+	_, requestedImage, err := inst.Artifact(cfg)
+	if err != nil {
+		return err
+	}
+	if !*skipBuild && requestedImage != "" {
+		fmt.Printf("building agent image %s (dda inv agent.hacky-dev-image-build)...\n", requestedImage)
+		if err := buildAgentImage(requestedImage); err != nil {
 			return err
 		}
 	}
@@ -212,8 +222,13 @@ func cmdUpdate(args []string) error {
 	if err := saveAppliedConfig(cfg, entry); err != nil {
 		return err
 	}
+	version, image, err := inst.Artifact(cfg)
+	if err != nil {
+		return err
+	}
 	entry.Meta.AgentInstalled = true
-	entry.Meta.AgentImage = cfg.Agent.Image
+	entry.Meta.AgentVersion = version
+	entry.Meta.AgentImage = image
 	return store.UpdateMeta(entry)
 }
 

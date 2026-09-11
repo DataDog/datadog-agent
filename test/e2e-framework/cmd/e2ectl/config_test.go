@@ -23,7 +23,7 @@ func TestCandidateValidationDoesNotReplaceStoredConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	candidate := filepath.Join(t.TempDir(), "candidate.yaml")
-	invalid := []byte("schema: 1\nenvironment:\n  base: kind\n  kind:\n    nodes: -1\nagent:\n  install: helm\n  version: '7.69.0'\n")
+	invalid := []byte("schema: 1\nenvironment:\n  base: kind\n  kind:\n    nodes: -1\nagent:\n  install: helm\n")
 	if err := os.WriteFile(candidate, invalid, 0o600); err != nil {
 		t.Fatal(err)
 	}

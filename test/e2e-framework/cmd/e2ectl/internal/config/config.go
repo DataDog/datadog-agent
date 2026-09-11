@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/cmd/internal/configschema"
@@ -42,28 +41,19 @@ type Environment struct {
 	SectionNode *yaml.Node // original positions for schema diagnostics
 }
 
-// Agent contains the existing common Agent fields. Examples are shared here,
-// rather than repeated in each environment template. Installer-specific semantic
-// rules are still checked by the selected installer.
+// Agent mirrors Environment: the installer selector plus the installer-owned
+// section, held as a node until the selected installer's schema consumes it.
+// There is deliberately no shared agent field bag: what an install consumes
+// (version, image, config, integrations) is defined by the installer's own
+// section schema, so fields irrelevant to an installation method cannot be
+// written at all.
 type Agent struct {
-	Install      string            `yaml:"install" config:"required" description:"Agent installation method selected for this environment."`
-	Version      string            `yaml:"version,omitempty" example:"7.69.0" description:"Released Agent version to test; for local images use image instead."`
-	Image        string            `yaml:"image,omitempty" description:"Existing local development image, with a semver-shaped tag."`
-	APIKey       string            `yaml:"api-key,omitempty" config:"secret"`
-	Config       string            `yaml:"config,omitempty" description:"Additional datadog.yaml configuration."`
-	Integrations map[string]string `yaml:"integrations,omitempty"`
+	Install     string
+	Section     []byte
+	SectionNode *yaml.Node // original positions for schema diagnostics
 }
 
-var agentSchema = configschema.Must[Agent]()
-
 func (f *File) FakeIntakeEnabled() bool { return f.Environment.Fixtures.FakeIntake }
-
-var (
-	versionRegexp      = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
-	integrationPattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]+\.d$`)
-	imageRefRegexp     = regexp.MustCompile(`^[a-zA-Z0-9.-]+(:[0-9]+)?/[a-zA-Z0-9/._-]+:[a-zA-Z0-9._-]+$`)
-	semverTagRegexp    = regexp.MustCompile(`^\d+\.\d+\.\d+(-[a-zA-Z0-9._-]+)?$`)
-)
 
 func Load(path string) (*File, error) {
 	data, err := os.ReadFile(path)
@@ -105,11 +95,8 @@ func Parse(data []byte) (*File, []error) {
 	if err := f.parseEnvironment(members["environment"]); err != nil {
 		errs = append(errs, err)
 	}
-	f.Agent, _, err = agentSchema.DecodeNode(members["agent"], "agent")
-	if err != nil {
+	if err := f.parseAgent(members["agent"]); err != nil {
 		errs = append(errs, err)
-	} else {
-		errs = append(errs, f.validateAgent()...)
 	}
 	if len(errs) != 0 {
 		return nil, errs
@@ -154,49 +141,57 @@ func (f *File) parseEnvironment(n *yaml.Node) error {
 	return err
 }
 
-func (f *File) validateAgent() []error {
-	var errs []error
-	a := &f.Agent
-	if a.Install == "" {
-		errs = append(errs, errf("agent.install", "missing"))
+// parseAgent mirrors parseEnvironment: the `install` selector plus exactly one
+// installer-owned section named by it. Section *contents* are validated later,
+// when the selected installer's schema consumes them — the same two-stage flow
+// as the environment section (base selects a driver, the driver validates).
+func (f *File) parseAgent(n *yaml.Node) error {
+	if n == nil {
+		return errf("agent.install", "missing")
 	}
-	if a.Version != "" && !versionRegexp.MatchString(a.Version) {
-		errs = append(errs, errf("agent.version", "%q is not a released agent version (expected e.g. \"7.69.0\")", a.Version))
+	members, err := configschema.Mapping(n, "agent")
+	if err != nil {
+		return err
 	}
-	if a.Image != "" {
-		if !imageRefRegexp.MatchString(a.Image) {
-			errs = append(errs, errf("agent.image", "expected a fully-qualified image reference with tag"))
-		} else if !semverTagRegexp.MatchString(a.Image[strings.LastIndex(a.Image, ":")+1:]) {
-			errs = append(errs, errf("agent.image", "tag is not semver-shaped (expected e.g. \"7.99.0-e2ectl\")"))
+	inst := members["install"]
+	if inst == nil || inst.Tag != "!!str" || inst.Value == "" {
+		return errf("agent.install", "expected a nonempty string")
+	}
+	f.Agent.Install = inst.Value
+	// Iterate original input order for diagnostics, independently of install's position.
+	for i := 0; i < len(n.Content); i += 2 {
+		key, value := n.Content[i], n.Content[i+1]
+		switch key.Value {
+		case "install":
+		case f.Agent.Install:
+			f.Agent.SectionNode = value
+			f.Agent.Section, err = configschema.Encode(value)
+			if err != nil {
+				return err
+			}
+		default:
+			return errf("agent."+key.Value, "unknown field (agent sections are installer-owned; set it under agent.%s)", f.Agent.Install)
 		}
 	}
-	if a.Config != "" {
-		var cfg map[string]any
-		if err := yaml.Unmarshal([]byte(a.Config), &cfg); err != nil {
-			errs = append(errs, errf("agent.config", "not valid YAML"))
-		}
-	}
-	for folder := range a.Integrations {
-		if !integrationPattern.MatchString(folder) {
-			errs = append(errs, errf("agent.integrations", "%q is not a valid conf.d folder name", folder))
-		}
-	}
-	return errs
+	return nil
 }
 
-// Example composes the generated environment schema with the shared fixture and
-// Agent schemas. Only envelope names/selectors are specified here, not provider
-// fields. Secret-store contents and live environment state are never consulted.
-func Example(base, description, install string, section *yaml.Node) ([]byte, error) {
+// Example composes the generated environment schema, the shared fixture schema
+// and the selected installer's agent section. Only envelope names/selectors are
+// specified here, not provider or installer fields. Secret-store contents and
+// live environment state are never consulted.
+func Example(base, description, install string, section, agentSection *yaml.Node) ([]byte, error) {
 	fixtureNode, err := fixtures.Schema.Example(nil)
 	if err != nil {
 		return nil, err
 	}
-	agent, err := agentSchema.Example(map[string]any{"install": install})
-	if err != nil {
-		return nil, err
-	}
 	str := func(v string) *yaml.Node { return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: v} }
+	installKey := str("install")
+	installKey.HeadComment = "Agent installation method selected for this environment."
+	agent := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{installKey, str(install)}}
+	if agentSection != nil {
+		agent.Content = append(agent.Content, str(install), agentSection)
+	}
 	env := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{str("base"), str(base)}}
 	env.Content = append(env.Content, fixtureNode.Content...)
 	env.Content = append(env.Content, str(base), section)

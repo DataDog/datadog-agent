@@ -20,7 +20,8 @@ environment:
     nodes: 1
 agent:
   install: helm
-  image: gcr.io/datadoghq/agent:7.99.0-e2ectl
+  helm:
+    image: gcr.io/datadoghq/agent:7.99.0-e2ectl
 `
 
 const validEC2 = `
@@ -33,7 +34,8 @@ environment:
     arch: amd64
 agent:
   install: script
-  version: "7.69.0"
+  script:
+    version: "7.69.0"
 `
 
 func TestParseValid(t *testing.T) {
@@ -48,6 +50,9 @@ func TestParseValid(t *testing.T) {
 			}
 			if name == "kind" && f.Environment.Section == nil {
 				t.Error("the kind section should be preserved raw for the driver")
+			}
+			if f.Agent.SectionNode == nil {
+				t.Error("the agent section should be preserved for the installer")
 			}
 		})
 	}
@@ -127,14 +132,74 @@ agent:
 	}
 }
 
-func TestParseGenericAgentRules(t *testing.T) {
-	bad := strings.Replace(validKind, "image: gcr.io/datadoghq/agent:7.99.0-e2ectl",
-		"image: gcr.io/datadoghq/agent:e2ectl-dev", 1)
-	_, errs := Parse([]byte(bad))
+func TestParseExtractsTheAgentSection(t *testing.T) {
+	f, errs := Parse([]byte(validEC2))
+	if len(errs) > 0 {
+		t.Fatalf("unexpected errors: %v", errs)
+	}
+	if f.Agent.Install != "script" {
+		t.Fatalf("agent selector mismatch: %q", f.Agent.Install)
+	}
+	var section map[string]any
+	if err := StrictDecode(f.Agent.Section, &section); err != nil {
+		t.Fatalf("agent section is not valid YAML: %v", err)
+	}
+	if section["version"] != "7.69.0" {
+		t.Errorf("agent section mismatch: %v", section)
+	}
+}
+
+func TestParseLegacyAgentFieldsAreRejectedWithGuidance(t *testing.T) {
+	// The pre-typed-section flat fields must fail with where to move them.
+	legacy := strings.Replace(validEC2, "agent:\n  install: script\n  script:\n    version: \"7.69.0\"",
+		"agent:\n  install: script\n  version: \"7.69.0\"", 1)
+	_, errs := Parse([]byte(legacy))
 	if len(errs) != 1 {
 		t.Fatalf("expected 1 error, got %v", errs)
 	}
-	if !strings.Contains(errs[0].Error(), "semver-shaped") {
-		t.Errorf("expected the semver-shaped tag rule, got: %v", errs[0])
+	if !strings.Contains(errs[0].Error(), "agent.version: unknown field") ||
+		!strings.Contains(errs[0].Error(), "set it under agent.script") {
+		t.Fatalf("expected an actionable unknown-field error, got: %v", errs[0])
+	}
+}
+
+func TestParseAgentSelectorRequired(t *testing.T) {
+	for name, raw := range map[string]string{
+		"missing agent": strings.Replace(validEC2, "agent:\n  install: script\n  script:\n    version: \"7.69.0\"\n", "", 1),
+		"empty agent":   strings.Replace(validEC2, "agent:\n  install: script\n  script:\n    version: \"7.69.0\"", "agent: {}", 1),
+		"blank install": strings.Replace(validEC2, "install: script\n  script:\n    version: \"7.69.0\"", "install: \"\"\n  script:\n    version: \"7.69.0\"", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, errs := Parse([]byte(raw))
+			found := false
+			for _, e := range errs {
+				if strings.Contains(e.Error(), "agent.install") {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("expected an agent.install-anchored error, got: %v", errs)
+			}
+		})
+	}
+}
+
+func TestParseAgentSectionOptional(t *testing.T) {
+	// An infrastructure-only config: the installer validates the (empty) section
+	// and its required/default rules at install time, mirroring the environment
+	// section's optionality at start time.
+	infraOnly := strings.Replace(validKind, "  helm:\n    image: gcr.io/datadoghq/agent:7.99.0-e2ectl\n", "", 1)
+	f, errs := Parse([]byte(infraOnly))
+	if len(errs) > 0 || f.Agent.Install != "helm" || f.Agent.SectionNode != nil {
+		t.Fatalf("agent section should be optional in the envelope: %v %v", f.Agent, errs)
+	}
+}
+
+func TestParseAgentSectionOrderIndependent(t *testing.T) {
+	reordered := strings.Replace(validEC2, "  install: script\n  script:\n    version: \"7.69.0\"",
+		"  script:\n    version: \"7.69.0\"\n  install: script", 1)
+	f, errs := Parse([]byte(reordered))
+	if len(errs) > 0 || f.Agent.Install != "script" || f.Agent.SectionNode == nil {
+		t.Fatalf("agent key order must not affect parsing: %v %v", f.Agent, errs)
 	}
 }

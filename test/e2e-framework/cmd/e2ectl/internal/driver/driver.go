@@ -138,16 +138,20 @@ func (d *typedDriver[P]) StarterConfig() ([]byte, error) {
 			return nil, fmt.Errorf("invalid %q example: %w", d.ID(), err)
 		}
 	}
-	data, err := config.Example(d.ID(), d.Description(), d.defaultInstaller, section)
+	inst, err := InstallerFor(d, d.defaultInstaller)
+	if err != nil {
+		return nil, err
+	}
+	agentSection, err := inst.AgentExample()
+	if err != nil {
+		return nil, fmt.Errorf("generating %q agent example: %w", d.ID(), err)
+	}
+	data, err := config.Example(d.ID(), d.Description(), d.defaultInstaller, section, agentSection)
 	if err != nil {
 		return nil, err
 	}
 	cfg, errs := config.Parse(data)
 	if err := config.NewErrors(errs); err != nil {
-		return nil, err
-	}
-	inst, err := InstallerFor(d, cfg.Agent.Install)
-	if err != nil {
 		return nil, err
 	}
 	if err := config.NewErrors(inst.Validate(cfg)); err != nil {
