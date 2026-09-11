@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Single Step Instrumentation can now be configured for particular workloads using a DatadogInstrumentation
+    custom resource, making it easier to onboard new services to APM.
