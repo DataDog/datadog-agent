@@ -400,6 +400,100 @@ func TestQueryMetadataReturnsIterationError(t *testing.T) {
 	require.ErrorIs(t, err, iterationErr)
 }
 
+func TestSnapshotChunking(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	c.config.Schemas.PayloadChunkSize = 2
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
+
+	for _, name := range []string{"T1", "T2", "T3", "T4", "T5"} {
+		collector.add(schemaRowDB{
+			ConID: 3, Owner: "APP", TableName: name, Temporary: "N", External: "NO",
+			IotType: "-", ClusterName: "-", Partitioned: "NO",
+			ColumnName: "C1", DataType: sql.NullString{String: "NUMBER", Valid: true},
+			Nullable: "Y",
+		})
+	}
+	collector.finish()
+
+	require.Len(t, payloads, 3, "5 tables at chunk size 2 must split into 3 payloads")
+
+	for i, p := range payloads {
+		assert.Equal(t, payloads[0].CollectionStartedAt, p.CollectionStartedAt,
+			"payload %d must carry the snapshot id", i)
+	}
+	assert.Zero(t, payloads[0].CollectionPayloadsCount, "only the last payload is terminating")
+	assert.Zero(t, payloads[1].CollectionPayloadsCount)
+	assert.Equal(t, 3, payloads[2].CollectionPayloadsCount,
+		"the terminating payload must declare how many payloads the snapshot has")
+}
+
+func TestSnapshotPerContainer(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	c.config.Schemas.PayloadChunkSize = 100
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
+
+	for _, conID := range []int64{1, 1, 3} {
+		collector.add(schemaRowDB{
+			ConID: conID, Owner: "APP", TableName: "T", Temporary: "N", External: "NO",
+			IotType: "-", ClusterName: "-", Partitioned: "NO",
+			ColumnName: "C1", DataType: sql.NullString{String: "NUMBER", Valid: true},
+			Nullable: "Y",
+		})
+	}
+	collector.finish()
+
+	require.Len(t, payloads, 2, "each container is its own snapshot")
+	assert.Equal(t, "1", payloads[0].Metadata[0].ID)
+	assert.Equal(t, "3", payloads[1].Metadata[0].ID)
+	for _, p := range payloads {
+		assert.Equal(t, 1, p.CollectionPayloadsCount, "each container terminates its own snapshot")
+	}
+
+	// Both containers share a clock tick; snapshot IDs must still be unique.
+	assert.NotEqual(t, payloads[0].CollectionStartedAt, payloads[1].CollectionStartedAt,
+		"containers must not share a snapshot identifier")
+}
+
+func TestEmitSchemaSnapshotEventsCombinesKindsPerContainer(t *testing.T) {
+	events := []schemaEvent{
+		{Kind: "oracle_databases", CollectionStartedAt: 100, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "1"}}},
+		{Kind: "oracle_databases", CollectionStartedAt: 200, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "3"}}},
+		{Kind: "oracle_views", CollectionStartedAt: 300, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "1"}}},
+		{Kind: "oracle_views", CollectionStartedAt: 400, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "3"}}},
+	}
+
+	var emitted []schemaEvent
+	require.NoError(t, emitSchemaSnapshotEvents(events, true, func(payload []byte) {
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		emitted = append(emitted, event)
+	}))
+
+	require.Len(t, emitted, 4)
+	assert.Equal(t, int64(100), emitted[0].CollectionStartedAt)
+	assert.Equal(t, int64(200), emitted[1].CollectionStartedAt)
+	assert.Equal(t, int64(100), emitted[2].CollectionStartedAt)
+	assert.Equal(t, int64(200), emitted[3].CollectionStartedAt)
+	assert.Zero(t, emitted[0].CollectionPayloadsCount)
+	assert.Zero(t, emitted[1].CollectionPayloadsCount)
+	assert.Equal(t, 2, emitted[2].CollectionPayloadsCount)
+	assert.Equal(t, 2, emitted[3].CollectionPayloadsCount)
+}
+
 func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -454,6 +548,9 @@ func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
 	assert.Equal(t, "oracle_databases", event.Kind)
 	assert.Equal(t, "oracle", event.Dbms)
+	assert.Equal(t, int64(1787000000000), event.CollectionStartedAt,
+		"the snapshot id is the collection start in epoch milliseconds")
+	assert.Equal(t, 1, event.CollectionPayloadsCount)
 	require.Len(t, event.Metadata, 1)
 	assert.Equal(t, "3", event.Metadata[0].ID)
 	require.Len(t, event.Metadata[0].Schemas, 1)
@@ -493,6 +590,45 @@ func TestContainerNamesUsePdbName(t *testing.T) {
 	assert.Equal(t, "free.FREEPDB1", payloads[1].Metadata[0].Name)
 	assert.Equal(t, "free.7", payloads[2].Metadata[0].Name, "unknown container falls back to con_id")
 }
+
+func TestSnapshotChunkingAtRealisticTableBoundary(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	c.config.Schemas.PayloadChunkSize = 2
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
+
+	for _, name := range []string{"T1", "T2", "T3"} {
+		for _, col := range []string{"C1", "C2", "C3"} {
+			collector.add(schemaRowDB{
+				ConID: 3, Owner: "APP", TableName: name, Temporary: "N", External: "NO",
+				IotType: "-", ClusterName: "-", Partitioned: "NO",
+				ColumnName: col, DataType: sql.NullString{String: "NUMBER", Valid: true},
+				Nullable: "Y",
+			})
+		}
+	}
+	collector.finish()
+
+	require.Len(t, payloads, 2, "3 tables at chunk size 2 must split into 2 payloads, not one per column row")
+
+	var seenTables []string
+	for _, p := range payloads {
+		for _, table := range p.Metadata[0].Schemas[0].Tables {
+			seenTables = append(seenTables, table.Name)
+			assert.Len(t, table.Columns, 3, "table %s must keep all 3 of its columns in one payload", table.Name)
+		}
+	}
+	assert.Equal(t, []string{"T1", "T2", "T3"}, seenTables, "no table must be split or dropped across the chunk boundary")
+	assert.Equal(t, 2, payloads[1].CollectionPayloadsCount)
+}
+
+// A partial snapshot has no completion marker, so scan errors must emit no payload.
 
 func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
@@ -726,6 +862,49 @@ func TestFetchMetadataRowsDropsRowsNotInOwners(t *testing.T) {
 
 	require.Len(t, rows, 1, "the row for an owner absent from the owners map must be dropped")
 	assert.Equal(t, "ORDERS", rows[0].TableName)
+}
+
+func TestEmptyContainerStillEmitsTerminatingPayload(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	c.config.Schemas.PayloadChunkSize = 100
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{5: "EMPTY_PDB"})
+
+	collector.emitEmptyContainers(map[int64]string{5: "EMPTY_PDB"})
+
+	require.Len(t, payloads, 1)
+	assert.Equal(t, "5", payloads[0].Metadata[0].ID)
+	assert.Empty(t, payloads[0].Metadata[0].Schemas)
+	assert.Equal(t, 1, payloads[0].CollectionPayloadsCount, "an empty container's payload must still be marked complete")
+}
+
+func TestEmptyContainerSkippedIfAlreadyStarted(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	c.config.Schemas.PayloadChunkSize = 100
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{3: "APP_PDB"})
+
+	collector.add(schemaRowDB{
+		ConID: 3, Owner: "APP", TableName: "T", Temporary: "N", External: "NO",
+		IotType: "-", ClusterName: "-", Partitioned: "NO",
+		ColumnName: "C1", DataType: sql.NullString{String: "NUMBER", Valid: true}, Nullable: "Y",
+	})
+	collector.finish()
+	collector.emitEmptyContainers(map[int64]string{3: "APP_PDB"})
+
+	require.Len(t, payloads, 1, "a container that already produced a payload must not get a second, empty one")
 }
 
 func TestPassesFilterExcludeWinsOverInclude(t *testing.T) {
