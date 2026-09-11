@@ -254,7 +254,7 @@ require (
 	github.com/containerd/containerd/v2 v2.2.8
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.3.0
-	github.com/containernetworking/cni v1.3.0
+	github.com/containernetworking/cni v1.3.1
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/creack/pty v1.1.24

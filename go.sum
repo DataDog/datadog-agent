@@ -3001,6 +3001,8 @@ github.com/containerd/typeurl/v2 v2.3.0 h1:HZHPhRWo5XMy3QGQoPrUzbW/2ckwjfweHmOwl
 github.com/containerd/typeurl/v2 v2.3.0/go.mod h1:Qk+PAdUYArVj41TnGi6rJ+48RF0PkcTc4i/taoBcK0w=
 github.com/containernetworking/cni v1.3.0 h1:v6EpN8RznAZj9765HhXQrtXgX+ECGebEYEmnuFjskwo=
 github.com/containernetworking/cni v1.3.0/go.mod h1:Bs8glZjjFfGPHMw6hQu82RUgEPNGEaBb9KS5KtNMnJ4=
+github.com/containernetworking/cni v1.3.1 h1:gnHlU/YC1bJcS+CSh+pYQKeuu4O4gsMGW1NMaLhkzW4=
+github.com/containernetworking/cni v1.3.1/go.mod h1:OtVXL0yXMfQb+p93OC/vRuhjpxsO1gAV0smjt28UQUQ=
 github.com/containernetworking/plugins v1.9.1 h1:8oU6WsIsU3bpnNZuvHp74a6cE1MJwbj2P7s4/yTUNlA=
 github.com/containernetworking/plugins v1.9.1/go.mod h1:fj7kS55qg3o/RgS+WGsF3+ZxwIImMPusQZKzBpcSr4c=
 github.com/coreos/etcd v3.3.27+incompatible h1:QIudLb9KeBsE5zyYxd1mjzRSkzLg9Wf9QlRwFgd6oTA=
