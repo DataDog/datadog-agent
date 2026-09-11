@@ -101,7 +101,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
 	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store, tagger))
-	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store))
+	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, filterStore, tagger, telemetry))
 	corecheckLoader.RegisterCheck(agentprofiling.CheckName, agentprofiling.Factory(flare, cfg))
 
