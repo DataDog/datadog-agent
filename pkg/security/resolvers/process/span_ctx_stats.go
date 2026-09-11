@@ -10,6 +10,7 @@ package process
 import (
 	"errors"
 	"fmt"
+	"io"
 	"syscall"
 
 	"go.uber.org/atomic"
@@ -43,7 +44,9 @@ type spanCtxStatus int
 
 const (
 	spanCtxOK spanCtxStatus = iota
-	// spanCtxNotApplicable: instrumented, but not through this reader
+	// spanCtxNotApplicable: instrumented, but not through this reader -- a
+	// different mechanism, or a shape (e.g. OTEP 4719's v1 header) this
+	// reader was never meant to support.
 	spanCtxNotApplicable
 	// spanCtxUnsupported: a shape we know and can't handle
 	spanCtxUnsupported
@@ -126,7 +129,7 @@ func classifySpanCtxError(err error) spanCtxStatus {
 	switch {
 	case err == nil:
 		return spanCtxOK
-	case errors.Is(err, errSpanCtxNotApplicable):
+	case errors.Is(err, errSpanCtxNotApplicable), errors.Is(err, otelprocessctx.ErrLegacyVersion):
 		return spanCtxNotApplicable
 	case errors.Is(err, errSpanCtxUnsupported):
 		return spanCtxUnsupported
