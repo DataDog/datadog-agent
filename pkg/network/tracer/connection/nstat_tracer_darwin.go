@@ -131,6 +131,7 @@ type nstatSource struct {
 	directionEvidence        darwinDirectionEvidence
 	listenerKey              darwinTCPListenerKey
 	listenerIndexed          bool
+	packetEnriched           bool
 }
 
 type nstatTracer struct {
@@ -763,6 +764,8 @@ func (t *nstatTracer) newConnection(sourceRef uint64, source *nstatSource) *netw
 	}
 	if nstat.IsTCPProvider(source.provider) {
 		conn.Type = network.TCP
+		// TCP error fields start unknown until a unique pcap match.
+		conn.AddTag(network.ConnTagTCPErrorsIncomplete)
 	}
 	conn.Family = nstatFlowFamily(flow)
 	t.cookieHasher.Hash(conn)
@@ -805,6 +808,10 @@ func (t *nstatTracer) applySource(source *nstatSource) {
 	conn.RTTVar = scaledMicroseconds(counts.RTTVariance, nstatTCPRTTVarianceScale)
 	if source.tcpEstablishedAfterStart {
 		conn.Monotonic.TCPEstablished = 1
+	}
+	if !source.packetEnriched {
+		conn.AddTag(network.ConnTagTCPErrorsIncomplete)
+		conn.SetNStatTXRetransmittedBytesHint(counts.TXRetransmittedBytes)
 	}
 	if !source.closed && flow.TCPState == tcpStateClosed &&
 		source.connectAttempts > 0 && source.connectSuccesses == 0 {
@@ -1029,6 +1036,7 @@ func (t *nstatTracer) enrichTCPPacket(
 		return currentMatch
 	}
 	conn := source.conn
+	t.markPacketEnriched(source)
 	if analysis.direction != network.UNKNOWN {
 		t.setSourceDirection(source, analysis.direction, directionEvidencePacket)
 		t.reconcileSourceDirection(source)
@@ -1046,6 +1054,15 @@ func (t *nstatTracer) enrichTCPPacket(
 	conn.TLSTags.MergeWith(analysis.tlsTags)
 	t.mu.Unlock()
 	return currentMatch
+}
+
+func (t *nstatTracer) markPacketEnriched(source *nstatSource) {
+	source.packetEnriched = true
+	if source.conn == nil {
+		return
+	}
+	source.conn.RemoveTag(network.ConnTagTCPErrorsIncomplete)
+	source.conn.SetNStatTXRetransmittedBytesHint(0)
 }
 
 func (t *nstatTracer) closeAndRemoveSource(sourceRef uint64, source *nstatSource) *network.ConnectionStats {
@@ -1162,6 +1179,17 @@ func (t *nstatTracer) DumpMaps(_ io.Writer, _ ...string) error {
 }
 
 func (t *nstatTracer) Type() TracerType { return TracerTypeNStat }
+
+func (t *nstatTracer) darwinStatus() DarwinTracerStatus {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	status := nstatStatus()
+	status.SourceHealthy = t.runtimeErr == nil && !t.stopped
+	if t.runtimeErr != nil {
+		status.LastError = boundedDarwinStatusError(t.runtimeErr)
+	}
+	return status
+}
 
 func (t *nstatTracer) Pause() error  { return errors.New("not implemented") }
 func (t *nstatTracer) Resume() error { return errors.New("not implemented") }

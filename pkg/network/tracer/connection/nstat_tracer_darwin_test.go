@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
@@ -82,6 +83,11 @@ func TestNStatTracerTCPActiveAndFinalLifecycle(t *testing.T) {
 	require.Equal(t, network.OUTGOING, active[0].Direction)
 	require.Equal(t, directionEvidenceTCPState, tracer.sources[7].directionEvidence)
 	require.False(t, active[0].IsClosed)
+	require.True(t, active[0].HasTCPErrorsIncomplete())
+	hint, ok := active[0].NStatTXRetransmittedBytesHint()
+	require.True(t, ok)
+	require.Equal(t, uint32(17), hint)
+	require.Zero(t, active[0].Monotonic.Retransmits)
 
 	now = now.Add(3 * time.Second)
 	tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: 7})
@@ -383,6 +389,87 @@ func TestNStatTracerClosesFailedAttemptWithoutOverwritingFailure(t *testing.T) {
 	require.Equal(t, map[uint16]uint32{network.TCPFailureErrnoConnRefused: 1}, closed.TCPFailures)
 }
 
+func TestNStatTracerMarksTCPErrorsIncompleteUntilUniquePacketMatch(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 21,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(4242, tcpStateEstablished),
+		Counts: &nstat.Counts{
+			TXRetransmittedBytes: 9,
+		},
+	})
+
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 1)
+	require.True(t, buffer.Connections()[0].HasTCPErrorsIncomplete())
+	require.Zero(t, buffer.Connections()[0].Monotonic.Retransmits)
+	require.Empty(t, buffer.Connections()[0].TCPFailures)
+	hint, ok := buffer.Connections()[0].NStatTXRetransmittedBytesHint()
+	require.True(t, ok)
+	require.Equal(t, uint32(9), hint)
+
+	analyzer := newDarwinPacketAnalyzer(8)
+	match := tracer.enrichTCPPacket(
+		tracer.sources[21].conn.ConnectionTuple,
+		true,
+		false,
+		&layers.TCP{Seq: 1, SYN: true, ACK: true},
+		analyzer,
+	)
+	require.True(t, match.matched)
+	require.False(t, match.ambiguous)
+	require.True(t, tracer.sources[21].packetEnriched)
+
+	buffer.Reset()
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.False(t, buffer.Connections()[0].HasTCPErrorsIncomplete())
+	_, hasHint := buffer.Connections()[0].NStatTXRetransmittedBytesHint()
+	require.False(t, hasHint)
+	require.Zero(t, buffer.Connections()[0].Monotonic.Retransmits)
+}
+
+func TestNStatTracerKeepsIncompleteTagWhenPacketMatchIsAmbiguous(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	first := testNStatTCPFlow(1111, tcpStateEstablished)
+	second := testNStatTCPFlow(2222, tcpStateEstablished)
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 41,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      first,
+	})
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 42,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      second,
+	})
+
+	match := tracer.enrichTCPPacket(
+		tracer.sources[41].conn.ConnectionTuple,
+		true,
+		false,
+		&layers.TCP{Seq: 1, RST: true, ACK: true},
+		newDarwinPacketAnalyzer(8),
+	)
+	require.True(t, match.ambiguous)
+	require.False(t, match.matched)
+	require.False(t, tracer.sources[41].packetEnriched)
+	require.False(t, tracer.sources[42].packetEnriched)
+
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 2)
+	for _, conn := range buffer.Connections() {
+		require.True(t, conn.HasTCPErrorsIncomplete())
+		require.Zero(t, conn.Monotonic.Retransmits)
+		require.Empty(t, conn.TCPFailures)
+	}
+}
+
 func TestNStatTracerDeliversLateDescriptionAfterRemoval(t *testing.T) {
 	control := newFakeNStatControl()
 	tracer := newNStatTracerWithControl(testNStatConfig(), control)
@@ -412,6 +499,7 @@ func TestNStatTracerDeliversLateDescriptionAfterRemoval(t *testing.T) {
 	require.Equal(t, uint32(3456), closed.Pid)
 	require.True(t, closed.IsClosed)
 	require.Zero(t, closed.Monotonic.TCPClosed)
+	require.False(t, closed.HasTCPErrorsIncomplete())
 }
 
 func TestNStatTracerSeparatesReusedSourceReference(t *testing.T) {

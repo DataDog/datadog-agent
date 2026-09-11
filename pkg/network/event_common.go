@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 	"unique"
@@ -34,6 +35,16 @@ const (
 
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
 	ConnectionByteKeyMaxLen = 41
+
+	// ConnTagTCPErrorsIncomplete marks an NStat-owned TCP row whose
+	// Retransmits and TCPFailures were not uniquely backed by packet capture.
+	// Downstream must not treat those fields as "no errors".
+	ConnTagTCPErrorsIncomplete = "tcp_errors_incomplete"
+
+	// ConnTagNStatTXRetransmittedBytesPrefix prefixes a best-effort NStat
+	// retransmit-byte hint. It is published only while a row is incomplete
+	// and must not overwrite packet-derived Retransmits.
+	ConnTagNStatTXRetransmittedBytesPrefix = "nstat_tx_retransmitted_bytes:"
 )
 
 // ConnectionType will be either TCP or UDP
@@ -356,6 +367,109 @@ func (c ConnectionStats) IsEmpty() bool {
 // HasCertInfo returns whether the connection has a TLS cert associated
 func (c ConnectionStats) HasCertInfo() bool {
 	return c.CertInfo != unique.Handle[CertInfo]{}
+}
+
+// HasTag reports whether name is present on the connection tag list.
+func (c ConnectionStats) HasTag(name string) bool {
+	tag := intern.GetByString(name)
+	for _, existing := range c.Tags {
+		if existing == tag {
+			return true
+		}
+	}
+	return false
+}
+
+// HasTCPErrorsIncomplete reports whether TCP error fields are unknown
+// because packet capture did not uniquely back this NStat row.
+func (c ConnectionStats) HasTCPErrorsIncomplete() bool {
+	return c.HasTag(ConnTagTCPErrorsIncomplete)
+}
+
+// AddTag appends name when it is not already present.
+func (c *ConnectionStats) AddTag(name string) {
+	if c == nil || c.HasTag(name) {
+		return
+	}
+	c.Tags = append(c.Tags, intern.GetByString(name))
+}
+
+// RemoveTag deletes every exact match of name.
+func (c *ConnectionStats) RemoveTag(name string) {
+	if c == nil || len(c.Tags) == 0 {
+		return
+	}
+	tag := intern.GetByString(name)
+	filtered := c.Tags[:0]
+	for _, existing := range c.Tags {
+		if existing != tag {
+			filtered = append(filtered, existing)
+		}
+	}
+	if len(filtered) == 0 {
+		c.Tags = nil
+		return
+	}
+	c.Tags = filtered
+}
+
+// SetNStatTXRetransmittedBytesHint records kernel retransmit bytes while
+// packet error fields are incomplete. A zero count removes the hint.
+func (c *ConnectionStats) SetNStatTXRetransmittedBytesHint(bytes uint32) {
+	if c == nil {
+		return
+	}
+	c.removeTagPrefix(ConnTagNStatTXRetransmittedBytesPrefix)
+	if bytes == 0 {
+		return
+	}
+	c.Tags = append(c.Tags, intern.GetByString(ConnTagNStatTXRetransmittedBytesPrefix+strconv.FormatUint(uint64(bytes), 10)))
+}
+
+// NStatTXRetransmittedBytesHint returns the NStat retransmit-byte hint.
+func (c ConnectionStats) NStatTXRetransmittedBytesHint() (uint32, bool) {
+	for _, existing := range c.Tags {
+		if existing == nil {
+			continue
+		}
+		name, ok := existing.Get().(string)
+		if !ok || !strings.HasPrefix(name, ConnTagNStatTXRetransmittedBytesPrefix) {
+			continue
+		}
+		parsed, err := strconv.ParseUint(strings.TrimPrefix(name, ConnTagNStatTXRetransmittedBytesPrefix), 10, 32)
+		if err != nil {
+			return 0, false
+		}
+		return uint32(parsed), true
+	}
+	return 0, false
+}
+
+func (c *ConnectionStats) removeTagPrefix(prefix string) {
+	if c == nil || len(c.Tags) == 0 {
+		return
+	}
+	filtered := c.Tags[:0]
+	for _, existing := range c.Tags {
+		name, ok := internTagString(existing)
+		if ok && strings.HasPrefix(name, prefix) {
+			continue
+		}
+		filtered = append(filtered, existing)
+	}
+	if len(filtered) == 0 {
+		c.Tags = nil
+		return
+	}
+	c.Tags = filtered
+}
+
+func internTagString(value *intern.Value) (string, bool) {
+	if value == nil {
+		return "", false
+	}
+	name, ok := value.Get().(string)
+	return name, ok
 }
 
 // ByteKey returns a unique key for this connection represented as a byte slice

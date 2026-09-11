@@ -62,6 +62,10 @@ func TestDarwinPacketSidecarEnrichesWithoutOwningCountersOrLifecycle(t *testing.
 	require.Equal(t, uint32(1), conn.TCPFailures[network.TCPFailureErrnoConnReset])
 	require.False(t, conn.IsClosed)
 	require.Zero(t, conn.Monotonic.TCPClosed)
+	require.False(t, conn.HasTCPErrorsIncomplete())
+	_, hasHint := conn.NStatTXRetransmittedBytesHint()
+	require.False(t, hasHint)
+	require.True(t, primary.sources[1].packetEnriched)
 
 	conn.TCPFailures[network.TCPFailureErrnoConnReset] = 99
 	buffer.Reset()

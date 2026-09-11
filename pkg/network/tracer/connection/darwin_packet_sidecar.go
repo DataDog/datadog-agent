@@ -40,6 +40,21 @@ var darwinPacketSidecarTelemetry = struct {
 	runtimeErrors: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__darwin_packet", "runtime_errors", nil, "Packet sidecar runtime failures"),
 }
 
+var darwinPacketMatchRate = telemetryimpl.GetCompatComponent().NewGauge(
+	"network_tracer__darwin_packet",
+	"match_rate",
+	nil,
+	"Fraction of inspected TCP packets uniquely matched to an NStat source",
+)
+
+type darwinPacketSidecarStats struct {
+	packets      int64
+	unmatched    int64
+	ambiguous    int64
+	decodeErrors int64
+	stopped      bool
+}
+
 type darwinPacketSidecar struct {
 	source   filter.PacketSource
 	primary  *nstatTracer
@@ -49,6 +64,9 @@ type darwinPacketSidecar struct {
 	startOnce sync.Once
 	stopOnce  sync.Once
 	wg        sync.WaitGroup
+
+	statsMu sync.Mutex
+	stats   darwinPacketSidecarStats
 }
 
 func newDarwinPacketSidecar(source filter.PacketSource, primary *nstatTracer, maxFlows int) *darwinPacketSidecar {
@@ -66,7 +84,8 @@ func (s *darwinPacketSidecar) start() {
 			defer s.wg.Done()
 			if err := s.visitPackets(); err != nil {
 				darwinPacketSidecarTelemetry.runtimeErrors.Inc()
-				log.Warnf("Darwin packet enrichment stopped: %v", err)
+				s.markStopped()
+				log.Warnf("notable: darwin_packet_enrichment stopped: %v", err)
 				if s.onFailure != nil {
 					s.onFailure(err)
 				}
@@ -90,12 +109,14 @@ func (s *darwinPacketSidecar) visitPackets() error {
 
 	return s.source.VisitPackets(func(data []byte, info filter.PacketInfo, _ time.Time) error {
 		darwinPacketSidecarTelemetry.packets.Inc()
+		s.recordPacket()
 		parser := ethernetParser
 		if info.LinkLayerType() == layers.LayerTypeLoopback {
 			parser = loopbackParser
 		}
 		if err := parser.DecodeLayers(data, &decoded); err != nil {
 			darwinPacketSidecarTelemetry.decodeErrors.Inc()
+			s.recordDecodeError()
 			return nil
 		}
 		pktType := info.PacketType()
@@ -120,11 +141,54 @@ func (s *darwinPacketSidecar) visitPackets() error {
 		switch {
 		case match.ambiguous:
 			darwinPacketSidecarTelemetry.ambiguous.Inc()
+			s.recordAmbiguous()
 		case !match.matched:
 			darwinPacketSidecarTelemetry.unmatched.Inc()
+			s.recordUnmatched()
 		}
+		s.publishMatchRate()
 		return nil
 	})
+}
+
+func (s *darwinPacketSidecar) snapshot() darwinPacketSidecarStats {
+	s.statsMu.Lock()
+	defer s.statsMu.Unlock()
+	return s.stats
+}
+
+func (s *darwinPacketSidecar) markStopped() {
+	s.statsMu.Lock()
+	s.stats.stopped = true
+	s.statsMu.Unlock()
+}
+
+func (s *darwinPacketSidecar) recordPacket() {
+	s.statsMu.Lock()
+	s.stats.packets++
+	s.statsMu.Unlock()
+}
+
+func (s *darwinPacketSidecar) recordDecodeError() {
+	s.statsMu.Lock()
+	s.stats.decodeErrors++
+	s.statsMu.Unlock()
+}
+
+func (s *darwinPacketSidecar) recordAmbiguous() {
+	s.statsMu.Lock()
+	s.stats.ambiguous++
+	s.statsMu.Unlock()
+}
+
+func (s *darwinPacketSidecar) recordUnmatched() {
+	s.statsMu.Lock()
+	s.stats.unmatched++
+	s.statsMu.Unlock()
+}
+
+func (s *darwinPacketSidecar) publishMatchRate() {
+	darwinPacketMatchRate.Set(packetMatchRate(s.snapshot()))
 }
 
 func (s *darwinPacketSidecar) remove(cookie uint64) {
@@ -141,7 +205,6 @@ func (s *darwinPacketSidecar) stop() {
 	s.wg.Wait()
 }
 
-//nolint:unused // Runtime failure wiring is introduced in the integration commit.
 func (s *darwinPacketSidecar) setFailureCallback(callback func(error)) {
 	s.onFailure = callback
 }

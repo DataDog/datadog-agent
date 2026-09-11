@@ -31,6 +31,12 @@ type darwinCompositeTracer struct {
 	packet     *darwinPacketSidecar
 	reconciler *darwinLibprocReconciler
 
+	packetRequested     bool
+	reconcilerRequested bool
+	packetError         error
+	reconcilerError     error
+	lastPacketStatus    string
+
 	mu                     sync.Mutex
 	started                bool
 	stopped                bool
@@ -48,13 +54,16 @@ func newDarwinCompositeTracer(cfg *config.Config) (*darwinCompositeTracer, error
 		return nil, err
 	}
 	composite := newDarwinCompositeTracerWithComponents(primary, nil, nil)
+	composite.packetRequested = true
+	composite.reconcilerRequested = true
 
 	packetSource, packetErr := filter.NewLibpcapSource(
 		filter.OptSnapLen(darwinPrefixLimit),
 		filter.OptBPFFilter("tcp"),
 	)
 	if packetErr != nil {
-		log.Warnf("Darwin NStat packet enrichment unavailable: %v", packetErr)
+		composite.packetError = packetErr
+		log.Warnf("notable: darwin_packet_enrichment disabled: %v", packetErr)
 	} else {
 		packetFanout := filter.NewPacketSourceFanout(packetSource)
 		composite.packet = newDarwinPacketSidecar(packetFanout, primary, int(cfg.MaxTrackedConnections))
@@ -81,6 +90,13 @@ func newDarwinCompositeTracerWithComponents(
 	}
 	if primary != nil {
 		primary.setRuntimeFailureCallback(composite.handlePrimaryFailure)
+	}
+	if packet != nil {
+		composite.packetRequested = true
+		packet.setFailureCallback(composite.handlePacketFailure)
+	}
+	if reconciler != nil {
+		composite.reconcilerRequested = true
 	}
 	return composite
 }
@@ -165,6 +181,13 @@ func (t *darwinCompositeTracer) handlePrimaryFailure(err error) {
 	}
 }
 
+func (t *darwinCompositeTracer) handlePacketFailure(err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.packetError = err
+	t.publishPacketStatusLocked()
+}
+
 func (t *darwinCompositeTracer) setRuntimeFailureCallback(callback func(error)) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -197,6 +220,53 @@ func (t *darwinCompositeTracer) DumpMaps(writer io.Writer, maps ...string) error
 
 func (t *darwinCompositeTracer) Type() TracerType {
 	return TracerTypeNStat
+}
+
+func (t *darwinCompositeTracer) darwinStatus() DarwinTracerStatus {
+	status := nstatStatus()
+	if t.primary != nil {
+		status = t.primary.darwinStatus()
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	stats := darwinPacketSidecarStats{}
+	if t.packet != nil {
+		stats = t.packet.snapshot()
+	}
+	status.PacketEnrichment = darwinPacketEnrichmentStatus(t.packetRequested, t.packet != nil, t.packetError, stats)
+	status.LibprocReconciler = darwinSidecarStatus(t.reconcilerRequested, t.reconciler != nil, t.reconcilerError)
+	if status.PacketEnrichment == darwinSidecarHealthy || status.PacketEnrichment == darwinSidecarDegraded {
+		status.PacketMatchRate = packetMatchRate(stats)
+	}
+	if status.LastError == "" {
+		if t.packetError != nil {
+			status.LastError = boundedDarwinStatusError(t.packetError)
+		} else if t.reconcilerError != nil {
+			status.LastError = boundedDarwinStatusError(t.reconcilerError)
+		}
+	}
+	t.notePacketStatusLocked(status.PacketEnrichment)
+	return status
+}
+
+func (t *darwinCompositeTracer) publishPacketStatusLocked() {
+	stats := darwinPacketSidecarStats{}
+	if t.packet != nil {
+		stats = t.packet.snapshot()
+	}
+	status := darwinPacketEnrichmentStatus(t.packetRequested, t.packet != nil, t.packetError, stats)
+	t.notePacketStatusLocked(status)
+}
+
+func (t *darwinCompositeTracer) notePacketStatusLocked(status string) {
+	if status == "" || status == t.lastPacketStatus {
+		return
+	}
+	t.lastPacketStatus = status
+	switch status {
+	case darwinSidecarDisabled, darwinSidecarStopped, darwinSidecarDegraded:
+		log.Warnf("notable: darwin_packet_enrichment %s", status)
+	}
 }
 
 func (t *darwinCompositeTracer) Pause() error {
