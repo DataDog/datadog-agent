@@ -87,6 +87,11 @@ int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
         return 0;
     }
 
+    // Skip opens the filesystem performs on its own private mounts
+    if (is_internal_mount(get_path_vfsmount(path))) {
+        return 0;
+    }
+
     struct path_key_t path_key = get_dentry_key_path(dentry, path);
     if (path_key.ino == 0) {
         return 0;

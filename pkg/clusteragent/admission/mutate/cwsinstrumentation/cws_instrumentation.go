@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -30,7 +31,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/kubectl/pkg/cmd/util/podcmd"
-	"k8s.io/utils/strings/slices"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/config"

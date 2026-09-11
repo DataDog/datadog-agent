@@ -7,7 +7,6 @@ package testsuite
 
 import (
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"strings"
@@ -150,14 +149,14 @@ proxy:
 }
 
 func buildProxy(proxyt, proxys *bool) *httptest.Server {
-	director := func(req *http.Request) {
-		if strings.HasSuffix(req.URL.Path, "/traces") {
+	rewrite := func(pr *httputil.ProxyRequest) {
+		if strings.HasSuffix(pr.In.URL.Path, "/traces") {
 			*proxyt = true
 		}
-		if strings.HasSuffix(req.URL.Path, "/stats") {
+		if strings.HasSuffix(pr.In.URL.Path, "/stats") {
 			*proxys = true
 		}
 	}
-	proxy := httptest.NewServer(&httputil.ReverseProxy{Director: director})
+	proxy := httptest.NewServer(&httputil.ReverseProxy{Rewrite: rewrite})
 	return proxy
 }

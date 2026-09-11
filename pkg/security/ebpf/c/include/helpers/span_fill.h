@@ -3,6 +3,8 @@
 
 #include "maps.h"
 
+#include "span_ctx_event.h"
+
 // --- Deferred span-context fill + send (tail-called) ---
 
 // span_fill_prepare stashes the slot header for the deferred fill+send tail call.
@@ -10,6 +12,7 @@ static void *__attribute__((always_inline)) span_fill_prepare(u64 event_type, u3
     u32 zero = 0;
     struct span_fill_slot_t *slot = bpf_map_lookup_elem(&span_fill_event, &zero);
     if (!slot) {
+        monitor_span_ctx_event(SPAN_CTX_EVENT_READER_FILL, SPAN_CTX_EVENT_MAP_ERROR);
         return NULL;
     }
     slot->event_type = event_type;

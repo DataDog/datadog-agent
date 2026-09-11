@@ -189,6 +189,23 @@ u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
     return inum;
 }
 
+static void * __attribute__((always_inline)) get_vfsmount_mount(struct vfsmount *mnt) {
+    return (void *)((char *)mnt - MNT_OFFSETOF_MNT);
+}
+
+// MNT_NS_INTERNAL, from fs/mount.h: the sentinel the kernel stores in mount.mnt_ns for mounts
+// that belong to no mount namespace at all.
+#define MNT_NS_INTERNAL_PTR ((void *)(long)-EINVAL)
+
+// is_internal_mount returns whether the mount is one the kernel keeps to itself.
+static int __attribute__((always_inline)) is_internal_mount(struct vfsmount *mnt) {
+    void *mnt_ns = NULL;
+
+    // on a failed read mnt_ns stays NULL and we report "not internal"
+    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), (char *)get_vfsmount_mount(mnt) + get_mount_offset_of_mount_ns());
+    return mnt_ns == MNT_NS_INTERNAL_PTR;
+}
+
 struct mount * __attribute__((always_inline)) get_mount_parent(void *mnt) {
     struct mount *mnt_parent = NULL;
 

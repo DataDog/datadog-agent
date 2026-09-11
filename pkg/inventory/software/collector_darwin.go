@@ -60,6 +60,7 @@ const plutilConvertTimeout = 10 * time.Second
 // - System extensions
 // - Homebrew packages
 // - MacPorts packages
+// - The running operating system
 func defaultCollectors() []Collector {
 	return []Collector{
 		&applicationsCollector{},
@@ -68,6 +69,7 @@ func defaultCollectors() []Collector {
 		&systemExtensionsCollector{},
 		&homebrewCollector{},
 		&macPortsCollector{},
+		&osCollector{},
 	}
 }
 

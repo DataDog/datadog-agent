@@ -12,7 +12,13 @@ package software
 import (
 	"errors"
 	"fmt"
+	"sync"
+	"time"
 )
+
+// defaultCollectorTimeout bounds how long a single collector may run before the
+// snapshot gives up on it.
+const defaultCollectorTimeout = 30 * time.Second
 
 // Collector defines the interface for collecting software entries
 // from a specific source or location on the system. Different collectors
@@ -47,9 +53,9 @@ func warnf(format string, args ...interface{}) *Warning {
 // and system-specific information.
 type Entry struct {
 	// Source indicates the type or source of the software installation
-	// (e.g., Windows: "desktop", "msstore", "msu"; MacOS: "app", "pkg",
-	// "homebrew", "mas", "kext", "sysext"). This field helps categorize
-	// software by its installation method or distribution channel.
+	// (e.g., Windows: "desktop", "msstore", "os", "driver"; MacOS: "app",
+	// "pkg", "homebrew", "mas", "kext", "sysext", "os"). This field helps
+	// categorize software by its installation method or distribution channel.
 	// Placed first for easy identification when scanning JSON output.
 	Source string `json:"software_type"`
 
@@ -180,15 +186,78 @@ func (se *Entry) GetID() string {
 	return id
 }
 
+// collectorResult carries the return values of Collector.Collect across the
+// goroutine boundary in runCollectorWithDeadline.
+type collectorResult struct {
+	entries  []*Entry
+	warnings []*Warning
+	err      error
+}
+
+// collectorsInFlight holds the collectors whose previous invocation has not returned yet,
+// keyed by collector type.
+//
+// It has to live outside the collectors themselves: inventory is collected by calling
+// defaultCollectors() afresh each time, so nothing on a collector value survives between
+// collections. Since a hung native call cannot be cancelled, this is what stops repeated
+// collections from stacking up blocked goroutines and their OS handles.
+//
+// Keying by type assumes a collector list holds at most one collector of each type, which
+// is what defaultCollectors() returns on every platform. Collectors that run to completion
+// release the key before their result is handed back, so only a genuinely blocked
+// collector ever occupies one.
+var collectorsInFlight sync.Map
+
+// runCollectorWithDeadline runs a collector, giving up if it takes longer than timeout.
+//
+// A collector that misses its deadline is reported as a fatal error: its source is in an
+// unknown state, and reporting a partial or missing family would look like the software
+// was uninstalled. The abandoned goroutine writes to a buffered channel, so it exits by
+// itself once the underlying call finally returns; until then the collector is treated as
+// in flight and is not started again, because the OS APIs behind these collectors offer no
+// way to cancel a call that has already blocked — the SetupAPI device enumeration
+// (DIGCF_ALLCLASSES) that the Windows driver collector runs is one uninterruptible block from
+// start to finish, and there is no partial result to salvage from it.
+func runCollectorWithDeadline(c Collector, timeout time.Duration) ([]*Entry, []*Warning, error) {
+	key := fmt.Sprintf("%T", c)
+	if _, running := collectorsInFlight.LoadOrStore(key, struct{}{}); running {
+		return nil, nil, fmt.Errorf("collector %s is still running from a previous collection", key)
+	}
+
+	done := make(chan collectorResult, 1)
+	go func() {
+		// Release the key before publishing the result, so that a collector which
+		// returned in time is immediately available to the next collection.
+		entries, warnings, err := c.Collect()
+		collectorsInFlight.Delete(key)
+		done <- collectorResult{entries: entries, warnings: warnings, err: err}
+	}()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case res := <-done:
+		return res.entries, res.warnings, res.err
+	case <-timer.C:
+		return nil, nil, fmt.Errorf("collector %s timed out after %s", key, timeout)
+	}
+}
+
 // GetSoftwareInventoryWithCollectors returns a list of software entries using the provided collectors
 func GetSoftwareInventoryWithCollectors(collectors []Collector) ([]*Entry, []*Warning, error) {
+	return getSoftwareInventory(collectors, defaultCollectorTimeout)
+}
+
+// getSoftwareInventory collects from every collector, bounding each one by timeout.
+func getSoftwareInventory(collectors []Collector, timeout time.Duration) ([]*Entry, []*Warning, error) {
 	var allWarnings []*Warning
 	var allEntries []*Entry
 	var allErrors error
 
 	// Collect from all sources
 	for _, collector := range collectors {
-		entries, warnings, err := collector.Collect()
+		entries, warnings, err := runCollectorWithDeadline(collector, timeout)
 
 		// Add any warnings from the collector
 		allWarnings = append(allWarnings, warnings...)

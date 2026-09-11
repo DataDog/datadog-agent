@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockCollector implements Collector for testing
@@ -18,6 +20,28 @@ type MockCollector struct {
 	entries  map[string]*Entry
 	warnings []*Warning
 	err      error
+}
+
+// SlowCollector returns only after delay. It is a distinct type from MockCollector so a
+// test can pair a collector that misses its deadline with one that does not: the in-flight
+// guard keys on the collector's type.
+type SlowCollector struct {
+	delay time.Duration
+}
+
+func (s *SlowCollector) Collect() ([]*Entry, []*Warning, error) {
+	time.Sleep(s.delay)
+	return []*Entry{{DisplayName: "Slow App", Source: "desktop"}}, nil, nil
+}
+
+// BlockingCollector blocks until release is closed, modelling a native call that has hung.
+type BlockingCollector struct {
+	release chan struct{}
+}
+
+func (b *BlockingCollector) Collect() ([]*Entry, []*Warning, error) {
+	<-b.release
+	return []*Entry{{DisplayName: "Blocking App", Source: "desktop"}}, nil, nil
 }
 
 func (m *MockCollector) Collect() ([]*Entry, []*Warning, error) {
@@ -175,6 +199,90 @@ func TestCollectorOrchestration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCollectorDeadline(t *testing.T) {
+	const timeout = 50 * time.Millisecond
+
+	t.Run("Slow collector fails the snapshot but keeps other entries", func(t *testing.T) {
+		slow := &SlowCollector{delay: 10 * timeout}
+		fast := &MockCollector{
+			entries: map[string]*Entry{"fast": {DisplayName: "Fast App", Source: "desktop"}},
+		}
+
+		inventory, _, err := getSoftwareInventory([]Collector{slow, fast}, timeout)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "timed out")
+		assert.Len(t, inventory, 1, "entries from collectors that finished should survive")
+		assert.Equal(t, "Fast App", inventory[0].DisplayName)
+	})
+
+	t.Run("Collector finishing within the deadline succeeds", func(t *testing.T) {
+		collector := &MockCollector{
+			entries: map[string]*Entry{"app": {DisplayName: "App", Source: "desktop"}},
+		}
+
+		inventory, _, err := getSoftwareInventory([]Collector{collector}, timeout)
+
+		assert.NoError(t, err)
+		assert.Len(t, inventory, 1)
+	})
+
+	t.Run("Successful empty collector is not an error", func(t *testing.T) {
+		// An enumeration that legitimately finds nothing must not fail the
+		// snapshot; only failures and timeouts do.
+		inventory, _, err := getSoftwareInventory([]Collector{&MockCollector{}}, timeout)
+
+		assert.NoError(t, err)
+		assert.Empty(t, inventory)
+	})
+
+	t.Run("A timed-out collector is not started again while it is still running", func(t *testing.T) {
+		// A hung native call cannot be cancelled, so repeated collections must not stack
+		// up blocked goroutines holding OS handles.
+		blocking := &BlockingCollector{release: make(chan struct{})}
+
+		_, _, err := getSoftwareInventory([]Collector{blocking}, timeout)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timed out")
+
+		_, _, err = getSoftwareInventory([]Collector{blocking}, timeout)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "still running from a previous collection")
+
+		// Once the blocked call returns, the collector becomes usable again.
+		close(blocking.release)
+		assert.Eventually(t, func() bool {
+			inventory, _, err := getSoftwareInventory([]Collector{blocking}, timeout)
+			return err == nil && len(inventory) == 1
+		}, time.Second, 10*time.Millisecond)
+	})
+}
+
+func TestEntryIDsAreUniqueAcrossSources(t *testing.T) {
+	// os and driver entries share the snapshot with application entries;
+	// GetID must keep them distinct so the backend does not collapse them.
+	collector := &MockCollector{
+		entries: map[string]*Entry{
+			"driver":   {DisplayName: "Wi-Fi Adapter", ProductCode: "wdfilter", Source: softwareTypeDriver},
+			"os":       {DisplayName: osDisplayName, ProductCode: osProductCode, Source: softwareTypeOS},
+			"desktop":  {DisplayName: "Wi-Fi Adapter", ProductCode: "wdfilter", Source: "desktop"},
+			"homebrew": {DisplayName: "git", ProductCode: "git", Source: "homebrew"},
+		},
+	}
+
+	inventory, _, err := GetSoftwareInventoryWithCollectors([]Collector{collector})
+	assert.NoError(t, err)
+
+	seen := make(map[string]struct{}, len(inventory))
+	for _, entry := range inventory {
+		id := entry.GetID()
+		_, duplicate := seen[id]
+		assert.False(t, duplicate, "duplicate entry ID %q", id)
+		seen[id] = struct{}{}
+	}
+	assert.Len(t, seen, len(inventory))
 }
 
 func TestWarnings(t *testing.T) {

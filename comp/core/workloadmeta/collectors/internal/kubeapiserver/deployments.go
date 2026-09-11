@@ -32,12 +32,12 @@ func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 	return deployment == nil
 }
 
-func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, cfg config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newDeploymentStore(wlm workloadmeta.Component, cfg config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
 	deploymentListerWatcher := &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			return client.AppsV1().Deployments(metav1.NamespaceAll).List(ctx, options)
 		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			return client.AppsV1().Deployments(metav1.NamespaceAll).Watch(ctx, options)
 		},
 	}

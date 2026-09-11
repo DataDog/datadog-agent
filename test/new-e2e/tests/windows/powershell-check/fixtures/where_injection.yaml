@@ -1,0 +1,12 @@
+init_config:
+
+instances:
+  - cmdlet: Get-Service
+    parameters:
+      - [Name, Dnscache]
+    where:
+      - property: Status
+        op: eq
+        value: "Running' -or $(New-Item -Path C:/Windows/Temp/dd-powershell-where-injection.txt -ItemType File -Force) -or 'Running"
+    metrics:
+      - [1, e2e.powershell.where_injection, gauge]

@@ -28,7 +28,7 @@ const (
 	manifestCacheTTL       = 3 * time.Minute
 	manifestCachePurge     = 30 * time.Second
 	maxManifestsPerPayload = 100
-	maxPayloadSizeBytes    = 10 * 1000 * 1000
+	MaxPayloadSizeBytes    = 10 * 1000 * 1000
 )
 
 var (
@@ -483,12 +483,17 @@ type K8sTranslationResult struct {
 // TranslateK8sObjects converts k8sobjectsreceiver logs into chunked orchestrator manifest payloads.
 // It handles deduplication via cache (pass nil to disable), cluster manifest creation, and chunking.
 // Set skipClusterManifest to true to skip automatic Cluster manifest creation from collected nodes.
+// Set maxChunkSize to value > 0 to override individual chunk weight. Otherwise, default value will be used.
 // Individual record errors are logged and skipped rather than aborting the batch.
-func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger, skipClusterManifest bool) *K8sTranslationResult {
+func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger, skipClusterManifest bool, maxChunkSize int) *K8sTranslationResult {
 	var manifests []*agentmodel.Manifest
 	var nodes []*agentmodel.Manifest
 	var isWatchEvent bool
 	var clusterID, clusterName string
+
+	if maxChunkSize <= 0 {
+		maxChunkSize = MaxPayloadSizeBytes
+	}
 
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
 		rl := ld.ResourceLogs().At(i)
@@ -549,12 +554,12 @@ func TranslateK8sObjects(ld plog.Logs, cache *gocache.Cache, logger *zap.Logger,
 		}
 	}
 
-	chunks := chunkManifestsBySizeAndWeight(manifests, maxManifestsPerPayload, maxPayloadSizeBytes)
+	chunks := chunkManifestsBySizeAndWeight(manifests, maxManifestsPerPayload, maxChunkSize)
 	logger.Debug("Sending manifests in chunks",
 		zap.Int("total_manifests", len(manifests)),
 		zap.Int("chunk_count", len(chunks)),
 		zap.Int("max_manifests_per_chunk", maxManifestsPerPayload),
-		zap.Int("max_payload_size_bytes", maxPayloadSizeBytes))
+		zap.Int("max_payload_size_bytes", maxChunkSize))
 
 	return &K8sTranslationResult{
 		Chunks:      chunks,
