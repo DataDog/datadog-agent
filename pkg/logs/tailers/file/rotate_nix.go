@@ -15,28 +15,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// DidRotate returns true if the file has been log-rotated.
+// DidRotateWithCause reports whether the file has been log-rotated, and what
+// kind of rotation it was.
 //
 // On *nix, when a log rotation occurs, the file can be either:
 // - renamed and recreated
 // - removed and recreated
 // - truncated
-func (t *Tailer) DidRotate() (bool, error) {
+func (t *Tailer) DidRotateWithCause() (RotationCause, error) {
 	f, err := t.fileOpener.OpenLogFile(t.fullpath)
 	if err != nil {
-		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
+		return NoRotation, fmt.Errorf("open %q: %w", t.fullpath, err)
 	}
 	defer f.Close()
 	lastReadOffset := t.lastReadOffset.Load()
 
 	fi1, err := f.Stat()
 	if err != nil {
-		return false, fmt.Errorf("stat %q: %w", f.Name(), err)
+		return NoRotation, fmt.Errorf("stat %q: %w", f.Name(), err)
 	}
 
 	fi2, err := t.osFile.Stat()
 	if err != nil {
-		return true, nil
+		// The file the tailer had open is gone, so it was replaced rather than
+		// rewritten in place.
+		return RotationRecreated, nil
 	}
 
 	fileSize := fi1.Size()
@@ -48,10 +51,13 @@ func (t *Tailer) DidRotate() (bool, error) {
 	if recreated {
 		log.Debugf("File rotation detected due to recreation, f1: %+v, f2: %+v", fi1, fi2)
 		metrics.TlmRotationsNix.Inc("new_file")
-	} else if truncated {
+		return RotationRecreated, nil
+	}
+	if truncated {
 		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", lastReadOffset, fileSize)
 		metrics.TlmRotationsNix.Inc("truncated")
+		return RotationTruncated, nil
 	}
 
-	return recreated || truncated, nil
+	return NoRotation, nil
 }

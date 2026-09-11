@@ -142,6 +142,52 @@ func (a *RegexAggregator) IsEmpty() bool {
 	return a.buffer.Len() == 0
 }
 
+// TakePendingContent implements PendingContentCarrier.
+func (a *RegexAggregator) TakePendingContent() []PendingContent {
+	if a.buffer.Len() == 0 && a.linesLen == 0 {
+		return nil
+	}
+
+	content := make([]byte, a.buffer.Len())
+	copy(content, a.buffer.Bytes())
+	pending := PendingContent{
+		Msg:           a.msg,
+		Content:       content,
+		RawDataLen:    a.linesLen,
+		LinesCombined: a.linesCombined,
+		Truncated:     a.isBufferTruncated,
+	}
+
+	a.buffer.Reset()
+	a.linesLen = 0
+	a.checkpointLinesLen = 0
+	a.linesCombined = 0
+	a.shouldTruncate = false
+	a.isBufferTruncated = false
+	a.firstLineTokens = BorrowedTokens{}
+
+	return []PendingContent{pending}
+}
+
+// SeedPendingContent implements PendingContentCarrier.
+func (a *RegexAggregator) SeedPendingContent(pending []PendingContent) {
+	if len(pending) == 0 || pending[0].Msg == nil {
+		return
+	}
+
+	p := pending[0]
+	a.buffer.Reset()
+	a.buffer.Write(p.Content)
+	a.msg = p.Msg
+	a.linesLen = p.RawDataLen
+	a.checkpointLinesLen = 0
+	a.linesCombined = p.LinesCombined
+	a.isBufferTruncated = p.Truncated
+	// The group being carried over was opened by a line that matched the
+	// pattern, so the "never matched yet" guard must not re-fire here.
+	a.patternMatchedOnce = true
+}
+
 func (a *RegexAggregator) sendBuffer() {
 	defer func() {
 		a.buffer.Reset()

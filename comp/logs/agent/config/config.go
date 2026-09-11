@@ -578,6 +578,13 @@ func AggregationTimeout(coreConfig pkgconfigmodel.Reader) time.Duration {
 	return defaultLogsConfigKeys(coreConfig).aggregationTimeout()
 }
 
+// FingerprintRotationHandoffTimeout bounds how long a partially aggregated log
+// group survives a rotation detected through checksum fingerprinting, where the
+// replacement tailer is only created on a later scan.
+func FingerprintRotationHandoffTimeout(coreConfig pkgconfigmodel.Reader) time.Duration {
+	return defaultLogsConfigKeys(coreConfig).fingerprintRotationHandoffTimeout()
+}
+
 // MaxMessageSizeBytes is used to cap the maximum log message size in bytes
 func MaxMessageSizeBytes(coreConfig pkgconfigmodel.Reader) int {
 	return defaultLogsConfigKeys(coreConfig).maxMessageSizeBytes()

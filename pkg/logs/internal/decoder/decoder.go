@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	severityprovider "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def"
@@ -56,6 +58,42 @@ type Decoder interface {
 	GetDetectedPattern() *regexp.Regexp
 	InputChan() chan *message.Message
 	OutputChan() chan *message.Message
+
+	// SetRotationHandoffTarget arranges for this decoder to offer the content
+	// still buffered in its LineParser / LineHandler stages to handoff once it
+	// has drained the file it was rotated away from, instead of flushing it as
+	// a standalone (broken) message. Content that no replacement decoder claims
+	// before the handoff deadline is taken back and flushed as usual.
+	SetRotationHandoffTarget(handoff *RotationHandoff)
+
+	// CompleteRotationHandoff offers the buffered content to the handoff
+	// configured by SetRotationHandoffTarget. The tailer calls it once it has
+	// read the rotated file to EOF; it is a no-op without a handoff and after
+	// the first call.
+	CompleteRotationHandoff()
+
+	// AwaitRotationHandoff makes the decoder hold back everything read from the
+	// new file until the decoder it replaces offers its pending content, or the
+	// handoff deadline passes. Must be called before Start().
+	AwaitRotationHandoff(handoff *RotationHandoff)
+}
+
+// PendingState is the buffered content of both decoder stages that can hold
+// data between two completed messages.
+type PendingState struct {
+	// ParserContent is what the LineParser stage buffered (CRI/Docker partial
+	// line chunks). It must be restored at the LineParser stage: the content has
+	// already had its runtime prefix stripped and cannot be re-parsed.
+	ParserContent []preprocessor.PendingContent
+
+	// HandlerContent is what the LineHandler stage buffered (an in-progress
+	// multiline group).
+	HandlerContent []preprocessor.PendingContent
+}
+
+// IsEmpty reports whether there is nothing to hand over.
+func (p *PendingState) IsEmpty() bool {
+	return p == nil || (len(p.ParserContent) == 0 && len(p.HandlerContent) == 0)
 }
 
 // decoderImpl is the default implementation of the Decoder interface
@@ -71,7 +109,34 @@ type decoderImpl struct {
 	// pass a multiline pattern up from the line handler in order to surface it to the tailer.
 	// The tailer uses this to determine if a pattern should be reused when a file rotates.
 	detectedPattern *DetectedPattern
+
+	// handoffChan moves a handoff onto run()'s goroutine; the pipeline stages are
+	// otherwise only touched from there.
+	handoffChan chan *RotationHandoff
+	// running is set once run() has been launched, and stopped is closed when it
+	// returns, so the tailer never blocks on a goroutine that isn't there.
+	running *atomic.Bool
+	stopped chan struct{}
+
+	// handoffTarget is claimed exactly once, from either the tailer goroutine or
+	// run(), hence the mutex.
+	handoffMu      sync.Mutex
+	handoffTarget  *RotationHandoff
+	handoffClaimed bool
+
+	// Below are only touched by run() (or before Start()). handoffSource is the
+	// receiving side; handoffParked plus handoffTimer are the sending side
+	// waiting to take content back if nobody claims it.
+	handoffSource *RotationHandoff
+	handoffParked *RotationHandoff
+	handoffTimer  *time.Timer
 }
+
+// maxHandoffQueuedBytes caps how much of the new file a decoder buffers while
+// waiting for a rotation handoff. Past that point the wait is abandoned and the
+// data flows normally: the group straddling the rotation stays split, which is
+// better than growing without bound.
+const maxHandoffQueuedBytes = 1 << 20
 
 func (d *decoderImpl) InputChan() chan *message.Message {
 	return d.inputChan
@@ -723,12 +788,225 @@ func New(InputChan chan *message.Message, OutputChan chan *message.Message, fram
 		lineParser:      lineParser,
 		lineHandler:     lineHandler,
 		detectedPattern: detectedPattern,
+		handoffChan:     make(chan *RotationHandoff),
+		running:         atomic.NewBool(false),
+		stopped:         make(chan struct{}),
 	}
 }
 
 // Start starts the Decoder
 func (d *decoderImpl) Start() {
+	d.running.Store(true)
 	go d.run()
+}
+
+// SetRotationHandoffTarget implements Decoder.
+func (d *decoderImpl) SetRotationHandoffTarget(handoff *RotationHandoff) {
+	d.handoffMu.Lock()
+	defer d.handoffMu.Unlock()
+	if d.handoffClaimed {
+		return
+	}
+	d.handoffTarget = handoff
+}
+
+// AwaitRotationHandoff implements Decoder.
+func (d *decoderImpl) AwaitRotationHandoff(handoff *RotationHandoff) {
+	if d.running.Load() {
+		log.Warn("Ignoring rotation handoff registered after the decoder was started")
+		return
+	}
+	d.handoffSource = handoff
+}
+
+// CompleteRotationHandoff implements Decoder.
+func (d *decoderImpl) CompleteRotationHandoff() {
+	handoff, ok := d.claimHandoffTarget()
+	if !ok {
+		return
+	}
+	if !d.running.Load() {
+		// Nothing was ever decoded, so there is nothing to hand over, and no
+		// goroutine that could take content back later.
+		handoff.Cancel()
+		return
+	}
+
+	select {
+	case d.handoffChan <- handoff:
+	case <-d.stopped:
+		// run() already returned; its deferred flush emitted everything it held.
+		handoff.Cancel()
+	}
+}
+
+// claimHandoffTarget returns the configured handoff exactly once.
+func (d *decoderImpl) claimHandoffTarget() (*RotationHandoff, bool) {
+	d.handoffMu.Lock()
+	defer d.handoffMu.Unlock()
+	if d.handoffClaimed || d.handoffTarget == nil {
+		return nil, false
+	}
+	d.handoffClaimed = true
+	handoff := d.handoffTarget
+	d.handoffTarget = nil
+	return handoff, true
+}
+
+// parkForHandoff offers the buffered content of both stages to the replacement
+// decoder. Content the handoff refuses stays with this decoder and is flushed
+// the usual way. Runs on the decoder's goroutine.
+//
+// final marks the shutdown path, where this decoder can no longer take the
+// content back, so parking is only allowed if a claim is already guaranteed.
+func (d *decoderImpl) parkForHandoff(handoff *RotationHandoff, final bool) {
+	state := d.takePendingStateLocal()
+	if handoff.park(state, final) {
+		if !final {
+			d.handoffParked = handoff
+			d.armHandoffTimer(handoff)
+		}
+		return
+	}
+	d.seedPendingState(state)
+}
+
+// reclaimHandoff takes back content no replacement decoder claimed, so the
+// regular flush path emits it. Runs on the decoder's goroutine.
+func (d *decoderImpl) reclaimHandoff() {
+	handoff := d.handoffParked
+	d.handoffParked = nil
+	d.stopHandoffTimer()
+	if handoff == nil {
+		return
+	}
+	if state, ok := handoff.reclaim(); ok {
+		log.Debug("No replacement tailer claimed the buffered content after the rotation; flushing it as-is.")
+		d.seedPendingState(state)
+	}
+}
+
+func (d *decoderImpl) armHandoffTimer(handoff *RotationHandoff) {
+	delay := time.Until(handoff.Deadline())
+	if delay < 0 {
+		delay = 0
+	}
+	if d.handoffTimer == nil {
+		d.handoffTimer = time.NewTimer(delay)
+		return
+	}
+	d.handoffTimer.Reset(delay)
+}
+
+func (d *decoderImpl) stopHandoffTimer() {
+	if d.handoffTimer == nil {
+		return
+	}
+	if !d.handoffTimer.Stop() {
+		select {
+		case <-d.handoffTimer.C:
+		default:
+		}
+	}
+}
+
+func (d *decoderImpl) handoffTimerChan() <-chan time.Time {
+	if d.handoffParked == nil || d.handoffTimer == nil {
+		return nil
+	}
+	return d.handoffTimer.C
+}
+
+// takePendingStateLocal must only run on the decoder's own goroutine (or before
+// it is started).
+func (d *decoderImpl) takePendingStateLocal() *PendingState {
+	state := &PendingState{}
+	if carrier, ok := d.lineParser.(preprocessor.PendingContentCarrier); ok {
+		state.ParserContent = carrier.TakePendingContent()
+	}
+	if carrier, ok := d.lineHandler.(preprocessor.PendingContentCarrier); ok {
+		state.HandlerContent = carrier.TakePendingContent()
+	}
+	if state.IsEmpty() {
+		return nil
+	}
+	return state
+}
+
+// seedPendingState must only run on the decoder's own goroutine (or before it
+// is started).
+func (d *decoderImpl) seedPendingState(state *PendingState) {
+	if state.IsEmpty() {
+		return
+	}
+	if carrier, ok := d.lineParser.(preprocessor.PendingContentCarrier); ok {
+		carrier.SeedPendingContent(state.ParserContent)
+	}
+	if carrier, ok := d.lineHandler.(preprocessor.PendingContentCarrier); ok {
+		carrier.SeedPendingContent(state.HandlerContent)
+	}
+}
+
+// waitForHandoff holds back everything read from the new file until the decoder
+// being replaced delivers its pending content, so that content is in place
+// before the first line of the new file is processed. It reports whether the
+// input channel was closed while waiting.
+//
+// The wait is bounded by the regular aggregation timeout: a continuation that
+// does not show up within the window the aggregator would have waited for
+// anyway is not worth holding data back for.
+func (d *decoderImpl) waitForHandoff() bool {
+	handoff := d.handoffSource
+	d.handoffSource = nil
+
+	if !handoff.beginReceive() {
+		return false
+	}
+
+	delay := time.Until(handoff.Deadline())
+	if delay < 0 {
+		delay = 0
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	var queued []*message.Message
+	queuedBytes := 0
+	inputClosed := false
+
+	for waiting := true; waiting; {
+		select {
+		case <-handoff.Parked():
+			waiting = false
+		case <-timer.C:
+			log.Debug("Timed out waiting for the rotated tailer to hand over its buffered content.")
+			waiting = false
+		case msg, isOpen := <-d.inputChan:
+			if !isOpen {
+				inputClosed = true
+				waiting = false
+				break
+			}
+			queued = append(queued, msg)
+			queuedBytes += len(msg.GetContent())
+			if queuedBytes >= maxHandoffQueuedBytes {
+				log.Debug("Gave up waiting for the rotated tailer to hand over its buffered content: too much new data queued.")
+				waiting = false
+			}
+		}
+	}
+
+	// Always claim, whatever ended the wait: content the other side managed to
+	// park is taken over rather than dropped, and a failed claim settles the
+	// handoff so the other side keeps and flushes what it still has.
+	if state, ok := handoff.claim(); ok {
+		d.seedPendingState(state)
+	}
+
+	for _, msg := range queued {
+		d.framer.Process(msg)
+	}
+	return inputClosed
 }
 
 // Stop stops the Decoder
@@ -740,15 +1018,31 @@ func (d *decoderImpl) Stop() {
 
 func (d *decoderImpl) run() {
 	defer func() {
+		// Unblock any concurrent takePendingState before the stages are flushed.
+		close(d.stopped)
 		// Flush any remaining output in component order, and then close the
 		// output channel. The framer flush gives the FrameMatcher a chance to
 		// emit buffered data that was waiting for a delimiter that never
 		// arrived (e.g. non-transparent syslog without a trailing LF).
 		d.framer.Flush()
+		// Take back anything parked that nobody claimed, then give the
+		// replacement decoder a last chance at whatever is still buffered: the
+		// tailer normally triggers the handoff on EOF, but a file that
+		// disappears outright stops the decoder without ever reporting one.
+		// Either way the flushes below emit whatever stays with this decoder.
+		d.reclaimHandoff()
+		if handoff, ok := d.claimHandoffTarget(); ok {
+			d.parkForHandoff(handoff, true)
+		}
 		d.lineParser.flush()
 		d.lineHandler.flush()
 		close(d.outputChan)
 	}()
+
+	if d.handoffSource != nil && d.waitForHandoff() {
+		return
+	}
+
 	for {
 		select {
 		case msg, isOpen := <-d.InputChan():
@@ -758,6 +1052,12 @@ func (d *decoderImpl) run() {
 			}
 
 			d.framer.Process(msg)
+
+		case handoff := <-d.handoffChan:
+			d.parkForHandoff(handoff, false)
+
+		case <-d.handoffTimerChan():
+			d.reclaimHandoff()
 
 		case <-d.lineParser.flushChan():
 			log.Debug("Flushing line parser because the flush timeout has been reached.")

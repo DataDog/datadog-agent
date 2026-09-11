@@ -679,6 +679,21 @@ properties:
         comment: |-
           The maximum number of bytes that will be used to generate a checksum fingerprint;
           used in cases where the line to hash is too large or if the fingerprinting maxLines=0
+  fingerprint_rotation_handoff_timeout:
+    node_type: setting
+    type: integer
+    default: 2000
+    comment: |-
+      Timeout in milliseconds a rotated-away file's tailer keeps a partially
+      aggregated log group (a multi-line group or a container partial line) so
+      the tailer taking over the new file can complete it, instead of emitting
+      it truncated. The clock starts when the rotation is detected. Only used
+      when rotation is detected through checksum fingerprinting
+      (logs_config.fingerprint_config), where the replacement tailer is not
+      created until the next scan; other rotations are bounded by
+      logs_config.aggregation_timeout alone. The default tracks
+      logs_config.file_scan_period plus logs_config.aggregation_timeout, and
+      should be raised alongside them.
   force_auto_multi_line_detection_v1:
     node_type: setting
     type: boolean

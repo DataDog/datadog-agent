@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
@@ -87,6 +88,9 @@ const (
 type oldTailerInfo struct {
 	Pattern      *regexp.Regexp
 	InfoRegistry *status.InfoRegistry
+	// Handoff carries the rotated-away tailer's partially aggregated group to
+	// the tailer a later scan creates for the new file. Nil once consumed.
+	Handoff *decoder.RotationHandoff
 }
 
 // NewLauncher returns a new launcher.
@@ -302,28 +306,32 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 			var didRotate bool
 			var err error
 
+			var cause tailer.RotationCause
+
 			if s.fingerprinter.ShouldFileFingerprint(file) {
-				didRotate, err = tailered.DidRotateViaFingerprint(s.fingerprinter)
+				cause, err = tailered.DidRotateViaFingerprintWithCause(s.fingerprinter)
 				if err != nil {
 					// Assuming no rotation keeps the existing tailer running, which is the safe
 					// choice for a check that usually fails only while a rotation is in flight.
 					log.Debugf("Could not check %s for log rotation: %v", file.Path, err)
-					didRotate = false
+					cause = tailer.NoRotation
 				}
+				didRotate = cause.Rotated()
 				if didRotate {
-					s.rotateTailerWithoutRestart(tailered, file)
+					s.rotateTailerWithoutRestart(tailered, file, cause)
 					continue
 				}
 			} else {
-				didRotate, err = tailered.DidRotate()
+				cause, err = tailered.DidRotateWithCause()
 
 				if err != nil {
 					log.Debugf("failed to detect log rotation: %v", err)
 					continue
 				}
+				didRotate = cause.Rotated()
 				if didRotate {
 					// restart tailer because of file-rotation on file
-					succeeded := s.restartTailerAfterFileRotation(tailered, file)
+					succeeded := s.restartTailerAfterFileRotation(tailered, file, cause)
 					if !succeeded {
 						// the setup failed, let's try to tail this file in the next scan
 						continue
@@ -613,10 +621,23 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
 
+	// Continue the group the rotated-away tailer left open, if it is still
+	// offering one. Consumed here whatever the outcome: a second tailer must not
+	// wait on an offer this one already settled.
+	handoff := oldInfo.Handoff
+	oldInfo.Handoff = nil
+	if handoff != nil {
+		tailer.AwaitRotationHandoff(handoff)
+	}
+
 	log.Infof("Starting new tailer with stored info (pattern: %v) for: %s (offset: %d, whence: %d)",
 		oldInfo.Pattern != nil, file.Path, offset, whence)
 	err = tailer.Start(offset, whence)
 	if err != nil {
+		if handoff != nil {
+			// Nothing would ever claim the offer; let the rotated tailer flush.
+			handoff.Cancel()
+		}
 		log.Warnf("Could not start the tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
 	}
@@ -653,7 +674,7 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 	s.tailers.Remove(tailer)
 }
 
-func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *tailer.File) bool {
+func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *tailer.File, cause tailer.RotationCause) bool {
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
 
@@ -663,13 +684,26 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 	oldInfoRegistry := oldTailer.GetInfo()
 
+	// On this path the replacement tailer is only created by a later scan, so
+	// the group straddling the rotation has to survive the gap: budget a full
+	// scan period on top of the aggregation window. If no replacement claims it
+	// in time the old tailer takes it back and flushes it as it always did.
+	var handoff *decoder.RotationHandoff
+	if cause.ContinuousWithNewFile() {
+		handoff = decoder.NewRotationHandoff(config.FingerprintRotationHandoffTimeout(pkgconfigsetup.Datadog()))
+		oldTailer.SetRotationHandoffTarget(handoff)
+	}
+
 	// Only store info if we're using checksum fingerprinting (where it will be retrieved)
 	if oldRegexPattern != nil || oldInfoRegistry != nil {
 		regexAndRegistry := &oldTailerInfo{
 			InfoRegistry: oldInfoRegistry,
 			Pattern:      oldRegexPattern,
+			Handoff:      handoff,
 		}
 		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
+	} else if handoff != nil {
+		handoff.Cancel()
 	}
 
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
@@ -679,7 +713,7 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 
 // restartTailer safely stops tailer and starts a new one
 // returns true if the new tailer is up and running, false if an error occurred
-func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file *tailer.File) bool {
+func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file *tailer.File, cause tailer.RotationCause) bool {
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
 
@@ -689,12 +723,48 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 
 	oldRegexPattern := oldTailer.GetDetectedPattern()
 
+	// A multiline group (or a CRI/Docker partial line) can straddle the rotation
+	// boundary. Rather than letting the old decoder flush it as a standalone,
+	// broken message, offer it to the replacement decoder, which holds the new
+	// file's content back until the offer lands or the deadline passes. The
+	// replacement is created right here, so the plain aggregation timeout is
+	// the whole budget needed.
+	//
+	// Only a recreated file can be stitched: after a truncation the bytes past
+	// the read offset are already gone, and joining the buffer to the new
+	// file's first bytes would fabricate a log line from two fragments that
+	// were never adjacent. In that case the old tailer flushes its buffer the
+	// way it always did and the replacement starts clean.
+	var handoff *decoder.RotationHandoff
+	if cause.ContinuousWithNewFile() {
+		handoff = decoder.NewRotationHandoff(config.AggregationTimeout(pkgconfigsetup.Datadog()))
+	} else {
+		log.Debugf("Not carrying buffered content across the rotation of %s: the file was truncated in place, so the data is not contiguous", file.Path)
+	}
+
 	newTailer := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
+	if handoff != nil {
+		// Registered before the tailer starts, so it cannot race ahead of the
+		// content it is supposed to continue.
+		newTailer.AwaitRotationHandoff(handoff)
+	}
+
 	// force reading file from beginning since it has been log-rotated
 	err := newTailer.StartFromBeginning()
 	if err != nil {
+		if handoff != nil {
+			// The replacement never came up, so nothing would ever claim the
+			// offer. Cancelling leaves the old tailer to flush its buffer as it
+			// always did.
+			handoff.Cancel()
+		}
 		log.Warnf("Could not start the replacement tailer for %s after a log rotation, this file is not being tailed and will be retried on the next scan: %v", file.Path, err)
 		return false
+	}
+
+	// Only commit the old tailer once the replacement is up and receiving.
+	if handoff != nil {
+		oldTailer.SetRotationHandoffTarget(handoff)
 	}
 
 	// Since newTailer and oldTailer share the same ID, tailers.Add will replace the old tailer.
