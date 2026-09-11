@@ -242,6 +242,7 @@
 /cmd/agent/subcommands/otel                         @DataDog/opentelemetry-agent
 /cmd/agent/subcommands/check                        @DataDog/agent-runtimes @DataDog/agent-integrations
 /cmd/agent/subcommands/dogstatsd*                   @DataDog/agent-metric-pipelines
+/cmd/agent/subcommands/jmx                          @DataDog/agent-metric-pipelines
 /cmd/agent/subcommands/integrations                 @DataDog/agent-integrations @DataDog/agent-runtimes
 /cmd/agent/subcommands/hostname                     @DataDog/agent-runtimes
 /cmd/agent/subcommands/version                      @DataDog/agent-runtimes
@@ -683,7 +684,7 @@
 /pkg/pidfile/                                                         @DataDog/agent-runtimes
 /pkg/persistentcache/                                                 @DataDog/agent-runtimes
 /pkg/procmgr/                                                         @DataDog/agent-runtimes
-/pkg/procmgr/rust/src/platform/windows.rs                             @DataDog/agent-runtimes @DataDog/windows-products
+/pkg/procmgr/rust/src/platform/windows/                               @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/procmgr/rust/src/transport/named_pipe.rs                         @DataDog/agent-runtimes @DataDog/windows-products
 /pkg/privateactionrunner/                                             @DataDog/action-platform
 /pkg/privateactionrunner/bundles/remoteaction/rshell                  @DataDog/action-platform @DataDog/dd-agent-mcp @DataDog/fleet-remediation
@@ -839,7 +840,7 @@
 /comp/core/workloadmeta/collectors/internal/kubemetadata              @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/nvml                      @DataDog/gpu-monitoring-agent
 /comp/core/workloadmeta/collectors/internal/podman                    @DataDog/container-platform @DataDog/container-integrations
-/comp/core/workloadmeta/collectors/internal/process                   @DataDog/container-experiences @DataDog/container-platform
+/comp/core/workloadmeta/collectors/internal/process                   @DataDog/container-experiences
 /comp/core/workloadmeta/collectors/internal/remote/sbomcollector      @DataDog/agent-security
 /comp/core/workloadmeta/collectors/sbomutil                           @DataDog/agent-security
 /comp/core/tagger/collectors                                          @DataDog/container-platform @DataDog/container-integrations

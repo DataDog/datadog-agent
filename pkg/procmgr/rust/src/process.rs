@@ -101,10 +101,12 @@ pub struct ManagedProcess {
     last_exit_status: Option<std::process::ExitStatus>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
+    #[cfg(windows)]
+    agent_credential: Option<platform::SpawnCredential>,
 }
 
 impl ManagedProcess {
-    const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
+    pub(crate) const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
 
     pub fn new_config(name: String, uuid: String, config: ProcessConfig) -> Self {
         Self::new_inner(name, uuid, config, ProcessOrigin::Config)
@@ -117,6 +119,9 @@ impl ManagedProcess {
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
         let profile = SpawnProfile::profile_for(&name);
+        #[cfg(windows)]
+        let (user, agent_credential) = platform::resolve_spawn_identity(&name, profile);
+        #[cfg(not(windows))]
         let user = platform::intended_spawn_user(&name, profile);
         Self {
             name,
@@ -133,6 +138,8 @@ impl ManagedProcess {
             last_exit_status: None,
             #[cfg(windows)]
             job_object: None,
+            #[cfg(windows)]
+            agent_credential,
         }
     }
 
@@ -160,12 +167,32 @@ impl ManagedProcess {
         &self.config
     }
 
+    #[cfg(windows)]
+    pub(crate) fn set_job_object(&mut self, job: platform::JobObject) {
+        self.job_object = Some(job);
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn clear_windows_spawn_resources(&mut self) {
+        self.job_object = None;
+    }
+
     pub(crate) fn profile(&self) -> SpawnProfile {
         self.profile
     }
 
     pub fn user(&self) -> &str {
         &self.user
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn set_intended_user(&mut self, user: String) {
+        self.user = user;
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn agent_credential(&self) -> Option<&platform::SpawnCredential> {
+        self.agent_credential.as_ref()
     }
 
     pub fn restart_count(&self) -> u32 {
@@ -229,6 +256,8 @@ impl ManagedProcess {
                 Ok(())
             }
             Err(e) => {
+                #[cfg(windows)]
+                self.clear_windows_spawn_resources();
                 self.transition_to(ProcessState::Failed);
                 Err(e)
             }
@@ -261,8 +290,7 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
-        info!("[{}] spawn profile: {}", self.name, self.profile);
-        let handle = platform::spawn_child_handle(self.name(), self.config())?;
+        let handle = platform::spawn_child_handle(self)?;
 
         self.pid = handle.id();
         info!(
@@ -271,17 +299,6 @@ impl ManagedProcess {
             self.pid.map_or("unknown".to_string(), |p| p.to_string()),
             self.config.command
         );
-
-        #[cfg(windows)]
-        if let Some(pid) = self.pid {
-            match platform::JobObject::new() {
-                Ok(job) => match job.assign_process(pid) {
-                    Ok(()) => self.job_object = Some(job),
-                    Err(e) => warn!("[{}] failed to assign to job object: {e:#}", self.name),
-                },
-                Err(e) => warn!("[{}] failed to create job object: {e:#}", self.name),
-            }
-        }
 
         self.transition_to(ProcessState::Running);
         self.restarts.mark_spawned();
@@ -297,9 +314,7 @@ impl ManagedProcess {
         self.pid = None;
         self.watcher_handle = None;
         #[cfg(windows)]
-        {
-            self.job_object = None;
-        }
+        self.clear_windows_spawn_resources();
         if self.stop_requested {
             self.stop_requested = false;
             self.transition_to(ProcessState::Stopped);
@@ -394,9 +409,7 @@ impl ManagedProcess {
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
         #[cfg(windows)]
-        {
-            self.job_object = None;
-        }
+        self.clear_windows_spawn_resources();
     }
 
     #[cfg(test)]
@@ -723,6 +736,49 @@ pub mod tests {
             "child should NOT see PROCMGRD_TEST_SECRET"
         );
         unsafe { std::env::remove_var("PROCMGRD_TEST_SECRET") };
+    }
+
+    #[tokio::test]
+    async fn test_spawn_inherits_opted_in_parent_env() {
+        unsafe {
+            std::env::set_var("DD_PM_INHERIT_ENV_PREFIXES", "INHERITED_PREFIX_");
+            std::env::set_var("DD_PM_INHERIT_ENV_NAMES", " INHERITED_EXACT, ");
+            std::env::set_var("INHERITED_PREFIX_VALUE", "prefix");
+            std::env::set_var("INHERITED_PREFIX_FILE", "parent");
+            std::env::set_var("INHERITED_EXACT", "parent");
+            std::env::set_var("NOT_INHERITED", "secret");
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "INHERITED_PREFIX_FILE=file\n").unwrap();
+
+        let (sh, flag) = test_helpers::shell_cmd();
+        #[cfg(unix)]
+        let script = "test \"$INHERITED_PREFIX_VALUE\" = prefix && test \"$INHERITED_PREFIX_FILE\" = file && test \"$INHERITED_EXACT\" = override && test -z \"$NOT_INHERITED\"";
+        #[cfg(windows)]
+        let script = "if not \"%INHERITED_PREFIX_VALUE%\"==\"prefix\" exit 1 & if not \"%INHERITED_PREFIX_FILE%\"==\"file\" exit 1 & if not \"%INHERITED_EXACT%\"==\"override\" exit 1 & if defined NOT_INHERITED exit 1 & exit 0";
+        let mut cfg = test_helpers::make_config(sh, vec![flag.into(), script.into()]);
+        cfg.environment_file = Some(env_file.to_str().unwrap().to_string());
+        cfg.env
+            .insert("INHERITED_EXACT".to_string(), "override".to_string());
+
+        let mut proc =
+            ManagedProcess::new_config("inherited-env".into(), test_helpers::test_uuid(), cfg);
+        let mut exit_rx = spawn_ok(&mut proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
+
+        for name in [
+            "DD_PM_INHERIT_ENV_PREFIXES",
+            "DD_PM_INHERIT_ENV_NAMES",
+            "INHERITED_PREFIX_VALUE",
+            "INHERITED_PREFIX_FILE",
+            "INHERITED_EXACT",
+            "NOT_INHERITED",
+        ] {
+            unsafe { std::env::remove_var(name) };
+        }
+        assert_eq!(status.code(), Some(0));
     }
 
     #[tokio::test]
