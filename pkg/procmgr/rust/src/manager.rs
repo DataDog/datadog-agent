@@ -801,20 +801,18 @@ mod tests {
         mgr.handle_create("auto-svc".to_string(), cfg, &exit_tx)
             .await?;
 
-        {
+        let pid = {
             let procs = mgr.processes().await;
             assert_eq!(procs.len(), 1);
             assert!(
                 procs[0].is_running(),
                 "process with auto_start=true should be running after create"
             );
-            assert!(
-                procs[0].pid().is_some(),
-                "running process should have a PID"
-            );
-        }
-
-        mgr.shutdown().await;
+            procs[0]
+                .pid()
+                .expect("running process should have a PID")
+        };
+        test_helpers::cleanup_process(pid);
         Ok(())
     }
 
