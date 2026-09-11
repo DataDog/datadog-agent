@@ -9,6 +9,7 @@
         - cmd/**/*
         - pkg/**/*
         - comp/**/*
+        - deps/**/*
         - test/new-e2e/tests/agent-runtimes/**/*
       compare_to: $COMPARE_TO_BRANCH
 
