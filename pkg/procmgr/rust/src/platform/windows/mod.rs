@@ -6,11 +6,13 @@
 mod agent_service_sid;
 mod child_env;
 mod console;
+mod installer_lsa_password;
 mod job_object;
 mod local_account;
 mod local_agent_account;
 mod process;
 mod runtime_user;
+mod secure_utf16;
 mod sid;
 mod spawn;
 mod token_identity;

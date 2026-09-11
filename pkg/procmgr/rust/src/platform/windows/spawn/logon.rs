@@ -12,12 +12,19 @@ use windows_sys::Win32::Security::{
 };
 
 use super::super::local_agent_account::AgentAccount;
+use super::super::secure_utf16::SecureUtf16String;
 use super::super::wide;
+
+pub(super) enum LogonPassword<'a> {
+    None,
+    Empty,
+    Wide(&'a SecureUtf16String),
+}
 
 pub(super) struct LogonUserCredentials<'a> {
     domain: &'a str,
     username: &'a str,
-    password: Option<&'a str>,
+    password: LogonPassword<'a>,
 }
 
 pub(crate) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredentials<'_> {
@@ -25,17 +32,17 @@ pub(crate) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredent
         AgentAccount::LocalSystem => LogonUserCredentials {
             domain: "NT AUTHORITY",
             username: "SYSTEM",
-            password: Some(""),
+            password: LogonPassword::Empty,
         },
         AgentAccount::LocalService => LogonUserCredentials {
             domain: "NT AUTHORITY",
             username: "LocalService",
-            password: None,
+            password: LogonPassword::None,
         },
         AgentAccount::NetworkService => LogonUserCredentials {
             domain: "NT AUTHORITY",
             username: "NetworkService",
-            password: None,
+            password: LogonPassword::None,
         },
         AgentAccount::SupervisorAccount { .. } => {
             unreachable!("SupervisorAccount spawns with the supervisor token");
@@ -48,7 +55,7 @@ pub(crate) fn logon_user_credentials(account: &AgentAccount) -> LogonUserCredent
         } => LogonUserCredentials {
             domain: logon_domain.as_str(),
             username: user.as_str(),
-            password: Some(password.as_str()),
+            password: LogonPassword::Wide(password),
         },
     }
 }
@@ -59,14 +66,18 @@ pub(crate) fn logon_user_token(
 ) -> Result<TokenHandle> {
     let domain_w = wide::null_terminated(logon_domain(creds.domain));
     let user_w = wide::null_terminated(creds.username);
-    let password_w = creds.password.map(wide::null_terminated);
+    let password_ptr = match creds.password {
+        LogonPassword::None => ptr::null(),
+        LogonPassword::Empty => EMPTY_PASSWORD.as_ptr(),
+        LogonPassword::Wide(password) => password.as_ptr(),
+    };
 
     let mut logon_token: HANDLE = ptr::null_mut();
     let ok = unsafe {
         LogonUserW(
             user_w.as_ptr(),
             domain_w.as_ptr(),
-            password_w.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
+            password_ptr,
             LOGON32_LOGON_SERVICE,
             LOGON32_PROVIDER_DEFAULT,
             &mut logon_token,
@@ -86,6 +97,8 @@ pub(crate) fn logon_user_token(
 fn logon_domain(domain: &str) -> &str {
     if domain.is_empty() { "." } else { domain }
 }
+
+static EMPTY_PASSWORD: [u16; 1] = [0];
 
 pub(crate) struct TokenHandle(HANDLE);
 
@@ -148,6 +161,7 @@ pub(super) fn with_impersonated_token<T>(
 mod tests {
     use super::*;
     use crate::platform::windows::local_agent_account::AgentAccount;
+    use crate::platform::windows::secure_utf16::SecureUtf16String;
 
     #[test]
     fn logon_domain_uses_dot_for_local_accounts() {
@@ -158,32 +172,32 @@ mod tests {
     #[test]
     fn logon_user_credentials_normalize_empty_domain_for_logon() {
         let acct = AgentAccount::PasswordLogon {
-            registry_domain: String::new(),
+            registry_domain: "WIN-HOST".to_string(),
             logon_domain: String::new(),
             user: "ddagentuser".to_string(),
-            password: "secret".to_string(),
+            password: SecureUtf16String::from_utf8("secret"),
         };
         let creds = logon_user_credentials(&acct);
         assert_eq!(logon_domain(creds.domain), ".");
         assert_eq!(creds.username, "ddagentuser");
-        assert_eq!(creds.password, Some("secret"));
+        assert!(matches!(creds.password, LogonPassword::Wide(_)));
     }
 
     #[test]
     fn logon_user_credentials_map_account_kinds() {
         let ls = AgentAccount::LocalSystem;
         let creds = logon_user_credentials(&ls);
-        assert_eq!(creds.password, Some(""));
+        assert!(matches!(creds.password, LogonPassword::Empty));
 
         let local_service = AgentAccount::LocalService;
         let creds = logon_user_credentials(&local_service);
         assert_eq!(creds.domain, "NT AUTHORITY");
         assert_eq!(creds.username, "LocalService");
-        assert!(creds.password.is_none());
+        assert!(matches!(creds.password, LogonPassword::None));
 
         let network_service = AgentAccount::NetworkService;
         let creds = logon_user_credentials(&network_service);
         assert_eq!(creds.username, "NetworkService");
-        assert!(creds.password.is_none());
+        assert!(matches!(creds.password, LogonPassword::None));
     }
 }
