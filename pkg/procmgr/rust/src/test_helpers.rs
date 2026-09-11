@@ -242,6 +242,46 @@ pub fn cleanup_process(pid: u32) {
     let _ = crate::platform::send_force_kill(pid);
 }
 
+/// Check if a PID is still alive.
+#[cfg(unix)]
+pub fn pid_is_alive(pid: u32) -> bool {
+    use nix::sys::signal::kill;
+    use nix::unistd::Pid;
+    kill(Pid::from_raw(pid as i32), None).is_ok()
+}
+
+/// Uses `WaitForSingleObject` with a zero timeout instead of `GetExitCodeProcess`
+/// to avoid false positives when a process exits with code 259 (`STILL_ACTIVE`).
+#[cfg(windows)]
+pub fn pid_is_alive(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject,
+    };
+    const WAIT_TIMEOUT: u32 = 258;
+    unsafe {
+        let handle = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        let ret = WaitForSingleObject(handle, 0);
+        CloseHandle(handle);
+        ret == WAIT_TIMEOUT
+    }
+}
+
+/// Wait until a PID is no longer alive, or timeout.
+pub fn wait_for_pid_gone(pid: u32, timeout: std::time::Duration) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    while pid_is_alive(pid) {
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    true
+}
+
 /// Sleep duration for long-running test children.
 ///
 /// On Windows, tests use `ping -n` as a sleep substitute. This must stay well
@@ -254,6 +294,9 @@ pub const TEST_SLEEP_SECS: u32 = 30;
 
 #[cfg(unix)]
 pub const TEST_SLEEP_SECS: u32 = 60;
+
+/// Alternate sleep duration for reload tests that need a different command line.
+pub const ALT_TEST_SLEEP_SECS: u32 = TEST_SLEEP_SECS + 10;
 
 /// `ProcessConfig` for a long-running child used in stop/reload/shutdown tests.
 ///
