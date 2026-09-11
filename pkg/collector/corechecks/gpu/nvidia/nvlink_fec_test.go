@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -33,7 +33,7 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 		testutil.WithNVLinkLinkCount(1),
 		testutil.WithFieldValuesFullOverride(fecHistoryFieldValues()),
 	)
-	collector, err := newNVLinkFECCollector(mockDevice, nil)
+	collector, err := newNVLinkFECCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
 	require.Equal(t, nvlinkFEC, collector.Name())
 	require.Equal(t, mockDevice.GetDeviceInfo().UUID, collector.Device().GetDeviceInfo().UUID)
@@ -86,11 +86,6 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 }
 
 func TestNVLinkFECCollectorConfigurableLightErrorThreshold(t *testing.T) {
-	pkgconfigsetup.Datadog().SetInTest(nvlinkFECLightErrorThresholdConfig, 2)
-	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().SetInTest(nvlinkFECLightErrorThresholdConfig, defaultNVLinkFECLightErrorThreshold)
-	})
-
 	fieldValues := make(map[uint32]testutil.MockFieldValue, len(nvlinkFECHistoryFieldIDs))
 	for i, fieldID := range nvlinkFECHistoryFieldIDs {
 		fieldValues[fieldID] = testutil.NewFieldValue(uint64(i))
@@ -102,7 +97,7 @@ func TestNVLinkFECCollectorConfigurableLightErrorThreshold(t *testing.T) {
 	)
 
 	collector, err := newNVLinkFECCollector(mockDevice, &CollectorDependencies{
-		Config: pkgconfigsetup.Datadog(),
+		Config: gpuconfig.Config{NVLinkFECLightErrorThreshold: 2},
 	})
 	require.NoError(t, err)
 
@@ -126,7 +121,7 @@ func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mock, 0)
 
-	collector, err := newNVLinkFECCollector(mockDevice, nil)
+	collector, err := newNVLinkFECCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	// Modify the field values to test partial failure after initial support test
@@ -151,7 +146,7 @@ func TestNVLinkFECCollectorAllFieldsFail(t *testing.T) {
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mock, 0)
 
-	collector, err := newNVLinkFECCollector(mockDevice, nil)
+	collector, err := newNVLinkFECCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	for fieldID := range fieldValues {
