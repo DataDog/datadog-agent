@@ -15,6 +15,7 @@ dd_agent_go_test(
         "diagnose_common_test.go",
         "diagnose_nix_test.go",
         "diagnose_win_test.go",
+        "dogstatsdadpguard_nix_test.go",
         "dogstatsdreplay_common_test.go",
         "dogstatsdreplay_nix_test.go",
         "flare_common_test.go",
@@ -51,6 +52,10 @@ dd_agent_go_test(
         "dogstatsdreplay/fixtures/metrics_capture.zstd",
         "status/fixtures/custom_check.py",
         "status/fixtures/custom_check.yaml",
+        "//test/new-e2e/tests/agent-subcommands/config:fixtures/datadog-agent.yaml",  # keep
+        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/datadog-agent.yaml",  # keep
+        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/security-agent.yaml",  # keep
+        "//test/new-e2e/tests/agent-subcommands/flare:fixtures/system-probe.yaml",  # keep
     ],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
@@ -70,6 +75,7 @@ dd_agent_go_test(
         "//test/fakeintake/client",
         "//test/fakeintake/client/flare",
         "//test/new-e2e/tests/agent-configuration/secretsutils",
+        "//test/new-e2e/tests/agent-metric-pipelines/common",
         "//test/new-e2e/tests/agent-platform/common",
         "//test/new-e2e/tests/agent-platform/common/process",
         "//test/new-e2e/tests/agent-platform/common/svc-manager",

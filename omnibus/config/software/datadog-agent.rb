@@ -207,6 +207,10 @@ build do
     end
 
     if linux_target?
+      command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/rshell:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    end
+
+    if linux_target? || windows_target?
       command "bazel run #{omnibazel_flags} //pkg/privateactionrunner/par-control:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     end
   end
@@ -278,7 +282,6 @@ build do
     else
       copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     end
-    move 'pkg/config/example/security-agent.yaml.example', "#{conf_dir}/security-agent.yaml.example"
   end
 
   # CWS Instrumentation
@@ -314,11 +317,6 @@ build do
     command "swiftc -O -swift-version \"5\" -target \"#{target}\" -Xlinker '-rpath' -Xlinker '@executable_path/../Frameworks' Sources/*.swift -o gui", cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
-  end
-
-  # APM Hands Off config file
-  if linux_target?
-    copy 'pkg/config/example/application_monitoring.yaml.example', "#{conf_dir}/application_monitoring.yaml.example"
   end
 
   # Allows the agent to be installed in a custom location

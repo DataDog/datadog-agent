@@ -300,21 +300,21 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v133257318-6ecce2dd
+  CI_IMAGE_BTF_GEN: v134889588-9b0a9089
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v133257318-6ecce2dd
+  CI_IMAGE_DOCKER_X64: v134889588-9b0a9089
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v133257318-6ecce2dd
+  CI_IMAGE_DOCKER_ARM64: v134889588-9b0a9089
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v133257318-6ecce2dd
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v134889588-9b0a9089
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v133257318-6ecce2dd
+  CI_IMAGE_LINUX: v134889588-9b0a9089
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v133257318-6ecce2dd
+  CI_IMAGE_RPM_X64: v134889588-9b0a9089
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v133257318-6ecce2dd
+  CI_IMAGE_RPM_ARM64: v134889588-9b0a9089
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v133257318-6ecce2dd
+  CI_IMAGE_RPM_ARMHF: v134889588-9b0a9089
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v133257318-6ecce2dd
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
@@ -992,6 +992,7 @@ workflow:
     when: on_success
   - changes:
       paths:
+        - pkg/config/schema/**/* # incident-60254
         - .gitlab/test/e2e/*.yml
         - bazel/rules/go_shim/**/* # Runs bazelified Go tools
         - internal/tools/**/* # Go tools: gotestsum, etc. (incident-59251/59255/59256/59257/59258)
@@ -1148,6 +1149,18 @@ workflow:
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py
         - test/new-e2e/tests/windows/service-test/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_windows_powershell_check_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/agent/dist/conf.d/powershell.d/**/*
+        - cmd/agent/dist/protected/**/*
+        - pkg/collector/corechecks/system/powershell/**/*
+        - tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs
+        - test/new-e2e/tests/windows/powershell-check/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
