@@ -127,7 +127,7 @@ apm_config:
 //	on  | none           | none        | everything
 //	on  | none           | policies    | last matching policy, else nothing
 //	on  | present        | none        | first matching target, else nothing
-//	on  | present        | policies    | first matching target, else last matching policy, else nothing
+//	on  | present        | policies    | last matching policy, else first matching target, else nothing
 func TestMatching_EvaluationSources(t *testing.T) {
 	const ssiOff = `
 apm_config:
@@ -224,10 +224,11 @@ apm_config:
 		assertMatch(t, m, "ns", map[string]string{"app": "db"}, nothing)
 	})
 
-	t.Run("ssi on / enabledNamespaces / RC / first matching target, else last matching policy, else nothing", func(t *testing.T) {
+	t.Run("ssi on / enabledNamespaces / RC / last matching policy, else first matching target, else nothing", func(t *testing.T) {
 		m := newMatchMutator(t, ssiOnEnabledNamespaces, newMatchTestWmeta(t))
 		require.NoError(t, m.SetRemotePolicies(rcPolicies))
-		assertMatch(t, m, "app-ns", map[string]string{"app": "legacy"}, helm("default"))
+		assertMatch(t, m, "app-ns", map[string]string{"app": "legacy"}, nothing)
+		assertMatch(t, m, "app-ns", map[string]string{"app": "other"}, rc("rc-default"))
 		assertMatch(t, m, "ns", map[string]string{"app": "db"}, rc("rc-db"))
 		assertMatch(t, m, "ns", map[string]string{"app": "legacy"}, nothing)
 		assertMatch(t, m, "ns", map[string]string{"app": "other"}, rc("rc-default"))
@@ -239,11 +240,11 @@ apm_config:
 		assertMatch(t, m, "ns", map[string]string{"app": "db"}, nothing)
 	})
 
-	t.Run("ssi on / targets / RC / first matching target, else last matching policy, else nothing", func(t *testing.T) {
+	t.Run("ssi on / targets / RC / last matching policy, else first matching target, else nothing", func(t *testing.T) {
 		m := newMatchMutator(t, ssiOnTargets, newMatchTestWmeta(t))
 		require.NoError(t, m.SetRemotePolicies(rcPolicies))
-		assertMatch(t, m, "ns", map[string]string{"language": "python"}, helm("helm-python"))
-		assertMatch(t, m, "ns", map[string]string{"language": "python", "app": "db"}, helm("helm-python"))
+		assertMatch(t, m, "ns", map[string]string{"language": "python"}, rc("rc-default"))
+		assertMatch(t, m, "ns", map[string]string{"language": "python", "app": "db"}, rc("rc-db"))
 		assertMatch(t, m, "ns", map[string]string{"app": "db"}, rc("rc-db"))
 		assertMatch(t, m, "ns", map[string]string{"app": "legacy"}, nothing)
 		assertMatch(t, m, "ns", map[string]string{"app": "other"}, rc("rc-default"))
