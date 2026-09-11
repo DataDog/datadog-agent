@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package logssource provides a component that feeds container and kubelet
-// journald logs into the observer without requiring the logs agent to be enabled.
+// Package logssource feeds logs into the observer. It reuses the Logs Agent
+// message stream when available and otherwise starts a standalone container and
+// kubelet collection path.
 package logssource
 
 // team: agent-anomaly-detection

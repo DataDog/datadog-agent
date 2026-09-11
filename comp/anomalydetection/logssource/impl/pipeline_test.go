@@ -158,3 +158,41 @@ func TestPipeline_IncludeBeforeExcludeAllowsMatching(t *testing.T) {
 	require.Len(t, handle.logs, 1)
 	assert.Equal(t, "prod log", string(handle.logs[0].GetContent()))
 }
+
+func TestLogsAgentMessageTapForwardsArbitrarySources(t *testing.T) {
+	handle := &captureObserverHandle{}
+	tap := newLogsAgentMessageTap(handle, nil, nil, logSourceSettings{
+		containerSourcesEnabled: true,
+		kubeletSourceEnabled:    true,
+	})
+
+	tap(newLogMessage(t, "application log", "custom-file-source", "app.log", []string{"env:test"}))
+
+	require.Len(t, handle.logs, 1)
+	assert.Equal(t, "application log", handle.logs[0].GetContent())
+}
+
+func TestLogsAgentMessageTapHonorsSourceGates(t *testing.T) {
+	handle := &captureObserverHandle{}
+	tap := newLogsAgentMessageTap(handle, nil, nil, logSourceSettings{
+		kubeletSourceEnabled: true,
+	})
+
+	tap(newLogMessage(t, "application log", "custom-file-source", "app.log", nil))
+	tap(newLogMessage(t, "kubelet log", "kubelet", "kubelet", []string{"source:kubelet"}))
+
+	require.Len(t, handle.logs, 1)
+	assert.Equal(t, "kubelet log", handle.logs[0].GetContent())
+}
+
+func TestLogsAgentMessageTapDropsAnomalySubsystemLogs(t *testing.T) {
+	handle := &captureObserverHandle{}
+	tap := newLogsAgentMessageTap(handle, nil, nil, logSourceSettings{
+		containerSourcesEnabled: true,
+		kubeletSourceEnabled:    true,
+	})
+
+	tap(newLogMessage(t, "2026-09-08 INFO [anomalydetection] feedback", "agent", "agent.log", nil))
+
+	assert.Empty(t, handle.logs)
+}
