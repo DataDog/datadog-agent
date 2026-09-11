@@ -29,14 +29,28 @@ type Config struct {
 	RShellDisableDetailedTelemetry bool
 	RShellPrivilegedEnabled        bool
 	RShellPrivilegedSocket         string
-	DDHost                         string
-	DDApiHost                      string
-	Modes                          []modes.Mode
-	OrgId                          int64
-	PrivateKey                     *ecdsa.PrivateKey
-	RunnerId                       string
-	Urn                            string
-	Tags                           []observability.Tag
+	// RShellPrivilegedElevatableCommands lists rshell:-namespaced commands
+	// allowed to temporarily regain root inside the privileged helper. Nil or
+	// empty means no command may elevate.
+	RShellPrivilegedElevatableCommands []string
+	// RShellAllowedCommandsConfigured and RShellAllowedPathsConfigured record
+	// whether the operator explicitly set restricted_shell.allowed_commands /
+	// allowed_paths in datadog.yaml, as opposed to leaving them at their
+	// wildcard-admitting defaults. Privileged execution uses these to decide
+	// whether to narrow the corresponding axis at all: an unconfigured axis
+	// imposes no additional narrowing on privileged execution, identical to
+	// today's behavior, even though the non-privileged path always has a
+	// concrete (defaulted) value for that axis.
+	RShellAllowedCommandsConfigured bool
+	RShellAllowedPathsConfigured    bool
+	DDHost                          string
+	DDApiHost                       string
+	Modes                           []modes.Mode
+	OrgId                           int64
+	PrivateKey                      *ecdsa.PrivateKey
+	RunnerId                        string
+	Urn                             string
+	Tags                            []observability.Tag
 
 	// RemoteConfig related fields
 	DatadogSite string
