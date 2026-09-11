@@ -51,6 +51,8 @@ type LogSource struct {
 	BytesRead        *status.CountInfo
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
+	tagFilter        TagFilter
+	tagFilterSet     bool
 }
 
 // NewLogSource creates a new log source.
@@ -168,9 +170,32 @@ func (s *LogSource) GetInfo(key string) status.InfoProvider {
 
 // GetInfoStatus returns a primitive representation of the info for the status page
 func (s *LogSource) GetInfoStatus() map[string][]string {
+	return s.GetInfoStatusVerbose(false)
+}
+
+// GetInfoStatusVerbose returns a primitive representation of the info for the status page,
+// including verbose-only providers when verbose is true.
+func (s *LogSource) GetInfoStatusVerbose(verbose bool) map[string][]string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return s.info.Rendered()
+	return s.info.RenderedVerbose(verbose)
+}
+
+// TagFilter returns the tag filter resolved for this source and whether resolution has happened.
+func (s *LogSource) TagFilter() (TagFilter, bool) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.tagFilter, s.tagFilterSet
+}
+
+// SetTagFilter records the tag filter resolved for this source. Pass a genuinely nil
+// interface (not a typed nil pointer) when no filtering applies, so that TagFilter()
+// returns an interface value comparing equal to nil.
+func (s *LogSource) SetTagFilter(f TagFilter) {
+	s.lock.Lock()
+	s.tagFilter = f
+	s.tagFilterSet = true
+	s.lock.Unlock()
 }
 
 // HideFromStatus hides the source from the status output

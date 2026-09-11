@@ -14,10 +14,12 @@ go_library(
         "messages.go",
         "parser.go",
         "processing_rules.go",
+        "tag_filters.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/config",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/logs-library/tagfilter",
         "//comp/logs-library/utils/tls",
         "//pkg/config/model",
         "//pkg/config/setup/constants",
@@ -41,6 +43,7 @@ dd_agent_go_test(
         "messages_test.go",
         "parser_test.go",
         "processing_rules_test.go",
+        "tag_filters_test.go",
     ],
     embed = [":config"],
     deps = [

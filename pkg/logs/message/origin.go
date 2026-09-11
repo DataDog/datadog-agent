@@ -42,6 +42,16 @@ func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
 }
 
+// TransportTags returns the origin's tags after f, for encoders that inline
+// tags (JSON, protobuf). Agent-local consumers use Tags(), which is never
+// filtered.
+func (o *Origin) TransportTags(f sources.TagFilter) []string {
+	if f == nil {
+		return o.Tags()
+	}
+	return f.Keep(o.tagsToStringArray())
+}
+
 // TagsPayload returns the raw tag payload of the origin.
 func (o *Origin) TagsPayload(processingTags []string) []byte {
 	if o == nil || o.LogSource == nil {
@@ -63,6 +73,42 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 	tags = append(tags, o.LogSource.Config.Tags...)
 	tags = append(tags, o.tags...)
 	tags = append(tags, processingTags...)
+
+	if len(tags) > 0 {
+		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)
+	}
+	if len(tagsPayload) == 0 {
+		tagsPayload = []byte{}
+	}
+	return tagsPayload
+}
+
+// TransportTagsPayload is TagsPayload with f applied to ddtags and
+// ddsourcecategory. ddsource is never filtered.
+func (o *Origin) TransportTagsPayload(f sources.TagFilter, processingTags []string) []byte {
+	if o == nil || o.LogSource == nil {
+		return []byte{}
+	}
+	if f == nil {
+		return o.TagsPayload(processingTags)
+	}
+
+	var tagsPayload []byte
+
+	source := o.Source()
+	if source != "" {
+		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\""+source+"\"]")...)
+	}
+	sourceCategory := o.LogSource.Config.SourceCategory
+	if sourceCategory != "" && f.Retains("sourcecategory:"+sourceCategory) {
+		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+sourceCategory+"\"]")...)
+	}
+
+	var tags []string
+	tags = append(tags, o.LogSource.Config.Tags...)
+	tags = append(tags, o.tags...)
+	tags = append(tags, processingTags...)
+	tags = f.Keep(tags)
 
 	if len(tags) > 0 {
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)

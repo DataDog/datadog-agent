@@ -104,6 +104,9 @@ type LogsConfig struct {
 	SourceCategory  string
 	Tags            StringSliceField
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules" yaml:"log_processing_rules"`
+	// TagFilters removes matching tags from this source's logs before they reach the intake.
+	// EXPERIMENTAL and not yet applied; see logs_config.tag_filters for the pattern grammar.
+	TagFilters *TagFilters `mapstructure:"tag_filters" json:"tag_filters" yaml:"tag_filters"`
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
 
@@ -404,6 +407,7 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("SourceCategory: %#v,"), c.SourceCategory)
 	fmt.Fprintf(&b, ws("Tags: %#v,"), c.Tags)
 	fmt.Fprintf(&b, ws("ProcessingRules: %#v,"), c.ProcessingRules)
+	fmt.Fprintf(&b, ws("TagFilters: %#v,"), c.TagFilters)
 	if c.ProcessRawMessage != nil {
 		fmt.Fprintf(&b, ws("ProcessRawMessage: %t,"), *c.ProcessRawMessage)
 	} else {

@@ -61,6 +61,20 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 	}
 }
 
+// TestMalformedTagFiltersDoesNotFailValidate pins that Validate() never inspects TagFilters:
+// sources.go silently drops a source when Validate() fails, so a bad annotation must not stop logs.
+func TestMalformedTagFiltersDoesNotFailValidate(t *testing.T) {
+	cfg := &LogsConfig{
+		Type: FileType,
+		Path: "/var/log/foo.log",
+		TagFilters: &TagFilters{
+			Include: []string{"not_a_valid_pattern_no_colon"},
+			Exclude: []string{"source:*"},
+		},
+	}
+	assert.Nil(t, cfg.Validate())
+}
+
 func TestAutoMultilineEnabled(t *testing.T) {
 	decode := func(cfg string) *LogsConfig {
 		lc := LogsConfig{}
@@ -249,6 +263,17 @@ func TestConfigDump(t *testing.T) {
 	assert.Contains(t, dump, `Path: "/var/log/foo.log",`)
 }
 
+func TestConfigDumpSurfacesTagFilters(t *testing.T) {
+	config := LogsConfig{
+		Type:       FileType,
+		Path:       "/var/log/foo.log",
+		TagFilters: &TagFilters{Exclude: []string{"container_id:*"}},
+	}
+	dump := config.Dump(true)
+	assert.Contains(t, dump, "TagFilters:")
+	assert.Contains(t, dump, "container_id:*")
+}
+
 func TestPublicJSON(t *testing.T) {
 	config := LogsConfig{
 		Type:     FileType,
@@ -263,6 +288,20 @@ func TestPublicJSON(t *testing.T) {
 
 	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-8","service":"foo","source":"bar","tags":["foo:bar"]}`
 	assert.Equal(t, expectedJSON, string(ret))
+}
+
+// PublicJSON is sent to the backend as metadata and only exports fields that are
+// documented publicly; tag_filters is experimental and undocumented, so it must stay out.
+func TestPublicJSONExcludesTagFilters(t *testing.T) {
+	config := LogsConfig{
+		Type:       FileType,
+		Path:       "/var/log/foo.log",
+		TagFilters: &TagFilters{Exclude: []string{"container_id:*"}},
+	}
+	ret, err := config.PublicJSON()
+	assert.NoError(t, err)
+	assert.NotContains(t, string(ret), "tag_filters")
+	assert.NotContains(t, string(ret), "container_id")
 }
 
 func TestFingerprintConfig(t *testing.T) {

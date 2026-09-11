@@ -8,6 +8,7 @@ package diagnostic
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -39,6 +40,6 @@ func (l *logFormatter) Format(m *message.Message, _ string, redactedMsg []byte) 
 		hname,
 		m.Origin.Service(),
 		m.Origin.Source(),
-		m.TagsToString(),
+		strings.Join(m.Origin.TransportTags(m.TagFilter()), ","),
 		string(redactedMsg))
 }

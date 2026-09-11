@@ -94,6 +94,8 @@ type MessageMetadata struct {
 	// from an explicit zero that holds the checkpoint at its prior value.
 	checkpointRawDataLen    int
 	hasCheckpointRawDataLen bool
+	// tagFilter is applied to Origin's tags by encoders via TransportTags/TransportTagsPayload.
+	tagFilter sources.TagFilter
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -478,6 +480,16 @@ func (m *MessageMetadata) Tags() []string {
 // TagsToString returns all tags that this message is attached with, as a string.
 func (m *MessageMetadata) TagsToString() string {
 	return m.Origin.TagsToString()
+}
+
+// SetTagFilter sets the filter encoders apply to this message's tags at encode time.
+func (m *MessageMetadata) SetTagFilter(f sources.TagFilter) {
+	m.tagFilter = f
+}
+
+// TagFilter returns the filter encoders apply to this message's tags at encode time.
+func (m *MessageMetadata) TagFilter() sources.TagFilter {
+	return m.tagFilter
 }
 
 // Count returns the number of messages

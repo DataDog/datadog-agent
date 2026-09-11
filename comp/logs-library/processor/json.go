@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -66,7 +67,7 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
-		Tags:      msg.TagsToString(),
+		Tags:      strings.Join(msg.Origin.TransportTags(msg.TagFilter()), ","),
 	})
 
 	if err != nil {

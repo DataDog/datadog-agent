@@ -146,3 +146,69 @@ func TestConcurrentPublicJSONAndSetTailingMode(t *testing.T) {
 	start.Done()
 	wg.Wait()
 }
+
+// fakeTagFilter is a minimal TagFilter for exercising LogSource's tag filter storage.
+type fakeTagFilter struct{}
+
+func (fakeTagFilter) Keep(tags []string) []string { return tags }
+func (fakeTagFilter) Retains(string) bool         { return true }
+
+func TestLogSourceTagFilterUnset(t *testing.T) {
+	source := NewLogSource("test", nil)
+
+	f, ok := source.TagFilter()
+	assert.False(t, ok)
+	assert.True(t, f == nil)
+}
+
+func TestLogSourceTagFilterRoundTrip(t *testing.T) {
+	source := NewLogSource("test", nil)
+	want := fakeTagFilter{}
+
+	source.SetTagFilter(want)
+
+	got, ok := source.TagFilter()
+	assert.True(t, ok)
+	assert.Equal(t, TagFilter(want), got)
+}
+
+// TestLogSourceSetTagFilterNil guards the typed-nil trap: passing the untyped nil literal
+// must still yield an interface value that compares equal to nil.
+func TestLogSourceSetTagFilterNil(t *testing.T) {
+	source := NewLogSource("test", nil)
+	source.SetTagFilter(fakeTagFilter{})
+
+	source.SetTagFilter(nil)
+
+	got, ok := source.TagFilter()
+	assert.True(t, ok)
+	assert.True(t, got == nil)
+}
+
+// TestLogSourceTagFilterConcurrent runs SetTagFilter and TagFilter concurrently to catch races (-race).
+func TestLogSourceTagFilterConcurrent(t *testing.T) {
+	source := NewLogSource("racesource", nil)
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				source.SetTagFilter(fakeTagFilter{})
+			}
+		}
+	})
+
+	wg.Go(func() {
+		for i := 0; i < 1000; i++ {
+			source.TagFilter()
+		}
+		close(stop)
+	})
+
+	wg.Wait()
+}
