@@ -136,6 +136,54 @@ func (r *jsonAggregator) IsEmpty() bool {
 	return len(r.messageBuf) == 0
 }
 
+// TakePendingContent implements PendingContentCarrier. The buffered parts are
+// concatenated the same way Process compacts them, so the result can be fed
+// back as a single fragment.
+func (r *jsonAggregator) TakePendingContent() []PendingContent {
+	if len(r.messageBuf) == 0 {
+		return nil
+	}
+
+	var buf bytes.Buffer
+	for _, m := range r.messageBuf {
+		buf.Write(m.GetContent())
+	}
+	pending := PendingContent{
+		Msg:           r.messageBuf[0],
+		Content:       buf.Bytes(),
+		RawDataLen:    r.currentSize,
+		LinesCombined: len(r.messageBuf),
+	}
+
+	r.messageBuf = r.messageBuf[:0]
+	r.currentSize = 0
+	r.checkpointSize = 0
+	r.decoder.Reset()
+
+	return []PendingContent{pending}
+}
+
+// SeedPendingContent implements PendingContentCarrier.
+func (r *jsonAggregator) SeedPendingContent(pending []PendingContent) {
+	if len(pending) == 0 || pending[0].Msg == nil {
+		return
+	}
+
+	p := pending[0]
+	msg := p.Msg
+	msg.SetContent(p.Content)
+	msg.RawDataLen = p.RawDataLen
+	msg.SetRawDataLenForCheckpoint(0)
+
+	r.messageBuf = append(r.messageBuf[:0], msg)
+	r.currentSize = p.RawDataLen
+	r.checkpointSize = 0
+	// Replay the carried-over bytes so the incremental validator judges the
+	// next line in the same parse context the previous decoder had.
+	r.decoder.Reset()
+	r.decoder.Write(p.Content)
+}
+
 // NoopJSONAggregator is a pass-through JSONAggregator that never buffers messages.
 // Use this for pipeline paths where JSON aggregation is not needed
 // (e.g. pass-through, regex multiline, detecting mode).

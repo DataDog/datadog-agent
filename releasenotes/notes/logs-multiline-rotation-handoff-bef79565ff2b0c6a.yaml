@@ -2,16 +2,19 @@
 fixes:
   - |
     Log lines that span a file rotation are no longer split into two broken
-    messages. When a file is rotated while a multiline group (``multi_line_pattern``
-    or auto multiline) or a container runtime partial-line sequence is still
-    open, the tailer now hands the buffered content to the tailer that takes over
-    the new file, so the continuation completes the original line. The handoff is
+    messages. When a file is replaced while a multiline group
+    (``multi_line_pattern`` or auto multiline), an aggregated JSON object, a Go
+    stack trace, or a container runtime partial-line sequence is still open, the
+    tailer now hands the buffered content to the tailer that takes over the new
+    file, so the continuation completes the original line. The handoff is
     bounded: for rotations detected by inode or size it uses
     ``logs_config.aggregation_timeout``, and for rotations detected by checksum
     fingerprinting it uses the new
     ``logs_config.fingerprint_rotation_handoff_timeout``. When the window
     expires, or no replacement tailer takes over, the buffered content is flushed
-    on its own exactly as before.
+    on its own exactly as before. Rotations performed by truncating the file in
+    place are deliberately excluded, since the data on either side of a
+    truncation is not contiguous.
 upgrade:
   - |
     Added ``logs_config.fingerprint_rotation_handoff_timeout`` (milliseconds,

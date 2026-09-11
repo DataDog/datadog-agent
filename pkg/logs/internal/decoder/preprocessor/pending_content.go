@@ -41,7 +41,25 @@ type PendingContent struct {
 	// buffer per stream (CRI partial lines are keyed by stdout / stderr). Empty
 	// for stages with a single buffer.
 	Stream string
+
+	// Stage records which buffering sub-stage the content came from, so it is
+	// restored into the same one. The Preprocessor has three independent
+	// buffers and any of them can be the one holding a partial message.
+	Stage string
 }
+
+// Names of the Preprocessor's buffering sub-stages, in pipeline order.
+const (
+	// StageJSONAggregation is the JSONAggregator's buffer of an incomplete
+	// pretty-printed JSON object.
+	StageJSONAggregation = "json_aggregation"
+	// StageStackTraceAggregation is the StackTraceAggregator's buffer of an
+	// in-progress stack trace.
+	StageStackTraceAggregation = "stack_trace_aggregation"
+	// StageLineAggregation is the combining/regex Aggregator's buffer of an
+	// in-progress multiline group.
+	StageLineAggregation = "line_aggregation"
+)
 
 // PendingContentCarrier is implemented by pipeline stages that can hand their
 // in-progress buffer to the equivalent stage of another decoder instead of

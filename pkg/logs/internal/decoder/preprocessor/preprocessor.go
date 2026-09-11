@@ -127,29 +127,67 @@ func (p *Preprocessor) Flush() {
 	p.stopFlushTimerIfNeeded()
 }
 
-// TakePendingContent implements PendingContentCarrier by delegating to the
-// configured aggregator. Aggregators that do not buffer across lines don't
-// implement the interface and yield nothing.
-func (p *Preprocessor) TakePendingContent() []PendingContent {
-	carrier, ok := p.aggregator.(PendingContentCarrier)
-	if !ok {
-		return nil
-	}
-	p.stopFlushTimerIfNeeded()
-	return carrier.TakePendingContent()
+// pendingStage pairs one of the Preprocessor's buffering sub-stages with the
+// name recorded on the content it produces.
+type pendingStage struct {
+	name  string
+	stage any
 }
 
-// SeedPendingContent implements PendingContentCarrier by delegating to the
-// configured aggregator, then arming the regular aggregation-timeout timer.
+// pendingStages lists the buffers that can hold a partial message, in pipeline
+// order. Which one is non-empty at any moment depends on what was being
+// processed, so all of them are consulted.
+func (p *Preprocessor) pendingStages() []pendingStage {
+	return []pendingStage{
+		{StageJSONAggregation, p.jsonAggregator},
+		{StageStackTraceAggregation, p.stackTraceAggregator},
+		{StageLineAggregation, p.aggregator},
+	}
+}
+
+// TakePendingContent implements PendingContentCarrier by collecting from every
+// buffering sub-stage. Stages that do not buffer across lines don't implement
+// the interface and yield nothing.
+func (p *Preprocessor) TakePendingContent() []PendingContent {
+	p.stopFlushTimerIfNeeded()
+
+	var pending []PendingContent
+	for _, s := range p.pendingStages() {
+		carrier, ok := s.stage.(PendingContentCarrier)
+		if !ok {
+			continue
+		}
+		for _, content := range carrier.TakePendingContent() {
+			content.Stage = s.name
+			pending = append(pending, content)
+		}
+	}
+	return pending
+}
+
+// SeedPendingContent implements PendingContentCarrier, routing each piece of
+// content back to the sub-stage it came from, then arming the regular
+// aggregation-timeout timer.
 func (p *Preprocessor) SeedPendingContent(pending []PendingContent) {
 	if len(pending) == 0 {
 		return
 	}
-	carrier, ok := p.aggregator.(PendingContentCarrier)
-	if !ok {
-		return
+
+	for _, s := range p.pendingStages() {
+		carrier, ok := s.stage.(PendingContentCarrier)
+		if !ok {
+			continue
+		}
+		var forStage []PendingContent
+		for _, content := range pending {
+			if content.Stage == s.name {
+				forStage = append(forStage, content)
+			}
+		}
+		if len(forStage) > 0 {
+			carrier.SeedPendingContent(forStage)
+		}
 	}
-	carrier.SeedPendingContent(pending)
 	p.startFlushTimerIfNeeded()
 }
 

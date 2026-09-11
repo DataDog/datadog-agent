@@ -104,6 +104,7 @@ dd_agent_go_test(
         "pass_through_aggregator_proptest_test.go",
         "pass_through_aggregator_test.go",
         "pattern_table_test.go",
+        "pending_content_test.go",
         "preprocessor_test.go",
         "regex_aggregator_proptest_test.go",
         "regex_aggregator_test.go",
