@@ -8,6 +8,8 @@ go_library(
         "extension.go",
         "factory.go",
         "server.go",
+        "unixsocket_nix.go",
+        "unixsocket_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl",
     visibility = ["//visibility:public"],
@@ -24,7 +26,11 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["extension_test.go"],
+    srcs = [
+        "extension_test.go",
+        "extension_unixsocket_test.go",
+        "extension_unixsocket_windows_test.go",
+    ],
     data = [
         "config.schema.yaml",
         "metadata.yaml",
