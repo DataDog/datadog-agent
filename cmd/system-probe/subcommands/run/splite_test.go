@@ -24,6 +24,7 @@ import (
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
@@ -34,18 +35,19 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// createFakeSPLiteBinary creates a fake system-probe-lite binary next to the
-// test binary and returns cleanup func.
-func createFakeSPLiteBinary(t *testing.T) string {
+// createFakeSPLiteBinary creates a fake system-probe-lite and returns a lookup
+// that locates system-probe in the same temporary directory.
+func createFakeSPLiteBinary(t *testing.T) (string, spliteExecutableFunc) {
 	t.Helper()
-	execPath, err := os.Executable()
-	require.NoError(t, err)
-	fakeBinary := filepath.Join(filepath.Dir(execPath), "system-probe-lite")
+	execDir := t.TempDir()
+	fakeBinary := filepath.Join(execDir, "system-probe-lite")
 	require.NoError(t, os.WriteFile(fakeBinary, []byte("#!/bin/sh\n"), 0755))
-	t.Cleanup(func() { os.Remove(fakeBinary) })
-	return fakeBinary
+	return fakeBinary, func() (string, error) {
+		return filepath.Join(execDir, "system-probe"), nil
+	}
 }
 
 // newMockSysprobeConfig creates a sysprobeconfig mock with overrides applied
@@ -122,13 +124,19 @@ func TestMaybeSPLite(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var fakeBinaryPath string
+			var executableFn spliteExecutableFunc
 			if tc.fakeBinary {
-				fakeBinaryPath = createFakeSPLiteBinary(t)
+				fakeBinaryPath, executableFn = createFakeSPLiteBinary(t)
+			} else {
+				execDir := t.TempDir()
+				executableFn = func() (string, error) {
+					return filepath.Join(execDir, "system-probe"), nil
+				}
 			}
 
 			sysprobeConfig := newMockSysprobeConfig(t, tc.overrides)
 			log := logmock.New(t)
-			cmd := maybeSPLite(sysprobeConfig, "/test/sp.pid", log)
+			cmd := maybeSPLite(sysprobeConfig, "/test/sp.pid", log, executableFn)
 
 			if tc.expectNil {
 				assert.Nil(t, cmd)
@@ -153,7 +161,8 @@ func TestMaybeSPLite(t *testing.T) {
 }
 
 func TestEarlySPLiteExecFailureFallsThroughToLifecycleStart(t *testing.T) {
-	fakeBinaryPath := createFakeSPLiteBinary(t)
+	fakeBinaryPath, executableFn := createFakeSPLiteBinary(t)
+	pidFilePath := filepath.Join(t.TempDir(), "system-probe.pid")
 	sysprobeConfig := newMockSysprobeConfig(t, map[string]interface{}{
 		"discovery.use_system_probe_lite": true,
 		"discovery.enabled":               true,
@@ -163,6 +172,7 @@ func TestEarlySPLiteExecFailureFallsThroughToLifecycleStart(t *testing.T) {
 	var events []string
 	execFn := spliteExecFunc(func(path string, args []string, env []string) error {
 		events = append(events, "exec")
+		require.FileExists(t, pidFilePath)
 		assert.Equal(t, fakeBinaryPath, path)
 		assert.Equal(t, fakeBinaryPath, args[0])
 		assert.NotEmpty(t, env)
@@ -171,9 +181,12 @@ func TestEarlySPLiteExecFailureFallsThroughToLifecycleStart(t *testing.T) {
 
 	app := fxtest.New(t,
 		fx.NopLogger,
+		fxutil.FxAgentBase(),
 		fx.Provide(func() sysprobeconfig.Component { return sysprobeConfig }),
 		fx.Provide(func() log.Component { return logger }),
-		fx.Supply(pidimpl.NewParams("/test/system-probe.pid")),
+		fx.Supply(pidimpl.NewParams(pidFilePath)),
+		pidfx.Module(),
+		fx.Supply(executableFn),
 		fx.Supply(execFn),
 		fx.Invoke(tryExecSPLiteEarly),
 		fx.Invoke(func(lc fx.Lifecycle) {
@@ -188,6 +201,7 @@ func TestEarlySPLiteExecFailureFallsThroughToLifecycleStart(t *testing.T) {
 	app.RequireStart()
 	assert.Equal(t, []string{"exec", "start"}, events)
 	app.RequireStop()
+	require.NoFileExists(t, pidFilePath)
 }
 
 type activeConfigStream struct{}
@@ -195,7 +209,7 @@ type activeConfigStream struct{}
 func (activeConfigStream) IsActive() bool { return true }
 
 func TestEarlySPLiteHandoffUsesStreamedCoreConfig(t *testing.T) {
-	createFakeSPLiteBinary(t)
+	_, executableFn := createFakeSPLiteBinary(t)
 	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 	t.Setenv("DD_DISCOVERY_USE_SYSTEM_PROBE_LITE", "true")
 
@@ -209,9 +223,12 @@ func TestEarlySPLiteHandoffUsesStreamedCoreConfig(t *testing.T) {
 	execCalled := false
 	app := fxtest.New(t,
 		fx.NopLogger,
+		fxutil.FxAgentBase(),
 		fx.Supply(configParams),
 		fx.Supply(sysprobeconfigimpl.NewParams()),
-		fx.Supply(pidimpl.NewParams("/test/system-probe.pid")),
+		fx.Supply(pidimpl.NewParams("")),
+		pidfx.Module(),
+		fx.Supply(executableFn),
 		fx.Supply(spliteExecFunc(func(string, []string, []string) error {
 			execCalled = true
 			return errors.New("unexpected exec")

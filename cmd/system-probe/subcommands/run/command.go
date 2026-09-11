@@ -99,6 +99,7 @@ type spLiteExecCmd struct {
 }
 
 type spliteExecFunc func(string, []string, []string) error
+type spliteExecutableFunc func() (string, error)
 
 // configPrefix is the system-probe config namespace (avoids importing pkg/system-probe/config and its setup dependency cycle).
 const configPrefix = "system_probe_config."
@@ -140,6 +141,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				fx.Supply(spliteExecFunc(syscall.Exec)),
+				fx.Supply(spliteExecutableFunc(os.Executable)),
 				fx.Supply(configstreamconsumer.NewParams(systemProbeBootstrapClient, globalParams.DatadogConfFilePath())),
 				configstreamconsumerfx.Module(),
 				getSharedFxOption(),
@@ -156,9 +158,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // the application. It runs before fxutil.OneShot starts lifecycle hooks for the
 // full system-probe graph. Using the graph's config components means an active
 // config stream applies its initial snapshot before this decision, and config
-// loading errors still abort startup normally.
-func tryExecSPLiteEarly(sysConfig sysprobeconfig.Component, pidParams pidimpl.Params, logger log.Component, execFn spliteExecFunc) {
-	if cmd := maybeSPLite(sysConfig, pidParams.PIDfilePath, logger); cmd != nil {
+// loading errors still abort startup normally. Resolving pid.Component writes
+// and validates the PID file that system-probe-lite will remove on exit.
+func tryExecSPLiteEarly(sysConfig sysprobeconfig.Component, _ pid.Component, pidParams pidimpl.Params, logger log.Component, executableFn spliteExecutableFunc, execFn spliteExecFunc) {
+	if cmd := maybeSPLite(sysConfig, pidParams.PIDfilePath, logger, executableFn); cmd != nil {
 		execSPLite(cmd, logger, execFn)
 	}
 }
