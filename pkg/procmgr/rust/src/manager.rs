@@ -466,6 +466,39 @@ mod tests {
         }
     }
 
+    fn true_def(name: &str) -> ProcessDefinition {
+        let (cmd, args) = test_helpers::true_cmd();
+        ProcessDefinition {
+            name: name.to_string(),
+            config: test_helpers::make_config(cmd, args),
+        }
+    }
+
+    #[test]
+    fn test_resolve_index_ambiguous_uuid_prefix() {
+        let mk = |name: &str, uuid: &str| {
+            ManagedProcess::new_config(
+                name.to_string(),
+                uuid.to_string(),
+                test_helpers::make_config("true", vec![]),
+            )
+        };
+        let procs = vec![
+            mk("svc-a", "aabbccdd-1111-0000-0000-000000000000"),
+            mk("svc-b", "aabbccdd-2222-0000-0000-000000000000"),
+        ];
+
+        let err = resolve_index(&procs, "aabbccdd").unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+        assert!(
+            err.message().contains("ambiguous"),
+            "error should mention ambiguity: {}",
+            err.message()
+        );
+        assert_eq!(resolve_index(&procs, "aabbccdd-1").unwrap(), 0);
+        assert_eq!(resolve_index(&procs, "aabbccdd-2").unwrap(), 1);
+    }
+
     #[tokio::test]
     async fn test_complete_restart_skips_already_running() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![sleep_def("svc")]), uuid_gen());
@@ -893,7 +926,7 @@ mod tests {
             "aabbccdd-2222-0000-0000-000000000000",
         ]));
         let mgr = ProcessManager::new(
-            loader(vec![sleep_def("svc-a"), sleep_def("svc-b")]),
+            loader(vec![true_def("svc-a"), true_def("svc-b")]),
             uuid_gen,
         );
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
@@ -906,12 +939,13 @@ mod tests {
             err.message()
         );
 
-        // A longer, unambiguous prefix should resolve correctly.
-        mgr.handle_start("aabbccdd-1", &exit_tx)
+        // A longer, unambiguous prefix should resolve through handle_start.
+        // Use an immediate-exit child so this test does not depend on ping stop
+        // behavior on Windows (see test_resolve_index_ambiguous_uuid_prefix).
+        let start = mgr
+            .handle_start("aabbccdd-1", &exit_tx)
             .await
             .expect("unambiguous prefix should resolve");
-
-        // Clean up the spawned process.
-        let _: Result<_, _> = mgr.handle_stop("aabbccdd-1").await;
+        assert_eq!(start.uuid, "aabbccdd-1111-0000-0000-000000000000");
     }
 }
