@@ -136,29 +136,39 @@ pkg_files(
 
 pkg_files(
     name = "dda_built_agent_binary",
-    srcs = [
-        "@agent_binary//:agent",
-    ],
+    srcs = [select({
+        "//packages/agent:linux_heroku": "//cmd/agent:agent-heroku",
+        "//conditions:default": "//cmd/agent",
+    })],
     attributes = pkg_attributes(mode = "755"),
     prefix = "bin/agent",
+    renames = select({
+        "//packages/agent:linux_heroku": {"//cmd/agent:agent-heroku": "agent"},
+        "//conditions:default": {},
+    }),
 )
 
 pkg_files(
     name = "dda_built_process_agent_binary",
-    srcs = [
-        "@process_agent_binary//:process_agent",
-    ],
+    srcs = [select({
+        "//packages/agent:linux_heroku": "//cmd/process-agent:process-agent-heroku",
+        "//conditions:default": "//cmd/process-agent",
+    })],
     attributes = pkg_attributes(mode = "755"),
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
+    }),
+    renames = select({
+        "//packages/agent:linux_heroku": {"//cmd/process-agent:process-agent-heroku": "process-agent"},
+        "//conditions:default": {},
     }),
 )
 
 pkg_files(
     name = "dda_built_privateactionrunner_binary",
     srcs = [
-        "@privateactionrunner_binary//:privateactionrunner",
+        "//cmd/privateactionrunner",
     ],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
@@ -166,9 +176,14 @@ pkg_files(
 
 pkg_files(
     name = "dda_built_trace_agent_binary",
-    srcs = [
-        "@trace_agent_binary//:trace_agent",
-    ],
+    srcs = [select({
+        "//packages/agent:linux_heroku": "//cmd/trace-agent:trace-agent-heroku",
+        "//conditions:default": "//cmd/trace-agent",
+    })],
     attributes = pkg_attributes(mode = "755"),
     prefix = "embedded/bin",
+    renames = select({
+        "//packages/agent:linux_heroku": {"//cmd/trace-agent:trace-agent-heroku": "trace-agent"},
+        "//conditions:default": {},
+    }),
 )
