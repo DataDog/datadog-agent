@@ -546,11 +546,10 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_state_after_spawn_watcher_owns_handle() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
         let _exit_rx = spawn_ok(&mut proc);
         assert_eq!(proc.state(), ProcessState::Running);
@@ -565,11 +564,10 @@ pub mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn test_send_signal_works_after_spawn() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "t".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
         let mut exit_rx = spawn_ok(&mut proc);
 
@@ -622,11 +620,10 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_and_is_running() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "sleeper".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
 
         assert!(!proc.is_running());
@@ -650,11 +647,10 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_spawn_failure_after_stop_goes_through_starting_to_failed() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "svc".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
         let mut exit_rx = spawn_ok(&mut proc);
         proc.request_stop();
@@ -1044,11 +1040,10 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_stop_requested_transitions_to_stopped() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
         let mut proc = ManagedProcess::new_config(
             "svc".into(),
             test_helpers::test_uuid(),
-            test_helpers::make_config(cmd, args),
+            test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS),
         );
         let mut exit_rx = spawn_ok(&mut proc);
         assert_eq!(proc.state(), ProcessState::Running);
@@ -1062,8 +1057,7 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_stop_start_then_crash_restarts_on_failure() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let mut cfg = test_helpers::make_config(cmd, args);
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
         cfg.restart = RestartPolicy::OnFailure;
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
         let mut exit_rx = spawn_ok(&mut proc);
@@ -1086,8 +1080,7 @@ runtime_success_sec: 5
 
     #[tokio::test]
     async fn test_stop_requested_skips_restart() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let mut cfg = test_helpers::make_config(cmd, args);
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
         cfg.restart = RestartPolicy::Always;
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
         let mut exit_rx = spawn_ok(&mut proc);

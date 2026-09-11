@@ -29,8 +29,7 @@ mod tests {
     use crate::test_helpers;
 
     fn sleep_config() -> crate::config::ProcessConfig {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        test_helpers::make_config(cmd, args)
+        test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS)
     }
 
     #[tokio::test]

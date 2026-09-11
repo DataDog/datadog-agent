@@ -242,6 +242,32 @@ pub fn cleanup_process(pid: u32) {
     let _ = crate::platform::send_force_kill(pid);
 }
 
+/// Sleep duration for long-running test children.
+///
+/// On Windows, tests use `ping -n` as a sleep substitute. Keep this short so a
+/// missed teardown cannot burn the Tokio per-test timeout (60s).
+#[cfg(windows)]
+pub const TEST_SLEEP_SECS: u32 = 10;
+
+#[cfg(unix)]
+pub const TEST_SLEEP_SECS: u32 = 60;
+
+/// `ProcessConfig` for a long-running child used in stop/reload/shutdown tests.
+///
+/// Uses a short `stop_timeout` on all platforms: Windows `ping` ignores graceful
+/// stop, so `wait_for_stop` must escalate to force-kill quickly.
+pub fn sleep_test_config(secs: u32) -> crate::config::ProcessConfig {
+    let (cmd, args) = sleep_cmd(secs);
+    crate::config::ProcessConfig {
+        command: cmd.to_string(),
+        args,
+        stop_timeout: Some(1),
+        stdout: "null".to_string(),
+        stderr: "null".to_string(),
+        ..Default::default()
+    }
+}
+
 /// Build a `ProcessConfig` with null stdio, suitable for tests.
 pub fn make_config(command: &str, args: Vec<String>) -> crate::config::ProcessConfig {
     crate::config::ProcessConfig {
