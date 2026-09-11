@@ -8,11 +8,6 @@ from tasks import host_profiler
 
 
 class TestGetProfilerAgentVersion(unittest.TestCase):
-    def test_underscore_version_is_not_semver(self):
-        version = "7.81.0-devel_git.356.09ad4bc.hp-preview-1-0"
-
-        self.assertFalse(semver.VersionInfo.isvalid(version))
-
     def test_preview_version_returned_by_function_is_semver(self):
         with (
             patch.dict(
@@ -32,4 +27,5 @@ class TestGetProfilerAgentVersion(unittest.TestCase):
         ):
             version = host_profiler._get_profiler_agent_version(Mock())
 
+        # generated version should always be semver compliant (no '_' for example)
         self.assertTrue(semver.VersionInfo.isvalid(version))
