@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -245,6 +246,13 @@ func setupCommonHostTags(s *common.Setup) {
 	if workspace, ok := os.LookupEnv("DATABRICKS_WORKSPACE"); ok {
 		normalizedWorkspace = normalizeWorkspaceName(workspace)
 		setClearHostTag(s, "workspace", normalizedWorkspace)
+
+		// default DD_ENV to the normalized workspace name so spans emitted from this host
+		// carry the same env as the workspace host tag, but never clobber an env already
+		// configured (via DD_ENV or a previous install) on upgrades/reinstalls
+		if os.Getenv("DD_ENV") == "" && normalizedWorkspace != "" && config.ReadCurrentEnv(paths.DatadogDataDir) == "" {
+			s.Config.DatadogYAML.Env = normalizedWorkspace
+		}
 	}
 	setIfExists(s, "WORKSPACE_URL", "workspace_url", nil)
 
@@ -338,7 +346,7 @@ func setClearHostTag(s *common.Setup, tagKey, value string) {
 
 // setupGPUIntegration configures GPU monitoring integration
 func setupGPUIntegration(s *common.Setup) {
-	s.Out.WriteString("Setting up GPU monitoring based on env variable GPU_MONITORING_ENABLED=true\n")
+	s.Out.WriteString("Setting up GPU monitoring based on env variable DD_GPU_ENABLED=true\n")
 	s.Span.SetTag("host_tag_set.gpu_monitoring_enabled", "true")
 
 	s.Config.DatadogYAML.GPUCheck.Enabled = config.BoolToPtr(true)

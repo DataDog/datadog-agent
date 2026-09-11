@@ -12,19 +12,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 )
 
 func TestGPUCompile(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
-		if err := config.CheckGPUSupported(); err != nil {
+		if err := checkGPUSupported(); err != nil {
 			t.Skip("GPU Runtime compilation not supported on this kernel version")
 		}
 
-		cfg := config.New()
-		cfg.BPFDebug = true
-		out, err := getRuntimeCompiledGPUMonitoring(cfg)
+		ebpfCfg := ddebpf.NewConfig()
+		ebpfCfg.BPFDebug = true
+		out, err := getRuntimeCompiledGPUMonitoring(ebpfCfg)
 		require.NoError(t, err)
 		_ = out.Close()
 	})

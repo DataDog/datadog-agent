@@ -56,6 +56,14 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=trivy_no_javadb"],
     path = "github.com/aquasecurity/trivy",
 )
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:go_visibility @@//pkg/privateactionrunner/rshell:__pkg__",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry @@//pkg/fleet/installer/telemetry:telemetry",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state:state",
+    ],
+    path = "github.com/DataDog/rshell",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",
@@ -209,6 +217,7 @@ use_repo(
     "com_github_kouhin_envflag",
     "com_github_kr_pretty",
     "com_github_kraken_hpc_go_fork",
+    "com_github_landlock_lsm_go_landlock",
     "com_github_lightstep_go_expohisto",
     "com_github_lorenzosaino_go_sysctl",
     "com_github_lxn_walk",
@@ -299,14 +308,14 @@ use_repo(
     "com_github_pulumi_pulumi_azure_native_sdk_network_v2",
     "com_github_pulumi_pulumi_azure_native_sdk_v2",
     "com_github_pulumi_pulumi_command_sdk",
-    "com_github_pulumi_pulumi_docker_sdk_v4",
+    "com_github_pulumi_pulumi_docker_sdk_v5",
     "com_github_pulumi_pulumi_eks_sdk_v4",
     "com_github_pulumi_pulumi_gcp_sdk_v9",
     "com_github_pulumi_pulumi_kubernetes_sdk_v4",
     "com_github_pulumi_pulumi_libvirt_sdk",
     "com_github_pulumi_pulumi_random_sdk_v4",
     "com_github_pulumi_pulumi_sdk_v3",
-    "com_github_pulumi_pulumi_tls_sdk_v4",
+    "com_github_pulumi_pulumi_tls_sdk_v5",
     "com_github_pulumiverse_pulumi_time_sdk",
     "com_github_qri_io_jsonpointer",
     "com_github_rabbitmq_amqp091_go",
@@ -516,6 +525,14 @@ go_deps.module_override(
 go_deps.gazelle_override(
     directives = ["gazelle:go_copts -DNDEBUG"],
     path = "github.com/DataDog/zstd",
+)
+
+# go-nvml exposes generated cgo bindings for the full NVML API surface, including
+# functions that NVIDIA marks deprecated in nvml.h. Compiling those bindings emits
+# -Wdeprecated-declarations warnings.
+go_deps.gazelle_override(
+    directives = ["gazelle:go_copts -Wno-deprecated-declarations"],
+    path = "github.com/NVIDIA/go-nvml",
 )
 
 # sdjournal wraps journald's C API and `#include <systemd/sd-journal.h>` at compile
