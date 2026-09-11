@@ -334,8 +334,14 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 
 	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
+	authoredScriptsCatalog, err := newAuthoredScriptsCatalog(cfg, p.rcClient)
+	if err != nil {
+		return fmt.Errorf("could not initialize authored-script catalog: %w", err)
+	}
 	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
+	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka, runners.Dependencies{
+		AuthoredScriptsCatalog: authoredScriptsCatalog,
+	})
 
 	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
 
@@ -471,9 +477,15 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 
 	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
+	authoredScriptsCatalog, err := newAuthoredScriptsCatalog(cfg, p.rcClient)
+	if err != nil {
+		return fmt.Errorf("could not initialize authored-script catalog: %w", err)
+	}
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka, runners.Dependencies{
+		AuthoredScriptsCatalog: authoredScriptsCatalog,
+	})
 	if err != nil {
 		return err
 	}

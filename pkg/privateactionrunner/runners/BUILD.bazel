@@ -21,6 +21,7 @@ go_library(
         "//pkg/privateactionrunner/adapters/actions",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/bundle-support/authoredscripts",
         "//pkg/privateactionrunner/bundles",
         "//pkg/privateactionrunner/credentials/resolver",
         "//pkg/privateactionrunner/libs/encryptioncontext",

@@ -48,9 +48,10 @@ func NewWorkflowRunner(
 	ipcClient ipc.HTTPClient,
 	ha helmactions.Component,
 	ka kubeactions.Component,
+	dependencies Dependencies,
 ) (*WorkflowRunner, error) {
 	encryptionStore := encryptioncontext.NewStore()
-	taskExecutor := NewWorkflowTaskExecutor(configuration, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka)
+	taskExecutor := NewWorkflowTaskExecutor(configuration, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka, dependencies)
 
 	return &WorkflowRunner{
 		config:          configuration,

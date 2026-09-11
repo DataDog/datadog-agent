@@ -15,6 +15,7 @@ import (
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
 	com_datadoghq_gitlab_commits "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits"
 	com_datadoghq_gitlab_customattributes "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/customattributes"
@@ -62,7 +63,12 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) *Registry {
+// Dependencies contains optional facilities shared by action bundles.
+type Dependencies struct {
+	AuthoredScriptsCatalog authoredscriptssupport.Catalog
+}
+
+func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component, _ Dependencies) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.remoteaction":                         com_datadoghq_remoteaction.NewRemoteAction(configuration),

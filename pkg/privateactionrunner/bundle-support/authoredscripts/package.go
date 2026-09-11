@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/artifact"
 )
 
 // Package contains a validated authored script and the paths needed to execute it.
@@ -46,7 +48,7 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 		if !isDependencyName(dependency.Name) {
 			return nil, fmt.Errorf("invalid authored-script dependency name %q: name must be a single path component", dependency.Name)
 		}
-		toolPath, err := resolvePackageFile(artifact.Directory, filepath.Join(scriptDirectory, dependency.Name))
+		toolPath, err := resolvePackageFile(artifact.Directory, filepath.Join("tools", dependency.Name, dependency.Name))
 		if err != nil {
 			return nil, fmt.Errorf("invalid authored-script dependency %q: %w", dependency.Name, err)
 		}
@@ -61,13 +63,28 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 	}, nil
 }
 
+// ValidateMaterializedPackage verifies the product-specific manifest and file
+// layout produced for a shared artifact descriptor.
+func ValidateMaterializedPackage(descriptor artifact.Descriptor, directory string) error {
+	productDescriptor := descriptorFromArtifact(descriptor)
+	manifest, err := loadManifest(directory)
+	if err != nil {
+		return err
+	}
+	if strings.ToLower(manifest.FQN) != descriptor.Package {
+		return fmt.Errorf("authored-script manifest FQN %q does not match artifact package %q", manifest.FQN, descriptor.Package)
+	}
+	_, err = LoadPackage(manifest.FQN, productDescriptor, LocalArtifact{Directory: directory})
+	return err
+}
+
 func isDependencyName(name string) bool {
 	return name != "." && filepath.IsLocal(name) && !strings.ContainsAny(name, `/\\`)
 }
 
 func validatePackageIdentity(fqn string, descriptor Descriptor, manifest *Manifest) error {
-	if descriptor.Package != fqn {
-		return fmt.Errorf("authored-script descriptor package %q does not match catalog key %q", descriptor.Package, fqn)
+	if descriptor.Package != strings.ToLower(fqn) {
+		return fmt.Errorf("authored-script descriptor package %q does not match action FQN %q", descriptor.Package, fqn)
 	}
 	if manifest.FQN != fqn {
 		return fmt.Errorf("authored-script manifest FQN %q does not match catalog key %q", manifest.FQN, fqn)

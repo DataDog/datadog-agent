@@ -15,6 +15,7 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	com_datadoghq_authoredscripts "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/authoredscripts"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
 	com_datadoghq_gitlab_commits "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits"
@@ -69,13 +70,18 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
+// Dependencies contains optional facilities shared by action bundles.
+type Dependencies struct {
+	AuthoredScriptsCatalog authoredscriptssupport.Catalog
+}
+
 // ka is accepted for signature parity with the kubeapiserver build; the
 // kubeactions bundle is only available inside the cluster agent, so it is not
 // registered here.
-func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, _ kubeactions.Component) *Registry {
+func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, _ kubeactions.Component, dependencies Dependencies) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
-			"com.datadoghq.authoredscripts":                      com_datadoghq_authoredscripts.NewAuthoredScripts(),
+			"com.datadoghq.authoredscripts":                      com_datadoghq_authoredscripts.NewAuthoredScriptsWithDependencies(com_datadoghq_authoredscripts.Dependencies{Enabled: configuration.AuthoredScriptsEnabled, Catalog: dependencies.AuthoredScriptsCatalog}),
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":                       com_datadoghq_gitlab_commits.NewGitlabCommits(),
 			"com.datadoghq.gitlab.customattributes":              com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),

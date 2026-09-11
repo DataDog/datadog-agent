@@ -35,11 +35,21 @@ type Result struct {
 
 // ExecuteCommand runs an authored-script command with bounded output and process cleanup.
 func ExecuteCommand(ctx context.Context, cmd *exec.Cmd) (Result, error) {
+	return ExecuteCommandWithAuthorization(ctx, cmd, func(start func() error) error { return start() })
+}
+
+// ExecuteCommandWithAuthorization runs an authored-script command after
+// authorize atomically permits and starts it. authorize must call start at most
+// once and must not retain it after returning.
+func ExecuteCommandWithAuthorization(ctx context.Context, cmd *exec.Cmd, authorize func(start func() error) error) (Result, error) {
 	if ctx == nil {
 		return Result{}, errors.New("authored-script context is required")
 	}
+	if authorize == nil {
+		return Result{}, errors.New("authored-script start authorization is required")
+	}
 
-	result, err := executeCommand(ctx, cmd, defaultOutputLimit)
+	result, err := executeCommandAuthorized(ctx, cmd, defaultOutputLimit, authorize)
 	if err != nil {
 		return result, formatExecutionError(ctx, result, err)
 	}
@@ -47,6 +57,10 @@ func ExecuteCommand(ctx context.Context, cmd *exec.Cmd) (Result, error) {
 }
 
 func executeCommand(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Result, error) {
+	return executeCommandAuthorized(ctx, cmd, outputLimit, func(start func() error) error { return start() })
+}
+
+func executeCommandAuthorized(ctx context.Context, cmd *exec.Cmd, outputLimit int64, authorize func(func() error) error) (Result, error) {
 	if cmd == nil {
 		return Result{}, errors.New("authored-script command is required")
 	}
@@ -61,8 +75,28 @@ func executeCommand(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Resu
 	cmd.Stderr = stderr
 
 	start := time.Now()
-	if err := cmd.Start(); err != nil {
+	startCalled := false
+	started := false
+	if err := authorize(func() error {
+		if startCalled {
+			return errors.New("authored-script command start was requested more than once")
+		}
+		startCalled = true
+		if err := cmd.Start(); err != nil {
+			return err
+		}
+		started = true
+		return nil
+	}); err != nil {
+		if started {
+			cancellationErr := cancelCommand(cmd)
+			waitErr := cmd.Wait()
+			err = errors.Join(err, cancellationErr, waitErr)
+		}
 		return Result{ExitCode: -1, Duration: time.Since(start)}, err
+	}
+	if !startCalled || !started || cmd.Process == nil {
+		return Result{ExitCode: -1, Duration: time.Since(start)}, errors.New("authored-script command was authorized without being started")
 	}
 
 	waitCh := make(chan error, 1)

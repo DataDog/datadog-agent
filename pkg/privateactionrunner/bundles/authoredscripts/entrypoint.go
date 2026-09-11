@@ -6,16 +6,34 @@
 package com_datadoghq_authoredscripts
 
 import (
+	"errors"
+
+	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
+
+var errAuthoredScriptExecutionDisabled = errors.New("authored-script execution is disabled")
+
+// Dependencies contains the authored-script facilities supplied by PAR.
+type Dependencies struct {
+	Enabled bool
+	Catalog authoredscriptssupport.Catalog
+}
 
 type AuthoredScripts struct {
 	runAuthoredScript types.Action
 }
 
+// NewAuthoredScripts creates a disabled bundle for callers that do not provide
+// the opt-in authored-script facilities.
 func NewAuthoredScripts() *AuthoredScripts {
+	return NewAuthoredScriptsWithDependencies(Dependencies{})
+}
+
+// NewAuthoredScriptsWithDependencies creates a bundle with its runtime facilities.
+func NewAuthoredScriptsWithDependencies(dependencies Dependencies) *AuthoredScripts {
 	return &AuthoredScripts{
-		runAuthoredScript: NewRunAuthoredScriptHandler(),
+		runAuthoredScript: NewRunAuthoredScriptHandler(dependencies),
 	}
 }
 

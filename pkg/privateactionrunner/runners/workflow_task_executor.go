@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -41,6 +42,11 @@ type WorkflowTaskExecutor struct {
 	resolver     resolver.PrivateCredentialResolver
 }
 
+// Dependencies contains optional facilities used while constructing a task executor.
+type Dependencies struct {
+	AuthoredScriptsCatalog authoredscripts.Catalog
+}
+
 func NewWorkflowTaskExecutor(
 	configuration *config.Config,
 	taskVerifier taskverifier.TaskVerifier,
@@ -50,9 +56,12 @@ func NewWorkflowTaskExecutor(
 	encryptionStore *encryptioncontext.Store,
 	ha helmactions.Component,
 	ka kubeactions.Component,
+	dependencies Dependencies,
 ) *WorkflowTaskExecutor {
 	return &WorkflowTaskExecutor{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka),
+		registry: privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka, privatebundles.Dependencies{
+			AuthoredScriptsCatalog: dependencies.AuthoredScriptsCatalog,
+		}),
 		config:       configuration,
 		taskVerifier: taskVerifier,
 		resolver:     resolver.NewPrivateCredentialResolver(),

@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "oci",
+    srcs = ["client.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/artifact/oci",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer/artifact",
+        "//pkg/fleet/installer/artifact/safetar",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/oci",
+        "@com_github_google_go_containerregistry//pkg/name",
+        "@com_github_google_go_containerregistry//pkg/v1:pkg",
+        "@com_github_google_go_containerregistry//pkg/v1/types",
+        "@com_github_opencontainers_go_digest//:go-digest",
+    ],
+)

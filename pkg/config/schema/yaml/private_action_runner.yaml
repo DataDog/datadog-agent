@@ -95,6 +95,18 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  authored_scripts:
+    node_type: section
+    type: object
+    visibility: undocumented
+    description: Configuration for Datadog-authored scripts executed by the Private Action Runner.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: undocumented
+        description: Enables downloading and executing Datadog-authored scripts authorized by the Remote Config package catalog.
   executor:
     node_type: section
     type: object
