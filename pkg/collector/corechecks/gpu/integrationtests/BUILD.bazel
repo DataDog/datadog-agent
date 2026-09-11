@@ -28,6 +28,7 @@ dd_agent_go_test(
         "check_test.go",
         "gpu_burner_test.go",
         "nvml_test.go",
+        "value_validation_test.go",
     ],
     embed = [":integrationtests"],
     gotags_sets = [["nvml"]],

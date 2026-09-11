@@ -8,6 +8,7 @@
 package spec
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -139,6 +140,21 @@ func TestValidateEmittedMetricsAgainstSpecExternalValues(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, result.HasFailures())
 		require.Equal(t, 1, result.Metrics["temperature"].InvalidValue)
+	})
+
+	t.Run("non-finite observed value fails", func(t *testing.T) {
+		reference := 10.0
+		notANumber := math.NaN()
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]MetricObservation{
+			"temperature": {{Value: &notANumber}},
+			"unmarked":    {{Value: &value}},
+		}, nil, ValidationOptions{
+			NvidiaSMIValues: map[string]*float64{"temperature": &reference},
+		})
+		require.NoError(t, err)
+		require.True(t, result.HasFailures())
+		require.Equal(t, 1, result.Metrics["temperature"].InvalidValue)
+		require.Contains(t, result.Metrics["temperature"].InvalidValueSamples[0], "not finite")
 	})
 
 	t.Run("empty observations fail", func(t *testing.T) {
