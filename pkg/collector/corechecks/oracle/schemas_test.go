@@ -489,6 +489,32 @@ func TestSnapshotPerContainer(t *testing.T) {
 		"containers must not share a snapshot identifier")
 }
 
+func TestEmitSchemaSnapshotEventsCombinesKindsPerContainer(t *testing.T) {
+	events := []schemaEvent{
+		{Kind: "oracle_databases", CollectionStartedAt: 100, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "1"}}},
+		{Kind: "oracle_databases", CollectionStartedAt: 200, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "3"}}},
+		{Kind: "oracle_views", CollectionStartedAt: 300, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "1"}}},
+		{Kind: "oracle_views", CollectionStartedAt: 400, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "3"}}},
+	}
+
+	var emitted []schemaEvent
+	require.NoError(t, emitSchemaSnapshotEvents(events, true, func(payload []byte) {
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		emitted = append(emitted, event)
+	}))
+
+	require.Len(t, emitted, 4)
+	assert.Equal(t, int64(100), emitted[0].CollectionStartedAt)
+	assert.Equal(t, int64(200), emitted[1].CollectionStartedAt)
+	assert.Equal(t, int64(100), emitted[2].CollectionStartedAt)
+	assert.Equal(t, int64(200), emitted[3].CollectionStartedAt)
+	assert.Zero(t, emitted[0].CollectionPayloadsCount)
+	assert.Zero(t, emitted[1].CollectionPayloadsCount)
+	assert.Equal(t, 2, emitted[2].CollectionPayloadsCount)
+	assert.Equal(t, 2, emitted[3].CollectionPayloadsCount)
+}
+
 func TestRowCountEstimateCombinesStatsAndDeltas(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -565,6 +591,8 @@ func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.CollectionInterval = 600
 	c.config.Schemas.PayloadChunkSize = 100
+	collectViews := false
+	c.config.Schemas.CollectViews = &collectViews
 
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
@@ -718,9 +746,10 @@ func TestViewCollectionEmitsSeparateKind(t *testing.T) {
 	require.Len(t, views.Metadata[0].Schemas[0].Views, 1)
 	assert.Equal(t, "V_ORDERS", views.Metadata[0].Schemas[0].Views[0].Name)
 	assert.Empty(t, views.Metadata[0].Schemas[0].Tables, "a views payload carries no tables")
-	assert.NotEqual(t, tables.CollectionStartedAt, views.CollectionStartedAt,
-		"tables and views are independent snapshots")
-	assert.Equal(t, 1, views.CollectionPayloadsCount)
+	assert.Equal(t, tables.CollectionStartedAt, views.CollectionStartedAt,
+		"tables and views belong to the same snapshot")
+	assert.Zero(t, tables.CollectionPayloadsCount)
+	assert.Equal(t, 2, views.CollectionPayloadsCount)
 }
 
 func TestViewCollectionFailureKeepsTables(t *testing.T) {
@@ -767,6 +796,15 @@ func TestViewCollectionFailureKeepsTables(t *testing.T) {
 		kinds = append(kinds, e.Kind)
 	}
 	assert.Equal(t, []string{"oracle_databases"}, kinds)
+
+	var event schemaEvent
+	for _, call := range sender.Calls {
+		if call.Method == "EventPlatformEvent" {
+			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+		}
+	}
+	assert.Zero(t, event.CollectionPayloadsCount,
+		"a table payload must not complete a snapshot when view collection fails")
 	sender.AssertNumberOfCalls(t, "Commit", 1)
 }
 

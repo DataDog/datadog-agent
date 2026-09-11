@@ -574,6 +574,58 @@ type schemaEvent struct {
 }
 
 type payloadEmitter func(payload []byte)
+type schemaEventEmitter func(event schemaEvent)
+
+func schemaPayloadEmitter(c *Check, emit payloadEmitter) schemaEventEmitter {
+	return func(event schemaEvent) {
+		payload, err := json.Marshal(event)
+		if err != nil {
+			log.Errorf("%s failed to marshal schema payload: %s", c.logPrompt, err)
+			return
+		}
+		emit(payload)
+	}
+}
+
+func emitSchemaSnapshotEvents(events []schemaEvent, complete bool, emit payloadEmitter) error {
+	type snapshot struct {
+		startedAt int64
+		count     int
+		last      int
+	}
+
+	snapshots := make(map[string]*snapshot)
+	for i := range events {
+		if len(events[i].Metadata) != 1 {
+			return fmt.Errorf("schema event contains %d containers", len(events[i].Metadata))
+		}
+
+		containerID := events[i].Metadata[0].ID
+		s := snapshots[containerID]
+		if s == nil {
+			s = &snapshot{startedAt: events[i].CollectionStartedAt}
+			snapshots[containerID] = s
+		}
+		s.count++
+		s.last = i
+	}
+
+	for i := range events {
+		s := snapshots[events[i].Metadata[0].ID]
+		events[i].CollectionStartedAt = s.startedAt
+		events[i].CollectionPayloadsCount = 0
+		if complete && i == s.last {
+			events[i].CollectionPayloadsCount = s.count
+		}
+
+		payload, err := json.Marshal(events[i])
+		if err != nil {
+			return fmt.Errorf("failed to marshal schema payload: %w", err)
+		}
+		emit(payload)
+	}
+	return nil
+}
 
 type tableKey struct {
 	conID int64
@@ -584,7 +636,7 @@ type tableKey struct {
 type schemaCollector struct {
 	check               *Check
 	kind                string
-	emit                payloadEmitter
+	emit                schemaEventEmitter
 	details             map[tableKey]*tableDetails
 	views               map[tableKey]*viewDetails
 	owners              map[ownerKey]string
@@ -608,10 +660,18 @@ type schemaCollector struct {
 }
 
 func newSchemaCollector(c *Check, emit payloadEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
-	return &schemaCollector{check: c, kind: "oracle_databases", emit: emit, details: details, owners: owners, containers: containers, conID: -1, started: make(map[int64]struct{})}
+	return newSchemaEventCollector(c, schemaPayloadEmitter(c, emit), details, owners, containers)
 }
 
 func newViewCollector(c *Check, emit payloadEmitter, views map[tableKey]*viewDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
+	return newViewEventCollector(c, schemaPayloadEmitter(c, emit), views, owners, containers)
+}
+
+func newSchemaEventCollector(c *Check, emit schemaEventEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
+	return &schemaCollector{check: c, kind: "oracle_databases", emit: emit, details: details, owners: owners, containers: containers, conID: -1, started: make(map[int64]struct{})}
+}
+
+func newViewEventCollector(c *Check, emit schemaEventEmitter, views map[tableKey]*viewDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
 	return &schemaCollector{check: c, kind: "oracle_views", emit: emit, views: views, owners: owners, containers: containers, conID: -1, started: make(map[int64]struct{})}
 }
 
@@ -685,14 +745,9 @@ func (s *schemaCollector) maybeFlush(isLast bool) {
 	}
 	e.Truncated = s.truncated
 
-	payloadBytes, err := json.Marshal(e)
-	if err != nil {
-		log.Errorf("%s failed to marshal schema payload: %s", s.check.logPrompt, err)
-		return
-	}
-	s.emit(payloadBytes)
-	log.Debugf("%s schema payload con_id=%d tables=%d bytes=%d last=%t",
-		s.check.logPrompt, s.conID, s.tableCount, len(payloadBytes), isLast)
+	s.emit(e)
+	log.Debugf("%s schema payload con_id=%d tables=%d last=%t",
+		s.check.logPrompt, s.conID, s.tableCount, isLast)
 
 	s.reset()
 }
@@ -1696,7 +1751,7 @@ func columnKeysFromRows(rows []schemaRowDB) map[columnKey]struct{} {
 	return keys
 }
 
-func (c *Check) ViewCollection(ctx context.Context, emit payloadEmitter, owners map[ownerKey]string, names []string, containers map[int64]string) error {
+func (c *Check) ViewCollection(ctx context.Context, emit schemaEventEmitter, owners map[ownerKey]string, names []string, containers map[int64]string) error {
 	ownerLists := ownerListChunks(names)
 
 	extra := map[string]string{
@@ -1710,7 +1765,7 @@ func (c *Check) ViewCollection(ctx context.Context, emit payloadEmitter, owners 
 	}
 	rows, cappedContainers := capMetadataRows(rows, c.config.Schemas.MaxViews)
 
-	collector := newViewCollector(c, emit, c.viewDetails(ctx, tableKeysFromRows(rows)), owners, containers)
+	collector := newViewEventCollector(c, emit, c.viewDetails(ctx, tableKeysFromRows(rows)), owners, containers)
 	collector.truncatedContainers = cappedContainers
 	for _, r := range rows {
 		collector.addView(r)
@@ -1757,12 +1812,19 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	emit := func(payload []byte) {
 		sender.EventPlatformEvent(payload, "dbm-metadata")
 	}
+	var events []schemaEvent
+	buffer := func(event schemaEvent) {
+		events = append(events, event)
+	}
 
 	if len(names) == 0 {
 		log.Debugf("%s no user schemas to collect, sending empty snapshot", c.logPrompt)
-		newSchemaCollector(c, emit, nil, owners, containers).emitEmptyContainers(containers)
+		newSchemaEventCollector(c, buffer, nil, owners, containers).emitEmptyContainers(containers)
 		if c.config.Schemas.ViewsEnabled() {
-			newViewCollector(c, emit, nil, owners, containers).emitEmptyContainers(containers)
+			newViewEventCollector(c, buffer, nil, owners, containers).emitEmptyContainers(containers)
+		}
+		if err := emitSchemaSnapshotEvents(events, true, emit); err != nil {
+			return err
 		}
 		sender.Commit()
 		return nil
@@ -1782,7 +1844,7 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	rows, cappedContainers := capMetadataRows(rows, c.config.Schemas.MaxTables)
 	details := c.tableDetails(ctx, tableKeysFromRows(rows), columnKeysFromRows(rows))
 
-	collector := newSchemaCollector(c, emit, details, owners, containers)
+	collector := newSchemaEventCollector(c, buffer, details, owners, containers)
 	collector.truncatedContainers = cappedContainers
 	for _, r := range rows {
 		collector.add(r)
@@ -1793,10 +1855,17 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	log.Debugf("%s schema collection sent %d tables", c.logPrompt, collector.tablesTotal)
 
 	if c.config.Schemas.ViewsEnabled() {
-		// View metadata is optional enrichment and must not discard table snapshots.
-		if err := c.ViewCollection(ctx, emit, owners, names, containers); err != nil {
-			log.Warnf("%s view collection failed, continuing without views: %s", c.logPrompt, err)
+		if err := c.ViewCollection(ctx, buffer, owners, names, containers); err != nil {
+			log.Warnf("%s view collection failed, sending an incomplete table snapshot: %s", c.logPrompt, err)
+			if emitErr := emitSchemaSnapshotEvents(events, false, emit); emitErr != nil {
+				return emitErr
+			}
+			sender.Commit()
+			return nil
 		}
+	}
+	if err := emitSchemaSnapshotEvents(events, true, emit); err != nil {
+		return err
 	}
 
 	sender.Commit()
