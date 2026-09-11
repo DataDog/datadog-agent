@@ -6,12 +6,12 @@
 use std::mem;
 use std::ptr;
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use windows_sys::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, HANDLE};
 use windows_sys::Win32::System::Threading::{
-    DeleteProcThreadAttributeList, InitializeProcThreadAttributeList,
+    DeleteProcThreadAttributeList, InitializeProcThreadAttributeList, UpdateProcThreadAttribute,
     PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROC_THREAD_ATTRIBUTE_JOB_LIST, STARTF_USESTDHANDLES,
-    STARTUPINFOEXW, STARTUPINFOW, UpdateProcThreadAttribute,
+    STARTUPINFOEXW, STARTUPINFOW,
 };
 
 /// Extended `STARTUPINFO` used by `CreateProcessW` / `CreateProcessAsUserW`.
@@ -22,7 +22,8 @@ use windows_sys::Win32::System::Threading::{
 pub(crate) struct StartupInfoEx {
     siex: STARTUPINFOEXW,
     attribute_list_storage: Vec<u8>,
-    stdio_handles: [HANDLE; 3],
+    /// Deduped inheritable stdio handles for `PROC_THREAD_ATTRIBUTE_HANDLE_LIST`.
+    stdio_handles: Vec<HANDLE>,
     job_handles: [HANDLE; 1],
 }
 
@@ -71,7 +72,7 @@ impl StartupInfoEx {
         let mut startup = Self {
             siex: new_siex(stdin, stdout, stderr, attribute_list),
             attribute_list_storage,
-            stdio_handles: [stdin, stdout, stderr],
+            stdio_handles: inheritable_stdio_handle_list(stdin, stdout, stderr),
             job_handles: [ptr::null_mut()],
         };
         startup.attach_stdio_handle_list()?;
@@ -124,7 +125,7 @@ impl StartupInfoEx {
         let mut startup = Self {
             siex: new_siex(stdin, stdout, stderr, attribute_list),
             attribute_list_storage,
-            stdio_handles: [stdin, stdout, stderr],
+            stdio_handles: inheritable_stdio_handle_list(stdin, stdout, stderr),
             job_handles: [job],
         };
         // JOB_LIST before HANDLE_LIST: assign supervision job before restricting inheritance.
@@ -156,6 +157,17 @@ impl StartupInfoEx {
     pub(crate) fn startup_info(&mut self) -> &mut STARTUPINFOW {
         &mut self.siex.StartupInfo
     }
+}
+
+/// `PROC_THREAD_ATTRIBUTE_HANDLE_LIST` rejects duplicate handles with `ERROR_INVALID_PARAMETER`.
+fn inheritable_stdio_handle_list(stdin: HANDLE, stdout: HANDLE, stderr: HANDLE) -> Vec<HANDLE> {
+    let mut handles = Vec::with_capacity(3);
+    for handle in [stdin, stdout, stderr] {
+        if !handles.contains(&handle) {
+            handles.push(handle);
+        }
+    }
+    handles
 }
 
 fn new_siex(

@@ -7,13 +7,14 @@ use std::collections::HashMap;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::Security::{DuplicateTokenEx, SecurityDelegation, TokenPrimary};
 use windows_sys::Win32::System::SystemServices::MAXIMUM_ALLOWED;
+use windows_sys::Win32::System::Threading::ResumeThread;
 use windows_sys::Win32::System::Threading::{
     CREATE_BREAKAWAY_FROM_JOB, CREATE_NEW_CONSOLE, CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW,
-    CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
+    CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT,
 };
 
 use super::super::child_env::merge_legacy_scm_env;
@@ -138,15 +139,32 @@ pub(crate) fn managed_process_creation_flags_for_job_list() -> u32 {
     managed_process_creation_flags() | CREATE_BREAKAWAY_FROM_JOB
 }
 
-/// Flags for post-create job assignment when create-time `JOB_LIST` is rejected.
+/// Flags for post-create job assignment when the parent is already in a foreign job.
 ///
-/// Uses `CREATE_NEW_CONSOLE` instead of `CREATE_NO_WINDOW` so spawn succeeds when the
-/// supervisor has no console (e.g. GitLab CI job runners).
+/// Matches the pre-`JOB_LIST` spawn path: create suspended, assign to our job, then resume.
 pub(crate) fn managed_process_creation_flags_for_post_assign() -> u32 {
-    CREATE_NEW_PROCESS_GROUP
+    CREATE_SUSPENDED
+        | CREATE_NEW_PROCESS_GROUP
         | CREATE_NEW_CONSOLE
+        | CREATE_NO_WINDOW
         | CREATE_UNICODE_ENVIRONMENT
         | EXTENDED_STARTUPINFO_PRESENT
+}
+
+/// Resumes the primary thread of a child created with `CREATE_SUSPENDED`.
+pub(crate) fn resume_child_primary_thread(
+    process_name: &str,
+    pid: u32,
+    thread: HANDLE,
+) -> Result<()> {
+    let previous_count = unsafe { ResumeThread(thread) };
+    if previous_count == u32::MAX {
+        bail!(
+            "[{process_name}] ResumeThread({pid}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(())
 }
 
 #[cfg(test)]
