@@ -43,6 +43,7 @@ type CheckSampler struct {
 	logThrottling          util.SimpleThrottler
 	allowSketchBucketReset bool
 	observerHandle         observer.Handle
+	sdcCompressor          *checkSDCCompressor
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -67,6 +68,7 @@ func newCheckSampler(
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
 		allowSketchBucketReset: allowSketchBucketReset,
+		sdcCompressor:          newCheckSDCCompressor(id),
 	}
 }
 
@@ -234,6 +236,9 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.M
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
 
+		if cs.sdcCompressor != nil && cs.sdcCompressor.stashIfEligible(serie.ContextKey, context.mtype, serie) {
+			continue
+		}
 		cs.series = append(cs.series, serie)
 	}
 }
@@ -273,6 +278,9 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher
 	for _, ctxKey := range expiredContextKeys {
 		delete(cs.lastBucketValue, ctxKey)
 		delete(cs.lastBucketValueByBound, ctxKey)
+		if cs.sdcCompressor != nil {
+			cs.sdcCompressor.expire(ctxKey)
+		}
 	}
 
 	cs.metrics.Expire(expiredContextKeys, timestamp)
@@ -280,6 +288,9 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	// series
+	if cs.sdcCompressor != nil {
+		cs.series = append(cs.series, cs.sdcCompressor.flush()...)
+	}
 	series := cs.series
 	cs.series = make([]*metrics.Serie, 0)
 
