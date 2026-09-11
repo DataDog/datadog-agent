@@ -64,6 +64,8 @@
     "agent_data_plane_darwin-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_darwin-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_windows-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
-    "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together."
+    "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
+    "agent_check_runner_linux_amd64": "Pending tracking. New dep from bundling the Agent Check Runner with the Agent; releases are published at github.com/DataDog/agent-check-runner. Both platform variants share VERSION and will be tracked together, alongside agent_data_plane: neither is reachable by a customManager today, since none matches deps/**/*.MODULE.bazel.",
+    "agent_check_runner_linux_arm64": "Shares VERSION with agent_check_runner_linux_amd64; tracked together."
   }
 }

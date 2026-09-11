@@ -1,0 +1,68 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+VERSION = "v134388233-bbe56870"
+
+# FIXME(check-runner): the "/dev" segment is ACR's dev publish channel. ADP publishes to
+# a channel with no such segment ("/saluki"). Drop it once ACR CI promotes release
+# tarballs to a stable prefix.
+SOURCE_URL_BASE = "https://binaries.ddbuild.io/agent-check-runner/dev"
+
+HASHES = {
+    "linux-amd64": "69936d9062316432bb41182bff6e2fef63c0e1c9bcc520d8ec6f150bbdf17f57",
+    "linux-arm64": "aaa4f7303ab135b9ee105d5ae782ea3cd9df70e400d54bfddc22160885503809",
+}
+
+# Unlike Agent Data Plane, which is a single static binary, the Agent Check Runner (ACR) ships a
+# directory that must stay together:
+#
+#   opt/datadog-agent/embedded/bin/agent-check-runner/agent-check-runner
+#   opt/datadog-agent/embedded/bin/agent-check-runner/libstd-<hash>.so
+#   opt/datadog-agent/embedded/bin/agent-check-runner/adapters/lib{rust,python}_adapter_plugin.so
+#
+# The recursive globs are acceptable here, and only here, because the fetched archive contains
+# no BUILD.bazel files of its own for a glob to skip past.
+_BUILD_FILE_CONTENT = """\
+filegroup(
+    name = "payload",
+    srcs = glob(["opt/datadog-agent/embedded/bin/agent-check-runner/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "license_3rdparty",
+    srcs = glob(["**/LICENSE-3rdparty.csv"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "license_files",
+    srcs = glob(["**/LICENSES/**"], allow_empty = True),
+    visibility = ["//visibility:public"],
+)
+"""
+
+# Written as two literal http_archive calls rather than a comprehension over an _ARTIFACTS dict,
+# which is what agent_data_plane.MODULE.bazel does.
+#
+# Revisit if ACR ever gains FIPS, macOS or Windows artifacts: at that point the loop earns its
+# keep, and it must be a dict for the coverage check to see through it.
+
+http_archive(
+    name = "agent_check_runner_linux_amd64",
+    build_file_content = _BUILD_FILE_CONTENT,
+    sha256 = HASHES["linux-amd64"],
+    url = "{base}/agent-check-runner-{version}-linux-amd64.tar.gz".format(
+        base = SOURCE_URL_BASE,
+        version = VERSION,
+    ),
+)
+
+http_archive(
+    name = "agent_check_runner_linux_arm64",
+    build_file_content = _BUILD_FILE_CONTENT,
+    sha256 = HASHES["linux-arm64"],
+    url = "{base}/agent-check-runner-{version}-linux-arm64.tar.gz".format(
+        base = SOURCE_URL_BASE,
+        version = VERSION,
+    ),
+)
