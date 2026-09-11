@@ -1,0 +1,13 @@
+---
+other:
+  - |
+    Replace the upstream PyInstaller-frozen ``gstatus`` binary (~8.2 MiB) with a
+    from-source script that runs on the agent's embedded Python. The frozen
+    binary bundled a full Python interpreter plus cryptography, PyNaCl, bcrypt,
+    and paramiko (pulled in because the ``glustercli`` PyPI wheel declares
+    paramiko as a required dependency), none of which are needed for local
+    GlusterFS status collection. The replacement vendors the ``glustercli``
+    and ``glusterlib`` source (stdlib-only for local mode) and a thin
+    ``gstatus`` entry-point script, reducing the on-disk footprint by ~8 MiB
+    with no change to the ``gstatus -a -o json -u g`` interface the glusterfs
+    integration relies on.

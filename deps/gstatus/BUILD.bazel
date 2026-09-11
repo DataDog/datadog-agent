@@ -1,35 +1,52 @@
-# dd-compile-policy - make the prebuilt compiler part of the distribution.
+# gstatus - vendored from-source replacement for the upstream PyInstaller-frozen binary.
+#
+# The upstream gstatus release binary is an 8.2 MiB PyInstaller bundle that
+# embeds a full Python interpreter plus cryptography/PyNaCl/bcrypt/paramiko
+# (pulled in because the glustercli PyPI wheel declares paramiko as a required
+# dependency). The Datadog glusterfs integration only runs `gstatus -a -o json
+# -u g` locally, so the SSH/crypto stack is dead weight. This target vendors the
+# glustercli + glusterlib source (which only needs the stdlib + the `gluster`
+# CLI on the host) and builds a thin gstatus entry-point script that runs on the
+# agent's embedded Python.
 
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("//deps/agent_integrations:defs.bzl", "pyproject_wheel")
 
 package(
     default_package_metadata = [":license"],
-    default_visibility = ["//packages:__subpackages__"],
+    default_visibility = ["//packages:__subpackages__", "//deps/agent_integrations:__pkg__"],
 )
 
 license(
     name = "license",
-    license_kinds = ["@rules_license//licenses/spdx:GPL-3.0"],
+    license_kinds = ["@rules_license//licenses/spdx:GPL-2.0-only"],
     license_text = "LICENSE",
     visibility = ["//visibility:public"],
 )
 
-# Change #!* to #!/opt/datadog-agent/embedded/bin/python
-# This is not quite portable to different installation directories.
-# If that ever becomes a need, the solution is to make the install dir
-# a config_flag, then grab the flag value in the substitution.  See ABLD-302.
+# Build the vendored glustercli/glusterlib source into a wheel. The wheel is
+# installed into the agent's embedded Python site-packages by the integrations
+# install step (it is listed as a dependency of the agent integrations).
+pyproject_wheel(
+    name = "gstatus_wheel",
+    srcs = glob(["glustercli_src/glustercli/**/*.py", "glustercli_src/glusterlib/**/*.py"]),
+    pyproject = "glustercli_src/pyproject.toml",
+)
+
+# gstatus entry-point script. The shebang points at the agent's embedded Python,
+# which has the vendored glustercli/glusterlib packages on its import path.
 genrule(
-    name = "fix_shebang",
-    srcs = ["@gstatus_binary//file"],
+    name = "gstatus_script",
+    srcs = ["gstatus.py"],
     outs = ["gstatus"],
-    cmd = "sed -e '1s@.*@#!/opt/datadog-agent/embedded/bin/python@' $(location @gstatus_binary//file:file) >$@",
+    cmd = "sed -e '1s@.*@#!/opt/datadog-agent/embedded/bin/python@' $(location gstatus.py) >$@",
     target_compatible_with = ["@platforms//os:linux"],
 )
 
 pkg_files(
     name = "bin_files",
-    srcs = [":gstatus"],
+    srcs = [":gstatus_script"],
     attributes = pkg_attributes(
         group = "root",
         # Must be writable for signing script to work.
@@ -44,7 +61,7 @@ pkg_files(
     srcs = [":LICENSE"],
     prefix = "LICENSES",
     renames = {
-        "LICENSE": "gstatus-GPL-3.0",
+        "LICENSE": "gstatus-GPL-2.0",
     },
 )
 
