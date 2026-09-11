@@ -37,6 +37,7 @@ func (f *excludeKeysFilter) Apply(tags []string) []string {
 }
 
 func (f *excludeKeysFilter) Retains(tag string) bool {
+	f.seen = append(f.seen, []string{tag})
 	key := tag
 	if i := strings.Index(tag, ":"); i >= 0 {
 		key = tag[:i]
@@ -175,14 +176,12 @@ func TestTransportTagsDoesNotMutateOriginTags(t *testing.T) {
 	assert.Equal(t, []string{"kube_app_name:web", "dirname:/var/log", "env:prod"}, origin.Tags())
 }
 
-func newBenchOrigin(exclude []string) *Origin {
+func newBenchOriginFilters(tf *config.TagFilters) *Origin {
 	cfg := &config.LogsConfig{
 		Source:         "nginx",
 		SourceCategory: "http",
 		Tags:           []string{"env:prod", "version:1.2.3"},
-	}
-	if len(exclude) > 0 {
-		cfg.TagFilters = &config.TagFilters{Exclude: exclude}
+		TagFilters:     tf,
 	}
 	origin := NewOrigin(sources.NewLogSource("bench", cfg))
 	origin.SetTags([]string{
@@ -195,6 +194,14 @@ func newBenchOrigin(exclude []string) *Origin {
 		"image_name:nginx",
 	})
 	return origin
+}
+
+func newBenchOrigin(exclude []string) *Origin {
+	var tf *config.TagFilters
+	if len(exclude) > 0 {
+		tf = &config.TagFilters{Exclude: exclude}
+	}
+	return newBenchOriginFilters(tf)
 }
 
 func benchOrigin(b *testing.B, exclude []string) *Origin {
@@ -295,32 +302,73 @@ func TestAppendTransportTagsAppendsToCallerSlice(t *testing.T) {
 }
 
 func TestFusedTransportTagsMatchesFilterAfterAssemble(t *testing.T) {
-	filterSets := [][]string{
-		nil,
-		{"dirname:*"},
-		{"kube_*"},
-		{"dirname:*", "kube_*", "container_id"},
-		{"sourcecategory"},
-		{"env:*"},
-		{"*_name"},
-		{"filename:access.log"},
+	cases := []struct {
+		name           string
+		filters        *config.TagFilters
+		processingTags []string
+	}{
+		{name: "no filter"},
+		{name: "exclude dirname", filters: &config.TagFilters{Exclude: []string{"dirname:*"}}},
+		{name: "exclude kube_*", filters: &config.TagFilters{Exclude: []string{"kube_*"}}},
+		{name: "exclude dirname+kube+container_id", filters: &config.TagFilters{Exclude: []string{"dirname:*", "kube_*", "container_id"}}},
+		{name: "exclude sourcecategory", filters: &config.TagFilters{Exclude: []string{"sourcecategory"}}},
+		{name: "exclude env (protected)", filters: &config.TagFilters{Exclude: []string{"env:*"}}},
+		{name: "exclude *_name", filters: &config.TagFilters{Exclude: []string{"*_name"}}},
+		{name: "exclude filename:access.log", filters: &config.TagFilters{Exclude: []string{"filename:access.log"}}},
+		{
+			name:           "exclude *_name, include pod_name rescue",
+			filters:        &config.TagFilters{Exclude: []string{"*_name"}, Include: []string{"pod_name:*"}},
+			processingTags: []string{"processing:tag", "kube_app_name:web"},
+		},
 	}
 
-	for _, exclude := range filterSets {
-		t.Run(strings.Join(exclude, ","), func(t *testing.T) {
-			origin := newBenchOrigin(exclude)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			origin := newBenchOriginFilters(c.filters)
+			f := origin.TagFilters()
 
 			// Reference: assemble the full set, then filter it — the old shape.
 			reference := origin.tagsToStringArray()
-			if f := origin.TagFilters(); f != nil {
+			if f != nil {
 				reference = f.Apply(reference)
 			}
-
 			assert.Equal(t, reference, origin.TransportTags(),
 				"fused walk must equal filter-after-assemble")
 			assert.Equal(t, strings.Join(reference, ","), origin.TransportTagsToString())
+
+			assertTagsPayloadMatchesReference(t, origin, f, c.processingTags)
 		})
 	}
+}
+
+// assertTagsPayloadMatchesReference is an independent reference for
+// TagsPayload: it filters via f.Apply on assembled slices, never Retains.
+func assertTagsPayloadMatchesReference(t *testing.T, origin *Origin, f TagFilter, processingTags []string) {
+	t.Helper()
+
+	var ddtags []string
+	ddtags = append(ddtags, origin.LogSource.Config.Tags...)
+	ddtags = append(ddtags, origin.tags...)
+	ddtags = append(ddtags, processingTags...)
+	if f != nil {
+		ddtags = f.Apply(ddtags)
+	}
+
+	sourceCategory := origin.LogSource.Config.SourceCategory
+	sourceCategoryKept := false
+	if sourceCategory != "" {
+		sourceCategoryKept = f == nil || len(f.Apply([]string{"sourcecategory:" + sourceCategory})) > 0
+	}
+
+	want := `[dd ddsource="` + origin.Source() + `"]`
+	if sourceCategoryKept {
+		want += `[dd ddsourcecategory="` + sourceCategory + `"]`
+	}
+	if len(ddtags) > 0 {
+		want += `[dd ddtags="` + strings.Join(ddtags, ",") + `"]`
+	}
+
+	assert.Equal(t, want, string(origin.TagsPayload(processingTags)))
 }
 
 func TestTransportTagsDoesNotAliasOriginTags(t *testing.T) {

@@ -148,7 +148,7 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+sourceCategory+"\"]")...)
 	}
 
-	tags := make([]string, 0, o.tagCapacity()+len(processingTags))
+	tags := make([]string, 0, len(o.LogSource.Config.Tags)+len(o.tags)+len(processingTags))
 	for _, group := range [3][]string{o.LogSource.Config.Tags, o.tags, processingTags} {
 		for _, tag := range group {
 			if f == nil || f.Retains(tag) {
