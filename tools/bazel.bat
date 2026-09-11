@@ -52,6 +52,13 @@ if defined XDG_CACHE_HOME (
   )
 )
 
+:: Interactive vs CI idle timeout defaults.
+if defined CI (
+  set "startup_options=!startup_options! --max_idle_secs=300"
+) else (
+  set "startup_options=!startup_options! --max_idle_secs=28800"
+)
+
 :: Local developer remote cache selection (CI selects its own endpoint above).
 if not defined CI call :remote_cache_select
 
