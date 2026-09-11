@@ -13,10 +13,12 @@ go_library(
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
         ],
         "//conditions:default": [],
     }),

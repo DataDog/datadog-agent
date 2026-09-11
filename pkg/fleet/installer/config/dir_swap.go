@@ -45,18 +45,21 @@ func (s dirSwap) Commit(_ context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("could not create the directory to move %s aside: %w", s.live, err)
 	}
-	defer os.RemoveAll(asideDir)
 	aside := filepath.Join(asideDir, filepath.Base(s.live))
 
 	if err := rename(s.live, aside); err != nil {
 		return fmt.Errorf("could not move %s aside: %w", s.live, err)
 	}
 	defer func() {
-		if err != nil {
-			if rollbackErr := os.Rename(aside, s.live); rollbackErr != nil {
-				err = fmt.Errorf("%w, and %s could not be restored: %w", err, s.live, rollbackErr)
-			}
+		if err == nil {
+			os.RemoveAll(asideDir)
+			return
 		}
+		if rollbackErr := os.Rename(aside, s.live); rollbackErr != nil {
+			err = fmt.Errorf("%w, and %s could not be restored: %w", err, s.live, rollbackErr)
+			return
+		}
+		os.RemoveAll(asideDir)
 	}()
 	if err := rename(s.incoming, s.live); err != nil {
 		return fmt.Errorf("could not move %s into place at %s: %w", s.incoming, s.live, err)

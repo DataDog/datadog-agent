@@ -75,6 +75,11 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 		return fmt.Errorf("a configuration experiment is already deployed at %s", d.ExperimentPath)
 	}
 
+	// A prior run may have crashed between Materialize lifting the resting link and renaming its
+	// scratch directory into place, leaving that scratch directory behind with nothing pointing to
+	// it. Since the link is confirmed resting above, any such leftover is safe to discard.
+	discardStaleScratch(filepath.Dir(d.StablePath))
+
 	incoming, err := os.MkdirTemp(filepath.Dir(d.StablePath), incomingPrefix)
 	if err != nil {
 		return fmt.Errorf("could not create the scratch configuration directory: %w", err)
@@ -123,6 +128,22 @@ func (d *Directories) PromoteExperiment(ctx context.Context) error {
 // RemoveExperiment discards the deployed experiment, if any.
 func (d *Directories) RemoveExperiment(_ context.Context) error {
 	return d.experimentLink().Rest()
+}
+
+// discardStaleScratch removes any leftover scratch directories from a WriteExperiment that
+// crashed before cleaning up after itself. It is best effort: a failure here shouldn't stop a new
+// experiment from being written.
+func discardStaleScratch(parent string) {
+	stale, err := filepath.Glob(filepath.Join(parent, incomingPrefix+"*"))
+	if err != nil {
+		log.Warnf("could not look for stale scratch configuration directories: %v", err)
+		return
+	}
+	for _, dir := range stale {
+		if err := os.RemoveAll(dir); err != nil {
+			log.Warnf("could not discard the stale scratch configuration directory %s: %v", dir, err)
+		}
+	}
 }
 
 func readDeploymentID(dir string) (string, error) {
