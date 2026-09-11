@@ -245,6 +245,7 @@ func (i *InventoryPayload) Submit() {
 		return
 	}
 
+	i.forceRefresh.Store(false)
 	i.LastCollect = time.Now()
 	p := i.getPayload()
 	if p == nil {

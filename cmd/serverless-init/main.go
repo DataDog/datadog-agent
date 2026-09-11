@@ -323,6 +323,16 @@ func main() {
 		pkgconfigsetup.Datadog().Set("use_dogstatsd", false, model.SourceAgentRuntime)
 	}
 
+	// Gate the inventory metadata runner on the serverless ramp flag. The
+	// runner's enabled state is read once at fx component construction from the
+	// inventories_enabled config key; setting it here (before fxutil.OneShot)
+	// ensures the InventoryPayload.Enabled field is false when the feature is
+	// off, so the runner registers a nil provider and never emits a payload —
+	// even with inventories_first_run_delay forced to zero.
+	if !pkgconfigsetup.Datadog().GetBool("serverless.inventory_enabled") {
+		setOverride("inventories_enabled", false)
+	}
+
 	metricTags := metrics.Tags{
 		Metric:              metricAgentTags,
 		EnhancedMetric:      serverlessTag.MapToArray(tagConfig.EnhancedMetricTags),
@@ -485,7 +495,7 @@ func run(
 func setup(
 	secretComp secrets.Component,
 	delegatedAuthComp delegatedauth.Component,
-	_ mode.Conf,
+	modeConf mode.Conf,
 	tagger tagger.Component,
 	compression logscompression.Component,
 	hostname hostnameinterface.Component,
