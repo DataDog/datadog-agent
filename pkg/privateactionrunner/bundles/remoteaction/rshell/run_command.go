@@ -300,7 +300,7 @@ func (h *RunCommandHandler) Run(
 	if inputs.EffectivePermissions != "" {
 		switch inputs.EffectivePermissions {
 		case privilegedhelper.EscalationAllowed:
-			return h.runPrivileged(ctx, task)
+			return h.runPrivileged(ctx, task, inputs)
 		case "Root":
 			return nil, errors.New("whole-script root execution is not supported")
 		default:
@@ -318,8 +318,8 @@ func (h *RunCommandHandler) Run(
 	if runtime.GOOS == "linux" {
 		systemdTarget = resolveSystemdTarget()
 	}
-	log.Infof("rshell runCommand (mode=%s): command=%q backendAllowedCommands=%v effectiveAllowedCommands=%v elevatableCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v backendAllowedSystemServices=%v effectiveAllowedSystemServices=%v procPath=%s systemdTarget=%+v disableDetailedTelemetry=%v",
-		h.mode, inputs.Command, backendCommands, effectiveAllowedCommands, inputs.ElevatableCommands, backendPaths, effectiveAllowedPaths, backendAllowedSystemServices, effectiveAllowedSystemServices, procPath, systemdTarget, h.disableCommandTelemetry)
+	log.Infof("rshell runCommand (mode=%s): backendAllowedCommands=%v effectiveAllowedCommands=%v elevatableCommands=%v backendAllowedPaths=%v effectiveAllowedPaths=%v backendAllowedSystemServices=%v effectiveAllowedSystemServices=%v procPath=%s systemdTarget=%+v disableDetailedTelemetry=%v",
+		h.mode, backendCommands, effectiveAllowedCommands, inputs.ElevatableCommands, backendPaths, effectiveAllowedPaths, backendAllowedSystemServices, effectiveAllowedSystemServices, procPath, systemdTarget, h.disableCommandTelemetry)
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader(inputs.Command), "")
 	if err != nil {
@@ -378,13 +378,9 @@ func (h *RunCommandHandler) Run(
 	}, nil
 }
 
-func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task) (interface{}, error) {
-	inputs, err := types.ExtractInputs[RunCommandInputs](task)
-	if err != nil {
-		return nil, err
-	}
-	log.Infof("rshell runPrivileged (mode=%s): command=%q elevatableCommands=%v privilegedEnabled=%v privilegedSocket=%s disableDetailedTelemetry=%v",
-		h.mode, inputs.Command, inputs.ElevatableCommands, h.privilegedEnabled, h.privilegedSocket, h.disableCommandTelemetry)
+func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task, inputs RunCommandInputs) (interface{}, error) {
+	log.Infof("rshell runPrivileged (mode=%s): elevatableCommands=%v privilegedEnabled=%v privilegedSocket=%s disableDetailedTelemetry=%v",
+		h.mode, inputs.ElevatableCommands, h.privilegedEnabled, h.privilegedSocket, h.disableCommandTelemetry)
 	if !h.privilegedEnabled {
 		return nil, errors.New("privileged rshell execution is disabled by local configuration")
 	}
