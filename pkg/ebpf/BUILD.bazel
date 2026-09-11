@@ -311,6 +311,7 @@ dd_agent_go_test(
 dd_agent_go_test(
     name = "ksyms_test",
     srcs = ["ksyms_test.go"],
+    data = glob(["testdata/kallsyms.*"]),
     embed = [":ebpf"],
     gotags_sets = [["bpf"]],
     tags = ["requires_ebpf"],
