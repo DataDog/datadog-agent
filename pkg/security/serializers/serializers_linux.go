@@ -1449,8 +1449,8 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	ps.Variables = newVariablesContext(e, rule, "process.")
 
-	// add the syscalls from the event only for the top level parent
-	if e.GetEventType() == model.SyscallsEventType {
+	// add the syscalls from the event only for the top level parent (drain form only)
+	if e.GetEventType() == model.SyscallsEventType && e.Syscalls.EventReason != model.SampleReason {
 		ps.Syscalls = newSyscallsEventSerializer(&e.Syscalls)
 	}
 
@@ -1936,7 +1936,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Connect.Retval)
 		s.ConnectEventSerializer = newConnectEventSerializer(event)
 	case model.SyscallsEventType:
-		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
+		if event.Syscalls.EventReason != model.SampleReason {
+			s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
+		}
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)

@@ -480,6 +480,21 @@ type RuntimeSecurityConfig struct {
 	// default_value: 60
 	EventSamplingDNSThreshold int
 
+	// description: EventSamplingSyscallsEnabled defines if the agent should sample syscall events
+	// visibility: private
+	// default_value: false
+	EventSamplingSyscallsEnabled bool
+
+	// description: EventSamplingSyscallsRate defines the rate at which the agent should sample syscall events
+	// visibility: private
+	// default_value: 500
+	EventSamplingSyscallsRate int
+
+	// description: EventSamplingSyscallsThreshold defines the ring buffer pressure percentage below which syscall events are always admitted when dynamic sampling is enabled
+	// visibility: private
+	// default_value: 60
+	EventSamplingSyscallsThreshold int
+
 	// description: EventSamplingDynamicEnabled defines if event sampling should adapt based on ring buffer pressure
 	// visibility: private
 	// default_value: false
@@ -878,6 +893,13 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
+	// Capabilities are only monitored (via kprobes on `cap_capable`) when the V2 profile manager
+	// is tracking the capabilities event type. Enabling the probe when it wouldn't be consumed
+	// would just cost CPU for no observable signal.
+	if rsConfig.SecurityProfileV2Enabled && slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.CapabilitiesEventType) {
+		probeConfig.CapabilitiesMonitoringEnabled = true
+	}
+
 	return &Config{
 		Probe:           probeConfig,
 		RuntimeSecurity: rsConfig,
@@ -1021,19 +1043,22 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
 		// event sampling (per-type)
-		EventSamplingOpenEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
-		EventSamplingOpenRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
-		EventSamplingOpenThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.threshold"),
-		EventSamplingConnectEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
-		EventSamplingConnectRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
-		EventSamplingConnectThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
-		EventSamplingBindEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
-		EventSamplingBindRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
-		EventSamplingBindThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
-		EventSamplingDNSEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
-		EventSamplingDNSRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
-		EventSamplingDNSThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.threshold"),
-		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
+		EventSamplingOpenEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
+		EventSamplingOpenRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
+		EventSamplingOpenThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.threshold"),
+		EventSamplingConnectEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
+		EventSamplingConnectRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
+		EventSamplingConnectThreshold:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
+		EventSamplingBindEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
+		EventSamplingBindRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
+		EventSamplingBindThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
+		EventSamplingDNSEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dns.enabled"),
+		EventSamplingDNSRate:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.rate"),
+		EventSamplingDNSThreshold:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.dns.threshold"),
+		EventSamplingSyscallsEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
+		EventSamplingSyscallsRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.rate"),
+		EventSamplingSyscallsThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.threshold"),
+		EventSamplingDynamicEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
@@ -1124,6 +1149,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		rsConfig.EventSamplingConnectEnabled = true
 		rsConfig.EventSamplingBindEnabled = true
 		rsConfig.EventSamplingDNSEnabled = true
+		rsConfig.EventSamplingSyscallsEnabled = true
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
@@ -1223,6 +1249,7 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		{"connect", c.EventSamplingConnectThreshold},
 		{"bind", c.EventSamplingBindThreshold},
 		{"dns", c.EventSamplingDNSThreshold},
+		{"syscalls", c.EventSamplingSyscallsThreshold},
 	} {
 		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
 			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.threshold: %d, must be in [0, %d)", threshold.eventType, threshold.value, samplingPressureCritical)

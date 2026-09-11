@@ -3,6 +3,8 @@
 
 #include "structs/security_profile.h"
 #include "helpers/activity_dump.h"
+#include "helpers/approvers.h"
+#include "helpers/process.h"
 #include "helpers/raw_syscalls.h"
 #include "helpers/span.h"
 #include "helpers/span_fill.h"
@@ -99,6 +101,30 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
                 send_event_ptr(args, EVENT_SYSCALLS, event);
             }
             syscall_monitor_post_syscall(args, dump_entry, &zero, now, SYSCALL_MONITOR_TYPE_DUMP);
+        }
+    }
+
+    // workload profiles v2 sampler: first-hit rides on EVENT_SYSCALLS with a sample_cookie
+    // (bind/open/connect pattern); repeat hits emit a cookie-only refresh.
+    if (!event->process.is_kworker) {
+        struct pid_cache_t *pid_entry = get_pid_cache(pid);
+        if (pid_entry != NULL) {
+            u64 sample_cookie = 0;
+            u32 refresh_needed = 0;
+            enum SYSCALL_STATE state = approve_syscall_sample(pid_entry->cookie, args->id, &sample_cookie, &refresh_needed);
+            if (state == SAMPLED) {
+                event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+                event->event_reason = SYSCALL_MONITOR_REASON_SAMPLE;
+                __builtin_memset(event->syscalls, 0, sizeof(event->syscalls));
+                event->syscall_id = args->id;
+                event->sample_cookie = sample_cookie;
+                fill_span_context(&event->span, &event->go_labels);
+                send_event_ptr(args, EVENT_SYSCALLS, event);
+            } else if (refresh_needed) {
+                struct sample_refresh_event_t ev = {};
+                ev.cookie = sample_cookie;
+                send_event(args, EVENT_SAMPLE_REFRESH, ev);
+            }
         }
     }
 

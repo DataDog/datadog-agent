@@ -2435,7 +2435,7 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 		return p.probe.IsNetworkRawPacketEnabled()
 	case model.NetworkFlowMonitorEventType.String():
 		return p.probe.IsNetworkFlowMonitorEnabled()
-	case model.SyscallsEventType.String():
+	case model.SysCtlEventType.String():
 		return p.config.RuntimeSecurity.IsSysctlEventEnabled()
 	case model.OTelProcessCtxEventType.String():
 		return p.config.Probe.SpanTrackingEnabled
@@ -2505,21 +2505,14 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		activatedProbes = append(activatedProbes, p.onDemandManager.selectProbes())
 	}
 
-	if needRawSyscalls {
+	// Any of these features (rulesets, activity dumps, anomaly detection, workload profiles v2)
+	// consumes the raw_syscalls tracepoints. Appending the selectors more than once would double
+	// up the same probe identification pairs in ActivatedProbes.
+	if needRawSyscalls ||
+		(p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
+		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
+		p.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
-	} else {
-		// ActivityDumps
-		if p.config.RuntimeSecurity.ActivityDumpEnabled {
-			if slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType) {
-				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
-			}
-		}
-		// SecurityProfiles
-		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
-			if slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType) {
-				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
-			}
-		}
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -3221,6 +3214,18 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingDNSThreshold),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_syscalls_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingSyscallsEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_syscalls_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_syscalls_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "dynamic_sampling_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
 		},
@@ -3330,6 +3335,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
 		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
 		EventSamplingDNSEnabled:       p.config.RuntimeSecurity.EventSamplingDNSEnabled,
+		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.EventSamplingSyscallsEnabled,
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
@@ -3408,17 +3414,13 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 
 // initManagerOptionsActivatedProbes initializes the eBPF manager activated probes options
 func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
-	if p.config.RuntimeSecurity.ActivityDumpEnabled {
-		if slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType) {
-			// Add syscall monitor probes
-			p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
-		}
-	}
-	if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
-		if slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType) {
-			// Add syscall monitor probes
-			p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
-		}
+	// Attach the raw_syscalls tracepoints once if any consumer needs them. Duplicating the
+	// selectors here would result in matching probe identification pairs being appended more
+	// than once to ActivatedProbes.
+	if (p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
+		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
+		p.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 	}
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 

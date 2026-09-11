@@ -107,17 +107,17 @@ type Event struct {
 	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
-	Exec              ExecEvent          `field:"exec" event:"exec"`                 // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
-	SetUID            SetuidEvent        `field:"setuid" event:"setuid"`             // [7.27] [Process] A process changed its effective uid
-	SetGID            SetgidEvent        `field:"setgid" event:"setgid"`             // [7.27] [Process] A process changed its effective gid
-	Capset            CapsetEvent        `field:"capset" event:"capset"`             // [7.27] [Process] A process changed its capacity set
-	Signal            SignalEvent        `field:"signal" event:"signal"`             // [7.35] [Process] A signal was sent
-	Exit              ExitEvent          `field:"exit" event:"exit"`                 // [7.38] [Process] A process was terminated
-	Setrlimit         SetrlimitEvent     `field:"setrlimit" event:"setrlimit"`       // [7.68] [Process] A setrlimit command was executed
+	Exec              ExecEvent           `field:"exec" event:"exec"`                 // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
+	SetUID            SetuidEvent         `field:"setuid" event:"setuid"`             // [7.27] [Process] A process changed its effective uid
+	SetGID            SetgidEvent         `field:"setgid" event:"setgid"`             // [7.27] [Process] A process changed its effective gid
+	Capset            CapsetEvent         `field:"capset" event:"capset"`             // [7.27] [Process] A process changed its capacity set
+	Signal            SignalEvent         `field:"signal" event:"signal"`             // [7.35] [Process] A signal was sent
+	Exit              ExitEvent           `field:"exit" event:"exit"`                 // [7.38] [Process] A process was terminated
+	Setrlimit         SetrlimitEvent      `field:"setrlimit" event:"setrlimit"`       // [7.68] [Process] A setrlimit command was executed
 	CapabilitiesUsage CapabilitiesEvent  `field:"capabilities" event:"capabilities"` // [7.70] [Process] [Experimental] A process used some capabilities
 	Syscalls          SyscallsEvent      `field:"-"`
 	LoginUIDWrite     LoginUIDWriteEvent `field:"-"`
-	PrCtl             PrCtlEvent         `field:"prctl" event:"prctl"` // [7.71] [Process] A prctl command was executed
+	PrCtl             PrCtlEvent          `field:"prctl" event:"prctl"` // [7.71] [Process] A prctl command was executed
 
 	// network syscalls
 	Bind       BindEvent       `field:"bind" event:"bind"`             // [7.37] [Network] A bind was executed
@@ -670,7 +670,7 @@ type OpenEvent struct {
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
 	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
 
-	SampleCookie uint32 `field:"-"`
+	SampleCookie uint64 `field:"-"`
 
 	// Syscall context aliases
 	SyscallPath  string `field:"syscall.path,ref:open.syscall.str1"`  // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
@@ -902,7 +902,7 @@ type BindEvent struct {
 	Addr         IPPortContext `field:"addr"`        // Bound address
 	AddrFamily   uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
 	Protocol     uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
-	SampleCookie uint32        `field:"-"`
+	SampleCookie uint64        `field:"-"`
 }
 
 // ConnectEvent represents a connect event
@@ -913,13 +913,13 @@ type ConnectEvent struct {
 	Hostnames    []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad|root_domain|length"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
 	AddrFamily   uint16        `field:"addr.family"`                                                                   // SECLDoc[addr.family] Definition:`Address family`
 	Protocol     uint16        `field:"protocol"`                                                                      // SECLDoc[protocol] Definition:`Socket Protocol`
-	SampleCookie uint32        `field:"-"`
+	SampleCookie uint64        `field:"-"`
 }
 
 // SampleRefreshEvent is a lightweight internal event sent when a dedup map
 // detects a duplicate and wants to refresh the cookie timestamp in userspace.
 type SampleRefreshEvent struct {
-	Cookie uint32
+	Cookie uint64
 }
 
 // OTelProcessCtxEvent is an internal event sent when a process publishes its OTel process context.
@@ -960,10 +960,13 @@ type VethPairEvent struct {
 	PeerDevice NetDevice
 }
 
-// SyscallsEvent represents a syscalls event
+// SyscallsEvent represents a syscalls event. Two payload shapes discriminated by EventReason:
+// drain (Syscalls bitmap) or workload-profiles-v2 sample first-hit (SyscallID+SampleCookie).
 type SyscallsEvent struct {
-	EventReason SyscallDriftEventReason
-	Syscalls    []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+	EventReason  SyscallDriftEventReason
+	Syscalls     []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+	SyscallID    uint32    // populated iff EventReason == SampleReason
+	SampleCookie uint64    // populated iff EventReason == SampleReason
 }
 
 // PathKey identifies an entry in the dentry cache
