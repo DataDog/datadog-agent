@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "modifiers",
     srcs = [
+        "hash_no_prealloc.go",
         "helper_call_patcher.go",
         "sleepable_modifier.go",
     ],
@@ -19,6 +20,7 @@ go_library(
             "//pkg/util/log",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//features",
             "@com_github_cilium_ebpf//link",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@org_golang_x_sys//unix",
@@ -31,6 +33,7 @@ go_library(
             "//pkg/util/log",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//features",
             "@com_github_cilium_ebpf//link",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@org_golang_x_sys//unix",
