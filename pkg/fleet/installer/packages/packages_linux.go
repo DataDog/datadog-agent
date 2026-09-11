@@ -12,7 +12,6 @@ var (
 	packagesHooks = map[string]hooks{
 		"datadog-agent":      datadogAgentPackage,
 		"datadog-apm-inject": apmInjectPackage,
-		"datadog-agent-ddot": datadogAgentDDOTPackage,
 	}
 
 	// AsyncPreRemoveHooks is called before a package is removed from the disk.

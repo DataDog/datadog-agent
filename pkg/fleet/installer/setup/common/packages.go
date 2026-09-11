@@ -14,8 +14,6 @@ import (
 const (
 	// DatadogAgentPackage is the datadog agent package
 	DatadogAgentPackage string = "datadog-agent"
-	// DatadogAgentDDOTPackage is the datadog agent ddot package
-	DatadogAgentDDOTPackage string = "datadog-ddot"
 	// DatadogAPMInjectPackage is the datadog apm inject package
 	DatadogAPMInjectPackage string = "datadog-apm-inject"
 	// DatadogAPMLibraryJavaPackage is the datadog apm library java package
@@ -45,7 +43,6 @@ const (
 var (
 	order = []string{
 		DatadogAgentPackage,
-		DatadogAgentDDOTPackage,
 		DatadogAPMInjectPackage,
 		DatadogAPMLibraryJavaPackage,
 		DatadogAPMLibraryPythonPackage,
