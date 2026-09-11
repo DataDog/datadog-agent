@@ -8,10 +8,12 @@ go_library(
         "replaceable_source.go",
         "source.go",
         "sources.go",
+        "tagfilter.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/sources",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/logs-library/tagfilter",
         "//comp/logs/agent/config",
         "//pkg/logs/status/utils",
         "//pkg/util/log",
@@ -28,8 +30,10 @@ dd_agent_go_test(
     ],
     embed = [":sources"],
     deps = [
+        "//comp/logs-library/tagfilter",
         "//comp/logs/agent/config",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
     ],
 )

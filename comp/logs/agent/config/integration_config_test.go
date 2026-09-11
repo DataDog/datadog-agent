@@ -265,6 +265,114 @@ func TestPublicJSON(t *testing.T) {
 	assert.Equal(t, expectedJSON, string(ret))
 }
 
+func TestTagFiltersParsedFromYAML(t *testing.T) {
+	configs, err := ParseYAML([]byte(`
+logs:
+  - type: file
+    path: /var/log/foo.log
+    tag_filters:
+      include:
+        - kube_*
+      exclude:
+        - dirname:*
+        - kube_app_*
+`))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	filters := configs[0].TagFilters
+	require.NotNil(t, filters)
+	assert.Equal(t, []string{"kube_*"}, filters.Include)
+	assert.Equal(t, []string{"dirname:*", "kube_app_*"}, filters.Exclude)
+}
+
+func TestTagFiltersParsedFromJSON(t *testing.T) {
+	// This is the shape delivered by a Kubernetes ad.datadoghq.com/<container>.logs annotation.
+	configs, err := ParseJSON([]byte(`[{"type":"file","path":"/var/log/foo.log","tag_filters":{"exclude":["dirname:*"]}}]`))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	filters := configs[0].TagFilters
+	require.NotNil(t, filters)
+	assert.Empty(t, filters.Include)
+	assert.Equal(t, []string{"dirname:*"}, filters.Exclude)
+
+	assert.Nil(t, decode(`{"type":"file","path":"/var/log/foo.log"}`).TagFilters)
+}
+
+func TestValidateShouldSucceedWithValidTagFilters(t *testing.T) {
+	cfg := &LogsConfig{
+		Type: FileType,
+		Path: "/var/log/foo.log",
+		TagFilters: &TagFilters{
+			Include: []string{"kube_*"},
+			Exclude: []string{"dirname:*", "kube_app_*"},
+		},
+	}
+	assert.NoError(t, cfg.Validate())
+}
+
+func TestValidateShouldSucceedWithProtectedTagFilterKey(t *testing.T) {
+	tests := []struct {
+		name    string
+		filters *TagFilters
+		key     string
+	}{
+		{"protected key in exclude", &TagFilters{Exclude: []string{"dirname:*", "service:foo"}}, "service"},
+		{"wildcard exclude reaching a protected key", &TagFilters{Exclude: []string{"host*"}}, "host"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &LogsConfig{Type: FileType, Path: "/var/log/foo.log", TagFilters: tc.filters}
+			require.NoError(t, cfg.Validate())
+
+			compiled, err := tc.filters.Compile()
+			require.NoError(t, err)
+			require.Len(t, compiled.Warnings(), 1)
+			assert.Contains(t, compiled.Warnings()[0], tc.key)
+		})
+	}
+}
+
+// A malformed tag filter must not fail validation: an invalid Config stops the
+// source from being collected, and a bad filter should only cost the filter.
+func TestValidateShouldSucceedWithMalformedTagFilter(t *testing.T) {
+	cfg := &LogsConfig{
+		Type:       FileType,
+		Path:       "/var/log/foo.log",
+		TagFilters: &TagFilters{Exclude: []string{":novalue"}},
+	}
+	require.NoError(t, cfg.Validate())
+
+	_, err := cfg.TagFilters.Compile()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing tag key")
+}
+
+func TestValidateShouldAcceptProtectedTagFilterKeyInInclude(t *testing.T) {
+	cfg := &LogsConfig{
+		Type:       FileType,
+		Path:       "/var/log/foo.log",
+		TagFilters: &TagFilters{Include: []string{"host"}},
+	}
+	assert.NoError(t, cfg.Validate())
+}
+
+func TestTagFiltersSurfacedInDumpAndPublicJSON(t *testing.T) {
+	cfg := LogsConfig{
+		Type:       FileType,
+		Path:       "/var/log/foo.log",
+		TagFilters: &TagFilters{Exclude: []string{"dirname:*"}},
+	}
+
+	assert.Contains(t, cfg.Dump(true), `TagFilters: {Include: []string(nil), Exclude: []string{"dirname:*"}},`)
+
+	ret, err := cfg.PublicJSON()
+	require.NoError(t, err)
+	assert.Contains(t, string(ret), `"tag_filters":{"include":null,"exclude":["dirname:*"]}`)
+}
+
 func TestFingerprintConfig(t *testing.T) {
 	validConfigs := []*types.FingerprintConfig{
 		{Count: 30, CountToSkip: 0, FingerprintStrategy: "byte_checksum"},

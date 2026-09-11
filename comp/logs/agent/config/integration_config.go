@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	tlsutil "github.com/DataDog/datadog-agent/comp/logs-library/utils/tls"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
@@ -104,6 +105,8 @@ type LogsConfig struct {
 	SourceCategory  string
 	Tags            StringSliceField
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules" yaml:"log_processing_rules"`
+	// TagFilters overrides the global logs_config.tag_filters block for this source.
+	TagFilters *TagFilters `mapstructure:"tag_filters" json:"tag_filters" yaml:"tag_filters"`
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
 
@@ -147,6 +150,20 @@ type LogsConfig struct {
 	IntegrationSource string `mapstructure:"integration_source" json:"integration_source" yaml:"integration_source"`
 	// IntegrationFileIndex is the index of the integration file that contains this source.
 	IntegrationSourceIndex int `mapstructure:"integration_source_index" json:"integration_source_index" yaml:"integration_source_index"`
+}
+
+// TagFilters is the raw include/exclude tag filter block. See package tagfilter.
+type TagFilters struct {
+	Include []string `mapstructure:"include" json:"include" yaml:"include"`
+	Exclude []string `mapstructure:"exclude" json:"exclude" yaml:"exclude"`
+}
+
+// Compile builds the matcher for this block. A nil block compiles to a nil matcher.
+func (t *TagFilters) Compile() (*tagfilter.Filters, error) {
+	if t == nil {
+		return nil, nil
+	}
+	return tagfilter.Compile(t.Include, t.Exclude)
 }
 
 // SourceAutoMultiLineOptions defines per-source auto multi-line detection overrides.
@@ -404,6 +421,11 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("SourceCategory: %#v,"), c.SourceCategory)
 	fmt.Fprintf(&b, ws("Tags: %#v,"), c.Tags)
 	fmt.Fprintf(&b, ws("ProcessingRules: %#v,"), c.ProcessingRules)
+	if c.TagFilters != nil {
+		fmt.Fprintf(&b, ws("TagFilters: {Include: %#v, Exclude: %#v},"), c.TagFilters.Include, c.TagFilters.Exclude)
+	} else {
+		fmt.Fprint(&b, ws("TagFilters: nil,"))
+	}
 	if c.ProcessRawMessage != nil {
 		fmt.Fprintf(&b, ws("ProcessRawMessage: %t,"), *c.ProcessRawMessage)
 	} else {
@@ -442,6 +464,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		SourceCategory    string                   `json:"source_category,omitempty"`
 		Tags              []string                 `json:"tags,omitempty"`
 		ProcessingRules   []*ProcessingRule        `json:"log_processing_rules,omitempty"`
+		TagFilters        *TagFilters              `json:"tag_filters,omitempty"`
 		AutoMultiLine     *bool                    `json:"auto_multi_line_detection,omitempty"`
 		FingerprintConfig *types.FingerprintConfig `json:"fingerprint_config,omitempty"`
 	}{
@@ -457,6 +480,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		SourceCategory:    c.SourceCategory,
 		Tags:              c.Tags,
 		ProcessingRules:   c.ProcessingRules,
+		TagFilters:        c.TagFilters,
 		AutoMultiLine:     c.AutoMultiLine,
 		FingerprintConfig: c.FingerprintConfig,
 	})
@@ -555,6 +579,9 @@ func (c *LogsConfig) Validate() error {
 	if err != nil {
 		return err
 	}
+
+	// tag_filters is checked in LogSource.TagFilters instead: a failed Validate
+	// stops collection entirely, and a bad filter should only cost the filter.
 	return CompileProcessingRules(c.ProcessingRules)
 }
 

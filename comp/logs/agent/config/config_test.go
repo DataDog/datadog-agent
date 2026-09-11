@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
 
@@ -156,6 +157,115 @@ func (suite *ConfigTestSuite) TestGlobalProcessingRulesShouldReturnRulesWithVali
 	suite.Equal("([A-Fa-f0-9]{28})", rule.Pattern)
 	suite.Equal("****************************", rule.ReplacePlaceholder)
 	suite.NotNil(rule.Regex)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersShouldReturnNilWithEmptyValues() {
+	filters, err := GlobalTagFilters(suite.config)
+	suite.Nil(err)
+	suite.Nil(filters)
+
+	suite.config.SetInTest("logs_config.tag_filters", nil)
+	filters, err = GlobalTagFilters(suite.config)
+	suite.Nil(err)
+	suite.Nil(filters)
+
+	suite.config.SetInTest("logs_config.tag_filters", "")
+	filters, err = GlobalTagFilters(suite.config)
+	suite.Nil(err)
+	suite.Nil(filters)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersShouldReturnFiltersWithValidMap() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"include": []string{"kube_*"},
+		"exclude": []string{"dirname:*", "kube_app_*"},
+	})
+
+	filters, err := GlobalTagFilters(suite.config)
+	suite.Nil(err)
+	suite.Require().NotNil(filters)
+	suite.Equal([]string{"kube_*"}, filters.Include)
+	suite.Equal([]string{"dirname:*", "kube_app_*"}, filters.Exclude)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersShouldReturnFiltersWithValidJSONString() {
+	suite.config.SetInTest("logs_config.tag_filters", `{"include":["kube_*"],"exclude":["dirname:*","kube_app_*"]}`)
+
+	filters, err := GlobalTagFilters(suite.config)
+	suite.Nil(err)
+	suite.Require().NotNil(filters)
+	suite.Equal([]string{"kube_*"}, filters.Include)
+	suite.Equal([]string{"dirname:*", "kube_app_*"}, filters.Exclude)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersShouldAcceptProtectedKeyInExclude() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"exclude": []string{"dirname:*", "service:foo"},
+	})
+
+	filters, err := GlobalTagFilters(suite.config)
+	suite.Nil(err)
+	suite.Require().NotNil(filters)
+	suite.Equal([]string{"dirname:*", "service:foo"}, filters.Exclude)
+
+	compiled, err := filters.Compile()
+	suite.Nil(err)
+	suite.Require().NotNil(compiled)
+	suite.Require().Len(compiled.Warnings(), 1)
+	suite.Contains(compiled.Warnings()[0], "service")
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersShouldRejectMalformedPattern() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"exclude": []string{"dirname:*", ":novalue"},
+	})
+
+	filters, err := GlobalTagFilters(suite.config)
+	suite.Nil(filters)
+	suite.Require().Error(err)
+	suite.Contains(err.Error(), "missing tag key")
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersShouldAcceptProtectedKeyInInclude() {
+	suite.config.SetInTest("logs_config.tag_filters", `{"include":["host"]}`)
+
+	filters, err := GlobalTagFilters(suite.config)
+	suite.Nil(err)
+	suite.Require().NotNil(filters)
+	suite.Equal([]string{"host"}, filters.Include)
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersShouldRejectUnknownSubKey() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"excludes": []string{"dirname:*"},
+	})
+
+	filters, err := GlobalTagFilters(suite.config)
+	suite.Nil(filters)
+	suite.Require().Error(err)
+	suite.Contains(err.Error(), "excludes")
+}
+
+func (suite *ConfigTestSuite) TestGlobalTagFiltersShouldRejectUnknownSubKeyAlongsideValidOne() {
+	suite.config.SetInTest("logs_config.tag_filters", map[string]interface{}{
+		"exclude":  []string{"dirname:*"},
+		"inculdes": []string{"kube_*"},
+	})
+
+	filters, err := GlobalTagFilters(suite.config)
+	suite.Nil(filters)
+	suite.Require().Error(err)
+	suite.Contains(err.Error(), "inculdes")
+}
+
+func TestGlobalTagFiltersRejectsUnknownSubKeyFromEnv(t *testing.T) {
+	t.Setenv("DD_LOGS_CONFIG_TAG_FILTERS", `{"exclude":["dirname:*"],"inculde":["kube_*"]}`)
+	cfg := config.NewMock(t)
+
+	filters, err := GlobalTagFilters(cfg)
+	assert.Nil(t, filters)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "inculde")
 }
 
 func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {

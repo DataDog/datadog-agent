@@ -720,7 +720,7 @@ func TestTCPDenialInfoAppearsInSourceStatus(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	infoStatus := source.GetInfoStatus()
+	infoStatus := source.GetInfoStatus(true)
 	ipFilterInfo, ok := infoStatus["IP Filter"]
 	require.True(t, ok, "IP Filter info should be registered with the source")
 	require.NotEmpty(t, ipFilterInfo)

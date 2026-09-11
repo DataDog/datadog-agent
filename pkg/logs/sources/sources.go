@@ -52,6 +52,7 @@ func NewLogSources() *LogSources {
 // notified.
 func (s *LogSources) AddSource(source *LogSource) {
 	log.Tracef("Adding %s", source.Dump(false))
+	source.TagFilters() // compile now so the filter and its warnings surface at registration
 	s.mu.Lock()
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {

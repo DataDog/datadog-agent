@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -57,6 +58,7 @@ const (
 	invalidProcessingRules   = "invalid_global_processing_rules"
 	invalidEndpoints         = "invalid_endpoints"
 	invalidFingerprintConfig = "invalid_fingerprint_config"
+	invalidTagFilters        = "invalid_tag_filters"
 	intakeTrackType          = "logs"
 
 	// Log messages
@@ -265,7 +267,41 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.Fingerprin
 		return nil, nil, errors.New(message)
 	}
 
+	if err := a.setupTagFilters(); err != nil {
+		return nil, nil, err
+	}
+
 	return processingRules, fingerprintConfig, nil
+}
+
+// setupTagFilters compiles logs_config.tag_filters and installs it agent-wide.
+// Sources merge their own tag_filters block with it in LogSource.TagFilters.
+func (a *logAgent) setupTagFilters() error {
+	fail := func(err error) error {
+		message := fmt.Sprintf("Invalid tag filters: %v", err)
+		status.AddGlobalError(invalidTagFilters, message)
+		return errors.New(message)
+	}
+
+	globalFilters, err := config.GlobalTagFilters(a.config)
+	if err != nil {
+		return fail(err)
+	}
+	compiled, err := globalFilters.Compile()
+	if err != nil {
+		return fail(err)
+	}
+
+	for _, warning := range compiled.Warnings() {
+		a.log.Warnf("logs_config.tag_filters: %s", warning)
+	}
+	if compiled.IsIncludeOnly() {
+		a.log.Warnf("logs_config.tag_filters: include is set but exclude is empty, so no tags will be dropped; " +
+			"include is not an allowlist, it only rescues tags from exclude. " +
+			"List the tags you want dropped under exclude.")
+	}
+	tagfilter.SetGlobal(compiled)
+	return nil
 }
 
 // Start starts all the elements of the data pipeline

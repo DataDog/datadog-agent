@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
@@ -243,4 +245,104 @@ func TestPartialRestart(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("AddSource blocked on dead subscription")
 	}
+}
+
+func setGlobalTagFilters(t *testing.T, include, exclude []string) {
+	t.Helper()
+	compiled, err := tagfilter.Compile(include, exclude)
+	require.NoError(t, err)
+	tagfilter.SetGlobal(compiled)
+	t.Cleanup(func() { tagfilter.SetGlobal(nil) })
+}
+
+func TestAddSourceCompilesTagFilterEagerly(t *testing.T) {
+	setGlobalTagFilters(t, nil, []string{"dirname:*"})
+
+	source := NewLogSource("foo", &config.LogsConfig{Type: "boo"})
+	NewLogSources().AddSource(source)
+
+	assert.Equal(t, []string{"kube_app_name:web"},
+		source.TagFilters().Apply([]string{"dirname:/var/log", "kube_app_name:web"}))
+	assert.Equal(t, []string{"global exclude: dirname:*"}, source.GetInfoStatus(true)["Tag Filters"])
+}
+
+func TestUnregisteredSourceStillGetsTheGlobalTagFilter(t *testing.T) {
+	setGlobalTagFilters(t, nil, []string{"dirname:*"})
+
+	// The OTLP exporter, the CWS and CSPM reporters and the Windows checks all
+	// build a source this way and never call AddSource.
+	source := NewLogSource("unregistered", &config.LogsConfig{Type: "boo"})
+
+	assert.Equal(t, []string{"kube_app_name:web"},
+		source.TagFilters().Apply([]string{"dirname:/var/log", "kube_app_name:web"}))
+}
+
+func TestSourceWithNoFiltersConfiguredGetsNone(t *testing.T) {
+	source := NewLogSource("foo", &config.LogsConfig{Type: "boo"})
+	NewLogSources().AddSource(source)
+
+	assert.Nil(t, source.TagFilters())
+	assert.Empty(t, source.GetInfoStatus(true)["Tag Filters"])
+}
+
+func TestMalformedSourceTagFilterFallsBackToGlobal(t *testing.T) {
+	setGlobalTagFilters(t, nil, []string{"dirname:*"})
+
+	source := NewLogSource("typo", &config.LogsConfig{
+		Type:       "boo",
+		TagFilters: &config.TagFilters{Exclude: []string{":novalue"}},
+	})
+	logSources := NewLogSources()
+	stream := logSources.GetAddedForType("boo", make(chan struct{}))
+	go func() { logSources.AddSource(source) }()
+
+	select {
+	case got := <-stream:
+		assert.Equal(t, source, got, "a filter typo must not stop the source from being collected")
+	case <-time.After(time.Second):
+		t.Fatal("source was never published to subscribers")
+	}
+
+	assert.Equal(t, []string{"kube_app_name:web"},
+		source.TagFilters().Apply([]string{"dirname:/var/log", "kube_app_name:web"}))
+	assert.Contains(t, source.Messages.GetMessages()[0], "Invalid tag_filters")
+}
+
+func TestIncludeOnlySourceTagFilterWarns(t *testing.T) {
+	setGlobalTagFilters(t, nil, nil)
+
+	source := NewLogSource("include-only", &config.LogsConfig{
+		Type:       "boo",
+		TagFilters: &config.TagFilters{Include: []string{"team:*"}},
+	})
+	NewLogSources().AddSource(source)
+
+	tags := []string{"dirname:/var/log", "team:logs"}
+	assert.Equal(t, tags, source.TagFilters().Apply(tags), "an include-only filter drops nothing")
+	require.Len(t, source.Messages.GetMessages(), 1)
+	assert.Contains(t, source.Messages.GetMessages()[0], "include is not an allowlist")
+}
+
+func TestIncludeOnlyGlobalTagFilterWarnsOnTheSource(t *testing.T) {
+	setGlobalTagFilters(t, []string{"team:*"}, nil)
+
+	source := NewLogSource("global-include-only", &config.LogsConfig{Type: "boo"})
+	NewLogSources().AddSource(source)
+
+	require.Len(t, source.Messages.GetMessages(), 1)
+	assert.Contains(t, source.Messages.GetMessages()[0], "no tags will be dropped")
+}
+
+func TestSourceIncludeRescuingAGlobalExcludeDoesNotWarn(t *testing.T) {
+	setGlobalTagFilters(t, nil, []string{"team:*"})
+
+	source := NewLogSource("rescue", &config.LogsConfig{
+		Type:       "boo",
+		TagFilters: &config.TagFilters{Include: []string{"team:*"}},
+	})
+	NewLogSources().AddSource(source)
+
+	assert.Equal(t, []string{"team:logs"},
+		source.TagFilters().Apply([]string{"team:logs"}))
+	assert.Empty(t, source.Messages.GetMessages())
 }

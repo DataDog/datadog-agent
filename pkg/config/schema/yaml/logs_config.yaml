@@ -796,6 +796,30 @@ properties:
     node_type: setting
     type: integer
     default: 30
+  tag_filters:
+    node_type: setting
+    type: object
+    default: {}
+    env_parser: json
+    properties:
+      include:
+        type: array
+        items:
+          type: string
+      exclude:
+        type: array
+        items:
+          type: string
+    # unevaluatedProperties, not additionalProperties: the settings codegen reads
+    # additionalProperties as this object's Go value type.
+    unevaluatedProperties: false
+    comment: |-
+      Global include/exclude filters for agent-added tags sent to intake.
+      Patterns are `key:value` or a bare `key`; `*` is the only metacharacter.
+      Include rescues tags from exclude (include alone is a no-op).
+      Protected keys (source, service, host, hostname, env, version) are always sent.
+      A source's own `tag_filters` takes precedence over this block.
+      EXPERIMENTAL: undocumented until the design is settled.
   tag_multi_line_logs:
     node_type: setting
     type: boolean
