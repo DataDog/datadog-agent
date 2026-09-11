@@ -146,8 +146,7 @@ func TestConfigureManagerWithSupportedProtocols_CleanupOnlyRemovesAdded(t *testi
 }
 
 // optionsCapture is a ddebpf.Modifier that records the manager options handed
-// to it, so a test can inspect what a load attempt built without the
-// production code having to expose them.
+// to it, so a test can inspect what a load attempt built.
 type optionsCapture struct {
 	opts     manager.Options
 	captured bool
@@ -167,10 +166,7 @@ func (c *optionsCapture) BeforeInit(_ *manager.Manager, _ names.ModuleName, o *m
 }
 
 // failProgramLoad is a manager.InstructionPatcherFunc that prepends `r0 = 1;
-// exit` to every program, leaving the original body unreachable so the verifier
-// rejects it. Instruction patchers run inside Manager.postInit, and a postInit
-// failure returns the manager to the reset state - which is exactly what a real
-// failed load does, and what lets the next build mode load its own ELF.
+// exit` to every program so the verifier rejects it.
 func failProgramLoad(m *manager.Manager) error {
 	progs, err := m.GetProgramSpecs()
 	if err != nil {
@@ -195,16 +191,6 @@ func failProgramLoad(m *manager.Manager) error {
 // TestInitOptionsMatchAcrossBuildModes loads the USM programs with CO-RE and
 // then with runtime compilation on a single ebpfProgram, and requires both
 // attempts to have built the same manager options.
-//
-// This is the shape Init uses when a build mode fails and falls back to the
-// next one: the manager is created once and reused by every attempt, while the
-// options are discarded and rebuilt each time. Anything derived from manager
-// state therefore has to be re-applied on every attempt, or the second one
-// loads with options the first already consumed - the ring buffer conversion
-// for the `<proto>_batch_events` maps, the `_batches` sizing, and the
-// use_ring_buffer constant.
-//
-// Requires root and a kernel supporting both build modes.
 func TestInitOptionsMatchAcrossBuildModes(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -292,9 +278,7 @@ func newFallbackTestProgram(t *testing.T) *ebpfProgram {
 }
 
 // TestRuntimeFallbackWorks fails the CO-RE load and requires Init to fall back
-// to runtime compilation and succeed. The manager is reused across attempts, so
-// this covers the state a failed attempt leaves behind - a map or probe still
-// registered from the first try makes the second fail its sanity check.
+// to runtime compilation and succeed.
 func TestRuntimeFallbackWorks(t *testing.T) {
 	e := newFallbackTestProgram(t)
 	failBuildModes(e, buildmode.CORE)
@@ -305,8 +289,7 @@ func TestRuntimeFallbackWorks(t *testing.T) {
 }
 
 // TestPrebuiltFallbackWorks fails both the CO-RE and the runtime compiled loads
-// and requires Init to fall back to prebuilt and succeed, so the leftover state
-// from two failed attempts is covered as well.
+// and requires Init to fall back to prebuilt and succeed.
 func TestPrebuiltFallbackWorks(t *testing.T) {
 	e := newFallbackTestProgram(t)
 	failBuildModes(e, buildmode.CORE, buildmode.RuntimeCompiled)

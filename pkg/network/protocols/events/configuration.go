@@ -34,10 +34,6 @@ const (
 // Configure a given `*manager.Manager` for event processing.
 // This instantiates the perf map/ring buffer and configures the eBPF maps
 // where events are enqueued.
-//
-// Note this must be called *before* manager.InitWithOptions, and once per load
-// attempt. `o` is rebuilt from scratch on every attempt while `m` is reused
-// across them.
 func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.Options) {
 	numCPUs, err := kernel.PossibleCPUs()
 	if err != nil {
