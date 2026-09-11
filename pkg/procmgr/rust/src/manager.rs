@@ -925,10 +925,7 @@ mod tests {
             "aabbccdd-1111-0000-0000-000000000000",
             "aabbccdd-2222-0000-0000-000000000000",
         ]));
-        let mgr = ProcessManager::new(
-            loader(vec![true_def("svc-a"), true_def("svc-b")]),
-            uuid_gen,
-        );
+        let mgr = ProcessManager::new(loader(vec![true_def("svc-a"), true_def("svc-b")]), uuid_gen);
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
         let err: Status = mgr.handle_start("aabbccdd", &exit_tx).await.unwrap_err();
