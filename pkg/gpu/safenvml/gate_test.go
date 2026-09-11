@@ -24,7 +24,7 @@ import (
 func TestBeginNVMLUseCounting(t *testing.T) {
 	mockNvml := testutil.NewMockNVML(testutil.WithSymbolsMock(allSymbols))
 	WithMockNVML(t, mockNvml)
-	t.Cleanup(func() { SetNVMLReleased(false) }) // don't leak the flag into other tests
+	t.Cleanup(func() { nvmlReleased.Store(false) }) // don't leak the flag into other tests
 
 	require.NoError(t, BeginNVMLUse())
 	require.NoError(t, BeginNVMLUse(), "a nested user (pull → cache refresh) must not deadlock")
@@ -41,7 +41,7 @@ func TestBeginNVMLUseCounting(t *testing.T) {
 func TestReleaseNVMLWaitsForInFlightUsers(t *testing.T) {
 	mockNvml := testutil.NewMockNVML(testutil.WithSymbolsMock(allSymbols))
 	WithMockNVML(t, mockNvml)
-	t.Cleanup(func() { SetNVMLReleased(false) }) // don't leak the flag into other tests
+	t.Cleanup(func() { nvmlReleased.Store(false) }) // don't leak the flag into other tests
 	mockNvml.ShutdownFunc = func() nvml.Return { return nvml.SUCCESS }
 
 	require.NoError(t, BeginNVMLUse()) // in-flight user
@@ -72,7 +72,7 @@ func TestReleaseNVMLWaitsForInFlightUsers(t *testing.T) {
 func TestReleaseNVMLShutdownErrorDoesNotLatch(t *testing.T) {
 	mockNvml := testutil.NewMockNVML(testutil.WithSymbolsMock(allSymbols))
 	WithMockNVML(t, mockNvml)
-	t.Cleanup(func() { SetNVMLReleased(false) }) // don't leak the flag into other tests
+	t.Cleanup(func() { nvmlReleased.Store(false) }) // don't leak the flag into other tests
 
 	failShutdown := true
 	mockNvml.ShutdownFunc = func() nvml.Return {
@@ -99,7 +99,7 @@ func TestReleaseNVMLShutdownErrorDoesNotLatch(t *testing.T) {
 func TestReacquireAfterRelease(t *testing.T) {
 	mockNvml := testutil.NewMockNVML(testutil.WithSymbolsMock(allSymbols))
 	WithMockNVML(t, mockNvml)
-	t.Cleanup(func() { SetNVMLReleased(false) }) // don't leak the flag into other tests
+	t.Cleanup(func() { nvmlReleased.Store(false) }) // don't leak the flag into other tests
 	mockNvml.ShutdownFunc = func() nvml.Return { return nvml.SUCCESS }
 
 	require.NoError(t, BeginNVMLUse())
@@ -107,7 +107,7 @@ func TestReacquireAfterRelease(t *testing.T) {
 	require.NoError(t, ReleaseNVML())
 	require.ErrorIs(t, BeginNVMLUse(), ErrNVMLReleased)
 
-	SetNVMLReleased(false)
+	nvmlReleased.Store(false)
 	// the re-acquire re-initializes via the (still installed) mock — on a
 	// real node this is the driver dlopen
 	WithMockNvmlNewFunc(t, func(_ ...nvml.LibraryOption) nvml.Interface {

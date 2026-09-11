@@ -107,7 +107,10 @@ func (c *deviceCache) Refresh() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// automatically acquire the library singleton if one is not provided
+	// automatically acquire the library singleton if one is not provided.
+	// BeginNVMLUse above has already ensured the library is initialized, so
+	// taking the singleton directly preserves the init-on-first-use
+	// semantics of the previous GetSafeNvmlLib call.
 	lib := c.lib
 	if lib == nil {
 		lib = &singleton
@@ -295,6 +298,7 @@ func (c *deviceCache) Invalidate() {
 	c.allPhysicalDevices = nil
 	c.allMigDevices = nil
 	c.uuidToDevice = nil
+	c.pciBusIDToDevice = nil
 	c.smVersionSet = nil
 	// Drop the captured library too: after a deliberate NVML shutdown the
 	// captured wrapper wraps a nil library, and Refresh must re-acquire the

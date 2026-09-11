@@ -2,8 +2,6 @@ enhancements:
   - |
     While the ``nvidia.com/mig.config.state`` node label reports an in-flight MIG
     reconfiguration (``pending``/``rebooting``, as written by nvidia-mig-manager), the
-    Agent now releases NVML and pauses GPU collection so the reconfiguration's GPU
-    reset is no longer blocked by the Agent holding the NVML library. The release is
-    propagated to the system-probe GPU monitoring probe (an independent NVML client
-    in a separate process) so both processes stay out of the way of the reset, and
-    collection resumes when the label reaches a terminal state.
+    Agent now releases NVML and pauses GPU collection, so the reconfiguration's GPU
+    reset is no longer blocked by the Agent. Collection resumes when the label
+    reaches a terminal state.

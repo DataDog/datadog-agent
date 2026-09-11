@@ -333,10 +333,12 @@ func (ctx *systemContext) periodicDeviceCacheRefresh() error {
 	return ctx.deviceCache.Refresh()
 }
 
-// releaseNVMLForReset tears down all NVML state held by the probe so a GPU
-// reset can proceed: cache handles are dead after the shutdown, so both the
-// device cache and the per-process visible-devices cache are dropped, and
-// the refresh timestamp is zeroed to force a re-enumeration on next use.
+// releaseNVMLForReset shuts NVML down so a GPU reset can proceed. The caches
+// are NOT dropped here: the eBPF event consumer keeps running during the
+// window, and emptying the device/visible-devices caches at release time
+// would leave driver events without a mapping, so they would be discarded.
+// The pre-reset mapping is kept instead (best-effort attribution for the
+// events in flight) and invalidated at reacquire time.
 // Called from the release monitor goroutine; the race with an in-flight NVML
 // call from the event consumer is accepted (the collision leaves a clean API
 // error, it does not affect the reset).
@@ -349,6 +351,15 @@ func (ctx *systemContext) releaseNVMLForReset() {
 		log.Warnf("error shutting down NVML for the release in the GPU monitoring probe (will retry next tick): %v", err)
 		return
 	}
+}
+
+// reacquireNVML ends the deliberate-release state: the next device cache
+// use re-initializes NVML and re-enumerates (the layout may have changed
+// during the window, e.g. after a MIG reconfiguration). The NVML-backed
+// caches are dropped only here — see releaseNVMLForReset for why they must
+// survive the release itself.
+func (ctx *systemContext) reacquireNVML() {
+	ddnvml.ReacquireNVML()
 
 	ctx.deviceCache.Invalidate()
 
@@ -356,11 +367,4 @@ func (ctx *systemContext) releaseNVMLForReset() {
 	ctx.visibleDevicesCache = make(map[int][]ddnvml.Device)
 	ctx.lastDeviceCacheRefreshTime = time.Time{}
 	ctx.releaseMu.Unlock()
-}
-
-// reacquireNVML ends the deliberate-release state: the next device cache
-// use re-initializes NVML and re-enumerates (the layout may have changed
-// during the window, e.g. after a MIG reconfiguration).
-func (ctx *systemContext) reacquireNVML() {
-	ddnvml.SetNVMLReleased(false)
 }

@@ -253,32 +253,35 @@ func (t *GPUMonitoringModule) startNvmlReleaseMonitor() {
 
 // releaseNVMLForLease dispatches the release on the mode: eBPF mode goes
 // through the probe's system context (device cache + per-process caches +
-// library); driver-events-only mode releases the module's cache and the
-// library directly.
+// library); driver-events-only mode releases the library directly. The device
+// cache is NOT dropped here: the driver-event consumer keeps running during
+// the window, and an empty cache would leave events without a mapping, so
+// they would be discarded. The pre-reset mapping is kept instead (best-effort
+// attribution for the events in flight) and invalidated at reacquire time.
 func (t *GPUMonitoringModule) releaseNVMLForLease() {
 	if t.Probe != nil {
 		t.Probe.ReleaseForNvmlLease()
 		return
 	}
-	// Driver-events-only mode: no system context — release NVML directly,
-	// then drop the cache (the arm rejects new gated users, so nothing can
-	// repopulate it mid-release).
+	// Driver-events-only mode: no system context — release NVML directly.
 	if err := ddnvml.ReleaseNVML(); err != nil {
 		log.Warnf("error shutting down NVML for the release in the GPU monitoring module (will retry next tick): %v", err)
 		return
 	}
-	t.deviceCache.Invalidate()
 	log.Warnf("NVML release window active (GPU reset in progress); GPU monitoring module releasing NVML until it completes")
 }
 
-// reacquireNVMLForLease ends the release window: the next device cache use
-// re-initializes NVML and re-enumerates.
+// reacquireNVMLForLease ends the release window: NVML is re-initialized and
+// the device caches are dropped so the next use re-enumerates the (possibly
+// changed) device layout. The cache refresh loop re-populates the
+// driver-events-only cache; eBPF mode re-enumerates lazily on next use.
 func (t *GPUMonitoringModule) reacquireNVMLForLease() {
 	if t.Probe != nil {
 		t.Probe.ReacquireForNvmlLease()
 		return
 	}
-	ddnvml.SetNVMLReleased(false)
+	ddnvml.ReacquireNVML()
+	t.deviceCache.Invalidate()
 }
 
 // nvmlReleaseHandler receives the core agent's NVML release push: a push
@@ -286,18 +289,13 @@ func (t *GPUMonitoringModule) reacquireNVMLForLease() {
 // window. If the core agent stops renewing (crash, check reload), the lease
 // simply expires.
 func (t *GPUMonitoringModule) nvmlReleaseHandler(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Released bool `json:"released"`
-		// TTLSeconds is the lease duration the core agent asks for; it
-		// derives it from its check interval. 0 means the default.
-		TTLSeconds int `json:"ttl_seconds"`
-	}
+	var req model.NvmlReleaseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if req.Released {
+	if req.Released == model.NvmlStateReleased {
 		t.nvmlLease.Hold(time.Duration(req.TTLSeconds) * time.Second)
 	} else {
 		t.nvmlLease.Clear()
@@ -391,7 +389,11 @@ func refreshDeviceCache(ctx context.Context, deviceCache ddnvml.DeviceCache, int
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := deviceCache.Refresh(); err != nil {
+			if err := deviceCache.Refresh(); err != nil && !ddnvml.IsNVMLReleased() {
+				// Quiet while NVML is deliberately released for a GPU reset
+				// window: the refresh is expected to fail (skip quietly,
+				// like the other NVML users) and the cache keeps serving the
+				// pre-reset mapping until the reacquire.
 				log.Warnf("failed to refresh GPU device cache: %v", err)
 			}
 		}

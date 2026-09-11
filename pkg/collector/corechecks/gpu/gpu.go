@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	gpumodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -66,7 +67,7 @@ type Check struct {
 	parallelCollectors  bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
 	issueReporter       healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
-	nvmlRelease         nvmlReleaseNotifier              // nvmlRelease pushes the release state to the system-probe GPU monitoring probe
+	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
 }
 
@@ -102,7 +103,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		excludedDeviceUUIDs: make(map[string]struct{}),
 		deviceCache:         ddnvml.NewDeviceCache(),
 		rateCalculator:      nvidia.NewRateCalculator(),
-		nvmlRelease:         newNvmlReleaseNotifier(),
+		sysprobeNvmlState:   newSysprobeNvmlStateNotifier(),
 	}
 }
 
@@ -321,7 +322,7 @@ func (c *Check) Run() error {
 		// system-probe here would pause it with nothing left to send the
 		// false push, until the lease expired on its own.
 		if ddnvml.IsNVMLReleased() {
-			if err := c.pushNvmlRelease(true); err != nil {
+			if err := c.pushNvmlStateToSysprobe(gpumodel.NvmlStateReleased); err != nil {
 				if logLimitCheck.ShouldLog() {
 					log.Warnf("error propagating the NVML release to the system-probe GPU monitoring probe: %v", err)
 				}
@@ -665,15 +666,15 @@ const (
 // is diagnosable without any action being taken behind the operator's back.
 var logLimitWindowOpen = log.NewLogLimit(1, 10*time.Minute)
 
-// nvmlReleaseNotifier pushes the NVML release state (and, while releasing,
-// the lease duration the check asks for) to the system-probe GPU monitoring
-// probe. It is a field on the Check so tests can inject a fake.
-type nvmlReleaseNotifier func(released bool, ttl time.Duration) error
+// sysprobeNvmlStateNotifier pushes the NVML release state (and, while
+// releasing, the lease duration the check asks for) to the system-probe GPU
+// monitoring probe. It is a field on the Check so tests can inject a fake.
+type sysprobeNvmlStateNotifier func(state gpumodel.NvmlState, ttl time.Duration) error
 
-// newNvmlReleaseNotifier pushes over the same sysprobe socket the check
+// newSysprobeNvmlStateNotifier pushes over the same sysprobe socket the check
 // already uses for GPU stats: no extra mount or protocol, the channel exists
 // whenever GPU monitoring works.
-func newNvmlReleaseNotifier() nvmlReleaseNotifier {
+func newSysprobeNvmlStateNotifier() sysprobeNvmlStateNotifier {
 	timeout := pkgconfigsetup.Datadog().GetDuration("gpu.sp_process_metrics_request_timeout")
 	client := sysprobeclient.GetCheckClient(
 		sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
@@ -681,13 +682,10 @@ func newNvmlReleaseNotifier() nvmlReleaseNotifier {
 		sysprobeclient.WithStartupCheckTimeout(timeout),
 	)
 
-	return func(released bool, ttl time.Duration) error {
-		body := struct {
-			Released bool `json:"released"`
-			TTL      int  `json:"ttl_seconds"`
-		}{
-			Released: released,
-			TTL:      int(ttl / time.Second),
+	return func(state gpumodel.NvmlState, ttl time.Duration) error {
+		body := gpumodel.NvmlReleaseRequest{
+			Released:   state,
+			TTLSeconds: int(ttl / time.Second),
 		}
 		_, err := sysprobeclient.Post[struct{}](client, spNvmlReleaseEndpoint, body, sysconfig.GPUMonitoringModule)
 		return err
@@ -730,8 +728,12 @@ func (c *Check) shouldReleaseNVML() bool {
 	if c.nodeInfo != nil {
 		// Bounded: an API-server wait loop with context.Background() could
 		// stall Run indefinitely during startup or an API outage, defeating
-		// the fail-open intent of this signal read.
-		labelCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		// the fail-open intent of this signal read. The read is one cached
+		// kubelet lookup plus one node GET (via the cluster-agent or the API
+		// server), which normally answers in well under a second — the bound
+		// only exists so an outage cannot stall the check; a timeout fails
+		// open (no release) and retries on the next run.
+		labelCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		if labels, err := c.nodeInfo.GetNodeLabels(labelCtx); err == nil {
 			if v, ok := labels[migConfigStateLabel]; ok && isMigReconfigState(v) {
@@ -775,22 +777,19 @@ func (c *Check) releaseNVML() {
 	c.releaseWindowStart = time.Now()
 }
 
-// pushNvmlRelease renews (released=true) or ends (released=false) the
-// system-probe release lease. Best-effort: on failure the lease expires on
-// its own, and the warn is rate-limited by the caller.
-// pushNvmlRelease renews (released=true) or ends (released=false) the
-// system-probe release lease. The lease duration is derived from the check
-// interval (3 runs, floored at 30s): a hardcoded TTL would expire between
-// renewals when gpu.collection_interval_override raises the interval, and
-// system-probe would silently re-acquire NVML mid-window. Best-effort: on
-// failure the lease expires on its own, and the warn is rate-limited by the
-// caller.
-func (c *Check) pushNvmlRelease(released bool) error {
+// pushNvmlStateToSysprobe renews (NvmlStateReleased) or ends
+// (NvmlStateAcquired) the system-probe NVML release lease. The lease duration
+// is derived from the check interval (3 runs, floored at 30s): a hardcoded
+// TTL would expire between renewals when gpu.collection_interval_override
+// raises the interval, and system-probe would silently re-acquire NVML
+// mid-window. Best-effort: on failure the lease expires on its own, and the
+// warn is rate-limited by the caller.
+func (c *Check) pushNvmlStateToSysprobe(state gpumodel.NvmlState) error {
 	ttl := 3 * c.Interval()
 	if ttl < 30*time.Second {
 		ttl = 30 * time.Second
 	}
-	return c.nvmlRelease(released, ttl)
+	return c.sysprobeNvmlState(state, ttl)
 }
 
 // reacquireNVML ends the deliberate-release state: the next NVML use
@@ -805,9 +804,9 @@ func (c *Check) reacquireNVML(force bool) {
 		log.Warnf("NVML release drain still in progress; deferring the reacquire")
 		return
 	}
-	ddnvml.SetNVMLReleased(false)
+	ddnvml.ReacquireNVML()
 	c.releaseWindowStart = time.Time{}
-	if err := c.pushNvmlRelease(false); err != nil {
+	if err := c.pushNvmlStateToSysprobe(gpumodel.NvmlStateAcquired); err != nil {
 		log.Warnf("error ending the system-probe NVML release lease (it will expire on its own): %v", err)
 	}
 }

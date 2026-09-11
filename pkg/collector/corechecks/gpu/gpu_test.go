@@ -1276,9 +1276,9 @@ func newReleaseTestCheck(t *testing.T) (*Check, *[]bool) {
 	c, ok := checkGeneric.(*Check)
 	require.True(t, ok)
 
-	pushes := &[]bool{}
-	c.nvmlRelease = func(released bool, _ time.Duration) error {
-		*pushes = append(*pushes, released)
+	pushes := &[]model.NvmlState{}
+	c.sysprobeNvmlState = func(state model.NvmlState, _ time.Duration) error {
+		*pushes = append(*pushes, state)
 		return nil
 	}
 	return c, pushes
@@ -1309,18 +1309,21 @@ func TestShouldReleaseNVML(t *testing.T) {
 	c, _ := newReleaseTestCheck(t)
 
 	t.Run("released_state_is_not_a_signal", func(t *testing.T) {
-		// safenvml released state on, but no external signal → the window is
-		// closed: the check must be able to observe the window closing and
-		// re-acquire (SetNVMLReleased(false) happens in reacquireNVML)
-		ddnvml.SetNVMLReleased(true)
-		t.Cleanup(func() { ddnvml.SetNVMLReleased(false) })
+		// safenvml released state on (armed through the real release path;
+		// in unit tests NVML was never inited, so the release is a no-op
+		// shutdown), but no external signal → the window is closed: the check
+		// must be able to observe the window closing and re-acquire
+		// (ReacquireNVML happens in reacquireNVML)
+		_ = ddnvml.ReleaseNVML()
+		t.Cleanup(func() { ddnvml.ReacquireNVML() })
+		assert.True(t, ddnvml.IsNVMLReleased())
 		assert.False(t, c.shouldReleaseNVML())
 	})
 
 	t.Run("no_signals_fails_open", func(t *testing.T) {
 		// released state off, label unreadable (no kubelet/DCA in tests) →
 		// fail open
-		ddnvml.SetNVMLReleased(false)
+		ddnvml.ReacquireNVML()
 		assert.False(t, c.shouldReleaseNVML())
 	})
 }
@@ -1343,15 +1346,15 @@ func TestNvmlReleaseCycle(t *testing.T) {
 
 	// the Run skip branch renews the system-probe lease on every cycle while
 	// the window is open
-	require.NoError(t, c.pushNvmlRelease(true))
-	require.NoError(t, c.pushNvmlRelease(true))
-	assert.Equal(t, []bool{true, true}, *pushes)
+	require.NoError(t, c.pushNvmlStateToSysprobe(model.NvmlStateReleased))
+	require.NoError(t, c.pushNvmlStateToSysprobe(model.NvmlStateReleased))
+	assert.Equal(t, []model.NvmlState{model.NvmlStateReleased, model.NvmlStateReleased}, *pushes)
 
 	// window closes: signals clear → the re-acquire ends the system-probe
 	// lease too
 	c.reacquireNVML(true)
 	assert.False(t, ddnvml.IsNVMLReleased())
-	assert.Equal(t, []bool{true, true, false}, *pushes, "the reacquire must end the system-probe lease")
+	assert.Equal(t, []model.NvmlState{model.NvmlStateReleased, model.NvmlStateReleased, model.NvmlStateAcquired}, *pushes, "the reacquire must end the system-probe lease")
 }
 
 // TestReacquireAcrossInstanceRecreation guards the instance-recreation path:
@@ -1366,7 +1369,7 @@ func TestReacquireAcrossInstanceRecreation(t *testing.T) {
 	// old instance releases for the window
 	old.releaseNVML()
 	require.True(t, ddnvml.IsNVMLReleased())
-	t.Cleanup(func() { ddnvml.SetNVMLReleased(false) })
+	t.Cleanup(func() { ddnvml.ReacquireNVML() })
 
 	// signals clear, then the instance is recreated mid-window: the fresh
 	// instance must still see that NVML is released and end the window, and
@@ -1376,7 +1379,7 @@ func TestReacquireAcrossInstanceRecreation(t *testing.T) {
 
 	fresh.reacquireNVML(false)
 	assert.False(t, ddnvml.IsNVMLReleased())
-	assert.Equal(t, []bool{false}, *freshPushes, "the fresh instance must end the system-probe lease")
+	assert.Equal(t, []model.NvmlState{model.NvmlStateAcquired}, *freshPushes, "the fresh instance must end the system-probe lease")
 }
 
 // TestCancelEndsReleaseWindow guards the removal path: a check canceled while
@@ -1390,9 +1393,9 @@ func TestCancelEndsReleaseWindow(t *testing.T) {
 
 	c.releaseNVML()
 	require.True(t, ddnvml.IsNVMLReleased())
-	t.Cleanup(func() { ddnvml.SetNVMLReleased(false) })
+	t.Cleanup(func() { ddnvml.ReacquireNVML() })
 
 	c.Cancel()
 	assert.False(t, ddnvml.IsNVMLReleased(), "Cancel must end the release window: no Run() is coming")
-	assert.Equal(t, []bool{false}, *pushes, "Cancel must end the system-probe lease too")
+	assert.Equal(t, []model.NvmlState{model.NvmlStateAcquired}, *pushes, "Cancel must end the system-probe lease too")
 }
