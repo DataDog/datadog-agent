@@ -1,0 +1,73 @@
+system_probe_config:
+  enabled: true
+  debug_port: 7654
+  telemetry_enabled: true
+  log_level: debug
+  sysprobe_socket: /var/run/sysprobe.sock
+  max_tracked_connections: 131072
+  max_closed_connections_buffered: 65536
+  conntrack_max_state_size: 131072
+  enable_oom_kill: true
+  enable_tcp_queue_length: true
+  process_config:
+    enabled: true
+
+network_config:
+  enabled: true
+  collect_tcp_v6: true
+  enable_cert_collection: true
+  enable_protocol_classification: true
+  enable_tcp_failed_connections: true
+  enable_ringbuffers: true
+  closed_buffer_wakeup_count: 4
+  closed_channel_size: 500
+  max_failed_connections_buffered: 131072
+
+service_monitoring_config:
+  enabled: true
+  max_concurrent_requests: 30000
+  disable_map_preallocation: true
+  enable_ring_buffers: true
+  kernel_buffer_pages: 16
+  direct_consumer:
+    buffer_wakeup_count_per_cpu: 8
+    channel_size: 1000
+    kernel_buffer_size_per_cpu: 65536
+  http:
+    enabled: true
+    use_direct_consumer: true
+  http2:
+    enabled: true
+  kafka:
+    enabled: true
+  redis:
+    enabled: true
+  tls:
+    native:
+      enabled: true
+    go:
+      enabled: true
+    istio:
+      enabled: true
+    nodejs:
+      enabled: true
+
+# Per https://docs.datadoghq.com/security/cloud_security_management/setup/agent/linux/
+runtime_security_config:
+  enabled: true
+
+ebpf_check:
+  enabled: true
+  kernel_bpf_stats: true
+
+dynamic_instrumentation:
+  enabled: true
+
+discovery:
+  enabled: true
+
+ping:
+  enabled: true
+
+traceroute:
+  enabled: true
