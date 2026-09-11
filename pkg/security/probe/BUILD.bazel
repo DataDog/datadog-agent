@@ -15,6 +15,7 @@ go_library(
         "discarders.go",
         "discarders_linux.go",
         "discarders_windows.go",
+        "dns_request_tracker.go",
         "enrich_rule_event.go",
         "errors.go",
         "eventconsumer.go",
@@ -345,6 +346,7 @@ dd_agent_go_test(
     name = "probe_test",
     srcs = [
         "discarders_test.go",
+        "dns_request_tracker_test.go",
         "field_handlers_test.go",
         "fuzz_test.go",
         "model_test.go",

@@ -125,6 +125,7 @@ type EBPFProbe struct {
 	// internals
 	event           *model.Event
 	dnsLayer        *layers.DNS
+	dnsRequests     *dnsRequestTracker
 	monitors        *EBPFMonitors
 	profileManager  securityprofile.ProfileManager
 	fieldHandlers   *EBPFFieldHandlers
@@ -1204,6 +1205,21 @@ func (p *EBPFProbe) SendStats() error {
 		return err
 	}
 
+	if p.dnsRequests != nil {
+		for _, m := range []struct {
+			name    string
+			counter *atomic.Uint64
+		}{
+			{metrics.MetricDNSADCorrelationHits, p.dnsRequests.hits},
+			{metrics.MetricDNSADCorrelationMisses, p.dnsRequests.misses},
+			{metrics.MetricDNSADCorrelationCollisions, p.dnsRequests.collisions},
+		} {
+			if err := p.statsdClient.Count(m.name, int64(m.counter.Swap(0)), []string{}, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+
 	if err := p.eventStream.SendStats(); err != nil {
 		return err
 	}
@@ -1839,6 +1855,18 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 		}
 
+		// Remember who asked, so the matching response can be attributed back to this process.
+		// The sample flag covers two kernel-side cases (reset_dns_event in
+		// helpers/network/dns.h): a pid an activity dump is tracing, and a rate-limited sample of
+		// everything else, taken by approve_dns_sample when
+		// runtime_security_config.event_sampling.dns.enabled is set (off by default, rate 500/s).
+		// Both genuinely feed profiles under the V2 manager, so both are recorded. Under sampling
+		// those extra requests do compete for the tracker's 1024 slots, but the cost of losing one
+		// is only a miss, never a misattribution: an evicted key simply stops matching.
+		if event.Error == nil && event.IsActivityDumpSample() && p.dnsRequests != nil {
+			p.dnsRequests.recordRequest(event.DNS.ID, event.DNS.Question.Name, event.DNS.Question.Type, event.ProcessCacheEntry, time.Now())
+		}
+
 	case model.FullDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
 			if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
@@ -2138,12 +2166,14 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		return false
 	case model.ShortDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
-			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err == nil {
-				p.addToDNSResolver(p.dnsLayer)
+			decodeErr := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback)
+			if decodeErr == nil {
+				ips, cnames := p.addToDNSResolver(p.dnsLayer)
+				p.correlateDNSResponseForActivityDump(p.dnsLayer, ips, cnames)
 				return false
 			}
 
-			seclog.Warnf("failed to decode the short DNS response: %s", err)
+			seclog.Warnf("failed to decode the short DNS response: %s", decodeErr)
 			event.Error = model.ErrFailedDNSPacketDecoding
 			event.FailedDNS = model.FailedDNSEvent{
 				Payload: trimRightZeros(data[offset:]),
@@ -3454,6 +3484,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
+	dnsRequests, err := newDNSRequestTracker(dnsRequestTrackerSize, dnsRequestTrackerTTL)
+	if err != nil {
+		cancelFnc()
+		return nil, fmt.Errorf("couldn't create the DNS request tracker: %w", err)
+	}
+
 	p := &EBPFProbe{
 		probe:                probe,
 		config:               config,
@@ -3469,6 +3505,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		replayEventsState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
+		dnsRequests:          dnsRequests,
 		hostname:             hostname,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
