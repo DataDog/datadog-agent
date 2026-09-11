@@ -9,6 +9,7 @@ package spec
 
 import (
 	"math"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -94,6 +95,32 @@ func TestValidateEmittedMetricsAllowsZeroNVSwitchWithNoActiveNVLink(t *testing.T
 	require.False(t, result.HasFailures())
 }
 
+func TestValidateEmittedMetricsAllowsMissingOptionalTag(t *testing.T) {
+	value := 42.0
+	specs := &Specs{
+		Metrics: &MetricsSpec{
+			Metrics: map[string]MetricSpec{
+				"fan_speed": {
+					CustomTags: []string{"fan_index"},
+					Support:    MetricSupportSpec{DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true}},
+				},
+			},
+		},
+		Tags: &TagsSpec{Tags: map[string]TagSpec{
+			"fan_index": {Regex: regexp.MustCompile(`^\d+$`), Optional: true},
+		}},
+	}
+	config := GPUConfig{Architecture: "hopper", DeviceMode: DeviceModePhysical}
+
+	result, err := ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]MetricObservation{
+		"fan_speed": {{Value: &value}},
+	}, nil, ValidationOptions{})
+
+	require.NoError(t, err)
+	require.False(t, result.HasFailures())
+	require.Equal(t, 0, result.Metrics["fan_speed"].TagResults["fan_index"].Missing)
+}
+
 func TestValidateEmittedMetricsAgainstSpecExternalValues(t *testing.T) {
 	value := 10.0
 	specs := &Specs{
@@ -131,6 +158,16 @@ func TestValidateEmittedMetricsAgainstSpecExternalValues(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.HasFailures())
 		require.Contains(t, result.Metrics, "unmarked")
+	})
+
+	t.Run("mismatch reports observed and reference values", func(t *testing.T) {
+		reference := 8.0
+		result, err := ValidateEmittedMetricsAgainstSpec(specs, config, emitted, nil, ValidationOptions{
+			NvidiaSMIValues: map[string]*float64{"temperature": &reference},
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, result.Metrics["temperature"].InvalidValue)
+		require.Contains(t, result.Metrics["temperature"].InvalidValueSamples[0], "value 10 differs from known-good value 8")
 	})
 
 	t.Run("missing reference fails", func(t *testing.T) {

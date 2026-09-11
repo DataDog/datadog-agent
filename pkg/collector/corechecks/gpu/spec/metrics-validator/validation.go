@@ -91,14 +91,14 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	for metricName, metricSpec := range expectedMetricsMap {
 		prefixedMetricName := gpuspec.PrefixedMetricName(specs, metricName)
 		validatesValues := metricSpec.Validator.HasStaticValueValidation()
-		requiredTags, err := gpuspec.RequiredTagsForMetricWithOptions(specs.Tags, metricSpec, validationOptions)
+		expectedTags, err := gpuspec.ExpectedTagsForMetricWithOptions(specs.Tags, metricSpec, validationOptions)
 		if err != nil {
-			return result, fmt.Errorf("derive required tags for %s: %w", metricName, err)
+			return result, fmt.Errorf("derive expected tags for %s: %w", metricName, err)
 		}
 
 		// Get the metric values
 		group.Go(func() error {
-			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, requiredTags, queryFilter, fromTS, toTS, validatesValues)
+			metricObservations, err := client.queryExpectedMetricPresenceForGPUConfig(prefixedMetricName, expectedTags, queryFilter, fromTS, toTS, validatesValues)
 			if err != nil {
 				return fmt.Errorf("query expected metric presence for %s: %w", metricName, err)
 			}
@@ -116,7 +116,7 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 
 		tagLookbackSeconds := max(14400, toTS-fromTS) // 4 hours is the minimum lookback for the API
 
-		tagInventoryPrefixes := tagInventoryPrefixesForMetric(requiredTags)
+		tagInventoryPrefixes := tagInventoryPrefixesForMetric(expectedTags)
 
 		// Also get tag values for the metric. Physical GPU configs use multiple positive
 		// all-tags scopes because the endpoint does not handle NOT filters like scalar queries do.
@@ -219,8 +219,8 @@ func tagInventoryFiltersForConfig(config gpuspec.GPUConfig, extraFilter string) 
 	return []string{combineMetricFilters(strings.Join(baseParts, " AND "), extraFilter)}
 }
 
-func tagInventoryPrefixesForMetric(requiredTags map[string]gpuspec.TagSpec) map[string]gpuspec.TagSpec {
-	prefixes := maps.Clone(requiredTags)
+func tagInventoryPrefixesForMetric(expectedTags map[string]gpuspec.TagSpec) map[string]gpuspec.TagSpec {
+	prefixes := maps.Clone(expectedTags)
 	prefixes["gpu_"] = gpuspec.TagSpec{}
 	return prefixes
 }
