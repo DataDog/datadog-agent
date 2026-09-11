@@ -153,7 +153,7 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxStaleID
 	case errors.Is(err, otelattrs.ErrMalformed):
 		return spanCtxMalformed
-	case errors.Is(err, syscall.ESRCH), errors.Is(err, syscall.ENOENT), errors.Is(err, syscall.EIO):
+	case errors.Is(err, syscall.ESRCH), errors.Is(err, syscall.ENOENT), errors.Is(err, syscall.EIO), errors.Is(err, io.EOF):
 		return spanCtxGone
 	case errors.Is(err, syscall.EACCES), errors.Is(err, syscall.EPERM):
 		return spanCtxUnreadable
