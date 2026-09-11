@@ -2,6 +2,30 @@
 Release Notes
 =============
 
+.. _Release Notes_7.83.1:
+
+7.83.1
+======
+
+.. _Release Notes_7.83.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-09
+Pinned to datadog-agent v7.83.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7831>`_.
+
+
+.. _Release Notes_7.83.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix Cluster Agent graceful shutdown to release the Kubernetes
+  leader-election lock before exiting, allowing another replica to take over
+  without waiting for the lease to expire.
+
+
 .. _Release Notes_7.83.0:
 
 7.83.0

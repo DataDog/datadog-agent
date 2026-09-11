@@ -101,10 +101,12 @@ pub struct ManagedProcess {
     last_exit_status: Option<std::process::ExitStatus>,
     #[cfg(windows)]
     job_object: Option<platform::JobObject>,
+    #[cfg(windows)]
+    agent_credential: Option<platform::SpawnCredential>,
 }
 
 impl ManagedProcess {
-    const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
+    pub(crate) const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
 
     pub fn new_config(name: String, uuid: String, config: ProcessConfig) -> Self {
         Self::new_inner(name, uuid, config, ProcessOrigin::Config)
@@ -117,6 +119,9 @@ impl ManagedProcess {
     fn new_inner(name: String, uuid: String, config: ProcessConfig, origin: ProcessOrigin) -> Self {
         let restarts = RestartTracker::new(config.restart_delay());
         let profile = SpawnProfile::profile_for(&name);
+        #[cfg(windows)]
+        let (user, agent_credential) = platform::resolve_spawn_identity(&name, profile);
+        #[cfg(not(windows))]
         let user = platform::intended_spawn_user(&name, profile);
         Self {
             name,
@@ -133,6 +138,8 @@ impl ManagedProcess {
             last_exit_status: None,
             #[cfg(windows)]
             job_object: None,
+            #[cfg(windows)]
+            agent_credential,
         }
     }
 
@@ -160,12 +167,32 @@ impl ManagedProcess {
         &self.config
     }
 
+    #[cfg(windows)]
+    pub(crate) fn set_job_object(&mut self, job: platform::JobObject) {
+        self.job_object = Some(job);
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn clear_windows_spawn_resources(&mut self) {
+        self.job_object = None;
+    }
+
     pub(crate) fn profile(&self) -> SpawnProfile {
         self.profile
     }
 
     pub fn user(&self) -> &str {
         &self.user
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn set_intended_user(&mut self, user: String) {
+        self.user = user;
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn agent_credential(&self) -> Option<&platform::SpawnCredential> {
+        self.agent_credential.as_ref()
     }
 
     pub fn restart_count(&self) -> u32 {
@@ -229,6 +256,8 @@ impl ManagedProcess {
                 Ok(())
             }
             Err(e) => {
+                #[cfg(windows)]
+                self.clear_windows_spawn_resources();
                 self.transition_to(ProcessState::Failed);
                 Err(e)
             }
@@ -261,8 +290,7 @@ impl ManagedProcess {
         #[cfg(windows)]
         let _console_guard = platform::console_lock();
 
-        info!("[{}] spawn profile: {}", self.name, self.profile);
-        let handle = platform::spawn_child_handle(self.name(), self.config())?;
+        let handle = platform::spawn_child_handle(self)?;
 
         self.pid = handle.id();
         info!(
@@ -271,17 +299,6 @@ impl ManagedProcess {
             self.pid.map_or("unknown".to_string(), |p| p.to_string()),
             self.config.command
         );
-
-        #[cfg(windows)]
-        if let Some(pid) = self.pid {
-            match platform::JobObject::new() {
-                Ok(job) => match job.assign_process(pid) {
-                    Ok(()) => self.job_object = Some(job),
-                    Err(e) => warn!("[{}] failed to assign to job object: {e:#}", self.name),
-                },
-                Err(e) => warn!("[{}] failed to create job object: {e:#}", self.name),
-            }
-        }
 
         self.transition_to(ProcessState::Running);
         self.restarts.mark_spawned();
@@ -297,9 +314,7 @@ impl ManagedProcess {
         self.pid = None;
         self.watcher_handle = None;
         #[cfg(windows)]
-        {
-            self.job_object = None;
-        }
+        self.clear_windows_spawn_resources();
         if self.stop_requested {
             self.stop_requested = false;
             self.transition_to(ProcessState::Stopped);
@@ -394,9 +409,7 @@ impl ManagedProcess {
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
         #[cfg(windows)]
-        {
-            self.job_object = None;
-        }
+        self.clear_windows_spawn_resources();
     }
 
     #[cfg(test)]

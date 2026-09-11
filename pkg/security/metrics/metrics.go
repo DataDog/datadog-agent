@@ -241,6 +241,39 @@ var (
 	// Tags: -
 	MetricProcessResolverProcFallbackLimiterDrop = newRuntimeMetric(".process_resolver.proc_fallback_limiter.drop")
 
+	// Span context metrics
+
+	// MetricSpanContextProcessCtxFailed is the counter of OTel process context read failures
+	// Tags: status:queue_full, status:no_process_entry, status:unpublished, status:torn, status:unsupported,
+	//       status:malformed, status:gone, status:unreadable, status:unknown
+	MetricSpanContextProcessCtxFailed = newRuntimeMetric(".span_context.process_ctx.failed")
+	// MetricSpanContextProcessCtxSuccess is the counter of OTel process context read successes
+	// Tags: status:ok
+	MetricSpanContextProcessCtxSuccess = newRuntimeMetric(".span_context.process_ctx.success")
+	// MetricSpanContextResolutionFailed is the counter of per-process span context reader install failures
+	// Tags: reader:otel_tls, reader:go_labels
+	//
+	//       status:not_applicable, status:unsupported, status:malformed, status:map_error, status:gone,
+	//       status:unreadable, status:unknown
+	MetricSpanContextResolutionFailed = newRuntimeMetric(".span_context.resolution.failed")
+	// MetricSpanContextResolutionSuccess is the counter of per-process span context reader install successes
+	// Tags: reader:otel_tls, reader:go_labels
+	//
+	//       status:ok
+	MetricSpanContextResolutionSuccess = newRuntimeMetric(".span_context.resolution.success")
+	// MetricSpanContextEventFailed is the counter of per-event span context fill failures
+	// Tags: reader:otel_tls, reader:go_labels, reader:fill
+	//
+	//       status:no_thread_pointer, status:read_fault, status:torn, status:attrs_read_fault,
+	//       status:map_error, status:stale_id, status:malformed,status:g_not_found, status:map_error,
+	//       status:malformed
+	MetricSpanContextEventFailed = newRuntimeMetric(".span_context.event.failed")
+	// MetricSpanContextEventSuccess is the counter of per-event span context fill successes
+	// Tags: reader:otel_tls, reader:go_labels
+	//
+	//       status:ok
+	MetricSpanContextEventSuccess = newRuntimeMetric(".span_context.event.success")
+
 	// Mount resolver metrics
 
 	// MetricMountResolverCacheSize is the name of the metric used to report the size of the user space

@@ -1,0 +1,8 @@
+---
+security:
+  - |
+    APM: The trace-agent now validates the index mapping of the DDSketch
+    distributions it receives on the client stats intake, and rejects mappings
+    whose bucket bounds cannot be re-mapped safely. A crafted payload could
+    previously corrupt or crash the aggregation of client stats. Affected
+    distributions are dropped while the request counts are kept.

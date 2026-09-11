@@ -96,7 +96,7 @@ func getGoLabelsOffsets(goVersion string) (mOffset, curg, labels, hmapCount, hma
 // and pushes them to the go_labels_procs BPF map.
 func (p *EBPFResolver) resolveGoLabels(pid uint32) error {
 	if p.goLabelsMap == nil {
-		return errors.New("go_labels_procs map not available")
+		return fmt.Errorf("%w: go_labels_procs map not available", errSpanCtxMapError)
 	}
 
 	exePath := kernel.HostProc(strconv.FormatUint(uint64(pid), 10), "exe")
@@ -111,14 +111,14 @@ func (p *EBPFResolver) resolveGoLabels(pid uint32) error {
 	// survives `-ldflags=-s -w`.
 	goVersion, err := elfFile.GoVersion()
 	if err != nil {
-		return fmt.Errorf("failed to read Go build info: %w", err)
+		return fmt.Errorf("%w: failed to read Go build info: %w", errSpanCtxMalformed, err)
 	}
 	if goVersion == "" {
-		return errors.New("not a Go binary")
+		return fmt.Errorf("%w: not a Go binary", errSpanCtxGone)
 	}
 
 	if version.Compare(goVersion, minGoVersion) < 0 || version.Compare(goVersion, maxGoVersion) >= 0 {
-		return fmt.Errorf("unsupported Go version %s (need >= %s and < %s)", goVersion, minGoVersion, maxGoVersion)
+		return fmt.Errorf("%w: Go version %s (need >= %s and < %s)", errSpanCtxUnsupported, goVersion, minGoVersion, maxGoVersion)
 	}
 
 	// Get struct offsets from the version table.
@@ -134,14 +134,17 @@ func (p *EBPFResolver) resolveGoLabels(pid uint32) error {
 		// in TLS", and eBPF falls back to the g register where the ABI has one.
 		seclog.Debugf("Go labels TLS offset for pid %d: %s", pid, err)
 	default:
-		return fmt.Errorf("failed to extract TLS G offset: %w", err)
+		return fmt.Errorf("%w: failed to extract TLS G offset: %w", errSpanCtxMalformed, err)
 	}
 
 	// Serialize and push to BPF map.
 	value := serializeGoLabelsOffsets(mOffset, curgOffset, labelsOffset,
 		hmapCount, hmapLog2BC, hmapBuckets, tlsOffset)
 
-	return p.goLabelsMap.Put(pid, value)
+	if err := p.goLabelsMap.Put(pid, value); err != nil {
+		return fmt.Errorf("%w: %w", errSpanCtxMapError, err)
+	}
+	return nil
 }
 
 // serializeGoLabelsOffsets serializes the go_labels_offsets_t struct for the BPF map.

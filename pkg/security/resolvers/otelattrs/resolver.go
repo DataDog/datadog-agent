@@ -9,6 +9,7 @@
 package otelattrs
 
 import (
+	"errors"
 	"fmt"
 
 	lib "github.com/cilium/ebpf"
@@ -16,6 +17,19 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+)
+
+// Sentinels Resolve wraps its error with, for classifySpanCtxError
+// (resolvers/process/span_ctx_stats.go) to classify per-event lookup
+// failures without either package depending on the other's types.
+var (
+	// ErrMapLookup means the ring slot lookup itself failed.
+	ErrMapLookup = errors.New("otel span attrs map lookup failed")
+	// ErrStaleID means the ring slot's id no longer matches the one the event
+	// carried: the slot was reused before this event's attributes were resolved.
+	ErrStaleID = errors.New("stale otel span attrs id")
+	// ErrMalformed means the process published an implausible attributes size.
+	ErrMalformed = errors.New("malformed otel span attrs")
 )
 
 // see kernel definitions (constants/custom.h, structs/process.h)
@@ -57,16 +71,16 @@ func (r *Resolver) Resolve(attrsID uint64) ([]Attribute, error) {
 
 	var entry kernelAttrsEntry
 	if err := r.attrsMap.Lookup(key, &entry); err != nil {
-		return nil, fmt.Errorf("unable to resolve the otel span attributes for `%d`: %w", attrsID, err)
+		return nil, fmt.Errorf("%w: unable to resolve the otel span attributes for `%d`: %w", ErrMapLookup, attrsID, err)
 	}
 
 	if uint64(entry.ID) != attrsID {
-		return nil, fmt.Errorf("incorrect id `%d` vs `%d`", attrsID, entry.ID)
+		return nil, fmt.Errorf("%w: `%d` vs `%d`", ErrStaleID, attrsID, entry.ID)
 	}
 
 	size := int(entry.Size)
 	if size == 0 || size > len(entry.Data) {
-		return nil, fmt.Errorf("invalid otel span attributes size for `%d`: %d", attrsID, size)
+		return nil, fmt.Errorf("%w: invalid otel span attributes size for `%d`: %d", ErrMalformed, attrsID, size)
 	}
 
 	return parseAttributes(entry.Data[:size]), nil

@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use std::os::windows::ffi::OsStringExt;
+use std::ffi::OsStr;
+use std::os::windows::ffi::{OsStrExt, OsStringExt};
 
 pub(crate) fn split_env_entry_wide(
     wide: &[u16],
@@ -25,4 +26,23 @@ pub(crate) fn trim_wide_nul(wide: &[u16]) -> String {
     std::ffi::OsString::from_wide(&wide[..end])
         .to_string_lossy()
         .into_owned()
+}
+
+pub(crate) fn null_terminated(value: &str) -> Vec<u16> {
+    OsStr::new(value).encode_wide().chain([0]).collect()
+}
+
+pub(crate) fn from_ptr(ptr: *const u16) -> String {
+    if ptr.is_null() {
+        return String::new();
+    }
+    unsafe {
+        let len = (0..).take_while(|&i| *ptr.add(i) != 0).count();
+        String::from_utf16_lossy(std::slice::from_raw_parts(ptr, len))
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn from_slice(slice: &[u16]) -> String {
+    String::from_utf16_lossy(slice)
 }

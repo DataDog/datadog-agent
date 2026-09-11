@@ -242,6 +242,7 @@
 /cmd/agent/subcommands/otel                         @DataDog/opentelemetry-agent
 /cmd/agent/subcommands/check                        @DataDog/agent-runtimes @DataDog/agent-integrations
 /cmd/agent/subcommands/dogstatsd*                   @DataDog/agent-metric-pipelines
+/cmd/agent/subcommands/jmx                          @DataDog/agent-metric-pipelines
 /cmd/agent/subcommands/integrations                 @DataDog/agent-integrations @DataDog/agent-runtimes
 /cmd/agent/subcommands/hostname                     @DataDog/agent-runtimes
 /cmd/agent/subcommands/version                      @DataDog/agent-runtimes

@@ -24,7 +24,9 @@ test/fakeintake/
 
 | Route | Aggregator | Client method |
 |-------|-----------|---------------|
+| `/api/v1/series` | MetricAggregator (V1 parser) | `FilterMetrics()` |
 | `/api/v2/series` | MetricAggregator | `FilterMetrics()` |
+| `/api/intake/metrics/v3/series` | MetricAggregator (V3 parser) | `FilterMetrics()` |
 | `/api/beta/sketches` | SketchAggregator | `FilterSketches()` |
 | `/api/v1/check_run` | CheckRunAggregator | `FilterCheckRuns()` |
 | `/api/v2/logs` | LogAggregator | `FilterLogs()` |

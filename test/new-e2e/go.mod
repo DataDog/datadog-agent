@@ -127,7 +127,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.327.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.328.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.63.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.96.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
@@ -313,7 +313,7 @@ require (
 	github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.1 // indirect
-	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.4 // indirect
+	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.0 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect

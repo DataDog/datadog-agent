@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "winutil",
     srcs = [
+        "devicedrivers.go",
         "doc.go",
         "elevated.go",
         "eventlog.go",
@@ -11,6 +12,7 @@ go_library(
         "msi.go",
         "pe_timestamp_windows.go",
         "process.go",
+        "scmdrivers.go",
         "scmmonitor.go",
         "service.go",
         "setupapi.go",
@@ -43,7 +45,9 @@ go_library(
 dd_agent_go_test(
     name = "winutil_test",
     srcs = [
+        "devicedrivers_test.go",
         "process_test.go",
+        "scmdrivers_test.go",
         "scmmonitor_test.go",
         "service_test.go",
         "time_test.go",

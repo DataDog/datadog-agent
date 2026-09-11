@@ -7,6 +7,8 @@
 
 #include "constants/macros.h"
 
+#include "span_ctx_event.h"
+
 // --- OTel thread local context record helpers (separate file) ---
 #include "span_otel.h"
 
@@ -32,12 +34,15 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
         return;
     }
 
-    if (fill_span_context_otel(span)) {
+    u32 status = fill_span_context_otel(span);
+    monitor_span_ctx_event(SPAN_CTX_EVENT_READER_OTEL, status);
+    if (status == SPAN_CTX_EVENT_OK) {
         return;
     }
 
     if (go_labels) {
-        go_labels->id = collect_go_labels();
+        status = collect_go_labels(&go_labels->id);
+        monitor_span_ctx_event(SPAN_CTX_EVENT_READER_GO_LABELS, status);
     }
 }
 

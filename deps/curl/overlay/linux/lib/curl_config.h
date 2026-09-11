@@ -72,6 +72,9 @@
 /* to disable HTTP */
 /* #undef CURL_DISABLE_HTTP */
 
+/* to disable HTTP Message Signatures support */
+#define CURL_DISABLE_HTTPSIG 1
+
 /* disable HTTP authentication */
 /* #undef CURL_DISABLE_HTTP_AUTH */
 
@@ -316,9 +319,6 @@
 /* Define to 1 if you have a working gmtime_r function. */
 #define HAVE_GMTIME_R 1
 
-/* if you have the function gnutls_srp_verifier */
-/* #undef HAVE_GNUTLS_SRP */
-
 /* Define to 1 if you have the <gsasl.h> header file. */
 /* #undef HAVE_GSASL_H */
 
@@ -345,12 +345,6 @@
 
 /* Define to 1 if you have the `if_nametoindex' function. */
 #define HAVE_IF_NAMETOINDEX 1
-
-/* Define to 1 if you have an IPv6 capable working inet_ntop function. */
-#define HAVE_INET_NTOP 1
-
-/* Define to 1 if you have an IPv6 capable working inet_pton function. */
-#define HAVE_INET_PTON 1
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
@@ -464,6 +458,9 @@
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #define HAVE_NETINET_IN_H 1
 
+/* Define to 1 if you have the <netinet/ip.h> header file. */
+#define HAVE_NETINET_IP_H 1
+
 /* Define to 1 if you have the <netinet/tcp.h> header file. */
 #define HAVE_NETINET_TCP_H 1
 
@@ -499,10 +496,6 @@
 
 /* Define to 1 if you have the <openssl/rsa.h> header file. */
 #define HAVE_OPENSSL_RSA_H 1
-
-/* if you have the functions SSL_CTX_set_srp_username and
-   SSL_CTX_set_srp_password */
-#define HAVE_OPENSSL_SRP 1
 
 /* Define to 1 if you have the <openssl/ssl.h> header file. */
 #define HAVE_OPENSSL_SSL_H 1
@@ -548,9 +541,6 @@
 
 /* Define to 1 if you have the `sched_yield' function. */
 #define HAVE_SCHED_YIELD 1
-
-/* Define to 1 if you have the select function. */
-#define HAVE_SELECT 1
 
 /* Define to 1 if you have the send function. */
 #define HAVE_SEND 1
@@ -913,9 +903,6 @@
 
 /* if you want Win32 threaded DNS lookup */
 /* #undef USE_THREADS_WIN32 */
-
-/* Use TLS-SRP authentication */
-#define USE_TLS_SRP 1
 
 /* Use Unix domain sockets */
 #define USE_UNIX_SOCKETS 1
