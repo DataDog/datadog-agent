@@ -208,24 +208,24 @@ func TestAPMHandlerHandle(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		store       *DDITargetStore
+		store       *APMTargetStore
 		event       instrumentation.EventType
 		cr          *datadoghq.DatadogInstrumentation
 		setup       func(t *testing.T, h *APMHandler)
 		wantStatus  metav1.ConditionStatus
 		wantReason  string
 		wantMessage string
-		assertStore func(t *testing.T, store *DDITargetStore)
+		assertStore func(t *testing.T, store *APMTargetStore)
 	}{
 		{
 			name:        "create upserts deployment policy without rollout",
-			store:       NewDDITargetStore(),
+			store:       NewAPMTargetStore(),
 			event:       instrumentation.EventCreate,
 			cr:          validCR,
 			wantStatus:  metav1.ConditionTrue,
 			wantReason:  reasonAPMConfigured,
 			wantMessage: "restart the workload to apply them",
-			assertStore: func(t *testing.T, store *DDITargetStore) {
+			assertStore: func(t *testing.T, store *APMTargetStore) {
 				entry, ok := store.GetTarget(workload)
 				require.True(t, ok)
 				require.True(t, entry.Enabled)
@@ -236,7 +236,7 @@ func TestAPMHandlerHandle(t *testing.T) {
 		},
 		{
 			name:  "delete removes store entry",
-			store: NewDDITargetStore(),
+			store: NewAPMTargetStore(),
 			event: instrumentation.EventDelete,
 			cr:    validCR,
 			setup: func(t *testing.T, h *APMHandler) {
@@ -245,14 +245,14 @@ func TestAPMHandlerHandle(t *testing.T) {
 			},
 			wantStatus: metav1.ConditionTrue,
 			wantReason: reasonAPMDeleted,
-			assertStore: func(t *testing.T, store *DDITargetStore) {
+			assertStore: func(t *testing.T, store *APMTargetStore) {
 				_, ok := store.GetTarget(workload)
 				require.False(t, ok)
 			},
 		},
 		{
 			name:       "nil cr reports missing resource",
-			store:      NewDDITargetStore(),
+			store:      NewAPMTargetStore(),
 			event:      instrumentation.EventCreate,
 			cr:         nil,
 			wantStatus: metav1.ConditionUnknown,
@@ -262,7 +262,7 @@ func TestAPMHandlerHandle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewAPMHandler(&Deps{DDITargetStore: tt.store})
+			h := NewAPMHandler(&Deps{APMTargetStore: tt.store})
 			if tt.setup != nil {
 				tt.setup(t, h)
 			}

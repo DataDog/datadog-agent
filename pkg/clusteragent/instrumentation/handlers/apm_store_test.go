@@ -26,30 +26,30 @@ func newDDITarget(crName, crNamespace string) ssi.DDITarget {
 	}
 }
 
-func TestDDITargetStoreGetTarget(t *testing.T) {
+func TestAPMTargetStoreGetTarget(t *testing.T) {
 	target := ssi.WorkloadTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
 	config := newDDITarget("ddi-web", "default")
-	var nilStore *DDITargetStore
+	var nilStore *APMTargetStore
 
 	tests := []struct {
 		name       string
-		store      *DDITargetStore
-		setup      func(*DDITargetStore)
+		store      *APMTargetStore
+		setup      func(*APMTargetStore)
 		target     ssi.WorkloadTarget
 		wantConfig ssi.DDITarget
 		wantOK     bool
 	}{
 		{
 			name:       "missing entry",
-			store:      NewDDITargetStore(),
+			store:      NewAPMTargetStore(),
 			target:     target,
 			wantConfig: ssi.DDITarget{},
 			wantOK:     false,
 		},
 		{
 			name:  "existing entry",
-			store: NewDDITargetStore(),
-			setup: func(s *DDITargetStore) {
+			store: NewAPMTargetStore(),
+			setup: func(s *APMTargetStore) {
 				s.UpsertTarget(target, config)
 			},
 			target:     target,
@@ -79,7 +79,7 @@ func TestDDITargetStoreGetTarget(t *testing.T) {
 	}
 }
 
-func TestDDITargetStoreUpsertTarget(t *testing.T) {
+func TestAPMTargetStoreUpsertTarget(t *testing.T) {
 	target := ssi.WorkloadTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
 	config := newDDITarget("ddi-web", "default")
 	replacement := config
@@ -104,7 +104,7 @@ func TestDDITargetStoreUpsertTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewDDITargetStore()
+			s := NewAPMTargetStore()
 			for _, config := range tt.configs {
 				s.UpsertTarget(target, config)
 			}
@@ -116,7 +116,7 @@ func TestDDITargetStoreUpsertTarget(t *testing.T) {
 	}
 }
 
-func TestDDITargetStoreDeleteByCR(t *testing.T) {
+func TestAPMTargetStoreDeleteByCR(t *testing.T) {
 	target := ssi.WorkloadTarget{Kind: "Deployment", Namespace: "default", Name: "web"}
 	config := newDDITarget("ddi-web", "default")
 
@@ -142,7 +142,7 @@ func TestDDITargetStoreDeleteByCR(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewDDITargetStore()
+			s := NewAPMTargetStore()
 			s.UpsertTarget(target, config)
 			s.DeleteByCR(tt.deleteCR)
 
@@ -153,8 +153,8 @@ func TestDDITargetStoreDeleteByCR(t *testing.T) {
 	}
 }
 
-func TestDDITargetStoreConcurrentAccess(_ *testing.T) {
-	s := NewDDITargetStore()
+func TestAPMTargetStoreConcurrentAccess(_ *testing.T) {
+	s := NewAPMTargetStore()
 	const workers = 16
 	const iterations = 200
 
