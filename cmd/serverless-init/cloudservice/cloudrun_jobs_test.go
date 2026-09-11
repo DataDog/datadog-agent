@@ -90,6 +90,33 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 	}, tags)
 }
 
+func TestCloudRunJobsGetInventoryData(t *testing.T) {
+	skipOnWindows(t)
+	service := &CloudRunJobs{}
+
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{
+			"container_id": "test_container",
+			"location":     "test_region",
+			"project_id":   "test_project",
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "test_job")
+	t.Setenv("CLOUD_RUN_EXECUTION", "test_execution")
+
+	inv := service.GetInventoryData()
+
+	assert.Equal(t, InventoryData{
+		WorkloadType: workloadTypeCloudRunJob,
+		ResourceID:   "projects/test_project/locations/test_region/jobs/test_job",
+		ResourceName: "test_job",
+		Region:       "test_region",
+		GCPProjectID: "test_project",
+		DeploymentID: "test_execution",
+	}, inv)
+}
+
 func TestCloudRunJobsGetEnhancedMetricTags(t *testing.T) {
 	skipOnWindows(t)
 	service := &CloudRunJobs{}

@@ -50,12 +50,13 @@ type LifecycleContext struct {
 	SampleDrainer       lifecycle.SampleDrainer
 	FlushTimeout        time.Duration
 	SidecarMode         bool
-	LogsTagSetter       lifecycle.LogsTagSetter   // nil-safe; applied via server.SetLogsTagSetter after /run
-	BaseTags            []string                  // startup log tag snapshot passed alongside LogsTagSetter
-	TraceTagSetter      lifecycle.TraceTagSetter  // nil-safe; applied via server.SetTraceTagSetter after /run
-	BaseTraceTags       map[string]string         // startup trace tag snapshot passed alongside TraceTagSetter
-	MetricTagSetter     lifecycle.MetricTagSetter // nil-safe; applied via server.SetMetricTagSetter after /run
-	BaseUsageMetricTags []string                  // startup enhanced usage metric tag snapshot passed alongside MetricTagSetter
+	LogsTagSetter       lifecycle.LogsTagSetter      // nil-safe; applied via server.SetLogsTagSetter after /run
+	BaseTags            []string                     // startup log tag snapshot passed alongside LogsTagSetter
+	TraceTagSetter      lifecycle.TraceTagSetter     // nil-safe; applied via server.SetTraceTagSetter after /run
+	BaseTraceTags       map[string]string            // startup trace tag snapshot passed alongside TraceTagSetter
+	MetricTagSetter     lifecycle.MetricTagSetter    // nil-safe; applied via server.SetMetricTagSetter after /run
+	BaseUsageMetricTags []string                     // startup enhanced usage metric tag snapshot passed alongside MetricTagSetter
+	InventorySubmitter  lifecycle.InventorySubmitter // nil-safe; applied via server.SetInventorySubmitter; invoked with the per-instance id at /run and /resume
 }
 
 // MicroVM implements CloudService for AWS Lambda MicroVMs.
@@ -183,6 +184,9 @@ func (m *MicroVM) Init(ctx *TracingContext) error {
 	}
 	if lc.MetricTagSetter != nil {
 		m.server.SetMetricTagSetter(lc.MetricTagSetter, lc.BaseUsageMetricTags)
+	}
+	if lc.InventorySubmitter != nil {
+		m.server.SetInventorySubmitter(lc.InventorySubmitter)
 	}
 	if err := m.server.ListenAndServe(func(err error) {
 		log.Fatalf("MicroVM lifecycle server error: %v", err)
