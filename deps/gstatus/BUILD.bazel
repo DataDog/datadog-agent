@@ -15,7 +15,10 @@ load("//deps/agent_integrations:defs.bzl", "pyproject_wheel")
 
 package(
     default_package_metadata = [":license"],
-    default_visibility = ["//packages:__subpackages__", "//deps/agent_integrations:__pkg__"],
+    default_visibility = [
+        "//deps/agent_integrations:__pkg__",
+        "//packages:__subpackages__",
+    ],
 )
 
 license(
@@ -30,7 +33,10 @@ license(
 # install step (it is listed as a dependency of the agent integrations).
 pyproject_wheel(
     name = "gstatus_wheel",
-    srcs = glob(["glustercli_src/glustercli/**/*.py", "glustercli_src/glusterlib/**/*.py"]),
+    srcs = glob([
+        "glustercli_src/glustercli/**/*.py",
+        "glustercli_src/glusterlib/**/*.py",
+    ]),
     pyproject = "glustercli_src/pyproject.toml",
 )
 
