@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	goos "os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -29,10 +31,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/host/byohost"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
+	fakeintakeversion "github.com/DataDog/datadog-agent/test/fakeintake/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
@@ -94,7 +99,93 @@ type macosInstallSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
+// macosLocalFakeIntakeContainer names the fakeintake Docker container started on a LOCAL_VM
+// host, so a leftover from a previous run can be removed before starting a fresh one.
+const macosLocalFakeIntakeContainer = "e2e-fakeintake"
+
+// macosSSHArgs returns the `ssh`/`scp` flags needed to reach a LOCAL_VM host non-interactively:
+// an explicit identity file (falling back to the framework's own E2E_LOCAL_PRIVATE_KEY_PATH/
+// E2E_AWS_PRIVATE_KEY_PATH env vars, same as getSSHClient's LOCAL_VM key resolution) and
+// IdentitiesOnly, so `ssh` doesn't first offer whatever unrelated keys the local ssh-agent
+// happens to hold and get disconnected for exceeding the host's MaxAuthTries.
+func macosSSHArgs() []string {
+	keyPath := goos.Getenv("E2E_LOCAL_PRIVATE_KEY_PATH")
+	if keyPath == "" {
+		keyPath = goos.Getenv("E2E_AWS_PRIVATE_KEY_PATH")
+	}
+	if keyPath == "" {
+		return nil
+	}
+	return []string{"-i", keyPath, "-o", "IdentitiesOnly=yes"}
+}
+
+// macosStartLocalFakeIntake starts a fakeintake container on the LOCAL_VM host at addr over
+// SSH (Docker must already be installed and running there -- e.g. via colima) and returns the
+// host port it published. Docker/colima are only on PATH through the login shell's profile, so
+// every command evaluates `brew shellenv` first. Registers a t.Cleanup to remove the container.
+func macosStartLocalFakeIntake(t *testing.T, user, addr string) uint32 {
+	sshTarget := user + "@" + addr
+	sshArgs := macosSSHArgs()
+	const brewEnv = `eval "$(/opt/homebrew/bin/brew shellenv)"; `
+	sshCmd := func(remoteCmd string) *exec.Cmd {
+		args := append(append([]string{}, sshArgs...), sshTarget, remoteCmd)
+		return exec.Command("ssh", args...)
+	}
+
+	// Best-effort: a container from a previous, aborted run may still be around.
+	_ = sshCmd(brewEnv + "docker rm -f " + macosLocalFakeIntakeContainer).Run()
+
+	runCmd := sshCmd(brewEnv + "docker run -d --name " + macosLocalFakeIntakeContainer + " -p 0:80 public.ecr.aws/datadog/fakeintake:" + fakeintakeversion.Tag)
+	out, err := runCmd.CombinedOutput()
+	require.NoError(t, err, "starting fakeintake container on %s: %s", addr, out)
+
+	t.Cleanup(func() {
+		_ = sshCmd(brewEnv + "docker rm -f " + macosLocalFakeIntakeContainer).Run()
+	})
+
+	portCmd := sshCmd(brewEnv + "docker port " + macosLocalFakeIntakeContainer + " 80/tcp")
+	portOut, err := portCmd.Output()
+	require.NoError(t, err, "resolving fakeintake port on %s", addr)
+
+	portStr := strings.TrimSpace(string(portOut))
+	idx := strings.LastIndex(portStr, ":")
+	require.NotEqual(t, -1, idx, "unexpected `docker port` output: %q", portStr)
+	port, err := strconv.ParseUint(portStr[idx+1:], 10, 32)
+	require.NoError(t, err, "parsing fakeintake port from %q", portStr)
+
+	return uint32(port)
+}
+
 func TestMacosInstallScript(t *testing.T) {
+	// LOCAL_VM targets a pre-existing macOS host (a local machine or another box reachable
+	// over SSH) instead of provisioning one from the AWS Dedicated Host pool. No Pulumi and
+	// no cloud provider are involved on this path -- see priv_notes/macos-e2e-byo-host-plan.md.
+	if localVM := goos.Getenv("LOCAL_VM"); localVM != "" {
+		arch := goos.Getenv("LOCAL_ARCH")
+		if arch == "" {
+			arch = "arm64"
+		}
+
+		user := goos.Getenv("LOCAL_USER")
+		if user == "" {
+			user = goos.Getenv("USER")
+		}
+
+		descriptorPath := filepath.Join(t.TempDir(), "macos-byo-host.json")
+		// MacosOS is the only macOS Flavor value; the actual OS version is carried by the
+		// descriptor's Version string, and "sonoma" is the only one with an AMI/descriptor
+		// entry today (components/os/macos_descriptors.go, resources/aws/platforms.json).
+		descriptor := os.NewDescriptorWithArch(os.MacosOS, "sonoma", os.ArchitectureFromString(arch))
+
+		fakeIntakePort := macosStartLocalFakeIntake(t, user, localVM)
+		require.NoError(t, byohost.WriteHostDescriptorWithFakeIntake(descriptorPath, localVM, 22, user, descriptor, localVM, fakeIntakePort))
+
+		e2e.Run(t, &macosInstallSuite{}, e2e.WithProvisioner(
+			provisioners.NewStaticStackProvisioner[environments.Host]("", descriptorPath),
+		))
+		return
+	}
+
 	extraConfigMap := runner.ConfigMap{}
 	// Pulumi needs to pick a smaller subnet subset on macOS; only settable via the configmap.
 	extraConfigMap.Set("ddinfra:aws/useMacosCompatibleSubnets", "true", false)
