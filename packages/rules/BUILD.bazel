@@ -1,3 +1,29 @@
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load(":package_naming_test.bzl", "package_naming_test_suite")
 
+package(default_visibility = ["//visibility:public"])
+
 package_naming_test_suite(name = "_package_naming_tests")
+
+# RHEL and SUSE rpms need different content (init files, dependency names) but
+# must share the same package_name ("datadog-iot-agent"). Two pkg_rpm targets
+# with the same package_name in one package would collide on the internal
+# files pkg_rpm generates, so this is a flag+select() instead of two targets.
+string_flag(
+    name = "rpm_distro",
+    build_setting_default = "rhel",
+    values = [
+        "rhel",
+        "suse",
+    ],
+)
+
+config_setting(
+    name = "rhel",
+    flag_values = {"@@//packages/rules:rpm_distro": "rhel"},
+)
+
+config_setting(
+    name = "suse",
+    flag_values = {"@@//packages/rules:rpm_distro": "suse"},
+)
