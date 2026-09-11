@@ -213,6 +213,7 @@ var procmgrConfigs = []procmgrConfig{
 	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
 	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
 	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
+	{"DDOT", processmanager.WriteDDOTProcmgrConfig, processmanager.RemoveDDOTProcmgrConfig},
 }
 
 func ensureProcmgrConfig(cfg procmgrConfig, processManagerEnabled bool) error {
@@ -1068,21 +1069,16 @@ func RestartDatadogAgent(ctx context.Context) error {
 	return windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
 }
 
+// SetProcessManager enables or disables dd-procmgrd as the supervisor for the processes that
+// support it, moving them off (or back onto) their standalone Windows services.
 func SetProcessManager(_ context.Context, enabled bool) error {
 	if env.FromEnv().ProcessManagerEnabled == enabled {
 		return nil
 	}
-	if err := ensureADPProcmgrConfig(enabled); err != nil {
-		return fmt.Errorf("failed to configure ADP process manager config: %w", err)
-	}
-	if err := ensurePARExecutorProcmgrConfig(enabled); err != nil {
-		return fmt.Errorf("failed to configure PAR executor process manager config: %w", err)
-	}
-	if err := ensurePARProcmgrConfig(enabled); err != nil {
-		return fmt.Errorf("failed to configure PAR process manager config: %w", err)
-	}
-	if err := ensureDDOTProcmgrConfig(enabled); err != nil {
-		return fmt.Errorf("failed to configure DDOT process manager config: %w", err)
+	for _, cfg := range procmgrConfigs {
+		if err := ensureProcmgrConfig(cfg, enabled); err != nil {
+			return fmt.Errorf("failed to configure %s process manager config: %w", cfg.label, err)
+		}
 	}
 	services := []string{otelServiceName, parServiceName}
 	if enabled {
