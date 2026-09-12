@@ -493,18 +493,18 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.31.0
 	istio.io/client-go v1.31.0
-	k8s.io/api v0.35.5
-	k8s.io/apiextensions-apiserver v0.35.5
-	k8s.io/apimachinery v0.35.6
+	k8s.io/api v0.36.3
+	k8s.io/apiextensions-apiserver v0.36.0
+	k8s.io/apimachinery v0.36.3
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.6.0
 	k8s.io/cli-runtime v0.35.5
-	k8s.io/client-go v0.35.5
-	k8s.io/component-base v0.35.5
+	k8s.io/client-go v0.36.3
+	k8s.io/component-base v0.36.3
 	k8s.io/cri-api v0.35.5
 	k8s.io/cri-client v0.35.5
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-aggregator v0.35.5
-	k8s.io/kube-state-metrics/v2 v2.18.0
+	k8s.io/kube-state-metrics/v2 v2.20.0
 	k8s.io/kubectl v0.35.5
 	k8s.io/kubelet v0.35.5
 	k8s.io/metrics v0.35.5
@@ -664,6 +664,7 @@ require (
 	github.com/digitalocean/godo v1.196.0 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
+	github.com/dlclark/regexp2/v2 v2.6.0 // indirect
 	github.com/docker/cli v29.8.0+incompatible // indirect
 	github.com/docker/docker v29.3.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
@@ -897,6 +898,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
+	github.com/netresearch/go-cron v0.15.1 // indirect
 	github.com/nexus-rpc/nexus-proto-annotations v0.1.0 // indirect
 	github.com/nexus-rpc/sdk-go v0.7.0 // indirect
 	github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 // indirect
@@ -1159,18 +1161,19 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	honnef.co/go/tools v0.8.1 // indirect
-	k8s.io/apiserver v0.35.5 // indirect
+	k8s.io/apiserver v0.36.0 // indirect
 	k8s.io/cloud-provider v0.35.3 // indirect
-	k8s.io/component-helpers v0.35.5 // indirect
+	k8s.io/component-helpers v0.36.3 // indirect
 	k8s.io/csi-translation-lib v0.35.3 // indirect
-	k8s.io/kms v0.35.5 // indirect
+	k8s.io/kms v0.36.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
-	k8s.io/sample-controller v0.35.3 // indirect
+	k8s.io/sample-controller v0.36.3 // indirect
+	k8s.io/streaming v0.36.3 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.53.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
-	sigs.k8s.io/controller-runtime v0.23.3 // indirect
+	sigs.k8s.io/controller-runtime v0.24.1 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
