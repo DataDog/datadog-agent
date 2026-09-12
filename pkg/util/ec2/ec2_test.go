@@ -698,10 +698,13 @@ func TestGetInstanceTypeSkipsIMDSOnECSFargate(t *testing.T) {
 func TestGetInstanceTypeFromIMDS(t *testing.T) {
 	ctx := context.Background()
 	expected := "m5.large"
-	var lastRequest *http.Request
+	requestPaths := make(chan string, 1)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lastRequest = r
+		select {
+		case requestPaths <- r.URL.Path:
+		default:
+		}
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, expected)
@@ -716,6 +719,11 @@ func TestGetInstanceTypeFromIMDS(t *testing.T) {
 	instanceType, err := GetInstanceType(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, expected, instanceType)
-	require.NotNil(t, lastRequest)
-	assert.Equal(t, "/instance-type", lastRequest.URL.Path)
+
+	select {
+	case path := <-requestPaths:
+		assert.Equal(t, "/instance-type", path)
+	default:
+		t.Fatal("GetInstanceType did not query EC2 IMDS")
+	}
 }
