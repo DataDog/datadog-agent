@@ -17,37 +17,14 @@ relative_path 'src/github.com/DataDog/datadog-agent'
 build do
   license :project_license
 
-  # set GOPATH on the omnibus source dir for this software
-  gopath = Pathname.new(project_dir) + '../../../..'
-  env = {
-    'GOPATH' => gopath.to_path,
-    'PATH' => ["#{gopath.to_path}/bin", ENV['PATH']].join(File::PATH_SEPARATOR),
-  }
-
-  unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
-    gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
-    env["GOMODCACHE"] = gomodcache.to_path
-  end
-
-  # we assume the go deps are already installed before running omnibus
-  command "invoke dogstatsd.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-
-  # move around bin and config files
-  if windows_target?
-    mkdir "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
-    copy 'bin/dogstatsd/dogstatsd.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
-  else
-    copy 'bin/dogstatsd/dogstatsd', "#{install_dir}/bin"
-  end
-
   if linux_target?
     if debian_target?
       install_target = "//packages/dogstatsd/linux:install_debian"
     else
       install_target = "//packages/dogstatsd/linux:install_redhat"
     end
-    # Bazel places the yaml example, init scripts, service file, and creates
-    # /etc/datadog-dogstatsd/ and /var/log/datadog/.
+    # Bazel places the binary, yaml example, init scripts, service file, and
+    # creates /etc/datadog-dogstatsd/ and /var/log/datadog/.
     command "bazel run #{omnibazel_flags} -- #{install_target} --destdir=/",
       :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/run"
@@ -55,15 +32,25 @@ build do
     project.extra_package_file '/etc/init/datadog-dogstatsd.conf'
     project.extra_package_file '/lib/systemd/system/datadog-dogstatsd.service'
   elsif windows_target?
-    mkdir "#{install_dir}/etc/datadog-dogstatsd"
-    move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example"
-    conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-dogstatsd"
-    conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
-    mkdir conf_dir
-    move "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example", conf_dir_root, :force => true
+    # dogstatsd.exe is not installed under install_dir on Windows: it is
+    # staged into the agent's WiX harvest directory (see
+    # omnibus/config/projects/{dogstatsd,agent-binaries}.rb, 'BinFiles'). The
+    # example config's final home (source_dir/etc/datadog-dogstatsd) matches
+    # the Bazel target's own layout, so install straight into source_dir and
+    # only the binary needs an explicit copy into the WiX-specific path.
+    source_dir = Omnibus::Config.source_dir()
+    command "bazel run #{omnibazel_flags} -- //packages/dogstatsd/windows:install --destdir=#{source_dir}",
+      :live_stream => Omnibus.logger.live_stream(:info)
+
+    mkdir "#{source_dir}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+    copy "#{source_dir}/bin/dogstatsd.exe", "#{source_dir}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+
+    conf_dir_root = "#{source_dir}/etc/datadog-dogstatsd"
+    mkdir "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
   else
-    # macOS: stage yaml in install_dir/etc/ where the .pkg will find it.
-    mkdir "#{install_dir}/etc/datadog-dogstatsd"
-    move 'bin/dogstatsd/dist/dogstatsd.yaml', "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example"
+    # macOS: install directly to install_dir (== /opt/datadog-dogstatsd),
+    # where the .pkg will find both the binary and the yaml example.
+    command "bazel run #{omnibazel_flags} -- //packages/dogstatsd/macos:install --destdir=/",
+      :live_stream => Omnibus.logger.live_stream(:info)
   end
 end
