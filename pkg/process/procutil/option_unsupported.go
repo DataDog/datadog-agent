@@ -25,8 +25,3 @@ func WithPermission(_ bool) Option {
 func WithBootTimeRefreshInterval(_ time.Duration) Option {
 	return func(_ Probe) {}
 }
-
-// WithIgnoreZombieProcesses configures the boot to ignore zombie processes
-func WithIgnoreZombieProcesses(_ bool) Option {
-	return func(_ Probe) {}
-}

@@ -69,6 +69,21 @@ func (p *Process) GetCmdline() []string {
 	return p.Cmdline
 }
 
+// GetStatus returns the process status from /proc/<pid>/stat (e.g. "R", "S",
+// "Z"), or the empty string when Stats has not been populated. Safe to call on
+// a nil receiver.
+func (p *Process) GetStatus() string {
+	if p == nil || p.Stats == nil {
+		return ""
+	}
+	return p.Stats.Status
+}
+
+// IsZombie reports whether the process is in the zombie state.
+func (p *Process) IsZombie() bool {
+	return p.GetStatus() == "Z"
+}
+
 // ProcessIdentity generates a unique identity string for a process based on PID, creation time,
 // and command line hash. This allows detection of exec scenarios where the PID and creation time
 // remain the same but the command line changes.
