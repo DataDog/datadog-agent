@@ -16,8 +16,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.33.2
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.328.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.63.0
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.94.0
-	github.com/aws/aws-sdk-go-v2/service/eks v1.96.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.95.0
+	github.com/aws/aws-sdk-go-v2/service/eks v1.97.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.110.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.76.0
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
@@ -25,8 +25,8 @@ require (
 	github.com/docker/cli v29.7.2+incompatible
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
-	github.com/moby/moby/api v1.55.0
-	github.com/moby/moby/client v0.5.1
+	github.com/moby/moby/api v1.56.0
+	github.com/moby/moby/client v0.6.0
 	github.com/pkg/sftp v1.13.11
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.44.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
@@ -39,7 +39,7 @@ require (
 	github.com/pulumi/pulumi-command/sdk v1.2.1
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0
-	github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.0
+	github.com/pulumi/pulumi-gcp/sdk/v9 v9.36.1
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.0
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.1
