@@ -301,7 +301,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			hostname = src.Identifier
+			hostname = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			hostname = ""
@@ -309,7 +309,11 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	} else {
 		// fallback hostname
 		hostname = o.conf.Hostname
-		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
+		src = source.Source{
+			Kind:             source.HostnameKind,
+			Identifier:       hostname,
+			SourceIdentifier: source.SourceIdentifier{Primary: hostname},
+		}
 	}
 
 	// Create a single accessor for all resource-level semantic lookups below, avoiding
@@ -417,7 +421,11 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			src = source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       v,
+				SourceIdentifier: source.SourceIdentifier{Primary: v},
+			}
 			srcok = true
 		}
 	}
@@ -503,7 +511,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			hostname = src.Identifier
+			hostname = src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			hostname = ""
@@ -511,7 +519,11 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 	} else {
 		// fallback hostname
 		hostname = o.conf.Hostname
-		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
+		src = source.Source{
+			Kind:             source.HostnameKind,
+			Identifier:       hostname,
+			SourceIdentifier: source.SourceIdentifier{Primary: hostname},
+		}
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:        hostname,
