@@ -1272,7 +1272,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					return boolEvaluator, obj.Pos, nil
 				}
 
-				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ArrayComparison.Op)
+				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 
 			case *StringArrayEvaluator:
 				nextString, ok := next.(*StringEvaluator)
